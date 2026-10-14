@@ -57,17 +57,18 @@ const README_LINK_DRIFT_MUTATIONS = [
     "(../installation.md#supported-agents)",
     "(../installation.md#missing-agents)",
   ],
+  ["(../native-investigation.md)", "(../missing-investigation.md)"],
   [
-    "https://rea.tools/zh-CN/guides/native/",
+    "https://rea.tools/zh-CN/showcase/dx-ball/",
     "https://rea.tools/zh-CN/missing/",
   ],
   [
-    "https://rea.tools/zh-CN/guides/native/",
-    "https://rea.tools/zh-TW/guides/native/",
+    "https://rea.tools/zh-CN/showcase/dx-ball/",
+    "https://rea.tools/zh-TW/showcase/dx-ball/",
   ],
   [
-    "https://rea.tools/zh-CN/guides/native/",
-    "https://rea.tools/zh-CN/guides/native/?other=1",
+    "https://rea.tools/zh-CN/showcase/dx-ball/",
+    "https://rea.tools/zh-CN/showcase/dx-ball/?other=1",
   ],
   [
     'src="../assets/rea-hopper-analysis.png"',

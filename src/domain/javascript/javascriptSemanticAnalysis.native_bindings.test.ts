@@ -206,3 +206,43 @@ describe("JavaScript semantic analysis: child-process signals", () => {
     ]);
   });
 });
+
+describe("JavaScript semantic analysis: configuration value escapes", () => {
+  const configurationReads = (body: string) =>
+    analyzeJavaScriptSemantics(`function run() { ${body} }`)
+      .configurationOperations.filter(({ kind }) => kind !== "default")
+      .map(({ kind, key }) => [kind, key]);
+
+  it.each([
+    [
+      "an environment value",
+      "return Number(process.env.PORT);",
+      "environment",
+      "PORT",
+    ],
+    ["an argv entry", "return Number(process.argv[2]);", "argv", "2"],
+  ])("keeps a read after passing %s to a call", (_name, body, kind, key) => {
+    expect(configurationReads(body)).toEqual([[kind, key]]);
+  });
+
+  it.each([
+    [
+      "a direct argv entry",
+      "process.argv[2] = {}; return Number(process.argv[2]);",
+    ],
+    [
+      "an aliased argv entry",
+      "const argv = process.argv; argv[2] = {}; return Number(process.argv[2]);",
+    ],
+    [
+      "the argv container",
+      "mutate(process.argv); return Number(process.argv[2]);",
+    ],
+    [
+      "the env container",
+      "mutate(process.env); return Number(process.env.PORT);",
+    ],
+  ])("leaves a read unknown after replacing %s", (_name, body) => {
+    expect(configurationReads(body)).toEqual([]);
+  });
+});

@@ -69,6 +69,16 @@ export function* collectSemanticMemberMutationsSteps(
     node: t.Node | undefined,
   ): void => {
     const identity = semanticRequireExportsIdentity(specifier, path);
+    // Node stores process.env values and process.argv entries as strings, so
+    // passing one to a call exposes no object that the callee could mutate.
+    // Replacing an entry records its own write or receiver escape.
+    if (
+      effect === "escape" &&
+      identity.specifier === "process" &&
+      identity.path.length === 2 &&
+      (identity.path[0] === "env" || identity.path[0] === "argv")
+    )
+      return;
     const key = JSON.stringify([
       "required",
       identity.specifier,

@@ -130,14 +130,13 @@ describe("CDP DOM string and namespace validity", () => {
     { field: "nodeName", index: -1 },
     { field: "nodeName", index: 20 },
     { field: "nodeName", index: 2, malformedString: true },
-    { field: "nodeValue", index: -1 },
     { field: "nodeValue", index: 20 },
     { field: "nodeValue", index: 5, malformedString: true },
     { field: "attributeName", index: -1 },
     { field: "attributeName", index: 20 },
-    { field: "attributeValue", index: -1 },
     { field: "attributeValue", index: 20 },
   ] as const)(
+    // -1 is DOMSnapshot's empty string for values, never for names.
     "omits a node when its $field string index is invalid ($index)",
     ({
       field,
@@ -351,5 +350,64 @@ describe("CDP accessibility capture", () => {
       retained_bytes: 0,
       excluded_fields: 2,
     });
+  });
+});
+
+describe("CDP DOM snapshot empty strings", () => {
+  it("reads Chrome's -1 string index as an empty node or attribute value", () => {
+    const completeness = new CdpCaptureCompleteness();
+    const generator = captureDom(
+      {
+        strings: [
+          origin + "/app",
+          "#document",
+          "A",
+          "href",
+          "hidden",
+          "#text",
+          "go",
+        ],
+        documents: [
+          {
+            documentURL: 0,
+            baseURL: -1,
+            nodes: {
+              nodeType: [9, 1, 3],
+              nodeName: [1, 2, 5],
+              nodeValue: [-1, -1, 6],
+              parentIndex: [-1, 0, 1],
+              attributes: [[], [3, -1, 4, -1], []],
+            },
+          },
+        ],
+      },
+      new Set([origin]),
+      inspectWebPageInputSchema.parse({
+        cdp_endpoint: "http://127.0.0.1:9222",
+        allowed_origins: [origin],
+        target_id: "page-1",
+      }),
+      completeness,
+    );
+    let captured = generator.next([]);
+    while (!captured.done) captured = generator.next([]);
+    expect(
+      captured.value.nodes.map(
+        ({ node_name, node_value_length, attribute_names }) => ({
+          node_name,
+          node_value_length,
+          attribute_names,
+        }),
+      ),
+    ).toEqual([
+      { node_name: "#document", node_value_length: 0, attribute_names: [] },
+      {
+        node_name: "A",
+        node_value_length: 0,
+        attribute_names: ["href", "hidden"],
+      },
+      { node_name: "#text", node_value_length: 2, attribute_names: [] },
+    ]);
+    expect(completeness.snapshot().excluded).toEqual([]);
   });
 });

@@ -13,12 +13,18 @@ import { describe, expect, it } from "vitest";
 import { execFileOutput } from "../../../src/process/ExecFileOutput.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-const run = (root: string, command: string, arguments_: readonly string[]) =>
+const run = (
+  root: string,
+  command: string,
+  arguments_: readonly string[],
+  env?: NodeJS.ProcessEnv,
+) =>
   execFileOutput(command, arguments_, {
     cwd: root,
     stopSignal: "SIGTERM",
     timeout: 30_000,
     maxBuffer: 1024 * 1024,
+    ...(env === undefined ? {} : { env }),
   });
 
 const git = (root: string, ...arguments_: string[]) =>
@@ -72,11 +78,15 @@ const fixture = async () => {
   return root;
 };
 
+// Assertions read the child's plain-text summary. An inherited color setting
+// styled the counts in the CI lane; NO_COLOR takes precedence over FORCE_COLOR.
 const testCommand = (root: string, ...arguments_: string[]) =>
-  run(root, process.execPath, [
-    "scripts/run-development-tests.mjs",
-    ...arguments_,
-  ]);
+  run(
+    root,
+    process.execPath,
+    ["scripts/run-development-tests.mjs", ...arguments_],
+    { ...process.env, NO_COLOR: "1" },
+  );
 
 describe("development test runner exact selection", () => {
   it("matches selected path casing to the host filesystem", async () => {

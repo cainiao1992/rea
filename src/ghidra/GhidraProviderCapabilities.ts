@@ -2,10 +2,9 @@ import type {
   CapabilityDescriptor,
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
-import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import {
-  hasWindowsNativeAuthority,
-  windowsNativeAuthorityUnavailableReason,
+  inspectWindowsNativeReadiness,
+  type WindowsNativeReadiness,
 } from "../process/WindowsAuthority.js";
 import { GHIDRA_FUNCTION_OPERATIONS } from "./GhidraFunctionValues.js";
 import { GHIDRA_INVENTORY_OPERATIONS } from "./GhidraInventoryValues.js";
@@ -43,22 +42,6 @@ const stringInventoryLimitation =
 
 const searchLimitation =
   "Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.";
-
-const resolvedCallReferenceLimitation =
-  "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals.";
-
-/** Relationship-only caveats belong to each observed caller/callee result. */
-export const relationshipCoverageFor = (
-  operation: string,
-): RelationshipCoverage | undefined =>
-  operation === "procedure_callers" ||
-  operation === "procedure_callees" ||
-  operation === "analyze_function"
-    ? {
-        status: "complete",
-        diagnostics: [resolvedCallReferenceLimitation],
-      }
-    : undefined;
 
 /** Limitation text for one admitted operation, including the common base. */
 export const limitationsFor = (operation: string): readonly string[] => {
@@ -214,8 +197,9 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = Object.freeze(
 );
 
 /** Capabilities advertised for the experimental Windows x64 P0 boundary. */
-export const windowsP0Capabilities = (): readonly CapabilityDescriptor[] => {
-  const available = hasWindowsNativeAuthority("win32");
+export const windowsP0Capabilities = (
+  readiness: WindowsNativeReadiness = inspectWindowsNativeReadiness("win32"),
+): readonly CapabilityDescriptor[] => {
   return Object.freeze(
     CAPABILITIES.map((capability): CapabilityDescriptor => {
       const limitations = Object.freeze([
@@ -230,13 +214,13 @@ export const windowsP0Capabilities = (): readonly CapabilityDescriptor[] => {
           availabilityCode: "unsupported_host",
           limitations,
         });
-      return available
+      return readiness.available
         ? Object.freeze({ ...capability, limitations })
         : Object.freeze({
             ...capability,
             available: false,
-            reason: windowsNativeAuthorityUnavailableReason("win32"),
-            availabilityCode: "unsupported_host",
+            reason: readiness.reason,
+            availabilityCode: readiness.code,
             limitations,
           });
     }),

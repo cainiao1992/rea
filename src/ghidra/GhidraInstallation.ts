@@ -252,7 +252,9 @@ export interface GhidraJavaObservation {
   readonly version: string;
   readonly major: number;
   readonly home: string;
-  readonly bits: number;
+  readonly bits: number | null;
+  /** Present when Java reported a bitness value that could not be parsed exactly. */
+  readonly unparsedBits?: string;
   readonly runtime: "jdk" | "jre";
   readonly vmName?: string;
   /**
@@ -803,12 +805,23 @@ const javaCheck = (
     ghidraJavaMajorAccepted(observation.major, requirement) &&
     observation.bits === 64 &&
     observation.runtime === "jdk";
+  const bitness =
+    observation === undefined
+      ? undefined
+      : observation.bits === null
+        ? `bitness unknown${observation.unparsedBits === undefined ? "" : ` (sun.arch.data.model = ${JSON.stringify(observation.unparsedBits)})`}`
+        : `${String(observation.bits)}-bit`;
+  const knownMismatch =
+    observation !== undefined &&
+    (!ghidraJavaMajorAccepted(observation.major, requirement) ||
+      (observation.bits !== null && observation.bits !== 64) ||
+      observation.runtime !== "jdk");
   const detail =
     observation === undefined
       ? requirement.unresolved === null
         ? command
         : `${command}; ${requirement.unresolved}`
-      : `${observation.version}; ${String(observation.bits)}-bit; ${observation.runtime === "jdk" ? "JDK" : "runtime only"}; ${observation.home}; accepted ${range}`;
+      : `${observation.version}; ${bitness}; ${observation.runtime === "jdk" ? "JDK" : "runtime only"}; ${observation.home}; accepted ${range}`;
   return installationCheck({
     name: "java",
     passed: supported,
@@ -817,7 +830,9 @@ const javaCheck = (
         ? "version_unresolved"
         : observation === undefined
           ? "runtime_missing"
-          : "unsupported_version",
+          : knownMismatch
+            ? "unsupported_version"
+            : "version_unresolved",
     detail,
     remediation: javaRemediation(requirement, configuredHome, range),
   });
@@ -905,11 +920,22 @@ const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
     const vmName = javaProperty(output, "java.vm.name");
     const osArch = javaProperty(output, "os.arch");
     const osName = javaProperty(output, "os.name");
-    const bits = Number.parseInt(
-      javaProperty(output, "sun.arch.data.model") ?? "0",
-      10,
-    );
-    if (version === null || home === null) return undefined;
+    const reportedBits = javaProperty(output, "sun.arch.data.model");
+    const parsedBits =
+      reportedBits !== null && /^\d+$/.test(reportedBits)
+        ? Number(reportedBits)
+        : null;
+    const bits =
+      parsedBits !== null && Number.isSafeInteger(parsedBits)
+        ? parsedBits
+        : null;
+    if (
+      version === null ||
+      version.length === 0 ||
+      home === null ||
+      home.length === 0
+    )
+      return undefined;
     return {
       version,
       major: javaMajor(version),
@@ -918,6 +944,9 @@ const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
       ...(osArch === null ? {} : { osArch }),
       ...(osName === null ? {} : { osName }),
       bits,
+      ...(reportedBits === null || bits !== null
+        ? {}
+        : { unparsedBits: reportedBits }),
       runtime: executablePath(
         (process.platform === "win32" ? win32 : posix).join(
           home,
@@ -944,7 +973,7 @@ const executablePath = (path: string): boolean => {
 
 const javaProperty = (output: string, name: string): string | null =>
   new RegExp(
-    `^\\s*${name.replaceAll(".", "\\.")}\\s*=\\s*(.+?)\\s*$`,
+    `^[ \\t]*${name.replaceAll(".", "\\.")}[ \\t]*=[ \\t]*([^\\r\\n]*?)[ \\t]*\\r?$`,
     "mu",
   ).exec(output)?.[1] ?? null;
 

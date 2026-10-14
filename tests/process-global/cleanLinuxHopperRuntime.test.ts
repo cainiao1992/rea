@@ -77,7 +77,11 @@ it
       if (alternateMode) {
         const processEntry = join(procRoot, String(pid));
         await mkdir(processEntry);
-        await symlink(`/proc/${String(pid)}/exe`, join(processEntry, "exe"));
+        for (const name of ["cmdline", "comm", "exe"])
+          await symlink(
+            `/proc/${String(pid)}/${name}`,
+            join(processEntry, name),
+          );
       }
       const { stdout: coordinates } = await execFileAsync("ps", [
         "-p",

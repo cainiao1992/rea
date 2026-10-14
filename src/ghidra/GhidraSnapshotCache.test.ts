@@ -192,7 +192,12 @@ describe("Ghidra snapshot profile admission", () => {
   it.each([
     {
       parameter: "instruction_references",
-      current: "exact-address-incoming-v1",
+      current: "exact-address-incoming-without-synthetic-entry-v2",
+      legacy: "exact-address-incoming-v1",
+    },
+    {
+      parameter: "instruction_references",
+      current: "exact-address-incoming-without-synthetic-entry-v2",
       legacy: undefined,
     },
     {

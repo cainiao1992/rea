@@ -223,7 +223,7 @@ const staticCallPath = (
       ? stringValue(node.arguments[0])
       : undefined;
   if (name === "fileURLToPath" || name.endsWith(".fileURLToPath")) {
-    return staticFileUrlPath(argumentNode(node.arguments[0]));
+    return staticFileUrlPath(node);
   }
   if (name.endsWith(".resolve"))
     return name === "win32.resolve" || name.endsWith(".win32.resolve")
@@ -246,12 +246,34 @@ const staticCallPath = (
 };
 
 const staticFileUrlPath = (
-  argument: t.Node | undefined,
+  node: t.CallExpression | t.NewExpression,
 ): string | undefined => {
+  if (node.arguments.length !== 1) return undefined;
+  const argument = argumentNode(node.arguments[0]);
   if (argument === undefined) return undefined;
-  return isSourceFileUrl(argument)
-    ? sourceRelativeFileUrlPath(argument)
-    : staticPath(argument);
+  if (isSourceFileUrl(argument)) return sourceRelativeFileUrlPath(argument);
+  const value = staticPath(argument);
+  const rawPath = value?.split(/[?#]/u, 1)[0] ?? "";
+  if (
+    value === undefined ||
+    !/^file:/iu.test(value) ||
+    value !== value.trim() ||
+    value.includes("\\") ||
+    [...value].some((character) => character.charCodeAt(0) < 32) ||
+    /%(?:2f|5c)/iu.test(rawPath)
+  )
+    return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "file:") return undefined;
+    // Canonical analysis paths use POSIX spelling so results do not depend on
+    // the analyzer host. Drive and UNC paths need an explicit target platform.
+    const path = fileURLToPath(url, { windows: false });
+    return /^\/[a-z]:/iu.test(path) ? undefined : path;
+  } catch (cause: unknown) {
+    void cause;
+    return undefined;
+  }
 };
 
 /** Project a known source-relative URL through the actual file URL decoder. */
@@ -339,10 +361,13 @@ const isFilesystemPathExpression = (node: t.Node): boolean => {
     if (name === "URL" || name.endsWith(".URL"))
       return isFileIdentity(argumentNode(node.arguments[1]));
     if (name === "fileURLToPath" || name.endsWith(".fileURLToPath"))
-      return node.arguments.some((argument) => {
-        const value = argumentNode(argument);
-        return value !== undefined && isFilesystemPathExpression(value);
-      });
+      return (
+        staticFileUrlPath(node) !== undefined ||
+        node.arguments.some((argument) => {
+          const value = argumentNode(argument);
+          return value !== undefined && isFilesystemPathExpression(value);
+        })
+      );
     return node.arguments.some((argument) => {
       const value = argumentNode(argument);
       return value !== undefined && isFilesystemPathExpression(value);

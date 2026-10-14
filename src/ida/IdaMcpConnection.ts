@@ -35,6 +35,7 @@ export interface IdaMcpConnection {
   call(
     name: string,
     args: Readonly<Record<string, JsonValue>>,
+    options?: { readonly timeoutMs?: number | undefined },
   ): Promise<JsonValue>;
   readResource?(uri: string): Promise<JsonValue>;
   serverInfo(): JsonValue;
@@ -349,6 +350,7 @@ export const createIdaMcpConnection = (
   const transportFailure = (
     cause: unknown,
     operation = "ida_mcp_response",
+    requestTimeoutMs = config.timeoutMs,
   ): never => {
     const bufferLimit =
       cause instanceof Error
@@ -392,7 +394,7 @@ export const createIdaMcpConnection = (
       stderr_bytes: stderrBytes,
     };
     if (cause instanceof SdkError && cause.code === SdkErrorCode.RequestTimeout)
-      throw new AnalysisTimeoutError(operation, config.timeoutMs, {
+      throw new AnalysisTimeoutError(operation, requestTimeoutMs, {
         cause: failure,
         capturedOutput,
       });
@@ -458,11 +460,17 @@ export const createIdaMcpConnection = (
         .catch((cause: unknown) => transportFailure(cause, "ida_mcp_catalog"));
       return catalog.tools.map(({ name }) => name);
     },
-    async call(name, args) {
+    async call(name, args, options) {
+      const requestTimeoutMs = Math.min(
+        config.timeoutMs,
+        options?.timeoutMs ?? config.timeoutMs,
+      );
       return decodeIdaToolResult(
         await client
-          .callTool({ name, arguments: args }, { timeout: config.timeoutMs })
-          .catch((cause: unknown) => transportFailure(cause, name)),
+          .callTool({ name, arguments: args }, { timeout: requestTimeoutMs })
+          .catch((cause: unknown) =>
+            transportFailure(cause, name, requestTimeoutMs),
+          ),
         config.protocol,
         redactor,
       );

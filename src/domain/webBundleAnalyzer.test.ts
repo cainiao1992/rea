@@ -902,6 +902,38 @@ const inspection = (source: string) =>
     limitations: [],
   });
 
+it("recognizes expression-free template literals as route properties", () => {
+  const result = analyzeCapturedWebBundle(
+    inspection(`
+      const routes = [
+        { path: \`score-board\`, component: ScoreBoard },
+        { route: \`administration\`, component: Admin },
+        { path: \`/user/\${name}\`, component: Dynamic },
+      ];
+    `),
+  );
+
+  expect(result.observations.routes.map(({ value }) => value)).toEqual([
+    "score-board",
+    "administration",
+  ]);
+});
+
+it("uses the shared parser for decorated captured scripts", () => {
+  const result = analyzeCapturedWebBundle(
+    inspection(`@sealed class Widget {} fetch('/decorated');`),
+  );
+
+  expect(result.completeness).toMatchObject({
+    status: "complete",
+    parsed_scripts: 1,
+    parse_failures: 0,
+  });
+  expect(result.observations.endpoints).toEqual([
+    expect.objectContaining({ value: "/decorated" }),
+  ]);
+});
+
 it("keeps bare module locations unresolved without inventing URL-relative paths", () => {
   const result = analyzeCapturedWebBundle(
     inspection(`

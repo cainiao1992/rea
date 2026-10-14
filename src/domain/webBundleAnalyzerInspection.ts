@@ -1,4 +1,3 @@
-import { parse } from "@babel/parser";
 import * as t from "@babel/types";
 
 import { sanitizeEndpointCandidate } from "./browserObservation.js";
@@ -29,6 +28,7 @@ import {
   isUrlLikeModuleSpecifier,
 } from "./webBundleAnalyzerAst.js";
 import { createJavaScriptRpcScan } from "./javascript/javascriptRpcEndpoints.js";
+import { parseJavaScriptSource } from "./javascript/javascriptSourceParser.js";
 
 type BundleObservations = WebBundleAnalysis["observations"];
 type ChunkEdge = BundleObservations["chunks"]["edges"][number];
@@ -58,16 +58,8 @@ export const analyzeScript = (
   script: IncludedScript,
   accumulator: AnalysisAccumulator,
 ): void => {
-  let file: ReturnType<typeof parse>;
-  try {
-    file = parse(script.source.artifact.text, {
-      sourceType: "unambiguous",
-      errorRecovery: true,
-      plugins: ["jsx", "typescript"],
-    });
-  } catch (cause: unknown) {
-    // Unparseable scripts are counted; the failure needs no extra detail.
-    void cause;
+  const file = parseJavaScriptSource(script.source.artifact.text);
+  if (file === null) {
     accumulator.failedScripts.push(script.script_key);
     return;
   }
@@ -216,11 +208,12 @@ const inspectRouteProperty = (
   accumulator: AnalysisAccumulator,
 ): void => {
   const key = semanticStaticPropertyName(node.key, node.computed);
-  if ((key === "path" || key === "route") && t.isStringLiteral(node.value))
+  const route = stringValue(node.value);
+  if ((key === "path" || key === "route") && route !== undefined)
     addFinding({
       collection: accumulator.routes,
       script,
-      rawValue: node.value.value,
+      rawValue: route,
       mechanism: `property:${key}`,
       node,
       accumulator,

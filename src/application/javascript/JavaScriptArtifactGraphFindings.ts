@@ -201,10 +201,17 @@ const addEndpoint = (
       input.value.module_runtime,
     ) ?? input.asset;
   const key = compactStringIdentityKey(input.value.value);
-  const label = `${input.value.kind} endpoint`;
+  const candidate = input.value.interpretation === "candidate";
+  const candidateLimitation =
+    "The unbound method-like argument is only a candidate; its receiver does not establish a network call.";
+  const label = `${input.value.kind} ${candidate ? "endpoint candidate" : "endpoint"}`;
   const node = context.accumulator.addNode({
     kind: "endpoint",
-    identity: artifactLocalIdentity(input.file.sha256, input.value.kind, key),
+    identity: artifactLocalIdentity(
+      input.file.sha256,
+      input.value.kind,
+      JSON.stringify([input.value.interpretation ?? "literal", key]),
+    ),
     observations: [
       {
         label:
@@ -213,14 +220,25 @@ const addEndpoint = (
           endpoint_kind: input.value.kind,
           value: input.value.value,
           mechanism: input.value.mechanism,
+          ...(candidate ? { interpretation: input.value.interpretation } : {}),
         },
-        evidence: astObservationEvidence({
-          sha256: input.file.sha256,
-          path: input.file.path,
-          range: input.value.location,
-          operation: "discover-static-endpoint",
-          coverage: input.coverage,
-        }),
+        evidence: candidate
+          ? staticInferenceEvidence({
+              sha256: input.file.sha256,
+              path: input.file.path,
+              range: input.value.location,
+              operation: "classify-static-endpoint-candidate",
+              coverage: input.coverage,
+              confidence: "low",
+              limitations: [candidateLimitation],
+            })
+          : astObservationEvidence({
+              sha256: input.file.sha256,
+              path: input.file.path,
+              range: input.value.location,
+              operation: "discover-static-endpoint",
+              coverage: input.coverage,
+            }),
       },
     ],
   });
@@ -231,7 +249,16 @@ const addEndpoint = (
     range: input.value.location,
     coverage: input.coverage,
     relation: input.value.kind === "route" ? "exposes" : "calls",
-    properties: { mechanism: input.value.mechanism },
+    properties: {
+      mechanism: input.value.mechanism,
+      ...(candidate ? { interpretation: input.value.interpretation } : {}),
+    },
+    ...(candidate
+      ? {
+          confidence: "low" as const,
+          limitations: [candidateLimitation],
+        }
+      : {}),
   });
 };
 

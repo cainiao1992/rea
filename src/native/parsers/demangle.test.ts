@@ -40,21 +40,23 @@ describe("parseDemangledSymbols", () => {
     ]);
   });
 
-  it("identifies invalid Swift symbols that fail demangling", () => {
-    const inputs = ["$sInvalidMangle", "_$sAlsoInvalid"];
-    const output = "$sInvalidMangle\n_$sAlsoInvalid\n";
-    expect(parseDemangledSymbols(inputs, output)).toEqual([
-      {
-        input: "$sInvalidMangle",
-        output: "$sInvalidMangle",
-        status: "invalid",
-      },
-      {
-        input: "_$sAlsoInvalid",
-        output: "_$sAlsoInvalid",
-        status: "invalid",
-      },
-    ]);
+  it("identifies invalid Swift symbols for every demangler mangling prefix", () => {
+    const inputs = [
+      "_T0Bogus",
+      "$SBogus",
+      "_$SBogus",
+      "$sBogus",
+      "_$sBogus",
+      "@__swiftmacro_Bogus",
+      "$eBogus",
+      "_$eBogus",
+      "_Tprintf",
+    ];
+    expect(
+      parseDemangledSymbols(inputs, `${inputs.join("\n")}\n`).map(
+        ({ status }) => status,
+      ),
+    ).toEqual([...Array<string>(8).fill("invalid"), "unchanged"]);
   });
 
   it("parses mixed batches preserving ordering", () => {

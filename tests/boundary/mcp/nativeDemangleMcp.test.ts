@@ -68,5 +68,42 @@ describe.skipIf(process.platform !== "darwin")(
         );
       },
     );
+
+    mcpTest(
+      "reports undecodable symbols with any Swift mangling prefix as invalid",
+      async ({ mcp, onTestFinished }) => {
+        const target = join(
+          await createTestTempDirectory("rea-demangle-mcp-"),
+          "tool",
+        );
+        await copyFile("/usr/bin/true", target);
+        const client = await openProductionTarget(mcp, onTestFinished, target);
+        // Embedded Swift ($e) decoding depends on the installed toolchain, so
+        // only manglings every supported demangler decodes are expected valid.
+        const decodable = ["_T0", "$S", "_$S"];
+        const prefixes = [...decodable, "$e", "_$e"];
+
+        const called = await client.callTool({
+          name: "demangle_swift",
+          arguments: {
+            symbols: [
+              ...decodable.map((prefix) => `${prefix}4main3FooV`),
+              ...prefixes.map((prefix) => `${prefix}Bogus`),
+              "_Tprintf",
+            ],
+          },
+        });
+        expect(called.isError, JSON.stringify(called.content)).not.toBe(true);
+        expect(
+          demangledSchema
+            .parse(called.structuredContent)
+            .normalized_result.symbols.map(({ status }) => status),
+        ).toEqual([
+          ...decodable.map(() => "demangled"),
+          ...prefixes.map(() => "invalid"),
+          "unchanged",
+        ]);
+      },
+    );
   },
 );

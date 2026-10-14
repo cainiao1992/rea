@@ -9,6 +9,22 @@ const resultSchema = z.object({
 export type DemangledSymbol = z.infer<typeof resultSchema>;
 
 /**
+ * Prefixes the Swift demangler accepts as mangled names (Swift 4, 4.x, 5+,
+ * macro file names and Embedded Swift). Legacy `_T` is omitted because it is
+ * also an ordinary C symbol spelling such as `_Tprintf`.
+ */
+const SWIFT_MANGLING_PREFIXES = [
+  "_T0",
+  "$S",
+  "_$S",
+  "$s",
+  "_$s",
+  "@__swiftmacro_",
+  "$e",
+  "_$e",
+] as const;
+
+/**
  * Preserve input ordering while parsing `swift-demangle --compact` lines.
  * The demangler ends each record with LF, so a carriage return belongs to the
  * symbol text.
@@ -33,7 +49,7 @@ export const parseDemangledSymbols = (
       output: value,
       status:
         value === input
-          ? input.startsWith("$s") || input.startsWith("_$s")
+          ? SWIFT_MANGLING_PREFIXES.some((prefix) => input.startsWith(prefix))
             ? "invalid"
             : "unchanged"
           : "demangled",

@@ -46,6 +46,8 @@ export interface JavaScriptSemanticBindingState {
   readonly scopeId: string;
   readonly name: string;
   kind: JavaScriptSemanticDefinition["kind"];
+  /** Source declaration form retained internally for CommonJS wrapper bindings. */
+  declarationKinds: Set<"var" | "let" | "const" | "using" | "await using">;
   mutable: boolean;
   readonly memberWrites: JavaScriptSemanticMemberEffect[];
   readonly escapedPaths: JavaScriptSemanticMemberEffect[];

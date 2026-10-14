@@ -9,6 +9,7 @@ import {
   type WebCaptureDimension,
 } from "./webCaptureDiffSchemas.js";
 import type { WebMcpDiscovery } from "./webMcpDiscovery.js";
+import { fingerprintWebCaptureFrames } from "./webCaptureFrameComparison.js";
 
 type Dimension = WebCaptureDimension;
 type Change = WebCaptureChange;
@@ -172,13 +173,7 @@ const compareWebCaptureDimensions = (
   const before = input.before.inspection;
   const after = input.after.inspection;
   return {
-    dom_structure: compareDimension(
-      singleton("document", digestCanonicalValue(domProjection(before))),
-      singleton("document", digestCanonicalValue(domProjection(after))),
-      sectionsComplete(before, ["frames", "dom"]) &&
-        sectionsComplete(after, ["frames", "dom"]),
-      "DOM or frame capture was incomplete in at least one observation.",
-    ),
+    dom_structure: domDimension(before, after),
     scripts: compareDimension(
       keyed(
         before.scripts.items.map(scriptProjection),
@@ -200,9 +195,10 @@ const compareWebCaptureDimensions = (
       "Resource inventory was incomplete in at least one observation.",
     ),
     network: networkDimension(before, after),
-    metadata: compareDimension(
-      singleton("metadata", digestCanonicalValue(metadataProjection(before))),
-      singleton("metadata", digestCanonicalValue(metadataProjection(after))),
+    metadata: compareAggregate(
+      "metadata",
+      metadataProjection(before),
+      metadataProjection(after),
       sectionsComplete(before, ["metadata"]) &&
         sectionsComplete(after, ["metadata"]),
       "Safe metadata capture was incomplete in at least one observation.",
@@ -601,17 +597,64 @@ const incompleteSections = (completeness: {
     ...completeness.unavailable_sections,
   ]);
 
-const domProjection = (inspection: WebPageInspection) => ({
-  frames: inspection.frames
-    .map(({ url, origin }) => ({ url, origin }))
-    .sort(
-      (left, right) =>
-        compareUnicodeCodePoints(left.url, right.url) ||
-        compareUnicodeCodePoints(left.origin ?? "", right.origin ?? "") ||
-        Number(left.origin !== null) - Number(right.origin !== null),
-    ),
-  nodes: inspection.dom.nodes.map(({ index: _index, ...node }) => node),
-});
+/** Whole-collection digest differences cannot prove a change across omissions. */
+const compareAggregate = (
+  identity: string,
+  before: unknown,
+  after: unknown,
+  complete: boolean,
+  reason: string,
+): Dimension =>
+  compareDimension(
+    complete ? singleton(identity, digestCanonicalValue(before)) : new Map(),
+    complete ? singleton(identity, digestCanonicalValue(after)) : new Map(),
+    complete,
+    reason,
+  );
+
+const domDimension = (
+  before: WebPageInspection,
+  after: WebPageInspection,
+): Dimension => {
+  const beforeFrames = fingerprintWebCaptureFrames(before.frames);
+  const afterFrames = fingerprintWebCaptureFrames(after.frames);
+  const nodesComplete = [before, after].every(
+    (inspection) =>
+      sectionsComplete(inspection, ["dom"]) &&
+      inspection.dom.total_nodes === inspection.dom.nodes.length,
+  );
+  const framesComplete =
+    beforeFrames !== null &&
+    afterFrames !== null &&
+    [before, after].every((inspection) =>
+      sectionsComplete(inspection, ["frames"]),
+    );
+  const changes: Change[] = [];
+  if (
+    nodesComplete &&
+    digestCanonicalValue(before.dom.nodes) !==
+      digestCanonicalValue(after.dom.nodes)
+  )
+    changes.push({ identity: "document", change: "modified" });
+  if (framesComplete && beforeFrames !== afterFrames)
+    changes.push({ identity: "frames", change: "modified" });
+  if (changes.length > 0)
+    return {
+      status: "changed",
+      total_changes: changes.length,
+      changes,
+      reason: null,
+    };
+  return nodesComplete && framesComplete
+    ? { status: "unchanged", total_changes: 0, changes: [], reason: null }
+    : {
+        status: "unknown",
+        total_changes: 0,
+        changes: [],
+        reason:
+          "DOM or frame capture was incomplete, or frame ancestry was unresolved in at least one observation.",
+      };
+};
 
 const scriptProjection = (
   script: WebPageInspection["scripts"]["items"][number],

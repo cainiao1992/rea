@@ -138,6 +138,7 @@ const inventoryEvidence = (
         occurrences: sortedOccurrences,
         edges: [],
         provenance: [],
+        integrity_contradictions: [],
         coverage: { scope: "container-entries", status: "complete" },
         limitations: [],
       }),

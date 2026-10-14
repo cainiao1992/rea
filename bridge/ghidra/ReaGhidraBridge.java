@@ -1337,12 +1337,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("references", references);
         if (includeIncoming) {
             TreeMap<String, Reference> incoming = new TreeMap<>();
-            ReferenceIterator incomingIterator = currentProgram.getReferenceManager().getReferencesTo(address);
-            while (incomingIterator.hasNext()) {
-                monitor.checkCancelled();
-                Reference reference = incomingIterator.next();
-                if (!reference.isEntryPointReference()) addReference(incoming, reference);
-            }
+            visitObservedReferencesTo(address, reference -> addReference(incoming, reference));
             List<Reference> orderedIncoming = new ArrayList<>(incoming.values());
             orderedIncoming.sort(REFERENCE_ORDER);
             JsonArray incomingReferences = new JsonArray();
@@ -1394,16 +1389,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireKeys(params, Set.of("document", "address"));
         requireDocument(params);
         Address address = requireAddress(params, "address");
-        ReferenceIterator references = currentProgram.getReferenceManager().getReferencesTo(address);
         Set<Address> sources = new HashSet<>();
-        while (references.hasNext()) {
-            monitor.checkCancelled();
-            Reference reference = references.next();
-            if (reference.isEntryPointReference()) {
-                continue;
-            }
-            sources.add(reference.getFromAddress());
-            }
+        visitObservedReferencesTo(address, reference -> sources.add(reference.getFromAddress()));
         List<Address> ordered = new ArrayList<>(sources);
         ordered.sort(Address::compareTo);
         JsonArray result = new JsonArray();
@@ -3674,22 +3661,34 @@ public final class ReaGhidraBridge extends HeadlessScript {
             monitor.checkCancelled();
             Address address = addresses.next();
             if (outgoing) {
-                for (Reference reference : currentProgram.getReferenceManager()
-                        .getReferencesFrom(address)) {
-                    monitor.checkCancelled();
-                    if (!reference.isEntryPointReference()) visitor.accept(reference);
-                }
+                visitObservedReferencesFrom(address, visitor);
             }
             else {
-                ReferenceIterator iterator = currentProgram.getReferenceManager()
-                    .getReferencesTo(address);
-                while (iterator.hasNext()) {
-                    monitor.checkCancelled();
-                    Reference reference = iterator.next();
-                    if (!reference.isEntryPointReference()) visitor.accept(reference);
-                }
+                visitObservedReferencesTo(address, visitor);
             }
         }
+    }
+
+    private void visitObservedReferencesFrom(Address address, ReferenceVisitor visitor)
+            throws Exception {
+        for (Reference reference : currentProgram.getReferenceManager().getReferencesFrom(address)) {
+            monitor.checkCancelled();
+            visitObservedReference(reference, visitor);
+        }
+    }
+
+    private void visitObservedReferencesTo(Address address, ReferenceVisitor visitor)
+            throws Exception {
+        ReferenceIterator references = currentProgram.getReferenceManager().getReferencesTo(address);
+        while (references.hasNext()) {
+            monitor.checkCancelled();
+            visitObservedReference(references.next(), visitor);
+        }
+    }
+
+    private static void visitObservedReference(Reference reference, ReferenceVisitor visitor)
+            throws Exception {
+        if (!reference.isEntryPointReference()) visitor.accept(reference);
     }
 
     private static void addReference(TreeMap<String, Reference> observed, Reference reference) {

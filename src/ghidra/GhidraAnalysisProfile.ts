@@ -42,6 +42,8 @@ import {
 } from "../domain/native/nativeAotPe.js";
 
 const callRelationshipCoverage = "function-body-call-coverage-v5";
+const instructionReferenceCoverage =
+  "exact-address-incoming-without-synthetic-entry-v2";
 
 /**
  * The processor language REA pins for this target, or undefined when Ghidra may
@@ -136,7 +138,7 @@ export const resolveGhidraAnalysisProfile = async (
           procedure_file_offset_resolution:
             "address-first-unique-target-source-mapping-v2",
           instruction_flow_evidence: "decoded-return-pcode-v1",
-          instruction_references: "exact-address-incoming-v1",
+          instruction_references: instructionReferenceCoverage,
           function_boundary_observations:
             "ghidra-function-boundary-limitations-v3",
           no_return_repair:
@@ -236,7 +238,7 @@ export const resolveGhidraAnalysisProfile = async (
         procedure_file_offset_resolution:
           "address-first-unique-target-source-mapping-v2",
         instruction_flow_evidence: "decoded-return-pcode-v1",
-        instruction_references: "exact-address-incoming-v1",
+        instruction_references: instructionReferenceCoverage,
         function_boundary_observations:
           "ghidra-function-boundary-limitations-v3",
         no_return_repair:

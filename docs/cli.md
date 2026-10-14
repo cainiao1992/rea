@@ -301,6 +301,14 @@ user permissions; consult the chosen guide for host requirements and effects.
 
 ## Output and exit status
 
+`rea mcp doctor --json` checks production MCP startup and reports child logs in
+`diagnostics`. It drains stderr while retaining at most its first 64 KiB of raw
+bytes as text, omitting a final UTF-8 code point if it crosses that byte limit.
+`stderr_bytes` counts all observed bytes, including omitted output;
+`stderr_truncated` indicates that output exceeded the retention limit. The same
+diagnostics appear inside the report when `--full-output` is selected. Log
+truncation alone does not change the diagnostic health or exit status.
+
 The default terminal format is TOON. Use `--json` when saving results for a
 JSON consumer. `--json` is indented on a terminal and compact when piped or
 redirected, which keeps large results smaller for agents and scripts; pipe

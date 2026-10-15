@@ -111,6 +111,20 @@ let primaryError;
 try {
   await writeFile(path, source);
   await writeFile(bluetooth, bluetoothSource);
+  const capinfosOutput = (
+    await execute(
+      process.env.REA_CAPINFOS_COMMAND ?? "capinfos",
+      ["-M", "--", path],
+      { env: environment, timeout: 60000, maxBuffer: 64 * 1024 },
+    )
+  ).stdout;
+  const expectedCaptureStart =
+    /^(?:Earliest|First) packet time:\s*(.+)$/mu.exec(capinfosOutput)?.[1] ??
+    null;
+  const expectedCaptureEnd =
+    /^(?:Latest|Last) packet time:\s*(.+)$/mu.exec(capinfosOutput)?.[1] ?? null;
+  assert.ok(expectedCaptureStart, capinfosOutput);
+  assert.ok(expectedCaptureEnd, capinfosOutput);
   await client.connect(transport);
   const tool = (await client.listTools()).tools.find(
     ({ name }) => name === "inspect_packet_capture",
@@ -137,6 +151,10 @@ try {
         .update(await readFile(input.path))
         .digest("hex"),
     );
+    if (input.path === path) {
+      assert.equal(report.capture_start, expectedCaptureStart);
+      assert.equal(report.capture_end, expectedCaptureEnd);
+    }
     assert.equal(report.hardware_acquisition, "not-performed");
     assert.equal(report.limits.address_space_bytes, expectedAddressSpace);
     assert.equal(report.tool.configured_path, process.env.REA_TSHARK_COMMAND);

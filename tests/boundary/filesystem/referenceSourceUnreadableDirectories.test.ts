@@ -108,6 +108,7 @@ describe("reference source native unreadable directories", () => {
             kind: "symlink",
             target: null,
             target_state: "unreadable",
+            limitations: [expect.stringContaining('"hidden/target.txt"')],
           }),
         );
       } finally {

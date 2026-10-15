@@ -147,7 +147,7 @@ export const reconcileUnobservedSymlinkTargets = (
       kind: "symlink",
       path: entry.path,
       code: ancestor.code,
-      message: `Symbolic link target is inside a directory that could not be enumerated: ${ancestor.message}`,
+      message: `Symbolic link target ${JSON.stringify(entry.target)} was not inventoried because directory ${JSON.stringify(ancestor.path)} could not be enumerated: ${ancestor.message}`,
     };
   }
 };

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 
 import { expect, it as test } from "vitest";
 
@@ -69,5 +69,117 @@ it.each([
     expect((await fakeKunaCalls(kuna)).map(({ argv }) => argv)).toEqual([
       ["--version"],
     ]);
+  },
+);
+
+it.each([
+  { rejectClose: false, rejectRead: true },
+  { rejectClose: true, rejectRead: false },
+  { rejectClose: true, rejectRead: true },
+])(
+  "reports failure-path lineage (cleanup rejection: $rejectClose, read rejection: $rejectRead)",
+  async ({ rejectClose, rejectRead }) => {
+    const root = await createTestTempDirectory("rea-kuna-verifier-cleanup-");
+    const kuna = await writeFakeKuna(root, {
+      functions: [
+        { name: "rea_checksum", addr: "0x1000" },
+        { name: "rea_classify", addr: "0x1040" },
+      ],
+    });
+    const nm = join(root, "nm");
+    // The host compiler creates a real fixture, but provider output and symbol
+    // discovery are simulated to isolate the verifier's cleanup contract.
+    await writeFile(
+      nm,
+      `#!${process.execPath}\nprocess.stdout.write("00001000 T rea_checksum\\n00001040 T rea_classify\\n");\n`,
+      { mode: 0o755 },
+    );
+    const proxy = join(root, "proxy.mjs");
+    const cacheRecord = join(root, "cache-path");
+    await writeFile(
+      proxy,
+      `
+import { spawn } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createInterface } from "node:readline";
+const backend = spawn(process.execPath, [${JSON.stringify(resolve("scripts/rea.mjs"))}, "--mcp"], { stdio: ["pipe", "pipe", "ignore"] });
+const exited = new Promise((resolve, reject) => { backend.once("error", reject); backend.once("exit", resolve); });
+backend.stdout.pipe(process.stdout);
+const input = createInterface({ input: process.stdin });
+for await (const line of input) {
+  const message = JSON.parse(line);
+  const name = message.params?.name;
+  if (name === "close_binary" && ${rejectClose}) {
+    const marker = join(process.env.REA_KUNA_CACHE_DIR, "staging", "retained-marker");
+    await mkdir(marker, { recursive: true });
+    await writeFile(join(marker, "evidence"), "retained cleanup owner");
+    await writeFile(${JSON.stringify(cacheRecord)}, process.env.REA_KUNA_CACHE_DIR);
+    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { isError: true, content: [{ type: "text", text: "injected cleanup rejection" }] } }) + "\\n");
+  } else if (name === "list_procedures" && ${rejectRead}) {
+    // A verification failure with successful provider cleanup must still
+    // produce lineage evidence; it need not retain an otherwise clean root.
+    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { isError: true, content: [{ type: "text", text: "injected verification failure" }] } }) + "\\n");
+  } else backend.stdin.write(line + "\\n");
+}
+backend.stdin.end();
+await exited;
+`,
+    );
+    const reportPath = join(root, "report.json");
+    const result = spawnSync(
+      process.execPath,
+      [
+        "scripts/verify-real-kuna.mjs",
+        "--entrypoint",
+        proxy,
+        "--report",
+        reportPath,
+      ],
+      {
+        encoding: "utf8",
+        timeout: 25_000,
+        env: {
+          PATH: process.env.PATH,
+          HOME: root,
+          REA_KUNA_COMMAND: kuna,
+          REA_NM: nm,
+        },
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+    expect(report).toMatchObject({
+      status: "failed",
+      cleanup: rejectClose ? "incomplete" : "complete",
+      verifier_run: {
+        process_lineage: { status: "verified", descendants: [] },
+      },
+    });
+    expect(JSON.stringify(report.failures)).toContain(
+      rejectClose
+        ? "injected cleanup rejection"
+        : "injected verification failure",
+    );
+    if (rejectRead)
+      expect(JSON.stringify(report.failures)).toContain(
+        "injected verification failure",
+      );
+    if (rejectClose) {
+      const cache = await readFile(cacheRecord, "utf8");
+      expect(cache).toBe(join(report.retained_workspace, "cache"));
+      try {
+        expect(
+          await readFile(
+            join(cache, "staging", "retained-marker", "evidence"),
+            "utf8",
+          ),
+        ).toBe("retained cleanup owner");
+      } finally {
+        // The test owns this injected file; production intentionally retains it.
+        await rm(report.retained_workspace, { recursive: true, force: true });
+      }
+    } else expect(report.retained_workspace).toBeUndefined();
   },
 );

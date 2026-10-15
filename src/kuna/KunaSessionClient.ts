@@ -152,10 +152,8 @@ export class KunaSessionClient implements AnalysisClient {
   readonly #launcher: KunaProcessLauncher | undefined;
   /** Owns background work: aborting it cancels this session's export interest. */
   readonly #session = new AbortController();
-  /** Requests keep their workspaces and process cleanup owned until they settle. */
-  readonly #requests = new Set<
-    Promise<Result<AnalysisExecution, AnalysisError>>
-  >();
+  /** Requests and shared readers retain their resources until their work settles. */
+  readonly #active = new Set<Promise<unknown>>();
   /** Single-function runs that could not be proven stopped, with their retry owners. */
   readonly #retained: {
     readonly error: ProviderCleanupError;
@@ -216,19 +214,22 @@ export class KunaSessionClient implements AnalysisClient {
           "This Kuna session is closed.",
         ),
       );
-    const request = this.#execute(operation, parameters, {
-      ...options,
-      signal:
-        options.signal === undefined
-          ? this.#session.signal
-          : AbortSignal.any([this.#session.signal, options.signal]),
-    });
-    this.#requests.add(request);
-    try {
-      return await request;
-    } finally {
-      this.#requests.delete(request);
-    }
+    return this.#own(
+      this.#execute(operation, parameters, {
+        ...options,
+        signal:
+          options.signal === undefined
+            ? this.#session.signal
+            : AbortSignal.any([this.#session.signal, options.signal]),
+      }),
+    );
+  }
+
+  #own<T>(work: Promise<T>): Promise<T> {
+    this.#active.add(work);
+    const release = () => this.#active.delete(work);
+    void work.then(release, release);
+    return work;
   }
 
   async #execute(
@@ -320,7 +321,8 @@ export class KunaSessionClient implements AnalysisClient {
     }
     // Cancellation starts process shutdown; its completion proves whether it
     // is safe to remove private copies and exposes any retained cleanup owner.
-    await Promise.allSettled(this.#requests);
+    // An admitted request may create a shared reader after shutdown begins.
+    while (this.#active.size > 0) await Promise.allSettled(this.#active);
     await this.#project;
     await this.#inventory;
     const failures: ProviderCleanupError[] = [];
@@ -541,7 +543,7 @@ export class KunaSessionClient implements AnalysisClient {
       }
       case "analyze_function":
         return this.#withProject(operation, installation, options, (reader) =>
-          this.#dossier(operation, entry.value, reader),
+          this.#dossier(operation, entry.value, reader, options.signal),
         );
     }
   }
@@ -618,7 +620,11 @@ export class KunaSessionClient implements AnalysisClient {
       installation,
       options,
       async (reader) => {
-        const name = await reader.dataName(address, "address_name");
+        const name = await reader.dataName(
+          address,
+          "address_name",
+          options.signal,
+        );
         if (!name.ok) return name;
         return ok({
           result: name.value,
@@ -697,7 +703,11 @@ export class KunaSessionClient implements AnalysisClient {
       installation,
       options,
       async (reader) => {
-        const text = await reader.assembly(entry.address, operation);
+        const text = await reader.assembly(
+          entry.address,
+          operation,
+          options.signal,
+        );
         return text.ok
           ? ok({
               ...text.value,
@@ -712,8 +722,9 @@ export class KunaSessionClient implements AnalysisClient {
     operation: string,
     entry: KunaInventoryFunction,
     reader: KunaProjectReader,
+    signal: AbortSignal | undefined,
   ): Promise<Result<Answer, AnalysisError>> {
-    const assembly = await reader.assembly(entry.address, operation);
+    const assembly = await reader.assembly(entry.address, operation, signal);
     if (!assembly.ok) return assembly;
     const pseudocode = await reader.pseudocode(entry.address, operation);
     if (!pseudocode.ok) return pseudocode;
@@ -914,7 +925,10 @@ export class KunaSessionClient implements AnalysisClient {
   #readerFor(project: KunaProject): KunaProjectReader {
     return this.#reader?.project === project
       ? this.#reader
-      : new KunaProjectReader(project);
+      : new KunaProjectReader(project, {
+          signal: this.#session.signal,
+          own: (work) => this.#own(work),
+        });
   }
 
   /** The export's failure once it has settled; undefined while it builds or after success. */

@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { execFileOutput } from "../dist/process/ExecFileOutput.js";
 import { requireMcpOperationResult } from "./lib/mcp-verifier-results.mjs";
 import {
   assertVerifierCleanupComplete,
@@ -62,10 +63,13 @@ if (values["compare-ghidra"]) {
     "Ghidra comparison prerequisite missing: GHIDRA_INSTALL_DIR (bring your own Ghidra 12.1.4 and JDK 21)",
   );
 }
-const kunaVersion = (await exec(kuna, ["--version"])).stdout.trim();
 const run = createVerifierRun();
 const workspace = await mkdtemp(join(tmpdir(), "rea-kuna-lane-"));
 const cacheRoot = join(workspace, "cache");
+// A server retains its workspace until both provider and transport cleanup
+// have positively completed, even if later lineage observation is empty.
+const pendingServers = new Set();
+let kunaVersion;
 
 const FIXTURE_SOURCE = String.raw`
 #include <stdio.h>
@@ -139,6 +143,8 @@ const sampleTree = async (root) => {
 
 /** One MCP server with a selected provider, sampled while it runs. */
 const openServer = async (provider) => {
+  const owner = Symbol(provider.id);
+  pendingServers.add(owner);
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [entrypoint, "--mcp"],
@@ -159,11 +165,10 @@ const openServer = async (provider) => {
     stderr: "ignore",
   });
   const client = new Client({ name: "rea-real-kuna", version: "1" });
-  await client.connect(transport);
-  const pid = transport.pid;
   let peakKiB = 0;
   const cpu = new Map();
-  const sample = async () => {
+  const sampleOnce = async () => {
+    const pid = transport.pid;
     if (pid === null) return;
     const observed = await sampleTree(pid).catch(() => undefined);
     if (observed === undefined) return;
@@ -171,7 +176,14 @@ const openServer = async (provider) => {
     for (const [member, seconds] of observed.cpu)
       cpu.set(member, Math.max(cpu.get(member) ?? 0, seconds));
   };
-  const timer = setInterval(() => void sample(), 200);
+  let sampling;
+  const sample = () => {
+    sampling ??= sampleOnce().finally(() => {
+      sampling = undefined;
+    });
+    return sampling;
+  };
+  let timer;
   const call = async (name, arguments_ = {}) => {
     const started = performance.now();
     const result = await client.callTool(
@@ -187,31 +199,46 @@ const openServer = async (provider) => {
       structured: result.structuredContent,
     };
   };
-  const close = async () => {
-    await sample();
+  const close = async (priorFailure) => {
     clearInterval(timer);
-    try {
-      await call("close_binary");
-    } finally {
-      await client.close();
-      await transport.close();
-    }
+    await sample();
+    const failures = priorFailure === undefined ? [] : [priorFailure];
+    // Attempt each cleanup independently. Disposing a transport is not proof
+    // that close_binary released retained provider processes or files.
+    for (const cleanup of [
+      () => call("close_binary"),
+      () => client.close(),
+      () => transport.close(),
+    ])
+      try {
+        await cleanup();
+      } catch (cause) {
+        failures.push(cause);
+      }
+    // A prior verification error must survive successful cleanup. Only the
+    // cleanup failures retain this server's files.
+    if (failures.length > (priorFailure === undefined ? 0 : 1))
+      throw new AggregateError(
+        failures,
+        "MCP server cleanup was not confirmed",
+      );
+    pendingServers.delete(owner);
+    if (priorFailure !== undefined) throw priorFailure;
     return {
       peak_rss_mib: Math.round(peakKiB / 1024),
       cpu_seconds: [...cpu.values()].reduce((total, value) => total + value, 0),
     };
   };
   try {
+    await client.connect(transport);
+    timer = setInterval(() => void sample(), 200);
     await call("open_binary", {
       path: provider.path,
       provider_id: provider.id,
     });
   } catch (cause) {
-    // A rejected target still owns the client, transport and sampler.
-    clearInterval(timer);
-    await client.close().catch(() => undefined);
-    await transport.close().catch(() => undefined);
-    throw cause;
+    // A rejected connection/target still owns its transport and workspace.
+    await close(cause);
   }
   return { call, close };
 };
@@ -231,6 +258,7 @@ const verifyKuna = async (path, functions) => {
     .digest("hex");
   const cold = await openServer({ path, id: "kuna" });
   const answers = [];
+  let coldFailure;
   try {
     const listed = await cold.call("list_procedures");
     for (const [name, address] of functions) {
@@ -309,13 +337,16 @@ const verifyKuna = async (path, functions) => {
         ...quality(exported.value),
       });
     }
+  } catch (cause) {
+    coldFailure = cause;
   } finally {
-    answers.push({ cold_server: await cold.close() });
+    answers.push({ cold_server: await cold.close(coldFailure) });
   }
   const staging = await readdir(join(cacheRoot, "staging"));
   assert.deepEqual(staging, [], "Kuna staging survived a completed export");
   // A fresh server reuses the export immediately.
   const warm = await openServer({ path, id: "kuna" });
+  let warmFailure;
   try {
     for (const answer of answers)
       if (answer.address !== undefined) {
@@ -328,8 +359,10 @@ const verifyKuna = async (path, functions) => {
         );
         answer.warm_fresh_server_ms = reread.ms;
       }
+  } catch (cause) {
+    warmFailure = cause;
   } finally {
-    answers.push({ warm_server: await warm.close() });
+    answers.push({ warm_server: await warm.close(warmFailure) });
   }
   return answers;
 };
@@ -338,6 +371,7 @@ const verifyKuna = async (path, functions) => {
 const measureGhidra = async (path, functions) => {
   const server = await openServer({ path, id: "ghidra" });
   const answers = [];
+  let failure;
   try {
     for (const [name, address] of functions) {
       const cold = await server.call("procedure_pseudo_code", {
@@ -355,8 +389,10 @@ const measureGhidra = async (path, functions) => {
         ...quality(cold.value),
       });
     }
+  } catch (cause) {
+    failure = cause;
   } finally {
-    answers.push({ server: await server.close() });
+    answers.push({ server: await server.close(failure) });
   }
   return answers;
 };
@@ -388,7 +424,15 @@ const verifyVariant = async ({ flavor, directory, symbols }, variant) => {
 };
 
 const results = [];
+const failures = [];
 try {
+  kunaVersion = (
+    await execFileOutput(kuna, ["--version"], {
+      timeout: 10_000,
+      maxBuffer: 64 * 1024,
+      stopSignal: "SIGTERM",
+    })
+  ).stdout.trim();
   let callerPairs = [];
   if (values.targets !== undefined) {
     const names = (values.functions ?? "").split(",").filter(Boolean);
@@ -434,13 +478,34 @@ try {
   for (const pair of callerPairs)
     for (const variant of [pair.file, `${pair.file}.stripped`])
       results.push(await verifyVariant(pair, variant));
-} finally {
-  await rm(workspace, { recursive: true, force: true });
+} catch (cause) {
+  failures.push(cause);
 }
+// Failure paths need the same process evidence as successful verification.
 const lifecycle = await completeVerifierRun(run);
-assertVerifierCleanupComplete(lifecycle.process_lineage);
+let cleanupComplete = pendingServers.size === 0;
+try {
+  assertVerifierCleanupComplete(lifecycle.process_lineage);
+} catch (cause) {
+  cleanupComplete = false;
+  failures.push(cause);
+}
+if (cleanupComplete)
+  try {
+    await rm(workspace, { recursive: true, force: true });
+  } catch (cause) {
+    cleanupComplete = false;
+    failures.push(cause);
+  }
+const describeFailure = (cause) => ({
+  message: cause instanceof Error ? cause.message : String(cause),
+  ...(cause instanceof AggregateError
+    ? { causes: cause.errors.map(describeFailure) }
+    : {}),
+});
 const report = {
   lane: "kuna",
+  status: failures.length === 0 ? "passed" : "failed",
   kuna_version: kunaVersion,
   platform: `${process.platform}/${process.arch}`,
   verifier_run: lifecycle,
@@ -451,8 +516,15 @@ const report = {
     "Quality signals count gotos and warning markers only; they are not a correctness judgement and not a DecBench reproduction.",
     "Response bytes are UTF-8 serialization sizes. Model token usage, tool schema costs and agent task completion were not measured.",
   ],
-  cleanup: "complete",
+  cleanup: cleanupComplete ? "complete" : "incomplete",
+  ...(cleanupComplete ? {} : { retained_workspace: workspace }),
+  ...(failures.length === 0 ? {} : { failures: failures.map(describeFailure) }),
 };
 if (values.report !== undefined)
   await writeFile(values.report, `${JSON.stringify(report, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify(report)}\n`);
+if (failures.length > 0)
+  throw new AggregateError(
+    failures,
+    "Kuna verification failed; see the report for cleanup evidence",
+  );

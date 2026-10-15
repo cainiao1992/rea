@@ -51,6 +51,8 @@ Pseudocode, assembly, `analyze_function` and data-name answers record where thei
 
 The background export belongs to the session. `close_binary`, or the end of a CLI command, cancels it unless another session still waits for it. A one-shot CLI decompile therefore answers from a single-function run; any request that needs the export, such as `procedure_assembly` or `analyze_function`, keeps it.
 
+The assembly label index is scanned once per export reader. Cancelling a request stops its wait without interrupting other readers; closing the session aborts and drains the shared scan before releasing its files.
+
 Regex procedure search uses ECMAScript Unicode matching in a cancellable worker with a five-second matching deadline. Literal matching remains the default. Cancellation or a matching deadline leaves the session available.
 
 Single-function subprocess output and each cached source facet share a 16 MiB buffered-text capacity. Cached spans are checked before allocation; larger text remains in the local export and the error identifies the file and range. `analyze_function` initially returns the complete dossier, which can still be large; later retained views do not remove that first transfer. Prefer the individual text tools for a focused question.
@@ -82,3 +84,5 @@ REA_KUNA_COMMAND=/absolute/path/to/kuna GHIDRA_INSTALL_DIR=/absolute/path/to/ghi
 ```
 
 The lane compiles a small source-owned fixture with the host C compiler and verifies the MCP workflow end to end. `--targets DIR --functions a,b` adds caller-built binaries. `--compare-ghidra` (with `GHIDRA_INSTALL_DIR`) runs those same functions through Ghidra; it requires `--targets` and `--functions` and refuses empty matrices or requested function names missing from every target. See [testing](testing.md#kuna-lane) for coverage.
+
+Failed runs also report process-lineage evidence and exit unsuccessfully. If provider or transport cleanup is unconfirmed, the report says `cleanup: "incomplete"` and records `retained_workspace`; that directory is preserved for investigation and cleanup retries.

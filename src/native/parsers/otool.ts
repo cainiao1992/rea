@@ -407,7 +407,8 @@ const collectDependency = (
   fields: Readonly<Record<string, string | number | null>>,
   state: ParsedLoadCommands,
 ): void => {
-  if (!DYLIB_COMMANDS.has(kind)) return;
+  // LC_ID_DYLIB names this image itself; it stays a raw load command only.
+  if (!DYLIB_COMMANDS.has(kind) || kind === "LC_ID_DYLIB") return;
   state.dependencies.push({
     path: stripOffsetSuffix(stringField(fields, "name")),
     kind,

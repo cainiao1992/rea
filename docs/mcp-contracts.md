@@ -694,6 +694,20 @@ after SDK conversion and check advertised validation and actual calls.
 Individual model APIs can impose additional nesting limits; complete producer
 captures can exceed ten structural levels.
 
+Boolean literal constraints in input schemas are relaxed only in this
+advertisement. For example, a boolean `const` is presented as `type: boolean`;
+an affected `not` is omitted, conditional predicates and their branches are
+omitted together, pure boolean-literal `oneOf` branches collapse to a boolean,
+and other affected `oneOf` branches are presented as `anyOf` to retain branch
+guidance without making overlapping widened branches reject inputs.
+This can make the advertised schema accept inputs the canonical contract
+rejects. The MCP handler still validates every call with the canonical
+contract. The Gemini CLI verifier checks the outgoing
+`parametersJsonSchema` and canonical contract examples against that declaration
+using a loopback model fixture; it does not establish live Google API or
+OpenCode client behavior. Set `REA_VERIFY_GEMINI_SCHEMA_PROFILE=compact` to
+verify the compact advertisement through the same client boundary.
+
 ### Compact input schema profile
 
 Some function-calling providers reject a request while any single tool's

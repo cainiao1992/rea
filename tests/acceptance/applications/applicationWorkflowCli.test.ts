@@ -850,18 +850,18 @@ describe("application workflow CLI parity", () => {
     if (seed === undefined)
       throw new TypeError("Expected at least one semantic relation");
 
-    const traced = await runCli([
+    const traced = await runCliWithRequestFile(
+      root,
       "trace-javascript-semantics",
-      JSON.stringify({
+      {
         application: analyzed.value,
         query: {
           seed: { kind: "semantic-node", node_id: seed },
           direction: "forward-influence",
           include_ambiguous_dynamic_edges: true,
         },
-      }),
-      "--json",
-    ]);
+      },
+    );
     expect(traced).toMatchObject({
       operation: "trace_javascript_semantics",
       predicate_type: "rea.javascript-semantic-trace",
@@ -1300,18 +1300,18 @@ describe("application workflow CLI export Evidence", () => {
       'export default async function make() { return { kind: "record", extra: 1 }; }',
     ];
     const [left, right] = await analyzeComparisonSources(root, sources);
-    const compared = await runCli([
+    const compared = await runCliWithRequestFile(
+      root,
       "compare-javascript-export-shapes",
-      JSON.stringify({
+      {
         left,
         right,
         left_module_path: "parser.mjs",
         left_export_name: "default",
         right_module_path: "parser.mjs",
         right_export_name: "default",
-      }),
-      "--json",
-    ]);
+      },
+    );
     expect(compared).toMatchObject({
       operation: "compare_javascript_export_shapes",
       normalized_result: {
@@ -1639,4 +1639,20 @@ const runCli = async (
       return JSON.parse(cause.stdout);
     throw cause;
   }
+};
+
+/**
+ * Pass a request carrying complete Evidence through the CLI's file-backed JSON
+ * input. Serialized Evidence exceeds the Windows command-line limit when it is
+ * passed as one argument, so spawn fails with ENAMETOOLONG before the workflow
+ * starts. Inline JSON transport keeps its own coverage in the parity tests.
+ */
+const runCliWithRequestFile = async (
+  root: string,
+  command: string,
+  request: unknown,
+): Promise<unknown> => {
+  const requestPath = join(root, "request.json");
+  await writeFile(requestPath, JSON.stringify(request));
+  return runCli([command, requestPath, "--json"]);
 };

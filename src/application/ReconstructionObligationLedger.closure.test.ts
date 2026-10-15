@@ -31,6 +31,49 @@ describe("reconstruction obligation ledger", () => {
     expect(first.status).toBe("open");
   });
 
+  it("merges repeated captures of one process scenario into one definition", () => {
+    const first = processEvidence();
+    const second = processEvidence({
+      residual_unknowns: [{ scope: "network", reason: "Second run only." }],
+    });
+    expect(second.evidence_id).not.toBe(first.evidence_id);
+    const single = build(request([first]));
+    const repeated = build(request([first, second]));
+
+    const obligation = repeated.obligations[0];
+    expect(repeated.obligations).toHaveLength(1);
+    expect(obligation?.obligation_id).toBe(
+      single.obligations[0]?.obligation_id,
+    );
+    expect(obligation?.diagnostics.map(({ code }) => code)).not.toContain(
+      "duplicate-definition",
+    );
+    expect(
+      obligation?.authority_references.map(({ evidence_id: id }) => id).sort(),
+    ).toEqual([first.evidence_id, second.evidence_id].sort());
+    // The second capture's own uncertainty stays visible after the merge.
+    expect(obligation?.unavailable_authority).toContain(
+      "network: Second run only.",
+    );
+  });
+
+  it("still reports a reviewed definition that reuses a generated ID", () => {
+    const capture = processEvidence();
+    const generated = build(request([capture])).obligations[0];
+    if (generated === undefined) throw new Error("Expected process obligation");
+    const ledger = build(
+      request([capture], {
+        reviewed_obligations: [
+          reviewedObligation(generated.obligation_id, capture.evidence_id),
+        ],
+      }),
+    );
+
+    expect(
+      ledger.obligations[0]?.diagnostics.map(({ code }) => code),
+    ).toContain("duplicate-definition");
+  });
+
   it("does not let green unit evidence close a packaged-process obligation", () => {
     const capture = processEvidence();
     const proof = proofEvidence("green-unit");

@@ -69,6 +69,7 @@ import {
   KunaProjectReader,
   type KunaProjectFileSpan,
 } from "./KunaProjectReader.js";
+import { kunaUnavailable } from "./KunaUnavailable.js";
 
 /** How often a request waiting on the project export reports that it still waits. */
 const WAIT_PROGRESS_INTERVAL_MS = 10_000;
@@ -278,13 +279,7 @@ export class KunaSessionClient implements AnalysisClient {
     options: ExecutionOptions = {},
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     if (this.#closing)
-      return err(
-        new AnalysisCapabilityUnavailableError(
-          KUNA_PROVIDER_ID,
-          operation,
-          "This Kuna session is closed.",
-        ),
-      );
+      return err(kunaUnavailable(operation, "This Kuna session is closed."));
     return this.#own(
       this.#execute(operation, parameters, {
         ...options,
@@ -312,8 +307,7 @@ export class KunaSessionClient implements AnalysisClient {
       return err(new AnalysisCancelledError(operation));
     if (operation !== "health" && !isKunaOperation(operation))
       return err(
-        new AnalysisCapabilityUnavailableError(
-          KUNA_PROVIDER_ID,
+        kunaUnavailable(
           operation,
           "Kuna answers procedure and string queries, pseudocode, assembly and references; this operation needs another provider.",
         ),
@@ -1229,14 +1223,7 @@ export class KunaSessionClient implements AnalysisClient {
     this.#installation ??= inspectKunaInstallation(this.#environment).then(
       (inspected): Result<KunaInstallation, AnalysisError> => {
         if (!inspected.ok)
-          return err(
-            new AnalysisCapabilityUnavailableError(
-              KUNA_PROVIDER_ID,
-              "health",
-              inspected.error.reason,
-              { userMessage: inspected.error.reason },
-            ),
-          );
+          return err(kunaUnavailable("health", inspected.error.reason));
         const committed = this.#profile?.parameters["kuna_sha256"];
         if (committed !== undefined && committed !== inspected.value.sha256)
           return err(

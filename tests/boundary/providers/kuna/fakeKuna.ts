@@ -26,6 +26,11 @@ export interface FakeKunaBehavior {
   readonly functions?: readonly FakeKunaFunction[];
   /** Extra `.asm` bytes, for capacity tests. */
   readonly asmPadding?: number;
+  /** Extra C comment bytes inside each exported body, for buffered-read capacity. */
+  readonly cPadding?: number;
+  readonly decompile?: "ok" | "hang";
+  /** Milliseconds `functions --json` takes before printing. */
+  readonly inventoryDelayMs?: number;
   /** Milliseconds the export takes before writing its files. */
   readonly delayMs?: number;
 }
@@ -55,7 +60,7 @@ if (args[0] === "--version") {
   else if (mode === "not-json") process.stdout.write("functions: 2\n");
   else {
     const listed = [...functions, { name: "puts", addr: "0x2000" }].map((fn) => ({ name: fn.name, address: parseInt(fn.addr, 16), address_hex: fn.addr, aliases: [], object_location: null, size: fn.name === "puts" ? 0 : 16 }));
-    process.stdout.write(JSON.stringify({ binary: args[1], count: listed.length, total: listed.length, error: null, functions: listed }, null, 2) + "\n");
+    setTimeout(() => process.stdout.write(JSON.stringify({ binary: args[1], count: listed.length, total: listed.length, error: null, functions: listed }, null, 2) + "\n"), behavior.inventoryDelayMs ?? 0);
   }
 } else if (args[0] === "decompile-project") {
   const input = args[1];
@@ -69,12 +74,15 @@ if (args[0] === "--version") {
     let c = '#include "' + stem + '.h"\n\n';
     functions.forEach((fn, index) => {
       c += fn.error === undefined
-        ? "// Function: " + fn.name + " @ " + fn.addr + "\nint " + fn.name + "(void)\n{\n  return " + index + ";\n}\n\n"
+        ? "// Function: " + fn.name + " @ " + fn.addr + "\nint " + fn.name + "(void)\n{\n  return " + index + ";\n" + (behavior.cPadding ? "  /*" + "x".repeat(behavior.cPadding) + "*/\n" : "") + "}\n\n"
         : "// Function: " + fn.name + " @ " + fn.addr + "  (error: " + fn.error + ")\n\n";
     });
     fs.writeFileSync(path.join(output, stem + ".c"), c);
     fs.writeFileSync(path.join(output, stem + ".h"), "#pragma once\n");
-    fs.writeFileSync(path.join(output, stem + ".asm"), "; asm\n" + "x".repeat(behavior.asmPadding ?? 0));
+    let asm = "; kuna decompile-project — " + stem + "\n\n; --- code section 0x1000..0x2000 ---\n\n";
+    functions.forEach((fn) => { asm += fn.name + ":  ; " + fn.addr + "\n  " + fn.addr.slice(2).padStart(8, "0") + ": c3     RET\n\n"; });
+    asm += "; --- data ---\n\ndat_3000:  ; 0x3000 = dat_3000\n  00003000: 00\n\ng_table:  ; 0x3010\n  00003010: 01\n" + "x".repeat(behavior.asmPadding ?? 0);
+    fs.writeFileSync(path.join(output, stem + ".asm"), asm);
     fs.writeFileSync(path.join(output, "README.md"), "# " + stem + "\n");
     // Occupy the manifest path so REA's publication write fails.
     if (mode === "block-manifest") fs.mkdirSync(path.join(output, "..", "manifest.json"));
@@ -82,6 +90,12 @@ if (args[0] === "--version") {
     const reported = mode === "miscounted" ? functions.length + 1 : functions.length - failed;
     if (mode !== "silent") process.stdout.write("wrote " + output + ": " + stem + ".c (" + c.length + " bytes); functions: " + reported + " ok, " + failed + " failed\n");
   }, behavior.delayMs ?? 0);
+} else if (args[0] === "decompile") {
+  // decompile <input> <0xaddr> --addr: the single-function path.
+  const fn = functions.find((candidate) => candidate.addr === args[2]);
+  if (behavior.decompile === "hang") hang();
+  else if (fn === undefined) { process.stderr.write("error: no function at " + args[2] + "\n"); process.exit(1); }
+  else process.stdout.write("int " + fn.name + "(void) // single-function\n{\n  return 0;\n}\n");
 } else {
   process.stderr.write("unexpected command\n");
   process.exit(2);

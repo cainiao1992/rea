@@ -31,8 +31,9 @@ import {
   readKunaExport,
   type KunaExport,
   type KunaExportStatus,
-  type KunaProcessLauncher,
 } from "./KunaProjectExport.js";
+import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
+import type { KunaProcessLauncher } from "./KunaCommand.js";
 import type {
   KunaInventoryFunction,
   KunaProjectFunction,
@@ -129,6 +130,15 @@ export interface KunaProjectRequest {
   readonly onStatus?: (status: KunaExportStatus) => void;
 }
 
+/** One build whose process tree REA could not prove stopped. */
+interface RetainedProcess {
+  readonly key: string;
+  readonly error: ProviderCleanupError;
+  /** Retries stopping the process tree, when the launcher left one. */
+  readonly owner: ProviderProcessSupervisor | undefined;
+  readonly staging: string;
+}
+
 interface StagedResult {
   readonly result: Result<KunaProject, AnalysisError>;
   /** Set when an owned process may still write into staging. */
@@ -205,9 +215,13 @@ export class KunaProjectCache {
   #capacity: "within_limit" | "pinned" | "building" = "within_limit";
   #maintenance: Promise<void> | undefined;
   #maintenanceRequested = false;
-  readonly #retainedProcesses: ProviderCleanupError[] = [];
+  /** Builds whose process tree could not be proven stopped; their staging stays. */
+  readonly #retainedProcesses: RetainedProcess[] = [];
   /** Only resources whose process cleanup is proven may be retried as files. */
-  readonly #retainedFiles = new Map<string, ProviderCleanupError>();
+  readonly #retainedFiles = new Map<
+    string,
+    { readonly key: string | null; readonly error: ProviderCleanupError }
+  >();
 
   constructor(
     root: string,
@@ -341,33 +355,81 @@ export class KunaProjectCache {
     return this.#await(created, request);
   }
 
+  /**
+   * Wait until a build that every waiter abandoned has stopped its Kuna
+   * process and removed its staging. A build another request still waits for
+   * keeps running and is not awaited.
+   */
+  async settled(key: string): Promise<Result<null, ProviderCleanupError>> {
+    await Promise.allSettled(
+      [...this.#unfinished]
+        .filter((entry) => entry.key === key && entry.controller.signal.aborted)
+        .map((entry) => entry.promise),
+    );
+    await this.#retryProcesses((retained) => retained.key === key);
+    await this.#retryFiles(key);
+    return cleanupResult(
+      [...this.#retainedProcesses, ...this.#retainedFiles.values()]
+        .filter((retained) => retained.key === key)
+        .map(({ error }) => error),
+    );
+  }
+
   /** Wait for builds, retry safe file removal, and report unresolved cleanup. */
   async close(): Promise<Result<null, ProviderCleanupError>> {
     await Promise.allSettled(
       [...this.#unfinished].map((entry) => entry.promise),
     );
     while (this.#maintenance !== undefined) await this.#maintenance;
-    for (const path of [...this.#retainedFiles.keys()])
-      await this.#removeRetired(path).catch(() => undefined);
-    const retained = [
-      ...this.#retainedProcesses,
-      ...this.#retainedFiles.values(),
-    ];
-    if (retained.length === 0) return ok(null);
-    return err(
-      new ProviderCleanupError(
-        KUNA_PROVIDER_ID,
-        retained.flatMap((entry) => entry.cleanupResources),
-        {
-          reason: retained
-            .map((entry) =>
-              String(entry.diagnostics?.["reason"] ?? entry.message),
-            )
-            .join("; "),
-        },
-        { operation: KUNA_EXPORT_OPERATION },
-      ),
-    );
+    await this.#retryProcesses(() => true);
+    await this.#retryFiles();
+    return cleanupResult([
+      ...this.#retainedProcesses.map(({ error }) => error),
+      ...[...this.#retainedFiles.values()].map(({ error }) => error),
+    ]);
+  }
+
+  /** Retry stopping retained process trees; retire the staging of each one proven stopped. */
+  async #retryProcesses(
+    selected: (retained: RetainedProcess) => boolean,
+  ): Promise<void> {
+    for (const retained of this.#retainedProcesses.filter(selected)) {
+      const stopped = await retained.owner?.stop();
+      if (stopped === undefined || stopped.status === "incomplete") continue;
+      this.#retainedProcesses.splice(
+        this.#retainedProcesses.indexOf(retained),
+        1,
+      );
+      await this.#retireStaging(retained.staging, retained.key);
+    }
+  }
+
+  /** Retry only stopped file resources belonging to the closing task, or all. */
+  async #retryFiles(key?: string): Promise<void> {
+    for (const [path, retained] of [...this.#retainedFiles])
+      if (key === undefined || retained.key === key)
+        await this.#removeRetired(path).catch(() => undefined);
+  }
+
+  /**
+   * Move proven-stopped staging into trash and remove it. A failed removal
+   * stays owned as a file cleanup that close retries.
+   */
+  async #retireStaging(
+    staging: string,
+    key: string,
+  ): Promise<ProviderCleanupError | undefined> {
+    let cleanupPath = staging;
+    try {
+      const retired = join(this.#root, "trash", `build-${randomUUID()}`);
+      await rename(staging, retired);
+      cleanupPath = retired;
+      await this.#removeRetired(retired, key);
+      return undefined;
+    } catch (cause: unknown) {
+      if (cause instanceof ProviderCleanupError) return cause;
+      return this.#retainFileCleanup(cleanupPath, cause, key);
+    }
   }
 
   #await(
@@ -437,18 +499,10 @@ export class KunaProjectCache {
       retainStaging: false,
     }));
     if (built.retainStaging) return built.result;
-    let cleanupPath = staging;
-    try {
-      // Only a proven-stopped build may enter trash. A failed write, crash or
-      // lost cleanup identity therefore never makes live staging reclaimable.
-      const retired = join(this.#root, "trash", `build-${randomUUID()}`);
-      await rename(staging, retired);
-      cleanupPath = retired;
-      await this.#removeRetired(retired);
-    } catch (cause: unknown) {
-      if (cause instanceof ProviderCleanupError) return err(cause);
-      return err(this.#retainFileCleanup(cleanupPath, cause));
-    }
+    // Only a proven-stopped build may enter trash. A failed write, crash or
+    // lost cleanup identity therefore never makes live staging reclaimable.
+    const retired = await this.#retireStaging(staging, key);
+    if (retired !== undefined) return err(retired);
     if (built.result.ok)
       // The entry is published either way; a failed eviction retries on the next publish.
       await this.#evict(key).catch(() => undefined);
@@ -473,7 +527,12 @@ export class KunaProjectCache {
       launcher: this.#launcher,
     });
     if (outcome.kind === "retained") {
-      this.#retainedProcesses.push(outcome.error);
+      this.#retainedProcesses.push({
+        key,
+        error: outcome.error,
+        owner: outcome.owner,
+        staging,
+      });
       return { result: err(outcome.error), retainStaging: true };
     }
     return {
@@ -643,16 +702,16 @@ export class KunaProjectCache {
       if (isMissing(cause)) return;
       throw cause;
     }
-    await this.#removeRetired(trash);
+    await this.#removeRetired(trash, key);
   }
 
   /** Keep each failed removal owned until that path is successfully removed. */
-  async #removeRetired(path: string): Promise<void> {
+  async #removeRetired(path: string, key?: string): Promise<void> {
     try {
       await rm(path, { recursive: true, force: true });
       this.#retainedFiles.delete(path);
     } catch (cause: unknown) {
-      throw this.#retainFileCleanup(path, cause);
+      throw this.#retainFileCleanup(path, cause, key);
     }
   }
 
@@ -677,14 +736,42 @@ export class KunaProjectCache {
     return readFile(path, "utf8");
   }
 
-  #retainFileCleanup(path: string, cause: unknown): ProviderCleanupError {
+  #retainFileCleanup(
+    path: string,
+    cause: unknown,
+    key?: string,
+  ): ProviderCleanupError {
     const error = new ProviderCleanupError(
       KUNA_PROVIDER_ID,
       [path],
       { reason: cause instanceof Error ? cause.message : String(cause) },
       { operation: KUNA_EXPORT_OPERATION, cause },
     );
-    this.#retainedFiles.set(path, error);
+    this.#retainedFiles.set(path, {
+      key: key ?? this.#retainedFiles.get(path)?.key ?? null,
+      error,
+    });
     return error;
   }
 }
+
+/** One cleanup error aggregating what remains owned, or success when nothing does. */
+const cleanupResult = (
+  remaining: readonly ProviderCleanupError[],
+): Result<null, ProviderCleanupError> => {
+  if (remaining.length === 0) return ok(null);
+  return err(
+    new ProviderCleanupError(
+      KUNA_PROVIDER_ID,
+      remaining.flatMap((entry) => entry.cleanupResources),
+      {
+        reason: remaining
+          .map((entry) =>
+            String(entry.diagnostics?.["reason"] ?? entry.message),
+          )
+          .join("; "),
+      },
+      { operation: KUNA_EXPORT_OPERATION },
+    ),
+  );
+};

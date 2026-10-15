@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import {
   parseKunaExportSummary,
   parseKunaInventory,
+  scanKunaAssembly,
   scanKunaProjectSource,
 } from "../../../../src/kuna/KunaProjectFiles.js";
 
@@ -161,4 +162,46 @@ it("reads the callable inventory, ignoring fields a later release adds", () => {
   expect(
     parseKunaInventory(JSON.stringify({ functions: [{ name: "x" }] })),
   ).toMatchObject({ ok: false });
+});
+
+it("indexes code listings and data labels in Kuna's .asm", async () => {
+  const asm = [
+    "; kuna decompile-project — a.out",
+    "; arch: x86:LE:64:default:gcc",
+    "",
+    "; --- code section 0x1000..0x1020 ---",
+    "",
+    "main:  ; 0x1000",
+    "; arg:   param_1 (int)",
+    "  00001000: c3                        RET",
+    "",
+    "operator new(unsigned long):  ; 0x1010",
+    "  00001010: c3                        RET",
+    "",
+    "; --- data ---",
+    "",
+    "dat_3000:  ; 0x3000 = dat_3000",
+    "  00003000: 00",
+    "",
+    "",
+  ].join("\n");
+  const scanned = await scanKunaAssembly(chunked(asm, 5));
+  if (!scanned.ok) throw new Error(scanned.error);
+  const main = scanned.value.code.get("0x1000");
+  // Offsets are bytes; the header's em dash is three of them.
+  expect(
+    Buffer.from(asm)
+      .subarray(main?.offset, (main?.offset ?? 0) + (main?.length ?? 0))
+      .toString(),
+  ).toBe(
+    "main:  ; 0x1000\n; arg:   param_1 (int)\n  00001000: c3                        RET\n\n",
+  );
+  expect(scanned.value.code.get("0x1010")?.name).toBe(
+    "operator new(unsigned long)",
+  );
+  expect([...scanned.value.code.keys()]).toEqual(["0x1000", "0x1010"]);
+  expect([...scanned.value.data]).toEqual([["0x3000", "dat_3000"]]);
+  expect(
+    await scanKunaAssembly(chunked("a:  ; 0x10\n\nb:  ; 0x10\n", 64)),
+  ).toEqual({ ok: false, error: "the .asm repeats code address 0x10" });
 });

@@ -18,6 +18,9 @@ const MAX_KUNA_JOBS = 32;
  */
 const DEFAULT_PROJECT_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** One function decompiles in well under a second; sqlite3VdbeExec (42 KB) took 15-25 s. */
+const DEFAULT_FUNCTION_TIMEOUT_MS = 120_000;
+
 /**
  * A serial (`--jobs 1`) export is Kuna's reference answer: it decompiles
  * callees before callers, which recovers prototypes that parallel workers
@@ -39,6 +42,8 @@ export interface KunaConfiguration {
   readonly cacheRoot: string;
   readonly cacheMaxBytes: number;
   readonly projectTimeoutMs: number;
+  /** Deadline for one single-function `kuna decompile` run. */
+  readonly functionTimeoutMs: number;
   readonly jobs: number;
 }
 
@@ -125,6 +130,18 @@ export const readKunaConfiguration = (
       "REA_KUNA_PROJECT_TIMEOUT_MS",
     );
 
+  const rawFunctionTimeout = environment.REA_KUNA_TIMEOUT_MS;
+  const functionTimeout =
+    rawFunctionTimeout === undefined
+      ? undefined
+      : providerStartupTimeoutSchema.safeParse(rawFunctionTimeout);
+  if (functionTimeout !== undefined && !functionTimeout.success)
+    return failure(
+      "open_options_invalid",
+      `REA_KUNA_TIMEOUT_MS must be a decimal millisecond count from 1 to 2147483647; received ${String(rawFunctionTimeout)}.`,
+      "REA_KUNA_TIMEOUT_MS",
+    );
+
   const rawJobs = environment.REA_KUNA_JOBS;
   const jobs = rawJobs === undefined ? DEFAULT_JOBS : positiveInteger(rawJobs);
   if (jobs === undefined || jobs > MAX_KUNA_JOBS)
@@ -139,6 +156,7 @@ export const readKunaConfiguration = (
     cacheRoot: cacheRoot ?? defaultCacheRoot(environment, platform),
     cacheMaxBytes,
     projectTimeoutMs: timeout?.data ?? DEFAULT_PROJECT_TIMEOUT_MS,
+    functionTimeoutMs: functionTimeout?.data ?? DEFAULT_FUNCTION_TIMEOUT_MS,
     jobs,
   });
 };

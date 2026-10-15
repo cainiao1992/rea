@@ -616,10 +616,21 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
     try {
       await transientRuntime.snapshot(source, "snapshot.bin");
       transientHolder = await startDeleteSharingDeniedReader(transientHeldPath);
-      // The first native close is synchronous and must fail while this reader
-      // is held. Releasing it while the owner waits allows its own retry to
-      // complete without the caller issuing another close.
+      // Keep the reader held through the first close attempt. Without retries,
+      // close rejects before the next event-loop turn; with retries, it remains
+      // pending until the caller releases this sharing conflict.
+      let closeSettled = false;
       const closing = transientRuntime.close();
+      void closing.then(
+        () => {
+          closeSettled = true;
+        },
+        () => {
+          closeSettled = true;
+        },
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(closeSettled, false);
       transientHolder.child.stdin.end("\n");
       const [, [exitCode]] = await Promise.all([
         closing,

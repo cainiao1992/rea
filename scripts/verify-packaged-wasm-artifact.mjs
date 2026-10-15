@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { PrivateRuntimeRoot } from "../dist/process/PrivateRuntimeRoot.js";
-import { exec } from "./lib/verify-package-core.mjs";
+import { exec, execNpm } from "./lib/verify-package-core.mjs";
 import { WABT_WORKFLOW_TIMEOUT_MS } from "./lib/wabt-verifier-timeouts.mjs";
 import { verifyPackagePack } from "./verify-package-pack.mjs";
 
@@ -24,8 +24,7 @@ try {
     XDG_CONFIG_HOME: join(home, ".config"),
     XDG_CACHE_HOME: join(home, ".cache"),
   };
-  await exec(
-    "npm",
+  await execNpm(
     [
       "install",
       "--global",

@@ -18,7 +18,10 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
-import { verifyCompleteToolCatalog } from "./lib/verify-package-core.mjs";
+import {
+  execNpm,
+  verifyCompleteToolCatalog,
+} from "./lib/verify-package-core.mjs";
 import { verifyPackageUpdate } from "./verify-package-update.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 
@@ -32,9 +35,9 @@ let report;
 try {
   const packed = JSON.parse(
     (
-      await npm(
+      await execNpm(
         ["pack", "--json", "--silent", "--pack-destination", workspace],
-        root,
+        { cwd: root, windowsHide: true },
       )
     ).stdout,
   );
@@ -63,9 +66,9 @@ try {
 
   const tarball = join(workspace, packageResult.filename);
   await access(tarball);
-  await npm(
+  await execNpm(
     ["install", "--no-package-lock", "--no-save", "--prefix", prefix, tarball],
-    workspace,
+    { cwd: workspace, windowsHide: true },
   );
   const entry = join(
     prefix,
@@ -209,9 +212,9 @@ try {
       throw new Error(`Packaged uninstall did not remove ${id}`);
 
   if (process.platform !== "win32")
-    await npm(
+    await execNpm(
       ["install", "--global", "--ignore-scripts", "--prefix", prefix, tarball],
-      workspace,
+      { cwd: workspace, windowsHide: true },
     );
   const update = await verifyPackageUpdate({
     prefix,
@@ -241,16 +244,3 @@ try {
 process.stdout.write(
   `${JSON.stringify({ verifier_run: await completeVerifierRun(verifierRun), ...report })}\n`,
 );
-
-function npm(arguments_, cwd) {
-  const npmExecPath = process.env.npm_execpath;
-  return npmExecPath === undefined
-    ? exec(process.platform === "win32" ? "npm.cmd" : "npm", arguments_, {
-        cwd,
-        windowsHide: true,
-      })
-    : exec(process.execPath, [npmExecPath, ...arguments_], {
-        cwd,
-        windowsHide: true,
-      });
-}

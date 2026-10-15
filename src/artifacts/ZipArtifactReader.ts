@@ -127,6 +127,13 @@ class NodeFileReader extends Reader<string> {
     const handle = this.#handle;
     if (handle === undefined) throw new Error("ZIP reader is not initialized");
     const readBytes = Math.min(length, this.size - index);
+    // A central-directory offset can point past EOF. Type that malformed ZIP
+    // read before a negative size reaches Buffer.alloc and becomes an I/O error.
+    if (readBytes < 0)
+      throw new ArtifactReaderFailure(
+        "format",
+        `ZIP archive is malformed: read at ${index} extends beyond the ${this.size}-byte archive`,
+      );
     if (
       this.maximumReadBytes !== undefined &&
       readBytes > this.maximumReadBytes

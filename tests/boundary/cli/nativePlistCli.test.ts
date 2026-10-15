@@ -12,13 +12,22 @@ import { cliTest } from "../../support/cli/cliFixture.js";
 describe.skipIf(process.platform !== "darwin")(
   "native plist CLI selection",
   () => {
+    // Targets are app-relative: the bundle, its program file, or a plist file.
     cliTest.for([
-      ["default", undefined, "default"],
-      ["alternate", "Contents/Alternate.plist", "alternate"],
-      ["missing", "Contents/Missing.plist", undefined],
+      ["default", "", undefined, "default"],
+      ["alternate", "", "Contents/Alternate.plist", "alternate"],
+      ["missing", "", "Contents/Missing.plist", undefined],
+      ["program default", "Contents/MacOS/App", undefined, "default"],
+      [
+        "program alternate",
+        "Contents/MacOS/App",
+        "Contents/Alternate.plist",
+        "alternate",
+      ],
+      ["plist file", "Contents/Alternate.plist", undefined, "alternate"],
     ] as const)(
       "honors the $0 plist selection",
-      async ([, selected, identifier], { cli }) => {
+      async ([, target, selected, identifier], { cli }) => {
         const directory = await createTestTempDirectory("rea-plist-cli-");
         const app = join(directory, "Example.app");
         const contents = join(app, "Contents");
@@ -39,7 +48,7 @@ describe.skipIf(process.platform !== "darwin")(
         const result = await cli.run({
           arguments: [
             "inspect-plist",
-            app,
+            join(app, target),
             ...(selected === undefined ? [] : ["--relative-path", selected]),
             "--json",
           ],
@@ -55,7 +64,11 @@ describe.skipIf(process.platform !== "darwin")(
           expect(result.exitCode).toBe(0);
           expect(result.json).toMatchObject({
             normalized_result: {
-              source_path: join(app, selected ?? "Contents/Info.plist"),
+              source_path: join(
+                app,
+                selected ??
+                  (target.endsWith(".plist") ? target : "Contents/Info.plist"),
+              ),
               value: { CFBundleIdentifier: identifier },
             },
           });

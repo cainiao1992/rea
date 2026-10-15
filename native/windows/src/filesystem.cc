@@ -384,7 +384,7 @@ void createRuntime(const std::wstring& parentPath, const std::wstring& prefix,
   owner = std::move(result);
   try {
     owner->directory = createRelative(owner->parents.back().get(), name,
-                                      DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | READ_CONTROL,
+                                      DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | READ_CONTROL,
                                       true, security, owner->path);
     verifyPrivate(owner->directory.get(), owner->path, true);
     // The owned child pins the parent nonempty before write sharing is relaxed.
@@ -469,10 +469,7 @@ static void writeBytes(HANDLE file, const void* bytes, DWORD count, const std::w
 static void dispose(HANDLE handle, const std::wstring& path) {
   FILE_BASIC_INFO info{};
   require(GetFileInformationByHandleEx(handle, FileBasicInfo, &info, sizeof(info)), "Read cleanup attributes failed", path);
-  // READONLY prevents file deletion but is not honored on directories. Clearing
-  // it on a directory would need attribute-write rights cleanup does not need.
-  if ((info.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0 &&
-      (info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+  if ((info.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0) {
     info.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
     require(SetFileInformationByHandle(handle, FileBasicInfo, &info, sizeof(info)), "Clear owned readonly attribute failed", path);
   }

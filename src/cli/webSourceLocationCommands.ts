@@ -2,11 +2,11 @@ import { z } from "incur";
 import { createWebSourceLocationService } from "../composition/webSourceLocations.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
-import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { cliIntegerArgument } from "./options.js";
 import { withCommandCancellation } from "./commandCancellation.js";
+import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
 
 /** Expose the same explicit selected map/point contract through the CLI. */
 export const registerWebSourceLocationCommands = (
@@ -35,13 +35,11 @@ export const registerWebSourceLocationCommands = (
       ),
     }),
     run: ({ args }) =>
-      withCommandCancellation(async (signal) => {
-        try {
-          return await logCliCommand(
-            logger,
-            CLI_COMMANDS.traceWebSourceLocation,
-            async () => {
-              const result = await service.trace(
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.traceWebSourceLocation, () =>
+          finishAnalysisCommand(
+            () =>
+              service.trace(
                 {
                   manifest_path: args.manifestPath,
                   script_index: args.scriptIndex,
@@ -52,15 +50,12 @@ export const registerWebSourceLocationCommands = (
                   generated_position: { line: args.line, column: args.column },
                 },
                 { signal },
-              );
-              return result.ok
-                ? result.value
-                : projectAnalysisError(result.error);
-            },
-          );
-        } finally {
-          await service.close();
-        }
-      }),
+              ),
+            service,
+            "web-source-location",
+            "trace_web_source_location",
+          ),
+        ),
+      ),
   });
 };

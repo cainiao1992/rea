@@ -393,14 +393,24 @@ concrete version, selection source, and complete analysis profile through
 choices return typed selection details. A selected provider is never replaced
 automatically after a runtime failure.
 
-Every successful target transition allocates `binary_session.analysis_run.run_id`
-before any provider startup. `process_lineage` is `not_observed` until a dynamic
-provider starts, then becomes `snapshots` with every started provider's identity
+Each provider client receives `binary_session.analysis_run.run_id` before any
+provider startup, including clients whose startup fails. `process_lineage` is
+`not_observed` until a dynamic provider starts, then becomes `snapshots` with
+every started provider's identity
 and retained ownership observation. Each observation records `observed_at` and
 is `unavailable` with a reason when ownership could not be revalidated, or
 `verified` with launcher PID, parent PID, process group, and descendants observed
 at that bounded check. These are historical snapshots, not live process
 inventories, and do not claim that no short-lived descendant existed.
+
+`binary_session.cleanup_pending` reports whether the session retains a provider
+client whose cleanup has not succeeded. It can be true with `open: false`;
+target retirement does not establish resource release. Health, activity, and
+lineage remain available under that client's original `analysis_run.run_id`
+where the provider supplies them. Successful cleanup clears the retained run;
+a replacement client receives a fresh run ID. Follow the cleanup error's
+reported resources and recovery action before reopening; a missing health
+observation does not establish an idle provider.
 
 ## Progress and cancellation
 
@@ -428,6 +438,10 @@ Native call tracing and process capture retain available observations in
 `details.partial_observation` on failure, including when cleanup succeeds.
 The observation reports its partial coverage; cleanup details describe host
 state separately from the execution failure.
+For these tools, cancellation observed during result finalization or owned
+cleanup also returns typed cancellation with the available observations.
+A normal target exit does not establish request completion. Incomplete cleanup
+still takes precedence and retains its resource diagnostics.
 A process capture that fails during a finalization interval keeps every signal
 attempt and its delivery result in `details.partial_observation`, with
 `elapsed_ms` and `exit_code` null when no exit was observed.

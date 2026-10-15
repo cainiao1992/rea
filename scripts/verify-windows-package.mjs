@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { supportedClients } from "../dist/application/SupportedClients.js";
 import { promisify } from "node:util";
+import { GHIDRA_BRIDGE_SOURCES } from "../src/ghidra/GhidraBridgeSources.ts";
 
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
@@ -52,7 +53,9 @@ try {
     );
   const packagedPaths = new Set(packageResult.files.map(({ path }) => path));
   for (const required of [
-    "bridge/ghidra/ReaGhidraBridge.java",
+    ...Object.values(GHIDRA_BRIDGE_SOURCES).map(
+      (name) => `bridge/ghidra/${name}`,
+    ),
     "native/windows/build/manifest.json",
     "native/windows/build/rea-windows-x64.node",
     "dist/android/JadxWorkspaceRoot.js",

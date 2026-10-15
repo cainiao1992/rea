@@ -60,6 +60,7 @@ jobs:
       web_runtime: ${{ steps.plan.outputs.web_runtime }}
       web_source_map: ${{ steps.plan.outputs.web_source_map }}
       nativeaot: ${{ steps.plan.outputs.nativeaot }}
+      ghidra_bridge: ${{ steps.plan.outputs.ghidra_bridge }}
       website: ${{ steps.plan.outputs.website }}
       matrix: ${{ steps.plan.outputs.matrix }}
       test_selection: ${{ steps.plan.outputs.test_selection }}
@@ -899,6 +900,11 @@ jobs:
     if: needs.changes.outputs.nativeaot == 'true'
     uses: ./.github/workflows/nativeaot-fixtures.yml
 
+  ghidra_bridge:
+    needs: [changes, static]
+    if: needs.changes.outputs.ghidra_bridge == 'true'
+    uses: ./.github/workflows/ghidra-bridge-sources.yml
+
   website:
     needs: [changes, static]
     if: needs.changes.outputs.website == 'true'
@@ -934,6 +940,7 @@ jobs:
         web_runtime,
         web_source_map,
         nativeaot,
+        ghidra_bridge,
         website,
       ]
     runs-on: ubuntu-24.04

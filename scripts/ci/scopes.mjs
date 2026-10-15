@@ -104,6 +104,7 @@ export const SCOPES = {
     "tests/boundary/filesystem/npmRelease.test.ts",
     "tests/boundary/process/releaseArtifactCanary.test.ts",
     "src/windows/**",
+    "src/ghidra/GhidraBridgeSources.ts",
     "native/windows/**",
     "src/process/capture/FilesystemSnapshot.ts",
     "src/process/capture/FilesystemSnapshot.test.ts",
@@ -435,6 +436,14 @@ export const SCOPES = {
     "scripts/lib/nativeaot-build.*",
     "tests/fixtures/nativeaot/**",
     ".github/workflows/nativeaot-fixtures.yml",
+  ],
+  ghidra_bridge: [
+    "bridge/ghidra/**",
+    "src/ghidra/GhidraBridgeSources.ts",
+    "src/ghidra/GhidraJavaProperties.ts",
+    "src/ghidra/GhidraReleasePolicy.ts",
+    "scripts/verify-ghidra-bridge-sources.mjs",
+    ".github/workflows/ghidra-bridge-sources.yml",
   ],
   website: [
     "website/**",

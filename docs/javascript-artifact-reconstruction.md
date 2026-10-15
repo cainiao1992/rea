@@ -182,6 +182,18 @@ partial Evidence. Cancellation after source analysis begins can also retain
 completed facts, including when interrupted during cleanup, graph construction,
 or Evidence sealing. Unexamined relationships remain unknown.
 
+Per-file gaps identify the applicable processing phase: JavaScript source analysis
+uses AST authority, while package/JSON, HTML-reference and source-map processing
+use artifact-byte authority. File-analysis interruption gaps carry `analysis_status`:
+`interrupted` means the phase was entered (including source-worker startup),
+and `not-started` means interruption prevented that phase from beginning.
+Neither state establishes that parsing completed. Remaining parsers are not run
+after interruption just to populate a result.
+
+Native add-ons remain metadata-only and acquire no JavaScript parse or analysis
+gap. This also applies when their paths are outside `source_paths`; their inventory
+and caller selection remain available without implying applicable AST work.
+
 MCP returns a `partial_observation` retained reference after recording succeeds;
 open it with `inspect_analysis_view` on the same connection. If the SDK stopped
 waiting before receiving the reply, follow [MCP cancellation recovery](mcp-contracts.md#progress-and-cancellation)

@@ -386,9 +386,11 @@ void createRuntime(const std::wstring& parentPath, const std::wstring& prefix,
     owner->directory = createRelative(owner->parents.back().get(), name,
                                       DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | READ_CONTROL,
                                       true, security, owner->path);
-    verifyPrivate(owner->directory.get(), owner->path, true);
-    // The owned child pins the parent nonempty before write sharing is relaxed.
+    // FILE_CREATE proves ownership and pins the parent nonempty independently
+    // of admission validation. A failed validation must not retain a strict
+    // parent lease that prevents renaming the still-owned child before retry.
     owner->parents.back() = openComponent(parent->path, 0, true, FILE_SHARE_READ | FILE_SHARE_WRITE);
+    verifyPrivate(owner->directory.get(), owner->path, true);
   } catch (Failure& primary) {
     cleanupFailedRuntime(owner, primary);
     throw;

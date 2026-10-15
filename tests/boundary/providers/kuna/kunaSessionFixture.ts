@@ -28,6 +28,7 @@ export const session = async (
   behavior: FakeKunaBehavior = {},
   environment: Readonly<Record<string, string>> = {},
   launcher?: KunaProcessLauncher,
+  singleFunctionRuns?: number,
 ) => {
   const root = await createTestTempDirectory(prefix);
   const kuna = await writeFakeKuna(root, { functions: FUNCTIONS, ...behavior });
@@ -47,6 +48,7 @@ export const session = async (
     {
       platform: process.platform,
       ...(launcher === undefined ? {} : { launcher }),
+      ...(singleFunctionRuns === undefined ? {} : { singleFunctionRuns }),
     },
   );
   const profile = await provider.resolveAnalysisProfile(target);

@@ -29,6 +29,8 @@ export interface FakeKunaBehavior {
   /** Extra C comment bytes inside each exported body, for buffered-read capacity. */
   readonly cPadding?: number;
   readonly decompile?: "ok" | "hang";
+  /** Milliseconds one `decompile --addr` run takes before printing. */
+  readonly decompileDelayMs?: number;
   /** Milliseconds `functions --json` takes before printing. */
   readonly inventoryDelayMs?: number;
   /** Milliseconds the export takes before writing its files. */
@@ -45,7 +47,7 @@ const SCRIPT = String.raw`
 const fs = require("node:fs");
 const path = require("node:path");
 const behavior = JSON.parse(fs.readFileSync(__filename + ".json", "utf8"));
-fs.appendFileSync(__filename + ".calls", JSON.stringify({ pid: process.pid, argv: process.argv.slice(2), home: process.env.HOME, xdg: process.env.XDG_CACHE_HOME, path: process.env.PATH ?? null }) + "\n");
+fs.appendFileSync(__filename + ".calls", JSON.stringify({ pid: process.pid, at: Date.now(), argv: process.argv.slice(2), home: process.env.HOME, xdg: process.env.XDG_CACHE_HOME, path: process.env.PATH ?? null }) + "\n");
 const args = process.argv.slice(2);
 const functions = behavior.functions ?? [{ name: "main", addr: "0x1000" }, { name: "helper", addr: "0x1040" }];
 const hang = () => setInterval(() => {}, 1000);
@@ -95,7 +97,10 @@ if (args[0] === "--version") {
   const fn = functions.find((candidate) => candidate.addr === args[2]);
   if (behavior.decompile === "hang") hang();
   else if (fn === undefined) { process.stderr.write("error: no function at " + args[2] + "\n"); process.exit(1); }
-  else process.stdout.write("int " + fn.name + "(void) // single-function\n{\n  return 0;\n}\n");
+  else setTimeout(() => {
+    process.stdout.write("int " + fn.name + "(void) // single-function\n{\n  return 0;\n}\n");
+    fs.appendFileSync(__filename + ".exits", JSON.stringify({ pid: process.pid, at: Date.now() }) + "\n");
+  }, behavior.decompileDelayMs ?? 0);
 } else {
   process.stderr.write("unexpected command\n");
   process.exit(2);
@@ -125,6 +130,8 @@ export const fakeKunaCalls = async (
 ): Promise<
   readonly {
     readonly pid: number;
+    /** Epoch milliseconds when the invocation started. */
+    readonly at: number;
     readonly argv: readonly string[];
     readonly home: string;
     readonly xdg: string;
@@ -136,4 +143,20 @@ export const fakeKunaCalls = async (
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as never);
+};
+
+/** When each completed single-function run finished, by process id. */
+export const fakeKunaExits = async (
+  path: string,
+): Promise<ReadonlyMap<number, number>> => {
+  const text = await readFile(`${path}.exits`, "utf8").catch(() => "");
+  return new Map(
+    text
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        const { pid, at } = JSON.parse(line) as { pid: number; at: number };
+        return [pid, at];
+      }),
+  );
 };

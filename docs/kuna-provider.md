@@ -44,6 +44,7 @@ The first analysis request in a session looks for this target's export in the ca
 - **Cold cache:**
   - REA starts `kuna decompile-project` in the background on a private copy of the target.
   - Meanwhile, pseudocode comes from one `kuna decompile --addr` run, and listings from `kuna functions --json`.
+  - Requests for the same function share one run; it stops when its last waiting request is cancelled. Each run analyzes the whole image again in its own process, so one REA process runs at most as many at once as the host has cores beyond `REA_KUNA_JOBS` (at least one). Further requests wait in order, and a waiting request is answered from the export if it finishes first.
   - Assembly and data names wait for the export; progress notifications report the wait every ten seconds.
   - A single-function answer says so in its limitations. It lacks the export's whole-program prototypes, so a later request can return different text for the same function.
 

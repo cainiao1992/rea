@@ -851,4 +851,50 @@ describe("Apple dispatch list scan budget", () => {
     );
     expect(coverage?.reason).not.toContain("max_records_reached");
   });
+
+  it.each([
+    ["RetainedProtocol", ["RetainedProtocol"], "complete"],
+    ["", [], "partial"],
+  ])(
+    "keeps the class when the protocol name is %j",
+    (protocolName, protocols, status) => {
+      const bytes = unmappedProtocolImage("neither");
+      bytes.writeBigUInt64LE(unmappedProtocolSectionBase + 0x700n, 0x300);
+      bytes.writeBigUInt64LE(unmappedProtocolSectionBase + 0x800n, 0x708);
+      bytes.writeUInt32LE(72, 0x740);
+      bytes.write(`${protocolName}\0`, 0x800);
+      const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+      expect(result.objc_classes).toMatchObject([{ name: "RetainedClass" }]);
+      expect(result.objc_protocols.map(({ name }) => name)).toEqual(protocols);
+      const coverage = unmappedProtocolClassCoverage(result);
+      expect(coverage).toMatchObject({ status });
+      if (status === "partial")
+        expect(coverage?.reason).toBe(
+          "Protocol 0x100000700: Objective-C protocol has an empty name",
+        );
+    },
+  );
+
+  it("keeps a protocol adopted only by an empty-named protocol", () => {
+    const bytes = unmappedProtocolImage("neither");
+    const at = (offset: bigint) => unmappedProtocolSectionBase + offset;
+    bytes.writeBigUInt64LE(at(0x700n), 0x300);
+    bytes.writeBigUInt64LE(at(0x800n), 0x708); // empty parent name
+    bytes.writeBigUInt64LE(at(0x900n), 0x710); // adopted protocol list
+    bytes.writeUInt32LE(72, 0x740);
+    bytes.writeBigUInt64LE(1n, 0x900);
+    bytes.writeBigUInt64LE(at(0xa00n), 0x908);
+    bytes.writeBigUInt64LE(at(0xb00n), 0xa08);
+    bytes.writeUInt32LE(72, 0xa40);
+    bytes.write("ChildProtocol\0", 0xb00);
+    const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+    expect(result.objc_classes).toMatchObject([{ name: "RetainedClass" }]);
+    expect(result.objc_protocols.map(({ name }) => name)).toEqual([
+      "ChildProtocol",
+    ]);
+    expect(unmappedProtocolClassCoverage(result)).toMatchObject({
+      status: "partial",
+      reason: "Protocol 0x100000700: Objective-C protocol has an empty name",
+    });
+  });
 });

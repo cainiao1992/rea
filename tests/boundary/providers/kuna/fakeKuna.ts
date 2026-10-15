@@ -36,7 +36,14 @@ export interface FakeKunaBehavior {
   readonly inventoryDelayMs?: number;
   /** Milliseconds the export takes before writing its files. */
   readonly delayMs?: number;
-  readonly graph?: "ok" | "hang" | "not-json" | "miscounted" | "with-bodies";
+  /** `oversized` writes more graph output than REA buffers (32 MiB). */
+  readonly graph?:
+    | "ok"
+    | "hang"
+    | "not-json"
+    | "miscounted"
+    | "with-bodies"
+    | "oversized";
   readonly graphIndirectCalls?: boolean;
   readonly xrefs?: "ok" | "hang" | "not-json";
   readonly referenceDelayMs?: number;
@@ -73,6 +80,7 @@ if (args[0] === "--version") {
 } else if (args[0] === "decompile-graph") {
   if (behavior.graph === "hang") hang();
   else if (behavior.graph === "not-json") process.stdout.write("not graph JSON");
+  else if (behavior.graph === "oversized") process.stdout.write(Buffer.alloc(33 * 1024 * 1024, 0x20));
   else {
     if (args[args.indexOf("--functions") + 1] !== "") throw new Error("graph must request no bodies");
     const nodes = [...functions, { name: "puts", addr: "0x2000" }].map((fn) => ({ address: parseInt(fn.addr, 16), name: fn.name, kind: "normal", hasIndirectCalls: behavior.graphIndirectCalls !== false && fn === functions[0], forwardsTo: null, codeC: behavior.graph === "with-bodies" ? "unrequested code" : null, assembly: null, error: null }));

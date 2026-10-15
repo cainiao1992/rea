@@ -52,6 +52,12 @@ export interface KunaFunctionRelationships {
 /** Lazy session facts, shared producers and bounded exact-address xref reuse. */
 export class KunaReferenceQueries {
   #graph: KunaCallGraph | undefined;
+  /**
+   * A graph that overflowed REA's fixed output buffer. The same target and
+   * executable produce the same graph, so later queries report this failure
+   * instead of repeating the whole-program walk.
+   */
+  #graphFailure: AnalysisError | undefined;
   #pendingGraph: Pending<KunaCallGraph> | undefined;
   readonly #xrefs = new Map<string, KunaIncomingReferences>();
   readonly #pendingXrefs = new Map<string, Pending<KunaIncomingReferences>>();
@@ -109,6 +115,7 @@ export class KunaReferenceQueries {
     operation: string,
     signal: AbortSignal | undefined,
   ): Promise<Result<KunaCallGraph, AnalysisError>> {
+    if (this.#graphFailure !== undefined) return err(this.#graphFailure);
     if (this.#graph === undefined) {
       if (this.#pendingGraph?.controller.signal.aborted === true) {
         const retired = await this.#wait(this.#pendingGraph, signal, operation);
@@ -134,7 +141,14 @@ export class KunaReferenceQueries {
               outputBytes: KUNA_GRAPH_OUTPUT_BYTES,
               signal: producerSignal,
             });
-            if (!run.ok) return run;
+            if (!run.ok) {
+              if (
+                run.error instanceof AnalysisResourceConstraintError &&
+                run.error.resource === "memory"
+              )
+                this.#graphFailure = run.error;
+              return run;
+            }
             return this.#parsed(
               parseKunaCallGraph(run.value.stdout.text, run.value.input),
               "call graph",
@@ -308,6 +322,7 @@ export class KunaReferenceQueries {
   /** Release parsed facts after the session has drained all owned producers. */
   clear(): void {
     this.#graph = undefined;
+    this.#graphFailure = undefined;
     this.#pendingGraph = undefined;
     this.#xrefs.clear();
     this.#pendingXrefs.clear();

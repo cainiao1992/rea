@@ -352,6 +352,11 @@ command, objdump, Rizin and GDB. In these paths, a returned structured
 signal-derived status. This describes the current source routing; it is not a
 claim that every command or provider runtime has been independently exercised.
 
+When the reader of piped output closes early, as `rea ... | head` does, the
+CLI stops writing, prints no error and exits `141` (`128 + 13`, the status of a
+SIGPIPE-terminated writer). The operation itself may have completed; only its
+output was declined.
+
 `inspect-artifact` also returns a structured cancelled result, but its direct
 analysis cancellation path does not set a signal-derived exit status, so it
 exits `1`. Setup has its own contract: cancellation exits `0`. Treat the

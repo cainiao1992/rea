@@ -115,7 +115,11 @@ try {
     await execute(
       process.env.REA_CAPINFOS_COMMAND ?? "capinfos",
       ["-M", "--", path],
-      { env: environment, timeout: 60000, maxBuffer: 64 * 1024 },
+      {
+        env: { ...environment, LC_ALL: "C", LANG: "C" },
+        timeout: 60000,
+        maxBuffer: 64 * 1024,
+      },
     )
   ).stdout;
   const expectedCaptureStart =

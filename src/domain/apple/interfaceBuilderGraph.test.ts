@@ -156,6 +156,90 @@ describe("compiled Interface Builder graph projection", () => {
   });
 });
 
+describe("keyed archive objects with unresolved classes", () => {
+  it("keeps an archived object whose class reference cannot be resolved", () => {
+    const parsed = parseInterfaceBuilderRecords({
+      $archiver: "NSKeyedArchiver",
+      $version: 100000,
+      $objects: [
+        "$null",
+        { $class: { UID: 99 }, label: "Unresolved object" },
+        { $classname: "UIView", $classes: ["UIView", "NSObject"] },
+        { $class: { UID: 2 }, "NS.string": "ok" },
+        "plain scalar",
+      ],
+      $top: { root: { UID: 3 } },
+    });
+    // The class descriptor and the scalar are not archived objects.
+    expect(parsed.objects).toMatchObject([
+      {
+        id: "1",
+        kind: "other",
+        class_name: null,
+        name: "Unresolved object",
+        attributes: { label: "Unresolved object", $class: { UID: 99 } },
+      },
+      { id: "3", kind: "view", class_name: "UIView" },
+    ]);
+    expect(parsed.objects[1]?.attributes).not.toHaveProperty("$class");
+    expect(parsed.objectCount).toBe(2);
+  });
+
+  it("keeps an unresolved hierarchy root's label and coverage in the graph", () => {
+    const result = buildInterfaceBuilderAnalysis({
+      targetSha256: hash,
+      toolVersion: "test",
+      documents: [
+        {
+          relativePath: "Main.nib",
+          archiveSha256: hash,
+          documentKind: "nib",
+          raw: {
+            $archiver: "NSKeyedArchiver",
+            $version: 100000,
+            $objects: [
+              "$null",
+              { $class: { UID: 99 }, label: "Unresolved object" },
+              { $classname: "UIView", $classes: ["UIView", "NSObject"] },
+              { $class: { UID: 2 }, "NS.string": "ok" },
+            ],
+            $top: { root: { UID: 1 } },
+          },
+        },
+      ],
+      limits: interfaceBuilderLimitsSchema.parse({}),
+    });
+    const objectNodes = result.graph.nodes.filter(
+      ({ attributes }) => attributes.interface_builder_object_id !== undefined,
+    );
+    expect(objectNodes).toMatchObject([
+      {
+        kind: "unknown",
+        name: "Unresolved object",
+        attributes: { interface_builder_object_id: "1", class_name: null },
+      },
+      { kind: "view", attributes: { interface_builder_object_id: "3" } },
+    ]);
+    expect(result.documents[0]?.object_count).toBe(2);
+    expect(
+      result.graph.edges.some(
+        ({ relation, to, resolution }) =>
+          relation === "contains" &&
+          to === objectNodes[0]?.id &&
+          resolution === "observed",
+      ),
+    ).toBe(true);
+    expect(result.graph.coverage).toContainEqual(
+      expect.objectContaining({
+        facet: "objects:Main.nib",
+        status: "complete",
+        examined: 2,
+        omitted: 0,
+      }),
+    );
+  });
+});
+
 describe("Interface Builder parser bounds", () => {
   it("reports connections discarded by the parser's hard ceiling", () => {
     const connections = Array.from({ length: 40_001 }, (_, index) => ({

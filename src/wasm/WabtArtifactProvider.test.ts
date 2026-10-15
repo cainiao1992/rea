@@ -40,10 +40,27 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   };
 });
 
-const failureTags: Readonly<Record<string, string>> = {
+const outcomeModes = [
+  "success",
+  "invalid",
+  "malformed",
+  "timeout",
+  "cancelled",
+  "cancelled-close",
+  "cancelled-close-failure",
+  "cleanup",
+  "changed-snapshot",
+  "malformed-wat",
+  "wat-warning",
+] as const;
+type OutcomeMode = (typeof outcomeModes)[number];
+
+const failureTags: Readonly<Record<Exclude<OutcomeMode, "success">, string>> = {
   invalid: "AnalysisInputError",
   timeout: "AnalysisTimeoutError",
   cancelled: "AnalysisCancelledError",
+  "cancelled-close": "AnalysisCancelledError",
+  "cancelled-close-failure": "ProviderAdapterError",
   "changed-snapshot": "AnalysisArtifactChangedError",
   cleanup: "ProviderAdapterError",
   malformed: "AnalysisOutputError",
@@ -88,8 +105,60 @@ const assertCleanupRecovery = async (options: {
   });
 };
 
+const assertCancellationDuringRootRelease = async (options: {
+  readonly mode: "cancelled-close" | "cancelled-close-failure";
+  readonly result: Awaited<ReturnType<WabtArtifactProvider["inspect"]>>;
+  readonly provider: WabtArtifactProvider;
+  readonly runtimePath: string;
+  readonly cleanupAttempts: () => number;
+}): Promise<void> => {
+  if (options.mode === "cancelled-close") {
+    expect(options.result).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisCancelledError",
+        partialObservation: { normalized_result: { validation: "valid" } },
+        cleanupIncomplete: false,
+      },
+    });
+    return;
+  }
+  expect(options.result).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ProviderAdapterError",
+      cleanupIncomplete: true,
+      cleanupResources: [options.runtimePath],
+      partialObservation: { normalized_result: { validation: "valid" } },
+      diagnostics: { previous_error: { code: "cancelled" } },
+    },
+  });
+  expect(options.cleanupAttempts()).toBe(1);
+  await expect(access(options.runtimePath)).resolves.toBeUndefined();
+  await options.provider.close();
+  expect(options.cleanupAttempts()).toBe(2);
+};
+
+const createWabtArtifactFixture = async () => {
+  const selectedRoot = await createTestTempDirectory("rea-wabt-seam-");
+  const path = join(selectedRoot, "selected.wasm");
+  const bytes = Buffer.alloc(76, 1);
+  await writeFile(path, bytes);
+  for (const tool of ["wasm-validate", "wasm-objdump", "wasm2wat"])
+    await writeFile(
+      join(selectedRoot, tool + (process.platform === "win32" ? ".exe" : "")),
+      "source-owned executable seam",
+      { mode: 0o700 },
+    );
+  const dump = await readFile(
+    new URL("../../tests/fixtures/wasm/objdump.txt", import.meta.url),
+    "utf8",
+  );
+  return { selectedRoot, path, bytes, dump };
+};
+
 const assertModeOutcome = (
-  mode: string,
+  mode: OutcomeMode,
   result: Awaited<ReturnType<WabtArtifactProvider["inspect"]>>,
   path: string,
 ): void => {
@@ -307,31 +376,8 @@ const assertGlueObservations = (
   }
 };
 
-it.each([
-  "success",
-  "invalid",
-  "malformed",
-  "timeout",
-  "cancelled",
-  "cleanup",
-  "changed-snapshot",
-  "malformed-wat",
-  "wat-warning",
-])("owns private artifact bytes and retains %s outcome", async (mode) => {
-  const selectedRoot = await createTestTempDirectory("rea-wabt-seam-");
-  const path = join(selectedRoot, "selected.wasm");
-  const bytes = Buffer.alloc(76, 1);
-  await writeFile(path, bytes);
-  for (const tool of ["wasm-validate", "wasm-objdump", "wasm2wat"])
-    await writeFile(
-      join(selectedRoot, tool + (process.platform === "win32" ? ".exe" : "")),
-      "source-owned executable seam",
-      { mode: 0o700 },
-    );
-  const dump = await readFile(
-    new URL("../../tests/fixtures/wasm/objdump.txt", import.meta.url),
-    "utf8",
-  );
+const runOwnedArtifactOutcome = async (mode: OutcomeMode): Promise<void> => {
+  const { selectedRoot, path, bytes, dump } = await createWabtArtifactFixture();
   let runtimePath = "";
   let runtimeCreations = 0;
   let acquiredPid: number | undefined;
@@ -400,9 +446,15 @@ it.each([
       return {
         path: root.path,
         close: async () => {
+          if (mode === "cancelled-close-failure") {
+            controller.abort();
+            if (++cleanupAttempts === 1)
+              throw new Error("Source-owned cleanup uncertainty");
+          }
           if (mode === "cleanup" && ++cleanupAttempts <= 2)
             throw new Error("Source-owned cleanup uncertainty");
           await root.close();
+          if (mode === "cancelled-close") controller.abort();
         },
       };
     },
@@ -457,13 +509,26 @@ it.each([
       runtimeCreations: () => runtimeCreations,
     });
   }
+  if (mode === "cancelled-close" || mode === "cancelled-close-failure")
+    await assertCancellationDuringRootRelease({
+      mode,
+      result,
+      provider,
+      runtimePath,
+      cleanupAttempts: () => cleanupAttempts,
+    });
   await expect(access(runtimePath)).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readFile(path)).toEqual(bytes);
   if (acquiredPid !== undefined) {
     const pid = acquiredPid;
     expect(() => process.kill(pid, 0)).toThrow();
   }
-});
+};
+
+it.each(outcomeModes)(
+  "owns private artifact bytes and retains %s outcome",
+  runOwnedArtifactOutcome,
+);
 const outputLimitFailure = ({
   stdout = "(module",
   stderr = "",

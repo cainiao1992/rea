@@ -206,6 +206,9 @@ code unit, matching the original bytes identified by the artifact digest.
 
 Plain `.ts` artifact sources use TypeScript syntax without JSX, including
 angle-bracket type assertions. `.tsx` and `.jsx` retain JSX parsing.
+JavaScript sources use JavaScript grammar with JSX, never TypeScript syntax,
+so valid JavaScript that TypeScript reads differently keeps its JavaScript
+meaning.
 
 Relative TypeScript imports can name their emitted `.js`, `.mjs`, or `.cjs`
 counterparts while resolving to inventoried source files. This substitution

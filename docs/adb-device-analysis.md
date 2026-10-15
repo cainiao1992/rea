@@ -175,6 +175,9 @@ and during shutdown.
 - Cancellation during a package pull preserves caller-selected output. The
   error includes partial observations identifying completed artifacts and the
   interrupted local path; remaining APKs were not attempted.
+- Screen capture checks cancellation before publishing its exclusive output.
+  If cancellation arrives after publication, the error retains the committed
+  file's path, digest and dimensions; the file remains available as evidence.
 - Bugreports collect into isolated staging and publish with exclusive creation;
   filename collisions select the next numeric suffix. If publication fails, the
   completed archive remains in staging. The error's partial observation gives

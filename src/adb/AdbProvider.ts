@@ -2379,6 +2379,8 @@ export class AdbProvider {
       signal,
     );
     if (!captured.ok) return captured;
+    if (signal?.aborted === true)
+      return err(new AnalysisCancelledError(operation));
     const dimensions = parsePngDimensions(captured.value.stdout);
     if (dimensions.width === null)
       return err(
@@ -2400,25 +2402,30 @@ export class AdbProvider {
     const sha256 = createHash("sha256")
       .update(captured.value.stdout)
       .digest("hex");
-    return ok(
-      createAnalysisExecution(
-        {
-          client,
-          serial: input.serial,
-          local_path: localPath,
-          bytes: captured.value.stdout.byteLength,
-          sha256,
-          width: dimensions.width,
-          height: dimensions.height,
-        },
-        provider,
-        {
-          limitations: [
-            "The capture is one frame at read time; no recording or interaction occurred",
-          ],
-        },
-      ),
+    const execution = createAnalysisExecution(
+      {
+        client,
+        serial: input.serial,
+        local_path: localPath,
+        bytes: captured.value.stdout.byteLength,
+        sha256,
+        width: dimensions.width,
+        height: dimensions.height,
+      },
+      provider,
+      {
+        limitations: [
+          "The capture is one frame at read time; no recording or interaction occurred",
+        ],
+      },
     );
+    if (signal?.aborted)
+      return err(
+        new AnalysisCancelledError(operation, {
+          partialObservation: executionEvidence(execution, operation, input),
+        }),
+      );
+    return ok(execution);
   }
 
   private async collectBugreport(

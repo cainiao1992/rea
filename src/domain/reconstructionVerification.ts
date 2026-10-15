@@ -20,11 +20,7 @@ import {
 } from "./process/processEvidenceProvider.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { assessFunctionCallCoverage } from "./functionCallCoverage.js";
-import {
-  deriveProcessComparisonStatus,
-  PROCESS_COMPARISON_DIMENSIONS,
-  processCaptureComparisonSchema,
-} from "./process/processComparison.js";
+import { processCaptureComparisonSchema } from "./process/processComparison.js";
 import { parseProcessCapture } from "./process/processCaptureParsing.js";
 import {
   reconstructionClaimResultSchema,
@@ -266,10 +262,18 @@ const comparisonObservation = (
     const result = processCaptureComparisonSchema.parse(
       evidence.normalized_result,
     );
-    validateProcessStatus(result);
+    if (claim.dimension !== "overall")
+      return { status: result[claim.dimension], limitations: [] };
+    if (
+      result.status === "unchanged" &&
+      result.first_divergence.status === "unknown"
+    )
+      return {
+        status: "unknown",
+        limitations: [result.first_divergence.reason],
+      };
     return {
-      status:
-        claim.dimension === "overall" ? result.status : result[claim.dimension],
+      status: result.status,
       limitations: [],
     };
   }
@@ -314,16 +318,6 @@ const comparisonObservation = (
     result.changes.flatMap(({ evidence_links }) => evidence_links),
   );
   return { status: result.status, limitations: [] };
-};
-
-const validateProcessStatus = (
-  result: z.infer<typeof processCaptureComparisonSchema>,
-): void => {
-  const expected = deriveProcessComparisonStatus(
-    PROCESS_COMPARISON_DIMENSIONS.map((dimension) => result[dimension]),
-  );
-  if (result.status !== expected)
-    throw new TypeError("Process comparison status contradicts its dimensions");
 };
 
 const authorityLimitations = (

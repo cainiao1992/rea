@@ -131,7 +131,7 @@ export const parseInterfaceBuilderRecords = (
   return {
     objects,
     connections,
-    hierarchy: Array.isArray(hierarchyRaw) ? hierarchyRaw.slice(0, 20_000) : [],
+    hierarchy: Array.isArray(hierarchyRaw) ? hierarchyRaw : [],
     classes: classesRaw,
     objectCount: objectEntries.length,
     omittedObjects: Math.max(0, objectEntries.length - 20_000),

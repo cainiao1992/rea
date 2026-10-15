@@ -481,6 +481,93 @@ describe("Interface Builder hierarchy completeness", () => {
   });
 });
 
+describe("Interface Builder hierarchy record limits", () => {
+  const analyze = (
+    hierarchy: unknown[],
+    maxObjects?: number,
+    objects: Record<string, unknown> = {},
+  ) =>
+    buildInterfaceBuilderAnalysis({
+      targetSha256: hash,
+      toolVersion: "test",
+      documents: [
+        {
+          relativePath: "Main.nib",
+          archiveSha256: hash,
+          documentKind: "nib",
+          raw: {
+            "com.apple.ibtool.document.objects": objects,
+            "com.apple.ibtool.document.hierarchy": hierarchy,
+          },
+        },
+      ],
+      limits: interfaceBuilderLimitsSchema.parse(
+        maxObjects === undefined ? {} : { max_objects: maxObjects },
+      ),
+    });
+  const hierarchyFacet = (result: ReturnType<typeof analyze>) =>
+    result.graph.coverage.find(({ facet }) => facet === "hierarchy:Main.nib");
+
+  it("keeps an identified record after more than 20,000 structural records", () => {
+    const hierarchy: unknown[] = Array.from({ length: 20_001 }, () => ({
+      children: [],
+    }));
+    hierarchy[20_000] = { objectID: "tail", children: [] };
+
+    const result = analyze(hierarchy);
+
+    expect(
+      result.graph.nodes.map(
+        ({ attributes }) => attributes.interface_builder_object_id,
+      ),
+    ).toContain("tail");
+    expect(result.graph.edges).toHaveLength(1);
+    expect(result.graph.truncated).toBe(false);
+    expect(hierarchyFacet(result)).toMatchObject({
+      status: "complete",
+      examined: 1,
+      omitted: 0,
+    });
+  });
+
+  it("counts identified records beyond the object limit as omitted", () => {
+    const result = analyze(
+      ["a", "b", "c", "d"].map((objectID) => ({ objectID, children: [] })),
+      2,
+    );
+
+    expect(result.documents[0]?.hierarchy_complete).toBe(false);
+    expect(result.graph.truncated).toBe(true);
+    expect(hierarchyFacet(result)).toMatchObject({
+      status: "partial",
+      reason: "graph_limit_reached",
+      examined: 2,
+      omitted: 2,
+    });
+  });
+
+  it("stays complete when the identified records exactly reach the object limit", () => {
+    // The root and both objects fill the three graph nodes; the third
+    // hierarchy record reaches the hierarchy limit and has a structural child.
+    const result = analyze(
+      [
+        { objectID: "a", children: [{ objectID: "b", children: [] }] },
+        { objectID: "b", children: [{ children: [] }] },
+      ],
+      3,
+      { a: { class: "UIView" }, b: { class: "UIView" } },
+    );
+
+    expect(result.documents[0]?.hierarchy_complete).toBe(true);
+    expect(result.graph.truncated).toBe(false);
+    expect(hierarchyFacet(result)).toMatchObject({
+      status: "complete",
+      examined: 3,
+      omitted: 0,
+    });
+  });
+});
+
 describe("keyed archive object references", () => {
   it("keeps referenced objects as stubs so shared and cyclic references stay finite", () => {
     // Each view references its window, superview, and next key view, so

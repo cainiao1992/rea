@@ -193,6 +193,8 @@ export class KunaSessionClient implements AnalysisClient {
     | Promise<Result<readonly KunaInventoryFunction[], AnalysisError>>
     | undefined;
   #project: Promise<Result<KunaProject, AnalysisError>> | undefined;
+  /** The cache lookup that decides #project, shared by concurrent first requests. */
+  #starting: Promise<void> | undefined;
   #reader: KunaProjectReader | undefined;
   #inventoryIndex: InventoryIndex | undefined;
   #status: KunaExportStatus | undefined;
@@ -998,8 +1000,17 @@ export class KunaSessionClient implements AnalysisClient {
   }
 
   /** Reuse a verified export, or start building one in the background. */
-  async #startProject(installation: KunaInstallation): Promise<void> {
-    if (this.#project !== undefined) return;
+  #startProject(installation: KunaInstallation): Promise<void> {
+    if (this.#project !== undefined) return Promise.resolve();
+    // Concurrent first requests share one lookup, which verifies every
+    // export file's digest on a fresh server.
+    this.#starting ??= this.#lookupOrBuild(installation).finally(() => {
+      this.#starting = undefined;
+    });
+    return this.#starting;
+  }
+
+  async #lookupOrBuild(installation: KunaInstallation): Promise<void> {
     const key = kunaProjectKey({
       targetSha256: this.#target.sha256,
       kunaSha256: installation.sha256,

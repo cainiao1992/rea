@@ -40,7 +40,7 @@ Cross-references, callers, callees and basic blocks are not available from this 
 
 The first analysis request in a session looks for this target's export in the cache. `list_documents` reads the selected path without initializing analysis. The export is keyed by the target's SHA-256, the Kuna executable's SHA-256, its version and `--jobs`.
 
-- **Warm cache:** analysis reads reuse the verified export. A fresh server verifies its file digests; that cost scales with export size.
+- **Warm cache:** analysis reads reuse the verified export. A fresh server verifies its file digests once, even for concurrent first requests; that cost scales with export size.
 - **Cold cache:**
   - REA starts `kuna decompile-project` in the background on a private copy of the target.
   - Meanwhile, pseudocode comes from one `kuna decompile --addr` run, and listings from `kuna functions --json`.

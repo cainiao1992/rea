@@ -12,6 +12,62 @@ import {
 import { deriveReconstructionObligationCandidates } from "./ReconstructionObligationCandidates.js";
 import { evaluateReconstructionObligationLedger } from "./ReconstructionObligationLedgerEvaluation.js";
 
+/** Build a request whose packaged-process obligation closes as ready. */
+const readyProcessLedgerRequest = () => {
+  const capture = processEvidence();
+  const initial = build(request([capture]));
+  const obligation = initial.obligations[0];
+  if (obligation === undefined) throw new Error("Expected process obligation");
+  const fixtureIds = obligation.required_case_kinds.map(
+    (caseKind) => `packaged.${caseKind}`,
+  );
+  const proof = boundProofEvidence("packaged", {
+    obligation_ids: [obligation.obligation_id],
+    fixture_ids: fixtureIds,
+    case_kinds: obligation.required_case_kinds,
+    verifier_ids: ["verifier.packaged"],
+    claim_ids: ["claim.process"],
+  });
+  const ledgerRequest = request([capture, proof], {
+    manifest: {
+      bindings: [
+        {
+          obligation_id: obligation.obligation_id,
+          owner: {
+            module_path: "src/processOwner.ts",
+            symbol: "runProcess",
+            owner_sha256: "2".repeat(64),
+          },
+          parser_type: null,
+          original_cases: originalCases(obligation, capture.evidence_id),
+          fixtures: obligation.required_case_kinds.map((caseKind) => ({
+            fixture_id: `packaged.${caseKind}`,
+            case_kind: caseKind,
+            authority: "packaged-process",
+            evidence_ids: [proof.evidence_id],
+          })),
+          verifier: {
+            verifier_id: "verifier.packaged",
+            claim_id: "claim.process",
+            command: "npm run verify:package -- process",
+            authority: "packaged-process",
+            status: "pass",
+            result_evidence_id: proof.evidence_id,
+            enumerated_obligation_ids: [obligation.obligation_id],
+            nondeterminism: {
+              mode: "partial-order",
+              specification:
+                "Startup precedes teardown; worker completion is unordered.",
+            },
+          },
+        },
+      ],
+      contradictions: [],
+    },
+  });
+  return ledgerRequest;
+};
+
 describe("reconstruction obligation ledger", () => {
   it("emits the complete deterministic ledger and closure identity", () => {
     const evidence = proofEvidence("review");
@@ -224,58 +280,7 @@ describe("reconstruction obligation ledger case closure", () => {
   });
 
   it("closes only when every required case and verifier has comparable authority", () => {
-    const capture = processEvidence();
-    const initial = build(request([capture]));
-    const obligation = initial.obligations[0];
-    if (obligation === undefined)
-      throw new Error("Expected process obligation");
-    const fixtureIds = obligation.required_case_kinds.map(
-      (caseKind) => `packaged.${caseKind}`,
-    );
-    const proof = boundProofEvidence("packaged", {
-      obligation_ids: [obligation.obligation_id],
-      fixture_ids: fixtureIds,
-      case_kinds: obligation.required_case_kinds,
-      verifier_ids: ["verifier.packaged"],
-      claim_ids: ["claim.process"],
-    });
-    const ledgerRequest = request([capture, proof], {
-      manifest: {
-        bindings: [
-          {
-            obligation_id: obligation.obligation_id,
-            owner: {
-              module_path: "src/processOwner.ts",
-              symbol: "runProcess",
-              owner_sha256: "2".repeat(64),
-            },
-            parser_type: null,
-            original_cases: originalCases(obligation, capture.evidence_id),
-            fixtures: obligation.required_case_kinds.map((caseKind) => ({
-              fixture_id: `packaged.${caseKind}`,
-              case_kind: caseKind,
-              authority: "packaged-process",
-              evidence_ids: [proof.evidence_id],
-            })),
-            verifier: {
-              verifier_id: "verifier.packaged",
-              claim_id: "claim.process",
-              command: "npm run verify:package -- process",
-              authority: "packaged-process",
-              status: "pass",
-              result_evidence_id: proof.evidence_id,
-              enumerated_obligation_ids: [obligation.obligation_id],
-              nondeterminism: {
-                mode: "partial-order",
-                specification:
-                  "Startup precedes teardown; worker completion is unordered.",
-              },
-            },
-          },
-        ],
-        contradictions: [],
-      },
-    });
+    const ledgerRequest = readyProcessLedgerRequest();
     const result = build(ledgerRequest);
 
     expect(result.obligations[0]).toMatchObject({
@@ -298,5 +303,56 @@ describe("reconstruction obligation ledger case closure", () => {
     expect(limited.obligations[0]?.status).toBe("verified");
     expect(limited.status).toBe("unknown");
     expect(limited.coverage.status).toBe("partial");
+  });
+});
+
+describe("reconstruction obligation manifest references", () => {
+  it("withholds readiness when a manifest entry names absent Evidence", () => {
+    const ledgerRequest = readyProcessLedgerRequest();
+    // A valid entry for the same case kind must not hide an absent reference.
+    const absent = `ev_${"a".repeat(64)}`;
+    const binding = ledgerRequest.manifest.bindings[0];
+    if (binding === undefined) throw new Error("Expected binding");
+    const variants: {
+      readonly code: string;
+      readonly binding: typeof binding;
+    }[] = [
+      {
+        code: "missing-original-case",
+        binding: {
+          ...binding,
+          original_cases: [
+            ...binding.original_cases,
+            { kind: "positive", evidence_id: absent, location: "/old" },
+          ],
+        },
+      },
+      {
+        code: "missing-case",
+        binding: {
+          ...binding,
+          fixtures: [
+            ...binding.fixtures,
+            {
+              fixture_id: "packaged.old",
+              case_kind: "positive",
+              authority: "packaged-process",
+              evidence_ids: [absent],
+            },
+          ],
+        },
+      },
+    ];
+    for (const { code, binding: dangling } of variants) {
+      const open = build({
+        ...ledgerRequest,
+        manifest: { ...ledgerRequest.manifest, bindings: [dangling] },
+      });
+      expect(open.status).not.toBe("ready");
+      expect(open.obligations[0]?.status).toBe("implemented");
+      expect(open.obligations[0]?.diagnostics).toEqual([
+        { code, detail: expect.stringContaining(absent) },
+      ]);
+    }
   });
 });

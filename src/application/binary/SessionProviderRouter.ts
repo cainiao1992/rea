@@ -70,6 +70,11 @@ export class SessionProviderRouter {
     return this.route;
   }
 
+  /** Close provider owners not represented by the currently bound client. */
+  closeOwnedResources() {
+    return this.registry.closeOwnedResources();
+  }
+
   /** Resolve target routes before any provider client is created. */
   async resolve(
     target: BinaryTarget,

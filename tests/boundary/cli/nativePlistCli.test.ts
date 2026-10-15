@@ -96,6 +96,8 @@ describe.skipIf(process.platform !== "darwin")(
             "<key>CFBundleIdentifier</key><string>com.example.types</string>",
             "<key>Blob</key><data>AAEC</data>",
             "<key>Built</key><date>2020-01-01T00:00:00Z</date>",
+            // plutil writes years past 9999 unsigned, which the decoder rejects.
+            "<key>Far</key><date>11507-08-17T05:20:00Z</date>",
             "<key>Ratio</key><real>nan</real>",
             "<key>Nested</key><array><dict>",
             "<key>Ratio</key><real>0.5</real>",
@@ -130,6 +132,7 @@ describe.skipIf(process.platform !== "darwin")(
                 $plist_type: "date",
                 iso8601: "2020-01-01T00:00:00.000Z",
               },
+              Far: { $plist_type: "date", iso8601: null },
               Ratio: { $plist_type: "real", value: null },
               Nested: [
                 {
@@ -148,6 +151,7 @@ describe.skipIf(process.platform !== "darwin")(
             limitations: [
               expect.stringContaining("XML conversion"),
               expect.stringContaining("2 non-finite real"),
+              expect.stringContaining("1 date value(s)"),
             ],
           },
         });

@@ -270,7 +270,9 @@ Mach-O image. Architecture
 `file_offset` values are container-relative. Entrypoint, segment and section
 `file_offset` values retain their source meaning and are relative to the
 selected Mach-O slice. Raw load-command fields retain their original values.
-Evidence locations map the LC_MAIN entrypoint and nonempty file-backed segment
+A field otool prints more than once, such as each `LC_BUILD_VERSION` tool, is
+keyed `name #n` in print order. Each `LC_LINKER_OPTION` string is keyed
+`string #n` and checked against the declared `count`. Evidence locations map the LC_MAIN entrypoint and nonempty file-backed segment
 ranges to container offsets by adding the observed slice offset. Zero-fill
 segments do not produce file ranges. When the selected slice's container offset
 is unknown, those mapped locations are omitted with an explicit limitation;

@@ -10,7 +10,6 @@ import {
 import {
   collectSemanticModuleLink,
   collectSemanticCallable,
-  semanticImportEqualsSpecifier,
   collectSemanticReferences,
   collectSemanticReferencesSteps,
   immutableSemanticBindings,
@@ -47,7 +46,10 @@ import { semanticRequireOrigin } from "./javascriptSemanticRequireOrigin.js";
 import { semanticBundledRequireOrigin } from "./javascriptBundledRequireOrigin.js";
 import { collectSemanticMemberMutationsSteps } from "./javascriptSemanticMemberMutations.js";
 import { indexJavaScriptAmbientWritesSteps } from "./javascriptSemanticAmbientWrites.js";
-import { hasUncertainTypeOnlyModuleSideEffect } from "./javascriptModuleDeclaration.js";
+import {
+  hasUncertainTypeOnlyModuleSideEffect,
+  semanticImportEqualsSpecifier,
+} from "./javascriptModuleDeclaration.js";
 import {
   collectSemanticReturns,
   resolveSemanticModuleCallables,

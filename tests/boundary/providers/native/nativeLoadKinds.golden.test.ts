@@ -112,7 +112,7 @@ it.each(["vmaddr", "vmsize", "uuid", "entryoff"])(
   },
 );
 
-it("retains the unnamed segment of a Mach-O object file", () => {
+it("retains the empty segment name of a Mach-O object file", () => {
   // Captured from `otool -l` on a clang `-c` object: MH_OBJECT sections live
   // in one segment whose segname is empty, printed as a bare label.
   const objectSegment = [
@@ -143,17 +143,19 @@ it("retains the unnamed segment of a Mach-O object file", () => {
     "",
   ].join("\n");
   const load = parseOtoolLoadCommands(withOtoolMachHeader(objectSegment));
+  // The empty name is the observed source value, as in the raw command.
+  expect(load.commands[0]?.fields.segname).toBe("");
   expect(load.segments).toMatchObject([
-    { name: "unknown", sections: [{ segment: "__TEXT", name: "__text" }] },
+    { name: "", sections: [{ segment: "__TEXT", name: "__text" }] },
   ]);
-  // An all-NUL section name is printed the same way and stays "unknown".
+  // An all-NUL section name is printed the same way and stays empty.
   expect(
     parseOtoolLoadCommands(
       withOtoolMachHeader(
         objectSegment.replace("  sectname __text", "  sectname "),
       ),
     ).segments,
-  ).toMatchObject([{ sections: [{ segment: "__TEXT", name: "unknown" }] }]);
+  ).toMatchObject([{ sections: [{ segment: "__TEXT", name: "" }] }]);
   expect(() =>
     parseOtoolLoadCommands(
       withOtoolMachHeader(

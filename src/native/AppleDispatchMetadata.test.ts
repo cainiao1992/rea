@@ -5,7 +5,7 @@ import { decodeAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
 const base = 0x100000000n;
 const fixture = (
   relative = false,
-  category?: "partial-method" | "unmapped-pointer",
+  category?: "partial-method" | "unmapped-pointer" | "unmapped-class",
 ) => {
   const bytes = Buffer.alloc(4096);
   const u32 = (offset: number, value: number) =>
@@ -103,13 +103,15 @@ const fixture = (
     } else {
       ptr(0xb00, 0xb40);
       ptr(0xb40, 0xbc0);
-      ptr(0xb48, 0x200);
+      if (category === "unmapped-class") ptr(0xb48, 0x5000);
+      else ptr(0xb48, 0x200);
       ptr(0xb50, 0xb80);
       u32(0xb80, 24);
       u32(0xb84, 1);
       ptr(0xb88, 0x460);
       ptr(0xb90, 0x5c0);
-      bytes.writeBigUInt64LE(0xffffffffffffffffn, 0xb98);
+      if (category === "unmapped-class") ptr(0xb98, 0x700);
+      else bytes.writeBigUInt64LE(0xffffffffffffffffn, 0xb98);
       bytes.write("FixtureCategory\0", 0xbc0);
     }
   }
@@ -396,6 +398,39 @@ describe("Apple dispatch coverage ownership", () => {
     ).toMatchObject({
       status: "partial",
       reason: expect.stringContaining("category method FixtureCategory"),
+    });
+  });
+  it("keeps a category whose class reference is unmapped", () => {
+    const result = decodeAppleDispatchMetadata(
+      fixture(false, "unmapped-class"),
+      100,
+      provenance,
+    );
+    expect(result.objc_categories).toMatchObject([
+      {
+        name: "FixtureCategory",
+        class_name: null,
+        class_source: "unresolved",
+        decode: { status: "partial", reason: "category_class_unresolved" },
+      },
+    ]);
+    expect(result.objc_categories[0]?.instance_methods).toHaveLength(1);
+    expect(result.objc_dispatch_implementations).toContainEqual(
+      expect.objectContaining({
+        category: "FixtureCategory",
+        class_name: "(FixtureCategory)",
+        implementation_address: "0x100000700",
+      }),
+    );
+    expect(
+      result.coverage.find(
+        ({ facet }) => facet === "objc_properties_categories",
+      ),
+    ).toMatchObject({
+      status: "partial",
+      reason: expect.stringContaining(
+        "category_class_unresolved at 0x100000b48: Category FixtureCategory class reference 0x100005000",
+      ),
     });
   });
   it("keeps malformed category pointers out of class failure coverage", () => {

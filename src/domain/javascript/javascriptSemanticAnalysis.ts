@@ -300,25 +300,21 @@ function* classifyDefinitionReceiversSteps(
     if (client) roots.add(root);
   };
   const classifyOpenReceiver = (node: t.Node): void => {
-    if (
-      (!t.isCallExpression(node) && !t.isOptionalCallExpression(node)) ||
-      (!t.isMemberExpression(node.callee) &&
-        !t.isOptionalMemberExpression(node.callee))
-    )
+    if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node)) return;
+    const callee = unwrapJavaScriptExpression(node.callee).node;
+    if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
       return;
-    const method = semanticStaticPropertyKey(
-      node.callee.property,
-      node.callee.computed,
-    );
+    const object = unwrapJavaScriptExpression(callee.object).node;
+    const method = semanticStaticPropertyKey(callee.property, callee.computed);
     if (method === "get") {
-      if (isConfigurationReceiver(state, node.callee.object))
+      if (isConfigurationReceiver(state, object))
         facts.set(node.start ?? -1, "configuration");
-      else if (isExtensionStateMember(node.callee.object))
+      else if (isExtensionStateMember(object))
         extensionStateReads.push(node.start ?? -1);
       return;
     }
-    if (method !== "open" || !t.isIdentifier(node.callee.object)) return;
-    const receiver = node.callee.object.name;
+    if (method !== "open" || !t.isIdentifier(object)) return;
+    const receiver = object.name;
     const binding = resolveSemanticBindingState(state, node, receiver);
     if (binding === undefined) {
       if (semanticResolutionBlocked(state, node, receiver)) return;
@@ -338,7 +334,9 @@ function* classifyDefinitionReceiversSteps(
       return;
     }
     if (binding.mutable || binding.initializers.length !== 1) return;
-    const initializer = binding.initializers[0]?.node;
+    const initializerSource = binding.initializers[0]?.node;
+    if (initializerSource === undefined) return;
+    const initializer = unwrapJavaScriptExpression(initializerSource).node;
     if (!t.isIdentifier(initializer)) return;
     const initializerBinding = resolveSemanticBindingState(
       state,
@@ -357,7 +355,9 @@ function* classifyDefinitionReceiversSteps(
           initializerBinding.initializers.length !== 1
         )
           return;
-        const nested = initializerBinding.initializers[0]?.node;
+        const nestedSource = initializerBinding.initializers[0]?.node;
+        if (nestedSource === undefined) return;
+        const nested = unwrapJavaScriptExpression(nestedSource).node;
         if (t.isIdentifier(nested)) {
           const nestedFact = resolveGlobalAliasFact(
             state,
@@ -420,16 +420,17 @@ const isConfigurationAccessorCall = (
   state: JavaScriptSemanticAnalysisState,
   node: t.Node,
 ): boolean => {
+  node = unwrapJavaScriptExpression(node).node;
   if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))
     return false;
-  const callee = node.callee;
+  const callee = unwrapJavaScriptExpression(node.callee).node;
   if (
     (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee)) ||
     semanticStaticPropertyKey(callee.property, callee.computed) !==
       "getConfiguration"
   )
     return false;
-  const host = callee.object;
+  const host = unwrapJavaScriptExpression(callee.object).node;
   const matchesSpelling = t.isIdentifier(host)
     ? host.name === "workspace"
     : (t.isMemberExpression(host) || t.isOptionalMemberExpression(host)) &&
@@ -438,7 +439,7 @@ const isConfigurationAccessorCall = (
   const root = t.isIdentifier(host)
     ? host
     : t.isMemberExpression(host) || t.isOptionalMemberExpression(host)
-      ? host.object
+      ? unwrapJavaScriptExpression(host.object).node
       : undefined;
   if (!t.isIdentifier(root)) return false;
   const binding = resolveSemanticBindingState(state, root, root.name);

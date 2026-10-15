@@ -11,6 +11,7 @@ import { browserScenarioSchema } from "../../dist/domain/browserScenario.js";
 import { AnalysisCancelledError } from "../../dist/domain/analysisErrorCore.js";
 import { runScenarioCli } from "./browser-scenario-verifier.mjs";
 import { requireMcpEvidenceResult } from "./mcp-verifier-results.mjs";
+import { closeVerifierResources } from "./verifier-cleanup.mjs";
 
 const expected = {
   timezone: "Pacific/Honolulu",
@@ -113,19 +114,21 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
     assert.equal(value.result.type, "string");
     return JSON.parse(value.result.value);
   };
-  const baseline = await readEnvironment();
-  const scenario = environmentScenario({
-    endpoint,
-    targetId,
-    origin,
-    values: expected,
-  });
-  const assertRestored = async () => {
-    assert.deepEqual(await readEnvironment(), baseline);
-    const remaining = await (await fetch(`${endpoint}/json/list`)).json();
-    assert.ok(remaining.some(({ id }) => id === targetId));
-  };
+  const provider = createBrowserScenarioProvider(process.env);
+  let verificationError;
   try {
+    const baseline = await readEnvironment();
+    const scenario = environmentScenario({
+      endpoint,
+      targetId,
+      origin,
+      values: expected,
+    });
+    const assertRestored = async () => {
+      assert.deepEqual(await readEnvironment(), baseline);
+      const remaining = await (await fetch(`${endpoint}/json/list`)).json();
+      assert.ok(remaining.some(({ id }) => id === targetId));
+    };
     assertCapture((await runScenarioCli(scenario)).normalized_result);
     await assertRestored();
     const transport = new StdioClientTransport({
@@ -167,7 +170,6 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
       await transport.close();
     }
     await assertRestored();
-    const provider = createBrowserScenarioProvider(process.env);
     const initializationFailure = await provider.captureScenario({
       ...scenario,
       environment: { ...scenario.environment, timezone: "REA/Invalid" },
@@ -204,8 +206,14 @@ export async function verifyScenarioEnvironment(endpoint, targetId, origin) {
       cancellation_cleanup: true,
       external_target_preserved: true,
     };
+  } catch (cause) {
+    verificationError = cause;
+    throw cause;
   } finally {
-    await connection.close();
+    await closeVerifierResources(
+      [() => provider.close(), () => connection.close()],
+      verificationError,
+    );
   }
 }
 
@@ -356,7 +364,11 @@ const releaseScenario = async (connection) => {
   });
 };
 
-async function verifyCancelledEnvironment(provider, connection, scenario) {
+export async function verifyCancelledEnvironment(
+  provider,
+  connection,
+  scenario,
+) {
   const controller = new AbortController();
   const priorSnapshot = await readScenarioSnapshot(connection);
   const pending = provider.captureScenario(
@@ -378,9 +390,15 @@ async function verifyCancelledEnvironment(provider, connection, scenario) {
     await settlement;
   }
   const cancelled = await pending;
-  assert.ok(
-    !cancelled.ok ||
+  if (!cancelled.ok) {
+    if (!(cancelled.error instanceof AnalysisCancelledError))
+      throw cancelled.error;
+    assert.equal(cancelled.error.cleanupIncomplete, false);
+  } else {
+    assert.ok(
       cancelled.value.steps.some(({ status }) => status === "cancelled"),
-    "Cancellation unexpectedly completed every action",
-  );
+      "Cancellation unexpectedly completed every action",
+    );
+    assert.equal(cancelled.value.browser.cleanup, "disconnected-external");
+  }
 }

@@ -1408,8 +1408,34 @@ describe("Ghidra measured DOS load-image projection", () => {
   );
 });
 
+const unavailableNativeAotDatabaseType = (address: string | null) => ({
+  status: "unavailable",
+  reason:
+    "No exact database type or defined typed data exists at the selected identity",
+  id: null,
+  name: null,
+  kind: "unavailable",
+  source: "analysis-database",
+  source_archive: null,
+  address,
+  size_bytes: null,
+  alignment_bytes: null,
+  packing_enabled: null,
+  referenced_type: null,
+  array_count: null,
+  array_stride_bytes: null,
+  fields: [],
+  members: [],
+  total_fields: 0,
+  truncated: false,
+  limitations: [],
+});
+
 it("returns read-only NativeAOT metadata inline and drills down by derived MethodTable address", async () => {
   const bytes = nativeAotPeFixture();
+  const readSnapshot = vi.fn(async () =>
+    ok({ kind: "captured" as const, bytes }),
+  );
   const observations = fixtureDosLoadImage().observation;
   observations.image_base = "0x140000000";
   const factory: GhidraProviderClientFactory = () => ({
@@ -1426,31 +1452,11 @@ it("returns read-only NativeAOT metadata inline and drills down by derived Metho
           jsonValueSchema.parse(
             operation === "inspect_native_load_image"
               ? observations
-              : {
-                  status: "unavailable",
-                  reason: "No Ghidra DataType is defined at this address.",
-                  id: null,
-                  name: null,
-                  kind: "unavailable",
-                  source: "analysis-database",
-                  source_archive: null,
-                  address: null,
-                  size_bytes: null,
-                  alignment_bytes: null,
-                  packing_enabled: null,
-                  referenced_type: null,
-                  array_count: null,
-                  array_stride_bytes: null,
-                  fields: [],
-                  members: [],
-                  total_fields: 0,
-                  truncated: false,
-                  limitations: [],
-                },
+              : unavailableNativeAotDatabaseType("0x140002280"),
           ),
         ),
       ),
-    readTargetSnapshot: () => Promise.resolve(ok({ kind: "captured", bytes })),
+    readTargetSnapshot: readSnapshot,
     close: () => Promise.resolve(ok(null)),
   });
   const ghidra = provider(installationHost(), factory);
@@ -1479,67 +1485,155 @@ it("returns read-only NativeAOT metadata inline and drills down by derived Metho
       rawResult: observations,
     },
   });
-  const detail = await client.execute("inspect_native_data_type", {
-    address: "0x140002280",
-  });
-  expect(detail).toMatchObject({
-    ok: true,
-    value: {
-      result: {
-        status: "unavailable",
-        source: "analysis-database",
-        metadata_recovery: {
-          source: "read-only-derived-overlay",
-          method_table_address: "0x140002280",
-          related_type: { address: "0x140002200", type: null },
+  for (const address of [
+    "0x140002280",
+    "140002280",
+    "ram:0x140002280",
+    "%72am:0x140002280",
+    "0X0140002280",
+  ]) {
+    const detail = await client.execute("inspect_native_data_type", {
+      address,
+    });
+    expect(detail).toMatchObject({
+      ok: true,
+      value: {
+        result: {
+          status: "unavailable",
+          source: "analysis-database",
+          metadata_recovery: {
+            source: "read-only-derived-overlay",
+            method_table_address: "0x140002280",
+            related_type: { address: "0x140002200", type: null },
+          },
         },
       },
-    },
-  });
+    });
+  }
+  expect(readSnapshot).toHaveBeenCalledOnce();
   await client.close();
 });
 
-it("derives PE metadata for a direct type-address query without a load-image call", async () => {
-  const bytes = nativeAotPeFixture();
-  const operations: string[] = [];
-  const factory: GhidraProviderClientFactory = () => ({
-    start: () =>
-      Promise.resolve(
-        ok({
-          ...sessionInfo(),
-          target: { ...sessionInfo().target, image_base: "0x140000000" },
-        }),
-      ),
-    callTool: (operation) => {
-      operations.push(operation);
-      return Promise.resolve(
-        ok(
-          jsonValueSchema.parse({
-            status: "unavailable",
-            reason: "No Ghidra DataType is defined at this address.",
-            id: null,
-            name: null,
-            kind: "unavailable",
-            source: "analysis-database",
-            source_archive: null,
-            address: null,
-            size_bytes: null,
-            alignment_bytes: null,
-            packing_enabled: null,
-            referenced_type: null,
-            array_count: null,
-            array_stride_bytes: null,
-            fields: [],
-            members: [],
-            total_fields: 0,
-            truncated: false,
-            limitations: [],
+it.each([
+  ["0x140002280", "0x140002280", "0x140002280"],
+  ["140002280", "0x140002280", "0x140002280"],
+  ["ram:0x140002280", "0x140002280", "0x140002280"],
+  ["%72am:0x140002280", "0x140002280", "0x140002280"],
+  ["0X0140002280", "0x140002280", "0x140002280"],
+  ["0x140002280", "0x140002200", "0x140002200"],
+  ["0x140002280", null, null],
+  ["0x140002280", "register:0x140002280", null],
+  ["0x140002280", "overlay%3Aspace:0x140002280", null],
+  ["0x140002280", "0x140002288", null],
+  ["register:0x140002280", "register:0x140002280", null],
+] as const)(
+  "looks up NativeAOT type %s using resolved identity %s",
+  async (address, resolvedAddress, expectedTable) => {
+    const bytes = nativeAotPeFixture();
+    const operations: string[] = [];
+    const callerAddresses: unknown[] = [];
+    const readSnapshot = vi.fn(async () =>
+      ok({ kind: "captured" as const, bytes }),
+    );
+    const factory: GhidraProviderClientFactory = () => ({
+      start: () =>
+        Promise.resolve(
+          ok({
+            ...sessionInfo(),
+            target: { ...sessionInfo().target, image_base: "0x140000000" },
           }),
         ),
-      );
-    },
-    readTargetSnapshot: () => Promise.resolve(ok({ kind: "captured", bytes })),
-    close: () => Promise.resolve(ok(null)),
+      callTool: (operation, parameters) => {
+        operations.push(operation);
+        callerAddresses.push(parameters.address);
+        return Promise.resolve(
+          ok(
+            jsonValueSchema.parse(
+              unavailableNativeAotDatabaseType(resolvedAddress),
+            ),
+          ),
+        );
+      },
+      readTargetSnapshot: readSnapshot,
+      close: () => Promise.resolve(ok(null)),
+    });
+    const ghidra = provider(installationHost(), factory);
+    const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+    const profile = await ghidra.resolveAnalysisProfile(target);
+    if (!profile.ok || profile.value.profile === null)
+      throw new Error("Expected admitted PE profile");
+    const client = ghidra.createClient(target, profile.value.profile);
+    const detail = await client.execute("inspect_native_data_type", {
+      address,
+    });
+    expect(detail.ok).toBe(true);
+    if (!detail.ok) throw detail.error;
+    expect(detail.value.result).toMatchObject({ address: resolvedAddress });
+    if (expectedTable === null) {
+      expect(detail.value.result).not.toHaveProperty("metadata_recovery");
+    } else {
+      expect(detail.value.result).toMatchObject({
+        metadata_recovery: {
+          source: "read-only-derived-overlay",
+          method_table_address: expectedTable,
+        },
+      });
+    }
+    expect(callerAddresses).toEqual([address]);
+    expect(readSnapshot).toHaveBeenCalledTimes(
+      resolvedAddress === null ? 0 : 1,
+    );
+    expect(operations).toEqual(["inspect_native_data_type"]);
+    await client.close();
+  },
+);
+
+it("retains engine-provided NativeAOT metadata without deriving another snapshot", async () => {
+  const bytes = nativeAotPeFixture();
+  const metadata = {
+    format: "dotnet-nativeaot",
+    source: "analysis-database",
+    status: "partial",
+    header_address: "0x140002000",
+    format_major: 9,
+    format_minor: 1,
+    method_table_address: "0x140002280",
+    name_origin: "generated",
+    original_name: null,
+    base_size_bytes: 32,
+    related_type: null,
+    interfaces: [],
+    virtual_slots: [],
+    derived_memory: null,
+    diagnostics: ["Engine-provided fixture metadata"],
+    limitations: ["Fixture has no original managed names"],
+  };
+  const readSnapshot = vi.fn(async () => {
+    throw new Error("Unexpected source snapshot read");
+  });
+  const factory: GhidraProviderClientFactory = () => ({
+    start: async () =>
+      ok({
+        ...sessionInfo(),
+        target: { ...sessionInfo().target, image_base: "0x140000000" },
+      }),
+    callTool: async () =>
+      ok(
+        jsonValueSchema.parse({
+          ...unavailableNativeAotDatabaseType("0x140002280"),
+          status: "available",
+          reason: null,
+          id: "/NativeAOT/Example_MT",
+          name: "Example_MT",
+          kind: "struct",
+          size_bytes: 32,
+          alignment_bytes: 8,
+          packing_enabled: false,
+          metadata_recovery: metadata,
+        }),
+      ),
+    readTargetSnapshot: readSnapshot,
+    close: async () => ok(null),
   });
   const ghidra = provider(installationHost(), factory);
   const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
@@ -1552,17 +1646,9 @@ it("derives PE metadata for a direct type-address query without a load-image cal
   });
   expect(detail).toMatchObject({
     ok: true,
-    value: {
-      result: {
-        metadata_recovery: {
-          source: "read-only-derived-overlay",
-          method_table_address: "0x140002280",
-          related_type: { address: "0x140002200", type: null },
-        },
-      },
-    },
+    value: { result: { status: "available", metadata_recovery: metadata } },
   });
-  expect(operations).toEqual(["inspect_native_data_type"]);
+  expect(readSnapshot).not.toHaveBeenCalled();
   await client.close();
 });
 
@@ -1600,27 +1686,7 @@ it("shares one session snapshot across callers while isolating cancellation and 
           jsonValueSchema.parse(
             operation === "inspect_native_load_image"
               ? observation
-              : {
-                  status: "unavailable",
-                  reason: "No Ghidra DataType is defined at this address.",
-                  id: null,
-                  name: null,
-                  kind: "unavailable",
-                  source: "analysis-database",
-                  source_archive: null,
-                  address: null,
-                  size_bytes: null,
-                  alignment_bytes: null,
-                  packing_enabled: null,
-                  referenced_type: null,
-                  array_count: null,
-                  array_stride_bytes: null,
-                  fields: [],
-                  members: [],
-                  total_fields: 0,
-                  truncated: false,
-                  limitations: [],
-                },
+              : unavailableNativeAotDatabaseType("0x140002280"),
           ),
         ),
       );

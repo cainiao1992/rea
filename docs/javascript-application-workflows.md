@@ -168,6 +168,9 @@ valid inputs.
 
 Endpoint nodes keep the exact endpoint in each observation's `properties.value`;
 semantic request and response nodes keep it in `properties.endpoint`. Endpoint
+lookup identities are preserved independently of the primitive-value lattice's
+byte budget. An oversized normalized literal can become unknown while the same
+string remains an exact endpoint for tracing and comparison. Endpoint
 identity keys use `value-sha256:<digest>` over the canonical JSON string when
 that is shorter, or when the original value starts with the reserved digest
 prefix. Other short endpoint keys remain unchanged. Endpoint labels use the

@@ -168,7 +168,8 @@ const exportUnavailable = (
       ? `To retry, set REA_KUNA_PROJECT_TIMEOUT_MS above ${String(failure.timeoutMs)} ms or raise REA_KUNA_JOBS in the environment that starts REA. ${restart}`
       : failure instanceof AnalysisResourceConstraintError &&
           failure.remediationAction !== undefined
-        ? `${failure.remediationAction.replace(/\.?$/u, ".")} ${restart}`
+        ? // A fixed buffer (`memory`) is no setting, so a restart cannot help.
+          `${failure.remediationAction.replace(/\.?$/u, ".")}${failure.resource === "memory" ? "" : ` ${restart}`}`
         : "To retry, resolve the reported failure, then reopen the target.";
   return new AnalysisCapabilityUnavailableError(
     KUNA_PROVIDER_ID,

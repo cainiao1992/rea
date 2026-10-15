@@ -30,7 +30,9 @@ export interface FakeKunaBehavior {
     | "hang"
     | "miscounted"
     | "silent"
-    | "block-manifest";
+    | "block-manifest"
+    /** Writes more than REA's 8 MiB export output buffer before its summary. */
+    | "noisy";
   readonly functions?: readonly FakeKunaFunction[];
   /** Extra `.asm` bytes, for capacity tests. */
   readonly asmPadding?: number;
@@ -149,6 +151,7 @@ if (args[0] === "--version") {
     if (mode === "block-manifest") fs.mkdirSync(path.join(output, "..", "manifest.json"));
     const failed = functions.filter((fn) => fn.error !== undefined).length;
     const reported = mode === "miscounted" ? functions.length + 1 : functions.length - failed;
+    if (mode === "noisy") process.stdout.write(Buffer.alloc(9 * 1024 * 1024, 0x20));
     if (mode !== "silent") process.stdout.write("wrote " + output + ": " + stem + ".c (" + c.length + " bytes); functions: " + reported + " ok, " + failed + " failed\n");
   }, behavior.delayMs ?? 0);
 } else if (args[0] === "decompile") {

@@ -16,7 +16,6 @@ import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import type { JsonValue } from "../../../../src/domain/jsonValue.js";
 import type { KunaProcessLauncher } from "../../../../src/kuna/KunaCommand.js";
 import type { AnalysisError } from "../../../../src/domain/analysisErrorBase.js";
-import { AnalysisResourceConstraintError } from "../../../../src/domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import { KunaProvider } from "../../../../src/kuna/KunaProvider.js";
 import { KUNA_FUNCTION_TEXT_BYTES } from "../../../../src/kuna/KunaLimits.js";
@@ -757,26 +756,53 @@ it("reports a failed export as failed rather than building", async () => {
 
 it.each([
   {
+    name: "export deadline",
     behavior: { project: "hang" } as const,
     environment: { REA_KUNA_PROJECT_TIMEOUT_MS: "300" },
     cause: "AnalysisTimeoutError",
     next: "To retry, set REA_KUNA_PROJECT_TIMEOUT_MS above 300 ms or raise REA_KUNA_JOBS in the environment that starts REA. REA reads Kuna settings when it starts, so restart REA, then reopen the target.",
+    details: {
+      timeout_ms: 300,
+      captured_output: { truncated: expect.any(Boolean) },
+    },
   },
   {
+    name: "Kuna failure",
     behavior: { project: "exit-failure" } as const,
     environment: {},
     cause: "ProviderAdapterError",
     next: "To retry, resolve the reported failure, then reopen the target.",
+    details: { captured_output: { exit_code: 1 } },
   },
   {
+    name: "cache capacity",
     behavior: { asmPadding: 2 * 1024 ** 2 },
     environment: { REA_KUNA_CACHE_MAX_BYTES: String(1024 ** 2) },
     cause: "AnalysisResourceConstraintError",
     next: "Raise REA_KUNA_CACHE_MAX_BYTES above the export size, or analyze this target with another provider. REA reads Kuna settings when it starts, so restart REA, then reopen the target.",
+    details: {
+      resource: "capacity",
+      reported_limits: {
+        cache_max_bytes: 1024 ** 2,
+        export_bytes: expect.any(Number),
+      },
+    },
+  },
+  {
+    // A fixed output buffer is no setting, so no restart is suggested.
+    name: "fixed output buffer",
+    behavior: { project: "noisy" } as const,
+    environment: {},
+    cause: "AnalysisResourceConstraintError",
+    next: "REA buffers at most 8388608 bytes of kuna decompile-project output, so repeating this request for this target fails the same way. Use another provider for it.",
+    details: {
+      resource: "memory",
+      reported_limits: { output_limit_bytes: 8 * 1024 ** 2 },
+    },
   },
 ])(
-  "reports a failed export as not retryable in its session ($cause)",
-  async ({ behavior, environment, cause, next }) => {
+  "reports a failed export as not retryable in its session ($name)",
+  async ({ behavior, environment, cause, next, details }) => {
     const { open } = await session(
       "rea-kuna-export-unavailable-",
       behavior,
@@ -812,21 +838,7 @@ it.each([
             },
           },
         });
-        expect(
-          failure instanceof AnalysisResourceConstraintError
-            ? exported.details
-            : exported.details?.["captured_output"],
-        ).toMatchObject(
-          failure instanceof AnalysisResourceConstraintError
-            ? {
-                resource: "capacity",
-                reported_limits: {
-                  cache_max_bytes: 1024 ** 2,
-                  export_bytes: expect.any(Number),
-                },
-              }
-            : { truncated: expect.any(Boolean) },
-        );
+        expect(exported.details).toMatchObject(details);
       }
     } finally {
       expect(await client.close()).toEqual({ ok: true, value: null });

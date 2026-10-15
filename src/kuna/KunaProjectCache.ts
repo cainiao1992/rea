@@ -248,6 +248,15 @@ export class KunaProjectCache {
     this.#launcher = options.launcher;
   }
 
+  /** Report cleanup owners retained after failed process or file cleanup. */
+  get hasPendingCleanup(): boolean {
+    return (
+      this.#retainedProcesses.length > 0 ||
+      this.#retainedFiles.size > 0 ||
+      this.#retainedHashHandles.size > 0
+    );
+  }
+
   /** Keep an entry from eviction while this process serves it. */
   pin(key: string): () => void {
     this.#pins.set(key, (this.#pins.get(key) ?? 0) + 1);

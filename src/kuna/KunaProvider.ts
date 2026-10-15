@@ -298,6 +298,14 @@ export class KunaProvider implements AnalysisProviderCandidate {
     );
   }
 
+  /** Report retained file cleanup without probing readiness or retrying owners. */
+  hasPendingOwnedResources(): boolean {
+    return (
+      this.#readinessFileOwners.size > 0 ||
+      this.#cache?.hasPendingCleanup === true
+    );
+  }
+
   async #closeReadinessOwners() {
     const failures: { readonly path: string; readonly cause: unknown }[] = [];
     for (const [owner, path] of this.#readinessFileOwners) {

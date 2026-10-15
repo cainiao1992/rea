@@ -126,10 +126,25 @@ it.skipIf(process.platform === "win32")(
       cleanupResources: [fixture.kuna],
     });
     expect(injected.closeCalls).toBe(2);
+    expect(binary.status()).toMatchObject({
+      open: false,
+      cleanup_pending: true,
+    });
+
+    expect(await binary.close()).toMatchObject({
+      ok: false,
+      error: {
+        cleanupIncomplete: true,
+        cleanupResources: [fixture.kuna],
+      },
+    });
+    expect(injected.closeCalls).toBe(3);
+    expect(binary.status()).toMatchObject({ cleanup_pending: true });
 
     injected.releaseCloseFailures = true;
     expect(await binary.close()).toEqual({ ok: true, value: null });
-    expect(injected.closeCalls).toBe(3);
+    expect(injected.closeCalls).toBe(4);
+    expect(binary.status()).toMatchObject({ cleanup_pending: false });
     expect((await fakeKunaCalls(fixture.kuna)).map(({ argv }) => argv)).toEqual(
       [["--version"], ["--version"]],
     );

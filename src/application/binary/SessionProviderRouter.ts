@@ -75,6 +75,11 @@ export class SessionProviderRouter {
     return this.registry.closeOwnedResources();
   }
 
+  /** Report retained candidate cleanup without performing cleanup work. */
+  hasPendingOwnedResources(): boolean {
+    return this.registry.hasPendingOwnedResources();
+  }
+
   /** Resolve target routes before any provider client is created. */
   async resolve(
     target: BinaryTarget,

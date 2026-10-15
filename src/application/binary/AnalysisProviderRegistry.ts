@@ -136,6 +136,13 @@ export class AnalysisProviderRegistry {
     );
   }
 
+  /** Report retained candidate resources without retrying cleanup. */
+  hasPendingOwnedResources(): boolean {
+    return this.#providers.some(
+      (provider) => provider.hasPendingOwnedResources?.() === true,
+    );
+  }
+
   /** Close candidate-owned resources even when no target client was opened. */
   async closeOwnedResources(): Promise<Result<null, AnalysisError>> {
     const failures: AnalysisError[] = [];

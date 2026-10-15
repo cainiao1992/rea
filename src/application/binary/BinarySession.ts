@@ -594,7 +594,10 @@ export class BinarySession
       runtimeLineageSnapshots: client?.runtimeLineageSnapshots?.() ?? [],
       requestActivitySnapshots: client?.requestActivitySnapshots?.() ?? [],
       providerOperationHealth: client?.operationHealthSnapshot?.() ?? null,
-      cleanupPending: this.#pendingCleanup !== undefined,
+      cleanupPending:
+        this.#pendingCleanup !== undefined ||
+        this.hasPendingWriteResources ||
+        this.#providerRouter.hasPendingOwnedResources(),
     });
   }
 

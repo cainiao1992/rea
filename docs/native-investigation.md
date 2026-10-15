@@ -587,6 +587,18 @@ Exact and ambiguous value counts describe emitted root/object value instances;
 a root and an object may contain the same value. Archive digests identify the
 original bytes.
 
+Interface Builder's XML and binary plist archives use the same number metadata
+and exact-decimal representation for emitted node attributes. Projection follows
+object and connection classification, so archive IDs, UID links and graph counts
+keep their meaning. Precision limitations name the source document. Unsafe
+integer-literal counts cover the archive, including fields not emitted as node
+attributes; exact and ambiguous projection counts cover emitted attribute values.
+Integral reals stay numbers, and ambiguous or incompletely observed values retain
+explicit precision limitations. Before plist decoding, the existing aggregate
+decode budget reserves estimated room for number metadata and attribute
+projection; these estimates are not a hard process-memory bound. Native
+NIBArchive decoding is unchanged by this plist-specific representation.
+
 Dates are reported as `{ "$plist_type": "date", "iso8601": "<timestamp>" }`. A
 date the decoder cannot represent, such as an XML date with a year beyond 9999
 or a negative year, is reported as `{ "$plist_type": "date", "iso8601": null }`

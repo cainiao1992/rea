@@ -95,6 +95,14 @@ matches exactly. Otherwise the result recommends provider-neutral follow-up
 tools and reports `requires-provider-analysis`; it never starts or switches a
 provider implicitly.
 
+A handoff requires the add-on's exact content identity. Unavailable unpacked
+companions remain visible in the trace graph with their canonical path,
+availability and container-backed Evidence. They yield no actionable handoff
+until their bytes are available and the application is reanalyzed; the archive
+digest does not identify the missing add-on. An empty handoff list does not prove
+that the trace contains no native components. Source partial coverage remains
+visible independently of handoff eligibility.
+
 ## Semantic relation tracing
 
 `trace_javascript_semantics` queries the authenticated companion graph without

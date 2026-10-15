@@ -275,12 +275,17 @@ it.each([false, true])(
 );
 const assertGlueObservations = (
   value: unknown,
-  inputs: readonly { readonly path: string; readonly source: string }[],
+  inputs: readonly {
+    readonly path: string;
+    readonly source: string;
+    readonly line: number;
+    readonly column: number;
+  }[],
   selectedPath: string,
 ): void => {
   const glue = wasmArtifactSchema.parse(value).glue;
   expect(glue).toHaveLength(inputs.length);
-  for (const [index, { path, source }] of inputs.entries()) {
+  for (const [index, { path, source, line, column }] of inputs.entries()) {
     expect(glue[index]).toMatchObject({
       artifact: {
         path,
@@ -291,8 +296,8 @@ const assertGlueObservations = (
       references: [
         {
           value: "./selected.wasm",
-          line: source.includes("\n") ? 2 : 1,
-          column: source.startsWith("\uFEFFfetch") ? 7 : 6,
+          line,
+          column,
           candidate_paths: [selectedPath],
           association: "local-path-candidate",
           evidence_kind: "static-literal",
@@ -403,19 +408,30 @@ it.each([
     },
   );
   const literal = 'fetch("./selected.wasm");';
-  const glueInputs = (
+  const glueSources =
     mode === "success"
       ? [
-          literal,
-          `\uFEFF${literal}`,
-          `\uFEFF\n${literal}`,
-          `#!/usr/bin/env node\n${literal}`,
-          `\uFEFF#!/usr/bin/env node\n${literal}`,
+          { source: literal, line: 1, column: 6 },
+          { source: `\uFEFF${literal}`, line: 1, column: 7 },
+          { source: `\uFEFF\n${literal}`, line: 2, column: 6 },
+          { source: `#!/usr/bin/env node\n${literal}`, line: 2, column: 6 },
+          {
+            source: `\uFEFF#!/usr/bin/env node\n${literal}`,
+            line: 2,
+            column: 6,
+          },
+          {
+            source: String.raw`"./selected\u002ewasm";`,
+            line: 1,
+            column: 0,
+          },
         ]
-      : []
-  ).map((source, index) => ({
+      : [];
+  const glueInputs = glueSources.map(({ source, line, column }, index) => ({
     path: join(selectedRoot, `glue-${index}.js`),
     source,
+    line,
+    column,
   }));
   await Promise.all(
     glueInputs.map(({ path, source }) => writeFile(path, source)),

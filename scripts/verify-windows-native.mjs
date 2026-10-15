@@ -588,7 +588,7 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$ErrorActionPreference='Stop'; $items=ConvertFrom-Json -InputObject $env:REA_TEST_READONLY_CHILDREN; @($items | ForEach-Object { [IO.File]::SetAttributes($_,[IO.FileAttributes]([int][IO.File]::GetAttributes($_) -bor 1)); $a=[int][IO.File]::GetAttributes($_); @{readonly=(($a -band 1) -ne 0); directory=(($a -band 16) -ne 0)} }) | ConvertTo-Json -Compress",
+          "$ErrorActionPreference='Stop'; $items=ConvertFrom-Json -InputObject $env:REA_TEST_READONLY_CHILDREN; @($items | ForEach-Object { $current=[int][IO.File]::GetAttributes($_); $next=if(($current -band 16) -ne 0){$current -bor 1}else{1}; [IO.File]::SetAttributes($_,[IO.FileAttributes]$next); $a=[int][IO.File]::GetAttributes($_); @{readonly=(($a -band 1) -ne 0); directory=(($a -band 16) -ne 0); onlyReadonly=($a -eq 1)} }) | ConvertTo-Json -Compress",
         ],
         {
           encoding: "utf8",
@@ -604,8 +604,8 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
       ),
     );
     assert.deepEqual(readonlyChildren, [
-      { readonly: true, directory: true },
-      { readonly: true, directory: false },
+      { readonly: true, directory: true, onlyReadonly: false },
+      { readonly: true, directory: false, onlyReadonly: true },
     ]);
   } catch (failure) {
     runtimeVerificationErrors.push(failure);
@@ -626,6 +626,7 @@ process.stdout.write(JSON.stringify({executable:basename(process.execPath),abiVe
   assert.equal(await readFile(sentinel, "utf8"), "preserve");
   report.controls.cleanupDoesNotTraverseJunctions = true;
   report.controls.readonlyRootAndChildrenRemoved = true;
+  report.controls.readonlyFileWithoutArchiveAttributeRemoved = true;
   const fixture = join(workspace, "tree.mjs");
   await writeFile(
     fixture,

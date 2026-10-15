@@ -473,6 +473,9 @@ static void dispose(HANDLE handle, const std::wstring& path) {
   require(GetFileInformationByHandleEx(handle, FileBasicInfo, &info, sizeof(info)), "Read cleanup attributes failed", path);
   if ((info.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0) {
     info.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
+    // Zero means "leave attributes unchanged" to FileBasicInfo. A file whose
+    // sole attribute was READONLY needs NORMAL to actually clear that marker.
+    if (info.FileAttributes == 0) info.FileAttributes = FILE_ATTRIBUTE_NORMAL;
     require(SetFileInformationByHandle(handle, FileBasicInfo, &info, sizeof(info)), "Clear owned readonly attribute failed", path);
   }
   FILE_DISPOSITION_INFO deletion{TRUE};

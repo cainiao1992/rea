@@ -5,6 +5,7 @@ import { logCliCommand } from "../cliLogging.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
+import { cliIntegerArgument } from "./options.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 
 /** Expose the same explicit selected map/point contract through the CLI. */
@@ -21,21 +22,17 @@ export const registerWebSourceLocationCommands = (
       manifestPath: z
         .string()
         .describe("Absolute export_web_scripts manifest path"),
-      scriptIndex: z.coerce
-        .number()
-        .int()
-        .min(0)
-        .describe("Zero-based manifest script index"),
+      scriptIndex: cliIntegerArgument(0).describe(
+        "Zero-based manifest script index",
+      ),
       sourceMapPath: z.string().describe("Absolute local source-map path"),
       sourceMapUrl: z
         .string()
         .describe("Absolute source-map URL context; no fetch"),
-      line: z.coerce.number().int().min(1).describe("One-based generated line"),
-      column: z.coerce
-        .number()
-        .int()
-        .min(0)
-        .describe("Zero-based UTF-16 generated column"),
+      line: cliIntegerArgument(1).describe("One-based generated line"),
+      column: cliIntegerArgument(0).describe(
+        "Zero-based UTF-16 generated column",
+      ),
     }),
     run: ({ args }) =>
       withCommandCancellation(async (signal) => {

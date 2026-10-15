@@ -6,6 +6,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { webModuleTraceInputSchema } from "../domain/webModuleTrace.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
+import { cliIntegerArgument } from "./options.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 
 const importMapInputSchema =
@@ -23,11 +24,9 @@ export const registerWebModuleCommands = (
       "Trace one captured script's native imports to URLs and captured source candidates",
     args: z.object({
       manifestPath: webModuleTraceInputSchema.shape.manifest_path,
-      scriptIndex: z.coerce
-        .number()
-        .int()
-        .min(0)
-        .describe("Zero-based manifest script index"),
+      scriptIndex: cliIntegerArgument(0).describe(
+        "Zero-based manifest script index",
+      ),
     }),
     options: z.object({
       importerUrl: webModuleTraceInputSchema.shape.importer_url,

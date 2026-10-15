@@ -111,24 +111,6 @@ let primaryError;
 try {
   await writeFile(path, source);
   await writeFile(bluetooth, bluetoothSource);
-  const capinfosOutput = (
-    await execute(
-      process.env.REA_CAPINFOS_COMMAND ?? "capinfos",
-      ["-M", "--", path],
-      {
-        env: { ...environment, LC_ALL: "C", LANG: "C" },
-        timeout: 60000,
-        maxBuffer: 64 * 1024,
-      },
-    )
-  ).stdout;
-  const expectedCaptureStart =
-    /^(?:Earliest|First) packet time:\s*(.+)$/mu.exec(capinfosOutput)?.[1] ??
-    null;
-  const expectedCaptureEnd =
-    /^(?:Latest|Last) packet time:\s*(.+)$/mu.exec(capinfosOutput)?.[1] ?? null;
-  assert.ok(expectedCaptureStart, capinfosOutput);
-  assert.ok(expectedCaptureEnd, capinfosOutput);
   await client.connect(transport);
   const tool = (await client.listTools()).tools.find(
     ({ name }) => name === "inspect_packet_capture",
@@ -155,10 +137,6 @@ try {
         .update(await readFile(input.path))
         .digest("hex"),
     );
-    if (input.path === path) {
-      assert.equal(report.capture_start, expectedCaptureStart);
-      assert.equal(report.capture_end, expectedCaptureEnd);
-    }
     assert.equal(report.hardware_acquisition, "not-performed");
     assert.equal(report.limits.address_space_bytes, expectedAddressSpace);
     assert.equal(report.tool.configured_path, process.env.REA_TSHARK_COMMAND);
@@ -287,6 +265,27 @@ try {
   assert.ok(pcapAjv.validateSchema(pcapTool.inputSchema));
   assert.ok(pcapAjv.validateSchema(pcapTool.outputSchema));
   for (const capturePath of [path, bluetooth]) {
+    const capinfosOutput = (
+      await execute(
+        process.env.REA_CAPINFOS_COMMAND ?? "capinfos",
+        ["-M", "--", capturePath],
+        {
+          env: { ...environment, LC_ALL: "C", LANG: "C" },
+          timeout: 60000,
+          maxBuffer: 64 * 1024,
+        },
+      )
+    ).stdout;
+    const expectedCaptureStart =
+      /^(?:Earliest|First) packet time:[ \t]*(.+)$/mu
+        .exec(capinfosOutput)?.[1]
+        ?.trim() ?? null;
+    const expectedCaptureEnd =
+      /^(?:Latest|Last) packet time:[ \t]*(.+)$/mu
+        .exec(capinfosOutput)?.[1]
+        ?.trim() ?? null;
+    assert.ok(expectedCaptureStart, capinfosOutput);
+    assert.ok(expectedCaptureEnd, capinfosOutput);
     const response = await client.callTool({
       name: pcapTool.name,
       arguments: { path: capturePath, detail: "summary" },
@@ -297,12 +296,27 @@ try {
       pcapAjv.errorsText(),
     );
     const summary = parseEvidence(response.structuredContent).normalized_result;
+    assert.equal(summary.summary.capture_start, expectedCaptureStart);
+    assert.equal(summary.summary.capture_end, expectedCaptureEnd);
     assert.equal(
       summary.summary.target.sha256,
       createHash("sha256")
         .update(await readFile(capturePath))
         .digest("hex"),
     );
+    const cli = parseEvidence(
+      JSON.parse(
+        (
+          await execute(
+            process.execPath,
+            [entrypoint, "inspect-pcap-capture", capturePath, "--json"],
+            { env: environment, timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
+          )
+        ).stdout,
+      ),
+    );
+    assert.equal(cli.normalized_result.capture_start, expectedCaptureStart);
+    assert.equal(cli.normalized_result.capture_end, expectedCaptureEnd);
     const source = {
       kind: "retained-evidence",
       evidence_id: summary.parent_evidence_id,

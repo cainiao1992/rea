@@ -173,10 +173,14 @@ export class KunaSessionClient implements AnalysisClient {
   readonly #session = new AbortController();
   /** Requests and shared readers retain their resources until their work settles. */
   readonly #active = new Set<Promise<unknown>>();
-  /** Single-function runs that could not be proven stopped, with their retry owners. */
+  /**
+   * Kuna runs that could not be proven stopped, with their retry owners and,
+   * for single-function runs, the run slot their process tree still holds.
+   */
   readonly #retained: {
     readonly error: ProviderCleanupError;
     owner: ProviderProcessSupervisor | undefined;
+    readonly slot?: KunaRunRelease;
   }[] = [];
   /** Private roots whose removal failed during setup or close. */
   readonly #leakedRoots: PrivateRuntimeRoot[] = [];
@@ -357,8 +361,10 @@ export class KunaSessionClient implements AnalysisClient {
     }
     for (const retained of [...this.#retained]) {
       const stopped = await retained.owner?.stop();
-      if (stopped !== undefined && stopped.status !== "incomplete")
+      if (stopped !== undefined && stopped.status !== "incomplete") {
         this.#retained.splice(this.#retained.indexOf(retained), 1);
+        retained.slot?.();
+      }
     }
     failures.push(...this.#retained.map(({ error }) => error));
     const workspace = await this.#workspace;
@@ -787,6 +793,7 @@ export class KunaSessionClient implements AnalysisClient {
     if (admitted === EXPORT_READY) return admitted;
     if (admitted === undefined)
       return err(new AnalysisCancelledError(operation));
+    let slot: KunaRunRelease | undefined = admitted;
     try {
       const run = await runKunaCommand({
         installation,
@@ -800,13 +807,15 @@ export class KunaSessionClient implements AnalysisClient {
         launcher: this.#launcher,
       });
       if (run.kind === "retained") {
-        this.#retained.push({ error: run.error, owner: run.owner });
+        // The tree may still run, so it keeps its slot until close proves it stopped.
+        this.#retained.push({ error: run.error, owner: run.owner, slot });
+        slot = undefined;
         return err(run.error);
       }
       if (run.kind === "failed") return err(run.error);
       return ok(run.snapshot.stdout.text.replace(/\n+$/u, ""));
     } finally {
-      admitted();
+      slot?.();
     }
   }
 

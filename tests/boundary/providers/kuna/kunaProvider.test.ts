@@ -27,7 +27,13 @@ import {
   writeFakeKuna,
 } from "./fakeKuna.js";
 
-import { session, run, exportsOf, FUNCTIONS } from "./kunaSessionFixture.js";
+import {
+  session,
+  run,
+  exportsOf,
+  FUNCTIONS,
+  unprovenCleanupLauncher,
+} from "./kunaSessionFixture.js";
 
 const it = test.skipIf(process.platform === "win32");
 
@@ -546,28 +552,6 @@ it("refuses another document, an unsupported operation and a replaced executable
   });
   await replaced.close();
 });
-
-/**
- * Launch for real, but have cleanup of the selected subcommand report an
- * unproven stop until `release` is called, as a lost ownership proof would.
- */
-const unprovenCleanupLauncher = (subcommand: string) => {
-  let proven = false;
-  const launcher: KunaProcessLauncher = async (options) => {
-    const spawned = await spawnOwnedProviderProcess(options);
-    if (options.arguments[0] !== subcommand) return spawned;
-    return {
-      ...spawned,
-      cleanup: async () => {
-        const cleaned = await cleanupOwnedProcessGroup(spawned.ownership);
-        return proven
-          ? cleaned
-          : { cleaned: false, reason: `${subcommand} stop unproven` };
-      },
-    };
-  };
-  return { launcher, release: () => (proven = true) };
-};
 
 it("retains an active request's workspace when close cannot prove its stop", async () => {
   const unproven = unprovenCleanupLauncher("decompile");

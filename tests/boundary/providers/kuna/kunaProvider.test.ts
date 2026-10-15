@@ -315,7 +315,7 @@ it("reports a failed function and an import slot as unavailable text, not errors
   await client.close();
 });
 
-it("builds a dossier with pseudocode and assembly, and the rest explicitly unavailable", async () => {
+it("builds a dossier with text and call relationships, leaving unsupported facets unavailable", async () => {
   const { open } = await session("rea-kuna-dossier-");
   const client = open();
 
@@ -371,8 +371,8 @@ it("builds a dossier with pseudocode and assembly, and the rest explicitly unava
     facet_availability: {
       pseudocode: { available: true },
       assembly: { available: true },
-      callers: { available: false },
-      callees: { available: false },
+      callers: { available: true },
+      callees: { available: true },
       references: { available: false },
       cfg: { available: false },
     },
@@ -530,7 +530,9 @@ it("refuses another document, an unsupported operation and a replaced executable
       document: "/other/program",
     }),
   ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
-  expect(await client.execute("xrefs", { address: "0x1000" })).toMatchObject({
+  expect(
+    await client.execute("search_strings", { pattern: "unused" }),
+  ).toMatchObject({
     ok: false,
     error: { _tag: "AnalysisCapabilityUnavailableError" },
   });

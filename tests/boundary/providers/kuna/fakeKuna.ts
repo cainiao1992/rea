@@ -16,6 +16,7 @@ export interface FakeKunaBehavior {
     | { readonly exit: number }
     | { readonly ignoreTerm: true };
   readonly inventory?: "ok" | "not-json" | "hang";
+  readonly inventoryImports?: boolean;
   readonly project?:
     | "ok"
     | "exit-failure"
@@ -35,6 +36,11 @@ export interface FakeKunaBehavior {
   readonly inventoryDelayMs?: number;
   /** Milliseconds the export takes before writing its files. */
   readonly delayMs?: number;
+  readonly graph?: "ok" | "hang" | "not-json" | "miscounted" | "with-bodies";
+  readonly graphIndirectCalls?: boolean;
+  readonly xrefs?: "ok" | "hang" | "not-json";
+  readonly referenceDelayMs?: number;
+  readonly referencePadding?: number;
 }
 
 /**
@@ -61,8 +67,32 @@ if (args[0] === "--version") {
   if (mode === "hang") hang();
   else if (mode === "not-json") process.stdout.write("functions: 2\n");
   else {
-    const listed = [...functions, { name: "puts", addr: "0x2000" }].map((fn) => ({ name: fn.name, address: parseInt(fn.addr, 16), address_hex: fn.addr, aliases: [], object_location: null, size: fn.name === "puts" ? 0 : 16 }));
+    const listed = [...functions, ...(behavior.inventoryImports === false ? [] : [{ name: "puts", addr: "0x2000" }])].map((fn) => ({ name: fn.name, address: parseInt(fn.addr, 16), address_hex: fn.addr, aliases: [], object_location: null, size: fn.name === "puts" ? 0 : 16 }));
     setTimeout(() => process.stdout.write(JSON.stringify({ binary: args[1], count: listed.length, total: listed.length, error: null, functions: listed }, null, 2) + "\n"), behavior.inventoryDelayMs ?? 0);
+  }
+} else if (args[0] === "decompile-graph") {
+  if (behavior.graph === "hang") hang();
+  else if (behavior.graph === "not-json") process.stdout.write("not graph JSON");
+  else {
+    if (args[args.indexOf("--functions") + 1] !== "") throw new Error("graph must request no bodies");
+    const nodes = [...functions, { name: "puts", addr: "0x2000" }].map((fn) => ({ address: parseInt(fn.addr, 16), name: fn.name, kind: "normal", hasIndirectCalls: behavior.graphIndirectCalls !== false && fn === functions[0], forwardsTo: null, codeC: behavior.graph === "with-bodies" ? "unrequested code" : null, assembly: null, error: null }));
+    const edges = [];
+    if (functions[1]) edges.push({ callerAddress: nodes[0].address, calleeAddress: nodes[1].address, kind: "call", calleeOrder: 0 });
+    if (functions[2]) edges.push({ callerAddress: nodes[0].address, calleeAddress: nodes[2].address, kind: functions[2].error ? "jump" : "call", calleeOrder: 1 });
+    if (functions[1]?.name === "parse") edges.push({ callerAddress: nodes[1].address, calleeAddress: 8192, kind: "call", calleeOrder: 0 });
+    setTimeout(() => process.stdout.write(JSON.stringify({ schemaVersion: 4, binary: { sourcePath: args[1], functionCount: nodes.length + (behavior.graph === "miscounted" ? 1 : 0), edgeCount: edges.length }, functions: nodes, edges })), behavior.referenceDelayMs ?? 0);
+  }
+} else if (args[0] === "xrefs") {
+  if (behavior.xrefs === "hang") hang();
+  else if (behavior.xrefs === "not-json") process.stdout.write("not xref JSON");
+  else {
+    const target = args[args.indexOf("--to") + 1];
+    const identity = (name, value) => ({ name, address: value, address_hex: "0x" + value.toString(16) });
+    const aliases = target === "0x2000" ? [identity("puts.slot", 12288)] : [];
+    const row = (from, to, kind) => ({ address: from, address_hex: "0x" + from.toString(16), from_address: from, from_address_hex: "0x" + from.toString(16), to_address: to, to_address_hex: "0x" + to.toString(16), kind, from_function: identity("main", 4096), to_function: null, instruction: "fixture reference" + "x".repeat(behavior.referencePadding ?? 0) });
+    const rows = [row(4100, parseInt(target, 16), "call")];
+    if (aliases.length) rows.push(row(4164, 12288, "call"));
+    setTimeout(() => process.stdout.write(JSON.stringify({ binary: args[1], direction: "to", count: rows.length, target: { ...identity(null, parseInt(target, 16)), aliases }, xrefs: rows })), behavior.referenceDelayMs ?? 0);
   }
 } else if (args[0] === "decompile-project") {
   const input = args[1];

@@ -26,19 +26,21 @@ Windows is not supported yet. Supported targets are ELF and thin Mach-O executab
 
 ## What Kuna answers
 
-| Tool                                                        | Source                                                                                                                    |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `list_procedures`, `search_procedures`, `procedure_address` | Kuna's callable inventory (`kuna functions --json`), including import slots it does not decompile                         |
-| `address_name`                                              | Function entries, then the data labels Kuna's export assigns                                                              |
-| `procedure_pseudo_code`, `batch_decompile`                  | The project export, or a single-function run while the export builds                                                      |
-| `procedure_assembly`                                        | The project export's labeled listing                                                                                      |
-| `analyze_function`                                          | Pseudocode and assembly from the export; callers, callees, references, comments, strings and CFG are declared unavailable |
+| Tool                                                        | Source                                                                                                                           |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `list_procedures`, `search_procedures`, `procedure_address` | Kuna's callable inventory (`kuna functions --json`), including import slots it does not decompile                                |
+| `address_name`                                              | Function entries, then the data labels Kuna's export assigns                                                                     |
+| `procedure_pseudo_code`, `batch_decompile`                  | The project export, or a single-function run while the export builds                                                             |
+| `procedure_assembly`                                        | The project export's labeled listing                                                                                             |
+| `procedure_callers`, `procedure_callees`                    | Call-kind edges from a lazy, body-free Kuna graph; synthetic import nodes are accepted by address                                |
+| `xrefs`                                                     | Exact-address incoming reference sites, with forwarding aliases filtered explicitly                                              |
+| `analyze_function`                                          | Pseudocode and assembly from the export, plus call relationships; typed references, comments, strings and CFG remain unavailable |
 
-Cross-references, callers, callees and basic blocks are not available from this provider. Use another provider when you need them.
+Typed procedure references, basic blocks, raw-memory tools, annotations and type recovery are not available from this provider. Use another provider for those operations.
 
 ## How answers are produced
 
-The first analysis request in a session looks for this target's export in the cache. `list_documents` reads the selected path without initializing analysis. The export is keyed by the target's SHA-256, the Kuna executable's SHA-256, its version and `--jobs`.
+The first text or assembly request in a session looks for this target's export in the cache. `list_documents` reads the selected path without initializing analysis. Inventory, function lookup, call relationships and xrefs do not start a C export. A data-name lookup starts it only when the address is absent from the function inventory. The export is keyed by the target's SHA-256, the Kuna executable's SHA-256, its version and `--jobs`.
 
 - **Warm cache:** analysis reads reuse the verified export. A fresh server verifies its file digests once, even for concurrent first requests; that cost scales with export size.
 - **Cold cache:**
@@ -57,6 +59,16 @@ The assembly label index is scanned once per export reader. Cancelling a request
 Regex procedure search uses ECMAScript Unicode matching in a cancellable worker with a five-second matching deadline. Literal matching remains the default. Cancellation or a matching deadline leaves the session available.
 
 Single-function subprocess output and each cached source facet share a 16 MiB buffered-text capacity. Cached spans are checked before allocation; larger text remains in the local export and the error identifies the file and range. `analyze_function` initially returns the complete dossier, which can still be large; later retained views do not remove that first transfer. Prefer the individual text tools for a focused question.
+
+## Calls and references
+
+The first call query runs `kuna decompile-graph --functions ''`, admitting no C or assembly bodies. One validated graph and forward/reverse indexes serve later call queries and existing `get_call_graph` / `trace_call_path` workflows. Numeric u64 addresses are parsed from their original JSON tokens. Only `call` edges become callers/callees; jumps and data references retain their distinct meaning. Graph counts, edge endpoints and ordering are validated before any relationship is returned. A forwarding address may be an instruction inside a function, so it is retained separately and never promoted to a function node or call edge. Reported indirect calls make affected relationship coverage partial; no target is invented for them.
+
+`xrefs` runs native `xrefs --to ADDRESS --json` on demand. Kuna unifies forwarding aliases and suppresses edges internal to their class; REA filters to the requested address and records the excluded-row count. Duplicate source sites appear once. An empty result cannot establish the absence of references. Addresses are explicit u64 values or exact, unambiguous procedure names; Kuna has no cursor.
+
+Graph JSON admits at most 32 MiB before parsing; xref JSON at most 16 MiB. The graph is cached for the selected target and executable profile within one session. Xref reuse is an LRU charged by source bytes plus metadata, limited to 16 MiB and 128 entries; at most eight distinct native xref queries may be pending. Reference commands run one at a time per session and share the provider's foreground budget with single-function decompiles. An unproven process stop retains its admission slots until cleanup succeeds. Concurrent callers share work, individual cancellation releases only that waiter, and the last departing waiter cancels its producer and receives any unproven cleanup. Session close aborts and drains producers, releases parsed caches and retries any retained process/file cleanup.
+
+Evidence includes only selected addresses or dossier neighbors, the producing JSON's SHA-256/byte count, coverage and relevant function facts; unrequested program-wide JSON and instruction text are omitted. Reference caches are in memory and expire on close: a fresh CLI process or MCP server rebuilds them. A first call query therefore costs a whole-program reference walk even when a C export is warm. These operations do not establish full Ghidra/IDA feature parity.
 
 ## Provenance and limitations
 

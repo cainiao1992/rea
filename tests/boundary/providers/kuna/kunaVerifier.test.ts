@@ -73,17 +73,19 @@ it.each([
 );
 
 it.each([
-  { rejectClose: false, rejectRead: true },
-  { rejectClose: true, rejectRead: false },
-  { rejectClose: true, rejectRead: true },
+  { rejectClose: false, rejectRead: true, wrongXrefs: false },
+  { rejectClose: true, rejectRead: false, wrongXrefs: false },
+  { rejectClose: true, rejectRead: true, wrongXrefs: false },
+  { rejectClose: false, rejectRead: false, wrongXrefs: true },
 ])(
-  "reports failure-path lineage (cleanup rejection: $rejectClose, read rejection: $rejectRead)",
-  async ({ rejectClose, rejectRead }) => {
+  "reports failure-path lineage (cleanup: $rejectClose, read: $rejectRead, wrong xrefs: $wrongXrefs)",
+  async ({ rejectClose, rejectRead, wrongXrefs }) => {
     const root = await createTestTempDirectory("rea-kuna-verifier-cleanup-");
     const kuna = await writeFakeKuna(root, {
       functions: [
-        { name: "rea_checksum", addr: "0x1000" },
-        { name: "rea_classify", addr: "0x1040" },
+        { name: "main", addr: "0x1000" },
+        { name: "rea_checksum", addr: "0x1040" },
+        { name: "rea_classify", addr: "0x1080" },
       ],
     });
     const nm = join(root, "nm");
@@ -91,7 +93,7 @@ it.each([
     // discovery are simulated to isolate the verifier's cleanup contract.
     await writeFile(
       nm,
-      `#!${process.execPath}\nprocess.stdout.write("00001000 T rea_checksum\\n00001040 T rea_classify\\n");\n`,
+      `#!${process.execPath}\nprocess.stdout.write("00001000 T main\\n00001040 T rea_checksum\\n00001080 T rea_classify\\n");\n`,
       { mode: 0o755 },
     );
     const proxy = join(root, "proxy.mjs");
@@ -105,11 +107,25 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 const backend = spawn(process.execPath, [${JSON.stringify(resolve("scripts/rea.mjs"))}, "--mcp"], { stdio: ["pipe", "pipe", "ignore"] });
 const exited = new Promise((resolve, reject) => { backend.once("error", reject); backend.once("exit", resolve); });
-backend.stdout.pipe(process.stdout);
+const methods = new Map();
+const output = createInterface({ input: backend.stdout });
+output.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (${wrongXrefs} && methods.get(message.id) === "xrefs" && message.result?.structuredContent) {
+    message.result.structuredContent.normalized_result = ["0xdeadbeef"];
+    for (const block of message.result.content) if (block.type === "text") {
+      const projection = JSON.parse(block.text);
+      projection.normalized_result = ["0xdeadbeef"];
+      block.text = JSON.stringify(projection);
+    }
+  }
+  process.stdout.write(JSON.stringify(message) + "\\n");
+});
 const input = createInterface({ input: process.stdin });
 for await (const line of input) {
   const message = JSON.parse(line);
   const name = message.params?.name;
+  if (name !== undefined) methods.set(message.id, name);
   if (name === "close_binary" && ${rejectClose}) {
     const marker = join(process.env.REA_KUNA_CACHE_DIR, "staging", "retained-marker");
     await mkdir(marker, { recursive: true });
@@ -160,12 +176,16 @@ await exited;
     expect(JSON.stringify(report.failures)).toContain(
       rejectClose
         ? "injected cleanup rejection"
-        : "injected verification failure",
+        : wrongXrefs
+          ? "incoming references differ from exact-target native sites"
+          : "injected verification failure",
     );
     if (rejectRead)
       expect(JSON.stringify(report.failures)).toContain(
         "injected verification failure",
       );
+    if (rejectClose && !rejectRead)
+      expect(report.failures[0].causes).toHaveLength(1);
     if (rejectClose) {
       const cache = await readFile(cacheRecord, "utf8");
       expect(cache).toBe(join(report.retained_workspace, "cache"));

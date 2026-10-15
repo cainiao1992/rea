@@ -57,7 +57,7 @@ export class KunaProvider implements AnalysisProviderCandidate {
     options: {
       readonly platform?: NodeJS.Platform;
       readonly launcher?: KunaProcessLauncher;
-      /** Test seam for concurrent single-function runs; production derives it from the host. */
+      /** Test seam for foreground native runs; production derives it from the host. */
       readonly singleFunctionRuns?: number;
     } = {},
   ) {
@@ -186,6 +186,13 @@ export class KunaProvider implements AnalysisProviderCandidate {
           verified_release: value.verified,
           jobs: value.configuration.jobs,
           export: "decompile-project",
+          reference_graph: {
+            command: "decompile-graph",
+            schema_version: 4,
+            bodies: false,
+            edge_kind: "call",
+          },
+          xrefs: { command: "xrefs", direction: "to", exact_address: true },
           cache_policy: "live",
         },
       ),
@@ -214,7 +221,7 @@ export class KunaProvider implements AnalysisProviderCandidate {
       };
     return new KunaSessionClient(target, profile, {
       cache: this.#projectCache(configuration.value),
-      runSlots: this.#singleFunctionSlots(configuration.value),
+      runSlots: this.#foregroundSlots(configuration.value),
       environment: this.#environment,
       ...(this.#launcher === undefined ? {} : { launcher: this.#launcher }),
     });
@@ -230,7 +237,7 @@ export class KunaProvider implements AnalysisProviderCandidate {
   }
 
   /** One admission pool per provider, so concurrent sessions share the host's cores. */
-  #singleFunctionSlots(configuration: KunaConfiguration): KunaRunSlots {
+  #foregroundSlots(configuration: KunaConfiguration): KunaRunSlots {
     this.#runSlots ??=
       this.#singleFunctionRuns === undefined
         ? KunaRunSlots.forHost(configuration.jobs)

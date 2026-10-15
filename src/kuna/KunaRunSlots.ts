@@ -4,12 +4,13 @@ import { availableParallelism } from "node:os";
 export type KunaRunRelease = () => void;
 
 /**
- * Process-wide admission for single-function `kuna decompile` runs.
+ * Provider-wide admission for foreground decompile and reference walks.
  *
- * Each run analyzes the whole image again in its own process tree, which held
- * about 360 MiB resident and close to one core on a 200 KiB Mach-O. These runs only
- * happen while the project export builds, so they share the cores its
- * `--jobs` workers leave free, and requests beyond that wait in FIFO order.
+ * A single-function decompile analyzes the whole image again; one measured
+ * run held about 360 MiB resident and close to one core on a 200 KiB Mach-O.
+ * Foreground walks share the cores reserved beyond an export's `--jobs` workers.
+ * Requests beyond that budget wait in FIFO order. A native cleanup owner
+ * keeps its slot while it cannot prove that the process stopped.
  */
 export class KunaRunSlots {
   readonly #capacity: number;

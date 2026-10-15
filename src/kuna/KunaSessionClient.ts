@@ -1,5 +1,3 @@
-import { basename, join } from "node:path";
-
 import { z } from "zod";
 
 import {
@@ -11,7 +9,6 @@ import {
 } from "../application/AnalysisProvider.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
-  AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
@@ -23,19 +20,17 @@ import {
 } from "../domain/analysisSearch.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
+import { combineFunctionRelationshipCoverage } from "../domain/functionCallCoverage.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
+import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import { matchRegexValues } from "../process/RegexMatcher.js";
-import { prepareProcessOwnershipInspection } from "../process/ProcessOwnershipObservation.js";
-import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import {
-  copyAndHash,
   KUNA_INVENTORY_OUTPUT_BYTES,
-  runKunaCommand,
   type KunaProcessLauncher,
 } from "./KunaCommand.js";
 import {
@@ -54,11 +49,15 @@ import {
 } from "./KunaProjectFiles.js";
 import {
   isKunaOperation,
+  KUNA_RELATIONSHIP_LIMITATION,
   KUNA_SINGLE_FUNCTION_LIMITATION,
   kunaLimitations,
   type KunaOperation,
 } from "./KunaProviderCapabilities.js";
 import { KUNA_PROVIDER_ID } from "./KunaRelease.js";
+import { KunaTargetCommands } from "./KunaTargetCommands.js";
+import { KunaReferenceQueries } from "./KunaReferenceQueries.js";
+import { normalizeKunaAddress } from "./KunaAddress.js";
 import { KUNA_FUNCTION_TEXT_BYTES } from "./KunaLimits.js";
 import type { KunaRunRelease, KunaRunSlots } from "./KunaRunSlots.js";
 import {
@@ -68,8 +67,6 @@ import {
 
 /** How often a request waiting on the project export reports that it still waits. */
 const WAIT_PROGRESS_INTERVAL_MS = 10_000;
-
-const HEX_ADDRESS = /^0x[0-9a-f]+$/iu;
 
 /** Where one answer's text came from, recorded in its raw result. */
 type AnswerSource =
@@ -103,28 +100,23 @@ interface Answer {
   readonly files?: readonly KunaProjectFileSpan[];
   readonly locations: readonly EvidenceLocation[];
   readonly limitations: readonly string[];
+  readonly referenceSource?: JsonValue;
+  readonly relationshipCoverage?: RelationshipCoverage;
 }
 
 /**
  * Wait for work this session owns, stopping only this caller's wait when its
  * signal aborts; the work itself continues for other callers.
  */
-const waitFor = <T>(
+const waitFor = async <T>(
   work: Promise<Result<T, AnalysisError>>,
   signal: AbortSignal | undefined,
   operation: string,
 ): Promise<Result<T, AnalysisError>> => {
-  if (signal === undefined) return work;
-  if (signal.aborted)
-    return Promise.resolve(err(new AnalysisCancelledError(operation)));
-  return new Promise((resolve) => {
-    const onAbort = () => resolve(err(new AnalysisCancelledError(operation)));
-    signal.addEventListener("abort", onAbort, { once: true });
-    void work.then((result) => {
-      signal.removeEventListener("abort", onAbort);
-      resolve(result);
-    });
-  });
+  const result = await waitForAbortable(work, signal);
+  return result === ABORTED
+    ? err(new AnalysisCancelledError(operation))
+    : result;
 };
 
 /** A file the adopted export named is gone, e.g. evicted by another REA process. */
@@ -165,7 +157,6 @@ export class KunaSessionClient implements AnalysisClient {
   readonly #profile: AnalysisProfileCommitment | undefined;
   readonly #cache: KunaProjectCache;
   readonly #environment: Readonly<NodeJS.ProcessEnv>;
-  readonly #launcher: KunaProcessLauncher | undefined;
   readonly #runSlots: KunaRunSlots;
   /** Single-function runs in flight, by entry address. */
   readonly #singleFunctionRuns = new Map<string, SingleFunctionRun>();
@@ -173,26 +164,9 @@ export class KunaSessionClient implements AnalysisClient {
   readonly #session = new AbortController();
   /** Requests and shared readers retain their resources until their work settles. */
   readonly #active = new Set<Promise<unknown>>();
-  /**
-   * Kuna runs that could not be proven stopped, with their retry owners and,
-   * for single-function runs, the run slot their process tree still holds.
-   */
-  readonly #retained: {
-    readonly error: ProviderCleanupError;
-    owner: ProviderProcessSupervisor | undefined;
-    readonly slot?: KunaRunRelease;
-  }[] = [];
-  /** Private roots whose removal failed during setup or close. */
-  readonly #leakedRoots: PrivateRuntimeRoot[] = [];
+  readonly #commands: KunaTargetCommands;
+  readonly #references: KunaReferenceQueries;
   #installation: Promise<Result<KunaInstallation, AnalysisError>> | undefined;
-  #workspace:
-    | Promise<
-        Result<
-          { readonly root: PrivateRuntimeRoot; readonly input: string },
-          AnalysisError
-        >
-      >
-    | undefined;
   #inventory:
     | Promise<Result<readonly KunaInventoryFunction[], AnalysisError>>
     | undefined;
@@ -225,7 +199,17 @@ export class KunaSessionClient implements AnalysisClient {
     this.#cache = dependencies.cache;
     this.#runSlots = dependencies.runSlots;
     this.#environment = dependencies.environment;
-    this.#launcher = dependencies.launcher;
+    this.#commands = new KunaTargetCommands(target, {
+      signal: this.#session.signal,
+      ...(dependencies.launcher === undefined
+        ? {}
+        : { launcher: dependencies.launcher }),
+    });
+    this.#references = new KunaReferenceQueries(this.#commands, {
+      signal: this.#session.signal,
+      own: (work) => this.#own(work),
+      runSlots: dependencies.runSlots,
+    });
   }
 
   async execute(
@@ -311,7 +295,11 @@ export class KunaSessionClient implements AnalysisClient {
             limitations: [],
           }),
         );
-      if (operation !== "list_documents")
+      if (
+        operation === "procedure_pseudo_code" ||
+        operation === "procedure_assembly" ||
+        operation === "analyze_function"
+      )
         await this.#startProject(installation.value);
       const answer = await this.#answer(
         operation,
@@ -350,6 +338,7 @@ export class KunaSessionClient implements AnalysisClient {
     // is safe to remove private copies and exposes any retained cleanup owner.
     // An admitted request may create a shared reader after shutdown begins.
     while (this.#active.size > 0) await Promise.allSettled(this.#active);
+    this.#references.clear();
     await this.#project;
     await this.#inventory;
     const failures: ProviderCleanupError[] = [];
@@ -359,36 +348,8 @@ export class KunaSessionClient implements AnalysisClient {
       const settled = await this.#cache.settled(this.#key);
       if (!settled.ok) failures.push(settled.error);
     }
-    for (const retained of [...this.#retained]) {
-      const stopped = await retained.owner?.stop();
-      if (stopped !== undefined && stopped.status !== "incomplete") {
-        this.#retained.splice(this.#retained.indexOf(retained), 1);
-        retained.slot?.();
-      }
-    }
-    failures.push(...this.#retained.map(({ error }) => error));
-    const workspace = await this.#workspace;
-    // A single-function run that may still be running keeps its copy.
-    if (this.#retained.length === 0) {
-      if (workspace?.ok === true) {
-        this.#leakedRoots.push(workspace.value.root);
-        this.#workspace = undefined;
-      }
-      for (const root of [...this.#leakedRoots])
-        try {
-          await root.close();
-          this.#leakedRoots.splice(this.#leakedRoots.indexOf(root), 1);
-        } catch (cause: unknown) {
-          failures.push(
-            new ProviderCleanupError(
-              KUNA_PROVIDER_ID,
-              [root.path],
-              { reason: message(cause) },
-              { cause },
-            ),
-          );
-        }
-    }
+    const commands = await this.#commands.close();
+    if (!commands.ok) failures.push(commands.error);
     if (failures.length > 0)
       return err(
         new ProviderCleanupError(
@@ -442,23 +403,33 @@ export class KunaSessionClient implements AnalysisClient {
       {
         // Kuna's identity is in the analysis profile; the raw result records
         // only where file-backed text came from.
-        ...(source === null
+        ...(source === null && answer.referenceSource === undefined
           ? {}
           : {
               rawResult: {
-                source:
-                  source.kind === "single-function"
-                    ? { kind: "single-function" }
-                    : {
-                        kind: "project-export",
-                        key: source.project.key,
-                        directory: source.project.directory,
-                        ...recordedFiles,
-                      },
-                project_export: this.#exportState(),
+                ...(source === null
+                  ? {}
+                  : {
+                      source:
+                        source.kind === "single-function"
+                          ? { kind: "single-function" }
+                          : {
+                              kind: "project-export",
+                              key: source.project.key,
+                              directory: source.project.directory,
+                              ...recordedFiles,
+                            },
+                      project_export: this.#exportState(),
+                    }),
+                ...(answer.referenceSource === undefined
+                  ? {}
+                  : { references: answer.referenceSource }),
               },
             }),
         limitations: [...operationLimitations, ...answer.limitations],
+        ...(answer.relationshipCoverage === undefined
+          ? {}
+          : { relationshipCoverage: answer.relationshipCoverage }),
         locations: [
           { kind: "artifact-path", path: this.#target.path },
           ...answer.locations,
@@ -497,6 +468,17 @@ export class KunaSessionClient implements AnalysisClient {
         locations: [],
         limitations: [],
       });
+    if (
+      operation === "xrefs" ||
+      operation === "procedure_callers" ||
+      operation === "procedure_callees"
+    )
+      return this.#referenceAnswer(
+        operation,
+        parameters,
+        installation,
+        options,
+      );
     const inventory = await this.#ensureInventory(installation, options);
     if (!inventory.ok) return inventory;
     if (operation === "list_procedures" || operation === "search_procedures") {
@@ -537,8 +519,33 @@ export class KunaSessionClient implements AnalysisClient {
         installation,
         options,
       );
-    const entry = this.#resolve(operation, parameters, inventory.value);
-    if (!entry.ok) return entry;
+    const entry = this.#resolve(
+      operation,
+      parameters.procedure,
+      inventory.value,
+    );
+    if (!entry.ok) {
+      const selectedAddress =
+        operation === "procedure_address"
+          ? normalizeKunaAddress(parameters.procedure)
+          : undefined;
+      if (selectedAddress === undefined) return entry;
+      const graph = await this.#references.functionAt(
+        installation,
+        selectedAddress,
+        operation,
+        options.signal,
+      );
+      if (!graph.ok) return graph;
+      if (graph.value === undefined) return entry;
+      return ok({
+        result: graph.value.address,
+        source: null,
+        locations: [{ kind: "address", address: selectedAddress }],
+        limitations: [],
+        referenceSource: graph.value.source,
+      });
+    }
     const locations = [
       { kind: "address", address: entry.value.address } as const,
     ];
@@ -572,29 +579,133 @@ export class KunaSessionClient implements AnalysisClient {
       }
       case "analyze_function":
         return this.#withProject(operation, installation, options, (reader) =>
-          this.#dossier(operation, entry.value, reader, options.signal),
+          this.#dossier(
+            operation,
+            entry.value,
+            reader,
+            installation,
+            options.signal,
+          ),
         );
     }
+  }
+
+  async #referenceAnswer(
+    operation: "xrefs" | "procedure_callers" | "procedure_callees",
+    parameters: Readonly<Record<string, JsonValue>>,
+    installation: KunaInstallation,
+    options: ExecutionOptions,
+  ): Promise<Result<Answer, AnalysisError>> {
+    const field = operation === "xrefs" ? "address" : "procedure";
+    const selected = await this.#referenceAddress(
+      operation,
+      parameters[field],
+      field,
+      installation,
+      options,
+    );
+    if (!selected.ok) return selected;
+    const address = selected.value;
+    const locations = [{ kind: "address" as const, address }];
+    if (operation === "xrefs") {
+      const references = await this.#references.incoming(
+        installation,
+        address,
+        options.signal,
+      );
+      if (!references.ok) return references;
+      return ok({
+        result: [...references.value.addresses],
+        source: null,
+        locations,
+        limitations: [],
+        referenceSource: {
+          kind: "kuna-xrefs",
+          direction: "to",
+          target: address,
+          sha256: references.value.sha256,
+          bytes: references.value.bytes,
+          examined_rows: references.value.rows,
+          excluded_alias_rows: references.value.excludedAliasRows,
+        },
+      });
+    }
+    const relationships = await this.#references.relationships(
+      installation,
+      address,
+      operation,
+      options.signal,
+    );
+    if (!relationships.ok) return relationships;
+    const entries =
+      operation === "procedure_callers"
+        ? relationships.value.callers
+        : relationships.value.callees;
+    return ok({
+      result: entries.map(({ address }) => address),
+      source: null,
+      locations,
+      referenceSource: relationships.value.source,
+      limitations: [],
+      relationshipCoverage:
+        operation === "procedure_callers"
+          ? relationships.value.callersCoverage
+          : relationships.value.calleesCoverage,
+    });
+  }
+
+  /** Exact addresses are validated by the producing graph, which also owns
+   * synthetic import nodes absent from the quick function inventory. */
+  async #referenceAddress(
+    operation: string,
+    raw: unknown,
+    field: "address" | "procedure",
+    installation: KunaInstallation,
+    options: ExecutionOptions,
+  ): Promise<Result<string, AnalysisError>> {
+    if (typeof raw !== "string" || raw.length === 0)
+      return err(
+        new AnalysisInputError(
+          operation,
+          { userMessage: `Kuna requires ${field}; it has no cursor.` },
+          [{ path: [field], reason: "missing_argument" }],
+        ),
+      );
+    const address = normalizeKunaAddress(raw);
+    if (address !== undefined) return ok(address);
+    if (/^0x[0-9a-f]+$/iu.test(raw))
+      return err(
+        new AnalysisInputError(
+          operation,
+          { userMessage: "The address exceeds Kuna's u64 address space." },
+          [{ path: [field], reason: "invalid_value" }],
+        ),
+      );
+    const inventory = await this.#ensureInventory(installation, options);
+    if (!inventory.ok) return inventory;
+    const entry = this.#resolve(operation, raw, inventory.value, field);
+    return entry.ok ? ok(entry.value.address) : entry;
   }
 
   /** Resolve an exact inventory name, alias or entry address. */
   #resolve(
     operation: string,
-    parameters: Readonly<Record<string, JsonValue>>,
+    raw: unknown,
     inventory: readonly KunaInventoryFunction[],
+    field: "procedure" | "address" = "procedure",
   ): Result<KunaInventoryFunction, AnalysisError> {
-    const parsed = procedureSelectorSchema.safeParse(parameters.procedure);
+    const parsed = procedureSelectorSchema.safeParse(raw);
     if (!parsed.success)
       return err(
         new AnalysisInputError(
           operation,
-          { userMessage: "procedure is required." },
-          [{ path: ["procedure"], reason: "missing_argument" }],
+          { userMessage: `${field} is required.` },
+          [{ path: [field], reason: "missing_argument" }],
         ),
       );
     const selector = parsed.data;
-    if (HEX_ADDRESS.test(selector)) {
-      const address = `0x${BigInt(selector).toString(16)}`;
+    const address = normalizeKunaAddress(selector);
+    if (address !== undefined) {
       const entry = this.#index(inventory).byAddress.get(address);
       return entry === undefined
         ? err(
@@ -623,7 +734,8 @@ export class KunaSessionClient implements AnalysisClient {
     options: ExecutionOptions,
   ): Promise<Result<Answer, AnalysisError>> {
     const raw = parameters.address;
-    if (typeof raw !== "string" || !HEX_ADDRESS.test(raw))
+    const address = normalizeKunaAddress(raw);
+    if (address === undefined)
       return err(
         new AnalysisInputError(
           "address_name",
@@ -634,7 +746,6 @@ export class KunaSessionClient implements AnalysisClient {
           [{ path: ["address"], reason: "invalid_format" }],
         ),
       );
-    const address = `0x${BigInt(raw).toString(16)}`;
     const locations = [{ kind: "address", address } as const];
     const entry = this.#index(inventory).byAddress.get(address);
     if (entry !== undefined)
@@ -644,6 +755,7 @@ export class KunaSessionClient implements AnalysisClient {
         locations,
         limitations: [],
       });
+    await this.#startProject(installation);
     return this.#withProject(
       "address_name",
       installation,
@@ -787,36 +899,22 @@ export class KunaSessionClient implements AnalysisClient {
     installation: KunaInstallation,
     signal: AbortSignal,
   ): Promise<SingleFunctionOutcome> {
-    const workspace = await this.#ensureWorkspace();
-    if (!workspace.ok) return workspace;
+    const prepared = await this.#commands.prepare();
+    if (!prepared.ok) return prepared;
     const admitted = await this.#admitSingleFunction(signal);
     if (admitted === EXPORT_READY) return admitted;
     if (admitted === undefined)
       return err(new AnalysisCancelledError(operation));
-    let slot: KunaRunRelease | undefined = admitted;
-    try {
-      const run = await runKunaCommand({
-        installation,
-        arguments: ["decompile", workspace.value.input, address, "--addr"],
-        workspace: workspace.value.root.path,
-        operation,
-        timeoutMs: installation.configuration.functionTimeoutMs,
-        reportedTimeoutMs: installation.configuration.functionTimeoutMs,
-        outputBytes: KUNA_FUNCTION_TEXT_BYTES,
-        signal,
-        launcher: this.#launcher,
-      });
-      if (run.kind === "retained") {
-        // The tree may still run, so it keeps its slot until close proves it stopped.
-        this.#retained.push({ error: run.error, owner: run.owner, slot });
-        slot = undefined;
-        return err(run.error);
-      }
-      if (run.kind === "failed") return err(run.error);
-      return ok(run.snapshot.stdout.text.replace(/\n+$/u, ""));
-    } finally {
-      slot?.();
-    }
+    const run = await this.#commands.run({
+      installation,
+      arguments: (input) => ["decompile", input, address, "--addr"],
+      operation,
+      timeoutMs: installation.configuration.functionTimeoutMs,
+      outputBytes: KUNA_FUNCTION_TEXT_BYTES,
+      signal,
+      releaseRun: admitted,
+    });
+    return run.ok ? ok(run.value.stdout.text.replace(/\n+$/u, "")) : run;
   }
 
   /**
@@ -879,6 +977,7 @@ export class KunaSessionClient implements AnalysisClient {
     operation: string,
     entry: KunaInventoryFunction,
     reader: KunaProjectReader,
+    installation: KunaInstallation,
     signal: AbortSignal | undefined,
   ): Promise<Result<Answer, AnalysisError>> {
     const assembly = await reader.assembly(entry.address, operation, signal);
@@ -891,6 +990,22 @@ export class KunaSessionClient implements AnalysisClient {
         : null;
     const unavailable = (reason: string) =>
       ({ available: false, reason }) as const;
+    const relationships = await this.#references.relationships(
+      installation,
+      entry.address,
+      operation,
+      signal,
+    );
+    if (
+      !relationships.ok &&
+      (relationships.error.cleanupIncomplete || signal?.aborted === true)
+    )
+      return relationships;
+    const callAvailability = relationships.ok
+      ? { available: true as const }
+      : unavailable(
+          relationships.error.userMessage ?? relationships.error.message,
+        );
     const dossier = functionDossierSchema.parse({
       procedure: {
         address: entry.address,
@@ -908,8 +1023,8 @@ export class KunaSessionClient implements AnalysisClient {
           ? assembly.value.result.split("\n")
           : [],
       comments: [],
-      callers: [],
-      callees: [],
+      callers: relationships.ok ? relationships.value.callers : [],
+      callees: relationships.ok ? relationships.value.callees : [],
       incoming_references: [],
       outgoing_references: [],
       referenced_strings: [],
@@ -927,12 +1042,8 @@ export class KunaSessionClient implements AnalysisClient {
             : { available: true },
         assembly: { available: true },
         comments: unavailable("Kuna exports no analyst comments."),
-        callers: unavailable(
-          "This provider does not report Kuna cross-references.",
-        ),
-        callees: unavailable(
-          "This provider does not report Kuna cross-references.",
-        ),
+        callers: callAvailability,
+        callees: callAvailability,
         references: unavailable(
           "This provider does not report typed references.",
         ),
@@ -944,6 +1055,10 @@ export class KunaSessionClient implements AnalysisClient {
       limitations: [
         ...kunaLimitations("analyze_function"),
         ...pseudocode.value.limitations,
+        KUNA_RELATIONSHIP_LIMITATION,
+        ...(relationships.ok
+          ? []
+          : [relationships.error.userMessage ?? relationships.error.message]),
       ],
     });
     return ok({
@@ -954,7 +1069,31 @@ export class KunaSessionClient implements AnalysisClient {
         ...(assembly.value.files ?? []),
       ],
       locations: [{ kind: "address", address: entry.address }],
-      limitations: pseudocode.value.limitations,
+      limitations: [
+        ...pseudocode.value.limitations,
+        KUNA_RELATIONSHIP_LIMITATION,
+        ...(relationships.ok
+          ? []
+          : [relationships.error.userMessage ?? relationships.error.message]),
+      ],
+      referenceSource: relationships.ok
+        ? relationships.value.source
+        : {
+            available: false,
+            reason:
+              relationships.error.userMessage ?? relationships.error.message,
+          },
+      relationshipCoverage: relationships.ok
+        ? combineFunctionRelationshipCoverage(
+            relationships.value.callersCoverage,
+            relationships.value.calleesCoverage,
+          )
+        : {
+            status: "unknown",
+            reason:
+              relationships.error.userMessage ?? relationships.error.message,
+            limited_directions: ["callers", "callees"],
+          },
     });
   }
 
@@ -1163,25 +1302,16 @@ export class KunaSessionClient implements AnalysisClient {
   async #listInventory(
     installation: KunaInstallation,
   ): Promise<Result<readonly KunaInventoryFunction[], AnalysisError>> {
-    const workspace = await this.#ensureWorkspace();
-    if (!workspace.ok) return workspace;
-    const run = await runKunaCommand({
+    const run = await this.#commands.run({
       installation,
-      arguments: ["functions", workspace.value.input, "--json"],
-      workspace: workspace.value.root.path,
+      arguments: (input) => ["functions", input, "--json"],
       operation: "list_procedures",
       timeoutMs: installation.configuration.functionTimeoutMs,
-      reportedTimeoutMs: installation.configuration.functionTimeoutMs,
       outputBytes: KUNA_INVENTORY_OUTPUT_BYTES,
       signal: this.#session.signal,
-      launcher: this.#launcher,
     });
-    if (run.kind === "retained") {
-      this.#retained.push({ error: run.error, owner: run.owner });
-      return err(run.error);
-    }
-    if (run.kind === "failed") return err(run.error);
-    const inventory = parseKunaInventory(run.snapshot.stdout.text);
+    if (!run.ok) return run;
+    const inventory = parseKunaInventory(run.value.stdout.text);
     return inventory.ok
       ? ok(inventory.value)
       : err(
@@ -1189,52 +1319,5 @@ export class KunaSessionClient implements AnalysisClient {
             userMessage: `Kuna's function inventory is not usable: ${inventory.error}`,
           }),
         );
-  }
-
-  /** A private, digest-verified copy of the target for single-function runs. */
-  async #ensureWorkspace(): Promise<
-    Result<
-      { readonly root: PrivateRuntimeRoot; readonly input: string },
-      AnalysisError
-    >
-  > {
-    this.#workspace ??= (async () => {
-      const root = await PrivateRuntimeRoot.create({ prefix: "rea-kuna-" });
-      try {
-        const input = join(root.path, basename(this.#target.path));
-        const digest = await copyAndHash(
-          this.#target.path,
-          input,
-          this.#session.signal,
-        );
-        if (digest !== this.#target.sha256) {
-          await this.#release(root);
-          return err(
-            new AnalysisArtifactChangedError(
-              "kuna:workspace",
-              this.#target.path,
-              "the target no longer matches the digest selected for analysis",
-            ),
-          );
-        }
-        await prepareProcessOwnershipInspection(this.#session.signal);
-        return ok({ root, input });
-      } catch (cause: unknown) {
-        await this.#release(root);
-        throw cause;
-      }
-    })().catch((cause: unknown) => err(failure("kuna:workspace", cause)));
-    const workspace = await this.#workspace;
-    if (!workspace.ok) this.#workspace = undefined;
-    return workspace;
-  }
-
-  /** Remove a private root, keeping it for close to retry when removal fails. */
-  async #release(root: PrivateRuntimeRoot): Promise<void> {
-    try {
-      await root.close();
-    } catch {
-      this.#leakedRoots.push(root);
-    }
   }
 }

@@ -46,14 +46,30 @@ const callLabel = (node: t.Node): string =>
 const ipcEndpointKey = (value: ElectronIpcFinding): string =>
   JSON.stringify([value.side, value.operation, value.channel, value.location]);
 
+/** Duplicate evidence already recorded for one endpoint and call site. */
+interface IpcEndpointFacts {
+  // A directly observed transmission stays one fact however it is reached.
+  observedTransmission: boolean;
+  readonly invocations: Set<string>;
+}
+
+const ipcInvocationKey = (location: unknown): string =>
+  String(JSON.stringify(location));
+
 const indexIpcFinding = (
-  index: Map<string, ElectronIpcFinding[]>,
+  index: Map<string, IpcEndpointFacts>,
   value: ElectronIpcFinding,
 ): void => {
   const key = ipcEndpointKey(value);
-  const bucket = index.get(key);
-  if (bucket === undefined) index.set(key, [value]);
-  else bucket.push(value);
+  let facts = index.get(key);
+  if (facts === undefined) {
+    facts = { observedTransmission: false, invocations: new Set() };
+    index.set(key, facts);
+  }
+  facts.observedTransmission ||=
+    value.resolution_basis === undefined &&
+    (value.mode === "send" || value.mode === "invoke");
+  facts.invocations.add(ipcInvocationKey(value.invocation_location));
 };
 
 interface PathContext {
@@ -164,8 +180,8 @@ export const collectElectronWrappedCallPaths = (
   };
   // Duplicate checks consult only facts at the same endpoint and call site.
   // Scanning every prior fact made bundles with many registrations quadratic.
-  let ipcByEndpoint: Map<string, ElectronIpcFinding[]> | undefined;
-  const ipcAtEndpoint = (): Map<string, ElectronIpcFinding[]> => {
+  let ipcByEndpoint: Map<string, IpcEndpointFacts> | undefined;
+  const ipcAtEndpoint = (): Map<string, IpcEndpointFacts> => {
     if (ipcByEndpoint !== undefined) return ipcByEndpoint;
     ipcByEndpoint = new Map();
     for (const { value } of accumulator.ipc)
@@ -374,13 +390,11 @@ export const collectElectronWrappedCallPaths = (
               };
     // A fully observed transmission stays one source fact when its callback is
     // traced. Registrations retain invocation identity because handlers compete.
-    const invocationKey = JSON.stringify(invocationLocation);
-    const duplicate = (ipcAtEndpoint().get(ipcEndpointKey(finding)) ?? []).some(
-      (value) =>
-        (value.resolution_basis === undefined &&
-          (value.mode === "send" || value.mode === "invoke")) ||
-        JSON.stringify(value.invocation_location) === invocationKey,
-    );
+    const recorded = ipcAtEndpoint().get(ipcEndpointKey(finding));
+    const duplicate =
+      recorded !== undefined &&
+      (recorded.observedTransmission ||
+        recorded.invocations.has(ipcInvocationKey(invocationLocation)));
     const findingGuarded =
       context.conditions.length > 0 || hasConditions(first) || guardedDispatch;
     if (!duplicate && !findingGuarded) {

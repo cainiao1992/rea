@@ -12,6 +12,8 @@ import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
+  AnalysisResourceConstraintError,
+  AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
 import {
@@ -23,6 +25,7 @@ import type { EvidenceLocation } from "../domain/evidence.js";
 import { combineFunctionRelationshipCoverage } from "../domain/functionCallCoverage.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -139,6 +142,51 @@ const failure = (operation: string, cause: unknown): AnalysisError =>
         cause,
         userMessage: `Kuna ${operation} failed: ${message(cause)}`,
       });
+
+/**
+ * How a request that needs the export reports the export's failure. A session
+ * never rebuilds a failed export, so repeating the request cannot succeed; the
+ * error says what to change before reopening the target. Kuna settings are read
+ * when REA starts, so changing one also needs a restart. Cancellation and
+ * unproven cleanup keep their own errors, which callers must still observe.
+ */
+const exportUnavailable = (
+  operation: string,
+  failure: AnalysisError,
+): AnalysisError => {
+  if (failure instanceof AnalysisCancelledError || failure.cleanupIncomplete)
+    return failure;
+  const reason = failure.userMessage ?? failure.message;
+  const exported = projectAnalysisError(failure);
+  const restart =
+    "REA reads Kuna settings when it starts, so restart REA, then reopen the target.";
+  const next =
+    failure instanceof AnalysisTimeoutError
+      ? `To retry, set REA_KUNA_PROJECT_TIMEOUT_MS above ${String(failure.timeoutMs)} ms or raise REA_KUNA_JOBS in the environment that starts REA. ${restart}`
+      : failure instanceof AnalysisResourceConstraintError &&
+          failure.remediationAction !== undefined
+        ? `${failure.remediationAction.replace(/\.?$/u, ".")} ${restart}`
+        : "To retry, resolve the reported failure, then reopen the target.";
+  return new AnalysisCapabilityUnavailableError(
+    KUNA_PROVIDER_ID,
+    operation,
+    reason,
+    {
+      cause: failure,
+      // Callers see only the top-level projection, so the export failure's
+      // own projected code and details (its limits, target path, captured
+      // output and diagnostics) travel whole rather than field by field.
+      diagnostics: {
+        export_error: failure._tag,
+        export_code: exported.code,
+        ...(exported.details === undefined
+          ? {}
+          : { export_details: exported.details }),
+      },
+      userMessage: `Kuna's project export failed, so ${operation} is unavailable in this session: ${reason.replace(/\.?$/u, ".")} ${next}`,
+    },
+  );
+};
 
 /** Kuna names a procedure by its inventory entry or by an exact entry address. */
 const procedureSelectorSchema = z.string().min(1);
@@ -1286,7 +1334,7 @@ export class KunaSessionClient implements AnalysisClient {
     }, WAIT_PROGRESS_INTERVAL_MS);
     try {
       const built = await waitFor(project, options.signal, operation);
-      if (!built.ok) return built;
+      if (!built.ok) return err(exportUnavailable(operation, built.error));
       return ok(this.#readerFor(built.value));
     } finally {
       clearInterval(timer);

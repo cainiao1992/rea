@@ -1,3 +1,4 @@
+import { KUNA_STRING_MIN_LENGTH } from "./KunaLimits.js";
 import { accessSync, constants, statSync } from "node:fs";
 
 import type {
@@ -193,6 +194,13 @@ export class KunaProvider implements AnalysisProviderCandidate {
             edge_kind: "call",
           },
           xrefs: { command: "xrefs", direction: "to", exact_address: true },
+          strings: {
+            command: "strings",
+            encoding: "all",
+            min_length: KUNA_STRING_MIN_LENGTH,
+            termination: "any",
+            xrefs: false,
+          },
           cache_policy: "live",
         },
       ),

@@ -18,7 +18,7 @@ Select it explicitly with `--provider kuna`, MCP's `open_binary.provider_id: "ku
 | `REA_KUNA_COMMAND`            | none (required)                                                                                                                         | Absolute path of the `kuna` executable.                                                                                                                                                  |
 | `REA_KUNA_CACHE_DIR`          | `~/Library/Caches/rea/kuna` (macOS), `$XDG_CACHE_HOME/rea/kuna` (Linux; `~/.cache/rea/kuna` when `XDG_CACHE_HOME` is unset or relative) | Absolute directory REA owns for project exports. Kuna's own spec cache also lives here, not in your Kuna cache.                                                                          |
 | `REA_KUNA_CACHE_MAX_BYTES`    | 4 GiB                                                                                                                                   | Size cap; least recently used exports are evicted above it.                                                                                                                              |
-| `REA_KUNA_PROJECT_TIMEOUT_MS` | 30 minutes                                                                                                                              | Deadline for one project export.                                                                                                                                                         |
+| `REA_KUNA_PROJECT_TIMEOUT_MS` | 30 minutes                                                                                                                              | Deadline for whole-program inventory/export, reference and string scans.                                                                                                                 |
 | `REA_KUNA_TIMEOUT_MS`         | 120 s                                                                                                                                   | Deadline for one single-function decompile, and for the inventory run REA makes when the export ends without one.                                                                        |
 | `REA_KUNA_JOBS`               | 1                                                                                                                                       | `decompile-project --jobs`. 1 is Kuna's reference answer; more jobs finish sooner but lose callee-first prototypes, and change about 40–60% of function bodies on the measured binaries. |
 
@@ -33,6 +33,7 @@ Windows is not supported yet. Supported targets are ELF and thin Mach-O executab
 | `procedure_pseudo_code`, `batch_decompile`                  | The project export, or a single-function run while the export builds                                                             |
 | `procedure_assembly`                                        | The project export's labeled listing                                                                                             |
 | `procedure_callers`, `procedure_callees`                    | Call-kind edges from a lazy, body-free Kuna graph; synthetic import nodes are accepted by address                                |
+| `list_strings`, `search_strings`                            | Typed string candidates from one cached, reference-free scan; exact-address, literal and ECMAScript regex selection              |
 | `xrefs`                                                     | Exact-address incoming reference sites, with forwarding aliases filtered explicitly                                              |
 | `analyze_function`                                          | Pseudocode and assembly from the export, plus call relationships; typed references, comments, strings and CFG remain unavailable |
 
@@ -40,7 +41,7 @@ Typed procedure references, basic blocks, raw-memory tools, annotations and type
 
 ## How answers are produced
 
-The first text or assembly request in a session looks for this target's export in the cache. `list_documents` reads the selected path without initializing analysis. Inventory, function lookup, call relationships and xrefs do not start a C export. A data-name lookup starts it only when the address is absent from the function inventory. The export is keyed by the target's SHA-256, the Kuna executable's SHA-256, its version and `--jobs`.
+The first text or assembly request in a session looks for this target's export in the cache. `list_documents` reads the selected path without initializing analysis. Inventory, function lookup, string queries, call relationships and xrefs do not start a C export. A data-name lookup starts it only when the address is absent from the function inventory. The export is keyed by the target's SHA-256, the Kuna executable's SHA-256, its version and `--jobs`.
 
 - **Warm cache:** analysis reads reuse the verified export. A fresh server verifies its file digests once, even for concurrent first requests; that cost scales with export size.
 - **Cold cache:**
@@ -56,9 +57,19 @@ The background export belongs to the session. `close_binary`, or the end of a CL
 
 The assembly label index is scanned once per export reader. Cancelling a request stops its wait without interrupting other readers; closing the session aborts and drains the shared scan before releasing its files.
 
-Regex procedure search uses ECMAScript Unicode matching in a cancellable worker with a five-second matching deadline. Literal matching remains the default. Cancellation or a matching deadline leaves the session available.
+Regex procedure and string search uses ECMAScript Unicode matching in a cancellable worker with a five-second matching deadline. Literal matching remains the default. Cancellation or a matching deadline leaves the session available.
 
 Single-function subprocess output and each cached source facet share a 16 MiB buffered-text capacity. Cached spans are checked before allocation; larger text remains in the local export and the error identifies the file and range. `analyze_function` initially returns the complete dossier, which can still be large; later retained views do not remove that first transfer. Prefer the individual text tools for a focused question.
+
+## Strings
+
+`list_strings` and `search_strings` share one lazy `kuna strings --json --encoding all --min-length 5 --termination any --no-xrefs` scan of the digest-checked private input. Skipping references avoids program lifting, a call graph and a C export. REA validates the input, scan policy, every row and the total before caching any facts. Encoding, character count, byte length and terminator facts must agree; supplementary UTF-8 characters count as Unicode scalars. Malformed or oversized output is an error, not an empty search. JSON admits at most 16 MiB before parsing. String scans use the whole-program `REA_KUNA_PROJECT_TIMEOUT_MS` deadline; `REA_KUNA_TIMEOUT_MS` applies to single-function decompilation. The parsed inventory belongs to one selected target/executable profile and expires on session close; deterministic output-buffer failures are retained until close, while other failures are not cached.
+
+Results keep exact u64 virtual addresses, decoded text, native encoding, terminator status and byte length including any terminator. Kuna scans mapped sections or segments for runs of at least five characters; unterminated fragments can include instruction bytes. `all` includes ASCII, UTF-8 and the engine's Latin-range UTF-16LE reading. Other text, including short strings, non-Latin wide text and UTF-16BE, can remain undiscovered. An empty result does not prove absence.
+
+Use `search_strings` for the matching rows or `list_strings` with an exact address for that location. Literal and regex matching run in REA, preserving the existing case and ECMAScript Unicode semantics instead of substituting Kuna's different regex dialect. Procedure and string regex queries share one worker slot per session. Input projections are materialized only after admission, so queued queries retain no per-query inventory arrays. Close cancels and drains matching. Native metadata queries also share one admission slot, including references; a failed stop retains admission until cleanup is proven.
+
+`raw_result.strings` reports the source JSON digest/size, scanned scope, extraction policy, complete inventory count and selected count without copying unrequested text into the answer. Omit the address from `list_strings` to retrieve the complete inventory as Evidence; normal session retention and bundle export apply, including transport-capacity errors for oversized inline replies. These operations preserve their complete-result contracts and do not add paging. Function-referenced string facets in `analyze_function` remain unavailable; call `xrefs` explicitly when references to one returned string are needed.
 
 ## Calls and references
 

@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { err, ok, type Result } from "../domain/result.js";
+import { compareKunaAddresses } from "./KunaAddress.js";
+import { parseKunaJson } from "./KunaJson.js";
 
 /** Raw JSON budgets also bound the materialized indexes; no decompiled bodies are admitted. */
 export const KUNA_GRAPH_OUTPUT_BYTES = 32 * 1024 * 1024;
@@ -19,34 +21,6 @@ const addressKeys = new Set([
 const address = z.string().regex(/^0x(?:0|[1-9a-f][0-9a-f]{0,15})$/u);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const kind = z.enum(["call", "jump", "data", "read", "write"]);
-
-/** JSON's numeric u64 addresses must never pass through rounded JS Numbers. */
-const parse = (text: string, limit: number): unknown => {
-  if (Buffer.byteLength(text) > limit)
-    throw new Error("reference JSON exceeds its buffered capacity");
-  return JSON.parse(
-    text,
-    (
-      key: string,
-      value: unknown,
-      context?: { readonly source?: string },
-    ): unknown => {
-      if (!addressKeys.has(key) || value === null) return value;
-      const source = context?.source;
-      if (
-        typeof value !== "number" ||
-        source === undefined ||
-        source.length > 20 ||
-        !/^(?:0|[1-9][0-9]*)$/u.test(source)
-      )
-        throw new Error(`invalid numeric address in ${key}`);
-      const exact = BigInt(source);
-      if (exact > 0xffffffffffffffffn)
-        throw new Error(`address in ${key} exceeds u64`);
-      return `0x${exact.toString(16)}`;
-    },
-  );
-};
 
 const graphHeader = z.object({
   schemaVersion: z.literal(4),
@@ -86,17 +60,15 @@ export interface KunaCallGraph {
   readonly callees: ReadonlyMap<string, readonly string[]>;
 }
 
-/** Canonical hexadecimal addresses sort numerically without repeated BigInt allocations. */
-export const compareKunaAddresses = (left: string, right: string): number =>
-  left.length - right.length || (left < right ? -1 : left > right ? 1 : 0);
-
 /** Validate once at the producer boundary and retain only facts used by queries. */
 export const parseKunaCallGraph = (
   text: string,
   input: string,
 ): Result<KunaCallGraph, string> => {
   try {
-    const header = graphHeader.parse(parse(text, KUNA_GRAPH_OUTPUT_BYTES));
+    const header = graphHeader.parse(
+      parseKunaJson(text, KUNA_GRAPH_OUTPUT_BYTES, addressKeys),
+    );
     if (header.binary.sourcePath !== input)
       throw new Error("graph names a different input");
     if (
@@ -202,7 +174,9 @@ export const parseKunaIncomingReferences = (
   target: string,
 ): Result<KunaIncomingReferences, string> => {
   try {
-    const document = xrefsDocument.parse(parse(text, KUNA_XREF_OUTPUT_BYTES));
+    const document = xrefsDocument.parse(
+      parseKunaJson(text, KUNA_XREF_OUTPUT_BYTES, addressKeys),
+    );
     if (
       document.binary !== input ||
       document.target.address !== target ||

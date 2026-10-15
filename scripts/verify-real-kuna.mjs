@@ -28,6 +28,10 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { execFileOutput } from "../dist/process/ExecFileOutput.js";
 import { requireMcpOperationResult } from "./lib/mcp-verifier-results.mjs";
 import { verifyKunaReferences } from "./lib/kuna-reference-verifier.mjs";
+import {
+  nativeKunaStrings,
+  verifyKunaStrings,
+} from "./lib/kuna-string-verifier.mjs";
 import { nativeKunaIncomingSites } from "./lib/kuna-native-reference-verifier.mjs";
 import {
   assertVerifierCleanupComplete,
@@ -78,6 +82,10 @@ let kunaVersion;
 const FIXTURE_SOURCE = String.raw`
 #include <stdio.h>
 #include <stdlib.h>
+static const char rea_kuna_utf8[] __attribute__((used)) = "＿φ( °-°)/ REA unicode marker";
+static const unsigned short rea_kuna_wide[] __attribute__((used)) = {
+  'R','E','A',' ','w','i','d','e',' ','m','a','r','k','e','r',0
+};
 #include <string.h>
 __attribute__((noinline)) unsigned rea_checksum(const unsigned char *p, size_t n) {
   unsigned h = 2166136261u;
@@ -256,7 +264,12 @@ const quality = (text) => ({
 });
 
 /** Verify Kuna on one binary and measure its cold and warm answers. */
-const verifyKuna = async (path, functions, expectedCaller) => {
+const verifyKuna = async (
+  path,
+  functions,
+  expectedCaller,
+  expectedStrings = [],
+) => {
   const sha256 = createHash("sha256")
     .update(await readFile(path))
     .digest("hex");
@@ -264,6 +277,21 @@ const verifyKuna = async (path, functions, expectedCaller) => {
   const answers = [];
   let coldFailure;
   try {
+    answers.push({
+      strings: await verifyKunaStrings({
+        call: cold.call,
+        cacheRoot,
+        expectedStrings,
+        nativeStrings: () =>
+          nativeKunaStrings({
+            executable: kuna,
+            cacheRoot,
+            workspace,
+            binary: path,
+            retain: (owner) => retainedNative.add(owner),
+          }),
+      }),
+    });
     const listed = await cold.call("list_procedures");
     for (const [name, address] of functions) {
       assert.ok(
@@ -500,7 +528,10 @@ try {
   for (const binary of [built, stripped])
     results.push({
       binary: binary.slice(workspace.length + 1),
-      kuna: await verifyKuna(binary, [...fixtureFunctions], fixtureMain),
+      kuna: await verifyKuna(binary, [...fixtureFunctions], fixtureMain, [
+        "＿φ( °-°)/ REA unicode marker",
+        "REA wide marker",
+      ]),
     });
 
   // Caller-built matrix.

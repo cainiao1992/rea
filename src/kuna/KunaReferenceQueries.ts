@@ -9,7 +9,6 @@ import type { FunctionDossier } from "../domain/hopperValues.js";
 import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import type { KunaInstallation } from "./KunaInstallation.js";
 import {
   KUNA_GRAPH_OUTPUT_BYTES,
@@ -21,25 +20,13 @@ import {
   type KunaIncomingReferences,
 } from "./KunaReferenceFiles.js";
 import { KUNA_PROVIDER_ID } from "./KunaRelease.js";
-import type {
-  KunaTargetCommands,
-  KunaTargetCommandRequest,
-  KunaTargetCommandSnapshot,
-} from "./KunaTargetCommands.js";
-import { KunaRunSlots } from "./KunaRunSlots.js";
+import type { KunaPendingQuery, KunaQueryWork } from "./KunaQueryWork.js";
 
 /** Charge raw JSON bytes conservatively; retained projections are smaller. */
 const XREF_CACHE_BYTES = 16 * 1024 * 1024;
 /** Also bound metadata for empty results and queued native queries. */
 const XREF_CACHE_ENTRIES = 128;
 const PENDING_XREF_QUERIES = 8;
-
-interface Pending<T> {
-  readonly promise: Promise<Result<T, AnalysisError>>;
-  readonly controller: AbortController;
-  waiters: number;
-  settled: boolean;
-}
 
 export interface KunaFunctionRelationships {
   readonly callers: readonly FunctionDossier["callers"][number][];
@@ -52,26 +39,16 @@ export interface KunaFunctionRelationships {
 /** Lazy session facts, shared producers and bounded exact-address xref reuse. */
 export class KunaReferenceQueries {
   #graph: KunaCallGraph | undefined;
-  /**
-   * A graph that overflowed REA's fixed output buffer. The same target and
-   * executable produce the same graph, so later queries report this failure
-   * instead of repeating the whole-program walk.
-   */
+  /** Deterministic buffer failures belong to the same session as its graph. */
   #graphFailure: AnalysisError | undefined;
-  #pendingGraph: Pending<KunaCallGraph> | undefined;
+  #pendingGraph: KunaPendingQuery<KunaCallGraph> | undefined;
   readonly #xrefs = new Map<string, KunaIncomingReferences>();
-  readonly #pendingXrefs = new Map<string, Pending<KunaIncomingReferences>>();
+  readonly #pendingXrefs = new Map<
+    string,
+    KunaPendingQuery<KunaIncomingReferences>
+  >();
   #xrefBytes = 0;
-  readonly #nativeSlots = new KunaRunSlots(1);
-
-  constructor(
-    private readonly commands: KunaTargetCommands,
-    private readonly lifetime: {
-      readonly signal: AbortSignal;
-      readonly own: <T>(work: Promise<T>) => Promise<T>;
-      readonly runSlots: KunaRunSlots;
-    },
-  ) {}
+  constructor(private readonly work: KunaQueryWork) {}
 
   async relationships(
     installation: KunaInstallation,
@@ -118,7 +95,11 @@ export class KunaReferenceQueries {
     if (this.#graphFailure !== undefined) return err(this.#graphFailure);
     if (this.#graph === undefined) {
       if (this.#pendingGraph?.controller.signal.aborted === true) {
-        const retired = await this.#wait(this.#pendingGraph, signal, operation);
+        const retired = await this.work.wait(
+          this.#pendingGraph,
+          signal,
+          operation,
+        );
         if (!retired.ok && !(retired.error instanceof AnalysisCancelledError))
           return retired;
         if (signal?.aborted === true)
@@ -126,9 +107,9 @@ export class KunaReferenceQueries {
         return this.#loadGraph(installation, operation, signal);
       }
       if (this.#pendingGraph === undefined) {
-        const pending = this.#start<KunaCallGraph>(
+        const pending = this.work.start<KunaCallGraph>(
           async (producerSignal) => {
-            const run = await this.#run({
+            const run = await this.work.run({
               installation,
               operation: "kuna:call-graph",
               arguments: (input) => [
@@ -164,7 +145,7 @@ export class KunaReferenceQueries {
         };
         void pending.promise.then(release, release);
       }
-      return this.#wait(this.#pendingGraph, signal, operation);
+      return this.work.wait(this.#pendingGraph, signal, operation);
     }
     return ok(this.#graph);
   }
@@ -255,7 +236,7 @@ export class KunaReferenceQueries {
     }
     let pending = this.#pendingXrefs.get(address);
     if (pending?.controller.signal.aborted === true) {
-      const retired = await this.#wait(pending, signal, "xrefs");
+      const retired = await this.work.wait(pending, signal, "xrefs");
       if (!retired.ok && !(retired.error instanceof AnalysisCancelledError))
         return retired;
       if (signal?.aborted === true)
@@ -272,9 +253,9 @@ export class KunaReferenceQueries {
             { limit_queries: PENDING_XREF_QUERIES },
           ),
         );
-      pending = this.#start<KunaIncomingReferences>(
+      pending = this.work.start<KunaIncomingReferences>(
         async (producerSignal) => {
-          const run = await this.#run({
+          const run = await this.work.run({
             installation,
             operation: "xrefs",
             arguments: (input) => ["xrefs", input, "--to", address, "--json"],
@@ -302,7 +283,7 @@ export class KunaReferenceQueries {
       };
       void pending.promise.then(release, release);
     }
-    return this.#wait(pending, signal, "xrefs");
+    return this.work.wait(pending, signal, "xrefs");
   }
 
   #cache(address: string, value: KunaIncomingReferences): void {
@@ -340,79 +321,5 @@ export class KunaReferenceQueries {
             userMessage: `Kuna's ${label} cannot be used: ${parsed.error}`,
           }),
         );
-  }
-
-  /** Reference walks share the provider's foreground budget and one local
-   * slot. The native owner retains both leases when cleanup is unproven. */
-  async #run(
-    request: Omit<KunaTargetCommandRequest, "releaseRun">,
-  ): Promise<Result<KunaTargetCommandSnapshot, AnalysisError>> {
-    const local = await this.#nativeSlots.acquire(request.signal);
-    if (local === undefined)
-      return err(new AnalysisCancelledError(request.operation));
-    let release: (() => void) | undefined;
-    try {
-      const foreground = await this.lifetime.runSlots.acquire(request.signal);
-      if (foreground === undefined) {
-        local();
-        return err(new AnalysisCancelledError(request.operation));
-      }
-      release = () => {
-        foreground();
-        local();
-      };
-      return await this.commands.run({ ...request, releaseRun: release });
-    } catch (cause: unknown) {
-      if (release === undefined) local();
-      else release();
-      throw cause;
-    }
-  }
-
-  #start<T>(
-    load: (signal: AbortSignal) => Promise<Result<T, AnalysisError>>,
-    accept: (value: T) => void,
-  ): Pending<T> {
-    const controller = new AbortController();
-    const signal = AbortSignal.any([this.lifetime.signal, controller.signal]);
-    const pending: Pending<T> = {
-      promise: this.lifetime.own(load(signal)),
-      controller,
-      settled: false,
-      waiters: 0,
-    };
-    void pending.promise.then(
-      (result) => {
-        pending.settled = true;
-        if (result.ok && !signal.aborted) accept(result.value);
-      },
-      () => {
-        pending.settled = true;
-      },
-    );
-    return pending;
-  }
-
-  async #wait<T>(
-    pending: Pending<T>,
-    signal: AbortSignal | undefined,
-    operation: string,
-  ): Promise<Result<T, AnalysisError>> {
-    pending.waiters += 1;
-    try {
-      const result = await waitForAbortable(pending.promise, signal);
-      if (result === ABORTED && pending.waiters === 1 && !pending.settled) {
-        pending.controller.abort();
-        const stopped = await pending.promise;
-        if (!stopped.ok && !(stopped.error instanceof AnalysisCancelledError))
-          return stopped;
-      }
-      return result === ABORTED
-        ? err(new AnalysisCancelledError(operation))
-        : result;
-    } finally {
-      pending.waiters -= 1;
-      if (pending.waiters === 0 && !pending.settled) pending.controller.abort();
-    }
   }
 }

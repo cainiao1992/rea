@@ -6,3 +6,7 @@ export const normalizeKunaAddress = (value: unknown): string | undefined => {
     ? undefined
     : `0x${BigInt(`0x${match[1]}`).toString(16)}`;
 };
+
+/** Sort canonical hexadecimal addresses numerically without BigInt allocations. */
+export const compareKunaAddresses = (left: string, right: string): number =>
+  left.length - right.length || (left < right ? -1 : left > right ? 1 : 0);

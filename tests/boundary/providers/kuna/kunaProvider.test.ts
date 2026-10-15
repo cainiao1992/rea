@@ -533,9 +533,7 @@ it("refuses another document, an unsupported operation and a replaced executable
       document: "/other/program",
     }),
   ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
-  expect(
-    await client.execute("search_strings", { pattern: "unused" }),
-  ).toMatchObject({
+  expect(await client.execute("list_segments", {})).toMatchObject({
     ok: false,
     error: { _tag: "AnalysisCapabilityUnavailableError" },
   });

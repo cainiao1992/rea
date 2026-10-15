@@ -8,6 +8,13 @@ export interface FakeKunaFunction {
   readonly error?: string;
 }
 
+export interface FakeKunaString {
+  readonly address: number;
+  readonly text: string;
+  readonly encoding?: "ascii" | "utf8" | "utf16";
+  readonly terminated?: boolean;
+}
+
 /** Scripted behavior of the fake `kuna` executable for one test. */
 export interface FakeKunaBehavior {
   /** Text printed by `--version`; `exit` fails the probe instead. */
@@ -48,6 +55,10 @@ export interface FakeKunaBehavior {
   readonly xrefs?: "ok" | "hang" | "not-json";
   readonly referenceDelayMs?: number;
   readonly referencePadding?: number;
+  readonly strings?: "ok" | "hang" | "not-json" | "miscounted" | "exit-failure";
+  readonly stringRows?: readonly FakeKunaString[];
+  readonly stringDelayMs?: number;
+  readonly stringPadding?: number;
 }
 
 /**
@@ -76,6 +87,16 @@ if (args[0] === "--version") {
   else {
     const listed = [...functions, ...(behavior.inventoryImports === false ? [] : [{ name: "puts", addr: "0x2000" }])].map((fn) => ({ name: fn.name, address: parseInt(fn.addr, 16), address_hex: fn.addr, aliases: [], object_location: null, size: fn.name === "puts" ? 0 : 16 }));
     setTimeout(() => process.stdout.write(JSON.stringify({ binary: args[1], count: listed.length, total: listed.length, error: null, functions: listed }, null, 2) + "\n"), behavior.inventoryDelayMs ?? 0);
+  }
+} else if (args[0] === "strings") {
+  if (behavior.strings === "exit-failure") { process.stderr.write("fixture string scan failed\n"); process.exit(7); }
+  else if (behavior.strings === "hang") hang();
+  else if (behavior.strings === "not-json") process.stdout.write("not string JSON");
+  else {
+    if (!args.includes("--no-xrefs") || args[args.indexOf("--encoding") + 1] !== "all") throw new Error("strings must skip reference analysis and include all supported encodings");
+    const rows = (behavior.stringRows ?? [{ address: 12288, text: "REA fixture prompt" }, { address: 12320, text: "Δelta", encoding: "utf8", terminated: false }]).map((item) => ({ address: item.address, address_hex: "0x" + item.address.toString(16), text: item.text, length: [...item.text].length, byte_length: Buffer.byteLength(item.text, item.encoding === "utf16" ? "utf16le" : "utf8") + (item.terminated === false ? 0 : item.encoding === "utf16" ? 2 : 1), nul_terminated: item.terminated !== false, encoding: item.encoding ?? "ascii", section: ".rodata", xrefs_count: 0, functions: [] }));
+    const document = { binary: args[1], encoding: "all", min_length: 5, filter: null, section: null, termination: "any", scanned: "sections", xrefs: false, count: rows.length + (behavior.strings === "miscounted" ? 1 : 0), strings: rows, padding: "x".repeat(behavior.stringPadding ?? 0) };
+    setTimeout(() => process.stdout.write(JSON.stringify(document)), behavior.stringDelayMs ?? 0);
   }
 } else if (args[0] === "decompile-graph") {
   if (behavior.graph === "hang") hang();

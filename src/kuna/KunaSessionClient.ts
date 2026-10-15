@@ -24,6 +24,7 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
 import { combineFunctionRelationshipCoverage } from "../domain/functionCallCoverage.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
@@ -31,7 +32,6 @@ import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
-import { matchRegexValues } from "../process/RegexMatcher.js";
 import {
   KUNA_INVENTORY_OUTPUT_BYTES,
   type KunaProcessLauncher,
@@ -60,6 +60,8 @@ import {
 import { KUNA_PROVIDER_ID } from "./KunaRelease.js";
 import { KunaTargetCommands } from "./KunaTargetCommands.js";
 import { KunaReferenceQueries } from "./KunaReferenceQueries.js";
+import { KunaQueryWork } from "./KunaQueryWork.js";
+import { KunaStringQueries } from "./KunaStringQueries.js";
 import { normalizeKunaAddress } from "./KunaAddress.js";
 import { KUNA_FUNCTION_TEXT_BYTES } from "./KunaLimits.js";
 import type { KunaRunRelease, KunaRunSlots } from "./KunaRunSlots.js";
@@ -104,6 +106,7 @@ interface Answer {
   readonly locations: readonly EvidenceLocation[];
   readonly limitations: readonly string[];
   readonly referenceSource?: JsonValue;
+  readonly stringSource?: JsonValue;
   readonly relationshipCoverage?: RelationshipCoverage;
 }
 
@@ -213,7 +216,9 @@ export class KunaSessionClient implements AnalysisClient {
   /** Requests and shared readers retain their resources until their work settles. */
   readonly #active = new Set<Promise<unknown>>();
   readonly #commands: KunaTargetCommands;
+  readonly #queryWork: KunaQueryWork;
   readonly #references: KunaReferenceQueries;
+  readonly #strings: KunaStringQueries;
   #installation: Promise<Result<KunaInstallation, AnalysisError>> | undefined;
   #inventory:
     | Promise<Result<readonly KunaInventoryFunction[], AnalysisError>>
@@ -257,11 +262,13 @@ export class KunaSessionClient implements AnalysisClient {
         ? {}
         : { launcher: dependencies.launcher }),
     });
-    this.#references = new KunaReferenceQueries(this.#commands, {
+    this.#queryWork = new KunaQueryWork(this.#commands, {
       signal: this.#session.signal,
       own: (work) => this.#own(work),
       runSlots: dependencies.runSlots,
     });
+    this.#references = new KunaReferenceQueries(this.#queryWork);
+    this.#strings = new KunaStringQueries(this.#queryWork);
   }
 
   async execute(
@@ -307,7 +314,7 @@ export class KunaSessionClient implements AnalysisClient {
         new AnalysisCapabilityUnavailableError(
           KUNA_PROVIDER_ID,
           operation,
-          "Kuna answers procedure listings, lookups, pseudocode and assembly; this operation needs another provider.",
+          "Kuna answers procedure and string queries, pseudocode, assembly and references; this operation needs another provider.",
         ),
       );
     const document = parameters.document;
@@ -391,6 +398,7 @@ export class KunaSessionClient implements AnalysisClient {
     // An admitted request may create a shared reader after shutdown begins.
     while (this.#active.size > 0) await Promise.allSettled(this.#active);
     this.#references.clear();
+    this.#strings.clear();
     await this.#project;
     await this.#inventory;
     const failures: ProviderCleanupError[] = [];
@@ -455,7 +463,9 @@ export class KunaSessionClient implements AnalysisClient {
       {
         // Kuna's identity is in the analysis profile; the raw result records
         // only where file-backed text came from.
-        ...(source === null && answer.referenceSource === undefined
+        ...(source === null &&
+        answer.referenceSource === undefined &&
+        answer.stringSource === undefined
           ? {}
           : {
               rawResult: {
@@ -476,6 +486,9 @@ export class KunaSessionClient implements AnalysisClient {
                 ...(answer.referenceSource === undefined
                   ? {}
                   : { references: answer.referenceSource }),
+                ...(answer.stringSource === undefined
+                  ? {}
+                  : { strings: answer.stringSource }),
               },
             }),
         limitations: [...operationLimitations, ...answer.limitations],
@@ -531,39 +544,12 @@ export class KunaSessionClient implements AnalysisClient {
         installation,
         options,
       );
+    if (operation === "list_strings" || operation === "search_strings")
+      return this.#stringAnswer(operation, parameters, installation, options);
+    if (operation === "list_procedures" || operation === "search_procedures")
+      return this.#procedureList(operation, parameters, installation, options);
     const inventory = await this.#ensureInventory(installation, options);
     if (!inventory.ok) return inventory;
-    if (operation === "list_procedures" || operation === "search_procedures") {
-      const items = inventory.value.map(({ address, name }) => ({
-        address,
-        value: name,
-      }));
-      let selected = items;
-      if (operation === "search_procedures") {
-        const query = analysisSearchQuerySchema.parse(parameters);
-        if (query.mode === "regex") {
-          const matches = await matchRegexValues({
-            operation,
-            pattern: query.pattern,
-            caseSensitive: query.case_sensitive,
-            values: items.map(({ value }) => value),
-            signal: options.signal,
-          });
-          if (!matches.ok) return matches;
-          const indices = new Set(matches.value);
-          selected = items.filter((_, index) => indices.has(index));
-        } else {
-          const matches = analysisSearchPredicate(query);
-          selected = items.filter(({ value }) => matches(value));
-        }
-      }
-      return ok({
-        result: selected,
-        source: null,
-        locations: [],
-        limitations: [],
-      });
-    }
     if (operation === "address_name")
       return this.#addressName(
         parameters,
@@ -640,6 +626,75 @@ export class KunaSessionClient implements AnalysisClient {
           ),
         );
     }
+  }
+
+  async #stringAnswer(
+    operation: "list_strings" | "search_strings",
+    parameters: Readonly<Record<string, JsonValue>>,
+    installation: KunaInstallation,
+    options: ExecutionOptions,
+  ): Promise<Result<Answer, AnalysisError>> {
+    const answer = await this.#own(
+      this.#strings.execute(
+        operation,
+        parameters,
+        installation,
+        AbortSignal.any([
+          this.#session.signal,
+          ...(options.signal === undefined ? [] : [options.signal]),
+        ]),
+      ),
+    );
+    return answer.ok
+      ? ok({
+          result: answer.value.result,
+          source: null,
+          stringSource: answer.value.source,
+          locations: [],
+          limitations: [],
+        })
+      : answer;
+  }
+
+  async #procedureList(
+    operation: "list_procedures" | "search_procedures",
+    parameters: Readonly<Record<string, JsonValue>>,
+    installation: KunaInstallation,
+    options: ExecutionOptions,
+  ): Promise<Result<Answer, AnalysisError>> {
+    const query =
+      operation === "search_procedures"
+        ? analysisSearchQuerySchema.safeParse(parameters)
+        : undefined;
+    if (query !== undefined && !query.success)
+      return err(
+        analysisInputErrorFromIssues(operation, query.error.issues, parameters),
+      );
+    const inventory = await this.#ensureInventory(installation, options);
+    if (!inventory.ok) return inventory;
+    let selected = inventory.value;
+    if (query?.success === true) {
+      if (query.data.mode === "regex") {
+        const matches = await this.#queryWork.match({
+          operation,
+          pattern: query.data.pattern,
+          caseSensitive: query.data.case_sensitive,
+          values: () => inventory.value.map(({ name }) => name),
+          signal: options.signal,
+        });
+        if (!matches.ok) return matches;
+        selected = matches.value.map((index) => inventory.value[index]!);
+      } else {
+        const matches = analysisSearchPredicate(query.data);
+        selected = inventory.value.filter(({ name }) => matches(name));
+      }
+    }
+    return ok({
+      result: selected.map(({ address, name }) => ({ address, value: name })),
+      source: null,
+      locations: [],
+      limitations: [],
+    });
   }
 
   async #referenceAnswer(

@@ -19,6 +19,8 @@ export const KUNA_OPERATIONS = Object.freeze([
   "list_documents",
   "list_procedures",
   "search_procedures",
+  "list_strings",
+  "search_strings",
   "procedure_address",
   "address_name",
   "procedure_pseudo_code",
@@ -32,6 +34,9 @@ export type KunaOperation = (typeof KUNA_OPERATIONS)[number];
 
 export const KUNA_RELATIONSHIP_LIMITATION =
   "Kuna reports call-kind edges between its discovered function nodes. Jump/data edges are excluded; unresolved indirect calls and targets outside that inventory remain unknown.";
+export const KUNA_STRING_LIMITATION =
+  "Kuna scans its mapped sections or segments for printable runs of at least five characters, including unterminated fragments. Encodings are ASCII, UTF-8 and Latin-range UTF-16LE; other text can remain undiscovered. String scanning skips references; an empty search is not proof of absence.";
+
 export const KUNA_XREF_LIMITATION =
   "Kuna's static reference walk unifies forwarding aliases and omits references internal to that alias class. REA keeps only exact-address incoming edges; an empty result does not prove no reference exists.";
 
@@ -61,6 +66,14 @@ export const kunaLimitations = (
   switch (operation) {
     case "list_documents":
       return [];
+    case "list_strings":
+      return [KUNA_PROVENANCE, KUNA_STRING_LIMITATION];
+    case "search_strings":
+      return [
+        KUNA_PROVENANCE,
+        KUNA_STRING_LIMITATION,
+        REGEX_MATCHING_LIMITATION,
+      ];
     case "list_procedures":
     case "procedure_address":
     case "address_name":

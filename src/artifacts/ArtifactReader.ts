@@ -13,12 +13,10 @@ import type {
 export type ArtifactReaderBoundary = "file-size" | "capacity" | "memory";
 
 export interface ArtifactReaderFailureOptions extends ErrorOptions {
-  readonly cleanup?: AnalysisCleanupObservation;
-  readonly partialObservation?: AnalysisPartialObservation;
-  /**
-   * The constrained bound for a `limit` reason. Callers report the resource
-   * from this instead of assuming every budget is memory.
-   */
+  readonly cancellation?: { readonly reason: unknown } | undefined;
+  readonly cleanup?: AnalysisCleanupObservation | undefined;
+  readonly partialObservation?: AnalysisPartialObservation | undefined;
+  /** The constrained resource bound for a limit failure. */
   readonly boundary?: ArtifactReaderBoundary;
 }
 
@@ -138,6 +136,7 @@ export interface ArtifactReader {
 
 /** Typed adapter failure translated at provider boundary. */
 export class ArtifactReaderFailure extends Error {
+  readonly cancellation: { readonly reason: unknown } | undefined;
   readonly cleanup: AnalysisCleanupObservation | undefined;
   readonly partialObservation: AnalysisPartialObservation | undefined;
   /** The constrained bound for a `limit` reason, when the reader knows it. */
@@ -163,6 +162,10 @@ export class ArtifactReaderFailure extends Error {
   ) {
     super(message, options);
     this.name = "ArtifactReaderFailure";
+    this.cancellation =
+      reason === "cancelled"
+        ? (options?.cancellation ?? { reason: options?.cause })
+        : undefined;
     this.cleanup = options?.cleanup;
     this.partialObservation = options?.partialObservation;
     this.boundary = options?.boundary;
@@ -184,6 +187,7 @@ export class ArtifactReaderFailure extends Error {
       primary.message,
       {
         cause: primary,
+        cancellation: primary.cancellation,
         cleanup: combineCleanup(primary.cleanup, cleanup),
         // The constrained bound survives cleanup wrapping, or a file-size
         // refusal would be reported as a memory constraint once a close fails.

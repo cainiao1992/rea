@@ -378,6 +378,8 @@ interface PendingAdbDirectoryCleanup {
     | "install_adb_package";
   readonly path: string;
   readonly primary: AnalysisError;
+  readonly reportedError: AnalysisError;
+  readonly prerequisite?: AnalysisError;
   readonly remove: () => Promise<void>;
 }
 
@@ -385,6 +387,7 @@ interface PendingAdbFileCleanup {
   readonly operation: string;
   readonly path: string;
   readonly owner: OwnedFileHandle;
+  readonly reportedError: AnalysisError;
 }
 
 interface OwnedDirectoryIdentity {
@@ -583,8 +586,6 @@ export class AdbProvider {
     try {
       return await hashStableFile(path, signal);
     } catch (cause: unknown) {
-      if (cause instanceof OwnedRegularFileCleanupFailure)
-        this.#pendingFileCleanup.add({ operation, path, owner: cause.owner });
       if (cause instanceof OwnedRegularFileCleanupFailure) {
         const primary = signal?.aborted
           ? new AnalysisCancelledError(operation, { cause: cause.cause })
@@ -594,10 +595,11 @@ export class AdbProvider {
                 cause.cause instanceof Error
                   ? cause.cause.message
                   : String(cause.cause),
-              diagnostics: (cause instanceof StableFileHashCleanupFailure &&
+              diagnostics:
+                cause instanceof StableFileHashCleanupFailure &&
                 cause.completedHash !== undefined
                   ? { completed_hash: cause.completedHash }
-                  : {}),
+                  : {},
             });
         const cleanup = new ProviderCleanupError(
           ADB_PROVIDER_IDENTITY.id,
@@ -614,7 +616,18 @@ export class AdbProvider {
           },
           { operation, cause: cause.cleanupCause },
         );
-        throw analysisErrorWithCleanupFailure(primary, cleanup, operation);
+        const reported = analysisErrorWithCleanupFailure(
+          primary,
+          cleanup,
+          operation,
+        );
+        this.#pendingFileCleanup.add({
+          operation,
+          path,
+          owner: cause.owner,
+          reportedError: reported,
+        });
+        throw reported;
       }
       if (signal?.aborted === true)
         throw new AnalysisCancelledError(operation, { cause });
@@ -676,6 +689,7 @@ export class AdbProvider {
       try {
         await owner.owner.close();
         this.#pendingFileCleanup.delete(owner);
+        owner.reportedError.resolveCleanup();
       } catch (cause: unknown) {
         failures.push(
           new ProviderCleanupError(
@@ -688,9 +702,21 @@ export class AdbProvider {
       }
     }
     for (const owner of this.#pendingDirectoryCleanup) {
+      if (owner.prerequisite?.cleanupIncomplete === true) {
+        failures.push(
+          new ProviderCleanupError(
+            ADB_PROVIDER_IDENTITY.id,
+            [owner.path],
+            { reason: "A dependent owned resource still needs cleanup" },
+            { operation: owner.operation, cause: owner.prerequisite },
+          ),
+        );
+        continue;
+      }
       try {
         await owner.remove();
         this.#pendingDirectoryCleanup.delete(owner);
+        owner.reportedError.resolveCleanup();
       } catch (cause: unknown) {
         const cleanup = new ProviderCleanupError(
           ADB_PROVIDER_IDENTITY.id,
@@ -793,7 +819,13 @@ export class AdbProvider {
     }
 
     if (root !== undefined) {
+      const prerequisite =
+        !result.ok && result.error.cleanupIncomplete ? result.error : undefined;
       const remove = async () => {
+        if (prerequisite?.cleanupIncomplete === true)
+          throw new Error(
+            "A staged file still has an unresolved cleanup owner",
+          );
         await verifyOwnedDirectory(root!.path, identity);
         await root!.close();
       };
@@ -841,14 +873,15 @@ export class AdbProvider {
           operation,
           path: root.path,
           primary,
+          reportedError:
+            primary instanceof AnalysisCancelledError
+              ? primary
+              : analysisErrorWithCleanupFailure(primary, cleanup, operation),
+          ...(prerequisite === undefined ? {} : { prerequisite }),
           remove,
         };
         this.#pendingDirectoryCleanup.add(cleanupOwner);
-        return err(
-          primary instanceof AnalysisCancelledError
-            ? primary
-            : analysisErrorWithCleanupFailure(primary, cleanup, operation),
-        );
+        return err(cleanupOwner.reportedError);
       }
     }
 
@@ -1650,14 +1683,6 @@ export class AdbProvider {
         { cause },
       );
       if (!packageDirectoryCreated) return err(primary);
-      const owner: PendingAdbDirectoryCleanup = {
-        operation,
-        path: packageDirectory,
-        primary,
-        remove: () =>
-          removeOwnedDirectory(packageDirectory, packageDirectoryIdentity),
-      };
-      this.#pendingDirectoryCleanup.add(owner);
       const cleanup = new ProviderCleanupError(
         ADB_PROVIDER_IDENTITY.id,
         [packageDirectory],
@@ -1666,31 +1691,49 @@ export class AdbProvider {
         },
         { operation, cause },
       );
-      return err(analysisErrorWithCleanupFailure(primary, cleanup, operation));
+      const reported = analysisErrorWithCleanupFailure(
+        primary,
+        cleanup,
+        operation,
+      );
+      this.#pendingDirectoryCleanup.add({
+        operation,
+        path: packageDirectory,
+        primary,
+        reportedError: reported,
+        remove: () =>
+          removeOwnedDirectory(packageDirectory, packageDirectoryIdentity),
+      });
+      return err(reported);
     }
     const failOwnedPackage = async (
       primary: AnalysisError,
     ): Promise<Result<AnalysisExecution, AnalysisError>> => {
-      const owner: PendingAdbDirectoryCleanup = {
-        operation,
-        path: packageDirectory,
-        primary,
-        remove: () =>
-          removeOwnedDirectory(packageDirectory, packageDirectoryIdentity),
-      };
+      const remove = () =>
+        removeOwnedDirectory(packageDirectory, packageDirectoryIdentity);
       try {
-        await owner.remove();
+        await remove();
       } catch (cause: unknown) {
-        this.#pendingDirectoryCleanup.add(owner);
         const cleanup = new ProviderCleanupError(
           ADB_PROVIDER_IDENTITY.id,
           [packageDirectory],
           { reason: cause instanceof Error ? cause.message : String(cause) },
           { operation, cause },
         );
-        return err(
-          analysisErrorWithCleanupFailure(primary, cleanup, operation),
+        const reported = analysisErrorWithCleanupFailure(
+          primary,
+          cleanup,
+          operation,
         );
+        this.#pendingDirectoryCleanup.add({
+          operation,
+          path: packageDirectory,
+          primary,
+          reportedError: reported,
+          prerequisite: primary,
+          remove,
+        });
+        return err(reported);
       }
       return err(primary);
     };
@@ -1717,8 +1760,8 @@ export class AdbProvider {
       stage: "resolve_paths" | "pull" | "digest";
       message: string;
     }[] = [];
-    const cancelledPackagePull = (
-      error: AnalysisCancelledError,
+    const partialPackagePull = (
+      error: AnalysisError,
       localPath: string,
       devicePath: string,
       stage: "pull" | "digest",
@@ -1739,8 +1782,8 @@ export class AdbProvider {
               stage,
               message:
                 stage === "pull"
-                  ? `Pull cancelled; any incomplete file is retained at ${localPath}. Remaining APKs were not attempted.`
-                  : `Digesting the pulled file was cancelled; the file is retained at ${localPath}. Remaining APKs were not attempted.`,
+                  ? `${error instanceof AnalysisCancelledError ? "Pull cancelled" : "Pull failed"}; any incomplete file is retained at ${localPath}. Remaining APKs were not attempted.`
+                  : `${error instanceof AnalysisCancelledError ? "Digesting the pulled file was cancelled" : "Digesting the pulled file failed"}; the file is retained at ${localPath}. Remaining APKs were not attempted.`,
             },
           ],
           coverage: "partial",
@@ -1760,7 +1803,7 @@ export class AdbProvider {
       );
       if (!pulled.ok) {
         if (pulled.error instanceof AnalysisCancelledError)
-          return cancelledPackagePull(
+          return partialPackagePull(
             pulled.error,
             localPath,
             entry.device_path,
@@ -1785,8 +1828,11 @@ export class AdbProvider {
           role_basis: "file_name",
         });
       } catch (cause: unknown) {
-        if (cause instanceof AnalysisCancelledError)
-          return cancelledPackagePull(
+        if (
+          cause instanceof AnalysisCancelledError ||
+          (cause instanceof AnalysisError && cause.cleanupIncomplete)
+        )
+          return partialPackagePull(
             cause,
             localPath,
             entry.device_path,
@@ -1888,7 +1934,10 @@ export class AdbProvider {
         ),
       );
     } catch (cause) {
-      if (cause instanceof AnalysisCancelledError) {
+      if (
+        cause instanceof AnalysisCancelledError ||
+        (cause instanceof AnalysisError && cause.cleanupIncomplete)
+      ) {
         cause.retainPartialObservation({
           provider_id: "adb",
           operation,
@@ -2629,7 +2678,10 @@ export class AdbProvider {
           }),
         );
       } catch (cause) {
-        if (cause instanceof AnalysisCancelledError) {
+        if (
+          cause instanceof AnalysisCancelledError ||
+          (cause instanceof AnalysisError && cause.cleanupIncomplete)
+        ) {
           if (retainedObservation !== undefined)
             cause.retainPartialObservation(retainedObservation);
           return err(cause);
@@ -2658,24 +2710,25 @@ export class AdbProvider {
         : collectedResult.error;
       if (retainedObservation !== undefined)
         primary.retainPartialObservation(retainedObservation);
+      const reported = analysisErrorWithCleanupFailure(
+        primary,
+        new ProviderCleanupError(
+          ADB_PROVIDER_IDENTITY.id,
+          [stagingDirectory],
+          { reason: cause instanceof Error ? cause.message : String(cause) },
+          { operation, cause },
+        ),
+        operation,
+      );
       this.#pendingDirectoryCleanup.add({
         operation,
         path: stagingDirectory,
         primary,
+        reportedError: reported,
+        prerequisite: primary,
         remove: () => removeOwnedDirectory(stagingDirectory, stagingIdentity),
       });
-      return err(
-        analysisErrorWithCleanupFailure(
-          primary,
-          new ProviderCleanupError(
-            ADB_PROVIDER_IDENTITY.id,
-            [stagingDirectory],
-            { reason: cause instanceof Error ? cause.message : String(cause) },
-            { operation, cause },
-          ),
-          operation,
-        ),
-      );
+      return err(reported);
     }
     return collectedResult;
   }

@@ -11,6 +11,8 @@ import { basename, dirname, join } from "node:path";
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 
 import { AdbProvider } from "../../../../src/adb/AdbProvider.js";
+import { AnalysisError } from "../../../../src/domain/analysisErrorBase.js";
+import { OwnedFileHandle } from "../../../../src/filesystem/OwnedFileHandle.js";
 import {
   execFileBytes,
   execFileOutput,
@@ -117,6 +119,7 @@ test("retains failed snapshot cleanup ownership and retries it on close", async 
   const result = await f.provider.execute(f.request);
   expect(result.ok).toBe(false);
   if (result.ok) throw new Error("expected snapshot cleanup failure");
+  expect(result.error.cleanupIncomplete).toBe(true);
   expect(result.error.cleanupResources).toContain(dirname(f.snapshotPath()));
   const evidence = parseEvidence(result.error.partialObservation);
   expect(evidence).toMatchObject({
@@ -134,10 +137,100 @@ test("retains failed snapshot cleanup ownership and retries it on close", async 
     await readFile(f.source),
   );
 
+  vi.mocked(rm).mockImplementationOnce(async (path, options) => {
+    if (basename(String(path)).startsWith("rea-adb-input-"))
+      throw new Error("snapshot cleanup retry denied");
+    return actualFs.rm(path, options);
+  });
+  await expect(f.provider.close()).rejects.toMatchObject({
+    cleanupIncomplete: true,
+  });
+  expect(result.error.cleanupIncomplete).toBe(true);
+
   await f.provider.close();
+  expect(result.error.cleanupIncomplete).toBe(false);
   await expect(lstat(dirname(f.snapshotPath()))).rejects.toMatchObject({
     code: "ENOENT",
   });
+});
+
+test("resolves a hash cleanup error only after the exact retained descriptor closes", async () => {
+  const f = await fixture();
+  const actualFs =
+    await vi.importActual<typeof import("node:fs/promises")>(
+      "node:fs/promises",
+    );
+  let stagedPath: string | undefined;
+  vi.mocked(copyFile).mockImplementationOnce(
+    async (source, destination, mode) => {
+      stagedPath = String(destination);
+      await actualFs.copyFile(source, destination, mode);
+    },
+  );
+  const closeFailure = new Error("digest descriptor close denied");
+  const owners: OwnedFileHandle[] = [];
+  let denialsRemaining = 2;
+  const originalClose = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(async function (this: OwnedFileHandle) {
+      owners.push(this);
+      if (denialsRemaining > 0) {
+        denialsRemaining -= 1;
+        throw closeFailure;
+      }
+      return originalClose.call(this);
+    });
+  try {
+    const result = await f.provider.execute(f.request);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected digest cleanup failure");
+    const reported = result.error;
+    const originalCause = reported.cause;
+    expect(reported.cleanupIncomplete).toBe(true);
+    expect(reported.cause).toBeInstanceOf(AggregateError);
+    const hashFailure = (reported.cause as AggregateError).errors[0];
+    if (!(hashFailure instanceof AnalysisError))
+      throw new Error("Missing original typed hash failure");
+    expect(hashFailure).toMatchObject({
+      diagnostics: {
+        primary_error: {
+          details: {
+            diagnostics: {
+              completed_hash: { bytes: 17, sha256: f.digest },
+            },
+          },
+        },
+      },
+    });
+    expect(owners).toHaveLength(1);
+    if (stagedPath === undefined) throw new Error("Missing staged input path");
+
+    await expect(f.provider.close()).rejects.toMatchObject({
+      cleanupIncomplete: true,
+      cleanupResources: [stagedPath, dirname(stagedPath)],
+    });
+    expect(reported.cleanupIncomplete).toBe(true);
+    expect(reported.cause).toBe(originalCause);
+    await expect(readFile(stagedPath)).resolves.toEqual(
+      await readFile(f.source),
+    );
+
+    await f.provider.close();
+    expect(owners).toHaveLength(3);
+    expect(owners[0]).toBe(owners[1]);
+    expect(owners[1]).toBe(owners[2]);
+    expect(reported.cleanupIncomplete).toBe(false);
+    expect(hashFailure.cleanupIncomplete).toBe(false);
+    expect(reported.cause).toBe(originalCause);
+    await expect(lstat(dirname(stagedPath))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  } finally {
+    denialsRemaining = 0;
+    close.mockRestore();
+    await f.provider.close();
+  }
 });
 
 test.each([false, true])(
@@ -163,6 +256,7 @@ test.each([false, true])(
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected cancellation");
     expect(result.error._tag).toBe("AnalysisCancelledError");
+    const originalCause = result.error.cause;
     const evidence = parseEvidence(result.error.partialObservation);
     expect(evidence).toMatchObject({
       provider: { id: "adb" },
@@ -176,13 +270,16 @@ test.each([false, true])(
         device_path: "/data/local/tmp/payload.bin",
       },
     });
-    if (failCleanup)
+    if (failCleanup) {
+      expect(result.error.cleanupIncomplete).toBe(true);
       expect(result.error.cleanupResources).toContain(
         dirname(f.snapshotPath()),
       );
-    else expect(result.error.cleanupIncomplete).toBe(false);
+    } else expect(result.error.cleanupIncomplete).toBe(false);
     expect(await readFile(f.source)).toEqual(Buffer.from("immutable payload"));
     await f.provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect(result.error.cause).toBe(originalCause);
   },
 );
 

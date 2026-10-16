@@ -409,3 +409,76 @@ it("forwards in-flight cancellation to the MCP call", async () => {
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toBeInstanceOf(AnalysisCancelledError);
 });
+
+it("refreshes cached unknown metadata only through an explicit information probe", async () => {
+  const responses: Record<string, JsonValue> = {
+    get_client_information: { success: true, gui_client: false },
+    list_units: { success: true, units: [] },
+  };
+  const connection = scriptedConnection(responses);
+  const provider = providerWith(connection);
+  try {
+    const first = await provider.execute({
+      operation: "list_jeb_units",
+      input: { count: 2, index: 0 },
+    });
+    if (!first.ok) throw first.error;
+    expect(first.value.provider.version).toBeNull();
+    responses.get_client_information = {
+      success: true,
+      version: "5.49.0",
+      gui_client: true,
+    };
+    const inspected = await provider.execute({
+      operation: "inspect_jeb_client",
+      input: {},
+    });
+    if (!inspected.ok) throw inspected.error;
+    const after = await provider.execute({
+      operation: "list_jeb_units",
+      input: { count: 2, index: 0 },
+    });
+    if (!after.ok) throw after.error;
+    expect(after.value.provider.version).toBe("5.49.0");
+    expect(after.value.result).toMatchObject({
+      engine: { version: "5.49.0", gui_client: true },
+    });
+    expect(connection.calls.map(([name]) => name)).toEqual([
+      "list_units",
+      "get_client_information",
+      "get_client_information",
+      "list_units",
+    ]);
+  } finally {
+    await provider.close();
+  }
+});
+
+it("keeps concurrent client inspections bound to their own parsed metadata", async () => {
+  const connection = scriptedConnection({});
+  let replies = 0;
+  connection.call = async () => ({
+    success: true,
+    version: `inspection-${++replies}`,
+    gui_client: replies === 1,
+  });
+  const provider = providerWith(connection);
+  try {
+    const results = await Promise.all([
+      provider.execute({ operation: "inspect_jeb_client", input: {} }),
+      provider.execute({ operation: "inspect_jeb_client", input: {} }),
+    ]);
+    for (const [index, result] of results.entries()) {
+      if (!result.ok) throw result.error;
+      expect(result.value.provider.version).toBe(`inspection-${index + 1}`);
+      expect(result.value.result).toMatchObject({
+        engine: {
+          version: result.value.provider.version,
+          gui_client: index === 0,
+        },
+      });
+    }
+  } finally {
+    await provider.close();
+  }
+});

@@ -105,8 +105,16 @@ const refusalReason = (payload: unknown, fallback: string): string => {
 export class JebProvider implements JebAnalysisPort {
   readonly #connection: JebMcpConnection;
   readonly #endpoint: URL;
-  #identity: ProviderIdentity = JEB_PROVIDER_IDENTITY;
-  #guiClient: boolean | null = null;
+  #clientInformation:
+    | Pick<z.infer<typeof clientInformation>, "version" | "gui_client">
+    | undefined;
+
+  #identity(version: string | null | undefined): ProviderIdentity {
+    return {
+      ...JEB_PROVIDER_IDENTITY,
+      version: version ?? null,
+    };
+  }
 
   constructor(options: JebProviderOptions = {}) {
     const environment = options.environment ?? {};
@@ -128,7 +136,10 @@ export class JebProvider implements JebAnalysisPort {
   ): Promise<JebAnalysisAvailability> {
     try {
       const tools = new Set(await this.#connection.listTools(signal));
-      await this.#refreshClientInformation("inspect_jeb_client", signal);
+      const { information } = await this.#refreshClientInformation(
+        "inspect_jeb_client",
+        signal,
+      );
       return {
         status: "available",
         code: null,
@@ -138,7 +149,7 @@ export class JebProvider implements JebAnalysisPort {
         ).filter((operation) => tools.has(JEB_ENGINE_TOOLS[operation])),
         diagnostics: {
           endpoint: this.#endpoint.toString(),
-          engine_version: this.#identity.version,
+          engine_version: information.version ?? null,
         },
       };
     } catch (cause) {
@@ -169,11 +180,6 @@ export class JebProvider implements JebAnalysisPort {
       const execution = await this.#dispatch(request, options?.signal);
       if (options?.signal?.aborted)
         return err(new AnalysisCancelledError(request.operation));
-      if (execution.ok)
-        this.#identity = {
-          ...this.#identity,
-          version: execution.value.provider.version,
-        };
       return execution;
     } catch (cause) {
       if (options?.signal?.aborted)
@@ -218,13 +224,14 @@ export class JebProvider implements JebAnalysisPort {
     readonly endpoint: string;
     readonly gui_client: boolean | null;
   }> {
-    if (this.#identity.version === null)
-      await this.#refreshClientInformation(operation, signal);
+    const information =
+      this.#clientInformation ??
+      (await this.#refreshClientInformation(operation, signal)).information;
     return {
       name: "jeb",
-      version: this.#identity.version,
+      version: information.version ?? null,
       endpoint: this.#endpoint.toString(),
-      gui_client: this.#guiClient,
+      gui_client: information.gui_client ?? null,
     };
   }
 
@@ -242,11 +249,10 @@ export class JebProvider implements JebAnalysisPort {
     const information = clientInformation.parse(
       this.#requireSuccess(payload, operation),
     );
-    this.#identity = {
-      ...this.#identity,
-      version: information.version ?? null,
+    this.#clientInformation = {
+      version: information.version,
+      gui_client: information.gui_client,
     };
-    this.#guiClient = information.gui_client ?? null;
     return { information, payload };
   }
 
@@ -266,7 +272,7 @@ export class JebProvider implements JebAnalysisPort {
       message: information.message ?? null,
     });
     return ok(
-      createAnalysisExecution(result, this.#identity, {
+      createAnalysisExecution(result, this.#identity(information.version), {
         rawResult: payload,
         limitations:
           information.version === undefined
@@ -299,7 +305,7 @@ export class JebProvider implements JebAnalysisPort {
       units: opened.units,
     });
     return ok(
-      createAnalysisExecution(result, this.#identity, {
+      createAnalysisExecution(result, this.#identity(engine.version), {
         rawResult: payload,
         limitations: [
           "JEB resolves and analyzes the artifact on the engine host; REA did not open the target itself.",
@@ -338,7 +344,7 @@ export class JebProvider implements JebAnalysisPort {
       coverage: units.length < count ? "complete" : "partial",
     });
     return ok(
-      createAnalysisExecution(result, this.#identity, {
+      createAnalysisExecution(result, this.#identity(engine.version), {
         rawResult: payload,
         limitations: [
           "The engine caps unit pages at 100; a full page means more units may exist.",
@@ -373,7 +379,7 @@ export class JebProvider implements JebAnalysisPort {
       text: decompiled.text,
     });
     return ok(
-      createAnalysisExecution(result, this.#identity, {
+      createAnalysisExecution(result, this.#identity(engine.version), {
         rawResult: payload,
         limitations:
           unit_path === undefined

@@ -125,6 +125,17 @@ registrations/removals and dispatch, Node timers and cancellation handles, async
 defaults, request construction and response consumers, parse/coercion/
 validation boundaries, and built-in resource acquisition/release.
 
+Local callback candidates do not establish a complete target set when a
+conditional write may leave a parameter, catch binding, or uninitialized
+variable unchanged. These calls retain candidate edges and dynamic uncertainty;
+default traces remain ambiguous with partial coverage. Opt into
+`include_ambiguous_dynamic_edges` to traverse the candidates. Proven preceding
+unconditional assignments, including writes dominating a read in the same
+conditional block, can resolve a target; later writes do not replace an
+earlier read or captured alias. Unproved ordering across branches or function
+activations remains conservative. Returned-reference effects use the same
+read-position facts as call resolution.
+
 Mutation tracking covers explicit member assignments, updates, deletion, and
 loop assignment targets, including the supported local aliases and shared
 nested references. Calls conservatively invalidate exposed mutable references;

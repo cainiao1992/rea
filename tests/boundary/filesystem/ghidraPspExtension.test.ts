@@ -1,3 +1,5 @@
+import { ok as javaProbeOk } from "../../../src/domain/result.js";
+import type { GhidraJavaObservation } from "../../../src/ghidra/GhidraJavaProbe.js";
 import { mkdir, rename, symlink, truncate, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -55,15 +57,16 @@ const host: GhidraInstallationHost = {
   architecture: "x64",
   readText: () => "application.version=12.1.3\napplication.java.min=21\n",
   executable: () => true,
-  probeJava: () => ({
-    osArch: "amd64",
-    osName: "Linux",
-    version: "21.0.12",
-    major: 21,
-    home: "/jdk-21",
-    bits: 64,
-    runtime: "jdk",
-  }),
+  probeJava: () =>
+    javaProbeOk<GhidraJavaObservation>({
+      osArch: "amd64",
+      osName: "Linux",
+      version: "21.0.12",
+      major: 21,
+      home: "/jdk-21",
+      bits: 64,
+      runtime: "jdk",
+    }),
 };
 async function installation() {
   const directory = await createTestTempDirectory("rea-psp-profile-");

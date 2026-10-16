@@ -138,6 +138,37 @@ describe("uninstall backups after edits made since setup", () => {
     expect(await readFile(configPath, "utf8")).toBe(beforeUninstall);
     expect(await readFile(recoveryPath, "utf8")).toBe("occupied by other data");
   });
+
+  it.each([
+    ["missing", async () => undefined],
+    [
+      "wrong",
+      (_source: string, destination: string) =>
+        writeFile(destination, "not the current configuration", {
+          flag: "wx",
+        }),
+    ],
+  ] as const)(
+    "blocks removal when the reported copy leaves %s backup bytes",
+    async (_label, copy) => {
+      const { root, configPath, client, beforeUninstall } =
+        await editedSinceSetup("rea-uninstall-current-backup-unverified-");
+      let writes = 0;
+      const result = await systemUninstallHost(root, {
+        ...fileSystem("update"),
+        copy,
+        writeText: async () => {
+          writes += 1;
+        },
+      }).removeClient(client);
+      expect(result.status).toBe("failed");
+      expect(result.detail).toMatch(
+        /^Configuration could not be backed up, so no change was made\. /,
+      );
+      expect(writes).toBe(0);
+      expect(await readFile(configPath, "utf8")).toBe(beforeUninstall);
+    },
+  );
 });
 
 it("accepts a literal UTF-8 replacement character without changing its value", async () => {

@@ -25,7 +25,7 @@ describe.skipIf(process.platform !== "darwin")(
           arguments: ["inspect-native-dispatch-metadata", path, "--json"],
           environment: { REA_LOG_LEVEL: "silent" },
         });
-        expect(output.exitCode).toBe(0);
+        expect(output.exitCode, `${output.stdout}\n${output.stderr}`).toBe(0);
         const property = {
           atomicity,
           is_readonly: readonly,
@@ -86,7 +86,7 @@ describe.skipIf(process.platform !== "darwin")(
           arguments: ["inspect-native-dispatch-metadata", path, "--json"],
           environment: { REA_LOG_LEVEL: "silent" },
         });
-        expect(output.exitCode).toBe(0);
+        expect(output.exitCode, `${output.stdout}\n${output.stderr}`).toBe(0);
         expect(output.json).toMatchObject({
           normalized_result: {
             result: {

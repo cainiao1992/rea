@@ -3,13 +3,18 @@ import * as t from "@babel/types";
 import {
   delayedInstanceFieldValue,
   semanticBranchMayBeSkipped,
+  semanticIterationCardinality,
 } from "./javascriptSemanticEvaluationOrder.js";
 
 import {
   semanticStaticPropertyKey,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
-import type { JavaScriptSemanticBindingState } from "./javascriptSemanticState.js";
+import type {
+  JavaScriptSemanticBindingState,
+  JavaScriptSemanticAnalysisState,
+  JavaScriptSemanticEffectTiming,
+} from "./javascriptSemanticState.js";
 
 interface StatementPosition {
   readonly body: readonly t.Statement[];
@@ -120,8 +125,10 @@ export const semanticTopLevelEffectFollowsCapture = (
       if (t.isFunction(node) || t.isLoop(node)) return null;
       if (delayedInstanceFieldValue(node, child)) return null;
       if (t.isVariableDeclarator(node)) declarator = node;
-      if (selected === null && t.isStatement(node))
-        selected = statementPosition(node, parents, declarator);
+      if (t.isStatement(node)) {
+        const enclosing = statementPosition(node, parents, declarator);
+        if (enclosing !== null) selected = enclosing;
+      }
       if (t.isProgram(node)) return selected;
       child = node;
       node = parents.get(node);
@@ -139,6 +146,118 @@ export const semanticTopLevelEffectFollowsCapture = (
   )
     return false;
   return expressionEvaluationOrder(capture, effect, parents) === "before";
+};
+
+/** Include expression order when a write operation contains the read site. */
+export const semanticEffectFollowsReference = (
+  reference: t.Node,
+  effect: t.Node | undefined,
+  parents: WeakMap<t.Node, t.Node>,
+): boolean => {
+  if (reference === effect) return false;
+  let current: t.Node | undefined = reference;
+  let child: t.Node | undefined;
+  while (current !== undefined && current !== effect) {
+    if (t.isFunction(current)) break;
+    child = current;
+    current = parents.get(current);
+  }
+  const loopInput =
+    (t.isForInStatement(effect) || t.isForOfStatement(effect)) &&
+    child === effect.right;
+  let once = current;
+  child = undefined;
+  while (once !== undefined) {
+    const initialLoopInput =
+      (t.isForStatement(once) && child === once.init) ||
+      ((t.isForInStatement(once) || t.isForOfStatement(once)) &&
+        child === once.right) ||
+      (once === effect && loopInput);
+    if (
+      t.isFunction(once) ||
+      (t.isLoop(once) && !initialLoopInput) ||
+      delayedInstanceFieldValue(once, child)
+    )
+      break;
+    child = once;
+    once = parents.get(once);
+  }
+  return (
+    (current === effect &&
+      once === undefined &&
+      (t.isAssignmentExpression(effect) ||
+        t.isUpdateExpression(effect) ||
+        t.isVariableDeclarator(effect) ||
+        t.isCallExpression(effect) ||
+        t.isOptionalCallExpression(effect) ||
+        t.isNewExpression(effect))) ||
+    (current === effect && once === undefined && loopInput) ||
+    semanticTopLevelEffectFollowsCapture(reference, effect, parents)
+  );
+};
+
+export const semanticEffectTiming = (
+  site: t.Node,
+  effect: t.Node | undefined,
+  state: JavaScriptSemanticAnalysisState,
+): JavaScriptSemanticEffectTiming => {
+  if (effect === undefined) return "unknown";
+  // Invocation receives arguments after their values have been selected.
+  if (
+    site === effect &&
+    (t.isCallExpression(site) ||
+      t.isOptionalCallExpression(site) ||
+      t.isNewExpression(site))
+  )
+    return "after";
+  const loop = semanticEnclosingIteration(effect, state);
+  if (loop !== undefined) {
+    const cardinality = semanticIterationCardinality(
+      loop,
+      state.prototypeEnumerationMayAffect,
+    );
+    if (cardinality === "empty") return "after";
+    if (cardinality === "nonempty") {
+      const loopParent = state.parentsByNode.get(loop);
+      const crossesFunction = (node: t.Node): boolean => {
+        let current: t.Node | undefined = node;
+        while (current !== undefined) {
+          if (t.isFunction(current)) return true;
+          current = state.parentsByNode.get(current);
+        }
+        return false;
+      };
+      if (
+        loopParent === state.program &&
+        !crossesFunction(site) &&
+        typeof loop.start === "number" &&
+        typeof loop.end === "number" &&
+        typeof site.start === "number"
+      ) {
+        if (site.start > loop.end) return "before";
+        if (site.start < loop.start) return "after";
+      }
+    }
+  }
+  if (semanticEffectFollowsReference(site, effect, state.parentsByNode))
+    return "after";
+  if (semanticEffectFollowsReference(effect, site, state.parentsByNode))
+    return "before";
+  return "unknown";
+};
+
+const semanticEnclosingIteration = (
+  node: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+): t.ForInStatement | t.ForOfStatement | undefined => {
+  let current: t.Node | undefined = node;
+  while (current !== undefined) {
+    if (t.isForInStatement(current) || t.isForOfStatement(current))
+      return current;
+    if (t.isFunction(current)) return undefined;
+    current = state.parentsByNode.get(current);
+  }
+  return undefined;
 };
 
 /** Memoize descendant paths toward the currently compared source expression. */

@@ -14,6 +14,12 @@ import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { expandToolAvailability } from "../../../src/contracts/toolOutputSchemaPrimitives.js";
 
+import { JebProvider } from "../../../src/jeb/JebProvider.js";
+import {
+  startJebMcpFixture,
+  jebPrimaryResponses,
+} from "../../fixtures/jebMcp.js";
+
 const identity = { id: "jeb", name: "JEB", version: "5.48.0" } as const;
 
 it("discovers current JEB operation support and recovery through binary_session", async () => {
@@ -289,3 +295,71 @@ it("keeps the MCP server usable when REA_JEB_MCP_URL is invalid", async () => {
     },
   });
 });
+
+it.each([
+  { operation: "list_jeb_units", tool: "list_units", input: { count: 2 } },
+  {
+    operation: "decompile_jeb_item",
+    tool: "decompile_code_item",
+    input: {
+      item_address: "LSample;->value()I",
+      item_kind: "method",
+      unit_path: "sample.dex",
+    },
+  },
+  {
+    operation: "open_jeb_project",
+    tool: "open_project",
+    input: { path: "sample.apk" },
+  },
+])(
+  "attributes auxiliary metadata refusal to requested $operation through MCP",
+  async ({ operation, tool, input }) => {
+    const fixture = await startJebMcpFixture((name) =>
+      name === "get_client_information"
+        ? { success: false, message: "Client information temporarily refused" }
+        : jebPrimaryResponses[name]!,
+    );
+    const provider = new JebProvider({
+      environment: { REA_JEB_MCP_URL: fixture.endpoint },
+    });
+    const session = createTestBinarySession(() => {
+      throw new Error("JEB must not start a deep provider");
+    });
+    const server = createServer(
+      { kind: "session", session },
+      { jebAnalysis: provider, environment: {} },
+    );
+    const client = new Client({ name: "jeb-attribution", version: "1" });
+    try {
+      const [clientTransport, serverTransport] =
+        InMemoryTransport.createLinkedPair();
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const failed = await client.callTool({
+        name: operation,
+        arguments: input,
+      });
+      expect(failed.isError).toBe(true);
+      const text = failed.content
+        .map((block) => (block.type === "text" ? block.text : ""))
+        .join("");
+      expect(JSON.parse(text)).toMatchObject({
+        error: {
+          code: "unsupported_target",
+          details: {
+            operation,
+            reason: "Client information temporarily refused",
+          },
+        },
+      });
+      expect(fixture.calls).toEqual([tool, "get_client_information"]);
+    } finally {
+      await client.close();
+      await server.close();
+      await session.close();
+      await provider.close();
+      await fixture.close();
+    }
+  },
+);

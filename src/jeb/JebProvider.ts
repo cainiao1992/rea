@@ -128,7 +128,7 @@ export class JebProvider implements JebAnalysisPort {
   ): Promise<JebAnalysisAvailability> {
     try {
       const tools = new Set(await this.#connection.listTools(signal));
-      await this.#refreshClientInformation(signal);
+      await this.#refreshClientInformation("inspect_jeb_client", signal);
       return {
         status: "available",
         code: null,
@@ -209,13 +209,17 @@ export class JebProvider implements JebAnalysisPort {
     }
   }
 
-  async #engine(signal?: AbortSignal): Promise<{
+  async #engine(
+    operation: JebOperation,
+    signal?: AbortSignal,
+  ): Promise<{
     readonly name: string;
     readonly version: string | null;
     readonly endpoint: string;
     readonly gui_client: boolean | null;
   }> {
-    await this.#requireClientInformation(signal);
+    if (this.#identity.version === null)
+      await this.#refreshClientInformation(operation, signal);
     return {
       name: "jeb",
       version: this.#identity.version,
@@ -224,45 +228,33 @@ export class JebProvider implements JebAnalysisPort {
     };
   }
 
-  async #requireClientInformation(signal?: AbortSignal): Promise<void> {
-    if (this.#identity.version !== null) return;
-    await this.#refreshClientInformation(signal);
-  }
-
   async #refreshClientInformation(
+    operation: JebOperation,
     signal: AbortSignal | undefined,
-  ): Promise<void> {
+  ) {
     if (signal?.aborted === true)
-      throw new AnalysisCancelledError("inspect_jeb_client");
+      throw new AnalysisCancelledError(operation, { cause: signal.reason });
     const payload = await this.#connection.call(
       "get_client_information",
       {},
       signal,
     );
     const information = clientInformation.parse(
-      this.#requireSuccess(payload, "inspect_jeb_client"),
+      this.#requireSuccess(payload, operation),
     );
     this.#identity = {
       ...this.#identity,
       version: information.version ?? null,
     };
     this.#guiClient = information.gui_client ?? null;
+    return { information, payload };
   }
 
   async #inspectClient(signal?: AbortSignal) {
-    const payload = await this.#connection.call(
-      "get_client_information",
-      {},
+    const { information, payload } = await this.#refreshClientInformation(
+      "inspect_jeb_client",
       signal,
     );
-    const information = clientInformation.parse(
-      this.#requireSuccess(payload, "inspect_jeb_client"),
-    );
-    this.#identity = {
-      ...this.#identity,
-      version: information.version ?? null,
-    };
-    this.#guiClient = information.gui_client ?? null;
     const result = jebResultSchemas.inspect_jeb_client.parse({
       engine: {
         name: "jeb",
@@ -298,7 +290,7 @@ export class JebProvider implements JebAnalysisPort {
     const opened = openProject.parse(
       this.#requireSuccess(payload, request.operation),
     );
-    const engine = await this.#engine(signal);
+    const engine = await this.#engine(request.operation, signal);
     const result = jebResultSchemas.open_jeb_project.parse({
       engine,
       project_name: opened.name ?? null,
@@ -335,7 +327,7 @@ export class JebProvider implements JebAnalysisPort {
       this.#requireSuccess(payload, request.operation),
     );
     const units = listed.units;
-    const engine = await this.#engine(signal);
+    const engine = await this.#engine(request.operation, signal);
     const result = jebResultSchemas.list_jeb_units.parse({
       engine,
       filter: filter ?? null,
@@ -372,7 +364,7 @@ export class JebProvider implements JebAnalysisPort {
     const decompiled = decompiledItem.parse(
       this.#requireSuccess(payload, request.operation),
     );
-    const engine = await this.#engine(signal);
+    const engine = await this.#engine(request.operation, signal);
     const result = jebResultSchemas.decompile_jeb_item.parse({
       engine,
       unit_path: unit_path ?? null,

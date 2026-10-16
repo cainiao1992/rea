@@ -88,7 +88,11 @@ test.each([
         output_directory: root,
       },
     }),
-    expected: { digest_status: "unknown", device_path: "/sdcard/payload.bin" },
+    expected: {
+      bytes: 12,
+      device_path: "/sdcard/payload.bin",
+      sha256: expect.any(String),
+    },
   },
   {
     label: "package pull",
@@ -116,7 +120,7 @@ test.each([
       operation: "collect_adb_bugreport" as const,
       input: { serial: "device", output_directory: root },
     }),
-    expected: { digest_status: "unknown", serial: "device" },
+    expected: { bytes: 12, serial: "device", sha256: expect.any(String) },
   },
 ])(
   "preserves the linked hash cleanup error through $label",
@@ -131,7 +135,7 @@ test.each([
     expect(returnedError.cleanupIncomplete).toBe(true);
     expect(returnedError.diagnostics).toMatchObject({
       primary_error: {
-        details: { diagnostics: { completed_hash: { bytes: 12 } } },
+        details: { partial_observation: { result: expect.any(Object) } },
       },
     });
     expect(

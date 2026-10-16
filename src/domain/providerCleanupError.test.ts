@@ -20,28 +20,34 @@ it("preserves the binary cleanup default and an explicitly owned nonbinary opera
 });
 
 it.each([false, true])(
-  "reports only live primary resources after cleanup recovery is %s",
-  (recovered) => {
-    const primary = new ProviderCleanupError("adb", ["descriptor"], {
-      reason: "descriptor close failed",
-    });
-    if (recovered) primary.resolveCleanup();
-    const cleanup = new ProviderCleanupError("adb", ["runtime-root"], {
-      reason: "root removal failed",
-    });
-    const combined = analysisErrorWithCleanupFailure(primary, cleanup);
-    expect(combined.cleanupResources).toEqual(
-      recovered ? ["runtime-root"] : ["descriptor", "runtime-root"],
+  "combines only live cleanup resources when primary resolution is %s",
+  (resolved) => {
+    const primary = new ProviderCleanupError(
+      "adb",
+      ["publication-handle"],
+      { reason: "first descriptor close failed" },
+      { operation: "capture_adb_screen" },
     );
+    if (resolved) primary.resolveCleanup();
+    const cleanup = new ProviderCleanupError("adb", ["runtime-root"], {
+      reason: "workspace removal failed",
+    });
+
+    const combined = analysisErrorWithCleanupFailure(primary, cleanup);
     expect(projectAnalysisError(combined)).toMatchObject({
       code: "cleanup_incomplete",
       details: {
+        resources: resolved
+          ? ["runtime-root"]
+          : ["publication-handle", "runtime-root"],
         diagnostics: {
           primary_error: {
-            details: { diagnostics: { reason: "descriptor close failed" } },
+            details: {
+              diagnostics: { reason: "first descriptor close failed" },
+            },
           },
           cleanup_error: {
-            details: { diagnostics: { reason: "root removal failed" } },
+            details: { diagnostics: { reason: "workspace removal failed" } },
           },
         },
       },

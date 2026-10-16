@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
+import { RegularFileCleanupFailure } from "../../../src/filesystem/OwnedRegularFile.js";
 import { AnalysisError } from "../../../src/domain/analysisErrorBase.js";
 import {
   createJadxProtocolFixture,
@@ -27,9 +28,11 @@ it("resolves descriptor uncertainty after an immediate owned hash close retry", 
     if (result.ok) throw new Error("Expected the original close failure");
     expect(result.error.cleanupIncomplete).toBe(false);
     expect(result.error.cause).toBeInstanceOf(AggregateError);
-    expect((result.error.cause as AggregateError).errors).toEqual(
-      expect.arrayContaining([expect.objectContaining({ cause })]),
-    );
+    const primary = (result.error.cause as AggregateError).errors[0];
+    expect(primary).toBeInstanceOf(AnalysisError);
+    expect(primary.cause).toBeInstanceOf(RegularFileCleanupFailure);
+    expect(primary.cause.cleanupCause).toBe(cause);
+    expect(primary.cause.outcome.kind).toBe("completed");
     expect(owners).toHaveLength(2);
     expect(owners[0]).toBe(owners[1]);
     expect(owners[0]?.handle.fd).toBe(-1);
@@ -61,7 +64,9 @@ it("keeps hash cleanup live until the exact retained descriptor closes", async (
     });
     if (result.ok) throw new Error("Expected retained descriptor cleanup");
     expect(result.error.cleanupIncomplete).toBe(true);
-    const primary = result.error.cause;
+    expect(result.error.cause).toBeInstanceOf(AggregateError);
+    const retirement = (result.error.cause as AggregateError).errors;
+    const primary = retirement[0];
     if (!(primary instanceof AnalysisError))
       throw new Error("Missing original typed hash failure");
     const originalCause = primary.cause;
@@ -72,6 +77,7 @@ it("keeps hash cleanup live until the exact retained descriptor closes", async (
     allowClose = true;
     await provider.close();
     expect(primary.cleanupIncomplete).toBe(false);
+    expect(result.error.cleanupIncomplete).toBe(false);
     expect(primary.cause).toBe(originalCause);
     expect(owners[0]?.handle.fd).toBe(-1);
     expect(launches).toHaveLength(0);

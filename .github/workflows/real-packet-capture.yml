@@ -53,7 +53,7 @@ jobs:
       - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark util-linux python3
       - run: npm ci
       - run: npm run build:cached
-      - run: npm run test:focused -- tests/boundary/captures/fieldDiscovery.test.ts src/process/LinuxResourceLimits.test.ts tests/boundary/captures/captureProvider.test.ts tests/boundary/captures/captureDescriptorCleanup.test.ts tests/boundary/captures/resourceLimits.test.ts tests/boundary/captures/packetOutput.test.ts tests/boundary/mcp/packetCaptureMcp.test.ts tests/boundary/cli/captureCleanup.test.ts
+      - run: npm run test:focused -- tests/boundary/captures/fieldDiscovery.test.ts src/process/LinuxResourceLimits.test.ts tests/boundary/captures/captureProvider.test.ts tests/boundary/captures/captureDescriptorCleanup.test.ts tests/boundary/pcap/pcapProvider.test.ts tests/boundary/pcap/pcapProviderCrossPlatform.test.ts tests/boundary/captures/resourceLimits.test.ts tests/boundary/captures/packetOutput.test.ts tests/boundary/mcp/packetCaptureMcp.test.ts tests/boundary/cli/captureCleanup.test.ts
       - run: node scripts/verify-packet-capture.mjs
         env:
           REA_TSHARK_COMMAND: /usr/bin/tshark

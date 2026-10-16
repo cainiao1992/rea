@@ -743,6 +743,63 @@ it("cleans up when the final waiter cancels during lineage observation", async (
   expect(launcher.processes).toHaveLength(2);
 });
 
+it("cancels a retry waiter without taking ownership of startup cleanup", async () => {
+  let markLaunchPending: (() => void) | undefined;
+  const launchPending = new Promise<void>((resolve) => {
+    markLaunchPending = resolve;
+  });
+  let releaseLaunch: (() => void) | undefined;
+  const launchGate = new Promise<void>((resolve) => {
+    releaseLaunch = resolve;
+  });
+  let markStartupAborted: (() => void) | undefined;
+  const startupAborted = new Promise<void>((resolve) => {
+    markStartupAborted = resolve;
+  });
+  const launcher = new FixtureLauncher();
+  const client = clientFor({
+    async launch(session, options) {
+      options?.signal?.addEventListener("abort", () => markStartupAborted?.(), {
+        once: true,
+      });
+      markLaunchPending?.();
+      await launchGate;
+      return launcher.launch(session);
+    },
+  });
+  const firstController = new AbortController();
+  const first = client.start(firstController.signal);
+  let retry: ReturnType<typeof client.start> | undefined;
+  try {
+    await launchPending;
+    firstController.abort();
+    // The retry starts after the shared owner has observed the final departure.
+    await startupAborted;
+
+    const retryController = new AbortController();
+    retry = client.start(retryController.signal);
+    retryController.abort();
+    await expect(retry).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "cancelled" },
+    });
+  } finally {
+    releaseLaunch?.();
+    await Promise.allSettled([first, retry]);
+  }
+  await expect(first).resolves.toMatchObject({
+    ok: false,
+    error: { kind: "cancelled" },
+  });
+  expect(launcher.processes).toHaveLength(1);
+  const child = launcher.processes[0];
+  if (child === undefined) throw new Error("fixture child was not launched");
+  await expect(waitForChildExit(child, 5_000)).resolves.toBe(true);
+  await expect(access(launcher.runtimeRoots[0] ?? "")).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
+
 it("applies one startup deadline and removes the private runtime", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   const launcher = new FixtureLauncher("silent");

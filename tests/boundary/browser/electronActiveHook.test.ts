@@ -56,7 +56,13 @@ const utilityProcess = {
     return child;
   },
 };
-const shell = { openExternal: () => Promise.resolve(), openPath: () => Promise.resolve() };
+globalThis.__nativeShellCalls = [];
+const shell = {
+  openExternal: () => Promise.resolve(),
+  openPath: () => Promise.resolve(),
+  showItemInFolder: (path) => { globalThis.__nativeShellCalls.push(["showItemInFolder", path]); },
+  writeShortcutLink: (path) => { globalThis.__nativeShellCalls.push(["writeShortcutLink", path]); return true; },
+};
 const createSession = () => {
   const value = new EventEmitter();
   value.setPermissionRequestHandler = () => undefined;
@@ -217,6 +223,60 @@ it("retains active hook evidence within its event-retention budget", async () =>
       }),
     ]),
   );
+});
+
+it("blocks synchronous shell effects with their native return contracts and retains argument shapes only", async () => {
+  const root = await createTestTempDirectory("rea-electron-hook-shell-");
+  temporary.push(root);
+  await writeElectronFixture(root);
+  const script = join(root, "shell.cjs");
+  await writeFile(
+    script,
+    `const { shell } = require("electron");
+const revealed = shell.showItemInFolder("/host/secret-folder/file.txt");
+const written = shell.writeShortcutLink("C:\\\\Users\\\\host\\\\app.lnk", "create", { target: "C:\\\\payload.exe" });
+const snapshot = globalThis.__reaElectronActiveSnapshot();
+process.stdout.write(JSON.stringify({
+  revealed: revealed === undefined ? "undefined" : revealed,
+  written,
+  native_calls: globalThis.__nativeShellCalls,
+  snapshot,
+}) + "\\n");
+`,
+  );
+  const execution = await runNode(script, root);
+  expect(execution.code, execution.stderr).toBe(0);
+  const result = JSON.parse(execution.stdout.trim()) as {
+    readonly revealed: string;
+    readonly written: boolean;
+    readonly native_calls: readonly unknown[];
+    readonly snapshot: {
+      readonly hook_error: boolean;
+      readonly events: readonly Record<string, unknown>[];
+    };
+  };
+  expect(result.revealed).toBe("undefined");
+  expect(result.written).toBe(false);
+  expect(result.native_calls).toEqual([]);
+  expect(result.snapshot.hook_error).toBe(false);
+  const attempts = result.snapshot.events.filter(
+    (event) => event.kind === "shell-attempt",
+  );
+  expect(attempts).toEqual([
+    expect.objectContaining({
+      event: "showItemInFolder",
+      phase: "blocked",
+      argument_shapes: ["string"],
+    }),
+    expect.objectContaining({
+      event: "writeShortcutLink",
+      phase: "blocked",
+      argument_shapes: ["string", "string", "object"],
+    }),
+  ]);
+  expect(JSON.stringify(result.snapshot)).not.toContain("secret-folder");
+  expect(JSON.stringify(result.snapshot)).not.toContain("payload.exe");
+  electronActiveTimelineEventSchema.array().parse(result.snapshot.events);
 });
 
 it("classifies a dropped browser preload as preload configuration at capture", async () => {

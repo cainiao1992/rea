@@ -333,8 +333,8 @@ class _RequestDispatcher(QObject):
     @staticmethod
     def _read_current_file() -> str | None:
         try:
-            value = cutter.core().currentlyOpenFile()
-            return str(value) if value else None
+            value = cutter.core().getConfig("file.path")
+            return value if isinstance(value, str) and value else None
         except Exception:
             return None
 

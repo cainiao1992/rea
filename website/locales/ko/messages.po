@@ -19,7 +19,7 @@ msgstr "본문으로 건너뛰기"
 #, python-brace-format
 msgctxt "page:blog/index.html"
 msgid "{ph0}Home{ph1} / Blog"
-msgstr "{ph0}홈{ph1} /블로그"
+msgstr "{ph0}홈{ph1} / 블로그"
 
 #: website/public/blog/index.html:198
 msgctxt "page:blog/index.html"
@@ -48,7 +48,8 @@ msgctxt "page:blog/index.html"
 msgid ""
 "What manual RE and reconstructing TH08, TH095 and TH04 taught me about "
 "agents, verification and knowledge that compounds across projects."
-msgstr "어떤 매뉴얼 다시고 재구성TH08,TH095및TH04에 대해 가르쳐 에이전트,검증 및 지는 화합물에 걸쳐 프로젝트입니다."
+msgstr ""
+"수동 리버스 엔지니어링과 TH08, TH095, TH04 재구성 경험을 바탕으로, 에이전트와 검증, 프로젝트를 거치며 축적되는 지식을 살펴봅니다."
 
 #: website/public/blog/index.html:210 website/public/blog/index.html:225
 msgctxt "page:blog/index.html"
@@ -58,7 +59,7 @@ msgstr "기사 읽기"
 #: website/public/blog/index.html:228
 msgctxt "page:blog/index.html"
 msgid "By N0zoM1z0 · 10 October 2026"
-msgstr "여N0zoM1z0·10 월 2026"
+msgstr "작성자: N0zoM1z0 · 2026년 10월 10일"
 
 #. {ph0}: <span aria-hidden="true">
 #. {ph1}: </span>
@@ -88,14 +89,14 @@ msgstr "{ph0}↑{ph1} 상단"
 #: website/public/blog/index.html:6
 msgctxt "page:blog/index.html"
 msgid "REA Blog — Thoughts on Reverse Engineering"
-msgstr "REA블로그—에 대한 생각을 리버스 엔지니어링"
+msgstr "REA 블로그 — 리버스 엔지니어링에 대한 생각"
 
 #: website/public/blog/index.html:7
 msgctxt "page:blog/index.html"
 msgid ""
 "Thoughts on reverse engineering, drawing on practical experience with REA "
 "and AI agents."
-msgstr "리버스 엔지니어링에 대한 생각,실제 경험을 바탕으로 REA 그리고 인공지능 요원들도"
+msgstr "REA와 AI 에이전트를 활용한 실제 경험을 바탕으로 리버스 엔지니어링에 대해 생각해 봅니다."
 
 #: website/public/blog/index.html:77 website/public/blog/index.html:90
 #: website/public/blog/reverse-engineering-models/index.html:77
@@ -268,7 +269,7 @@ msgstr "{ph0}홈{ph1} / {ph2}블로그{ph3} /동방 재건"
 #: website/public/blog/touhou-reconstruction/index.html:201
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "Essay · Touhou reconstruction"
-msgstr "에세이*동방 재건"
+msgstr "에세이 · 동방 재건"
 
 #: website/public/blog/touhou-reconstruction/index.html:202
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -278,7 +279,7 @@ msgstr "리버스 엔지니어링의 산업 혁명."
 #: website/public/blog/touhou-reconstruction/index.html:203
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "By N0zoM1z0 · 10 October 2026"
-msgstr "여N0zoM1z0·10 월 2026"
+msgstr "작성자: N0zoM1z0 · 2026년 10월 10일"
 
 #: website/public/blog/touhou-reconstruction/index.html:205
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -307,8 +308,8 @@ msgid ""
 "with the code. Git checkpoints let the next session continue after the "
 "conversation ends."
 msgstr ""
-"{ph0}저장소 및 자식을 작업 메모리로 사용하십시오.{ph1} 코드와 함께 추론을 유지. 자식 체크 포인트는 대화가 끝난 후 다음 "
-"세션이 계속 할 수 있습니다."
+"{ph0}저장소와 Git을 작업 메모리로 사용하세요.{ph1} 추론 과정을 코드와 함께 보관하세요. Git 체크포인트가 있으면 대화가 끝난 뒤에도 다음 "
+"세션에서 작업을 이어갈 수 있습니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -348,7 +349,7 @@ msgstr ""
 #: website/public/blog/touhou-reconstruction/index.html:239
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "How experience compounds"
-msgstr "어떻게 경험 화합물"
+msgstr "경험이 축적되는 방식"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -356,7 +357,7 @@ msgstr "어떻게 경험 화합물"
 #, python-brace-format
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "{ph0}Human direction{ph1} · Goal and acceptance criteria"
-msgstr "{ph0}인간의 방향{ph1} *목표 및 수용 기준"
+msgstr "{ph0}사람의 지시{ph1} · 목표와 합격 기준"
 
 #: website/public/blog/touhou-reconstruction/index.html:328
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -407,7 +408,7 @@ msgstr "작업 기억"
 #, python-brace-format
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "Code, evidence,{ph0}checks and lessons."
-msgstr "코드,증거,{ph0}수표 및 수업."
+msgstr "코드, 증거,{ph0}검사와 교훈."
 
 #. {ph0}: <br />
 #. {ph1}: <strong>
@@ -438,7 +439,7 @@ msgstr "재사용"
 #, python-brace-format
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "{ph0}Pass{ph1} · Keep the result and its evidence"
-msgstr "{ph0}패스{ph1} *결과 및 증거 유지"
+msgstr "{ph0}통과{ph1} · 결과와 증거 보관"
 
 #: website/public/blog/touhou-reconstruction/index.html:361
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -542,9 +543,9 @@ msgid ""
 "experience behind this article. The method can be useful elsewhere, but each"
 " field needs to establish what it can check against a reliable reference."
 msgstr ""
-"내 재 작업의 대부분은 게임에. 나는 그들의 행동을 이해하고 결국 소프트웨어 포트 또는 모드로 운반 할 수 있도록 재구성합니다. 즉,이 "
-"문서의 뒤에 경험이다. 이 방법은 다른 곳에서 유용 할 수 있지만 각 필드는 신뢰할 수있는 참조에 대해 확인할 수있는 것을 "
-"설정해야합니다."
+"제 리버스 엔지니어링 작업은 대부분 게임을 대상으로 합니다. 게임의 동작을 이해하고 궁극적으로 다른 플랫폼으로 이식하거나 모드를 만들 수 있도록 게임을 "
+"재구성합니다. 이 글은 그런 경험을 바탕으로 합니다. 이 방법은 다른 분야에도 유용할 수 있지만, 각 분야에서 신뢰할 수 있는 기준과 대조해 무엇을 검증할"
+" 수 있는지 정립해야 합니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:399
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -567,9 +568,9 @@ msgid ""
 "spend more attention on the project's direction and on whether its checks "
 "were trustworthy."
 msgstr ""
-"초기 진전은 놀라웠습니다. 조사는 내가 모든 개별 단계를 선택하지 않고 계속 움직일 수 있습니다. 실패한 비교는 에이전트를 다른 호출 "
-"함수로 보낼 수 있습니다. 그것은 작은 진단을 작성하고 그 결과를 사용하여 다음에 무엇을 시도할지 결정할 수 있습니다. 그 자유를 주는 "
-"것은 변화를 가져왔습니다.저는 프로젝트의 방향과 그 수표가 신뢰할 수 있는지에 더 많은 관심을 기울일 수 있었습니다."
+"초기의 진전은 놀라웠습니다. 제가 모든 단계를 일일이 선택하지 않아도 조사는 계속 진행될 수 있었습니다. 비교가 실패하면 에이전트는 다른 호출 함수를 "
+"조사할 수 있었습니다. 작은 진단 코드를 작성하고 그 결과를 바탕으로 다음에 무엇을 시도할지 결정할 수도 있었습니다. 이런 자율성이 차이를 만들었습니다. "
+"저는 프로젝트의 방향과 검사의 신뢰성에 더 집중할 수 있었습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:414
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -584,7 +585,7 @@ msgstr ""
 #: website/public/blog/touhou-reconstruction/index.html:421
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "TH08: building on human work"
-msgstr "TH08:건물에서 인간의 작업"
+msgstr "TH08: 사람의 작업을 바탕으로"
 
 #. {ph0}: <a href="https://github.com/N0zoM1z0/th08">
 #. {ph1}: </a>
@@ -619,8 +620,8 @@ msgid ""
 "eleven days after the continuation began. A Web edition followed. The native"
 " Linux 64-bit release arrived on 30 August."
 msgstr ""
-"재생 가능한 Linux 재건 항구는 계속이 시작된 지 약 11 일 후인 8 월 24 일에 착공되었다. 웹 에디션이 이어졌습니다. 원주민 "
-"Linux 64 비트 릴리스는 8 월 30 일에 도착했다."
+"플레이 가능한 Linux 재구성 이식판은 작업을 이어가기 시작한 지 약 11일 뒤인 8월 24일에 커밋되었습니다. 이어서 웹 버전이 나왔습니다. 네이티브 "
+"Linux 64비트 버전은 8월 30일에 출시되었습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:441
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -673,8 +674,8 @@ msgid ""
 "auto-collection. The reconstructed source checked player power against "
 "{ph0}. The original used {ph1}, the maximum-power threshold."
 msgstr ""
-"9 월,다운스트림 스위치 포트에서 보고된 버그로 인해 아이템 자동 수집이 다시 시작되었습니다. 재구성된 소스는 플레이어의 힘을 "
-"{ph0}. 원래 사용 {ph1},최대 전력 임계값."
+"9월에 후속 Switch 이식판에서 보고된 버그를 추적하다가 아이템 자동 수집 기능에 도달했습니다. 재구성된 소스는 플레이어의 파워를 {ph0}과 "
+"비교했습니다. 원본은 최대 파워 임계값인 {ph1}을 사용했습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:467
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -716,8 +717,8 @@ msgid ""
 "at the original's {ph0} while the source still said {ph1}. The instruction "
 "bytes matched. The source meant something different."
 msgstr ""
-"수표에 구멍이 남았어요 그것은 원래의 재구성 된 명령을 가리킬 수 있습니다 {ph0} 소식통은 여전히 {ph1}. 명령어 바이트가 "
-"일치했습니다. 소스는 뭔가 다른 것을 의미했습니다."
+"그로 인해 검증에 허점이 생겼습니다. 소스에는 여전히 {ph1}이 쓰여 있어도, 재구성된 명령어가 원본의 {ph0}을 가리키도록 바꿀 수 있었습니다. "
+"명령어 바이트는 일치했지만, 소스가 뜻하는 바는 달랐습니다."
 
 #. {ph0}: <a href="https://github.com/N0zoM1z0/th08/pull/11" >
 #. {ph1}: </a >
@@ -779,8 +780,8 @@ msgid ""
 "where an earlier one stopped. {ph0}The repository was becoming the project's"
 " working memory.{ph1}"
 msgstr ""
-"작업이 계속되면서 그 수표들은 저장소의 일부가 되었습니다. 소스 변경의 이유와 나중에 세션이 이전 세션이 멈춘 곳에서 시작될 수 있는 "
-"메모도 마찬가지였습니다. {ph0}소스 코드 저장소는 프로젝트의 작업 메모리가 되고 있었습니다.{ph1}"
+"작업이 이어지면서 그런 검사들이 저장소의 일부가 되었습니다. 소스를 변경한 이유와 이후 세션이 이전 세션에서 멈춘 지점부터 작업을 이어갈 수 있게 하는 "
+"메모도 마찬가지였습니다. {ph0}저장소는 프로젝트의 작업 메모리가 되어 가고 있었습니다.{ph1}"
 
 #. {ph0}: <strong >
 #. {ph1}: </strong >
@@ -809,8 +810,8 @@ msgid ""
 " of work explicit. The notice announces that further development will happen"
 " privately until completion. One passage reads:"
 msgstr ""
-"GensokyoClub의 {ph0}공개 추가 정보{ph1} 이런 종류의 작업에 대한 의견이 분분합니다. 이 통지서는 추가 개발이 완료될 "
-"때까지 사적으로 이루어질 것이라고 발표합니다. 한 구절은 이렇게 말합니다.:"
+"GensokyoClub의 {ph0}공개 README{ph1}는 이런 작업 방식에 반대한다는 입장을 명시합니다. 해당 공지는 작업이 완성될 때까지 추가 "
+"개발을 비공개로 진행한다고 알립니다. 한 구절은 다음과 같습니다:"
 
 #: website/public/blog/touhou-reconstruction/index.html:550
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -876,8 +877,8 @@ msgid ""
 "questions about credit. It also changes what maintainers need to know before"
 " accepting a contribution."
 msgstr ""
-"이것은 어려운 전환이 될 수 있습니다. 수년간의 신중한 작업이 훨씬 더 빨리 움직이는 연속의 기초가 될 수 있습니다. 즉 신용에 대한 "
-"실제 질문을 제기한다. 또한 유지 관리자가 기여를 수락하기 전에 알아야 할 사항을 변경합니다."
+"이런 전환은 어려울 수 있습니다. 수년간의 세심한 작업이 훨씬 빠르게 진행되는 후속 작업의 기반이 될 수 있습니다. 이는 공로를 어떻게 인정할 것인가라는 "
+"실제 문제를 제기합니다. 또한 유지 관리자가 기여를 받아들이기 전에 알아야 할 사항도 달라집니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:590
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -923,13 +924,13 @@ msgid ""
 "and its {ph2}contribution policy{ph3}. The quotation is a shortened excerpt."
 " TH08's {ph4}credits and provenance{ph5} record the continuation boundary."
 msgstr ""
-"출처: GensokyoClub의 {ph0}추가 정보 공지{ph1} 2026 년 10 월 10 일에 확인된 {ph2}기여 정책{ph3}. "
-"이 인용구는 줄여진 인용구입니다. TH08의 {ph4}신용 및 출처{ph5} 연속 경계를 기록하십시오."
+"출처: 2026년 10월 10일에 확인한 GensokyoClub의 {ph0}README 공지{ph1}와 {ph2}기여 정책{ph3}. 인용문은 일부를 줄여"
+" 발췌했습니다. TH08의 {ph4}공로 및 출처 기록{ph5}에는 후속 작업이 시작된 경계가 기록되어 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:622
 msgctxt "page:blog/touhou-reconstruction/index.html"
 msgid "TH095: experience starts compounding"
-msgstr "TH095:경험이 시작되는 합성의"
+msgstr "TH095: 경험의 축적이 효과를 내기 시작하다"
 
 #. {ph0}: <a href="https://github.com/N0zoM1z0/th095">
 #. {ph1}: </a>
@@ -942,9 +943,9 @@ msgid ""
 "functions in the ledger. We still had to learn the game. But we already knew"
 " much more about how to begin a reconstruction and how to keep it moving."
 msgstr ""
-"{ph0}TH095{ph1} 총알을 쏘면 그 경험의 가치를 훨씬 더 쉽게 볼 수 있었습니다. 그 저장소는 8 월 29 일에 "
-"시작되었으며,레저에 확인된 게임 기능이 없습니다. 우리는 여전히 게임을 배워야 했습니다. 그러나 우리는 이미 재건을 시작하는 방법과 "
-"그것을 계속 움직이는 방법에 대해 훨씬 더 많이 알고 있었습니다."
+"{ph0}TH095{ph1}, Shoot the Bullet에서는 그런 경험의 가치를 훨씬 쉽게 확인할 수 있었습니다. 저장소는 8월 29일에 시작되었고,"
+" 당시 기록 대장에는 확인된 게임 함수가 하나도 없었습니다. 게임 자체는 여전히 배워야 했습니다. 하지만 재구성을 어떻게 시작하고 계속 진행할지에 대해서는"
+" 이미 훨씬 많은 것을 알고 있었습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:631
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -954,9 +955,8 @@ msgid ""
 "linked on 9 September. The Windows i386 reconstruction was marked playable "
 "on 10 September, about twelve days after initialization."
 msgstr ""
-"9 월 7 일까지,모든 697 개의 확인된 게임 기능은 출처를 가지고 있었다. 9 월 8 일까지 696 건이 정확한 비교로 받아들여졌다."
-" 전체 프로그램은 9 월 9 일에 연결되었습니다. 그 Windows 초기화 후 약 12 일 후인 9 월 10 일에 재생 가능한 것으로 "
-"표시되었다."
+"9월 7일까지 확인된 게임 함수 697개 모두의 소스가 마련되었습니다. 9월 8일까지 696개가 정확한 일치 비교를 통과했습니다. 전체 프로그램은 9월 "
+"9일에 링크되었습니다. Windows i386 재구성판은 초기화 후 약 12일이 지난 9월 10일에 플레이 가능한 것으로 기록되었습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:638
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -989,8 +989,8 @@ msgid ""
 "on. The next agent can use the result without repeating the investigation "
 "that led to it."
 msgstr ""
-"내 머리 속에 남아있는 교훈은 내가 거기있는 동안 유용합니다. 일단 다른 세션이 실행될 수 있는 체크가 되면,제가 이사를 한 후에도 계속"
-" 도움을 줄 수 있습니다. 다음 에이전트는 결과로 이어진 조사를 반복하지 않고 결과를 사용할 수 있습니다."
+"제 머릿속에만 남아 있는 교훈은 제가 그 작업에 참여하는 동안에는 유용합니다. 하지만 다른 세션에서도 실행할 수 있는 검사가 되면 제가 다음 작업으로 "
+"넘어간 뒤에도 계속 도움이 됩니다. 다음 에이전트는 그 결과에 이르게 한 조사를 반복하지 않고도 결과를 활용할 수 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:657
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1046,9 +1046,9 @@ msgid ""
 "Windows games. Existing {ph2}ReC98 work{ph3} gave us valuable knowledge and "
 "source material here too."
 msgstr ""
-"{ph0}TH04{ph1} 로터스 랜드 스토리,이 작품을 PC-98 도스 시대 이제 타겟은 4 개의 협력 프로그램을 가진 16 비트 "
-"환경이었습니다. 하드웨어 동작을 이해하려면 Windows 게임. 기존 {ph2}레크 98 일{ph3} 여기에도 귀중한 지식과 자료를 "
-"제공했습니다."
+"{ph0}TH04{ph1}, Lotus Land Story는 이 작업의 범위를 PC-98 DOS 시대로 넓혔습니다. 이제 대상은 네 개의 프로그램이 "
+"협력하는 16비트 환경이었습니다. 하드웨어 동작을 이해하려면 Windows 게임과는 다른 증거가 필요했습니다. 기존의 {ph2}ReC98 작업{ph3}도 "
+"여기서 귀중한 지식과 소스 자료를 제공했습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:689
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1058,8 +1058,8 @@ msgid ""
 "work is a native 64-bit port. Establishing a working DOS version first gives"
 " that port a reference."
 msgstr ""
-"이제 도스 재건이 진행되고 있습니다. 내 수동 테스트에서,나는 그들의 엔딩을 통해 완전한 정상 경로를 재생하고 저장을 확인했다. 현재 "
-"작업은 네이티브 64 비트 포트입니다. 작업 도스 버전을 먼저 설정하면 해당 통신 포트에 참조가 제공됩니다."
+"DOS 재구성판은 이제 작동합니다. 수동 테스트에서는 Normal 난이도의 경로를 엔딩까지 플레이하고 저장 기능도 확인했습니다. 현재는 네이티브 64비트 "
+"이식판을 작업하고 있습니다. 작동하는 DOS 버전을 먼저 확보해 두면 이식판을 검증할 기준으로 삼을 수 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:695
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1081,9 +1081,8 @@ msgid ""
 "evidence and checks are available, an agent can work through the question "
 "much as it did on a Windows title."
 msgstr ""
-"게임 플레이에서 결말으로의 전환을 고려하십시오. 우리는 어떤 국가가 그 경계를 넘어서고 어떤 프로그램이 그것에 책임이 있는지 "
-"알아야합니다. 그것은 우리가 도스 제품에 대해 조사 할 수있는 것입니다. 한 번의 증거이며 검사를 사용할 수 있는 에이전트를 통해 작업 "
-"할 수 있습니다 질문을 많이 그랬던 것처럼에Windows제목입니다."
+"게임 플레이에서 엔딩으로 넘어가는 상황을 생각해 보세요. 어떤 상태가 그 경계를 넘어 유지되고, 어떤 프로그램이 이를 담당하는지 알아야 합니다. 이는 "
+"DOS 제품과 대조하여 조사할 수 있습니다. 증거와 검사가 준비되면 에이전트는 Windows 게임에서와 비슷하게 이 질문을 해결해 나갈 수 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:709
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1102,8 +1101,7 @@ msgid ""
 "behavior already recovered on DOS. The knowledge from reconstruction gives "
 "the port something to build on."
 msgstr ""
-"64 비트 포트의 경우 이제 도스에서 이미 복구 된 동작에 대해 새 구현을 검사 할 수 있습니다. 재건에 대한 지식은 항구에 구축할 수 "
-"있는 무언가를 제공합니다."
+"64비트 이식판에서는 이제 새 구현을 DOS에서 이미 복원한 동작과 대조해 검토할 수 있습니다. 재구성 과정에서 얻은 지식이 이식판의 기반이 됩니다."
 
 #. {ph0}: <a
 #. href="https://github.com/N0zoM1z0/th04/blob/bb9faca54e2eb3c0d6c757c75d59ac29d2cd5e93/docs/RE_HANDOFF.md"
@@ -1118,8 +1116,8 @@ msgid ""
 "Project state as of 10 October 2026: {ph0}DOS reconstruction and manual "
 "testing{ph1} · {ph2}64-bit port{ph3}. The port remains in development."
 msgstr ""
-"2026 년 10 월 10 일 현재 프로젝트 상태: {ph0}도스 재구성 및 수동 테스트{ph1} · {ph2}64 비트 포트{ph3}."
-" 항구는 개발 중입니다."
+"2026년 10월 10일 기준 프로젝트 상태: {ph0}DOS 재구성과 수동 테스트{ph1} · {ph2}64비트 이식판{ph3}. 이식판은 아직 개발 "
+"중입니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:733
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1169,9 +1167,8 @@ msgid ""
 "To move the behavior safely, we need to recover the relationship behind the "
 "old memory access."
 msgstr ""
-"이것은 소프트웨어 포트에 특히 중요합니다. 절대 주소는 오래된 실행 파일에 무언가가 살았던 곳을 알려줍니다. 64 비트 구현은 어떤 "
-"객체가 그 상태를 소유해야 하는지 결정하는 데 거의 도움이 되지 않습니다. 동작을 안전하게 이동하려면 이전 메모리 액세스 뒤에 있는 "
-"관계를 복구해야 합니다."
+"이것은 특히 이식판에서 중요합니다. 절대 주소는 이전 실행 파일에서 무언가가 어디에 있었는지 알려줍니다. 하지만 그 정보는 64비트 구현에서 어떤 객체가 "
+"해당 상태를 소유해야 하는지 결정하는 데 거의 도움이 되지 않습니다. 동작을 안전하게 옮기려면 기존 메모리 접근 뒤에 있는 관계를 복원해야 합니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:759
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1257,8 +1254,8 @@ msgid ""
 "different copies of state. Keeping both checks available gives the agent a "
 "concrete failure to investigate before carrying a refactor further."
 msgstr ""
-"그들은 다른 실수를 잡습니다. 형식 변경은 생성된 명령어를 변경할 수 있습니다. 소유권 변경은 다른 상태 복사본을 사용하여 게임의 두 "
-"부분을 남길 수 있습니다. 두 검사를 모두 사용할 수 있도록 유지하면 에이전트가 리팩터를 더 수행하기 전에 조사하지 않을 수 있습니다."
+"두 검사는 서로 다른 실수를 잡아냅니다. 타입을 바꾸면 생성되는 명령어가 달라질 수 있습니다. 소유권을 바꾸면 게임의 두 부분이 서로 다른 상태 복사본을 "
+"사용하게 될 수 있습니다. 두 검사를 모두 유지하면 에이전트가 리팩터링을 더 진행하기 전에 조사할 구체적인 실패 사례를 얻을 수 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:806
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1396,9 +1393,9 @@ msgid ""
 " we find a defect in a shared tool, we have to repair it and revisit the "
 "results it affected. The next project can then inherit a stronger tool."
 msgstr ""
-"{ph0}우리는 이 산업 변화의 초기 단계에 있습니다.{ph1} 인프라의 대부분은 아직 미숙합니다. 에이전트는 우리의 수표가 지원하도록 "
-"설계된 것보다 더 빨리 이동할 수 있으므로 프로세스는 그들과 함께 개발해야합니다. 공유 도구에서 결함이 발견되면 이를 복구하고 영향을 "
-"받은 결과를 다시 검토해야 합니다. 다음 프로젝트는 더 강력한 도구를 상속 할 수 있습니다."
+"{ph0}우리는 이 산업적 전환의 초기 단계에 있습니다.{ph1} 기반 시설의 상당 부분은 아직 미숙합니다. 에이전트는 기존 검사들이 지원하도록 설계된 "
+"속도보다 더 빠르게 작업할 수 있으므로, 작업 과정도 에이전트의 발전에 맞춰 개선되어야 합니다. 공유 도구에서 결함을 발견하면 도구를 고치고 그 결함의 "
+"영향을 받은 결과도 다시 검토해야 합니다. 그러면 다음 프로젝트는 더 강력한 도구를 물려받을 수 있습니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:892
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1530,9 +1527,8 @@ msgid ""
 "ledger{ph5}, {ph6}24 August Linux port{ph7}, {ph8}26 August Web "
 "edition{ph9}, and {ph10}30 August 64-bit Linux release{ph11}."
 msgstr ""
-"{ph0}TH08:{ph1} {ph2}8 월 13 일 계속{ph3}, {ph4}8 월 19 일 소스 레저{ph5}, {ph6}8 월 24"
-" 일 Linux 항구{ph7}, {ph8}8 월 26 일 웹 에디션{ph9},그리고 {ph10}8 월 30 일 64 비트 Linux "
-"릴리스{ph11}."
+"{ph0}TH08:{ph1} {ph2}8월 13일 후속 작업 시작{ph3}, {ph4}8월 19일 소스 기록 대장{ph5}, {ph6}8월 24일 "
+"Linux 이식판{ph7}, {ph8}8월 26일 웹 버전{ph9}, {ph10}8월 30일 64비트 Linux 릴리스{ph11}."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -1685,8 +1681,8 @@ msgid ""
 "N0zoM1z0 reflects on manual reverse engineering, Touhou reconstruction with "
 "AI agents, and how knowledge compounds across TH08, TH095 and PC-98 TH04."
 msgstr ""
-"N0zoM1z0 에 반영한 설명서 리버스 엔지니어링,동방으로 재건 AI 에이전트,그리고 지식이 어떻게 화합물 전 "
-"TH08,TH095PC-98TH04."
+"N0zoM1z0가 수동 리버스 엔지니어링, AI 에이전트와 함께한 동방 재구성, 그리고 TH08, TH095, PC-98 TH04를 거치며 지식이 축적되는"
+" 과정을 돌아봅니다."
 
 #: website/public/blog/touhou-reconstruction/index.html:353
 msgctxt "page:blog/touhou-reconstruction/index.html"
@@ -1839,7 +1835,7 @@ msgstr "원래 규칙:6 에서 시작한 다음 13 으로 늘립니다."
 #: website/public/examples/dino-lab/index.html:285
 msgctxt "page:examples/dino-lab/index.html"
 msgid "Move the slider to set your own speed. Space or Jump clears a cactus."
-msgstr "자신의 속도를 설정하는 슬라이더를 이동합니다. 공간 또는 점프는 선인장을 지 웁니다."
+msgstr "슬라이더를 움직여 원하는 속도를 설정하세요. Space 키나 점프 버튼을 누르면 선인장을 뛰어넘습니다."
 
 #: website/public/examples/dino-lab/index.html:290
 msgctxt "page:examples/dino-lab/index.html"
@@ -1950,7 +1946,7 @@ msgid ""
 "Values rounded to three decimals. The branch checks before adding, so the "
 "final increment can take speed just above 13."
 msgstr ""
-"값은 세 개의 소수로 반올림. 분기는 더하기 전에 확인합니다.그래서 최종 인크림트는 13 을 조금 넘는 속도를 낼 수 있습니다."
+"값은 소수점 이하 셋째 자리까지 반올림했습니다. 이 분기는 값을 더하기 전에 조건을 검사하므로 마지막 증가로 속도가 13을 조금 넘을 수 있습니다."
 
 #: website/public/examples/dino-lab/index.html:401
 msgctxt "page:examples/dino-lab/index.html"
@@ -2061,7 +2057,7 @@ msgctxt "page:examples/dino-lab/index.html"
 msgid ""
 "Dinosaur mini-game. Use the Jump button or press Space while the game is "
 "focused."
-msgstr "공룡 미니 게임. 게임이 집중되는 동안 점프 버튼을 누르거나 공간을 사용합니다."
+msgstr "공룡 미니 게임. 게임에 포커스가 있을 때 점프 버튼을 사용하거나 Space 키를 누르세요."
 
 #: website/public/examples/dino-lab/index.html:326
 msgctxt "page:examples/dino-lab/index.html"
@@ -2825,7 +2821,7 @@ msgstr "에이전트가 파일을 다운로드하고 압축을 푼 폴더를 REA
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "{ph0}Download example ZIP{ph1}"
-msgstr "{ph0}다운로드 예제 우편 번호{ph1}"
+msgstr "{ph0}예제 ZIP 다운로드{ph1}"
 
 #. {ph0}: <code>notes-example</code>
 #: website/public/first-investigation/index.html:322
@@ -2913,7 +2909,7 @@ msgstr "직접 확인 실행"
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "Open a terminal in the unpacked {ph0} folder:"
-msgstr "압축을 푼 터미널을 엽니 다 {ph0} 폴더:"
+msgstr "압축을 푼 {ph0} 폴더에서 터미널을 여세요:"
 
 #: website/public/first-investigation/index.html:484
 msgctxt "page:first-investigation/index.html"
@@ -2963,7 +2959,7 @@ msgctxt "page:first-investigation/index.html"
 msgid ""
 "{ph0}How DX-Ball calculates sound panning{ph1}{ph2}Read the original "
 "instructions and the reconstruction’s checks.{ph3}"
-msgstr "{ph0}어떻게 DX-Ball 사운드 패닝 계산{ph1}{ph2}원래 지침과 재건 수표를 읽으십시오.{ph3}"
+msgstr "{ph0}DX-Ball이 사운드 패닝을 계산하는 방법{ph1}{ph2}원본 명령어와 재구성판의 검증 과정을 살펴보세요.{ph3}"
 
 #. {ph0}: <a href="../faq/#troubleshooting" >
 #. {ph1}: </a >
@@ -3247,9 +3243,8 @@ msgid ""
 "macOS press {ph2} {ph3}; on Windows, also quit from the tray icon if there "
 "is one."
 msgstr ""
-"{ph0}데스크톱 앱{ph1} (Claude 데스크톱, Cursor, Windsurf, VS Code):앱을 완전히 종료 한 다음 다시 "
-"엽니 다. 창문을 닫는 것만으로는 충분하지 않습니다. 시작 macOS 프레스 {ph2} {ph3};에 Windows,또한 트레이 아이콘이"
-" 있는 경우 트레이 아이콘을 종료합니다."
+"{ph0}데스크톱 앱{ph1} (Claude Desktop, Cursor, Windsurf, VS Code): 앱을 완전히 종료한 뒤 다시 여세요. 창만 "
+"닫아서는 충분하지 않습니다. macOS에서는 {ph2} {ph3}를 누르세요. Windows에서는 트레이 아이콘이 있다면 그 메뉴에서도 앱을 종료하세요."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -3722,8 +3717,7 @@ msgid ""
 "{ph0}01 · You{ph1}{ph2}Click Export notes{ph3}{ph4}Perform the action in "
 "your browser while the capture is running.{ph5}"
 msgstr ""
-"{ph0}01*당신{ph1}{ph2}메모 내보내기를 클릭합니다{ph3}{ph4}캡처를 실행하는 동안 브라우저에서 작업을 "
-"수행합니다.{ph5}"
+"{ph0}01 · 당신{ph1}{ph2}메모 내보내기를 클릭합니다{ph3}{ph4}캡처를 실행하는 동안 브라우저에서 작업을 수행합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -3738,7 +3732,7 @@ msgid ""
 "{ph0}02 · REA{ph1}{ph2}Record the request{ph3}{ph4}Capture the request URL, "
 "response status and JSON structure from the selected page.{ph5}"
 msgstr ""
-"{ph0}02 · REA{ph1}{ph2}요청 기록{ph3}{ph4}선택한 페이지에서 요청 상태 및 응답 상태를 캡처합니다.{ph5}"
+"{ph0}02 · REA{ph1}{ph2}요청 기록{ph3}{ph4}선택한 페이지에서 요청 URL, 응답 상태, JSON 구조를 캡처합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -3755,8 +3749,7 @@ msgid ""
 "{ph0}03 · Your agent{ph1}{ph2}Read the export code{ph3}{ph4}Connect the "
 "observed request to {ph5} in {ph6}.{ph7}"
 msgstr ""
-"{ph0}03*귀하의 에이전트{ph1}{ph2}내보내기 코드 읽기{ph3}{ph4}관찰된 요청에 연결 {ph5} 그 안에 "
-"{ph6}.{ph7}"
+"{ph0}03 · 코딩 에이전트{ph1}{ph2}내보내기 코드 읽기{ph3}{ph4}관찰된 요청을 {ph6}의 {ph5} 호출과 연결합니다.{ph7}"
 
 #: website/public/guides/browser/index.html:260
 msgctxt "page:guides/browser/index.html"
@@ -3945,7 +3938,7 @@ msgstr "요청 시작자"
 #, python-brace-format
 msgctxt "page:guides/browser/index.html"
 msgid "{ph0} · script"
-msgstr "{ph0} *스크립트"
+msgstr "{ph0} · 스크립트"
 
 #: website/public/guides/browser/index.html:412
 msgctxt "page:guides/browser/index.html"
@@ -3985,8 +3978,8 @@ msgid ""
 "formatting step comes from the script; the network capture establishes that "
 "this click requested {ph0}."
 msgstr ""
-"다운로드는 <URL> 응답을 사용하여 페이지에 구성됩니다. 그 CSV 포맷 단계는 스크립트에서 온다;네트워크 캡처는이 클릭이 요청 된 "
-"것을 설정합니다 {ph0}."
+"다운로드는 JSON 응답을 사용해 페이지에서 생성됩니다. CSV 형식으로 변환하는 단계는 스크립트에서 확인할 수 있습니다. 네트워크 캡처는 이 클릭이 "
+"{ph0}을 요청했다는 사실을 입증합니다."
 
 #. {ph0}: <code>notes.json</code>
 #: website/public/guides/browser/index.html:473
@@ -4287,9 +4280,8 @@ msgid ""
 "an API in the page, crosses into the main process, and writes a CSV. The "
 "behavior is spread across several files."
 msgstr ""
-"이 가이드는 작은 Electron 앱 클릭 {ph0}노트 내보내기{ph1} 이 페이지에서는 기본 프로세스로 넘어가면서 이 페이지에서는 "
-"기본 프로세스로 넘어가면서 이 페이지에서는 기본 프로세스로 넘어가면서 이 페이지에서는 기본 프로세스로 넘어가면서 CSV. 이 동작은 여러"
-" 파일에 분산되어 있습니다."
+"이 가이드는 작은 Electron 앱을 사용합니다. {ph0}노트 내보내기{ph1}를 클릭하면 페이지의 API가 호출되고, 메인 프로세스를 거쳐 CSV "
+"파일이 기록됩니다. 이 동작은 여러 파일에 걸쳐 구현되어 있습니다."
 
 #: website/public/guides/javascript/index.html:228
 msgctxt "page:guides/javascript/index.html"
@@ -4326,7 +4318,9 @@ msgctxt "page:guides/javascript/index.html"
 msgid ""
 "{ph0}Between processes{ph1}{ph2}{ph3}{ph4}{ph5}The preload invokes an IPC "
 "channel: a named message to the main process.{ph6}"
-msgstr "{ph0}프로세스 간{ph1}{ph2}{ph3}{ph4}{ph5}기본 프로세스에 대한 명명된 메시지입니다.{ph6}"
+msgstr ""
+"{ph0}프로세스 간 통신{ph1}{ph2}{ph3}{ph4}{ph5}프리로드는 메인 프로세스로 보내는 이름 있는 메시지인 IPC 채널을 "
+"호출합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -4440,7 +4434,7 @@ msgstr "내보내기 코드 추적"
 #: website/public/guides/javascript/index.html:309
 msgctxt "page:guides/javascript/index.html"
 msgid "The page calls a small API"
-msgstr "이 페이지는 작은 파일을 호출합니다."
+msgstr "페이지에서 작은 API를 호출합니다"
 
 #: website/public/guides/javascript/index.html:322
 msgctxt "page:guides/javascript/index.html"
@@ -4490,7 +4484,7 @@ msgstr "예제를 직접 분석하십시오"
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0}Download example ZIP{ph1}"
-msgstr "{ph0}다운로드 예제 우편 번호{ph1}"
+msgstr "{ph0}예제 ZIP 다운로드{ph1}"
 
 #: website/public/guides/javascript/index.html:392
 msgctxt "page:guides/javascript/index.html"
@@ -4727,7 +4721,7 @@ msgstr ""
 #: website/public/guides/native/index.html:231
 msgctxt "page:guides/native/index.html"
 msgid "New to these terms?"
-msgstr "이 약관에 새로운?"
+msgstr "이 용어들이 낯선가요?"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4802,8 +4796,7 @@ msgctxt "page:guides/native/index.html"
 msgid ""
 "{ph0}01 · Instructions{ph1}{ph2}An integer input{ph3}{ph4}A stack read "
 "supplies the value used by the floating-point instructions.{ph5}"
-msgstr ""
-"{ph0}01*지침{ph1}{ph2}정수 입력{ph3}{ph4}스택 읽기는 부동 소수점 명령에 사용되는 값을 제공합니다.{ph5}"
+msgstr "{ph0}01 · 명령어{ph1}{ph2}정수 입력{ph3}{ph4}스택에서 읽은 값이 부동 소수점 명령어의 입력으로 쓰입니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -4818,8 +4811,7 @@ msgctxt "page:guides/native/index.html"
 msgid ""
 "{ph0}02 · Caller{ph1}{ph2}A screen coordinate{ph3}{ph4}The brick-hit caller "
 "passes {ph5}.{ph6}"
-msgstr ""
-"{ph0}02*호출하는 함수{ph1}{ph2}스크린 좌표{ph3}{ph4}이 함수를 호출하는 브릭 히트 함수는 {ph5}.{ph6}"
+msgstr "{ph0}02 · 호출 함수{ph1}{ph2}화면 좌표{ph3}{ph4}벽돌 충돌을 처리하는 호출 함수가 {ph5}를 전달합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -4836,8 +4828,7 @@ msgid ""
 "{ph0}03 · Data bytes{ph1}{ph2}The numeric constants{ph3}{ph4}Referenced "
 "bytes decode to {ph5}, {ph6} and a scale value.{ph7}"
 msgstr ""
-"{ph0}03*데이터 바이트{ph1}{ph2}숫자 상수{ph3}{ph4}참조된 바이트는 {ph5}, {ph6} 그리고 스케일 "
-"값.{ph7}"
+"{ph0}03 · 데이터 바이트{ph1}{ph2}수치 상수{ph3}{ph4}참조된 바이트를 해석하면 {ph5}, {ph6}, 배율 값이 나옵니다.{ph7}"
 
 #: website/public/guides/native/index.html:290
 msgctxt "page:guides/native/index.html"
@@ -4897,8 +4888,8 @@ msgid ""
 "{ph0}Ghidra{ph1} (macOS or Linux; experimental on Windows): free, but needs "
 "an existing Ghidra 12.1.x installation and a 64-bit JDK 21 or newer."
 msgstr ""
-"{ph0}Ghidra{ph1} (macOS 또는 Linux;실험적 Windows):무료,하지만 기존의 필요 Ghidra 12.1.64 "
-"비트 또는 그 이상."
+"{ph0}Ghidra{ph1} (macOS 또는 Linux, Windows에서는 실험적 지원): 무료이지만 기존 Ghidra 12.1.x 설치와 64비트 "
+"JDK 21 이상이 필요합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -4960,8 +4951,8 @@ msgid ""
 "executable. REA doesn't include DX-Ball, so use your own copy, or ask the "
 "same kind of question about another small Windows program you have."
 msgstr ""
-"예 프롬프트. 너의 대리인에게 너의 지방 주민에 경로를 주십시요 DX-Ball 1.07 실행 파일. REA 포함하지 않습니다 DX-"
-"Ball,그래서 당신 신 사,또는 다른 대 문 같 류 Windows 당신이 가진 프로그램."
+"예제 프롬프트입니다. 에이전트에게 로컬 DX-Ball 1.07 실행 파일의 경로를 알려주세요. REA에는 DX-Ball이 포함되어 있지 않으므로 보유한 "
+"복사본을 사용하거나, 가지고 있는 다른 작은 Windows 프로그램에 같은 종류의 질문을 해 보세요."
 
 #: website/public/guides/native/index.html:364
 msgctxt "page:guides/native/index.html"
@@ -4979,8 +4970,8 @@ msgid ""
 "{ph0}Windows:{ph1} in File Explorer, right-click the file and choose "
 "{ph2}Copy as path{ph3}. On Windows 10, hold Shift while right-clicking."
 msgstr ""
-"{ph0}Windows:{ph1} 파일 탐색기에서 파일을 마우스 오른쪽 단추로 클릭하고 다음을 선택합니다 {ph2}경로로 복사{ph3}."
-" 시작 Windows 10,마우스 오른쪽 버튼을 클릭하는 동안 이동을 누르고 있습니다."
+"{ph0}Windows:{ph1} 파일 탐색기에서 파일을 마우스 오른쪽 버튼으로 클릭하고 {ph2}경로로 복사{ph3}를 선택하세요. Windows "
+"10에서는 Shift 키를 누른 채 마우스 오른쪽 버튼을 클릭하세요."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -5072,7 +5063,8 @@ msgid ""
 " inputs against the original x86 function and reproduced all 63 compiled "
 "bytes of the complete function."
 msgstr ""
-"사용 된 에이전트 REA3,205 개의 입력을 원래의 86 함수와 비교하고 전체 함수의 63 개의 컴파일된 바이트를 모두 재현했습니다."
+"에이전트는 REA의 분석 결과를 바탕으로 C 코드를 작성했습니다. 별도의 검사에서는 3,205개의 입력을 원래 x86 함수와 비교하고, 전체 함수의 "
+"컴파일된 63바이트를 모두 재현했습니다."
 
 #. {ph0}: <a href="../../showcase/dx-ball/#sound-pan" >
 #. {ph1}: </a >
@@ -5308,12 +5300,12 @@ msgstr "{ph0}03{ph1} 규칙 복구"
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Original x64 · selected instructions{ph1} {ph2}{ph3}"
-msgstr "{ph0}원본 64*선택한 지침{ph1} {ph2}{ph3}"
+msgstr "{ph0}원본 x64 · 선택한 명령어{ph1} {ph2}{ph3}"
 
 #: website/public/index.html:435
 msgctxt "page:index.html"
 msgid "01 · Which branch?"
-msgstr "01*어떤 지점?"
+msgstr "01 · 어떤 분기인가요?"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -5323,7 +5315,7 @@ msgctxt "page:index.html"
 msgid ""
 "“{ph0}0x5b? 0x5c?{ph1} Two jumps to the same place. Which operators are "
 "these?”"
-msgstr "“{ph0}? -그래?{ph1} 같은 장소에 두 점프. 이들은 어떤 연산자입니까?”"
+msgstr "“{ph0}0x5b? 0x5c?{ph1} 두 점프가 같은 위치로 향합니다. 이들은 어떤 연산자일까요?”"
 
 #: website/public/index.html:440
 msgctxt "page:index.html"
@@ -5353,7 +5345,7 @@ msgctxt "page:index.html"
 msgid ""
 "“100 is clear. The calls are just addresses. {ph0}Which one divides? Which "
 "value goes in?{ph1}”"
-msgstr "100 은 분명하다. 전화는 단지 주소 일뿐입니다. {ph0}어느 쪽이 나눌까요? 어떤 값이 들어가나요?{ph1}”"
+msgstr "“100은 분명합니다. 호출은 주소로만 표시되어 있습니다. {ph0}어느 함수가 나눗셈을 할까요? 어떤 값이 입력될까요?{ph1}”"
 
 #: website/public/index.html:462
 msgctxt "page:index.html"
@@ -5368,7 +5360,7 @@ msgstr "나누기"
 #: website/public/index.html:477
 msgctxt "page:index.html"
 msgid "03 · What is the rule?"
-msgstr "03*규칙은 무엇입니까?"
+msgstr "03 · 규칙은 무엇입니까?"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -5412,7 +5404,7 @@ msgstr "{ph0}당신은 명령을 디코딩 함수 호출을 따라 계산을 재
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Example prompt · Calculator"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}예제 프롬프트*계산기"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}예제 프롬프트 · 계산기"
 
 #: website/public/index.html:534
 msgctxt "page:index.html"
@@ -5491,7 +5483,7 @@ msgstr "원래 규칙:6 에서 시작한 다음 13 으로 늘립니다."
 #: website/public/index.html:685
 msgctxt "page:index.html"
 msgid "Move the slider to set your own speed. Space or Jump clears a cactus."
-msgstr "자신의 속도를 설정하는 슬라이더를 이동합니다. 공간 또는 점프는 선인장을 지 웁니다."
+msgstr "슬라이더를 움직여 원하는 속도를 설정하세요. 스페이스 바나 점프 버튼을 누르면 선인장을 뛰어넘습니다."
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -5557,8 +5549,8 @@ msgid ""
 "{ph0}02 · Your agent{ph1}{ph2}Rebuild the rule, add a control{ph3}{ph4}Use "
 "the recovered acceleration in a small game with a speed slider.{ph5}"
 msgstr ""
-"{ph0}02*귀하의 에이전트{ph1}{ph2}규칙 다시 작성,컨트롤 추가{ph3}{ph4}속도 슬라이더와 작은 게임에서 복구 가속을 "
-"사용합니다.{ph5}"
+"{ph0}02 · 코딩 에이전트{ph1}{ph2}규칙을 재현하고 조절 기능 추가하기{ph3}{ph4}복원한 가속 규칙을 속도 슬라이더가 있는 작은 게임에 "
+"적용합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5572,8 +5564,7 @@ msgctxt "page:index.html"
 msgid ""
 "{ph0}03 · You{ph1}{ph2}Change the speed and play{ph3}{ph4}Try the original "
 "acceleration, then choose your own pace.{ph5}"
-msgstr ""
-"{ph0}03*당신{ph1}{ph2}속도 변경 및 재생{ph3}{ph4}원래 가속을 시도한 다음 자신의 페이스를 선택하십시오.{ph5}"
+msgstr "{ph0}03 · 사용자{ph1}{ph2}속도를 바꾸고 플레이하기{ph3}{ph4}원래의 가속을 시험한 뒤 원하는 속도를 선택하세요.{ph5}"
 
 #: website/public/index.html:702
 msgctxt "page:index.html"
@@ -5587,9 +5578,7 @@ msgctxt "page:index.html"
 msgid ""
 "REA inspected the HTTP browser edition through a local debugging connection "
 "and returned the loaded {ph0}, including its source and digest."
-msgstr ""
-"REA 로컬 디버깅 연결을 통해 <URL> 브라우저 버전을 검사하고 로드된 버전을 반환했습니다. {ph0},그 원천과 다이제스트를 "
-"포함합니다."
+msgstr "REA는 로컬 디버깅 연결을 통해 HTTP 브라우저 버전을 검사하고, 소스와 다이제스트를 포함한 로드된 {ph0}를 반환했습니다."
 
 #: website/public/index.html:767
 msgctxt "page:index.html"
@@ -5598,8 +5587,8 @@ msgid ""
 " with obstacles and automatic scheduling disabled. After 4,000 updates, "
 "speed was 10.0; after 10,000, it was 13.0, rounded to one decimal."
 msgstr ""
-"우리는 장애물과 자동 스케줄링이 비활성화 된 제어 된 브라우저 검사에서 원래 게임의 업데이트 기능을 호출했습니다. 4,000 개의 "
-"업데이트 후,속도는 10.0 이었고,10,000 개의 업데이트 후,13.0 이 되었고,10 진수로 반올림되었습니다."
+"장애물과 자동 스케줄링을 비활성화한 통제된 브라우저 검사에서 원래 게임의 업데이트 함수를 호출했습니다. 4,000번 업데이트한 뒤 속도는 10.0이었고, "
+"10,000번 업데이트한 뒤에는 13.0이었습니다. 두 값은 소수점 첫째 자리까지 반올림한 값입니다."
 
 #. {ph0}: <a href="examples/dino-lab/">
 #. {ph1}: </a>
@@ -5639,7 +5628,7 @@ msgstr ""
 msgctxt "page:index.html"
 msgid ""
 "{ph0}Inspected speed code{ph1} · {ph2}Chromium Authors · BSD license{ph3}"
-msgstr "{ph0}검사된 속도 코드{ph1} · {ph2}Chromium 저자*비스 디 라이센스{ph3}"
+msgstr "{ph0}분석한 속도 코드{ph1} · {ph2}Chromium Authors · BSD 라이선스{ph3}"
 
 #: website/public/index.html:805
 msgctxt "page:index.html"
@@ -5688,8 +5677,8 @@ msgid ""
 "the rules after + and ×, then build a small calculator that uses "
 "both.{ph3}{ph4}{ph5}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 검사 Windows 계산기의%버튼. +와 200 이후의 규칙을 복구 한 다음 둘 다 사용하는 "
-"작은 계산기를 만듭니다.{ph3}{ph4}{ph5}"
+"{ph0}›{ph1}{ph2}REA로 Windows 계산기의 % 버튼을 분석하세요. +와 × 연산 뒤에 적용되는 규칙을 복구하고, 두 규칙을 모두 사용하는"
+" 작은 계산기를 만드세요.{ph3}{ph4}{ph5}"
 
 #: website/public/index.html:847
 msgctxt "page:index.html"
@@ -5739,8 +5728,8 @@ msgid ""
 "code{ph3}{ph4}The function checks the operator and uses the constant "
 "{ph5}.{ph6}"
 msgstr ""
-"{ph0}02 · REA 도서관 읽기{ph1}{ph2}%핸들러의 코드를 반환합니다{ph3}{ph4}이 함수는 연산자를 확인하고 상수를 "
-"사용합니다 {ph5}.{ph6}"
+"{ph0}02 · REA가 라이브러리를 읽음{ph1}{ph2}% 핸들러의 코드를 반환{ph3}{ph4}함수는 연산자를 확인하고 상수 {ph5}를 "
+"사용합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -5756,8 +5745,8 @@ msgid ""
 "rules{ph3}{ph4}Crosscheck the branch with Microsoft’s source, then try + and"
 " × above.{ph5}"
 msgstr ""
-"{ph0}03*당신의 에이전트는 그것을 해석{ph1}{ph2}규칙 설명 및 재현{ph3}{ph4}마이크로 소프트의 소스와 지점을 교차 "
-"검사 한 다음 위의+및 200 을 시도하십시오.{ph5}"
+"{ph0}03 · 코딩 에이전트의 해석{ph1}{ph2}규칙 설명과 재현{ph3}{ph4}분기를 Microsoft 소스 코드와 대조한 뒤, 위에서 +와 "
+"×를 시험해 보세요.{ph5}"
 
 #: website/public/index.html:929
 msgctxt "page:index.html"
@@ -5841,7 +5830,7 @@ msgctxt "page:index.html"
 msgid ""
 "Map modules, routes, IPC and native dependencies from an application folder "
 "or ASAR archive."
-msgstr "응용 프로그램 폴더에서 모듈,경로 및 기본 종속성을 매핑하거나 ASAR 아카이브"
+msgstr "애플리케이션 폴더나 ASAR 아카이브에서 모듈, 라우트, IPC 및 네이티브 종속성의 구조를 파악합니다."
 
 #: website/public/index.html:1112
 msgctxt "page:index.html"
@@ -5909,7 +5898,7 @@ msgctxt "page:index.html"
 msgid ""
 "Dinosaur mini-game. Use the Jump button or press Space while the game is "
 "focused."
-msgstr "공룡 미니 게임. 게임이 집중되는 동안 점프 버튼을 누르거나 공간을 사용합니다."
+msgstr "공룡 미니 게임. 게임에 포커스가 있을 때 점프 버튼을 사용하거나 Space 키를 누르세요."
 
 #: website/public/index.html:598
 msgctxt "page:index.html"
@@ -5996,8 +5985,8 @@ msgid ""
 "methods{ph3}{ph4}REA searches the package and traces the code used by the "
 "display and copy actions.{ph5}"
 msgstr ""
-"{ph0}01*기능 찾기{ph1}{ph2}3,077 개의 클래스 생성 메소드 3,077 개의 클래스 생성 메소드{ph3}{ph4}REA "
-"패키지를 검색하고 표시 및 복사 작업에 사용되는 코드를 추적합니다.{ph5}"
+"{ph0}01 · 기능 찾기{ph1}{ph2}3,077개 클래스 → 코드 생성 메서드{ph3}{ph4}REA는 패키지를 검색하고 표시 및 복사 동작에 "
+"쓰이는 코드를 추적합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -6013,8 +6002,8 @@ msgid ""
 "digits{ph3}{ph4}REA returns the methods and defaults. The agent explains how"
 " they fit together.{ph5}"
 msgstr ""
-"{ph0}02*계산 읽기{ph1}{ph2}시간+계정 키 6 자리 숫자{ph3}{ph4}REA 메서드 및 기본값을 반환합니다. 에이전트는 "
-"그들이 어떻게 어울리는지 설명합니다.{ph5}"
+"{ph0}02 · 계산 읽기{ph1}{ph2}시간 + 계정 키 → 여섯 자리 숫자{ph3}{ph4}REA는 메서드와 기본값을 반환합니다. 에이전트는 이들이"
+" 어떻게 함께 작동하는지 설명합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -6030,8 +6019,8 @@ msgid ""
 "code.{ph3}{ph4}A new browser demo reproduces the rule and checks it against "
 "public reference cases.{ph5}"
 msgstr ""
-"{ph0}03*재 구축 및 확인{ph1}{ph2}시계를 변경하십시오. 코드를 보세요.{ph3}{ph4}새로운 브라우저 데모는 규칙을 "
-"재현하고 공개 참조 사례에 대해 확인합니다.{ph5}"
+"{ph0}03 · 재구축 및 확인{ph1}{ph2}시계를 변경하십시오. 코드를 보세요.{ph3}{ph4}새로운 브라우저 데모는 규칙을 재현하고 공개 참조 "
+"사례에 대해 확인합니다.{ph5}"
 
 #: website/public/showcase/aegis/index.html:249
 msgctxt "page:showcase/aegis/index.html"
@@ -6204,7 +6193,7 @@ msgstr "생성된 코드"
 #: website/public/showcase/aegis/index.html:336
 msgctxt "page:showcase/aegis/index.html"
 msgid "Account key + block → six digits"
-msgstr "계정 키+블록 6 자리 숫자"
+msgstr "계정 키 + 시간 구간 → 여섯 자리 숫자"
 
 #: website/public/showcase/aegis/index.html:342
 msgctxt "page:showcase/aegis/index.html"
@@ -6323,7 +6312,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/aegis/index.html"
 msgid "{ph0}01{ph1} Time block"
-msgstr "{ph0}01{ph1} 시간 차단"
+msgstr "{ph0}01{ph1} 시간 구간"
 
 #. {ph0}: <span>
 #. {ph1}: </span>
@@ -6362,8 +6351,7 @@ msgid ""
 "the block. An account with a different key can show a different code at the "
 "same time."
 msgstr ""
-"{ph0}핵심 문제도 마찬가지입니다.{ph1} 생성기는 계정 키와 블록을 결합합니다. 키가 다른 계정은 동시에 다른 코드를 표시할 수 "
-"있습니다."
+"{ph0}키도 중요합니다.{ph1} 생성기는 계정 키와 시간 구간을 결합합니다. 키가 다른 계정은 같은 시점에도 다른 코드를 표시할 수 있습니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -6388,7 +6376,8 @@ msgid ""
 "Excerpts from several inspected methods, with line wrapping for display. The"
 " right panel is an explanatory summary. {ph0}Aegis code is GPL-3.0.{ph1}"
 msgstr ""
-"여러 검사 방법에서 발췌,디스플레이 라인 포장. 오른쪽 패널은 설명 요약입니다. {ph0}Aegis 코드는 다음과 같습니다.{ph1}"
+"분석한 여러 메서드에서 발췌했으며, 표시를 위해 줄바꿈을 적용했습니다. 오른쪽 패널은 설명을 위한 요약입니다. {ph0}Aegis 코드의 라이선스는 "
+"GPL-3.0입니다.{ph1}"
 
 #: website/public/showcase/aegis/index.html:594
 msgctxt "page:showcase/aegis/index.html"
@@ -6406,8 +6395,8 @@ msgid ""
 "The released APK puts {ph0} in {ph1}. REA follows the call from {ph2} and "
 "returns this body; the original source calls the helper {ph3}."
 msgstr ""
-"석방 된 사람 들 APK 풋 {ph0} 그 안에 {ph1}. REA 에서 함수 호출를 다음과 {ph2} 그리고 이 몸을 반환합니다.원래의"
-" 소스는 도우미를 호출합니다. {ph3}."
+"배포된 APK에서는 {ph0}가 {ph1}에 들어 있습니다. REA는 {ph2}에서의 호출을 추적해 이 함수 본문을 반환합니다. 원본 소스에서는 이 도우미"
+" 함수를 {ph3}라고 부릅니다."
 
 #: website/public/showcase/aegis/index.html:617
 msgctxt "page:showcase/aegis/index.html"
@@ -6502,7 +6491,7 @@ msgctxt "page:showcase/aegis/index.html"
 msgid ""
 "Verification runs extracted Java methods and the new demo. The Android APK "
 "was inspected statically."
-msgstr "검증은 추출 된 자바 메소드와 새로운 데모를 실행합니다. 안드로이드APK검열되었으로 합니다."
+msgstr "검증에서는 추출한 Java 메서드와 새 데모를 실행합니다. Android APK 자체는 정적 분석으로 검사했습니다."
 
 #: website/public/showcase/aegis/index.html:709
 msgctxt "page:showcase/aegis/index.html"
@@ -6518,8 +6507,8 @@ msgid ""
 "{ph0}Set up REA{ph1} on macOS or Linux, then download these two files into "
 "the same folder. On Windows, use a Linux environment such as WSL."
 msgstr ""
-"{ph0}설정 REA{ph1} 시작 macOS 또는 Linux 그런 다음 이 두 파일을 동일한 폴더에 다운로드합니다. 시작 "
-"Windows,사용 Linux 같은 환경."
+"macOS나 Linux에서 {ph0}REA를 설정{ph1}한 뒤, 이 두 파일을 같은 폴더에 다운로드하세요. Windows에서는 WSL 같은 Linux "
+"환경을 사용하세요."
 
 #. {ph0}: <code>JAVA_HOME</code>
 #. {ph1}: <code>PATH</code>
@@ -6529,7 +6518,9 @@ msgctxt "page:showcase/aegis/index.html"
 msgid ""
 "Android analysis needs a full JDK 17 or later. Select it with {ph0} or "
 "{ph1}. This case used JDK 21."
-msgstr "안드로이드 분석은 전체 17 이상 필요합니다. 함께 선택 {ph0} 또는 {ph1}. 이 사건은 21 번을 사용했습니다."
+msgstr ""
+"Android 분석에는 전체 JDK 17 이상이 필요합니다. {ph0} 또는 {ph1}로 사용할 JDK를 선택하세요. 이 사례에서는 JDK 21을 "
+"사용했습니다."
 
 #: website/public/showcase/aegis/index.html:731
 msgctxt "page:showcase/aegis/index.html"
@@ -6584,7 +6575,7 @@ msgctxt "page:showcase/aegis/index.html"
 msgid ""
 "{ph0}Official Aegis 3.4.3 release{ph1} · {ph2}Matching source commit{ph3} · "
 "{ph4}GPL-3.0 license{ph5}"
-msgstr "{ph0}공식 Aegis 3.4.3 릴리스{ph1} · {ph2}일치하는 소스 커밋{ph3} · {ph4}라이센스{ph5}"
+msgstr "{ph0}Aegis 3.4.3 공식 릴리스{ph1} · {ph2}해당 소스 커밋{ph3} · {ph4}GPL-3.0 라이선스{ph5}"
 
 #. {ph0}: <a href="https://www.rfc-editor.org/rfc/rfc6238.html#appendix-B" >
 #. {ph1}: </a >
@@ -6666,7 +6657,7 @@ msgstr "{ph0}홈{ph1} / {ph2}쇼케이스{ph3} /"
 #: website/public/showcase/ctf/index.html:200
 msgctxt "page:showcase/ctf/index.html"
 msgid "Case study · DownUnderCTF 2023"
-msgstr "사례 연구*2023 년"
+msgstr "사례 연구 · DownUnderCTF 2023"
 
 #. {ph0}: <br />
 #: website/public/showcase/ctf/index.html:201
@@ -6687,7 +6678,7 @@ msgstr "사용 REA 작은 플래그 검사기를 검사하려면 규칙을 방�
 #: website/public/showcase/ctf/index.html:207
 msgctxt "page:showcase/ctf/index.html"
 msgid "masked squares flag checker · Easy · Linux x86-64"
-msgstr "크 사각형 국기 검사기·조명·Linuxx86-64"
+msgstr "masked squares 플래그 검사기 · 쉬움 · Linux x86-64"
 
 #: website/public/showcase/ctf/index.html:210
 msgctxt "page:showcase/ctf/index.html"
@@ -6713,8 +6704,8 @@ msgid ""
 "finds the prompt, its references and the code that accepts or rejects an "
 "input.{ph5}"
 msgstr ""
-"{ph0}01*수표 찾기{ph1}{ph2}문자열에 대한 자세한 내용은 문자열에 대한 정보를 참조하십시오.{ph3}{ph4}REA "
-"프롬프트,해당 참조 및 입력을 수락하거나 거부하는 코드를 찾습니다.{ph5}"
+"{ph0}01 · 검사 코드 찾기{ph1}{ph2}문자열 → 검사 함수{ph3}{ph4}REA는 프롬프트와 그 참조, 입력을 허용하거나 거부하는 코드를 "
+"찾습니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -6730,8 +6721,8 @@ msgid ""
 "returns the instructions and data behind each check. The agent turns them "
 "into equations.{ph5}"
 msgstr ""
-"{ph0}02*규칙 추출{ph1}{ph2}36 자*26 합계{ph3}{ph4}REA 각 검사 뒤에 있는 지침과 데이터를 반환합니다. "
-"에이전트는 그것들을 방정식으로 바꿉니다.{ph5}"
+"{ph0}02 · 규칙 추출{ph1}{ph2}문자 36개 · 합 26개{ph3}{ph4}REA는 각 검사에 쓰이는 명령어와 데이터를 반환합니다. 에이전트는"
+" 이를 방정식으로 바꿉니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -6747,8 +6738,8 @@ msgid ""
 " script solves the equations. REA captures the original program accepting "
 "the result.{ph5}"
 msgstr ""
-"{ph0}03*해결 및 실행{ph1}{ph2}복구 된 플래그가 올바른지 확인하십시오!{ph3}{ph4}파이썬 스크립트는 방정식을 "
-"해결합니다. REA 결과를 받아들이는 원래 프로그램을 캡처합니다.{ph5}"
+"{ph0}03 · 풀이와 실행{ph1}{ph2}복원한 플래그 → Correct!{ph3}{ph4}Python 스크립트가 방정식을 풉니다. REA는 원본 "
+"프로그램이 결과를 받아들이는 모습을 캡처합니다.{ph5}"
 
 #: website/public/showcase/ctf/index.html:245
 msgctxt "page:showcase/ctf/index.html"
@@ -6863,8 +6854,8 @@ msgid ""
 "Explain how the checks work, then verify the answer with the original "
 "program.{ph3}{ph4}{ph5}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 그리고 플래그를 찾을 수 있습니다. 검사가 어떻게 작동하는지 설명 한 다음 원래 프로그램으로 "
-"답을 확인하십시오.{ph3}{ph4}{ph5}"
+"{ph0}›{ph1}{ph2}REA로 ms_flag_checker를 분석하고 플래그를 찾으세요. 검사 동작을 설명한 뒤 원래 프로그램으로 답을 "
+"검증하세요.{ph3}{ph4}{ph5}"
 
 #: website/public/showcase/ctf/index.html:296
 msgctxt "page:showcase/ctf/index.html"
@@ -6915,7 +6906,7 @@ msgstr ""
 #: website/public/showcase/ctf/index.html:382
 msgctxt "page:showcase/ctf/index.html"
 msgid "One check reveals one character"
-msgstr "한 번 확인하면 한 명의 캐릭터가 나타납니다."
+msgstr "하나의 검사로 문자 하나를 알아냅니다"
 
 #: website/public/showcase/ctf/index.html:383
 msgctxt "page:showcase/ctf/index.html"
@@ -6997,7 +6988,7 @@ msgstr "{ph0}03{ph1} 추가"
 #, python-brace-format
 msgctxt "page:showcase/ctf/index.html"
 msgid "{ph0}04{ph1} Advance"
-msgstr "{ph0}04{ph1} 사전"
+msgstr "{ph0}04{ph1} 다음 칸으로 이동"
 
 #. {ph0}: <span>
 #. {ph1}: </span>
@@ -7015,7 +7006,7 @@ msgstr "REA·선택한 원래의 지침"
 #: website/public/showcase/ctf/index.html:520
 msgctxt "page:showcase/ctf/index.html"
 msgid "Readable C · one-check summary"
-msgstr "읽기 쉬운 씨*원 체크 요약"
+msgstr "읽기 쉬운 C 코드 · 검사 하나의 요약"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7024,7 +7015,7 @@ msgstr "읽기 쉬운 씨*원 체크 요약"
 #, python-brace-format
 msgctxt "page:showcase/ctf/index.html"
 msgid "{ph0}01 · Start at zero.{ph1} {ph2} holds the running sum."
-msgstr "{ph0}01*0 에서 시작합니다.{ph1} {ph2} 실행 금액을 보유합니다."
+msgstr "{ph0}01 · 0에서 시작합니다.{ph1} {ph2}에는 누적 합이 저장됩니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7034,7 +7025,7 @@ msgctxt "page:showcase/ctf/index.html"
 msgid ""
 "{ph0}02 · Check the mask cell.{ph1} A zero value skips the character; a "
 "nonzero value includes it."
-msgstr "{ph0}02*마스크 셀을 확인합니다.{ph1} 0 값은 문자를 건너뛰고 0 이 아닌 값은 문자를 포함합니다."
+msgstr "{ph0}02 · 마스크 셀을 확인합니다.{ph1} 0 값은 문자를 건너뛰고 0 이 아닌 값은 문자를 포함합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7044,7 +7035,7 @@ msgctxt "page:showcase/ctf/index.html"
 msgid ""
 "{ph0}03 · Add a character code.{ph1} The input's integer at the same offset "
 "is added to the sum."
-msgstr "{ph0}03*문자 코드를 추가합니다.{ph1} 같은 오프셋에 있는 입력의 정수가 합에 더해집니다."
+msgstr "{ph0}03 · 문자 코드를 추가합니다.{ph1} 같은 오프셋에 있는 입력의 정수가 합에 더해집니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7054,8 +7045,7 @@ msgctxt "page:showcase/ctf/index.html"
 msgid ""
 "{ph0}04 · Move to the next cell.{ph1} The original loop advances four bytes "
 "per integer and visits six rows of six cells."
-msgstr ""
-"{ph0}04*다음 셀로 이동합니다.{ph1} 원래 루프는 정수당 4 바이트를 앞당기고 6 개의 셀의 6 개의 행을 방문합니다."
+msgstr "{ph0}04 · 다음 셀로 이동합니다.{ph1} 원래 루프는 정수당 4 바이트를 앞당기고 6 개의 셀의 6 개의 행을 방문합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7067,7 +7057,8 @@ msgctxt "page:showcase/ctf/index.html"
 msgid ""
 "{ph0}05 · Compare with the stored target.{ph1} The caller receives the sum "
 "in {ph2}. A mismatch jumps to {ph3}."
-msgstr "{ph0}05*저장된 대상과 비교.{ph1} 호출 함수는 {ph2}. 불일치가 {ph3}."
+msgstr ""
+"{ph0}05 · 저장된 목표값과 비교합니다.{ph1} 호출 함수는 {ph2}로 합을 전달받습니다. 값이 일치하지 않으면 {ph3}로 분기합니다."
 
 #: website/public/showcase/ctf/index.html:573
 msgctxt "page:showcase/ctf/index.html"
@@ -7094,7 +7085,7 @@ msgstr ""
 #: website/public/showcase/ctf/index.html:590
 msgctxt "page:showcase/ctf/index.html"
 msgid "Python · solver excerpt"
-msgstr "파이썬*솔버 발췌"
+msgstr "파이썬 · 솔버 발췌"
 
 #. {ph0}: <code>DUCTF{…}</code>
 #: website/public/showcase/ctf/index.html:618
@@ -7191,8 +7182,8 @@ msgid ""
 "with Ghidra 12.1.4 on Linux x64. The binary is a stripped x86-64 ELF, 15,248"
 " bytes."
 msgstr ""
-"신선한 분석 및 두 개의 프로세스를 캡처에서 8 월 2026 를 사용하여,REA4.1.0 와Ghidra12.1.4 에Linuxx64. "
-"바이너리는 86-64 엘프,15,248 바이트입니다."
+"2026년 10월 8일 Linux x64에서 REA 4.1.0과 Ghidra 12.1.4를 사용해 새로 분석하고 프로세스 실행을 두 차례 캡처했습니다. "
+"바이너리는 심볼 정보가 제거된 x86-64 ELF이며, 크기는 15,248바이트입니다."
 
 #: website/public/showcase/ctf/index.html:695
 msgctxt "page:showcase/ctf/index.html"
@@ -7239,7 +7230,7 @@ msgstr ""
 #: website/public/showcase/ctf/index.html:737
 msgctxt "page:showcase/ctf/index.html"
 msgid "Terminal · solve and run"
-msgstr "터미널*해결 및 실행"
+msgstr "터미널 · 해결 및 실행"
 
 #. {ph0}: <code>z3-solver</code>
 #: website/public/showcase/ctf/index.html:754
@@ -7306,7 +7297,7 @@ msgstr ""
 #: website/public/showcase/ctf/index.html:447
 msgctxt "page:showcase/ctf/index.html"
 msgid "Follow the CTF check"
-msgstr "클릭률 확인을 따르십시오"
+msgstr "CTF 검사 과정 따라가기"
 
 #: website/public/showcase/ctf/index.html:497
 msgctxt "page:showcase/ctf/index.html"
@@ -7316,12 +7307,12 @@ msgstr "어셈블리 복사"
 #: website/public/showcase/ctf/index.html:521
 msgctxt "page:showcase/ctf/index.html"
 msgid "Copy readable CTF check"
-msgstr "읽을 수 있는 클릭률 확인 복사"
+msgstr "읽기 쉬운 CTF 검증 코드 복사"
 
 #: website/public/showcase/ctf/index.html:591
 msgctxt "page:showcase/ctf/index.html"
 msgid "Copy CTF solver excerpt"
-msgstr "복사 클릭률 솔버 발췌"
+msgstr "CTF 풀이 코드 발췌문 복사"
 
 #: website/public/showcase/ctf/index.html:665
 msgctxt "page:showcase/ctf/index.html"
@@ -7561,8 +7552,8 @@ msgid ""
 "operations. That discrepancy gave the agent a concrete reason to keep "
 "investigating."
 msgstr ""
-"에 대한 함수의 첫 번째 분석 결과 {ph0} 포함 된 의사 코드 선언 {ph1} 그리고 전화 {ph2}. 명령어 뷰는 스택 입력과 부동"
-" 소수점 연산을 보여주었습니다. 그 불일치로 인해 에이전트는 계속 조사해야 할 구체적인 이유를 얻었습니다."
+"{ph0}의 첫 함수 분석 결과에는 {ph1}을 선언하고 {ph2}를 호출하는 의사 코드가 포함되어 있었습니다. 명령어 보기에는 스택 입력과 부동 소수점 "
+"연산이 나타났습니다. 이 불일치는 에이전트가 조사를 계속할 구체적인 근거가 되었습니다."
 
 #: website/public/showcase/dx-ball/index.html:329
 msgctxt "page:showcase/dx-ball/index.html"
@@ -7574,7 +7565,7 @@ msgctxt "page:showcase/dx-ball/index.html"
 msgid ""
 "The output shows a conversion call. Reading the instructions below reveals "
 "the input and the calculation feeding that call."
-msgstr "출력은 전환 호출을 보여줍니다. 아래의 지침을 읽는 것은 입력 및 통화 공급 계산을 알 수있다."
+msgstr "출력에는 변환 함수 호출이 나타납니다. 아래의 명령어를 읽으면 그 호출에 전달되는 입력과 계산 과정을 알 수 있습니다."
 
 #: website/public/showcase/dx-ball/index.html:348
 msgctxt "page:showcase/dx-ball/index.html"
@@ -7680,12 +7671,12 @@ msgstr "{ph0}05{ph1} 반환"
 #: website/public/showcase/dx-ball/index.html:483
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Original x86 · excerpt"
-msgstr "원본 86*발췌"
+msgstr "원본 x86 · 발췌"
 
 #: website/public/showcase/dx-ball/index.html:504
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Reconstructed C"
-msgstr "재구성된"
+msgstr "재구성한 C 코드"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7701,8 +7692,8 @@ msgid ""
 "through REA establishes the screen-coordinate meaning of the C parameter "
 "{ph4}."
 msgstr ""
-"{ph0}01*입력을 읽습니다.{ph1} 명령어 뷰 REA함수 결과는 {ph2} 그리고 용도 {ph3} 정수를 로드합니다. 호출자를 따라"
-" REA 화면 좌표 의미 설정 다 매개 변수 {ph4}."
+"{ph0}01 · 입력을 읽습니다.{ph1} REA의 함수 결과에 있는 명령어 뷰에서는 {ph2}를 읽고 {ph3}로 정수를 로드합니다. REA로 호출 "
+"함수를 추적하면 C 매개변수 {ph4}가 화면 좌표임을 확인할 수 있습니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7717,8 +7708,8 @@ msgid ""
 "{ph0}02 · Multiply by 1.5625.{ph1} {ph2} reads the double at {ph3}. The "
 "bytes returned by REA's {ph4} decode to {ph5}; the C uses the same constant."
 msgstr ""
-"{ph0}02*1.5625 를 곱합니다.{ph1} {ph2} 더블을 읽습니다. {ph3}. 에 의해 반환 된 바이트 REA의 {ph4} "
-"로 디코딩 {ph5};씨 같은 상수를 사용합니다."
+"{ph0}02 · 1.5625를 곱합니다.{ph1} {ph2} 명령은 {ph3}의 double 값을 읽습니다. REA의 {ph4}가 반환한 바이트를 "
+"해석하면 {ph5}가 나오며, C 코드도 같은 상수를 사용합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7734,8 +7725,8 @@ msgid ""
 "result decodes to {ph4}, shifting the calculation's center to screen "
 "coordinate {ph5}."
 msgstr ""
-"{ph0}03*500.0 을 뺍니다.{ph1} {ph2} 더블을 읽습니다. {ph3}. REA의 바이트 결과는 {ph4},계산의 중심을 "
-"화면 좌표로 이동 {ph5}."
+"{ph0}03 · 500.0을 뺍니다.{ph1} {ph2} 명령은 {ph3}의 double 값을 읽습니다. REA의 바이트 결과를 해석하면 {ph4}가 "
+"나옵니다. 이 값을 빼면 계산의 중심이 화면 좌표 {ph5}로 이동합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7751,8 +7742,8 @@ msgid ""
 "global is named {ph4} in the maintained source. REA's second byte read "
 "establishes its initial value of {ph5}."
 msgstr ""
-"{ph0}04*저장된 스케일을 적용합니다.{ph1} 두 번째 {ph2} 읽는다 {ph3}. 그 글로벌은 {ph4} 유지된 소스에서 "
-"REA의 두 번째 바이트 읽기는 초기 값을 설정합니다 {ph5}."
+"{ph0}04 · 저장된 배율을 적용합니다.{ph1} 두 번째 {ph2} 명령은 {ph3}의 값을 읽습니다. 이 전역 변수의 이름은 유지 관리 중인 "
+"소스에서 {ph4}입니다. REA로 바이트를 두 번째로 읽어 초기값이 {ph5}임을 확인합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -7767,8 +7758,8 @@ msgid ""
 "identified in REA's callee results. The C casts the result to {ph4}; "
 "original-x86 comparisons check the returned value."
 msgstr ""
-"{ph0}05*정수를 반환합니다.{ph1} 함수 호출 {ph2} 도달 {ph3},확인된 REA수신자 결과입니다. 결과는 다음과 같습니다 "
-"{ph4};원본-86 비교 반환 된 값을 확인합니다."
+"{ph0}05 · 정수를 반환합니다.{ph1} {ph2}의 호출은 {ph3}로 이어지며, 이는 REA의 피호출 함수 결과에서 확인됩니다. C 코드는 결과를"
+" {ph4}로 형 변환합니다. 원본 x86 코드와의 비교로 반환값을 검사합니다."
 
 #: website/public/showcase/dx-ball/index.html:566
 msgctxt "page:showcase/dx-ball/index.html"
@@ -7811,7 +7802,7 @@ msgstr "데이터 읽기 설정"
 #: website/public/showcase/dx-ball/index.html:627
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA byte reads, decoded as little-endian doubles"
-msgstr "REA바이트를 읽고,디코딩으로 little-endian 복식"
+msgstr "REA가 읽은 바이트를 리틀 엔디언 배정밀도 부동소수점 값으로 디코딩"
 
 #: website/public/showcase/dx-ball/index.html:632
 msgctxt "page:showcase/dx-ball/index.html"
@@ -7895,7 +7886,9 @@ msgid ""
 "The tests execute the original x86 function and compare its return value "
 "with the maintained C. They cover every integer position from 0 to 640 at "
 "five pan scales: 0, 0.5, 1, 20 and −1."
-msgstr "0,0.5,1,20 및 -1:그들은 다섯 팬 스케일에서 0 에서 640 까지의 모든 정수 위치를 커버합니다."
+msgstr ""
+"테스트는 원래 x86 함수를 실행하고 그 반환값을 유지보수 중인 C 코드의 반환값과 비교합니다. 팬 스케일 0, 0.5, 1, 20, −1의 다섯 가지 "
+"값에 대해 0부터 640까지의 모든 정수 위치를 검사합니다."
 
 #: website/public/showcase/dx-ball/index.html:691
 msgctxt "page:showcase/dx-ball/index.html"
@@ -7909,7 +7902,7 @@ msgid ""
 "matches the complete function after applying the reviewed relocations and "
 "checking the referenced constants."
 msgstr ""
-"이 함수는 고정 된 툴체인을 사용하여 컴파일됩니다. 컴파일러 재생은 검토된 재배치를 적용하고 참조된 상수를 확인한 후 전체 함수와 "
+"C 함수는 버전이 고정된 VC4.0 도구 모음으로 컴파일됩니다. 검토된 재배치를 적용하고 참조된 상수를 확인하면 컴파일러 재현 결과가 함수 전체와 "
 "일치합니다."
 
 #: website/public/showcase/dx-ball/index.html:700
@@ -8148,7 +8141,7 @@ msgstr ""
 #: website/public/showcase/index.html:238
 msgctxt "page:showcase/index.html"
 msgid "Read the CTF case study"
-msgstr "공정거래위원회 사례 연구 읽기"
+msgstr "CTF 사례 연구 읽기"
 
 #: website/public/showcase/index.html:242
 msgctxt "page:showcase/index.html"
@@ -8285,7 +8278,7 @@ msgstr "사례 연구·Electron"
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "How Notion copies{ph0}text and HTML."
-msgstr "어떻게 Notion 사본{ph0}텍스트."
+msgstr "Notion이{ph0}텍스트와 HTML을 복사하는 방법."
 
 #: website/public/showcase/notion/index.html:202
 msgctxt "page:showcase/notion/index.html"
@@ -8317,8 +8310,7 @@ msgctxt "page:showcase/notion/index.html"
 msgid ""
 "{ph0}01 · Page-facing API{ph1} {ph2}{ph3}{ph4} {ph5}The preload exposes a "
 "callable method.{ph6}"
-msgstr ""
-"{ph0}01*페이지 대면{ph1} {ph2}{ph3}{ph4} {ph5}사전 로드는 호출 가능한 메서드를 노출합니다.{ph6}"
+msgstr "{ph0}01 · 페이지에 공개된 API{ph1} {ph2}{ph3}{ph4} {ph5}프리로드는 호출 가능한 메서드를 노출합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span>
@@ -8333,7 +8325,7 @@ msgctxt "page:showcase/notion/index.html"
 msgid ""
 "{ph0}02 · Preload wrapper{ph1} {ph2}{ph3}{ph4} {ph5}The wrapper sends the "
 "channel and arguments.{ph6}"
-msgstr "{ph0}02*예압 래퍼{ph1} {ph2}{ph3}{ph4} {ph5}래퍼는 채널 및 인수를 보냅니다.{ph6}"
+msgstr "{ph0}02 · 프리로드 래퍼{ph1} {ph2}{ph3}{ph4} {ph5}래퍼는 채널과 인수를 전달합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span>
@@ -8349,7 +8341,7 @@ msgid ""
 "{ph0}03 · Main-process handler{ph1} {ph2}{ph3}{ph4} {ph5}The receiver checks"
 " which page sent it.{ph6}"
 msgstr ""
-"{ph0}03*메인 프로세스 핸들러{ph1} {ph2}{ph3}{ph4} {ph5}수신자는 어떤 페이지를 보냈는지 확인합니다.{ph6}"
+"{ph0}03 · 메인 프로세스 핸들러{ph1} {ph2}{ph3}{ph4} {ph5}수신 측은 어느 페이지에서 메시지를 보냈는지 확인합니다.{ph6}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span>
@@ -8365,7 +8357,7 @@ msgid ""
 "{ph0}04 · System clipboard{ph1} {ph2}{ph3}{ph4} {ph5}Electron writes the "
 "supplied text and HTML.{ph6}"
 msgstr ""
-"{ph0}04*시스템 클립 보드{ph1} {ph2}{ph3}{ph4} {ph5}Electron 제공된 텍스트를 씁니다.{ph6}"
+"{ph0}04 · 시스템 클립보드{ph1} {ph2}{ph3}{ph4} {ph5}Electron은 전달받은 텍스트와 HTML을 기록합니다.{ph6}"
 
 #. {ph0}: <code class="notion-channel">notion:clipboard:write</code>
 #: website/public/showcase/notion/index.html:241
@@ -8464,8 +8456,8 @@ msgid ""
 "{ph0}›{ph1}{ph2}Use REA to trace how Notion copies text and HTML to the "
 "system clipboard. Show the code at each step.{ph3}{ph4}{ph5}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 추적 방법 Notion 시스템 클립보드에 텍스트를 복사합니다. 각 단계에서 코드를 "
-"표시합니다.{ph3}{ph4}{ph5}"
+"{ph0}›{ph1}{ph2}REA를 사용해 Notion이 텍스트와 HTML을 시스템 클립보드에 복사하는 과정을 추적해 주세요. 각 단계의 코드를 보여 "
+"주세요.{ph3}{ph4}{ph5}"
 
 #: website/public/showcase/notion/index.html:292
 msgctxt "page:showcase/notion/index.html"
@@ -8516,8 +8508,8 @@ msgid ""
 "agent something precise to look for in the main bundle. The four excerpts "
 "below show the route it connects."
 msgstr ""
-"에이전트는 이러한 위치를 열고 어셈블리에서 클립보드 멤버를 찾아 읽습니다 {ph0}. 그것의 외침 위치 공급 {ph1}. 그 이름은 "
-"에이전트에게 주요 번들에서 찾을 수 있는 정확한 것을 제공합니다. 아래 네 부분 은 그 길 이 연결 되는 길 을 보여 준다."
+"에이전트는 해당 위치를 열고, 조합된 API에서 clipboard 멤버를 찾아 {ph0}를 읽습니다. 이 함수의 호출 지점에서는 {ph1}을 전달합니다. "
+"이 이름 덕분에 에이전트는 메인 번들에서 무엇을 찾아야 할지 정확히 알 수 있습니다. 아래 네 발췌문은 에이전트가 연결한 경로를 보여줍니다."
 
 #: website/public/showcase/notion/index.html:335
 msgctxt "page:showcase/notion/index.html"
@@ -8543,7 +8535,7 @@ msgctxt "page:showcase/notion/index.html"
 msgid ""
 "This member supplies the channel name. The implementation of {ph0} tells us "
 "how the request leaves the page's process."
-msgstr "이 멤버는 채널 이름을 제공합니다. 의 구현 {ph0} 요청이 페이지의 프로세스를 종료하는 방법을 알려줍니다."
+msgstr "이 멤버는 채널 이름을 제공합니다. {ph0}의 구현을 보면 요청이 페이지의 프로세스에서 어떻게 전달되어 나가는지 알 수 있습니다."
 
 #: website/public/showcase/notion/index.html:371
 msgctxt "page:showcase/notion/index.html"
@@ -8602,8 +8594,7 @@ msgid ""
 "Notion's web editor sends text and HTML through {ph0}. It keeps the block "
 "data locally and puts an ID in the copied HTML to connect them."
 msgstr ""
-"Notion의 웹 편집기는 텍스트를 전송합니다. {ph0}. 그것은 로컬 블록 데이터를 유지하고 그들을 연결하기 위해 복사 한에 아이디를"
-" 넣습니다."
+"Notion의 웹 편집기는 {ph0}를 통해 텍스트와 HTML을 보냅니다. 블록 데이터는 로컬에 유지하고, 복사한 HTML에 ID를 넣어 둘을 연결합니다."
 
 #: website/public/showcase/notion/index.html:471
 msgctxt "page:showcase/notion/index.html"
@@ -8677,7 +8668,7 @@ msgstr "추출 된 마크 다운 파서에서 기록 된 출력. 테이블은 �
 #: website/public/showcase/notion/index.html:551
 msgctxt "page:showcase/notion/index.html"
 msgid "Another path: the offline SQLite connection"
-msgstr "다른 경로:오프라인 스카이라이트 연결"
+msgstr "다른 경로: 오프라인 SQLite 연결"
 
 #. {ph0}: <code>getSqliteMeta</code>
 #: website/public/showcase/notion/index.html:552
@@ -8689,8 +8680,8 @@ msgid ""
 " utility process. Subsequent statement batches and results travel over that "
 "port."
 msgstr ""
-"Notion렌더러 요청 {ph0} 2018 년 11 월 기본 프로세스는 메시지 채널을 생성하고 한 포트를 렌더러에 제공하고 다른 포트를 "
-"렌더러 유틸리티 프로세스에 제공합니다. 후속 문 배치 및 결과는 해당 포트를 통해 이동합니다."
+"Notion의 렌더러는 IPC를 통해 {ph0}를 요청합니다. 메인 프로세스는 메시지 채널을 만들고 한쪽 포트는 렌더러에, 다른 쪽 포트는 SQLite "
+"유틸리티 프로세스에 전달합니다. 이후의 SQL 문 배치와 결과는 이 포트를 통해 오갑니다."
 
 #: website/public/showcase/notion/index.html:558
 msgctxt "page:showcase/notion/index.html"
@@ -8861,7 +8852,7 @@ msgstr "{ph0}홈{ph1} / {ph2}쇼케이스{ph3} / TH04"
 #: website/public/showcase/th04/index.html:200
 msgctxt "page:showcase/th04/index.html"
 msgid "Case study · Touhou 4: Lotus Land Story"
-msgstr "사례 연구*동방 4:로터스 랜드 스토리"
+msgstr "사례 연구 · 동방 4:로터스 랜드 스토리"
 
 #. {ph0}: <br />
 #: website/public/showcase/th04/index.html:201
@@ -8880,7 +8871,7 @@ msgstr "총알의 고리는 짧은 각도 계산으로 시작됩니다. 사용 R
 #: website/public/showcase/th04/index.html:207
 msgctxt "page:showcase/th04/index.html"
 msgid "PC-98 · 16-bit DOS · C++ and assembly"
-msgstr "PC-98 ·16 비트 도스*C++및 어셈블리"
+msgstr "PC-98 ·16 비트 도스 · C++및 어셈블리"
 
 #: website/public/showcase/th04/index.html:208
 msgctxt "page:showcase/th04/index.html"
@@ -8905,7 +8896,7 @@ msgid ""
 "{ph0}01 · Original game{ph1}{ph2}MAIN.EXE{ph3}{ph4}The PC-98 executable and "
 "its bullet-angle helper.{ph5}"
 msgstr ""
-"{ph0}01*오리지널 게임{ph1}{ph2}메인엑스{ph3}{ph4}그 PC-98 실행 파일 및 총알 각도 도우미.{ph5}"
+"{ph0}01 · 원본 게임{ph1}{ph2}MAIN.EXE{ph3}{ph4}PC-98 실행 파일과 탄환 각도 계산을 위한 도우미 함수입니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -8921,7 +8912,7 @@ msgid ""
 "references{ph3}{ph4}Verify the loaded DOS code and read the angle "
 "calculation from the executable.{ph5}"
 msgstr ""
-"{ph0}02*검사 REA{ph1}{ph2}지침+참조{ph3}{ph4}로드된 도스 코드를 확인하고 실행 파일에서 각도 계산을 "
+"{ph0}02 · REA로 조사하기{ph1}{ph2}명령어 + 참조{ph3}{ph4}로드된 DOS 코드를 확인하고 실행 파일에서 각도 계산을 "
 "읽습니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
@@ -8936,7 +8927,9 @@ msgctxt "page:showcase/th04/index.html"
 msgid ""
 "{ph0}03 · Read the C++{ph1}{ph2}Space → aim → rotate{ph3}{ph4}Connect each "
 "operation to the maintained reconstruction.{ph5}"
-msgstr "{ph0}03*읽기 C++{ph1}{ph2}공간→목표→회전{ph3}{ph4}유지 재건에 각 작업을 연결합니다.{ph5}"
+msgstr ""
+"{ph0}03 · C++ 코드 읽기{ph1}{ph2}간격 배치 → 조준 → 회전{ph3}{ph4}각 연산을 유지 관리 중인 재구성 코드와 "
+"연결합니다.{ph5}"
 
 #. {ph0}: <span class="flow-label">
 #. {ph1}: </span >
@@ -8952,8 +8945,8 @@ msgid ""
 "compiler checks cover the bullet-generation code that contains this "
 "helper.{ph5}"
 msgstr ""
-"{ph0}04*소스 확인{ph1}{ph2}2,139 일치하는 바이트{ph3}{ph4}기록된 컴파일러 검사는 이 도우미가 포함된 글머리 "
-"기호 생성 코드를 다룹니다.{ph5}"
+"{ph0}04 · 소스 확인{ph1}{ph2}일치하는 바이트 2,139개{ph3}{ph4}기록된 컴파일러 검사는 이 도우미가 포함된 탄환 생성 코드를 "
+"다룹니다.{ph5}"
 
 #: website/public/showcase/th04/index.html:247
 msgctxt "page:showcase/th04/index.html"
@@ -9097,7 +9090,7 @@ msgstr "복구된 소스의 발사 템플릿"
 #: website/public/showcase/th04/index.html:334
 msgctxt "page:showcase/th04/index.html"
 msgid "Elly's ring attack · source excerpt"
-msgstr "엘리의 반지 공격*출처 발췌"
+msgstr "Elly의 원형 탄막 공격 · 소스 발췌"
 
 #. {ph0}: <a
 #. href="https://github.com/N0zoM1z0/th04/blob/0d72e9801a5c14c10384efcbb6734ceccb74ee63/src/main/boss/elly_phase_ring16.cpp#L26"
@@ -9114,7 +9107,7 @@ msgstr "이 선은 난이도와 성능 조정 전에 패턴을 선택합니다. 
 #: website/public/showcase/th04/index.html:360
 msgctxt "page:showcase/th04/index.html"
 msgid "What REA returns"
-msgstr "WhatREA환"
+msgstr "REA가 반환하는 내용"
 
 #. {ph0}: <code>bullet_velocity_and_angle_set()</code>
 #: website/public/showcase/th04/index.html:361
@@ -9178,7 +9171,7 @@ msgstr ""
 #: website/public/showcase/th04/index.html:455
 msgctxt "page:showcase/th04/index.html"
 msgid "From assembly to readable C++"
-msgstr "어셈블리에서 읽을 수있는 키++"
+msgstr "어셈블리에서 읽기 쉬운 C++로"
 
 #: website/public/showcase/th04/index.html:456
 msgctxt "page:showcase/th04/index.html"
@@ -9228,7 +9221,7 @@ msgstr "{ph0}04{ph1} 회전"
 #, python-brace-format
 msgctxt "page:showcase/th04/index.html"
 msgid "{ph0}05{ph1} Store"
-msgstr "{ph0}05{ph1} 제품 정보"
+msgstr "{ph0}05{ph1} 저장"
 
 #: website/public/showcase/th04/index.html:511
 msgctxt "page:showcase/th04/index.html"
@@ -9238,7 +9231,7 @@ msgstr "REA·기존 16 비트 지침"
 #: website/public/showcase/th04/index.html:545
 msgctxt "page:showcase/th04/index.html"
 msgid "Readable C++ · aimed-ring summary"
-msgstr "*조준 링 요약"
+msgstr "읽기 쉬운 C++ · 조준 원형 탄막 요약"
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9250,8 +9243,8 @@ msgid ""
 "{ph0}01 · Read the bullet index.{ph1} The stack argument is loaded into "
 "{ph2}. In a 16-bullet ring, this member index runs from 0 through 15."
 msgstr ""
-"{ph0}01*글머리 기호 인덱스를 읽습니다.{ph1} 스택 인수는 {ph2}. 16 개의 총알 반지에서는 이 멤버 인덱스가 0 에서 "
-"15 까지입니다."
+"{ph0}01 · 탄환 인덱스를 읽습니다.{ph1} 스택 인수를 {ph2}에 로드합니다. 탄환 16발로 이루어진 원형 탄막에서 이 인덱스는 0부터 "
+"15까지입니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9265,8 +9258,8 @@ msgid ""
 "256. The count is zero-extended into a word, then {ph3} divides the product "
 "by that count. For count 16, each index advances 16 angle units."
 msgstr ""
-"{ph0}02*공간 전체 회전 주위에 방향.{ph1} {ph2} 256 을 곱합니다. 카운트는 0 으로 확장되어 단어로, {ph3} 곱을"
-" 그 수로 나눕니다. 카운트 16 의 경우 각 인덱스는 16 개의 각도 단위를 앞당깁니다."
+"{ph0}02 · 한 바퀴에 걸쳐 방향을 균등하게 배치합니다.{ph1} {ph2} 명령은 256을 곱합니다. 탄환 개수를 워드 크기로 0 확장한 뒤, "
+"{ph3} 명령으로 곱한 결과를 그 개수로 나눕니다. 개수가 16이면 인덱스가 하나 증가할 때마다 각도가 16단위씩 증가합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9279,8 +9272,8 @@ msgid ""
 "minus-origin coordinates. The direction helper returns an angle in {ph2}; "
 "adding it turns the whole ring toward the player."
 msgstr ""
-"{ph0}03*플레이어 방향을 추가합니다.{ph1} 두 빼기는 플레이어-마이너스-원점 좌표를 형성합니다. 방향 도우미는 각도를 "
-"반환합니다. {ph2};그것을 추가하면 전체 링이 플레이어에게 향합니다."
+"{ph0}03 · 플레이어 방향을 더합니다.{ph1} 두 번의 뺄셈으로 플레이어 좌표에서 원점 좌표를 뺍니다. 방향 계산 도우미는 {ph2}로 각도를 "
+"반환합니다. 이 각도를 더하면 원형 탄막 전체가 플레이어 쪽으로 회전합니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9293,8 +9286,8 @@ msgid ""
 "Elly's initial template sets it to zero; other patterns can use the same "
 "helper with a rotation."
 msgstr ""
-"{ph0}04*패턴의 회전을 추가합니다.{ph1} {ph2} 템플릿 각도를 추가합니다. 엘리의 초기 템플릿은 0 으로 설정;다른 패턴은 "
-"회전과 같은 도우미를 사용할 수 있습니다."
+"{ph0}04 · 패턴의 회전을 더합니다.{ph1} {ph2} 명령으로 템플릿 각도를 더합니다. Elly의 초기 템플릿에서는 이 각도가 0입니다. 다른 "
+"패턴은 같은 도우미에 회전값을 적용해 사용할 수 있습니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -9308,8 +9301,8 @@ msgid ""
 " does. The surrounding source also converts this angle and speed into "
 "velocity."
 msgstr ""
-"{ph0}05*최종 각도를 1 바이트로 유지하십시오.{ph1} 가게가 쓴 글 {ph2} 스폰 각도 필드에. 값은 부호없는 바이트 캐스트와"
-" 마찬가지로 255 이후에 래핑됩니다. 주변 소스는 또한 이 각과 속도를 속도로 변환합니다."
+"{ph0}05 · 최종 각도를 한 바이트에 저장합니다.{ph1} 저장 명령은 {ph2} 값을 생성 각도 필드에 기록합니다. 부호 없는 바이트로 형 변환할 "
+"때와 마찬가지로, 값이 255를 넘으면 0부터 순환합니다. 주변 소스는 이 각도와 속력을 속도 벡터로 변환합니다."
 
 #: website/public/showcase/th04/index.html:607
 msgctxt "page:showcase/th04/index.html"
@@ -9356,7 +9349,8 @@ msgctxt "page:showcase/th04/index.html"
 msgid ""
 "The TH04 project's recorded checks compile the bullet-generation code, "
 "including this helper, with its pinned Turbo C++ 4.0J toolchain."
-msgstr "그 TH04 프로젝트의 기록된 검사는 이 도우미를 포함한 총알 생성 코드를 컴파일합니다."
+msgstr ""
+"TH04 프로젝트에 기록된 검사에서는 버전을 고정한 Turbo C++ 4.0J 도구 모음으로 이 도우미 함수를 포함한 탄환 생성 코드를 컴파일합니다."
 
 #: website/public/showcase/th04/index.html:670
 msgctxt "page:showcase/th04/index.html"
@@ -9449,9 +9443,7 @@ msgctxt "page:showcase/th04/index.html"
 msgid ""
 "Compiler checks cover the complete bullet-add code section, including this "
 "helper. They also compare its MAP contribution and overlapping relocation."
-msgstr ""
-"컴파일러 검사는 이 도우미를 포함하여 전체 글머리 기호 추가 코드 섹션을 다룹니다. 그들은 또한 지도의 기여와 중복되는 재배치를 "
-"비교합니다."
+msgstr "컴파일러 검사는 이 도우미 함수를 포함한 전체 탄환 추가 코드 섹션을 다룹니다. MAP 기여분과 겹치는 재배치도 비교합니다."
 
 #. {ph0}: <code>0x1000</code>
 #: website/public/showcase/th04/index.html:723
@@ -9568,7 +9560,9 @@ msgid ""
 "Inspect TH04's original 16-bit DOS code with REA. Follow the assembly and "
 "recovered C++ to see how a ring of bullets is spaced and aimed at the "
 "player."
-msgstr "검사 TH04의 원래 16 비트 도스 코드 REA. 이 게임의 목표는 가능한 한 많은 적을 파괴하는 것입니다."
+msgstr ""
+"REA로 TH04의 원래 16비트 DOS 코드를 분석하세요. 어셈블리와 복구된 C++ 코드를 따라가며 탄환이 원형으로 배치되고 플레이어를 조준하는 방식을 "
+"살펴보세요."
 
 #: website/public/showcase/th04/index.html:254
 msgctxt "page:showcase/th04/index.html"
@@ -9662,12 +9656,12 @@ msgstr "거리 {distance}"
 #: website/public/assets/dino-demo.js:87
 msgctxt "runtime"
 msgid "Hit a cactus. Try another speed."
-msgstr "선인장을 치십시오. 다른 속도를 시도하십시오."
+msgstr "선인장에 부딪혔습니다. 다른 속도로 시도해 보세요."
 
 #: website/public/assets/dino-demo.js:87
 msgctxt "runtime"
 msgid "Space or Jump ↑"
-msgstr "공동↑"
+msgstr "스페이스 바 또는 점프 ↑"
 
 #: website/public/assets/dino-demo.js:97
 msgctxt "runtime"
@@ -9693,12 +9687,12 @@ msgstr "재생을 누른 다음 선인장을 뛰어 넘습니다."
 #: website/public/assets/dino-demo.js:147
 msgctxt "runtime"
 msgid "Hit a cactus. Press Play again, or change the speed and restart."
-msgstr "선인장을 치십시오. 재생을 다시 누르거나 속도를 변경하고 다시 시작하십시오."
+msgstr "선인장에 부딪혔습니다. 재생을 다시 누르거나 속도를 바꿔 다시 시작하세요."
 
 #: website/public/assets/dino-demo.js:172
 msgctxt "runtime"
 msgid "Running. Space or Jump clears a cactus."
-msgstr "실행. 공간 또는 점프는 선인장을 지 웁니다."
+msgstr "실행 중입니다. Space 키나 점프 버튼을 누르면 선인장을 뛰어넘습니다."
 
 #: website/public/assets/dino-demo.js:183
 #: website/public/assets/dino-demo.js:219
@@ -9711,13 +9705,13 @@ msgstr "일시 중지되었습니다. 계속하려면 재생을 누릅니다."
 #, python-brace-format
 msgctxt "runtime"
 msgid "Fixed speed: {speed}. Space or Jump clears a cactus."
-msgstr "조정 속도: {speed}. 공간 또는 점프는 선인장을 지 웁니다."
+msgstr "고정 속도: {speed}. 스페이스 바나 점프 버튼으로 선인장을 뛰어넘으세요."
 
 #: website/public/assets/dino-demo.js:206
 #, python-brace-format
 msgctxt "runtime"
 msgid "Fixed speed: {speed}. Press Play to try it."
-msgstr "조정 속도: {speed}. 그것을 시도 재생을 누릅니다."
+msgstr "고정 속도: {speed}. 시작 버튼을 눌러 시험해 보세요."
 
 #: website/public/assets/dino-demo.js:215
 msgctxt "runtime"
@@ -9728,14 +9722,14 @@ msgstr "복구 된 규칙:6 에서 시작한 다음 13 으로 늘립니다."
 #, python-brace-format
 msgctxt "runtime"
 msgid "Fixed speed: {speed}."
-msgstr "조정 속도: {speed}."
+msgstr "고정 속도: {speed}."
 
 #: website/public/assets/dino-demo.js:249
 msgctxt "runtime"
 msgid ""
 "Replayed the recovered rule. All four values match the controlled original-"
 "game check when rounded to three decimals."
-msgstr "복구된 규칙을 다시 재생했습니다. 4 개의 값 모두 3 개의 소수로 둥글게 하면 제어된 원래 게임 체크와 일치합니다."
+msgstr "복원한 규칙을 재현했습니다. 소수점 이하 셋째 자리까지 반올림하면 네 값 모두 조건을 통제한 원본 게임의 검증 결과와 일치합니다."
 
 #: website/public/assets/dino-demo.js:252
 msgctxt "runtime"
@@ -9790,7 +9784,7 @@ msgstr "컴퓨터에서 생각 하는 분석가"
 #: website/public/assets/figures/ctf-mask-equation.svg:24
 msgctxt "figure:ctf-mask-equation.svg"
 msgid "One check reveals one character"
-msgstr "한 번 확인하면 한 명의 캐릭터가 나타납니다."
+msgstr "검증 한 번으로 문자 하나 알아내기"
 
 #: website/public/assets/figures/ctf-mask-equation.svg:3
 msgctxt "figure:ctf-mask-equation.svg"
@@ -10039,7 +10033,7 @@ msgstr "추가 질문"
 #: website/public/assets/figures/th04-bullet-ring.svg:2
 msgctxt "figure:th04-bullet-ring.svg"
 msgid "TH04: spacing and aiming a ring of bullets"
-msgstr "TH04:간격을 두고를 목표로 반지의 총알"
+msgstr "TH04: 원형 탄막의 간격과 조준"
 
 #: website/public/assets/figures/th04-bullet-ring.svg:3
 msgctxt "figure:th04-bullet-ring.svg"
@@ -10049,9 +10043,8 @@ msgid ""
 "of forty turns all sixteen directions together; the first bullet points at "
 "the player. Template rotation is zero."
 msgstr ""
-"전체 시계 방향 회전에는 256 개의 각도 단위가 있습니다. 16 개의 총알은 240 을 통해 0,16,32 각도에서 시작합니다. 40 "
-"의 예제 플레이어 방향을 추가하면 16 개의 방향이 모두 합쳐집니다.첫 번째 총알은 플레이어를 가리키고 있습니다. 템플릿 회전은 0 "
-"입니다."
+"시계 방향 한 바퀴는 각도 단위 256에 해당합니다. 탄환 16발은 0, 16, 32부터 240까지의 각도에서 출발합니다. 예시로 플레이어 방향 값 40을"
+" 더하면 16개 방향이 모두 함께 회전하며, 첫 번째 탄환이 플레이어를 향합니다. 템플릿 회전 값은 0입니다."
 
 #: website/public/assets/figures/th04-bullet-ring.svg:24
 msgctxt "figure:th04-bullet-ring.svg"
@@ -10269,7 +10262,7 @@ msgstr "X에서 팔로우"
 #: website/public/examples/dino-lab/index.html:309
 msgctxt "page:examples/dino-lab/index.html"
 msgid "REA · selected script source"
-msgstr "REA *선택한 스크립트 소스"
+msgstr "REA · 선택한 스크립트 소스"
 
 #: website/public/first-investigation/index.html:377
 msgctxt "page:first-investigation/index.html"
@@ -10299,7 +10292,7 @@ msgstr "상수"
 #: website/public/guides/index.html:225
 msgctxt "page:guides/index.html"
 msgid "C function"
-msgstr "C 기능"
+msgstr "C 함수"
 
 #: website/public/guides/index.html:240
 msgctxt "page:guides/index.html"
@@ -10309,12 +10302,12 @@ msgstr "버튼"
 #: website/public/guides/index.html:241
 msgctxt "page:guides/index.html"
 msgid "Preload API"
-msgstr "사전 로드"
+msgstr "프리로드 API"
 
 #: website/public/guides/index.html:242
 msgctxt "page:guides/index.html"
 msgid "IPC"
-msgstr "2015 년"
+msgstr "IPC"
 
 #: website/public/guides/index.html:242
 msgctxt "page:guides/index.html"
@@ -10339,7 +10332,7 @@ msgstr "스크립트 내보내기"
 #: website/public/guides/javascript/index.html:360
 msgctxt "page:guides/javascript/index.html"
 msgid "REA result · summary.ipc excerpt"
-msgstr "REA결과·요약입니다.발췌"
+msgstr "REA 결과 · summary.ipc 발췌"
 
 #: website/public/guides/native/index.html:387
 msgctxt "page:guides/native/index.html"
@@ -10354,12 +10347,12 @@ msgstr "REA자 발췌·0x411f5b"
 #: website/public/guides/native/index.html:415
 msgctxt "page:guides/native/index.html"
 msgid "REA byte results · interpreted as little-endian doubles"
-msgstr "REA바이트로 결합하는 것으로 해석 little-endian 복식"
+msgstr "REA 바이트 결과 · 리틀 엔디언 double 값으로 해석"
 
 #: website/public/guides/native/index.html:432
 msgctxt "page:guides/native/index.html"
 msgid "Recovered C · excerpt"
-msgstr "복구 된 C*발췌"
+msgstr "복구된 C · 발췌"
 
 #: website/public/index.html:1032
 msgctxt "page:index.html"
@@ -10379,12 +10372,12 @@ msgstr "%처리기의 읽을 수 있는 요약"
 #: website/public/index.html:980
 msgctxt "page:index.html"
 msgid "REA · selected original instructions"
-msgstr "REA·선택한 원래의 지침"
+msgstr "REA · 선택한 원본 명령어"
 
 #: website/public/index.html:991
 msgctxt "page:index.html"
 msgid "Operator IDs · Microsoft’s source"
-msgstr "운영자의 신분증*마이크로 소프트의 소스"
+msgstr "연산자 ID · Microsoft 소스 코드"
 
 #: website/public/showcase/aegis/index.html:402
 #: website/public/showcase/aegis/index.html:434
@@ -10410,12 +10403,12 @@ msgstr "REA·선택한 디컴파일된 Java"
 #: website/public/showcase/aegis/index.html:548
 msgctxt "page:showcase/aegis/index.html"
 msgid "Readable summary · agent's interpretation"
-msgstr "읽을 수있는 요약*에이전트의 해석"
+msgstr "읽을 수 있는 요약 · 에이전트의 해석"
 
 #: website/public/showcase/aegis/index.html:603
 msgctxt "page:showcase/aegis/index.html"
 msgid "REA · generateOTP, complete body"
-msgstr "REA·generateOTP,완전한 신체"
+msgstr "REA · generateOTP, 함수 본문 전체"
 
 #: website/public/showcase/aegis/index.html:721
 msgctxt "page:showcase/aegis/index.html"
@@ -10441,7 +10434,7 @@ msgstr "REA→에이전트·선택한 결과"
 #: website/public/showcase/ctf/index.html:353
 msgctxt "page:showcase/ctf/index.html"
 msgid "REA → agent · selected instructions"
-msgstr "REA→에이전트·선택 지침"
+msgstr "REA → 에이전트 · 선택한 명령어"
 
 #: website/public/showcase/ctf/index.html:416
 msgctxt "page:showcase/ctf/index.html"
@@ -10471,7 +10464,7 @@ msgstr "다운로드 솔버"
 #: website/public/showcase/dx-ball/index.html:332
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA result · pseudocode excerpt"
-msgstr "REA결과·의사 발췌문"
+msgstr "REA 결과 · 의사 코드 발췌"
 
 #. {ph0}: <code>analyze_function</code>
 #: website/public/showcase/dx-ball/index.html:355
@@ -10484,7 +10477,7 @@ msgstr "에이전트→ REA · {ph0}"
 #: website/public/showcase/dx-ball/index.html:361
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA → agent · instruction excerpt"
-msgstr "REA→에이전트·사용법 발췌문"
+msgstr "REA → 에이전트 · 명령어 발췌문"
 
 #: website/public/showcase/dx-ball/index.html:385
 msgctxt "page:showcase/dx-ball/index.html"
@@ -10496,12 +10489,12 @@ msgstr "REA→agent·호출하는 함수 발췌문"
 #, python-brace-format
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "Agent → REA · two {ph0} requests"
-msgstr "에이전트→ REA *두 {ph0} 요청"
+msgstr "에이전트→ REA · 두 {ph0} 요청"
 
 #: website/public/showcase/dx-ball/index.html:413
 msgctxt "page:showcase/dx-ball/index.html"
 msgid "REA byte results · decoded as doubles"
-msgstr "REA결과의 바이트·디코딩으로 복식"
+msgstr "REA 바이트 분석 결과 · 배정밀도 부동소수점으로 해석"
 
 #: website/public/showcase/dx-ball/index.html:766
 msgctxt "page:showcase/dx-ball/index.html"
@@ -10561,7 +10554,7 @@ msgstr "REA결과"
 #: website/public/showcase/index.html:254
 msgctxt "page:showcase/index.html"
 msgid "Recovered C"
-msgstr "복구 된"
+msgstr "복원한 C 코드"
 
 #: website/public/showcase/index.html:255
 msgctxt "page:showcase/index.html"
@@ -10576,12 +10569,12 @@ msgstr "패키지 앱"
 #: website/public/showcase/index.html:271
 msgctxt "page:showcase/index.html"
 msgid "Exposed API"
-msgstr "노출"
+msgstr "노출된 API"
 
 #: website/public/showcase/index.html:272
 msgctxt "page:showcase/index.html"
 msgid "IPC wrappers"
-msgstr "래퍼"
+msgstr "IPC 래퍼"
 
 #: website/public/showcase/index.html:273
 msgctxt "page:showcase/index.html"
@@ -10596,7 +10589,7 @@ msgstr "원래 도스 코드"
 #: website/public/showcase/index.html:289
 msgctxt "page:showcase/index.html"
 msgid "REA instructions"
-msgstr "REA지침"
+msgstr "REA 명령어"
 
 #: website/public/showcase/index.html:290
 msgctxt "page:showcase/index.html"
@@ -10606,17 +10599,17 @@ msgstr "각도 계산"
 #: website/public/showcase/index.html:291
 msgctxt "page:showcase/index.html"
 msgid "Bullet ring"
-msgstr "총알 반지"
+msgstr "원형 탄막"
 
 #: website/public/showcase/notion/index.html:307
 msgctxt "page:showcase/notion/index.html"
 msgid "Exposed page API"
-msgstr "노출된 페이지"
+msgstr "노출된 페이지 API"
 
 #: website/public/showcase/notion/index.html:313
 msgctxt "page:showcase/notion/index.html"
 msgid "Renderer IPC call"
-msgstr "렌더러 호출"
+msgstr "렌더러의 IPC 호출"
 
 #: website/public/showcase/notion/index.html:475
 msgctxt "page:showcase/notion/index.html"
@@ -10636,7 +10629,7 @@ msgstr "마크다운 입력"
 #: website/public/showcase/notion/index.html:535
 msgctxt "page:showcase/notion/index.html"
 msgid "Structured parser output · excerpt"
-msgstr "구조화된 파서 출력*발췌"
+msgstr "구조화된 파서 출력 · 발췌"
 
 #: website/public/showcase/notion/index.html:612
 msgctxt "page:showcase/notion/index.html"
@@ -10651,7 +10644,7 @@ msgstr "에이전트→REA"
 #: website/public/showcase/th04/index.html:381
 msgctxt "page:showcase/th04/index.html"
 msgid "REA → agent · selected fields"
-msgstr "REA→에이전트·선택된 분야"
+msgstr "REA → 에이전트 · 선택한 필드"
 
 #. {ph0}: <code>analyze_function</code>
 #: website/public/showcase/th04/index.html:400
@@ -10663,12 +10656,12 @@ msgstr "에이전트→ REA · {ph0}"
 #: website/public/showcase/th04/index.html:406
 msgctxt "page:showcase/th04/index.html"
 msgid "REA → agent · instruction excerpt"
-msgstr "REA→에이전트·사용법 발췌문"
+msgstr "REA → 에이전트 · 명령어 발췌문"
 
 #: website/public/showcase/th04/index.html:427
 msgctxt "page:showcase/th04/index.html"
 msgid "Same function result · aim excerpt"
-msgstr "동일한 기능 결과*목표 발췌"
+msgstr "같은 함수 결과 · 조준 부분 발췌"
 
 #: website/public/showcase/th04/index.html:436
 msgctxt "page:showcase/th04/index.html"
@@ -10678,12 +10671,12 @@ msgstr "해당 유지 관리 C++"
 #: website/public/showcase/th04/index.html:616
 msgctxt "page:showcase/th04/index.html"
 msgid "Ring macro · TH04 branch, excerpt"
-msgstr "매크로 반지·TH04점,발췌"
+msgstr "원형 탄막 매크로 · TH04 분기 발췌"
 
 #: website/public/showcase/th04/index.html:626
 msgctxt "page:showcase/th04/index.html"
 msgid "Angle and velocity · source excerpt"
-msgstr "각도와 속도*소스 발췌"
+msgstr "각도와 속도 벡터 · 소스 발췌"
 
 #: website/public/assets/home.js:29
 msgctxt "runtime"
@@ -10693,7 +10686,7 @@ msgstr "%를 눌러 10 에 무슨 일이 일어나는지 확인합니다."
 #: website/public/assets/home.js:32
 msgctxt "runtime"
 msgid "10% of 200 is 20. Press = to add it."
-msgstr "200 의 10%는 20 입니다. 를 눌러=를 추가 할 수 있습니다."
+msgstr "200의 10%는 20입니다. =를 눌러 더하세요."
 
 #: website/public/assets/home.js:33
 msgctxt "runtime"
@@ -10759,9 +10752,8 @@ msgid ""
 "written, which fields it contains, and the relevant files and "
 "lines.{ph5}{ph6}{ph7}"
 msgstr ""
-"{ph0}›{ph1}{ph2}다운로드 {ph3} 새 예제 폴더에 넣고 압축을 풉니 다. 사용 REA 노트 내보내기를 클릭하면 어떤 일이 "
-"발생하는지 찾을 수 있습니다. 어디에 표시 {ph4} 어떤 필드가 포함되어 있는지,그리고 관련 파일과 줄들이 쓰여져 "
-"있습니다.{ph5}{ph6}{ph7}"
+"{ph0}›{ph1}{ph2}{ph3}을 새 예제 폴더에 다운로드하고 압축을 풀어 줘. REA로 Export notes를 클릭할 때 어떤 일이 일어나는지 "
+"조사해 줘. {ph4}가 기록되는 위치, 포함된 필드, 관련 파일과 줄을 보여 줘.{ph5}{ph6}{ph7}"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -10833,8 +10825,8 @@ msgid ""
 "Use a coding agent such as Claude Code, Codex or Cursor. You’ll need {ph0} "
 "and npm; the {ph1}setup guide lists supported versions{ph2}."
 msgstr ""
-"다음과 같은 코딩 에이전트 사용 Claude Code, Codex 또는 Cursor. 당신이 필요합니다 {ph0} 그리고 npm; "
-"{ph1}설치 가이드 목록 지원되는 버전{ph2}."
+"Claude Code, Codex, Cursor 같은 코딩 에이전트를 사용하세요. {ph0}와 npm이 필요합니다. {ph1}설치 가이드에 지원 버전이 "
+"나와 있습니다{ph2}."
 
 #. {ph0}: <span class="flow-label" >
 #. {ph1}: <span translate="no">renderer.js</span>
@@ -10848,7 +10840,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "{ph0}Page · {ph1}{ph2}{ph3}Export notes{ph4}{ph5}Calls {ph6}.{ph7}"
-msgstr "{ph0}페이지 · {ph1}{ph2}{ph3}노트 내보내기{ph4}{ph5}통화 {ph6}.{ph7}"
+msgstr "{ph0}페이지 · {ph1}{ph2}{ph3}노트 내보내기{ph4}{ph5}{ph6}을 호출합니다.{ph7}"
 
 #. {ph0}: <span class="flow-label" >
 #. {ph1}: <span translate="no">preload.js</span>
@@ -10890,7 +10882,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:first-investigation/index.html"
 msgid "{ph0} · lines 8–12"
-msgstr "{ph0} *라인 8-12"
+msgstr "{ph0} · 라인 8-12"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -10909,8 +10901,8 @@ msgid ""
 "run the example’s {ph4} formatter with {ph5} to check it. Show the "
 "prediction and actual output.{ph6}{ph7}{ph8}"
 msgstr ""
-"{ph0}›{ph1}{ph2}예측 CSV 아이디 1 과 제목이 있는 메모 {ph3}. 그런 다음 예제를 실행하십시오 {ph4} 포맷터 "
-"{ph5} 그것을 확인합니다. 예측 및 실제 출력을 표시합니다.{ph6}{ph7}{ph8}"
+"{ph0}›{ph1}{ph2}ID가 1이고 제목이 {ph3}인 메모의 CSV 출력을 예측해 줘. 그런 다음 {ph5}로 예제의 {ph4} 포맷터를 실행해 "
+"확인해 줘. 예측과 실제 출력을 보여 줘.{ph6}{ph7}{ph8}"
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/first-investigation/index.html:436
@@ -10935,7 +10927,7 @@ msgstr "당신이 필요합니다 {ph0} 22 (22.19+), 24 (24.11+) 또는 26+. npm
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid "Don't have {ph0}, or not sure?"
-msgstr "이 없{ph0},또는 확신할 수 없으십니까?"
+msgstr "{ph0}가 없거나, 설치되어 있는지 확실하지 않나요?"
 
 #. {ph0}: <code>node -v</code>
 #. {ph1}: <span translate="no">Node.js</span>
@@ -10955,7 +10947,7 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:guides/browser/index.html"
 msgid "{ph0} · example source excerpt"
-msgstr "{ph0} *예제 소스 발췌"
+msgstr "{ph0} · 예제 소스 발췌"
 
 #. {ph0}: <a href="../../examples/notes-web/">
 #. {ph1}: </a>
@@ -10980,7 +10972,7 @@ msgstr "{ph0}예제 열기{ph1} · {ph2}다운로드 {ph3}{ph4} · {ph5}다운�
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0} · example source"
-msgstr "{ph0} *예제 소스"
+msgstr "{ph0} · 예제 소스"
 
 #. {ph0}: <code>notes-example</code>
 #. {ph1}: <span translate="no">Node.js</span>
@@ -10992,8 +10984,8 @@ msgid ""
 "folder. Analyze it with {ph1} and npm; Electron is not needed for this "
 "example."
 msgstr ""
-"예제를 다운로드하고 압축을 풉니 다. 아카이브에는 전체 {ph0} 폴더 그것을 분석 {ph1} 그리고 npm; Electron 이 "
-"예제에는 필요하지 않습니다."
+"예제를 다운로드하고 압축을 푸세요. 압축 파일에는 {ph0} 폴더 전체가 들어 있습니다. {ph1}와 npm으로 분석하세요. 이 예제에는 Electron이"
+" 필요하지 않습니다."
 
 #. {ph0}: <span translate="no">Node.js</span>
 #. {ph1}: <a href="get-started/">
@@ -11019,14 +11011,14 @@ msgctxt "page:index.html"
 msgid ""
 "{ph0}›{ph1}{ph2}Use REA to inspect Windows Calculator. Why does {ph3} give "
 "220?{ph4}{ph5}{ph6}"
-msgstr "{ph0}›{ph1}{ph2}사용 REA 검사 Windows 계산기 왜 {ph3} 220 줘?{ph4}{ph5}{ph6}"
+msgstr "{ph0}›{ph1}{ph2}REA로 Windows 계산기를 조사해 줘. {ph3}의 결과가 220인 이유는 뭐야?{ph4}{ph5}{ph6}"
 
 #. {ph0}: <span translate="no">index.js</span>
 #: website/public/index.html:713
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "REA · loaded {ph0} · selected lines"
-msgstr "REA *로드 {ph0} *선택한 라인"
+msgstr "REA · 로드 {ph0} · 선택한 라인"
 
 #. {ph0}: <span class="flow-label" >
 #. {ph1}: <span translate="no">calc.exe</span>
@@ -11070,28 +11062,28 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "tab_browser_view/{ph0} · API member"
-msgstr "탭 _브라우저 _보기/{ph0} ·회원"
+msgstr "tab_browser_view/{ph0} · API 멤버"
 
 #. {ph0}: <span translate="no">preload.js</span>
 #: website/public/showcase/notion/index.html:374
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "tab_browser_view/{ph0} · IPC helper"
-msgstr "탭 _브라우저 _보기/{ph0} ·아이피 도우미"
+msgstr "tab_browser_view/{ph0} · IPC 보조 함수"
 
 #. {ph0}: <span translate="no">index.js</span>
 #: website/public/showcase/notion/index.html:405
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · handler helper"
-msgstr "주요/{ph0} *핸들러 도우미"
+msgstr "main/{ph0} · 핸들러 도우미"
 
 #. {ph0}: <span translate="no">index.js</span>
 #: website/public/showcase/notion/index.html:433
 #, python-brace-format
 msgctxt "page:showcase/notion/index.html"
 msgid "main/{ph0} · clipboard receiver"
-msgstr "주요/{ph0} *클립 보드 수신기"
+msgstr "main/{ph0} · 클립보드 수신 측"
 
 #: website/public/assets/theme.js:52
 msgctxt "runtime"
@@ -11115,9 +11107,9 @@ msgid ""
 "capture Evidence, or connect Everywhere's MCP server to inspect captured "
 "traffic with your agent."
 msgstr ""
-"HTTP 요청과 응답 본문을 살펴보려면 {ph0}Fiddler Everywhere: SAZ 캡처, MCP 및 공개 스킬{ph1}을 "
-"사용하세요. SAZ ?? HAR 1.2로 내보내면 REA에서 오프라인 캡처 Evidence를 얻을 수 있으며, Everywhere의 "
-"MCP 서버를 연결하여 에이전트와 함께 캡처된 트래픽을 살펴볼 수도 있습니다."
+"HTTP 요청과 응답 본문을 살펴보려면 {ph0}Fiddler Everywhere: SAZ 캡처, MCP 및 공개 스킬{ph1}을 사용하세요. SAZ 또는"
+" HAR 1.2로 내보내면 REA에서 오프라인 캡처 Evidence를 얻을 수 있으며, Everywhere의 MCP 서버를 연결하여 에이전트와 함께 캡처된"
+" 트래픽을 살펴볼 수도 있습니다."
 
 #. {ph0}: <br />
 #: website/public/blog/index.html:203
@@ -11399,8 +11391,8 @@ msgid ""
 "After several targeted experiments, {ph0}a clean rebuild confirmed that the "
 "full function matched{ph1}."
 msgstr ""
-"한 결과는 나중에 충돌 확인을 위해 사용되는 값으로 여전히 저장 공간을 공유합니다. 해당 값에 고유한 수명을 부여하면 나머지 중복이 "
-"해결되었습니다. 여러 번의 대상 실험 후 {ph0}소스에서 깔끔하게 재컴파일하여 전체 함수가 {ph1}과 일치함을 확인했습니다."
+"한 결과는 나중에 충돌 검사에 쓰이는 값과 여전히 저장 공간을 공유했습니다. 그 값에 별도의 수명을 부여하자 남아 있던 겹침이 해결되었습니다. 여러 차례의"
+" 표적 실험 끝에 {ph0}클린 리빌드로 함수 전체가 일치함을 확인했습니다{ph1}."
 
 #: website/public/blog/reverse-engineering-models/index.html:315
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -11451,9 +11443,8 @@ msgid ""
 "complete function matched, and a {ph2}separate rebuild check confirmed "
 "it{ph3}."
 msgstr ""
-"{ph0}GPT-6-Astra이 주변 제어 흐름 그래프{ph1}를 변경했습니다. 이제 주요 경로는 공유된 최종 업데이트 및 복귀로 "
-"이어졌습니다. 해당 소스 구조에서 컴파일러는 원본과 동일한 방식으로 분기를 결합했습니다. 전체 함수이 일치했으며 {ph2}별도의 재구축 "
-"검사를 통해 이를 확인했습니다{ph3}."
+"{ph0}GPT-6-Astra가 주변 제어 흐름 그래프를 변경했습니다{ph1}. 이제 주요 경로는 공유된 최종 업데이트와 반환으로 이어졌습니다. 해당 소스"
+" 구조에서 컴파일러는 원본과 동일한 방식으로 분기를 결합했습니다. 함수 전체가 일치했으며, {ph2}별도의 리빌드 검사로 이를 확인했습니다{ph3}."
 
 #. {ph0}: <strong >
 #. {ph1}: </strong >
@@ -11549,8 +11540,7 @@ msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid ""
 "Reusing that pattern for the file-size variable produced the required layout"
 " without adding storage. The full function then matched."
-msgstr ""
-"파일 크기 변수에 해당 패턴을 재사용하면 저장소를 추가하지 않고도 필요한 레이아웃이 생성되었습니다. 그런 다음 전체 함수이 일치했습니다."
+msgstr "파일 크기 변수에도 그 패턴을 재사용하자 저장 공간을 추가하지 않고도 필요한 배치가 만들어졌습니다. 그러자 함수 전체가 일치했습니다."
 
 #: website/public/blog/reverse-engineering-models/index.html:404
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -11897,9 +11887,9 @@ msgid ""
 "explicitly recorded for verification. Other literal references could pass "
 "without their values being examined."
 msgstr ""
-"TH08은 해당 적용 범위 외부에 얼마나 많은 것을 숨길 수 있는지 보여주었습니다. 재구성된 일부 함수는 잘못된 부동 상수와의 정확한 "
-"비교를 통과했습니다. 비교기는 명령을 확인하기 전에 재배치된 주소를 조정했지만 확인을 위해 명시적으로 기록된 경우에만 해당 주소 뒤에 "
-"있는 값을 확인했습니다. 다른 리터럴 참조는 해당 값을 검사하지 않고 통과할 수 있습니다."
+"TH08은 검증 범위 밖에 얼마나 많은 문제가 숨어 있을 수 있는지 보여 주었습니다. 재구성된 일부 함수는 잘못된 부동 소수점 상수를 사용하고도 정확한 "
+"일치 비교를 통과했습니다. 비교기는 명령어를 검사하기 전에 재배치된 주소를 조정했지만, 그 주소가 가리키는 값은 검증 대상으로 명시적으로 기록된 경우에만 "
+"확인했습니다. 그 밖의 리터럴 참조는 값을 검사하지 않은 채 통과할 수 있었습니다."
 
 #. {ph0}: <a
 #. href="https://github.com/N0zoM1z0/th08/commit/a393f400786e4cc6cbb1000af0dad3276da12c78"
@@ -12154,7 +12144,7 @@ msgstr ""
 #: website/public/blog/reverse-engineering-models/index.html:778
 msgctxt "page:blog/reverse-engineering-models/index.html"
 msgid "Evidence and model attribution"
-msgstr "증거 및 모델 속성"
+msgstr "증거와 사용 모델 명시"
 
 #: website/public/blog/reverse-engineering-models/index.html:786
 msgctxt "page:blog/reverse-engineering-models/index.html"
@@ -12178,9 +12168,9 @@ msgid ""
 "attribution; the histories do not contain uniform per-run cost or effort "
 "measurements."
 msgstr ""
-"TH09 라벨 {ph0}은 GPT-6-Astra을 의미합니다. {ph1}과(와) 관련된 모델은 시간이 지남에 따라 변경되었으므로 "
-"라벨만으로는 특정 실행에 사용된 모델을 식별할 수 없습니다. 다른 인용 커밋의 명시적인 모델 이름은 기록된 속성을 제공합니다. 이러한 "
-"기록에는 모든 실행에 대한 일관된 비용 또는 노력 측정이 포함되지 않습니다."
+"TH09의 {ph0} 라벨은 GPT-6-Astra를 가리킵니다. {ph1}은 당시 사용한 모델에 따라 달라졌으므로 그 라벨만으로는 개별 실행을 식별할 수 "
+"없습니다. 다른 인용 커밋에 명시된 모델 이름으로 기록상 어떤 모델이 사용되었는지 확인할 수 있습니다. 이 기록들에는 실행별 비용이나 추론 노력에 대한 "
+"일관된 측정값이 없습니다."
 
 #. {ph0}: <strong>
 #. {ph1}: </strong>
@@ -12780,8 +12770,8 @@ msgid ""
 "button. Your agent can inspect its code without installing or launching "
 "Electron."
 msgstr ""
-"예는 6 개의 파일입니다. Electron 와 응용 프로그램 {ph0}노트 내보내기{ph1} 버튼. 에이전트는 설치 또는 실행 없이 해당"
-" 코드를 검사할 수 있습니다 Electron."
+"이 예제는 {ph0}노트 내보내기{ph1} 버튼이 있는, 파일 6개로 구성된 Electron 앱입니다. 에이전트는 Electron을 설치하거나 실행하지 "
+"않고도 코드를 살펴볼 수 있습니다."
 
 #: website/public/get-started/index.html:892
 msgctxt "page:get-started/index.html"
@@ -12859,8 +12849,7 @@ msgctxt "page:get-started/index.html"
 msgid ""
 "If your agent can’t download files, unzip this archive yourself. Give it the"
 " path to the {ph0} folder and the same export question."
-msgstr ""
-"에이전트가 파일을 다운로드할 수 없는 경우 이 아카이브의 압축을 직접 풉니다. 그 길을 {ph0} 폴더 및 동일한 내보내기 질문."
+msgstr "에이전트가 파일을 다운로드할 수 없다면 이 압축 파일을 직접 푸세요. 에이전트에게 {ph0} 폴더의 경로와 같은 내보내기 질문을 전달하세요."
 
 #. {ph0}: <code>/absolute/path/to/app</code>
 #: website/public/get-started/index.html:948
@@ -13678,7 +13667,7 @@ msgctxt "page:index.html"
 msgid ""
 "Start at 6. Add 0.001 each update without a collision, while speed is below "
 "13."
-msgstr "시작 6. 추가 0.001 충돌없이 각 업데이트,속도가 아래에있는 동안 13."
+msgstr "속도는 6에서 시작합니다. 속도가 13 미만이고 충돌하지 않은 경우, 갱신할 때마다 0.001씩 더합니다."
 
 #: website/public/index.html:1027
 msgctxt "page:index.html"
@@ -13742,7 +13731,7 @@ msgstr "설치된 계산기에서 선택한 어셈블리. 생각과 대답은 �
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Example prompt · Website"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}프롬프트 예*웹 사이트"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}프롬프트 예 · 웹 사이트"
 
 #: website/public/index.html:1152
 msgctxt "page:index.html"
@@ -13762,7 +13751,7 @@ msgstr "예,이 하나."
 msgctxt "page:index.html"
 msgid ""
 "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Example prompt · Game reconstruction"
-msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}예제 프롬프트*게임 재구성"
+msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}예제 프롬프트 · 게임 재구성"
 
 #. {ph0}: <span class="prompt-symbol" aria-hidden="true">
 #. {ph1}: </span >
@@ -13778,8 +13767,8 @@ msgid ""
 "Recover the gameplay logic in C and test it against the "
 "original.{ph3}{ph4}{ph5}"
 msgstr ""
-"{ph0}›{ph1}{ph2}사용 REA 이 게임을 실행 파일에서 재구성합니다. 다에서 게임 플레이 로직을 복구하고 원본에 대해 "
-"테스트합니다.{ph3}{ph4}{ph5}"
+"{ph0}›{ph1}{ph2}REA로 이 게임을 실행 파일에서 재구현해 줘. 게임 플레이 로직을 C로 복원하고 원본과 비교해 테스트해 "
+"줘.{ph3}{ph4}{ph5}"
 
 #. {ph0}: <a href="showcase/dx-ball/">
 #. {ph1}: </a>

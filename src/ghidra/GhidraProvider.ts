@@ -1,3 +1,6 @@
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import { bindArtifactFileCleanup } from "../artifacts/ArtifactFileOperation.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import type {
   AnalysisClient,
@@ -78,6 +81,7 @@ const SUPPORTED_ARCHITECTURES = new Set([
 
 /** Ghidra candidate backed by an isolated ephemeral headless import. */
 export class GhidraProvider implements AnalysisProviderCandidate {
+  readonly #inspectionResources = new ArtifactResourceScope();
   #installation: GhidraInstallationInspection | undefined;
   private readonly environment: NodeJS.ProcessEnv;
 
@@ -223,6 +227,28 @@ export class GhidraProvider implements AnalysisProviderCandidate {
     };
   }
 
+  hasPendingOwnedResources(): boolean {
+    return this.#inspectionResources.hasPending;
+  }
+
+  async closeOwnedResources() {
+    try {
+      await this.#inspectionResources.retryCleanup();
+      return ok(null);
+    } catch (cause: unknown) {
+      const error = new ProviderCleanupError(
+        "ghidra",
+        cause instanceof ArtifactReaderFailure
+          ? (cause.cleanup?.resources ?? [])
+          : [],
+        { reason: providerFailureText(cause) },
+        { cause },
+      );
+      bindArtifactFileCleanup(cause, error);
+      return err(error);
+    }
+  }
+
   async resolveAnalysisProfile(
     target: BinaryTarget,
     options?: AnalysisProfileResolutionOptions,
@@ -232,6 +258,7 @@ export class GhidraProvider implements AnalysisProviderCandidate {
       target,
       GHIDRA_PROVIDER_IDENTITY,
       installation,
+      this.#inspectionResources,
       options?.signal,
       this.config.ghidraLanguageOverride,
       this.config.ghidraDisabledAnalyzers,

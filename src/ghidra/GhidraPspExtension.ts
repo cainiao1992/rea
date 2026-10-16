@@ -287,7 +287,7 @@ const readChildren = async (
   } catch (cause: unknown) {
     outcome = { kind: "failed", cause };
   }
-  const lease = new AnalysisCleanupLease(() => owner.close());
+  const lease = new AnalysisCleanupLease(() => owner.close(), [path]);
   const attempt = await resources.release({
     kind: "lease",
     resource: path,

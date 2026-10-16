@@ -103,6 +103,10 @@ providers need not expose identical state machines.
   when close options change. Preserve observed child failure or activity when
   another child's health is unavailable; idle plus missing coverage stays
   unknown.
+  Bind cleanup failures to their exact resource owner. Resolve current cleanup
+  uncertainty only after that owner confirms release, while preserving the
+  original failure and completed observations. Later failure composition must
+  report only resources whose cleanup remains unresolved.
 - Await one-shot cleanup without discarding the completed result or primary
   diagnostic. Preserve partial observations, remaining resources, and the cleanup
   owner's recovery instructions. CLI adapters should reuse

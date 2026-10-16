@@ -17,6 +17,9 @@ import {
   WindowsBatchCommandError,
 } from "../process/WindowsBatchCommand.js";
 
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { DarwinProcessOwnershipInspectionError } from "../process/DarwinProcessRunTokenReader.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { AnalysisCapturedOutput } from "../domain/analysisErrorBase.js";
@@ -27,6 +30,7 @@ import {
   cleanupOwnedProcessGroup,
   cleanupWindowsProcessTree,
   type ProcessCleanupResult,
+  type ProcessCleanupFailure,
 } from "../process/ProcessOwnership.js";
 import {
   type ProviderProcessLaunch,
@@ -88,27 +92,65 @@ export interface GhidraLauncher {
   ): Promise<Result<GhidraLaunch, GhidraLaunchError | AnalysisCancelledError>>;
 }
 
+/** A rollback attempt failed without releasing its process owner. */
+export type GhidraLaunchRollbackFailure =
+  | { readonly kind: "incomplete"; readonly result: ProcessCleanupFailure }
+  | { readonly kind: "rejected"; readonly cause: unknown };
+
 /** Local launch failure retained as the cause of a provider-neutral error. */
 export class GhidraLaunchError extends Error {
   readonly #partialLaunch: GhidraLaunch | undefined;
   readonly #capturedOutput: AnalysisCapturedOutput | undefined;
   readonly launchSupport: readonly GhidraLaunchSupportDiagnostic[];
+  readonly rollbackFailure: GhidraLaunchRollbackFailure | undefined;
+  readonly cleanupFailure: AnalysisError | undefined;
 
   constructor(
     message: string,
     options?: ErrorOptions & {
       readonly partialLaunch?: GhidraLaunch;
+      readonly rollbackFailure?: GhidraLaunchRollbackFailure;
+      readonly cleanupFailure?: AnalysisError;
       readonly capturedOutput?: AnalysisCapturedOutput;
       readonly launchSupport?: readonly GhidraLaunchSupportDiagnostic[];
     },
   ) {
-    const { partialLaunch, capturedOutput, launchSupport, ...errorOptions } =
-      options ?? {};
+    const {
+      partialLaunch,
+      capturedOutput,
+      launchSupport,
+      rollbackFailure,
+      cleanupFailure,
+      ...errorOptions
+    } = options ?? {};
     super(message, errorOptions);
     this.name = "GhidraLaunchError";
     this.#partialLaunch = partialLaunch;
-    this.#capturedOutput =
-      capturedOutput === undefined ? undefined : { ...capturedOutput };
+    this.rollbackFailure = rollbackFailure;
+    const inherited =
+      errorOptions.cause instanceof DarwinProcessOwnershipInspectionError ||
+      errorOptions.cause instanceof GhidraLaunchError
+        ? errorOptions.cause.cleanupFailure
+        : errorOptions.cause instanceof AnalysisError &&
+            errorOptions.cause.cleanupIncomplete
+          ? errorOptions.cause
+          : undefined;
+    this.cleanupFailure =
+      cleanupFailure === undefined
+        ? inherited
+        : inherited === undefined || inherited === cleanupFailure
+          ? cleanupFailure
+          : analysisErrorWithCleanupFailure(
+              inherited,
+              cleanupFailure,
+            ).bindCleanupDependencies([inherited, cleanupFailure]);
+    const output =
+      capturedOutput ??
+      (errorOptions.cause instanceof DarwinProcessOwnershipInspectionError ||
+      errorOptions.cause instanceof GhidraLaunchError
+        ? errorOptions.cause.capturedOutput
+        : undefined);
+    this.#capturedOutput = output === undefined ? undefined : { ...output };
     this.launchSupport = (launchSupport ?? []).map((output) => ({ ...output }));
   }
 
@@ -133,12 +175,20 @@ export class GhidraLaunchError extends Error {
 const ghidraLaunchCommandOutput = (
   cause: unknown,
 ): AnalysisCapturedOutput | undefined => {
+  if (cause instanceof DarwinProcessOwnershipInspectionError)
+    return cause.capturedOutput;
   const failure = execFileOutputFailure(cause);
   if (failure === undefined) return undefined;
   return {
     stdout: failure.stdout,
     stderr: failure.stderr,
     truncated: failure.outputTruncated,
+    ...(failure.stdoutBytes === undefined
+      ? {}
+      : { stdout_bytes: failure.stdoutBytes }),
+    ...(failure.stderrBytes === undefined
+      ? {}
+      : { stderr_bytes: failure.stderrBytes }),
     exit_code: typeof failure.code === "number" ? failure.code : null,
     signal: failure.signal,
   };
@@ -410,21 +460,34 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         },
       );
       const primary = isAborted(options.signal)
-        ? new AnalysisCancelledError("open_binary", { cause: launchFailure })
+        ? new AnalysisCancelledError("open_binary", {
+            cause: launchFailure,
+            ...(launchFailure.cleanupFailure === undefined
+              ? {}
+              : {
+                  cleanup: {
+                    reason: launchFailure.cleanupFailure.message,
+                    resources: launchFailure.cleanupFailure.cleanupResources,
+                  },
+                }),
+          }).bindCleanupDependencies(
+            launchFailure.cleanupFailure === undefined
+              ? []
+              : [launchFailure.cleanupFailure],
+          )
         : launchFailure;
       if (started === undefined) return err(primary);
 
-      let cleanupFailure: unknown;
-      try {
-        const cleanup = await cleanupStartedProcess(started, platform);
-        if (!cleanup.cleaned)
-          cleanupFailure = new Error(
-            `Ghidra process cleanup was incomplete: ${cleanup.reason}`,
-          );
-      } catch (failure: unknown) {
-        cleanupFailure = failure;
-      }
-      if (cleanupFailure !== undefined) {
+      const cleanupOwner = started;
+      const rollback = await Promise.resolve()
+        .then(() => cleanupStartedProcess(cleanupOwner, platform))
+        .then(
+          (result): Result<null, GhidraLaunchRollbackFailure> =>
+            result.cleaned ? ok(null) : err({ kind: "incomplete", result }),
+          (cause: unknown): Result<null, GhidraLaunchRollbackFailure> =>
+            err({ kind: "rejected", cause }),
+        );
+      if (!rollback.ok) {
         const partialLaunch = ownedGhidraLaunch(
           started,
           paths,
@@ -440,11 +503,20 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
             `${primaryMessage}; process cleanup remains incomplete`,
             {
               cause: new AggregateError(
-                [primary, cleanupFailure],
+                [
+                  primary,
+                  rollback.error.kind === "rejected"
+                    ? rollback.error.cause
+                    : rollback.error.result,
+                ],
                 "Ghidra launch rollback did not release its process",
                 { cause: primary },
               ),
               partialLaunch,
+              rollbackFailure: rollback.error,
+              ...(launchFailure.cleanupFailure === undefined
+                ? {}
+                : { cleanupFailure: launchFailure.cleanupFailure }),
               launchSupport,
               ...(capturedOutput === undefined ? {} : { capturedOutput }),
             },

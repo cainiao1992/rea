@@ -57,3 +57,18 @@ export const createArtifactBinarySession = (
       ),
     ]),
   );
+
+/** Compose native inspection utilities without candidates for deep analysis. */
+export const createNativeBinarySession = (
+  selectedEnvironment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform = process.platform,
+): Promise<BinarySession> =>
+  import("../native/NativeMacOSProvider.js").then(({ NativeMacOSProvider }) =>
+    composeBinarySession(new AnalysisProviderRegistry([]), [
+      new NativeMacOSProvider(
+        snapshotEnvironment(selectedEnvironment, platform),
+        undefined,
+        platform,
+      ),
+    ]),
+  );

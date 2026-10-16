@@ -3,9 +3,11 @@ import { ok as resultOk } from "../../src/domain/result.js";
 import { describe, expect, it } from "vitest";
 import {
   runDirectAnalysis,
+  runProviderAnalysis,
   runManagedProviderExecution,
 } from "../../src/application/DirectAnalysis.js";
 import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";
+import type { NativeToolName } from "../../src/contracts/native/nativeToolContracts.js";
 import type { BinarySession } from "../../src/application/binary/BinarySession.js";
 import { observed } from "../fixtures/analysisExecution.js";
 import {
@@ -35,6 +37,7 @@ const recordingFactories = (failure?: Error) => {
     readConfiguration: () => parseConfig({}),
     createBinarySession: createSession,
     createArtifactBinarySession: createSession,
+    createNativeBinarySession: createSession,
     createManagedBinarySession: createSession,
   };
   return { dependencies, sessions, clientsClosed: () => clientsClosed };
@@ -100,4 +103,66 @@ describe("one-shot analysis factory boundary", () => {
     expect(factories.clientsClosed()).toBe(1);
     expect(factories.sessions[0]?.activeTarget()).toBeUndefined();
   });
+
+  it.each([
+    "inspect_macho",
+    "inspect_signature",
+    "list_architectures",
+    "inspect_plist",
+    "demangle_swift",
+  ] satisfies readonly NativeToolName[])(
+    "runs %s without reading deep-engine configuration or constructing its session",
+    async (tool) => {
+      const [path] = await createBinarySessionTargets();
+      const factories = recordingFactories();
+      const unexpected = (): never => {
+        throw new Error("unrelated session factory must stay unused");
+      };
+      const arguments_ =
+        tool === "demangle_swift" ? { symbols: ["$s4Test3fooyyF"] } : {};
+      const result = await runProviderAnalysis(
+        {
+          ...factories.dependencies,
+          readConfiguration: unexpected,
+          createBinarySession: unexpected,
+          createArtifactBinarySession: unexpected,
+          createManagedBinarySession: unexpected,
+        },
+        path,
+        tool,
+        arguments_,
+      );
+      expect(result).toMatchObject({
+        operation: tool,
+        normalized_result: { operation: tool },
+      });
+      expect(factories.clientsClosed()).toBe(1);
+      expect(factories.sessions[0]?.activeTarget()).toBeUndefined();
+    },
+  );
+
+  it.each([
+    "observe_native_ui",
+    "capture_native_ui_scenario",
+    "observe_native_calls",
+  ] satisfies readonly NativeToolName[])(
+    "keeps %s on the ordinary session route",
+    async (tool) => {
+      const [path] = await createBinarySessionTargets();
+      const factories = recordingFactories();
+      const result = await runProviderAnalysis(
+        {
+          ...factories.dependencies,
+          createNativeBinarySession: () => {
+            throw new Error("static inspection factory must stay unused");
+          },
+        },
+        path,
+        tool,
+        {},
+      );
+      expect(result).toMatchObject({ operation: tool });
+      expect(factories.clientsClosed()).toBe(1);
+    },
+  );
 });

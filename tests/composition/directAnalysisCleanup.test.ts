@@ -62,6 +62,7 @@ const factories = (
     readConfiguration: () => parseConfig({}),
     createBinarySession: () => session,
     createArtifactBinarySession: () => session,
+    createNativeBinarySession: () => session,
     createManagedBinarySession: () => session,
   };
   return { dependencies, session };

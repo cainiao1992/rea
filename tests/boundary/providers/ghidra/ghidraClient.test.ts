@@ -1481,6 +1481,7 @@ describe.skipIf(process.platform === "win32")(
           environment: process.env,
           javaHome: join(root, "jdk"),
           analyzeHeadlessPath: "/unused/ghidra/support/analyzeHeadless",
+          configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
           bridgeScriptPath: "/unused/rea/ReaGhidraBridge.java",
           spawnProcess: async ({ runId }) => {
             const spawned = spawn(

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -85,6 +85,7 @@ if (mode === "env-failure" || (probe === "-vmargs" && mode === "vm-failure")) {
     javaHome,
     ...(javaVmName === null ? {} : { javaVmName }),
     analyzeHeadlessPath: join(root, "ghidra", "support", "analyzeHeadless"),
+    configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
     bridgeScriptPath: join(root, "ReaGhidraBridge.java"),
     spawnProcess: async (options) => {
       analysisArguments.push(options.arguments);
@@ -109,6 +110,68 @@ if (mode === "env-failure" || (probe === "-vmargs" && mode === "vm-failure")) {
   });
   return { session, launcher, analysisArguments, controller };
 };
+
+describe.skipIf(process.platform === "win32")(
+  "Ghidra inspected configuration identity",
+  () => {
+    it("prepares the inspected release directory without reinterpreting changed properties", async () => {
+      const { session, launcher } = await fixture("quiet");
+      const propertiesRoot = join(
+        session.runtimeRoot,
+        "..",
+        "ghidra",
+        "Ghidra",
+      );
+      await mkdir(propertiesRoot, { recursive: true });
+      await writeFile(
+        join(propertiesRoot, "application.properties"),
+        "application.version=12.1.2\napplication.release.name=OTHER\n",
+      );
+      const launched = await launcher.launch(session);
+      if (!launched.ok) throw launched.error;
+      expect(
+        (
+          await stat(
+            join(
+              session.runtimeRoot,
+              "config",
+              "ghidra",
+              "ghidra_12.1.4_PUBLIC",
+            ),
+          )
+        ).isDirectory(),
+      ).toBe(true);
+      await expect(
+        stat(
+          join(session.runtimeRoot, "config", "ghidra", "ghidra_12.1.2_OTHER"),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    it("rejects unresolved identity before creating runtime directories or starting Java", async () => {
+      const { session, launcher, analysisArguments } = await fixture("quiet");
+      const unresolved = new GhidraHeadlessLauncher({
+        ...launcher.options,
+        configurationDirectoryName: null,
+      });
+      const launched = await unresolved.launch(session);
+      expect(launched).toMatchObject({
+        ok: false,
+        error: {
+          cause: {
+            message: expect.stringContaining(
+              "configuration directory identity is unresolved",
+            ),
+          },
+        },
+      });
+      expect(analysisArguments).toEqual([]);
+      await expect(stat(session.runtimeRoot)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    });
+  },
+);
 
 describe.skipIf(process.platform === "win32")(
   "Ghidra LaunchSupport JVM compatibility",

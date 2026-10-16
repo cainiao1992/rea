@@ -1,4 +1,3 @@
-import { parseGhidraJavaProperties } from "./GhidraJavaProperties.js";
 import { GHIDRA_BRIDGE_SOURCES } from "./GhidraBridgeSources.js";
 import {
   snapshotGhidraAnalysisSeeds,
@@ -6,7 +5,7 @@ import {
 } from "./GhidraAnalysisSeeds.js";
 import type { GhidraLanguageOverride } from "../config/ghidraLanguageOverride.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import { mkdir, readFile, realpath } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import { basename, dirname, join, posix, win32 } from "node:path";
 
 import writeFileAtomic from "write-file-atomic";
@@ -149,6 +148,8 @@ const ghidraLaunchCommandOutput = (
 export interface GhidraHeadlessLauncherOptions {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly analyzeHeadlessPath: string;
+  /** Release coordinate owned by installation inspection; null must not be guessed. */
+  readonly configurationDirectoryName: string | null;
   readonly javaHome?: string;
   readonly javaVmName?: string;
   readonly bridgeScriptPath: string;
@@ -200,6 +201,10 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
     let configuredMaxHeap: string | undefined;
     const launchSupport: GhidraLaunchSupportDiagnostic[] = [];
     try {
+      if (this.options.configurationDirectoryName === null)
+        throw new GhidraLaunchError(
+          "Ghidra configuration directory identity is unresolved; restore application.version and application.release.name in the selected installation's application.properties.",
+        );
       const psp = this.options.pspExtension;
       if (psp !== undefined) {
         const installedRoot = await realpath(
@@ -228,7 +233,7 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
       await createGhidraRuntimeDirectories(
         paths,
         platform,
-        await ghidraConfigReleaseDirectory(this.options.analyzeHeadlessPath),
+        this.options.configurationDirectoryName,
       );
       const seedPath =
         this.options.analysisSeeds === undefined
@@ -754,32 +759,6 @@ const ghidraRuntimePaths = (runtimeRoot: string) => ({
  * that no supported JDK was found. Create the release directory while this
  * process still owns the runtime, leaving Ghidra only a file write inside it.
  */
-const ghidraConfigReleaseDirectory = async (
-  analyzeHeadlessPath: string,
-): Promise<string> => {
-  const installRoot = dirname(dirname(analyzeHeadlessPath));
-  try {
-    const properties = await readFile(
-      join(installRoot, "Ghidra", "application.properties"),
-      "latin1",
-    );
-    const parsed = parseGhidraJavaProperties(properties);
-    if (!parsed.ok) return basename(installRoot);
-    const version = parsed.value.get("application.version");
-    const release = parsed.value.get("application.release.name");
-    return version === undefined ||
-      release === undefined ||
-      release.length === 0
-      ? basename(installRoot)
-      : `ghidra_${version}_${release}`;
-  } catch (cause: unknown) {
-    // An unreadable properties file leaves the release coordinate unknown; the
-    // conventional extraction directory carries the same name.
-    void cause;
-    return basename(installRoot);
-  }
-};
-
 const createGhidraRuntimeDirectories = async (
   paths: ReturnType<typeof ghidraRuntimePaths>,
   platform: NodeJS.Platform,

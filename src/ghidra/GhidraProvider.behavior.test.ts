@@ -149,6 +149,30 @@ it.each([
   },
 );
 
+it("carries the inspected release identity into the production launcher", async () => {
+  const launchers: GhidraHeadlessLauncher[] = [];
+  const ghidra = provider(
+    {
+      ...installationHost(),
+      readText: () =>
+        "application.version=12.1.4\napplication.release.name=PUBLIC\napplication.java.min=21\n",
+    },
+    (options) => {
+      launchers.push(options.launcher as GhidraHeadlessLauncher);
+      return {
+        start: () => Promise.resolve(ok(sessionInfo())),
+        callTool: () => Promise.resolve(ok(null)),
+        close: () => Promise.resolve(ok(null)),
+      };
+    },
+  );
+  const client = await createElfClient(ghidra);
+  expect(launchers[0]?.options).toMatchObject({
+    configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+  });
+  await client.close();
+});
+
 describe("Ghidra provider", () => {
   it("commits DOS loader and real-mode language while retaining the CPU family", async () => {
     const ghidra = provider();

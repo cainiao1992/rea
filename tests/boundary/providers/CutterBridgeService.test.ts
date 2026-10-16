@@ -404,3 +404,41 @@ it("shares one cleanup attempt when commands retry the same receipt together", a
   expect(confirms).toBe(1);
   expect(dispatches).toBe(3);
 });
+
+it.each([
+  { phase: "before", reason: { code: "EACCES" } },
+  {
+    phase: "during",
+    reason: { cleanupIncomplete: true, resource: "caller resource" },
+  },
+])(
+  "models opaque discovery cancellation $phase the port call",
+  async ({ phase, reason }) => {
+    const controller = new AbortController();
+    let calls = 0;
+    const service = new CutterBridgeService({
+      listSessions: async () => {
+        calls += 1;
+        controller.abort(reason);
+        return {
+          sessions: [],
+          bridge_directory: "/private/bridge",
+          discovery_status: "no_live_bridge_found",
+          bridge_directory_security: "private_verified",
+        };
+      },
+      execute: async () => {
+        throw new Error("Unexpected command dispatch");
+      },
+    });
+    if (phase === "before") controller.abort(reason);
+    const result = await service.listSessions({ signal: controller.signal });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisCancelledError", cleanupIncomplete: false },
+    });
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error.cause).toBe(reason);
+    expect(calls).toBe(phase === "before" ? 0 : 1);
+  },
+);

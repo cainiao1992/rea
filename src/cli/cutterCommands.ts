@@ -23,8 +23,11 @@ export const registerCutterCommands = (
       "List live Cutter instances connected through the REA Python plugin bridge",
     args: z.object({}),
     run: () =>
-      logCliCommand(logger, CLI_COMMANDS.listCutterSessions, () =>
-        cutter.listSessions(),
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.listCutterSessions, async () => {
+          const result = await cutter.listSessions({ signal });
+          return result.ok ? result.value : projectAnalysisError(result.error);
+        }),
       ),
   });
   cli.command(CLI_COMMANDS.cutterCommand, {

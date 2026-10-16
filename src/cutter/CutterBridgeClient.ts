@@ -167,22 +167,39 @@ class CutterBridgeResponseFrames {
 const mapDiscovery = async <Input, Output>(
   inputs: readonly Input[],
   operation: (input: Input) => Promise<Output>,
+  signal?: AbortSignal,
 ): Promise<Output[]> => {
+  signal?.throwIfAborted();
   const results = new Array<Output>(inputs.length);
   let next = 0;
-  await Promise.all(
+  let stopped = false;
+  const workers = await Promise.allSettled(
     Array.from(
       { length: Math.min(inputs.length, DISCOVERY_CONCURRENCY) },
       async () => {
-        while (next < inputs.length) {
-          const index = next++;
-          results[index] = await operation(inputs[index]!);
+        try {
+          while (!stopped && next < inputs.length) {
+            signal?.throwIfAborted();
+            const index = next++;
+            results[index] = await operation(inputs[index]!);
+          }
+        } catch (cause) {
+          stopped = true;
+          throw cause;
         }
       },
     ),
   );
+  // Do not release this discovery's work until all admitted probes settle.
+  for (const worker of workers)
+    if (worker.status === "rejected") throw worker.reason;
+  signal?.throwIfAborted();
   return results;
 };
+
+export interface CutterDiscoveryOptions {
+  readonly signal?: AbortSignal;
+}
 export type CutterBridgeExecutionState =
   | "not_started"
   | "complete"
@@ -286,8 +303,13 @@ export class CutterBridgeClient {
     );
   }
 
-  async listSessions(): Promise<CutterBridgeDiscovery> {
+  async listSessions(
+    options: CutterDiscoveryOptions = {},
+  ): Promise<CutterBridgeDiscovery> {
+    const { signal } = options;
+    signal?.throwIfAborted();
     const loaded = await this.#readDescriptors();
+    signal?.throwIfAborted();
     if (loaded.error !== undefined)
       return {
         sessions: [],
@@ -306,6 +328,7 @@ export class CutterBridgeClient {
                 kind: "status",
                 session_id: descriptor.session_id,
               }),
+              signal,
             ),
           );
           if (
@@ -328,9 +351,11 @@ export class CutterBridgeClient {
             identity_status: "partial" as const,
           };
         } catch {
+          signal?.throwIfAborted();
           return undefined;
         }
       },
+      signal,
     );
     const sessions = descriptors.filter(
       (value): value is CutterBridgeSession => value !== undefined,
@@ -783,18 +808,19 @@ export class CutterBridgeClient {
         port: descriptor.port,
       });
       const frames = new CutterBridgeResponseFrames();
-      let settled = false;
+      let completion: (() => void) | undefined;
       let requestSent = false;
       let authenticated = false;
       const clientNonce = randomBytes(32).toString("hex");
       let serverNonce = "";
       let connectionOrdinal: string | undefined;
       const finish = (complete: () => void): void => {
-        if (settled) return;
-        settled = true;
+        if (completion !== undefined) return;
+        completion = complete;
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
-        complete();
+        // Retain this request until its owned socket has actually closed.
+        connection.destroy();
       };
       const rejectRequest = (message: string): void =>
         finish(() =>
@@ -802,20 +828,20 @@ export class CutterBridgeClient {
         );
       const timer = setTimeout(() => {
         rejectRequest("Cutter bridge request timed out");
-        connection.destroy();
       }, 25_000);
       const onAbort = (): void => {
         rejectRequest("Cutter bridge request was cancelled");
-        connection.destroy();
       };
       signal?.addEventListener("abort", onAbort, { once: true });
       if (signal?.aborted) onAbort();
       connection.once("connect", () => {
+        if (completion !== undefined) return;
         connection.write(
           `${JSON.stringify({ kind: "rea-auth-v2", nonce: clientNonce })}\n`,
         );
       });
       connection.on("data", (chunk: Buffer) => {
+        if (completion !== undefined) return;
         try {
           frames.push(chunk, (line) => {
             const frame: unknown = JSON.parse(line.toString("utf8"));
@@ -869,24 +895,23 @@ export class CutterBridgeClient {
               )
                 throw new Error("response proof failed");
               const response: unknown = JSON.parse(envelope.response);
-              connection.end();
               finish(() => resolve(response));
               return false;
             }
           });
         } catch {
           rejectRequest("Cutter bridge peer authentication or response failed");
-          connection.destroy();
         }
       });
       connection.once("error", (cause) =>
         rejectRequest(`Cutter bridge is unavailable: ${cause.message}`),
       );
-      connection.once("close", () =>
+      connection.once("close", () => {
         rejectRequest(
           "Cutter bridge closed before returning a complete response",
-        ),
-      );
+        );
+        completion?.();
+      });
     });
   }
 }

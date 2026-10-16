@@ -1,11 +1,113 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { McpServer } from "@modelcontextprotocol/server";
 import { expect, it } from "vitest";
+import { chmod, rm, writeFile } from "node:fs/promises";
+import { createServer, type Socket } from "node:net";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
+import { CutterBridgeClient } from "../../../src/cutter/CutterBridgeClient.js";
 import { CutterBridgeService } from "../../../src/cutter/CutterBridgeService.js";
+import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { registerCutterTools } from "../../../src/server/registerCutterTools.js";
 import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { silentLogger } from "../../../src/logger.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+
+it.skipIf(process.platform === "win32")(
+  "closes cancelled discovery probes, stops queued probes and reuses the MCP connection",
+  async () => {
+    const directory = await createTestTempDirectory("rea-cutter-discovery-");
+    await chmod(directory, 0o700);
+    const sockets = new Set<Socket>();
+    let accepted = 0;
+    const peer = createServer((socket) => {
+      accepted += 1;
+      sockets.add(socket);
+      socket.on("error", () => undefined);
+      socket.once("close", () => sockets.delete(socket));
+      // Drain authentication bytes so a paused readable cannot hide peer EOF.
+      socket.resume();
+    });
+    const descriptors: string[] = [];
+    const service = new CutterBridgeService(
+      new CutterBridgeClient({ REA_CUTTER_BRIDGE_DIR: directory }),
+    );
+    const server = new McpServer({ name: "cutter-discovery", version: "1" });
+    registerCutterTools(
+      server,
+      service,
+      silentLogger,
+      createToolResultDelivery(undefined),
+    );
+    const client = new Client({ name: "cutter-discovery", version: "1" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const controller = new AbortController();
+    try {
+      await new Promise<void>((resolve) =>
+        peer.listen(0, "127.0.0.1", resolve),
+      );
+      const address = peer.address();
+      if (address === null || typeof address === "string")
+        throw new Error("Expected private loopback listener");
+      for (let index = 0; index < 9; index += 1) {
+        const sessionId = randomUUID();
+        const path = join(directory, `cutter-${process.pid}-${sessionId}.json`);
+        descriptors.push(path);
+        await writeFile(
+          path,
+          JSON.stringify({
+            session_id: sessionId,
+            pid: process.pid,
+            host: "127.0.0.1",
+            port: address.port,
+            token: "discovery-test-transport-token",
+            document_generation: 0,
+            current_file: null,
+            cutter_version: null,
+            identity_status: "partial",
+          }),
+          { mode: 0o600 },
+        );
+      }
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const request = client.callTool(
+        { name: "list_cutter_sessions", arguments: {} },
+        { signal: controller.signal },
+      );
+      await expect.poll(() => accepted, { timeout: 5_000 }).toBe(8);
+      controller.abort();
+      await expect(request).rejects.toThrow(/abort/iu);
+      // Inspect the native peers; rejecting the SDK promise alone proves no cleanup.
+      await expect.poll(() => sockets.size, { timeout: 1_000 }).toBe(0);
+      expect(accepted).toBe(8);
+      for (const path of descriptors) await rm(path);
+      const reply = await client.callTool({
+        name: "list_cutter_sessions",
+        arguments: {},
+      });
+      expect(reply.isError).not.toBe(true);
+      expect(
+        toolContract("list_cutter_sessions").outputSchema.parse(
+          reply.structuredContent,
+        ),
+      ).toMatchObject({
+        sessions: [],
+        discovery_status: "no_live_bridge_found",
+        bridge_directory_security: "private_verified",
+      });
+      expect(accepted).toBe(8);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await client.close();
+      await server.close();
+      await new Promise<void>((resolve) => peer.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 it("propagates MCP cancellation into an active Cutter command and reports uncertain completion", async () => {
   let markDispatched: (() => void) | undefined;

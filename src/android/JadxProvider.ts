@@ -194,7 +194,10 @@ const hashAndroidSource = async (
 interface PendingCleanup {
   session: JadxSession | undefined;
   root: JadxWorkspaceRoot | undefined;
-  readonly fileHandles: Map<OwnedFileHandle, string>;
+  readonly fileHandles: Map<
+    OwnedFileHandle,
+    { readonly path: string; readonly error: AnalysisError }
+  >;
   readonly previousError: AnalysisError | undefined;
 }
 
@@ -207,9 +210,10 @@ const cleanup = async (
       previousError === undefined ? null : projectAnalysisError(previousError),
   };
   const failures: { readonly resource: string; readonly cause: unknown }[] = [];
-  for (const [owner, path] of fileHandles) {
+  for (const [owner, { path, error }] of fileHandles) {
     try {
       await owner.close();
+      error.resolveCleanup();
       fileHandles.delete(owner);
     } catch (cause: unknown) {
       failures.push({ resource: path, cause });
@@ -522,9 +526,6 @@ export class JadxProvider implements AndroidAnalysisPort {
       this.#retained = retained;
       return outcome;
     } catch (cause) {
-      const fileHandles = new Map<OwnedFileHandle, string>();
-      if (cause instanceof OwnedRegularFileCleanupFailure)
-        fileHandles.set(cause.owner, cause.path);
       const previousError = executionError({
         cause,
         request,
@@ -532,6 +533,12 @@ export class JadxProvider implements AndroidAnalysisPort {
         signal: options?.signal,
         session,
       });
+      const fileHandles: PendingCleanup["fileHandles"] = new Map();
+      if (cause instanceof OwnedRegularFileCleanupFailure)
+        fileHandles.set(cause.owner, {
+          path: cause.path,
+          error: previousError,
+        });
       const partialObservation = session?.partialObservation();
       if (partialObservation !== undefined)
         previousError.retainPartialObservation(partialObservation);

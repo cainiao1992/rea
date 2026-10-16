@@ -338,6 +338,37 @@ describe("Ghidra raw-binary profile", () => {
     const windows = provider(installationHost("win32"));
     expect(windows.inspectTargetSupport(target).status).toBe("unsupported");
   });
+  it("binds raw m68k to the big-endian 68000 language outside Windows P0", async () => {
+    const target: BinaryTarget = {
+      path: "/tmp/m68k.bin",
+      sha256: "a".repeat(64),
+      kind: "executable",
+      format: "raw-binary",
+      architecture: "m68k",
+      availableArchitectures: ["m68k"],
+      entryPoint: "0x1000",
+      entryPointSource: "0x00001000",
+    };
+    const ghidra = provider();
+    expect(ghidra.inspectTargetSupport(target).status).toBe("supported");
+    const resolved = await ghidra.resolveAnalysisProfile(target);
+    if (!resolved.ok) throw resolved.error;
+    expect(resolved.value.profile?.parameters).toMatchObject({
+      target_format: "raw-binary",
+      architecture: "m68k",
+      loader: "BinaryLoader",
+      language_id: "68000:BE:32:default",
+      compiler_spec_id: "default",
+      language_selection: "caller-supplied-v1",
+      entry_point: "0x1000",
+    });
+    expect(
+      provider(installationHost("win32")).inspectTargetSupport(target),
+    ).toMatchObject({
+      status: "unsupported",
+      code: "target_format_unsupported",
+    });
+  });
 });
 
 describe("Ghidra Mach-O slice support", () => {

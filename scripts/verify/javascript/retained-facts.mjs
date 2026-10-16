@@ -258,7 +258,10 @@ try {
       evidence.location.available &&
       evidence.location.value.kind === "artifact-path"
         ? evidence.location.value.path
-        : null,
+        : evidence.location.available &&
+            evidence.location.value.kind === "source-range"
+          ? evidence.location.value.source
+          : null,
     ),
   );
   for (const path of query.where?.paths ?? [])
@@ -333,6 +336,10 @@ try {
     answer_sha256: digest(first),
     export_ms: exportMs,
     cli_parity: cliParity,
+    analysis_fingerprints: {
+      semantic_graph_sha256: digest(parent.normalized_result.semantic_graph),
+      summary: parent.normalized_result.summary,
+    },
     token_costs: tokenCosts,
     conditions:
       "Fresh MCP and input hashing (file cache warmed); build/OS caches uncontrolled. First export sample includes export plus caller projection code, later samples reuse that immutable export. View samples precede diagnostic export. Task token projections include preparation, first answer, selected/full name/description/inputSchema catalog and the exact baseline program; exec tool schema, host rendering, output schemas, reasoning and billing unmeasured. At-answer cgroup counters include observer/startup overhead, before repeats/export diagnostics/parity/tokenization; final external observer measures all validation work. No application or native provider executes.",

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { setImmediate } from "node:timers/promises";
+import { assertArtifactReadActive } from "../../artifacts/ArtifactFileOperation.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import type { ArtifactReaderBoundary } from "../../artifacts/ArtifactReader.js";
 import { jsonParts } from "../../domain/jsonSerialization.js";
@@ -41,7 +42,7 @@ export const parsePeResources = async (
   input: InspectPeResourcesInput,
   signal?: AbortSignal,
 ): Promise<PeResources> => {
-  signal?.throwIfAborted();
+  assertArtifactReadActive(signal);
   const layout = readPeResourceLayout(bytes);
   const directories: PeResources["directories"] = [];
   const resources: PeResources["resources"] = [];
@@ -145,7 +146,7 @@ export const parsePeResources = async (
     for (let index = 0; index < count; index++) {
       if (index % 128 === 0) {
         await setImmediate();
-        signal?.throwIfAborted();
+        assertArtifactReadActive(signal);
       }
       const entry = header + 16 + index * 8;
       const encoded = bytes.readUInt32LE(entry);
@@ -212,7 +213,7 @@ export const parsePeResources = async (
       const hash = createHash("sha256");
       for (let offset = 0; offset < range.bytes; offset += 1048576) {
         await setImmediate();
-        signal?.throwIfAborted();
+        assertArtifactReadActive(signal);
         hash.update(
           bytes.subarray(
             range.offset + offset,
@@ -252,7 +253,7 @@ export const parsePeResources = async (
       "Exact shared byte ranges are retained; non-identical overlapping resource structures or payloads are rejected.",
     ],
   };
-  signal?.throwIfAborted();
+  assertArtifactReadActive(signal);
   if (jsonBytes(report, METADATA_BYTES) > METADATA_BYTES)
     limit("PE resource result exceeds the 8 MiB allocation budget.", "memory");
   return report;

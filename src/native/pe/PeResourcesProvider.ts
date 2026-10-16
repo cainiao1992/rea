@@ -1,5 +1,10 @@
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
+import {
+  ArtifactFileCleanupFailure,
+  bindArtifactFileCleanup,
+  artifactFileCancellationCause,
+} from "../../artifacts/ArtifactFileOperation.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import type { PeResourcesPort } from "../../application/binaryDiagnostics/PeResourcesPort.js";
@@ -27,33 +32,49 @@ export class PeResourcesProvider implements PeResourcesPort {
   readonly identity = PE_RESOURCES_PROVIDER;
   readonly #resources = new ArtifactResourceScope();
 
-  close(): Promise<void> {
-    return this.#resources.close();
+  async close(): Promise<void> {
+    try {
+      await this.#resources.close();
+    } catch (cause: unknown) {
+      if (
+        !(cause instanceof ArtifactReaderFailure) ||
+        cause.cleanup === undefined
+      )
+        throw cause;
+      const error = new ProviderCleanupError(
+        PE_RESOURCES_PROVIDER.id,
+        cause.cleanup.resources,
+        { reason: cause.cleanup.reason },
+        { cause, operation: "inspect_pe_resources" },
+      );
+      bindArtifactFileCleanup(cause, error);
+      throw error;
+    }
   }
 
   async inspect(input: InspectPeResourcesInput, options?: ExecutionOptions) {
     try {
-      const snapshot = await this.#resources.run(() =>
-        readStableArtifact(
+      return await this.#resources.run(async () => {
+        const snapshot = await readStableArtifact(
           input.path,
           input.max_file_bytes,
           options?.signal,
           undefined,
           this.#resources,
-        ),
-      );
-      return ok(
-        await parsePeResources(
-          snapshot.bytes,
-          {
-            path: input.path,
-            sha256: snapshot.sha256,
-            bytes: snapshot.bytes.length,
-          },
-          input,
-          options?.signal,
-        ),
-      );
+        );
+        return ok(
+          await parsePeResources(
+            snapshot.bytes,
+            {
+              path: input.path,
+              sha256: snapshot.sha256,
+              bytes: snapshot.bytes.length,
+            },
+            input,
+            options?.signal,
+          ),
+        );
+      });
     } catch (cause) {
       return err(peResourcesFailure(cause, input, options?.signal));
     }
@@ -80,7 +101,6 @@ export const inputBudgetRemediation = (
 const peResourcesFailurePrimary = (
   cause: unknown,
   input: InspectPeResourcesInput,
-  signal: AbortSignal | undefined,
 ) => {
   const operation = "inspect_pe_resources";
   if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
@@ -91,8 +111,9 @@ const peResourcesFailurePrimary = (
       { cause },
     );
   if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
-    return new AnalysisCancelledError(operation, { cause });
-  if (signal?.aborted) return new AnalysisCancelledError(operation, { cause });
+    return new AnalysisCancelledError(operation, {
+      cause: artifactFileCancellationCause(cause),
+    });
 
   if (cause instanceof ArtifactReaderFailure) {
     // An input byte budget is a file-size bound, not a memory constraint, and
@@ -160,7 +181,15 @@ const peResourcesFailure = (
   input: InspectPeResourcesInput,
   signal: AbortSignal | undefined,
 ) => {
-  const primary = peResourcesFailurePrimary(cause, input, signal);
+  const primary =
+    cause instanceof ArtifactFileCleanupFailure &&
+    cause.fileCleanupFailure.outcome.kind === "failed"
+      ? peResourcesFailurePrimary(cause.fileCleanupFailure.outcome.cause, input)
+      : cause instanceof ArtifactFileCleanupFailure && signal?.aborted
+        ? new AnalysisCancelledError("inspect_pe_resources", {
+            cause: signal.reason,
+          })
+        : peResourcesFailurePrimary(cause, input);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(
@@ -169,9 +198,11 @@ const peResourcesFailure = (
     { reason: cause.cleanup.reason },
     { operation: "inspect_pe_resources", cause },
   );
-  return analysisErrorWithCleanupFailure(
+  const error = analysisErrorWithCleanupFailure(
     primary,
     cleanup,
     "inspect_pe_resources",
   );
+  bindArtifactFileCleanup(cause, error);
+  return error;
 };

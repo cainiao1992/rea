@@ -1120,12 +1120,15 @@ describe("CutterBridgeClient: scenario group 7", () => {
       1234,
       "synthetic-cutter-bridge-token-for-test",
     );
-    const signal = {
-      aborted: true,
-      throwIfAborted: () => undefined,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    } as unknown as AbortSignal;
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const add = signal.addEventListener.bind(signal);
+    vi.spyOn(signal, "addEventListener").mockImplementation((...args) => {
+      add(...args);
+      controller.abort(
+        new Error("cancel immediately after listener registration"),
+      );
+    });
     await expect(
       createClient({ REA_CUTTER_BRIDGE_DIR: directory }).execute({
         sessionId,
@@ -1164,61 +1167,6 @@ describe("CutterBridgeClient: scenario group 7", () => {
       ).resolves.toMatchObject([{ session_id: sessionId }]);
     } finally {
       vi.doUnmock("node:fs");
-      await vi.resetModules();
-    }
-  });
-
-  it("keeps descriptor discovery resilient when closing a read handle fails", async () => {
-    if (process.platform === "win32") return;
-    directory = await mkdtemp(join(tmpdir(), "rea-cutter-close-failure-"));
-    const sessionId = "27d3e3f1-f1e5-49ae-91ec-95af1f343a5a";
-    await writeDescriptor(
-      directory,
-      sessionId,
-      1234,
-      "synthetic-cutter-bridge-token-for-test",
-    );
-    const bytes = await readFile(
-      join(directory, `cutter-${process.pid}-${sessionId}.json`),
-    );
-    let position = 0;
-    await vi.resetModules();
-    vi.doMock("node:fs/promises", async () => {
-      const real =
-        await vi.importActual<typeof import("node:fs/promises")>(
-          "node:fs/promises",
-        );
-      return {
-        ...real,
-        open: async () => ({
-          stat: async () => ({
-            isFile: () => true,
-            size: bytes.byteLength,
-            uid: process.getuid?.() ?? 0,
-            mode: 0o100600,
-          }),
-          read: async (target: Buffer, offset: number, length: number) => {
-            const chunk = bytes.subarray(position, position + length);
-            chunk.copy(target, offset);
-            position += chunk.byteLength;
-            return { bytesRead: chunk.byteLength };
-          },
-          close: async () => {
-            throw new Error("synthetic close failure");
-          },
-        }),
-      };
-    });
-    try {
-      const { CutterBridgeClient: CloseFailureClient } =
-        await import("../../../src/cutter/CutterBridgeClient.js");
-      await expect(
-        new CloseFailureClient({
-          REA_CUTTER_BRIDGE_DIR: directory,
-        }).listDescriptors(),
-      ).resolves.toMatchObject([{ session_id: sessionId }]);
-    } finally {
-      vi.doUnmock("node:fs/promises");
       await vi.resetModules();
     }
   });

@@ -1,3 +1,5 @@
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import {
   AnalysisCancelledError,
@@ -21,6 +23,8 @@ interface CutterBridgePort {
   listSessions(
     options?: CutterDiscoveryOptions,
   ): Promise<CutterBridgeDiscovery>;
+  close?(): Promise<void>;
+  retryDescriptorCleanup?(): Promise<void>;
   confirmCommandCompletion?(
     sessionId: string,
     requestId: string,
@@ -87,6 +91,11 @@ export class CutterBridgeService {
       signal?.throwIfAborted();
       return ok(discovery);
     } catch (cause) {
+      if (
+        cause instanceof AnalysisError &&
+        !(signal?.aborted && cause === signal.reason)
+      )
+        return err(cause);
       if (signal?.aborted)
         return err(
           new AnalysisCancelledError("list_cutter_sessions", {
@@ -94,18 +103,42 @@ export class CutterBridgeService {
           }),
         );
       return err(
-        cause instanceof AnalysisError
-          ? cause
-          : new AnalysisCapabilityUnavailableError(
-              "cutter",
-              "list_cutter_sessions",
-              cause instanceof Error
-                ? cause.message
-                : "Cutter discovery failed",
-              { cause },
-            ),
+        new AnalysisCapabilityUnavailableError(
+          "cutter",
+          "list_cutter_sessions",
+          cause instanceof Error ? cause.message : "Cutter discovery failed",
+          { cause },
+        ),
       );
     }
+  }
+
+  async close(): Promise<void> {
+    const pending = await this.retryCleanup();
+    try {
+      if (pending.ok) await this.client.close?.();
+      else await this.client.retryDescriptorCleanup?.();
+    } catch (cause: unknown) {
+      const failure =
+        cause instanceof AnalysisError
+          ? cause
+          : new ProviderCleanupError(
+              "cutter",
+              [],
+              {
+                reason: cause instanceof Error ? cause.message : String(cause),
+              },
+              { cause },
+            );
+      throw pending.ok
+        ? failure
+        : analysisErrorWithCleanupFailure(
+            pending.error,
+            failure,
+            "close_cutter",
+          ).bindCleanupDependencies([pending.error, failure]);
+    }
+    if (!pending.ok) throw pending.error;
   }
 
   async execute(
@@ -216,7 +249,11 @@ export class CutterBridgeService {
           ? cause.message
           : "Unknown Cutter bridge failure";
       if (options.signal?.aborted && !message.includes("may have completed"))
-        return err(new AnalysisCancelledError("cutter_command", { cause }));
+        return err(
+          new AnalysisCancelledError("cutter_command", {
+            cause: options.signal.reason,
+          }),
+        );
       return err(
         message.includes("generation changed") ||
           message.includes("unavailable or stale")

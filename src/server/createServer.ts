@@ -368,10 +368,14 @@ export const createServer = (
   const jeb = options.jebAnalysis ?? createJebAnalysisProvider(environment);
   const adbDevice =
     options.adbDeviceAnalysis ?? createAdbDeviceAnalysisProvider(environment);
+  const cutter = new CutterBridgeService(
+    new CutterBridgeClient(providerEnvironment),
+  );
   let providerClose: Promise<void> | undefined;
   const closeProviders = (): Promise<void> => {
     providerClose ??= Promise.allSettled([
       android.close(),
+      cutter.close(),
       fridaInstrumentation.closeAll(),
       wasmArtifact.close(),
       packetCapture.close(),
@@ -484,7 +488,7 @@ export const createServer = (
   );
   registerCutterTools(
     server,
-    new CutterBridgeService(new CutterBridgeClient(providerEnvironment)),
+    cutter,
     toolLogger,
     delivery,
     session === undefined

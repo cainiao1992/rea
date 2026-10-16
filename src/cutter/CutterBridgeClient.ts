@@ -1,8 +1,20 @@
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  withArtifactRegularFile,
+  ArtifactFileCleanupFailure,
+  bindArtifactFileCleanup,
+  artifactFileCancellationCause,
+  assertArtifactReadActive,
+} from "../artifacts/ArtifactFileOperation.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { randomUUID } from "node:crypto";
-import { constants as fsConstants } from "node:fs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createConnection } from "node:net";
-import { lstat, open, opendir } from "node:fs/promises";
+import { lstat, opendir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -11,7 +23,7 @@ import {
   AnalysisOutputError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { requireWindowsNativeAuthority } from "../windows/WindowsNativeLoader.js";
 import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
@@ -190,9 +202,11 @@ const mapDiscovery = async <Input, Output>(
       },
     ),
   );
-  // Do not release this discovery's work until all admitted probes settle.
-  for (const worker of workers)
-    if (worker.status === "rejected") throw worker.reason;
+  const failures = workers.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failures.length > 1) throw new CutterDiscoveryFailure(failures);
+  if (failures.length === 1) throw failures[0];
   signal?.throwIfAborted();
   return results;
 };
@@ -260,6 +274,7 @@ export interface CutterBridgeDiscovery {
 /** Discovers and communicates with REA Python bridge plugins in live Cutter processes. */
 export class CutterBridgeClient {
   readonly #directory: string;
+  readonly #descriptorResources = new ArtifactResourceScope();
   readonly #platform: NodeJS.Platform;
   readonly #windowsPrivateReader: WindowsCutterDescriptorReader | undefined;
   readonly #pendingAcknowledgements = new Map<string, Set<string>>();
@@ -303,13 +318,27 @@ export class CutterBridgeClient {
     );
   }
 
+  async retryDescriptorCleanup(): Promise<void> {
+    try {
+      await this.#descriptorResources.retryCleanup();
+    } catch (cause: unknown) {
+      throw descriptorFailure(cause, "close_cutter_descriptors");
+    }
+  }
+
+  async close(): Promise<void> {
+    try {
+      await this.#descriptorResources.close();
+    } catch (cause: unknown) {
+      throw descriptorFailure(cause, "close_cutter_descriptors");
+    }
+  }
+
   async listSessions(
     options: CutterDiscoveryOptions = {},
   ): Promise<CutterBridgeDiscovery> {
     const { signal } = options;
-    signal?.throwIfAborted();
-    const loaded = await this.#readDescriptors();
-    signal?.throwIfAborted();
+    const loaded = await this.#readDescriptors(signal);
     if (loaded.error !== undefined)
       return {
         sessions: [],
@@ -320,6 +349,10 @@ export class CutterBridgeClient {
     const descriptors = await mapDiscovery(
       loaded.descriptors,
       async (descriptor) => {
+        if (options.signal?.aborted)
+          throw new AnalysisCancelledError("list_cutter_sessions", {
+            cause: options.signal.reason,
+          });
         try {
           const status = responseSchema.safeParse(
             await this.#request(
@@ -357,6 +390,10 @@ export class CutterBridgeClient {
       },
       signal,
     );
+    if (options.signal?.aborted)
+      throw new AnalysisCancelledError("list_cutter_sessions", {
+        cause: options.signal.reason,
+      });
     const sessions = descriptors.filter(
       (value): value is CutterBridgeSession => value !== undefined,
     );
@@ -377,7 +414,7 @@ export class CutterBridgeClient {
     readonly signal?: AbortSignal;
   }): Promise<CutterBridgeExecution> {
     input.signal?.throwIfAborted();
-    const descriptor = await this.#find(input.sessionId);
+    const descriptor = await this.#find(input.sessionId, input.signal);
     input.signal?.throwIfAborted();
     const requestId = randomUUID();
     const commandRequest = serializeRequest(descriptor, {
@@ -482,6 +519,7 @@ export class CutterBridgeClient {
     try {
       descriptor = await this.#find(sessionId);
     } catch (cause) {
+      if (cause instanceof AnalysisError) return err(cause);
       return err(
         new AnalysisCapabilityUnavailableError(
           "cutter",
@@ -617,8 +655,11 @@ export class CutterBridgeClient {
     }
   }
 
-  async #find(sessionId: string): Promise<z.infer<typeof descriptorSchema>> {
-    const loaded = await this.#readDescriptors();
+  async #find(
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<z.infer<typeof descriptorSchema>> {
+    const loaded = await this.#readDescriptors(signal);
     if (loaded.error === "bridge_directory_capacity_exceeded")
       throw new AnalysisResourceConstraintError(
         "cutter_command",
@@ -650,7 +691,17 @@ export class CutterBridgeClient {
     return loaded.descriptors;
   }
 
-  async #readDescriptors(): Promise<{
+  async #readDescriptors(signal?: AbortSignal) {
+    try {
+      return await this.#descriptorResources.run(() =>
+        this.#loadDescriptors(signal),
+      );
+    } catch (cause: unknown) {
+      throw descriptorFailure(cause, "list_cutter_sessions");
+    }
+  }
+
+  async #loadDescriptors(signal: AbortSignal | undefined): Promise<{
     readonly descriptors: readonly z.infer<typeof descriptorSchema>[];
     readonly security:
       | "private_verified"
@@ -662,6 +713,7 @@ export class CutterBridgeClient {
       | "bridge_directory_insecure"
       | "bridge_directory_capacity_exceeded";
   }> {
+    assertArtifactReadActive(signal);
     let directoryInfo;
     try {
       directoryInfo = await lstat(this.#directory);
@@ -727,6 +779,7 @@ export class CutterBridgeClient {
     try {
       const directory = await opendir(this.#directory);
       for await (const entry of directory) {
+        assertArtifactReadActive(signal);
         if (!/^cutter-\d+-[0-9a-f-]{36}\.json$/iu.test(entry.name)) continue;
         if (entries.length === MAX_DESCRIPTOR_CANDIDATES)
           return {
@@ -736,7 +789,12 @@ export class CutterBridgeClient {
           };
         entries.push(entry.name);
       }
-    } catch {
+    } catch (cause: unknown) {
+      if (
+        cause instanceof ArtifactReaderFailure &&
+        cause.reason === "cancelled"
+      )
+        throw cause;
       return {
         descriptors: [],
         security: "not_checked",
@@ -744,7 +802,7 @@ export class CutterBridgeClient {
       };
     }
     const loaded = await mapDiscovery(entries, async (entry) => {
-      let file;
+      assertArtifactReadActive(signal);
       try {
         let bytes: Buffer;
         if (this.#platform === "win32") {
@@ -754,23 +812,31 @@ export class CutterBridgeClient {
             MAX_DESCRIPTOR_BYTES,
           );
         } else {
-          const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
-          file = await open(join(this.#directory, entry), flags);
-          const info = await file.stat();
-          if (
-            !info.isFile() ||
-            info.size > MAX_DESCRIPTOR_BYTES ||
-            info.uid !== currentUid ||
-            (info.mode & 0o077) !== 0
-          )
-            return undefined;
-          const boundedBytes = await readBoundedFileBytes(
-            file,
-            MAX_DESCRIPTOR_BYTES,
+          const boundedBytes = await withArtifactRegularFile(
+            join(this.#directory, entry),
+            this.#descriptorResources,
+            signal,
+            async (file) => {
+              const info = await file.stat();
+              if (
+                info.size > MAX_DESCRIPTOR_BYTES ||
+                info.uid !== currentUid ||
+                (info.mode & 0o077) !== 0
+              )
+                return undefined;
+              assertArtifactReadActive(signal);
+              const bytes = await readBoundedFileBytes(
+                file,
+                MAX_DESCRIPTOR_BYTES,
+              );
+              assertArtifactReadActive(signal);
+              return bytes;
+            },
           );
           if (boundedBytes === undefined) return undefined;
           bytes = boundedBytes;
         }
+        assertArtifactReadActive(signal);
         if (bytes.byteLength > MAX_DESCRIPTOR_BYTES) return undefined;
         const parsed = descriptorSchema.safeParse(
           JSON.parse(bytes.toString("utf8")) as unknown,
@@ -781,12 +847,16 @@ export class CutterBridgeClient {
         )
           return undefined;
         return parsed.data;
-      } catch {
+      } catch (cause: unknown) {
+        if (
+          cause instanceof ArtifactReaderFailure &&
+          (cause.cleanup !== undefined || cause.reason === "cancelled")
+        )
+          throw cause;
         return undefined;
-      } finally {
-        await file?.close().catch(() => undefined);
       }
     });
+    assertArtifactReadActive(signal);
     return {
       descriptors: loaded.filter(
         (value): value is z.infer<typeof descriptorSchema> =>
@@ -933,4 +1003,71 @@ const resolveBridgeDirectory = (
   return platform === "win32" && localAppData
     ? join(localAppData, "REA", "CutterBridge")
     : join(homeDirectory, ".cache", "rea", "cutter-bridge");
+};
+
+class CutterDiscoveryFailure extends Error {
+  constructor(readonly failures: readonly unknown[]) {
+    super("Cutter discovery workers failed");
+  }
+}
+
+const descriptorFailure = (
+  cause: unknown,
+  operation: string,
+): AnalysisError | unknown => {
+  if (cause instanceof CutterDiscoveryFailure) {
+    const failures = cause.failures.map((failure) => {
+      const parsed = descriptorFailure(failure, operation);
+      return parsed instanceof AnalysisError
+        ? parsed
+        : new ProviderAdapterError("cutter", operation, { cause: parsed });
+    });
+    const cleanup = failures.filter((failure) => failure.cleanupIncomplete);
+    if (cleanup.length === 0) return failures[0];
+    return new ProviderCleanupError(
+      "cutter",
+      cleanup.flatMap((failure) => failure.cleanupResources),
+      { reason: "Cutter descriptor discovery failed with unconfirmed closes" },
+      { operation, cause: new AggregateError(failures, cause.message) },
+    ).bindCleanupDependencies(cleanup);
+  }
+  if (!(cause instanceof ArtifactReaderFailure)) return cause;
+  if (cause.cleanup !== undefined) {
+    const cleanup = new ProviderCleanupError(
+      "cutter",
+      cause.cleanup.resources,
+      { reason: cause.cleanup.reason },
+      { operation, cause },
+    );
+    bindArtifactFileCleanup(cause, cleanup);
+    const outcome =
+      cause instanceof ArtifactFileCleanupFailure
+        ? cause.fileCleanupFailure.outcome
+        : undefined;
+    const primary =
+      outcome?.kind === "failed"
+        ? descriptorFailure(outcome.cause, operation)
+        : outcome?.kind === "completed" &&
+            cause instanceof ArtifactFileCleanupFailure &&
+            cause.completionCancellation !== undefined
+          ? new AnalysisCancelledError(operation, {
+              cause: cause.completionCancellation.reason,
+            })
+          : undefined;
+    if (primary === undefined && outcome?.kind !== "failed") return cleanup;
+    const original =
+      primary instanceof AnalysisError
+        ? primary
+        : new ProviderAdapterError("cutter", operation, { cause: primary });
+    return analysisErrorWithCleanupFailure(
+      original,
+      cleanup,
+      operation,
+    ).bindCleanupDependencies([cleanup]);
+  }
+  if (cause.reason === "cancelled")
+    return new AnalysisCancelledError(operation, {
+      cause: artifactFileCancellationCause(cause),
+    });
+  return cause;
 };

@@ -5,6 +5,13 @@ import { CutterBridgeClient } from "../cutter/CutterBridgeClient.js";
 import { CutterBridgeService } from "../cutter/CutterBridgeService.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
+import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import { err, type Result } from "../domain/result.js";
+import type { CutterBridgeDiscovery } from "../cutter/CutterBridgeClient.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import type { CliInstance } from "./types.js";
@@ -16,7 +23,8 @@ export const registerCutterCommands = (
   logger: Logger,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): void => {
-  const cutter = new CutterBridgeService(new CutterBridgeClient(environment));
+  const createCutter = () =>
+    new CutterBridgeService(new CutterBridgeClient(environment));
 
   cli.command(CLI_COMMANDS.listCutterSessions, {
     description:
@@ -25,7 +33,44 @@ export const registerCutterCommands = (
     run: () =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.listCutterSessions, async () => {
-          const result = await cutter.listSessions({ signal });
+          const cutter = createCutter();
+          let result: Result<CutterBridgeDiscovery, AnalysisError>;
+          try {
+            result = await cutter.listSessions({ signal });
+          } catch (cause: unknown) {
+            result = err(
+              cause instanceof AnalysisError
+                ? cause
+                : new ProviderAdapterError("cutter", "list_cutter_sessions", {
+                    cause,
+                  }),
+            );
+          }
+          try {
+            await cutter.close();
+          } catch (cause: unknown) {
+            const cleanup =
+              cause instanceof AnalysisError
+                ? cause
+                : new ProviderAdapterError("cutter", "list_cutter_sessions", {
+                    cause,
+                  });
+            result = err(
+              result.ok
+                ? cleanup
+                : analysisErrorWithCleanupFailure(
+                    result.error,
+                    cleanup,
+                    "list_cutter_sessions",
+                  ),
+            );
+          }
+          if (result.ok && signal.aborted)
+            result = err(
+              new AnalysisCancelledError("list_cutter_sessions", {
+                cause: signal.reason,
+              }),
+            );
           return result.ok ? result.value : projectAnalysisError(result.error);
         }),
       ),
@@ -63,16 +108,24 @@ export const registerCutterCommands = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.cutterCommand, async () => {
-          const result = await cutter.execute(
-            {
-              session_id: args.sessionId,
-              expected_generation: args.expectedGeneration,
-              command: args.command,
-              json: options.jsonOutput ?? options.json ?? false,
-            },
-            { signal },
+          const cutter = createCutter();
+          return finishAnalysisCommand(
+            () =>
+              cutter.execute(
+                {
+                  session_id: args.sessionId,
+                  expected_generation: args.expectedGeneration,
+                  command: args.command,
+                  json: options.jsonOutput ?? options.json ?? false,
+                },
+                { signal },
+              ),
+            cutter,
+            "cutter",
+            "cutter_command",
+            undefined,
+            signal,
           );
-          return result.ok ? result.value : projectAnalysisError(result.error);
         }),
       ),
   });

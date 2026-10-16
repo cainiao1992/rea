@@ -268,3 +268,105 @@ it("shares one cleanup proof across concurrent Cutter MCP commands without Binar
     await Promise.allSettled([client.close(), server.close()]);
   }
 });
+
+it("cancels active discovery sockets, stops queued probes and recovers on the same MCP connection", async () => {
+  const { createServer } = await import("node:net");
+  const { writeFile, rm } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { CutterBridgeClient } =
+    await import("../../../src/cutter/CutterBridgeClient.js");
+  const { createTestTempDirectory } =
+    await import("../../fixtures/temporaryDirectory.js");
+  const root = await createTestTempDirectory("rea-cutter-discovery-cancel-");
+  const sockets = new Set<import("node:net").Socket>();
+  let connections = 0;
+  let ready!: () => void;
+  const connected = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  const peer = createServer((socket) => {
+    sockets.add(socket);
+    connections++;
+    socket.on("close", () => sockets.delete(socket));
+    socket.resume();
+    if (connections === 8) ready();
+  });
+  await new Promise<void>((resolve) => peer.listen(0, "127.0.0.1", resolve));
+  const address = peer.address();
+  if (address === null || typeof address === "string")
+    throw new Error("Missing fixture port");
+  const paths: string[] = [];
+  for (let index = 1; index <= 9; index++) {
+    const session_id = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+    const path = join(root, `cutter-${process.pid}-${session_id}.json`);
+    paths.push(path);
+    await writeFile(
+      path,
+      JSON.stringify({
+        session_id,
+        pid: process.pid,
+        host: "127.0.0.1",
+        port: address.port,
+        token: "fixture-discovery-token-not-a-real-secret",
+        document_generation: 0,
+        current_file: null,
+        cutter_version: null,
+        identity_status: "partial",
+      }),
+      { mode: 0o600 },
+    );
+  }
+  const service = new CutterBridgeService(
+    new CutterBridgeClient({ REA_CUTTER_BRIDGE_DIR: root }),
+  );
+  let settled = false;
+  const list = service.listSessions.bind(service);
+  service.listSessions = async (options) => {
+    try {
+      return await list(options);
+    } finally {
+      settled = true;
+    }
+  };
+  const server = new McpServer({
+    name: "cutter-discovery-cancel",
+    version: "1",
+  });
+  registerCutterTools(
+    server,
+    service,
+    silentLogger,
+    createToolResultDelivery(undefined),
+  );
+  const client = new Client({ name: "cutter-discovery-cancel", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  const controller = new AbortController();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const request = client.callTool(
+      { name: "list_cutter_sessions", arguments: {} },
+      { signal: controller.signal },
+    );
+    await connected;
+    controller.abort(new Error("selected discovery cancellation"));
+    await expect(request).rejects.toThrow();
+    await expect.poll(() => settled).toBe(true);
+    await expect.poll(() => sockets.size).toBe(0);
+    expect(connections).toBe(8);
+    await Promise.all(paths.map((path) => rm(path)));
+    const recovered = await client.callTool({
+      name: "list_cutter_sessions",
+      arguments: {},
+    });
+    expect(recovered.isError).not.toBe(true);
+    expect(connections).toBe(8);
+  } finally {
+    controller.abort();
+    for (const socket of sockets) socket.destroy();
+    await Promise.allSettled([client.close(), server.close()]);
+    await service.close();
+    await new Promise<void>((resolve) => peer.close(() => resolve()));
+  }
+});

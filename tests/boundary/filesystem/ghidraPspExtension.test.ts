@@ -1,3 +1,5 @@
+import { AnalysisProviderRegistry } from "../../../src/application/binary/AnalysisProviderRegistry.js";
+import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
 import { createHash } from "node:crypto";
 import type { Dir } from "node:fs";
 import { GhidraClient } from "../../../src/ghidra/GhidraClient.js";
@@ -968,5 +970,81 @@ describe.skipIf(process.platform === "win32")(
         await provider.closeOwnedResources();
       }
     });
+  },
+);
+
+describe.skipIf(process.platform === "win32")(
+  "PSP profile selection completion through composed sessions",
+  () => {
+    it.each(["preview", "open"] as const)(
+      "preserves physical failure and live cleanup after late cancellation during %s",
+      async (operation) => {
+        const { directory, root, provider } = await installation();
+        const path = join(directory, "controlled-psp.elf");
+        await writeFile(path, pspElfBytes());
+        const parsed = await parseBinaryTarget(path);
+        if (!parsed.ok) throw parsed.error;
+        const controller = new AbortController();
+        const readFailure = new Error(
+          "controlled session profile read failure",
+        );
+        let allowClose = false;
+        let closes = 0;
+        controls.file = (handle, openedPath) => {
+          if (openedPath !== join(root, "Module.manifest")) return;
+          controls.file = undefined;
+          vi.spyOn(handle, "read").mockRejectedValue(readFailure);
+          const close = handle.close.bind(handle);
+          vi.spyOn(handle, "close").mockImplementation(async () => {
+            closes++;
+            controller.abort({ caller: "profile inspection finalization" });
+            if (!allowClose)
+              throw new Error("controlled session profile close failure");
+            await close();
+          });
+        };
+        const createClient = vi
+          .spyOn(provider, "createClient")
+          .mockImplementation(() => {
+            throw new Error("Failed profile must not start an engine");
+          });
+        const binary = composeBinarySession(
+          new AnalysisProviderRegistry([provider]),
+        );
+        try {
+          const result =
+            operation === "preview"
+              ? await binary.previewTarget(parsed.value, {
+                  providerId: "ghidra",
+                  signal: controller.signal,
+                })
+              : await binary.open(path, {
+                  providerId: "ghidra",
+                  signal: controller.signal,
+                });
+          expect(result.ok).toBe(false);
+          if (result.ok) throw new Error("Failed profile admitted");
+          expect(result.error._tag).toBe("AnalysisCapabilityUnavailableError");
+          expect(result.error.message).toContain(readFailure.message);
+          expect(result.error.cleanupIncomplete).toBe(true);
+          expect(binary.status()).toMatchObject({ cleanup_pending: true });
+          expect(createClient).not.toHaveBeenCalled();
+          const failedClose = await binary.close();
+          expect(failedClose.ok).toBe(false);
+          expect(closes).toBe(2);
+          expect(result.error.cleanupIncomplete).toBe(true);
+          allowClose = true;
+          expect(await binary.close()).toEqual({ ok: true, value: null });
+          expect(closes).toBe(3);
+          expect(result.error.cleanupIncomplete).toBe(false);
+          if (failedClose.ok) throw new Error("Close unexpectedly succeeded");
+          expect(failedClose.error.cleanupIncomplete).toBe(false);
+          expect(binary.status()).toMatchObject({ cleanup_pending: false });
+        } finally {
+          allowClose = true;
+          await binary.close();
+        }
+      },
+    );
   },
 );

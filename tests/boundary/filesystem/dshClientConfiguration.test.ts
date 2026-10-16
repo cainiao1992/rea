@@ -43,37 +43,34 @@ const dshClient = (
 
 describe("DeepSeek Harness configuration paths", () => {
   it.each([
-    [undefined, ".dsh", ".agents", "shared"],
-    ["", ".dsh", ".agents", "shared"],
-    [" \t ", ".dsh", ".agents", "shared"],
-    ["~", "", "", "dsh"],
-    ["~/selected home", "selected home", "selected home", "dsh"],
-    ["~\\selected home", "selected home", "selected home", "dsh"],
-  ] as const)(
-    "resolves Harness and agents roots for %j",
-    (override, dshRoot, agentsRoot, client) => {
-      const home = resolve("/home/a");
-      const environment = { DSH_HOME: override, DSH_AGENTS_HOME: override };
-      expect(
-        supportedClients(home, process.platform, environment).find(
-          ({ name }) => name === "dsh",
-        ),
-      ).toMatchObject({
-        configPath: join(home, dshRoot, "cordis.patch.yml"),
-        markerPath: join(home, dshRoot),
-      });
-      expect(
-        clientSkillDirectories(home, ["dsh"], environment).directories,
-      ).toEqual([{ client, directory: join(home, agentsRoot, "skills") }]);
-    },
-  );
+    [undefined, ".dsh"],
+    ["", ".dsh"],
+    [" \t ", ".dsh"],
+    ["~", ""],
+    ["~/selected home", "selected home"],
+    ["~\\selected home", "selected home"],
+  ] as const)("resolves the Harness home for %j", (override, dshRoot) => {
+    const home = resolve("/home/a");
+    const environment = { DSH_HOME: override };
+    expect(
+      supportedClients(home, process.platform, environment).find(
+        ({ name }) => name === "dsh",
+      ),
+    ).toMatchObject({
+      configPath: join(home, dshRoot, "cordis.patch.yml"),
+      markerPath: join(home, dshRoot),
+    });
+    expect(
+      clientSkillDirectories(home, ["dsh"], environment).directories,
+    ).toEqual([{ client: "dsh", directory: join(home, dshRoot, "skills") }]);
+  });
 
   it.each(["relative home", "  literal home  ", "~someone"])(
     "resolves a literal root %j relative to cwd without trimming it",
     (override) => {
       const home = resolve("/home/a");
       const root = resolve(override);
-      const environment = { DSH_HOME: override, DSH_AGENTS_HOME: override };
+      const environment = { DSH_HOME: override };
       expect(
         supportedClients(home, process.platform, environment).find(
           ({ name }) => name === "dsh",
@@ -100,12 +97,25 @@ describe("DeepSeek Harness configuration paths", () => {
     expect(dshClient({ DSH_HOME: "/custom/harness" })?.configPath).toBe(
       resolve("/custom/harness", "cordis.patch.yml"),
     );
+  });
+
+  it("installs the skill under the Harness home instead of the shared agents root", () => {
+    // Harness ranks the client's own user root above the shared agents root,
+    // so a dsh-only installation must not write into other clients' catalog.
     expect(
       clientSkillDirectories(join("/home/a"), ["dsh"], {
         DSH_AGENTS_HOME: "/custom/agents",
       }).directories,
     ).toEqual([
-      { client: "dsh", directory: resolve("/custom/agents", "skills") },
+      { client: "dsh", directory: resolve("/home/a", ".dsh", "skills") },
+    ]);
+    expect(
+      clientSkillDirectories(join("/home/a"), ["dsh"], {
+        DSH_HOME: "/custom/harness",
+        DSH_AGENTS_HOME: "/custom/agents",
+      }).directories,
+    ).toEqual([
+      { client: "dsh", directory: resolve("/custom/harness", "skills") },
     ]);
   });
 });

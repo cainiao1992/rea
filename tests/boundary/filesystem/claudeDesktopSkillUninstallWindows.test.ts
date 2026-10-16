@@ -35,9 +35,9 @@ it.runIf(process.platform === "win32").each([true, false])(
     await mkdir(env.APPDATA, { recursive: true });
     if (redirected)
       await symlink(privateClaude, join(env.APPDATA, "Claude"), "junction");
-    const agents = join(env.APPDATA, "dsh", "agents");
+    const harness = join(env.APPDATA, "dsh", "harness");
     const manifests = [
-      join(agents, "skills", "reverse-engineer-anything", "SKILL.md"),
+      join(harness, "skills", "reverse-engineer-anything", "SKILL.md"),
       join(home, ".claude", "skills", "reverse-engineer-anything", "SKILL.md"),
     ];
     const contents =
@@ -51,7 +51,7 @@ it.runIf(process.platform === "win32").each([true, false])(
       systemUninstallHost(
         home,
         undefined,
-        { ...env, DSH_AGENTS_HOME: agents },
+        { ...env, DSH_HOME: harness },
         "win32",
       ),
     );

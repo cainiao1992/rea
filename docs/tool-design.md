@@ -83,6 +83,11 @@ providers need not expose identical state machines.
   recovery handshakes. Bound abandoned unauthenticated listeners where the
   protocol permits it; that deadline must not expire authenticated idle sessions
   or long-running native work. Listener expiry does not prove target closure.
+- Shared startup has one producer and independently cancellable caller waits.
+  Keep it running while any caller still needs it. The final departing caller
+  waits for owned cleanup and retains its failure. Provider closure is distinct
+  from caller cancellation. Retained cleanup capabilities block replacement;
+  derive readiness from the current startup's completion and live connection.
 - For cancellable observations, carry cancellation through result consumption
   and awaited cleanup. Before returning success, check the signal after the
   last awaited finalization step.

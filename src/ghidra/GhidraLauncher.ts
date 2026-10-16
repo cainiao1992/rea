@@ -309,17 +309,30 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         platform,
         this.options.configurationDirectoryName,
       );
-      const seedPath =
-        this.options.analysisSeeds === undefined
-          ? undefined
-          : await snapshotGhidraAnalysisSeeds(
-              this.options.analysisSeeds,
-              session.runtimeRoot,
-            );
-      const extensions = await snapshotGhidraExtensions(
-        this.options.analysisExtensions ?? [],
-        session.runtimeRoot,
-      );
+      let seedPath: string | undefined;
+      let extensions: readonly GhidraExtension[] = [];
+      if (
+        this.options.analysisSeeds !== undefined ||
+        (this.options.analysisExtensions?.length ?? 0) > 0
+      ) {
+        if (options.resourceScope === undefined)
+          throw new GhidraLaunchError(
+            "Configured Ghidra artifacts require a caller-owned resource scope.",
+          );
+        if (this.options.analysisSeeds !== undefined)
+          seedPath = await snapshotGhidraAnalysisSeeds(
+            this.options.analysisSeeds,
+            session.runtimeRoot,
+            options.resourceScope,
+            options.signal,
+          );
+        extensions = await snapshotGhidraExtensions(
+          this.options.analysisExtensions ?? [],
+          session.runtimeRoot,
+          options.resourceScope,
+          options.signal,
+        );
+      }
       await writeGhidraRuntimeFile(
         paths.descriptorPath,
         `${JSON.stringify({

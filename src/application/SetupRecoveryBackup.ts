@@ -113,15 +113,19 @@ export const preserveCurrentRecoveryBackup = async (
   );
   if (!selection.ok) return selection;
   const { backupPath } = selection.value;
-  try {
-    await copy(source, backupPath);
-  } catch (cause: unknown) {
-    if (!(cause instanceof Error && "code" in cause && cause.code === "EEXIST"))
-      return err({
-        kind: "copy",
-        path: backupPath,
-        detail: `The recovery backup could not be written: ${errorDetail(cause)}`,
-      });
+  if (!selection.value.present) {
+    try {
+      await copy(source, backupPath);
+    } catch (cause: unknown) {
+      if (
+        !(cause instanceof Error && "code" in cause && cause.code === "EEXIST")
+      )
+        return err({
+          kind: "copy",
+          path: backupPath,
+          detail: `The recovery backup could not be written: ${errorDetail(cause)}`,
+        });
+    }
   }
   const verified = await selectCurrentRecoveryBackup(
     firstBackupPath,

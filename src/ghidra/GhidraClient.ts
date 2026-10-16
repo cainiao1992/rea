@@ -731,8 +731,20 @@ export class GhidraClient {
     this.#startupOutputCheckpoint = this.#process.checkpointOutput();
     const completed = await this.#connectAndHandshake(endpoint, deadline);
     if (!completed.ok) return this.#startupFailure(completed.error, deadline);
+    try {
+      await this.#lineage.observe(this.#launch);
+    } catch (cause: unknown) {
+      return this.#startupFailure(
+        this.#failure(
+          "start",
+          "Ghidra process lineage observation failed",
+          cause,
+        ),
+        deadline,
+      );
+    }
+    if (deadline.signal.aborted) return this.#startupInterrupted(deadline);
     this.#startupOutputCheckpoint = undefined;
-    await this.#lineage.observe(this.#launch);
     this.#requestQueue.reopen();
     return completed;
   }

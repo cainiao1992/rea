@@ -174,8 +174,10 @@ graph and read literal values from `properties.value`, rather than decoding
 role keys or labels. Previously stored graphs and their original IDs remain
 valid inputs.
 
-Endpoint nodes keep the exact endpoint in each observation's `properties.value`;
-semantic request and response nodes keep it in `properties.endpoint`. Endpoint
+Endpoint observations keep their value in `properties.value`. When
+`properties.resolution` is `partial`, that value is the unresolved source
+expression, with an identity distinct from an exact endpoint of the same text.
+Semantic request and response nodes keep their endpoint in `properties.endpoint`. Endpoint
 lookup identities are preserved independently of the primitive-value lattice's
 byte budget. An oversized normalized literal can become unknown while the same
 string remains an exact endpoint for tracing and comparison. Endpoint

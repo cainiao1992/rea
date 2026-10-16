@@ -833,6 +833,16 @@ rea doctor --json
 rea setup
 ```
 
+On macOS, [Homebrew OpenJDK is keg-only](https://formulae.brew.sh/formula/openjdk)
+and may be unavailable to the system `java` wrapper. Set `JAVA_HOME` to the
+selected formula's `libexec/openjdk.jdk/Contents/Home`, for example
+`/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home` or
+`/usr/local/opt/openjdk/libexec/openjdk.jdk/Contents/Home`. Use a JDK inside the
+Java version bounds declared by your Ghidra installation; REA does not select
+another installed JDK automatically. Doctor distinguishes an absent Java
+command from a command that runs and fails, and retains bounded probe output
+and any parsed properties when the selected runtime cannot be admitted.
+
 On Windows, configure the existing installation in PowerShell:
 
 ```powershell

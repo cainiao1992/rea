@@ -1382,3 +1382,31 @@ describe("Ghidra Java probe os.arch extraction", () => {
     }
   });
 });
+
+it("explains the macOS keg-only JDK case without probing an unselected installation", () => {
+  const probed: string[] = [];
+  const inspection = inspectGhidraInstallation(
+    {
+      environment: {},
+      installDir: INSTALL,
+      platform: "darwin",
+      architecture: "arm64",
+    },
+    host({
+      probeJava: (command) => {
+        probed.push(command);
+        return missingJavaProbe;
+      },
+    }),
+  );
+  expect(probed).toEqual(["java"]);
+  expect(inspection.checks.find(({ name }) => name === "java")).toMatchObject({
+    status: "failed",
+    code: "runtime_missing",
+    remediation: expect.stringContaining("Homebrew OpenJDK can be keg-only"),
+  });
+  const java = inspection.checks.find(({ name }) => name === "java");
+  expect(java?.status === "failed" ? java.remediation : "").toContain(
+    "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home",
+  );
+});

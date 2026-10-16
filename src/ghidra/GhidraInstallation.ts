@@ -534,6 +534,7 @@ const installationChecks = ({
     coordinates.javaCommand,
     javaHome,
     coordinates.properties,
+    platform,
     coordinates.javaProbeFailure,
   ),
 ];
@@ -823,6 +824,7 @@ const javaCheck = (
   command: string,
   configuredHome: string | undefined,
   properties: GhidraApplicationProperties | undefined,
+  platform: NodeJS.Platform,
   failure: GhidraJavaProbeFailure | undefined,
 ): GhidraInstallationCheck => {
   const requirement = ghidraJavaRequirement(properties);
@@ -861,7 +863,7 @@ const javaCheck = (
             ? "unsupported_version"
             : "version_unresolved",
     detail,
-    remediation: javaRemediation(requirement, configuredHome, range),
+    remediation: javaRemediation(requirement, configuredHome, range, platform),
   });
 };
 
@@ -869,11 +871,12 @@ const javaRemediation = (
   requirement: GhidraJavaRequirement,
   configuredHome: string | undefined,
   range: string,
+  platform: NodeJS.Platform,
 ): string => {
   if (requirement.unresolved !== null)
     return `The Ghidra installation's Java bounds could not be read (${requirement.unresolved}). Install a 64-bit full JDK inside the declared application.java.min and application.java.max.`;
   return configuredHome === undefined
-    ? `Install ${range}, or set JAVA_HOME before starting REA.`
+    ? `Select ${range} on PATH, or set JAVA_HOME to its installation root before starting REA.${platform === "darwin" ? " Homebrew OpenJDK can be keg-only: set JAVA_HOME to the selected formula's libexec/openjdk.jdk/Contents/Home (for example /opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home or /usr/local/opt/openjdk/libexec/openjdk.jdk/Contents/Home). The installed JDK must satisfy the declared Ghidra Java bounds." : ""}`
     : `Update JAVA_HOME to the root of ${range} installation.`;
 };
 

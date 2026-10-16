@@ -1,3 +1,8 @@
+import {
+  JebMcpAcquisitionCleanupFailure,
+  JebMcpPhysicalFailure,
+} from "./JebMcpConnectionOwner.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { z } from "zod";
 import type {
   JebAnalysisPort,
@@ -175,15 +180,15 @@ export class JebProvider implements JebAnalysisPort {
     options?: ExecutionOptions,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     if (options?.signal?.aborted === true)
-      return err(new AnalysisCancelledError(request.operation));
+      return err(
+        new AnalysisCancelledError(request.operation, {
+          cause: options.signal.reason,
+        }),
+      );
     try {
       const execution = await this.#dispatch(request, options?.signal);
-      if (options?.signal?.aborted)
-        return err(new AnalysisCancelledError(request.operation));
       return execution;
     } catch (cause) {
-      if (options?.signal?.aborted)
-        return err(new AnalysisCancelledError(request.operation, { cause }));
       return err(this.#providerFailure(request.operation, cause));
     }
   }
@@ -193,7 +198,8 @@ export class JebProvider implements JebAnalysisPort {
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const cancelled = (operation: JebOperation) => {
-      if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
+      if (signal?.aborted === true)
+        throw new AnalysisCancelledError(operation, { cause: signal.reason });
     };
     switch (request.operation) {
       case "inspect_jeb_client": {
@@ -411,18 +417,38 @@ export class JebProvider implements JebAnalysisPort {
   }
 
   #providerFailure(operation: JebOperation, cause: unknown): AnalysisError {
+    if (cause instanceof JebMcpAcquisitionCleanupFailure)
+      return analysisErrorWithCleanupFailure(
+        this.#providerFailure(operation, cause.primaryFailure),
+        cause.cleanupFailure,
+        operation,
+      )
+        .bindCleanupDependencies([cause.cleanupFailure])
+        .bindCleanupResourceOwner(cause.cleanupFailure);
+    if (cause instanceof AnalysisCancelledError)
+      return new AnalysisCancelledError(operation, {
+        cause: cause.cause,
+        diagnostics: cause.diagnostics,
+        capturedOutput: cause.capturedOutput,
+        cleanup: cause.cleanup,
+        partialObservation: cause.partialObservation,
+      })
+        .bindCleanupDependencies([cause])
+        .bindCleanupResourceOwner(cause);
     if (cause instanceof AnalysisError) return cause;
     if (cause instanceof z.ZodError)
       return new AnalysisProtocolError(
         "JEB omitted or malformed required observation fields",
         { cause },
       );
+    const physical =
+      cause instanceof JebMcpPhysicalFailure ? cause.cause : cause;
     return new AnalysisCapabilityUnavailableError(
       "jeb",
       operation,
-      cause instanceof Error ? cause.message : String(cause),
+      physical instanceof Error ? physical.message : String(physical),
       {
-        cause: cause instanceof Error ? cause : undefined,
+        cause,
         userMessage: `Start a JEB client serving MCP (default ${DEFAULT_JEB_MCP_ENDPOINT}) or set REA_JEB_MCP_URL to the running endpoint.`,
       },
     );

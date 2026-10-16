@@ -11,7 +11,8 @@ const messageSchema = z.object({
 
 /** Real HTTP MCP transport with caller-selected JEB response envelopes. */
 export const startJebMcpFixture = async (
-  respond: (tool: string) => JsonValue,
+  respond: (tool: string) => JsonValue | Promise<JsonValue>,
+  catalogReply?: JsonValue | (() => JsonValue | Promise<JsonValue>),
 ) => {
   const calls: string[] = [];
   const server = createServer(async (request, response) => {
@@ -36,7 +37,9 @@ export const startJebMcpFixture = async (
           serverInfo: { name: "jeb-response-fixture", version: "1" },
         };
       else if (message.method === "tools/list")
-        result = {
+        result = (typeof catalogReply === "function"
+          ? await catalogReply()
+          : catalogReply) ?? {
           tools: Object.values(JEB_ENGINE_TOOLS).map((name) => ({
             name,
             inputSchema: { type: "object", properties: {} },
@@ -47,7 +50,7 @@ export const startJebMcpFixture = async (
         message.params?.name !== undefined
       ) {
         calls.push(message.params.name);
-        const payload = respond(message.params.name);
+        const payload = await respond(message.params.name);
         result = {
           structuredContent: payload,
           content: [{ type: "text", text: JSON.stringify(payload) }],

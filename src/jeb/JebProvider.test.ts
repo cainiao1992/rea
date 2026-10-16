@@ -392,9 +392,14 @@ it("forwards in-flight cancellation to the MCP call", async () => {
     async call(_name, _args, signal) {
       entered();
       await new Promise<void>((_resolve, reject) =>
-        signal!.addEventListener("abort", () => reject(signal!.reason), {
-          once: true,
-        }),
+        signal!.addEventListener(
+          "abort",
+          () =>
+            reject(
+              new AnalysisCancelledError(_name, { cause: signal!.reason }),
+            ),
+          { once: true },
+        ),
       );
       return {};
     },
@@ -407,7 +412,10 @@ it("forwards in-flight cancellation to the MCP call", async () => {
   controller.abort();
   const result = await pending;
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+  if (!result.ok) {
+    expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(controller.signal.reason);
+  }
 });
 
 it("refreshes cached unknown metadata only through an explicit information probe", async () => {

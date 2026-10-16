@@ -1291,7 +1291,7 @@ export class AdbProvider {
       selection = this.selection();
       identity = await inspectAdbClient(selection, signal);
     } catch (cause) {
-      if (cause instanceof AnalysisCancelledError) return err(cause);
+      if (cause instanceof AnalysisError) return err(cause);
       if (cause instanceof AdbConfigurationFailure)
         return err(
           providerConfigurationRefusal(

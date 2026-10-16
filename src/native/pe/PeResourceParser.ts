@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { setImmediate } from "node:timers/promises";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import type { ArtifactReaderBoundary } from "../../artifacts/ArtifactReader.js";
 import { jsonParts } from "../../domain/jsonSerialization.js";
 import type {
   InspectPeResourcesInput,
@@ -18,8 +19,8 @@ type OccupiedRange = Range & {
   kind: "directory" | "name" | "data-entry" | "payload";
 };
 const METADATA_BYTES = 8 * 1024 * 1024;
-const limit = (message: string): never => {
-  throw new ArtifactReaderFailure("limit", message);
+const limit = (message: string, boundary: ArtifactReaderBoundary): never => {
+  throw new ArtifactReaderFailure("limit", message, { boundary });
 };
 /** Count bytes through the canonical bounded JSON writer. */
 const jsonBytes = (value: unknown, maximum: number): number => {
@@ -52,6 +53,7 @@ export const parsePeResources = async (
     if (metadataBytes + projectedBytes > METADATA_BYTES)
       limit(
         "PE resource metadata exceeds the 8 MiB complete-result allocation budget.",
+        "memory",
       );
   };
   const accountBytes = (projectedBytes: number): void => {
@@ -123,6 +125,7 @@ export const parsePeResources = async (
     if (count > input.max_entries - examined)
       limit(
         "PE resource directory entry budget exceeded; no partial inventory was returned.",
+        "capacity",
       );
     examined += count;
     relative(at, 16 + 8 * count);
@@ -251,7 +254,7 @@ export const parsePeResources = async (
   };
   signal?.throwIfAborted();
   if (jsonBytes(report, METADATA_BYTES) > METADATA_BYTES)
-    limit("PE resource result exceeds the 8 MiB allocation budget.");
+    limit("PE resource result exceeds the 8 MiB allocation budget.", "memory");
   return report;
 };
 

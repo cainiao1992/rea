@@ -50,6 +50,7 @@ import { GhidraResponseRouter } from "./GhidraResponseRouter.js";
 import { GhidraRequestQueue } from "./GhidraRequestQueue.js";
 import {
   bindGhidraSessionFailure,
+  GHIDRA_STARTUP_DEADLINE_ELAPSED,
   GhidraSessionError,
 } from "./GhidraSessionError.js";
 import {
@@ -1132,7 +1133,7 @@ export class GhidraClient {
       ? this.#failure("cancelled", "Ghidra startup was cancelled", cause, {
           cancellation: { reason: deadline.signal.reason },
         })
-      : this.#failure("timeout", "Ghidra startup deadline elapsed", cause, {
+      : this.#failure("timeout", GHIDRA_STARTUP_DEADLINE_ELAPSED, cause, {
           timeoutMs: deadline.timeoutMs,
         });
   }

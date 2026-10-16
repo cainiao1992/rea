@@ -28,6 +28,10 @@ export const createDirectAnalysis = (
       const { createManagedBinarySession } = await import("./binary.js");
       return createManagedBinarySession();
     },
+    createNativeDispatchBinarySession: async (config, logger) => {
+      const { createNativeDispatchBinarySession } = await import("./binary.js");
+      return createNativeDispatchBinarySession(config, logger, environment);
+    },
     createNativeBinarySession: async () => {
       const { createNativeBinarySession } = await import("./binary.js");
       return createNativeBinarySession(environment);

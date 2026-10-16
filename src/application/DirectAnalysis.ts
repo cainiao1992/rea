@@ -248,7 +248,11 @@ const runAnalysis = async (
   } else {
     const config = dependencies.readConfiguration();
     if (!config.ok) return cliError(config.error);
-    session = await dependencies.createBinarySession(config.value, logger);
+    session = await (
+      tool === "inspect_native_dispatch_metadata" && snapshotPath === undefined
+        ? dependencies.createNativeDispatchBinarySession
+        : dependencies.createBinarySession
+    )(config.value, logger);
   }
   return withSessionCleanup(
     session,

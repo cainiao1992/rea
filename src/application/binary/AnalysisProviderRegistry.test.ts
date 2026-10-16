@@ -145,6 +145,88 @@ it("selects the sole available provider and honors explicit selection precedence
   });
 });
 
+describe("inspection without deep binding", () => {
+  it("retains discovery facts without resolving a deep profile for covered automatic inspection", async () => {
+    const alpha = candidate("alpha", { profile: "error" });
+    const beta = candidate("beta", { profile: "error" });
+    const registry = new AnalysisProviderRegistry(
+      [alpha.provider, beta.provider],
+      "auto",
+      (target) => target === DATABASE_TARGET,
+    );
+    expect(await registry.select(DATABASE_TARGET)).toMatchObject({
+      ok: true,
+      value: {
+        requestedProviderId: "auto",
+        binding: null,
+        candidates: [
+          {
+            provider: { id: "alpha" },
+            selected: false,
+            availability: { status: "available" },
+          },
+          {
+            provider: { id: "beta" },
+            selected: false,
+            availability: { status: "available" },
+          },
+        ],
+      },
+    });
+    expect(alpha.created).toEqual([]);
+    expect(beta.created).toEqual([]);
+  });
+
+  it("keeps explicit request and environment choices even when auxiliary inspection covers the target", async () => {
+    const alpha = candidate("alpha");
+    const beta = candidate("beta");
+    const registry = new AnalysisProviderRegistry(
+      [alpha.provider, beta.provider],
+      "beta",
+      () => true,
+    );
+    expect(await registry.select(DATABASE_TARGET)).toMatchObject({
+      ok: true,
+      value: {
+        binding: { identity: { id: "beta" }, selectionSource: "environment" },
+      },
+    });
+    expect(await registry.select(DATABASE_TARGET, "alpha")).toMatchObject({
+      ok: true,
+      value: {
+        binding: { identity: { id: "alpha" }, selectionSource: "request" },
+      },
+    });
+    expect(await registry.select(DATABASE_TARGET, "auto")).toMatchObject({
+      ok: true,
+      value: { binding: null },
+    });
+    expect(await registry.select(DATABASE_TARGET, "missing")).toMatchObject({
+      ok: false,
+      error: { reason: "unknown_provider" },
+    });
+  });
+
+  it("preserves ordinary ambiguity when auxiliary inspection does not cover the target", async () => {
+    const registry = new AnalysisProviderRegistry(
+      [candidate("alpha").provider, candidate("beta").provider],
+      "auto",
+      () => false,
+    );
+    expect(await registry.select(DATABASE_TARGET)).toMatchObject({
+      ok: false,
+      error: { reason: "ambiguous" },
+    });
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await registry.select(DATABASE_TARGET, undefined, {
+        signal: controller.signal,
+      }),
+    ).toMatchObject({ ok: false, error: { _tag: "AnalysisCancelledError" } });
+  });
+});
+
 describe("analysis provider registry: selection failures", () => {
   it("returns actionable unknown, unavailable, and unsupported failures", async () => {
     const unavailable = candidate("alpha", { available: false });

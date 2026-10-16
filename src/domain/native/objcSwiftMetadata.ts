@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isMachOFormat, type BinaryTarget } from "../binaryTargetTypes.js";
 import { providerSchema } from "../evidence.js";
 import { isSwiftMangledSymbolName } from "../swiftSymbolClassification.js";
 
@@ -6,6 +7,10 @@ import {
   compareUnicodeCodePoints,
   compositeKey,
 } from "../unicodeCodePointOrder.js";
+
+/** Targets admitted to the Apple byte reader; the reader validates slice support. */
+export const isAppleDispatchMetadataTarget = (target: BinaryTarget): boolean =>
+  target.kind === "executable" && isMachOFormat(target.format);
 
 /** Objective-C method type. */
 export const objcMethodTypeSchema = z.enum([

@@ -28,6 +28,7 @@ import {
   isMachOFormat,
   type BinaryTarget,
 } from "../domain/binaryTargetTypes.js";
+import { isAppleDispatchMetadataTarget } from "../domain/native/objcSwiftMetadata.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
@@ -186,10 +187,7 @@ class NativeMacOSClient implements AnalysisClient {
             },
           ),
         );
-      if (
-        this.target.kind !== "executable" ||
-        !isMachOFormat(this.target.format)
-      )
+      if (!isAppleDispatchMetadataTarget(this.target))
         return err(
           new AnalysisCapabilityUnavailableError(
             IDENTITY.id,

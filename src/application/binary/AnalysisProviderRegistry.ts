@@ -83,6 +83,9 @@ export class AnalysisProviderRegistry {
   constructor(
     providers: readonly AnalysisProviderCandidate[],
     defaultSelector: AnalysisProviderSelector = "auto",
+    private readonly canInspectWithoutDeepProvider?: (
+      target: BinaryTarget,
+    ) => boolean,
   ) {
     this.#defaultSelector =
       analysisProviderSelectorSchema.parse(defaultSelector);
@@ -209,6 +212,12 @@ export class AnalysisProviderRegistry {
     const baseline = this.candidates(target);
     if (signalIsAborted(options.signal))
       return err(new AnalysisCancelledError("open_binary"));
+    if (selector === "auto" && this.canInspectWithoutDeepProvider?.(target))
+      return ok({
+        requestedProviderId: selector,
+        binding: null,
+        candidates: baseline,
+      });
     if (
       request === undefined &&
       this.#byId.has(selector) &&

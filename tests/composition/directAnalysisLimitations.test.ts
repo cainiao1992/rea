@@ -36,6 +36,7 @@ it("retains provider coverage caveats in a composed CLI result and closes the se
       createBinarySession: createSession,
       createManagedBinarySession: createSession,
       createArtifactBinarySession: createSession,
+      createNativeDispatchBinarySession: createSession,
       createNativeBinarySession: createSession,
     },
     path,

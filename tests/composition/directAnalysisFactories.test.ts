@@ -37,6 +37,7 @@ const recordingFactories = (failure?: Error) => {
     readConfiguration: () => parseConfig({}),
     createBinarySession: createSession,
     createArtifactBinarySession: createSession,
+    createNativeDispatchBinarySession: createSession,
     createNativeBinarySession: createSession,
     createManagedBinarySession: createSession,
   };
@@ -103,6 +104,36 @@ describe("one-shot analysis factory boundary", () => {
     expect(factories.clientsClosed()).toBe(1);
     expect(factories.sessions[0]?.activeTarget()).toBeUndefined();
   });
+
+  it.each([undefined, "/fixture/committed.snapshot"])(
+    "selects the dispatch inspection factory only without a requested snapshot (%s)",
+    async (snapshotPath) => {
+      const factories = recordingFactories();
+      const expected = new Error("selected factory");
+      const unexpected = (): never => {
+        throw new Error("wrong session policy");
+      };
+      const selected = (): never => {
+        throw expected;
+      };
+      await expect(
+        runDirectAnalysis(
+          {
+            ...factories.dependencies,
+            createBinarySession:
+              snapshotPath === undefined ? unexpected : selected,
+            createNativeDispatchBinarySession:
+              snapshotPath === undefined ? selected : unexpected,
+          },
+          "/fixture/target",
+          "inspect_native_dispatch_metadata",
+          {},
+          { snapshotPath },
+        ),
+      ).rejects.toBe(expected);
+      expect(factories.sessions).toEqual([]);
+    },
+  );
 
   it.each([
     "inspect_macho",

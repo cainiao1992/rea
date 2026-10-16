@@ -112,3 +112,53 @@ describe.skipIf(process.platform !== "darwin")(
     );
   },
 );
+
+describe.skipIf(process.platform !== "darwin")(
+  "native dispatch provider choice",
+  () => {
+    cliTest.for([
+      [[], "missing", 1, "unknown_provider"],
+      [["--provider", "missing"], "auto", 1, "unknown_provider"],
+      [["--provider", "auto"], "missing", 0, null],
+    ] as const)(
+      "preserves explicit selection %j",
+      async ([options, configured, exitCode, reason], { cli }) => {
+        const directory = await createTestTempDirectory(
+          "rea-dispatch-provider-choice-",
+        );
+        const path = join(directory, "fixture.bin");
+        await writeFile(path, machoWithPropertyAttributes("Tq,N"));
+        const output = await cli.run({
+          arguments: [
+            "inspect-native-dispatch-metadata",
+            path,
+            ...options,
+            "--json",
+          ],
+          environment: {
+            REA_LOG_LEVEL: "silent",
+            REA_ANALYSIS_PROVIDER: configured,
+          },
+        });
+        expect(output.exitCode, `${output.stdout}\n${output.stderr}`).toBe(
+          exitCode,
+        );
+        if (reason !== null)
+          expect(output.json).toMatchObject({
+            code: "capability_unavailable",
+            details: {
+              selection_reason: reason,
+              requested_provider_id: "missing",
+            },
+          });
+        else
+          expect(output.json).toMatchObject({
+            normalized_result: {
+              provider: { id: "native-macos" },
+              result: { objc_classes: [{ name: "Fixture" }] },
+            },
+          });
+      },
+    );
+  },
+);

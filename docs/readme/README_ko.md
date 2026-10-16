@@ -309,6 +309,10 @@ REA에 도움을 보태 주세요! [issue를 등록](https://github.com/morluto/
 
 개발 환경과 검사 항목은 [CONTRIBUTING.md](../../CONTRIBUTING.md), 검증 절차는 [테스트 가이드](../testing.md), 프로젝트 구조는 [아키텍처 지도](../architecture.mermaid)를 참고하세요.
 
+한국어 번역도 개선할 수 있습니다. 이 README를 수정할 때는 [영문 README](../../README.md)의 명령어, 요구 사항, 분석 범위와 일치하는지 확인하세요. 웹사이트 번역은 `website/locales/ko/messages.po`의 `msgstr` 값을 수정하세요.
+
+웹사이트 번역의 수정 방법, 검사 명령, 로컬 미리보기는 `website/locales/README.md`를 따르세요. 위 기여 문서의 **Translation corrections** 절에서 이 가이드로 이동할 수 있습니다. 명령어, 경로, 자리표시자, 기록된 근거는 그대로 보존하세요. `website/_site/`의 한국어 HTML은 자동 생성되므로 직접 수정하지 마세요.
+
 ## 라이선스
 
 [MIT](../../LICENSE)

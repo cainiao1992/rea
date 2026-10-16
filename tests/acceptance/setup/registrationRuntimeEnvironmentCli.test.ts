@@ -106,10 +106,11 @@ cliTest.for([
           ])
         : JSON.stringify({ mcpServers: { rea: entry } });
     };
+    const valueMarker = "reaNulFixtureValue_6c04e2";
     const original = registration(
       scenario.position === "value"
-        ? { CALLER_SETTING: "private\0value" }
-        : { ["CALLER\0SETTING"]: "private value" },
+        ? { CALLER_SETTING: `${valueMarker}\0value` }
+        : { ["CALLER\0SETTING"]: `${valueMarker} value` },
     );
     await writeFile(config, original);
     const doctor = await cli.run({
@@ -153,7 +154,7 @@ cliTest.for([
       appliedActions: [],
       remediation: expect.stringContaining("NUL"),
     });
-    expect(setup.stdout + doctor.stdout).not.toContain("private");
+    expect(setup.stdout + doctor.stdout).not.toContain(valueMarker);
     expect(await readFile(config, "utf8")).toBe(original);
     await expect(access(`${config}.rea.backup`)).rejects.toMatchObject({
       code: "ENOENT",
@@ -323,9 +324,11 @@ cliTest(
       HOME: home,
       USERPROFILE: home,
       XDG_CONFIG_HOME: join(home, ".config"),
-      // Select an absent launcher so host-installed Hopper cannot make this
+      // Select absent provider locations so installed tools cannot make this
       // configuration merge test plan an unrelated provider-environment edit.
       HOPPER_LAUNCHER_PATH: join(home, "missing-hopper"),
+      GHIDRA_INSTALL_DIR: join(home, "missing-ghidra"),
+      JAVA_HOME: join(home, "missing-java"),
     };
     const run = (args: readonly string[]) =>
       cli.run({ arguments: [...args, "--json"], cwd: home, environment });

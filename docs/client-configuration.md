@@ -52,10 +52,16 @@ in the file the installed app reads:
   `%APPDATA%` file it still reads; with neither file, setup creates the
   private copy.
 - If `%LOCALAPPDATA%\Packages` holds a `Claude_<publisher ID>` package from
-  another publisher, or cannot be read, REA cannot establish which file Claude
+  another publisher, an `AnthropicPBC.Claude_<publisher ID>` package, or cannot
+  be read, REA cannot establish which file Claude
   Desktop reads. Setup, doctor and uninstall report that instead of falling
   back to `%APPDATA%`. Doctor then reports `claude_desktop` as invalid, and
   uninstall stops before removing anything for any client.
+  The reported `AnthropicPBC.Claude_fnn82j28hfe8t` build can use the `Claude-3p`
+  deployment directory. REA recognizes that package as an unresolved location;
+  it does not assume that it reads the legacy AppData file or automatically
+  register in `Claude-3p`. See [#4432](https://github.com/morluto/rea/issues/4432)
+  for the reported build and manual registration evidence.
 
 Quit Claude Desktop fully before approving setup; closing its window is not
 enough. A running Claude Desktop can rewrite its configuration from memory and

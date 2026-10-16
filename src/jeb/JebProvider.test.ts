@@ -11,6 +11,7 @@ import {
   AnalysisInputError,
   AnalysisProtocolError,
   AnalysisCancelledError,
+  AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { jebResultSchemas } from "../domain/jeb/jebAnalysis.js";
@@ -486,6 +487,32 @@ it("keeps concurrent client inspections bound to their own parsed metadata", asy
         },
       });
     }
+  } finally {
+    await provider.close();
+  }
+});
+
+it("preserves provider-authored timeout guidance when projecting the requested operation", async () => {
+  const reason = new Error("selected deadline elapsed");
+  const timeout = new AnalysisTimeoutError("list_units", 123, {
+    cause: reason,
+    userMessage: "The selected MCP request budget elapsed.",
+    remediationAction: "Increase the selected MCP request budget.",
+  });
+  const provider = providerWith(scriptedConnection({ list_units: timeout }));
+  try {
+    const result = await provider.execute({
+      operation: "list_jeb_units",
+      input: { count: 2, index: 0 },
+    });
+    if (result.ok) throw new Error("Timed-out request passed");
+    expect(result.error).toMatchObject({
+      operation: "list_jeb_units",
+      timeoutMs: 123,
+      userMessage: timeout.userMessage,
+      remediationAction: timeout.remediationAction,
+    });
+    expect(result.error.cause).toBe(reason);
   } finally {
     await provider.close();
   }

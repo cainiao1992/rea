@@ -20,6 +20,7 @@ import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisProtocolError,
+  AnalysisTimeoutError,
   AnalysisUnsupportedTargetError,
 } from "../domain/analysisErrorCore.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -425,16 +426,33 @@ export class JebProvider implements JebAnalysisPort {
       )
         .bindCleanupDependencies([cause.cleanupFailure])
         .bindCleanupResourceOwner(cause.cleanupFailure);
-    if (cause instanceof AnalysisCancelledError)
-      return new AnalysisCancelledError(operation, {
+    if (
+      cause instanceof AnalysisCancelledError ||
+      cause instanceof AnalysisTimeoutError
+    ) {
+      const options = {
         cause: cause.cause,
         diagnostics: cause.diagnostics,
         capturedOutput: cause.capturedOutput,
         cleanup: cause.cleanup,
         partialObservation: cause.partialObservation,
-      })
+      };
+      const failure =
+        cause instanceof AnalysisTimeoutError
+          ? new AnalysisTimeoutError(operation, cause.timeoutMs, {
+              ...options,
+              ...(cause.userMessage === undefined
+                ? {}
+                : { userMessage: cause.userMessage }),
+              ...(cause.remediationAction === undefined
+                ? {}
+                : { remediationAction: cause.remediationAction }),
+            })
+          : new AnalysisCancelledError(operation, options);
+      return failure
         .bindCleanupDependencies([cause])
         .bindCleanupResourceOwner(cause);
+    }
     if (cause instanceof AnalysisError) return cause;
     if (cause instanceof z.ZodError)
       return new AnalysisProtocolError(

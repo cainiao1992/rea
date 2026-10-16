@@ -925,6 +925,58 @@ const translateCommandFailure = (
   operation: NativeToolName,
   failure: NativeCommandFailure,
 ): AnalysisError => {
+  const preparation = failure.preparationFailure;
+  if (preparation !== undefined) {
+    const marker = preparation.cleanupFailure;
+    const compiler = preparation.compilerOutcome;
+    const options = {
+      cause: failure,
+      ...(preparation.capturedOutput === undefined
+        ? {}
+        : { capturedOutput: preparation.capturedOutput }),
+      ...(marker === undefined
+        ? {}
+        : {
+            cleanup: {
+              reason: marker.message,
+              resources: marker.cleanupResources,
+            },
+          }),
+      diagnostics: {
+        phase: "process-preparation",
+        tool: failure.tool,
+        reason: failure.reason,
+        detail: preparation.message,
+        ...(compiler === undefined
+          ? {}
+          : {
+              compiler_outcome: {
+                outcome: compiler.outcome,
+                code: compiler.code,
+                signal: compiler.signal,
+                ...(compiler.timeoutMs === undefined
+                  ? {}
+                  : { timeout_ms: compiler.timeoutMs }),
+              },
+            }),
+      },
+    };
+    const error =
+      preparation.cancellation === undefined
+        ? new ProviderAdapterError(IDENTITY.id, operation, options)
+        : failure.reason === "timeout"
+          ? new AnalysisTimeoutError(operation, NATIVE_COMMAND_TIMEOUT_MS, {
+              ...options,
+              cause: preparation.cancellation.reason,
+            })
+          : new AnalysisCancelledError(operation, {
+              ...options,
+              cause: preparation.cancellation.reason,
+            });
+    return marker === undefined
+      ? error
+      : error.bindCleanupDependencies([marker]);
+  }
   const capturedOutput =
     failure.capture === null
       ? undefined

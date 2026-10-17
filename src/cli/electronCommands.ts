@@ -295,6 +295,15 @@ const registerJavaScriptApplicationCommand = (
                     max_semantic_nodes_per_file:
                       options.maxSemanticNodesPerFile,
                   }),
+              ...(options.maxSemanticUnknowns === undefined
+                ? {}
+                : { max_semantic_unknowns: options.maxSemanticUnknowns }),
+              ...(options.maxSemanticUnknownsPerFile === undefined
+                ? {}
+                : {
+                    max_semantic_unknowns_per_file:
+                      options.maxSemanticUnknownsPerFile,
+                  }),
               ...(options.sourcePath === undefined
                 ? {}
                 : { source_paths: options.sourcePath }),

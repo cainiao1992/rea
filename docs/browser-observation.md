@@ -285,6 +285,10 @@ REA establishes a main-frame origin boundary before enabling Runtime, Debugger, 
 
 ## Data minimization
 
+The Link projection parses repeated CDP header field lines independently and
+retains their declarations in order, including derived untrusted agent hints.
+Commas inside URI targets or quoted parameters remain part of those values.
+
 REA retains local observation data and removes only URL userinfo credentials, explicitly declared scenario secrets, and values from structured credential/storage fields:
 
 - URL observations preserve the complete local URL, including query values, fragments, duplicate parameters, and their order. Only username/password userinfo is removed; malformed original URL strings remain available with `origin: null`.

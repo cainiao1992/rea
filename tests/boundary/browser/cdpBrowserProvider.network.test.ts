@@ -5,6 +5,73 @@ import { inspectWebPageInputSchema } from "../../../src/domain/browserObservatio
 import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { trackBrowser } from "./cdpBrowserProvider.support.js";
 
+it("preserves repeated Document Link fields and their derived agent hints", async () => {
+  const browser = await startFakeCdpBrowser({
+    commandEvents(command, origin) {
+      if (command.method !== "Network.enable") return undefined;
+      const session =
+        command.sessionId === undefined ? {} : { sessionId: command.sessionId };
+      return [
+        {
+          ...session,
+          method: "Network.requestWillBeSent",
+          params: {
+            requestId: "repeated-document",
+            type: "Document",
+            request: { url: `${origin}/frame`, method: "GET" },
+            initiator: { type: "parser" },
+          },
+        },
+        {
+          ...session,
+          method: "Network.responseReceived",
+          params: {
+            requestId: "repeated-document",
+            type: "Document",
+            response: {
+              url: `${origin}/frame`,
+              status: 200,
+              mimeType: "text/html",
+              headers: { Link: "</next>; rel=next\n</agent>; rel=mcp" },
+            },
+          },
+        },
+      ];
+    },
+  });
+  trackBrowser(browser);
+  const result = await new CdpBrowserProvider().inspectPage(
+    inspectWebPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      allowed_origins: [browser.allowedOrigin],
+      target_id: "allowed-page",
+      observation_ms: 1,
+    }),
+  );
+  if (!result.ok) throw result.error;
+  expect(result.value.metadata.responses).toContainEqual(
+    expect.objectContaining({
+      request_id: "repeated-document",
+      links: [
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/next`,
+          rel: ["next"],
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/agent`,
+          rel: ["mcp"],
+        }),
+      ],
+    }),
+  );
+  expect(result.value.metadata.agent_hints).toContainEqual({
+    mechanism: "link_rel",
+    declaration: "mcp",
+    url: `${browser.allowedOrigin}/agent`,
+    trust: "page-declared-untrusted",
+  });
+});
+
 it("preserves unavailable response observations and captures completed peers", async () => {
   const browser = await startFakeCdpBrowser({
     commandEvents(command, origin) {

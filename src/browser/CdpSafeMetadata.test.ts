@@ -202,6 +202,53 @@ describe("Link header value delimiters", () => {
       new Set(["https://owned.test"]),
     ).response.links;
 
+  it.each([", ", "\n", "\r\n"])(
+    "preserves repeated field declarations and agent hints joined by %j",
+    (separator) => {
+      const captured = safeResponseMetadata(
+        "document-response",
+        `${origin}/page`,
+        {
+          headers: {
+            Link: [
+              '</assets/red,blue.js>; rel="preload"; type="text/javascript; charset=utf-8"; title="a,b"',
+              '</agent?selected=keep>; rel="mcp service-desc"',
+            ].join(separator),
+          },
+        },
+        new Set([origin]),
+      );
+      expect(captured.response.links).toMatchObject([
+        {
+          href: `${origin}/assets/red,blue.js`,
+          rel: ["preload"],
+          type: "text/javascript; charset=utf-8",
+        },
+        {
+          href: `${origin}/agent?selected=keep`,
+          rel: ["mcp", "service-desc"],
+        },
+      ]);
+      expect(captured.agentHints).toContainEqual({
+        mechanism: "link_rel",
+        declaration: "mcp service-desc",
+        url: `${origin}/agent?selected=keep`,
+        trust: "page-declared-untrusted",
+      });
+    },
+  );
+
+  it("keeps delimiters scoped to each CDP field line", () => {
+    const links = captureLinks(
+      '</first>; title="unterminated\n</agent>; rel=mcp',
+    );
+    expect(links.map(({ href }) => href)).toEqual([
+      "https://owned.test/first",
+      "https://owned.test/agent",
+    ]);
+    expect(links[1]?.rel).toEqual(["mcp"]);
+  });
+
   it("preserves commas in URI references and separates later links", () => {
     const links = captureLinks(
       '</assets/red,blue.js>; rel="preload"; as=script, </ordinary.js>; rel="modulepreload"',

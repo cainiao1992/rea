@@ -26,6 +26,7 @@ cliTest(
     else if(args[0]==='prefix') console.log(join(process.env.USERPROFILE,'unowned'));
     else if(args[0]==='view') {
       if(process.env.REA_TEST_NPM_FAILURE==='1') {process.stderr.write('owned fake registry denied');process.exitCode=2;}
+      else if(process.env.REA_TEST_NPM_OVERSIZED==='1') process.stdout.write(JSON.stringify(${JSON.stringify(PRODUCT_IDENTITY.packageVersion)})+' '.repeat(4 * 1024 * 1024));
       else console.log(JSON.stringify(${JSON.stringify(PRODUCT_IDENTITY.packageVersion)}));
     } else {process.stderr.write('No installation or unexpected package-manager commands are allowed');process.exitCode=97;}
   `,
@@ -37,18 +38,31 @@ cliTest(
         : '#!/bin/sh\nexec "$REA_TEST_NODE" "$REA_TEST_NPM_SCRIPT" "$@"\n',
       { mode: 0o700 },
     );
-    const run = (arguments_: readonly string[], failure = false) =>
+    const run = (
+      arguments_: readonly string[],
+      failure = false,
+      oversized = false,
+    ) =>
       cli.run({
         arguments: arguments_,
         cwd: home,
         timeoutMs: 20_000,
         environment: {
           USERPROFILE: home,
-          PATH: bin + delimiter + (process.env.PATH ?? ""),
+          PATH: [
+            bin,
+            ...(process.platform === "win32"
+              ? [join(process.env.SystemRoot ?? "C:\\Windows", "System32")]
+              : ["/usr/bin", "/bin"]),
+          ].join(delimiter),
+          npm_config_prefix: join(home, "prefix"),
+          npm_config_cache: join(home, "cache"),
+          npm_config_user_agent: "npm/test",
           REA_TEST_NODE: process.execPath,
           REA_TEST_NPM_SCRIPT: script,
           REA_TEST_NPM_LOG: log,
           REA_TEST_NPM_FAILURE: failure ? "1" : "0",
+          REA_TEST_NPM_OVERSIZED: oversized ? "1" : "0",
           CI: "1",
           NO_UPDATE_NOTIFIER: "1",
         },
@@ -81,6 +95,13 @@ cliTest(
       status: "failed",
       reason: "version-check",
       remediation: expect.stringContaining("owned fake registry denied"),
+    });
+    const oversized = await run(["update", "--json"], false, true);
+    expect(oversized.exitCode).toBe(1);
+    expect(oversized.json).toMatchObject({
+      status: "failed",
+      reason: "version-check",
+      remediation: expect.stringContaining("complete-output retention budget"),
     });
     const before = await readFile(log, "utf8");
     const ambiguous = await run(["providers", "--update", "--json"]);

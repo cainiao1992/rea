@@ -3,7 +3,6 @@ import type {
   ElfFamilyMetadata,
   HeaderArchitecture,
   MipsElfMetadata,
-  RawOnlyArchitecture,
   PeCodeViewRecord,
   RiscvElfMetadata,
   PowerPcElfMetadata,
@@ -206,11 +205,9 @@ const parseElf = (
 ): Result<ExecutableMetadata, string> => {
   const fixedHeader = readElfFixedHeader(bytes, fileSize);
   if (!fixedHeader.ok) return fixedHeader;
-  const { elfClass, byteOrder } = fixedHeader.value;
+  const { elfClass, byteOrder, architecture } = fixedHeader.value;
   const little = byteOrder === "little";
-  const machine = little ? bytes.readUInt16LE(18) : bytes.readUInt16BE(18);
-  const architecture = elfArchitecture(machine);
-  if (architecture === undefined) return err("unsupported ELF architecture");
+  if (architecture === null) return err("unsupported ELF architecture");
   if (
     architecture === "mips" ||
     architecture === "riscv" ||
@@ -540,28 +537,6 @@ const machArchitecture = (cpu: number): HeaderArchitecture | undefined => {
       return "arm";
     case 0x0100000c:
       return "arm64";
-  }
-  return undefined;
-};
-
-const elfArchitecture = (
-  machine: number,
-): Exclude<BinaryArchitecture, RawOnlyArchitecture> | undefined => {
-  switch (machine) {
-    case 3:
-      return "x86";
-    case 62:
-      return "x86_64";
-    case 8: // EM_MIPS: ISA, ABI and byte order remain separate ELF facts.
-      return "mips";
-    case 20: // EM_PPC; byte order and processor variant remain ELF declarations.
-      return "powerpc";
-    case 40:
-      return "arm";
-    case 183:
-      return "arm64";
-    case 243: // EM_RISCV: XLEN, byte order and e_flags remain separate ELF facts.
-      return "riscv";
   }
   return undefined;
 };

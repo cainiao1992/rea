@@ -4,7 +4,10 @@ import writeFileAtomic from "write-file-atomic";
 
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { withOwnedFileHandle } from "../filesystem/OwnedRegularFile.js";
-import { sameRegularFileState } from "../filesystem/RegularFile.js";
+import {
+  RegularFileChangedError,
+  sameRegularFileState,
+} from "../filesystem/RegularFile.js";
 
 /** The exact staged file retained through publication, verification and recovery. */
 export class ClientConfigurationPublication {
@@ -17,21 +20,57 @@ export class ClientConfigurationPublication {
   static async write(
     path: string,
     contents: string,
+    mode?: number,
   ): Promise<ClientConfigurationPublication> {
     let owner: OwnedFileHandle | undefined;
     try {
       await writeFileAtomic(path, contents, {
         encoding: "utf8",
-        mode: 0o600,
+        ...(mode === undefined ? {} : { mode }),
         tmpfileCreated: async (stagedPath) => {
-          owner = new OwnedFileHandle(
-            await open(
+          const writableFlags =
+            constants.O_RDWR |
+            (constants.O_NONBLOCK ?? 0) |
+            (constants.O_NOFOLLOW ?? 0);
+          if (((await lstat(stagedPath)).mode & 0o200) !== 0) {
+            owner = new OwnedFileHandle(await open(stagedPath, writableFlags));
+          } else {
+            // The atomic writer already owns a writable creation descriptor.
+            // Retain ours before restoring the staged file's final read-only mode.
+            const readable = new StagedConfigurationPermissions(
+              await open(
+                stagedPath,
+                constants.O_RDONLY |
+                  (constants.O_NONBLOCK ?? 0) |
+                  (constants.O_NOFOLLOW ?? 0),
+              ),
+            );
+            await withOwnedFileHandle(
               stagedPath,
-              constants.O_RDWR |
-                (constants.O_NONBLOCK ?? 0) |
-                (constants.O_NOFOLLOW ?? 0),
-            ),
-          );
+              readable,
+              {},
+              async (handle) => {
+                const staged = await handle.stat();
+                if (!staged.isFile())
+                  throw new Error("Staged configuration is not a regular file");
+                readable.restoreMode(staged.mode & 0o7777);
+                await handle.chmod((staged.mode & 0o7777) | 0o600);
+                owner = new OwnedFileHandle(
+                  await open(stagedPath, writableFlags),
+                );
+                const writable = await owner.handle.stat();
+                if (
+                  staged.ino === 0 ||
+                  !writable.isFile() ||
+                  writable.dev !== staged.dev ||
+                  writable.ino !== staged.ino
+                )
+                  throw new RegularFileChangedError(stagedPath);
+              },
+            );
+          }
+          if (owner === undefined)
+            throw new Error("Staged configuration has no file owner");
           if (!(await owner.handle.stat()).isFile())
             throw new Error("Staged configuration is not a regular file");
         },
@@ -118,5 +157,30 @@ export class ClientConfigurationPublication {
       position += bytesRead;
     }
     return true;
+  }
+}
+
+/** Restore temporary staging permissions before releasing their exact descriptor. */
+class StagedConfigurationPermissions extends OwnedFileHandle {
+  #mode: number | undefined;
+  #restoring: Promise<void> | undefined;
+
+  restoreMode(mode: number): void {
+    this.#mode = mode;
+  }
+
+  override async close(): Promise<void> {
+    if (this.#mode !== undefined) {
+      this.#restoring ??= this.handle
+        .chmod(this.#mode)
+        .then(() => {
+          this.#mode = undefined;
+        })
+        .finally(() => {
+          this.#restoring = undefined;
+        });
+      await this.#restoring;
+    }
+    await super.close();
   }
 }

@@ -304,6 +304,7 @@ const persistClientConfiguration = async ({
         ...(legacyPath === undefined ? [] : [legacyPath]),
         ...(enableOmp ? [[OMP_DISABLED_SERVERS_KEY]] : []),
       ]),
+      0o600,
     );
   } catch (cause: unknown) {
     if (cause instanceof RegularFileCleanupFailure) throw cause;

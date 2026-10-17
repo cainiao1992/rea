@@ -106,7 +106,10 @@ cliTest(
         expect(result.truncated).toBe(false);
         const opened = await call("open_binary", { path });
         expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
-        const mcp = await call("inspect_keyed_archive", (rootArguments.length === 0 ? {} : { root: "main" }));
+        const mcp = await call(
+          "inspect_keyed_archive",
+          rootArguments.length === 0 ? {} : { root: "main" },
+        );
         expect(mcp.isError, JSON.stringify(mcp)).not.toBe(true);
         expect(
           keyedArchiveResultSchema.parse(

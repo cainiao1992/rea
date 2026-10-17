@@ -540,6 +540,25 @@ temporary source files are declared as `launchesProcess` and `writesFilesystem`,
 including for a single JavaScript source. This internal analysis does not execute
 the supplied application code.
 
+## Static Ghidra bytes and source mappings
+
+`read_bytes` returns initialized analysis memory, including loader fixups, rather
+than live process memory. Check `returned_bytes` and `complete` before decoding:
+reads stop at unmapped or uninitialized bytes. Missing bytes are unknown; do not
+pad an incomplete read with zeros and treat the result as an observation.
+
+`list_segments` reports memory-block initialization and address-space facts.
+`address_to_file_offset` maps one address through the provider's source-byte
+mapping. A successful start-address mapping does not establish that an entire
+range is contiguous in the original file, or that its bytes equal analysis
+memory after loader fixups. Uninitialized, missing, and ambiguous mappings fail
+explicitly; preserve the reported failure rather than guessing an offset.
+
+For constructor-populated pointer or resource slots, a static zero is not proof
+of a later null value. Inspect the slot's `xrefs` and the writer's assembly or
+pseudocode, retaining uncertainty about execution order and runtime values.
+These operations inspect static evidence and do not execute the target.
+
 ## Ghidra first-query deadlines and recovery
 
 A successful MCP initialize handshake establishes the REA connection.

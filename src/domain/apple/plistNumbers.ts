@@ -1,5 +1,8 @@
 import type { JsonValue } from "../jsonValue.js";
 
+/** XML numeric decoding could not establish a representable value identity. */
+export class UnknownPlistReal {}
+
 /** Exact decimal or signed hexadecimal XML integer text. */
 export const parsePlistIntegerLiteral = (text: string): bigint | undefined => {
   const match = /^([+-]?)(?:0[xX]([\da-fA-F]+)|(\d+))$/u.exec(text.trim());
@@ -134,9 +137,6 @@ export const createPlistNumberProjection = (literals: PlistNumberLiterals) => {
   };
 };
 
-/** The spellings CFPropertyList writes for reals a JSON number cannot carry. */
-export type PlistNonFiniteRealSpelling = "nan" | "+infinity" | "-infinity";
-
 /**
  * Read a whole `<real>` text as one of CFPropertyList's non-finite spellings.
  * Its parser compares the complete text case-insensitively and also accepts
@@ -146,19 +146,19 @@ export type PlistNonFiniteRealSpelling = "nan" | "+infinity" | "-infinity";
  */
 export const parsePlistNonFiniteRealLiteral = (
   text: string,
-): PlistNonFiniteRealSpelling | undefined => {
+): number | undefined => {
   if (text.length < 3 || text.length > 9) return undefined;
   switch (text.toLowerCase()) {
     case "nan":
-      return "nan";
+      return Number.NaN;
     case "+infinity":
     case "infinity":
     case "+inf":
     case "inf":
-      return "+infinity";
+      return Number.POSITIVE_INFINITY;
     case "-infinity":
     case "-inf":
-      return "-infinity";
+      return Number.NEGATIVE_INFINITY;
     default:
       return undefined;
   }

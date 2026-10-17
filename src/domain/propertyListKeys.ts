@@ -3,11 +3,12 @@ import { parseOpenStep } from "plist";
 
 import { decodeXmlPropertyList } from "./propertyListXml.js";
 import {
+  UnknownPlistReal,
   createPlistNumberCollector,
   type PlistNumberLiterals,
 } from "./apple/plistNumbers.js";
 
-import { MAX_PLIST_DEPTH, PlistNonFiniteReal } from "./apple/plistValue.js";
+import { MAX_PLIST_DEPTH } from "./apple/plistValue.js";
 import { parseXmlDocument } from "./xmlDocument.js";
 
 /** The dictionary key REA results cannot carry: validation strips it. */
@@ -42,7 +43,7 @@ export const omitPrototypeKeys = (
       typeof item !== "object" ||
       item instanceof Date ||
       item instanceof Uint8Array ||
-      item instanceof PlistNonFiniteReal
+      item instanceof UnknownPlistReal
     )
       return item;
     return Object.fromEntries(

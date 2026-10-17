@@ -108,11 +108,10 @@ cliTest.for(["xml", "binary"] as const)(
       $plist_type: "date",
       iso8601: "2001-01-01T00:00:00.000Z",
     });
-    // plist@5 writes JavaScript's Infinity, which CFPropertyList reads as
-    // +infinity; the binary double carries no spelling.
+    // XML and binary decoding preserve the same non-finite value identity.
     expect(result.objects[7]?.value).toEqual({
       $plist_type: "real",
-      value: format === "xml" ? "+infinity" : null,
+      value: "+infinity",
     });
     expect(result.objects[10]?.value).toEqual({
       $plist_type: "real",
@@ -287,6 +286,65 @@ cliTest(
   },
 );
 
+cliTest("preserves binary IEEE non-finite scalar identity", async ({ cli }) => {
+  const root = await createTestTempDirectory("rea-binary-nonfinite-");
+  const path = join(root, "archive.plist");
+  const bytes = Buffer.from(
+    buildBinary({
+      $archiver: "NSKeyedArchiver",
+      $version: 100000,
+      $top: {
+        positive: { CF$UID: 1 },
+        negative: { CF$UID: 2 },
+        nan: { CF$UID: 3 },
+      },
+      $objects: [
+        "$null",
+        Infinity,
+        -Infinity,
+        NaN,
+        { $plist_type: "real", value: "nan" },
+        1.25,
+      ],
+    }),
+  );
+  await writeFile(path, bytes);
+  const output = await cli.run({
+    arguments: ["inspect-keyed-archive", path, "--json"],
+    environment: { HOME: root, USERPROFILE: root, REA_LOG_LEVEL: "silent" },
+  });
+  expect(output.exitCode, output.stderr).toBe(0);
+  const result = keyedArchiveResultSchema.parse(
+    parseEvidence(output.json).normalized_result,
+  );
+  expect(
+    result.objects.slice(1).map(({ kind, value }) => ({ kind, value })),
+  ).toEqual([
+    { kind: "scalar", value: { $plist_type: "real", value: "+infinity" } },
+    { kind: "scalar", value: { $plist_type: "real", value: "-infinity" } },
+    { kind: "scalar", value: { $plist_type: "real", value: "nan" } },
+    { kind: "dictionary", value: { $plist_type: "real", value: "nan" } },
+    { kind: "scalar", value: 1.25 },
+  ]);
+  expect(result.archive_sha256).toBe(
+    createHash("sha256").update(bytes).digest("hex"),
+  );
+  const { call } = await connectLocalToolsMcp({
+    HOME: root,
+    USERPROFILE: root,
+  });
+  const opened = await call("open_binary", { path });
+  expect(opened.isError).not.toBe(true);
+  const mcp = await call("inspect_keyed_archive", {});
+  expect(mcp.isError).not.toBe(true);
+  expect(
+    keyedArchiveResultSchema.parse(
+      parseEvidence(mcp.structuredContent).normalized_result,
+    ),
+  ).toEqual(result);
+  expect(await readFile(path)).toEqual(bytes);
+});
+
 cliTest(
   "keeps CFPropertyList's non-finite real spellings in an XML keyed archive",
   async ({ cli }) => {
@@ -352,7 +410,7 @@ cliTest(
       '["$null",{"$plist_type":"real","value":"+infinity"},{"$plist_type":"real","value":"-infinity"},{"$plist_type":"real","value":"nan"},1.25]',
     );
     expect(result.limitations).toContain(
-      '3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } with the CFPropertyList spelling nan, +infinity or -infinity because a JSON number cannot carry them.',
+      '3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } using canonical numeric labels nan, +infinity or -infinity because a JSON number cannot carry them.',
     );
     expect(result.limitations).not.toContainEqual(
       expect.stringContaining('"value": null'),

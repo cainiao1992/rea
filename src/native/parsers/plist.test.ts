@@ -194,7 +194,7 @@ it("keeps CFPropertyList's non-finite real spellings in XML evidence", () => {
   );
   expect(parsed.value.limitations).toEqual([
     expect.stringContaining("XML conversion"),
-    '3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } with the CFPropertyList spelling nan, +infinity or -infinity because a JSON number cannot carry them.',
-    '1 non-finite real value(s) are reported as { "$plist_type": "real", "value": null } because the decoder observed a non-finite number without a property-list spelling.',
+    '3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } using canonical numeric labels nan, +infinity or -infinity because a JSON number cannot carry them.',
+    '1 numeric value(s) are reported as { "$plist_type": "real", "value": null } because XML numeric decoding could not establish their value identity.',
   ]);
 });

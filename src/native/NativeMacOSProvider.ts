@@ -156,6 +156,7 @@ class NativeMacOSClient implements AnalysisClient {
   readonly #pendingCommands = new Set<Promise<unknown>>();
   readonly #signatureResources = new ArtifactResourceScope();
   readonly #plistResources = new ArtifactResourceScope();
+  readonly #callResources = new ArtifactResourceScope();
   #nativeUiTail: Promise<void> = Promise.resolve();
   #closed = false;
 
@@ -259,6 +260,7 @@ class NativeMacOSClient implements AnalysisClient {
         this.target,
         parameters,
         this.tracer,
+        this.#callResources,
         options?.signal,
       );
       return result.ok
@@ -309,6 +311,10 @@ class NativeMacOSClient implements AnalysisClient {
       this.#plistResources,
       "plist-file",
     );
+    const callCleanup = await closeNativeFileScope(
+      this.#callResources,
+      "native-call-target",
+    );
     const commandCleanup = await this.#retryNativeCommandCleanup();
     let result = await this.tracer.close();
     const cleanupErrors = [
@@ -318,6 +324,7 @@ class NativeMacOSClient implements AnalysisClient {
       ...(commandCleanup === undefined ? [] : [commandCleanup]),
       ...(signatureCleanup === undefined ? [] : [signatureCleanup]),
       ...(plistCleanup === undefined ? [] : [plistCleanup]),
+      ...(callCleanup === undefined ? [] : [callCleanup]),
     ];
     for (const cleanupError of cleanupErrors)
       result = result.ok

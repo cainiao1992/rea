@@ -1,9 +1,6 @@
-import { createHash } from "node:crypto";
-import { open } from "node:fs/promises";
-
 import {
-  AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
+  AnalysisCancelledError,
   AnalysisInputError,
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -11,7 +8,6 @@ import {
   isMachOFormat,
   type BinaryTarget,
 } from "../domain/binaryTargetTypes.js";
-import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import {
@@ -20,6 +16,11 @@ import {
   type NativeCallObservationInput,
   type NativeCallObservationResult,
 } from "../domain/native/nativeCallObservation.js";
+import {
+  nativeCallTargetFailure,
+  verifyNativeCallTarget,
+} from "./NativeCallTarget.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { NativeCallTrace, NativeCallTracer } from "./LldbCallTracer.js";
 
@@ -40,8 +41,8 @@ export const observeNativeCalls = async (
   target: BinaryTarget,
   parameters: Readonly<Record<string, JsonValue>>,
   tracer: NativeCallTracer,
+  resources: ArtifactResourceScope,
   signal?: AbortSignal,
-  readTargetDigest: typeof fileSha256 = fileSha256,
 ): Promise<Result<NativeCallObservationResult, AnalysisError>> => {
   if (target.kind !== "executable" || !isMachOFormat(target.format))
     return err(
@@ -54,45 +55,61 @@ export const observeNativeCalls = async (
   const parsed = nativeCallObservationInputSchema.safeParse(parameters);
   if (!parsed.success)
     return err(new AnalysisInputError(OPERATION, { cause: parsed.error }));
-  // Observe the bytes the session's other Evidence describes.
-  let digest: string;
   try {
-    digest = await readTargetDigest(target.path, signal);
+    return await resources.run(async () => {
+      const selected = await verifyNativeCallTarget(target, resources, signal);
+      if (!selected.ok) return selected;
+      if (signal?.aborted)
+        return err(
+          new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
+        );
+      try {
+        const traced = await tracer.trace(
+          {
+            executable: target.path,
+            architecture: target.architecture,
+            expectedSha256: target.sha256,
+            input: parsed.data,
+          },
+          signal,
+        );
+        if (!traced.ok) return traced;
+        const observation = projectNativeCalls(
+          target,
+          parsed.data,
+          traced.value,
+        );
+        return signal?.aborted
+          ? err(
+              new AnalysisCancelledError(OPERATION, {
+                cause: signal.reason,
+                partialObservation: {
+                  ...observation,
+                  kind: "native-call-observation",
+                  coverage: {
+                    ...observation.coverage,
+                    status: "partial",
+                    reason: "cancelled",
+                  },
+                },
+              }),
+            )
+          : ok(observation);
+      } catch (cause: unknown) {
+        // Unknown tracer/parser failures carry no file cleanup authority.
+        return err(
+          new ProviderAdapterError("native-macos", OPERATION, {
+            cause,
+            diagnostics: { phase: "trace-result" },
+          }),
+        );
+      }
+    });
   } catch (cause: unknown) {
-    if (signal?.aborted === true || isAbortError(cause))
-      return err(new AnalysisCancelledError(OPERATION));
-    return err(
-      new ProviderAdapterError("native-macos", OPERATION, {
-        diagnostics: {
-          reason: "Unable to verify the selected target digest",
-          detail: cause instanceof Error ? cause.message : String(cause),
-        },
-      }),
-    );
+    // Only resource admission/retry can reject outside the owned operation.
+    return err(nativeCallTargetFailure(cause, target.path));
   }
-  if (digest !== target.sha256)
-    return err(
-      new EvidenceIntegrityError(
-        "Native call observation target digest changed after session binding",
-      ),
-    );
-  if (signal?.aborted === true)
-    return err(new AnalysisCancelledError(OPERATION));
-  const traced = await tracer.trace(
-    {
-      executable: target.path,
-      architecture: target.architecture,
-      expectedSha256: target.sha256,
-      input: parsed.data,
-    },
-    signal,
-  );
-  if (!traced.ok) return traced;
-  return ok(projectNativeCalls(target, parsed.data, traced.value));
 };
-
-const isAbortError = (cause: unknown): boolean =>
-  cause instanceof Error && cause.name === "AbortError";
 
 /** Join the request, the tracer's run and REA's own checks into the result contract. */
 export const projectNativeCalls = (
@@ -225,24 +242,4 @@ export const projectNativeCalls = (
           ]),
     ],
   });
-};
-
-const fileSha256 = async (
-  path: string,
-  signal?: AbortSignal,
-): Promise<string> => {
-  const handle = await open(path, "r");
-  try {
-    const hash = createHash("sha256");
-    const buffer = new Uint8Array(1024 * 1024);
-    for (;;) {
-      signal?.throwIfAborted();
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
-      if (bytesRead === 0) break;
-      hash.update(buffer.subarray(0, bytesRead));
-    }
-    return hash.digest("hex");
-  } finally {
-    await handle.close();
-  }
 };

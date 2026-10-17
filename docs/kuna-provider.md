@@ -91,6 +91,11 @@ Installation acquisition is shared, with independently cancellable caller waits.
 The final departing caller stops the probe and joins its cleanup; session close
 also stops and joins acquisition. A cleanly cancelled acquisition can be retried,
 while a retained cleanup failure blocks replacement until its owner is closed.
+Shared string and reference queries preserve caller cancellation reasons and
+join the final departing caller's command cleanup. A command cleanup error keeps
+its typed primary failure and captured output. Its live resource list follows
+both process and workspace ownership: proving process exit does not prove that
+the private workspace was removed, and retry updates earlier caller errors.
 
 ## Provenance and limitations
 

@@ -402,7 +402,11 @@ export class KunaSessionClient implements AnalysisClient {
       if (!answer.ok)
         return err(kunaQueryFailureForCaller(answer.error, operation));
       if (cancelled(options.signal))
-        return err(new AnalysisCancelledError(operation));
+        return err(
+          new AnalysisCancelledError(operation, {
+            cause: options.signal?.reason,
+          }),
+        );
       return ok(
         this.#execution(
           kunaLimitations(operation),
@@ -480,7 +484,7 @@ export class KunaSessionClient implements AnalysisClient {
             ),
             operation: "close_binary",
           },
-        ),
+        ).bindCleanupDependencies(failures),
       );
     this.#releasePin?.();
     this.#releasePin = undefined;
@@ -1006,7 +1010,9 @@ export class KunaSessionClient implements AnalysisClient {
     signal: AbortSignal | undefined,
   ): Promise<SingleFunctionOutcome> {
     if (cancelled(signal))
-      return Promise.resolve(err(new AnalysisCancelledError(operation)));
+      return Promise.resolve(
+        err(new AnalysisCancelledError(operation, { cause: signal?.reason })),
+      );
     const kept = this.#singleFunctionTexts.get(address);
     if (kept !== undefined) {
       this.#singleFunctionTexts.delete(address);
@@ -1050,13 +1056,17 @@ export class KunaSessionClient implements AnalysisClient {
         if (!waiting) return;
         leave();
         if (shared.waiters > 0) {
-          resolve(err(new AnalysisCancelledError(operation)));
+          resolve(
+            err(
+              new AnalysisCancelledError(operation, { cause: signal?.reason }),
+            ),
+          );
           return;
         }
         // A run whose waiters all left winds down; a new request starts afresh.
         if (this.#singleFunctionRuns.get(address) === shared)
           this.#singleFunctionRuns.delete(address);
-        shared.controller.abort();
+        shared.controller.abort(signal?.reason);
       };
       signal?.addEventListener("abort", onAbort, { once: true });
       void shared.outcome.then((outcome) => {
@@ -1100,7 +1110,9 @@ export class KunaSessionClient implements AnalysisClient {
     const admitted = await this.#admitSingleFunction(signal);
     if (admitted === EXPORT_READY) return admitted;
     if (admitted === undefined)
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, { cause: signal.reason }),
+      );
     const run = await this.#commands.run({
       installation,
       arguments: (input) => ["decompile", input, address, "--addr"],

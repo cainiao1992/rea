@@ -41,7 +41,9 @@ export class KunaStringQueries {
     >
   > {
     if (signal?.aborted === true)
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, { cause: signal?.reason }),
+      );
     const query =
       operation === "search_strings"
         ? analysisSearchQuerySchema.safeParse(parameters)
@@ -68,7 +70,9 @@ export class KunaStringQueries {
     if (!inventory.ok)
       return err(kunaQueryFailureForCaller(inventory.error, operation));
     if (this.#cancelled(signal))
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, { cause: signal?.reason }),
+      );
     const available = inventory.value.items;
     let items: KunaStringItem[] | undefined;
     if (address !== undefined)
@@ -114,12 +118,14 @@ export class KunaStringQueries {
   ): Promise<Result<KunaStringInventory, AnalysisError>> {
     if (this.#inventory !== undefined) return ok(this.#inventory);
     if (this.#failure !== undefined) return err(this.#failure);
-    if (this.#pending?.controller.signal.aborted === true) {
+    if (this.#pending?.signal.aborted === true) {
       const stopped = await this.work.wait(this.#pending, signal, operation);
       if (!stopped.ok && !(stopped.error instanceof AnalysisCancelledError))
         return stopped;
       if (signal?.aborted === true)
-        return err(new AnalysisCancelledError(operation));
+        return err(
+          new AnalysisCancelledError(operation, { cause: signal?.reason }),
+        );
       return this.#load(installation, operation, signal);
     }
     if (this.#pending === undefined) {

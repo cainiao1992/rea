@@ -93,7 +93,7 @@ export class KunaReferenceQueries {
   ): Promise<Result<KunaCallGraph, AnalysisError>> {
     if (this.#graphFailure !== undefined) return err(this.#graphFailure);
     if (this.#graph === undefined) {
-      if (this.#pendingGraph?.controller.signal.aborted === true) {
+      if (this.#pendingGraph?.signal.aborted === true) {
         const retired = await this.work.wait(
           this.#pendingGraph,
           signal,
@@ -102,7 +102,9 @@ export class KunaReferenceQueries {
         if (!retired.ok && !(retired.error instanceof AnalysisCancelledError))
           return retired;
         if (signal?.aborted === true)
-          return err(new AnalysisCancelledError(operation));
+          return err(
+            new AnalysisCancelledError(operation, { cause: signal?.reason }),
+          );
         return this.#loadGraph(installation, operation, signal);
       }
       if (this.#pendingGraph === undefined) {
@@ -225,12 +227,14 @@ export class KunaReferenceQueries {
       return ok(cached);
     }
     let pending = this.#pendingXrefs.get(address);
-    if (pending?.controller.signal.aborted === true) {
+    if (pending?.signal.aborted === true) {
       const retired = await this.work.wait(pending, signal, "xrefs");
       if (!retired.ok && !(retired.error instanceof AnalysisCancelledError))
         return retired;
       if (signal?.aborted === true)
-        return err(new AnalysisCancelledError("xrefs"));
+        return err(
+          new AnalysisCancelledError("xrefs", { cause: signal?.reason }),
+        );
       return this.incoming(installation, address, signal);
     }
     if (pending === undefined) {

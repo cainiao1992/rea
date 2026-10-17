@@ -83,6 +83,7 @@ export type KunaCommandOutcome =
     }
   | {
       readonly kind: "retained";
+      readonly processResources: readonly string[];
       readonly error: ProviderCleanupError;
       /** The supervisor that can retry stopping the process tree, when one exists. */
       readonly owner: ProviderProcessSupervisor | undefined;
@@ -266,12 +267,10 @@ const commandFailure = (
   if (!(cause instanceof OwnedCommandFailure))
     return {
       kind: "failed",
-      error: request.signal.aborted
-        ? new AnalysisCancelledError(operation, { cause })
-        : new ProviderAdapterError(KUNA_PROVIDER_ID, operation, {
-            cause,
-            userMessage: `Cannot run ${request.installation.executable}: ${message(cause)}`,
-          }),
+      error: new ProviderAdapterError(KUNA_PROVIDER_ID, operation, {
+        cause,
+        userMessage: `Cannot run ${request.installation.executable}: ${message(cause)}`,
+      }),
     };
   const snapshot = cause.snapshot;
   const capturedOutput =
@@ -297,53 +296,48 @@ const commandFailure = (
     cause,
     ...(capturedOutput === undefined ? {} : { capturedOutput }),
   };
+  let primary: AnalysisError;
+  if (cause.reason === "cancelled")
+    primary = new AnalysisCancelledError(operation, {
+      ...details,
+      cause: cause.cancellation?.reason,
+    });
+  else if (cause.reason === "timeout")
+    primary = new AnalysisTimeoutError(
+      operation,
+      request.reportedTimeoutMs,
+      details,
+    );
+  // The same input overflows the same fixed buffer; waiting cannot help.
+  else if (cause.reason === "output-limit")
+    primary = new AnalysisResourceConstraintError(
+      operation,
+      "memory",
+      `kuna ${subcommand} wrote more than ${String(request.outputBytes)} bytes of output.`,
+      { output_limit_bytes: request.outputBytes },
+      {
+        ...details,
+        remediationAction: `REA buffers at most ${String(request.outputBytes)} bytes of kuna ${subcommand} output, so repeating this request for this target fails the same way. Use another provider for it.`,
+      },
+    );
+  else {
+    const exitCode = capturedOutput?.exit_code;
+    primary = new ProviderAdapterError(KUNA_PROVIDER_ID, operation, {
+      ...details,
+      userMessage: `kuna ${subcommand} failed${exitCode === undefined || exitCode === null ? "" : ` with exit code ${String(exitCode)}`}: ${capturedOutput?.stderr.trim().split("\n").at(-1) || cause.message}`,
+    });
+  }
   if (cause.cleanupFailure !== null)
     return {
       kind: "retained",
+      processResources: cause.resources,
       error: new ProviderCleanupError(
         KUNA_PROVIDER_ID,
         [...cause.resources, request.workspace],
         { reason: cause.cleanupFailure },
-        { operation, cause },
+        { ...details, operation, cleanupPrimary: primary },
       ),
       owner: cause.cleanupOwner,
     };
-  if (cause.reason === "cancelled")
-    return {
-      kind: "failed",
-      error: new AnalysisCancelledError(operation, details),
-    };
-  if (cause.reason === "timeout")
-    return {
-      kind: "failed",
-      error: new AnalysisTimeoutError(
-        operation,
-        request.reportedTimeoutMs,
-        details,
-      ),
-    };
-  // The same target and executable always produce the same output, so a
-  // fixed buffer it overflows is a memory bound, not a busy admission queue.
-  if (cause.reason === "output-limit")
-    return {
-      kind: "failed",
-      error: new AnalysisResourceConstraintError(
-        operation,
-        "memory",
-        `kuna ${subcommand} wrote more than ${String(request.outputBytes)} bytes of output.`,
-        { output_limit_bytes: request.outputBytes },
-        {
-          ...details,
-          remediationAction: `REA buffers at most ${String(request.outputBytes)} bytes of kuna ${subcommand} output, so repeating this request for this target fails the same way. Use another provider for it.`,
-        },
-      ),
-    };
-  const exitCode = capturedOutput?.exit_code;
-  return {
-    kind: "failed",
-    error: new ProviderAdapterError(KUNA_PROVIDER_ID, operation, {
-      ...details,
-      userMessage: `kuna ${subcommand} failed${exitCode === undefined || exitCode === null ? "" : ` with exit code ${String(exitCode)}`}: ${capturedOutput?.stderr.trim().split("\n").at(-1) || cause.message}`,
-    }),
-  };
+  return { kind: "failed", error: primary };
 };

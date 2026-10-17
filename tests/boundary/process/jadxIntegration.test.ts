@@ -1035,7 +1035,7 @@ it("retains the execution failure while cleanup is pending and resumes after cle
       error: {
         cleanupIncomplete: true,
         diagnostics: {
-          previous_error: {
+          primary_error: {
             details: {
               diagnostics: {
                 reason: "manifest decoder rejected malformed binary XML",
@@ -1075,6 +1075,16 @@ it("retains the execution failure while cleanup is pending and resumes after cle
       },
     });
     expect(launches).toHaveLength(2);
+    expect(outcome.error.cleanupIncomplete).toBe(false);
+    expect(outcome.error.cleanupResources).toEqual([]);
+    expect(projectAnalysisError(outcome.error)).toMatchObject({
+      code: "execution_failure",
+      details: {
+        diagnostics: {
+          reason: "manifest decoder rejected malformed binary XML",
+        },
+      },
+    });
     await verifyCleanup(launches);
   } finally {
     cleanupFails = false;

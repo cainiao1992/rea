@@ -300,8 +300,15 @@ export interface AnalysisProviderCandidate extends AnalysisProvider {
     target: BinaryTarget,
     options?: AnalysisProfileResolutionOptions,
   ): Promise<Result<AnalysisProfileResolution, AnalysisError>>;
-  inspectAvailability(): ProviderAvailability;
-  inspectReadinessSnapshot?(): AnalysisProviderReadinessSnapshot;
+  /** Await prerequisite observations and finalization under the supplied owner signal. */
+  inspectAvailability(
+    signal?: AbortSignal,
+  ): ProviderAvailability | Promise<ProviderAvailability>;
+  inspectReadinessSnapshot?(
+    signal?: AbortSignal,
+  ):
+    | AnalysisProviderReadinessSnapshot
+    | Promise<AnalysisProviderReadinessSnapshot>;
   inspectTargetSupport(target: BinaryTarget): ProviderTargetSupport;
   /** Observe retained candidate cleanup without starting or retrying work. */
   hasPendingOwnedResources?(): boolean;

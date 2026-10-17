@@ -205,17 +205,17 @@ it("clears retired runtime availability after cancelled-switch restoration", asy
   });
   expect((await session.open(process.execPath)).ok).toBe(true);
   expect((await session.execute("address_name", {})).ok).toBe(false);
-  const availability = () =>
-    buildCapabilityInventory(session.status(), {
+  const availability = async () =>
+    buildCapabilityInventory(await session.status(), {
       processCaptureEnabled: false,
     }).find(({ name }) => name === "address_name");
-  const initialAvailability = availability();
+  const initialAvailability = await availability();
   expect(initialAvailability).toMatchObject({
     available: false,
     reason: "provider_unavailable",
   });
   const originalTarget = session.activeTarget();
-  const initialRunId = sessionRunId(session.status());
+  const initialRunId = sessionRunId(await session.status());
 
   const controller = new AbortController();
   const switching = session.open("/bin/ls", { signal: controller.signal });
@@ -231,9 +231,9 @@ it("clears retired runtime availability after cancelled-switch restoration", asy
   expect(session.activeTarget()).toEqual(originalTarget);
   expect(deep.created).toHaveLength(1);
   expect(deep.created[0]?.closeCalled).toBe(true);
-  const restoredStatus = session.status();
+  const restoredStatus = await session.status();
   expect(sessionRunId(restoredStatus)).not.toBe(initialRunId);
-  expect(availability()).toMatchObject({
+  expect(await availability()).toMatchObject({
     available: true,
     reason: "available",
     remediation: null,
@@ -242,20 +242,20 @@ it("clears retired runtime availability after cancelled-switch restoration", asy
   // restoration, while the new restored client is healthy and usable.
   expect((await session.execute("address_name", {})).ok).toBe(true);
   expect(deep.created).toHaveLength(2);
-  expect(availability()).toMatchObject({
+  expect(await availability()).toMatchObject({
     available: true,
     reason: "available",
     remediation: null,
   });
   deep.created[1]?.setOperationFailure(true);
   expect((await session.execute("address_name", {})).ok).toBe(false);
-  expect(availability()).toMatchObject({
+  expect(await availability()).toMatchObject({
     available: false,
     reason: "provider_unavailable",
   });
   deep.created[1]?.setOperationFailure(false);
   expect((await session.execute("address_name", {})).ok).toBe(true);
-  expect(availability()).toMatchObject({
+  expect(await availability()).toMatchObject({
     available: true,
     reason: "available",
     remediation: null,
@@ -263,7 +263,9 @@ it("clears retired runtime availability after cancelled-switch restoration", asy
   await session.close();
 });
 
-const sessionRunId = (status: ReturnType<BinarySession["status"]>): string => {
+const sessionRunId = (
+  status: Awaited<ReturnType<BinarySession["status"]>>,
+): string => {
   if (typeof status !== "object" || status === null || Array.isArray(status))
     throw new Error("Expected a binary session status object");
   const analysisRun = status.analysis_run;

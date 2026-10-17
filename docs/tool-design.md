@@ -83,6 +83,9 @@ providers need not expose identical state machines.
   recovery handshakes. Bound abandoned unauthenticated listeners where the
   protocol permits it; that deadline must not expire authenticated idle sessions
   or long-running native work. Listener expiry does not prove target closure.
+- Readiness observations may await owned prerequisite commands. Status must
+  remain readable during owner finalization without starting replacement work;
+  report readiness as unknown when it cannot be re-observed.
 - Shared startup has one producer and independently cancellable caller waits.
   Keep it running while any caller still needs it. The final departing caller
   waits for owned cleanup and retains its failure. Provider closure is distinct

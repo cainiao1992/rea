@@ -12,6 +12,7 @@ import {
 } from "./NativeMacOSProviderMetadata.js";
 import { inspectAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
 import { observeNativeUi } from "./NativeUiObservation.js";
+import { NativeUiCleanupError } from "./NativeUiCleanupError.js";
 import { LldbCallTracer, type NativeCallTracer } from "./LldbCallTracer.js";
 import { observeNativeCalls } from "./NativeCallObservation.js";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
@@ -385,7 +386,11 @@ class NativeMacOSClient implements AnalysisClient {
         return err(
           result.ok
             ? cleanup
-            : analysisErrorWithCleanupFailure(result.error, cleanup, operation),
+            : analysisErrorWithCleanupFailure(
+                result.error,
+                cleanup,
+                operation,
+              ).bindCleanupDependencies([result.error, cleanup]),
         );
       }
       return result.ok
@@ -455,26 +460,7 @@ class NativeMacOSClient implements AnalysisClient {
     operation: string,
     partialObservation?: NativeUiObservationResult,
   ): ProviderCleanupError {
-    const resources = failures.flatMap(({ runtime }) => runtime.resources());
-    return new ProviderCleanupError(
-      IDENTITY.id,
-      resources.length === 0 ? ["native-ui-runtime"] : resources,
-      {
-        reason: "Native UI runtime cleanup remains incomplete",
-        failures: failures.map(({ runtime, cause }) => ({
-          resources: [...runtime.resources()],
-          reason: cause instanceof Error ? cause.message : String(cause),
-        })),
-      },
-      {
-        operation,
-        cause: new AggregateError(
-          failures.map(({ cause }) => cause),
-          "Native UI runtime cleanup failed",
-        ),
-        ...(partialObservation === undefined ? {} : { partialObservation }),
-      },
-    );
+    return new NativeUiCleanupError(failures, operation, partialObservation);
   }
 
   #dispatch(

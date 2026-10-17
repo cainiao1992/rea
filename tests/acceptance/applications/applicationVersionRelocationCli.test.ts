@@ -8,7 +8,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
 cliTest(
-  "retains unchanged bundled modules after an earlier edit shifts their source offsets",
+  "retains exact factory bytes and relocation while exposing unresolved chunk alignment",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-version-relocation-");
     const bundle =
@@ -62,10 +62,13 @@ cliTest(
     expect(moduleItems).toHaveLength(2);
     for (const item of moduleItems) {
       expect(item).toMatchObject({
-        status: "unchanged",
+        status: "unknown",
         dimensions: ["location"],
         match: { basis: "exact-module-source-digest" },
       });
+      expect(item.limitations.join(" ")).toMatch(
+        /relationship.*identity.*unresolved/iu,
+      );
       const a = modules[0]?.find((node) => node.node_id === item.left_node_id),
         b = modules[1]?.find((node) => node.node_id === item.right_node_id);
       expect(typeof a?.observations[0]?.properties.source_sha256).toBe(
@@ -84,12 +87,85 @@ cliTest(
         result.graph.nodes.find((node) => node.node_id === item.right_node_id),
       ).toEqual(b);
     }
-    expect(result.summary.unchanged).toBeGreaterThanOrEqual(2);
+    expect(result.summary.unknown).toBeGreaterThanOrEqual(2);
     expect(
       result.items.find((item) => item.node_kind === "javascript-asset"),
     ).toMatchObject({
       status: "changed",
       dimensions: expect.arrayContaining(["content"]),
     });
+  },
+);
+
+cliTest(
+  "preserves ambiguous imported factory identity through public version comparison",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-version-ambiguous-import-");
+    const bundle =
+      "globalThis.webpackChunkApp.push([[1], {11:function(module,exports,__webpack_require__){exports.value=__webpack_require__(22).value;},22:function(module,exports){exports.value=1;},33:function(module,exports){exports.value=1;}}]);";
+    const versions = [];
+    for (const side of [1, 2]) {
+      const application = join(root, String(side));
+      await mkdir(application);
+      await writeFile(
+        join(application, "main.js"),
+        `${side === 1 ? "" : "/* shifted */\n"}${bundle}`,
+      );
+      const run = await cli.run({
+        arguments: ["analyze-javascript-application", application, "--json"],
+        environment: { REA_LOG_LEVEL: "silent" },
+      });
+      expect(run.exitCode, run.stderr).toBe(0);
+      versions.push(parseEvidence(run.json));
+    }
+    const [left, right] = versions;
+    if (left === undefined || right === undefined)
+      throw new Error("Missing versions");
+    const analyses = versions.map((e) =>
+      javascriptApplicationAnalysisResultSchema.parse(e.normalized_result),
+    );
+    const main = analyses[0]?.graph.nodes.find(
+      (n) =>
+        n.kind === "javascript-module" &&
+        n.observations.some((o) => o.properties.module_key === "11"),
+    );
+    const peer = analyses[0]?.graph.nodes.find(
+      (n) =>
+        n.kind === "javascript-module" &&
+        n.observations.some((o) => o.properties.module_key === "22"),
+    );
+    if (main === undefined || peer === undefined)
+      throw new Error("Missing fixture factories");
+    expect(analyses[0]?.graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_node_id: main.node_id,
+          target_node_id: peer.node_id,
+          relation: "imports",
+        }),
+      ]),
+    );
+    const input = join(root, "compare.json");
+    await writeFile(input, JSON.stringify({ left, right }));
+    const run = await cli.run({
+      arguments: ["compare-application-versions", input, "--json"],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(run.exitCode, run.stderr).toBe(0);
+    const result = applicationVersionComparisonResultSchema.parse(
+      parseEvidence(run.json).normalized_result,
+    );
+    const item = result.items.find((i) => i.left_node_id === main.node_id),
+      target = result.items.find((i) => i.left_node_id === peer.node_id);
+    expect(result.coverage.status).toBe("complete-within-inputs");
+    expect(item).toMatchObject({
+      status: "unknown",
+      match: { basis: "exact-module-source-digest", confidence: "exact" },
+    });
+    expect(item?.limitations.join(" ")).toMatch(
+      /relationship.*identity.*unresolved/iu,
+    );
+    expect(target?.match).toMatchObject({ status: "ambiguous" });
+    expect(target?.match.candidate_right_node_ids).toHaveLength(2);
   },
 );

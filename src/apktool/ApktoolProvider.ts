@@ -522,6 +522,7 @@ export class ApktoolProvider {
     const owner = { kind: "lease" as const, resource: root, lease };
     this.#artifacts.retain(owner);
     let result: Result<AnalysisExecution, AnalysisError>;
+    let partialExecution: AnalysisExecution | undefined;
     try {
       const identity = await resources.snapshotInput(
         input.path,
@@ -591,12 +592,15 @@ export class ApktoolProvider {
       );
       throwIfCancelled(operation, signal);
 
-      const projectedStrings = await projectApktoolStringTables(
+      const projection = await projectApktoolStringTables(
         resources,
         workspace,
         input,
         signal,
       );
+      const projectedStrings = projection.ok
+        ? projection.value
+        : projection.error.partial;
       limitations.push(...projectedStrings.limitations);
       const coverage =
         projectedStrings.coverage === "partial" ||
@@ -626,35 +630,38 @@ export class ApktoolProvider {
           `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,
         );
       }
-      result = ok(
-        createAnalysisExecution(
-          {
-            client,
-            target: { path: input.path, bytes: identity.bytes, sha256 },
-            metadata: {
-              version_name: metadata.versionName,
-              version_code: metadata.versionCode,
-              min_sdk_version: metadata.minSdkVersion,
-              target_sdk_version: metadata.targetSdkVersion,
-              package_name: packageName,
-            },
-            manifest,
-            strings: projectedStrings.strings,
-            locale: input.locale ?? null,
-            locales: files.locales,
-            ...(input.locales === undefined
-              ? {}
-              : { string_tables: projectedStrings.tables }),
-            decoded_file_count: files.count,
-            coverage,
+      const execution = createAnalysisExecution(
+        {
+          client,
+          target: { path: input.path, bytes: identity.bytes, sha256 },
+          metadata: {
+            version_name: metadata.versionName,
+            version_code: metadata.versionCode,
+            min_sdk_version: metadata.minSdkVersion,
+            target_sdk_version: metadata.targetSdkVersion,
+            package_name: packageName,
           },
-          provider,
-          {
-            subject: { path: input.path, sha256, format: "apk" },
-            limitations,
-          },
-        ),
+          manifest,
+          strings: projectedStrings.strings,
+          locale: input.locale ?? null,
+          locales: files.locales,
+          ...(input.locales === undefined
+            ? {}
+            : { string_tables: projectedStrings.tables }),
+          decoded_file_count: files.count,
+          coverage,
+        },
+        provider,
+        {
+          subject: { path: input.path, sha256, format: "apk" },
+          limitations,
+        },
       );
+      if (!projection.ok) {
+        partialExecution = execution;
+        throw projection.error.cause;
+      }
+      result = ok(execution);
     } catch (cause) {
       const physical = artifactFilePrimaryFailure(cause);
       const primary =
@@ -689,6 +696,18 @@ export class ApktoolProvider {
                 operation,
               ).bindCleanupDependencies([primary, failure])
             : primary;
+      if (
+        partialExecution !== undefined &&
+        retained.partialObservation === undefined
+      )
+        retained.retainPartialObservation(
+          createAnalysisExecutionEvidence(
+            operation,
+            input,
+            partialExecution,
+            "observed",
+          ),
+        );
       if (
         resources.snapshot !== undefined &&
         retained.partialObservation === undefined

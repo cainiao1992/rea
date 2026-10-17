@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { ok, err, type Result } from "../domain/result.js";
 
 import {
   AGGREGATE_STRINGS_XML_MAX_BYTES,
@@ -124,9 +125,19 @@ export const projectApktoolStringTables = async (
   workspace: string,
   input: Selection,
   signal?: AbortSignal,
-): Promise<ApktoolStringProjection> => {
+): Promise<
+  Result<
+    ApktoolStringProjection,
+    { readonly cause: unknown; readonly partial: ApktoolStringProjection }
+  >
+> => {
   if (!input.include_strings)
-    return { strings: [], tables: [], limitations: [], coverage: "complete" };
+    return ok({
+      strings: [],
+      tables: [],
+      limitations: [],
+      coverage: "complete",
+    });
   const primary = input.locale ?? null;
   const locales = [...new Set([primary, ...(input.locales ?? [])])];
   const physical = new Map<string, PhysicalTable>();
@@ -135,118 +146,130 @@ export const projectApktoolStringTables = async (
   let xmlBytes = 0;
   let outputEntries = 0;
   let aggregateCapped = false;
-  for (const [index, locale] of locales.entries()) {
-    if (signal?.aborted)
-      throw new AnalysisCancelledError("decode_android_resources", {
-        cause: signal.reason,
-      });
-    const directory =
-      locale === null
-        ? "values"
-        : `values-${androidLocaleDirectorySuffix(locale)}`;
-    const label =
-      locale === null
-        ? "default res/values/strings.xml"
-        : `res/${directory}/strings.xml`;
-    let fact = physical.get(directory);
-    if (fact === undefined) {
-      const budget = Math.min(
-        STRINGS_XML_MAX_BYTES,
-        AGGREGATE_STRINGS_XML_MAX_BYTES - xmlBytes,
+  const projection = (): ApktoolStringProjection => {
+    if (aggregateCapped)
+      limitations.add(
+        "Aggregate string table projection stopped due to resource limits",
       );
-      if (budget <= 0 || outputEntries >= MAX_AGGREGATE_STRINGS) {
+    return {
+      strings: tables[0]?.strings ?? [],
+      tables,
+      limitations: [...limitations],
+      coverage: tables.some((table) => table.coverage === "partial")
+        ? "partial"
+        : "complete",
+    };
+  };
+  let pendingIndex = 0;
+  try {
+    for (const [index, locale] of locales.entries()) {
+      pendingIndex = index;
+      if (signal?.aborted)
+        throw new AnalysisCancelledError("decode_android_resources", {
+          cause: signal.reason,
+        });
+      const directory =
+        locale === null
+          ? "values"
+          : `values-${androidLocaleDirectorySuffix(locale)}`;
+      const label =
+        locale === null
+          ? "default res/values/strings.xml"
+          : `res/${directory}/strings.xml`;
+      let fact = physical.get(directory);
+      if (fact === undefined) {
+        const budget = Math.min(
+          STRINGS_XML_MAX_BYTES,
+          AGGREGATE_STRINGS_XML_MAX_BYTES - xmlBytes,
+        );
+        if (budget <= 0 || outputEntries >= MAX_AGGREGATE_STRINGS) {
+          tables.push({
+            locale,
+            status: "skipped",
+            strings: [],
+            total_count: null,
+            unparsed_count: null,
+            coverage: "partial",
+          });
+          limitations.add(
+            `Projection for ${label} skipped: aggregate resource limit reached`,
+          );
+          aggregateCapped = true;
+          continue;
+        }
+        const read = await readTable(
+          resources,
+          join(workspace, "res", directory, "strings.xml"),
+          budget,
+          signal,
+        );
+        fact = read.fact;
+        xmlBytes += read.bytes;
+        if (fact.status === "oversized" && budget < STRINGS_XML_MAX_BYTES)
+          aggregateCapped = true;
+        physical.set(directory, fact);
+      }
+      if (fact.status !== "present") {
         tables.push({
           locale,
-          status: "skipped",
+          status: fact.status,
           strings: [],
-          total_count: null,
-          unparsed_count: null,
-          coverage: "partial",
+          total_count: fact.totalCount,
+          unparsed_count: fact.unparsedCount,
+          coverage: fact.status === "missing" ? "complete" : "partial",
         });
+        limitations.add(
+          unavailableTableLimitation(fact, directory, locale, input),
+        );
+        continue;
+      }
+      // Batch output includes the primary strings twice, in the legacy field and
+      // in string_tables. Charge that representation before selecting entries.
+      const copies = index === 0 && input.locales !== undefined ? 2 : 1;
+      const remaining = Math.max(0, MAX_AGGREGATE_STRINGS - outputEntries);
+      const selected = fact.entries.slice(0, Math.floor(remaining / copies));
+      outputEntries += selected.length * copies;
+      const skipped = selected.length === 0 && fact.totalCount > 0;
+      const limited = selected.length < Math.min(fact.totalCount, MAX_STRINGS);
+      if (limited) aggregateCapped = true;
+      tables.push({
+        locale,
+        status: skipped ? "skipped" : "present",
+        strings: selected,
+        // Output exhaustion cannot erase counts from an already examined table.
+        total_count: fact.totalCount,
+        unparsed_count: fact.unparsedCount,
+        coverage:
+          selected.length < fact.totalCount || fact.unparsedCount > 0
+            ? "partial"
+            : "complete",
+      });
+      if (skipped)
         limitations.add(
           `Projection for ${label} skipped: aggregate resource limit reached`,
         );
-        aggregateCapped = true;
-        continue;
-      }
-      const read = await readTable(
-        resources,
-        join(workspace, "res", directory, "strings.xml"),
-        budget,
-        signal,
-      );
-      fact = read.fact;
-      xmlBytes += read.bytes;
-      if (fact.status === "oversized" && budget < STRINGS_XML_MAX_BYTES)
-        aggregateCapped = true;
-      physical.set(directory, fact);
+      if (fact.unparsedCount > 0)
+        limitations.add(
+          input.locales === undefined || locale === null
+            ? `String entries omitted due to unsupported markup or missing names: ${String(fact.unparsedCount)}`
+            : `String entries omitted in locale ${locale} due to unsupported markup or missing names: ${String(fact.unparsedCount)}`,
+        );
+      if (limited && !skipped)
+        limitations.add(
+          `Locale ${locale ?? "default"} strings reports ${String(selected.length)} entries due to aggregate strings limit`,
+        );
+      else if (fact.totalCount > MAX_STRINGS && !skipped)
+        limitations.add(
+          input.locales === undefined || locale === null
+            ? `strings reports the first ${String(selected.length)} of ${String(fact.totalCount)} entries`
+            : `Locale ${locale} strings reports the first ${String(selected.length)} of ${String(fact.totalCount)} entries`,
+        );
     }
-    if (fact.status !== "present") {
-      tables.push({
-        locale,
-        status: fact.status,
-        strings: [],
-        total_count: fact.totalCount,
-        unparsed_count: fact.unparsedCount,
-        coverage: fact.status === "missing" ? "complete" : "partial",
-      });
-      limitations.add(
-        unavailableTableLimitation(fact, directory, locale, input),
-      );
-      continue;
-    }
-    // Batch output includes the primary strings twice, in the legacy field and
-    // in string_tables. Charge that representation before selecting entries.
-    const copies = index === 0 && input.locales !== undefined ? 2 : 1;
-    const remaining = Math.max(0, MAX_AGGREGATE_STRINGS - outputEntries);
-    const selected = fact.entries.slice(0, Math.floor(remaining / copies));
-    outputEntries += selected.length * copies;
-    const skipped = selected.length === 0 && fact.totalCount > 0;
-    const limited = selected.length < Math.min(fact.totalCount, MAX_STRINGS);
-    if (limited) aggregateCapped = true;
-    tables.push({
-      locale,
-      status: skipped ? "skipped" : "present",
-      strings: selected,
-      // Output exhaustion cannot erase counts from an already examined table.
-      total_count: fact.totalCount,
-      unparsed_count: fact.unparsedCount,
-      coverage:
-        selected.length < fact.totalCount || fact.unparsedCount > 0
-          ? "partial"
-          : "complete",
-    });
-    if (skipped)
-      limitations.add(
-        `Projection for ${label} skipped: aggregate resource limit reached`,
-      );
-    if (fact.unparsedCount > 0)
-      limitations.add(
-        input.locales === undefined || locale === null
-          ? `String entries omitted due to unsupported markup or missing names: ${String(fact.unparsedCount)}`
-          : `String entries omitted in locale ${locale} due to unsupported markup or missing names: ${String(fact.unparsedCount)}`,
-      );
-    if (limited && !skipped)
-      limitations.add(
-        `Locale ${locale ?? "default"} strings reports ${String(selected.length)} entries due to aggregate strings limit`,
-      );
-    else if (fact.totalCount > MAX_STRINGS && !skipped)
-      limitations.add(
-        input.locales === undefined || locale === null
-          ? `strings reports the first ${String(selected.length)} of ${String(fact.totalCount)} entries`
-          : `Locale ${locale} strings reports the first ${String(selected.length)} of ${String(fact.totalCount)} entries`,
-      );
-  }
-  if (aggregateCapped)
+  } catch (cause) {
     limitations.add(
-      "Aggregate string table projection stopped due to resource limits",
+      `String projection stopped at locale ${JSON.stringify(locales[pendingIndex])}; this selection and ${String(locales.length - pendingIndex - 1)} remaining selections were not projected`,
     );
-  return {
-    strings: tables[0]?.strings ?? [],
-    tables,
-    limitations: [...limitations],
-    coverage: tables.some((table) => table.coverage === "partial")
-      ? "partial"
-      : "complete",
-  };
+    return err({ cause, partial: { ...projection(), coverage: "partial" } });
+  }
+  return ok(projection());
 };

@@ -21,7 +21,7 @@ const textRead = (text: string) => ({
 describe("physical Apktool string facts", () => {
   it("reads one physical table for two caller-selected aliases", async () => {
     const paths: string[] = [];
-    const result = await projectApktoolStringTables(
+    const outcome = await projectApktoolStringTables(
       {
         async readText(path) {
           paths.push(path);
@@ -31,6 +31,8 @@ describe("physical Apktool string facts", () => {
       "decoded",
       { include_strings: true, locale: "pt-BR", locales: ["pt-rBR"] },
     );
+    if (!outcome.ok) throw outcome.error.cause;
+    const result = outcome.value;
     expect(paths).toEqual([
       join("decoded", "res", "values-pt-rBR", "strings.xml"),
     ]);
@@ -42,7 +44,7 @@ describe("physical Apktool string facts", () => {
   });
 
   it("counts complete source entries beyond the retained table prefix", async () => {
-    const result = await projectApktoolStringTables(
+    const outcome = await projectApktoolStringTables(
       {
         async readText() {
           return textRead(
@@ -56,6 +58,8 @@ describe("physical Apktool string facts", () => {
       "decoded",
       { include_strings: true },
     );
+    if (!outcome.ok) throw outcome.error.cause;
+    const result = outcome.value;
     expect(result.tables[0]).toMatchObject({
       total_count: MAX_STRINGS + 1,
       unparsed_count: 1,
@@ -69,7 +73,7 @@ describe("physical Apktool string facts", () => {
 
   it("does not read unexamined tables after output exhaustion", async () => {
     const paths: string[] = [];
-    const result = await projectApktoolStringTables(
+    const outcome = await projectApktoolStringTables(
       {
         async readText(path) {
           paths.push(path);
@@ -81,6 +85,8 @@ describe("physical Apktool string facts", () => {
       "decoded",
       { include_strings: true, locales: ["de", "es", "it", "fr"] },
     );
+    if (!outcome.ok) throw outcome.error.cause;
+    const result = outcome.value;
     expect(paths).toHaveLength(4);
     expect(result.tables.at(-1)).toEqual({
       locale: "fr",
@@ -98,7 +104,7 @@ describe("physical Apktool string facts", () => {
 
   it("keeps a known empty alias present after the output budget is spent", async () => {
     const paths: string[] = [];
-    const result = await projectApktoolStringTables(
+    const outcome = await projectApktoolStringTables(
       {
         async readText(path) {
           paths.push(path);
@@ -114,6 +120,8 @@ describe("physical Apktool string facts", () => {
         locales: ["de", "es", "it", "fr", "en", "pt-rBR"],
       },
     );
+    if (!outcome.ok) throw outcome.error.cause;
+    const result = outcome.value;
     expect(paths.filter((path) => path.includes("values-pt-rBR"))).toHaveLength(
       1,
     );
@@ -130,8 +138,37 @@ describe("physical Apktool string facts", () => {
 });
 
 describe("Apktool string projection admission", () => {
-  it("honors omitted strings without reading any selected table", async () => {
+  it("retains completed tables when cancellation arrives before the next selection", async () => {
+    const controller = new AbortController();
+    const reason = { selected: "caller" };
+    const paths: string[] = [];
     const result = await projectApktoolStringTables(
+      {
+        async readText(path) {
+          paths.push(path);
+          controller.abort(reason);
+          return textRead(xml(1));
+        },
+      },
+      "decoded",
+      { include_strings: true, locales: ["de", "fr"] },
+      controller.signal,
+    );
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error.cause).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toHaveProperty("cause", reason);
+    expect(paths).toHaveLength(1);
+    expect(result.error.partial).toMatchObject({
+      coverage: "partial",
+      tables: [{ locale: null, total_count: 1 }],
+    });
+    expect(result.error.partial.limitations).toContain(
+      'String projection stopped at locale "de"; this selection and 1 remaining selections were not projected',
+    );
+  });
+
+  it("honors omitted strings without reading any selected table", async () => {
+    const outcome = await projectApktoolStringTables(
       {
         async readText() {
           throw new Error("Unexpected read");
@@ -140,27 +177,26 @@ describe("Apktool string projection admission", () => {
       "decoded",
       { include_strings: false, locale: "de", locales: ["fr"] },
     );
-    expect(result).toEqual({
-      strings: [],
-      tables: [],
-      limitations: [],
-      coverage: "complete",
+    expect(outcome).toEqual({
+      ok: true,
+      value: { strings: [], tables: [], limitations: [], coverage: "complete" },
     });
   });
 
   it("preserves the exact physical read failure", async () => {
     const cause = new Error("Physical read and close failed");
-    await expect(
-      projectApktoolStringTables(
-        {
-          async readText() {
-            throw cause;
-          },
+    const result = await projectApktoolStringTables(
+      {
+        async readText() {
+          throw cause;
         },
-        "decoded",
-        { include_strings: true },
-      ),
-    ).rejects.toBe(cause);
+      },
+      "decoded",
+      { include_strings: true },
+    );
+    if (result.ok) throw new Error("Expected read failure");
+    expect(result.error.cause).toBe(cause);
+    expect(result.error.partial.coverage).toBe("partial");
   });
 
   it("preserves opaque cancellation before any table read", async () => {
@@ -175,7 +211,9 @@ describe("Apktool string projection admission", () => {
       { include_strings: true },
       AbortSignal.abort(reason),
     );
-    await expect(pending).rejects.toBeInstanceOf(AnalysisCancelledError);
-    await expect(pending).rejects.toHaveProperty("cause", reason);
+    const result = await pending;
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error.cause).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toHaveProperty("cause", reason);
   });
 });

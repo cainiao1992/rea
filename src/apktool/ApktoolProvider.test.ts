@@ -168,6 +168,74 @@ const apkFixture = async (
   };
 };
 
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])(
+  "retains completed decode facts when a later locale read fails (cleanup denied: %s, late cancellation: %s)",
+  async (denyCleanup, lateCancellation) => {
+    const { command, root } = await writeApktoolStub((path) =>
+      decodeStub()(path).replace(
+        "  printf 'I: Using Apktool on stub",
+        "  printf '\\377' > \"$5/res/values-de/strings.xml\"\n  printf 'I: Using Apktool on stub",
+      ),
+    );
+    const apk = await apkFixture(root);
+    let denied = denyCleanup;
+    const controller = new AbortController();
+    const provider = new ApktoolProvider({
+      environment: { REA_APKTOOL_COMMAND: command },
+      removeWorkspace: async (path) => {
+        if (lateCancellation) controller.abort({ stage: "cleanup" });
+        if (denied) throw new Error("authored removal denial");
+        await rm(path, { recursive: true, force: true });
+      },
+    });
+    try {
+      const result = await provider.execute(
+        {
+          operation: "decode_android_resources",
+          input: { path: apk.path, include_strings: true, locales: ["de"] },
+        },
+        { signal: controller.signal },
+      );
+      if (result.ok) throw new Error("Expected invalid UTF-8 failure");
+      expect((result.error.cleanupPrimary ?? result.error).message).toContain(
+        "UTF-8",
+      );
+      expect(result.error.cleanupIncomplete).toBe(denyCleanup);
+      const observation = {
+        operation: "decode_android_resources",
+        parameters: { path: apk.path, locales: ["de"] },
+        subject: { local_path: apk.path, digest: { sha256: apk.sha256 } },
+        normalized_result: {
+          metadata: { package_name: "com.rea.apktool.probe" },
+          manifest: `${REAL_MANIFEST}\n`,
+          strings: [
+            { name: "api_endpoint", value: "https://api.example.com/v1" },
+            { name: "app_name", value: "ApktoolProbe" },
+          ],
+          string_tables: [{ locale: null, status: "present", total_count: 2 }],
+          coverage: "partial",
+        },
+      };
+      expect(result.error.partialObservation).toMatchObject(observation);
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        details: { partial_observation: observation },
+      });
+      denied = false;
+      await provider.close();
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(result.error.partialObservation).toMatchObject(observation);
+    } finally {
+      denied = false;
+      await provider.close();
+    }
+  },
+);
+
 it("inspects the apktool launcher", async () => {
   const { command } = await writeApktoolStub(
     () => `if [ "$1" = "--version" ]; then ${VERSION_BLOCK}; exit 0; fi`,
@@ -1077,11 +1145,23 @@ it.each(["decode", "projection"] as const)(
         expect(result.error.capturedOutput?.stderr).toContain(
           "Could not decode the APK",
         );
-      expect(result.error.partialObservation).toMatchObject({
-        kind: "file-snapshot-hash",
-        path: apk.path,
-        sha256: apk.sha256,
-      });
+      expect(result.error.partialObservation).toMatchObject(
+        stage === "decode"
+          ? {
+              kind: "file-snapshot-hash",
+              path: apk.path,
+              sha256: apk.sha256,
+            }
+          : {
+              operation: "decode_android_resources",
+              subject: { local_path: apk.path, digest: { sha256: apk.sha256 } },
+              normalized_result: {
+                coverage: "partial",
+                metadata: { package_name: "com.rea.apktool.probe" },
+                strings: [],
+              },
+            },
+      );
     } finally {
       await provider.close();
     }

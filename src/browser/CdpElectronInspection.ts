@@ -11,6 +11,7 @@ import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import {
   delayWithCancellation,
   numberValue,
+  resourceContentSize,
   recordValue,
   requiredRecord,
   cdpStringValue,
@@ -291,14 +292,14 @@ const captureResources = async (
       completeness.exclude("resources", "out_of_target_scope");
       continue;
     }
+    const contentSize = resourceContentSize(resource.contentSize);
+    if (!contentSize.ok)
+      completeness.exclude("resources", "invalid_protocol_value");
     const item = {
       file_path: path,
       type: cdpStringValue(resource.type) ?? "Other",
       mime_type: cdpStringValue(resource.mimeType) ?? "",
-      content_size:
-        numberValue(resource.contentSize) === undefined
-          ? null
-          : Math.max(0, numberValue(resource.contentSize) ?? 0),
+      content_size: contentSize.ok ? contentSize.value : null,
     };
     const resourceKey = `electron_resource_${digestCanonicalValue(item, "CDP capture")}`;
     if (seen.has(resourceKey)) continue;

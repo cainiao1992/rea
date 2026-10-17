@@ -1,3 +1,4 @@
+import { artifactFileCancellationCause } from "../artifacts/ArtifactFileOperation.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
@@ -75,7 +76,13 @@ export class ArtifactAnalysisResources {
     operation = this.operation,
   ): Promise<Result<T, AnalysisError>> {
     if (this.#closed || signal?.aborted)
-      return Promise.resolve(err(new AnalysisCancelledError(operation)));
+      return Promise.resolve(
+        err(
+          new AnalysisCancelledError(operation, {
+            cause: signal?.aborted ? signal.reason : undefined,
+          }),
+        ),
+      );
     if (this.#busy)
       return Promise.resolve(
         err(
@@ -95,6 +102,12 @@ export class ArtifactAnalysisResources {
           // this scope has drained it and admits acquisition for the new request.
           this.#artifacts.operation = operation;
           this.#resolveCleanupFailures();
+          if (signal?.aborted)
+            return Promise.resolve(
+              err(
+                new AnalysisCancelledError(operation, { cause: signal.reason }),
+              ),
+            );
           return work();
         }),
       )
@@ -221,7 +234,7 @@ export class ArtifactAnalysisResources {
     cause: unknown,
     capturedOutput?: AnalysisCapturedOutput,
     operation = this.operation,
-  ): ProviderCleanupError {
+  ): AnalysisError {
     const failure = new ProviderCleanupError(
       this.providerId,
       observation.resources,
@@ -234,6 +247,21 @@ export class ArtifactAnalysisResources {
       { operation, cause },
     );
     this.#trackCleanupFailure(failure, [], failure, true);
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      cause.reason === "cancelled"
+    ) {
+      const primary = new AnalysisCancelledError(operation, {
+        cause: artifactFileCancellationCause(cause),
+        ...(capturedOutput === undefined ? {} : { capturedOutput }),
+        partialObservation: cause.partialObservation,
+      });
+      return analysisErrorWithCleanupFailure(
+        primary,
+        failure,
+        operation,
+      ).bindCleanupDependencies([primary, failure]);
+    }
     return failure;
   }
 
@@ -261,7 +289,11 @@ export class ArtifactAnalysisResources {
       ...(capturedOutput === undefined ? {} : { capturedOutput }),
     };
     if (cause.reason === "cancelled")
-      return new AnalysisCancelledError(operation, detail);
+      return new AnalysisCancelledError(operation, {
+        ...detail,
+        cause:
+          cause.cancellation === undefined ? cause : cause.cancellation.reason,
+      });
     if (cause.reason === "timeout")
       return new AnalysisTimeoutError(
         operation,
@@ -295,14 +327,30 @@ export class ArtifactAnalysisResources {
     result: Result<T, AnalysisError>,
     observation: (value: T) => AnalysisPartialObservation,
     operation = this.operation,
+    signal?: AbortSignal,
   ): Promise<Result<T, AnalysisError>> {
     try {
       await this.release();
+      if (result.ok && signal?.aborted)
+        return err(
+          new AnalysisCancelledError(operation, {
+            cause: signal.reason,
+            partialObservation: observation(result.value),
+          }),
+        );
       return result;
     } catch (cause: unknown) {
       const partialObservation = result.ok
         ? observation(result.value)
         : result.error.partialObservation;
+      const primaryFailure = !result.ok
+        ? result.error
+        : signal?.aborted
+          ? new AnalysisCancelledError(operation, {
+              cause: signal.reason,
+              partialObservation,
+            })
+          : undefined;
       const cleanupDiagnostics =
         cause instanceof ProviderCleanupError ? cause.diagnostics : undefined;
       const cleanupFailure = new ProviderCleanupError(
@@ -321,21 +369,27 @@ export class ArtifactAnalysisResources {
             cause instanceof ProviderCleanupError
               ? String(cleanupDiagnostics?.reason ?? cause.message)
               : String(cause),
-          previous_error: result.ok ? null : projectAnalysisError(result.error),
+          previous_error:
+            primaryFailure === undefined
+              ? null
+              : projectAnalysisError(primaryFailure),
         },
         {
           operation,
-          cause: result.ok
-            ? cause
-            : new AggregateError(
-                [result.error, cause],
-                "Analysis failed and artifact cleanup remains incomplete.",
-                { cause: result.error },
-              ),
+          ...(primaryFailure === undefined
+            ? {}
+            : { cleanupPrimary: primaryFailure }),
+          cause:
+            primaryFailure === undefined
+              ? cause
+              : new AggregateError(
+                  [primaryFailure, cause],
+                  "Analysis failed and artifact cleanup remains incomplete.",
+                  { cause: primaryFailure },
+                ),
           ...(partialObservation === undefined ? {} : { partialObservation }),
         },
       );
-      const primaryFailure = result.ok ? undefined : result.error;
       this.#trackCleanupFailure(
         cleanupFailure,
         [...this.#pending.keys()],
@@ -408,6 +462,10 @@ export class ArtifactAnalysisResources {
     if (cause instanceof AnalysisError) return cause;
     if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
       return this.cleanupFailure(cause.cleanup, cause, undefined, operation);
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+      return new AnalysisCancelledError(operation, {
+        cause: artifactFileCancellationCause(cause),
+      });
     return new ProviderAdapterError(this.providerId, operation, {
       cause,
       diagnostics: { stage: "artifact-resources", reason: String(cause) },

@@ -2624,7 +2624,14 @@ export class AdbProvider {
       operation,
       input.serial,
       selection.binary,
-      adbArguments(input.serial, ["uninstall", input.package]),
+      adbArguments(input.serial, [
+        "shell",
+        "pm",
+        "uninstall",
+        "--user",
+        "0",
+        input.package,
+      ]),
       {
         timeoutMs: PACKAGE_LIST_TIMEOUT_MS,
         maxOutputBytes: PULL_MAX_OUTPUT_BYTES,
@@ -2655,7 +2662,7 @@ export class AdbProvider {
         provider,
         {
           limitations: [
-            "Uninstall removes the package and its data for user 0; keeping data (-k) is not exposed",
+            "Uninstall explicitly requests user 0 without data retention (-k); device enforcement is not independently verified",
           ],
         },
       ),

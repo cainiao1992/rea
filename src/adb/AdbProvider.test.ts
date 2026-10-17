@@ -1515,7 +1515,7 @@ exit 1`,
 it("uninstalls a package and reports the device's refusal for absent ones", async () => {
   const { binary } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
-if [ "$1" = "-s" ] && [ "$3" = "uninstall" ]; then printf 'Success\\n'; exit 0; fi
+if [ "$#" = 8 ] && [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "pm" ] && [ "$5" = "uninstall" ] && [ "$6" = "--user" ] && [ "$7" = 0 ]; then printf 'Success\\n'; exit 0; fi
 exit 1`,
   );
   const removed = await evidenceResult(providerOver(binary), {
@@ -1526,7 +1526,7 @@ exit 1`,
 
   const { binary: refusing } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
-if [ "$1" = "-s" ] && [ "$3" = "uninstall" ]; then printf 'Failure [not installed for 0]\\n'; exit 0; fi
+if [ "$#" = 8 ] && [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "pm" ] && [ "$5" = "uninstall" ] && [ "$6" = "--user" ] && [ "$7" = 0 ]; then printf 'Failure [not installed for 0]\\n'; exit 0; fi
 exit 1`,
   );
   const projected = await refusedBy(providerOver(refusing), {
@@ -1570,7 +1570,7 @@ exit 1`,
 it("preserves the device's uninstall refusal when adb exits nonzero", async () => {
   const { binary } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
-if [ "$1" = "-s" ] && [ "$3" = "uninstall" ]; then printf 'Failure [not installed for 0]\\n'; exit 1; fi
+if [ "$#" = 8 ] && [ "$1" = "-s" ] && [ "$3" = "shell" ] && [ "$4" = "pm" ] && [ "$5" = "uninstall" ] && [ "$6" = "--user" ] && [ "$7" = 0 ]; then printf 'Failure [not installed for 0]\\n'; exit 1; fi
 exit 1`,
   );
   const projected = await refusedBy(providerOver(binary), {

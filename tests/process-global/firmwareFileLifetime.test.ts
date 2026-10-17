@@ -310,6 +310,7 @@ it.each(
         expect(error.diagnostics?.primary_error).toMatchObject({
           code: "invalid_request",
         });
+        expect(projectAnalysisError(error).code).toBe("invalid_request");
       }
       expect(fault.handles[0]?.fd).toBe(-1);
     } finally {

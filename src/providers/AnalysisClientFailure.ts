@@ -1,4 +1,12 @@
-import { AnalysisError } from "../domain/analysisErrorBase.js";
+import {
+  HopperRemoteError,
+  HopperTimeoutError,
+  HopperProcessError,
+} from "../domain/hopperErrors.js";
+import {
+  AnalysisError,
+  type AnalysisErrorOptions,
+} from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
@@ -9,6 +17,69 @@ import {
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { bindArtifactFileCleanup } from "../artifacts/ArtifactFileOperation.js";
+
+/** Copy authored outcome facts; semantic attribution never inspects a later signal. */
+export const analysisClientFailureContext = (
+  cause: AnalysisError,
+  providerId: string,
+  operation: string,
+): AnalysisErrorOptions => {
+  const providerRequest =
+    cause instanceof HopperRemoteError ||
+    cause instanceof HopperTimeoutError ||
+    cause instanceof HopperProcessError
+      ? {
+          ...(cause.operation === undefined
+            ? {}
+            : { operation: cause.operation }),
+          ...(cause.requestId === undefined
+            ? {}
+            : { request_id: cause.requestId }),
+          ...(cause instanceof HopperRemoteError
+            ? {
+                provider_code: cause.code,
+                diagnostic_type: cause.diagnosticType,
+              }
+            : {}),
+        }
+      : undefined;
+  const diagnostics =
+    providerRequest === undefined
+      ? cause.diagnostics
+      : {
+          provider_request: providerRequest,
+          ...(cause.diagnostics === undefined
+            ? {}
+            : { provider_diagnostics: cause.diagnostics }),
+        };
+  return {
+    cause,
+    ...(cause.cleanupPrimary === undefined
+      ? {}
+      : {
+          cleanupPrimary: analysisClientFailureForOperation(
+            cause.cleanupPrimary,
+            providerId,
+            operation,
+          ),
+        }),
+    ...(cause.partialObservation === undefined
+      ? {}
+      : { partialObservation: cause.partialObservation }),
+    ...(cause.capturedOutput === undefined
+      ? {}
+      : { capturedOutput: cause.capturedOutput }),
+    ...(diagnostics === undefined ? {} : { diagnostics }),
+    ...(cause.cleanupIncomplete
+      ? {
+          cleanup: {
+            reason: cause.cleanup?.reason ?? cause.message,
+            resources: cause.cleanupResources,
+          },
+        }
+      : {}),
+  };
+};
 
 /** Attribute producer-owned failure facts without inferring interruption. */
 export const analysisClientFailureForOperation = (
@@ -27,6 +98,9 @@ export const analysisClientFailureForOperation = (
     return failure;
   }
   if (
+    !(cause instanceof HopperRemoteError) &&
+    !(cause instanceof HopperTimeoutError) &&
+    !(cause instanceof HopperProcessError) &&
     !(cause instanceof AnalysisCancelledError) &&
     !(cause instanceof ProviderAdapterError) &&
     !(cause instanceof AnalysisCapabilityUnavailableError) &&
@@ -35,37 +109,40 @@ export const analysisClientFailureForOperation = (
     !(cause instanceof AnalysisResourceConstraintError)
   )
     return cause;
-  const context = {
-    cause,
-    ...(cause.cleanupPrimary === undefined
-      ? {}
-      : {
-          cleanupPrimary: analysisClientFailureForOperation(
-            cause.cleanupPrimary,
-            providerId,
-            operation,
-          ),
-        }),
-    ...(cause.partialObservation === undefined
-      ? {}
-      : { partialObservation: cause.partialObservation }),
-    ...(cause.capturedOutput === undefined
-      ? {}
-      : { capturedOutput: cause.capturedOutput }),
-    ...(cause.diagnostics === undefined
-      ? {}
-      : { diagnostics: cause.diagnostics }),
-    ...(cause.cleanupIncomplete
-      ? {
-          cleanup: {
-            reason: cause.cleanup?.reason ?? cause.message,
-            resources: cause.cleanupResources,
-          },
-        }
-      : {}),
-  };
+  const context = analysisClientFailureContext(cause, providerId, operation);
   let result: AnalysisError;
-  if (cause instanceof AnalysisCancelledError)
+  if (cause instanceof HopperRemoteError)
+    result = new HopperRemoteError(cause.code, cause.safeMessage, {
+      ...context,
+      operation,
+      requestId: cause.requestId,
+      diagnosticType: cause.diagnosticType,
+    });
+  else if (cause instanceof HopperTimeoutError)
+    result = new HopperTimeoutError(
+      cause.timeoutMs,
+      operation,
+      cause.requestId,
+      cause.providerState,
+      cause.stage,
+      cause.launcherOutcome,
+      context,
+    );
+  else if (cause instanceof HopperProcessError)
+    result = new HopperProcessError(cause.exitCode, {
+      ...context,
+      operation,
+      requestId: cause.requestId,
+      providerState: cause.providerState,
+      stage: cause.stage,
+      ...(cause.diagnostic === undefined
+        ? {}
+        : { diagnostic: cause.diagnostic }),
+      ...(cause.launcherFailure === undefined
+        ? {}
+        : { launcherFailure: cause.launcherFailure }),
+    });
+  else if (cause instanceof AnalysisCancelledError)
     result = new AnalysisCancelledError(operation, {
       ...context,
       cause: cause.cause,

@@ -87,6 +87,10 @@ caller requested. `diagnostics.producer_operation` retains the internal producer
 name when it differs. Caller-specific failures keep the producer's typed outcome,
 captured output, partial facts and live cleanup dependencies; cleanup retry
 updates every projection rather than preserving an independent stale marker.
+Installation acquisition is shared, with independently cancellable caller waits.
+The final departing caller stops the probe and joins its cleanup; session close
+also stops and joins acquisition. A cleanly cancelled acquisition can be retried,
+while a retained cleanup failure blocks replacement until its owner is closed.
 
 ## Provenance and limitations
 

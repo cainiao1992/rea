@@ -975,12 +975,6 @@ const upsertTomlServerSection = (
     appendLines(pending);
     pending.length = 0;
   };
-  const lineIndexAt = (offset: number): number => {
-    let line = 0;
-    for (let index = 0; index < lineStarts.length; index += 1)
-      if ((lineStarts[index] ?? 0) <= offset) line = index;
-    return line;
-  };
   let lineIndex = 0;
   while (lineIndex < lines.length) {
     const physical = lines[lineIndex] ?? "";
@@ -1015,7 +1009,14 @@ const upsertTomlServerSection = (
       let statementEnd = valueEnd;
       while (statementEnd < text.length && text[statementEnd] !== "\n")
         statementEnd += 1;
-      const endLine = lineIndexAt(Math.max(statementEnd - 1, lineStart));
+      const lastOffset = Math.max(statementEnd - 1, lineStart);
+      let endLine = lineIndex;
+      // Statements advance through the source; only inspect their own lines.
+      while (
+        endLine + 1 < lineStarts.length &&
+        (lineStarts[endLine + 1] ?? 0) <= lastOffset
+      )
+        endLine += 1;
       if (skipping) {
         discardPending();
         lineIndex = endLine + 1;

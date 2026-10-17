@@ -150,7 +150,16 @@ const parseXml = (xml: string, label: string) => {
   const errors: string[] = [];
   const document = new DOMParser({
     normalizeLineEndings: (source) => source,
-    onError: (_level, message) => errors.push(message),
+    onError: (level, message) => {
+      // U+FFFD is a legal XML character. The provider's fatal UTF-8 decoder
+      // already rejects invalid bytes; this warning alone is not malformed XML.
+      if (
+        level === "warning" &&
+        message.startsWith("Unicode replacement character detected")
+      )
+        return;
+      errors.push(message);
+    },
   }).parseFromString(xml, "application/xml");
   if (errors.length > 0 || document.documentElement === null)
     throw new TypeError(

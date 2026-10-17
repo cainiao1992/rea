@@ -1,6 +1,7 @@
 import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import { cdpStringValue, type UnknownRecord } from "./CdpCaptureValues.js";
+import { structuredFieldToken } from "./StructuredFieldToken.js";
 
 type ResponseMetadata = WebPageInspection["metadata"]["responses"][number];
 type LinkMetadata = ResponseMetadata["links"][number];
@@ -44,8 +45,8 @@ export const safeResponseMetadata = (
       csp,
       links,
       policies: {
-        coop: policyToken(headers.get("cross-origin-opener-policy")),
-        coep: policyToken(headers.get("cross-origin-embedder-policy")),
+        coop: structuredFieldToken(headers.get("cross-origin-opener-policy")),
+        coep: structuredFieldToken(headers.get("cross-origin-embedder-policy")),
         corp: policyToken(headers.get("cross-origin-resource-policy")),
         referrer_policy: referrerPolicy(headers.get("referrer-policy")),
         x_content_type_options: policyToken(

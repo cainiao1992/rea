@@ -5,7 +5,7 @@ import { inspectWebPageInputSchema } from "../../../src/domain/browserObservatio
 import { startFakeCdpBrowser } from "../../fixtures/fakeCdpBrowser.js";
 import { trackBrowser } from "./cdpBrowserProvider.support.js";
 
-it("preserves repeated Document Link fields and their derived agent hints", async () => {
+it("preserves Document Link fields, structured policies and derived agent hints", async () => {
   const browser = await startFakeCdpBrowser({
     commandEvents(command, origin) {
       if (command.method !== "Network.enable") return undefined;
@@ -32,7 +32,12 @@ it("preserves repeated Document Link fields and their derived agent hints", asyn
               url: `${origin}/frame`,
               status: 200,
               mimeType: "text/html",
-              headers: { Link: "</next>; rel=next\n</agent>; rel=mcp" },
+              headers: {
+                Link: "</next>; rel=next\n</agent>; rel=mcp",
+                "Cross-Origin-Opener-Policy": 'same-origin; report-to="coop"',
+                "Cross-Origin-Embedder-Policy":
+                  'require-corp; report-to="coep"',
+              },
             },
           },
         },
@@ -52,6 +57,10 @@ it("preserves repeated Document Link fields and their derived agent hints", asyn
   expect(result.value.metadata.responses).toContainEqual(
     expect.objectContaining({
       request_id: "repeated-document",
+      policies: expect.objectContaining({
+        coop: "same-origin",
+        coep: "require-corp",
+      }),
       links: [
         expect.objectContaining({
           href: `${browser.allowedOrigin}/next`,

@@ -288,6 +288,10 @@ REA establishes a main-frame origin boundary before enabling Runtime, Debugger, 
 The Link projection parses repeated CDP header field lines independently and
 retains their declarations in order, including derived untrusted agent hints.
 Commas inside URI targets or quoted parameters remain part of those values.
+COOP and COEP projections retain the exact declared token after validating the
+complete Structured Field Item, including parameters such as `report-to`.
+These are declarations, not an assessment of the document's effective policy;
+absent, malformed or non-token items project as `null`.
 
 REA retains local observation data and removes only URL userinfo credentials, explicitly declared scenario secrets, and values from structured credential/storage fields:
 

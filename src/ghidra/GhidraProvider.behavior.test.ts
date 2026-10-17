@@ -19,6 +19,8 @@ import { fixtureRawBinaryLoadImage } from "./GhidraRawBinaryLoadImage.fixture.js
 import {
   nativeAotPeDigest,
   nativeAotPeFixture,
+  nativeAotPeHeaderIndirectionFixture,
+  nativeAotPeOptionalHeaderFixture,
 } from "../../tests/fixtures/nativeaotPe.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 
@@ -599,7 +601,7 @@ describe("Ghidra platform support", () => {
         executable_role: target.executableRole,
         managed: target.managed,
         native_aot_metadata: {
-          contract_revision: "rtr-9.1-x64-pe-read-only-v3",
+          contract_revision: "rtr-9.1-x64-pe-read-only-v4",
           source_bytes: 128 * 1024 * 1024,
           work_units: 64 * 1024 * 1024,
           working_memory_bytes: 64 * 1024 * 1024,
@@ -3237,3 +3239,61 @@ it("rejects an absent profile before probing Java and attributes it to the reque
     await ghidra.closeOwnedResources();
   }
 });
+
+it.each([
+  {
+    layout: "crossed header interval",
+    fixture: () => nativeAotPeHeaderIndirectionFixture(0x3fc),
+  },
+  {
+    layout: "short optional header",
+    fixture: () => nativeAotPeOptionalHeaderFixture(56),
+  },
+])(
+  "retains NativeAOT unsupported-layout facts for a $layout through the provider",
+  async ({ fixture }) => {
+    const bytes = fixture();
+    const observations = fixtureDosLoadImage().observation;
+    observations.image_base = "0x140000000";
+    const factory: GhidraProviderClientFactory = () => ({
+      start: () =>
+        Promise.resolve(
+          ok({
+            ...sessionInfo(),
+            target: { ...sessionInfo().target, image_base: "0x140000000" },
+          }),
+        ),
+      callTool: () => Promise.resolve(ok(jsonValueSchema.parse(observations))),
+      readTargetSnapshot: async () => ok({ kind: "captured" as const, bytes }),
+      close: () => Promise.resolve(ok(null)),
+    });
+    const ghidra = provider(installationHost(), factory);
+    const target = { ...peTarget("x86_64"), sha256: nativeAotPeDigest(bytes) };
+    const profile = await ghidra.resolveAnalysisProfile(target);
+    if (!profile.ok || profile.value.profile === null)
+      throw new Error("Expected admitted PE profile");
+    const client = ghidra.createClient(target, profile.value.profile);
+    try {
+      const result = await client.execute("inspect_native_load_image", {});
+      expect(result).toMatchObject({
+        ok: true,
+        value: {
+          result: {
+            observations: {
+              metadata_recovery: [
+                {
+                  status: "not_applicable",
+                  header_address: null,
+                  method_tables: 0,
+                  analysis_artifact_sha256: target.sha256,
+                },
+              ],
+            },
+          },
+        },
+      });
+    } finally {
+      await client.close();
+    }
+  },
+);

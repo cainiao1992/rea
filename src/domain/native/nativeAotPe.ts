@@ -13,7 +13,7 @@ export const NATIVE_AOT_MAX_WORK_UNITS = 64 * 1024 * 1024;
 export const NATIVE_AOT_MAX_WORKING_MEMORY_BYTES = 64 * 1024 * 1024;
 /** Version of the built-in read-only PE metadata interpretation in profiles. */
 export const NATIVE_AOT_PROFILE_CONTRACT_REVISION =
-  "rtr-9.1-x64-pe-read-only-v3";
+  "rtr-9.1-x64-pe-read-only-v4";
 
 export type NativeAotParserLimits = {
   readonly sourceBytes: number;
@@ -399,6 +399,12 @@ class PeImage {
     const optionalSize = this.#u16(peOffset + 20);
     const optional = peOffset + 24;
     this.#range(optional, optionalSize);
+    // Mapping fields through SizeOfHeaders must belong to this header,
+    // independently of whether the following file bytes are available.
+    if (optionalSize < 64)
+      throw new Error(
+        "PE optional header is too short for image mapping fields",
+      );
     const magic = this.#u16(optional);
     if (magic !== 0x20b || this.#machine !== 0x8664)
       throw new Error("Only x64 PE32+ is supported");
@@ -454,8 +460,14 @@ class PeImage {
     const rva = address - this.imageBase;
     if (rva > BigInt(Number.MAX_SAFE_INTEGER)) return null;
     const relative = Number(rva);
-    if (relative < this.#sizeOfHeaders && relative <= this.#bytes.length - size)
+    if (relative < this.#sizeOfHeaders) {
+      if (
+        size > this.#sizeOfHeaders - relative ||
+        relative > this.#bytes.length - size
+      )
+        return null;
       return this.#bytes.subarray(relative, relative + size);
+    }
     for (const section of this.sections) {
       if (this.#budget !== undefined && !this.#budget.consumeWork(1))
         return null;

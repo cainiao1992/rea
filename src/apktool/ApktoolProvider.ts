@@ -598,11 +598,13 @@ export class ApktoolProvider {
         : { text: null, truncated: false };
       // Do not parse an incomplete XML document as though its projection were complete.
       const stringsXml = stringsRead.truncated ? null : stringsRead.text;
+      const stringsProjection =
+        stringsXml === null ? undefined : parseDecodedStrings(stringsXml);
       const parsedStrings =
-        stringsXml === null
-          ? { entries: [], unparsedCount: 0 }
-          : parseDecodedStrings(stringsXml);
-      const bounded = parsedStrings.entries.slice(0, MAX_STRINGS);
+        stringsProjection?.ok === true ? stringsProjection.value : undefined;
+      const documentFailure =
+        stringsProjection?.ok === false ? stringsProjection.error : undefined;
+      const bounded = parsedStrings?.entries.slice(0, MAX_STRINGS) ?? [];
       const files = await countDecodedFiles(
         resources,
         workspace,
@@ -611,10 +613,12 @@ export class ApktoolProvider {
       );
       throwIfCancelled(operation, signal);
       const coverage =
-        (stringsXml !== null && parsedStrings.entries.length > MAX_STRINGS) ||
+        (parsedStrings !== undefined &&
+          parsedStrings.entries.length > MAX_STRINGS) ||
         manifestRead.truncated ||
         stringsRead.truncated ||
-        parsedStrings.unparsedCount > 0 ||
+        (parsedStrings !== undefined && parsedStrings.unparsedCount > 0) ||
+        documentFailure !== undefined ||
         files.capped ||
         files.unreadableStringsTables.length > 0
           ? "partial"
@@ -656,12 +660,18 @@ export class ApktoolProvider {
                     "No default res/values/strings.xml was found in the decoded workspace",
                   ]
                 : []),
-              ...(parsedStrings.unparsedCount > 0
+              ...(documentFailure === undefined
+                ? []
+                : [
+                    `String table ${JSON.stringify(`res/${stringsDirectory}/strings.xml`)} could not be projected: ${documentFailure.message}; entry counts are unknown`,
+                  ]),
+              ...(parsedStrings !== undefined && parsedStrings.unparsedCount > 0
                 ? [
-                    `String entries omitted due to malformed XML or unsupported markup: ${String(parsedStrings.unparsedCount)}`,
+                    `String entries omitted due to unsupported markup or missing names: ${String(parsedStrings.unparsedCount)}`,
                   ]
                 : []),
-              ...(parsedStrings.entries.length > MAX_STRINGS
+              ...(parsedStrings !== undefined &&
+              parsedStrings.entries.length > MAX_STRINGS
                 ? [
                     `strings reports the first ${String(MAX_STRINGS)} of ${String(parsedStrings.entries.length)} entries`,
                   ]

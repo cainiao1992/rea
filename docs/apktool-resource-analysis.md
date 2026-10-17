@@ -85,8 +85,11 @@ select Android's `values-pt-rBR`; Android qualifiers such as `pt-rBR` and
   truncated when larger.
 - **Strings are projected verbatim.** Escaped entities stay escaped, and
   entries containing nested markup (`<b>`, `<xliff:g>`) are counted as
-  unparsed rather than flattened — the limitation names the count. The
-  default table is bounded to 2000 entries with partial coverage when more
+  unparsed rather than flattened — the limitation names the examined count.
+  Malformed XML and a wrong document root are whole-document projection
+  failures: the result is partial, the failure reason is disclosed, and entry
+  counts remain unknown. They are not counted as one unsupported string.
+  The default table is bounded to 2000 entries with partial coverage when more
   exist. `locales` lists observed regular `strings.xml` tables whose exact
   `values-<locale>` directory is selectable by the request's locale grammar.
   Locale suffixes allow up to 23 ASCII characters, derived from Apktool's

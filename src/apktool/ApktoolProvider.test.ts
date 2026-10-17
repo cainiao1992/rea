@@ -688,15 +688,30 @@ it("retains completed Evidence and live cleanup until a denied workspace removal
 });
 
 it.each([
-  [false, "2.7.0-dirty", "CVE-2024-21633"],
-  [true, "2.7.0-dirty", "CVE-2024-21633"],
-  [false, "3.0.1", "CVE-2026-39973"],
-  [true, "3.0.1", "CVE-2026-39973"],
+  [false, "2.7.0-dirty", "CVE-2024-21633", undefined],
+  [true, "2.7.0-dirty", "CVE-2024-21633", undefined],
+  [false, "3.0.1", "CVE-2026-39973", undefined],
+  [true, "3.0.1", "CVE-2026-39973", undefined],
+  [
+    false,
+    "3.0.1",
+    "CVE-2026-39973",
+    "<resources><string name=unquoted>bad</string></resources>",
+  ],
+  [
+    true,
+    "3.0.1",
+    "CVE-2026-39973",
+    "<resources><string name=unquoted>bad</string></resources>",
+  ],
 ] as const)(
-  "preserves completed Evidence and cancellation during workspace cleanup (denied=%s, version=%s)",
-  async (deniedInitially, version, advisory) => {
+  "preserves completed Evidence and cancellation during workspace cleanup (denied=%s, version=%s, advisory=%s, XML=%s)",
+  async (deniedInitially, version, advisory, stringsXml) => {
     const { command, root } = await writeApktoolStub((root) =>
-      decodeStub()(root).replace(VERSION_BLOCK, `printf '%s\\n' '${version}'`),
+      decodeStub(stringsXml === undefined ? {} : { stringsXml })(root).replace(
+        VERSION_BLOCK,
+        `printf '%s\\n' '${version}'`,
+      ),
     );
     const apk = await apkFixture(root);
     const controller = new AbortController();
@@ -730,6 +745,12 @@ it.each([
           expect.stringContaining(advisory),
         ]),
       });
+      if (stringsXml !== undefined)
+        expect(result.error.partialObservation).toMatchObject({
+          limitations: expect.arrayContaining([
+            expect.stringContaining("entry counts are unknown"),
+          ]),
+        });
       denied = false;
       await provider.close();
       expect(result.error.cleanupIncomplete).toBe(false);
@@ -1079,6 +1100,61 @@ it.each([
         target: { sha256: apk.sha256 },
         coverage: "complete",
       });
+    } finally {
+      await provider.close();
+    }
+  },
+);
+
+it.each([
+  [
+    "malformed",
+    '<resources><string name="a">one</string><string name="b">two</resources>',
+    [],
+  ],
+  ["wrong_root", "<manifest/>", []],
+  [
+    "unsupported",
+    '<resources><string name="a"><b>A</b></string><string>unnamed</string><string name="good">ok</string></resources>',
+    [{ name: "good", value: "ok" }],
+  ],
+] as const)(
+  "reports document projection semantics for %s (#4820)",
+  async (kind, stringsXml, strings) => {
+    const { command, root } = await writeApktoolStub(
+      decodeStub({ stringsXml }),
+    );
+    const apk = await apkFixture(root);
+    const provider = providerOver(command);
+    try {
+      const result = await provider.execute({
+        operation: "decode_android_resources",
+        input: { path: apk.path, include_strings: true },
+      });
+      if (!result.ok) throw result.error;
+      expect(result.value.result).toMatchObject({
+        strings,
+        target: { sha256: apk.sha256 },
+        coverage: "partial",
+      });
+      const limitations = result.value.limitations.join("\n");
+      if (kind === "unsupported") {
+        expect(limitations).toContain(
+          "String entries omitted due to unsupported markup or missing names: 2",
+        );
+        expect(limitations).not.toContain("entry counts are unknown");
+      } else {
+        expect(limitations).toContain(
+          'String table "res/values/strings.xml" could not be projected:',
+        );
+        expect(limitations).toContain("entry counts are unknown");
+        expect(limitations).not.toContain("String entries omitted");
+        expect(limitations).toContain(
+          kind === "wrong_root"
+            ? "root must be <resources>"
+            : "XML is not well-formed",
+        );
+      }
     } finally {
       await provider.close();
     }

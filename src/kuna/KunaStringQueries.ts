@@ -17,6 +17,7 @@ import { kunaQueryFailureForCaller } from "./KunaQueryErrors.js";
 import { KUNA_STRING_MIN_LENGTH } from "./KunaLimits.js";
 import {
   KunaStringInventoryReader,
+  kunaStringsAtAddress,
   type KunaStringInventory,
   type KunaStringItem,
 } from "./KunaStringInventory.js";
@@ -76,7 +77,7 @@ export class KunaStringQueries {
     const available = inventory.value.items;
     let items: KunaStringItem[] | undefined;
     if (address !== undefined)
-      items = available.filter((item) => item.address === address);
+      items = kunaStringsAtAddress(inventory.value, address);
     if (query?.success === true) {
       if (query.data.mode === "regex") {
         const matched = await this.work.match({

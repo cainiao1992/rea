@@ -338,7 +338,7 @@ export class CutterBridgeClient {
     options: CutterDiscoveryOptions = {},
   ): Promise<CutterBridgeDiscovery> {
     const { signal } = options;
-    const loaded = await this.#readDescriptors(signal);
+    const loaded = await this.#readDescriptors("list_cutter_sessions", signal);
     if (loaded.error !== undefined)
       return {
         sessions: [],
@@ -653,7 +653,7 @@ export class CutterBridgeClient {
     sessionId: string,
     signal?: AbortSignal,
   ): Promise<z.infer<typeof descriptorSchema>> {
-    const loaded = await this.#readDescriptors(signal);
+    const loaded = await this.#readDescriptors("cutter_command", signal);
     if (loaded.error === "bridge_directory_capacity_exceeded")
       throw new AnalysisResourceConstraintError(
         "cutter_command",
@@ -681,17 +681,20 @@ export class CutterBridgeClient {
   async listDescriptors(): Promise<
     readonly z.infer<typeof descriptorSchema>[]
   > {
-    const loaded = await this.#readDescriptors();
+    const loaded = await this.#readDescriptors("list_cutter_sessions");
     return loaded.descriptors;
   }
 
-  async #readDescriptors(signal?: AbortSignal) {
+  async #readDescriptors(
+    operation: "list_cutter_sessions" | "cutter_command",
+    signal?: AbortSignal,
+  ) {
     try {
       return await this.#descriptorResources.run(() =>
         this.#loadDescriptors(signal),
       );
     } catch (cause: unknown) {
-      throw descriptorFailure(cause, "list_cutter_sessions");
+      throw descriptorFailure(cause, operation);
     }
   }
 

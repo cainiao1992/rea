@@ -19,9 +19,9 @@ export const omittedPrototypeKeysLimitation = (count: number | null): string =>
     ? "Dictionary entries keyed __proto__ were omitted because REA results cannot represent that key."
     : `${String(count)} dictionary ${count === 1 ? "entry" : "entries"} keyed __proto__ ${count === 1 ? "was" : "were"} omitted because REA results cannot represent that key.`;
 
-const withoutKey = (
+const projectDictionaryKeys = (
   value: unknown,
-  key: string,
+  projectName: (name: string) => string | undefined,
 ): PropertyListWithoutPrototypeKeys => {
   let omitted = 0;
   const strip = (item: unknown): unknown => {
@@ -35,7 +35,8 @@ const withoutKey = (
       return item;
     return Object.fromEntries(
       Object.entries(item).flatMap(([name, entry]) => {
-        if (name !== key) return [[name, strip(entry)]];
+        const projected = projectName(name);
+        if (projected !== undefined) return [[projected, strip(entry)]];
         omitted += 1;
         return [];
       }),
@@ -48,7 +49,10 @@ const withoutKey = (
 /** Remove own `__proto__` entries, such as JSON.parse creates, and count them. */
 export const omitPrototypeKeys = (
   value: unknown,
-): PropertyListWithoutPrototypeKeys => withoutKey(value, PROTOTYPE_KEY);
+): PropertyListWithoutPrototypeKeys =>
+  projectDictionaryKeys(value, (name) =>
+    name === PROTOTYPE_KEY ? undefined : name,
+  );
 
 const XML_ENTITIES: Readonly<Record<string, string>> = {
   amp: "&",
@@ -82,15 +86,14 @@ export const decodeXmlText = (text: string): string =>
   );
 
 /**
- * Decode an XML plist whose dictionaries may use the legal key `__proto__`,
- * which the `plist` decoder rejects outright. Those entries are omitted and
- * counted so callers can report them instead of failing the whole document.
+ * Decode complete XML character-data keys before the pinned value decoder.
+ * Entries keyed `__proto__` are omitted and counted at the same boundary.
  */
 export const parseXmlPropertyList = (
   text: string,
 ): PropertyListWithoutPrototypeKeys => {
   // Preserve the pinned decoder's existing OpenStep autodetection, also used
-  // by app Info.plist resolution. Only XML needs the key-element substitution.
+  // by app Info.plist resolution. Only XML needs key normalization.
   const first = text.trimStart()[0];
   if (first === "{" || first === "(") {
     // The pinned decoder assigns a `__proto__` key to the object prototype, so
@@ -115,11 +118,11 @@ export const parseXmlPropertyList = (
   if (!parsed.ok) throw parsed.error;
   const document = parsed.value;
   assertXmlPlistDepthWithinLimit(document);
-  const { substituted, placeholder } = substitutePrototypeKeys(
-    normalized,
-    document,
-  );
-  return withoutKey(parse(substituted), placeholder);
+  const { substituted, names } = normalizeXmlKeys(normalized, document);
+  return projectDictionaryKeys(parse(substituted), (name) => {
+    const decoded = names.get(name) ?? name;
+    return decoded === PROTOTYPE_KEY ? undefined : decoded;
+  });
 };
 
 interface OpenStepContainer {
@@ -323,17 +326,48 @@ const assertXmlPlistDepthWithinLimit = (document: Document): void => {
   }
 };
 
-/** Locate keys with the same XML parser and first-child semantics as plist. */
-const substitutePrototypeKeys = (text: string, document: Document) => {
-  const keys = Array.from(document.getElementsByTagName("key"));
-  const decodedKeys = new Set(keys.map((key) => key.firstChild?.nodeValue));
-  let placeholder = "__rea_prototype_key__";
-  while (decodedKeys.has(placeholder)) placeholder = `_${placeholder}`;
-
-  const omitted = keys
-    .map((key) => key.firstChild)
-    .filter((node) => node?.nodeValue === PROTOTYPE_KEY);
-  if (omitted.length === 0) return { substituted: text, placeholder };
+/** The validated DOM owns key identities; aliases bypass first-child-only decoding. */
+const normalizeXmlKeys = (text: string, document: Document) => {
+  const keys = Array.from(document.getElementsByTagName("key"))
+    // The decoder also accepts <key> as a scalar outside dictionaries. Such
+    // values have no dictionary-name restoration boundary and must not alias.
+    .filter((key) => key.parentNode?.nodeName === "dict")
+    .map((key) => {
+      const first = key.firstChild;
+      // Nested elements are unsupported key markup. Retain the pinned decoder's
+      // interpretation instead of treating descendant element text as key data.
+      const characterDataOnly = !Array.from(key.childNodes).some(
+        (child) => child.nodeType === child.ELEMENT_NODE,
+      );
+      return {
+        node: first ?? key,
+        empty: first === null,
+        name: characterDataOnly
+          ? (key.textContent ?? "")
+          : first === null
+            ? ""
+            : String(first.nodeValue),
+        firstName: first?.nodeValue ?? "",
+      };
+    });
+  const occupied = new Set(
+    keys.flatMap(({ name, firstName }) => [name, firstName]),
+  );
+  const aliases = new Map<string, string>();
+  const names = new Map<string, string>();
+  for (const { name, firstName } of keys) {
+    if ((name !== PROTOTYPE_KEY && name === firstName) || aliases.has(name))
+      continue;
+    let alias = `__rea_plist_key_${String(aliases.size)}__`;
+    while (occupied.has(alias)) alias = `_${alias}`;
+    occupied.add(alias);
+    aliases.set(name, alias);
+    names.set(alias, name);
+  }
+  // Alias every occurrence of a corrected name, including plain spellings,
+  // so the decoder retains its last-value-wins behavior for duplicate keys.
+  const replacements = keys.filter(({ name }) => aliases.has(name));
+  if (replacements.length === 0) return { substituted: text, names };
 
   // xmldom uses one-based locators in document order. Scan forward only to
   // needed lines instead of retaining an offset for every source newline.
@@ -341,7 +375,7 @@ const substitutePrototypeKeys = (text: string, document: Document) => {
   let lineStart = 0;
   const parts: string[] = [];
   let cursor = 0;
-  for (const node of omitted) {
+  for (const { node, name, empty } of replacements) {
     const nodeLine = node?.lineNumber;
     const column = node?.columnNumber;
     if (nodeLine === undefined || column === undefined)
@@ -354,9 +388,27 @@ const substitutePrototypeKeys = (text: string, document: Document) => {
       line += 1;
     }
     const offset = lineStart + column - 1;
-    parts.push(text.slice(cursor, offset), `<![CDATA[${placeholder}]]>`);
-    cursor = offset;
+    const marker = `<![CDATA[${aliases.get(name)}]]>`;
+    parts.push(text.slice(cursor, offset));
+    if (empty) {
+      // Empty keys have no child locator. Replace only their opening tag,
+      // consuming quoted attributes whole, and expand self-closing spellings.
+      const opening = /^<(?:[^>"']|"[^"]*"|'[^']*')*>/u.exec(
+        text.slice(offset),
+      )?.[0];
+      if (opening === undefined)
+        throw new TypeError("XML plist key has an invalid opening tag");
+      parts.push(
+        /\/\s*>$/u.test(opening)
+          ? `${opening.replace(/\/\s*>$/u, ">")}${marker}</key>`
+          : `${opening}${marker}`,
+      );
+      cursor = offset + opening.length;
+    } else {
+      parts.push(marker);
+      cursor = offset;
+    }
   }
   parts.push(text.slice(cursor));
-  return { substituted: parts.join(""), placeholder };
+  return { substituted: parts.join(""), names };
 };

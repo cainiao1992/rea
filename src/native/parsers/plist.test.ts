@@ -6,6 +6,20 @@ import {
   plistJsonNeedsNumberTypes,
 } from "./plist.js";
 
+it("retains complete segmented XML keys in native plist fallback evidence", () => {
+  const parsed = parsePlistXml(
+    "<plist><dict><key>user<![CDATA[ID]]></key><integer>42</integer><key>__pro<![CDATA[to__]]></key><string>omitted</string><key>Blob</key><data>AA==</data></dict></plist>",
+  );
+  if (!parsed.ok) throw parsed.error;
+  expect(parsed.value.value).toEqual({
+    userID: 42,
+    Blob: { $plist_type: "data", base64: "AA==" },
+  });
+  expect(parsed.value.limitations).toContain(
+    "1 dictionary entry keyed __proto__ was omitted because REA results cannot represent that key.",
+  );
+});
+
 it("keeps exact decimal text for JSON integers that XML shows are integers", () => {
   const parsed = parsePlistJson(
     '{"Max":18446744073709551615,"Min":-9223372036854775808,"Near":9007199254740993,"Edge":9007199254740992,"Safe":9007199254740991,"Real":1e21,"Ratio":0.5}',

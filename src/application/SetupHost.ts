@@ -404,19 +404,42 @@ const runClientConfigurationOperation = async <Value>(
         return await operation();
       } catch (cause: unknown) {
         if (!(cause instanceof RegularFileCleanupFailure)) throw cause;
-        const cleanup = await retryRegularFileCleanup(cause, resources);
-        const primary =
-          cleanup.outcome.kind === "failed"
-            ? cleanup.outcome.cause
-            : cause.cleanupCause;
-        const rollbackMessage =
-          cause instanceof ClientConfigurationCleanupRollbackFailure
-            ? ` ${failedConfigurationMessage(cause.configurationFailure)}`
-            : "";
+        let retained = cause;
+        let primary: unknown;
+        const observations: {
+          readonly reason: string;
+          readonly resources: readonly string[];
+        }[] = [];
+        let rollbackMessage = "";
+        // Nested descriptor operations can each fail close. Only walk explicit
+        // owned-operation outcomes; an arbitrary cause is not an ownership grant.
+        for (;;) {
+          const cleanup = await retryRegularFileCleanup(retained, resources);
+          if (cleanup.cleanup !== undefined) observations.push(cleanup.cleanup);
+          if (retained instanceof ClientConfigurationCleanupRollbackFailure)
+            rollbackMessage = ` ${failedConfigurationMessage(retained.configurationFailure)}`;
+          primary =
+            cleanup.outcome.kind === "failed"
+              ? cleanup.outcome.cause
+              : retained.cleanupCause;
+          if (
+            cleanup.outcome.kind !== "failed" ||
+            !(primary instanceof RegularFileCleanupFailure)
+          )
+            break;
+          retained = primary;
+        }
+        const cleanup =
+          observations.length === 0
+            ? undefined
+            : {
+                reason: observations.map(({ reason }) => reason).join("; "),
+                resources: observations.flatMap(({ resources }) => resources),
+              };
         throw configurationCleanupError(
           `Could not safely access client configuration at ${cause.path}: ${errorMessage(primary)}.${rollbackMessage}`,
           cause,
-          cleanup.cleanup,
+          cleanup,
         );
       }
     });

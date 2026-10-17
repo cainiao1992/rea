@@ -14,10 +14,15 @@ const ANDROID_NON_LOCALE_QUALIFIERS = new Set([
   "notnight",
 ]);
 
+// Apktool emits b+language[+script][+region][+variant] from ARSC fields:
+// language/region expand to at most 3 ASCII characters, script has 4 bytes,
+// and variant has 8 bytes (BinaryResourceParser / ResConfig).
+const MAX_ANDROID_LOCALE_SUFFIX = 2 + 3 + (1 + 4) + (1 + 3) + (1 + 8);
+
 const localeQualifierSchema = z
   .string()
   .min(2)
-  .max(16)
+  .max(MAX_ANDROID_LOCALE_SUFFIX)
   .regex(
     /^(?:[a-z]{2,3}(?:-(?:r?[A-Z]{2}|r?[0-9]{3}))?|b\+[a-z]{2,3}(?:\+[A-Za-z0-9]{2,8})*)$/u,
     "Locale must look like de, pt-BR, pt-rBR, or b+zh+Hans+CN",

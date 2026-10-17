@@ -928,16 +928,30 @@ it("discloses qualified and unfamiliar strings tables while preserving exact loc
     "night",
     "v21",
     "pt-BR",
-    "b+sr+Latn+RS+REVISED",
     "unknown_CONFIGURATION",
   ];
   const { command, root } = await writeApktoolStub(
-    decodeStub({ extraValuesDirectories: [...tables, "fr", "b+sr+Latn"] }),
+    decodeStub({
+      extraValuesDirectories: [
+        ...tables,
+        "fr",
+        "b+sr+Latn",
+        "b+sr+Latn+RS+REVISED",
+        "b+fil+Latn+419+ABCDEFGH",
+      ],
+    }),
   );
   const apk = await apkFixture(root);
   const provider = providerOver(command);
   try {
-    for (const locale of [undefined, "fr", "b+sr+Latn", "en-rUS"] as const) {
+    for (const locale of [
+      undefined,
+      "fr",
+      "b+sr+Latn",
+      "b+sr+Latn+RS+REVISED",
+      "b+fil+Latn+419+ABCDEFGH",
+      "en-rUS",
+    ] as const) {
       const result = await provider.execute({
         operation: "decode_android_resources",
         input: {
@@ -948,7 +962,13 @@ it("discloses qualified and unfamiliar strings tables while preserving exact loc
       });
       if (!result.ok) throw result.error;
       expect(result.value.result).toMatchObject({
-        locales: ["b+sr+Latn", "de", "fr"],
+        locales: [
+          "b+fil+Latn+419+ABCDEFGH",
+          "b+sr+Latn",
+          "b+sr+Latn+RS+REVISED",
+          "de",
+          "fr",
+        ],
         locale: locale ?? null,
         coverage: "complete",
       });

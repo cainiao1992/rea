@@ -65,6 +65,9 @@ select Android's `values-pt-rBR`; Android qualifiers such as `pt-rBR` and
   default table is bounded to 2000 entries with partial coverage when more
   exist. `locales` lists observed regular `strings.xml` tables whose exact
   `values-<locale>` directory is selectable by the request's locale grammar.
+  Locale suffixes allow up to 23 ASCII characters, derived from Apktool's
+  language, script, region, and variant fields; for example,
+  `b+sr+Latn+RS+REVISED` selects that exact table.
   Other table directories, including combined qualifiers such as
   `values-en-rUS-v21` and `values-mcc310-fr`, are named in limitations with
   their source spelling. They are not advertised as selectable locales;

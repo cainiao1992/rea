@@ -334,7 +334,7 @@ it.each(["ready", "cancelled", "physical"] as const)(
       new AnalysisProviderRegistry([
         {
           ...base,
-          inspectAvailability: async (signal) => {
+          inspectAvailability: async ({ signal } = {}) => {
             enter();
             await gate;
             if (mode === "physical")

@@ -1,7 +1,11 @@
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import type { FileCloseResourceOwner } from "../application/AnalysisProvider.js";
 import {
   probeGhidraJava,
   type GhidraJavaObservation,
   type GhidraJavaProbeFailure,
+  type GhidraJavaProbeOptions,
 } from "./GhidraJavaProbe.js";
 import type { Result } from "../domain/result.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
@@ -162,6 +166,8 @@ const assessNativeDecompiler = (
 /** Caller-owned paths and host coordinates used for one installation probe. */
 export interface GhidraInstallationOptions {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
+  readonly resourceOwner: FileCloseResourceOwner;
+  readonly signal?: AbortSignal;
   readonly installDir?: string;
   readonly javaHome?: string;
   readonly platform?: NodeJS.Platform;
@@ -257,7 +263,7 @@ export interface GhidraExecutableHeaderProbe {
   readonly size: number;
 }
 
-/** Narrow synchronous seam used by provider discovery without launching Ghidra. */
+/** Host observations and owned Java prerequisite work; never launches Ghidra. */
 export interface GhidraInstallationHost {
   readonly platform?: NodeJS.Platform;
   readonly architecture?: NodeJS.Architecture;
@@ -273,7 +279,12 @@ export interface GhidraInstallationHost {
   probeJava(
     command: string,
     environment: NodeJS.ProcessEnv,
-  ): Result<GhidraJavaObservation, GhidraJavaProbeFailure>;
+    options: GhidraJavaProbeOptions,
+  ):
+    | Result<GhidraJavaObservation, GhidraJavaProbeFailure | AnalysisError>
+    | Promise<
+        Result<GhidraJavaObservation, GhidraJavaProbeFailure | AnalysisError>
+      >;
   /** Resolve a PATH launcher to a validated installation without executing it. */
   discoverInstallDirOnPath?(
     environment: Readonly<NodeJS.ProcessEnv>,
@@ -301,13 +312,17 @@ interface GhidraInstallationCheckContext {
 }
 
 /** Inspect an installation without importing a target or modifying Ghidra. */
-export const inspectGhidraInstallation = (
+export const inspectGhidraInstallation = async (
   options: GhidraInstallationOptions,
   host: GhidraInstallationHost = systemGhidraInstallationHost(),
-): GhidraInstallationInspection => {
+): Promise<GhidraInstallationInspection> => {
+  if (options.signal?.aborted)
+    throw new AnalysisCancelledError("ghidra:installation", {
+      cause: options.signal.reason,
+    });
   const platform = options.platform ?? process.platform;
   const architecture = options.architecture ?? process.arch;
-  const coordinates = installationCoordinates(
+  const coordinates = await installationCoordinates(
     options,
     platform,
     architecture,
@@ -359,6 +374,13 @@ export const inspectGhidraInstallation = (
       javaVersion: javaObservation?.version ?? null,
       rejection: { code: failed.code, reason: failed.remediation },
     };
+  if (options.signal?.aborted)
+    throw new AnalysisCancelledError("ghidra:installation", {
+      cause: options.signal.reason,
+      diagnostics: ghidraInstallationDiagnostics(
+        availableInstallation(coordinates, observation),
+      ),
+    });
   return availableInstallation(coordinates, observation);
 };
 
@@ -390,12 +412,12 @@ const availableInstallation = (
   };
 };
 
-const installationCoordinates = (
+const installationCoordinates = async (
   options: GhidraInstallationOptions,
   platform: NodeJS.Platform,
   architecture: NodeJS.Architecture,
   host: GhidraInstallationHost,
-): GhidraInstallationCoordinates => {
+): Promise<GhidraInstallationCoordinates> => {
   const path = platform === "win32" ? win32 : posix;
   // An explicit setting remains authoritative even when malformed or stale;
   // automatic discovery is only a fallback when the caller supplied none.
@@ -481,15 +503,25 @@ const installationCoordinates = (
   // Relative JAVA_HOME is refused by configuration validation without execution.
   const javaProbe =
     options.javaHome === undefined || path.isAbsolute(options.javaHome)
-      ? host.probeJava(
+      ? await host.probeJava(
           javaCommand,
           ghidraJavaEnvironment(
             options.javaHome,
             options.environment,
             platform,
           ),
+          {
+            resourceOwner: options.resourceOwner,
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+          },
         )
       : undefined;
+  if (
+    javaProbe !== undefined &&
+    !javaProbe.ok &&
+    javaProbe.error instanceof AnalysisError
+  )
+    throw javaProbe.error;
   return {
     installDir,
     applicationPropertiesPath,
@@ -502,7 +534,11 @@ const installationCoordinates = (
     javaCommand,
     java: javaProbe?.ok === true ? javaProbe.value : undefined,
     javaProbeFailure:
-      javaProbe !== undefined && !javaProbe.ok ? javaProbe.error : undefined,
+      javaProbe !== undefined &&
+      !javaProbe.ok &&
+      !(javaProbe.error instanceof AnalysisError)
+        ? javaProbe.error
+        : undefined,
   };
 };
 
@@ -617,6 +653,9 @@ export const ghidraInstallationDiagnostics = (
                   inspection.javaProbeFailure.processErrorCode,
               }),
           detail: inspection.javaProbeFailure.detail,
+          ...(inspection.javaProbeFailure.cancellation === undefined
+            ? {}
+            : { cancellation_observed: true }),
           ...(inspection.javaProbeFailure.properties === undefined
             ? {}
             : { properties: { ...inspection.javaProbeFailure.properties } }),
@@ -902,7 +941,7 @@ const javaRemediation = (
     : `Update JAVA_HOME to the root of ${range} installation.`;
 };
 
-const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
+export const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
   readText(path) {
     try {
       // Ghidra loads this file with Properties.load(InputStream), which maps

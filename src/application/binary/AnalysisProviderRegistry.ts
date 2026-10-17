@@ -1,3 +1,4 @@
+import { ProviderInspectionScope } from "../../providers/ProviderInspectionScope.js";
 import { AnalysisCleanupLease } from "../../artifacts/AnalysisCleanupLease.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
@@ -84,7 +85,8 @@ export interface AnalysisProviderSelection {
 interface TargetSelectionContext {
   readonly target: BinaryTarget;
   readonly baseline: readonly AnalysisProviderCandidateStatus[];
-  readonly signal: AbortSignal | undefined;
+  readonly signal: AbortSignal;
+  readonly scope: ProviderInspectionScope;
 }
 
 type SelectionResult = Result<AnalysisProviderSelection, AnalysisError>;
@@ -279,11 +281,18 @@ export class AnalysisProviderRegistry {
           capabilities: provider.capabilities(),
         }),
       );
+    const scope = new ProviderInspectionScope();
     const discovery = new SharedStartupAttempt<
       Result<readonly AnalysisProviderCandidateStatus[], AnalysisError>
     >(
       (signal) =>
-        Promise.resolve().then(() => this.#discoverCandidates(target, signal)),
+        Promise.resolve().then(() =>
+          this.#discoverCandidates(target, {
+            signal,
+            scope,
+            operation: "binary_session",
+          }),
+        ),
       options.signal,
     );
     this.#discoveries.add(discovery);
@@ -299,24 +308,29 @@ export class AnalysisProviderRegistry {
         });
       return result.value;
     } finally {
+      scope.close();
       this.#discoveries.delete(discovery);
     }
   }
 
   async #discoverCandidates(
     target: BinaryTarget | undefined,
-    signal: AbortSignal,
-    operation: "binary_session" | "open_binary" = "binary_session",
+    context: {
+      readonly signal: AbortSignal;
+      readonly scope: ProviderInspectionScope;
+      readonly operation: "binary_session" | "open_binary";
+    },
   ): Promise<
     Result<readonly AnalysisProviderCandidateStatus[], AnalysisError>
   > {
+    const { signal, operation } = context;
     if (signal.aborted)
       return err(
         new AnalysisCancelledError(operation, { cause: signal.reason }),
       );
     const results = await Promise.allSettled(
       this.#providers.map((provider) =>
-        candidateStatus(provider, target, signal, operation),
+        candidateStatus(provider, target, context),
       ),
     );
     const statuses: AnalysisProviderCandidateStatus[] = [];
@@ -430,71 +444,78 @@ export class AnalysisProviderRegistry {
     requestedSelector: AnalysisProviderSelector | undefined,
     signal: AbortSignal,
   ): Promise<SelectionResult> {
-    if (signalIsAborted(signal))
-      return err(
-        new AnalysisCancelledError("open_binary", { cause: signal.reason }),
-      );
-    const discovery = await this.#discoverCandidates(
-      target,
-      signal,
-      "open_binary",
-    );
-    if (!discovery.ok) return discovery;
-    const baseline = discovery.value;
-    const parsedRequest =
-      requestedSelector === undefined
-        ? undefined
-        : analysisProviderSelectorSchema.safeParse(requestedSelector);
-    if (parsedRequest !== undefined && !parsedRequest.success)
-      return err(
-        selectionError(
-          "invalid_options",
-          typeof requestedSelector === "string"
-            ? requestedSelector
-            : "<invalid>",
-          baseline,
-        ),
-      );
-    const request = parsedRequest?.data;
-    const selector = request ?? this.#defaultSelector;
-    if (signalIsAborted(signal))
-      return err(
-        new AnalysisCancelledError("open_binary", { cause: signal.reason }),
-      );
-    if (selector === "auto" && this.canInspectWithoutDeepProvider?.(target))
-      return ok({
-        requestedProviderId: selector,
-        binding: null,
-        candidates: baseline,
+    const scope = new ProviderInspectionScope();
+    try {
+      if (signalIsAborted(signal))
+        return err(
+          new AnalysisCancelledError("open_binary", { cause: signal.reason }),
+        );
+      const discovery = await this.#discoverCandidates(target, {
+        signal,
+        scope,
+        operation: "open_binary",
       });
-    if (
-      request === undefined &&
-      this.#byId.has(selector) &&
-      baseline.length > 0 &&
-      baseline.every(
-        ({ targetSupport }) => targetSupport.status === "unsupported",
+      if (!discovery.ok) return discovery;
+      const baseline = discovery.value;
+      const parsedRequest =
+        requestedSelector === undefined
+          ? undefined
+          : analysisProviderSelectorSchema.safeParse(requestedSelector);
+      if (parsedRequest !== undefined && !parsedRequest.success)
+        return err(
+          selectionError(
+            "invalid_options",
+            typeof requestedSelector === "string"
+              ? requestedSelector
+              : "<invalid>",
+            baseline,
+          ),
+        );
+      const request = parsedRequest?.data;
+      const selector = request ?? this.#defaultSelector;
+      if (signalIsAborted(signal))
+        return err(
+          new AnalysisCancelledError("open_binary", { cause: signal.reason }),
+        );
+      if (selector === "auto" && this.canInspectWithoutDeepProvider?.(target))
+        return ok({
+          requestedProviderId: selector,
+          binding: null,
+          candidates: baseline,
+        });
+      if (
+        request === undefined &&
+        this.#byId.has(selector) &&
+        baseline.length > 0 &&
+        baseline.every(
+          ({ targetSupport }) => targetSupport.status === "unsupported",
+        )
       )
-    )
-      return ok({
-        requestedProviderId: selector,
-        binding: null,
-        candidates: baseline,
+        return ok({
+          requestedProviderId: selector,
+          binding: null,
+          candidates: baseline,
+        });
+      if (selector !== "auto")
+        return await this.#selectConcrete(
+          {
+            target,
+            baseline,
+            signal: signal,
+            scope,
+          },
+          selector,
+          request === undefined ? "environment" : "request",
+        );
+      return await this.#selectAutomatically({
+        target,
+        baseline,
+        signal: signal,
+        scope,
       });
-    if (selector !== "auto")
-      return this.#selectConcrete(
-        {
-          target,
-          baseline,
-          signal: signal,
-        },
-        selector,
-        request === undefined ? "environment" : "request",
-      );
-    return this.#selectAutomatically({
-      target,
-      baseline,
-      signal: signal,
-    });
+    } finally {
+      scope.close();
+    }
   }
 
   /** Explain why a deep operation is unavailable on an unbound target. */
@@ -522,7 +543,7 @@ export class AnalysisProviderRegistry {
     providerId: string,
     source: AnalysisProviderBinding["selectionSource"],
   ): Promise<Result<AnalysisProviderSelection, AnalysisError>> {
-    const { baseline, signal, target } = context;
+    const { baseline, signal, target, scope } = context;
     const provider = this.#byId.get(providerId);
     if (provider === undefined)
       return err(selectionError("unknown_provider", providerId, baseline));
@@ -541,8 +562,7 @@ export class AnalysisProviderRegistry {
       provider,
       initial,
       target,
-      signal,
-      this.#profileFileOwner,
+      { signal, fileCloseResources: this.#profileFileOwner, scope },
     );
     if (!evaluation.ok) return evaluation;
     const evaluated = evaluation.value;
@@ -567,7 +587,7 @@ export class AnalysisProviderRegistry {
   async #selectAutomatically(
     context: TargetSelectionContext,
   ): Promise<Result<AnalysisProviderSelection, AnalysisError>> {
-    const { baseline, signal, target } = context;
+    const { baseline, signal, target, scope } = context;
     const results = await Promise.all(
       this.#providers.map(
         async (
@@ -584,13 +604,11 @@ export class AnalysisProviderRegistry {
             );
           return status.availability.status === "available" &&
             status.targetSupport.status === "supported"
-            ? evaluateAnalysisProviderCandidate(
-                provider,
-                status,
-                target,
+            ? evaluateAnalysisProviderCandidate(provider, status, target, {
                 signal,
-                this.#profileFileOwner,
-              )
+                fileCloseResources: this.#profileFileOwner,
+                scope,
+              })
             : ok({
                 candidate: provider,
                 status,
@@ -647,18 +665,22 @@ export class AnalysisProviderRegistry {
 const candidateStatus = async (
   provider: AnalysisProviderCandidate,
   target: BinaryTarget | undefined,
-  signal: AbortSignal,
-  operation: "binary_session" | "open_binary",
+  context: {
+    readonly signal: AbortSignal;
+    readonly scope: ProviderInspectionScope;
+    readonly operation: "binary_session" | "open_binary";
+  },
 ): Promise<AnalysisProviderCandidateStatus> => {
+  const { signal, scope, operation } = context;
   if (signal.aborted)
     throw new AnalysisCancelledError(operation, { cause: signal.reason });
   const readiness =
     provider.inspectReadinessSnapshot === undefined
       ? {
-          availability: await provider.inspectAvailability(signal),
+          availability: await provider.inspectAvailability({ signal, scope }),
           capabilities: provider.capabilities(),
         }
-      : await provider.inspectReadinessSnapshot(signal);
+      : await provider.inspectReadinessSnapshot({ signal, scope });
   return projectCandidateStatus(provider, target, readiness);
 };
 

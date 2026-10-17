@@ -1,3 +1,4 @@
+import type { ProviderInspectionScope } from "../providers/ProviderInspectionScope.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { OfficialToolName } from "../contracts/officialToolContracts.js";
 import type { EnhancedToolName } from "../contracts/enhancedInputs.js";
@@ -193,8 +194,12 @@ export interface AnalysisProfileResolution {
 }
 
 /** Cancellation context for side-effect-free provider profile resolution. */
-export interface AnalysisProfileResolutionOptions {
+export interface AnalysisProviderInspectionOptions {
   readonly signal?: AbortSignal;
+  readonly scope?: ProviderInspectionScope;
+}
+
+export interface AnalysisProfileResolutionOptions extends AnalysisProviderInspectionOptions {
   readonly fileCloseResources?: FileCloseResourceOwner;
 }
 
@@ -304,10 +309,10 @@ export interface AnalysisProviderCandidate extends AnalysisProvider {
   ): Promise<Result<AnalysisProfileResolution, AnalysisError>>;
   /** Await prerequisite observations and finalization under the supplied owner signal. */
   inspectAvailability(
-    signal?: AbortSignal,
+    options?: AnalysisProviderInspectionOptions,
   ): ProviderAvailability | Promise<ProviderAvailability>;
   inspectReadinessSnapshot?(
-    signal?: AbortSignal,
+    options?: AnalysisProviderInspectionOptions,
   ):
     | AnalysisProviderReadinessSnapshot
     | Promise<AnalysisProviderReadinessSnapshot>;

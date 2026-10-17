@@ -779,7 +779,7 @@ it("joins cancelled readiness finalization and shutdown before admitting another
   const registry = new AnalysisProviderRegistry([
     {
       ...base,
-      inspectAvailability: async (signal) => {
+      inspectAvailability: async ({ signal } = {}) => {
         calls++;
         if (calls === 1) {
           observed = signal;
@@ -936,7 +936,7 @@ it("registers selection before async readiness can race shutdown", async () => {
   const registry = new AnalysisProviderRegistry([
     {
       ...base,
-      inspectAvailability: async (signal) => {
+      inspectAvailability: async ({ signal } = {}) => {
         calls++;
         observed = signal;
         return base.inspectAvailability();

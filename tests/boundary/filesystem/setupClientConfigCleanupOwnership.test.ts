@@ -70,16 +70,17 @@ const preparedVsCodeSetupHost = async (prefix: string) => {
   return { home, host, client };
 };
 
-/** Release the held read handle and show host cleanup reuses it as a third attempt. */
+/** Release the held read handle and verify host cleanup retries that same owner. */
 const expectCloseReclaimsHandle = async (
   host: { close?: () => Promise<string | undefined> },
   closeAttempts: readonly object[],
   release: () => void,
 ) => {
+  const attemptsBeforeClose = closeAttempts.length;
   release();
   expect(await host.close?.()).toBeUndefined();
-  expect(closeAttempts).toHaveLength(3);
-  expect(closeAttempts[2]).toBe(closeAttempts[0]);
+  expect(closeAttempts).toHaveLength(attemptsBeforeClose + 1);
+  expect(closeAttempts.at(-1)).toBe(closeAttempts[0]);
 };
 
 /** Give up on the assertion path: release the handle and let cleanup close it. */
@@ -113,7 +114,10 @@ it("retains invalid UTF-8 diagnostics and the uninstall read owner when close fa
       detail: expect.stringContaining("not valid UTF-8"),
     });
     expect(await readFile(path)).toEqual(original);
-    expect(closeAttempts).toHaveLength(2);
+    expect(closeAttempts).toHaveLength(3);
+    expect(closeAttempts.every((handle) => handle === closeAttempts[0])).toBe(
+      true,
+    );
     await expectCloseReclaimsHandle(host, closeAttempts, release);
   } finally {
     await cleanupHeldHandle(host, release);

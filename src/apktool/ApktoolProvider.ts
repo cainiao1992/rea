@@ -441,7 +441,11 @@ export class ApktoolProvider {
       version: identity.version,
     };
     if (request.operation === "inspect_apktool_client")
-      return ok(createAnalysisExecution({ client }, provider));
+      return ok(
+        createAnalysisExecution({ client }, provider, {
+          limitations: identity.limitations,
+        }),
+      );
     return this.decodeResources(
       request.operation,
       selection,
@@ -449,6 +453,7 @@ export class ApktoolProvider {
       client,
       provider,
       request.input,
+      identity.limitations,
       signal,
     );
   }
@@ -506,6 +511,7 @@ export class ApktoolProvider {
       readonly include_strings: boolean;
       readonly locale?: string | undefined;
     },
+    clientLimitations: readonly string[],
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const runtime = await PrivateRuntimeRoot.create({ prefix: "rea-apktool-" });
@@ -636,6 +642,7 @@ export class ApktoolProvider {
           {
             subject: { path: input.path, sha256, format: "apk" },
             limitations: [
+              ...clientLimitations,
               "Decoding skips smali (--no-src); Java-source recovery belongs to the JADX family",
               ...(input.locale !== undefined &&
               stringsRead.text === null &&

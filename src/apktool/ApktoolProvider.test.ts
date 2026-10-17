@@ -719,6 +719,9 @@ it.each([false, true])(
       expect(result.error.partialObservation).toMatchObject({
         operation: "decode_android_resources",
         normalized_result: { target: { sha256: apk.sha256 } },
+        limitations: expect.arrayContaining([
+          expect.stringContaining("CVE-2024-21633"),
+        ]),
       });
       denied = false;
       await provider.close();
@@ -999,3 +1002,45 @@ it("discloses qualified and unfamiliar strings tables while preserving exact loc
     await provider.close();
   }
 });
+
+it.each(["2.7.0-dirty", "2.9.1", "2.9.2-rc.1", "2.9.2", "2.9.2-dirty"])(
+  "retains reported-version limitations for both operations without refusing %s (#3438)",
+  async (version) => {
+    const { command, root } = await writeApktoolStub((root) =>
+      decodeStub()(root).replace(VERSION_BLOCK, `printf '%s\\n' '${version}'`),
+    );
+    const apk = await apkFixture(root);
+    const provider = providerOver(command);
+    try {
+      const inspect = await provider.execute({
+        operation: "inspect_apktool_client",
+        input: {},
+      });
+      const decode = await provider.execute({
+        operation: "decode_android_resources",
+        input: { path: apk.path, include_strings: true },
+      });
+      if (!inspect.ok) throw inspect.error;
+      if (!decode.ok) throw decode.error;
+      const warnings = inspect.value.limitations.filter((limitation) =>
+        limitation.includes("CVE-2024-21633"),
+      );
+      expect(warnings.length).toBe(
+        ["2.9.2", "2.9.2-dirty"].includes(version) ? 0 : 1,
+      );
+      if (warnings.length > 0) expect(warnings[0]).toContain("CVE-2024-21633");
+      for (const warning of inspect.value.limitations)
+        expect(decode.value.limitations).toContain(warning);
+      expect(inspect.value.result).toMatchObject({
+        client: { apktool_version: version },
+      });
+      expect(decode.value.result).toMatchObject({
+        client: { apktool_version: version },
+        target: { sha256: apk.sha256 },
+        coverage: "complete",
+      });
+    } finally {
+      await provider.close();
+    }
+  },
+);

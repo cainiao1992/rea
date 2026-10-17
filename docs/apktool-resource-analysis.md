@@ -24,6 +24,15 @@ missing launcher reports `capability_unavailable` with the
 `binary_session` uses the same host probe for tool availability; it does not
 validate a particular APK or guarantee that the selected input can be decoded.
 
+Client inspection and decode results disclose CVE-2024-21633 when the
+reported version predates its upstream 2.9.2 fix. This advisory-specific
+limitation preserves older supported distribution builds. A launcher version
+does not prove the decoder's contents, downstream backports, or overall safety;
+verify the selected decoder's patches before decoding untrusted APKs. See the
+[upstream advisories](https://github.com/iBotPeaches/Apktool/security/advisories),
+including the Windows follow-up and later regression; the compatibility floor
+above is not a security recommendation.
+
 On Windows, a `.bat` or `.cmd` launcher (such as Chocolatey's `apktool.bat`)
 runs through an explicit `cmd.exe /d /s /c` call. That call has no AutoRun,
 no delayed expansion, and quotes every argument. A launcher path that

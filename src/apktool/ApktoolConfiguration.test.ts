@@ -53,7 +53,7 @@ describe("resolveApktoolCommand", () => {
 
 describe("parseApktoolVersionOutput", () => {
   it("reads the version from real apktool output", () => {
-    expect(parseApktoolVersionOutput("2.7.0-dirty\n")).toEqual({
+    expect(parseApktoolVersionOutput("2.7.0-dirty\n")).toMatchObject({
       version: "2.7.0-dirty",
     });
   });
@@ -72,16 +72,81 @@ describe("parseApktoolVersionOutput", () => {
   });
 
   it("parses semantic prerelease versions without claiming they meet the minimum", () => {
-    expect(parseApktoolVersionOutput("2.7.0-beta.1\n")).toEqual({
+    expect(parseApktoolVersionOutput("2.7.0-beta.1\n")).toMatchObject({
       version: "2.7.0-beta.1",
     });
   });
 
   it("validates normalized semantic versions while preserving caller spelling", () => {
-    expect(parseApktoolVersionOutput("v2.7.0\n")).toEqual({
+    expect(parseApktoolVersionOutput("v2.7.0\n")).toMatchObject({
       version: "v2.7.0",
     });
   });
+});
+
+describe("reported Apktool version policy", () => {
+  it.each([
+    "2.7.0-dirty",
+    "2.9.1",
+    "v1.5.2",
+    "2.9.2-rc.1",
+    "2.9.2-rc-dirty",
+    "2.9.1+patched",
+  ])(
+    "discloses the upstream advisory for %s without claiming engine patch identity",
+    (version) => {
+      const identity = parseApktoolVersionOutput(version);
+      if (identity.version === null) throw new Error("Expected parsed version");
+      expect(identity.version).toBe(version);
+      const warnings = identity.limitations.filter((limitation) =>
+        limitation.includes("CVE-2024-21633"),
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(
+        "does not establish engine contents or downstream backports",
+      );
+    },
+  );
+  it.each([
+    "2.9.2",
+    "2.9.2-dirty",
+    "v2.9.2",
+    "2.9.2+downstream",
+    "2.10.0-dirty",
+    "3.0.1",
+  ])(
+    "does not attach CVE-2024-21633 to a reported version at or beyond its fix: %s",
+    (version) => {
+      const identity = parseApktoolVersionOutput(version);
+      if (identity.version === null) throw new Error("Expected parsed version");
+      expect(identity).toMatchObject({
+        version,
+        supportsDocumentedVersion: true,
+      });
+      expect(
+        identity.limitations.filter((limitation) =>
+          limitation.includes("CVE-2024-21633"),
+        ),
+      ).toEqual([]);
+    },
+  );
+  it.each([
+    ["2.7.0", true],
+    ["2.7.0-dirty", true],
+    ["v2.7.0-dirty", true],
+    ["2.7.0-beta.1", false],
+    ["2.7.0-rc-dirty", false],
+    ["2.7.0-dirty+patched", false],
+    ["2.6.9", false],
+  ] as const)(
+    "preserves the documented release floor for %s",
+    (version, supported) => {
+      expect(parseApktoolVersionOutput(version)).toMatchObject({
+        version,
+        supportsDocumentedVersion: supported,
+      });
+    },
+  );
 });
 
 describe("apktoolInvocation", () => {

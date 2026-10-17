@@ -24,7 +24,7 @@ import {
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { gte, valid } from "semver";
+import { parse } from "semver";
 import {
   isWindowsBatchFile,
   windowsBatchCommand,
@@ -176,9 +176,11 @@ export class ApktoolConfigurationFailure extends Error {
   }
 }
 
-export type ApktoolClientIdentity =
-  | { readonly version: string; readonly reportedVersion?: never }
-  | { readonly version: null; readonly reportedVersion: string | null };
+export interface ApktoolClientIdentity {
+  readonly version: string;
+  readonly supportsDocumentedVersion: boolean;
+  readonly limitations: readonly string[];
+}
 
 /** Process creation for one apktool run on the selected host. */
 export interface ApktoolInvocation {
@@ -217,22 +219,35 @@ export const apktoolInvocation = (
 /** Read the version from Apktool's single-line `--version` response. */
 export const parseApktoolVersionOutput = (
   stdout: string,
-): ApktoolClientIdentity => {
+):
+  | ApktoolClientIdentity
+  | { readonly version: null; readonly reportedVersion: string | null } => {
   const line = stdout
     .split(/\r?\n/u)
     .map((entry) => entry.trim())
     .find((entry) => entry !== "");
-  if (line === undefined || valid(line) === null)
+  const parsed = line === undefined ? null : parse(line);
+  if (line === undefined || parsed === null)
     return { version: null, reportedVersion: line ?? null };
-  return { version: line };
-};
-
-const supportsDocumentedApktoolVersion = (version: string): boolean => {
-  // Debian's verified 2.7.0-dirty build is a downstream build marker, not a
-  // prerelease. Treat only that known marker as build metadata for the floor.
-  const comparisonVersion = version.replace(/-dirty$/u, "+dirty");
-  const parsedVersion = valid(comparisonVersion);
-  return parsedVersion !== null && gte(parsedVersion, "2.7.0");
+  // Debian's exact -dirty marker denotes a downstream release build. Preserve
+  // the reported spelling; other prereleases remain earlier than their release.
+  const downstreamRelease =
+    parsed.prerelease.length === 1 &&
+    parsed.prerelease[0] === "dirty" &&
+    parsed.build.length === 0;
+  const atLeast = (release: string): boolean =>
+    (downstreamRelease
+      ? parsed.compareMain(release)
+      : parsed.compare(release)) >= 0;
+  return {
+    version: line,
+    supportsDocumentedVersion: atLeast("2.7.0"),
+    limitations: atLeast("2.9.2")
+      ? []
+      : [
+          `Reported apktool version ${JSON.stringify(line)} predates the upstream 2.9.2 fix for CVE-2024-21633 (decoded resource paths could escape the output directory). Verify the selected decoder's patches before decoding untrusted APKs; launcher version alone does not establish engine contents or downstream backports. https://github.com/iBotPeaches/Apktool/security/advisories/GHSA-2hqv-2xv4-5h5w`,
+        ],
+  };
 };
 
 /** Probe within the caller-admitted command scope; decodes nothing. */
@@ -377,7 +392,7 @@ const interpretApktoolVersion = (
         stderr,
       },
     );
-  if (!supportsDocumentedApktoolVersion(identity.version))
+  if (!identity.supportsDocumentedVersion)
     throw new ApktoolConfigurationFailure(
       "unsupported_version",
       `The selected Apktool version ${identity.version} is older than the supported minimum 2.7.0`,
@@ -434,7 +449,9 @@ const versionProbeFailure = (
     return new AnalysisCancelledError("inspect_apktool_client", {
       cause: cause.cancellation?.reason,
       ...(output === undefined ? {} : { capturedOutput: output }),
-      ...(observed === undefined ? {} : { diagnostics: { client: observed } }),
+      ...(observed === undefined
+        ? {}
+        : { diagnostics: { client: { version: observed.version } } }),
     });
   if (preparation !== undefined)
     return new ProviderAdapterError("apktool", "inspect_apktool_client", {
@@ -480,7 +497,9 @@ const versionProbeFailure = (
     "The selected apktool launcher did not report a usable version",
     {
       selected_command: selection.command,
-      ...(observed === undefined ? {} : { client: observed }),
+      ...(observed === undefined
+        ? {}
+        : { client: { version: observed.version } }),
       ...(snapshot === null
         ? {}
         : {

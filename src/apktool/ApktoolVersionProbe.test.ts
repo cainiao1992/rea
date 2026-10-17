@@ -47,7 +47,11 @@ it("runs the version probe as an owned interpreter-script process group", async 
       environment: {},
       platform: "linux",
     }),
-  ).resolves.toEqual({ version: "2.9.3" });
+  ).resolves.toEqual({
+    version: "2.9.3",
+    supportsDocumentedVersion: true,
+    limitations: [],
+  });
   expect(vi.mocked(runOwnedCommand).mock.lastCall?.[0]).toMatchObject({
     command: "/opt/apktool/apktool",
     arguments: ["--version"],

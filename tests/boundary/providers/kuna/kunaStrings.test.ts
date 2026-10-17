@@ -417,8 +417,18 @@ it.each([
             exit_code: 7,
             stderr: expect.stringContaining("fixture string scan failed"),
           });
-        if (mode === "hang")
+        if (mode === "hang") {
           expect(result.error).toMatchObject({ timeoutMs: 500 });
+          // Each waiter keeps the producer's setting and recovery.
+          expect(projectAnalysisError(result.error)).toMatchObject({
+            message:
+              "kuna strings did not finish within REA_KUNA_PROJECT_TIMEOUT_MS (500 ms).",
+            remediation: {
+              action:
+                "Raise REA_KUNA_PROJECT_TIMEOUT_MS in the environment that starts REA, then restart REA; it reads Kuna settings when it starts.",
+            },
+          });
+        }
         if (mode === "oversize") {
           expect(projectAnalysisError(result.error)).toMatchObject({
             code: "resource_constraint",

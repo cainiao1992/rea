@@ -33,6 +33,7 @@ import {
   kunaChildEnvironment,
   type KunaInstallation,
 } from "./KunaInstallation.js";
+import type { KunaDeadline } from "./KunaConfiguration.js";
 import { KUNA_PROVIDER_ID } from "./KunaRelease.js";
 
 /**
@@ -54,9 +55,10 @@ export interface KunaCommandRequest {
   readonly workspace: string;
   /** Operation named by every failure this run reports. */
   readonly operation: string;
+  /** Time left for this run; at most the configured deadline. */
   readonly timeoutMs: number;
-  /** The deadline callers configured, reported when the run times out. */
-  readonly reportedTimeoutMs: number;
+  /** The configured deadline and its setting, reported when the run times out. */
+  readonly deadline: KunaDeadline;
   /** Buffered stderr bytes, plus stdout bytes unless `stdout` consumes them. */
   readonly outputBytes: number;
   /** Parses stdout as it arrives instead of buffering it; see `runOwnedCommand`. */
@@ -302,12 +304,19 @@ const commandFailure = (
       ...details,
       cause: cause.cancellation?.reason,
     });
-  else if (cause.reason === "timeout")
-    primary = new AnalysisTimeoutError(
-      operation,
-      request.reportedTimeoutMs,
-      details,
-    );
+  else if (cause.reason === "timeout") {
+    const { setting, ms } = request.deadline;
+    primary = new AnalysisTimeoutError(operation, ms, {
+      ...details,
+      userMessage: `kuna ${subcommand} did not finish within ${setting} (${String(ms)} ms).`,
+      // The same run takes as long again, so only a longer deadline helps.
+      remediationAction: `Raise ${setting} in the environment that starts REA, then restart REA; it reads Kuna settings when it starts.${
+        subcommand === "decompile"
+          ? " Within a session, pseudocode is also read from the project export once it finishes."
+          : ""
+      }`,
+    });
+  }
   // The same input overflows the same fixed buffer; waiting cannot help.
   else if (cause.reason === "output-limit")
     primary = new AnalysisResourceConstraintError(

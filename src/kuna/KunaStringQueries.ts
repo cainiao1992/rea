@@ -11,6 +11,7 @@ import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js"
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { normalizeKunaAddress } from "./KunaAddress.js";
+import { kunaProjectDeadline } from "./KunaConfiguration.js";
 import type { KunaInstallation } from "./KunaInstallation.js";
 import type { KunaPendingQuery, KunaQueryWork } from "./KunaQueryWork.js";
 import { kunaQueryFailureForCaller } from "./KunaQueryErrors.js";
@@ -148,7 +149,7 @@ export class KunaStringQueries {
                 "any",
                 "--no-xrefs",
               ],
-              timeoutMs: installation.configuration.projectTimeoutMs,
+              deadline: kunaProjectDeadline(installation.configuration),
             },
             new KunaStringInventoryReader(),
             producerSignal,

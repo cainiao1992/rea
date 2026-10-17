@@ -286,8 +286,11 @@ it.each(["descriptor-close", "result-consumption"] as const)(
       () => ({
         start: () => live.start(),
         callTool: async () => ok(jsonValueSchema.parse(fixture.observation)),
-        readTargetSnapshot: async (maximum, signal) => {
-          const result = await live.readTargetSnapshot(maximum, signal);
+        attestDosTargetSnapshot: async (observations, signal) => {
+          const result = await live.attestDosTargetSnapshot(
+            observations,
+            signal,
+          );
           if (phase === "result-consumption" && result.ok) caller.abort(reason);
           return result;
         },
@@ -333,8 +336,9 @@ it.each(["descriptor-close", "result-consumption"] as const)(
     if (phase === "descriptor-close") {
       expect(closedOwner?.handle.fd).toBe(-1);
       expect(result.error.partialObservation).toMatchObject({
-        kind: "file-snapshot-read",
-        capture: { status: "captured", bytes: fixture.bytes.length },
+        kind: "native-load-image",
+        stage: "completed",
+        result: { status: "verified", observations: fixture.observation },
       });
       expect(result.error.diagnostics).toMatchObject({
         load_image_observations: fixture.observation,
@@ -348,6 +352,99 @@ it.each(["descriptor-close", "result-consumption"] as const)(
     }
     close?.mockRestore();
     expect((await client.close()).ok).toBe(true);
+  },
+);
+
+it.each([false, true])(
+  "retains a completed bounded MZ comparison through failed close (cancel=%s)",
+  async (cancel) => {
+    const fixture = fixtureDosLoadImage();
+    const directory = await createTestTempDirectory("rea-mz-finalization-");
+    const targetPath = join(directory, "inert.exe");
+    await writeFile(targetPath, fixture.bytes);
+    const client = clientFor(new FixtureLauncher(), {
+      targetPath,
+      targetSha256: fixture.sha256,
+    });
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    const caller = new AbortController();
+    const reason = { stage: "MZ descriptor close" };
+    let allowClose = false;
+    const original = OwnedFileHandle.prototype.close;
+    const close = vi
+      .spyOn(OwnedFileHandle.prototype, "close")
+      .mockImplementation(function (this: OwnedFileHandle) {
+        if (allowClose) return original.call(this);
+        if (cancel) caller.abort(reason);
+        return Promise.reject(
+          new Error("controlled MZ descriptor close failure"),
+        );
+      });
+    onTestFinished(async () => {
+      allowClose = true;
+      await client.close();
+      close.mockRestore();
+    });
+    const result = await client.attestDosTargetSnapshot(
+      fixture.observation,
+      caller.signal,
+    );
+    if (result.ok) throw new Error("Expected finalization failure");
+    expect(result.error.kind).toBe(cancel ? "cancelled" : "protocol");
+    if (cancel) expect(result.error.cancellation?.reason).toBe(reason);
+    expect(result.error.partialObservation).toMatchObject({
+      kind: "native-load-image",
+      stage: "completed",
+      result: { status: "verified", observations: fixture.observation },
+    });
+    expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+    const blocked = await client.attestDosTargetSnapshot(fixture.observation);
+    expect(blocked.ok).toBe(false);
+    expect(new Set(close.mock.contexts).size).toBe(1);
+    allowClose = true;
+    expect((await client.close()).ok).toBe(true);
+    expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+    expect(result.error.cleanupFailure?.cleanupResources).toEqual([]);
+  },
+);
+
+it.each([false, true])(
+  "preserves an explicit MZ refusal through finalization (failed close=%s)",
+  async (failClose) => {
+    const fixture = fixtureDosLoadImage();
+    fixture.bytes[0] = 0;
+    const directory = await createTestTempDirectory("rea-mz-refusal-");
+    const targetPath = join(directory, "inert.exe");
+    await writeFile(targetPath, fixture.bytes);
+    const client = clientFor(new FixtureLauncher(), {
+      targetPath,
+      targetSha256: createHash("sha256").update(fixture.bytes).digest("hex"),
+    });
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    const close = failClose
+      ? vi
+          .spyOn(OwnedFileHandle.prototype, "close")
+          .mockRejectedValueOnce(new Error("controlled refusal close failure"))
+      : undefined;
+    onTestFinished(async () => {
+      close?.mockRestore();
+      await client.close();
+    });
+    const result = await client.attestDosTargetSnapshot(fixture.observation);
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        kind: "protocol",
+        message: "invalid or truncated DOS MZ header",
+        diagnostics: { failure_message: "invalid or truncated DOS MZ header" },
+      },
+    });
+    if (result.ok) throw new Error("Expected MZ refusal");
+    expect(result.error.cleanupFailure?.cleanupIncomplete ?? false).toBe(
+      failClose,
+    );
   },
 );
 

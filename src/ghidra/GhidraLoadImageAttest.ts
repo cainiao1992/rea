@@ -12,7 +12,6 @@ import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   attestGhidraDosComLoadImage,
-  attestGhidraDosLoadImage,
   attestGhidraRawBinaryLoadImage,
 } from "./GhidraLoadImageValues.js";
 import type { NativeAotPeResult } from "../domain/native/nativeAotPe.js";
@@ -24,7 +23,10 @@ type NativeLoadImageAttestationInput = {
   readonly operation: AnalysisOperation;
   readonly measured: NativeLoadImageObservation;
   readonly client: Partial<
-    Pick<GhidraClient, "hashTargetSnapshot" | "readTargetSnapshot">
+    Pick<
+      GhidraClient,
+      "hashTargetSnapshot" | "readTargetSnapshot" | "attestDosTargetSnapshot"
+    >
   >;
   readonly mapSessionError: (failure: GhidraSessionError) => AnalysisError;
   readonly nativeAotResult?: NativeAotPeResult | undefined;
@@ -157,6 +159,17 @@ const compareLoadImage = async (
       ? attested
       : err(comparisonFailure(input, attested.error));
   }
+  if (target.format === "dos-mz") {
+    if (client.attestDosTargetSnapshot === undefined)
+      return err(
+        comparisonFailure(
+          input,
+          "The Ghidra client does not expose its bounded DOS target snapshot comparison.",
+        ),
+      );
+    const compared = await client.attestDosTargetSnapshot(observations, signal);
+    return compared.ok ? compared : err(sourceFailure(compared.error));
+  }
   if (client.readTargetSnapshot === undefined)
     return err(
       comparisonFailure(
@@ -173,10 +186,10 @@ const compareLoadImage = async (
         "The uncapped load-image snapshot was unexpectedly not captured.",
       ),
     );
-  const attested = (
-    target.format === "dos-com"
-      ? attestGhidraDosComLoadImage
-      : attestGhidraDosLoadImage
-  )(snapshot.value.bytes, target.sha256, observations);
+  const attested = attestGhidraDosComLoadImage(
+    snapshot.value.bytes,
+    target.sha256,
+    observations,
+  );
   return attested.ok ? attested : err(comparisonFailure(input, attested.error));
 };

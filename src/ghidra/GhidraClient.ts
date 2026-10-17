@@ -62,10 +62,18 @@ import {
   type GhidraSessionInfo,
 } from "./GhidraSessionValues.js";
 import { createGhidraTargetSnapshot } from "./GhidraTargetSnapshot.js";
+import { attestGhidraDosSnapshot } from "./GhidraDosSnapshot.js";
+import {
+  nativeLoadImagePartialObservationSchema,
+  type NativeLoadImage,
+  type NativeLoadImageObservation,
+  type NativeLoadImagePartialObservation,
+} from "../domain/native/nativeLoadImage.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   artifactFileCancellationCause,
+  artifactFilePrimaryFailure,
   bindArtifactFileCleanup,
   withArtifactRegularFile,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -467,12 +475,46 @@ export class GhidraClient {
     );
   }
 
+  /** Compare MZ source identity without retaining unbounded appended overlays. */
+  attestDosTargetSnapshot(
+    observations: NativeLoadImageObservation,
+    signal?: AbortSignal,
+  ): Promise<Result<NativeLoadImage, GhidraSessionError>> {
+    return this.#withTargetSnapshot(
+      async (handle, initial, path) => {
+        const result = await attestGhidraDosSnapshot(
+          handle,
+          initial.size,
+          path,
+          this.#options.targetSha256,
+          observations,
+          signal,
+        );
+        if (!result.ok) throw this.#failure("protocol", result.error);
+        return result.value;
+      },
+      (result) =>
+        nativeLoadImagePartialObservationSchema.parse({
+          kind: "native-load-image",
+          stage: "completed",
+          result,
+        }),
+      signal,
+    );
+  }
+
   async #withTargetSnapshot<T>(
     read: (handle: FileHandle, initial: Stats, path: string) => Promise<T>,
-    observe: (value: T, path: string) => FileSnapshotPartialObservation,
+    observe: (
+      value: T,
+      path: string,
+    ) => FileSnapshotPartialObservation | NativeLoadImagePartialObservation,
     signal?: AbortSignal,
   ): Promise<Result<T, GhidraSessionError>> {
-    let completedObservation: FileSnapshotPartialObservation | undefined;
+    let completedObservation:
+      | FileSnapshotPartialObservation
+      | NativeLoadImagePartialObservation
+      | undefined;
     try {
       return await this.#fileResources.run(async () => {
         const path = this.#snapshotPath;
@@ -514,12 +556,16 @@ export class GhidraClient {
         cause instanceof ArtifactReaderFailure && cause.reason === "cancelled"
           ? { reason: artifactFileCancellationCause(cause) }
           : undefined;
-      let failure = this.#failure(
-        cancellation === undefined ? "protocol" : "cancelled",
-        "Ghidra target snapshot read or finalization did not complete",
-        cause,
-        cancellation === undefined ? {} : { cancellation },
-      );
+      const primary = artifactFilePrimaryFailure(cause);
+      let failure =
+        primary instanceof GhidraSessionError
+          ? primary
+          : this.#failure(
+              cancellation === undefined ? "protocol" : "cancelled",
+              "Ghidra target snapshot read or finalization did not complete",
+              cause,
+              cancellation === undefined ? {} : { cancellation },
+            );
       if (completedObservation !== undefined)
         failure = failure.withPartialObservation(completedObservation);
       if (

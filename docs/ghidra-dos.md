@@ -134,6 +134,10 @@ their contents and DOS runtime semantics are not verified. Independent verificat
 also covers explicit [raw-binary imports](raw-binary.md); other formats return
 `unsupported` with measured observations.
 
+MZ verification retains the initialized image described by the header's page
+count and streams appended overlay bytes into the complete original and modified
+source digests. Overlay size does not increase the retained image allocation.
+
 `read_bytes` returns initialized provider memory, including loader fixups; an
 unmapped or uninitialized byte ends the read with an explicit returned length and
 `complete: false`. `address_to_file_offset` uses the provider's source mapping;

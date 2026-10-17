@@ -16,6 +16,7 @@ import {
 } from "../domain/native/nativeLoadImage.js";
 import {
   fixtureDosLoadImage,
+  compareDosClientFixture,
   fixtureDosComLoadImage,
 } from "./GhidraLoadImage.fixture.js";
 import { fixtureRawBinaryLoadImage } from "./GhidraRawBinaryLoadImage.fixture.js";
@@ -50,19 +51,31 @@ it.each(["dos-mz", "dos-com", "raw-binary"] as const)(
       target: fixture.target,
       measured: fixture.observation,
       client:
-        "bytes" in fixture
+        format === "dos-mz" && "bytes" in fixture
           ? {
-              readTargetSnapshot: async () => {
+              attestDosTargetSnapshot: async (observations) => {
+                const compared = compareDosClientFixture(
+                  fixture.bytes,
+                  fixture.sha256,
+                  observations,
+                );
                 caller.abort(reason);
-                return ok({ kind: "captured", bytes: fixture.bytes });
+                return compared;
               },
             }
-          : {
-              hashTargetSnapshot: async () => {
-                caller.abort(reason);
-                return ok(fixture.snapshot);
+          : "bytes" in fixture
+            ? {
+                readTargetSnapshot: async () => {
+                  caller.abort(reason);
+                  return ok({ kind: "captured", bytes: fixture.bytes });
+                },
+              }
+            : {
+                hashTargetSnapshot: async () => {
+                  caller.abort(reason);
+                  return ok(fixture.snapshot);
+                },
               },
-            },
       mapSessionError: (cause) =>
         new ProviderAdapterError("ghidra", "inspect_native_load_image", {
           cause,
@@ -99,7 +112,7 @@ it.each([null, "caller stopped", new Error("caller stopped")])(
       operation: "inspect_native_load_image",
       target: fixture.target,
       measured: fixture.observation,
-      client: { readTargetSnapshot: read },
+      client: { attestDosTargetSnapshot: read },
       mapSessionError: () => {
         throw new Error("No source failure expected");
       },
@@ -134,7 +147,7 @@ it("preserves a snapshot failure before late cancellation", async () => {
     target: fixture.target,
     measured: fixture.observation,
     client: {
-      readTargetSnapshot: async () => {
+      attestDosTargetSnapshot: async () => {
         caller.abort("late caller");
         return err(source);
       },
@@ -152,8 +165,8 @@ it("keeps ordinary DOS verification valid", async () => {
     target: fixture.target,
     measured: fixture.observation,
     client: {
-      readTargetSnapshot: async () =>
-        ok({ kind: "captured", bytes: fixture.bytes }),
+      attestDosTargetSnapshot: async (observations) =>
+        compareDosClientFixture(fixture.bytes, fixture.sha256, observations),
     },
     mapSessionError: () => {
       throw new Error("No source failure expected");

@@ -113,6 +113,7 @@ export type GhidraProviderClientFactory = (
       | "runtimeLineage"
       | "readTargetSnapshot"
       | "hashTargetSnapshot"
+      | "attestDosTargetSnapshot"
     >
   >;
 

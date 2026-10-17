@@ -1,6 +1,8 @@
 import { nativeLoadImagePartialObservationSchema } from "../../../src/domain/native/nativeLoadImage.js";
-import { fixtureDosLoadImage } from "../../../src/ghidra/GhidraLoadImage.fixture.js";
-import { attestGhidraDosLoadImage } from "../../../src/ghidra/GhidraLoadImageValues.js";
+import {
+  fixtureDosLoadImage,
+  compareDosFixture,
+} from "../../../src/ghidra/GhidraLoadImage.fixture.js";
 import { nativeAotSnapshotObservationSchema } from "../../../src/domain/native/nativeAotSnapshotObservation.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -132,7 +134,7 @@ it.each(
               capture: { status: "captured", bytes: bytes.length },
             })
           : (() => {
-              const compared = attestGhidraDosLoadImage(
+              const compared = compareDosFixture(
                 dos.bytes,
                 dos.sha256,
                 dos.observation,

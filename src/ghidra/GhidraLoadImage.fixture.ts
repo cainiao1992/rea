@@ -1,12 +1,60 @@
 import { createHash } from "node:crypto";
 import { dosMz } from "../domain/binaryTarget.fixture.js";
 import type { NativeLoadImageObservation } from "../domain/native/nativeLoadImage.js";
+import {
+  attestGhidraDosLoadImage,
+  prepareGhidraDosLoadImage,
+} from "./GhidraLoadImageValues.js";
+import { err } from "../domain/result.js";
+import { GhidraSessionError } from "./GhidraSessionError.js";
 
 const hash = (bytes: Buffer): string =>
   createHash("sha256").update(bytes).digest("hex");
 
+/** Buffered tiny-fixture input for comparison tests; production streams the descriptor. */
+export const compareDosFixture = (
+  bytes: Buffer,
+  sha256: string,
+  observations: NativeLoadImageObservation,
+) => {
+  if (hash(bytes) !== sha256)
+    return err(
+      "Ghidra load-image snapshot digest does not match the admitted target",
+    );
+  const image = prepareGhidraDosLoadImage(bytes, bytes.length);
+  if (!image.ok) return image;
+  return attestGhidraDosLoadImage(
+    {
+      sha256,
+      fileBytes: bytes.length,
+      modifiedSha256: createHash("sha256")
+        .update(image.value.modified)
+        .update(bytes.subarray(image.value.header.imageBytes))
+        .digest("hex"),
+      image: image.value,
+    },
+    sha256,
+    observations,
+  );
+};
+
+export const compareDosClientFixture = (
+  ...input: Parameters<typeof compareDosFixture>
+) => {
+  const compared = compareDosFixture(...input);
+  return compared.ok
+    ? compared
+    : err(
+        new GhidraSessionError("protocol", compared.error, {
+          reason: compared.error,
+        }),
+      );
+};
+
 /** Source-owned MZ with one relocated word, overlay and uninitialized allocation. */
-export const fixtureDosLoadImage = (): {
+export const fixtureDosLoadImage = (
+  overlay = Buffer.from("private-overlay-fixture"),
+): {
   bytes: Buffer;
   sha256: string;
   observation: NativeLoadImageObservation;
@@ -16,10 +64,7 @@ export const fixtureDosLoadImage = (): {
   original.writeUInt16LE(9, 28);
   original.writeUInt16LE(0, 30);
   original.writeUInt16LE(4, 41);
-  const bytes = Buffer.concat([
-    original,
-    Buffer.from("private-overlay-fixture"),
-  ]);
+  const bytes = Buffer.concat([original, overlay]);
   const modified = Buffer.from(bytes);
   modified.writeUInt16LE(0x1004, 41);
   return {

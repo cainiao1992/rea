@@ -54,12 +54,8 @@ export const registerApktoolCommands = (
     // `b+zh+Hans+CN` form at the CLI boundary.
     options: z.object({
       locale: apktoolInputSchemas.decode_android_resources.shape.locale,
-      locales: z
-        .array(
-          apktoolInputSchemas.decode_android_resources.shape.locale.unwrap(),
-        )
-        .optional()
-        .describe(
+      locales:
+        apktoolInputSchemas.decode_android_resources.shape.locales.describe(
           "Repeat to project multiple localized string tables, e.g. --locales de --locales pt-BR",
         ),
       strings: z

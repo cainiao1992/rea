@@ -4,8 +4,7 @@ import {
   anatomyNameIs,
   anatomyTailMatches,
   appleBundleSchema,
-  applicationRoots,
-  detectBundles,
+  projectAppleBundleAnatomy,
   isMachOFormat,
   isSidecar,
   isWithin,
@@ -123,7 +122,7 @@ export const projectAppleApplication = (
   const inventoried = entries.flatMap(({ component }) =>
     component === undefined ? [] : [component],
   );
-  const roots = applicationRoots(entries, {
+  const { roots, bundles } = projectAppleBundleAnatomy(entries, {
     name: evidence[0]?.subject?.name ?? "",
     format: rootFormat,
   });
@@ -142,7 +141,6 @@ export const projectAppleApplication = (
     roots,
     rootFormat,
   );
-  const bundles = detectBundles(entries, roots);
   const classified = classifyComponents(entries, all, roots);
   const runtimeFamilies = identifyRuntimeFamilies(all);
   const bridgeProjection = identifyBridgeCandidates(

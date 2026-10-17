@@ -77,6 +77,12 @@ including when empty, so Apple projection identifiers change.
 | `.app` directory                       | `.`, the inventoried bundle itself                  |
 | Directory, ZIP, or DMG containing apps | Each outermost `<Name>.app` followed by `Contents/` |
 
+Root and layout discovery use known directories and ancestors implied by deeper
+inventory paths. A leaf file or symlink named `*.app`, `Contents`, or `Versions`
+does not establish that directory. Directory and authenticated-file identity are
+selected before applying anatomy case preferences, so a file cannot shadow a
+folded directory name or a directory shadow a metadata/signature file.
+
 ZIP archives made with `ditto -c -k --keepParent` report `<Name>.app`. A DMG
 reports `<image>.dmg/<Volume>/<Name>.app`; DMG child inventory needs the native
 macOS mounting adapter. When a DMG has only its root identity, the projection is

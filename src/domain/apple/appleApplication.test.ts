@@ -294,6 +294,91 @@ describe("macOS application roots and bundle roles", () => {
   });
 });
 
+describe("Apple bundle directory identity", () => {
+  it.each([
+    ["Contents", "file"],
+    ["Contents", "symlink"],
+    ["Versions", "file"],
+    ["Versions", "symlink"],
+  ] as const)("does not derive a layout from a %s %s", (name, kind) => {
+    const root = "Payload/Mobile.app";
+    const result = project(
+      inventoryEvidence("ipa", "Mobile.ipa", [
+        { path: `${root}/Info.plist`, format: "plist" },
+        { path: `${root}/${name}`, kind },
+      ]),
+    );
+    expect(result.platforms).toEqual(["ios"]);
+    expect(result.bundles).toEqual([
+      expect.objectContaining({
+        path: root,
+        layout: "shallow",
+        info_plist_path: `${root}/Info.plist`,
+      }),
+    ]);
+  });
+
+  it.each([
+    ["Contents", "macos-deep"],
+    ["Versions", "versioned-framework"],
+  ] as const)(
+    "derives a layout from an explicit empty %s directory",
+    (name, layout) => {
+      const root = "Payload/Mobile.app";
+      const result = project(
+        inventoryEvidence("ipa", "Mobile.ipa", [
+          { path: `${root}/${name}`, kind: "directory" },
+        ]),
+      );
+      expect(result.bundles[0]).toMatchObject({ path: root, layout });
+    },
+  );
+
+  it.each([
+    ["Contents", "contents/Info.plist", "macos-deep"],
+    ["Versions", "versions/A/Resources/Info.plist", "versioned-framework"],
+  ] as const)(
+    "keeps a real %s directory distinct from a same-named file",
+    (name, plist, layout) => {
+      const root = "Payload/Mobile.app";
+      const result = project(
+        inventoryEvidence("ipa", "Mobile.ipa", [
+          { path: `${root}/${name}` },
+          { path: `${root}/${plist}`, format: "plist" },
+        ]),
+      );
+      expect(result.bundles[0]).toMatchObject({
+        path: root,
+        layout,
+        info_plist_path: `${root}/${plist}`,
+      });
+    },
+  );
+
+  it("keeps files from shadowing anatomy directories inside bundles", () => {
+    const framework = "Contents/Frameworks/Core.framework";
+    const result = project(
+      inventoryEvidence("directory", "Fixture.app", [
+        { path: "Contents/Info.plist" },
+        { path: "Contents/MacOS" },
+        macho("Contents/macos/Fixture"),
+        { path: "Contents/_CodeSignature" },
+        { path: "Contents/_codesignature/CodeResources" },
+        { path: `${framework}/Versions/A/Resources` },
+        { path: `${framework}/Versions/A/resources/Info.plist` },
+      ]),
+    );
+    expect(result.bundles[0]).toMatchObject({
+      executable_candidates: ["Contents/macos/Fixture"],
+      signing_paths: ["Contents/_codesignature/CodeResources"],
+    });
+    expect(result.bundles[1]).toMatchObject({
+      path: framework,
+      info_plist_path: `${framework}/Versions/A/resources/Info.plist`,
+    });
+  });
+});
+
 describe("Apple bundle layouts and containers", () => {
   it("follows versioned frameworks without resolving Versions/Current", () => {
     const framework = "Fixture.app/Contents/Frameworks/Core.framework";
@@ -780,5 +865,43 @@ it.each(["file", "slice"] as const)(
       status: "partial",
       inventory_complete: true,
     });
+  },
+);
+
+it("selects metadata and signature files before applying anatomy case preferences", () => {
+  const result = project(
+    inventoryEvidence("directory", "Fixture.app", [
+      { path: "Contents/Info.plist", kind: "directory" },
+      { path: "Contents/info.plist", format: "plist" },
+      { path: "Contents/_CodeSignature/CodeResources", kind: "directory" },
+      { path: "Contents/_CodeSignature/coderesources" },
+      { path: "Contents/embedded.mobileprovision", kind: "directory" },
+      { path: "Contents/Embedded.mobileprovision" },
+    ]),
+  );
+  expect(result.bundles[0]).toMatchObject({
+    layout: "macos-deep",
+    info_plist_path: "Contents/info.plist",
+    signing_paths: [
+      "Contents/Embedded.mobileprovision",
+      "Contents/_CodeSignature/coderesources",
+    ],
+  });
+});
+
+it.each([
+  ["Payload/Fake.app", "file"],
+  ["Payload/Fake.app", "symlink"],
+  ["Fake.app/Contents", "file"],
+  ["Fake.app/Contents", "symlink"],
+] as const)(
+  "does not invent an application root from a %s %s",
+  (path, kind) => {
+    const result = project(
+      inventoryEvidence("zip", "Fixture.zip", [{ path, kind }]),
+    );
+    expect(result.application_roots).toEqual([]);
+    expect(result.bundles).toEqual([]);
+    expect(result.platforms).toEqual([]);
   },
 );

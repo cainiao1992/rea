@@ -95,6 +95,9 @@ providers need not expose identical state machines.
   primary failure and let incomplete cleanup retain its own classification.
   Preserve the caller's abort reason as the typed cancellation error's cause,
   including when cancellation is observed only after provider completion.
+  Shared command owners must retain the observed cancellation reason separately
+  from physical failures and cleanup ownership. Carry that fact through failure
+  wrapping so adapters can preserve the exact reason without interpreting it.
   Client cancellation alone does not prove native work stopped.
   For atomic publication, document the cancellation cutoff and preserve any
   committed output's publication receipt.

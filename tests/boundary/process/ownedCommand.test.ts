@@ -349,6 +349,10 @@ it.skipIf(process.platform === "win32")(
 
 it("cancels a real acquired process and independently releases it", async () => {
   const controller = new AbortController();
+  const callerReason = {
+    request: "active cancellation",
+    cleanup: "caller metadata",
+  };
   let pid: number | undefined;
   const result = runOwnedCommand(
     command(
@@ -361,7 +365,7 @@ it("cancels a real acquired process and independently releases it", async () => 
         const process = await spawnOwnedProviderProcess(input);
         pid = process.process.pid;
         await waitForProviderProcessReady(process.process);
-        setImmediate(() => controller.abort());
+        setImmediate(() => controller.abort(callerReason));
         return process;
       },
     },
@@ -369,6 +373,7 @@ it("cancels a real acquired process and independently releases it", async () => 
   await expect(result).rejects.toMatchObject({
     reason: "cancelled",
     cleanupFailure: null,
+    cancellation: { reason: callerReason },
   });
   if (pid === undefined) throw new Error("Process was not acquired");
   const acquiredPid = pid;
@@ -446,6 +451,9 @@ it.skipIf(process.platform === "win32").each(["cancelled", "timeout"] as const)(
           "The acquired command must retain its failed cleanup owner",
         );
       expect(failure.reason).toBe(reason);
+      if (reason === "cancelled")
+        expect(failure.cancellation?.reason).toBe(controller.signal.reason);
+      else expect(failure.cancellation).toBeUndefined();
       expect(failure.snapshot?.stdout.text).toContain("child-ready");
       expect(cleanup).toMatchObject({
         cleaned: false,
@@ -481,6 +489,7 @@ it.skipIf(process.platform === "win32").each(["cancelled", "timeout"] as const)(
 
 it("honors cancellation during cleanup after a successful command", async () => {
   const controller = new AbortController();
+  const callerReason = new Error("cancel during final process cleanup");
   await expect(
     runOwnedCommand(
       command("process.exit(0)"),
@@ -493,14 +502,18 @@ it("honors cancellation during cleanup after a successful command", async () => 
             ...launched,
             cleanup: async () => {
               const result = await cleanupOwnedProcessGroup(launched.ownership);
-              controller.abort();
+              controller.abort(callerReason);
               return result;
             },
           };
         },
       },
     ),
-  ).rejects.toMatchObject({ reason: "cancelled", cleanupFailure: null });
+  ).rejects.toMatchObject({
+    reason: "cancelled",
+    cleanupFailure: null,
+    cancellation: { reason: callerReason },
+  });
 });
 
 it("rejects oversized diagnostics even when the child exits immediately", async () => {

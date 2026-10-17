@@ -11,7 +11,10 @@ import {
   nativeMacOSCapabilities,
 } from "./NativeMacOSProviderMetadata.js";
 import { inspectAppleDispatchMetadata } from "./AppleDispatchMetadata.js";
-import { observeNativeUi } from "./NativeUiObservation.js";
+import {
+  observeNativeUi,
+  finishNativeUiObservation,
+} from "./NativeUiObservation.js";
 import { NativeUiCleanupError } from "./NativeUiCleanupError.js";
 import { LldbCallTracer, type NativeCallTracer } from "./LldbCallTracer.js";
 import { observeNativeCalls } from "./NativeCallObservation.js";
@@ -359,12 +362,16 @@ class NativeMacOSClient implements AnalysisClient {
           this.#nativeUiCleanupFailure(earlierCleanupFailures, operation),
         );
       const runtime = createNativeUiHelperRuntime(this.environment);
+      const observationSignal =
+        signal === undefined
+          ? runtime.signal
+          : AbortSignal.any([signal, runtime.signal]);
       this.#pendingNativeUiRuntimes.add(runtime);
       let result: Awaited<ReturnType<typeof observeNativeUi>>;
       try {
         result = await observeNativeUi(this.target, operation, parameters, {
           environment: this.environment,
-          signal,
+          signal: observationSignal,
           runtime,
         });
       } catch (cause: unknown) {
@@ -378,6 +385,11 @@ class NativeMacOSClient implements AnalysisClient {
         await runtime.close();
         this.#pendingNativeUiRuntimes.delete(runtime);
       } catch (cause: unknown) {
+        result = finishNativeUiObservation(
+          result,
+          operation,
+          observationSignal,
+        );
         const cleanup = this.#nativeUiCleanupFailure(
           [{ runtime, cause }],
           operation,
@@ -393,6 +405,7 @@ class NativeMacOSClient implements AnalysisClient {
               ).bindCleanupDependencies([result.error, cleanup]),
         );
       }
+      result = finishNativeUiObservation(result, operation, observationSignal);
       return result.ok
         ? ok(
             createAnalysisExecution(result.value, IDENTITY, {

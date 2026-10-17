@@ -425,7 +425,11 @@ decrement scrolling and text-value entry, or bounded waits. No global event
 injection is used. Unsupported AX actions fail explicitly. The result preserves
 ordered before/after captures and gaps; an action may have occurred before a
 post-action capture fails. Application state is left as-is; REA does not attempt
-to restore it.
+to restore it. Failed or cancelled scenarios return a typed error with the
+collected report in `partial_observation`, including ordered step outcomes.
+Cancellation preserves the caller's reason and remains observable through helper
+cleanup. A later abort does not replace an earlier helper or output failure.
+Cleanup failures retain their runtime owner until a confirmed cleanup retry.
 
 Scenarios accept caller-selected action lists and accessibility node counts.
 Individual waits cannot exceed the operation's 180-second deadline, and the

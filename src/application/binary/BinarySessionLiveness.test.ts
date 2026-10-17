@@ -37,6 +37,23 @@ import { SessionProviderRouter } from "./SessionProviderRouter.js";
  * recorded process exit.
  */
 describe("BinarySession open liveness", () => {
+  it("retires a locally blocked owner even when its native health is idle", async () => {
+    const { session, deep } = openSession();
+    try {
+      expect((await session.open(process.execPath)).ok).toBe(true);
+      expect((await session.execute("address_name", {})).ok).toBe(true);
+      const retained = deep.created[0];
+      if (retained === undefined) throw new Error("Expected an acquired child");
+      retained.reuseReadiness = () => "blocked";
+      expect(retained.operationHealthSnapshot?.()?.state).toBe("idle");
+      expect((await session.open(process.execPath)).ok).toBe(true);
+      expect(retained.closeCalled).toBe(true);
+      expect((await session.execute("address_name", {})).ok).toBe(true);
+      expect(deep.created).toHaveLength(2);
+    } finally {
+      await session.close();
+    }
+  });
   it("reuses the retained client while the child stays live", async () => {
     const { session, deep } = openSession();
     expect((await session.open(process.execPath)).ok).toBe(true);

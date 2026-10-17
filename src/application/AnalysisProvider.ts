@@ -158,6 +158,8 @@ export interface AnalysisClient extends AnalysisOperationPort {
   runtimeLineageSnapshots?(): readonly ProviderRuntimeLineageSnapshot[];
   /** Current provider work that may outlive a timed-out or cancelled caller. */
   requestActivitySnapshots?(): readonly ProviderRequestActivitySnapshot[];
+  /** Local reuse admission is separate from observed native process health. */
+  reuseReadiness?(): "ready" | "blocked" | "unknown";
   /** Current operational health for the active provider bridge. */
   operationHealthSnapshot?(): ProviderOperationHealth | undefined;
   /** Close owned resources and retain failed cleanup for a later retry. */

@@ -73,7 +73,9 @@ invocation. A signed status response also confirms completion of older bridge
 connections after its UI dispatch, preserving recovery proof for a caller whose
 receipt another caller has acknowledged. Neither receipt recovery nor a status
 probe retries the original command. Failed acknowledgements remain pending and
-block new commands until they can be retried successfully.
+block new commands until they can be retried successfully. Status proof failures
+identify `cutter_command` and retain `status` in
+`details.diagnostics.auxiliary_operation`; malformed proof still blocks dispatch.
 
 ## Configuration and coverage
 

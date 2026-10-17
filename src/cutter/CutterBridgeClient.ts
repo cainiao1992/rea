@@ -530,52 +530,34 @@ export class CutterBridgeClient {
       );
     }
     try {
-      const raw = await this.#request(
-        descriptor,
-        serializeRequest(descriptor, {
-          kind: "status",
-          session_id: sessionId,
-        }),
-      );
-      const parsed = responseSchema.safeParse(raw);
-      if (
-        !parsed.success ||
-        !parsed.data.ok ||
-        parsed.data.session_id !== sessionId
-      )
-        return err(
-          new AnalysisOutputError(
-            "cutter_command_status",
-            "The bridge status response did not contain a valid session identity.",
-            { cause: parsed.success ? undefined : parsed.error },
-          ),
-        );
-      const completed = (parsed.data.completed_commands ?? []).some(
+      const status = await this.#readCommandStatus(descriptor);
+      const completed = (status.completed_commands ?? []).some(
         (receipt) => receipt.request_id === requestId,
       );
       if (completed) await this.#acknowledgeCompletion(descriptor, requestId);
       return ok(
         completed ||
           (completionToken !== undefined &&
-            parsed.data.completed_connection !== undefined &&
-            parsed.data.completed_connection >= completionToken),
+            status.completed_connection !== undefined &&
+            status.completed_connection >= completionToken),
       );
     } catch (cause) {
+      if (cause instanceof AnalysisError) return err(cause);
       return err(
         new AnalysisCapabilityUnavailableError(
           "cutter",
-          "cutter_command_status",
+          "cutter_command",
           cause instanceof Error ? cause.message : "Cutter status failed",
-          { cause },
+          { cause, diagnostics: { auxiliary_operation: "status" } },
         ),
       );
     }
   }
 
-  async #recoverCompletedCommands(
+  async #readCommandStatus(
     descriptor: z.infer<typeof descriptorSchema>,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<z.infer<typeof responseSchema>> {
     const raw = await this.#request(
       descriptor,
       serializeRequest(descriptor, {
@@ -591,18 +573,30 @@ export class CutterBridgeClient {
       status.data.session_id !== descriptor.session_id
     )
       throw new AnalysisOutputError(
-        "cutter_command_status",
+        "cutter_command",
         "The bridge status response did not contain a valid session identity.",
-        { cause: status.success ? undefined : status.error },
+        {
+          cause: status.success ? undefined : status.error,
+          diagnostics: { auxiliary_operation: "status" },
+        },
       );
-    if (status.data.completed_connection === undefined)
+    return status.data;
+  }
+
+  async #recoverCompletedCommands(
+    descriptor: z.infer<typeof descriptorSchema>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const status = await this.#readCommandStatus(descriptor, signal);
+    if (status.completed_connection === undefined)
       throw new AnalysisOutputError(
-        "cutter_command_status",
+        "cutter_command",
         "The bridge did not provide authenticated proof that earlier connections reached a terminal state.",
+        { diagnostics: { auxiliary_operation: "status" } },
       );
     const pending =
       this.#pendingAcknowledgements.get(descriptor.session_id) ?? new Set();
-    for (const receipt of status.data.completed_commands ?? [])
+    for (const receipt of status.completed_commands ?? [])
       pending.add(receipt.request_id);
     if (pending.size > 0)
       this.#pendingAcknowledgements.set(descriptor.session_id, pending);

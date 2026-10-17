@@ -61,6 +61,14 @@ import {
   resolvedAnalysisError,
 } from "../domain/analysisErrorBase.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import {
+  projectPlistValue,
+  nonFiniteRealLimitation,
+  unknownRealLimitation,
+  negativeZeroRealLimitation,
+  unknownDateLimitation,
+} from "../domain/apple/plistValue.js";
+import { createPlistNumberProjection } from "../domain/apple/plistNumbers.js";
 import type { NativeUiObservationResult } from "../domain/native/nativeUiObservation.js";
 import {
   omittedPrototypeKeysLimitation,
@@ -648,6 +656,7 @@ class NativeMacOSClient implements AnalysisClient {
     const captures = [display.value, requirements.value, entitlements.value];
     const limitations = [
       ...parsed.limitations,
+      ...entitlementValue.limitations.map((note) => `Entitlements: ${note}`),
       "Inspected a digest-verified Mach-O byte snapshot; filesystem-bound signing context and trust validation are not examined.",
       ...(entitlementValue.omittedPrototypeKeys === 0
         ? []
@@ -1199,14 +1208,40 @@ const invocation = (
 
 const parseEntitlements = (
   output: string,
-): { readonly value: JsonValue; readonly omittedPrototypeKeys: number } => {
+): {
+  readonly value: JsonValue;
+  readonly omittedPrototypeKeys: number;
+  readonly limitations: readonly string[];
+} => {
   const start = output.indexOf("<?xml");
   const end = output.lastIndexOf("</plist>");
-  if (start < 0 || end < start) return { value: null, omittedPrototypeKeys: 0 };
-  const { value, omittedPrototypeKeys } = parseXmlPropertyList(
+  if (start < 0 || end < start)
+    return { value: null, omittedPrototypeKeys: 0, limitations: [] };
+  const decoded = parseXmlPropertyList(
     output.slice(start, end + "</plist>".length),
   );
-  return { value: jsonValueSchema.parse(value), omittedPrototypeKeys };
+  const projected = projectPlistValue(decoded.value);
+  const numbers = createPlistNumberProjection(decoded.numberLiterals);
+  const value = numbers.project(projected.value);
+  return {
+    value,
+    omittedPrototypeKeys: decoded.omittedPrototypeKeys,
+    limitations: [
+      ...numbers.limitations(),
+      ...(projected.nonFiniteRealCount === 0
+        ? []
+        : [nonFiniteRealLimitation(projected.nonFiniteRealCount)]),
+      ...(projected.unknownRealCount === 0
+        ? []
+        : [unknownRealLimitation(projected.unknownRealCount)]),
+      ...(projected.negativeZeroRealCount === 0
+        ? []
+        : [negativeZeroRealLimitation(projected.negativeZeroRealCount)]),
+      ...(projected.unknownDateCount === 0
+        ? []
+        : [unknownDateLimitation(projected.unknownDateCount)]),
+    ],
+  };
 };
 
 /** plutil prefixes its diagnostic with the path the message already names. */

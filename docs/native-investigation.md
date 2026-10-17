@@ -324,6 +324,9 @@ complete observation.
   shared/cyclic references, class descriptors, raw serialized fields and
   malformed/unresolved/nil references. Missing fields stay absent; unknown
   classes are preserved. Select `root`, `offset` and `limit` explicitly.
+  Object `kind` describes the decoded archive value: data, dates and numbers
+  remain `scalar` when their JSON value uses a `$plist_type` wrapper. An actual
+  dictionary with the same fields remains `dictionary`.
   UID 0 cannot distinguish conditional nil from ordinary nil. Limits are
   64 MiB of input, 200,000 objects/references and 128 nesting levels.
   XML dictionary entries decoded as `__proto__` are omitted with an explicit

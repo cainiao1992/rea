@@ -26,6 +26,12 @@ const architectureForMachine = (
   return undefined;
 };
 
+/** The optional-header magic a machine's architecture requires: PE32+ for 64-bit, PE32 otherwise. */
+export const peOptionalHeaderMagic = (
+  architecture: PeArchitecture,
+): 0x10b | 0x20b =>
+  architecture === "x86_64" || architecture === "arm64" ? 0x20b : 0x10b;
+
 /**
  * ReadyToRun images compiled for a non-Windows OS store the COFF machine XORed
  * with IMAGE_FILE_MACHINE_NATIVE_OS_OVERRIDE (dotnet/runtime

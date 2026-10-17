@@ -21,7 +21,7 @@ import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js"
 interface BinarySessionStatusInput {
   readonly target: BinaryTarget | undefined;
   readonly route: SessionProviderRoute;
-  readonly router: SessionProviderRouter;
+  readonly router: Pick<SessionProviderRouter, "candidateStatuses">;
   readonly runtimeUnavailability: ReadonlyMap<
     string,
     { readonly reason: string }

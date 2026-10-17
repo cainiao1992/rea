@@ -925,6 +925,10 @@ ownership inspection, so retaining those wrappers would prevent verified
 process-group cancellation during startup.
 If ownership remains unverifiable, it reports the reason and retains the process
 supervisor and private runtime instead of removing files beneath a live provider.
+Startup preserves an observed launch failure when cancellation arrives during
+rollback. Producer cancellation retains the caller's exact reason separately
+from LaunchSupport warnings and cleanup failures. Failed rollback keeps the
+original process owner for a later cleanup retry.
 The experimental Windows transport uses authenticated IPv4 loopback with a
 private native-owned bearer descriptor and Job Object process ownership.
 

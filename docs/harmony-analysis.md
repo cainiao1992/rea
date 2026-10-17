@@ -47,7 +47,9 @@ The MCP tool `project_harmony_application_graph` takes the same
 
 File and slice occurrences supply component and child-package paths; directory
 trees and symlinks retain their identities in the source inventory without
-being classified as code files.
+being classified as code files. Ark and JavaScript runtime hints summarize the
+classified bytecode and JavaScript lists; supported source extensions share the
+same classification rule as their component rows.
 
 Every claim is path-presence only. Manifest semantics (module identity,
 abilities, entry points, permissions, dependencies), Ark bytecode contents and

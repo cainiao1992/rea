@@ -139,7 +139,7 @@ export const projectAndroidApplication = (
       .sort(compareUnicodeCodePoints),
     components,
     unavailable_components: unavailable,
-    runtime_families: runtimeFamilies(all),
+    runtime_families: runtimeFamilies(all, classified),
     bridge_candidates: bridgeProjection.candidates,
     bridge_candidate_coverage: bridgeProjection.coverage,
     coverage: projectionCoverage(
@@ -172,14 +172,15 @@ const classify = (all: readonly Component[]) => ({
   ),
 });
 
-const runtimeFamilies = (all: readonly Component[]) => {
+const runtimeFamilies = (
+  all: readonly Component[],
+  components: AndroidApplicationProjectionResult["components"],
+) => {
   const families = new Set<
     AndroidApplicationProjectionResult["runtime_families"][number]
   >();
-  if (all.some(({ path }) => path.toLowerCase().endsWith(".dex")))
-    families.add("dalvik-art");
-  if (all.some(({ path }) => path.toLowerCase().endsWith(".class")))
-    families.add("java-kotlin");
+  if (components.dex.length > 0) families.add("dalvik-art");
+  if (components.jvm_classes.length > 0) families.add("java-kotlin");
   if (all.some(({ format }) => format === "elf")) families.add("native");
   if (all.some(({ format }) => format === "javascript-bundle"))
     families.add("javascript");

@@ -653,6 +653,63 @@ it("reuses normalized directory table for locale aliases without extra reads", a
   expect(invocations).toHaveLength(1);
 });
 
+it.each([2000, 2001])(
+  "retains observed alias counts after exhausting the aggregate entry budget (%i entries)",
+  async (entryCount) => {
+    const { command, root } = await writeApktoolStub((root) =>
+      decodeStub({ withGerman: false, withStrings: false })(root).replace(
+        'if [ "$1" = "d" ]; then',
+        `if [ "$1" = "d" ]; then
+    for suffix in pt-rBR de es it; do
+      mkdir -p "$5/res/values-$suffix"
+      cp '${join(root, "strings.xml")}' "$5/res/values-$suffix/strings.xml"
+    done`,
+      ),
+    );
+    const entries = Array.from(
+      { length: entryCount },
+      (_, i) => `<string name="s_${String(i)}">value</string>`,
+    ).join("");
+    await writeFile(
+      join(root, "strings.xml"),
+      `<resources>${entries}<string name="styled"><b>unknown</b></string></resources>`,
+    );
+    const apk = await apkFixture(root);
+    const provider = providerOver(command);
+    try {
+      const observation = await new ApktoolResourceAnalysisService(
+        provider,
+      ).execute("decode_android_resources", {
+        path: apk.path,
+        include_strings: true,
+        locale: "pt-BR",
+        locales: ["de", "es", "it", "pt-rBR"],
+      });
+      if (!observation.ok) throw observation.error;
+      const result = apktoolResultSchemas.decode_android_resources.parse(
+        observation.value.normalized_result,
+      );
+      expect(result.string_tables?.at(-1)).toEqual({
+        locale: "pt-rBR",
+        status: "skipped",
+        strings: [],
+        total_count: entryCount,
+        unparsed_count: 1,
+        coverage: "partial",
+      });
+      expect(result.strings).toHaveLength(2000);
+      expect(
+        observation.value.limitations.some((note) =>
+          note.startsWith("Locale pt-rBR strings reports the first"),
+        ),
+      ).toBe(false);
+      expect(result.coverage).toBe("partial");
+    } finally {
+      await provider.close();
+    }
+  },
+);
+
 it("skips all string tables when include_strings is false despite locales requested", async () => {
   const { command, root } = await writeApktoolStub((root) =>
     decodeStub({ withGerman: false })(root).replace(

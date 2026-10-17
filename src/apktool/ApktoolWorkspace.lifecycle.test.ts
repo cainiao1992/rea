@@ -149,7 +149,7 @@ it("records cancellation observed during a successful output descriptor close", 
     expect(failure.fileCancellation.reason).toBe(reason);
     expect(failure.fileCancellation.outcome).toEqual({
       kind: "completed",
-      value: { text: "<resources/>", truncated: false },
+      value: { text: "<resources/>", truncated: false, sourceBytes: 12 },
     });
   } finally {
     await workspace.close();
@@ -353,6 +353,35 @@ it("preserves a directory inspection failure instead of treating its locale tabl
       reason: "io",
       message: expect.stringContaining("authored directory inspection denial"),
     });
+  } finally {
+    await workspace.close();
+    await commands.close();
+  }
+});
+
+it("reports raw retained-prefix bytes when UTF-8 decoding removes a BOM", async () => {
+  const root = await PrivateRuntimeRoot.create({
+    prefix: "rea-apktool-source-bytes-",
+  });
+  const commands = new ApktoolCommandCleanup();
+  const workspace = new ApktoolWorkspace(root, commands);
+  const output = join(root.path, "strings.xml");
+  const bytes = Buffer.from("\uFEFF<resources/>", "utf8");
+  try {
+    await fs.writeFile(output, bytes);
+    await expect(workspace.readText(output, 100)).resolves.toEqual({
+      text: "<resources/>",
+      truncated: false,
+      sourceBytes: bytes.length,
+    });
+    await expect(workspace.readText(output, 5)).resolves.toEqual({
+      text: "<r",
+      truncated: true,
+      sourceBytes: 5,
+    });
+    await expect(
+      workspace.readText(join(root.path, "missing.xml"), 100),
+    ).resolves.toEqual({ text: null, truncated: false, sourceBytes: 0 });
   } finally {
     await workspace.close();
     await commands.close();

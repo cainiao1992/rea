@@ -32,7 +32,11 @@ import {
 } from "../application/AnalysisProvider.js";
 import {
   androidLocaleDirectorySuffix,
+  AGGREGATE_STRINGS_XML_MAX_BYTES,
+  MAX_AGGREGATE_STRINGS,
+  MAX_STRINGS,
   type ApktoolRequest,
+  type StringTable,
 } from "../domain/apktool/apktoolResourceAnalysis.js";
 import {
   AnalysisCapabilityUnavailableError,
@@ -66,6 +70,8 @@ import {
   parseApktoolYml,
   parseDecodedStrings,
   parseManifestPackage,
+  type ApktoolStringsDocumentError,
+  type DecodedStringEntry,
 } from "./ApktoolDecodeOutput.js";
 
 /** Stable identity for the Apktool resource-decoding provider. */
@@ -79,7 +85,6 @@ const DECODE_TIMEOUT_MS = 600_000;
 const DECODE_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const MANIFEST_MAX_BYTES = 512 * 1024;
 const STRINGS_XML_MAX_BYTES = 8 * 1024 * 1024;
-const MAX_STRINGS = 2_000;
 const MAX_DECODED_ENTRIES_VISITED = 100_000;
 const STDERR_EXCERPT_BYTES = 512;
 
@@ -510,6 +515,7 @@ export class ApktoolProvider {
       readonly path: string;
       readonly include_strings: boolean;
       readonly locale?: string | undefined;
+      readonly locales?: readonly string[] | undefined;
     },
     clientLimitations: readonly string[],
     signal: AbortSignal | undefined,
@@ -585,26 +591,19 @@ export class ApktoolProvider {
         manifest === null || manifestRead.truncated
           ? null
           : parseManifestPackage(manifest);
-      const stringsDirectory =
-        input.locale === undefined
-          ? "values"
-          : `values-${androidLocaleDirectorySuffix(input.locale)}`;
-      const stringsRead = input.include_strings
-        ? await resources.readText(
-            join(workspace, "res", stringsDirectory, "strings.xml"),
-            STRINGS_XML_MAX_BYTES,
-            signal,
-          )
-        : { text: null, truncated: false };
-      // Do not parse an incomplete XML document as though its projection were complete.
-      const stringsXml = stringsRead.truncated ? null : stringsRead.text;
-      const stringsProjection =
-        stringsXml === null ? undefined : parseDecodedStrings(stringsXml);
-      const parsedStrings =
-        stringsProjection?.ok === true ? stringsProjection.value : undefined;
-      const documentFailure =
-        stringsProjection?.ok === false ? stringsProjection.error : undefined;
-      const bounded = parsedStrings?.entries.slice(0, MAX_STRINGS) ?? [];
+      let strings: Array<{ name: string; value: string }>;
+      let locale: string | null;
+      let stringTables: StringTable[] | undefined;
+      const limitations: string[] = [
+        ...clientLimitations,
+        "Decoding skips smali (--no-src); Java-source recovery belongs to the JADX family",
+      ];
+      let stringsTruncated = false;
+      let stringsUnparsedCount = 0;
+      let stringsTotalCount: number | null = null;
+      let stringsDocumentFailure: ApktoolStringsDocumentError | undefined;
+      let stringsMissingLimitation: string | undefined;
+
       const files = await countDecodedFiles(
         resources,
         workspace,
@@ -612,17 +611,357 @@ export class ApktoolProvider {
         MAX_DECODED_ENTRIES_VISITED,
       );
       throwIfCancelled(operation, signal);
+
+      let aggregateCapped = false;
+      let anyTablePartial = false;
+
+      if (input.locales === undefined) {
+        locale = input.locale ?? null;
+        const stringsDirectory =
+          input.locale === undefined
+            ? "values"
+            : `values-${androidLocaleDirectorySuffix(input.locale)}`;
+        const stringsRead = input.include_strings
+          ? await resources.readText(
+              join(workspace, "res", stringsDirectory, "strings.xml"),
+              STRINGS_XML_MAX_BYTES,
+              signal,
+            )
+          : { text: null, truncated: false };
+        stringsTruncated = stringsRead.truncated;
+        const stringsXml = stringsRead.truncated ? null : stringsRead.text;
+        const stringsProjection =
+          stringsXml === null ? undefined : parseDecodedStrings(stringsXml);
+        const parsedStrings =
+          stringsProjection?.ok === true ? stringsProjection.value : undefined;
+        stringsDocumentFailure =
+          stringsProjection?.ok === false ? stringsProjection.error : undefined;
+        strings = parsedStrings?.entries.slice(0, MAX_STRINGS) ?? [];
+        stringsTotalCount = parsedStrings?.entries.length ?? null;
+        stringsUnparsedCount = parsedStrings?.unparsedCount ?? 0;
+
+        if (input.include_strings && stringsRead.text === null) {
+          stringsMissingLimitation =
+            input.locale !== undefined
+              ? `No strings.xml was found for locale ${input.locale}`
+              : "No default res/values/strings.xml was found in the decoded workspace";
+        }
+        if (stringsMissingLimitation !== undefined) {
+          limitations.push(stringsMissingLimitation);
+        }
+        if (stringsDocumentFailure !== undefined) {
+          limitations.push(
+            `String table ${JSON.stringify(`res/${stringsDirectory}/strings.xml`)} could not be projected: ${stringsDocumentFailure.message}; entry counts are unknown`,
+          );
+        }
+        if (stringsUnparsedCount > 0) {
+          limitations.push(
+            `String entries omitted due to unsupported markup or missing names: ${String(stringsUnparsedCount)}`,
+          );
+        }
+        if (stringsTotalCount !== null && stringsTotalCount > MAX_STRINGS) {
+          limitations.push(
+            `strings reports the first ${String(MAX_STRINGS)} of ${String(stringsTotalCount)} entries`,
+          );
+        }
+        if (stringsTruncated) {
+          limitations.push(
+            `strings.xml exceeds the ${String(STRINGS_XML_MAX_BYTES)}-byte projection budget`,
+          );
+        }
+      } else {
+        locale = input.locale ?? null;
+        stringTables = [];
+
+        const requestedLocales: Array<{
+          readonly locale: string | null;
+          readonly isPrimary: boolean;
+        }> = [];
+
+        requestedLocales.push({
+          locale,
+          isPrimary: true,
+        });
+
+        for (const loc of input.locales) {
+          if (!requestedLocales.some((r) => r.locale === loc)) {
+            requestedLocales.push({ locale: loc, isPrimary: false });
+          }
+        }
+
+        if (!input.include_strings) {
+          strings = [];
+          stringTables = [];
+        } else {
+          let aggregateXmlBytes = 0;
+          let aggregateStringsCount = 0;
+          const tableLimitations: string[] = [];
+
+          type PhysicalCached =
+            | {
+                readonly status: "missing" | "oversized" | "malformed";
+                readonly total_count: number | null;
+                readonly unparsed_count: number | null;
+                readonly coverage: "complete" | "partial";
+                readonly limitation: string;
+              }
+            | {
+                readonly status: "present";
+                readonly entries: readonly DecodedStringEntry[];
+                readonly unparsed_count: number;
+              };
+
+          const physicalCache = new Map<string, PhysicalCached>();
+
+          for (const item of requestedLocales) {
+            throwIfCancelled(operation, signal);
+            const loc = item.locale;
+            const dirName =
+              loc === null
+                ? "values"
+                : `values-${androidLocaleDirectorySuffix(loc)}`;
+            const filePath = join(workspace, "res", dirName, "strings.xml");
+            const tableLabel =
+              loc === null
+                ? "default res/values/strings.xml"
+                : `res/${dirName}/strings.xml`;
+
+            let cached = physicalCache.get(dirName);
+            if (cached === undefined) {
+              const remainingXmlBudget = Math.max(
+                0,
+                AGGREGATE_STRINGS_XML_MAX_BYTES - aggregateXmlBytes,
+              );
+              const remainingStringsBudget = Math.max(
+                0,
+                MAX_AGGREGATE_STRINGS - aggregateStringsCount,
+              );
+              if (remainingXmlBudget <= 0 || remainingStringsBudget <= 0) {
+                aggregateCapped = true;
+                stringTables.push({
+                  locale: loc,
+                  status: "skipped",
+                  strings: [],
+                  total_count: null,
+                  unparsed_count: null,
+                  coverage: "partial",
+                });
+                tableLimitations.push(
+                  `Projection for ${tableLabel} skipped: aggregate resource limit reached`,
+                );
+                continue;
+              }
+
+              const tableBudget = Math.min(
+                STRINGS_XML_MAX_BYTES,
+                remainingXmlBudget,
+              );
+              const stringsRead = await resources.readText(
+                filePath,
+                tableBudget,
+                signal,
+              );
+
+              if (stringsRead.text !== null) {
+                if (stringsRead.truncated) {
+                  aggregateXmlBytes += tableBudget;
+                } else {
+                  aggregateXmlBytes += Buffer.byteLength(
+                    stringsRead.text,
+                    "utf-8",
+                  );
+                }
+              }
+
+              if (stringsRead.text === null) {
+                cached = {
+                  status: "missing",
+                  total_count: 0,
+                  unparsed_count: 0,
+                  coverage: "complete",
+                  limitation:
+                    loc !== null
+                      ? `No strings.xml was found for locale ${loc}`
+                      : "No default res/values/strings.xml was found in the decoded workspace",
+                };
+                physicalCache.set(dirName, cached);
+              } else if (stringsRead.truncated) {
+                if (tableBudget < STRINGS_XML_MAX_BYTES) {
+                  aggregateCapped = true;
+                }
+                cached = {
+                  status: "oversized",
+                  total_count: null,
+                  unparsed_count: null,
+                  coverage: "partial",
+                  limitation:
+                    loc === null
+                      ? `strings.xml exceeds the ${String(tableBudget)}-byte projection budget`
+                      : `strings.xml for locale ${loc} exceeds the ${String(tableBudget)}-byte projection budget`,
+                };
+                physicalCache.set(dirName, cached);
+              } else {
+                const parsed = parseDecodedStrings(stringsRead.text);
+                if (!parsed.ok) {
+                  cached = {
+                    status: "malformed",
+                    total_count: null,
+                    unparsed_count: null,
+                    coverage: "partial",
+                    limitation: `String table ${JSON.stringify(`res/${dirName}/strings.xml`)} could not be projected: ${parsed.error.message}; entry counts are unknown`,
+                  };
+                  physicalCache.set(dirName, cached);
+                } else {
+                  cached = {
+                    status: "present",
+                    entries: parsed.value.entries,
+                    unparsed_count: parsed.value.unparsedCount,
+                  };
+                  physicalCache.set(dirName, cached);
+                }
+              }
+            }
+
+            if (cached.status !== "present") {
+              stringTables.push({
+                locale: loc,
+                status: cached.status,
+                strings: [],
+                total_count: cached.total_count,
+                unparsed_count: cached.unparsed_count,
+                coverage: cached.coverage,
+              });
+              if (!tableLimitations.includes(cached.limitation)) {
+                tableLimitations.push(cached.limitation);
+              }
+              continue;
+            }
+
+            const totalCount = cached.entries.length;
+            const remainingStringsBudget = Math.max(
+              0,
+              MAX_AGGREGATE_STRINGS - aggregateStringsCount,
+            );
+            const tableLimit = Math.min(MAX_STRINGS, remainingStringsBudget);
+
+            if (remainingStringsBudget <= 0) {
+              aggregateCapped = true;
+              stringTables.push({
+                locale: loc,
+                status: "skipped",
+                strings: [],
+                total_count: null,
+                unparsed_count: null,
+                coverage: "partial",
+              });
+              tableLimitations.push(
+                `Projection for ${tableLabel} skipped: aggregate resource limit reached`,
+              );
+              continue;
+            }
+
+            const bounded = cached.entries.slice(0, tableLimit);
+            aggregateStringsCount += bounded.length;
+
+            if (item.isPrimary) {
+              // Primary table copy in top-level strings also consumes output entry budget
+              aggregateStringsCount += bounded.length;
+            }
+
+            if (bounded.length < Math.min(totalCount, MAX_STRINGS)) {
+              aggregateCapped = true;
+            }
+
+            const tableCoverage =
+              totalCount > MAX_STRINGS ||
+              bounded.length < totalCount ||
+              cached.unparsed_count > 0
+                ? "partial"
+                : "complete";
+
+            stringTables.push({
+              locale: loc,
+              status: "present",
+              strings: bounded,
+              total_count: totalCount,
+              unparsed_count: cached.unparsed_count,
+              coverage: tableCoverage,
+            });
+
+            if (cached.unparsed_count > 0) {
+              tableLimitations.push(
+                loc === null
+                  ? `String entries omitted due to unsupported markup or missing names: ${String(cached.unparsed_count)}`
+                  : `String entries omitted in locale ${loc} due to unsupported markup or missing names: ${String(cached.unparsed_count)}`,
+              );
+            }
+            if (totalCount > MAX_STRINGS) {
+              tableLimitations.push(
+                loc === null
+                  ? `strings reports the first ${String(MAX_STRINGS)} of ${String(totalCount)} entries`
+                  : `Locale ${loc} strings reports the first ${String(MAX_STRINGS)} of ${String(totalCount)} entries`,
+              );
+            } else if (bounded.length < totalCount) {
+              tableLimitations.push(
+                `Locale ${loc ?? "default"} strings reports ${String(bounded.length)} entries due to aggregate strings limit`,
+              );
+            }
+          }
+
+          limitations.push(...tableLimitations);
+
+          const primaryTable = stringTables.find((t) => t.locale === locale);
+          strings = primaryTable?.strings ?? [];
+        }
+
+        anyTablePartial = stringTables.some(
+          (t) =>
+            t.coverage === "partial" ||
+            t.status === "oversized" ||
+            t.status === "malformed" ||
+            t.status === "skipped",
+        );
+      }
+
       const coverage =
-        (parsedStrings !== undefined &&
-          parsedStrings.entries.length > MAX_STRINGS) ||
+        (input.locales === undefined
+          ? (stringsTotalCount !== null && stringsTotalCount > MAX_STRINGS) ||
+            stringsTruncated ||
+            stringsUnparsedCount > 0 ||
+            stringsDocumentFailure !== undefined
+          : anyTablePartial || aggregateCapped) ||
         manifestRead.truncated ||
-        stringsRead.truncated ||
-        (parsedStrings !== undefined && parsedStrings.unparsedCount > 0) ||
-        documentFailure !== undefined ||
         files.capped ||
         files.unreadableStringsTables.length > 0
           ? "partial"
           : "complete";
+
+      if (manifestRead.truncated) {
+        limitations.push(
+          `manifest is truncated at ${String(MANIFEST_MAX_BYTES)} bytes`,
+        );
+      }
+      if (files.unreadableStringsTables.length > 0) {
+        limitations.push(
+          `String tables omitted because they are not regular files: ${files.unreadableStringsTables.map((table) => `${JSON.stringify(table.path)} (${table.kind})`).join(", ")}`,
+        );
+      }
+      if (files.otherStringsTables.length > 0) {
+        limitations.push(
+          `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${files.otherStringsTables.map((table) => JSON.stringify(table)).join(", ")}`,
+        );
+      }
+      if (files.capped) {
+        limitations.push(
+          `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,
+        );
+      }
+      if (aggregateCapped) {
+        limitations.push(
+          "Aggregate string table projection stopped due to resource limits",
+        );
+      }
+
       result = ok(
         createAnalysisExecution(
           {
@@ -636,72 +975,19 @@ export class ApktoolProvider {
               package_name: packageName,
             },
             manifest,
-            strings: bounded,
-            locale: input.locale ?? null,
+            strings,
+            locale,
             locales: files.locales,
+            ...(stringTables !== undefined
+              ? { string_tables: stringTables }
+              : {}),
             decoded_file_count: files.count,
             coverage,
           },
           provider,
           {
             subject: { path: input.path, sha256, format: "apk" },
-            limitations: [
-              ...clientLimitations,
-              "Decoding skips smali (--no-src); Java-source recovery belongs to the JADX family",
-              ...(input.locale !== undefined &&
-              stringsRead.text === null &&
-              input.include_strings
-                ? [`No strings.xml was found for locale ${input.locale}`]
-                : []),
-              ...(input.include_strings &&
-              stringsRead.text === null &&
-              input.locale === undefined
-                ? [
-                    "No default res/values/strings.xml was found in the decoded workspace",
-                  ]
-                : []),
-              ...(documentFailure === undefined
-                ? []
-                : [
-                    `String table ${JSON.stringify(`res/${stringsDirectory}/strings.xml`)} could not be projected: ${documentFailure.message}; entry counts are unknown`,
-                  ]),
-              ...(parsedStrings !== undefined && parsedStrings.unparsedCount > 0
-                ? [
-                    `String entries omitted due to unsupported markup or missing names: ${String(parsedStrings.unparsedCount)}`,
-                  ]
-                : []),
-              ...(parsedStrings !== undefined &&
-              parsedStrings.entries.length > MAX_STRINGS
-                ? [
-                    `strings reports the first ${String(MAX_STRINGS)} of ${String(parsedStrings.entries.length)} entries`,
-                  ]
-                : []),
-              ...(manifestRead.truncated
-                ? [
-                    `manifest is truncated at ${String(MANIFEST_MAX_BYTES)} bytes`,
-                  ]
-                : []),
-              ...(stringsRead.truncated
-                ? [
-                    `strings.xml exceeds the ${String(STRINGS_XML_MAX_BYTES)}-byte projection budget`,
-                  ]
-                : []),
-              ...(files.unreadableStringsTables.length === 0
-                ? []
-                : [
-                    `String tables omitted because they are not regular files: ${files.unreadableStringsTables.map((table) => `${JSON.stringify(table.path)} (${table.kind})`).join(", ")}`,
-                  ]),
-              ...(files.otherStringsTables.length === 0
-                ? []
-                : [
-                    `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${files.otherStringsTables.map((table) => JSON.stringify(table)).join(", ")}`,
-                  ]),
-              ...(files.capped
-                ? [
-                    `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,
-                  ]
-                : []),
-            ],
+            limitations,
           },
         ),
       );

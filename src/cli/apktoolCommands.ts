@@ -54,6 +54,14 @@ export const registerApktoolCommands = (
     // `b+zh+Hans+CN` form at the CLI boundary.
     options: z.object({
       locale: apktoolInputSchemas.decode_android_resources.shape.locale,
+      locales: z
+        .array(
+          apktoolInputSchemas.decode_android_resources.shape.locale.unwrap(),
+        )
+        .optional()
+        .describe(
+          "Repeat to project multiple localized string tables, e.g. --locales de --locales pt-BR",
+        ),
       strings: z
         .boolean()
         .default(
@@ -70,6 +78,7 @@ export const registerApktoolCommands = (
         path: args.path,
         include_strings: options.strings,
         ...(options.locale === undefined ? {} : { locale: options.locale }),
+        ...(options.locales === undefined ? {} : { locales: options.locales }),
       }),
   });
 };

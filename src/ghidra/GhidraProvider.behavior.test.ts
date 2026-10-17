@@ -25,6 +25,7 @@ import {
   nativeAotPeFixture,
   nativeAotPeHeaderIndirectionFixture,
   nativeAotPeOptionalHeaderFixture,
+  nativeAotPeVirtualSectionFixture,
 } from "../../tests/fixtures/nativeaotPe.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 
@@ -605,7 +606,7 @@ describe("Ghidra platform support", () => {
         executable_role: target.executableRole,
         managed: target.managed,
         native_aot_metadata: {
-          contract_revision: "rtr-9.1-x64-pe-read-only-v4",
+          contract_revision: "rtr-9.1-x64-pe-read-only-v5",
           source_bytes: 128 * 1024 * 1024,
           work_units: 64 * 1024 * 1024,
           working_memory_bytes: 64 * 1024 * 1024,
@@ -3621,17 +3622,32 @@ it.each([
   {
     layout: "crossed header interval",
     fixture: () => nativeAotPeHeaderIndirectionFixture(0x3fc),
+    basis: "no-rtr-header",
   },
   {
     layout: "short optional header",
     fixture: () => nativeAotPeOptionalHeaderFixture(56),
+    basis: "unsupported-layout",
+  },
+  {
+    layout: "overlapping virtual sections",
+    fixture: () => nativeAotPeVirtualSectionFixture(0x2000, 0x400),
+    basis: "unsupported-layout",
+  },
+  {
+    layout: "section overlapping headers",
+    fixture: () => nativeAotPeVirtualSectionFixture(0x200, 0x80),
+    basis: "unsupported-layout",
   },
 ])(
   "retains NativeAOT unsupported-layout facts for a $layout through the provider",
-  async ({ fixture }) => {
+  async ({ fixture, basis }) => {
     const bytes = fixture();
     const observations = fixtureDosLoadImage().observation;
     observations.image_base = "0x140000000";
+    const readSnapshot = vi.fn(async () =>
+      ok({ kind: "captured" as const, bytes }),
+    );
     const factory: GhidraProviderClientFactory = () => ({
       start: () =>
         Promise.resolve(
@@ -3640,8 +3656,17 @@ it.each([
             target: { ...sessionInfo().target, image_base: "0x140000000" },
           }),
         ),
-      callTool: () => Promise.resolve(ok(jsonValueSchema.parse(observations))),
-      readTargetSnapshot: async () => ok({ kind: "captured" as const, bytes }),
+      callTool: (operation) =>
+        Promise.resolve(
+          ok(
+            jsonValueSchema.parse(
+              operation === "inspect_native_load_image"
+                ? observations
+                : unavailableNativeAotDatabaseType("0x140002280"),
+            ),
+          ),
+        ),
+      readTargetSnapshot: readSnapshot,
       close: () => Promise.resolve(ok(null)),
     });
     const ghidra = provider(installationHost(), factory);
@@ -3663,12 +3688,19 @@ it.each([
                   header_address: null,
                   method_tables: 0,
                   analysis_artifact_sha256: target.sha256,
+                  coverage: { basis },
                 },
               ],
             },
           },
         },
       });
+      const detail = await client.execute("inspect_native_data_type", {
+        address: "0x140002280",
+      });
+      if (!detail.ok) throw detail.error;
+      expect(detail.value.result).not.toHaveProperty("metadata_recovery");
+      expect(readSnapshot).toHaveBeenCalledTimes(1);
     } finally {
       await client.close();
     }

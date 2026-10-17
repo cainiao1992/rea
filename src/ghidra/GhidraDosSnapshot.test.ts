@@ -3,11 +3,51 @@ import { open, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
-import { fixtureDosLoadImage } from "./GhidraLoadImage.fixture.js";
+import {
+  fixtureDosLoadImage,
+  fixtureDosOverlapLoadImage,
+} from "./GhidraLoadImage.fixture.js";
 import { attestGhidraDosSnapshot } from "./GhidraDosSnapshot.js";
 
 const hash = (bytes: Buffer) =>
   createHash("sha256").update(bytes).digest("hex");
+
+it.each([false, true])(
+  "compares final overlapping relocation windows (intermediate=%s)",
+  async (intermediate) => {
+    const fixture = fixtureDosOverlapLoadImage();
+    expect(fixture.bytes.subarray(56, 59).toString("hex")).toBe("000400");
+    const first = fixture.observation.relocations[0];
+    if (first === undefined) throw new Error("Missing authored overlap record");
+    if (intermediate) first.memory_bytes_hex = "0410";
+    const directory = await createTestTempDirectory("rea-mz-overlap-");
+    const path = join(directory, "inert.exe");
+    await writeFile(path, fixture.bytes);
+    const handle = await open(path, "r");
+    try {
+      const result = await attestGhidraDosSnapshot(
+        handle,
+        fixture.bytes.length,
+        path,
+        fixture.sha256,
+        fixture.observation,
+      );
+      if (!result.ok || result.value.status === "unsupported")
+        throw new Error("Expected completed MZ comparison");
+      expect(result.value.status).toBe(intermediate ? "mismatch" : "verified");
+      expect(
+        result.value.checks
+          .filter((check) => !check.matched)
+          .map((check) => check.name),
+      ).toEqual(intermediate ? ["relocation_records"] : []);
+      expect(result.value.observations.relocations).toEqual(
+        fixture.observation.relocations,
+      );
+    } finally {
+      await handle.close();
+    }
+  },
+);
 
 it.each([23, 65539])(
   "streams complete MZ identity with a %s-byte overlay",

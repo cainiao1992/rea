@@ -24,6 +24,7 @@ const limitations = [
 
 export type GhidraDosImage = {
   readonly header: DosMzHeader;
+  readonly loadSegment: number;
   readonly modified: Buffer;
   readonly expectedRelocations: NativeLoadImageObservation["relocations"];
 };
@@ -41,7 +42,7 @@ export const prepareGhidraDosLoadImage = (
     return err("DOS MZ initialized image was not completely captured");
   const loadSegment = 0x1000;
   const modified = Buffer.from(bytes.subarray(0, header.imageBytes));
-  const expectedRelocations = [];
+  const applied = [];
   for (let index = 0; index < header.relocationCount; index += 1) {
     const table = header.relocationTableOffset + index * 4;
     const offset = bytes.readUInt16LE(table);
@@ -53,7 +54,12 @@ export const prepareGhidraDosLoadImage = (
     const relocated =
       (modified.readUInt16LE(fileOffset) + loadSegment) & 0xffff;
     modified.writeUInt16LE(relocated, fileOffset);
-    expectedRelocations.push({
+    applied.push({ segment, offset, fileOffset, original, relocated });
+  }
+  // Application records describe their own fixup; the bridge reads memory
+  // once all fixups have completed, including later overlapping writes.
+  const expectedRelocations = applied.map(
+    ({ segment, offset, fileOffset, original, relocated }) => ({
       address: address(loadSegment * 16 + segment * 16 + offset),
       segment: (loadSegment + segment) & 0xffff,
       offset,
@@ -64,9 +70,9 @@ export const prepareGhidraDosLoadImage = (
       memory_bytes_hex: modified
         .subarray(fileOffset, fileOffset + 2)
         .toString("hex"),
-    });
-  }
-  return ok({ header, modified, expectedRelocations });
+    }),
+  );
+  return ok({ header, loadSegment, modified, expectedRelocations });
 };
 
 export type GhidraDosLoadImageSource = {
@@ -86,8 +92,7 @@ export const attestGhidraDosLoadImage = (
     return err(
       "Ghidra load-image snapshot digest does not match the admitted target",
     );
-  const { header, modified, expectedRelocations } = source.image;
-  const loadSegment = 0x1000;
+  const { header, loadSegment, modified, expectedRelocations } = source.image;
   const checks: NativeLoadImageCheck[] = [];
   const check = (
     name: string,

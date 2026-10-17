@@ -143,6 +143,71 @@ export const fixtureDosLoadImage = (
   };
 };
 
+/** Authored overlapping-word control adapted from #4156; no engine is run here. */
+export const fixtureDosOverlapLoadImage = () => {
+  const fixture = fixtureDosLoadImage();
+  const bytes = Buffer.concat([
+    fixture.bytes.subarray(0, 32),
+    Buffer.alloc(16),
+    fixture.bytes.subarray(32),
+  ]);
+  bytes.writeUInt16LE(176, 2);
+  bytes.writeUInt16LE(2, 6);
+  bytes.writeUInt16LE(3, 8);
+  bytes.writeUInt32LE(9, 28);
+  bytes.writeUInt32LE(8, 32);
+  const modified = Buffer.from(bytes);
+  // Independent final-byte oracle: source 00 04 00 becomes 00 14 10.
+  modified.write("001410", 56, "hex");
+  const observation = fixture.observation;
+  const source = observation.source_files[0];
+  const headerMapping = observation.mappings[0];
+  const moduleMapping = observation.mappings[1];
+  if (
+    source === undefined ||
+    headerMapping === undefined ||
+    moduleMapping === undefined
+  )
+    throw new Error("Missing base MZ fixture source mappings");
+  Object.assign(source, {
+    size: bytes.length,
+    original_sha256: hash(bytes),
+    modified_sha256: hash(modified),
+  });
+  Object.assign(headerMapping, {
+    end: "HEADER:0x2f",
+    length: 48,
+    sha256: hash(bytes.subarray(0, 48)),
+  });
+  Object.assign(moduleMapping, {
+    file_offset: 48,
+    sha256: hash(modified.subarray(48, 176)),
+  });
+  observation.relocations = [
+    {
+      address: "0x10009",
+      segment: 0x1000,
+      offset: 9,
+      status: "APPLIED",
+      type: 0,
+      values: [0, 9, 0x1004],
+      original_bytes_hex: "0400",
+      memory_bytes_hex: "1410",
+    },
+    {
+      address: "0x10008",
+      segment: 0x1000,
+      offset: 8,
+      status: "APPLIED",
+      type: 0,
+      values: [0, 8, 0x1400],
+      original_bytes_hex: "0004",
+      memory_bytes_hex: "0014",
+    },
+  ];
+  return { bytes, sha256: hash(bytes), observation };
+};
+
 /** Source-owned headerless COM image and measured real-mode import facts. */
 export const fixtureDosComLoadImage = (): {
   bytes: Buffer;

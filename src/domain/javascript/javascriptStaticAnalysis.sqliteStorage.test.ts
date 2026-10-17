@@ -13,6 +13,7 @@ it.each([
 it.each([
   'new Database("shared");',
   'import type Database = require("better-sqlite3"); new Database("shared");',
+  'let Database = require("better-sqlite3"); eval("Database = Other"); new Database("shared");',
   'import * as sqlite from "sqlite3"; const alias = sqlite; alias.Database = Other; new sqlite.Database("shared");',
   'import Database from "better-sqlite3"; expose(Database); new Database("shared");',
   'import type TypeDatabase from "better-sqlite3"; const Database = TypeDatabase; new Database("shared");',

@@ -75,7 +75,9 @@ export const decodeXmlText = (text: string): string =>
             : undefined;
       if (codePoint !== undefined)
         return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
-      return (name === undefined ? undefined : XML_ENTITIES[name]) ?? entity;
+      return name !== undefined && Object.hasOwn(XML_ENTITIES, name)
+        ? XML_ENTITIES[name]!
+        : entity;
     },
   );
 

@@ -160,3 +160,29 @@ it("keeps unresolved probe cleanup typed when the launcher overflows its output"
   await provider.close();
   expect(result.ok ? null : result.error.cleanupIncomplete).toBe(false);
 });
+
+it.each(["linux", "win32"] as const)(
+  "interprets advisory applicability using the selected %s host",
+  async (platform) => {
+    vi.mocked(runOwnedCommand).mockImplementationOnce(
+      async (_spawn, limits) => {
+        const output = {
+          stdout: { text: "2.9.2\n" },
+          stderr: { text: "" },
+        } as Awaited<ReturnType<typeof runOwnedCommand>>;
+        limits.observeCompleted?.(output);
+        return output;
+      },
+    );
+    const identity = await inspectApktoolClient(selection, commands, {
+      environment: {},
+      platform,
+    });
+    expect(identity.version).toBe("2.9.2");
+    expect(
+      identity.limitations.some((warning) =>
+        warning.includes("GHSA-vgwr-4w3p-xmjv"),
+      ),
+    ).toBe(platform === "win32");
+  },
+);

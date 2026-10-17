@@ -219,6 +219,7 @@ export const apktoolInvocation = (
 /** Read the version from Apktool's single-line `--version` response. */
 export const parseApktoolVersionOutput = (
   stdout: string,
+  platform: NodeJS.Platform = process.platform,
 ):
   | ApktoolClientIdentity
   | { readonly version: null; readonly reportedVersion: string | null } => {
@@ -239,14 +240,38 @@ export const parseApktoolVersionOutput = (
     (downstreamRelease
       ? parsed.compareMain(release)
       : parsed.compare(release)) >= 0;
+  const limitations: string[] = [];
+  const discloseAdvisory = (
+    fix: string,
+    advisory: string,
+    slug: string,
+  ): string =>
+    `Reported apktool version ${JSON.stringify(line)} predates the upstream ${fix} fix for ${advisory} (decoded resource paths could escape the output directory). Verify the selected decoder's patches before decoding untrusted APKs; launcher version alone does not establish engine contents or downstream backports. https://github.com/iBotPeaches/Apktool/security/advisories/${slug}`;
+  if (!atLeast("2.9.2"))
+    limitations.push(
+      discloseAdvisory("2.9.2", "CVE-2024-21633", "GHSA-2hqv-2xv4-5h5w"),
+    );
+  if (platform === "win32" && !atLeast("2.9.3"))
+    limitations.push(
+      discloseAdvisory(
+        "2.9.3",
+        "GHSA-vgwr-4w3p-xmjv on Windows",
+        "GHSA-vgwr-4w3p-xmjv",
+      ),
+    );
+  // Upstream 65dd848 validates ResTypeSpec names in 3.0.2. The tagged 3.0.0
+  // producer also lacks that check, although the advisory names only 3.0.1.
+  if (parsed.major === 3 && parsed.minor === 0 && !atLeast("3.0.2"))
+    limitations.push(
+      discloseAdvisory("3.0.2", "CVE-2026-39973", "GHSA-m8mh-x359-vm8m") +
+        (parsed.patch === 0
+          ? " Inclusion of the 3.0.0 release line is source-derived; the advisory lists 3.0.1."
+          : ""),
+    );
   return {
     version: line,
     supportsDocumentedVersion: atLeast("2.7.0"),
-    limitations: atLeast("2.9.2")
-      ? []
-      : [
-          `Reported apktool version ${JSON.stringify(line)} predates the upstream 2.9.2 fix for CVE-2024-21633 (decoded resource paths could escape the output directory). Verify the selected decoder's patches before decoding untrusted APKs; launcher version alone does not establish engine contents or downstream backports. https://github.com/iBotPeaches/Apktool/security/advisories/GHSA-2hqv-2xv4-5h5w`,
-        ],
+    limitations,
   };
 };
 
@@ -315,6 +340,7 @@ export const inspectApktoolClient = async (
                 snapshot.stdout.text,
                 snapshot.stderr.text,
                 selection,
+                platform,
               ),
             );
           } catch (cause) {
@@ -377,8 +403,9 @@ const interpretApktoolVersion = (
   stdout: string,
   stderr: string,
   selection: ApktoolCommandSelection,
+  platform: NodeJS.Platform,
 ): ApktoolClientIdentity => {
-  const identity = parseApktoolVersionOutput(stdout);
+  const identity = parseApktoolVersionOutput(stdout, platform);
   if (identity.version === null)
     throw new ApktoolConfigurationFailure(
       "version_unresolved",

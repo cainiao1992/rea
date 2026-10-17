@@ -149,6 +149,65 @@ describe("reported Apktool version policy", () => {
   );
 });
 
+describe("reported advisory applicability (#4818)", () => {
+  it.each([
+    ["2.7.0-dirty", true],
+    ["2.9.2", true],
+    ["2.9.2+patched", true],
+    ["2.9.3-rc.1", true],
+    ["2.9.3", false],
+    ["2.9.3-dirty", false],
+    ["3.0.1", false],
+  ] as const)(
+    "binds the Windows advisory for %s to the selected host",
+    (version, affected) => {
+      for (const platform of ["win32", "linux", "darwin"] as const) {
+        const identity = parseApktoolVersionOutput(version, platform);
+        if (identity.version === null) throw new Error("Expected version");
+        expect(identity.version).toBe(version);
+        const warnings = identity.limitations.filter((warning) =>
+          warning.includes("GHSA-vgwr-4w3p-xmjv"),
+        );
+        expect(warnings.length).toBe(affected && platform === "win32" ? 1 : 0);
+      }
+    },
+  );
+  it.each([
+    ["3.0.0-beta.1", true],
+    ["3.0.0", true],
+    ["v3.0.0-dirty", true],
+    ["3.0.1", true],
+    ["3.0.1+patched", true],
+    ["3.0.2-rc.1", true],
+    ["3.0.2", false],
+    ["3.0.2-dirty", false],
+    ["3.0.3", false],
+    ["3.1.0-beta.1", false],
+    ["2.12.1", false],
+    ["4.0.0", false],
+  ] as const)(
+    "bounds the 3.x regression advisory for %s",
+    (version, affected) => {
+      for (const platform of ["win32", "linux", "darwin"] as const) {
+        const identity = parseApktoolVersionOutput(version, platform);
+        if (identity.version === null) throw new Error("Expected version");
+        const warnings = identity.limitations.filter((warning) =>
+          warning.includes("CVE-2026-39973"),
+        );
+        expect(warnings.length).toBe(affected ? 1 : 0);
+        if (affected) {
+          expect(warnings[0]).toContain(
+            "does not establish engine contents or downstream backports",
+          );
+          expect(warnings[0]?.includes("source-derived")).toBe(
+            version.includes("3.0.0"),
+          );
+        }
+      }
+    },
+  );
+});
+
 describe("apktoolInvocation", () => {
   const windows = { SystemRoot: "C:\\Windows" };
 

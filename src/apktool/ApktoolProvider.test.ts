@@ -687,10 +687,17 @@ it("retains completed Evidence and live cleanup until a denied workspace removal
   }
 });
 
-it.each([false, true])(
-  "preserves completed Evidence and cancellation during workspace cleanup (denied=%s)",
-  async (deniedInitially) => {
-    const { command, root } = await writeApktoolStub(decodeStub());
+it.each([
+  [false, "2.7.0-dirty", "CVE-2024-21633"],
+  [true, "2.7.0-dirty", "CVE-2024-21633"],
+  [false, "3.0.1", "CVE-2026-39973"],
+  [true, "3.0.1", "CVE-2026-39973"],
+] as const)(
+  "preserves completed Evidence and cancellation during workspace cleanup (denied=%s, version=%s)",
+  async (deniedInitially, version, advisory) => {
+    const { command, root } = await writeApktoolStub((root) =>
+      decodeStub()(root).replace(VERSION_BLOCK, `printf '%s\\n' '${version}'`),
+    );
     const apk = await apkFixture(root);
     const controller = new AbortController();
     const reason = { caller: "during final workspace removal" };
@@ -720,7 +727,7 @@ it.each([false, true])(
         operation: "decode_android_resources",
         normalized_result: { target: { sha256: apk.sha256 } },
         limitations: expect.arrayContaining([
-          expect.stringContaining("CVE-2024-21633"),
+          expect.stringContaining(advisory),
         ]),
       });
       denied = false;
@@ -1003,7 +1010,18 @@ it("discloses qualified and unfamiliar strings tables while preserving exact loc
   }
 });
 
-it.each(["2.7.0-dirty", "2.9.1", "2.9.2-rc.1", "2.9.2", "2.9.2-dirty"])(
+it.each([
+  "2.7.0-dirty",
+  "2.9.1",
+  "2.9.2-rc.1",
+  "2.9.2",
+  "2.9.2-dirty",
+  "3.0.0",
+  "3.0.1",
+  "3.0.2-rc.1",
+  "3.0.2",
+  "3.1.0",
+])(
   "retains reported-version limitations for both operations without refusing %s (#3438)",
   async (version) => {
     const { command, root } = await writeApktoolStub((root) =>
@@ -1026,9 +1044,31 @@ it.each(["2.7.0-dirty", "2.9.1", "2.9.2-rc.1", "2.9.2", "2.9.2-dirty"])(
         limitation.includes("CVE-2024-21633"),
       );
       expect(warnings.length).toBe(
-        ["2.9.2", "2.9.2-dirty"].includes(version) ? 0 : 1,
+        ["2.7.0-dirty", "2.9.1", "2.9.2-rc.1"].includes(version) ? 1 : 0,
       );
       if (warnings.length > 0) expect(warnings[0]).toContain("CVE-2024-21633");
+      expect(
+        inspect.value.limitations.filter((warning) =>
+          warning.includes("CVE-2026-39973"),
+        ).length,
+      ).toBe(["3.0.0", "3.0.1", "3.0.2-rc.1"].includes(version) ? 1 : 0);
+      expect(
+        inspect.value.limitations.filter((warning) =>
+          warning.includes("GHSA-vgwr-4w3p-xmjv"),
+        ).length,
+      ).toBe(
+        process.platform === "win32" &&
+          [
+            "2.7.0-dirty",
+            "2.9.1",
+            "2.9.2-rc.1",
+            "2.9.2",
+            "2.9.2-dirty",
+          ].includes(version)
+          ? 1
+          : 0,
+      );
+
       for (const warning of inspect.value.limitations)
         expect(decode.value.limitations).toContain(warning);
       expect(inspect.value.result).toMatchObject({

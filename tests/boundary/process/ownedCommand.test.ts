@@ -103,6 +103,99 @@ it("collects a real owned command and verifies its exit before returning diagnos
   });
 });
 
+it.each([0, 2])(
+  "observes complete accepted output once before final cleanup (exit %s)",
+  async (exitCode) => {
+    const stages: string[] = [];
+    const snapshot = await runOwnedCommand(
+      command(
+        `process.stdout.write("complete"); process.exitCode = ${exitCode}`,
+      ),
+      {
+        timeoutMs: 2000,
+        diagnosticBytes: 1024,
+        acceptNonZeroExit: true,
+        observeCompleted: (observed) => {
+          stages.push("observed");
+          expect(observed.exitCode).toBe(exitCode);
+          expect(observed.stdout.text).toBe("complete");
+        },
+      },
+      {
+        launcher: async (input) => {
+          const acquired = await spawnOwnedProviderProcess(input);
+          return {
+            ...acquired,
+            cleanup: async () => {
+              stages.push("cleanup");
+              return cleanupOwnedProcessGroup(acquired.ownership);
+            },
+          };
+        },
+      },
+    );
+    expect(snapshot.exitCode).toBe(exitCode);
+    expect(stages).toEqual(["observed", "cleanup"]);
+  },
+);
+
+it("does not interpret output rejected by its complete-output budget", async () => {
+  const observeCompleted = vi.fn();
+  await expect(
+    runOwnedCommand(command('process.stdout.write("x".repeat(2048))'), {
+      timeoutMs: 2000,
+      diagnosticBytes: 1024,
+      observeCompleted,
+    }),
+  ).rejects.toMatchObject({ reason: "output-limit" });
+  expect(observeCompleted).not.toHaveBeenCalled();
+});
+
+it("retains late cancellation separately from a physical failure with refused cleanup", async () => {
+  const controller = new AbortController();
+  const callerReason = { request: "cancel during refused finalization" };
+  let denied = true;
+  let failure: OwnedCommandFailure | undefined;
+  try {
+    await runOwnedCommand(
+      command("process.exit(2)"),
+      { timeoutMs: 2000, diagnosticBytes: 1024 },
+      {
+        signal: controller.signal,
+        launcher: async (input) => {
+          const acquired = await spawnOwnedProviderProcess(input);
+          return {
+            ...acquired,
+            cleanup: async () => {
+              if (denied) {
+                controller.abort(callerReason);
+                return { cleaned: false, reason: "controlled cleanup refusal" };
+              }
+              return cleanupOwnedProcessGroup(acquired.ownership);
+            },
+          };
+        },
+      },
+    ).catch((cause: unknown) => {
+      if (!(cause instanceof OwnedCommandFailure)) throw cause;
+      failure = cause;
+    });
+    expect(failure).toMatchObject({
+      reason: "process",
+      snapshot: { exitCode: 2 },
+      cleanupFailure: "controlled cleanup refusal",
+    });
+    expect(failure?.cancellation?.reason).toBe(callerReason);
+    denied = false;
+    expect(await failure?.cleanupOwner?.stop()).toEqual({
+      status: "verified-cleanup",
+    });
+  } finally {
+    denied = false;
+    await failure?.cleanupOwner?.stop();
+  }
+});
+
 it("streams stdout beyond the diagnostic budget into a sink and returns after it finishes", async () => {
   let received = 0;
   let finished = false;
@@ -175,6 +268,9 @@ it("reports a failed stdout sink as a collection failure", async () => {
 it("fails an accepted nonzero command when an output stream errors and cleans it up", async () => {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
+  const readFailure = Object.assign(new Error("fixture read failure"), {
+    code: "EIO",
+  });
   class FakeProcess extends EventEmitter {
     readonly stdout = stdout;
     readonly stderr = stderr;
@@ -199,7 +295,7 @@ it("fails an accepted nonzero command when an output stream errors and cleans it
       launcher: async () => {
         setImmediate(() => {
           stdout.write("partial output");
-          stdout.destroy(new Error("fixture read failure"));
+          stdout.destroy(readFailure);
           stderr.end();
           child.exitCode = 7;
           child.emit("exit", 7, null);
@@ -223,6 +319,7 @@ it("fails an accepted nonzero command when an output stream errors and cleans it
     message: "stdout stream failed: fixture read failure",
     snapshot: { stdout: { text: "partial output" }, exitCode: 7 },
   });
+  await expect(failure).rejects.toHaveProperty("processError", readFailure);
   expect(cleanup).toHaveBeenCalledOnce();
 });
 
@@ -286,6 +383,9 @@ it.skipIf(process.platform === "win32")(
       hostEnvironment: process.env,
     });
     let descendantPid: number | undefined;
+    let descendantOwner:
+      | Awaited<ReturnType<typeof spawnOwnedProviderProcess>>
+      | undefined;
     try {
       const result = await runOwnedCommand(
         {
@@ -302,6 +402,12 @@ it.skipIf(process.platform === "win32")(
           sweepTokenOwnedProcesses: true,
         },
         { timeoutMs: 5_000, diagnosticBytes: 1024 },
+        {
+          launcher: async (input) => {
+            descendantOwner = await spawnOwnedProviderProcess(input);
+            return descendantOwner;
+          },
+        },
       );
       descendantPid = Number(result.stdout.text);
       expect(Number.isSafeInteger(descendantPid)).toBe(true);
@@ -316,13 +422,13 @@ it.skipIf(process.platform === "win32")(
       expect(remainsLive).toBe(false);
       expect(() => process.kill(unrelated.process.pid!, 0)).not.toThrow();
     } finally {
-      if (descendantPid !== undefined) {
-        try {
-          process.kill(descendantPid, "SIGKILL");
-        } catch {
-          // The run-token sweep may already have removed it.
-        }
-      }
+      if (descendantOwner !== undefined)
+        expect(
+          (
+            await (descendantOwner.cleanup?.() ??
+              cleanupOwnedProcessGroup(descendantOwner.ownership))
+          ).cleaned,
+        ).toBe(true);
       await cleanupOwnedProcessGroup(unrelated.ownership);
     }
   },

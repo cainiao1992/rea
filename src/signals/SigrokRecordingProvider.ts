@@ -407,8 +407,17 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
     if (cause instanceof AnalysisError) return cause;
     if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
       return this.#resources.cleanupFailure(
-        cause.cleanup,
         cause,
+        (primary) =>
+          this.#failure(
+            primary,
+            phase,
+            path,
+            workspacePath,
+            effectiveLimits,
+            observedOutput,
+            operation,
+          ),
         observedOutput,
         operation,
       );

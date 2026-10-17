@@ -1,6 +1,16 @@
-import { artifactFileCancellationCause } from "../artifacts/ArtifactFileOperation.js";
+import {
+  AnalysisCleanupLease,
+  AnalysisCleanupLeaseGroup,
+} from "../artifacts/AnalysisCleanupLease.js";
+import {
+  ArtifactFileCleanupFailure,
+  artifactFileCancellationCause,
+} from "../artifacts/ArtifactFileOperation.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
-import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import {
+  ArtifactResourceScope,
+  ArtifactResourceRetryFailure,
+} from "../artifacts/ArtifactResourceScope.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
   AnalysisError,
@@ -43,14 +53,7 @@ export class ArtifactAnalysisResources {
     {
       readonly owner: ProviderProcessSupervisor | undefined;
       readonly operation: string;
-    }
-  >();
-  readonly #cleanupFailures = new Map<
-    AnalysisError,
-    {
-      readonly roots: Set<ArtifactAnalysisRuntime>;
-      readonly primaryFailure: AnalysisError | undefined;
-      readonly scopeOwner: boolean;
+      readonly lease: AnalysisCleanupLease;
     }
   >();
   #tail: Promise<void> = Promise.resolve();
@@ -101,7 +104,6 @@ export class ArtifactAnalysisResources {
           // Failed descriptor cleanup still belongs to the preceding request until
           // this scope has drained it and admits acquisition for the new request.
           this.#artifacts.operation = operation;
-          this.#resolveCleanupFailures();
           if (signal?.aborted)
             return Promise.resolve(
               err(
@@ -140,10 +142,18 @@ export class ArtifactAnalysisResources {
     root: ArtifactAnalysisRuntime,
     owner?: ProviderProcessSupervisor,
   ): void {
+    const retained = this.#pending.get(root);
+    const resources = () => this.#resourcesFor(root);
     this.#pending.set(root, {
-      owner,
-      operation:
-        this.#pending.get(root)?.operation ?? this.#artifacts.operation,
+      owner: owner ?? retained?.owner,
+      operation: retained?.operation ?? this.#artifacts.operation,
+      lease:
+        retained?.lease ??
+        new AnalysisCleanupLease(() => this.#releaseRoot(root), {
+          get cleanupResources() {
+            return resources();
+          },
+        }),
     });
   }
 
@@ -152,7 +162,9 @@ export class ArtifactAnalysisResources {
   }
 
   #resourcesFor(root: ArtifactAnalysisRuntime): readonly string[] {
-    const ownership = this.#pending.get(root)?.owner?.launch.ownership;
+    const retained = this.#pending.get(root);
+    if (retained === undefined) return [];
+    const ownership = retained.owner?.launch.ownership;
     return ownership === undefined
       ? [root.path]
       : ownedCommandResources(ownership, root.path);
@@ -165,55 +177,14 @@ export class ArtifactAnalysisResources {
   }
 
   async release(): Promise<void> {
+    const failures: ProviderCleanupError[] = [];
     for (const [root, retained] of this.#pending) {
       try {
-        const { owner } = retained;
-        if (owner !== undefined) {
-          const stopped = await owner.stop();
-          if (stopped.status === "incomplete") {
-            const cleanup = stopped.cleanupResult;
-            throw new ProviderCleanupError(
-              this.providerId,
-              this.#resourcesFor(root),
-              {
-                reason: stopped.reason,
-                ...(cleanup?.failures === undefined
-                  ? {}
-                  : {
-                      failures: cleanup.failures.map((failure) => ({
-                        ...failure,
-                      })),
-                    }),
-                ...(cleanup?.unverified === undefined
-                  ? {}
-                  : {
-                      unverified: cleanup.unverified.map((process) => ({
-                        ...process,
-                      })),
-                    }),
-              },
-              { operation: retained.operation },
-            );
-          }
-          this.#pending.set(root, { ...retained, owner: undefined });
-        }
-        if (this.#artifacts.scope.hasPending)
-          throw new ProviderCleanupError(
-            this.providerId,
-            [root.path],
-            {
-              reason:
-                "Artifact descriptors remain open; the private runtime root is retained until descriptor cleanup succeeds.",
-            },
-            { operation: retained.operation },
-          );
-        await root.close();
-        this.#pending.delete(root);
-        this.#resolveCleanupFailures(root);
+        await retained.lease.release();
       } catch (cause: unknown) {
         const diagnostics =
           cause instanceof ProviderCleanupError ? cause.diagnostics : undefined;
-        throw new ProviderCleanupError(
+        const failure = new ProviderCleanupError(
           this.providerId,
           this.#resourcesFor(root),
           {
@@ -225,16 +196,81 @@ export class ArtifactAnalysisResources {
           },
           { operation: retained.operation, cause },
         );
+        new AnalysisCleanupLeaseGroup(failure, [retained.lease]);
+        failures.push(failure);
       }
     }
+    if (failures.length === 0) return;
+    if (failures.length === 1) throw failures[0];
+    throw new ProviderCleanupError(
+      this.providerId,
+      failures.flatMap((failure) => failure.cleanupResources),
+      {
+        reason: "One or more analysis runtime resources remain owned.",
+        failures: failures.map(projectAnalysisError),
+      },
+      {
+        operation: failures[0]?.operation ?? this.#artifacts.operation,
+        cause: new AggregateError(
+          failures,
+          "Analysis runtime cleanup remains incomplete",
+        ),
+      },
+    ).bindCleanupDependencies(failures);
+  }
+
+  async #releaseRoot(root: ArtifactAnalysisRuntime): Promise<void> {
+    const retained = this.#pending.get(root);
+    if (retained === undefined) return;
+    if (retained.owner !== undefined) {
+      const stopped = await retained.owner.stop();
+      if (stopped.status === "incomplete") {
+        const cleanup = stopped.cleanupResult;
+        throw new ProviderCleanupError(
+          this.providerId,
+          this.#resourcesFor(root),
+          {
+            reason: stopped.reason,
+            ...(cleanup?.failures === undefined
+              ? {}
+              : {
+                  failures: cleanup.failures.map((failure) => ({ ...failure })),
+                }),
+            ...(cleanup?.unverified === undefined
+              ? {}
+              : {
+                  unverified: cleanup.unverified.map((process) => ({
+                    ...process,
+                  })),
+                }),
+          },
+          { operation: retained.operation },
+        );
+      }
+      this.#pending.set(root, { ...retained, owner: undefined });
+    }
+    if (this.#artifacts.scope.hasPending)
+      throw new ProviderCleanupError(
+        this.providerId,
+        [root.path],
+        {
+          reason:
+            "Artifact resources remain owned; the private runtime root is retained until their cleanup succeeds.",
+        },
+        { operation: retained.operation },
+      );
+    await root.close();
+    this.#pending.delete(root);
   }
 
   cleanupFailure(
-    observation: NonNullable<ArtifactReaderFailure["cleanup"]>,
-    cause: unknown,
+    cause: ArtifactReaderFailure,
+    classifyPrimary: (cause: unknown) => AnalysisError,
     capturedOutput?: AnalysisCapturedOutput,
     operation = this.operation,
   ): AnalysisError {
+    const observation = cause.cleanup;
+    if (observation === undefined) return classifyPrimary(cause);
     const failure = new ProviderCleanupError(
       this.providerId,
       observation.resources,
@@ -246,23 +282,50 @@ export class ArtifactAnalysisResources {
       },
       { operation, cause },
     );
-    this.#trackCleanupFailure(failure, [], failure, true);
-    if (
-      cause instanceof ArtifactReaderFailure &&
-      cause.reason === "cancelled"
-    ) {
-      const primary = new AnalysisCancelledError(operation, {
+    let leases =
+      cause instanceof ArtifactFileCleanupFailure ||
+      cause instanceof ArtifactResourceRetryFailure
+        ? cause.cleanupLeases
+        : undefined;
+    if (leases === undefined) {
+      // An unreported capability cannot be recovered by observing an empty scope.
+      // Retain the unresolved source failure and refuse replacement admission.
+      const unresolved = new AnalysisCleanupLease(async () => {
+        throw cause;
+      }, observation.resources);
+      this.#artifacts.scope.retain({
+        kind: "lease",
+        resource: observation.resources[0] ?? "Unresolved artifact cleanup",
+        lease: unresolved,
+      });
+      leases = [unresolved];
+    }
+    new AnalysisCleanupLeaseGroup(failure, leases);
+    let primary: AnalysisError | undefined;
+    if (cause instanceof ArtifactFileCleanupFailure) {
+      const physical = cause.fileCleanupFailure;
+      if (physical.outcome.kind === "failed")
+        primary = classifyPrimary(physical.outcome.cause);
+      else if (physical.completionCancellation !== undefined)
+        primary = new AnalysisCancelledError(operation, {
+          cause: physical.completionCancellation.reason,
+          ...(capturedOutput === undefined ? {} : { capturedOutput }),
+          partialObservation: cause.partialObservation,
+        });
+    } else if (cause.reason === "cancelled") {
+      primary = new AnalysisCancelledError(operation, {
         cause: artifactFileCancellationCause(cause),
         ...(capturedOutput === undefined ? {} : { capturedOutput }),
         partialObservation: cause.partialObservation,
       });
-      return analysisErrorWithCleanupFailure(
-        primary,
-        failure,
-        operation,
-      ).bindCleanupDependencies([primary, failure]);
     }
-    return failure;
+    return primary === undefined
+      ? failure
+      : analysisErrorWithCleanupFailure(
+          primary,
+          failure,
+          operation,
+        ).bindCleanupDependencies([primary, failure]);
   }
 
   commandFailure(
@@ -343,7 +406,7 @@ export class ArtifactAnalysisResources {
       const partialObservation = result.ok
         ? observation(result.value)
         : result.error.partialObservation;
-      const primaryFailure = !result.ok
+      const primary = !result.ok
         ? result.error
         : signal?.aborted
           ? new AnalysisCancelledError(operation, {
@@ -351,52 +414,26 @@ export class ArtifactAnalysisResources {
               partialObservation,
             })
           : undefined;
-      const cleanupDiagnostics =
-        cause instanceof ProviderCleanupError ? cause.diagnostics : undefined;
-      const cleanupFailure = new ProviderCleanupError(
-        this.providerId,
-        [
-          ...new Set([
-            ...(!result.ok && result.error.cleanupIncomplete
-              ? result.error.cleanupResources
-              : []),
-            ...this.#pendingResources,
-          ]),
-        ],
-        {
-          ...cleanupDiagnostics,
-          reason:
-            cause instanceof ProviderCleanupError
-              ? String(cleanupDiagnostics?.reason ?? cause.message)
-              : String(cause),
-          previous_error:
-            primaryFailure === undefined
-              ? null
-              : projectAnalysisError(primaryFailure),
-        },
-        {
-          operation,
-          ...(primaryFailure === undefined
-            ? {}
-            : { cleanupPrimary: primaryFailure }),
-          cause:
-            primaryFailure === undefined
-              ? cause
-              : new AggregateError(
-                  [primaryFailure, cause],
-                  "Analysis failed and artifact cleanup remains incomplete.",
-                  { cause: primaryFailure },
-                ),
-          ...(partialObservation === undefined ? {} : { partialObservation }),
-        },
-      );
-      this.#trackCleanupFailure(
-        cleanupFailure,
-        [...this.#pending.keys()],
-        primaryFailure?.cleanupIncomplete === true ? primaryFailure : undefined,
-        false,
-      );
-      return err(cleanupFailure);
+      const cleanup =
+        cause instanceof AnalysisError
+          ? cause
+          : new ProviderCleanupError(
+              this.providerId,
+              this.#pendingResources,
+              { reason: String(cause) },
+              { operation, cause },
+            );
+      const failure =
+        primary === undefined
+          ? cleanup
+          : analysisErrorWithCleanupFailure(
+              primary,
+              cleanup,
+              operation,
+            ).bindCleanupDependencies([primary, cleanup]);
+      if (partialObservation !== undefined)
+        failure.retainPartialObservation(partialObservation);
+      return err(failure);
     }
   }
 
@@ -411,7 +448,6 @@ export class ArtifactAnalysisResources {
     let descriptorFailure: AnalysisError | undefined;
     try {
       await this.#artifacts.scope.close();
-      this.#resolveCleanupFailures();
     } catch (cause: unknown) {
       descriptorFailure = this.#artifactFailure(cause);
     }
@@ -423,36 +459,10 @@ export class ArtifactAnalysisResources {
           descriptorFailure,
           cause,
           this.#artifacts.operation,
-        );
+        ).bindCleanupDependencies([descriptorFailure, cause]);
       throw cause;
     }
     if (descriptorFailure !== undefined) throw descriptorFailure;
-  }
-
-  #resolveCleanupFailures(releasedRoot?: ArtifactAnalysisRuntime): void {
-    for (const [failure, binding] of this.#cleanupFailures) {
-      if (releasedRoot !== undefined) binding.roots.delete(releasedRoot);
-      if (binding.roots.size > 0) continue;
-      if (binding.scopeOwner && this.#artifacts.scope.hasPending) continue;
-      if (binding.scopeOwner) binding.primaryFailure?.resolveCleanup();
-      if (binding.primaryFailure?.cleanupIncomplete === true) continue;
-      failure.resolveCleanup();
-      this.#cleanupFailures.delete(failure);
-    }
-  }
-
-  #trackCleanupFailure(
-    failure: AnalysisError,
-    roots: readonly ArtifactAnalysisRuntime[],
-    primaryFailure: AnalysisError | undefined,
-    scopeOwner: boolean,
-  ): void {
-    this.#cleanupFailures.set(failure, {
-      roots: new Set(roots),
-      primaryFailure,
-      scopeOwner,
-    });
-    this.#resolveCleanupFailures();
   }
 
   #artifactFailure(
@@ -461,7 +471,12 @@ export class ArtifactAnalysisResources {
   ): AnalysisError {
     if (cause instanceof AnalysisError) return cause;
     if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
-      return this.cleanupFailure(cause.cleanup, cause, undefined, operation);
+      return this.cleanupFailure(
+        cause,
+        (primary) => this.#artifactFailure(primary, operation),
+        undefined,
+        operation,
+      );
     if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
       return new AnalysisCancelledError(operation, {
         cause: artifactFileCancellationCause(cause),

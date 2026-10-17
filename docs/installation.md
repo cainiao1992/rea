@@ -1024,6 +1024,8 @@ export REA_GHIDRA_COMPILER_SPEC_ID="borlandcpp"   # optional; requires a languag
 
 REA passes `-processor`/`-cspec`, checks both against the installation's `.ldefs`, and records them in the analysis profile. DOS imports reject an override.
 
+Language definitions must be well-formed XML encoded as UTF-8 or BOM-marked UTF-16, with any encoding declaration matching the bytes. Literal Unicode replacement characters (U+FFFD) are accepted; malformed source bytes are rejected.
+
 To seed code that auto-analysis cannot reach (computed jumps, pointers in data):
 
 ```bash

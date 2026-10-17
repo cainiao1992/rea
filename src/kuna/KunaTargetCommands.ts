@@ -10,6 +10,7 @@ import {
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import { prepareProcessOwnershipInspection } from "../process/ProcessOwnershipObservation.js";
@@ -263,53 +264,80 @@ export class KunaTargetCommands {
   }
 
   async #ensureWorkspace(): Promise<Result<Workspace, AnalysisError>> {
-    this.#workspace ??= (async () => {
-      const root = await PrivateRuntimeRoot.create({ prefix: "rea-kuna-" });
-      const owned = {
-        root,
-        cleanup: new AnalysisCleanupLease(() => root.close(), [root.path]),
-      };
-      try {
-        const input = join(root.path, basename(this.target.path));
-        const digest = await copyAndHash(
-          this.target.path,
-          input,
-          this.lifetime.signal,
-        );
-        if (digest !== this.target.sha256) {
-          await this.#release(owned);
-          return err(
-            new AnalysisArtifactChangedError(
-              "kuna:workspace",
-              this.target.path,
-              "the target no longer matches the digest selected for analysis",
-            ),
-          );
-        }
-        await prepareProcessOwnershipInspection(this.lifetime.signal);
-        return ok({ ...owned, input: await realpath(input) });
-      } catch (cause: unknown) {
-        await this.#release(owned);
-        throw cause;
-      }
-    })().catch((cause: unknown) =>
-      err(
-        new ProviderAdapterError(KUNA_PROVIDER_ID, "kuna:workspace", {
-          cause,
-          userMessage: `Kuna workspace failed: ${cause instanceof Error ? cause.message : String(cause)}`,
-        }),
-      ),
-    );
-    const result = await this.#workspace;
-    if (!result.ok) this.#workspace = undefined;
+    const pending = (this.#workspace ??= this.#createWorkspace());
+    const result = await pending;
+    if (
+      this.#workspace === pending &&
+      !result.ok &&
+      !result.error.cleanupIncomplete
+    )
+      this.#workspace = undefined;
     return result;
   }
 
-  async #release(owned: WorkspaceRoot): Promise<void> {
+  async #createWorkspace(): Promise<Result<Workspace, AnalysisError>> {
+    let owned: WorkspaceRoot | undefined;
+    try {
+      const root = await PrivateRuntimeRoot.create({ prefix: "rea-kuna-" });
+      owned = {
+        root,
+        cleanup: new AnalysisCleanupLease(() => root.close(), [root.path]),
+      };
+      const input = join(root.path, basename(this.target.path));
+      const digest = await copyAndHash(
+        this.target.path,
+        input,
+        this.lifetime.signal,
+      );
+      if (digest !== this.target.sha256)
+        return this.#workspaceFailure(
+          new AnalysisArtifactChangedError(
+            "kuna:workspace",
+            this.target.path,
+            "the target no longer matches the digest selected for analysis",
+          ),
+          owned,
+        );
+      await prepareProcessOwnershipInspection(this.lifetime.signal);
+      return ok({ ...owned, input: await realpath(input) });
+    } catch (cause: unknown) {
+      const primary = new ProviderAdapterError(
+        KUNA_PROVIDER_ID,
+        "kuna:workspace",
+        {
+          cause,
+          userMessage: `Kuna workspace failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        },
+      );
+      return this.#workspaceFailure(primary, owned);
+    }
+  }
+
+  /** Rollback and the original outcome share the exact root cleanup lease. */
+  async #workspaceFailure(
+    primary: AnalysisError,
+    owned: WorkspaceRoot | undefined,
+  ): Promise<Result<never, AnalysisError>> {
+    if (owned === undefined) return err(primary);
     try {
       await owned.cleanup.release();
-    } catch {
+      return err(primary);
+    } catch (cause: unknown) {
       this.#roots.push(owned);
+      const cleanup = new ProviderCleanupError(
+        KUNA_PROVIDER_ID,
+        [owned.root.path],
+        { reason: cause instanceof Error ? cause.message : String(cause) },
+        { cause, operation: "kuna:workspace" },
+      );
+      owned.cleanup.bindCleanupError(cleanup);
+      return err(
+        analysisErrorWithCleanupFailure(
+          primary,
+          cleanup,
+          "kuna:workspace",
+        ).bindCleanupDependencies([primary, cleanup]),
+      );
     }
   }
 }

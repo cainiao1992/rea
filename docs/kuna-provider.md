@@ -96,6 +96,9 @@ join the final departing caller's command cleanup. A command cleanup error keeps
 its typed primary failure and captured output. Its live resource list follows
 both process and workspace ownership: proving process exit does not prove that
 the private workspace was removed, and retry updates earlier caller errors.
+If workspace setup fails, an unsuccessful rollback retains the original target
+or read failure together with its cleanup owner. Replacement stays blocked until
+that rollback is resolved; a clean rollback permits another setup attempt.
 
 ## Provenance and limitations
 

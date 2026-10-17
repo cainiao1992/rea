@@ -341,6 +341,14 @@ export class GhidraProvider implements AnalysisProviderCandidate {
           ...options,
           signal,
         });
+        if (!result.ok && result.error instanceof AnalysisCancelledError)
+          return err(
+            analysisClientFailureForOperation(
+              result.error,
+              "ghidra",
+              "open_binary",
+            ),
+          );
         if (result.ok && signal.aborted)
           return err(
             new AnalysisCancelledError("open_binary", {

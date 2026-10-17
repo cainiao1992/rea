@@ -1,5 +1,8 @@
 import type { AnalysisOperation } from "../application/AnalysisProvider.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import type {
+  AnalysisError,
+  AnalysisPartialObservation,
+} from "../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -58,12 +61,10 @@ export class GhidraNativeAotSnapshotOwner {
     observations: JsonValue,
   ): Promise<Result<NativeAotPeResult, AnalysisError>> {
     if (callerSignal?.aborted)
-      return err(
-        new AnalysisCancelledError(operation, { cause: callerSignal.reason }),
-      );
+      return err(this.#cancelled(operation, callerSignal.reason, observations));
     if (this.#closed)
       return err(
-        new AnalysisCancelledError(operation, { cause: STARTUP_OWNER_CLOSED }),
+        this.#cancelled(operation, STARTUP_OWNER_CLOSED, observations),
       );
     if (this.#conflict !== undefined)
       return err(this.#identityError(operation, imageBase, observations));
@@ -94,7 +95,9 @@ export class GhidraNativeAotSnapshotOwner {
     }
     this.#base ??= normalized;
     if (this.cleanupFailure !== undefined && this.#failure !== undefined)
-      return err(this.input.projectFailure(operation, this.#failure));
+      return err(
+        this.#projectFailure(operation, this.#failure, imageBase, observations),
+      );
     if (this.#cached !== undefined) {
       const cached = this.#cached;
       await Promise.resolve();
@@ -107,7 +110,8 @@ export class GhidraNativeAotSnapshotOwner {
               callerSignal?.aborted
                 ? callerSignal.reason
                 : STARTUP_OWNER_CLOSED,
-              cached,
+              observations,
+              this.#observation(cached),
             ),
           )
         : ok(cached);
@@ -131,9 +135,7 @@ export class GhidraNativeAotSnapshotOwner {
         );
       if (waited.status === "cancelled")
         return err(
-          new AnalysisCancelledError(operation, {
-            cause: callerSignal?.reason,
-          }),
+          this.#cancelled(operation, callerSignal?.reason, observations),
         );
       if (callerSignal?.aborted)
         return err(
@@ -141,12 +143,15 @@ export class GhidraNativeAotSnapshotOwner {
             ? this.#cancelled(
                 operation,
                 callerSignal.reason,
-                waited.value.value,
+                observations,
+                this.#observation(waited.value.value),
               )
-            : new AnalysisCancelledError(operation, {
-                cause: callerSignal.reason,
-                partialObservation: waited.value.error.partialObservation,
-              }),
+            : this.#cancelled(
+                operation,
+                callerSignal.reason,
+                observations,
+                waited.value.error.partialObservation,
+              ),
         );
       return this.derive(imageBase, operation, callerSignal, observations);
     }
@@ -154,7 +159,7 @@ export class GhidraNativeAotSnapshotOwner {
     const waited = await attempt.wait(callerSignal);
     if (waited.status === "cancelled")
       return err(
-        new AnalysisCancelledError(operation, { cause: callerSignal?.reason }),
+        this.#cancelled(operation, callerSignal?.reason, observations),
       );
     const settled = waited.value;
     // A completed physical failure or retained cleanup outranks a later abort.
@@ -174,7 +179,8 @@ export class GhidraNativeAotSnapshotOwner {
             : this.#closed
               ? STARTUP_OWNER_CLOSED
               : attempt.signal.reason,
-          settled.value,
+          observations,
+          this.#observation(settled.value),
         ),
       );
     return settled;
@@ -193,7 +199,13 @@ export class GhidraNativeAotSnapshotOwner {
     observations: JsonValue,
   ): AnalysisError {
     if (failure.kind !== "cancelled" || this.#conflict === undefined)
-      return this.input.projectFailure(operation, failure);
+      return this.input.projectFailure(
+        operation,
+        failure.withDiagnostics({
+          ...failure.diagnostics,
+          measured_observation: observations,
+        }),
+      );
     return this.#identityError(operation, imageBase, observations, failure);
   }
 
@@ -319,11 +331,13 @@ export class GhidraNativeAotSnapshotOwner {
   #cancelled(
     operation: AnalysisOperation,
     reason: unknown,
-    result: NativeAotPeResult,
+    observations: JsonValue,
+    partialObservation?: AnalysisPartialObservation,
   ): AnalysisError {
     return new AnalysisCancelledError(operation, {
       cause: reason,
-      partialObservation: this.#observation(result),
+      diagnostics: { measured_observation: observations },
+      partialObservation,
     });
   }
 
@@ -331,7 +345,9 @@ export class GhidraNativeAotSnapshotOwner {
     operation: AnalysisOperation,
     imageBase: string,
     observations: JsonValue,
-    source?: Pick<GhidraSessionError, "partialObservation" | "cleanupFailure">,
+    source:
+      | Pick<GhidraSessionError, "partialObservation" | "cleanupFailure">
+      | undefined = this.#failure,
   ): AnalysisError {
     const primary = new ProviderAdapterError("ghidra", operation, {
       partialObservation: source?.partialObservation ?? this.#observation(),

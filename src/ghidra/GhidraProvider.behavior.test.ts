@@ -1,3 +1,4 @@
+import { GhidraNativeAotSnapshotOwner } from "./GhidraNativeAotSnapshotOwner.js";
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import { resolvedAnalysisError } from "../domain/analysisErrorBase.js";
 import { createDeferred } from "../../tests/fixtures/binarySession.js";
@@ -2049,6 +2050,49 @@ it.each(["captured", "cancelled-with-facts"] as const)(
   },
 );
 
+it("preserves NativeAOT source facts and cleanup when a later caller contradicts identity", async () => {
+  const partial = {
+    kind: "file-snapshot-hash" as const,
+    path: "/controlled/snapshot",
+    sha256: "a".repeat(64),
+    bytes: 17,
+  };
+  const cleanup = new ProviderCleanupError("ghidra", [partial.path], {
+    reason: "controlled close failure",
+  });
+  const lease = new AnalysisCleanupLease(async () => {}, [partial.path]);
+  lease.bindCleanupError(cleanup);
+  onTestFinished(() => lease.release());
+  const owner = new GhidraNativeAotSnapshotOwner({
+    targetSha256: partial.sha256,
+    readSnapshot: async () =>
+      err(
+        new GhidraSessionError(
+          "protocol",
+          "Controlled snapshot failure",
+          {},
+          { partialObservation: partial },
+        ).withCleanupFailure(cleanup),
+      ),
+    projectFailure: () => cleanup,
+  });
+  await owner.derive("0x140000000", "inspect_native_load_image", undefined, {
+    image_base: "0x140000000",
+  });
+  const conflict = await owner.derive(
+    "0x150000000",
+    "inspect_native_load_image",
+    undefined,
+    { image_base: "0x150000000" },
+  );
+  if (conflict.ok) throw new Error("Expected conflicting snapshot identity");
+  expect(conflict.error.partialObservation).toEqual(partial);
+  expect(conflict.error.cleanupIncomplete).toBe(true);
+  await lease.release();
+  expect(conflict.error.cleanupIncomplete).toBe(false);
+  await owner.close();
+});
+
 const nativeAotWaiterClient = async () => {
   const bytes = nativeAotPeFixture();
   const observations = fixtureDosLoadImage().observation;
@@ -2250,8 +2294,14 @@ it.each(["caller", "owner"] as const)(
       const closed = await closing;
       expect(closed.ok).toBe(false);
     }
+    expect(result.error.cleanupPrimary?.diagnostics).toMatchObject({
+      measured_observation: { image_base: "0x140000000" },
+    });
     await lease.release();
     expect(result.error.cleanupIncomplete).toBe(false);
+    expect(resolvedAnalysisError(result.error).diagnostics).toMatchObject({
+      measured_observation: { image_base: "0x140000000" },
+    });
     expect((await fixture.client.close()).ok).toBe(true);
   },
 );

@@ -967,8 +967,12 @@ const upsertTomlServerSection = (
   const discardPending = (): void => {
     pending.length = 0;
   };
+  // Document line counts must not become engine-limited argument counts.
+  const appendLines = (lines: readonly string[]): void => {
+    for (const line of lines) kept.push(line);
+  };
   const flushPending = (): void => {
-    kept.push(...pending);
+    appendLines(pending);
     pending.length = 0;
   };
   const lineIndexAt = (offset: number): number => {
@@ -1039,7 +1043,7 @@ const upsertTomlServerSection = (
           : undefined;
       if (disabledLines !== undefined) {
         flushPending();
-        kept.push(...disabledLines);
+        appendLines(disabledLines);
         lineIndex = endLine + 1;
         mode = "none";
         continue;
@@ -1064,7 +1068,7 @@ const upsertTomlServerSection = (
             edited === undefined
               ? text.slice(lineStart, statementEnd)
               : `${prefix}${edited}${suffix}`;
-          kept.push(...replacement.split("\n"));
+          appendLines(replacement.split("\n"));
           inlineServerTable = true;
         } else discardPending();
       } else {

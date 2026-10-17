@@ -11,12 +11,24 @@ import { systemWindowsNativeAuthority } from "../windows/WindowsNativeLoader.js"
 import { providerStartupTimeoutSchema } from "../config/providerStartupTimeout.js";
 import {
   AnalysisCancelledError,
+  AnalysisTimeoutError,
   AnalysisCapabilityUnavailableError,
 } from "../domain/analysisErrorCore.js";
 import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  ArtifactFileCancelled,
+  ArtifactFileCleanupFailure,
+  bindArtifactFileCleanup,
+  withArtifactRegularFile,
+} from "../artifacts/ArtifactFileOperation.js";
+import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { ZipArtifactReader } from "../artifacts/ZipArtifactReader.js";
 import type { DoctorProviderCheck } from "../application/Doctor.js";
 import {
@@ -275,11 +287,11 @@ const validateJadxConfigurationContents = async (
 ): Promise<void> => {
   throwIfJadxInterrupted(options.signal);
   await inspectJavaRuntime(configuration.java, environment, options);
-  await requireEngineArchive(configuration.jar, options.signal);
+  await requireEngineArchive(configuration.jar, options);
 };
 
 const projectConfigurationFailure = (
-  operation: AndroidOperation,
+  operation: string,
   cause: JadxConfigurationFailure,
 ): AnalysisCapabilityUnavailableError => {
   const output = cause.diagnostics;
@@ -311,47 +323,168 @@ const projectConfigurationFailure = (
 
 const requireEngineArchive = async (
   jar: string,
-  signal?: AbortSignal,
+  options: JadxJavaProbeOptions,
 ): Promise<void> => {
-  // These classes are consumed directly by ReaJadxBridge.java. This checks the
-  // classpath inventory without loading engine code or starting a JADX session.
-  const missing = new Set([
-    "com/atxx/jhmcp/JadxSession.class",
-    "com/atxx/jhmcp/SessionHolder.class",
-    "jadx/api/JadxDecompiler.class",
-    "com/google/gson/Gson.class",
-    "io/modelcontextprotocol/kotlin/sdk/server/Server.class",
-  ]);
-  const reader = new ZipArtifactReader(jar, "zip", JAR_METADATA_READ_MAX_BYTES);
+  const operation = options.operation ?? "inspect_jadx_configuration";
   try {
-    for await (const entry of reader.entries(signal)) {
-      if (entry.kind === "file" && !entry.encrypted) missing.delete(entry.path);
-      if (missing.size === 0) return;
-    }
-  } catch (cause) {
-    if (signal?.aborted === true) throw cause;
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    throw configurationFailure(
-      "version_unresolved",
-      `Cannot inspect REA_JADX_MCP_JAR ${jar} as a Java archive: ${reason}. ${JADX_JAR_CONFIGURATION_REMEDIATION}`,
-      {
-        jar_path: jar,
-        phase: "jar-inspection",
-        archive_error: reason,
-        maximum_metadata_read_bytes: JAR_METADATA_READ_MAX_BYTES,
-      },
-      "jar",
-      cause,
+    await options.resourceOwner.run(() =>
+      withArtifactRegularFile(
+        jar,
+        {
+          retain: ({ lease, resource }) =>
+            options.resourceOwner.retain(
+              {
+                close: () => lease.release(),
+              },
+              resource,
+            ),
+        },
+        options.signal,
+        async (handle) => {
+          try {
+            // Metadata enumeration borrows this descriptor. The file workflow
+            // alone owns admission, final close, cancellation and failed retry.
+            const reader = new ZipArtifactReader(
+              jar,
+              "zip",
+              JAR_METADATA_READ_MAX_BYTES,
+              { handle, initial: await handle.stat() },
+            );
+            const missing = new Set([
+              "com/atxx/jhmcp/JadxSession.class",
+              "com/atxx/jhmcp/SessionHolder.class",
+              "jadx/api/JadxDecompiler.class",
+              "com/google/gson/Gson.class",
+              "io/modelcontextprotocol/kotlin/sdk/server/Server.class",
+            ]);
+            for await (const entry of reader.entries(options.signal)) {
+              if (entry.kind === "file" && !entry.encrypted)
+                missing.delete(entry.path);
+              if (missing.size === 0) return;
+            }
+            throw configurationFailure(
+              "unsupported_version",
+              `REA_JADX_MCP_JAR ${jar} does not contain the required metadata bridge classes: ${[...missing].join(", ")}. ${JADX_JAR_CONFIGURATION_REMEDIATION}`,
+              {
+                jar_path: jar,
+                phase: "jar-inspection",
+                missing_classes: [...missing],
+              },
+              "jar",
+            );
+          } catch (cause: unknown) {
+            if (
+              cause instanceof JadxConfigurationFailure ||
+              (cause instanceof ArtifactReaderFailure &&
+                cause.reason === "cancelled")
+            )
+              throw cause;
+            throw archiveInspectionFailure(jar, cause);
+          }
+        },
+      ),
     );
-  } finally {
-    await reader.close();
+  } catch (cause: unknown) {
+    if (cause instanceof ArtifactFileCleanupFailure) {
+      const physical = cause.fileCleanupFailure;
+      const cleanup = new ProviderCleanupError(
+        "jadx",
+        [jar],
+        {
+          phase: "jar-inspection",
+          ...(physical.outcome.kind === "completed"
+            ? { archive_observation: { jar_path: jar, required_classes: true } }
+            : {}),
+        },
+        { operation, cause: physical.cleanupCause },
+      );
+      bindArtifactFileCleanup(cause, cleanup);
+      const primary =
+        physical.outcome.kind === "failed"
+          ? archiveAnalysisFailure(jar, physical.outcome.cause, options)
+          : physical.completionCancellation === undefined
+            ? undefined
+            : archiveCancellation(
+                physical.completionCancellation.reason,
+                options,
+                {
+                  archive_observation: {
+                    jar_path: jar,
+                    required_classes: true,
+                  },
+                },
+              );
+      if (primary === undefined) throw cleanup;
+      throw analysisErrorWithCleanupFailure(
+        primary,
+        cleanup,
+        operation,
+      ).bindCleanupDependencies([primary, cleanup]);
+    }
+    if (cause instanceof ArtifactFileCancelled) {
+      throw archiveCancellation(cause.fileCancellation.reason, options, {
+        archive_observation: { jar_path: jar, required_classes: true },
+      });
+    }
+    if (cause instanceof ArtifactReaderFailure) {
+      if (cause.reason === "cancelled")
+        throw archiveCancellation(cause.cancellation?.reason, options);
+      throw analysisClientFailureForOperation(cause, "jadx", operation);
+    }
+    if (
+      cause instanceof AnalysisError ||
+      cause instanceof JadxConfigurationFailure
+    )
+      throw cause;
+    throw archiveInspectionFailure(jar, cause);
   }
-  throw configurationFailure(
-    "unsupported_version",
-    `REA_JADX_MCP_JAR ${jar} does not contain the required metadata bridge classes: ${[...missing].join(", ")}. ${JADX_JAR_CONFIGURATION_REMEDIATION}`,
-    { jar_path: jar, phase: "jar-inspection", missing_classes: [...missing] },
+};
+
+const archiveInspectionFailure = (jar: string, cause: unknown) => {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  return configurationFailure(
+    "version_unresolved",
+    `Cannot inspect REA_JADX_MCP_JAR ${jar} as a Java archive: ${reason}. ${JADX_JAR_CONFIGURATION_REMEDIATION}`,
+    {
+      jar_path: jar,
+      phase: "jar-inspection",
+      archive_error: reason,
+      maximum_metadata_read_bytes: JAR_METADATA_READ_MAX_BYTES,
+    },
     "jar",
+    cause,
   );
+};
+
+const archiveAnalysisFailure = (
+  jar: string,
+  cause: unknown,
+  options: JadxJavaProbeOptions,
+): AnalysisError => {
+  if (cause instanceof AnalysisError) return cause;
+  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+    return archiveCancellation(cause.cancellation?.reason, options);
+  return projectConfigurationFailure(
+    options.operation ?? "inspect_jadx_configuration",
+    cause instanceof JadxConfigurationFailure
+      ? cause
+      : archiveInspectionFailure(jar, cause),
+  );
+};
+
+const archiveCancellation = (
+  reason: unknown,
+  options: JadxJavaProbeOptions,
+  diagnostics?: Readonly<Record<string, JsonValue>>,
+) => {
+  const operation = options.operation ?? "inspect_jadx_configuration";
+  return options.operationDeadline?.signal.aborted === true &&
+    reason === options.operationDeadline.signal.reason
+    ? new AnalysisTimeoutError(operation, options.operationDeadline.timeoutMs, {
+        cause: reason,
+        diagnostics,
+      })
+    : new AnalysisCancelledError(operation, { cause: reason, diagnostics });
 };
 
 const requireSupportedHost = (): void => {

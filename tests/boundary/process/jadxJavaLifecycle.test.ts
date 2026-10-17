@@ -1,4 +1,4 @@
-import { ZipArtifactReader } from "../../../src/artifacts/ZipArtifactReader.js";
+import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
 import { beforeAll, expect, it as test, vi } from "vitest";
 import { inspectJadxJava } from "../../../src/android/JadxJavaProbe.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
@@ -11,7 +11,7 @@ import {
   prepareProcessOwnershipInspection,
 } from "../../../src/process/ProcessOwnershipObservation.js";
 import { createInspectionResources } from "../../fixtures/inspectionResources.js";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createJadxProtocolFixture } from "../../fixtures/android/jadx.js";
 import { inspectJadxProvider } from "../../../src/android/JadxDoctor.js";
@@ -463,15 +463,21 @@ it("joins the whole availability call while its final archive close is held", as
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const original = ZipArtifactReader.prototype.close;
+  const identity = await stat(f.jar);
+  const original = OwnedFileHandle.prototype.close;
   const archive = vi
-    .spyOn(ZipArtifactReader.prototype, "close")
-    .mockImplementationOnce(async function (this: ZipArtifactReader) {
-      started();
-      await held;
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(async function (this: OwnedFileHandle) {
+      const observed = await this.handle.stat();
+      if (observed.dev === identity.dev && observed.ino === identity.ino) {
+        started();
+        await held;
+      }
       await original.call(this);
     });
-  const availability = f.provider.inspectAvailability();
+  const availability = f.provider
+    .inspectAvailability()
+    .catch((cause: unknown) => cause);
   let completed = false;
   let close: Promise<void> | undefined;
   try {
@@ -483,7 +489,9 @@ it("joins the whole availability call while its final archive close is held", as
     expect(completed).toBe(false);
     release();
     await close;
-    expect(await availability).toMatchObject({ status: "available" });
+    expect(await availability).toMatchObject({
+      _tag: "AnalysisCancelledError",
+    });
   } finally {
     release();
     archive.mockRestore();

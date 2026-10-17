@@ -1,3 +1,4 @@
+import { nativeAotSnapshotObservationSchema } from "../../../src/domain/native/nativeAotSnapshotObservation.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AnalysisCleanupLease } from "../../../src/artifacts/AnalysisCleanupLease.js";
@@ -94,21 +95,36 @@ it("preserves queue failure diagnostics through the provider, CLI adapter and SD
   }
 }, 30_000);
 
-it.each(["cancelled", "protocol"] as const)(
-  "retains completed snapshot facts and exact cleanup over provider/CLI/MCP after %s",
-  async (kind) => {
+it.each(
+  (["cancelled", "protocol"] as const).flatMap((kind) =>
+    (["file", "native-aot"] as const).map((observation) => ({
+      kind,
+      observation,
+    })),
+  ),
+)(
+  "retains completed $observation snapshot facts and exact cleanup over provider/CLI/MCP after $kind",
+  async ({ kind, observation }) => {
     const directory = await createTestTempDirectory(
       "rea-ghidra-snapshot-projection-",
     );
     const path = join(directory, "Inert.exe");
     const bytes = nativeAotPeFixture();
     await writeFile(path, bytes);
-    const partialObservation = fileSnapshotPartialObservationSchema.parse({
-      kind: "file-snapshot-hash",
-      path,
-      sha256: nativeAotPeDigest(bytes),
-      bytes: bytes.length,
-    });
+    const partialObservation =
+      observation === "file"
+        ? fileSnapshotPartialObservationSchema.parse({
+            kind: "file-snapshot-hash",
+            path,
+            sha256: nativeAotPeDigest(bytes),
+            bytes: bytes.length,
+          })
+        : nativeAotSnapshotObservationSchema.parse({
+            kind: "native-aot-snapshot",
+            analysis_artifact_sha256: nativeAotPeDigest(bytes),
+            image_base: "0x140000000",
+            capture: { status: "captured", bytes: bytes.length },
+          });
     const cleanup = new ProviderCleanupError("ghidra", [path], {
       reason: "controlled snapshot descriptor remains",
     });

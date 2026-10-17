@@ -1236,6 +1236,21 @@ on the shell `PATH`. Use the setup command above for the guided setup
 journey, `npx -y rea-agents@latest` for unattended one-off commands, or install globally
 with `npm install --global rea-agents` for a shell-visible `rea` command.
 
+For many concurrent agent sessions, run setup directly from a global installation
+to avoid keeping a separate npm launcher process for each MCP connection:
+
+```bash
+npm install --global rea-agents
+rea setup
+```
+
+Review the plan, approve the selected client changes, then restart those clients.
+This registers the installed entrypoint directly; installing the global package
+alone does not replace existing `npx` registrations. Each client still has its own
+REA process and analysis state. Direct registrations follow the installed CLI;
+use `rea update` to update it. Running setup through `npx` again selects the pinned
+package-runner command. Do not register paths inside npm's temporary package cache.
+
 The optional curl wrapper installs only the global npm package:
 
 ```bash

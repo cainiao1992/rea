@@ -13,8 +13,12 @@ import {
   AnalysisAccessDeniedError,
   AnalysisArtifactChangedError,
   AnalysisResourceConstraintError,
+  AnalysisOutputError,
+  AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { bindArtifactFileCleanup } from "../artifacts/ArtifactFileOperation.js";
 
@@ -86,10 +90,14 @@ export const analysisClientFailureForOperation = (
   cause: unknown,
   providerId: string,
   operation: string,
+  callerDiagnostics?: Readonly<Record<string, JsonValue>>,
 ): AnalysisError => {
   if (!(cause instanceof AnalysisError)) {
     const failure = new ProviderAdapterError(providerId, operation, {
       cause,
+      ...(callerDiagnostics === undefined
+        ? {}
+        : { diagnostics: callerDiagnostics }),
       ...(cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined
         ? { cleanup: cause.cleanup }
         : {}),
@@ -106,10 +114,24 @@ export const analysisClientFailureForOperation = (
     !(cause instanceof AnalysisCapabilityUnavailableError) &&
     !(cause instanceof AnalysisAccessDeniedError) &&
     !(cause instanceof AnalysisArtifactChangedError) &&
+    !(cause instanceof AnalysisTimeoutError) &&
+    !(cause instanceof AnalysisOutputError) &&
     !(cause instanceof AnalysisResourceConstraintError)
   )
     return cause;
-  const context = analysisClientFailureContext(cause, providerId, operation);
+  const sourceContext = analysisClientFailureContext(
+    cause,
+    providerId,
+    operation,
+  );
+  const context = {
+    ...sourceContext,
+    ...(callerDiagnostics === undefined
+      ? {}
+      : {
+          diagnostics: { ...sourceContext.diagnostics, ...callerDiagnostics },
+        }),
+  };
   let result: AnalysisError;
   if (cause instanceof HopperRemoteError)
     result = new HopperRemoteError(cause.code, cause.safeMessage, {
@@ -141,6 +163,41 @@ export const analysisClientFailureForOperation = (
       ...(cause.launcherFailure === undefined
         ? {}
         : { launcherFailure: cause.launcherFailure }),
+    });
+  else if (cause instanceof ProviderCleanupError) {
+    const { diagnostics, ...outcomeContext } = context;
+    result = new ProviderCleanupError(
+      cause.providerId,
+      cause.cleanupResources,
+      diagnostics ?? {},
+      {
+        ...outcomeContext,
+        operation,
+        ...(cause.remediationAction === undefined
+          ? {}
+          : { remediationAction: cause.remediationAction }),
+      },
+    );
+  } else if (cause instanceof AnalysisTimeoutError)
+    result = new AnalysisTimeoutError(operation, cause.timeoutMs, {
+      ...context,
+      ...(cause.userMessage === undefined
+        ? {}
+        : { userMessage: cause.userMessage }),
+      ...(cause.remediationAction === undefined
+        ? {}
+        : { remediationAction: cause.remediationAction }),
+    });
+  else if (cause instanceof AnalysisOutputError)
+    result = new AnalysisOutputError(operation, cause.reason, {
+      ...context,
+      cleanupOnly: cause.cleanupOnly,
+      ...(cause.userMessage === undefined
+        ? {}
+        : { userMessage: cause.userMessage }),
+      ...(cause.remediationAction === undefined
+        ? {}
+        : { remediationAction: cause.remediationAction }),
     });
   else if (cause instanceof AnalysisCancelledError)
     result = new AnalysisCancelledError(operation, {
@@ -202,5 +259,5 @@ export const analysisClientFailureForOperation = (
     });
   return cause.cleanupIncomplete
     ? result.bindCleanupDependencies([cause])
-    : result;
+    : result.resolveCleanup();
 };

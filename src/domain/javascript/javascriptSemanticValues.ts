@@ -227,6 +227,20 @@ export const evaluateSemanticExpression = (
   );
 };
 
+/** Resolve an expression using the same alias and module provenance owner. */
+export const evaluateSemanticExpressionProvenance = (
+  node: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+): JavaScriptBindingProvenance =>
+  provenanceForExpression(node, {
+    state,
+    bindings: new Map(),
+    expressionDepth: 0,
+    primitiveBindingValues: primitiveBindingValuesFor(state),
+    dependence: { lowest: CALLER_INDEPENDENT },
+    memo: createEvaluationMemo(state),
+  });
+
 /** Follow module provenance through destructuring, members, and aliases. */
 export const evaluateSemanticProvenance = (
   binding: JavaScriptSemanticBindingState,
@@ -963,7 +977,16 @@ const provenanceForBindingValue = (
         : "Catch binding provenance depends on the thrown value.",
     );
   if (binding.directOrigins.length > 0)
-    return semanticOriginsProvenance(binding.directOrigins);
+    return binding.kind === "import" &&
+      !binding.runtimeImport &&
+      binding.directOrigins.every(
+        ({ resolutionMode }) => resolutionMode !== "require",
+      )
+      ? semanticAmbiguousProvenance(
+          binding.directOrigins,
+          "A type-only import does not establish a runtime module value.",
+        )
+      : semanticOriginsProvenance(binding.directOrigins);
   if (binding.initializers.length === 0) return semanticLocalProvenance();
   if (binding.initializers.length > 1)
     return semanticAmbiguousProvenance(
@@ -1151,8 +1174,10 @@ const isLocallyCreatedValue = (node: t.Node): boolean =>
   t.isObjectExpression(node) ||
   t.isArrayExpression(node) ||
   t.isFunctionExpression(node) ||
+  t.isFunctionDeclaration(node) ||
   t.isArrowFunctionExpression(node) ||
   t.isClassExpression(node) ||
+  t.isClassDeclaration(node) ||
   t.isTemplateLiteral(node) ||
   t.isUnaryExpression(node) ||
   t.isBinaryExpression(node) ||

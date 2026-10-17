@@ -88,7 +88,9 @@ public class ReaJadxMetadataRegression {
     options.outputDexFile = directory.resolve("initializers.dex").toString();
     require(Smali.assemble(options, List.of(
         Path.of(sources, "InitializationPolicy.smali").toString(),
-        Path.of(sources, "MixedInitialization.smali").toString())), "Initializer fixture assembly failed");
+        Path.of(sources, "MixedInitialization.smali").toString(),
+        Path.of(sources, "NativeOverload.smali").toString(),
+        Path.of(sources, "AbstractShape.smali").toString())), "Initializer fixture assembly failed");
     Path apk = directory.resolve("initializers.apk");
     try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(apk))) {
       zip.putNextEntry(new ZipEntry("classes.dex"));
@@ -216,6 +218,7 @@ public class ReaJadxMetadataRegression {
     JsonObject ordinary = call(handle, bridge, "get_method_body", methodArguments(classNames[1], "touch"));
     require(ordinary.get("mode").getAsString().equals("java") && ordinary.get("body").getAsString().contains("COUNT"),
         "Ordinary executable method no longer produces Java");
+    verifyNoBodyMethods(handle, bridge, holder.current());
 
     SessionConfig bounded = new SessionConfig(96, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
     BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
@@ -230,6 +233,36 @@ public class ReaJadxMetadataRegression {
     String prefix = partial.get("body").getAsString().split("\n\n\\.\\.\\. \\[truncated:", 2)[0];
     require(prefix.getBytes(StandardCharsets.UTF_8).length <= 96, "Initializer text exceeded its byte limit");
     System.out.println("INITIALIZER_REGRESSION_PASS folded=2 bounded=true");
+  }
+
+  private static void verifyNoBodyMethods(Method handle, Object bridge, JadxSession session) throws Exception {
+    String[][] cases = {
+        { "fixture.NativeOverload", "readBuffer", "native_method" },
+        { "fixture.AbstractShape", "area", "abstract_method" },
+        { "fixture.NativeOverload", "zLastNative", "native_method" }
+    };
+    for (String[] selected : cases) {
+      JsonObject input = methodArguments(selected[0], selected[1]);
+      ClassNode owner = session.getClasses().stream().filter(cls -> cls.getFullName().equals(selected[0]))
+          .findFirst().orElseThrow().getClassNode();
+      ProcessState beforeState = owner.getState();
+      JsonObject before = call(handle, bridge, "get_method_body", input);
+      require(owner.getState() == beforeState, "No-code inspection generated class source");
+      require(before.get("body").getAsString().isEmpty(), "No-code method included source: " + before);
+      require(before.get("mode").getAsString().equals("java") && !before.get("fell_back").getAsBoolean(),
+          "No-code method claimed disassembly or fallback: " + before);
+      require(before.getAsJsonArray("markers").equals(JsonParser.parseString("[\"" + selected[2] + "\"]")),
+          "No-code method lost its parsed access-flag reason: " + before);
+      boolean nativeClass = selected[0].equals("fixture.NativeOverload");
+      JsonObject executable = methodArguments(selected[0], nativeClass ? "readBuffer" : "describe");
+      if (nativeClass) executable.addProperty("overload_index", 1);
+      String text = call(handle, bridge, "get_method_body", executable).get("body").getAsString();
+      require(nativeClass ? text.contains("readBuffer(byteBuffer, 0)") : text.contains("neighbour-member"),
+          "Executable neighbour lost its own source: " + text);
+      require(before.equals(call(handle, bridge, "get_method_body", input)),
+          "Code generation changed the frozen body-absence fact");
+    }
+    System.out.println("NO_BODY_REGRESSION_PASS native=true abstract=true frozen=true");
   }
 
   public static void main(String[] args) throws Exception {

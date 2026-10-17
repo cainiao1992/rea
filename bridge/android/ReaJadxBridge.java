@@ -27,7 +27,8 @@ class ReaJadxBridge {
   private JadxSession indexedSession;
   private Map<String, List<ClassSnapshot>> classes = Map.of();
 
-  private record MethodSnapshot(String name, String shortId, Map<String, Object> summary) {}
+  private record MethodSnapshot(String name, String shortId, List<String> bodyAbsenceMarkers,
+      Map<String, Object> summary) {}
   private record ClassSnapshot(JavaClass node, List<MethodSnapshot> methods, Map<String, Object> summary) {}
 
   private static final class InputFailure extends IllegalArgumentException {
@@ -89,10 +90,13 @@ class ReaJadxBridge {
             if (!shortId.startsWith(rawName + "("))
               throw new IllegalStateException("JADX method ID has no raw-name prefix: " + shortId);
             String descriptor = shortId.substring(rawName.length());
+            List<String> bodyAbsenceMarkers = new ArrayList<>();
+            if (method.getAccessFlags().isNative()) bodyAbsenceMarkers.add("native_method");
+            if (method.getAccessFlags().isAbstract()) bodyAbsenceMarkers.add("abstract_method");
             String signature = name + "(" + method.getArgTypes().stream()
                 .map(Object::toString).collect(Collectors.joining(", "))
                 + "): " + method.getReturnType().toString();
-            return new MethodSnapshot(name, shortId, Map.of(
+            return new MethodSnapshot(name, shortId, List.copyOf(bodyAbsenceMarkers), Map.of(
                 "name", name, "signature", signature,
                 "dex_descriptor", descriptor,
                 "is_constructor", method.isConstructor(), "def_pos", 0));
@@ -139,6 +143,10 @@ class ReaJadxBridge {
 
   private JadxSession.SmartCode methodBody(JadxSession current, ClassSnapshot cls,
       MethodSnapshot selected, JavaMethod method) {
+    // Access flags belong to the parsed member, before code generation rewrites it.
+    // These methods have no Java body; source slicing can include unrelated members.
+    if (!selected.bodyAbsenceMarkers().isEmpty())
+      return new JadxSession.SmartCode("", "java", false, selected.bodyAbsenceMarkers());
     if (!selected.shortId().equals("<clinit>()V"))
       return current.getMethodBodySmart(method, current.getMaxSourceBytes(), true);
     // Java code generation can fold all or part of <clinit> into field declarations.

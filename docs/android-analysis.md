@@ -149,8 +149,11 @@ indices are tied to the current artifact and engine, not stable across builds.
 
 The engine's smali fallback also joins same-name overloads; REA rejects that
 fallback for an overloaded method instead of attributing all bodies to one
-selected overload. Native/abstract methods with no decompiled body report
-`body_status: "not_available"` without inferring which implementation flag caused it.
+selected overload. Native and abstract methods are identified from access flags
+captured before code generation. They report `body_status: "not_available"`, an
+empty source, and the `native_method` or `abstract_method` marker; their declarations
+are not passed through the engine's source slicer. Other missing decompiled bodies
+do not establish either access flag.
 
 Static initializers (`<clinit>`) return smali with the
 `static_initializer_disassembly` marker. Java decompilation can move their

@@ -17,6 +17,8 @@ const scenarios = [
   "integer collision",
   "integer-real collision",
   "real",
+  "CDATA real",
+  "hexadecimal",
   "mixed XML",
   "segmented keys",
 ] as const;
@@ -66,9 +68,13 @@ cliTest.for(scenarios)(
                 "<string>__INTEGER__</string>",
                 scenario === "real"
                   ? "<real>9007199254740992</real>"
-                  : scenario === "mixed XML"
-                    ? "<integer>9007199254740992<!-- split -->3</integer>"
-                    : "<integer>9007199254740993</integer>",
+                  : scenario === "CDATA real"
+                    ? "<real>9007199254<![CDATA[740992]]></real>"
+                    : scenario === "hexadecimal"
+                      ? "<integer>0x20000000000001</integer>"
+                      : scenario === "mixed XML"
+                        ? "<integer>9007199254740992<!-- split -->3</integer>"
+                        : "<integer>9007199254740993</integer>",
               )
               .replace(
                 "<string>__OTHER__</string>",
@@ -122,6 +128,7 @@ cliTest.for(scenarios)(
         large:
           scenario === "XML" ||
           scenario === "binary" ||
+          scenario === "hexadecimal" ||
           scenario === "segmented keys"
             ? { $plist_type: "integer", decimal: "9007199254740993" }
             : 9007199254740992,
@@ -142,12 +149,13 @@ cliTest.for(scenarios)(
     if (
       scenario === "XML" ||
       scenario === "binary" ||
+      scenario === "hexadecimal" ||
       scenario === "segmented keys"
     )
       expect(result.limitations).toContainEqual(
         expect.stringContaining("1 unambiguous integer value"),
       );
-    else if (scenario !== "real")
+    else if (scenario !== "real" && scenario !== "CDATA real")
       expect(result.limitations).toContainEqual(
         expect.stringContaining("integer precision loss remains possible"),
       );

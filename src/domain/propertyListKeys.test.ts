@@ -4,7 +4,7 @@ import { parse } from "plist";
 import {
   decodeXmlText,
   omitPrototypeKeys,
-  parseXmlPropertyList,
+  parseXmlPropertyList as parseWithNumbers,
 } from "./propertyListKeys.js";
 
 it("preserves unknown named entities that collide with object prototype properties", () => {
@@ -15,6 +15,13 @@ it("preserves unknown named entities that collide with object prototype properti
     "&<>\"'AB",
   );
 });
+
+// Existing key/omission controls assert those facts exactly; numeric facts
+// have separate source-type and ambiguity controls below.
+const parseXmlPropertyList = (text: string) => {
+  const { numberLiterals: _numbers, ...parsed } = parseWithNumbers(text);
+  return parsed;
+};
 
 const plist = (body: string) =>
   `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0">${body}</plist>`;

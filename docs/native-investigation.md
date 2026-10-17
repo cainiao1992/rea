@@ -587,6 +587,10 @@ digests identify the original serialized bytes.
 ## Keyed archive integer precision
 
 The archive reader observes XML number element types and binary number markers.
+XML values and their number facts are interpreted together from the validated
+DOM. Hexadecimal `<integer>` text, including an optional sign, retains its value;
+`<real>` text and CDATA segments are combined without inferring text from nested
+elements. The XML path does not serialize or reparse character references.
 Integers beyond the exact range of a JSON number are reported with the original
 decimal text as `{ "$plist_type": "integer", "decimal": "<exact digits>" }` when
 that source value can be associated unambiguously. Integral real values remain

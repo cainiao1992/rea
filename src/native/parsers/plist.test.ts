@@ -20,6 +20,24 @@ it("retains complete segmented XML keys in native plist fallback evidence", () =
   );
 });
 
+it("does not relabel integral CDATA reals as integers in native JSON or XML evidence", () => {
+  const xml =
+    "<plist><dict><key>integer</key><integer>9007199254740992</integer><key>real</key><real>9007199254<![CDATA[740992]]></real></dict></plist>";
+  for (const parsed of [
+    parsePlistJson('{"integer":9007199254740992,"real":9007199254740992}', xml),
+    parsePlistXml(xml),
+  ]) {
+    if (!parsed.ok) throw parsed.error;
+    expect(parsed.value.value).toEqual({
+      integer: 9007199254740992,
+      real: 9007199254740992,
+    });
+    expect(parsed.value.limitations).toContainEqual(
+      expect.stringContaining("2 number(s)"),
+    );
+  }
+});
+
 it("keeps exact decimal text for JSON integers that XML shows are integers", () => {
   const parsed = parsePlistJson(
     '{"Max":18446744073709551615,"Min":-9223372036854775808,"Near":9007199254740993,"Edge":9007199254740992,"Safe":9007199254740991,"Real":1e21,"Ratio":0.5}',

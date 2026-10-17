@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApktoolCommandCleanup } from "./ApktoolCommandCleanup.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   APKTOOL_COMMAND_ENV,
@@ -136,9 +137,8 @@ describe("apktoolInvocation", () => {
         command: "C:\\tools & more\\apktool.cmd",
         commandSource: "environment",
       },
-      undefined,
-      windows,
-      "win32",
+      commands,
+      { environment: windows, platform: "win32" },
     ).catch((cause: unknown) => cause);
 
     expect(failure).toBeInstanceOf(ApktoolConfigurationFailure);
@@ -400,4 +400,10 @@ it("bounds the entire pending PATH lookup by the selection deadline", async () =
   } finally {
     vi.useRealTimers();
   }
+});
+
+let commands = new ApktoolCommandCleanup();
+afterEach(async () => {
+  await commands.close();
+  commands = new ApktoolCommandCleanup();
 });

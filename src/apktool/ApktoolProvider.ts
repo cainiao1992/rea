@@ -1,3 +1,7 @@
+import { capturedApktoolCommandOutput } from "./ApktoolCommandOutput.js";
+import { ApktoolCommandCleanup } from "./ApktoolCommandCleanup.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { regularFileCancellation } from "../filesystem/OwnedRegularFile.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
@@ -39,7 +43,6 @@ import {
   AnalysisTimeoutError,
   AnalysisUnsupportedTargetError,
 } from "../domain/analysisErrorCore.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -51,13 +54,11 @@ import {
   OwnedCommandFailure,
   runOwnedCommand,
 } from "../process/OwnedCommand.js";
-import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { WindowsBatchCommandError } from "../process/WindowsBatchCommand.js";
 import {
   APKTOOL_COMMAND_ENV,
   ApktoolConfigurationFailure,
-  type ApktoolProbeCleanup,
   apktoolConfigurationAvailability,
   apktoolInvocation,
   inspectApktoolClient,
@@ -90,7 +91,8 @@ const throwIfCancelled = (
   operation: string,
   signal: AbortSignal | undefined,
 ): void => {
-  if (signal?.aborted === true) throw new AnalysisCancelledError(operation);
+  if (signal?.aborted === true)
+    throw new AnalysisCancelledError(operation, { cause: signal.reason });
 };
 
 /** Read at most the byte budget plus one byte, before decoding UTF-8. */
@@ -150,19 +152,6 @@ interface DecodeLimits {
   readonly maxOutputBytes: number;
 }
 
-/** A probe whose launched processes could not be confirmed stopped. */
-const probeCleanupFailure = (
-  operation: string,
-  failure: ApktoolConfigurationFailure,
-  cleanup: ApktoolProbeCleanup,
-): ProviderCleanupError =>
-  new ProviderCleanupError(
-    APKTOOL_PROVIDER_IDENTITY.id,
-    cleanup.resources,
-    { reason: cleanup.reason, probe_failure: failure.message },
-    { operation, cause: failure },
-  );
-
 const runApktool = async (
   operation: string,
   selection: ApktoolCommandSelection,
@@ -170,10 +159,13 @@ const runApktool = async (
   limits: DecodeLimits,
   signal: AbortSignal | undefined,
   environment: Readonly<Record<string, string | undefined>>,
-  onCleanupOwner: (owner: ProviderProcessSupervisor) => void,
+  commands: ApktoolCommandCleanup,
+  root: string,
 ): Promise<Result<{ stdout: string; stderr: string }, AnalysisError>> => {
   if (signal?.aborted === true)
-    return err(new AnalysisCancelledError(operation));
+    return err(
+      new AnalysisCancelledError(operation, { cause: signal?.reason }),
+    );
   let invocation: ReturnType<typeof apktoolInvocation>;
   try {
     invocation = apktoolInvocation(selection, arguments_, environment);
@@ -209,75 +201,62 @@ const runApktool = async (
     );
     return ok({ stdout: output.stdout.text, stderr: output.stderr.text });
   } catch (cause) {
-    if (!(cause instanceof OwnedCommandFailure))
-      return err(
-        new AnalysisProtocolError(`apktool failed for ${operation}`, { cause }),
-      );
-    if (cause.cleanupOwner !== undefined) onCleanupOwner(cause.cleanupOwner);
-    const output = cause.snapshot;
-    const capturedOutput =
-      output === null
-        ? undefined
-        : {
-            stdout: output.stdout.text,
-            stderr: output.stderr.text,
-            truncated: output.diagnosticTruncated === true,
-            stdout_bytes: output.stdout.bytes,
-            stderr_bytes: output.stderr.bytes,
-            exit_code: output.exitCode ?? null,
-            signal: output.signal ?? null,
-          };
-    const cleanup =
-      cause.cleanupFailure === null
-        ? undefined
-        : {
-            reason: cause.cleanupFailure,
-            resources: cause.resources,
-          };
-    if (cause.reason === "cancelled")
-      return err(
-        new AnalysisCancelledError(operation, {
-          cause,
-          ...(cleanup === undefined ? {} : { cleanup }),
-          ...(capturedOutput === undefined ? {} : { capturedOutput }),
-        }),
-      );
-    if (cause.reason === "timeout")
-      return err(
-        new AnalysisTimeoutError(operation, limits.timeoutMs, {
-          cause,
-          ...(cleanup === undefined ? {} : { cleanup }),
-          ...(capturedOutput === undefined ? {} : { capturedOutput }),
-        }),
-      );
-    if (cause.reason === "output-limit")
-      return err(
-        new AnalysisResourceConstraintError(
-          operation,
-          "memory",
-          `apktool output exceeded the ${String(limits.maxOutputBytes)}-byte capture budget`,
-          { max_output_bytes: limits.maxOutputBytes },
-          {
-            cause,
-            ...(cleanup === undefined ? {} : { cleanup }),
-            ...(capturedOutput === undefined ? {} : { capturedOutput }),
-          },
-        ),
-      );
     return err(
-      new AnalysisUnsupportedTargetError(
+      commands.retainFailure(
+        cause,
+        apktoolCommandFailure(cause, operation, selection, limits),
         operation,
-        selection.command,
-        output?.stderr.text.trim().slice(0, STDERR_EXCERPT_BYTES) ||
-          `apktool exited with code ${String(output?.exitCode ?? "unknown")} for ${operation}`,
-        {
-          cause,
-          ...(cleanup === undefined ? {} : { cleanup }),
-          ...(capturedOutput === undefined ? {} : { capturedOutput }),
-        },
+        root,
       ),
     );
   }
+};
+
+const apktoolCommandFailure = (
+  cause: unknown,
+  operation: string,
+  selection: ApktoolCommandSelection,
+  limits: DecodeLimits,
+): AnalysisError => {
+  if (!(cause instanceof OwnedCommandFailure))
+    return new AnalysisProtocolError(`apktool failed for ${operation}`, {
+      cause,
+    });
+
+  const output = cause.snapshot;
+  const capturedOutput =
+    output === null ? undefined : capturedApktoolCommandOutput(output);
+  if (cause.reason === "cancelled")
+    return new AnalysisCancelledError(operation, {
+      cause: cause.cancellation?.reason,
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
+    });
+  if (cause.reason === "timeout")
+    return new AnalysisTimeoutError(operation, limits.timeoutMs, {
+      cause,
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
+    });
+  if (cause.reason === "output-limit")
+    return new AnalysisResourceConstraintError(
+      operation,
+      "memory",
+      `apktool output exceeded the ${String(limits.maxOutputBytes)}-byte capture budget`,
+      { max_output_bytes: limits.maxOutputBytes },
+      {
+        cause,
+        ...(capturedOutput === undefined ? {} : { capturedOutput }),
+      },
+    );
+  return new AnalysisUnsupportedTargetError(
+    operation,
+    selection.command,
+    output?.stderr.text.trim().slice(0, STDERR_EXCERPT_BYTES) ||
+      `apktool exited with code ${String(output?.exitCode ?? "unknown")} for ${operation}`,
+    {
+      cause,
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
+    },
+  );
 };
 
 /** Count files while bounding streamed directory-entry traversal. */
@@ -345,11 +324,7 @@ export class ApktoolProvider {
 
   private readonly workspaces = new Set<string>();
   private readonly removeWorkspace: (path: string) => Promise<void>;
-  readonly #pendingCommandOwners = new Map<ProviderProcessSupervisor, string>();
-  /** A version probe whose cleanup is unresolved is retried on close. */
-  readonly #retainProbeOwner = (owner: ProviderProcessSupervisor): void => {
-    this.#pendingCommandOwners.set(owner, "apktool version probe");
-  };
+  readonly #commands = new ApktoolCommandCleanup();
   readonly #shutdown = new AbortController();
   readonly #active = new Set<Promise<void>>();
   #closing = false;
@@ -387,7 +362,12 @@ export class ApktoolProvider {
       signal === undefined
         ? this.#shutdown.signal
         : AbortSignal.any([signal, this.#shutdown.signal]);
-    return this.#track(this.#inspectAvailability(operationSignal));
+    return this.#track(
+      this.#commands.run(
+        () => this.#inspectAvailability(operationSignal),
+        "inspect_apktool_client",
+      ),
+    );
   }
 
   async #inspectAvailability(
@@ -400,13 +380,10 @@ export class ApktoolProvider {
         process.platform,
         signal,
       );
-      await inspectApktoolClient(
-        selection,
+      await inspectApktoolClient(selection, this.#commands, {
         signal,
         environment,
-        process.platform,
-        this.#retainProbeOwner,
-      );
+      });
       throwIfCancelled("inspect_apktool_client", signal);
       return {
         status: "available",
@@ -419,12 +396,6 @@ export class ApktoolProvider {
       };
     } catch (cause) {
       if (cause instanceof ApktoolConfigurationFailure) {
-        if (cause.cleanup !== undefined)
-          throw probeCleanupFailure(
-            "inspect_apktool_client",
-            cause,
-            cause.cleanup,
-          );
         return apktoolConfigurationAvailability(cause);
       }
       throw cause;
@@ -454,7 +425,19 @@ export class ApktoolProvider {
       options?.signal === undefined
         ? this.#shutdown.signal
         : AbortSignal.any([options.signal, this.#shutdown.signal]);
-    return this.#track(this.#execute(request, signal));
+    return this.#track(
+      this.#commands
+        .run(() => this.#execute(request, signal), request.operation)
+        .catch((cause: unknown) =>
+          err(
+            analysisClientFailureForOperation(
+              cause,
+              "apktool",
+              request.operation,
+            ),
+          ),
+        ),
+    );
   }
 
   async #execute(
@@ -462,7 +445,9 @@ export class ApktoolProvider {
     signal: AbortSignal,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     if (signal?.aborted === true)
-      return err(new AnalysisCancelledError(request.operation));
+      return err(
+        new AnalysisCancelledError(request.operation, { cause: signal.reason }),
+      );
     const environment = this.operationEnvironment();
     let selection: ApktoolCommandSelection;
     let identity: ApktoolClientIdentity;
@@ -472,24 +457,20 @@ export class ApktoolProvider {
         process.platform,
         signal,
       );
-      identity = await inspectApktoolClient(
-        selection,
+      identity = await inspectApktoolClient(selection, this.#commands, {
         signal,
         environment,
-        process.platform,
-        this.#retainProbeOwner,
-      );
+      });
     } catch (cause) {
-      if (
-        cause instanceof AnalysisCancelledError ||
-        cause instanceof AnalysisTimeoutError
-      )
-        return err(cause);
+      if (cause instanceof AnalysisError)
+        return err(
+          analysisClientFailureForOperation(
+            cause,
+            "apktool",
+            request.operation,
+          ),
+        );
       if (cause instanceof ApktoolConfigurationFailure) {
-        if (cause.cleanup !== undefined)
-          return err(
-            probeCleanupFailure(request.operation, cause, cause.cleanup),
-          );
         return err(
           providerConfigurationRefusal(
             APKTOOL_PROVIDER_IDENTITY.id,
@@ -506,7 +487,9 @@ export class ApktoolProvider {
       );
     }
     if (signal.aborted)
-      return err(new AnalysisCancelledError(request.operation));
+      return err(
+        new AnalysisCancelledError(request.operation, { cause: signal.reason }),
+      );
     const client = {
       command: selection.command,
       command_source: selection.commandSource,
@@ -541,40 +524,8 @@ export class ApktoolProvider {
 
   async #drainAndClean(): Promise<void> {
     await Promise.all(this.#active);
+    await this.#commands.close();
     const failures: unknown[] = [];
-    const retained: string[] = [];
-    for (const [owner, root] of this.#pendingCommandOwners) {
-      try {
-        const stopped = await owner.stop();
-        if (stopped.status === "incomplete") throw new Error(stopped.reason);
-        this.#pendingCommandOwners.delete(owner);
-      } catch (cause) {
-        retained.push(root);
-        failures.push(
-          new Error(
-            `apktool process cleanup remains incomplete for ${root}: ${cause instanceof Error ? cause.message : String(cause)}`,
-            { cause },
-          ),
-        );
-      }
-    }
-    // Ownership stays retained for a later close; report it as typed cleanup.
-    if (failures.length > 0)
-      throw new ProviderCleanupError(
-        APKTOOL_PROVIDER_IDENTITY.id,
-        retained,
-        {
-          reason: failures
-            .map((failure) =>
-              failure instanceof Error ? failure.message : String(failure),
-            )
-            .join("; "),
-        },
-        {
-          operation: "close",
-          cause: new AggregateError(failures, "Apktool process cleanup failed"),
-        },
-      );
     for (const path of this.workspaces) {
       try {
         await this.removeWorkspace(path);
@@ -613,7 +564,7 @@ export class ApktoolProvider {
     // The workspace is removed before the result is returned, so an
     // unremovable workspace is reported instead of silently abandoned.
     const removeWorkspace = async (): Promise<void> => {
-      if ([...this.#pendingCommandOwners.values()].includes(root)) {
+      if (this.#commands.pendingFor(root)) {
         cleanupFailure = `The decode workspace is retained until its apktool process stops: ${root}`;
         return;
       }
@@ -720,7 +671,8 @@ export class ApktoolProvider {
         },
         signal,
         environment,
-        (owner) => this.#pendingCommandOwners.set(owner, root),
+        this.#commands,
+        root,
       );
       if (!decoded.ok) {
         await removeWorkspace();

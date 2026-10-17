@@ -1,3 +1,10 @@
+import { capturedApktoolCommandOutput } from "./ApktoolCommandOutput.js";
+import { jsonValueSchema } from "../domain/jsonValue.js";
+import { ok, err, type Result } from "../domain/result.js";
+import { ApktoolCommandCleanup } from "./ApktoolCommandCleanup.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
+import { DarwinProcessOwnershipInspectionError } from "../process/DarwinProcessRunTokenReader.js";
 import {
   AnalysisCancelledError,
   AnalysisTimeoutError,
@@ -12,8 +19,8 @@ import { randomUUID } from "node:crypto";
 import {
   OwnedCommandFailure,
   runOwnedCommand,
+  prepareOwnedCommand,
 } from "../process/OwnedCommand.js";
-import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -47,7 +54,9 @@ export const resolveApktoolCommand = async (
   signal?: AbortSignal,
 ): Promise<ApktoolCommandSelection> => {
   if (signal?.aborted === true)
-    throw new AnalysisCancelledError("inspect_apktool_client");
+    throw new AnalysisCancelledError("inspect_apktool_client", {
+      cause: signal.reason,
+    });
   const selectedEnvironment = snapshotEnvironment(environment, platform);
   const configured = selectedEnvironment[APKTOOL_COMMAND_ENV];
   if (configured !== undefined && configured.trim() !== "") {
@@ -88,7 +97,9 @@ export const resolveApktoolCommand = async (
   const deadline = new ProviderStartupDeadline(VERSION_TIMEOUT_MS, signal);
   const lookupInterruption = () =>
     deadline.interruption === "cancelled"
-      ? new AnalysisCancelledError("inspect_apktool_client")
+      ? new AnalysisCancelledError("inspect_apktool_client", {
+          cause: signal?.reason,
+        })
       : new AnalysisTimeoutError("inspect_apktool_client", VERSION_TIMEOUT_MS, {
           diagnostics: { phase: "windows_path_lookup" },
         });
@@ -154,23 +165,14 @@ export type ApktoolConfigurationFailureCode =
   | "version_unresolved"
   | "unsupported_version";
 
-/** Unresolved cleanup of a launched probe; its owner was retained separately. */
-export interface ApktoolProbeCleanup {
-  readonly reason: string;
-  readonly resources: readonly string[];
-}
-
 export class ApktoolConfigurationFailure extends Error {
-  readonly cleanup: ApktoolProbeCleanup | undefined;
-
   constructor(
     readonly code: ApktoolConfigurationFailureCode,
     message: string,
     readonly diagnostics: Readonly<Record<string, JsonValue>> = {},
-    options?: ErrorOptions & { readonly cleanup?: ApktoolProbeCleanup },
+    options?: ErrorOptions,
   ) {
     super(message, options);
-    this.cleanup = options?.cleanup;
   }
 }
 
@@ -233,14 +235,21 @@ const supportsDocumentedApktoolVersion = (version: string): boolean => {
   return parsedVersion !== null && gte(parsedVersion, "2.7.0");
 };
 
-/** Probe the selected apktool launcher without decoding anything. */
+/** Probe within the caller-admitted command scope; decodes nothing. */
 export const inspectApktoolClient = async (
   selection: ApktoolCommandSelection,
-  signal?: AbortSignal,
-  environment: Readonly<Record<string, string | undefined>> = process.env,
-  platform: NodeJS.Platform = process.platform,
-  onCleanupOwner?: (owner: ProviderProcessSupervisor) => void,
+  cleanup: ApktoolCommandCleanup,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly environment?: Readonly<Record<string, string | undefined>>;
+    readonly platform?: NodeJS.Platform;
+  } = {},
 ): Promise<ApktoolClientIdentity> => {
+  const {
+    signal,
+    environment = process.env,
+    platform = process.platform,
+  } = options;
   const hostEnvironment = snapshotEnvironment(environment, platform);
   let invocation: ApktoolInvocation;
   try {
@@ -263,12 +272,14 @@ export const inspectApktoolClient = async (
       { cause },
     );
   }
-  let stdout: string;
-  let stderr: string;
+  let interpreted:
+    | Result<ApktoolClientIdentity, ApktoolConfigurationFailure>
+    | undefined;
   try {
     // The owned process group stops a shell launcher's children with it; a
     // child holding inherited output pipes cannot outlive the deadline.
-    const output = await runOwnedCommand(
+    await prepareOwnedCommand(signal);
+    await runOwnedCommand(
       {
         command: invocation.command,
         arguments: invocation.arguments,
@@ -282,72 +293,76 @@ export const inspectApktoolClient = async (
       {
         timeoutMs: VERSION_TIMEOUT_MS,
         diagnosticBytes: VERSION_MAX_OUTPUT_BYTES,
+        observeCompleted: (snapshot) => {
+          try {
+            interpreted = ok(
+              interpretApktoolVersion(
+                snapshot.stdout.text,
+                snapshot.stderr.text,
+                selection,
+              ),
+            );
+          } catch (cause) {
+            if (!(cause instanceof ApktoolConfigurationFailure)) throw cause;
+            interpreted = err(cause);
+          }
+        },
       },
       signal === undefined ? {} : { signal },
     );
-    stdout = output.stdout.text;
-    stderr = output.stderr.text;
   } catch (cause) {
-    if (
-      cause instanceof OwnedCommandFailure &&
-      cause.cleanupOwner !== undefined
-    )
-      onCleanupOwner?.(cause.cleanupOwner);
-    const cleanup =
-      cause instanceof OwnedCommandFailure && cause.cleanupFailure !== null
-        ? { reason: cause.cleanupFailure, resources: cause.resources }
-        : undefined;
-    const cleanupDetails = cleanup === undefined ? {} : { cleanup };
-    if (
-      signal?.aborted === true ||
-      (cause instanceof OwnedCommandFailure && cause.reason === "cancelled")
-    )
-      throw new AnalysisCancelledError("inspect_apktool_client", {
-        cause,
-        ...cleanupDetails,
-      });
-    if (cause instanceof OwnedCommandFailure && cause.reason === "timeout")
-      throw new AnalysisTimeoutError(
-        "inspect_apktool_client",
-        VERSION_TIMEOUT_MS,
-        { cause, ...cleanupDetails },
-      );
-    if (
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "ENOENT" || cause.code === "EACCES")
-    )
-      throw new ApktoolConfigurationFailure(
-        "command_missing",
-        `The selected apktool launcher was not found: ${selection.command}`,
-        {
-          selected_command: selection.command,
-          command_source: selection.commandSource,
-          remediation: `Set ${APKTOOL_COMMAND_ENV} to an absolute apktool launcher (the upstream wrapper or a java -jar script)`,
-        },
-        { cause },
-      );
-    const snapshot =
-      cause instanceof OwnedCommandFailure ? cause.snapshot : null;
+    const recordedFailure =
+      interpreted?.ok === false ? interpreted.error : undefined;
+    const cancellation =
+      cause instanceof OwnedCommandFailure ? cause.cancellation : undefined;
+    const failure =
+      recordedFailure === undefined
+        ? versionProbeFailure(
+            cause,
+            selection,
+            interpreted?.ok === true ? interpreted.value : undefined,
+          )
+        : new ApktoolConfigurationFailure(
+            recordedFailure.code,
+            recordedFailure.message,
+            {
+              ...recordedFailure.diagnostics,
+              ...(cancellation === undefined
+                ? {}
+                : { cancellation_observed: true }),
+            },
+            { cause },
+          );
+    const primary =
+      failure instanceof AnalysisError
+        ? failure
+        : new ProviderAdapterError("apktool", "inspect_apktool_client", {
+            cause: failure,
+            userMessage: failure.message,
+            diagnostics: failure.diagnostics,
+          });
+    const retained = cleanup.retainFailure(
+      cause,
+      primary,
+      "inspect_apktool_client",
+    );
+    throw retained === primary ? failure : retained;
+  }
+  if (interpreted === undefined)
     throw new ApktoolConfigurationFailure(
       "version_unresolved",
-      "The selected apktool launcher did not report a usable version",
-      {
-        selected_command: selection.command,
-        ...(snapshot === null
-          ? {}
-          : {
-              exit_code: snapshot.exitCode ?? null,
-              stderr_excerpt: snapshot.stderr.text.slice(0, 512),
-            }),
-        ...(cause instanceof OwnedCommandFailure &&
-        cause.reason === "output-limit"
-          ? { max_output_bytes: VERSION_MAX_OUTPUT_BYTES }
-          : {}),
-      },
-      { cause, ...cleanupDetails },
+      "The owned version command completed without an output observation",
+      { selected_command: selection.command },
     );
-  }
+  if (!interpreted.ok) throw interpreted.error;
+  return interpreted.value;
+};
+
+const interpretApktoolVersion = (
+  stdout: string,
+  stderr: string,
+  selection: ApktoolCommandSelection,
+): ApktoolClientIdentity => {
   const identity = parseApktoolVersionOutput(stdout);
   if (identity.version === null)
     throw new ApktoolConfigurationFailure(
@@ -400,3 +415,86 @@ export const apktoolConfigurationAvailability = (
     reason: cause.message,
     diagnostics: { ...cause.diagnostics },
   }) as ProviderAvailability;
+
+/** Interpret the command owner's outcome, without inferring a new failure from a late signal. */
+const versionProbeFailure = (
+  cause: unknown,
+  selection: ApktoolCommandSelection,
+  observed: ApktoolClientIdentity | undefined,
+): AnalysisError | ApktoolConfigurationFailure => {
+  if (cause instanceof AnalysisError) return cause;
+  const preparation =
+    cause instanceof OwnedCommandFailure
+      ? cause.preparationFailure
+      : cause instanceof DarwinProcessOwnershipInspectionError
+        ? cause
+        : undefined;
+  const output =
+    cause instanceof OwnedCommandFailure && cause.snapshot !== null
+      ? capturedApktoolCommandOutput(cause.snapshot)
+      : preparation?.capturedOutput;
+  if (cause instanceof OwnedCommandFailure && cause.reason === "cancelled")
+    return new AnalysisCancelledError("inspect_apktool_client", {
+      cause: cause.cancellation?.reason,
+      ...(output === undefined ? {} : { capturedOutput: output }),
+      ...(observed === undefined ? {} : { diagnostics: { client: observed } }),
+    });
+  if (preparation !== undefined)
+    return new ProviderAdapterError("apktool", "inspect_apktool_client", {
+      cause,
+      diagnostics: {
+        stage: "ownership_preparation",
+        ...(preparation.compilerOutcome === undefined
+          ? {}
+          : {
+              compiler_outcome: jsonValueSchema.parse(
+                preparation.compilerOutcome,
+              ),
+            }),
+      },
+      ...(preparation.capturedOutput === undefined
+        ? {}
+        : { capturedOutput: preparation.capturedOutput }),
+    });
+  if (cause instanceof OwnedCommandFailure && cause.reason === "timeout")
+    return new AnalysisTimeoutError(
+      "inspect_apktool_client",
+      VERSION_TIMEOUT_MS,
+      { cause, ...(output === undefined ? {} : { capturedOutput: output }) },
+    );
+  if (
+    cause instanceof Error &&
+    "code" in cause &&
+    (cause.code === "ENOENT" || cause.code === "EACCES")
+  )
+    return new ApktoolConfigurationFailure(
+      "command_missing",
+      `The selected apktool launcher was not found: ${selection.command}`,
+      {
+        selected_command: selection.command,
+        command_source: selection.commandSource,
+        remediation: `Set ${APKTOOL_COMMAND_ENV} to an absolute apktool launcher (the upstream wrapper or a java -jar script)`,
+      },
+      { cause },
+    );
+  const snapshot = cause instanceof OwnedCommandFailure ? cause.snapshot : null;
+  return new ApktoolConfigurationFailure(
+    "version_unresolved",
+    "The selected apktool launcher did not report a usable version",
+    {
+      selected_command: selection.command,
+      ...(observed === undefined ? {} : { client: observed }),
+      ...(snapshot === null
+        ? {}
+        : {
+            exit_code: snapshot.exitCode ?? null,
+            stderr_excerpt: snapshot.stderr.text.slice(0, 512),
+          }),
+      ...(cause instanceof OwnedCommandFailure &&
+      cause.reason === "output-limit"
+        ? { max_output_bytes: VERSION_MAX_OUTPUT_BYTES }
+        : {}),
+    },
+    { cause },
+  );
+};

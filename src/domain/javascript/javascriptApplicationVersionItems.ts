@@ -144,11 +144,14 @@ const matchedItem = (
 ): ApplicationVersionComparisonItem => {
   const dimensions = changedDimensions(pair, context);
   const complete = graphsComplete(context);
-  const observedChange = dimensions.some((dimension) =>
-    ["content", "location", "properties"].includes(dimension),
-  );
+  const observedChange =
+    dimensions.includes("content") || dimensions.includes("properties");
+  // Coordinates remain comparison evidence; relocation alone is not a
+  // content, property, or relationship change.
+  const completeChange =
+    complete && dimensions.some((dimension) => dimension !== "location");
   const status: ApplicationVersionComparisonItem["status"] =
-    observedChange || (complete && dimensions.length > 0)
+    observedChange || completeChange
       ? "changed"
       : complete
         ? "unchanged"

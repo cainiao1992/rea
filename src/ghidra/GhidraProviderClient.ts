@@ -81,7 +81,6 @@ import { GhidraHeadlessLauncher } from "./GhidraLauncher.js";
 import { attestGhidraNativeLoadImage } from "./GhidraLoadImageAttest.js";
 import type { NativeAotPeResult } from "../domain/native/nativeAotPe.js";
 import { GhidraNativeAotSnapshotOwner } from "./GhidraNativeAotSnapshotOwner.js";
-import { nativeLoadImageObservationSchema } from "../domain/native/nativeLoadImage.js";
 import {
   GHIDRA_PROVIDER_IDENTITY,
   healthLimitations,
@@ -532,6 +531,55 @@ export const createGhidraProviderClient = (input: {
     if (!parsed.ok) return parsed;
     return ok(projectExecution(operation, parsed.value, called.value));
   };
+  const loadImageExecution = async (raw: JsonValue, signal?: AbortSignal) => {
+    const operation = "inspect_native_load_image";
+    const measured = parseGhidraInventoryResult(operation, raw);
+    if (!measured.ok) return measured;
+    let derived: NativeAotPeResult | undefined;
+    if (target.format === "pe") {
+      if (nativeAotOwner === undefined)
+        return err(
+          new ProviderAdapterError("ghidra", operation, {
+            diagnostics: {
+              reason:
+                "The admitted PE session has no read-only NativeAOT snapshot owner.",
+            },
+          }),
+        );
+      const result = await nativeAotOwner.derive(
+        measured.value.image_base,
+        operation,
+        signal,
+        raw,
+      );
+      if (!result.ok) return result;
+      derived = result.value;
+    }
+    const attested = await attestGhidraNativeLoadImage({
+      target,
+      operation,
+      measured: measured.value,
+      client,
+      mapSessionError: (failure) =>
+        projectSessionError(
+          operation,
+          failure,
+          config.ghidraStartupTimeoutMs,
+          lostProviderHealth(),
+        ),
+      nativeAotResult: derived,
+      signal,
+    });
+    return attested.ok
+      ? ok(
+          projectExecution(
+            operation,
+            jsonValueSchema.parse(attested.value),
+            raw,
+          ),
+        )
+      : attested;
+  };
   return ok<AnalysisClient>({
     execute: async (operation, parameters, options) => {
       if (extensionFailure !== undefined) return err(extensionFailure);
@@ -610,6 +658,8 @@ export const createGhidraProviderClient = (input: {
             lostProviderHealth(),
           ),
         );
+      if (operation === "inspect_native_load_image")
+        return loadImageExecution(called.value, options?.signal);
       let normalized: JsonValue;
       let observationLimitations: readonly string[] = [];
       let observationLocations: readonly EvidenceLocation[] = [];
@@ -666,47 +716,6 @@ export const createGhidraProviderClient = (input: {
               metadata_recovery: metadata,
             });
         }
-      }
-      if (operation === "inspect_native_load_image") {
-        let derived: NativeAotPeResult | undefined;
-        if (target.format === "pe") {
-          const observations =
-            nativeLoadImageObservationSchema.parse(normalized);
-          if (nativeAotOwner === undefined)
-            return err(
-              new ProviderAdapterError("ghidra", operation, {
-                diagnostics: {
-                  reason:
-                    "The admitted PE session has no read-only NativeAOT snapshot owner.",
-                },
-              }),
-            );
-          const result = await nativeAotOwner.derive(
-            observations.image_base,
-            operation,
-            options?.signal,
-            normalized,
-          );
-          if (!result.ok) return result;
-          derived = result.value;
-        }
-        const attested = await attestGhidraNativeLoadImage({
-          target,
-          operation,
-          measured: normalized,
-          client,
-          mapSessionError: (failure) =>
-            projectSessionError(
-              operation,
-              failure,
-              config.ghidraStartupTimeoutMs,
-              lostProviderHealth(),
-            ),
-          nativeAotResult: derived,
-          signal: options?.signal,
-        });
-        if (!attested.ok) return attested;
-        normalized = attested.value;
       }
       return ok(
         projectExecution(

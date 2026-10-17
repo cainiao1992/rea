@@ -4,7 +4,10 @@ import {
   validateBytePattern,
   byteSearchResultSchema,
 } from "../domain/native/bytePattern.js";
-import { nativeLoadImageObservationSchema } from "../domain/native/nativeLoadImage.js";
+import {
+  nativeLoadImageObservationSchema,
+  type NativeLoadImageObservation,
+} from "../domain/native/nativeLoadImage.js";
 
 import {
   type AnalysisInputError,
@@ -355,18 +358,36 @@ const resultSchemas = {
 } satisfies Readonly<Record<GhidraInventoryOperation, z.ZodType>>;
 
 /** Validate exact Java-bridge output before creating Evidence. */
-export const parseGhidraInventoryResult = (
+export function parseGhidraInventoryResult(
+  operation: "inspect_native_load_image",
+  value: JsonValue,
+): Result<NativeLoadImageObservation, AnalysisOutputError>;
+export function parseGhidraInventoryResult(
   operation: GhidraInventoryOperation,
   value: JsonValue,
-): Result<JsonValue, AnalysisOutputError> => {
+): Result<JsonValue, AnalysisOutputError>;
+export function parseGhidraInventoryResult(
+  operation: GhidraInventoryOperation,
+  value: JsonValue,
+): Result<JsonValue | NativeLoadImageObservation, AnalysisOutputError> {
+  if (operation === "inspect_native_load_image") {
+    const parsed = resultSchemas.inspect_native_load_image.safeParse(value);
+    return parsed.success
+      ? ok(parsed.data)
+      : err(inventoryOutputFailure(operation, parsed.error));
+  }
   const parsed = resultSchemas[operation].safeParse(value);
   return parsed.success
     ? ok(jsonValueSchema.parse(parsed.data))
-    : err(
-        new AnalysisOutputError(
-          operation,
-          "Ghidra bridge output did not match the inventory contract",
-          { cause: parsed.error },
-        ),
-      );
-};
+    : err(inventoryOutputFailure(operation, parsed.error));
+}
+
+const inventoryOutputFailure = (
+  operation: GhidraInventoryOperation,
+  cause: unknown,
+): AnalysisOutputError =>
+  new AnalysisOutputError(
+    operation,
+    "Ghidra bridge output did not match the inventory contract",
+    { cause },
+  );

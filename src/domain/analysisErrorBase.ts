@@ -232,11 +232,13 @@ import type { WebPageInspection } from "./browserObservationSchemas.js";
 import type { WebExecution } from "./webExecution.js";
 import type { WebEventListeners } from "./webEventListeners.js";
 
+import type { NativeLoadImagePartialObservation } from "./native/nativeLoadImage.js";
 import type { NativeAotSnapshotObservation } from "./native/nativeAotSnapshotObservation.js";
 import type { FileSnapshotPartialObservation } from "./fileSnapshotObservation.js";
 
 /** Provider-neutral evidence collected before a typed analysis failure. */
 export type AnalysisPartialObservation =
+  | NativeLoadImagePartialObservation
   | NativeAotSnapshotObservation
   | FileSnapshotPartialObservation
   | PartialProcessCaptureObservation

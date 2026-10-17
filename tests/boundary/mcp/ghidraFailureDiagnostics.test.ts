@@ -1,3 +1,6 @@
+import { nativeLoadImagePartialObservationSchema } from "../../../src/domain/native/nativeLoadImage.js";
+import { fixtureDosLoadImage } from "../../../src/ghidra/GhidraLoadImage.fixture.js";
+import { attestGhidraDosLoadImage } from "../../../src/ghidra/GhidraLoadImageValues.js";
 import { nativeAotSnapshotObservationSchema } from "../../../src/domain/native/nativeAotSnapshotObservation.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -97,7 +100,7 @@ it("preserves queue failure diagnostics through the provider, CLI adapter and SD
 
 it.each(
   (["cancelled", "protocol"] as const).flatMap((kind) =>
-    (["file", "native-aot"] as const).map((observation) => ({
+    (["file", "native-aot", "load-image"] as const).map((observation) => ({
       kind,
       observation,
     })),
@@ -109,7 +112,9 @@ it.each(
       "rea-ghidra-snapshot-projection-",
     );
     const path = join(directory, "Inert.exe");
-    const bytes = nativeAotPeFixture();
+    const dos = fixtureDosLoadImage();
+    const bytes =
+      observation === "load-image" ? dos.bytes : nativeAotPeFixture();
     await writeFile(path, bytes);
     const partialObservation =
       observation === "file"
@@ -119,12 +124,26 @@ it.each(
             sha256: nativeAotPeDigest(bytes),
             bytes: bytes.length,
           })
-        : nativeAotSnapshotObservationSchema.parse({
-            kind: "native-aot-snapshot",
-            analysis_artifact_sha256: nativeAotPeDigest(bytes),
-            image_base: "0x140000000",
-            capture: { status: "captured", bytes: bytes.length },
-          });
+        : observation === "native-aot"
+          ? nativeAotSnapshotObservationSchema.parse({
+              kind: "native-aot-snapshot",
+              analysis_artifact_sha256: nativeAotPeDigest(bytes),
+              image_base: "0x140000000",
+              capture: { status: "captured", bytes: bytes.length },
+            })
+          : (() => {
+              const compared = attestGhidraDosLoadImage(
+                dos.bytes,
+                dos.sha256,
+                dos.observation,
+              );
+              if (!compared.ok) throw new Error(compared.error);
+              return nativeLoadImagePartialObservationSchema.parse({
+                kind: "native-load-image",
+                stage: "completed",
+                result: compared.value,
+              });
+            })();
     const cleanup = new ProviderCleanupError("ghidra", [path], {
       reason: "controlled snapshot descriptor remains",
     });

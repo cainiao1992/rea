@@ -1,3 +1,7 @@
+import { parseConfig } from "../../../../src/config/parseConfig.js";
+import { GhidraProvider } from "../../../../src/ghidra/GhidraProvider.js";
+import { fixtureDosLoadImage } from "../../../../src/ghidra/GhidraLoadImage.fixture.js";
+import { jsonValueSchema } from "../../../../src/domain/jsonValue.js";
 import { artifactFilePrimaryFailure } from "../../../../src/artifacts/ArtifactFileOperation.js";
 import { AnalysisCancelledError } from "../../../../src/domain/analysisErrorCore.js";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -239,6 +243,113 @@ it("keeps one shared startup despite a failed progress sink and stops reports af
   await vi.advanceTimersByTimeAsync(30_000);
   expect(reports).toBe(1);
 });
+
+it.each(["descriptor-close", "result-consumption"] as const)(
+  "preserves DOS cancellation at the actual snapshot %s boundary",
+  async (phase) => {
+    const fixture = fixtureDosLoadImage();
+    const directory = await createTestTempDirectory("rea-dos-cancel-");
+    const targetPath = join(directory, "fixture.exe");
+    await writeFile(targetPath, fixture.bytes);
+    const live = clientFor(new FixtureLauncher(), {
+      targetPath,
+      targetSha256: fixture.sha256,
+    });
+    const started = await live.start();
+    if (!started.ok) throw started.error;
+    const caller = new AbortController();
+    const reason = { caller: phase };
+    const config = parseConfig({
+      GHIDRA_INSTALL_DIR: "/controlled/ghidra_12.1.4_PUBLIC",
+    });
+    if (!config.ok) throw config.error;
+    const provider = new GhidraProvider(
+      config.value,
+      pino({ level: "silent" }),
+      {},
+      {
+        platform: "linux",
+        architecture: "x64",
+        readText: () => "application.version=12.1.4\napplication.java.min=21\n",
+        executable: () => true,
+        probeJava: () =>
+          ok({
+            osArch: "amd64",
+            osName: "Linux",
+            version: "21.0.11",
+            major: 21,
+            home: "/controlled/jdk21",
+            bits: 64,
+            runtime: "jdk",
+          }),
+      },
+      () => ({
+        start: () => live.start(),
+        callTool: async () => ok(jsonValueSchema.parse(fixture.observation)),
+        readTargetSnapshot: async (maximum, signal) => {
+          const result = await live.readTargetSnapshot(maximum, signal);
+          if (phase === "result-consumption" && result.ok) caller.abort(reason);
+          return result;
+        },
+        close: () => live.close(),
+      }),
+    );
+    const target = {
+      path: targetPath,
+      sha256: fixture.sha256,
+      kind: "executable" as const,
+      format: "dos-mz" as const,
+      architecture: "x86" as const,
+      availableArchitectures: ["x86" as const],
+    };
+    const profile = await provider.resolveAnalysisProfile(target);
+    if (!profile.ok || profile.value.profile === null)
+      throw new Error("Expected DOS profile");
+    const client = provider.createClient(target, profile.value.profile);
+    let closedOwner: OwnedFileHandle | undefined;
+    const original = OwnedFileHandle.prototype.close;
+    const close =
+      phase === "descriptor-close"
+        ? vi
+            .spyOn(OwnedFileHandle.prototype, "close")
+            .mockImplementationOnce(async function (this: OwnedFileHandle) {
+              closedOwner = this;
+              await original.call(this);
+              caller.abort(reason);
+            })
+        : undefined;
+    onTestFinished(async () => {
+      close?.mockRestore();
+      await client.close();
+    });
+    const result = await client.execute(
+      "inspect_native_load_image",
+      {},
+      { signal: caller.signal },
+    );
+    if (result.ok) throw new Error("Expected DOS cancellation");
+    expect(result.error._tag).toBe("AnalysisCancelledError");
+    expect(result.error.cause).toBe(reason);
+    if (phase === "descriptor-close") {
+      expect(closedOwner?.handle.fd).toBe(-1);
+      expect(result.error.partialObservation).toMatchObject({
+        kind: "file-snapshot-read",
+        capture: { status: "captured", bytes: fixture.bytes.length },
+      });
+      expect(result.error.diagnostics).toMatchObject({
+        load_image_observations: fixture.observation,
+      });
+    } else {
+      expect(result.error.partialObservation).toMatchObject({
+        kind: "native-load-image",
+        stage: "completed",
+        result: { status: "verified", observations: fixture.observation },
+      });
+    }
+    close?.mockRestore();
+    expect((await client.close()).ok).toBe(true);
+  },
+);
 
 it("reports snapshot descriptor cleanup immediately and resolves its exact error on retry", async () => {
   const client = clientFor(new FixtureLauncher());

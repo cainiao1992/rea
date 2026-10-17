@@ -147,9 +147,16 @@ queries accept the same `overload_index`; the bridge resolves the selected
 method node and the result reports its index and displayed signature. These
 indices are tied to the current artifact and engine, not stable across builds.
 
-The engine's smali fallback also joins same-name overloads; REA rejects that
-fallback for an overloaded method instead of attributing all bodies to one
-selected overload. Native and abstract methods are identified from access flags
+Smali fallbacks select one complete block using the original method name and DEX
+descriptor, before applying the source byte limit. This preserves the selected
+overload even when Java code generation renames a method. If the selected Java
+body was omitted, including a method merged into a synthetic bridge, REA returns
+its original smali with the `java_body_unavailable` marker. The marker describes
+missing Java; it does not infer why the method was omitted or name a replacement.
+Unresolved or duplicate disassembly identities fail instead of attributing another
+method's instructions to the selection.
+
+Native and abstract methods are identified from access flags
 captured before code generation. They report `body_status: "not_available"`, an
 empty source, and the `native_method` or `abstract_method` marker; their declarations
 are not passed through the engine's source slicer. Other missing decompiled bodies

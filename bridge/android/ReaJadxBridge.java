@@ -27,7 +27,7 @@ class ReaJadxBridge {
   private JadxSession indexedSession;
   private Map<String, List<ClassSnapshot>> classes = Map.of();
 
-  private record MethodSnapshot(String name, String shortId, List<String> bodyAbsenceMarkers,
+  private record MethodSnapshot(String name, String rawName, String shortId, List<String> bodyAbsenceMarkers,
       Map<String, Object> summary) {}
   private record ClassSnapshot(JavaClass node, List<MethodSnapshot> methods, Map<String, Object> summary) {}
 
@@ -96,7 +96,7 @@ class ReaJadxBridge {
             String signature = name + "(" + method.getArgTypes().stream()
                 .map(Object::toString).collect(Collectors.joining(", "))
                 + "): " + method.getReturnType().toString();
-            return new MethodSnapshot(name, shortId, List.copyOf(bodyAbsenceMarkers), Map.of(
+            return new MethodSnapshot(name, rawName, shortId, List.copyOf(bodyAbsenceMarkers), Map.of(
                 "name", name, "signature", signature,
                 "dex_descriptor", descriptor,
                 "is_constructor", method.isConstructor(), "def_pos", 0));
@@ -147,16 +147,48 @@ class ReaJadxBridge {
     // These methods have no Java body; source slicing can include unrelated members.
     if (!selected.bodyAbsenceMarkers().isEmpty())
       return new JadxSession.SmartCode("", "java", false, selected.bodyAbsenceMarkers());
-    if (!selected.shortId().equals("<clinit>()V"))
-      return current.getMethodBodySmart(method, current.getMaxSourceBytes(), true);
     // Java code generation can fold all or part of <clinit> into field declarations.
     // Its method text cannot establish coverage, even when a static block remains.
-    JadxSession.MethodSmali smali = current.getMethodSmali(cls.node(), method.getName());
-    if (!smali.getFound() || smali.getBlocks().size() != 1)
-      throw new IllegalArgumentException("Static initializer disassembly requires one exact method: " + selected.shortId());
+    if (selected.shortId().equals("<clinit>()V"))
+      return exactMethodSmali(current, cls, selected, List.of("static_initializer_disassembly"));
+    String java = current.getMethodSource(method);
+    if (java.startsWith("// ERROR:")) throw new IllegalArgumentException(java);
+    // The upstream placeholder means only that Java code was omitted, including
+    // methods merged into synthetic bridges. Access flags established absence above.
+    if (java.isEmpty() || java.equals(
+        "// method exists but has no decompiled body (native/abstract)"))
+      return exactMethodSmali(current, cls, selected, List.of("java_body_unavailable"));
+    List<String> markers = DecompileFailureKt.detectDecompileFailure(java);
+    if (markers.stream().anyMatch(DecompileFailureKt.getSTRONG_FAILURE_MARKERS()::contains))
+      return exactMethodSmali(current, cls, selected, markers);
     return new JadxSession.SmartCode(
-        TextUtilKt.truncateToBytes(smali.getBlocks().get(0), current.getMaxSourceBytes()),
-        "smali", true, List.of("static_initializer_disassembly"));
+        TextUtilKt.truncateToBytes(java, current.getMaxSourceBytes()), "java", false, markers);
+  }
+
+  private JadxSession.SmartCode exactMethodSmali(JadxSession current, ClassSnapshot cls,
+      MethodSnapshot selected, List<String> markers) {
+    JadxSession.MethodSmali smali = current.getMethodSmali(cls.node(), selected.rawName());
+    String block = selectMethodSmali(smali, selected.shortId());
+    return new JadxSession.SmartCode(
+        TextUtilKt.truncateToBytes(block, current.getMaxSourceBytes()), "smali", true, markers);
+  }
+
+  private static String selectMethodSmali(JadxSession.MethodSmali smali, String shortId) {
+    if (!smali.getFound())
+      throw new IllegalArgumentException("JADX could not disassemble " + shortId
+          + (smali.getNote() == null ? "" : ": " + smali.getNote()));
+    // Upstream returns every same-name overload, and can return an unterminated
+    // trailing block. Match the full original identity before applying output limits.
+    List<String> matches = smali.getBlocks().stream().filter(block -> {
+      String header = block.lines().findFirst().orElse("").strip();
+      return header.startsWith(".method ") && header.endsWith(" " + shortId);
+    }).toList();
+    if (matches.size() != 1)
+      throw new IllegalArgumentException("Disassembly could not establish one selected method: " + shortId);
+    String block = matches.get(0);
+    if (!block.stripTrailing().endsWith("\n.end method"))
+      throw new IllegalArgumentException("Selected method disassembly is incomplete: " + shortId);
+    return block;
   }
 
   // The local transport admits 8 MiB frames. Reserve 1 KiB for the fixed
@@ -251,6 +283,7 @@ class ReaJadxBridge {
       JadxSession.SmartCode code = methodBody(current, cls, overloads.get(index), method);
       return json(Map.of("class_name", cls.summary().get("full_name"),
           "method_name", overloads.get(index).name(), "full_name", method.getFullName(),
+          "dex_descriptor", overloads.get(index).summary().get("dex_descriptor"),
           "overload_index", index, "overload_count", overloads.size(),
           "mode", code.getKind(), "fell_back", code.getFellBack(),
           "markers", code.getMarkers(), "body", code.getText()));
@@ -312,7 +345,7 @@ class ReaJadxBridge {
         1048576, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL));
     ServerCapabilities capabilities = new ServerCapabilities(
         new ServerCapabilities.Tools(null), null, null, null, null, null, null, Map.of());
-    Server server = new Server(new Implementation("rea-jadx-bridge", "2", null, null, null),
+    Server server = new Server(new Implementation("rea-jadx-bridge", "3", null, null, null),
         new ServerOptions(capabilities), "", ignored -> Unit.INSTANCE);
     SessionToolsKt.registerSessionTools(server, holder);
     ManifestToolsKt.registerManifestTools(server, holder);

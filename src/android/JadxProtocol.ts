@@ -69,6 +69,7 @@ export const jadxMethodSchema = z.object({
   full_name: z.string(),
   overload_index: count,
   overload_count: count,
+  dex_descriptor: dexDescriptorSchema,
   mode: z.enum(["java", "smali"]),
   fell_back: z.boolean(),
   markers: z.array(z.string()),

@@ -83,6 +83,10 @@ export const verifyAndroidMetadata = async ({
     );
     assert.match(
       result.stdout,
+      /MERGED_METHOD_REGRESSION_PASS exact=true overloaded=true handlers=true/u,
+    );
+    assert.match(
+      result.stdout,
       /DIRECT_INVOKE_REGRESSION_PASS nodes=1 offsets=0,3 cross_dex=true/u,
     );
     console.log(

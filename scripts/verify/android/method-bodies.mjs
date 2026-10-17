@@ -45,6 +45,39 @@ const cases = [
     witnesses: [],
   })),
   {
+    class_name: "fixture.MergedMethod",
+    method_name: "highlightText",
+    overload_index: 0,
+    overload_count: 2,
+    body_status: "available",
+    representation: "smali",
+    fell_back: true,
+    markers: ["java_body_unavailable"],
+    witnesses: [".method private highlightText()V", "0x77", "if-nez", ".catch"],
+  },
+  {
+    class_name: "fixture.MergedMethod",
+    method_name: "highlightText",
+    overload_index: 1,
+    overload_count: 2,
+    body_status: "available",
+    representation: "java",
+    fell_back: false,
+    markers: [],
+    witnesses: ["42"],
+  },
+  {
+    class_name: "fixture.MergedMethod",
+    method_name: "decoy",
+    overload_index: 0,
+    overload_count: 1,
+    body_status: "available",
+    representation: "java",
+    fell_back: false,
+    markers: [],
+    witnesses: ["renamed from: highlightText,"],
+  },
+  {
     class_name: "fixture.NativeOverload",
     method_name: "readBuffer",
     overload_index: 1,
@@ -57,7 +90,7 @@ const cases = [
   },
 ];
 
-/** Verify exact initializer instructions and no-code method facts through both public adapters. */
+/** Verify original method instructions, missing Java and parsed absence through both adapters. */
 export const verifyAndroidMethodBodies = async ({
   apk,
   repository,
@@ -170,6 +203,6 @@ export const verifyAndroidMethodBodies = async ({
     "Static inspection changed fixture bytes",
   );
   console.log(
-    "PASS real CLI/MCP initializer and native/abstract evidence, identity, parity and unchanged APK",
+    "PASS real CLI/MCP original method bodies, absence facts, identity, parity and unchanged APK",
   );
 };

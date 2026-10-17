@@ -130,30 +130,43 @@ register("get_class_summary", () =>
     ...(mode === "summary-error" ? { error: "summary timed out" } : {}),
   }),
 );
-register("get_method_body", ({ method_name, overload_index }) =>
-  json({
+register("get_method_body", ({ method_name, overload_index }) => {
+  if (mode === "body-error")
+    return {
+      ...text("// ERROR: decompile timed out or failed"),
+      isError: true,
+    };
+  const selected = methods.filter((method) => method.name === method_name)[
+    overload_index
+  ];
+  return json({
     class_name: "fixture.Target",
     method_name,
     full_name: `fixture.Target.${method_name}`,
     overload_index:
       mode === "wrong-method" ? overload_index + 1 : overload_index,
     overload_count: method_name === "choose" ? 2 : 1,
-    mode: mode === "smali" || mode === "overloaded-smali" ? "smali" : "java",
-    fell_back: mode === "smali" || mode === "overloaded-smali",
+    dex_descriptor:
+      mode === "wrong-descriptor" ? "()V" : selected.dex_descriptor,
+    mode:
+      mode === "smali" || mode === "selected-overload-smali" ? "smali" : "java",
+    fell_back: mode === "smali" || mode === "selected-overload-smali",
     markers:
-      mode === "smali" || mode === "overloaded-smali"
+      mode === "smali" || mode === "selected-overload-smali"
         ? ["Method not decompiled"]
-        : [],
+        : mode === "native-method"
+          ? ["native_method"]
+          : [],
     body:
-      mode === "no-body"
-        ? "// method exists but has no decompiled body (native/abstract)"
-        : mode === "body-error"
-          ? "// ERROR: decompile timed out or failed"
+      mode === "smali" || mode === "selected-overload-smali"
+        ? `.method public ${method_name}${selected.dex_descriptor}\n    .registers 2\n    return-void\n.end method`
+        : mode === "native-method"
+          ? ""
           : mode === "truncated"
             ? "void onCreate(){}\n\n... [truncated: exceeds 18 bytes, total 100 bytes]"
             : `void ${method_name}() { /* overload ${overload_index} */ }`,
-  }),
-);
+  });
+});
 for (const name of ["get_xrefs_to_class", "get_xrefs_to_method"])
   register(name, ({ class_name, method_name, overload_index }) =>
     json({

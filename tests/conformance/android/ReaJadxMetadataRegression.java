@@ -90,7 +90,8 @@ public class ReaJadxMetadataRegression {
         Path.of(sources, "InitializationPolicy.smali").toString(),
         Path.of(sources, "MixedInitialization.smali").toString(),
         Path.of(sources, "NativeOverload.smali").toString(),
-        Path.of(sources, "AbstractShape.smali").toString())), "Initializer fixture assembly failed");
+        Path.of(sources, "AbstractShape.smali").toString(),
+        Path.of(sources, "MergedMethod.smali").toString())), "Initializer fixture assembly failed");
     Path apk = directory.resolve("initializers.apk");
     try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(apk))) {
       zip.putNextEntry(new ZipEntry("classes.dex"));
@@ -219,6 +220,7 @@ public class ReaJadxMetadataRegression {
     require(ordinary.get("mode").getAsString().equals("java") && ordinary.get("body").getAsString().contains("COUNT"),
         "Ordinary executable method no longer produces Java");
     verifyNoBodyMethods(handle, bridge, holder.current());
+    verifyMergedMethods(handle, bridge);
 
     SessionConfig bounded = new SessionConfig(96, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
     BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
@@ -232,7 +234,70 @@ public class ReaJadxMetadataRegression {
         "Static initializer ignored the source byte limit or omitted its truncation marker");
     String prefix = partial.get("body").getAsString().split("\n\n\\.\\.\\. \\[truncated:", 2)[0];
     require(prefix.getBytes(StandardCharsets.UTF_8).length <= 96, "Initializer text exceeded its byte limit");
+    SessionConfig tiny = new SessionConfig(16, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.unload(continuation));
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.load(apk.toString(), tiny, continuation));
+    JsonObject missing = call(handle, constructor.newInstance(holder), "get_method_body",
+        methodArguments("fixture.MergedMethod", "highlightText"));
+    require(missing.get("mode").getAsString().equals("smali")
+        && missing.get("body").getAsString().contains("[truncated: exceeds 16 bytes, total ")
+        && missing.getAsJsonArray("markers").contains(new JsonPrimitive("java_body_unavailable")),
+        "Missing Java was interpreted after applying source limits: " + missing);
     System.out.println("INITIALIZER_REGRESSION_PASS folded=2 bounded=true");
+  }
+
+  private static void verifyMergedMethods(Method handle, Object bridge) throws Exception {
+    JsonObject input = methodArguments("fixture.MergedMethod", "highlightText");
+    JsonObject body = call(handle, bridge, "get_method_body", input);
+    String text = body.get("body").getAsString();
+    require(body.get("mode").getAsString().equals("smali") && body.get("fell_back").getAsBoolean(),
+        "Merged method did not recover original instructions: " + body);
+    require(body.get("dex_descriptor").getAsString().equals("()V")
+        && body.get("overload_count").getAsInt() == 2, "Merged method identity changed");
+    require(body.getAsJsonArray("markers").contains(new JsonPrimitive("java_body_unavailable")),
+        "Missing Java reason was not reported");
+    require(text.startsWith(".method private highlightText()V") && text.endsWith(".end method")
+        && text.contains("0x77") && text.contains("if-nez") && text.contains(".catch")
+        && !text.contains("highlightText(I)V") && !text.contains("0x2a") && !text.contains("renamed from:"),
+        "Disassembly lost branches/handlers or included another method: " + text);
+    JsonObject overloaded = methodArguments("fixture.MergedMethod", "highlightText");
+    overloaded.addProperty("overload_index", 1);
+    JsonObject other = call(handle, bridge, "get_method_body", overloaded);
+    require(other.get("dex_descriptor").getAsString().equals("(I)V")
+        && other.get("body").getAsString().contains("42"), "Concrete overload lost its own implementation: " + other);
+    require(body.equals(call(handle, bridge, "get_method_body", input)), "Repeated raw-method recovery changed");
+    verifySmaliSelection(bridge.getClass());
+    System.out.println("MERGED_METHOD_REGRESSION_PASS exact=true overloaded=true handlers=true");
+  }
+
+  private static void verifySmaliSelection(Class<?> bridge) throws Exception {
+    Method select = bridge.getDeclaredMethod("selectMethodSmali", JadxSession.MethodSmali.class, String.class);
+    select.setAccessible(true);
+    String selected = ".method private highlightText()V\n    return-void\n.end method";
+    String other = ".method private highlightText(I)V\n    # highlightText()V\n    return-void\n.end method";
+    String incomplete = ".method private highlightText()V\n    return-void";
+    require(select.invoke(null, new JadxSession.MethodSmali("highlightText", List.of(other, selected), true, null),
+        "highlightText()V").equals(selected), "Body text or overload order selected a method");
+    for (List<String> blocks : List.of(List.<String>of(), List.of(other), List.of(selected, selected),
+        List.of(incomplete), List.of(selected, incomplete), List.of(incomplete, selected))) {
+      try {
+        select.invoke(null, new JadxSession.MethodSmali("highlightText", blocks, true, null), "highlightText()V");
+        throw new AssertionError("Unproven disassembly identity or completeness was accepted");
+      } catch (InvocationTargetException failure) {
+        require(failure.getCause() instanceof IllegalArgumentException,
+            "Disassembly uncertainty lost its failure reason");
+      }
+    }
+    String reason = "smali generation failed: controlled timeout";
+    try {
+      select.invoke(null, new JadxSession.MethodSmali("highlightText", List.of(), false, reason), "highlightText()V");
+      throw new AssertionError("Disassembly generation failure was accepted");
+    } catch (InvocationTargetException failure) {
+      require(failure.getCause() instanceof IllegalArgumentException
+          && failure.getCause().getMessage().contains(reason), "Original disassembly failure reason was lost");
+    }
   }
 
   private static void verifyNoBodyMethods(Method handle, Object bridge, JadxSession session) throws Exception {

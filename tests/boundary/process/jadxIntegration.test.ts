@@ -568,7 +568,7 @@ it.each([
   "empty-page",
   "summary-error",
   "wrong-method",
-  "body-error",
+  "wrong-descriptor",
   "partial-xrefs",
 ])(
   "rejects producer failure %s rather than claiming complete analysis",
@@ -834,19 +834,32 @@ it("reports missing explicit tools without trying to install or launch them", as
   });
 });
 
-it.each(["tool-error", "frame-overflow"])(
+it.each(["tool-error", "frame-overflow", "body-error"])(
   "preserves the actual failed provider constraint for %s",
   async (mode) => {
     const { service, apk, launches, provider } = await setup(mode);
-    const outcome = await service.execute("inspect_android_package", {
-      path: apk,
-    });
+    const outcome = await service.execute(
+      mode === "body-error"
+        ? "inspect_android_method"
+        : "inspect_android_package",
+      {
+        path: apk,
+        ...(mode === "body-error"
+          ? { class_name: "fixture.Target", method_name: "onCreate" }
+          : {}),
+      },
+    );
     if (outcome.ok) throw new Error("Expected a provider failure");
-    if (mode === "tool-error")
+    if (mode !== "frame-overflow")
       expect(outcome.error).toMatchObject({
         _tag: "ProviderAdapterError",
         diagnostics: {
-          reason: "manifest decoder rejected malformed binary XML",
+          upstream_operation:
+            mode === "body-error" ? "get_method_body" : "get_android_manifest",
+          reason:
+            mode === "body-error"
+              ? "// ERROR: decompile timed out or failed"
+              : "manifest decoder rejected malformed binary XML",
         },
       });
     else
@@ -1069,27 +1082,31 @@ it("retains the execution failure while cleanup is pending and resumes after cle
   }
 });
 
-it("does not attribute upstream smali containing all overloads to the selected method", async () => {
-  const { service, apk, launches, provider } = await setup("overloaded-smali");
+it("accepts exact selected-overload smali from the bridge", async () => {
+  const { service, apk, launches, provider } = await setup(
+    "selected-overload-smali",
+  );
   const outcome = await service.execute("inspect_android_method", {
     path: apk,
     class_name: "fixture.Target",
     method_name: "choose",
     overload_index: 1,
   });
-  expect(outcome).toMatchObject({
-    ok: false,
-    error: {
-      _tag: "AnalysisCapabilityUnavailableError",
-      reason: expect.stringContaining("joins all same-name overloads"),
-    },
+  if (!outcome.ok) throw outcome.error;
+  const result = androidResultSchemas.inspect_android_method.parse(
+    outcome.value.normalized_result,
+  );
+  expect(result).toMatchObject({
+    method: { overload_index: 1, dex_descriptor: "(I)V" },
+    representation: "smali",
+    body_status: "available",
   });
   await provider.close();
   await verifyCleanup(launches);
 });
 
-it("reports missing native/abstract method source without claiming an empty implementation", async () => {
-  const { service, apk, launches, provider } = await setup("no-body");
+it("retains parsed native body absence without claiming an empty implementation", async () => {
+  const { service, apk, launches, provider } = await setup("native-method");
   const outcome = await service.execute("inspect_android_method", {
     path: apk,
     class_name: "fixture.Target",
@@ -1100,7 +1117,8 @@ it("reports missing native/abstract method source without claiming an empty impl
     outcome.value.normalized_result,
   );
   expect(result.body_status).toBe("not_available");
-  expect(result.source.text).toContain("no decompiled body");
+  expect(result.source.text).toBe("");
+  expect(result.markers).toEqual(["native_method"]);
   await provider.close();
   await verifyCleanup(launches);
 });

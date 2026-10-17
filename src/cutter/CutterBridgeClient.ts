@@ -176,6 +176,13 @@ class CutterBridgeResponseFrames {
   }
 }
 
+const assertCommandActive = (signal: AbortSignal | undefined): void => {
+  if (signal?.aborted)
+    throw new AnalysisCancelledError("cutter_command", {
+      cause: signal.reason,
+    });
+};
+
 const mapDiscovery = async <Input, Output>(
   inputs: readonly Input[],
   operation: (input: Input) => Promise<Output>,
@@ -413,9 +420,9 @@ export class CutterBridgeClient {
     readonly json: boolean;
     readonly signal?: AbortSignal;
   }): Promise<CutterBridgeExecution> {
-    input.signal?.throwIfAborted();
+    assertCommandActive(input.signal);
     const descriptor = await this.#find(input.sessionId, input.signal);
-    input.signal?.throwIfAborted();
+    assertCommandActive(input.signal);
     const requestId = randomUUID();
     const commandRequest = serializeRequest(descriptor, {
       kind: "command",
@@ -426,7 +433,7 @@ export class CutterBridgeClient {
     });
     await this.#recoverCompletedCommands(descriptor, input.signal);
     await this.#retryPendingAcknowledgements(descriptor);
-    input.signal?.throwIfAborted();
+    assertCommandActive(input.signal);
     let completionToken: string | undefined;
     let rawResponse: unknown;
     try {

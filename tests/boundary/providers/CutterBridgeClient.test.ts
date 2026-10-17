@@ -748,7 +748,11 @@ describe("CutterBridgeClient: scenario group 4", () => {
         json: false,
         signal: controller.signal,
       }),
-    ).rejects.toMatchObject({ name: "AbortError" });
+    ).rejects.toMatchObject({
+      _tag: "AnalysisCancelledError",
+      operation: "cutter_command",
+      cause: controller.signal.reason,
+    });
   });
 });
 

@@ -36,7 +36,10 @@ it
           operation,
         });
         expect(result.error._tag).toBe(health.error._tag);
-        expect(result.error.diagnostics).toEqual(health.error.diagnostics);
+        expect(result.error.diagnostics).toEqual({
+          ...health.error.diagnostics,
+          producer_operation: "health",
+        });
         expect(result.error.cause).toBe(health.error);
         expect(projectAnalysisError(result.error).retryable).toBe(
           projectAnalysisError(health.error).retryable,

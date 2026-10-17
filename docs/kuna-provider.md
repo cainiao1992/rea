@@ -82,6 +82,12 @@ REA parses the graph as Kuna writes it, like the string scan, so the graph has n
 
 Evidence includes only selected addresses or dossier neighbors, the producing JSON's SHA-256/byte count, coverage and relevant function facts; unrequested program-wide JSON and instruction text are omitted. Reference caches are in memory and expire on close: a fresh CLI process or MCP server rebuilds them. A first call query therefore costs a whole-program reference walk even when a C export is warm. These operations do not establish full Ghidra/IDA feature parity.
 
+Failures from shared installation or inventory work identify the operation the
+caller requested. `diagnostics.producer_operation` retains the internal producer
+name when it differs. Caller-specific failures keep the producer's typed outcome,
+captured output, partial facts and live cleanup dependencies; cleanup retry
+updates every projection rather than preserving an independent stale marker.
+
 ## Provenance and limitations
 
 - Addresses and bytes are Kuna's observations of the image. Procedure entries and extents are its derivations: extents are upper bounds clipped at the next entry, and Kuna can split one function at an entry its own analysis infers. Pseudocode is its reconstruction, never original source.

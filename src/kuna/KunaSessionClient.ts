@@ -79,7 +79,7 @@ import {
 } from "../filesystem/OwnedRegularFile.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
-import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
+import { kunaQueryFailureForCaller } from "./KunaQueryErrors.js";
 
 /** How often a request waiting on the project export reports that it still waits. */
 const WAIT_PROGRESS_INTERVAL_MS = 10_000;
@@ -146,7 +146,7 @@ const waitFor = async <T>(
 ): Promise<Result<T, AnalysisError>> => {
   const result = await waitForAbortable(work, signal);
   return result === ABORTED
-    ? err(new AnalysisCancelledError(operation))
+    ? err(new AnalysisCancelledError(operation, { cause: signal?.reason }))
     : result;
 };
 
@@ -332,7 +332,11 @@ export class KunaSessionClient implements AnalysisClient {
     options: ExecutionOptions,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     if (cancelled(options.signal))
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, {
+          cause: options.signal?.reason,
+        }),
+      );
     if (operation !== "health" && !isKunaOperation(operation))
       return err(
         kunaUnavailable(
@@ -360,15 +364,7 @@ export class KunaSessionClient implements AnalysisClient {
       );
     const installation = await this.#ensureInstallation();
     if (!installation.ok)
-      return operation === "health"
-        ? installation
-        : err(
-            analysisClientFailureForOperation(
-              installation.error,
-              KUNA_PROVIDER_ID,
-              operation,
-            ),
-          );
+      return err(kunaQueryFailureForCaller(installation.error, operation));
     try {
       if (operation === "health")
         return ok(
@@ -398,7 +394,8 @@ export class KunaSessionClient implements AnalysisClient {
         installation.value,
         options,
       );
-      if (!answer.ok) return answer;
+      if (!answer.ok)
+        return err(kunaQueryFailureForCaller(answer.error, operation));
       if (cancelled(options.signal))
         return err(new AnalysisCancelledError(operation));
       return ok(

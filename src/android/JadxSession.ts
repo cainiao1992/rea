@@ -1,3 +1,4 @@
+import { throwIfJadxInterrupted } from "./JadxInterruption.js";
 import { Client } from "@modelcontextprotocol/client";
 import {
   createAnalysisExecution,
@@ -86,11 +87,12 @@ export class JadxSession {
     this.#serverVersion = null;
     this.#engineVersion = null;
     const abort = () => {
-      void this.transport.close().catch(() => undefined);
+      void this.transport.interrupt(signal.reason).catch(() => undefined);
     };
     signal.addEventListener("abort", abort, { once: true });
     try {
-      signal.throwIfAborted();
+      if (signal.aborted) abort();
+      throwIfJadxInterrupted(signal);
       this.transport.beginOperation();
       if (!this.#connected) {
         await this.#client.connect(this.transport, { timeout: 30_000 });
@@ -215,7 +217,7 @@ export class JadxSession {
       name: string,
       input: Readonly<Record<string, JsonValue>>,
     ): Promise<string> => {
-      signal.throwIfAborted();
+      throwIfJadxInterrupted(signal);
       // Keep an explicit bound: omitting it falls back to the SDK's 60-second default.
       const response = await this.#client.callTool(
         { name, arguments: input },

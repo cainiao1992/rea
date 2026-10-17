@@ -374,6 +374,11 @@ export class ProviderProcessSupervisor {
     return { code: exit.code, signal: exit.signal };
   }
 
+  /** Whether the process owner acknowledged output closure, separately from exit. */
+  observedOutputClose(): boolean {
+    return this.#outputClosed;
+  }
+
   /** Latest retained output and exit observation, with explicit configured truncation. */
   snapshot(): ProviderProcessSnapshot {
     const outputIncomplete =

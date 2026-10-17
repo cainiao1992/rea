@@ -1,3 +1,4 @@
+import { throwIfJadxInterrupted } from "./JadxInterruption.js";
 import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
@@ -248,12 +249,12 @@ const readJadxConfigurationInputs = async (
   environment: Readonly<Record<string, string | undefined>>,
   signal?: AbortSignal,
 ): Promise<JadxConfiguration> => {
-  signal?.throwIfAborted();
+  throwIfJadxInterrupted(signal);
   requireSupportedHost();
   const jar = await resolveJar(environment);
   const java = await resolveJava(environment, signal);
   await requireJavaHomeExecutable(environment.JAVA_HOME, java);
-  signal?.throwIfAborted();
+  throwIfJadxInterrupted(signal);
   return { jar, java, jvmArguments: resolveJvmArguments(environment) };
 };
 
@@ -262,7 +263,7 @@ const validateJadxConfigurationContents = async (
   environment: Readonly<Record<string, string | undefined>>,
   signal?: AbortSignal,
 ): Promise<void> => {
-  signal?.throwIfAborted();
+  throwIfJadxInterrupted(signal);
   await inspectJavaRuntime(configuration.java, environment, signal);
   await requireEngineArchive(configuration.jar, signal);
 };
@@ -435,7 +436,7 @@ const resolveJava = async (
         ([key]) => key.toLowerCase() === "path",
       )?.[1] ?? "";
     for (const directory of [process.cwd(), ...path.split(delimiter)]) {
-      signal?.throwIfAborted();
+      throwIfJadxInterrupted(signal);
       // Windows PATH commonly quotes individual entries containing spaces.
       const selected =
         directory.startsWith('"') && directory.endsWith('"')

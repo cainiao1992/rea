@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi, onTestFinished } from "vitest";
 
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
@@ -12,6 +12,8 @@ import type { NativeCommandRunner } from "./CommandRunner.js";
 import type { NativeCallTracer } from "./LldbCallTracer.js";
 import { NativeMacOSProvider } from "./NativeMacOSProvider.js";
 import { withSignatureTarget } from "./SignatureTargetBinding.js";
+import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
+import { resolvedAnalysisError } from "../domain/analysisErrorBase.js";
 
 const roots: string[] = [];
 const targets: string[] = [];
@@ -92,6 +94,11 @@ it("retains a snapshot root after cleanup fails alongside a digest mismatch", as
   });
 
   await resources.close();
+  expect(result.error.cleanupIncomplete).toBe(false);
+  expect(result.error.cleanupResources).toEqual([]);
+  expect(resolvedAnalysisError(result.error)._tag).toBe(
+    "AnalysisArtifactChangedError",
+  );
   await expect(stat(roots[0]!)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
@@ -155,6 +162,12 @@ it("retries a retained signature root when the provider client closes", async ()
     ok: true,
     value: null,
   });
+  expect(result.error.cleanupIncomplete).toBe(false);
+  expect(result.error.cleanupResources).toEqual([]);
+  if (!firstClose.ok) {
+    expect(firstClose.error.cleanupIncomplete).toBe(false);
+    expect(firstClose.error.cleanupResources).toEqual([]);
+  }
   await expect(stat(roots[0]!)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
@@ -195,4 +208,64 @@ it("waits for an in-flight signature binding before provider close", async () =>
   await expect(closing).resolves.toMatchObject({ ok: true, value: null });
   expect(closeSettled).toBe(true);
   await expect(stat(roots[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("tracks mixed snapshot descriptor and root cleanup through partial release and retry", async () => {
+  const target = await createTarget("observed", "expected");
+  const resources = new ArtifactResourceScope();
+  const original = OwnedFileHandle.prototype.close;
+  let blocked: OwnedFileHandle | undefined;
+  let attempts = 0;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(function (this: OwnedFileHandle) {
+      blocked ??= this;
+      if (this === blocked && ++attempts <= 2)
+        return Promise.reject(
+          new Error("controlled snapshot descriptor close failure"),
+        );
+      return original.call(this);
+    });
+  onTestFinished(async () => {
+    close.mockRestore();
+    await resources.close();
+  });
+  const inspect = vi.fn(async () => ok("must not run"));
+  const first = await withSignatureTarget(
+    target,
+    resources,
+    inspect,
+    undefined,
+    () => createRoot(1),
+  );
+  expect(first.ok).toBe(false);
+  if (first.ok) throw new Error("Expected both retained owners");
+  const snapshot = join(roots[0]!, "target.bin");
+  expect(new Set(first.error.cleanupResources)).toEqual(
+    new Set([snapshot, roots[0]!]),
+  );
+  const retried = await withSignatureTarget(
+    target,
+    resources,
+    inspect,
+    undefined,
+    createRoot,
+  );
+  expect(retried.ok).toBe(false);
+  if (retried.ok) throw new Error("Expected retained descriptor retry failure");
+  expect(first.error.cleanupIncomplete).toBe(true);
+  expect(first.error.cleanupResources).toEqual([snapshot]);
+  expect(retried.error.cleanupResources).toEqual([snapshot]);
+  expect(roots).toHaveLength(1);
+  expect(inspect).not.toHaveBeenCalled();
+  await expect(stat(roots[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+  await resources.close();
+  expect(attempts).toBe(3);
+  for (const failure of [first.error, retried.error]) {
+    expect(failure.cleanupIncomplete).toBe(false);
+    expect(failure.cleanupResources).toEqual([]);
+  }
+  expect(resolvedAnalysisError(first.error)._tag).toBe(
+    "AnalysisArtifactChangedError",
+  );
 });

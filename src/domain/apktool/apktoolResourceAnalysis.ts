@@ -30,6 +30,22 @@ const localeQualifierSchema = z
 /** Locale language tags admitted by Android resource table selection. */
 export const androidLocaleQualifierSchema = localeQualifierSchema;
 
+/** Normalize an admitted request alias at the locale-selection owner. */
+export const androidLocaleDirectorySuffix = (locale: string): string =>
+  locale.replace(/^([a-z]{2,3})-([A-Z]{2}|[0-9]{3})$/u, "$1-r$2");
+
+/** Exact selectable table names are distinct from whole resource configurations. */
+export const classifyAndroidStringsTable = (
+  suffix: string,
+):
+  | { readonly kind: "locale"; readonly locale: string }
+  | { readonly kind: "other"; readonly suffix: string } => {
+  const parsed = androidLocaleQualifierSchema.safeParse(suffix);
+  return parsed.success && androidLocaleDirectorySuffix(parsed.data) === suffix
+    ? { kind: "locale", locale: parsed.data }
+    : { kind: "other", suffix };
+};
+
 /**
  * Caller intent for Apktool-backed resource decoding. Apktool is
  * bring-your-own: REA never installs it, and decoding happens in a

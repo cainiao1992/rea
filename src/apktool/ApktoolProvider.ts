@@ -30,7 +30,10 @@ import {
   createAnalysisExecutionEvidence,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";
-import type { ApktoolRequest } from "../domain/apktool/apktoolResourceAnalysis.js";
+import {
+  androidLocaleDirectorySuffix,
+  type ApktoolRequest,
+} from "../domain/apktool/apktoolResourceAnalysis.js";
 import {
   AnalysisCapabilityUnavailableError,
   AnalysisCancelledError,
@@ -87,9 +90,6 @@ const throwIfCancelled = (
   if (signal?.aborted === true)
     throw new AnalysisCancelledError(operation, { cause: signal.reason });
 };
-
-const localeQualifier = (locale: string): string =>
-  locale.replace(/^([a-z]{2,3})-([A-Z]{2}|[0-9]{3})$/u, "$1-r$2");
 
 interface DecodeLimits {
   readonly timeoutMs: number;
@@ -582,7 +582,7 @@ export class ApktoolProvider {
       const stringsDirectory =
         input.locale === undefined
           ? "values"
-          : `values-${localeQualifier(input.locale)}`;
+          : `values-${androidLocaleDirectorySuffix(input.locale)}`;
       const stringsRead = input.include_strings
         ? await resources.readText(
             join(workspace, "res", stringsDirectory, "strings.xml"),
@@ -609,7 +609,8 @@ export class ApktoolProvider {
         manifestRead.truncated ||
         stringsRead.truncated ||
         parsedStrings.unparsedCount > 0 ||
-        files.capped
+        files.capped ||
+        files.unreadableStringsTables.length > 0
           ? "partial"
           : "complete";
       result = ok(
@@ -668,6 +669,16 @@ export class ApktoolProvider {
                     `strings.xml exceeds the ${String(STRINGS_XML_MAX_BYTES)}-byte projection budget`,
                   ]
                 : []),
+              ...(files.unreadableStringsTables.length === 0
+                ? []
+                : [
+                    `String tables omitted because they are not regular files: ${files.unreadableStringsTables.map((table) => `${JSON.stringify(table.path)} (${table.kind})`).join(", ")}`,
+                  ]),
+              ...(files.otherStringsTables.length === 0
+                ? []
+                : [
+                    `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${files.otherStringsTables.map((table) => JSON.stringify(table)).join(", ")}`,
+                  ]),
               ...(files.capped
                 ? [
                     `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,

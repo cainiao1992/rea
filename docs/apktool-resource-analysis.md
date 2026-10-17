@@ -63,7 +63,15 @@ select Android's `values-pt-rBR`; Android qualifiers such as `pt-rBR` and
   entries containing nested markup (`<b>`, `<xliff:g>`) are counted as
   unparsed rather than flattened — the limitation names the count. The
   default table is bounded to 2000 entries with partial coverage when more
-  exist; `locales` lists every `values-<locale>` that has a strings table.
+  exist. `locales` lists observed regular `strings.xml` tables whose exact
+  `values-<locale>` directory is selectable by the request's locale grammar.
+  Other table directories, including combined qualifiers such as
+  `values-en-rUS-v21` and `values-mcc310-fr`, are named in limitations with
+  their source spelling. They are not advertised as selectable locales;
+  REA does not infer Android's runtime resource matching. Non-regular
+  strings-table paths are disclosed with partial coverage. Discovery uses
+  the same bounded traversal as the file count; filesystem failures remain
+  failures rather than being interpreted as missing tables.
 - **Smali is skipped by design** (`apktool d --no-src`): Java-source
   recovery belongs to the JADX family. Resource smali edits and rebuild are
   a follow-up lane with mutation authority.

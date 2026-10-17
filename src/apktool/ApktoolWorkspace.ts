@@ -1,5 +1,8 @@
 import { readArtifactFileChunks } from "../artifacts/readArtifactFileChunks.js";
-import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  type ArtifactTraversalOptions,
+} from "../artifacts/ArtifactReader.js";
 import { createHash } from "node:crypto";
 import { chmod, open } from "node:fs/promises";
 import { join } from "node:path";
@@ -200,16 +203,21 @@ export class ApktoolWorkspace {
     }
   }
 
-  async *entries(path: string, signal?: AbortSignal, maximumEntries?: number) {
+  async *entries(
+    path: string,
+    signal?: AbortSignal,
+    maximumEntries?: number,
+    onOmission?: ArtifactTraversalOptions["onOmission"],
+  ) {
     const reader = new DirectoryArtifactReader(path);
     const owner = { kind: "reader" as const, resource: path, reader };
     this.#files.retain(owner);
     let failed: { cause: unknown } | undefined;
     try {
-      yield* reader.entries(
-        signal,
-        maximumEntries === undefined ? undefined : { maximumEntries },
-      );
+      yield* reader.entries(signal, {
+        ...(maximumEntries === undefined ? {} : { maximumEntries }),
+        ...(onOmission === undefined ? {} : { onOmission }),
+      });
     } catch (cause) {
       failed = { cause };
       throw cause;

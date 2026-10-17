@@ -16,12 +16,17 @@ import { ApktoolWorkspace } from "./ApktoolWorkspace.js";
 
 vi.mock("node:fs/promises", async (original) => {
   const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, open: vi.fn(actual.open) };
+  return {
+    ...actual,
+    open: vi.fn(actual.open),
+    opendir: vi.fn(actual.opendir),
+  };
 });
 const actual =
   await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
 afterEach(() => {
   vi.mocked(fs.open).mockImplementation(actual.open);
+  vi.mocked(fs.opendir).mockImplementation(actual.opendir);
 });
 
 it.each(["source", "snapshot", "output"] as const)(
@@ -253,10 +258,103 @@ it.skipIf(process.platform === "win32")(
         undefined,
         6,
       );
-      expect(complete).toEqual({ count: 2, capped: false, locales: [] });
+      expect(complete).toEqual({
+        count: 2,
+        capped: false,
+        locales: [],
+        otherStringsTables: [],
+        unreadableStringsTables: [],
+      });
     } finally {
       await workspace.close();
       await commands.close();
     }
   },
 );
+
+it.skipIf(process.platform === "win32")(
+  "inventories only observed regular tables and discloses non-regular and unknown entries",
+  async () => {
+    const root = await PrivateRuntimeRoot.create({
+      prefix: "rea-apktool-tables-test-",
+    });
+    const commands = new ApktoolCommandCleanup();
+    const workspace = new ApktoolWorkspace(root, commands);
+    const regular = ["de", "en-rUS-v21", "mcc310-fr", "night", "pt-BR", ""];
+    const nonRegular = ["fr", "it", "es"];
+    try {
+      for (const suffix of [...regular, ...nonRegular, "ja"])
+        await fs.mkdir(join(root.path, "res", `values-${suffix}`), {
+          recursive: true,
+        });
+      for (const suffix of regular)
+        await fs.writeFile(
+          join(root.path, "res", `values-${suffix}`, "strings.xml"),
+          "<resources/>",
+        );
+      await fs.symlink(
+        join(root.path, "res/values-de/strings.xml"),
+        join(root.path, "res/values-fr/strings.xml"),
+      );
+      await promisify(execFile)("mkfifo", [
+        join(root.path, "res/values-it/strings.xml"),
+      ]);
+      await fs.mkdir(join(root.path, "res/values-es/strings.xml"));
+      const result = await countDecodedFiles(
+        workspace,
+        root.path,
+        undefined,
+        100,
+      );
+      expect(result).toEqual({
+        count: regular.length,
+        capped: false,
+        locales: ["de"],
+        otherStringsTables: [
+          "values-",
+          "values-en-rUS-v21",
+          "values-mcc310-fr",
+          "values-night",
+          "values-pt-BR",
+        ],
+        unreadableStringsTables: [
+          { path: "res/values-es/strings.xml", kind: "directory" },
+          { path: "res/values-fr/strings.xml", kind: "symlink" },
+          { path: "res/values-it/strings.xml", kind: "fifo" },
+        ],
+      });
+    } finally {
+      await workspace.close();
+      await commands.close();
+    }
+  },
+);
+
+it("preserves a directory inspection failure instead of treating its locale table as absent", async () => {
+  const root = await PrivateRuntimeRoot.create({
+    prefix: "rea-apktool-tables-test-",
+  });
+  const commands = new ApktoolCommandCleanup();
+  const workspace = new ApktoolWorkspace(root, commands);
+  const blocked = join(root.path, "res/values-fr");
+  try {
+    await fs.mkdir(blocked, { recursive: true });
+    await fs.writeFile(join(blocked, "strings.xml"), "<resources/>");
+    vi.mocked(fs.opendir).mockImplementation(async (path, options) => {
+      if (String(path) === blocked)
+        throw Object.assign(new Error("authored directory inspection denial"), {
+          code: "EACCES",
+        });
+      return actual.opendir(path, options);
+    });
+    await expect(
+      countDecodedFiles(workspace, root.path, undefined, 100),
+    ).rejects.toMatchObject({
+      reason: "io",
+      message: expect.stringContaining("authored directory inspection denial"),
+    });
+  } finally {
+    await workspace.close();
+    await commands.close();
+  }
+});

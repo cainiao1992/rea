@@ -131,7 +131,7 @@ const decodeStub = (
       (name) =>
         `printf '%s\\n' '<resources><string name="wrong">Wrong</string></resources>' > "$5/res/values-${name}/strings.xml"`,
     )
-    .join("\\n  ");
+    .join("\n  ");
   return () => `if [ "$1" = "--version" ]; then ${VERSION_BLOCK}; exit 0; fi
 if [ "$1" = "d" ]; then
   ${
@@ -333,6 +333,7 @@ it("ignores Android resource qualifiers when discovering locales", async () => {
     input: { path: apk.path, include_strings: true },
   });
   expect(result.locales).toEqual(["de"]);
+  expect(result.decoded_file_count).toBe(7);
 });
 
 it.each(["car", "night", "v21"])(
@@ -911,6 +912,69 @@ it("reports launcher disappearance after version admission as a provider failure
       "unsupported_target",
     );
     expect(result.error.cause).toBeDefined();
+  } finally {
+    await provider.close();
+  }
+});
+
+it("discloses qualified and unfamiliar strings tables while preserving exact locale selection (#4612)", async () => {
+  const tables = [
+    "en-rUS-v21",
+    "b+zh+Hans+CN-night",
+    "pt-rBR-sw600dp",
+    "mcc310-fr",
+    "mcc310-mnc004-en-rUS-v21",
+    "fr-land",
+    "night",
+    "v21",
+    "pt-BR",
+    "b+sr+Latn+RS+REVISED",
+    "unknown_CONFIGURATION",
+  ];
+  const { command, root } = await writeApktoolStub(
+    decodeStub({ extraValuesDirectories: [...tables, "fr", "b+sr+Latn"] }),
+  );
+  const apk = await apkFixture(root);
+  const provider = providerOver(command);
+  try {
+    for (const locale of [undefined, "fr", "b+sr+Latn", "en-rUS"] as const) {
+      const result = await provider.execute({
+        operation: "decode_android_resources",
+        input: {
+          path: apk.path,
+          include_strings: true,
+          ...(locale === undefined ? {} : { locale }),
+        },
+      });
+      if (!result.ok) throw result.error;
+      expect(result.value.result).toMatchObject({
+        locales: ["b+sr+Latn", "de", "fr"],
+        locale: locale ?? null,
+        coverage: "complete",
+      });
+      expect(result.value.limitations).toContain(
+        `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${tables
+          .map((suffix) => JSON.stringify(`values-${suffix}`))
+          .sort()
+          .join(", ")}`,
+      );
+      if (locale === undefined)
+        expect(result.value.result).toMatchObject({
+          strings: [
+            { name: "api_endpoint", value: "https://api.example.com/v1" },
+            { name: "app_name", value: "ApktoolProbe" },
+          ],
+        });
+      else if (locale === "en-rUS") {
+        expect(result.value.result).toMatchObject({ strings: [] });
+        expect(result.value.limitations).toContain(
+          "No strings.xml was found for locale en-rUS",
+        );
+      } else
+        expect(result.value.result).toMatchObject({
+          strings: [{ name: "wrong", value: "Wrong" }],
+        });
+    }
   } finally {
     await provider.close();
   }

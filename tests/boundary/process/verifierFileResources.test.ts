@@ -134,6 +134,25 @@ it("Ghidra verifier probes await the shared owned inspection contract", async ()
   expect(violations).toEqual([]);
 });
 
+it("firmware verifier loads its current hash API before reporting unavailable prerequisites", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["scripts/verify/firmware/analysis.mjs"],
+    {
+      encoding: "utf8",
+      timeout: 10_000,
+      env: { PATH: process.env.PATH ?? "" },
+    },
+  );
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    process.platform === "linux"
+      ? "requires REA_BINWALK_COMMAND"
+      : "requires Linux",
+  );
+  expect(result.stderr).not.toContain("does not provide an export");
+});
+
 it.each(["late-close", "retry-close", "retained-close", "opaque-cancellation"])(
   "owns Ghidra verifier prerequisite finalization: %s",
   async (mode) => {

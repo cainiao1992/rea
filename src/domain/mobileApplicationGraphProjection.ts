@@ -130,6 +130,16 @@ export const projectedInventoryEntries = (
     });
 };
 
+/** Directory trees and links retain inventory identity but are not file components. */
+export const projectedFileComponents = (
+  entries: readonly ProjectedInventoryEntry[],
+): ProjectedComponent[] =>
+  entries.flatMap(({ kind, component }) =>
+    (kind === "file" || kind === "slice") && component !== undefined
+      ? [component]
+      : [],
+  );
+
 export { bridgeCandidateCoverageSchema, projectCartesianCandidates };
 
 /** Digest a canonical JSON projection payload for its stable identifier. */

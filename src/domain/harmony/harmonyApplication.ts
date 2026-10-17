@@ -14,6 +14,7 @@ import {
   projectedBridgeCandidateSchema,
   projectedComponentSchema,
   projectedInventoryEntries,
+  projectedFileComponents,
   projectionCoverage,
   projectionDigest,
   projectionEvidenceIdSchema,
@@ -84,9 +85,7 @@ export const projectHarmonyApplication = (
   );
   const rootFormat = harmonyRootFormat(inventory.manifest.root_format);
   const entries = projectedInventoryEntries(inventory);
-  const all = entries.flatMap(({ component }) =>
-    component === undefined ? [] : [component],
-  );
+  const all = projectedFileComponents(entries);
   const unavailable = entries.flatMap(({ unavailable }) =>
     unavailable === undefined ? [] : [unavailable],
   );

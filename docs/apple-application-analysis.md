@@ -77,6 +77,9 @@ including when empty, so Apple projection identifiers change.
 | `.app` directory                       | `.`, the inventoried bundle itself                  |
 | Directory, ZIP, or DMG containing apps | Each outermost `<Name>.app` followed by `Contents/` |
 
+File and slice occurrences supply component endpoints. Directory tree identities
+remain in source inventory and bundle anatomy, and links remain in `symlinks`.
+
 Root and layout discovery use known directories and ancestors implied by deeper
 inventory paths. A leaf file or symlink named `*.app`, `Contents`, or `Versions`
 does not establish that directory. Directory and authenticated-file identity are

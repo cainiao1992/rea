@@ -14,6 +14,7 @@ import {
   projectedBridgeCandidateSchema,
   projectedComponentSchema,
   projectedInventoryEntries,
+  projectedFileComponents,
   projectionCoverage,
   projectionDigest,
   projectionEvidenceIdSchema,
@@ -94,9 +95,7 @@ export const projectAndroidApplication = (
       `Android application projection requires APK inventory Evidence; the inventory root format is ${inventory.manifest.root_format}. APK is chosen for a ZIP archive whose name ends in .apk.`,
     );
   const entries = projectedInventoryEntries(inventory);
-  const all = entries.flatMap(({ component }) =>
-    component === undefined ? [] : [component],
-  );
+  const all = projectedFileComponents(entries);
   const unavailable = entries.flatMap(({ unavailable }) =>
     unavailable === undefined ? [] : [unavailable],
   );

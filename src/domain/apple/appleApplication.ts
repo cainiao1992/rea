@@ -28,6 +28,7 @@ import {
 import {
   projectedComponentSchema,
   projectedInventoryEntries,
+  projectedFileComponents,
   projectionDigest,
   unavailableComponentSchema,
   type ProjectedInventoryEntry,
@@ -119,9 +120,7 @@ export const projectAppleApplication = (
   );
   const rootFormat = appleRootFormat(inventory.manifest.root_format);
   const entries = projectedInventoryEntries(inventory);
-  const inventoried = entries.flatMap(({ component }) =>
-    component === undefined ? [] : [component],
-  );
+  const inventoried = projectedFileComponents(entries);
   const { roots, bundles } = projectAppleBundleAnatomy(entries, {
     name: evidence[0]?.subject?.name ?? "",
     format: rootFormat,

@@ -45,6 +45,10 @@ The MCP tool `project_harmony_application_graph` takes the same
 - path-based N-API bridge hypotheses between bytecode and `libs/<abi>` native
   libraries
 
+File and slice occurrences supply component and child-package paths; directory
+trees and symlinks retain their identities in the source inventory without
+being classified as code files.
+
 Every claim is path-presence only. Manifest semantics (module identity,
 abilities, entry points, permissions, dependencies), Ark bytecode contents and
 versions, resource resolution, signing verification, and observed native

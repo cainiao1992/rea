@@ -225,6 +225,13 @@ cover cancellation during final cleanup.
 Use explicit abort reasons and assert their identity at admission and after
 provider completion, alongside retained observations and cleanup state.
 
+Electron fuse regressions cover actual descriptor close denial and retry through
+the built CLI, same-connection MCP recovery, mixed descriptor outcomes, and
+server shutdown. Controlled seams cover cancellation during final close and
+after reader finalization, plus active-provider shutdown during preflight.
+They preserve real filesystem cleanup where possible; mocked launch boundaries
+do not establish real Electron teardown or naturally occurring OS failures.
+
 For atomic writes, exercise cancellation on both sides of the documented commit
 point and preserve any publication receipt. A late interruption does not prove
 that no output was published.

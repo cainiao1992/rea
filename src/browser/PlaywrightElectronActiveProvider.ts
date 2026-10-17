@@ -1,3 +1,5 @@
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { electronFuseFailure } from "../electron/ElectronFuseFailures.js";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -60,6 +62,19 @@ type ElectronPaths = {
 
 /** Launch an owned Electron application through the official Playwright API. */
 export class PlaywrightElectronActiveProvider implements ElectronActiveObservationPort {
+  readonly #resources = new ArtifactResourceScope();
+  readonly #shutdown = new AbortController();
+
+  /** Stop admitting work, cancel and join captures, then retry exact fuse owners. */
+  async close(): Promise<void> {
+    this.#shutdown.abort(new Error("Electron active provider is closing"));
+    try {
+      await this.#resources.close();
+    } catch (cause: unknown) {
+      throw electronFuseFailure(cause, "fuse-preflight", OPERATION);
+    }
+  }
+
   constructor(
     private readonly environment: Readonly<Record<string, string | undefined>>,
     // Load Playwright only when a capture launches; MCP startup stays off its module graph.
@@ -75,6 +90,23 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
   async capture(
     input: CanonicalElectronActiveObservationInput,
     options: ExecutionOptions = {},
+  ): Promise<Result<ElectronActiveObservationResult, AnalysisError>> {
+    const signal = AbortSignal.any([
+      this.#shutdown.signal,
+      ...(options.signal === undefined ? [] : [options.signal]),
+    ]);
+    try {
+      return await this.#resources.run(() =>
+        this.#capture(input, { ...options, signal }),
+      );
+    } catch (cause: unknown) {
+      return err(electronFuseFailure(cause, input.executable_path, OPERATION));
+    }
+  }
+
+  async #capture(
+    input: CanonicalElectronActiveObservationInput,
+    options: ExecutionOptions,
   ): Promise<Result<ElectronActiveObservationResult, AnalysisError>> {
     let application: ElectronApplication | undefined;
     let ownership: OwnedProcessGroup | undefined;
@@ -97,14 +129,28 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
         application: input.application_path,
         root: input.application_root,
       };
-      await runWithExecutionLimits(
-        assertNodeCliInspectArgumentsSupported(paths.executable, {
+      const preflight = assertNodeCliInspectArgumentsSupported(
+        input.executable_path,
+        {
+          resources: this.#resources,
           ...(options.signal === undefined ? {} : { signal: options.signal }),
           readFuseImage: this.readFuseImage,
-        }),
-        options.signal,
-        startupDeadline,
-      );
+        },
+      ).catch((cause: unknown) => {
+        throw electronFuseFailure(cause, input.executable_path, OPERATION);
+      });
+      try {
+        await runWithExecutionLimits(
+          preflight,
+          options.signal,
+          startupDeadline,
+        );
+      } catch (interruption: unknown) {
+        // A startup interruption cannot abandon an admitted descriptor's final
+        // close. Its physical/cleanup failure takes precedence over the race.
+        await preflight;
+        throw interruption;
+      }
       const captureBaseline =
         await systemProcessOwnershipHost.captureBaseline?.(options.signal);
       if (options.signal?.aborted)
@@ -116,9 +162,10 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
         args: ["-r", hookPath, paths.application, ...input.args],
         timeout: Math.max(1, startupDeadline - performance.now()),
       };
-      application = await containLaunchRejections(() =>
-        this.launch(launchOptions),
-      );
+      application = await containLaunchRejections(() => {
+        options.signal?.throwIfAborted();
+        return this.launch(launchOptions);
+      });
       const leaderPid = application.process().pid;
       if (
         typeof leaderPid !== "number" ||
@@ -170,7 +217,9 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
           ],
         };
       }
-      if (options.signal?.aborted === true)
+      if (cause instanceof AnalysisError && cause.cleanupIncomplete)
+        outcome = err(cause);
+      else if (options.signal?.aborted === true)
         outcome = err(
           new BrowserObservationError(OPERATION, "cancelled", {
             ...cancellationCause(cause, options.signal),

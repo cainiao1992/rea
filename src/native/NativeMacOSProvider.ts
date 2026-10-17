@@ -64,6 +64,7 @@ import {
   demangleSwiftSchema,
   inspectPlistSchema,
   inspectSignatureSchema,
+  type InspectSignature,
   listArchitecturesSchema,
   type NativeCommandInvocation,
 } from "../domain/native/nativeInspection.js";
@@ -591,19 +592,26 @@ class NativeMacOSClient implements AnalysisClient {
           "Active artifact is not Mach-O; its container-level signature layer is not evaluated by codesign.",
         ),
       );
-    return withSignatureTarget(
+    const inspected = await withSignatureTarget(
       this.target,
       this.#signatureResources,
       (binding) => this.#inspectBoundSignature(binding, signal),
       signal,
       this.privateRuntimeRootFactory,
     );
+    return inspected.ok
+      ? ok({
+          result: inspected.value,
+          limitations: inspected.value.limitations,
+          locations: [],
+        })
+      : inspected;
   }
 
   async #inspectBoundSignature(
     binding: SignatureTargetBinding,
     signal?: AbortSignal,
-  ): Promise<Result<NativeObservation, AnalysisError>> {
+  ): Promise<Result<InspectSignature, AnalysisError>> {
     const display = await this.#captureSignature(
       binding,
       ["-d", "--verbose=4"],
@@ -679,11 +687,7 @@ class NativeMacOSClient implements AnalysisClient {
       provenance,
       limitations,
     });
-    return ok({
-      result: jsonValueSchema.parse(result),
-      limitations: result.limitations,
-      locations: [],
-    });
+    return ok(result);
   }
 
   async #inspectMixedSignatureSlices(

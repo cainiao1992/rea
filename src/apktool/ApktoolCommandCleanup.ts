@@ -2,7 +2,10 @@ import {
   AnalysisCleanupLease,
   AnalysisCleanupLeaseGroup,
 } from "../artifacts/AnalysisCleanupLease.js";
-import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import {
+  ArtifactResourceRetryFailure,
+  ArtifactResourceScope,
+} from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
@@ -166,8 +169,13 @@ export class ApktoolCommandCleanup {
 
   #retryFailure(cause: unknown, operation: string): unknown {
     if (
-      !(cause instanceof ArtifactReaderFailure) ||
-      cause.cleanup === undefined
+      !(cause instanceof ArtifactResourceRetryFailure) ||
+      cause.cleanup === undefined ||
+      !cause.failedOwners.every(
+        (failed) =>
+          failed.kind === "lease" &&
+          [...this.#owners].some((owner) => owner.lease === failed.lease),
+      )
     )
       return cause;
     const owners = [...this.#owners].filter((owner) => !owner.lease.released);

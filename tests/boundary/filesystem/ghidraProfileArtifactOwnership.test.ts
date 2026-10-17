@@ -8,7 +8,13 @@ import { ghidraProfileInstallationHost } from "../../../src/ghidra/GhidraInstall
 import { silentLogger } from "../../../src/logger.js";
 import { createDeferred } from "../../fixtures/binarySession.js";
 import { STARTUP_OWNER_CLOSED } from "../../../src/process/SharedStartupAttempt.js";
-import { readFile, rename, writeFile, type FileHandle } from "node:fs/promises";
+import {
+  readFile,
+  rename,
+  truncate,
+  writeFile,
+  type FileHandle,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
@@ -16,6 +22,7 @@ import { parseConfig } from "../../../src/config/parseConfig.js";
 import {
   resolveGhidraAnalysisSeeds,
   snapshotGhidraAnalysisSeeds,
+  MAX_GHIDRA_SEED_BYTES,
 } from "../../../src/ghidra/GhidraAnalysisSeeds.js";
 import {
   resolveGhidraExtensions,
@@ -64,6 +71,39 @@ const configured = (
   if (!result.ok) throw result.error;
   return result.value;
 };
+
+it("reports a seed extent over its resource budget without reading the payload", async () => {
+  const root = await createTestTempDirectory("rea-profile-capacity-");
+  const path = join(root, "seeds.tsv");
+  await writeFile(path, "0x1000\tcode\n");
+  await truncate(path, MAX_GHIDRA_SEED_BYTES + 1);
+  let reads = 0;
+  controls.file = (handle, opened) => {
+    if (opened !== path) return;
+    vi.spyOn(handle, "read").mockImplementation(async () => {
+      reads++;
+      throw new Error("Oversized input must not be read");
+    });
+  };
+  const resources = new ArtifactResourceScope();
+  try {
+    expect(await resolveGhidraAnalysisSeeds(path, resources)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisResourceConstraintError",
+        resource: "file-size",
+        retryable: false,
+        reportedLimits: {
+          maximum_bytes: MAX_GHIDRA_SEED_BYTES,
+          observed_bytes: String(MAX_GHIDRA_SEED_BYTES + 1),
+        },
+      },
+    });
+    expect(reads).toBe(0);
+  } finally {
+    await resources.close();
+  }
+});
 
 it.each(
   (["seed", "extension"] as const).flatMap((kind) =>

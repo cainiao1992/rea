@@ -4,7 +4,12 @@ import {
   createAnalysisExecution,
   type AnalysisClient,
 } from "../AnalysisProvider.js";
-import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
+  AnalysisResourceConstraintError,
+} from "../../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
@@ -12,6 +17,51 @@ import { resolvedAnalysisError } from "../../domain/analysisErrorBase.js";
 import { err, ok } from "../../domain/result.js";
 
 const identity = { id: "controlled", name: "Controlled client", version: "1" };
+
+it.each([
+  new AnalysisAccessDeniedError(
+    "ghidra:installation",
+    "/selected/properties",
+    "EACCES",
+  ),
+  new AnalysisArtifactChangedError(
+    "ghidra:installation",
+    "/selected/properties",
+    "selected name changed",
+  ),
+  new AnalysisResourceConstraintError(
+    "ghidra:installation",
+    "file-size",
+    "metadata budget",
+    { maximum_bytes: 1024 },
+    { retryable: false },
+  ),
+])(
+  "attributes prerequisite $_tag to the requested operation without changing its facts",
+  async (physical) => {
+    const client = new DeferredAnalysisClient(async () => {
+      throw physical;
+    }, identity.id);
+    try {
+      const result = await client.execute("analyze_function", {});
+      if (result.ok) throw new Error("Expected prerequisite failure");
+      expect(result.error).toMatchObject({
+        _tag: physical._tag,
+        operation: "analyze_function",
+      });
+      expect(result.error.cause).toBe(physical);
+      if (physical instanceof AnalysisResourceConstraintError)
+        expect(result.error).toMatchObject({
+          resource: "file-size",
+          reportedLimits: { maximum_bytes: 1024 },
+          retryable: false,
+        });
+      else expect(result.error).toMatchObject({ path: "/selected/properties" });
+    } finally {
+      await client.close();
+    }
+  },
+);
 const gate = <T = void>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((finish) => {

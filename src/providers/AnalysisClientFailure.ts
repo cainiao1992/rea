@@ -2,6 +2,9 @@ import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
+  AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
+  AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
@@ -26,7 +29,10 @@ export const analysisClientFailureForOperation = (
   if (
     !(cause instanceof AnalysisCancelledError) &&
     !(cause instanceof ProviderAdapterError) &&
-    !(cause instanceof AnalysisCapabilityUnavailableError)
+    !(cause instanceof AnalysisCapabilityUnavailableError) &&
+    !(cause instanceof AnalysisAccessDeniedError) &&
+    !(cause instanceof AnalysisArtifactChangedError) &&
+    !(cause instanceof AnalysisResourceConstraintError)
   )
     return cause;
   const context = {
@@ -58,34 +64,65 @@ export const analysisClientFailureForOperation = (
         }
       : {}),
   };
-  const result =
-    cause instanceof AnalysisCancelledError
-      ? new AnalysisCancelledError(operation, {
-          ...context,
-          cause: cause.cause,
-        })
-      : cause instanceof AnalysisCapabilityUnavailableError
-        ? new AnalysisCapabilityUnavailableError(
-            cause.providerId,
-            operation,
-            cause.reason,
-            {
-              ...context,
-              ...(cause.userMessage === undefined
-                ? {}
-                : { userMessage: cause.userMessage }),
-              retryable: cause.retryable,
-            },
-          )
-        : new ProviderAdapterError(providerId, operation, {
-            ...context,
-            ...(cause.userMessage === undefined
-              ? {}
-              : { userMessage: cause.userMessage }),
-            ...(cause.remediationAction === undefined
-              ? {}
-              : { remediationAction: cause.remediationAction }),
-          });
+  let result: AnalysisError;
+  if (cause instanceof AnalysisCancelledError)
+    result = new AnalysisCancelledError(operation, {
+      ...context,
+      cause: cause.cause,
+    });
+  else if (cause instanceof AnalysisCapabilityUnavailableError)
+    result = new AnalysisCapabilityUnavailableError(
+      cause.providerId,
+      operation,
+      cause.reason,
+      {
+        ...context,
+        ...(cause.userMessage === undefined
+          ? {}
+          : { userMessage: cause.userMessage }),
+        retryable: cause.retryable,
+      },
+    );
+  else if (cause instanceof AnalysisAccessDeniedError)
+    result = new AnalysisAccessDeniedError(
+      operation,
+      cause.path,
+      cause.systemCode,
+      context,
+    );
+  else if (cause instanceof AnalysisArtifactChangedError)
+    result = new AnalysisArtifactChangedError(
+      operation,
+      cause.path,
+      cause.reason,
+      context,
+    );
+  else if (cause instanceof AnalysisResourceConstraintError)
+    result = new AnalysisResourceConstraintError(
+      operation,
+      cause.resource,
+      cause.reason,
+      cause.reportedLimits,
+      {
+        ...context,
+        ...(cause.retryable === undefined
+          ? {}
+          : { retryable: cause.retryable }),
+        ...(cause.remediationAction === undefined
+          ? {}
+          : { remediationAction: cause.remediationAction }),
+      },
+    );
+  else
+    result = new ProviderAdapterError(providerId, operation, {
+      ...context,
+      ...(cause.userMessage === undefined
+        ? {}
+        : { userMessage: cause.userMessage }),
+      ...(cause.remediationAction === undefined
+        ? {}
+        : { remediationAction: cause.remediationAction }),
+    });
   return cause.cleanupIncomplete
     ? result.bindCleanupDependencies([cause])
     : result;

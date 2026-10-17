@@ -9,13 +9,16 @@ import {
 } from "./GhidraJavaProbe.js";
 import type { Result } from "../domain/result.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
+import {
+  readGhidraInstallationProperties,
+  type GhidraInstallationFileOptions,
+} from "./GhidraInstallationProperties.js";
 import { constants } from "node:fs";
 import {
   accessSync,
   closeSync,
   fstatSync,
   openSync,
-  readFileSync,
   readSync,
   realpathSync,
   statSync,
@@ -267,7 +270,10 @@ export interface GhidraExecutableHeaderProbe {
 export interface GhidraInstallationHost {
   readonly platform?: NodeJS.Platform;
   readonly architecture?: NodeJS.Architecture;
-  readText(path: string): string | undefined;
+  readText(
+    path: string,
+    options: GhidraInstallationFileOptions,
+  ): string | undefined | Promise<string | undefined>;
   executable(path: string): boolean;
   /**
    * Read a bounded header prefix of one executable so admission can reject a
@@ -467,7 +473,10 @@ const installationCoordinates = async (
   const properties =
     applicationPropertiesPath === null
       ? undefined
-      : host.readText(applicationPropertiesPath);
+      : await host.readText(applicationPropertiesPath, {
+          resourceOwner: options.resourceOwner,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
   const javaCommand = (() => {
     if (options.javaHome !== undefined)
       return path.join(
@@ -942,17 +951,7 @@ const javaRemediation = (
 };
 
 export const systemGhidraInstallationHost = (): GhidraInstallationHost => ({
-  readText(path) {
-    try {
-      // Ghidra loads this file with Properties.load(InputStream), which maps
-      // bytes as ISO-8859-1 rather than decoding UTF-8.
-      return readFileSync(path).toString("latin1");
-    } catch (cause: unknown) {
-      // best-effort cleanup: optional install probing; unreadable means unknown.
-      void cause;
-      return undefined;
-    }
-  },
+  readText: readGhidraInstallationProperties,
   executableHeader(path) {
     let handle: number | undefined;
     try {

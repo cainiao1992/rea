@@ -191,3 +191,7 @@ export const apktoolResultSchemas = {
     coverage: z.enum(["complete", "partial"]),
   }),
 } as const;
+
+export type ApktoolDecodeResult = z.infer<
+  typeof apktoolResultSchemas.decode_android_resources
+>;

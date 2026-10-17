@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { describe, expect, onTestFinished, test, vi } from "vitest";
 
 import { ApktoolProvider } from "./ApktoolProvider.js";
+import { ApktoolWorkspace } from "./ApktoolWorkspace.js";
 import { ApktoolResourceAnalysisService } from "../application/apktool/ApktoolResourceAnalysisService.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import {
@@ -229,6 +230,118 @@ it.each([
       await provider.close();
       expect(result.error.cleanupIncomplete).toBe(false);
       expect(result.error.partialObservation).toMatchObject(observation);
+    } finally {
+      denied = false;
+      await provider.close();
+    }
+  },
+);
+
+it.each(
+  (["manifest-bytes", "manifest-xml", "inventory"] as const).flatMap((stage) =>
+    [false, true].map((denied) => [stage, denied] as const),
+  ),
+)(
+  "retains parsed metadata when %s fails before string projection (cleanup denied: %s)",
+  async (stage, denyCleanup) => {
+    const { command, root } = await writeApktoolStub(decodeStub());
+    const apk = await apkFixture(root);
+    if (stage === "inventory") {
+      const entries = ApktoolWorkspace.prototype.entries;
+      const spy = vi
+        .spyOn(ApktoolWorkspace.prototype, "entries")
+        .mockImplementationOnce(async function* (
+          this: ApktoolWorkspace,
+          ...args
+        ) {
+          for await (const entry of entries.apply(this, args)) {
+            yield entry;
+            if (entry.kind === "file")
+              throw new Error("authored enumeration failure");
+          }
+        });
+      onTestFinished(() => spy.mockRestore());
+    } else {
+      const manifestFile = join(root, "manifest-control");
+      await writeFile(
+        manifestFile,
+        stage === "manifest-bytes" ? Buffer.from([255]) : "<resources/>",
+      );
+      await writeFile(
+        command,
+        `#!/bin/sh\n${decodeStub({ manifestFile })(root)}`,
+        { mode: 0o755 },
+      );
+    }
+    const controller = new AbortController();
+    let denied = denyCleanup;
+    const provider = new ApktoolProvider({
+      environment: { REA_APKTOOL_COMMAND: command },
+      removeWorkspace: async (path) => {
+        controller.abort({ stage: "final cleanup" });
+        if (denied) throw new Error("authored staged removal denial");
+        await rm(path, { recursive: true, force: true });
+      },
+    });
+    try {
+      const result = await provider.execute(
+        {
+          operation: "decode_android_resources",
+          input: { path: apk.path, include_strings: true },
+        },
+        { signal: controller.signal },
+      );
+      if (result.ok) throw new Error("Expected staged read failure");
+      expect((result.error.cleanupPrimary ?? result.error)._tag).toBe(
+        "AnalysisProtocolError",
+      );
+      expect(controller.signal.aborted).toBe(true);
+      expect(result.error.cleanupIncomplete).toBe(denyCleanup);
+      const observation = result.error.partialObservation;
+      expect(observation).toMatchObject({
+        operation: "decode_android_resources",
+        subject: { local_path: apk.path, digest: { sha256: apk.sha256 } },
+        normalized_result: {
+          coverage: "partial",
+          metadata: {
+            version_name: "1.2.3",
+            version_code: "7",
+            min_sdk_version: "24",
+            target_sdk_version: "34",
+          },
+        },
+      });
+      const projected = projectAnalysisError(result.error).details
+        ?.partial_observation;
+      expect(projected).toEqual(observation);
+      expect(observation).toHaveProperty("normalized_result");
+      if (observation === undefined || !("normalized_result" in observation))
+        throw new Error("Expected partial Evidence");
+      expect(observation.normalized_result).not.toHaveProperty("strings");
+      if (stage !== "inventory") {
+        expect(observation.normalized_result).not.toHaveProperty(
+          "decoded_file_count",
+        );
+        expect(observation.normalized_result).not.toHaveProperty(
+          "metadata.package_name",
+        );
+      }
+      if (stage === "manifest-bytes")
+        expect(observation.normalized_result).not.toHaveProperty("manifest");
+      if (stage === "manifest-xml")
+        expect(observation.normalized_result).toHaveProperty(
+          "manifest",
+          "<resources/>",
+        );
+      if (stage === "inventory")
+        expect(observation.normalized_result).toMatchObject({
+          decoded_file_count: 1,
+          metadata: { package_name: "com.rea.apktool.probe" },
+        });
+      denied = false;
+      await provider.close();
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(result.error.partialObservation).toEqual(observation);
     } finally {
       denied = false;
       await provider.close();

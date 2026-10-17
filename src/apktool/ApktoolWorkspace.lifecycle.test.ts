@@ -250,15 +250,17 @@ it.skipIf(process.platform === "win32")(
         undefined,
         3,
       );
-      expect(result.capped).toBe(true);
-      expect(result.count).toBeLessThanOrEqual(2);
+      if (!result.ok) throw result.error.cause;
+      expect(result.value.capped).toBe(true);
+      expect(result.value.count).toBeLessThanOrEqual(2);
       const complete = await countDecodedFiles(
         workspace,
         root.path,
         undefined,
         6,
       );
-      expect(complete).toEqual({
+      if (!complete.ok) throw complete.error.cause;
+      expect(complete.value).toEqual({
         count: 2,
         capped: false,
         locales: [],
@@ -306,7 +308,8 @@ it.skipIf(process.platform === "win32")(
         undefined,
         100,
       );
-      expect(result).toEqual({
+      if (!result.ok) throw result.error.cause;
+      expect(result.value).toEqual({
         count: regular.length,
         capped: false,
         locales: ["de"],
@@ -339,6 +342,7 @@ it("preserves a directory inspection failure instead of treating its locale tabl
   const blocked = join(root.path, "res/values-fr");
   try {
     await fs.mkdir(blocked, { recursive: true });
+    await fs.writeFile(join(root.path, "known.txt"), "completed");
     await fs.writeFile(join(blocked, "strings.xml"), "<resources/>");
     vi.mocked(fs.opendir).mockImplementation(async (path, options) => {
       if (String(path) === blocked)
@@ -349,9 +353,17 @@ it("preserves a directory inspection failure instead of treating its locale tabl
     });
     await expect(
       countDecodedFiles(workspace, root.path, undefined, 100),
-    ).rejects.toMatchObject({
-      reason: "io",
-      message: expect.stringContaining("authored directory inspection denial"),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        partial: { count: 1 },
+        cause: {
+          reason: "io",
+          message: expect.stringContaining(
+            "authored directory inspection denial",
+          ),
+        },
+      },
     });
   } finally {
     await workspace.close();

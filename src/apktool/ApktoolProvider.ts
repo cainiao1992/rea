@@ -30,7 +30,11 @@ import {
   createAnalysisExecutionEvidence,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";
-import type { ApktoolRequest } from "../domain/apktool/apktoolResourceAnalysis.js";
+import {
+  apktoolResultSchemas,
+  type ApktoolRequest,
+  type ApktoolDecodeResult,
+} from "../domain/apktool/apktoolResourceAnalysis.js";
 import { projectApktoolStringTables } from "./ApktoolStringTables.js";
 import {
   AnalysisCapabilityUnavailableError,
@@ -231,6 +235,13 @@ export interface ApktoolProviderOptions {
   readonly environment?: Readonly<Record<string, string | undefined>>;
   readonly removeWorkspace?: (path: string) => Promise<void>;
 }
+
+type DecodeFacts = Pick<ApktoolDecodeResult, "client" | "target" | "locale"> &
+  Partial<
+    Omit<ApktoolDecodeResult, "metadata" | "client" | "target" | "locale">
+  > & {
+    metadata?: Partial<ApktoolDecodeResult["metadata"]>;
+  };
 
 /**
  * Apktool resource decoding over a caller-selected launcher.
@@ -495,11 +506,7 @@ export class ApktoolProvider {
     operation: "decode_android_resources",
     selection: ApktoolCommandSelection,
     environment: Readonly<NodeJS.ProcessEnv>,
-    client: {
-      command: string;
-      command_source: string;
-      apktool_version: string | null;
-    },
+    client: ApktoolDecodeResult["client"],
     provider: { id: string; name: string; version: string | null },
     input: Extract<
       ApktoolRequest,
@@ -522,7 +529,12 @@ export class ApktoolProvider {
     const owner = { kind: "lease" as const, resource: root, lease };
     this.#artifacts.retain(owner);
     let result: Result<AnalysisExecution, AnalysisError>;
-    let partialExecution: AnalysisExecution | undefined;
+    let completedDecode: DecodeFacts | undefined;
+    let stoppedAt = "metadata";
+    const limitations: string[] = [
+      ...clientLimitations,
+      "Decoding skips smali (--no-src); Java-source recovery belongs to the JADX family",
+    ];
     try {
       const identity = await resources.snapshotInput(
         input.path,
@@ -558,6 +570,12 @@ export class ApktoolProvider {
       if (!decoded.ok) {
         throw decoded.error;
       }
+      completedDecode = {
+        client,
+        target: { path: input.path, bytes: identity.bytes, sha256 },
+        locale: input.locale ?? null,
+        coverage: "partial",
+      };
       throwIfCancelled(operation, signal);
       const yml = await resources.readText(
         join(workspace, "apktool.yml"),
@@ -570,27 +588,58 @@ export class ApktoolProvider {
         );
       }
       const metadata = parseApktoolYml(yml.text);
+      completedDecode.metadata = {
+        version_name: metadata.versionName,
+        version_code: metadata.versionCode,
+        min_sdk_version: metadata.minSdkVersion,
+        target_sdk_version: metadata.targetSdkVersion,
+      };
+      stoppedAt = "manifest";
       const manifestRead = await resources.readText(
         join(workspace, "AndroidManifest.xml"),
         MANIFEST_MAX_BYTES,
         signal,
       );
       const manifest = manifestRead.text;
+      completedDecode.manifest = manifest;
+      if (manifestRead.truncated) {
+        limitations.push(
+          `manifest is truncated at ${String(MANIFEST_MAX_BYTES)} bytes`,
+        );
+      }
       const packageName =
         manifest === null || manifestRead.truncated
           ? null
           : parseManifestPackage(manifest);
-      const limitations: string[] = [
-        ...clientLimitations,
-        "Decoding skips smali (--no-src); Java-source recovery belongs to the JADX family",
-      ];
-      const files = await countDecodedFiles(
+      completedDecode.metadata.package_name = packageName;
+      stoppedAt = "inventory";
+      const inventory = await countDecodedFiles(
         resources,
         workspace,
         signal,
         MAX_DECODED_ENTRIES_VISITED,
       );
+      const files = inventory.ok ? inventory.value : inventory.error.partial;
+      completedDecode.locales = [...files.locales];
+      completedDecode.decoded_file_count = files.count;
+      if (files.unreadableStringsTables.length > 0) {
+        limitations.push(
+          `String tables omitted because they are not regular files: ${files.unreadableStringsTables.map((table) => `${JSON.stringify(table.path)} (${table.kind})`).join(", ")}`,
+        );
+      }
+      if (files.otherStringsTables.length > 0) {
+        limitations.push(
+          `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${files.otherStringsTables.map((table) => JSON.stringify(table)).join(", ")}`,
+        );
+      }
+      if (files.capped) {
+        limitations.push(
+          `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,
+        );
+      }
+      if (!inventory.ok) throw inventory.error.cause;
       throwIfCancelled(operation, signal);
+      stoppedAt = "string projection";
 
       const projection = await projectApktoolStringTables(
         resources,
@@ -610,58 +659,21 @@ export class ApktoolProvider {
           ? "partial"
           : "complete";
 
-      if (manifestRead.truncated) {
-        limitations.push(
-          `manifest is truncated at ${String(MANIFEST_MAX_BYTES)} bytes`,
-        );
-      }
-      if (files.unreadableStringsTables.length > 0) {
-        limitations.push(
-          `String tables omitted because they are not regular files: ${files.unreadableStringsTables.map((table) => `${JSON.stringify(table.path)} (${table.kind})`).join(", ")}`,
-        );
-      }
-      if (files.otherStringsTables.length > 0) {
-        limitations.push(
-          `Other strings tables are not selected by locale; their resource configuration suffixes are preserved without inferring Android runtime matching: ${files.otherStringsTables.map((table) => JSON.stringify(table)).join(", ")}`,
-        );
-      }
-      if (files.capped) {
-        limitations.push(
-          `Decoded workspace enumeration stopped after ${String(MAX_DECODED_ENTRIES_VISITED)} entries; decoded_file_count and locales may be partial`,
-        );
-      }
-      const execution = createAnalysisExecution(
-        {
-          client,
-          target: { path: input.path, bytes: identity.bytes, sha256 },
-          metadata: {
-            version_name: metadata.versionName,
-            version_code: metadata.versionCode,
-            min_sdk_version: metadata.minSdkVersion,
-            target_sdk_version: metadata.targetSdkVersion,
-            package_name: packageName,
+      completedDecode.strings = [...projectedStrings.strings];
+      if (input.locales !== undefined)
+        completedDecode.string_tables = [...projectedStrings.tables];
+      completedDecode.coverage = coverage;
+      if (!projection.ok) throw projection.error.cause;
+      result = ok(
+        createAnalysisExecution(
+          apktoolResultSchemas.decode_android_resources.parse(completedDecode),
+          provider,
+          {
+            subject: { path: input.path, sha256, format: "apk" },
+            limitations,
           },
-          manifest,
-          strings: projectedStrings.strings,
-          locale: input.locale ?? null,
-          locales: files.locales,
-          ...(input.locales === undefined
-            ? {}
-            : { string_tables: projectedStrings.tables }),
-          decoded_file_count: files.count,
-          coverage,
-        },
-        provider,
-        {
-          subject: { path: input.path, sha256, format: "apk" },
-          limitations,
-        },
+        ),
       );
-      if (!projection.ok) {
-        partialExecution = execution;
-        throw projection.error.cause;
-      }
-      result = ok(execution);
     } catch (cause) {
       const physical = artifactFilePrimaryFailure(cause);
       const primary =
@@ -697,9 +709,24 @@ export class ApktoolProvider {
               ).bindCleanupDependencies([primary, failure])
             : primary;
       if (
-        partialExecution !== undefined &&
+        completedDecode !== undefined &&
         retained.partialObservation === undefined
-      )
+      ) {
+        limitations.push(
+          `Decode observation stopped during ${stoppedAt}; fields not yet observed are omitted`,
+        );
+        const partialExecution = createAnalysisExecution(
+          { ...completedDecode, coverage: "partial" },
+          provider,
+          {
+            subject: {
+              path: input.path,
+              sha256: completedDecode.target.sha256,
+              format: "apk",
+            },
+            limitations,
+          },
+        );
         retained.retainPartialObservation(
           createAnalysisExecutionEvidence(
             operation,
@@ -708,6 +735,7 @@ export class ApktoolProvider {
             "observed",
           ),
         );
+      }
       if (
         resources.snapshot !== undefined &&
         retained.partialObservation === undefined

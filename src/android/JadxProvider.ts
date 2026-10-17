@@ -1,3 +1,7 @@
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
+import type { FileCloseResourceOwner } from "../application/AnalysisProvider.js";
+import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { throwIfJadxInterrupted } from "./JadxInterruption.js";
 import { chmod, copyFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -242,6 +246,19 @@ export class JadxProvider implements AndroidAnalysisPort {
   #retained: RetainedSession | undefined;
   #idle: NodeJS.Timeout | undefined;
   readonly #shutdown = new AbortController();
+  readonly #prerequisites = new ArtifactResourceScope();
+  readonly #inspections = new Set<
+    Promise<Awaited<ReturnType<typeof inspectJadxAvailability>>>
+  >();
+  readonly #prerequisiteOwner: FileCloseResourceOwner = {
+    retain: (owner, resource) =>
+      this.#prerequisites.retain({
+        kind: "lease",
+        resource,
+        lease: AnalysisCleanupLease.forCloseOwner(owner, resource),
+      }),
+    run: (operation) => this.#prerequisites.run(operation),
+  };
   #closePromise: Promise<void> | undefined;
   constructor(
     readonly environment: Readonly<Record<string, string | undefined>>,
@@ -250,7 +267,19 @@ export class JadxProvider implements AndroidAnalysisPort {
 
   /** Report actual local prerequisites without starting JADX or opening a target. */
   inspectAvailability(signal?: AbortSignal) {
-    return inspectJadxAvailability(this.environment, signal);
+    const pending = inspectJadxAvailability(this.environment, {
+      resourceOwner: this.#prerequisiteOwner,
+      signal:
+        signal === undefined
+          ? this.#shutdown.signal
+          : AbortSignal.any([signal, this.#shutdown.signal]),
+    });
+    this.#inspections.add(pending);
+    void pending.then(
+      () => this.#inspections.delete(pending),
+      () => this.#inspections.delete(pending),
+    );
+    return pending;
   }
 
   /** Serialize expensive work and bind both raw and normalized results to the APK. */
@@ -310,7 +339,24 @@ export class JadxProvider implements AndroidAnalysisPort {
     clearTimeout(this.#idle);
     this.#closePromise ??= this.#tail
       .then(async () => {
+        await Promise.allSettled(this.#inspections);
         const retired = await this.#retire();
+        try {
+          await this.#prerequisites.close();
+        } catch (cause: unknown) {
+          const cleanup = analysisClientFailureForOperation(
+            cause,
+            "jadx",
+            "close_binary",
+          );
+          if (!retired.ok)
+            throw analysisErrorWithCleanupFailure(
+              retired.error,
+              cleanup,
+              "close_binary",
+            ).bindCleanupDependencies([retired.error, cleanup]);
+          throw cleanup;
+        }
         if (!retired.ok) throw retired.error;
       })
       .catch((cause: unknown) => {
@@ -453,7 +499,11 @@ export class JadxProvider implements AndroidAnalysisPort {
           configuration,
           this.environment,
           request.operation,
-          signal,
+          {
+            resourceOwner: this.#prerequisiteOwner,
+            signal,
+            operationDeadline: { signal: timeout, timeoutMs: timeoutMs.value },
+          },
         );
         root = await createJadxWorkspaceRoot();
         const workspaceSignal =

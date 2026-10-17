@@ -132,6 +132,9 @@ For a CLI installed with `npm install --global` or `bun add --global`:
 rea update
 ```
 
+`rea --update` is an alias for this verified workflow and accepts the same global
+output flags. Use `rea update` when combining it with other command controls.
+
 Bun global updates require Bun 1.2.17 or later. With an older Bun release,
 upgrade Bun manually before running `rea update`.
 

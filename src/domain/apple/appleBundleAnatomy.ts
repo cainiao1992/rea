@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { digestSchema, prefixedDigestSchema } from "../digests.js";
+import type {
+  ProjectedComponent as Component,
+  ProjectedInventoryEntry,
+} from "../mobileApplicationGraphProjection.js";
 import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
 
 const pathSchema = z.string().min(1);
@@ -8,14 +11,6 @@ const pathSchema = z.string().min(1);
 const BUNDLE_EXTENSION =
   /\.(?:app|appex|xpc|framework|systemextension|dext|bundle|plugin|qlgenerator|mdimporter)$/iu;
 const MACH_O_FORMATS: readonly string[] = ["mach-o", "mach-o-universal"];
-
-/** One inventoried file or directory with its content identity. */
-export const appleComponentSchema = z.strictObject({
-  path: pathSchema,
-  artifact_id: prefixedDigestSchema("art"),
-  sha256: digestSchema,
-  format: z.string().min(1),
-});
 
 /** One application root or nested bundle classified by path convention. */
 export const appleBundleSchema = z.strictObject({
@@ -42,16 +37,9 @@ export const appleBundleSchema = z.strictObject({
   signing_paths: z.array(pathSchema),
 });
 
-type Component = z.infer<typeof appleComponentSchema>;
 type Bundle = z.infer<typeof appleBundleSchema>;
 
-/** One inventory occurrence; symlinks and directories may lack content identity. */
-export interface AppleInventoryEntry {
-  readonly path: string;
-  readonly kind: "file" | "directory" | "symlink" | "slice";
-  readonly component: Component | undefined;
-}
-type Entry = AppleInventoryEntry;
+type Entry = Pick<ProjectedInventoryEntry, "path" | "kind" | "component">;
 
 /** Report whether an inventory format is a thin or universal Mach-O. */
 export const isMachOFormat = (format: string): boolean =>

@@ -13,12 +13,11 @@ import {
   projectCartesianCandidates,
   projectedBridgeCandidateSchema,
   projectedComponentSchema,
-  projectedComponents,
+  projectedInventoryEntries,
   projectionCoverage,
   projectionDigest,
   projectionEvidenceIdSchema,
   unavailableComponentSchema,
-  unavailableComponents,
 } from "../mobileApplicationGraphProjection.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 
@@ -84,8 +83,13 @@ export const projectHarmonyApplication = (
     parsed.inventory_evidence,
   );
   const rootFormat = harmonyRootFormat(inventory.manifest.root_format);
-  const all = projectedComponents(inventory);
-  const unavailable = unavailableComponents(inventory);
+  const entries = projectedInventoryEntries(inventory);
+  const all = entries.flatMap(({ component }) =>
+    component === undefined ? [] : [component],
+  );
+  const unavailable = entries.flatMap(({ unavailable }) =>
+    unavailable === undefined ? [] : [unavailable],
+  );
   const classified = classify(all);
   const bridgeProjection = bridgeCandidates(
     classified.bytecode,

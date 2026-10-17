@@ -13,12 +13,11 @@ import {
   projectCartesianCandidates,
   projectedBridgeCandidateSchema,
   projectedComponentSchema,
-  projectedComponents,
+  projectedInventoryEntries,
   projectionCoverage,
   projectionDigest,
   projectionEvidenceIdSchema,
   unavailableComponentSchema,
-  unavailableComponents,
 } from "../mobileApplicationGraphProjection.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 
@@ -94,8 +93,13 @@ export const projectAndroidApplication = (
     throw new TypeError(
       `Android application projection requires APK inventory Evidence; the inventory root format is ${inventory.manifest.root_format}. APK is chosen for a ZIP archive whose name ends in .apk.`,
     );
-  const all = projectedComponents(inventory);
-  const unavailable = unavailableComponents(inventory);
+  const entries = projectedInventoryEntries(inventory);
+  const all = entries.flatMap(({ component }) =>
+    component === undefined ? [] : [component],
+  );
+  const unavailable = entries.flatMap(({ unavailable }) =>
+    unavailable === undefined ? [] : [unavailable],
+  );
   const classified = classify(all);
   const bridgeProjection = bridgeCandidates(
     [...classified.dex, ...classified.jvm_classes],

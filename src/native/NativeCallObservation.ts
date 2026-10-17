@@ -22,6 +22,10 @@ import {
 } from "./NativeCallTarget.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { err, ok, type Result } from "../domain/result.js";
+import {
+  nativeCallPartialObservationSchema,
+  type NativeCallPartialObservation,
+} from "../domain/native/nativeCallPartialObservation.js";
 import type { NativeCallTrace, NativeCallTracer } from "./LldbCallTracer.js";
 
 const OPERATION = "observe_native_calls";
@@ -74,27 +78,19 @@ export const observeNativeCalls = async (
           signal,
         );
         if (!traced.ok) return traced;
-        const observation = projectNativeCalls(
-          target,
-          parsed.data,
-          traced.value,
-        );
         return signal?.aborted
           ? err(
               new AnalysisCancelledError(OPERATION, {
                 cause: signal.reason,
-                partialObservation: {
-                  ...observation,
-                  kind: "native-call-observation",
-                  coverage: {
-                    ...observation.coverage,
-                    status: "partial",
-                    reason: "cancelled",
-                  },
-                },
+                partialObservation: projectPartialNativeCalls(
+                  target,
+                  parsed.data,
+                  traced.value,
+                  "cancelled",
+                ),
               }),
             )
-          : ok(observation);
+          : ok(projectNativeCalls(target, parsed.data, traced.value));
       } catch (cause: unknown) {
         // Unknown tracer/parser failures carry no file cleanup authority.
         return err(
@@ -112,13 +108,13 @@ export const observeNativeCalls = async (
 };
 
 /** Join the request, the tracer's run and REA's own checks into the result contract. */
-export const projectNativeCalls = (
+const nativeCallFacts = (
   target: Pick<BinaryTarget, "path" | "sha256"> & {
     readonly architecture: string;
   },
   input: NativeCallObservationInput,
-  trace: NativeCallTrace,
-): NativeCallObservationResult => {
+  trace: NativeCallReadback,
+) => {
   const { run } = trace;
   const unresolved = run.breakpoints
     .filter(({ location_count: count }) => count === 0)
@@ -133,7 +129,7 @@ export const projectNativeCalls = (
     run.outcome === "duration-elapsed" ||
     run.outcome === "stop-limit" ||
     unresolved.length > 0;
-  return nativeCallObservationResultSchema.parse({
+  return {
     target: {
       path: target.path,
       sha256: target.sha256,
@@ -227,10 +223,13 @@ export const projectNativeCalls = (
             "Resolved breakpoint locations exceeded the aggregate 8 MiB metadata budget; omitted locations are counted in location_count. This metadata limit does not change the process outcome.",
           ]
         : []),
-      ...(trace.stdout.truncated || trace.stderr.truncated
+      ...(trace.stdout === null || trace.stderr === null
+        ? ["One or more target output captures were unavailable."]
+        : []),
+      ...(trace.stdout?.truncated === true || trace.stderr?.truncated === true
         ? ["Target output beyond 1 MiB per stream is counted but not kept."]
         : []),
-      ...(!trace.stdout.complete || !trace.stderr.complete
+      ...(trace.stdout?.complete === false || trace.stderr?.complete === false
         ? [
             "Target output draining did not complete; reported byte counts are observed lower bounds, not stream totals.",
           ]
@@ -241,5 +240,39 @@ export const projectNativeCalls = (
             `REA could not confirm that process ${run.pid} exited; check for it before relying on host state.`,
           ]),
     ],
+  };
+};
+
+/** Completed tracer metadata with independently available output captures. */
+type NativeCallReadback = Omit<NativeCallTrace, "stdout" | "stderr"> & {
+  readonly stdout: NativeCallTrace["stdout"] | null;
+  readonly stderr: NativeCallTrace["stderr"] | null;
+};
+
+export const projectNativeCalls = (
+  target: Pick<BinaryTarget, "path" | "sha256"> & {
+    readonly architecture: string;
+  },
+  input: NativeCallObservationInput,
+  trace: NativeCallTrace,
+): NativeCallObservationResult =>
+  nativeCallObservationResultSchema.parse(
+    nativeCallFacts(target, input, trace),
+  );
+
+/** Retain already parsed run facts when capture or finalization remains incomplete. */
+export const projectPartialNativeCalls = (
+  target: Pick<BinaryTarget, "path" | "sha256"> & {
+    readonly architecture: string;
+  },
+  input: NativeCallObservationInput,
+  trace: NativeCallReadback,
+  reason: NativeCallPartialObservation["coverage"]["reason"],
+): NativeCallPartialObservation => {
+  const facts = nativeCallFacts(target, input, trace);
+  return nativeCallPartialObservationSchema.parse({
+    ...facts,
+    kind: "native-call-observation",
+    coverage: { ...facts.coverage, status: "partial", reason },
   });
 };

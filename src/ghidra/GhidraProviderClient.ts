@@ -1103,7 +1103,13 @@ const projectPrimarySessionError = (
   startupTimeoutMs: number,
   health?: ProviderOperationHealth,
 ): AnalysisError => {
-  const context = { cause: failure, diagnostics: failure.diagnostics };
+  const context = {
+    cause: failure,
+    diagnostics: failure.diagnostics,
+    ...(failure.partialObservation === undefined
+      ? {}
+      : { partialObservation: failure.partialObservation }),
+  };
   const physicalCause = artifactFilePrimaryFailure(failure.cause);
   if (physicalCause instanceof AnalysisAccessDeniedError)
     return new AnalysisAccessDeniedError(

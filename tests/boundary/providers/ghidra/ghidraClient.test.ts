@@ -1,9 +1,17 @@
+import { artifactFilePrimaryFailure } from "../../../../src/artifacts/ArtifactFileOperation.js";
 import { AnalysisCancelledError } from "../../../../src/domain/analysisErrorCore.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
-import { access, chmod, mkdir, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  writeFile,
+  open,
+  type FileHandle,
+} from "node:fs/promises";
 import { basename, join } from "node:path";
 import { PassThrough } from "node:stream";
 
@@ -230,6 +238,349 @@ it("keeps one shared startup despite a failed progress sink and stops reports af
   expect(launcher.processes).toHaveLength(1);
   await vi.advanceTimersByTimeAsync(30_000);
   expect(reports).toBe(1);
+});
+
+it("reports snapshot descriptor cleanup immediately and resolves its exact error on retry", async () => {
+  const client = clientFor(new FixtureLauncher());
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  let allowClose = false;
+  const original = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(function (this: OwnedFileHandle) {
+      return allowClose
+        ? original.call(this)
+        : Promise.reject(new Error("controlled snapshot close failure"));
+    });
+  onTestFinished(async () => {
+    allowClose = true;
+    close.mockRestore();
+    await client.close();
+  });
+  const result = await client.hashTargetSnapshot();
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected snapshot final close failure");
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+  expect(result.error.partialObservation).toMatchObject({
+    sha256: TARGET_SHA256,
+    bytes: readFileSync(fixturePath).length,
+  });
+  const blocked = await client.hashTargetSnapshot();
+  expect(blocked.ok).toBe(false);
+  if (blocked.ok)
+    throw new Error("Expected cleanup to block snapshot admission");
+  expect(blocked.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+  expect(new Set(close.mock.contexts).size).toBe(1);
+  const retry = await client.close();
+  expect(retry.ok).toBe(false);
+  allowClose = true;
+  expect((await client.close()).ok).toBe(true);
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+  expect(result.error.cleanupFailure?.cleanupResources).toEqual([]);
+  expect(blocked.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+  if (!retry.ok) expect(retry.error.cleanupIncomplete).toBe(false);
+});
+
+it("preserves completed snapshot hashing and exact cancellation during descriptor close", async () => {
+  const client = clientFor(new FixtureLauncher());
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  const controller = new AbortController();
+  const reason = { phase: "snapshot-final-close" };
+  const original = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementationOnce(async function (this: OwnedFileHandle) {
+      await original.call(this);
+      controller.abort(reason);
+    });
+  onTestFinished(() => close.mockRestore());
+  const result = await client.hashTargetSnapshot(controller.signal);
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected final-close cancellation");
+  expect(result.error.kind).toBe("cancelled");
+  expect(result.error.cancellation?.reason).toBe(reason);
+  expect(result.error).toMatchObject({
+    partialObservation: {
+      sha256: TARGET_SHA256,
+      bytes: readFileSync(fixturePath).length,
+    },
+  });
+});
+
+it.each([undefined, 0])(
+  "retains completed snapshot capture facts through failed close (limit=%s)",
+  async (limit) => {
+    const client = clientFor(new FixtureLauncher());
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    const close = vi
+      .spyOn(OwnedFileHandle.prototype, "close")
+      .mockRejectedValueOnce(new Error("controlled capture close failure"));
+    onTestFinished(async () => {
+      close.mockRestore();
+      await client.close();
+    });
+    const result = await client.readTargetSnapshot(limit);
+    if (result.ok) throw new Error("Expected capture cleanup failure");
+    expect(result.error.partialObservation).toEqual({
+      kind: "file-snapshot-read",
+      path: expect.any(String),
+      admitted_sha256: TARGET_SHA256,
+      capture:
+        limit === undefined
+          ? { status: "captured", bytes: readFileSync(fixturePath).length }
+          : {
+              status: "over-capacity",
+              source_bytes_at_least: readFileSync(fixturePath).length,
+              maximum_bytes: limit,
+            },
+    });
+    expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+    expect((await client.close()).ok).toBe(true);
+    expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+  },
+);
+
+it("joins a snapshot read before closing its descriptor and runtime", async () => {
+  const launcher = new FixtureLauncher();
+  const client = clientFor(launcher);
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  const child = launcher.processes[0];
+  if (child === undefined) throw new Error("Missing bounded fixture child");
+  const childClosed = new Promise<void>((resolve) =>
+    child.once("close", () => resolve()),
+  );
+  const probe = await open(fixturePath, "r");
+  const prototype = Object.getPrototypeOf(probe) as FileHandle;
+  await probe.close();
+  let markRead!: () => void, resume!: () => void;
+  const reading = new Promise<void>((resolve) => {
+    markRead = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  let captured: FileHandle | undefined;
+  const original = prototype.read;
+  const read = vi
+    .spyOn(prototype, "read")
+    .mockImplementationOnce(async function (
+      this: FileHandle,
+      ...args: Parameters<FileHandle["read"]>
+    ) {
+      captured = this;
+      markRead();
+      await gate;
+      return Reflect.apply(original, this, args);
+    });
+  let pending: ReturnType<GhidraClient["hashTargetSnapshot"]> | undefined;
+  onTestFinished(async () => {
+    resume();
+    await pending;
+    read.mockRestore();
+    await client.close();
+  });
+  pending = client.hashTargetSnapshot();
+  await reading;
+  const closing = client.close();
+  await childClosed;
+  // Cross the event-loop phase after the owned child closed, rather than
+  // guessing shutdown progress from an elapsed dispatch delay.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  expect(captured?.fd).toBeGreaterThanOrEqual(0);
+  const root = launcher.runtimeRoots[0];
+  if (root === undefined) throw new Error("Missing runtime root");
+  await expect(access(root)).resolves.toBeUndefined();
+  resume();
+  expect((await pending).ok).toBe(true);
+  expect((await closing).ok).toBe(true);
+  expect(captured?.fd).toBe(-1);
+  await expect(access(root)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("preserves snapshot cancellation and completed hash while final close also fails", async () => {
+  const client = clientFor(new FixtureLauncher());
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  const controller = new AbortController();
+  const reason = { phase: "snapshot-cancel-and-failed-close" };
+  let allowClose = false;
+  const original = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(function (this: OwnedFileHandle) {
+      if (allowClose) return original.call(this);
+      controller.abort(reason);
+      return Promise.reject(new Error("controlled cancellation close failure"));
+    });
+  onTestFinished(async () => {
+    allowClose = true;
+    await client.close();
+    close.mockRestore();
+  });
+  const result = await client.hashTargetSnapshot(controller.signal);
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected cancellation and cleanup failure");
+  expect(result.error.kind).toBe("cancelled");
+  expect(result.error.cancellation?.reason).toBe(reason);
+  expect(result.error.partialObservation).toMatchObject({
+    sha256: TARGET_SHA256,
+    bytes: readFileSync(fixturePath).length,
+  });
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+  allowClose = true;
+  expect((await client.close()).ok).toBe(true);
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+});
+
+it.each(
+  (["hash", "capture"] as const).flatMap((operation) =>
+    [null, "caller stopped", new Error("caller stopped")].flatMap((reason) =>
+      [false, true].map((failClose) => ({ operation, reason, failClose })),
+    ),
+  ),
+)(
+  "preserves active snapshot cancellation: $operation, $reason, failed close=$failClose",
+  async ({ operation, reason, failClose }) => {
+    const client = clientFor(new FixtureLauncher());
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    const controller = new AbortController();
+    const probe = await open(fixturePath, "r");
+    const prototype = Object.getPrototypeOf(probe) as FileHandle;
+    await probe.close();
+    const originalRead = prototype.read;
+    const read = vi
+      .spyOn(prototype, "read")
+      .mockImplementationOnce(async function (
+        this: FileHandle,
+        ...args: Parameters<FileHandle["read"]>
+      ) {
+        // Fulfill a real short read, then abort before the next checkpoint.
+        const result = await Reflect.apply(originalRead, this, [
+          args[0],
+          0,
+          1,
+          null,
+        ]);
+        controller.abort(reason);
+        return result;
+      });
+    let allowClose = !failClose;
+    const originalClose = OwnedFileHandle.prototype.close;
+    const close = vi
+      .spyOn(OwnedFileHandle.prototype, "close")
+      .mockImplementation(function (this: OwnedFileHandle) {
+        return allowClose
+          ? originalClose.call(this)
+          : Promise.reject(new Error("controlled active-read close failure"));
+      });
+    onTestFinished(async () => {
+      allowClose = true;
+      read.mockRestore();
+      await client.close();
+      close.mockRestore();
+    });
+    const result =
+      operation === "hash"
+        ? await client.hashTargetSnapshot(controller.signal)
+        : await client.readTargetSnapshot(undefined, controller.signal);
+    if (result.ok) throw new Error("Expected active read cancellation");
+    expect(result.error.kind).toBe("cancelled");
+    expect(result.error.cancellation?.reason).toBe(reason);
+    expect(result.error.partialObservation).toBeUndefined();
+    expect(result.error.cleanupFailure?.cleanupIncomplete ?? false).toBe(
+      failClose,
+    );
+    allowClose = true;
+    expect((await client.close()).ok).toBe(true);
+    expect(result.error.cleanupFailure?.cleanupIncomplete ?? false).toBe(false);
+  },
+);
+
+it("keeps a snapshot read failure primary across late cancellation and failed close", async () => {
+  const client = clientFor(new FixtureLauncher());
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  const controller = new AbortController();
+  const physical = new Error("controlled snapshot physical read failure");
+  const probe = await open(fixturePath, "r");
+  const prototype = Object.getPrototypeOf(probe) as FileHandle;
+  await probe.close();
+  const read = vi.spyOn(prototype, "read").mockRejectedValueOnce(physical);
+  let allowClose = false;
+  const original = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(function (this: OwnedFileHandle) {
+      if (allowClose) return original.call(this);
+      controller.abort({ phase: "late-snapshot-close" });
+      return Promise.reject(
+        new Error("controlled close failure after read failure"),
+      );
+    });
+  onTestFinished(async () => {
+    allowClose = true;
+    read.mockRestore();
+    await client.close();
+    close.mockRestore();
+  });
+  const result = await client.hashTargetSnapshot(controller.signal);
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected read and cleanup failure");
+  expect(result.error.kind).toBe("protocol");
+  expect(result.error.cancellation).toBeUndefined();
+  expect(artifactFilePrimaryFailure(result.error.cause)).toBe(physical);
+  expect(result.error.partialObservation).toBeUndefined();
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
+  allowClose = true;
+  expect((await client.close()).ok).toBe(true);
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+});
+
+it("keeps runtime cleanup pending after a snapshot descriptor releases and shrinks live resources", async () => {
+  const launcher = new FixtureLauncher();
+  const client = clientFor(launcher);
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  let allowClose = false;
+  const original = OwnedFileHandle.prototype.close;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(function (this: OwnedFileHandle) {
+      return allowClose
+        ? original.call(this)
+        : Promise.reject(new Error("controlled snapshot close failure"));
+    });
+  let restoreRoot: (() => void) | undefined;
+  onTestFinished(async () => {
+    allowClose = true;
+    close.mockRestore();
+    restoreRoot?.();
+    await client.close();
+  });
+  const result = await client.hashTargetSnapshot();
+  if (result.ok) throw new Error("Expected file cleanup failure");
+  const first = await client.close();
+  if (first.ok) throw new Error("Expected pending descriptor cleanup");
+  allowClose = true;
+  const rootClose = vi
+    .spyOn(PrivateRuntimeRoot.prototype, "close")
+    .mockRejectedValueOnce(new Error("controlled root removal failure"));
+  restoreRoot = () => rootClose.mockRestore();
+  const second = await client.close();
+  if (second.ok) throw new Error("Expected pending root cleanup");
+  expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(false);
+  expect(result.error.cleanupFailure?.cleanupResources).toEqual([]);
+  expect(first.error.cleanupIncomplete).toBe(true);
+  expect(first.error.cleanupResources).toEqual([launcher.runtimeRoots[0]]);
+  expect(second.error.cleanupResources).toEqual([launcher.runtimeRoots[0]]);
+  expect((await client.close()).ok).toBe(true);
+  expect(first.error.cleanupIncomplete).toBe(false);
+  expect(second.error.cleanupIncomplete).toBe(false);
 });
 
 describe("GhidraClient captured source snapshot", () => {

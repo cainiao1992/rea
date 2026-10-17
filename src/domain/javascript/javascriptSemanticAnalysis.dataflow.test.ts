@@ -265,7 +265,10 @@ describe("JavaScript semantic analysis: read-modify-write", () => {
       let value;
       [value = source.count] = [];
     `);
-    expect(ir.objectOperations.map(({ kind }) => kind)).toEqual(["read"]);
+    expect(ir.objectOperations.map(({ kind }) => kind)).toEqual([
+      "destructure",
+      "read",
+    ]);
   });
 
   it("does not model a compound binding write as a competing replacement", () => {

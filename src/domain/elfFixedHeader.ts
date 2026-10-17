@@ -80,6 +80,8 @@ const elfArchitecture = (
       return "powerpc";
     case 40:
       return "arm";
+    case 164: // EM_HEXAGON: Qualcomm Hexagon DSP (QDSP6).
+      return "hexagon";
     case 183:
       return "arm64";
     case 243: // EM_RISCV: XLEN, byte order and e_flags remain separate ELF facts.

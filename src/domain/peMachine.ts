@@ -1,6 +1,6 @@
 import type { HeaderArchitecture } from "./binaryTargetTypes.js";
 
-export type PeArchitecture = HeaderArchitecture;
+export type PeArchitecture = Exclude<HeaderArchitecture, "hexagon">;
 
 /** A decoded COFF machine and whether it carried a ReadyToRun OS override. */
 export interface PeMachine {

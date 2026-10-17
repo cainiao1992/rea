@@ -901,6 +901,12 @@ Properties format limit. Reads preserve Ghidra's Latin-1 byte mapping and check
 the descriptor and selected name for changes. Permission failures and resource
 refusals remain explicit; failed descriptor cleanup must succeed before that
 owner admits another inspection.
+Native decompiler compatibility inspection follows the selected executable symlink
+and reads at most the first 4096 bytes through the same descriptor owner. It
+checks the full extent and selected name for changes without reading the remainder.
+An unreadable or unrecognized header leaves compatibility unknown; diagnostics
+retain read failures. Cancellation and incomplete cleanup propagate as failures,
+and failed cleanup retains the exact descriptor for retry.
 This coordinate selects only REA's session-private configuration directory, not
 the installation or an existing user configuration directory.
 

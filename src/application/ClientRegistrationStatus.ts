@@ -13,6 +13,7 @@ import { isAbsolute } from "node:path";
 import { z } from "zod";
 import { valid } from "semver";
 
+import { RegularFileCleanupFailure } from "./RegularFileRead.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
 import {
@@ -119,7 +120,9 @@ export const readClientRegistrationStatuses = async (
     await readClientRegistrationInspections(home, currentCommandPath, options)
   ).map(({ status }) => status);
 
-/** Parse effective registrations and their client-specific activation once. */
+/** Parse effective registrations and their client-specific activation once.
+ * A supplied scope retains failed cleanup; otherwise transfer its exact failure.
+ */
 export const readClientRegistrationInspections = async (
   home: string,
   currentCommandPath: string | undefined = CURRENT_ENTRYPOINT_PATH,
@@ -178,6 +181,11 @@ export const readClientRegistrationInspections = async (
         options.resources,
       );
       if (!configuration.ok) {
+        if (
+          options.resources === undefined &&
+          configuration.error.cleanupFailure !== undefined
+        )
+          throw configuration.error.cleanupFailure;
         record({
           client: client.name,
           config_path: configuration.error.path,
@@ -200,6 +208,11 @@ export const readClientRegistrationInspections = async (
         options.resources,
       );
       if (!policy.ok) {
+        if (
+          options.resources === undefined &&
+          policy.error.cleanupFailure !== undefined
+        )
+          throw policy.error.cleanupFailure;
         record({
           client: client.name,
           config_path: configPath,
@@ -313,6 +326,11 @@ export const readClientRegistrationInspections = async (
         activation,
       );
     } catch (cause: unknown) {
+      if (
+        options.resources === undefined &&
+        cause instanceof RegularFileCleanupFailure
+      )
+        throw cause;
       record(
         unavailableStatus(
           client,

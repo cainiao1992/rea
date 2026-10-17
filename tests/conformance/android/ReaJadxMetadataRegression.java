@@ -330,7 +330,93 @@ public class ReaJadxMetadataRegression {
     System.out.println("NO_BODY_REGRESSION_PASS native=true abstract=true frozen=true");
   }
 
+  private static void verifyLoadFailures() {
+    for (String reason : new String[]{"Java heap space", "GC overhead limit exceeded", "Metaspace", "", null}) {
+      Object projected = ReaJadxBridge.loadResult(kotlin.ResultKt.createFailure(new OutOfMemoryError(reason)));
+      CallToolResult response = (CallToolResult) projected;
+      require(Boolean.TRUE.equals(response.isError()), "Memory failure became success");
+      JsonObject failure = JsonParser.parseString(((TextContent) response.getContent().get(0)).getText())
+          .getAsJsonObject();
+      require(failure.get("kind").getAsString().equals("jvm-memory-failure"), "Lost memory tag");
+      require(reason == null ? !failure.has("message") : failure.get("message").getAsString().equals(reason),
+          "Lost JVM reason or invented one");
+      require(failure.get("max_heap_bytes").getAsLong() == Runtime.getRuntime().maxMemory(),
+          "Configured heap substituted for observed heap");
+      boolean heap = "Java heap space".equals(reason) || "GC overhead limit exceeded".equals(reason);
+      require(failure.get("memory_area").getAsString().equals(heap ? "heap" : "unknown"),
+          "Unknown memory region became heap");
+    }
+    Object cancellation = kotlin.ResultKt.createFailure(new java.util.concurrent.CancellationException("cancel"));
+    require(ReaJadxBridge.loadResult(cancellation) == cancellation, "Cancellation was stringified");
+    Object fatal = kotlin.ResultKt.createFailure(new AssertionError("fatal"));
+    require(ReaJadxBridge.loadResult(fatal) == fatal, "Fatal error was stringified");
+    String decoy = "cannot read /inputs/Java heap space.apk";
+    CallToolResult ordinary = (CallToolResult) ReaJadxBridge.loadResult(
+        kotlin.ResultKt.createFailure(new IllegalArgumentException(decoy)));
+    require(((TextContent) ordinary.getContent().get(0)).getText().equals("load failed: " + decoy),
+        "Ordinary exception text became memory evidence");
+    var loaded = new SessionHolder.LoadResult("/selected.apk", 2, 3, 4, 5L, 90000L,
+        1, 64, "full", List.of("selected"), List.of("excluded"));
+    var completions = new ArrayList<Object>();
+    kotlin.coroutines.Continuation<CallToolResult> receiver = new kotlin.coroutines.Continuation<>() {
+      public kotlin.coroutines.CoroutineContext getContext() { return EmptyCoroutineContext.INSTANCE; }
+      public void resumeWith(Object result) { completions.add(result); }
+    };
+    Object immediate = ReaJadxBridge.loadCall(next -> loaded, receiver);
+    require(immediate instanceof CallToolResult && completions.isEmpty(), "Immediate completion resumed twice");
+    JsonObject success = JsonParser.parseString(((TextContent) ((CallToolResult) immediate)
+        .getContent().get(0)).getText()).getAsJsonObject();
+    require(success.get("apk_path").getAsString().equals("/selected.apk")
+        && success.get("raw_class_count").getAsInt() == 3
+        && success.getAsJsonArray("include_packages").get(0).getAsString().equals("selected")
+        && success.getAsJsonArray("exclude_packages").get(0).getAsString().equals("excluded"),
+        "Load response lost source facts or selected filters");
+    Object thrown = ReaJadxBridge.loadCall(next -> { throw new OutOfMemoryError("Java heap space"); }, receiver);
+    require(thrown instanceof CallToolResult && completions.isEmpty(), "Synchronous failure resumed twice");
+    var pending = new ArrayList<kotlin.coroutines.Continuation<SessionHolder.LoadResult>>();
+    Object suspended = ReaJadxBridge.loadCall(next -> {
+      require(next.getContext() == receiver.getContext(), "Coroutine context changed");
+      pending.add(next);
+      return kotlin.coroutines.intrinsics.IntrinsicsKt.getCOROUTINE_SUSPENDED();
+    }, receiver);
+    require(suspended == kotlin.coroutines.intrinsics.IntrinsicsKt.getCOROUTINE_SUSPENDED(),
+        "Suspension became completion");
+    require(completions.isEmpty(), "Suspension completed early");
+    pending.get(0).resumeWith(cancellation);
+    require(completions.size() == 1 && completions.get(0) == cancellation, "Late cancellation changed");
+    for (Object outcome : List.of(loaded,
+        kotlin.ResultKt.createFailure(new OutOfMemoryError("Java heap space")))) {
+      pending.clear();
+      completions.clear();
+      ReaJadxBridge.loadCall(next -> {
+        pending.add(next);
+        return kotlin.coroutines.intrinsics.IntrinsicsKt.getCOROUTINE_SUSPENDED();
+      }, receiver);
+      pending.get(0).resumeWith(outcome);
+      require(completions.size() == 1 && completions.get(0) instanceof CallToolResult,
+          "Late success or memory failure was not delivered once");
+    }
+    int[] callbacks = {0};
+    var downstreamFailure = new IllegalStateException("downstream rejected completion");
+    kotlin.coroutines.Continuation<CallToolResult> throwing = new kotlin.coroutines.Continuation<>() {
+      public kotlin.coroutines.CoroutineContext getContext() { return EmptyCoroutineContext.INSTANCE; }
+      public void resumeWith(Object result) { callbacks[0]++; throw downstreamFailure; }
+    };
+    try {
+      ReaJadxBridge.loadCall(next -> {
+        next.resumeWith(loaded);
+        return kotlin.coroutines.intrinsics.IntrinsicsKt.getCOROUTINE_SUSPENDED();
+      }, throwing);
+      throw new AssertionError("Inline consumer exception became a second completion");
+    } catch (IllegalStateException failure) {
+      require(failure == downstreamFailure && callbacks[0] == 1, "Inline continuation resumed twice");
+    }
+    System.out.println("LOAD_FAILURE_REGRESSION_PASS typed=true decoy=true suspension=true cancellation=true");
+  }
+
   public static void main(String[] args) throws Exception {
+    verifyLoadFailures();
+    if (args.length == 1 && args[0].equals("--load-failures")) return;
     SessionConfig config = new SessionConfig(1048576, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
     SessionHolder holder = new SessionHolder(config);
     try {

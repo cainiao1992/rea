@@ -834,7 +834,7 @@ it("reports missing explicit tools without trying to install or launch them", as
   });
 });
 
-it.each(["tool-error", "frame-overflow", "body-error"])(
+it.each(["tool-error", "frame-overflow", "body-error", "heap-decoy"])(
   "preserves the actual failed provider constraint for %s",
   async (mode) => {
     const { service, apk, launches, provider } = await setup(mode);
@@ -855,11 +855,17 @@ it.each(["tool-error", "frame-overflow", "body-error"])(
         _tag: "ProviderAdapterError",
         diagnostics: {
           upstream_operation:
-            mode === "body-error" ? "get_method_body" : "get_android_manifest",
+            mode === "body-error"
+              ? "get_method_body"
+              : mode === "heap-decoy"
+                ? "load_apk"
+                : "get_android_manifest",
           reason:
             mode === "body-error"
               ? "// ERROR: decompile timed out or failed"
-              : "manifest decoder rejected malformed binary XML",
+              : mode === "heap-decoy"
+                ? "load failed: cannot read /inputs/Java heap space.apk"
+                : "manifest decoder rejected malformed binary XML",
         },
       });
     else
@@ -871,6 +877,88 @@ it.each(["tool-error", "frame-overflow", "body-error"])(
     await verifyCleanup(launches);
   },
 );
+
+it.each(["heap-failure", "other-memory-failure"])(
+  "projects typed JVM memory failure and cleans its process for %s",
+  async (mode) => {
+    const { service, apk, launches, provider } = await setup(mode);
+    const outcome = await service.execute("inspect_android_package", {
+      path: apk,
+    });
+    if (outcome.ok) throw new Error("Expected memory allocation failure");
+    expect(outcome.error).toMatchObject({
+      _tag: "AnalysisResourceConstraintError",
+      resource: "memory",
+      retryable: false,
+      reportedLimits: {
+        observed_max_heap_bytes: 67108864,
+        memory_area: mode === "heap-failure" ? "heap" : "unknown",
+      },
+      diagnostics: { upstream_operation: "load_apk", target_path: apk },
+    });
+    const projected = projectAnalysisError(outcome.error);
+    expect(projected).toMatchObject({
+      code: "resource_constraint",
+      retryable: false,
+    });
+    expect(projected.remediation.action).toContain(
+      mode === "heap-failure"
+        ? "REA_JADX_HEAP_MIB"
+        : "increasing heap alone may not help",
+    );
+    await provider.close();
+    await verifyCleanup(launches);
+  },
+);
+
+it("retains typed memory failure through failed cleanup and restores it after retry", async () => {
+  let fails = true;
+  const { service, apk, launches, provider } = await setup(
+    "heap-failure",
+    () => fails,
+  );
+  const rootClose = vi
+    .spyOn(PrivateRuntimeRoot.prototype, "close")
+    .mockRejectedValueOnce(new Error("fixture workspace close failure"));
+  try {
+    const result = await service.execute("inspect_android_package", {
+      path: apk,
+    });
+    if (result.ok) throw new Error("Expected failed memory cleanup");
+    const failure = result.error;
+    expect(failure.cleanupIncomplete).toBe(true);
+    expect(projectAnalysisError(failure)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: {
+        diagnostics: { primary_error: { code: "resource_constraint" } },
+      },
+    });
+    const workspace = launches[0]?.cwd;
+    expect(failure.cleanupResources).toContain(workspace);
+    fails = false;
+    await expect(provider.close()).rejects.toMatchObject({
+      cleanupIncomplete: true,
+    });
+    expect(failure.cleanupResources).toEqual([workspace]);
+    await provider.close();
+    expect(failure.cleanupIncomplete).toBe(false);
+    expect(failure.cleanupResources).toEqual([]);
+    expect(projectAnalysisError(failure)).toMatchObject({
+      code: "resource_constraint",
+      retryable: false,
+      remediation: { action: expect.stringContaining("REA_JADX_HEAP_MIB") },
+      details: {
+        resource: "memory",
+        reported_limits: { observed_max_heap_bytes: 67108864 },
+      },
+    });
+    await verifyCleanup(launches);
+  } finally {
+    rootClose.mockRestore();
+    fails = false;
+    await provider.close();
+  }
+});
 
 it("rejects bytes changed after target admission without launching an engine", async () => {
   const { provider, apk, launches } = await setup();

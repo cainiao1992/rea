@@ -67,6 +67,10 @@ export const verifyAndroidMetadata = async ({
     );
     assert.match(
       result.stdout,
+      /LOAD_FAILURE_REGRESSION_PASS typed=true decoy=true suspension=true cancellation=true/u,
+    );
+    assert.match(
+      result.stdout,
       /METADATA_REGRESSION_PASS classes=\d+ overloads=3/u,
     );
     assert.match(

@@ -317,7 +317,15 @@ settings. Evidence reports the worker's observed `Runtime.maxMemory()` rounded
 down to MiB and retains exact bytes, Java version and visible processors in its
 raw runtime response. The observed allocatable heap can differ from configured
 `-Xmx`, especially with Serial GC. Heap is not a total RSS cap: the JVM also
-uses native memory. Independent REA instances have independent queues. Whole
+uses native memory. A typed JVM memory allocation failure during APK loading
+reports `resource_constraint` with the observed maximum heap in bytes. Known
+heap failures name `REA_JADX_HEAP_MIB` in remediation; other memory regions
+remain unknown. A healthy doctor configuration check does not establish that
+any particular APK fits. Failures before the bridge can report a typed result
+and upstream errors from other operations retain their existing diagnostics;
+error text alone does not establish memory exhaustion.
+
+Independent REA instances have independent queues. Whole
 operations have a **120-second** execution deadline by default, starting after
 they reach the queue's front. For a known slow cold load, such as a large
 multidex APK, select another finite deadline:

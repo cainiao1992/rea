@@ -15,7 +15,11 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import kotlin.Unit;
+import kotlin.ResultKt;
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
+import kotlin.coroutines.intrinsics.IntrinsicsKt;
 import kotlinx.coroutines.BuildersKt;
 import kotlinx.io.CoreKt;
 import kotlinx.io.JvmCoreKt;
@@ -43,6 +47,84 @@ class ReaJadxBridge {
   }
 
   private static CallToolResult json(Object value) { return text(JSON.toJson(value), false); }
+
+  /** Translate the typed load outcome before upstream drops its exception identity. */
+  static Object loadResult(Object result) {
+    try { ResultKt.throwOnFailure(result); }
+    catch (Throwable failure) {
+      if (failure instanceof java.util.concurrent.CancellationException
+          || failure instanceof Error && !(failure instanceof OutOfMemoryError)) return result;
+      if (failure instanceof OutOfMemoryError) {
+        String reason = failure.getMessage();
+        boolean heap = "Java heap space".equals(reason) || "GC overhead limit exceeded".equals(reason);
+        Map<String, Object> reply = new LinkedHashMap<>();
+        reply.put("kind", "jvm-memory-failure");
+        reply.put("memory_area", heap ? "heap" : "unknown");
+        reply.put("exception_type", "java.lang.OutOfMemoryError");
+        if (reason != null) reply.put("message", reason);
+        reply.put("max_heap_bytes", Runtime.getRuntime().maxMemory());
+        return text(JSON.toJson(reply), true);
+      }
+      return text("load failed: " + failure.getMessage(), true);
+    }
+    SessionHolder.LoadResult loaded = (SessionHolder.LoadResult) result;
+    Map<String, Object> reply = new LinkedHashMap<>();
+    reply.put("state", "LOADED");
+    reply.put("apk_path", loaded.getApkPath());
+    reply.put("class_count", loaded.getClassCount());
+    reply.put("raw_class_count", loaded.getRawClassCount());
+    reply.put("resource_count", loaded.getResourceCount());
+    reply.put("load_duration_ms", loaded.getLoadDurationMs());
+    reply.put("decompile_timeout_ms", loaded.getDecompileTimeoutMs());
+    reply.put("threads", loaded.getThreads());
+    reply.put("code_cache_size", loaded.getCodeCacheSize());
+    reply.put("resources", loaded.getResourceMode());
+    if (!loaded.getIncludePackages().isEmpty()) reply.put("include_packages", loaded.getIncludePackages());
+    if (!loaded.getExcludePackages().isEmpty()) reply.put("exclude_packages", loaded.getExcludePackages());
+    return json(reply);
+  }
+
+  private Object load(kotlinx.serialization.json.JsonObject arguments, SessionConfig defaults,
+      Continuation<? super CallToolResult> continuation) {
+    JsonObject args = JsonParser.parseString(arguments.toString()).getAsJsonObject();
+    String path = string(args, "path");
+    SessionConfig options = defaults.withLoadOverrides(
+        optionalString(args, "include_packages"), optionalString(args, "exclude_packages"),
+        args.has("threads") ? integer(args, "threads", 1) : null,
+        args.has("code_cache_size") ? integer(args, "code_cache_size", 64) : null,
+        optionalString(args, "resources"));
+    return loadCall(next -> holder.load(path, options, next), continuation);
+  }
+
+  static Object loadCall(kotlin.jvm.functions.Function1<Continuation<SessionHolder.LoadResult>, Object> load,
+      Continuation<? super CallToolResult> continuation) {
+    var forwarded = new java.util.concurrent.atomic.AtomicBoolean();
+    Continuation<SessionHolder.LoadResult> resumed = new Continuation<>() {
+      public CoroutineContext getContext() { return continuation.getContext(); }
+      public void resumeWith(Object result) {
+        if (!forwarded.compareAndSet(false, true)) throw new IllegalStateException("Load resumed twice");
+        Object translated;
+        try { translated = loadResult(result); }
+        catch (Throwable failure) { translated = ResultKt.createFailure(failure); }
+        // Keep the consumer outside the translation catch, including inline completion.
+        continuation.resumeWith(translated);
+      }
+    };
+    Object result;
+    try { result = load.invoke(resumed); }
+    catch (Throwable failure) {
+      if (forwarded.get()) ResultKt.throwOnFailure(ResultKt.createFailure(failure));
+      result = ResultKt.createFailure(failure);
+    }
+    if (result == IntrinsicsKt.getCOROUTINE_SUSPENDED()) return result;
+    Object translated = loadResult(result);
+    ResultKt.throwOnFailure(translated);
+    return translated;
+  }
+
+  private static String optionalString(JsonObject args, String name) {
+    return args.has(name) ? string(args, name) : null;
+  }
 
   private static String string(JsonObject args, String name) {
     JsonElement value = args.get(name);
@@ -341,11 +423,12 @@ class ReaJadxBridge {
   public static void main(String[] args) throws Exception {
     PrintStream protocolOut = System.out;
     System.setOut(System.err);
-    SessionHolder holder = new SessionHolder(new SessionConfig(
-        1048576, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL));
+    SessionConfig defaults = new SessionConfig(
+        1048576, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
+    SessionHolder holder = new SessionHolder(defaults);
     ServerCapabilities capabilities = new ServerCapabilities(
         new ServerCapabilities.Tools(null), null, null, null, null, null, null, Map.of());
-    Server server = new Server(new Implementation("rea-jadx-bridge", "3", null, null, null),
+    Server server = new Server(new Implementation("rea-jadx-bridge", "4", null, null, null),
         new ServerOptions(capabilities), "", ignored -> Unit.INSTANCE);
     SessionToolsKt.registerSessionTools(server, holder);
     ManifestToolsKt.registerManifestTools(server, holder);
@@ -353,6 +436,10 @@ class ReaJadxBridge {
     MethodToolsKt.registerMethodTools(server, holder);
     XrefToolsKt.registerXrefTools(server, holder);
     ReaJadxBridge bridge = new ReaJadxBridge(holder);
+    Tool loadTool = server.getTools().get("load_apk").getTool();
+    server.removeTool("load_apk");
+    server.addTool(loadTool, (connection, request, continuation) ->
+        bridge.load(request.getArguments(), defaults, continuation));
     Set<String> consumed = Set.of("load_apk", "get_app_info", "get_android_manifest",
         "list_classes", "get_class_summary", "get_method_body",
         "get_xrefs_to_class", "get_xrefs_to_method");

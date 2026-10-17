@@ -79,7 +79,7 @@ const configurationCheck = (
       name: "configuration",
       ok: true,
       code: null,
-      detail: `JADX MCP bridge JAR validated at ${jarPath}; its path is recorded for agent registrations.`,
+      detail: `JADX MCP bridge JAR validated at ${jarPath}; its path is recorded for agent registrations. This checks configuration, not whether a selected APK fits in the worker's memory.`,
       remediation: null,
       classification: "config_drift",
       ...(typeof operationTimeout === "number"

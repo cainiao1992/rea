@@ -63,7 +63,10 @@ const register = (name, handler) =>
 register("rea_jvm_status", () =>
   json({
     engine_reported_version: mode === "engine-version" ? "0.7.0" : "0.7.1",
-    max_heap_bytes: 8 * 1024 * 1024 * 1024,
+    max_heap_bytes:
+      mode === "heap-failure" || mode === "other-memory-failure"
+        ? 67108864
+        : 8 * 1024 * 1024 * 1024,
     available_processors: 4,
     java_version: "21-fixture",
     metadata_scope: "parsed_members",
@@ -71,6 +74,22 @@ register("rea_jvm_status", () =>
 );
 register("load_apk", async ({ path }) => {
   if (mode === "stall") await new Promise(() => {});
+  if (mode === "heap-failure" || mode === "other-memory-failure")
+    return {
+      ...json({
+        kind: "jvm-memory-failure",
+        memory_area: mode === "heap-failure" ? "heap" : "unknown",
+        exception_type: "java.lang.OutOfMemoryError",
+        message: mode === "heap-failure" ? "Java heap space" : "Metaspace",
+        max_heap_bytes: 67108864,
+      }),
+      isError: true,
+    };
+  if (mode === "heap-decoy")
+    return {
+      ...text("load failed: cannot read /inputs/Java heap space.apk"),
+      isError: true,
+    };
   return json({
     state: "LOADED",
     apk_path: mode === "wrong-apk" ? "/different.apk" : path,

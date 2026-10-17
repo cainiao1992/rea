@@ -318,6 +318,57 @@ it("applies application-root and sidecar rules to unread entries", async () => {
 });
 
 describe("macOS application projection", () => {
+  it("classifies launchd plists by their owning directory instead of unrelated ancestors", async () => {
+    const root = await createTestTempDirectory("rea-apple-launchd-domain-");
+    const path = join(root, "Launchd.zip");
+    const expected = [
+      [
+        "LaunchDaemons/Sample.app/Contents/Library/LaunchAgents/agent.plist",
+        "agent",
+      ],
+      [
+        "LaunchDaemons/Sample.app/Contents/Resources/LaunchDaemons/Nested.app/Contents/Library/LaunchAgents/nested.plist",
+        "agent",
+      ],
+      [
+        "LaunchAgents/Other.app/Contents/Library/LaunchDaemons/daemon.plist",
+        "daemon",
+      ],
+      [
+        "launchdaemons/Case.app/contents/library/launchagents/mixed.plist",
+        "agent",
+      ],
+    ] as const;
+    const writer = new ZipWriter(new Uint8ArrayWriter());
+    for (const [entry] of expected)
+      await writer.add(entry, new TextReader("<plist><dict/></plist>"));
+    await writer.add(
+      "LaunchDaemons/Sample.app/Contents/Library/LaunchAgents/nested/ignored.plist",
+      new TextReader("<plist><dict/></plist>"),
+    );
+    await writeFile(path, await writer.close());
+
+    const inventory = parseEvidence(
+      await runProviderAnalysis(path, "inventory_artifact", {}),
+    );
+    const projection = appleApplicationProjectionResultSchema.parse(
+      requireSuccessfulProjection(
+        projectAppleApplicationEvidence({ inventory_evidence: [inventory] }),
+      ).normalized_result,
+    );
+    expect(
+      projection.components.launchd_plists.map(({ path, domain }) => [
+        path,
+        domain,
+      ]),
+    ).toEqual(expect.arrayContaining([...expected]));
+    expect(projection.components.launchd_plists).toHaveLength(expected.length);
+    expect(projection.coverage).toEqual({
+      status: "complete-within-inventory",
+      inventory_complete: true,
+    });
+  });
+
   it("projects a macOS .app directory inventory with nested bundle roles", async () => {
     const root = await createTestTempDirectory("rea-apple-macos-");
     const app = join(root, "Fixture.app");

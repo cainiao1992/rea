@@ -232,6 +232,14 @@ after reader finalization, plus active-provider shutdown during preflight.
 They preserve real filesystem cleanup where possible; mocked launch boundaries
 do not establish real Electron teardown or naturally occurring OS failures.
 
+Active Electron cleanup controls retain independent transport and process-family
+owners, block replacement captures until recovery, and retry only unresolved
+owners. Cover late close acknowledgement and rejection after a wait deadline,
+opaque rejection reasons, cancellation during failed finalization, and missing
+lineage followed by a confirmed passive family census. Windows controls require
+a fresh lineage observation and do not signal cached descendant PIDs after root
+termination. Simulated Windows controls do not establish native Windows behavior.
+
 For atomic writes, exercise cancellation on both sides of the documented commit
 point and preserve any publication receipt. A late interruption does not prove
 that no output was published.

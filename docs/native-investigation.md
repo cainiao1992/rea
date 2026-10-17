@@ -634,6 +634,18 @@ because a JSON number cannot carry the sign of zero. `inspect_plist` and
 Builder node attributes use the same value. Positive zero and integer zero,
 including an `<integer>-0</integer>` literal, remain the number `0`.
 
+An XML `<real>` spelled the way CFPropertyList reads and writes non-finite
+reals (`nan`, `+infinity`, `-infinity`, and the parser's `infinity`, `inf`,
+`+inf` and `-inf`, compared case-insensitively) is reported as
+`{ "$plist_type": "real", "value": "nan" | "+infinity" | "-infinity" }` with
+the kind and sign preserved using CFPropertyList's canonical writer spelling.
+Case and `inf` aliases are normalized; the original archive bytes retain the
+source literal. A non-finite number without a completely observed spelling,
+such as a directly decoded binary plist double or XML text the decoder could
+not read as a number, is reported as `{ "$plist_type": "real", "value": null }`. Both are
+counted in separate limitations. Native `inspect_plist` can recover canonical
+non-finite values from plutil's XML conversion even for a binary source.
+
 ## Locate a byte signature
 
 Use `search_bytes` after opening a target with Ghidra to locate a known constant

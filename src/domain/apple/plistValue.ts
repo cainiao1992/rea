@@ -2,6 +2,7 @@ import { types } from "node:util";
 import { z } from "zod";
 
 import type { JsonValue } from "../jsonValue.js";
+import type { PlistNonFiniteRealSpelling } from "./plistNumbers.js";
 
 /**
  * Maximum plist value nesting the JSON projection supports. The XML decode
@@ -10,10 +11,17 @@ import type { JsonValue } from "../jsonValue.js";
  */
 export const MAX_PLIST_DEPTH = 128;
 
+/** A decoded non-finite real with its canonical CFPropertyList writer spelling. */
+export class PlistNonFiniteReal {
+  constructor(readonly spelling: PlistNonFiniteRealSpelling) {}
+}
+
 /** A decoded plist projected into JSON, with values JSON cannot express. */
 export interface ProjectedPlistValue {
   readonly value: JsonValue;
-  /** Reals decoded as NaN, which the decoder also uses for ±infinity. */
+  /** Non-finite reals decoded with one of CFPropertyList's spellings. */
+  readonly nonFiniteRealCount: number;
+  /** Non-finite numbers without a spelling, such as NaN from unreadable text. */
   readonly unknownRealCount: number;
   /** Negative-zero reals, which a JSON number would report as positive zero. */
   readonly negativeZeroRealCount: number;
@@ -24,6 +32,14 @@ export interface ProjectedPlistValue {
 /** Limitation for results whose plist held dates the decoder could not represent. */
 export const unknownDateLimitation = (count: number): string =>
   `${String(count)} date value(s) are reported as { "$plist_type": "date", "iso8601": null } because the decoder could not represent them, such as XML dates with years beyond 9999 or negative years, or dates outside the JavaScript date range.`;
+
+/** Limitation for results whose plist held spelled non-finite reals. */
+export const nonFiniteRealLimitation = (count: number): string =>
+  `${String(count)} non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } with the CFPropertyList spelling nan, +infinity or -infinity because a JSON number cannot carry them.`;
+
+/** Limitation for results whose plist held non-finite numbers without a spelling. */
+export const unknownRealLimitation = (count: number): string =>
+  `${String(count)} non-finite real value(s) are reported as { "$plist_type": "real", "value": null } because the decoder observed a non-finite number without a property-list spelling.`;
 
 /** The typed scalar that keeps a negative-zero real distinct from positive zero. */
 export const negativeZeroReal = (): Record<string, JsonValue> => ({
@@ -36,16 +52,17 @@ export const negativeZeroRealLimitation = (count: number): string =>
   `${String(count)} negative-zero real value(s) are reported as { "$plist_type": "real", "value": "-0" } because a JSON number cannot carry the sign of zero.`;
 
 /**
- * Project a decoded plist into JSON. Data, dates and retained big integers become explicit
- * `$plist_type` objects; a non-finite real becomes an explicit unknown
- * because the XML decoder reports NaN and ±infinity alike, and a
- * negative-zero real keeps its sign, which JSON serialization would drop.
+ * Project a decoded plist into JSON. Data, dates, retained big integers and
+ * spelled non-finite reals become explicit `$plist_type` objects; a non-finite
+ * number without a spelling becomes an explicit unknown, and a negative-zero
+ * real keeps its sign, which JSON serialization would drop.
  */
 export const projectPlistValue = (
   value: unknown,
   /** Observe generated wrappers before consumers classify the JSON value tree. */
   onWrappedScalar?: (value: Record<string, JsonValue>) => void,
 ): ProjectedPlistValue => {
+  let nonFiniteRealCount = 0;
   let unknownRealCount = 0;
   let negativeZeroRealCount = 0;
   let unknownDateCount = 0;
@@ -65,6 +82,10 @@ export const projectPlistValue = (
         $plist_type: "data",
         base64: Buffer.from(item).toString("base64"),
       });
+    if (item instanceof PlistNonFiniteReal) {
+      nonFiniteRealCount += 1;
+      return scalar({ $plist_type: "real", value: item.spelling });
+    }
     if (item instanceof Date) {
       if (!Number.isNaN(Date.prototype.getTime.call(item)))
         return scalar({
@@ -115,6 +136,7 @@ export const projectPlistValue = (
   const projected = project(value, 0);
   return {
     value: projected,
+    nonFiniteRealCount,
     unknownRealCount,
     negativeZeroRealCount,
     unknownDateCount,

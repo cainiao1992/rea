@@ -133,3 +133,33 @@ export const createPlistNumberProjection = (literals: PlistNumberLiterals) => {
     ],
   };
 };
+
+/** The spellings CFPropertyList writes for reals a JSON number cannot carry. */
+export type PlistNonFiniteRealSpelling = "nan" | "+infinity" | "-infinity";
+
+/**
+ * Read a whole `<real>` text as one of CFPropertyList's non-finite spellings.
+ * Its parser compares the complete text case-insensitively and also accepts
+ * `infinity`, `inf`, `+inf` and `-inf`; its writer emits `nan`, `+infinity`
+ * and `-infinity`. Any other text, including surrounding whitespace, is not
+ * a spelled non-finite real.
+ */
+export const parsePlistNonFiniteRealLiteral = (
+  text: string,
+): PlistNonFiniteRealSpelling | undefined => {
+  if (text.length < 3 || text.length > 9) return undefined;
+  switch (text.toLowerCase()) {
+    case "nan":
+      return "nan";
+    case "+infinity":
+    case "infinity":
+    case "+inf":
+    case "inf":
+      return "+infinity";
+    case "-infinity":
+    case "-inf":
+      return "-infinity";
+    default:
+      return undefined;
+  }
+};

@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { PlistNonFiniteReal } from "./apple/plistValue.js";
 import { parseXmlPropertyList } from "./propertyListKeys.js";
 
 it.each([
@@ -82,4 +83,51 @@ it("retains native decoder null and nested-envelope behavior", () => {
       "<plist><array><null/><dict><key>value</key><null/></dict><plist><null/></plist></array></plist>",
     ).value,
   ).toEqual([{ value: null }, [null]]);
+});
+
+it.each([
+  ["nan", "nan"],
+  ["NaN", "nan"],
+  ["+infinity", "+infinity"],
+  ["infinity", "+infinity"],
+  ["INFINITY", "+infinity"],
+  ["inf", "+infinity"],
+  ["+inf", "+infinity"],
+  ["-infinity", "-infinity"],
+  ["-Infinity", "-infinity"],
+  ["-inf", "-infinity"],
+  ["<![CDATA[-inf]]>", "-infinity"],
+] as const)(
+  "retains the canonical non-finite real value for %s",
+  (literal, spelling) => {
+    const parsed = parseXmlPropertyList(
+      `<plist><real>${literal}</real></plist>`,
+    );
+    expect(parsed.value).toBeInstanceOf(PlistNonFiniteReal);
+    expect(parsed.value).toEqual(new PlistNonFiniteReal(spelling));
+    expect(parsed.numberLiterals.reals.size).toBe(0);
+    expect(parsed.numberLiterals.incomplete).toBe(false);
+  },
+);
+
+it("keeps non-finite reals without a property-list spelling as plain numbers", () => {
+  const parsed = parseXmlPropertyList(
+    "<plist><array><real>1e999</real><real>-1e999</real><real> nan </real><real>-nan</real><real>infinite</real></array></plist>",
+  );
+  expect(parsed.value).toEqual([
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NaN,
+    Number.NaN,
+    Number.NaN,
+  ]);
+  expect(parsed.numberLiterals.incomplete).toBe(false);
+});
+
+it("does not infer a spelled real from incomplete numeric markup", () => {
+  const parsed = parseXmlPropertyList(
+    "<plist><real>-inf<!-- unsupported --></real></plist>",
+  );
+  expect(parsed.value).toBeNaN();
+  expect(parsed.numberLiterals.incomplete).toBe(true);
 });

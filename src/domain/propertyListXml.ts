@@ -3,7 +3,9 @@ import type { Document, Node } from "@xmldom/xmldom";
 import {
   createPlistNumberCollector,
   parsePlistIntegerLiteral,
+  parsePlistNonFiniteRealLiteral,
 } from "./apple/plistNumbers.js";
+import { PlistNonFiniteReal } from "./apple/plistValue.js";
 
 /** Interpret an already validated, depth-bounded DOM, owning values and number facts together. */
 export const decodeXmlPropertyList = (document: Document) => {
@@ -111,9 +113,15 @@ export const decodeXmlPropertyList = (document: Document) => {
       case "real": {
         requireContent(node);
         const literal = content(node, characterNode);
+        if (!literal.complete) numbers.markIncomplete();
+        // CFPropertyList spells NaN and the infinities; parseFloat would read
+        // the lowercase spellings as NaN and lose the kind and sign.
+        const spelling = literal.complete
+          ? parsePlistNonFiniteRealLiteral(literal.text)
+          : undefined;
+        if (spelling !== undefined) return new PlistNonFiniteReal(spelling);
         const value = Number.parseFloat(literal.text);
         if (literal.complete) numbers.real(value);
-        else numbers.markIncomplete();
         return value;
       }
       case "data": {

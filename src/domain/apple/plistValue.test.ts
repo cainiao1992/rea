@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { projectPlistValue } from "./plistValue.js";
+import { PlistNonFiniteReal, projectPlistValue } from "./plistValue.js";
 
 // Binary decoders build dates from seconds; beyond the Date range they are invalid.
 it("projects an unrepresentable date as unknown and counts it", () => {
@@ -11,6 +11,7 @@ it("projects an unrepresentable date as unknown and counts it", () => {
       far: { $plist_type: "date", iso8601: null },
       near: { $plist_type: "date", iso8601: "1970-01-01T00:00:00.000Z" },
     },
+    nonFiniteRealCount: 0,
     unknownRealCount: 0,
     negativeZeroRealCount: 0,
     unknownDateCount: 1,
@@ -125,4 +126,30 @@ it("keeps retained integer scalars distinct from lookalike dictionaries", () => 
   expect(observed).toHaveLength(1);
   expect(observed[0]).toBe(projected.value[0]);
   expect(observed[0]).not.toBe(projected.value[1]);
+});
+
+it("projects spelled non-finite reals as typed scalars and keeps unspelled ones unknown", () => {
+  const observed: object[] = [];
+  const projected = projectPlistValue(
+    [
+      new PlistNonFiniteReal("+infinity"),
+      new PlistNonFiniteReal("-infinity"),
+      new PlistNonFiniteReal("nan"),
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+      { $plist_type: "real", value: "nan" },
+    ],
+    (wrapper) => observed.push(wrapper),
+  );
+  expect(projected.nonFiniteRealCount).toBe(3);
+  expect(projected.unknownRealCount).toBe(2);
+  expect(projected.negativeZeroRealCount).toBe(0);
+  expect(JSON.stringify(projected.value)).toBe(
+    '[{"$plist_type":"real","value":"+infinity"},{"$plist_type":"real","value":"-infinity"},{"$plist_type":"real","value":"nan"},{"$plist_type":"real","value":null},{"$plist_type":"real","value":null},{"$plist_type":"real","value":"nan"}]',
+  );
+  expect(Array.isArray(projected.value)).toBe(true);
+  if (!Array.isArray(projected.value)) throw new Error("Expected array");
+  // Only generated wrappers are reported; the lookalike stays a dictionary.
+  expect(observed).toEqual(projected.value.slice(0, 5));
+  expect(observed).not.toContain(projected.value[5]);
 });

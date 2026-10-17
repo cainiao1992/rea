@@ -1,4 +1,4 @@
-import { capturedApktoolCommandOutput } from "./ApktoolCommandOutput.js";
+import { capturedApktoolFailureOutput } from "./ApktoolCommandOutput.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { ok, err, type Result } from "../domain/result.js";
 import { ApktoolCommandCleanup } from "./ApktoolCommandCleanup.js";
@@ -429,10 +429,7 @@ const versionProbeFailure = (
       : cause instanceof DarwinProcessOwnershipInspectionError
         ? cause
         : undefined;
-  const output =
-    cause instanceof OwnedCommandFailure && cause.snapshot !== null
-      ? capturedApktoolCommandOutput(cause.snapshot)
-      : preparation?.capturedOutput;
+  const output = capturedApktoolFailureOutput(cause);
   if (cause instanceof OwnedCommandFailure && cause.reason === "cancelled")
     return new AnalysisCancelledError("inspect_apktool_client", {
       cause: cause.cancellation?.reason,

@@ -391,7 +391,12 @@ it("reports apktool's own refusal for undecodable targets", async () => {
     operation: "decode_android_resources",
     input: { path: apk.path, include_strings: true },
   });
-  expect(projected).toMatchObject({ code: "unsupported_target" });
+  expect(projected).toMatchObject({
+    code: "unsupported_target",
+    details: { path: apk.path },
+  });
+  expect(projected.message).toContain(apk.path);
+  expect(projected.message).not.toContain(command);
   expect(projected.message).toContain("Could not decode");
 });
 
@@ -856,5 +861,57 @@ it("joins a late workspace allocation during shutdown and removes its owned root
     await pending;
     allocation.mockRestore();
     await (closing ?? provider.close());
+  }
+});
+
+it.each(["first-selected.apk", "second-selected.apk"])(
+  "attributes a decode refusal to %s without substituting the launcher",
+  async (name) => {
+    const { command, root } = await writeApktoolStub(
+      decodeStub({ failDecode: true }),
+    );
+    const path = join(root, name);
+    await writeFile(path, "authored target");
+    const provider = providerOver(command);
+    try {
+      const projected = await refusedBy(provider, {
+        operation: "decode_android_resources",
+        input: { path, include_strings: true },
+      });
+      expect(projected).toMatchObject({
+        code: "unsupported_target",
+        details: { path, captured_output: { exit_code: 1 } },
+      });
+      expect(projected.message).toContain(path);
+      expect(projected.message).not.toContain(command);
+    } finally {
+      await provider.close();
+    }
+  },
+);
+
+it("reports launcher disappearance after version admission as a provider failure", async () => {
+  const { command, root } = await writeApktoolStub(
+    () =>
+      `if [ "$1" = "--version" ]; then rm -- "$0"; ${VERSION_BLOCK}; exit 0; fi`,
+  );
+  const apk = await apkFixture(root);
+  const provider = providerOver(command);
+  try {
+    const result = await provider.execute({
+      operation: "decode_android_resources",
+      input: { path: apk.path, include_strings: true },
+    });
+    if (result.ok) throw new Error("Expected missing launcher");
+    expect(result.error).toMatchObject({
+      _tag: "ProviderAdapterError",
+      diagnostics: { target_path: apk.path, selected_command: command },
+    });
+    expect(projectAnalysisError(result.error).code).not.toBe(
+      "unsupported_target",
+    );
+    expect(result.error.cause).toBeDefined();
+  } finally {
+    await provider.close();
   }
 });

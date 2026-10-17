@@ -83,9 +83,11 @@ select Android's `values-pt-rBR`; Android qualifiers such as `pt-rBR` and
   coverage and an explicit limit, rather than reported as missing.
 - `decoded_file_count` is capped at 100,000 files; the cap is reported in
   the limitations when hit.
-- Apktool's own decode failures (`AndrolibException`, directory traversal
-  refusals) surface as `unsupported_target` with apktool's reason preserved
-  verbatim.
+- An ordinary nonzero decode exit surfaces as `unsupported_target` naming
+  the caller-selected APK, with Apktool's diagnostic and captured output.
+  Launcher startup, ownership preparation, signal termination and incomplete
+  output collection remain provider failures; they do not establish that the
+  selected APK is unsupported.
 
 ## Real verification
 

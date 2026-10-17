@@ -1,3 +1,6 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { afterEach, expect, it, vi } from "vitest";
 import { createDeferred } from "../../tests/fixtures/binarySession.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -376,3 +379,99 @@ it("preserves an opaque cancellation reason before acquiring a command", async (
     await client.close();
   }
 });
+
+it.each([
+  "refusal",
+  "spawn",
+  "collection",
+  "signal",
+  "incomplete",
+  "preparation",
+] as const)(
+  "keeps target identity separate from a %s command outcome",
+  async (kind) => {
+    const root = await createTestTempDirectory("rea-apktool-attribution-");
+    const path = join(root, "caller-selected.apk");
+    await writeFile(path, "authored input");
+    const client = provider();
+    const output = {
+      stdout: { text: "authored stdout", bytes: 15, observedBytes: 15 },
+      stderr: { text: "authored decode refusal", bytes: 23, observedBytes: 23 },
+      exitCode: 1,
+      signal: null,
+      diagnosticTruncated: false,
+    } satisfies Awaited<ReturnType<typeof runOwnedCommand>>;
+    const compiler = {
+      stdout: "compiler output",
+      stderr: "compiler diagnostic",
+      truncated: false,
+      stdout_bytes: 15,
+      stderr_bytes: 19,
+      exit_code: 1,
+      signal: null,
+    };
+    const failure =
+      kind === "preparation"
+        ? new DarwinProcessOwnershipInspectionError(
+            "authored preparation failure",
+            { capturedOutput: compiler },
+          )
+        : new OwnedCommandFailure(
+            "process",
+            "authored command failure",
+            {
+              ...output,
+              ...(kind === "signal"
+                ? { exitCode: null, signal: "SIGTERM" }
+                : {}),
+              ...(kind === "incomplete" ? { outputIncomplete: true } : {}),
+            },
+            null,
+            {
+              ...(kind === "spawn"
+                ? { processError: new Error("authored startup failure") }
+                : {}),
+              ...(kind === "collection" ? { collectionFailure: true } : {}),
+            },
+          );
+    vi.mocked(runOwnedCommand)
+      .mockImplementationOnce(async (_spawn, limits) => {
+        limits.observeCompleted?.(version);
+        return version;
+      })
+      .mockRejectedValueOnce(failure);
+    try {
+      const result = await client.execute({
+        operation: "decode_android_resources",
+        input: { path, include_strings: true },
+      });
+      if (result.ok) throw new Error("Expected authored failure");
+      if (kind === "refusal") {
+        expect(result.error).toMatchObject({
+          _tag: "AnalysisUnsupportedTargetError",
+          path,
+        });
+        expect(result.error.message).toContain(path);
+        expect(result.error.message).not.toContain("/authored/apktool");
+      } else
+        expect(result.error).toMatchObject({
+          _tag: "ProviderAdapterError",
+          diagnostics: {
+            target_path: path,
+            selected_command: "/authored/apktool",
+          },
+        });
+      expect(result.error.capturedOutput).toMatchObject(
+        kind === "preparation"
+          ? compiler
+          : { stdout: output.stdout.text, stderr: output.stderr.text },
+      );
+      expect(result.error.partialObservation).toMatchObject({
+        kind: "file-snapshot-hash",
+        path,
+      });
+    } finally {
+      await client.close();
+    }
+  },
+);

@@ -12,7 +12,7 @@ import {
   artifactFileCancellationCause,
 } from "../artifacts/ArtifactFileOperation.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
-import { capturedApktoolCommandOutput } from "./ApktoolCommandOutput.js";
+import { capturedApktoolFailureOutput } from "./ApktoolCommandOutput.js";
 import { ApktoolCommandCleanup } from "./ApktoolCommandCleanup.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
@@ -41,6 +41,7 @@ import {
 } from "../domain/analysisErrorCore.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
   OwnedCommandFailure,
@@ -97,6 +98,7 @@ interface DecodeLimits {
 
 const runApktool = async (
   operation: string,
+  targetPath: string,
   selection: ApktoolCommandSelection,
   arguments_: readonly string[],
   limits: DecodeLimits,
@@ -147,7 +149,7 @@ const runApktool = async (
     return err(
       commands.retainFailure(
         cause,
-        apktoolCommandFailure(cause, operation, selection, limits),
+        apktoolCommandFailure(cause, operation, targetPath, selection, limits),
         operation,
         root,
       ),
@@ -158,17 +160,22 @@ const runApktool = async (
 const apktoolCommandFailure = (
   cause: unknown,
   operation: string,
+  targetPath: string,
   selection: ApktoolCommandSelection,
   limits: DecodeLimits,
 ): AnalysisError => {
+  const capturedOutput = capturedApktoolFailureOutput(cause);
   if (!(cause instanceof OwnedCommandFailure))
-    return new AnalysisProtocolError(`apktool failed for ${operation}`, {
+    return new ProviderAdapterError("apktool", operation, {
       cause,
+      diagnostics: {
+        selected_command: selection.command,
+        target_path: targetPath,
+      },
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
     });
 
   const output = cause.snapshot;
-  const capturedOutput =
-    output === null ? undefined : capturedApktoolCommandOutput(output);
   if (cause.reason === "cancelled")
     return new AnalysisCancelledError(operation, {
       cause: cause.cancellation?.reason,
@@ -190,9 +197,32 @@ const apktoolCommandFailure = (
         ...(capturedOutput === undefined ? {} : { capturedOutput }),
       },
     );
+  // A physical launcher/capture failure does not establish target refusal.
+  // Only a fully collected ordinary nonzero decode exit carries that meaning.
+  if (
+    cause.processError !== undefined ||
+    cause.collectionFailure ||
+    cause.preparationFailure !== undefined ||
+    output === null ||
+    output.exitCode === null ||
+    output.exitCode === undefined ||
+    output.exitCode === 0 ||
+    output.signal !== null ||
+    output.outputIncomplete === true ||
+    output.diagnosticTruncated === true
+  )
+    return new ProviderAdapterError("apktool", operation, {
+      cause,
+      userMessage: `The selected Apktool command failed while decoding ${targetPath}`,
+      diagnostics: {
+        selected_command: selection.command,
+        target_path: targetPath,
+      },
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
+    });
   return new AnalysisUnsupportedTargetError(
     operation,
-    selection.command,
+    targetPath,
     output?.stderr.text.trim().slice(0, STDERR_EXCERPT_BYTES) ||
       `apktool exited with code ${String(output?.exitCode ?? "unknown")} for ${operation}`,
     {
@@ -503,6 +533,7 @@ export class ApktoolProvider {
       await mkdir(framework);
       const decoded = await runApktool(
         operation,
+        input.path,
         selection,
         [
           "d",

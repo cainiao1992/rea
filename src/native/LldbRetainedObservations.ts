@@ -66,20 +66,19 @@ export const projectLldbPartialObservation = (input: {
 export const parseLldbObservationJournal = (
   bytes: Uint8Array,
 ): ParsedLldbJournal => {
-  const completeText = Buffer.from(bytes).toString("utf8");
-  const newline = completeText.lastIndexOf("\n");
-  const hasTornTail = newline !== completeText.length - 1;
+  const hasTornTail = bytes.length > 0 && bytes[bytes.length - 1] !== 0x0a;
   const events: ParsedLldbJournal["events"] = [];
   const otherStops: string[] = [];
   const limitations: string[] = [];
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   let malformedCount = 0;
   let firstMalformedRow: number | undefined;
   let start = 0;
   let rowNumber = 0;
-  while (start <= newline && newline >= 0) {
-    const end = completeText.indexOf("\n", start);
-    if (end < 0 || end > newline) break;
-    const line = completeText.slice(start, end);
+  while (start < bytes.length) {
+    const end = bytes.indexOf(0x0a, start);
+    if (end < 0) break;
+    const line = bytes.subarray(start, end);
     start = end + 1;
     if (line.length === 0) continue;
     rowNumber += 1;
@@ -89,7 +88,7 @@ export const parseLldbObservationJournal = (
     };
     let row: unknown;
     try {
-      row = JSON.parse(line);
+      row = JSON.parse(decoder.decode(line));
     } catch {
       markMalformed();
       continue;

@@ -497,10 +497,11 @@ export class LldbCallTracer implements NativeCallTracer {
     retained.processStopped =
       exited.cleanupOwner === undefined && exited.cleanupFailure === undefined;
     retained.targetStopped = !exited.targetLaunched;
-    const output =
+    const readback =
       exited.kind === "exited"
         ? await readTracerOutput(paths.result, retained.files)
         : undefined;
+    const output = readback?.ok ? readback.value : undefined;
     // An explicit bridge observation can prove no process was created or that
     // the created process exited. A missing PID alone remains ambiguous.
     const bridgeObservedExit =
@@ -624,8 +625,21 @@ export class LldbCallTracer implements NativeCallTracer {
     if (output === undefined)
       return err(
         new ProviderAdapterError(PROVIDER, OPERATION, {
+          ...(readback !== undefined && !readback.ok
+            ? { cause: readback.error }
+            : {}),
           diagnostics: {
-            reason: "LLDB exited without a tracer result",
+            reason: "LLDB exited without a usable tracer result",
+            ...(readback !== undefined && !readback.ok
+              ? {
+                  result_failure:
+                    readback.error instanceof z.ZodError
+                      ? `Tracer result failed schema validation (${readback.error.issues.length} issues)`
+                      : readback.error instanceof Error
+                        ? readback.error.message
+                        : String(readback.error),
+                }
+              : {}),
             exit_code: exited.exitCode,
             lldb_output: exited.output,
             ...(lifecycleCleanup === undefined
@@ -855,13 +869,21 @@ const lldbRuntimePaths = (directory: string) => ({
 const readTracerOutput = async (
   path: string,
   files: LldbReadbackFiles,
-): Promise<z.infer<typeof tracerOutputSchema> | undefined> => {
-  const text = await files.read(path, (file) => file.readFile("utf8"));
-  if (!text.ok) return undefined;
-  const parsed = safeParseJson(text.value);
-  if (!parsed.ok) return undefined;
+): Promise<Result<z.infer<typeof tracerOutputSchema>, unknown>> => {
+  const bytes = await files.read(path, (file) => file.readFile());
+  if (!bytes.ok) return bytes;
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes.value,
+    );
+  } catch (cause: unknown) {
+    return err(cause);
+  }
+  const parsed = safeParseJson(text);
+  if (!parsed.ok) return err(parsed.cause);
   const output = tracerOutputSchema.safeParse(parsed.value);
-  return output.success ? output.data : undefined;
+  return output.success ? ok(output.data) : err(output.error);
 };
 
 const capturedOutput = (

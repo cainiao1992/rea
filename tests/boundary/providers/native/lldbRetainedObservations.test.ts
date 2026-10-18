@@ -93,6 +93,50 @@ describe("LLDB retained observations", () => {
     );
   });
 
+  it("rejects invalid UTF-8 rows while retaining valid neighbors and literal replacement characters", () => {
+    const before = Buffer.from(`${JSON.stringify({ kind: "event", event })}\n`);
+    const invalid = Buffer.concat([
+      Buffer.from('{"kind":"other-stop","reason":"before'),
+      Buffer.from([0xff]),
+      Buffer.from('after"}\n'),
+    ]);
+    const literalReplacement = Buffer.from(
+      `${JSON.stringify({ kind: "other-stop", reason: "literal �" })}\n`,
+    );
+    const after = Buffer.from(
+      `${JSON.stringify({ kind: "event", event: { ...event, sequence: 1 } })}\n`,
+    );
+    const parsed = parseLldbObservationJournal(
+      Buffer.concat([before, invalid, literalReplacement, after]),
+    );
+
+    expect(parsed.events).toEqual([event, { ...event, sequence: 1 }]);
+    expect(parsed.otherStops).toEqual(["literal �"]);
+    expect(parsed.limitations).toContain(
+      "1 observation journal row(s) were malformed or invalid and ignored (first at row 2).",
+    );
+  });
+
+  it("ignores a torn non-ASCII tail without discarding completed rows", () => {
+    const complete = Buffer.from(
+      `${JSON.stringify({ kind: "event", event })}\n`,
+    );
+    const torn = Buffer.concat([
+      Buffer.from('{"kind":"other-stop","reason":"'),
+      Buffer.from([0xe2, 0x82]),
+    ]);
+    const parsed = parseLldbObservationJournal(Buffer.concat([complete, torn]));
+
+    expect(parsed.events).toEqual([event]);
+    expect(parsed.otherStops).toEqual([]);
+    expect(parsed.limitations).toContain(
+      "The final observation journal record was incomplete and was ignored.",
+    );
+    expect(parsed.limitations).not.toContain(
+      expect.stringContaining("malformed or invalid"),
+    );
+  });
+
   it("bounds malformed-row diagnostics for an 8 MiB journal", () => {
     const valid = JSON.stringify({ kind: "event", event });
     const malformed = '{"kind":"unknown"}\n';

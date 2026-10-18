@@ -266,6 +266,54 @@ describe("LLDB completed trace retention through finalization", () => {
 });
 
 describe("LLDB failure retention through the production tracer", () => {
+  it("treats an invalid UTF-8 tracer result as unavailable and retains journal facts", async () => {
+    let configPath: string | undefined;
+    const tracer = new LldbCallTracer(
+      {},
+      async (_executable, arguments_) => {
+        const resolved = await configFromArguments(arguments_);
+        configPath = resolved.configPath;
+        await writeFile(
+          resolved.config.observation_path,
+          `${JSON.stringify({ kind: "event", event: EVENT })}\n`,
+        );
+        await writeFile(
+          resolved.config.result_path,
+          Buffer.concat([
+            Buffer.from('{"status":"tracer-error","error":"before'),
+            Buffer.from([0xff]),
+            Buffer.from('after"}'),
+          ]),
+        );
+        return {
+          kind: "exited",
+          targetLaunched: false,
+          exitCode: 1,
+          output: "invalid UTF-8 tracer result",
+          targetIdentity: undefined,
+          cleanupFailure: undefined,
+        };
+      },
+      async () => ok(fakeTool),
+    );
+
+    const result = await tracer.trace(request);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected unavailable tracer result");
+    expect(result.error).toMatchObject({
+      _tag: "ProviderAdapterError",
+      cause: { code: "ERR_ENCODING_INVALID_ENCODED_DATA" },
+      diagnostics: { reason: "LLDB exited without a usable tracer result" },
+      partialObservation: { events: [EVENT] },
+    });
+    if (configPath === undefined)
+      throw new Error("LLDB fixture did not launch");
+    await expect(access(dirname(configPath))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("waits for an active trace before client close removes its runtime root", async () => {
     const launchGate = createDeferred<void>();
     const launchStarted = createDeferred<void>();

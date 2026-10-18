@@ -208,3 +208,43 @@ describe.skipIf(process.platform !== "darwin")(
     );
   },
 );
+
+describe.skipIf(process.platform !== "darwin")(
+  "native plist CLI direct target selection",
+  () => {
+    cliTest.for([
+      "<plist><dict><key>value</key><integer> 42 </integer></dict></plist>",
+      "<plist><dict><key>value</key><true>x</true></dict></plist>",
+    ])(
+      "classifies the selected malformed plist as input: %s",
+      async (source, { cli }) => {
+        const root = await createTestTempDirectory("rea-plist-target-input-");
+        const path = join(root, "chosen.plist");
+        await writeFile(path, source);
+        for (const args of [[], ["--relative-path", path]]) {
+          const result = await cli.run({
+            arguments: ["inspect-plist", path, ...args, "--json"],
+            environment,
+          });
+          expect(result.exitCode).toBe(1);
+          expect(result.json).toMatchObject({
+            code: "invalid_request",
+            details: {
+              issues: [
+                {
+                  path: ["path"],
+                  message: expect.stringContaining("Property List error:"),
+                },
+              ],
+              captured_output: { exit_code: 1 },
+            },
+          });
+          expect(capturedDiagnostic(result.json)).toContain(
+            "Property List error:",
+          );
+        }
+        expect(await readFile(path, "utf8")).toBe(source);
+      },
+    );
+  },
+);

@@ -268,6 +268,12 @@ markup, including UTF-8 and BOM-marked UTF-16 sources. Unidentified text and
 OpenStep plists, including a data-only value such as `<deadbeef>`, report
 `unknown` even when plutil decodes their values through an XML conversion.
 
+A plist explicitly selected through the path input or as the active plist target
+reports an unreadable or malformed selection as `invalid_request`. A missing or
+unreadable default plist of another target reports `capability_unavailable`.
+Permission failures remain `access_denied`; output and cleanup failures retain
+their own error categories.
+
 A plist decode refusal includes plutil's diagnostic from either output stream.
 `details.captured_output` retains bounded stdout/stderr excerpts, observed byte
 totals and exit status. `truncated: true` means those excerpts are incomplete.

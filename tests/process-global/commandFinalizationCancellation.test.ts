@@ -1,17 +1,17 @@
 import { Cli } from "incur";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { WasmArtifactService } from "../../../src/application/wasm/WasmArtifactService.js";
-import { registerWasmCommands } from "../../../src/cli/wasmCommands.js";
-import { wasmArtifactModule } from "../../../src/composition/wasm.js";
-import { AnalysisOutputError } from "../../../src/domain/analysisErrorCore.js";
-import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
-import { err, ok } from "../../../src/domain/result.js";
-import { silentLogger } from "../../../src/logger.js";
+import { WasmArtifactService } from "../../src/application/wasm/WasmArtifactService.js";
+import { registerWasmCommands } from "../../src/cli/wasmCommands.js";
+import { wasmArtifactModule } from "../../src/composition/wasm.js";
+import { AnalysisOutputError } from "../../src/domain/analysisErrorCore.js";
+import { ProviderCleanupError } from "../../src/domain/providerCleanupError.js";
+import { err, ok } from "../../src/domain/result.js";
+import { silentLogger } from "../../src/logger.js";
 import {
   wasmArtifactExecution,
   wasmArtifactFixture,
-} from "../../fixtures/wasm/artifact.js";
+} from "../fixtures/wasm/artifact.js";
 
 const host = vi.hoisted(() => ({
   listeners: new Map<string, () => void>(),
@@ -24,10 +24,10 @@ const host = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../../src/cli/commandCancellation.js", async (importOriginal) => {
+vi.mock("../../src/cli/commandCancellation.js", async (importOriginal) => {
   const original =
     await importOriginal<
-      typeof import("../../../src/cli/commandCancellation.js")
+      typeof import("../../src/cli/commandCancellation.js")
     >();
   return {
     ...original,

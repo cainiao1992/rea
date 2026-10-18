@@ -792,9 +792,11 @@ const clientConfigurationDesired = (
 const positiveTimeout = (
   registration: unknown,
   key: string,
-): number | undefined => {
+): number | bigint | undefined => {
   if (typeof registration !== "object" || registration === null) return;
   const value: unknown = Reflect.get(registration, key);
+  // TOML keeps integers beyond the safe Number range exact as bigint.
+  if (typeof value === "bigint") return value > 0n ? value : undefined;
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? value
     : undefined;

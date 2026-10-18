@@ -104,12 +104,40 @@ export const clientConfigurationServersKey = (
 const isEmptyClientConfigurationText = (text: string): boolean =>
   text.replace(/^\uFEFF/, "").trim() === "";
 
+const INT64_MIN = -(2n ** 63n);
+const INT64_MAX = 2n ** 63n - 1n;
+
+/**
+ * Parse client TOML with TOML 1.0's signed 64-bit integer contract. Integers
+ * beyond JavaScript's safe range stay exact as bigint; values outside Int64,
+ * which Codex rejects, are malformed.
+ */
+const parseClientToml = (text: string): Record<string, unknown> => {
+  const parsed = parseToml(text, { integersAsBigInt: "asNeeded" });
+  const pending: unknown[] = [parsed];
+  for (let value = pending.pop(); value !== undefined; value = pending.pop()) {
+    if (typeof value === "bigint") {
+      if (value < INT64_MIN || value > INT64_MAX)
+        throw new SyntaxError(
+          `Invalid TOML document: integer ${String(value)} is outside the signed 64-bit range`,
+        );
+    } else if (
+      typeof value === "object" &&
+      value !== null &&
+      !(value instanceof Date)
+    )
+      // Large documents can exceed argument limits, so do not spread.
+      for (const nested of Object.values(value)) pending.push(nested);
+  }
+  return parsed;
+};
+
 const parseDocument = (
   text: string,
   format: ClientConfigurationFormat,
 ): Record<string, unknown> => {
   if (format === "toml" || format === "grok")
-    return requireObject(parseToml(text), "The configuration root");
+    return requireObject(parseClientToml(text), "The configuration root");
   // Pi loads `mcp.json` with a strict `JSON.parse` and no BOM tolerance, so
   // comments, trailing commas, a BOM, or an empty existing file must be
   // rejected instead of registering into a document the client cannot load.
@@ -646,6 +674,7 @@ const tomlInlineValue = (value: unknown): string => {
   if (typeof value === "string") return tomlBasicString(value);
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "bigint") return String(value);
   if (Array.isArray(value))
     return `[${value.map((item) => tomlInlineValue(item)).join(", ")}]`;
   if (typeof value === "object" && value !== null) {
@@ -817,7 +846,7 @@ const rebuildDelimitedEntries = (
  */
 const tomlStringValue = (text: string): string | undefined => {
   try {
-    const value = parseToml(`value = ${text}`)["value"];
+    const value = parseClientToml(`value = ${text}`)["value"];
     return typeof value === "string" ? value : undefined;
   } catch (cause: unknown) {
     void cause;
@@ -1251,7 +1280,7 @@ const tomlTextHolds = (
 ): boolean => {
   try {
     return clientConfigurationValuesEqual(
-      withoutEmptyServerTable(objectSchema.parse(parseToml(text))),
+      withoutEmptyServerTable(objectSchema.parse(parseClientToml(text))),
       withoutEmptyServerTable(document),
     );
   } catch (cause: unknown) {

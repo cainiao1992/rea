@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
+import { OwnedCommandFailure } from "../../../src/process/OwnedCommand.js";
 import { AnalysisCancelledError } from "../../../src/domain/analysisErrorCore.js";
 import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import {
@@ -14,7 +15,7 @@ import { inspectPwndbgCore } from "../../../src/native/pwndbg/PwndbgCoreContext.
 const diagnostics = { stdout: "", stderr: "", truncated: false };
 
 it.each(["pre-aborted", "aborted-during-probe"] as const)(
-  "cancellation wins over debugger path failures: %s",
+  "observes cancellation at the debugger admission checkpoint: %s",
   async (scenario) => {
     const workspace = await createTestWorkspace("rea-pwndbg-cancel-");
     onTestFinished(() => removeTestWorkspace(workspace.root));
@@ -31,7 +32,7 @@ it.each(["pre-aborted", "aborted-during-probe"] as const)(
             resolve();
           });
         });
-        throw new Error("path became unavailable");
+        return;
       }
       throw new Error("path is unavailable");
     };
@@ -118,3 +119,79 @@ it.each(["x86_64-little-endian", "aarch64-little-endian"] as const)(
     expect(requested).toBe(true);
   },
 );
+
+it.each(["cancelled", "physical-name", "physical-identity"])(
+  "uses the debugger command owner's outcome despite a late signal: %s",
+  async (outcome) => {
+    const workspace = await createTestWorkspace("rea-pwndbg-command-outcome-");
+    onTestFinished(() => removeTestWorkspace(workspace.root));
+    const controller = new AbortController();
+    const reason = { stage: "command handoff" };
+    const failure = new OwnedCommandFailure(
+      outcome === "cancelled" ? "cancelled" : "process",
+      "owned command outcome",
+      null,
+      null,
+      { cancellation: outcome === "cancelled" ? { reason } : undefined },
+    );
+    if (outcome === "physical-name") failure.name = "AbortError";
+    const inspection = inspectPwndbgCore({
+      environment: {
+        REA_PWNDBG_GDB: workspace.path("gdb"),
+        REA_PWNDBG_GDBINIT: workspace.path("gdbinit.py"),
+        REA_PWNDBG_VENV_PATH: workspace.path("venv"),
+      },
+      architecture: "x86_64-little-endian",
+      rootPath: workspace.root,
+      resources: new ArtifactResourceScope(),
+      diagnostics: { stdout: "basic evidence", stderr: "", truncated: false },
+      options: { signal: controller.signal },
+      probePath: async () => {},
+      runCommand: async () => {
+        controller.abort(outcome === "physical-identity" ? failure : reason);
+        throw failure;
+      },
+    });
+    const result = await inspection.catch((cause: unknown) => cause);
+    if (!(result instanceof Error))
+      throw new Error("Expected a typed command failure");
+    expect(result).toMatchObject({
+      _tag:
+        outcome === "cancelled"
+          ? "AnalysisCancelledError"
+          : "ProviderAdapterError",
+    });
+    expect(result.cause).toBe(outcome === "cancelled" ? reason : failure);
+  },
+);
+
+it("retains a physical debugger path failure when cancellation arrives in the probe", async () => {
+  const workspace = await createTestWorkspace("rea-pwndbg-probe-failure-");
+  onTestFinished(() => removeTestWorkspace(workspace.root));
+  const controller = new AbortController();
+  const physical = Object.assign(new Error("path denied"), { code: "EACCES" });
+  const inspection = inspectPwndbgCore({
+    environment: {
+      REA_PWNDBG_GDB: workspace.path("gdb"),
+      REA_PWNDBG_GDBINIT: workspace.path("gdbinit.py"),
+      REA_PWNDBG_VENV_PATH: workspace.path("venv"),
+    },
+    architecture: "x86_64-little-endian",
+    rootPath: workspace.root,
+    resources: new ArtifactResourceScope(),
+    diagnostics,
+    options: { signal: controller.signal },
+    probePath: async () => {
+      controller.abort({ late: true });
+      throw physical;
+    },
+    runCommand: () => {
+      throw new Error("No command may start after probe failure");
+    },
+  });
+  const failure = await inspection.catch((cause: unknown) => cause);
+  expect(failure).toMatchObject({
+    _tag: "AnalysisCapabilityUnavailableError",
+    cause: physical,
+  });
+});

@@ -228,11 +228,15 @@ it.runIf(supportedHost)(
     await started;
     const controller = new AbortController();
     const cancelled = provider.inspect({ path }, { signal: controller.signal });
-    controller.abort();
+    const reason = { stage: "queued" };
+    controller.abort(reason);
     await expect(cancelled).resolves.toMatchObject({
       ok: false,
       error: { _tag: "AnalysisCancelledError" },
     });
+    const cancelledResult = await cancelled;
+    if (cancelledResult.ok) throw new Error("Expected queued cancellation");
+    expect(cancelledResult.error.cause).toBe(reason);
     const queued = provider.inspect({ path });
     const closing = provider.close();
     const late = provider.inspect({ path });

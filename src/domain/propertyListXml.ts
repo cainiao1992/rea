@@ -1,4 +1,6 @@
-import type { Document, Node } from "@xmldom/xmldom";
+import type { Node } from "@xmldom/xmldom";
+
+import { readXmlPlistSource } from "./propertyListXmlSource.js";
 
 import {
   UnknownPlistReal,
@@ -7,8 +9,10 @@ import {
   parsePlistNonFiniteRealLiteral,
 } from "./apple/plistNumbers.js";
 
-/** Interpret an already validated, depth-bounded DOM, owning values and number facts together. */
-export const decodeXmlPropertyList = (document: Document) => {
+/** Own source interpretation, depth, values and numeric facts together. */
+export const decodeXmlPropertyList = (text: string) => {
+  const source = readXmlPlistSource(text);
+  const document = source.document;
   const root = document.documentElement;
   if (root?.nodeName !== "plist")
     throw new TypeError("malformed document. First element should be <plist>");
@@ -134,8 +138,9 @@ export const decodeXmlPropertyList = (document: Document) => {
         return value;
       }
       case "data": {
-        const binary = atob(content(node, textNode).text.replace(/\s+/gu, ""));
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        const value = source.dataValue(node);
+        if (!value.ok) throw value.error;
+        return value.value;
       }
       case "date": {
         const value = requireContent(node).nodeValue;

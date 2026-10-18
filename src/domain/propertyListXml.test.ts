@@ -92,6 +92,20 @@ it.each([
   },
 );
 
+it.each([
+  ["AQID", [1, 2, 3]],
+  [" A Q I D\n", [1, 2, 3]],
+  ["AQI", []],
+  ["AQ!ID", [1, 2, 3]],
+  ["AQ==", [1]],
+  ["AQI=", [1, 2]],
+  ["AQ= =\n", [1]],
+  ["", []],
+])("decodes data text %j as CFPropertyList does", (text, expected) => {
+  const parsed = parseXmlPropertyList(`<plist><data>${text}</data></plist>`);
+  expect(parsed.value).toEqual(Uint8Array.from(expected));
+});
+
 it("collects source integers and CDATA reals before rounding and duplicate assignment", () => {
   const parsed = parseXmlPropertyList(
     "<plist><dict><key>a</key><integer>0x20000000000001</integer><key>a</key><integer>9007199254740992</integer><key>b</key><real>9007199254<![CDATA[740992]]></real></dict></plist>",

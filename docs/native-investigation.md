@@ -337,6 +337,12 @@ complete observation.
   Object `kind` describes the decoded archive value: data, dates and numbers
   remain `scalar` when their JSON value uses a `$plist_type` wrapper. An actual
   dictionary with the same fields remains `dictionary`.
+  XML must be well-formed. Data literals use
+  [CoreFoundation's raw ASCII quartet rules](https://github.com/swiftlang/swift-corelibs-foundation/blob/384ff680be7c7445fee6ce0c55e9ae11a46e07c5/Sources/CoreFoundation/CFPropertyList.c#L1588):
+  non-alphabet ASCII characters are ignored and an incomplete final quartet
+  emits no bytes. Character references retain their source spelling for data
+  decoding. Non-ASCII content, child markup and self-closing `<data/>` are format
+  failures; explicit `<data></data>` represents empty data.
   UID 0 cannot distinguish conditional nil from ordinary nil. Limits are
   64 MiB of input, 200,000 objects/references and 128 nesting levels.
   XML dictionary entries decoded as `__proto__` are omitted with an explicit

@@ -64,9 +64,9 @@ import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import {
   projectPlistValue,
   nonFiniteRealLimitation,
-  unknownRealLimitation,
   negativeZeroRealLimitation,
   unknownDateLimitation,
+  unknownScalarLimitation,
 } from "../domain/apple/plistValue.js";
 import { createPlistNumberProjection } from "../domain/apple/plistNumbers.js";
 import type { NativeUiObservationResult } from "../domain/native/nativeUiObservation.js";
@@ -1244,15 +1244,15 @@ const parseEntitlements = (
       ...(projected.nonFiniteRealCount === 0
         ? []
         : [nonFiniteRealLimitation(projected.nonFiniteRealCount)]),
-      ...(projected.unknownRealCount === 0
-        ? []
-        : [unknownRealLimitation(projected.unknownRealCount)]),
       ...(projected.negativeZeroRealCount === 0
         ? []
         : [negativeZeroRealLimitation(projected.negativeZeroRealCount)]),
       ...(projected.unknownDateCount === 0
         ? []
         : [unknownDateLimitation(projected.unknownDateCount)]),
+      ...(projected.unknownScalarCount === 0
+        ? []
+        : [unknownScalarLimitation(projected.unknownScalarCount)]),
     ],
   };
 };

@@ -2,10 +2,10 @@ import { parseOpenStep } from "plist";
 
 import { decodeXmlPropertyList } from "./propertyListXml.js";
 import {
-  UnknownPlistReal,
   createPlistNumberCollector,
   type PlistNumberLiterals,
 } from "./apple/plistNumbers.js";
+import { UnknownPlistScalar } from "./apple/unknownPlistScalar.js";
 
 import { MAX_PLIST_DEPTH } from "./apple/plistValue.js";
 
@@ -41,7 +41,7 @@ export const omitPrototypeKeys = (
       typeof item !== "object" ||
       item instanceof Date ||
       item instanceof Uint8Array ||
-      item instanceof UnknownPlistReal
+      item instanceof UnknownPlistScalar
     )
       return item;
     return Object.fromEntries(
@@ -55,37 +55,6 @@ export const omitPrototypeKeys = (
   const stripped = strip(value);
   return { value: stripped, omittedPrototypeKeys: omitted };
 };
-
-const XML_ENTITIES: Readonly<Record<string, string>> = {
-  amp: "&",
-  apos: "'",
-  gt: ">",
-  lt: "<",
-  quot: '"',
-};
-
-/**
- * Expand XML character and predefined entity references. A reference beyond
- * Unicode stays as written: comments and CDATA may hold such text literally,
- * and the XML decoder rejects it anywhere else.
- */
-export const decodeXmlText = (text: string): string =>
-  text.replace(
-    /&(?:#x([\da-f]+)|#(\d+)|([a-z]+));/giu,
-    (entity, hex?: string, decimal?: string, name?: string) => {
-      const codePoint =
-        hex !== undefined
-          ? parseInt(hex, 16)
-          : decimal !== undefined
-            ? parseInt(decimal, 10)
-            : undefined;
-      if (codePoint !== undefined)
-        return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
-      return name !== undefined && Object.hasOwn(XML_ENTITIES, name)
-        ? XML_ENTITIES[name]!
-        : entity;
-    },
-  );
 
 /**
  * Decode one validated XML DOM into values and numeric source facts.

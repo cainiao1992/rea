@@ -7,15 +7,23 @@ import {
   XmlPlistDataError,
 } from "./propertyListXmlData.js";
 
-// Preserve the established XML decoder normalization; keep raw data separately.
+// Preserve DOM compatibility normalization while retaining raw scalar spans.
 const LINE_ENDING = /\r[\n\u0085]|[\r\n\u0085\u2028\u2029]/gu;
 
-interface DataSpan {
+interface ScalarSpan {
   readonly start: number;
   readonly end: number;
+  readonly selfClosing: boolean;
 }
 
-/** One source owner binds lexical data values to their validated DOM nodes. */
+export class XmlPlistSourceError extends TypeError {
+  readonly _tag = "XmlPlistSourceError";
+  constructor() {
+    super("Cannot locate XML plist scalar in its original source");
+  }
+}
+
+/** One source owner binds lexical scalar values to their validated DOM nodes. */
 export const readXmlPlistSource = (text: string) => {
   const normalized = text.replace(LINE_ENDING, "\n");
   const parsed = parseXmlDocument(normalized, {
@@ -29,9 +37,7 @@ export const readXmlPlistSource = (text: string) => {
   let lineStart = 0;
   // The depth walk visits elements in source order, so location lookup is
   // linear without an index entry for every line in a potentially large value.
-  const readData = (
-    node: Node,
-  ): Result<DataSpan, XmlPlistDataError["reason"]> => {
+  const readSpan = (node: Node): Result<ScalarSpan, "source-location"> => {
     if (node.lineNumber === undefined || node.columnNumber === undefined)
       return err("source-location");
     while (line < node.lineNumber) {
@@ -41,31 +47,46 @@ export const readXmlPlistSource = (text: string) => {
       line += 1;
     }
     if (line !== node.lineNumber) return err("source-location");
-    for (let child = node.firstChild; child !== null; child = child.nextSibling)
-      if (child.nodeType !== child.TEXT_NODE) return err("markup");
     const start = lineStart + node.columnNumber - 1;
     const openingEnd = openingTagEnd(text, start);
-    if (openingEnd < 0) return err("source-location");
-    if (text[openingEnd - 1] === "/") return err("empty-element");
-    const end = text.indexOf("<", openingEnd + 1);
-    if (end < 0) return err("source-location");
-    return ok({ start: openingEnd + 1, end });
+    if (openingEnd < 0 || text[start] !== "<") return err("source-location");
+    const selfClosing = text[openingEnd - 1] === "/";
+    const end = selfClosing
+      ? openingEnd + 1
+      : closingTagStart(text, openingEnd + 1);
+    return end < 0
+      ? err("source-location")
+      : ok({ start: openingEnd + 1, end, selfClosing });
   };
-  const data = collectXmlPlistDataSpans(document, readData);
+  const spans = collectXmlPlistScalarSpans(document, readSpan);
   return {
     document,
+    scalarLiteral(node: Node): Result<string, XmlPlistSourceError> {
+      const span = spans.get(node);
+      return span?.ok === true
+        ? ok(text.slice(span.value.start, span.value.end))
+        : err(new XmlPlistSourceError());
+    },
     dataValue(node: Node): Result<Uint8Array, XmlPlistDataError> {
-      const span = data.get(node);
-      if (span === undefined)
+      const span = spans.get(node);
+      if (node.nodeName !== "data" || span === undefined)
         return err(new XmlPlistDataError("source-location"));
-      return span.ok
-        ? decodeXmlPlistData(text.slice(span.value.start, span.value.end))
-        : err(new XmlPlistDataError(span.error));
+      if (!span.ok) return err(new XmlPlistDataError(span.error));
+      for (
+        let child = node.firstChild;
+        child !== null;
+        child = child.nextSibling
+      )
+        if (child.nodeType !== child.TEXT_NODE)
+          return err(new XmlPlistDataError("markup"));
+      if (span.value.selfClosing)
+        return err(new XmlPlistDataError("empty-element"));
+      return decodeXmlPlistData(text.slice(span.value.start, span.value.end));
     },
   };
 };
 
-/** The validated DOM omits the distinction between <data/> and <data></data>. */
+/** Scan validated tag syntax without treating a quoted > as its end. */
 const openingTagEnd = (source: string, start: number): number => {
   let quote: string | undefined;
   for (let cursor = start; cursor < source.length; cursor += 1) {
@@ -77,6 +98,50 @@ const openingTagEnd = (source: string, start: number): number => {
   }
   return -1;
 };
+
+/**
+ * Locate an element's closing tag in validated XML. Comments, CDATA and PIs
+ * can contain apparent tags; nested markup is retained as source, not decoded
+ * or recursively interpreted as additional plist values.
+ */
+const closingTagStart = (source: string, contentStart: number): number => {
+  let depth = 1;
+  let cursor = contentStart;
+  while (cursor < source.length) {
+    const start = source.indexOf("<", cursor);
+    if (start < 0) return -1;
+    const delimiter = source.startsWith("<!--", start)
+      ? "-->"
+      : source.startsWith("<![CDATA[", start)
+        ? "]]>"
+        : source.startsWith("<?", start)
+          ? "?>"
+          : undefined;
+    if (delimiter !== undefined) {
+      const end = source.indexOf(delimiter, start + 2);
+      if (end < 0) return -1;
+      cursor = end + delimiter.length;
+      continue;
+    }
+    const end = openingTagEnd(source, start);
+    if (end < 0) return -1;
+    if (source[start + 1] === "/") {
+      depth -= 1;
+      if (depth === 0) return start;
+    } else if (source[end - 1] !== "/") depth += 1;
+    cursor = end + 1;
+  }
+  return -1;
+};
+
+const PLIST_LEXICAL_SCALARS = new Set([
+  "data",
+  "integer",
+  "real",
+  "date",
+  "true",
+  "false",
+]);
 
 /** Elements whose children the plist value decoder visits recursively. */
 const PLIST_CONTAINER_ELEMENTS = new Set(["plist", "dict", "array"]);
@@ -94,16 +159,13 @@ const PLIST_CONTAINER_ELEMENTS = new Set(["plist", "dict", "array"]);
  * its own level. The outer plist envelope is unwrapped by the decoder;
  * nested plist elements decode as arrays and must count toward the bound.
  */
-const collectXmlPlistDataSpans = (
+const collectXmlPlistScalarSpans = (
   document: Document,
-  readData: (node: Node) => Result<DataSpan, XmlPlistDataError["reason"]>,
-): WeakMap<Node, Result<DataSpan, XmlPlistDataError["reason"]>> => {
-  const data = new WeakMap<
-    Node,
-    Result<DataSpan, XmlPlistDataError["reason"]>
-  >();
+  readSpan: (node: Node) => Result<ScalarSpan, "source-location">,
+): WeakMap<Node, Result<ScalarSpan, "source-location">> => {
+  const spans = new WeakMap<Node, Result<ScalarSpan, "source-location">>();
   const root = document.documentElement;
-  if (root === null) return data;
+  if (root === null) return spans;
   const pending: Array<{ node: Node; depth: number }> = [
     { node: root, depth: -1 },
   ];
@@ -120,9 +182,10 @@ const collectXmlPlistDataSpans = (
       throw new RangeError(
         `Plist exceeds ${String(MAX_PLIST_DEPTH)} nesting levels`,
       );
-    if (node.nodeName === "data") data.set(node, readData(node));
+    if (PLIST_LEXICAL_SCALARS.has(node.nodeName))
+      spans.set(node, readSpan(node));
     if (PLIST_CONTAINER_ELEMENTS.has(node.nodeName) && node.firstChild !== null)
       pending.push({ node: node.firstChild, depth: depth + 1 });
   }
-  return data;
+  return spans;
 };

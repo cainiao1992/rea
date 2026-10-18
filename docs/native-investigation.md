@@ -216,6 +216,13 @@ sites remain distinct. A static route does not establish runtime reachability.
 Swift/closure dispatch requires resolved static references; unavailable ABI
 forms remain unknown.
 
+Incomplete reference kinds do not discard known typed calls. Callee fallback
+adds inferred targets while each retained route keeps its original provider
+and call site. If enumeration fails, known routes remain alongside an unresolved
+failure; cancellation still terminates the request. A node-limit omission keeps
+the route's known relation while marking its target unresolved. Distinct call
+sites to the same omitted target retain separate evidence.
+
 Session discovery describes two automatic source routes for this trace:
 `authored_ui_dispatch` needs Interface Builder decoding and dispatch metadata;
 `native_seed_call_trace` needs native address resolution, dispatch metadata and

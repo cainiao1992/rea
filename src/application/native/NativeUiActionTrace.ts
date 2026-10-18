@@ -202,7 +202,7 @@ export const traceNativeUiAction = async (
       max_edges: input.max_edges,
     },
   });
-  const expanded = await addDirectCallees({
+  const expanded = await expandNativeCalls({
     analysis,
     graph,
     initial,
@@ -372,7 +372,7 @@ const resolveUiAction = (
   };
 };
 
-const addDirectCallees = async (input: {
+const expandNativeCalls = async (input: {
   readonly analysis: AnalysisOperationPort;
   readonly graph: z.infer<typeof nativeInvestigationGraphSchema>;
   readonly initial: z.infer<typeof nativeInvestigationTraceSchema>;
@@ -435,14 +435,13 @@ const addDirectCallees = async (input: {
       "provider",
     );
     examined += 1;
-    sourceLimitations.push(
-      ...(execution.ok ? execution.value.limitations : execution.limitations),
-    );
-    if (!execution.ok && execution.error._tag === "AnalysisCancelledError")
-      return { error: execution.error };
-    const unknowns = execution.ok
-      ? execution.value.unknowns
-      : execution.unknowns;
+    sourceLimitations.push(...execution.limitations);
+    if (
+      !execution.outcome.ok &&
+      execution.outcome.error._tag === "AnalysisCancelledError"
+    )
+      return { error: execution.outcome.error };
+    const unknowns = execution.unknowns;
     for (const [index, unknown] of unknowns.entries()) {
       if (edges.size >= input.input.max_edges) {
         truncated = true;
@@ -470,40 +469,19 @@ const addDirectCallees = async (input: {
         limitations: [],
       });
     }
-    if (!execution.ok) {
-      if (edges.size >= input.input.max_edges) {
-        truncated = true;
-        omitted += 1;
-        continue;
-      }
-      const id = `unknown-callees:${current.address}`;
-      edges.set(id, {
-        id,
-        from: current.node.id,
-        to: null,
-        relation: "direct_call",
-        resolution: "unresolved",
-        reason: projectAnalysisError(execution.error).message,
-        evidence: [],
-        limitations: [
-          "The provider could not enumerate resolved direct callees.",
-        ],
-      });
-      continue;
-    }
-    for (const [index, route] of execution.value.routes.entries()) {
+    for (const [index, route] of execution.routes.entries()) {
       const address = route.address;
       if (edges.size >= input.input.max_edges) {
         truncated = true;
-        omitted += execution.value.routes.length - index;
+        omitted += execution.routes.length - index;
         break;
       }
       const targetId = `native:function:${address}`;
       const evidence = [
         {
           kind: "reference" as const,
-          provider: execution.value.provider,
-          description: `${execution.value.provider.name} reported ${route.relation} from ${current.address} to ${address}`,
+          provider: route.provider,
+          description: `${route.provider.name} reported ${route.relation} from ${current.address} to ${address}`,
           location: { address: route.site, file_offset: null },
           artifact_path: null,
           artifact_sha256: input.targetSha256,
@@ -513,12 +491,12 @@ const addDirectCallees = async (input: {
         if (nodes.size >= input.input.max_nodes) {
           truncated = true;
           omitted += 1;
-          const id = `unknown-node-bound:${current.address}:${address}`;
+          const id = `unknown-node-bound:${current.address}:${route.site}:${address}`;
           edges.set(id, {
             id,
             from: current.node.id,
             to: null,
-            relation: "direct_call",
+            relation: route.relation,
             resolution: "unresolved",
             reason: "native_trace_node_bound_reached",
             evidence,
@@ -532,7 +510,7 @@ const addDirectCallees = async (input: {
           kind: "function" as const,
           name,
           location: { address, file_offset: null },
-          attributes: { resolved_by: execution.value.provider.id },
+          attributes: { resolved_by: route.provider.id },
           evidence,
         };
         nodes.set(targetId, node);
@@ -549,6 +527,24 @@ const addDirectCallees = async (input: {
         limitations: [
           "A resolved static call edge does not establish runtime reachability.",
         ],
+      });
+    }
+    if (!execution.outcome.ok) {
+      if (edges.size >= input.input.max_edges) {
+        truncated = true;
+        omitted += 1;
+        continue;
+      }
+      const id = `unknown-callees:${current.address}`;
+      edges.set(id, {
+        id,
+        from: current.node.id,
+        to: null,
+        relation: "provider_call",
+        resolution: "unresolved",
+        reason: projectAnalysisError(execution.outcome.error).message,
+        evidence: [],
+        limitations: ["The provider could not complete callee enumeration."],
       });
     }
   }

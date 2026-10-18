@@ -10,8 +10,9 @@
    rules, re-bucketing and sibling merging, parameter naming, path templates and
    deterministic tool names.
 3. Add `EnvironmentManifestAccumulator.ts`: per-record pointers, group state,
-   primary-origin selection, body-shape inference through `inferJsonShape`,
-   exclusion reasons, fixed unknowns and the finished manifest fields.
+   primary-origin selection, body-shape parsing through `parseJsonObject` with
+   top-level key types only, without walking nested values, exclusion reasons,
+   fixed unknowns and the finished manifest fields.
 4. Add `environmentManifestView.ts` with the strict request schema (defaults
    applied in the echoed view), the result fields and the projector; register
    the kind first in `projectAnalysisView`, extend the result union and

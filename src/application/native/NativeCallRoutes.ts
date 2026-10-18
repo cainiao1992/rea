@@ -12,8 +12,12 @@ import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import type { SourceLimitation } from "../SourceLimitations.js";
+import {
+  nativeCallClassificationSchema,
+  type NativeCallReference,
+} from "../../domain/native/nativeCallReference.js";
 
-/** Preferred typed observations and the untyped fallback share one owner. */
+/** Detailed or partial observations and the untyped fallback share one owner. */
 export const NATIVE_CALL_ROUTE_SOURCES = {
   references: "procedure_references",
   callees: "procedure_callees",
@@ -34,6 +38,7 @@ const referencesSchema = z.object({
       target_address: z.string(),
       target_procedure: z.object({ address: z.string() }).nullable(),
       kind: referenceKindSchema,
+      call: nativeCallClassificationSchema.exactOptional(),
     }),
   ),
   unresolved_calls: z.array(
@@ -47,6 +52,7 @@ interface NativeCallRoute {
   readonly relation: "direct_call" | "indirect_call" | "provider_call";
   readonly resolution: "observed" | "resolved" | "ambiguous" | "inferred";
   readonly provider: ProviderIdentity;
+  readonly callReference?: NativeCallReference;
 }
 
 /** Enumeration failure does not invalidate facts already obtained. */
@@ -61,11 +67,13 @@ interface NativeCallRouteRead {
   readonly outcome: Result<void, AnalysisError>;
 }
 
-const typedCallRoutes = (
+const observedCallRoutes = (
   references: z.infer<typeof referencesSchema>["references"],
   provider: ProviderIdentity,
 ): NativeCallRoute[] => {
-  const calls = references.filter(({ kind }) => kind.available && kind.call);
+  const calls = references.filter(({ kind, call }) =>
+    kind.available ? kind.call : call !== undefined,
+  );
   const countBySite = new Map<string, Set<string>>();
   for (const call of calls) {
     const targets = countBySite.get(call.source_address) ?? new Set<string>();
@@ -76,20 +84,31 @@ const typedCallRoutes = (
     provider,
     address: call.target_procedure?.address ?? call.target_address,
     site: call.source_address,
-    relation:
-      call.kind.available && (call.kind.computed || call.kind.indirect)
+    ...(call.call === undefined
+      ? {}
+      : {
+          callReference: {
+            ...call.call,
+            source_address: call.source_address,
+            target_address: call.target_address,
+          },
+        }),
+    relation: !call.kind.available
+      ? ("provider_call" as const)
+      : call.kind.computed || call.kind.indirect
         ? ("indirect_call" as const)
         : ("direct_call" as const),
-    resolution:
-      (countBySite.get(call.source_address)?.size ?? 0) > 1
+    resolution: !call.kind.available
+      ? ("observed" as const)
+      : (countBySite.get(call.source_address)?.size ?? 0) > 1
         ? ("ambiguous" as const)
-        : call.kind.available && (call.kind.computed || call.kind.indirect)
+        : call.kind.computed || call.kind.indirect
           ? ("resolved" as const)
           : ("observed" as const),
   }));
 };
 
-/** Retain typed observations while supplementing incomplete kinds with inferred callees. */
+/** Retain available observations while supplementing incomplete kinds with inferred callees. */
 export const readNativeCallRoutes = async (
   analysis: AnalysisOperationPort,
   procedure: string,
@@ -148,7 +167,7 @@ export const readNativeCallRoutes = async (
       })),
     );
     const references = parsed.data.references;
-    routes.push(...typedCallRoutes(references, execution.value.provider));
+    routes.push(...observedCallRoutes(references, execution.value.provider));
     if (
       references.every(({ kind }) => kind.available) &&
       (parsed.data.reference_kinds_available || references.length > 0)

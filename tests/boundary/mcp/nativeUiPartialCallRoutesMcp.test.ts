@@ -52,14 +52,40 @@ function typedKind(indirect = false) {
     external: false,
   };
 }
-function ref(site: string, target: string, indirect = false) {
+type CallReference = {
+  readonly classification: "none" | "unknown" | "direct" | "objective_c";
+  readonly provider_type: number;
+  readonly provenance: string;
+};
+function ref(
+  site: string,
+  target: string,
+  indirect = false,
+  callReference?: CallReference,
+  targetProcedure = target,
+) {
   return {
     source_address: site,
     target_address: target,
-    target_procedure: { address: target },
-    kind: typedKind(indirect),
+    target_procedure: { address: targetProcedure },
+    kind:
+      callReference === undefined
+        ? typedKind(indirect)
+        : {
+            available: false as const,
+            reason: "Detailed reference-kind flags unavailable",
+          },
+    ...(callReference === undefined ? {} : { call: callReference }),
   };
 }
+const partialCall = (
+  classification: CallReference["classification"],
+  provider_type: number,
+): CallReference => ({
+  classification,
+  provider_type,
+  provenance: "hopper-public-python-api:CallReference",
+});
 const mixedReferences = (refs = [ref("0x1004", "0x2000")]) => ({
   reference_kinds_available: false,
   references: [
@@ -85,12 +111,12 @@ const noClassifiedReferences = {
 };
 
 type Plan = {
-  readonly references?: ReturnType<typeof mixedReferences>;
+  readonly references?: unknown;
   readonly callees?: readonly string[];
   readonly fallbackProvider?: typeof identity;
   readonly fallbackFailure?: "unavailable" | "output" | "cancelled";
 };
-function publicTrace(plan: Plan, maxNodes = 12) {
+function publicTrace(plan: Plan, maxNodes = 12, maxEdges = 500) {
   const analysis: AnalysisOperationPort = {
     execute: async (
       operation,
@@ -173,7 +199,12 @@ function publicTrace(plan: Plan, maxNodes = 12) {
     await client.connect(clientTransport);
     const result = await client.callTool({
       name: "trace_native_ui_action",
-      arguments: { action: "0x1000", max_nodes: maxNodes, max_depth: 1 },
+      arguments: {
+        action: "0x1000",
+        max_nodes: maxNodes,
+        max_edges: maxEdges,
+        max_depth: 1,
+      },
     });
     return result;
   })();
@@ -421,7 +452,267 @@ it("retains separate omitted callsites when routes share a target", async () => 
 });
 
 it("keeps cancellation terminal when fallback enumeration is cancelled", async () => {
-  const response = await publicTrace({ fallbackFailure: "cancelled" });
+  const response = await publicTrace({
+    references: completeReferences([
+      ref("0x1004", "0x2000", false, partialCall("direct", 2)),
+    ]),
+    fallbackFailure: "cancelled",
+  });
   expect(response.isError).toBe(true);
   expect(parseMcpToolError(response).error.code).toBe("cancelled");
 });
+
+it.each([
+  { classification: "direct", provider_type: 2 },
+  { classification: "objective_c", provider_type: 3 },
+  { classification: "none", provider_type: 0 },
+  { classification: "unknown", provider_type: 1 },
+  { classification: "unknown", provider_type: 99 },
+] as const)(
+  "retains raw $classification CallReference facts without inventing generic flags",
+  async ({ classification, provider_type }) => {
+    const call = partialCall(classification, provider_type);
+    const response = await publicTrace({
+      references: completeReferences([
+        ref("0x1004", "0x2000", false, call, "0x2fff"),
+      ]),
+      callees: [],
+    });
+    expect(response.isError).not.toBe(true);
+    const trace = traceFrom(response);
+    expect(trace.edges).toContainEqual(
+      expect.objectContaining({
+        from: "native:function:0x1000",
+        to: "native:function:0x2fff",
+        relation: "provider_call",
+        resolution: "observed",
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            provider: identity,
+            location: expect.objectContaining({ address: "0x1004" }),
+            call_reference: {
+              ...call,
+              source_address: "0x1004",
+              target_address: "0x2000",
+            },
+          }),
+        ]),
+      }),
+    );
+    expect(trace.edges.some((edge) => edge.relation === "objc_dispatch")).toBe(
+      false,
+    );
+  },
+);
+
+it("deduplicates fallback overlap while preserving CallReference site and provider", async () => {
+  const call = partialCall("direct", 2);
+  const response = await publicTrace({
+    references: completeReferences([ref("0x1004", "0x2000", false, call)]),
+    callees: ["0x2000", "0x3000"],
+  });
+  expect(response.isError).not.toBe(true);
+  const trace = traceFrom(response);
+  const targetEdges = trace.edges.filter(
+    (edge) => edge.to === "native:function:0x2000",
+  );
+  expect(targetEdges).toHaveLength(1);
+  expect(targetEdges[0]).toMatchObject({
+    relation: "provider_call",
+    resolution: "observed",
+    evidence: [
+      expect.objectContaining({
+        provider: identity,
+        location: expect.objectContaining({ address: "0x1004" }),
+        call_reference: expect.objectContaining({
+          classification: "direct",
+          provider_type: 2,
+          provenance: "hopper-public-python-api:CallReference",
+          source_address: "0x1004",
+          target_address: "0x2000",
+        }),
+      }),
+    ],
+  });
+});
+
+it.each(["unavailable", "output"] as const)(
+  "preserves partial CallReference evidence when fallback has %s failure",
+  async (fallbackFailure) => {
+    const call = partialCall("direct", 2);
+    const response = await publicTrace({
+      references: completeReferences([
+        ref("0x1004", "0x2000", false, call, "0x2fff"),
+      ]),
+      fallbackFailure,
+    });
+    expect(response.isError).not.toBe(true);
+    const trace = traceFrom(response);
+    expect(trace.edges).toContainEqual(
+      expect.objectContaining({
+        to: "native:function:0x2fff",
+        relation: "provider_call",
+        resolution: "observed",
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            provider: identity,
+            location: expect.objectContaining({ address: "0x1004" }),
+            call_reference: expect.objectContaining({
+              ...call,
+              source_address: "0x1004",
+              target_address: "0x2000",
+            }),
+          }),
+        ]),
+      }),
+    );
+    expect(trace.unresolved).toContainEqual(
+      expect.objectContaining({
+        to: null,
+        relation: "provider_call",
+        resolution: "unresolved",
+        limitations: expect.arrayContaining([
+          "The provider could not complete callee enumeration.",
+        ]),
+      }),
+    );
+  },
+);
+
+it("keeps partial CallReference evidence on a node-bound unresolved edge", async () => {
+  const response = await publicTrace(
+    {
+      references: completeReferences([
+        ref("0x1004", "0x2000", false, partialCall("direct", 2)),
+        ref("0x1008", "0x3000", false, partialCall("unknown", 99)),
+      ]),
+      callees: [],
+    },
+    2,
+  );
+  expect(response.isError).not.toBe(true);
+  const trace = traceFrom(response);
+  expect(trace.unresolved).toContainEqual(
+    expect.objectContaining({
+      relation: "provider_call",
+      resolution: "unresolved",
+      evidence: expect.arrayContaining([
+        expect.objectContaining({
+          provider: identity,
+          location: expect.objectContaining({ address: "0x1008" }),
+          call_reference: expect.objectContaining({
+            classification: "unknown",
+            provider_type: 99,
+            source_address: "0x1008",
+            target_address: "0x3000",
+          }),
+        }),
+      ]),
+    }),
+  );
+});
+
+it("reports malformed partial CallReference as unreadable route evidence", async () => {
+  const response = await publicTrace({
+    references: {
+      reference_kinds_available: false,
+      references: [
+        {
+          ...ref("0x1004", "0x2000"),
+          kind: { available: false, reason: "Detailed flags unavailable" },
+          call: {
+            classification: "objectivec",
+            provider_type: 3,
+            provenance: "hopper-public-python-api:CallReference",
+          },
+        },
+      ],
+      unresolved_calls: [],
+    },
+    fallbackFailure: "unavailable",
+  });
+  expect(response.isError).not.toBe(true);
+  const trace = traceFrom(response);
+  expect(trace.edges).toEqual([]);
+  expect(trace.unresolved).toContainEqual(
+    expect.objectContaining({
+      relation: "provider_call",
+      resolution: "unresolved",
+      reason: expect.stringContaining("unreadable result"),
+    }),
+  );
+});
+
+it.each([2, 12])(
+  "retains original endpoints on a shared edge at the edge bound (maxNodes=%s)",
+  async (maxNodes) => {
+    const response = await publicTrace(
+      {
+        references: completeReferences(
+          [
+            ref("0x1004", "0x2004", false, partialCall("direct", 2), "0x2000"),
+            ref(
+              "0x1004",
+              "0x2008",
+              false,
+              partialCall("unknown", 99),
+              "0x2000",
+            ),
+            ref("0x1008", "0x3000", false, partialCall("direct", 2)),
+          ].reverse(),
+        ),
+        callees: [],
+      },
+      maxNodes,
+      2,
+    );
+    expect(response.isError).not.toBe(true);
+    const trace = traceFrom(response);
+    const evidence = [...trace.edges, ...trace.unresolved].flatMap(
+      (edge) => edge.evidence,
+    );
+    expect(evidence.map((item) => item.call_reference)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ target_address: "0x2004", provider_type: 2 }),
+        expect.objectContaining({
+          target_address: "0x2008",
+          provider_type: 99,
+        }),
+      ]),
+    );
+  },
+);
+
+it.each([
+  { maxNodes: 2, reverse: false },
+  { maxNodes: 2, reverse: true },
+  { maxNodes: 12, reverse: false },
+  { maxNodes: 12, reverse: true },
+])(
+  "preserves typed and partial relations sharing a site and target ($maxNodes/$reverse)",
+  async ({ maxNodes, reverse }) => {
+    const references = [
+      ref("0x1004", "0x2000"),
+      ref("0x1004", "0x2008", false, partialCall("unknown", 99), "0x2000"),
+    ];
+    const response = await publicTrace(
+      {
+        references: completeReferences([
+          ref("0x1008", "0x3000"),
+          ...(reverse ? references.reverse() : references),
+        ]),
+        callees: [],
+      },
+      maxNodes,
+    );
+    expect(response.isError).not.toBe(true);
+    const trace = traceFrom(response);
+    const routes = [...trace.edges, ...trace.unresolved].filter((edge) =>
+      edge.evidence.some((item) => item.location.address === "0x1004"),
+    );
+    expect(routes.map((edge) => edge.relation).sort()).toEqual([
+      "direct_call",
+      "provider_call",
+    ]);
+  },
+);

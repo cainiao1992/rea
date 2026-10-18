@@ -471,39 +471,43 @@ const expandNativeCalls = async (input: {
     }
     for (const [index, route] of execution.routes.entries()) {
       const address = route.address;
-      if (edges.size >= input.input.max_edges) {
+      const targetId = `native:function:${address}`;
+      const targetOmitted =
+        !nodes.has(targetId) && nodes.size >= input.input.max_nodes;
+      const edgeId = `${targetOmitted ? "unknown-node-bound" : "call"}:${current.address}:${route.site}:${address}:${route.relation}`;
+      if (!edges.has(edgeId) && edges.size >= input.input.max_edges) {
         truncated = true;
         omitted += execution.routes.length - index;
         break;
       }
-      const targetId = `native:function:${address}`;
-      const evidence = [
-        {
-          kind: "reference" as const,
-          provider: route.provider,
-          description: `${route.provider.name} reported ${route.relation} from ${current.address} to ${address}`,
-          location: { address: route.site, file_offset: null },
-          artifact_path: null,
-          artifact_sha256: input.targetSha256,
-        },
-      ];
+      const evidence = edges.get(edgeId)?.evidence ?? [];
+      evidence.push({
+        kind: "reference",
+        provider: route.provider,
+        description: `${route.provider.name} reported ${route.relation} from ${current.address} to ${address}`,
+        location: { address: route.site, file_offset: null },
+        ...(route.callReference === undefined
+          ? {}
+          : { call_reference: route.callReference }),
+        artifact_path: null,
+        artifact_sha256: input.targetSha256,
+      });
+      if (targetOmitted) {
+        truncated = true;
+        omitted += 1;
+        edges.set(edgeId, {
+          id: edgeId,
+          from: current.node.id,
+          to: null,
+          relation: route.relation,
+          resolution: "unresolved",
+          reason: "native_trace_node_bound_reached",
+          evidence,
+          limitations: [],
+        });
+        continue;
+      }
       if (!nodes.has(targetId)) {
-        if (nodes.size >= input.input.max_nodes) {
-          truncated = true;
-          omitted += 1;
-          const id = `unknown-node-bound:${current.address}:${route.site}:${address}`;
-          edges.set(id, {
-            id,
-            from: current.node.id,
-            to: null,
-            relation: route.relation,
-            resolution: "unresolved",
-            reason: "native_trace_node_bound_reached",
-            evidence,
-            limitations: [],
-          });
-          continue;
-        }
         const name = addressNames.get(address) ?? address;
         const node = {
           id: targetId,
@@ -516,7 +520,6 @@ const expandNativeCalls = async (input: {
         nodes.set(targetId, node);
         queue.push({ node, address, depth: current.depth + 1 });
       }
-      const edgeId = `call:${current.address}:${route.site}:${address}`;
       edges.set(edgeId, {
         id: edgeId,
         from: current.node.id,

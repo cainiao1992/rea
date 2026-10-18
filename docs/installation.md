@@ -376,10 +376,15 @@ Uninstall preserves Hopper, Node.js, Evidence files, captures, unrelated skills
 and other MCP servers. Purging removes only REA's cache and state under
 `~/.rea`. A client configuration that is malformed, unreadable, or at an unsafe
 path stops the operation before anything is removed, and a client that fails
-while being updated stops the remaining removals. For JSON clients, uninstall
-removes every repeated `rea` member in the effective server table only when
-each registration is REA-owned. An unowned earlier member, or an unowned
-OpenCode V1 entry that removing V2 would expose, stops preflight before any
+while being updated stops the remaining removals. Uninstall reports each
+candidate `configuration_path` with its outcome. A client with multiple files
+keeps their individual `actions` alongside its aggregate status and detail,
+including earlier removals when a later file fails. The paths name
+the discovered configuration candidates, not resolved physical file identities.
+For JSON clients, uninstall removes every repeated `rea` member in the effective
+server table only when each registration is REA-owned. An unowned earlier
+member, or an unowned OpenCode V1 entry that removing V2 would expose, stops
+preflight before any
 removal. Repeats inside an inactive earlier copy of the server table stay
 unchanged. A purge path that is a
 symbolic link is retained and reported rather than followed. Uninstall checks

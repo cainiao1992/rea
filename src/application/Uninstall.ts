@@ -100,11 +100,17 @@ const systemFileSystem = (
   removeEmptyDirectory: (path) => rmdir(path),
 });
 
-/** One explicitly classified uninstall action. */
-export interface UninstallItem {
-  readonly name: string;
+/** One completed or refused action, preserving its candidate configuration path. */
+export interface UninstallAction {
   readonly status: "removed" | "retained" | "skipped" | "failed";
   readonly detail: string;
+  readonly configuration_path?: string;
+}
+
+/** One client summary with its constituent actions when multiple paths apply. */
+export interface UninstallItem extends UninstallAction {
+  readonly name: string;
+  readonly actions?: readonly UninstallAction[];
 }
 
 /** Structured, idempotent result of removing REA-owned state. */
@@ -143,7 +149,8 @@ export const runUninstall = async (
     const blocked: UninstallItem[] = [];
     for (const client of clients) {
       const blocking = await host.inspectClient(client);
-      if (blocking !== undefined) blocked.push(blocking);
+      if (blocking !== undefined)
+        blocked.push({ ...blocking, configuration_path: client.configPath });
     }
     const skillBlocker = await host.inspectSkill?.();
     if (skillBlocker !== undefined) blocked.push(skillBlocker);
@@ -211,7 +218,7 @@ const removeAll = async (
   const items: UninstallItem[] = [];
   for (const client of clients) {
     const removed = await host.removeClient(client);
-    items.push(removed);
+    items.push({ ...removed, configuration_path: client.configPath });
     if (removed.status === "failed")
       return [
         ...items,
@@ -1062,46 +1069,41 @@ const item = (
 
 /**
  * Layered clients are removed file by file, but callers look up one status by
- * client name. A missing earlier file must not hide a later removal.
+ * client name. Aggregate status does not invalidate any constituent outcome.
  */
 const collapseUninstallItems = (
   items: readonly UninstallItem[],
 ): UninstallItem[] => {
-  const collapsed: UninstallItem[] = [];
+  const grouped = new Map<string, UninstallAction[]>();
   for (const next of items) {
-    const index = collapsed.findIndex(({ name }) => name === next.name);
-    const current = collapsed[index];
-    if (current === undefined) {
-      collapsed.push(next);
-      continue;
-    }
-    collapsed[index] = mergeUninstallItems(current, next);
+    const { name, actions, ...action } = next;
+    const group = grouped.get(name) ?? [];
+    group.push(
+      ...(actions !== undefined && actions.length > 0 ? actions : [action]),
+    );
+    grouped.set(name, group);
   }
-  return collapsed;
+  return [...grouped].map(([name, actions]) => {
+    const first = actions[0];
+    if (first === undefined)
+      throw new Error("Uninstall outcome group has no actions.");
+    if (actions.length === 1) return { name, ...first };
+    const status = actions.reduce(
+      (selected, action) =>
+        uninstallStatusPriority(action.status) >
+        uninstallStatusPriority(selected)
+          ? action.status
+          : selected,
+      first.status,
+    );
+    return {
+      name,
+      status,
+      detail: [...new Set(actions.map(({ detail }) => detail))].join(" "),
+      actions,
+    };
+  });
 };
-
-const mergeUninstallItems = (
-  current: UninstallItem,
-  next: UninstallItem,
-): UninstallItem => {
-  const status = preferredUninstallStatus(current.status, next.status);
-  const details = [current, next]
-    .filter(
-      (entry) =>
-        entry.status === status ||
-        (status === "removed" && entry.status === "retained"),
-    )
-    .map(({ detail }) => detail);
-  return item(current.name, status, [...new Set(details)].join(" "));
-};
-
-const preferredUninstallStatus = (
-  current: UninstallItem["status"],
-  next: UninstallItem["status"],
-): UninstallItem["status"] =>
-  uninstallStatusPriority(next) > uninstallStatusPriority(current)
-    ? next
-    : current;
 
 const uninstallStatusPriority = (status: UninstallItem["status"]): number => {
   switch (status) {

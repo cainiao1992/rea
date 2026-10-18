@@ -20,7 +20,7 @@ def inspect(request):
     root = Path(os.environ["REA_CORE_CONTEXT_REQUEST"]).parent
     empty = root / "no-libraries"
     empty.mkdir(mode=0o700)
-    for command in ["set auto-load off", "set debuginfod enabled off", "set auto-solib-add off", "set history save off", "set pagination off",
+    for command in ["set auto-load off", "set debuginfod enabled off", "set auto-solib-add off", "set history save off", "set pagination off", "set target-file-system-kind unix",
                     "set sysroot ./no-libraries", "set solib-search-path ./no-libraries",
                     "set debug-file-directory ./no-libraries"]:
         gdb.execute(command, to_string=True)

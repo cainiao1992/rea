@@ -1,5 +1,10 @@
 # Analysis efficiency measurements
 
+For immutable imported native/JavaScript parents, see the
+[validation-reuse checkpoint](immutable-parent-validation.md). It measures the
+owning format change with the existing retained-query driver, including first
+view costs, small cases, unchanged token estimates, and noisy whole-task results.
+
 For authentic old Evidence and mixed investigations, see the
 [retained-query checkpoint](retained-investigation-workflows.md).
 `retained-investigation.mjs` compares existing complete delivery with selected

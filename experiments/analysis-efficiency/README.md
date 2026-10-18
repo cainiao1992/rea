@@ -1,5 +1,10 @@
 # Analysis efficiency measurements
 
+For Apktool locale queries, see the
+[shared-decode and table-only checkpoint](apktool-string-tables.md). It separates
+the existing decode reuse from duplicate string delivery, with three real APKs,
+CLI/MCP parity, whole-task estimates and negative timing results.
+
 For immutable imported native/JavaScript parents, see the
 [validation-reuse checkpoint](immutable-parent-validation.md). It measures the
 owning format change with the existing retained-query driver, including first

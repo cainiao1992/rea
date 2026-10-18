@@ -876,6 +876,21 @@ includes all dimension limitations. Equal CFGs establish only equal observed
 block sizes and successor relationships. Text from different provider
 identities remains unknown.
 
+The `references` dimension preserves each edge's direction, endpoint identity
+and available kind facts. Within one artifact it compares exact raw endpoint
+coordinates, including the address space; hexadecimal case and zero padding
+do not change identity. Resolving an endpoint to a containing procedure does
+not replace the raw coordinate. Unparseable coordinates stay unknown.
+
+Across artifacts, reference endpoints use stable procedure names. Missing or
+address-generated names remain unknown. A name observed at multiple procedure
+entries retains its label constraint but cannot establish equal endpoints.
+Pairing preserves duplicate counts and considers alternative compatible
+pairings; array order never identifies an edge. Compatible records with
+unknown endpoint identity or kind facts remain `unknown`. Independent known
+facts that contradict every possible pairing still establish `changed`.
+Source Evidence retains the original addresses, names and unavailable facts.
+
 ### Comparison input shapes
 
 `compare_web_captures` accepts exactly one of two input shapes:

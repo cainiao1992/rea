@@ -1,4 +1,10 @@
-import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  open,
+  rm,
+  writeFile,
+  type FileHandle,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
@@ -24,30 +30,40 @@ it("bounds PID readback while retaining newline-terminated producer fixtures", a
   for (const [name, contents] of values)
     await writeFile(join(directory, name), contents);
   const sample = await open(join(directory, "max-safe.pid"), "r");
-  const prototype = Object.getPrototypeOf(sample);
+  const prototype = Object.getPrototypeOf(sample) as {
+    read(
+      this: FileHandle,
+      buffer: Buffer,
+      offset: number,
+      length: number,
+      position: number,
+    ): Promise<{ bytesRead: number; buffer: Buffer }>;
+    readFile(this: FileHandle, encoding: "utf8"): Promise<string>;
+  };
   await sample.close();
   let bytesRead = 0;
   const requestedLengths: number[] = [];
   const originalReadFile = prototype.readFile;
   const readFileSpy = vi
     .spyOn(prototype, "readFile")
-    .mockImplementation(async function (...args) {
-      const value = await Reflect.apply(originalReadFile, this, args);
+    .mockImplementation(async function (this: FileHandle, ...args) {
+      const value = await originalReadFile.call(this, ...args);
       bytesRead += Buffer.byteLength(value);
       return value;
     });
   const originalRead = prototype.read;
   const readSpy = vi
     .spyOn(prototype, "read")
-    .mockImplementation(async function (...args) {
-      const requestedLength = args[2] ?? 0;
+    .mockImplementation(async function (this: FileHandle, ...args) {
+      const requestedLength = typeof args[2] === "number" ? args[2] : 0;
       requestedLengths.push(requestedLength);
-      const result = await Reflect.apply(originalRead, this, [
+      const result = await originalRead.call(
+        this,
         args[0],
         args[1],
         Math.min(requestedLength, 1),
         args[3],
-      ]);
+      );
       bytesRead += result.bytesRead;
       return result;
     });

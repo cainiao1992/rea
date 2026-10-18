@@ -15,16 +15,18 @@ import {
 import {
   applyEdits,
   createScanner,
-  findNodeAtLocation,
-  modify,
+  format as formatJson,
   parse as parseJsonc,
   parseTree,
   printParseErrorCode,
+  type Edit,
+  type Node,
   type ParseError,
   type SyntaxKind,
 } from "jsonc-parser";
 import { z } from "zod";
 
+import { err, ok, type Result } from "../domain/result.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import type { SetupClient } from "./SupportedClients.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
@@ -1312,6 +1314,37 @@ const nextJsoncToken = (
   return { kind, offset: scanner.getTokenOffset() };
 };
 
+const isJsonMember = (property: Node, key: string): boolean =>
+  property.children?.length === 2 && property.children[0]?.value === key;
+
+/**
+ * The property a client reads for `key`. `JSON.parse` and JSONC `parse` keep
+ * the last duplicate member, while jsonc-parser's `findNodeAtLocation` and
+ * `modify` select the first, so JSON text edits locate members only here.
+ */
+const effectiveJsonProperty = (object: Node, key: string): Node | undefined =>
+  object.children?.findLast((property) => isJsonMember(property, key));
+
+/** Apply one edit and format the lines it touched, as `modify` does. */
+const applyFormattedJsonEdit = (text: string, edit: Edit): string => {
+  const edited = applyEdits(text, [edit]);
+  let begin = edit.offset;
+  let end = edit.offset + edit.content.length;
+  if (edit.length === 0) {
+    while (begin > 0 && !"\r\n".includes(edited.charAt(begin - 1))) begin -= 1;
+    while (end < edited.length && !"\r\n".includes(edited.charAt(end)))
+      end += 1;
+  }
+  return applyEdits(
+    edited,
+    formatJson(
+      edited,
+      { offset: begin, length: end - begin },
+      { insertSpaces: true, tabSize: 2, eol: "\n", keepLines: false },
+    ),
+  );
+};
+
 /**
  * Delete a property by its JSONC AST span and the separator needed to keep its
  * parent object valid. All whitespace and comments outside those tokens stay
@@ -1319,80 +1352,136 @@ const nextJsoncToken = (
  */
 const deleteJsonProperty = (
   text: string,
-  path: readonly string[],
-): string | undefined => {
-  const root = parseTree(text, [], { allowTrailingComma: true });
-  const value =
-    root === undefined ? undefined : findNodeAtLocation(root, [...path]);
-  const property = value?.parent;
-  const parent = property?.parent;
+  object: Node,
+  property: Node,
+): string => {
+  const siblings = object.children ?? [];
+  const propertyIndex = siblings.indexOf(property);
+  const previous = siblings[propertyIndex - 1];
+  const next = siblings[propertyIndex + 1];
+  const comma = nextJsoncToken(
+    text,
+    previous === undefined
+      ? property.offset + property.length
+      : previous.offset + previous.length,
+  );
   if (
-    property === undefined ||
-    parent?.type !== "object" ||
-    property.type !== "property" ||
-    parent.children === undefined
+    propertyIndex < 0 ||
+    (comma.kind !== JSON_COMMA &&
+      (previous !== undefined || next !== undefined))
   )
-    return undefined;
-  const propertyIndex = parent.children.indexOf(property);
-  if (propertyIndex < 0) return undefined;
-  const previous = parent.children[propertyIndex - 1];
-  const next = parent.children[propertyIndex + 1];
-  let commaOffset: number | undefined;
-  if (previous !== undefined) {
-    const comma = nextJsoncToken(text, previous.offset + previous.length);
-    if (comma.kind !== JSON_COMMA) return undefined;
-    commaOffset = comma.offset;
-  } else {
-    const token = nextJsoncToken(text, property.offset + property.length);
-    if (token.kind === JSON_COMMA) commaOffset = token.offset;
-    else if (next !== undefined) return undefined;
-  }
+    throw new TypeError("JSON property separator was not found");
   const edits = [
     { offset: property.offset, length: property.length, content: "" },
-    ...(commaOffset === undefined
-      ? []
-      : [{ offset: commaOffset, length: 1, content: "" }]),
+    ...(comma.kind === JSON_COMMA
+      ? [{ offset: comma.offset, length: 1, content: "" }]
+      : []),
   ];
   return applyEdits(text, edits);
 };
 
-/** Serialize a validated client document, retaining JSONC and TOML comments. */
+/** A JSON edit refused because it would activate a shadowed duplicate member. */
+export interface ClientConfigurationShadowedMember {
+  readonly kind: "shadowed_member";
+  /** Key path of the effective member whose removal was refused. */
+  readonly path: readonly string[];
+}
+
+/**
+ * Set or delete the member a client reads at `path`, keeping every byte
+ * outside that member. Shadowed duplicates stay in place, and deleting a
+ * member that shadows one is refused so the earlier member never becomes
+ * active, whatever its ownership.
+ */
+const editJsonMember = (
+  text: string,
+  path: readonly string[],
+  value: unknown,
+): Result<string, ClientConfigurationShadowedMember> => {
+  let object = parseTree(text, [], { allowTrailingComma: true });
+  for (const [index, key] of path.entries()) {
+    if (object?.type !== "object")
+      throw new TypeError("JSON edit parent is not an object");
+    const property = effectiveJsonProperty(object, key);
+    const member = property?.children?.[1];
+    if (property === undefined || member === undefined) {
+      if (value === undefined) return ok(text);
+      const content = `${JSON.stringify(key)}: ${JSON.stringify(
+        path
+          .slice(index + 1)
+          .reduceRight<unknown>((nested, name) => ({ [name]: nested }), value),
+      )}`;
+      const previous = object.children?.at(-1);
+      return ok(
+        applyFormattedJsonEdit(
+          text,
+          previous === undefined
+            ? { offset: object.offset + 1, length: 0, content }
+            : {
+                offset: previous.offset + previous.length,
+                length: 0,
+                content: `,${content}`,
+              },
+        ),
+      );
+    }
+    if (index < path.length - 1) {
+      object = member;
+      continue;
+    }
+    if (value !== undefined)
+      return ok(
+        applyFormattedJsonEdit(text, {
+          offset: member.offset,
+          length: member.length,
+          content: JSON.stringify(value),
+        }),
+      );
+    if (
+      object.children?.some(
+        (sibling) => sibling !== property && isJsonMember(sibling, key),
+      )
+    )
+      return err({ kind: "shadowed_member", path });
+    return ok(deleteJsonProperty(text, object, property));
+  }
+  throw new TypeError("JSON edit path is empty");
+};
+
+/**
+ * Serialize a validated client document, retaining JSONC and TOML comments.
+ * JSON edits fail only when they would activate a shadowed duplicate member.
+ */
 export const serializeClientConfiguration = (
   document: Record<string, unknown>,
   format: ClientConfigurationFormat | undefined,
   originalText?: string,
   editedPaths?: readonly (readonly string[])[],
-): string => {
+): Result<string, ClientConfigurationShadowedMember> => {
   if (format === undefined || format === "unsupported")
     throw new TypeError("client does not have a supported MCP config format");
   if (format === "toml")
-    return serializeCodexConfiguration(document, originalText);
+    return ok(serializeCodexConfiguration(document, originalText));
   if (format === "grok")
-    return serializeGrokConfiguration(document, originalText);
+    return ok(serializeGrokConfiguration(document, originalText));
   if (format === "hermes")
-    return serializeHermesConfiguration(document, originalText);
-  if (format === "dsh") return serializeDshDocument(document);
+    return ok(serializeHermesConfiguration(document, originalText));
+  if (format === "dsh") return ok(serializeDshDocument(document));
   // An empty original holds no comments or settings to preserve. Writing a
   // fresh document also keeps a lone BOM from shifting past the closing brace.
   if (
-    originalText !== undefined &&
-    !isEmptyClientConfigurationText(originalText) &&
-    editedPaths !== undefined
+    originalText === undefined ||
+    isEmptyClientConfigurationText(originalText) ||
+    editedPaths === undefined
   )
-    return editedPaths.reduce((text, path) => {
-      const value = valueAt(document, path);
-      if (value === undefined) {
-        const preserved = deleteJsonProperty(text, path);
-        if (preserved !== undefined) return preserved;
-      }
-      return applyEdits(
-        text,
-        modify(text, [...path], value, {
-          formattingOptions: { insertSpaces: true, tabSize: 2, eol: "\n" },
-        }),
-      );
-    }, originalText);
-  return `${JSON.stringify(document, null, 2)}\n`;
+    return ok(`${JSON.stringify(document, null, 2)}\n`);
+  let text = originalText;
+  for (const path of editedPaths) {
+    const edited = editJsonMember(text, path, valueAt(document, path));
+    if (!edited.ok) return edited;
+    text = edited.value;
+  }
+  return ok(text);
 };
 
 /** Key path of a named registration in the server table. */

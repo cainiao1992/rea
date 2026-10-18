@@ -931,6 +931,13 @@ const disabledServerListLines = (
   }
 };
 
+/** Strip terminal LF without rescanning internal blank-line runs. */
+const withoutTrailingLineFeeds = (text: string): string => {
+  let end = text.length;
+  while (end > 0 && text.charCodeAt(end - 1) === 10) end -= 1;
+  return text.slice(0, end);
+};
+
 /**
  * Replace REA's TOML server tables and assignments. Comments that introduce a
  * following table stay. Codex also retains comments around REA's own table.
@@ -1108,13 +1115,13 @@ const upsertTomlServerSection = (
   // The last kept CRLF line has no following LF from the join.
   if (body.endsWith("\r")) body += "\n";
   if (entry !== undefined && !inlineServerTable) {
-    let fragment = stringifyToml({
-      mcp_servers: { [serverKey]: entry },
-    }).replace(/\n+$/u, "");
+    let fragment = withoutTrailingLineFeeds(
+      stringifyToml({ mcp_servers: { [serverKey]: entry } }),
+    );
     if (crlf) fragment = fragment.replaceAll("\n", "\r\n");
     const nl = crlf ? "\r\n" : "\n";
     const endedWithNewline = body.endsWith("\n");
-    const base = body.replace(/\n+$/u, "");
+    const base = withoutTrailingLineFeeds(body);
     const trimmed =
       endedWithNewline && base.endsWith("\r") ? base.slice(0, -1) : base;
     body =

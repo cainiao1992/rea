@@ -430,6 +430,12 @@ complete observation.
   address is retained as `reported_address` in the symbol's evidence, whose
   location also remains unknown. Nonempty provider address syntax is preserved.
 
+  Session discovery reports this workflow available when the bound provider
+  offers direct metadata inspection or a `list_names` symbol inventory. The
+  workflow tries direct metadata first and uses the symbol fallback only when
+  that operation is unavailable; runtime failures remain failures rather than
+  being replaced by symbol-only results.
+
 ## Native desktop observation
 
 `observe_native_ui` captures one explicitly selected existing PID/window ID.

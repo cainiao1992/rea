@@ -1,5 +1,6 @@
 import { DEFAULT_CALL_RELATIONSHIP_DIRECTION } from "../contracts/enhancedInputs.js";
 import { CALL_RELATIONSHIP_TRAVERSALS } from "./CallRelationshipTraversal.js";
+import { NATIVE_DISPATCH_METADATA_SOURCES } from "./native/NativeDispatchMetadataInspection.js";
 import { z } from "zod";
 import { sqliteDatabaseCapability } from "./sqlite/SqliteDatabaseCapability.js";
 import type {
@@ -144,7 +145,9 @@ const ENHANCED_REQUIREMENTS: ReadonlyMap<string, ProviderComposition> = new Map(
       "list_names",
       "procedure_callees",
     ],
-    inspect_native_dispatch_metadata: ["list_names"],
+    inspect_native_dispatch_metadata: [
+      Object.values(NATIVE_DISPATCH_METADATA_SOURCES),
+    ],
     get_objc_classes: ["list_names"],
     get_objc_protocols: ["list_names"],
     batch_decompile: ["procedure_pseudo_code"],

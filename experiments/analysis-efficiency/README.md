@@ -1,5 +1,10 @@
 # Analysis efficiency measurements
 
+For JEB on Linux, see the [CE native audit](jeb-linux-native.md). It qualifies
+the direct headless launch route and measures selected function reads through
+real CLI and production stdio MCP, preserving timeout attempts and the limits
+of wrapper-cache and token claims.
+
 For Apktool locale queries, see the
 [shared-decode and table-only checkpoint](apktool-string-tables.md). It separates
 the existing decode reuse from duplicate string delivery, with three real APKs,

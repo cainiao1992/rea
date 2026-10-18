@@ -1,4 +1,8 @@
 import {
+  AnalysisCleanupLease,
+  AnalysisCleanupLeaseGroup,
+} from "../../artifacts/AnalysisCleanupLease.js";
+import {
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../../artifacts/ArtifactFileOperation.js";
@@ -113,7 +117,13 @@ export class PwntoolsDecoder<
   #pendingCleanup:
     | {
         root: Pick<PrivateRuntimeRoot, "path" | "close"> | undefined;
-        process: ProviderProcessSupervisor | undefined;
+        rootLease: AnalysisCleanupLease;
+        process:
+          | {
+              readonly supervisor: ProviderProcessSupervisor;
+              readonly lease: AnalysisCleanupLease;
+            }
+          | undefined;
         failure: AnalysisError | undefined;
         diagnostics: AnalysisCapturedOutput | undefined;
         observation: AnalysisPartialObservation | undefined;
@@ -290,6 +300,7 @@ export class PwntoolsDecoder<
       root = await this.createRuntime();
       this.#pendingCleanup = {
         root,
+        rootLease: AnalysisCleanupLease.forCloseOwner(root, root.path),
         process: undefined,
         failure: undefined,
         diagnostics: undefined,
@@ -487,25 +498,27 @@ export class PwntoolsDecoder<
         : result.error.capturedOutput;
     }
     const cleanup = await this.#completeCleanup(() => this.#retire());
-    if (cleanup !== undefined)
-      return err(
-        result.ok
-          ? cleanup
-          : analysisErrorWithCleanupFailure(result.error, cleanup, OPERATION),
+    if (result.ok && options?.signal?.aborted)
+      result = err(
+        new AnalysisCancelledError(OPERATION, {
+          cause: options.signal.reason,
+          partialObservation: result.value,
+          capturedOutput: result.value.diagnostics,
+        }),
       );
-    return result.ok && options?.signal?.aborted
-      ? err(
-          new AnalysisCancelledError(OPERATION, {
-            cause: options.signal.reason,
-            partialObservation: result.value,
-            capturedOutput: {
-              stdout: result.value.diagnostics.stdout,
-              stderr: result.value.diagnostics.stderr,
-              truncated: result.value.diagnostics.truncated,
-            },
-          }),
-        )
-      : result;
+    if (cleanup !== undefined) {
+      const failure = result.ok
+        ? cleanup
+        : analysisErrorWithCleanupFailure(
+            result.error,
+            cleanup,
+            OPERATION,
+          ).bindCleanupDependencies([result.error, cleanup]);
+      if (this.#pendingCleanup !== undefined)
+        this.#pendingCleanup.failure = failure;
+      return err(failure);
+    }
+    return result;
   }
 
   async #runCommand(
@@ -537,8 +550,21 @@ export class PwntoolsDecoder<
               ? {}
               : { signal: options.signal }),
             ...(this.launcher === undefined ? {} : { launcher: this.launcher }),
-            retainCleanup: (owner) => {
-              pending.process = owner;
+            retainCleanup: (supervisor) => {
+              const ownership = supervisor.launch.ownership;
+              pending.process = {
+                supervisor,
+                lease: new AnalysisCleanupLease(
+                  async () => {
+                    const stopped = await supervisor.stop();
+                    if (stopped.status === "incomplete")
+                      throw new Error(stopped.reason, { cause: stopped });
+                  },
+                  ownership === undefined
+                    ? ["owned-decoder"]
+                    : ownedCommandResources(ownership),
+                ),
+              };
             },
           },
         ),
@@ -555,7 +581,7 @@ export class PwntoolsDecoder<
         primary,
         cleanup,
         this.profile.operation,
-      );
+      ).bindCleanupDependencies([primary, cleanup]);
     }
     if (!outcome.ok) throw outcome.error;
     return outcome.value;
@@ -590,6 +616,7 @@ export class PwntoolsDecoder<
             { reason: observation.reason },
             { operation: this.profile.operation, cause },
           );
+          bindArtifactFileCleanup(cause, resourceFailure);
           failure =
             failure === undefined
               ? resourceFailure
@@ -597,7 +624,7 @@ export class PwntoolsDecoder<
                   failure,
                   resourceFailure,
                   this.profile.operation,
-                );
+                ).bindCleanupDependencies([failure, resourceFailure]);
         }
         if (failure !== undefined) throw failure;
       })
@@ -626,10 +653,12 @@ export class PwntoolsDecoder<
   async #retireProcess(): Promise<ProviderCleanupError | undefined> {
     const pending = this.#pendingCleanup;
     if (pending?.process === undefined) return undefined;
-    const stopped = await pending.process.stop();
-    const ownership = pending.process.launch.ownership;
-    if (stopped.status === "incomplete")
-      return new ProviderCleanupError(
+    const process = pending.process;
+    const ownership = process.supervisor.launch.ownership;
+    try {
+      await process.lease.release();
+    } catch (cause: unknown) {
+      const failure = new ProviderCleanupError(
         this.identity.id,
         ownership === undefined
           ? [
@@ -638,10 +667,10 @@ export class PwntoolsDecoder<
             ]
           : ownedCommandResources(ownership, pending.root?.path),
         {
-          reason: stopped.reason,
+          reason: cause instanceof Error ? cause.message : String(cause),
           captured_output: {
             ...(pending.diagnostics ??
-              capturedPwntoolsOutput(pending.process.snapshot())),
+              capturedPwntoolsOutput(process.supervisor.snapshot())),
           },
           previous_error:
             pending.failure === undefined
@@ -650,11 +679,18 @@ export class PwntoolsDecoder<
         },
         {
           operation: this.profile.operation,
+          cause,
           ...(pending.observation === undefined
             ? {}
             : { partialObservation: pending.observation }),
         },
       );
+      new AnalysisCleanupLeaseGroup(failure, [
+        process.lease,
+        pending.rootLease,
+      ]);
+      return failure;
+    }
     pending.process = undefined;
     return undefined;
   }
@@ -681,6 +717,7 @@ export class PwntoolsDecoder<
         },
       );
     }
+    if (failure !== undefined) bindArtifactFileCleanup(failure.cause, failure);
     const processFailure = await this.#retireProcess();
     if (processFailure !== undefined) {
       return failure === undefined
@@ -689,13 +726,15 @@ export class PwntoolsDecoder<
             failure,
             processFailure,
             this.profile.operation,
-          );
+          ).bindCleanupDependencies([failure, processFailure]);
     }
+    // Retained descriptors still own local evidence under this root.
+    if (failure !== undefined) return failure;
     const pending = this.#pendingCleanup;
     if (pending?.root !== undefined) {
       const root = pending.root;
       try {
-        await root.close();
+        await pending.rootLease.release();
         pending.root = undefined;
       } catch (cause: unknown) {
         const rootFailure = new ProviderCleanupError(
@@ -719,14 +758,8 @@ export class PwntoolsDecoder<
               : { partialObservation: pending.observation }),
           },
         );
-        failure =
-          failure === undefined
-            ? rootFailure
-            : analysisErrorWithCleanupFailure(
-                failure,
-                rootFailure,
-                this.profile.operation,
-              );
+        new AnalysisCleanupLeaseGroup(rootFailure, [pending.rootLease]);
+        failure = rootFailure;
       }
     }
     if (!this.#resources.hasPending && pending?.root === undefined)

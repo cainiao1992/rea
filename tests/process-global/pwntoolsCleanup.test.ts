@@ -59,6 +59,7 @@ it.runIf(supportedHost)(
     let pid: number | undefined;
     let launches = 0;
     let cleanupAllowed = false;
+    let rootRemovalAllowed = false;
     let releaseFixture: (() => Promise<void>) | undefined;
     const provider = new PwntoolsLayoutProvider(
       { REA_PWNTOOLS_PYTHON: process.execPath },
@@ -85,11 +86,24 @@ it.runIf(supportedHost)(
                 }),
         };
       },
-      () =>
-        PrivateRuntimeRoot.create({ parent: workspace.root, prefix: "owned-" }),
+      async () => {
+        const root = await PrivateRuntimeRoot.create({
+          parent: workspace.root,
+          prefix: "owned-",
+        });
+        return {
+          path: root.path,
+          close: async () => {
+            if (!rootRemovalAllowed)
+              throw new Error("root removal refused after process retirement");
+            await root.close();
+          },
+        };
+      },
     );
     onTestFinished(async () => {
       cleanupAllowed = true;
+      rootRemovalAllowed = true;
       await provider.close();
       await releaseFixture?.();
     });
@@ -125,8 +139,16 @@ it.runIf(supportedHost)(
     await expect(access(ownedPath)).resolves.toBeUndefined();
 
     cleanupAllowed = true;
-    await provider.close();
+    await expect(provider.close()).rejects.toMatchObject({
+      cleanupIncomplete: true,
+    });
     expect(() => process.kill(workerPid, 0)).toThrow();
+    expect(result.error.cleanupResources).toEqual([ownedPath]);
+    expect(result.error.cleanupIncomplete).toBe(true);
+    rootRemovalAllowed = true;
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect(refused.error.cleanupIncomplete).toBe(false);
     await expect(access(ownedPath)).rejects.toMatchObject({ code: "ENOENT" });
   },
 );
@@ -189,6 +211,7 @@ it.runIf(supportedHost)(
     expect(releases).toBe(2);
     removalAllowed = true;
     await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
     await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
   },
 );

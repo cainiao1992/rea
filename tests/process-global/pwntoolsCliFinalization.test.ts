@@ -14,6 +14,7 @@ import {
 import { BinaryLayoutService } from "../../src/application/binaryDiagnostics/BinaryLayoutService.js";
 import { createCli } from "../../src/cli.js";
 import * as composition from "../../src/composition/binaryDiagnostics.js";
+import { resolvedAnalysisError } from "../../src/domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";
 import { PwntoolsLayoutProvider } from "../../src/native/pwntools/PwntoolsLayoutProvider.js";
 import type { PwntoolsLauncher } from "../../src/native/pwntools/PwntoolsDecoder.js";
@@ -434,6 +435,53 @@ it.runIf(supportedHost)(
     expect(result.error.cause).toBe(reason);
     expect(child).toBeDefined();
     expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true);
+    await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
+  },
+);
+
+it.runIf(supportedHost)(
+  "retains cancellation and decoded facts until failed final cleanup is retried",
+  async () => {
+    const { path, root, launch } = await fixture();
+    const controller = new AbortController();
+    const reason = { stage: "failed final cleanup" };
+    let removalAllowed = false;
+    const provider = new PwntoolsLayoutProvider(
+      { REA_PWNTOOLS_PYTHON: process.execPath },
+      launch,
+      async () => ({
+        path: root.path,
+        close: async () => {
+          if (!removalAllowed) {
+            controller.abort(reason);
+            throw new Error("root removal refused");
+          }
+          await root.close();
+        },
+      }),
+    );
+    onTestFinished(async () => {
+      removalAllowed = true;
+      await provider.close();
+    });
+    const result = await provider.inspectAndClose(
+      { path },
+      { signal: controller.signal },
+    );
+    if (result.ok)
+      throw new Error("Expected cancelled finalization with retained cleanup");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: { diagnostics: { primary_error: { code: "cancelled" } } },
+    });
+    expect(result.error.cleanupPrimary?.cause).toBe(reason);
+    expect(result.error.partialObservation).toBeDefined();
+    expect(result.error.capturedOutput?.stdout).toBe("decoder output");
+    expect(result.error.cleanupResources).toEqual([root.path]);
+    removalAllowed = true;
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect(resolvedAnalysisError(result.error).cause).toBe(reason);
     await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
   },
 );

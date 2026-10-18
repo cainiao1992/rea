@@ -120,6 +120,7 @@ export class PwntoolsRecordedCrashProvider
           try {
             const context = await inspectPwndbgCore({
               environment,
+              architecture: value.architecture,
               rootPath,
               resources,
               diagnostics,

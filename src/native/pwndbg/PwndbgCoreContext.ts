@@ -52,6 +52,7 @@ const replySchema = z.discriminatedUnion("ok", [
 /** Add mapping candidates from an owned core-only debugger, using the existing snapshot. */
 export const inspectPwndbgCore = async ({
   environment,
+  architecture,
   rootPath,
   resources,
   diagnostics,
@@ -60,6 +61,7 @@ export const inspectPwndbgCore = async ({
   probePath,
 }: {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
+  readonly architecture: RecordedCrash["architecture"];
   readonly rootPath: string;
   readonly resources: ArtifactResourceScope;
   readonly diagnostics: AnalysisCapturedOutput;
@@ -83,6 +85,7 @@ export const inspectPwndbgCore = async ({
   const checkCancelled = () => {
     if (options?.signal?.aborted)
       throw new AnalysisCancelledError(OPERATION, {
+        cause: options.signal.reason,
         capturedOutput: diagnostics,
       });
   };
@@ -129,6 +132,7 @@ export const inspectPwndbgCore = async ({
       snapshot_path: join(rootPath, "object.snapshot"),
       reply_path: replyPath,
       gdb,
+      architecture,
       gdbinit: entry,
       venv,
     }),

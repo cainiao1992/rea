@@ -268,6 +268,10 @@ markup, including UTF-8 and BOM-marked UTF-16 sources. Unidentified text and
 OpenStep plists, including a data-only value such as `<deadbeef>`, report
 `unknown` even when plutil decodes their values through an XML conversion.
 
+A plist decode refusal includes plutil's diagnostic from either output stream.
+`details.captured_output` retains bounded stdout/stderr excerpts, observed byte
+totals and exit status. `truncated: true` means those excerpts are incomplete.
+
 `inspect_macho.selected_architecture` identifies the exact selected lipo slice
 and its `container_file_offset` in the input file. A thin Mach-O has a known
 offset of zero; an unknown universal-slice offset stays null. The Evidence

@@ -829,14 +829,27 @@ class NativeMacOSClient implements AnalysisClient {
                   { signal, acceptNonZero: !jsonDecoded },
                 );
           if (xml !== undefined && !xml.ok) return xml;
-          if (xml !== undefined && xml.value.exitCode !== 0)
+          if (xml !== undefined && xml.value.exitCode !== 0) {
+            const capture = failureCapture(xml.value, false);
             return err(
               unreadablePlist(
                 plist.value,
                 requested,
-                `plutil could not decode it as a property list (${plutilDiagnostic(xml.value.stderr, plist.value)})`,
+                `plutil could not decode it as a property list (${plutilDiagnostic(capture, plist.value)})`,
+                {
+                  capturedOutput: {
+                    stdout: capture.stdout,
+                    stderr: capture.stderr,
+                    truncated: capture.truncated,
+                    stdout_bytes: capture.stdoutBytes,
+                    stderr_bytes: capture.stderrBytes,
+                    exit_code: capture.exitCode,
+                    signal: capture.signal,
+                  },
+                },
               ),
             );
+          }
           const parsed =
             xml === undefined
               ? parsePlistJson(json.value.stdout)
@@ -1244,10 +1257,20 @@ const parseEntitlements = (
   };
 };
 
-/** plutil prefixes its diagnostic with the path the message already names. */
-const plutilDiagnostic = (stderr: string, path: string): string => {
-  const text = stderr.trim();
-  return text.startsWith(`${path}: `) ? text.slice(path.length + 2) : text;
+/** Failed plutil conversions can report on either stream; preserve both. */
+const plutilDiagnostic = (
+  capture: Pick<NativeCommandCapture, "stdout" | "stderr">,
+  path: string,
+): string => {
+  const diagnostics = [capture.stderr, capture.stdout]
+    .map((stream) => {
+      const text = stream.trim();
+      return text.startsWith(`${path}: `) ? text.slice(path.length + 2) : text;
+    })
+    .filter((text) => text.length > 0);
+  return diagnostics.length === 0
+    ? "plutil printed no diagnostic"
+    : diagnostics.join("\n");
 };
 
 /** The bundle whose Contents/MacOS directory directly holds `path`. */

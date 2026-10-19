@@ -1,3 +1,4 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,6 +8,7 @@ import { FridaScriptLoadCancelledError } from "./FridaInstrumentationPort.js";
 import type { FridaInstrumentationPort } from "./FridaInstrumentationPort.js";
 import { FridaInstrumentationService } from "./FridaInstrumentationService.js";
 import {
+  AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
 } from "../../domain/analysisErrorCore.js";
@@ -608,6 +610,155 @@ it("retains a cancelled provider load's source and messages in one-shot Evidence
       instrumentation_cleanup: "released",
     },
   });
+});
+
+it.each([false, true])(
+  "keeps an ordinary provider load failure primary when cancellation is already signaled before cleanup (cleanupFails=%s)",
+  async (cleanupFails) => {
+    const controller = new AbortController();
+    const abortReason = new Error("late caller cancellation");
+    const primary = new AnalysisCapabilityUnavailableError(
+      "frida",
+      "load_frida_script",
+      "native script compilation failed",
+      { diagnostics: { native_status: "compile_rejected" } },
+    );
+    let closes = 0;
+    const service = new FridaInstrumentationService(
+      createProvider({
+        async loadScript() {
+          controller.abort(abortReason);
+          return { ok: false, error: primary };
+        },
+        async closeSession() {
+          closes += 1;
+          return cleanupFails
+            ? {
+                ok: false,
+                error: new AnalysisCapabilityUnavailableError(
+                  "frida",
+                  "close_frida_session",
+                  "session cleanup failed",
+                ),
+              }
+            : { ok: true, value: { targetResumeObserved: false } };
+        },
+      }),
+    );
+
+    const result = await service.instrument(
+      {
+        mode: "spawn",
+        program: "/fixture",
+        source: { sourceKind: "inline", source: "send('ready');" },
+        durationMs: 0,
+      },
+      controller.signal,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toBeInstanceOf(AnalysisCancelledError);
+    expect(controller.signal.reason).toBe(abortReason);
+    if (cleanupFails) {
+      expect(result.error).toBeInstanceOf(AnalysisCapabilityUnavailableError);
+      expect(result.error.cause).toBe(primary);
+      expect(result.error.diagnostics).toEqual({
+        native_status: "compile_rejected",
+      });
+      expect(result.error.cleanup).toMatchObject({
+        reason: expect.stringContaining("session cleanup failed"),
+        resources: [createSession().sessionId],
+      });
+    } else {
+      expect(result.error).toBe(primary);
+    }
+    expect(closes).toBe(1);
+  },
+);
+
+it("preserves typed load cancellation cause, safe diagnostics, and decoded source representation in partial Evidence", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "rea-frida-cancelled-source-"),
+  );
+  const path = join(directory, "invalid-utf8.js");
+  await writeFile(path, Buffer.from([0x2f, 0x2f, 0x20, 0xff, 0x0a]));
+  try {
+    const controller = new AbortController();
+    const abortReason = new Error("native load cancelled after decoding");
+    const diagnostics = {
+      native_failure: "script load cancelled; transport_token=<redacted>",
+      read_attempt: 1,
+    };
+    const script = {
+      ...createScriptObservation(),
+      sourceKind: "file" as const,
+      sourcePath: path,
+      sourceRepresentation: {
+        encoding: "utf8" as const,
+        decoding: "replacement" as const,
+        loadedSourceSha256: "b".repeat(64),
+      },
+      messages: [{ type: "send", payload: "retained-before-cancel" }],
+    };
+    let closes = 0;
+    const service = new FridaInstrumentationService(
+      createProvider({
+        async loadScript() {
+          controller.abort(abortReason);
+          return {
+            ok: false,
+            error: new FridaScriptLoadCancelledError(script, {
+              cause: abortReason,
+              diagnostics,
+            }),
+          };
+        },
+        async closeSession() {
+          closes += 1;
+          return { ok: true, value: { targetResumeObserved: false } };
+        },
+      }),
+    );
+
+    const result = await service.instrument(
+      {
+        mode: "spawn",
+        program: "/fixture",
+        source: { sourceKind: "file", path },
+        durationMs: 0,
+      },
+      controller.signal,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(abortReason);
+    expect(result.error.diagnostics).toEqual(diagnostics);
+    expect(result.error.partialObservation).toMatchObject({
+      normalized_result: {
+        source_kind: "file",
+        source_path: path,
+        source_sha256: script.sourceSha256,
+        messages: script.messages,
+        instrumentation_cleanup: "released",
+      },
+      raw_result: {
+        source_representation: {
+          encoding: "utf8",
+          decoding: "replacement",
+          loaded_source_sha256: "b".repeat(64),
+        },
+      },
+      limitations: expect.arrayContaining([
+        expect.stringContaining("Invalid UTF-8"),
+      ]),
+    });
+    expect(closes).toBe(1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 it("preserves a provider-committed load when cancellation arrives during result delivery", async () => {

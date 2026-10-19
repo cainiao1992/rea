@@ -1,3 +1,4 @@
+import { isUtf8 } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
@@ -55,6 +56,11 @@ export const FRIDA_PROVIDER_IDENTITY = {
   version: null,
 } as const;
 
+interface ScriptMessageCapture {
+  readonly messages: MessageFifo<JsonValue>;
+  truncated: boolean;
+}
+
 interface ManagedScript {
   readonly id: string;
   readonly name: string;
@@ -86,13 +92,12 @@ interface ManagedSession extends ManagedRemoteConnection {
   readonly mode: "attach" | "spawn";
   readonly scripts: Map<string, ManagedScript>;
   readonly messages: MessageFifo<CapturedMessage>;
-  readonly messagesByScript: Map<string, MessageFifo<JsonValue>>;
+  readonly scriptCaptures: Map<string, ScriptMessageCapture>;
   state: "paused" | "running" | "detached";
   targetResumeObserved: boolean;
   resumeAfterDetachPending: boolean;
   capturedBytes: number;
   messagesTruncated: boolean;
-  readonly truncatedScripts: Set<string>;
 }
 
 export interface FridaInstrumentationManagerOptions {
@@ -308,13 +313,12 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
         mode: input.mode,
         scripts: new Map(),
         messages: new MessageFifo(),
-        messagesByScript: new Map(),
+        scriptCaptures: new Map(),
         state: input.mode === "spawn" ? "paused" : "running",
         targetResumeObserved: false,
         resumeAfterDetachPending: false,
         capturedBytes: 0,
         messagesTruncated: false,
-        truncatedScripts: new Set(),
       };
       session.detached.connect(() => {
         managed.state = "detached";
@@ -385,11 +389,26 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
       return err(unknownFridaSession("load_frida_script", sessionId));
 
     let scriptSource: string;
+    let sourceSha256: string;
+    let sourceRepresentation: FridaScriptObservation["sourceRepresentation"];
     try {
-      scriptSource =
+      const selectedSource =
         source.sourceKind === "inline"
           ? source.source
-          : await readFile(source.path, "utf8");
+          : await readFile(source.path);
+      sourceSha256 = createHash("sha256").update(selectedSource).digest("hex");
+      scriptSource =
+        typeof selectedSource === "string"
+          ? selectedSource
+          : selectedSource.toString("utf8");
+      if (typeof selectedSource !== "string" && !isUtf8(selectedSource))
+        sourceRepresentation = {
+          encoding: "utf8",
+          decoding: "replacement",
+          loadedSourceSha256: createHash("sha256")
+            .update(scriptSource)
+            .digest("hex"),
+        };
     } catch (cause: unknown) {
       const sourcePath = source.sourceKind === "file" ? source.path : undefined;
       return err(
@@ -414,23 +433,24 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
 
     if (signal?.aborted)
       return err(cancelledOperation("load_frida_script", signal));
-    const sourceSha256 = createHash("sha256")
-      .update(scriptSource)
-      .digest("hex");
     const scriptId = randomUUID();
-    const scriptName = `rea-${scriptId}`;
-    managed.messagesByScript.set(scriptId, new MessageFifo());
-    let nativeScript: Script | undefined;
+    const capture: ScriptMessageCapture = {
+      messages: new MessageFifo(),
+      truncated: false,
+    };
+    managed.scriptCaptures.set(scriptId, capture);
     const onMessage = (message: FridaMessage, data: Buffer | null): void => {
       this.#recordMessage(managed, scriptId, message, data);
     };
+    let entry: ManagedScript | undefined;
+    let nativeFailure: { readonly cause: unknown } | undefined;
     try {
-      nativeScript = await managed.session.createScript(scriptSource, {
-        name: scriptName,
+      const nativeScript = await managed.session.createScript(scriptSource, {
+        name: `rea-${scriptId}`,
       });
-      const entry: ManagedScript = {
+      entry = {
         id: scriptId,
-        name: scriptName,
+        name: `rea-${scriptId}`,
         script: nativeScript,
         onMessage,
         state: "active",
@@ -438,47 +458,64 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
       managed.scripts.set(scriptId, entry);
       nativeScript.message.connect(onMessage);
       if (!signal?.aborted) await nativeScript.load();
-      const observation: FridaScriptObservation = {
-        scriptId,
-        sourceKind: source.sourceKind,
-        sourcePath: source.sourceKind === "file" ? source.path : null,
-        sourceSha256,
-        messages: managed.messagesByScript.get(scriptId)?.toArray() ?? [],
-        messagesTruncated: managed.truncatedScripts.has(scriptId),
-      };
-      if (signal?.aborted) {
-        const cleanupReason = await this.#releaseScript(managed, entry);
-        return err(
-          new FridaScriptLoadCancelledError(observation, {
-            cause: signal.reason,
-            ...(cleanupReason === undefined
-              ? {}
-              : {
-                  cleanup: {
-                    reason: cleanupReason,
-                    resources: [sessionId, scriptId],
-                  },
-                }),
-          }),
-        );
-      }
-      return ok(observation);
     } catch (cause: unknown) {
-      const entry = managed.scripts.get(scriptId);
-      const cleanupReason =
-        entry === undefined
-          ? undefined
-          : await this.#releaseScript(managed, entry);
-      managed.messagesByScript.delete(scriptId);
+      nativeFailure = { cause };
+    }
+    // Settle the primary outcome before cleanup: a later abort cannot replace
+    // an already observed native failure. Keep the capture through cleanup,
+    // including callbacks emitted while unload/disconnect are completing.
+    const cancellation = signal?.aborted
+      ? { reason: signal.reason }
+      : undefined;
+    let cleanupReason: string | undefined;
+    if (nativeFailure !== undefined || cancellation !== undefined) {
+      if (entry === undefined) managed.scriptCaptures.delete(scriptId);
+      else cleanupReason = await this.#releaseScript(managed, entry);
+    }
+    if (nativeFailure !== undefined && cancellation === undefined)
       return err(
         providerError(
           "load_frida_script",
-          cause,
+          nativeFailure.cause,
           managed.remote,
           cleanupReason,
         ),
       );
-    }
+    const observation: FridaScriptObservation = {
+      scriptId,
+      sourceKind: source.sourceKind,
+      sourcePath: source.sourceKind === "file" ? source.path : null,
+      sourceSha256,
+      ...(sourceRepresentation === undefined ? {} : { sourceRepresentation }),
+      messages: capture.messages.toArray(),
+      messagesTruncated: capture.truncated,
+    };
+    if (cancellation !== undefined)
+      return err(
+        new FridaScriptLoadCancelledError(observation, {
+          cause: cancellation.reason,
+          scriptHandleAcquired: entry !== undefined,
+          ...(nativeFailure === undefined
+            ? {}
+            : {
+                diagnostics: {
+                  native_failure: sanitizeError(
+                    nativeFailure.cause,
+                    managed.remote,
+                  ),
+                },
+              }),
+          ...(cleanupReason === undefined
+            ? {}
+            : {
+                cleanup: {
+                  reason: cleanupReason,
+                  resources: [sessionId, scriptId],
+                },
+              }),
+        }),
+      );
+    return ok(observation);
   }
 
   resumeSession(
@@ -609,8 +646,7 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
       return sanitizeError(cause, managed.remote);
     }
     managed.scripts.delete(entry.id);
-    managed.messagesByScript.delete(entry.id);
-    managed.truncatedScripts.delete(entry.id);
+    managed.scriptCaptures.delete(entry.id);
     return undefined;
   }
 
@@ -1043,14 +1079,16 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
         managed.capturedBytes -= removed.charge;
         // Both queues are in arrival order, so the globally oldest message is
         // also the oldest one retained for its script.
-        const scriptMessages = managed.messagesByScript.get(removed.scriptId);
+        const scriptMessages = managed.scriptCaptures.get(
+          removed.scriptId,
+        )?.messages;
         if (scriptMessages?.peek() === removed.observation)
           scriptMessages.shift();
         markMessageTruncated(managed, removed.scriptId);
       }
     }
     managed.messages.push({ observation, scriptId, charge });
-    managed.messagesByScript.get(scriptId)?.push(observation);
+    managed.scriptCaptures.get(scriptId)?.messages.push(observation);
     managed.capturedBytes += charge;
   }
 
@@ -1463,8 +1501,8 @@ const markMessageTruncated = (
   scriptId: string,
 ): void => {
   managed.messagesTruncated = true;
-  if (managed.messagesByScript.has(scriptId))
-    managed.truncatedScripts.add(scriptId);
+  const capture = managed.scriptCaptures.get(scriptId);
+  if (capture !== undefined) capture.truncated = true;
 };
 
 /**

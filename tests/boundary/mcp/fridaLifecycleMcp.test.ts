@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { setImmediate } from "node:timers/promises";
 
@@ -698,6 +701,188 @@ it.each(["create", "load"] as const)(
       script_cleanup: "released",
       cleanup_error: null,
     });
+  },
+);
+
+it("retains cancellation source facts without claiming native creation when no script handle returns", async () => {
+  const { fixture, id, held } = await scriptLoadFixture("create");
+  fixture.controls.create = async () => {
+    await held.wait();
+    throw new Error("native create rejected");
+  };
+  const controller = new AbortController();
+  const loading = fixture
+    .load(id, "no-returned-handle", controller.signal)
+    .catch((cause: unknown) => cause);
+  await held.entered;
+  controller.abort(new Error("cancel while creating"));
+  await fixture.client.ping();
+  held.release();
+  await loading;
+  fixture.controls.create = async () => {};
+  await fixture.load(id, "barrier");
+  await fixture.client.ping();
+  const observation = await retainedScriptObservation(
+    fixture,
+    id,
+    "no-returned-handle",
+  );
+  expect(observation).toMatchObject({
+    messages: [],
+    script_cleanup: "no_handle",
+    cleanup_error: null,
+  });
+  expect(fixture.unloaded).toEqual([]);
+  expect(fixture.scripts).toHaveLength(2);
+  expect(fixture.controls.detachCalls).toBe(0);
+  expect(fixture.controls.resumes).toBe(0);
+});
+
+it("retains original malformed file identity and decoded representation through a rejected cancelled MCP load", async () => {
+  const { fixture, id, held } = await scriptLoadFixture();
+  const directory = await mkdtemp(join(tmpdir(), "rea-frida-file-cancel-"));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "script.js");
+  const bytes = Buffer.from([0x2f, 0x2f, 0xff, 0x0a]);
+  await writeFile(path, bytes);
+  const decodedSource = bytes.toString("utf8");
+  fixture.controls.afterLoad = () => {
+    if (fixture.loaded.at(-1) === decodedSource)
+      throw new Error("native rejection after message");
+  };
+  const controller = new AbortController();
+  const loading = fixture.client
+    .callTool(
+      {
+        name: "load_frida_script",
+        arguments: { session_id: id, source_kind: "file", path },
+      },
+      { signal: controller.signal },
+    )
+    .catch((cause: unknown) => cause);
+  await held.entered;
+  controller.abort(new Error("cancel file load"));
+  await fixture.client.ping();
+  held.release();
+  await loading;
+  await fixture.load(id, "barrier");
+  await fixture.client.ping();
+  const response = await fixture.client.callTool({
+    name: "get_evidence_bundle",
+    arguments: {},
+  });
+  const bundle = evidenceBundleSchema.parse(
+    toolContract("get_evidence_bundle").outputSchema.parse(
+      response.structuredContent,
+    ).result,
+  );
+  const records = bundle.records.filter(
+    (record) =>
+      record.operation === "load_frida_script" &&
+      JSON.stringify(record.normalized_result).includes(path),
+  );
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    normalized_result: {
+      source_kind: "file",
+      source_path: path,
+      source_sha256: createHash("sha256").update(bytes).digest("hex"),
+      messages: [expect.objectContaining({ payload: decodedSource })],
+      script_cleanup: "released",
+      cleanup_error: null,
+    },
+    raw_result: {
+      source_representation: {
+        encoding: "utf8",
+        decoding: "replacement",
+        loaded_source_sha256: createHash("sha256")
+          .update(decodedSource)
+          .digest("hex"),
+      },
+    },
+    limitations: expect.arrayContaining([
+      expect.stringContaining("Invalid UTF-8"),
+    ]),
+  });
+  expect(fixture.scripts[0]?.isDestroyed).toBe(false);
+  expect(fixture.scripts[1]?.isDestroyed).toBe(true);
+  expect(fixture.controls.detachCalls).toBe(0);
+});
+
+it.each([
+  { cancel: true, unloadFailures: 0 },
+  { cancel: true, unloadFailures: 1 },
+  { cancel: false, unloadFailures: 0 },
+])(
+  "retains rejected native-load observations through cancellation=$cancel and unload failures=$unloadFailures",
+  async ({ cancel, unloadFailures }) => {
+    const { fixture, id, held } = await scriptLoadFixture();
+    const source = "rejecting-native";
+    fixture.controls.afterLoad = () => {
+      if (fixture.loaded.at(-1) === source)
+        throw new Error("native load rejected after its message");
+    };
+    fixture.controls.unloadFailures = unloadFailures;
+    const controller = new AbortController();
+    const loading = fixture.load(id, source, controller.signal);
+    const outcome = loading.then(
+      (value) => ({ kind: "result" as const, value }),
+      (cause: unknown) => ({ kind: "rejected" as const, cause }),
+    );
+    await held.entered;
+    if (cancel) {
+      controller.abort(new Error("cancel before native rejection"));
+      await fixture.client.ping();
+    }
+    held.release();
+    const result = await outcome;
+    await fixture.load(id, "barrier");
+    await fixture.client.ping();
+    expect(fixture.controls.detachCalls).toBe(0);
+    expect(fixture.controls.resumes).toBe(0);
+    expect(fixture.scripts[0]?.isDestroyed).toBe(false);
+    expect(fixture.scripts[1]?.isDestroyed).toBe(unloadFailures === 0);
+    if (!cancel) {
+      expect(result.kind).toBe("result");
+      if (result.kind !== "result") throw result.cause;
+      expect(parseMcpToolError(result.value).error.code).toBe(
+        "capability_unavailable",
+      );
+      expect(
+        fixture.session
+          .exportEvidenceBundle()
+          .records.filter(
+            (record) =>
+              record.operation === "load_frida_script" &&
+              JSON.stringify(record.normalized_result).includes(source),
+          ),
+      ).toEqual([]);
+      return;
+    }
+    expect(result.kind).toBe("rejected");
+    const observation = await retainedScriptObservation(fixture, id, source);
+    expect(observation).toMatchObject({
+      messages: [expect.objectContaining({ payload: source })],
+      script_cleanup:
+        unloadFailures === 0 ? "released" : "incomplete_or_unknown",
+      cleanup_error:
+        unloadFailures === 0 ? null : expect.stringContaining("unload"),
+    });
+    if (unloadFailures > 0) {
+      if (typeof observation.script_id !== "string")
+        throw new Error("Missing candidate script identity");
+      await retryCancelledScriptUnload(fixture, id, observation.script_id);
+    }
+    expect(fixture.scripts[1]?.isDestroyed).toBe(true);
+    expect(fixture.manager.status(id)?.scripts).toHaveLength(2);
+    expect(
+      (
+        await fixture.client.callTool({
+          name: "frida_session_status",
+          arguments: { session_id: id },
+        })
+      ).isError,
+    ).not.toBe(true);
   },
 );
 

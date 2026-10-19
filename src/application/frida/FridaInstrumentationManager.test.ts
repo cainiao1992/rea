@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { createDeferred } from "../../../tests/fixtures/binarySession.js";
 
 import type {
   Device,
@@ -9,7 +10,11 @@ import type {
   Session,
   Signal,
 } from "frida";
-import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
+import { FridaScriptLoadCancelledError } from "./FridaInstrumentationPort.js";
+import {
+  AnalysisCapabilityUnavailableError,
+  AnalysisInputError,
+} from "../../domain/analysisErrorCore.js";
 import { FridaInstrumentationManager } from "../../frida/FridaInstrumentationManager.js";
 
 const signal = <Handler extends (...args: never[]) => void>() => {
@@ -1344,4 +1349,97 @@ it("names the unknown session or script ID it rejects", async () => {
     },
   });
   await manager.closeAll();
+});
+
+it.each([false, true])(
+  "retains messages emitted during cancelled script cleanup after native rejection=%s",
+  async (rejectNative) => {
+    const { bindings, manager, started } = await startLocalAttachedSession();
+    onTestFinished(() => manager.closeAll());
+    if (!started.ok) throw started.error;
+    const session = bindings.device.session;
+    const entered = createDeferred<void>();
+    const held = createDeferred<void>();
+    onTestFinished(() => held.resolve());
+    session.onScriptLoadStarted = entered.resolve;
+    session.scriptLoadGate = held.promise;
+    const nativeFailure = new Error("native load failed");
+    if (rejectNative) session.nextLoadFailure = nativeFailure;
+    const controller = new AbortController();
+    const reason = new Error("cancel before native completion");
+    const loading = manager.loadScript(
+      started.value.sessionId,
+      { sourceKind: "inline", source: "send('marker')" },
+      controller.signal,
+    );
+    await entered.promise;
+    const script = session.scripts[0];
+    if (script === undefined) throw new Error("Missing admitted script");
+    const unload = script.unload.bind(script);
+    script.unload = async () => {
+      script.message.emit({ type: "send", payload: "during cleanup" }, null);
+      script.message.emit(
+        { type: "send", description: "x".repeat(40_000) },
+        null,
+      );
+      await unload();
+    };
+    controller.abort(reason);
+    held.resolve();
+    const loaded = await loading;
+    if (loaded.ok) throw new Error("Cancelled load succeeded");
+    expect(loaded.error).toBeInstanceOf(FridaScriptLoadCancelledError);
+    if (!(loaded.error instanceof FridaScriptLoadCancelledError))
+      throw loaded.error;
+    expect(loaded.error.cause).toBe(reason);
+    expect(loaded.error.script.messages).toContainEqual(
+      expect.objectContaining({ payload: "during cleanup" }),
+    );
+    expect(loaded.error.script.messagesTruncated).toBe(true);
+    expect(loaded.error.diagnostics).toEqual(
+      rejectNative ? { native_failure: nativeFailure.message } : undefined,
+    );
+    expect(loaded.error.cleanupIncomplete).toBe(false);
+    expect(script.isDestroyed).toBe(true);
+    expect(manager.status(started.value.sessionId)?.scripts).toEqual([]);
+    expect(session.isDetached()).toBe(false);
+  },
+);
+
+it("preserves a native rejection observed before cancellation during script cleanup", async () => {
+  const { bindings, manager, started } = await startLocalAttachedSession();
+  onTestFinished(() => manager.closeAll());
+  if (!started.ok) throw started.error;
+  const session = bindings.device.session;
+  const entered = createDeferred<void>();
+  const held = createDeferred<void>();
+  onTestFinished(() => held.resolve());
+  const create = session.createScript.bind(session);
+  session.createScript = async () => {
+    const script = await create();
+    script.unload = async () => {
+      entered.resolve();
+      await held.promise;
+      const owned = session.scripts[0];
+      if (owned !== undefined) owned.isDestroyed = true;
+    };
+    return script;
+  };
+  const failure = new Error("native rejection first");
+  session.nextLoadFailure = failure;
+  const controller = new AbortController();
+  const loading = manager.loadScript(
+    started.value.sessionId,
+    { sourceKind: "inline", source: "void 0" },
+    controller.signal,
+  );
+  await entered.promise;
+  controller.abort(new Error("late abort during cleanup"));
+  held.resolve();
+  const result = await loading;
+  if (result.ok) throw new Error("Failed load succeeded");
+  expect(result.error).toBeInstanceOf(AnalysisCapabilityUnavailableError);
+  expect(result.error.cause).toBe(failure);
+  expect(result.error.cleanupIncomplete).toBe(false);
+  expect(manager.status(started.value.sessionId)?.scripts).toEqual([]);
 });

@@ -1,4 +1,9 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it } from "vitest";
+import type { DeviceManager } from "frida";
 
 import { createCli } from "../../../src/cli.js";
 import type { FridaInstrumentationPort } from "../../../src/application/frida/FridaInstrumentationPort.js";
@@ -149,6 +154,135 @@ it("maps one-shot Frida CLI target, script, duration, and remote options", async
   expect(exitCode).not.toBe(0);
   expect(calls).toHaveLength(3);
   expect(stdout).not.toContain("synthetic-secret-token");
+});
+
+it("keeps Frida script-file identity in original bytes when UTF-8 decoding replaces invalid bytes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "rea-frida-script-identity-"));
+  const files = [
+    {
+      name: "ff.js",
+      bytes: Buffer.from([
+        0x2f, 0x2f, 0x20, 0xff, 0x0a, 0x73, 0x65, 0x6e, 0x64, 0x28, 0x31, 0x29,
+        0x3b,
+      ]),
+    },
+    {
+      name: "fe.js",
+      bytes: Buffer.from([
+        0x2f, 0x2f, 0x20, 0xfe, 0x0a, 0x73, 0x65, 0x6e, 0x64, 0x28, 0x31, 0x29,
+        0x3b,
+      ]),
+    },
+    { name: "replacement.js", bytes: Buffer.from("// �\nsend(1);", "utf8") },
+    {
+      name: "ascii.js",
+      bytes: Buffer.from("// ordinary ASCII\nsend(1);", "ascii"),
+    },
+  ];
+  try {
+    await Promise.all(
+      files.map(({ name, bytes }) => writeFile(join(directory, name), bytes)),
+    );
+    const loadedSources: string[] = [];
+    const deviceManager = {
+      async getDeviceById() {
+        return {
+          id: "local",
+          name: "Fixture device",
+          type: "local",
+          async getProcessByPid(pid: number) {
+            return { pid, name: "fixture" };
+          },
+          async attach() {
+            let detached = false;
+            return {
+              pid: 71,
+              detached: { connect() {}, disconnect() {} },
+              isDetached: () => detached,
+              async detach() {
+                detached = true;
+              },
+              async createScript(source: string) {
+                loadedSources.push(source);
+                return {
+                  message: { connect() {}, disconnect() {} },
+                  async load() {},
+                  async unload() {},
+                };
+              },
+            };
+          },
+        };
+      },
+    } as unknown as DeviceManager;
+
+    for (const { name } of files) {
+      const provider = new FridaInstrumentationManager({ deviceManager });
+      let stdout = "";
+      let exitCode = 0;
+      await createCli({}, undefined, provider).serve(
+        [
+          "instrument-with-frida",
+          "attach",
+          "71",
+          "--script-file",
+          join(directory, name),
+          "--duration-ms",
+          "0",
+          "--json",
+        ],
+        {
+          env: {},
+          exit: (code) => {
+            exitCode = code;
+          },
+          stdout: (text) => {
+            stdout += text;
+          },
+        },
+      );
+      expect(exitCode).toBe(0);
+      const output: unknown = JSON.parse(stdout);
+      const bytes = files.find((file) => file.name === name)?.bytes;
+      if (bytes === undefined) throw new Error(`Missing fixture ${name}`);
+      const decodedSource = bytes.toString("utf8");
+      expect(loadedSources.at(-1)).toBe(decodedSource);
+      const rawDigest = createHash("sha256").update(bytes).digest("hex");
+      const loadedSourceDigest = createHash("sha256")
+        .update(decodedSource, "utf8")
+        .digest("hex");
+      const outputText = JSON.stringify(output);
+      expect(outputText).toContain(rawDigest);
+      if (name === "ff.js" || name === "fe.js") {
+        expect(rawDigest).not.toBe(loadedSourceDigest);
+        expect(output).toMatchObject({
+          evidence: {
+            normalized_result: { source_sha256: rawDigest },
+            raw_result: {
+              source_representation: {
+                encoding: "utf8",
+                decoding: "replacement",
+                loaded_source_sha256: loadedSourceDigest,
+              },
+            },
+          },
+        });
+        expect(outputText).toMatch(
+          /limitations.*(?:replacement|original bytes)/iu,
+        );
+      } else {
+        expect(output).toMatchObject({
+          evidence: {
+            normalized_result: { source_sha256: rawDigest },
+          },
+        });
+        expect(outputText).not.toContain("source_representation");
+      }
+      await provider.closeAll();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 it("awaits failed startup cleanup and retains the primary error if cleanup still fails", async () => {

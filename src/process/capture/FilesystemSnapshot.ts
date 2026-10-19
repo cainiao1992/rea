@@ -6,6 +6,7 @@ import type { FileHandle } from "node:fs/promises";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
 import type { Stats } from "node:fs";
+import { err, ok, type Result } from "../../domain/result.js";
 import type {
   FileState,
   ProcessFilesystemSnapshot,
@@ -30,21 +31,68 @@ const hasSameFileState = (before: Stats, after: Stats): boolean =>
   before.mtimeMs === after.mtimeMs &&
   before.ctimeMs === after.ctimeMs;
 
-const fileUnavailableSystemCode = (cause: unknown): string | undefined => {
+const filesystemSystemCode = (cause: unknown): string | undefined => {
   if (!(cause instanceof Error) || !("code" in cause)) return undefined;
   const code = cause.code;
-  return typeof code === "string" &&
-    [
-      "EACCES",
-      "EISDIR",
-      "ELOOP",
-      "ENOTDIR",
-      "ENOENT",
-      "EPERM",
-      "ESTALE",
-    ].includes(code)
+  return typeof code === "string" ? code : undefined;
+};
+
+const unavailableSystemCodes = new Set([
+  "EACCES",
+  "EISDIR",
+  "ELOOP",
+  "ENOTDIR",
+  "ENOENT",
+  "EPERM",
+  "ESTALE",
+]);
+
+const fileUnavailableSystemCode = (cause: unknown): string | undefined => {
+  const code = filesystemSystemCode(cause);
+  return code !== undefined && unavailableSystemCodes.has(code)
     ? code
     : undefined;
+};
+
+type EntryOmission =
+  | { readonly reason: "entry_unavailable"; readonly system_code: string }
+  | { readonly reason: "identity_changed"; readonly system_code: null };
+
+/** A follow-up read cannot turn previously observed metadata into absence. */
+const readEntryObservation = async <T>(
+  read: () => Promise<T>,
+  signal?: AbortSignal,
+): Promise<Result<T, EntryOmission>> => {
+  signal?.throwIfAborted();
+  try {
+    const value = await read();
+    signal?.throwIfAborted();
+    return ok(value);
+  } catch (cause: unknown) {
+    signal?.throwIfAborted();
+    const code = filesystemSystemCode(cause);
+    // readlink reports EINVAL if the observed symlink was replaced by a file.
+    if (
+      code === undefined ||
+      (!unavailableSystemCodes.has(code) && code !== "EINVAL")
+    )
+      throw cause;
+    return err({ reason: "entry_unavailable", system_code: code });
+  }
+};
+
+const observeSymlink = async (
+  path: string,
+  before: Stats,
+  signal?: AbortSignal,
+): Promise<Result<string, EntryOmission>> => {
+  const target = await readEntryObservation(() => readlink(path), signal);
+  if (!target.ok) return target;
+  const after = await readEntryObservation(() => lstat(path), signal);
+  if (!after.ok) return after;
+  return hasSameIdentity(before, after.value, "symlink")
+    ? target
+    : err({ reason: "identity_changed", system_code: null });
 };
 
 const lstatIfPresent = async (
@@ -58,13 +106,9 @@ const lstatIfPresent = async (
     signal?.throwIfAborted();
     return stats;
   } catch (cause: unknown) {
-    if (
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "ENOENT" ||
-        (previouslyObservedRoot && cause.code === "ENOTDIR"))
-    ) {
-      signal?.throwIfAborted();
+    signal?.throwIfAborted();
+    const code = filesystemSystemCode(cause);
+    if (code === "ENOENT" || (previouslyObservedRoot && code === "ENOTDIR")) {
       return undefined;
     }
     throw cause;
@@ -198,11 +242,18 @@ export const snapshotRoots = async (
   >();
   const enumerationOmissions: FilesystemCoverage["enumeration_omissions"] = [];
   const hashOmissions: FilesystemCoverage["hash_omissions"] = [];
+  const omitEntry = (path: string, omission: EntryOmission): false => {
+    truncated = true;
+    enumerationReasons.add(omission.reason);
+    enumerationOmissions.push({ path, ...omission });
+    return false;
+  };
   const visit = async (
     root: string,
     rootAlias: string,
     path: string,
     depth: number,
+    admitted?: Stats,
   ): Promise<boolean> => {
     signal?.throwIfAborted();
     if (
@@ -216,29 +267,23 @@ export const snapshotRoots = async (
         enumerationReasons.add("depth_limit");
       return false;
     }
-    const stats = await lstatIfPresent(
-      path,
-      previousPaths.has(`${rootAlias}:.`),
-      signal,
-    );
+    const stats =
+      admitted ??
+      (await lstatIfPresent(path, previousPaths.has(`${rootAlias}:.`), signal));
     if (stats === undefined) return true;
     const relativePath = relative(root, path) || ".";
     if (stats.isSymbolicLink()) {
       // Keep the target as stored: lexical resolution can merge distinct targets.
-      const target = await readlink(path);
-      const afterRead = await lstat(path);
-      if (!hasSameIdentity(stats, afterRead, "symlink")) {
-        truncated = true;
-        enumerationReasons.add("identity_changed");
-        return false;
-      }
+      const target = await observeSymlink(path, stats, signal);
+      if (!target.ok)
+        return omitEntry(`${rootAlias}:${relativePath}`, target.error);
       entries.push({
         path: `${rootAlias}:${relativePath}`,
         type: "symlink",
         mode: stats.mode,
         size: stats.size,
         sha256: null,
-        symlink_target: target,
+        symlink_target: target.value,
       });
       return true;
     }
@@ -330,12 +375,18 @@ export const snapshotRoots = async (
       children.push(child.name);
       pendingNames += 1;
     }
-    const afterRead = await lstat(path);
-    if (!hasSameIdentity(stats, afterRead, "directory")) {
+    const afterRead = await readEntryObservation(() => lstat(path), signal);
+    if (
+      !afterRead.ok ||
+      !hasSameIdentity(stats, afterRead.value, "directory")
+    ) {
       pendingNames -= children.length;
-      truncated = true;
-      enumerationReasons.add("identity_changed");
-      return false;
+      return omitEntry(
+        `${rootAlias}:${relativePath}`,
+        afterRead.ok
+          ? { reason: "identity_changed", system_code: null }
+          : afterRead.error,
+      );
     }
     children.sort().reverse();
     while (children.length > 0) {
@@ -349,14 +400,16 @@ export const snapshotRoots = async (
   };
   for (const [index, root] of scenario.filesystem_observation_paths.entries()) {
     const alias = `root_${String(index)}`;
-    if (
-      (await lstatIfPresent(root, previousPaths.has(`${alias}:.`), signal)) ===
-      undefined
-    ) {
+    const admitted = await lstatIfPresent(
+      root,
+      previousPaths.has(`${alias}:.`),
+      signal,
+    );
+    if (admitted === undefined) {
       completeRoots.push(alias);
       continue;
     }
-    if (await visit(root, alias, root, 0)) completeRoots.push(alias);
+    if (await visit(root, alias, root, 0, admitted)) completeRoots.push(alias);
   }
   return {
     files: entries,

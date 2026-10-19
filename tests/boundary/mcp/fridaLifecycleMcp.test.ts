@@ -12,7 +12,7 @@ import type {
   Script,
   Session,
 } from "frida";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 
 import { FridaScriptLoadCancelledError } from "../../../src/application/frida/FridaInstrumentationPort.js";
 import type {
@@ -35,7 +35,10 @@ import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
 import { registerFridaTools } from "../../../src/server/registerFridaTools.js";
-import { createToolResultDelivery } from "../../../src/server/toolResult.js";
+import {
+  createToolResultDelivery,
+  ToolResultDelivery,
+} from "../../../src/server/toolResult.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
@@ -69,6 +72,7 @@ const nativeFixture = () => {
     create: async () => {},
     load: async () => {},
     resume: async () => {},
+    detach: async () => {},
     afterLoad: () => {},
     discover: async () => {},
     unloadFailures: 0,
@@ -98,6 +102,7 @@ const nativeFixture = () => {
     isDetached: () => detached,
     async detach() {
       controls.detachCalls += 1;
+      await controls.detach();
       if (controls.detachFailures > 0) {
         controls.detachFailures -= 1;
         throw new Error("transient detach failure");
@@ -326,6 +331,130 @@ it("retains detached state and resume evidence when remote cleanup needs retry",
   expect(fixture.controls.resumes).toBe(1);
   expect(fixture.controls.remoteRemovals).toBe(2);
 });
+
+it.each([
+  { cancel: false, detachFails: false },
+  { cancel: true, detachFails: false },
+  { cancel: false, detachFails: true },
+  { cancel: true, detachFails: true },
+])(
+  "classifies server completion after final detach (cancel=$cancel, detachFails=$detachFails)",
+  async ({ cancel, detachFails }) => {
+    const fixture = await connectedFixture();
+    const held = gate();
+    onTestFinished(held.release);
+    fixture.controls.detach = held.wait;
+    fixture.controls.detachFailures = detachFails ? 1 : 0;
+    let serverSignal: AbortSignal | undefined;
+    const load = fixture.manager.loadScript.bind(fixture.manager);
+    const loadSpy = vi
+      .spyOn(fixture.manager, "loadScript")
+      .mockImplementation((id, source, signal) => {
+        serverSignal = signal;
+        return load(id, source, signal);
+      });
+    const success = vi.spyOn(
+      ToolResultDelivery.prototype,
+      "toEvidenceToolResult",
+    );
+    const partial = vi.spyOn(
+      ToolResultDelivery.prototype,
+      "toRecordedPartialErrorToolResult",
+    );
+    onTestFinished(() => {
+      loadSpy.mockRestore();
+      success.mockRestore();
+      partial.mockRestore();
+    });
+    const controller = new AbortController();
+    const pending = fixture.client
+      .callTool(
+        {
+          name: "instrument_with_frida",
+          arguments: {
+            mode: "attach",
+            pid: 512,
+            device_id: "local",
+            source_kind: "inline",
+            source: "completed-before-detach",
+            duration_ms: 0,
+          },
+        },
+        { signal: controller.signal },
+      )
+      .then(
+        (value) => ({ kind: "result" as const, value }),
+        (cause: unknown) => ({ kind: "rejected" as const, cause }),
+      );
+    await held.entered;
+    expect(fixture.unloaded).toEqual(["completed-before-detach"]);
+    if (cancel) {
+      controller.abort(new Error("cancel during final detach"));
+      await fixture.client.ping();
+    }
+    expect(serverSignal?.aborted).toBe(cancel);
+    const serverReason: unknown = serverSignal?.reason;
+    held.release();
+    const result = await pending;
+    await vi.waitFor(() =>
+      expect(success.mock.calls.length + partial.mock.calls.length).toBe(1),
+    );
+    expect(fixture.controls.detachCalls).toBe(1);
+    expect(fixture.controls.resumes).toBe(0);
+    const records = fixture.session
+      .exportEvidenceBundle()
+      .records.filter((record) => record.operation === "instrument_with_frida");
+    expect(records).toHaveLength(1);
+    const evidence = records[0];
+    expect(evidence).toMatchObject({
+      normalized_result: {
+        messages: [{ type: "send", payload: "completed-before-detach" }],
+        cleanup_error: detachFails
+          ? expect.stringContaining("transient detach failure")
+          : null,
+      },
+    });
+    const sessionId = String(evidence?.parameters.session_id);
+    expect(fixture.manager.status(sessionId) !== undefined).toBe(detachFails);
+    if (cancel) {
+      expect(result.kind).toBe("rejected");
+      expect(success).not.toHaveBeenCalled();
+      const error = partial.mock.calls[0]?.[0];
+      expect(error).toBeInstanceOf(AnalysisCancelledError);
+      expect(error?.cause).toBe(serverReason);
+      if (detachFails)
+        expect(error?.cleanup).toMatchObject({ resources: [sessionId] });
+      else expect(error?.cleanup).toBeUndefined();
+      expect(error?.partialObservation).toEqual(evidence);
+      expect(evidence).toMatchObject({
+        normalized_result: {
+          instrumentation_cleanup: detachFails
+            ? "incomplete_or_unknown"
+            : "released",
+          target_state_before_cleanup: "running",
+          target_resume_observed: false,
+          target_liveness_after_cleanup: "unknown",
+        },
+      });
+    } else {
+      expect(result.kind).toBe("result");
+      if (result.kind !== "result") throw result.cause;
+      expect(result.value.isError).not.toBe(true);
+      expect(partial).not.toHaveBeenCalled();
+      expect(success).toHaveBeenCalledOnce();
+    }
+    if (detachFails) {
+      const retried = await fixture.client.callTool({
+        name: "close_frida_session",
+        arguments: { session_id: sessionId },
+      });
+      expect(retried.isError).not.toBe(true);
+      expect(fixture.controls.detachCalls).toBe(2);
+      expect(fixture.manager.status(sessionId)).toBeUndefined();
+      expect(fixture.unloaded).toEqual(["completed-before-detach"]);
+    }
+  },
+);
 
 it.each([
   ["a trailing high surrogate", "x".repeat(32_765) + "\ud800"],

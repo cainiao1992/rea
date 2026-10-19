@@ -32,6 +32,19 @@ type DeviceListOutput = z.output<
 type ProcessListOutput = z.output<
   ReturnType<typeof toolContract<"list_frida_processes">>["outputSchema"]
 >;
+type FridaSessionCloseResult = Awaited<
+  ReturnType<FridaInstrumentationPort["closeSession"]>
+>;
+type FridaSessionCancellation = {
+  readonly operation: string;
+  readonly input: StartFridaSessionInput;
+  readonly cause: unknown;
+  readonly diagnostics?: AnalysisError["diagnostics"];
+  readonly observation: FridaSessionStatus;
+  readonly closed: FridaSessionCloseResult;
+  readonly statusAfterCleanup: FridaSessionStatus | undefined;
+  readonly script: FridaScriptObservation | undefined;
+};
 
 const unreadableScriptFile = async (
   source: FridaScriptSource,
@@ -170,41 +183,16 @@ export class FridaInstrumentationService {
     };
     const closed = await this.#provider.closeSession(session.sessionId);
     const statusAfterCleanup = this.#provider.status(session.sessionId);
-    const partialObservation = fridaEvidence(
-      operation,
-      {
-        ...sessionStatusOutput(observation),
-        ...(loaded === undefined ? {} : sourceOutput(loaded)),
-        cleanup_error: closed.ok ? null : closed.error.message,
-        target_state_before_cleanup: observation.state,
-        target_resume_observed:
-          observation.targetResumeObserved ||
-          (observation.mode === "spawn" && observation.state === "running") ||
-          (closed.ok && closed.value.targetResumeObserved) ||
-          (observation.mode === "spawn" &&
-            observation.state !== "running" &&
-            statusAfterCleanup?.state === "running"),
-        instrumentation_cleanup: closed.ok
-          ? "released"
-          : "incomplete_or_unknown",
-        target_liveness_after_cleanup: "unknown",
-      },
-      fridaParameters(session.sessionId, input, session.deviceId),
-      loaded,
-    );
     return err(
-      new AnalysisCancelledError(operation, {
-        ...(cause === undefined ? {} : { cause }),
+      cancelledFridaSession({
+        operation,
+        input,
+        cause,
         diagnostics: load?.diagnostics,
-        partialObservation,
-        ...(closed.ok
-          ? {}
-          : {
-              cleanup: {
-                reason: closed.error.message,
-                resources: [session.sessionId],
-              },
-            }),
+        observation,
+        closed,
+        statusAfterCleanup,
+        script: loaded,
       }),
     );
   }
@@ -377,6 +365,18 @@ export class FridaInstrumentationService {
     };
     const closed = await this.#provider.closeSession(started.value.sessionId);
     const cleanupError = closed.ok ? null : closed.error.message;
+    if (signal?.aborted)
+      return err(
+        cancelledFridaSession({
+          operation: "instrument_with_frida",
+          input,
+          cause: signal.reason,
+          observation,
+          closed,
+          statusAfterCleanup: this.#provider.status(started.value.sessionId),
+          script: loaded.value,
+        }),
+      );
     const evidence = fridaEvidence(
       "instrument_with_frida",
       {
@@ -441,6 +441,50 @@ const fridaEvidence = (
       ],
     },
   );
+
+const cancelledFridaSession = ({
+  operation,
+  input,
+  cause,
+  diagnostics,
+  observation,
+  closed,
+  statusAfterCleanup,
+  script,
+}: FridaSessionCancellation): AnalysisCancelledError => {
+  const cleanupError = closed.ok ? null : closed.error.message;
+  return new AnalysisCancelledError(operation, {
+    ...(cause === undefined ? {} : { cause }),
+    diagnostics,
+    partialObservation: fridaEvidence(
+      operation,
+      {
+        ...sessionStatusOutput(observation),
+        ...(script === undefined ? {} : sourceOutput(script)),
+        cleanup_error: cleanupError,
+        target_state_before_cleanup: observation.state,
+        target_resume_observed:
+          observation.targetResumeObserved ||
+          (closed.ok && closed.value.targetResumeObserved) ||
+          statusAfterCleanup?.targetResumeObserved === true,
+        instrumentation_cleanup: closed.ok
+          ? "released"
+          : "incomplete_or_unknown",
+        target_liveness_after_cleanup: "unknown",
+      },
+      fridaParameters(observation.sessionId, input, observation.deviceId),
+      script,
+    ),
+    ...(closed.ok
+      ? {}
+      : {
+          cleanup: {
+            reason: closed.error.message,
+            resources: [observation.sessionId],
+          },
+        }),
+  });
+};
 
 const fridaParameters = (
   sessionId: string,

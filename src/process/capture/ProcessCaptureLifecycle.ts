@@ -32,16 +32,16 @@ import {
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
 import {
   cleanupOwnedProcessGroup,
-  verifyNoTokenOwnedProcesses,
   type OwnedProcessGroup,
-  type ProcessCleanupResult,
   type ProcessOwnershipBaseline,
+  type ProcessOwnershipHost,
 } from "../ProcessOwnership.js";
 import {
   observeOwnedProcessGroups,
   prepareProcessOwnershipInspection,
   systemProcessOwnershipHost,
 } from "../ProcessOwnershipObservation.js";
+import { ProcessOwnershipEvidenceOwner } from "../ProcessOwnershipEvidence.js";
 import {
   describeProcessCaptureExecutionFailure,
   normalizeCaptureFailure,
@@ -697,15 +697,27 @@ export const createRunManifest = async (
   };
 };
 
-export const observeSettlement = async (
-  runId: string,
-  processGroupIds: readonly number[],
-  settleMs: number,
-  recordEvent: RecordProcessCaptureEvent = () => undefined,
-  platform: NodeJS.Platform = process.platform,
-  signal?: AbortSignal,
-  onLiveProgress?: () => void,
-): Promise<ObservedProcessSettlement> => {
+export const observeSettlement = async ({
+  runId,
+  processGroupIds,
+  ownershipEvidence,
+  settleMs,
+  recordEvent = () => undefined,
+  platform = process.platform,
+  signal,
+  ownershipHost,
+  onLiveProgress,
+}: {
+  readonly runId: string;
+  readonly processGroupIds: readonly number[];
+  readonly ownershipEvidence: ProcessOwnershipEvidenceOwner;
+  readonly settleMs: number;
+  readonly recordEvent?: RecordProcessCaptureEvent;
+  readonly platform?: NodeJS.Platform;
+  readonly signal?: AbortSignal | undefined;
+  readonly ownershipHost?: ProcessOwnershipHost;
+  readonly onLiveProgress?: (() => void) | undefined;
+}): Promise<ObservedProcessSettlement> => {
   assertNotCancelled(signal);
   onLiveProgress?.();
   if (platform === "win32") {
@@ -722,8 +734,9 @@ export const observeSettlement = async (
     const observations = await observeOwnedProcessGroups(
       runId,
       processGroupIds,
-      undefined,
+      ownershipHost,
       signal,
+      ownershipEvidence,
     );
     assertNotCancelled(signal);
     if (
@@ -866,10 +879,10 @@ export const awaitTerminalExit = async ({
         Promise.race([
           signalTarget(finalizationSignal),
           delay(
-            PROCESS_CLEANUP_VERIFICATION_GRACE_MS,
+            PROCESS_FINALIZATION_DELIVERY_GRACE_MS,
             {
               delivery: "unverified" as const,
-              reason: `delivery did not settle within ${String(PROCESS_CLEANUP_VERIFICATION_GRACE_MS)} ms`,
+              reason: `delivery did not settle within ${String(PROCESS_FINALIZATION_DELIVERY_GRACE_MS)} ms`,
             },
             {
               ref: false,
@@ -988,7 +1001,7 @@ export const awaitTerminalExit = async ({
       const grace = new AbortController();
       void Promise.race([
         Promise.allSettled(pendingDeliveries),
-        delay(PROCESS_CLEANUP_VERIFICATION_GRACE_MS, undefined, {
+        delay(PROCESS_FINALIZATION_DELIVERY_GRACE_MS, undefined, {
           ref: false,
           signal: grace.signal,
         }).catch(() => undefined),
@@ -1030,42 +1043,22 @@ export const awaitTerminalExit = async ({
 export interface ProcessCaptureCleanupHost {
   readonly platform: NodeJS.Platform;
   readonly cleanupProcessGroup: typeof cleanupOwnedProcessGroup;
-  readonly verifyTokenOwnedProcesses: typeof verifyNoTokenOwnedProcesses;
   readonly removeTemporaryRoot: (path: string) => Promise<void>;
 }
 
 const processCaptureCleanupHost: ProcessCaptureCleanupHost = {
   platform: process.platform,
   cleanupProcessGroup: cleanupOwnedProcessGroup,
-  verifyTokenOwnedProcesses: verifyNoTokenOwnedProcesses,
   removeTemporaryRoot: (path) => rm(path, { recursive: true, force: true }),
 };
 
-const PROCESS_CLEANUP_VERIFICATION_GRACE_MS = 1_000;
-const PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS = 25;
-
-const verifyTokenOwnedProcessesUntilSettled = async (
-  verify: () => Promise<ProcessCleanupResult>,
-): Promise<ProcessCleanupResult> => {
-  const deadline =
-    monotonicProcessCaptureClock() + PROCESS_CLEANUP_VERIFICATION_GRACE_MS;
-  let result = await verify();
-  while (!result.cleaned) {
-    const remaining = deadline - monotonicProcessCaptureClock();
-    if (remaining <= 0) return result;
-    await new Promise<void>((resolve) =>
-      setTimeout(
-        resolve,
-        Math.min(PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS, remaining),
-      ),
-    );
-    result = await verify();
-  }
-  return result;
-};
+const PROCESS_FINALIZATION_DELIVERY_GRACE_MS = 1_000;
 
 const releaseCapturedProcessGroup = async (
-  ownership: OwnedProcessGroup,
+  ownership: Extract<
+    OwnedProcessGroup,
+    { readonly sweepTokenOwnedProcesses: true }
+  >,
   host: ProcessCaptureCleanupHost,
 ): Promise<ProcessCaptureCleanupReport["owned_process_group"]> => {
   if (host.platform === "win32")
@@ -1085,21 +1078,8 @@ const releaseCapturedProcessGroup = async (
   try {
     const cleaned = await host.cleanupProcessGroup(ownership);
     unverified.push(...(cleaned.unverified ?? []));
-    if (!cleaned.cleaned) {
+    if (!cleaned.cleaned)
       outcome = { state: "unverified", reason: cleaned.reason };
-    } else {
-      const verified = await verifyTokenOwnedProcessesUntilSettled(() =>
-        host.verifyTokenOwnedProcesses(
-          ownership.runId,
-          undefined,
-          ownership.captureBaseline,
-          ownership,
-        ),
-      );
-      unverified.push(...(verified.unverified ?? []));
-      if (!verified.cleaned)
-        outcome = { state: "unverified", reason: verified.reason };
-    }
   } catch (cause: unknown) {
     outcome = {
       state: "failed",
@@ -1132,6 +1112,8 @@ export interface ProcessCaptureResourceCleanupOptions {
   readonly temporaryRoot: string;
   readonly captureBaseline?: ProcessOwnershipBaseline;
   readonly sampledProcessGroupIds?: readonly number[];
+  /** Shared with settlement observations for this exact captured run. */
+  readonly ownershipEvidence?: ProcessOwnershipEvidenceOwner;
   readonly host?: ProcessCaptureCleanupHost;
 }
 
@@ -1146,6 +1128,7 @@ export interface ProcessCaptureCleanupOutcome {
 class ProcessCaptureResourceOwner {
   readonly cleanupLease: AnalysisCleanupLease;
   readonly #host: ProcessCaptureCleanupHost;
+  readonly #ownershipEvidence: ProcessOwnershipEvidenceOwner;
   #terminalRenderer:
     | ProcessCaptureCleanupReport["terminal_renderer"]
     | undefined;
@@ -1156,6 +1139,8 @@ class ProcessCaptureResourceOwner {
 
   constructor(private readonly options: ProcessCaptureResourceCleanupOptions) {
     this.#host = options.host ?? processCaptureCleanupHost;
+    this.#ownershipEvidence =
+      options.ownershipEvidence ?? new ProcessOwnershipEvidenceOwner();
     if (options.renderer === undefined)
       this.#terminalRenderer = { state: "not_required", reason: null };
     if (options.terminal === undefined)
@@ -1249,6 +1234,7 @@ class ProcessCaptureResourceOwner {
         leaderPid: this.options.terminal.pid,
         processGroupId: this.options.terminal.pid,
         sweepTokenOwnedProcesses: true,
+        evidenceOwner: this.#ownershipEvidence,
         ...(this.options.sampledProcessGroupIds === undefined
           ? {}
           : { sampledProcessGroupIds: this.options.sampledProcessGroupIds }),

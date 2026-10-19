@@ -1,0 +1,252 @@
+import { afterEach, expect, it, vi } from "vitest";
+import {
+  cleanupOwnedProcessGroup,
+  type ProcessOwnershipHost,
+  type ProcessTableEntry,
+} from "./ProcessOwnership.js";
+import { ProcessOwnershipEvidenceOwner } from "./ProcessOwnershipEvidence.js";
+
+const initialRows: readonly ProcessTableEntry[] = [
+  {
+    pid: 100,
+    parentPid: 1,
+    processGroupId: 100,
+    state: "S",
+    command: "capture-root",
+  },
+  {
+    pid: 101,
+    parentPid: 100,
+    processGroupId: 100,
+    state: "S",
+    command: "capture-child",
+  },
+];
+
+const makeHost = (onSignal: (groupId: number) => void) => {
+  let liveRows = initialRows;
+  const signalGroups: number[] = [];
+  const host: ProcessOwnershipHost = {
+    platform: "linux",
+    listProcesses: async () => liveRows,
+    environment: async () => ({}),
+    runTokens: async (entries) =>
+      new Map(
+        entries.map(({ pid }) => [
+          pid,
+          {
+            state: "readable" as const,
+            runId: "sweep-run",
+          },
+        ]),
+      ),
+    processIdentities: async (entries) => {
+      const liveByPid = new Map(liveRows.map((row) => [row.pid, row]));
+      return new Map(
+        entries.map((entry) => {
+          const current = liveByPid.get(entry.pid);
+          return [
+            entry.pid,
+            current === undefined
+              ? {
+                  state: "absent" as const,
+                  reason: "not-found-in-caller-pid-namespace" as const,
+                }
+              : {
+                  state: "readable" as const,
+                  identity: `start-${String(entry.pid)}`,
+                  lifecycle: {
+                    state: "observed" as const,
+                    lifecycle: "non-zombie" as const,
+                  },
+                  relation: {
+                    state: "observed" as const,
+                    parentPid: current.parentPid,
+                    processGroupId: current.processGroupId,
+                  },
+                },
+          ] as const;
+        }),
+      );
+    },
+    signalGroup: (groupId) => {
+      signalGroups.push(groupId);
+      onSignal(groupId);
+    },
+  };
+  return {
+    host,
+    signalGroups,
+    replaceRows: (rows: readonly ProcessTableEntry[]) => {
+      liveRows = rows;
+    },
+    rows: () => liveRows,
+  };
+};
+
+const ownership = () => ({
+  runId: "sweep-run",
+  leaderPid: 100,
+  processGroupId: 100,
+  sweepTokenOwnedProcesses: true as const,
+  evidenceOwner: new ProcessOwnershipEvidenceOwner(),
+});
+
+afterEach(() => vi.useRealTimers());
+
+it("waits for native absence after one signal and does not signal again", async () => {
+  vi.useFakeTimers();
+  const fixture = makeHost(() => {
+    setTimeout(() => fixture.replaceRows([]), 50);
+  });
+
+  const resultPromise = cleanupOwnedProcessGroup(ownership(), fixture.host);
+  await vi.runAllTimersAsync();
+  const result = await resultPromise;
+
+  expect(result).toEqual({ cleaned: true, signaled: true });
+  expect(fixture.signalGroups).toEqual([100]);
+});
+
+it("preserves a moved same-generation helper as unresolved through the final deadline", async () => {
+  const child = initialRows[1];
+  if (child === undefined) throw new Error("fixture child is missing");
+  let moved = false;
+  const fixture = makeHost(() => {
+    moved = true;
+    fixture.replaceRows([
+      {
+        ...child,
+        parentPid: 1,
+        processGroupId: 777,
+      },
+    ]);
+  });
+  const host: ProcessOwnershipHost = {
+    ...fixture.host,
+    runTokens: async (entries) =>
+      new Map(
+        entries.map(({ pid }) => [
+          pid,
+          {
+            state: "readable" as const,
+            runId: pid === 101 && moved ? "foreign-token" : "sweep-run",
+          },
+        ]),
+      ),
+  };
+
+  const resultPromise = cleanupOwnedProcessGroup(ownership(), host);
+  const result = await resultPromise;
+
+  expect(result).toMatchObject({
+    cleaned: false,
+    reason: "process ownership token mismatch for PID(s): 101",
+  });
+  expect(fixture.rows()).toMatchObject([
+    { pid: 101, parentPid: 1, processGroupId: 777 },
+  ]);
+  expect(fixture.signalGroups).toEqual([100]);
+});
+
+it("retries a moved token-owned helper group without signaling a released peer again", async () => {
+  let rows: readonly ProcessTableEntry[] = [
+    {
+      pid: 100,
+      parentPid: 1,
+      processGroupId: 100,
+      state: "S",
+      command: "capture-root",
+    },
+    {
+      pid: 200,
+      parentPid: 100,
+      processGroupId: 200,
+      state: "S",
+      command: "helper-group-leader",
+    },
+    {
+      pid: 201,
+      parentPid: 200,
+      processGroupId: 200,
+      state: "S",
+      command: "moving-helper",
+    },
+    {
+      pid: 202,
+      parentPid: 200,
+      processGroupId: 200,
+      state: "S",
+      command: "released-peer",
+    },
+  ];
+  const signalGroups: number[] = [];
+  const owner = ownership();
+  const host: ProcessOwnershipHost = {
+    platform: "linux",
+    listProcesses: async () => rows,
+    environment: async () => ({}),
+    runTokens: async (entries) =>
+      new Map(
+        entries.map(({ pid }) => [
+          pid,
+          { state: "readable" as const, runId: owner.runId },
+        ]),
+      ),
+    processIdentities: async (entries) => {
+      const liveByPid = new Map(rows.map((row) => [row.pid, row]));
+      return new Map(
+        entries.map((entry) => {
+          const current = liveByPid.get(entry.pid);
+          return [
+            entry.pid,
+            current === undefined
+              ? {
+                  state: "absent" as const,
+                  reason: "not-found-in-caller-pid-namespace" as const,
+                }
+              : {
+                  state: "readable" as const,
+                  identity: `start-${String(entry.pid)}`,
+                  lifecycle: {
+                    state: "observed" as const,
+                    lifecycle: "non-zombie" as const,
+                  },
+                  relation: {
+                    state: "observed" as const,
+                    parentPid: current.parentPid,
+                    processGroupId: current.processGroupId,
+                  },
+                },
+          ] as const;
+        }),
+      );
+    },
+    signalGroup: (groupId) => {
+      signalGroups.push(groupId);
+      if (groupId === 100) {
+        rows = rows
+          .filter(({ pid }) => pid !== 100)
+          .map((row) =>
+            row.pid === 201
+              ? { ...row, parentPid: 1, processGroupId: 300 }
+              : row,
+          );
+      } else {
+        rows = rows.filter(({ processGroupId }) => processGroupId !== groupId);
+      }
+    },
+  };
+
+  const first = await cleanupOwnedProcessGroup(owner, host);
+  expect(first).toMatchObject({ cleaned: false });
+  expect(signalGroups).toEqual([100, 200]);
+  expect(rows).toContainEqual(
+    expect.objectContaining({ pid: 201, parentPid: 1, processGroupId: 300 }),
+  );
+
+  const retry = await cleanupOwnedProcessGroup(owner, host);
+  expect(retry).toEqual({ cleaned: true, signaled: true });
+  expect(signalGroups).toEqual([100, 200, 300]);
+  expect(owner.evidenceOwner.candidates).toEqual([]);
+});

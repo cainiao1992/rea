@@ -120,9 +120,6 @@ it.each(["none", "before", "open", "final-stat", "close"] as const)(
         cleanupProcessGroup: async () => {
           throw new Error("No process should have been acquired");
         },
-        verifyTokenOwnedProcesses: async () => {
-          throw new Error("No process should have been acquired");
-        },
         removeTemporaryRoot: async (path) => {
           await rm(path, { recursive: true });
           removed.push(path);

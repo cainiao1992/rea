@@ -371,10 +371,6 @@ itWithCaptureCapability(
         cleaned: false,
         reason: "fixture cleanup could not be verified",
       }),
-      verifyTokenOwnedProcesses: async () => ({
-        cleaned: false,
-        reason: "fixture cleanup could not be verified",
-      }),
       removeTemporaryRoot: async (path) =>
         rm(path, { recursive: true, force: true }),
     };

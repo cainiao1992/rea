@@ -33,6 +33,7 @@ import {
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import { jsonStringByteLength } from "../domain/jsonStringByteLength.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   unknownFridaScript,
@@ -1233,7 +1234,7 @@ const boundedRedactedString = (
     }
     if (nextSecretStart === cursor && nextSecret !== undefined) {
       const replacement = "[redacted]";
-      const replacementBytes = jsonStringBytes(replacement) - 2;
+      const replacementBytes = jsonStringByteLength(replacement) - 2;
       if (outputBytes + replacementBytes > maximumBytes) {
         truncated = true;
         break;
@@ -1248,7 +1249,7 @@ const boundedRedactedString = (
       const codePoint = input.codePointAt(cursor);
       if (codePoint === undefined) break;
       const character = String.fromCodePoint(codePoint);
-      const characterBytes = jsonStringBytes(character) - 2;
+      const characterBytes = jsonStringByteLength(character) - 2;
       if (
         cursor + character.length > nextSecretStart ||
         outputBytes + characterBytes > maximumBytes
@@ -1343,7 +1344,7 @@ const boundedJsonValue = (
           break;
         }
         const key = boundedKey.value;
-        const keyBytes = jsonStringBytes(key) + 1;
+        const keyBytes = jsonStringByteLength(key) + 1;
         const remaining = budget - usedBytes - separatorBytes - keyBytes - 1;
         if (remaining < 8) {
           truncated = true;
@@ -1376,40 +1377,6 @@ const boundedJsonValue = (
   return bytes > maximumBytes
     ? { value: null, truncated: true, bytes: Buffer.byteLength("null") }
     : { ...result, bytes };
-};
-
-const jsonStringBytes = (value: string): number => {
-  let bytes = Buffer.byteLength(value) + 2;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (
-      code === 34 ||
-      code === 92 ||
-      code === 8 ||
-      code === 9 ||
-      code === 10 ||
-      code === 12 ||
-      code === 13
-    )
-      bytes += 1;
-    else if (code < 32) bytes += 5;
-    else if (
-      code >= 0xd800 &&
-      code <= 0xdbff &&
-      (value.charCodeAt(index + 1) < 0xdc00 ||
-        value.charCodeAt(index + 1) > 0xdfff)
-    )
-      bytes += 3;
-    else if (
-      code >= 0xdc00 &&
-      code <= 0xdfff &&
-      (index === 0 ||
-        value.charCodeAt(index - 1) < 0xd800 ||
-        value.charCodeAt(index - 1) > 0xdbff)
-    )
-      bytes += 3;
-  }
-  return bytes;
 };
 
 const remoteOptions = (remote: FridaRemoteConnection): RemoteDeviceOptions => ({

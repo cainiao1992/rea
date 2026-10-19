@@ -76,6 +76,7 @@ const nativeFixture = () => {
     resumes: 0,
     remoteRemovals: 0,
     removalFailures: 0,
+    message: undefined as FridaMessage | undefined,
   };
   let detached = false;
   const nativeSession: Session = {
@@ -112,7 +113,10 @@ const nativeFixture = () => {
         async load() {
           await controls.load();
           loaded.push(source);
-          listener?.({ type: "send", payload: source }, null);
+          listener?.(
+            controls.message ?? { type: "send", payload: source },
+            null,
+          );
           controls.afterLoad();
         },
         async unload() {
@@ -230,6 +234,42 @@ const connectedFixture = async () => {
     );
   return { ...native, manager, session, server, client, start, load };
 };
+
+it.each([
+  ["a trailing high surrogate", "x".repeat(32_765) + "\ud800"],
+  ["repeated high surrogates", "\ud800".repeat(10_922)],
+])(
+  "retains bounded Frida error text through MCP for %s",
+  async (_name, description) => {
+    const { controls, client, start, load } = await connectedFixture();
+    controls.message = { type: "error", description };
+    const sessionId = await start();
+    const response = await load(sessionId, "// inert fixture");
+    expect(response.isError).not.toBe(true);
+    const evidence = toolContract("load_frida_script").outputSchema.parse(
+      response.structuredContent,
+    );
+    const result = evidence.normalized_result;
+    expect(result.messages_truncated).toBe(true);
+    const retained = jsonObjectSchema.parse(result.messages[0]);
+    expect(retained.description_truncated).toBe(true);
+    expect(
+      Buffer.byteLength(JSON.stringify(retained.description)) - 2,
+    ).toBeLessThanOrEqual(32_768);
+    const status = await client.callTool({
+      name: "frida_session_status",
+      arguments: { session_id: sessionId },
+    });
+    expect(status.isError).not.toBe(true);
+    expect(
+      toolContract("frida_session_status").outputSchema.parse(
+        status.structuredContent,
+      ),
+    ).toMatchObject({
+      normalized_result: { messages: [retained], messages_truncated: true },
+    });
+  },
+);
 
 it("declares non-destructive session mutation when status retains Evidence", async () => {
   const { client, start } = await connectedFixture();

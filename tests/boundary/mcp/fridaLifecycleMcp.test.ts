@@ -68,6 +68,7 @@ const nativeFixture = () => {
     attach: async () => {},
     create: async () => {},
     load: async () => {},
+    resume: async () => {},
     afterLoad: () => {},
     discover: async () => {},
     unloadFailures: 0,
@@ -79,9 +80,21 @@ const nativeFixture = () => {
     message: undefined as FridaMessage | undefined,
   };
   let detached = false;
+  let onDetached: (() => void) | undefined;
+  const markDetached = () => {
+    detached = true;
+    onDetached?.();
+  };
   const nativeSession: Session = {
     pid: 512,
-    detached: { connect() {}, disconnect() {} },
+    detached: {
+      connect(listener) {
+        onDetached = listener;
+      },
+      disconnect() {
+        onDetached = undefined;
+      },
+    },
     isDetached: () => detached,
     async detach() {
       controls.detachCalls += 1;
@@ -89,7 +102,7 @@ const nativeFixture = () => {
         controls.detachFailures -= 1;
         throw new Error("transient detach failure");
       }
-      detached = true;
+      markDetached();
     },
     async createScript(source) {
       created.push(source);
@@ -151,6 +164,7 @@ const nativeFixture = () => {
         created.filter((_, index) => scripts[index]?.isDestroyed === false),
       );
       controls.resumes += 1;
+      await controls.resume();
     },
     async attach() {
       await controls.attach();
@@ -183,6 +197,7 @@ const nativeFixture = () => {
     scripts,
     scriptsAtResume,
     deviceManager,
+    markDetached,
   };
 };
 
@@ -234,6 +249,83 @@ const connectedFixture = async () => {
     );
   return { ...native, manager, session, server, client, start, load };
 };
+
+it.each(["attached", "during-resume", "after-resume"] as const)(
+  "preserves observed detachment through resume settlement: %s",
+  async (timing) => {
+    const fixture = await connectedFixture();
+    const held = gate();
+    onTestFinished(held.release);
+    fixture.controls.resume = held.wait;
+    const id = await fixture.start();
+    const state = async () => {
+      const result = await fixture.client.callTool({
+        name: "frida_session_status",
+        arguments: { session_id: id },
+      });
+      return toolContract("frida_session_status").outputSchema.parse(
+        result.structuredContent,
+      ).normalized_result.state;
+    };
+    const resuming = fixture.client.callTool({
+      name: "resume_frida_session",
+      arguments: { session_id: id },
+    });
+    await held.entered;
+    if (timing === "during-resume") fixture.markDetached();
+    expect(await state()).toBe(
+      timing === "during-resume" ? "detached" : "paused",
+    );
+    held.release();
+    const resumed = await resuming;
+    expect(resumed.isError).not.toBe(true);
+    expect(resumed.structuredContent).toEqual({ state: "running" });
+    if (timing === "after-resume") fixture.markDetached();
+    const expected = timing === "attached" ? "running" : "detached";
+    expect(await state()).toBe(expected);
+    expect(await state()).toBe(expected);
+    expect(fixture.manager.status(id)?.targetResumeObserved).toBe(true);
+  },
+);
+
+it("retains detached state and resume evidence when remote cleanup needs retry", async () => {
+  const fixture = await connectedFixture();
+  const started = await fixture.client.callTool({
+    name: "start_frida_session",
+    arguments: {
+      mode: "spawn",
+      program: "/fixture",
+      remote: { address: "127.0.0.1:27042" },
+    },
+  });
+  const id = toolContract("start_frida_session").outputSchema.parse(
+    started.structuredContent,
+  ).session_id;
+  fixture.controls.removalFailures = 1;
+  const close = () =>
+    fixture.client.callTool({
+      name: "close_frida_session",
+      arguments: { session_id: id },
+    });
+  expect((await close()).isError).toBe(true);
+  const result = await fixture.client.callTool({
+    name: "frida_session_status",
+    arguments: { session_id: id },
+  });
+  expect(
+    toolContract("frida_session_status").outputSchema.parse(
+      result.structuredContent,
+    ).normalized_result.state,
+  ).toBe("detached");
+  expect(fixture.manager.status(id)?.targetResumeObserved).toBe(true);
+  expect(fixture.controls.detachCalls).toBe(1);
+  expect(fixture.controls.resumes).toBe(1);
+  expect((await close()).isError).not.toBe(true);
+  expect(fixture.manager.status(id)).toBeUndefined();
+  expect(fixture.controls.detachCalls).toBe(1);
+  expect(fixture.controls.resumes).toBe(1);
+  expect(fixture.controls.remoteRemovals).toBe(2);
+});
 
 it.each([
   ["a trailing high surrogate", "x".repeat(32_765) + "\ud800"],

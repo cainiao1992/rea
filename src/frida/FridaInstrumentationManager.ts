@@ -94,7 +94,7 @@ interface ManagedSession extends ManagedRemoteConnection {
   readonly scripts: Map<string, ManagedScript>;
   readonly messages: MessageFifo<CapturedMessage>;
   readonly scriptCaptures: Map<string, ScriptMessageCapture>;
-  state: "paused" | "running" | "detached";
+  detached: boolean;
   targetResumeObserved: boolean;
   resumeAfterDetachPending: boolean;
   capturedBytes: number;
@@ -315,19 +315,19 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
         scripts: new Map(),
         messages: new MessageFifo(),
         scriptCaptures: new Map(),
-        state: input.mode === "spawn" ? "paused" : "running",
+        detached: false,
         targetResumeObserved: false,
         resumeAfterDetachPending: false,
         capturedBytes: 0,
         messagesTruncated: false,
       };
       session.detached.connect(() => {
-        managed.state = "detached";
+        managed.detached = true;
       });
       // A target can exit while metadata lookup/attach is pending, before
       // Frida installs this listener. Subscribe first, then reconcile the
       // current provider state so an already-emitted detach is not lost.
-      if (session.isDetached()) managed.state = "detached";
+      if (session.isDetached()) managed.detached = true;
       this.#sessions.set(id, managed);
       return ok(sessionObservation(managed));
     } catch (cause: unknown) {
@@ -386,7 +386,7 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
     if (signal?.aborted)
       return err(cancelledOperation("load_frida_script", signal));
     const managed = this.#sessions.get(sessionId);
-    if (managed === undefined || managed.state === "detached")
+    if (managed === undefined || managed.detached)
       return err(unknownFridaSession("load_frida_script", sessionId));
 
     let scriptSource: string;
@@ -541,9 +541,9 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
     sessionId: string,
   ): Promise<Result<null, AnalysisError>> {
     const managed = this.#sessions.get(sessionId);
-    if (managed === undefined || managed.state === "detached")
+    if (managed === undefined || managed.detached)
       return err(unknownFridaSession("resume_frida_session", sessionId));
-    if (managed.mode !== "spawn" || managed.state !== "paused")
+    if (managed.mode !== "spawn" || managed.targetResumeObserved)
       return err(
         new AnalysisCapabilityUnavailableError(
           "frida",
@@ -573,7 +573,6 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
     }
     try {
       await managed.device.resume(managed.pid);
-      managed.state = "running";
       managed.targetResumeObserved = true;
       managed.resumeAfterDetachPending = false;
       return ok(null);
@@ -697,11 +696,11 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
       return err(unknownFridaSession("close_frida_session", sessionId));
     const scriptFailures = new Map<string, string>();
     const cleanupFailures: string[] = [];
-    let parentSessionReleased =
-      managed.state === "detached" || managed.session.isDetached();
+    managed.detached ||= managed.session.isDetached();
+    let parentSessionReleased = managed.detached;
     const shouldResumePausedSpawn =
       managed.mode === "spawn" &&
-      ((!parentSessionReleased && managed.state === "paused") ||
+      ((!parentSessionReleased && !managed.targetResumeObserved) ||
         managed.resumeAfterDetachPending);
     let targetResumeObserved = managed.targetResumeObserved;
     for (const entry of [...managed.scripts.values()]) {
@@ -714,14 +713,14 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
     }
     try {
       if (!managed.session.isDetached()) await managed.session.detach();
-      managed.state = "detached";
+      managed.detached = true;
       parentSessionReleased = true;
     } catch (cause: unknown) {
       cleanupFailures.push(
         `Unable to detach Frida session: ${sanitizeError(cause, managed.remote)}`,
       );
-      parentSessionReleased =
-        managed.state === "detached" || managed.session.isDetached();
+      managed.detached ||= managed.session.isDetached();
+      parentSessionReleased = managed.detached;
     }
     if (parentSessionReleased) {
       for (const entry of [...managed.scripts.values()]) {
@@ -733,7 +732,6 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
     if (shouldResumePausedSpawn && managed.scripts.size === 0) {
       try {
         await managed.device.resume(managed.pid);
-        managed.state = "running";
         managed.targetResumeObserved = true;
         managed.resumeAfterDetachPending = false;
         targetResumeObserved = true;
@@ -1390,6 +1388,17 @@ const remoteOptions = (remote: FridaRemoteConnection): RemoteDeviceOptions => ({
     : { keepaliveInterval: remote.keepaliveInterval }),
 });
 
+// Attachment and target execution have independent native observations. A
+// successful target resume cannot reattach a detached instrumentation session.
+const sessionState = (
+  managed: ManagedSession,
+): FridaSessionObservation["state"] =>
+  managed.detached
+    ? "detached"
+    : managed.mode === "spawn" && !managed.targetResumeObserved
+      ? "paused"
+      : "running";
+
 const sessionObservation = (
   managed: ManagedSession,
 ): FridaSessionObservation => ({
@@ -1398,7 +1407,7 @@ const sessionObservation = (
   target: managed.target,
   pid: managed.pid,
   mode: managed.mode,
-  state: managed.state,
+  state: sessionState(managed),
 });
 
 const sanitizeError = (

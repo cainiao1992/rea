@@ -450,6 +450,13 @@ and process residual unknowns. Successful cleanup verifies the owned group;
 it does not attribute those unrelated processes. Related or otherwise unexplained
 unreadable processes still prevent successful cleanup.
 
+Failed cleanup retains its exact resources for the owning session to retry.
+The CLI retries before projecting its error; MCP retries pending cleanup before
+admitting another capture and during session cleanup. Once every attributed
+owner confirms release, the live error status clears `cleanup_incomplete`.
+The original failure, observations and `cleanup_report` retain the facts from
+the earlier attempt, including any cleanup failure recorded then.
+
 On macOS, changing a Node process's `process.title` can make its run token
 unreadable. Node documents that [setting the title overwrites argv memory](https://nodejs.org/download/release/v24.18.0/docs/api/process.html#processtitle).
 With the pinned toolchain, a live child retained a readable start identity

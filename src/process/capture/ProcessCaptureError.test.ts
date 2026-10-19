@@ -6,13 +6,21 @@ import {
   normalizeCaptureFailure,
   ProcessCaptureError,
 } from "./ProcessCaptureError.js";
-import { resolveProcessResult } from "./ProcessCaptureLifecycle.js";
+import {
+  resolveProcessResult,
+  type ProcessCaptureCleanupOutcome,
+} from "./ProcessCaptureLifecycle.js";
+import type { ProcessCaptureCleanupReport } from "../../domain/process/processCapture.js";
 
 const cleanupReport = {
   owned_process_group: { state: "not_required" as const, reason: null },
   terminal_renderer: { state: "not_required" as const, reason: null },
   temporary_root: { state: "cleaned" as const, reason: null },
 };
+const historicalCleanupOutcome = (
+  report: ProcessCaptureCleanupReport,
+): ProcessCaptureCleanupOutcome => ({ report, cleanupLease: undefined });
+
 const fixture = () => {
   const cleanup = new ProviderCleanupError(
     "process-ownership",
@@ -70,7 +78,11 @@ it("retains compiler facts and cleanup dependency through capture finalization",
   const { cleanup, error } = fixture();
   let finalized: unknown;
   try {
-    resolveProcessResult(undefined, error, cleanupReport);
+    resolveProcessResult(
+      undefined,
+      error,
+      historicalCleanupOutcome(cleanupReport),
+    );
   } catch (cause: unknown) {
     finalized = cause;
   }
@@ -98,13 +110,17 @@ it("keeps later capture cleanup unresolved after compiler cleanup succeeds", () 
   const { cleanup, error } = fixture();
   let finalized: unknown;
   try {
-    resolveProcessResult(undefined, error, {
-      ...cleanupReport,
-      temporary_root: {
-        state: "failed",
-        reason: "capture root removal denied",
-      },
-    });
+    resolveProcessResult(
+      undefined,
+      error,
+      historicalCleanupOutcome({
+        ...cleanupReport,
+        temporary_root: {
+          state: "failed",
+          reason: "capture root removal denied",
+        },
+      }),
+    );
   } catch (cause: unknown) {
     finalized = cause;
   }

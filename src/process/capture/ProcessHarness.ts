@@ -201,16 +201,16 @@ const cleanupFailedStartup = async (options: {
     temporaryRoot: options.temporaryRoot,
     ...(options.cleanupHost === undefined ? {} : { host: options.cleanupHost }),
   };
-  const cleanup =
+  const cleanupOutcome =
     options.resourceScope === undefined
       ? await releaseProcessResources(cleanupOptions)
       : await options.resourceScope.release(cleanupOptions);
-  const cleanupFailure = cleanupReportFailure(cleanup);
+  const cleanupFailure = cleanupReportFailure(cleanupOutcome.report);
   if (cleanupFailure !== undefined) {
     resolveProcessResult(
       undefined,
       options.cause,
-      cleanup,
+      cleanupOutcome,
       options.observations,
       {
         scenario: options.scenario,
@@ -401,10 +401,11 @@ const finishProcessRun = async (options: {
     temporaryRoot: options.temporaryRoot,
     ...(options.cleanupHost === undefined ? {} : { host: options.cleanupHost }),
   };
-  const cleanup =
+  const cleanupOutcome =
     options.resourceScope === undefined
       ? await releaseProcessResources(cleanupOptions)
       : await options.resourceScope.release(cleanupOptions);
+  const cleanup = cleanupOutcome.report;
   let { capture, executionFailure } = options;
   if (executionFailure === undefined && options.signal?.aborted)
     executionFailure = processCaptureCancelled(options.signal.reason);
@@ -455,7 +456,7 @@ const finishProcessRun = async (options: {
   return resolveProcessResult(
     cleanupFailure === undefined ? verifiedCapture : capture,
     executionFailure,
-    cleanup,
+    cleanupOutcome,
     options.observations,
     partialContext,
   );

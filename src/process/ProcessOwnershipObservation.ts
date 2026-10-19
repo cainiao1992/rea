@@ -6,6 +6,7 @@ import {
   processIdentityIsExiting,
   PROCESS_CLEANUP_VERIFICATION_GRACE_MS,
   PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS,
+  type ProcessExitSettlementBudget,
 } from "./ProcessLifecycle.js";
 import { parseLinuxProcessStat } from "./LinuxProcessStat.js";
 import { parseLinuxProcessEffectiveUid } from "./LinuxProcessStatus.js";
@@ -539,6 +540,7 @@ export const settleExitingProcessIdentities = async (
   host: ProcessOwnershipHost,
   initial: ReadonlyMap<number, ProcessIdentityObservation>,
   signal?: AbortSignal,
+  budget: ProcessExitSettlementBudget = { deadline: undefined },
 ): Promise<ReadonlyMap<number, ProcessIdentityObservation>> => {
   signal?.throwIfAborted();
   let pending = processes.filter(({ pid }) =>
@@ -546,7 +548,8 @@ export const settleExitingProcessIdentities = async (
   );
   if (pending.length === 0) return initial;
   const identities = new Map(initial);
-  const deadline = performance.now() + PROCESS_CLEANUP_VERIFICATION_GRACE_MS;
+  const deadline = (budget.deadline ??=
+    performance.now() + PROCESS_CLEANUP_VERIFICATION_GRACE_MS);
   while (pending.length > 0) {
     const remaining = deadline - performance.now();
     if (remaining <= 0) break;
@@ -589,6 +592,7 @@ export const readProcessOwnershipFacts = async (
   signal?: AbortSignal,
   options: {
     readonly identityBefore?: ReadonlyMap<number, ProcessIdentityObservation>;
+    readonly exitSettlement?: ProcessExitSettlementBudget;
   } = {},
 ): Promise<readonly ProcessOwnershipFact[]> => {
   signal?.throwIfAborted();
@@ -627,19 +631,30 @@ export const readProcessOwnershipFacts = async (
       .filter(({ pid }) => tokens.get(pid)?.state !== "readable")
       .map(({ pid }) => pid),
   );
+  const observedAfter = await readIdentityFacts(
+    processes,
+    host,
+    "after",
+    signal,
+    effectiveUidPids,
+  );
   const identityAfter = await settleExitingProcessIdentities(
     processes,
     host,
-    await readIdentityFacts(processes, host, "after", signal, effectiveUidPids),
+    observedAfter,
     signal,
+    options.exitSettlement,
   );
   signal?.throwIfAborted();
-  const facts = processes.map((process): ProcessOwnershipFact => {
+  const deriveFact = (
+    process: ProcessTableEntry,
+    observation: ProcessIdentityObservation | undefined,
+  ): ProcessOwnershipFact => {
     const before = identityBefore.get(process.pid) ?? {
       state: "unavailable" as const,
       reason: "process identity was not returned during before observation",
     };
-    const after = identityAfter.get(process.pid) ?? {
+    const after = observation ?? {
       state: "unavailable" as const,
       reason: "process identity was not returned during after observation",
     };
@@ -664,6 +679,14 @@ export const readProcessOwnershipFacts = async (
       token,
       identityAfter: after,
     };
+  };
+  const facts = processes.map((process): ProcessOwnershipFact => {
+    const after = identityAfter.get(process.pid);
+    const original = observedAfter.get(process.pid);
+    const fact = deriveFact(process, after);
+    return after === original
+      ? fact
+      : { ...fact, beforeExitSettlement: deriveFact(process, original) };
   });
   signal?.throwIfAborted();
   return facts;

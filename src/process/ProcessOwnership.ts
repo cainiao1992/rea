@@ -22,6 +22,7 @@ import {
   processIdentityHasExited,
   processIdentityIsExiting,
   type ProcessLifecycleObservation,
+  type ProcessExitSettlementBudget,
 } from "./ProcessLifecycle.js";
 
 const execFileAsync = promisify(execFile);
@@ -117,7 +118,7 @@ export type ProcessNativeRelationObservation =
   | { readonly state: "unavailable"; readonly reason: string };
 
 /** One caller-supplied process row validated across identity/token/identity reads. */
-export interface ProcessOwnershipFact {
+interface ProcessOwnershipFactSnapshot {
   /** Caller-supplied candidate row; its parent/group may predate this read. */
   readonly process: ProcessTableEntry;
   /** Identity relation only; token ownership still requires matching readable runId. */
@@ -127,6 +128,11 @@ export interface ProcessOwnershipFact {
   readonly token: ProcessRunTokenObservation;
   /** Current membership is only this read's native relation, when available. */
   readonly identityAfter: ProcessIdentityObservation;
+}
+
+export interface ProcessOwnershipFact extends ProcessOwnershipFactSnapshot {
+  /** Bracketed ownership proof before a later native exit observation. */
+  readonly beforeExitSettlement?: ProcessOwnershipFactSnapshot;
 }
 
 /** Token-verified process lineage retained for one owned provider run. */
@@ -327,6 +333,7 @@ export const cleanupOwnedProcessGroup = async (
   ownership: OwnedProcessGroup,
   host: ProcessOwnershipHost = systemHost,
 ): Promise<ProcessCleanupResult> => {
+  const exitSettlement: ProcessExitSettlementBudget = { deadline: undefined };
   const processTable = await readLiveProcessTable(host);
   if (!processTable.available)
     return {
@@ -337,6 +344,7 @@ export const cleanupOwnedProcessGroup = async (
     ownership,
     processTable.processes,
     host,
+    exitSettlement,
   );
   if ("cleaned" in plan) return plan;
   let signaled = false;
@@ -346,6 +354,7 @@ export const cleanupOwnedProcessGroup = async (
       ownership,
       host,
       plan.tokenOwnedIdentities,
+      exitSettlement,
     );
     if ("cleaned" in revalidation)
       return mergeUnverifiedObservations(revalidation, plan.unverified);
@@ -386,6 +395,7 @@ export const cleanupOwnedProcessGroup = async (
         host,
         ownership.captureBaseline,
         relation,
+        exitSettlement,
       );
       while (!verification.cleaned) {
         const remaining = deadline - performance.now();
@@ -398,6 +408,7 @@ export const cleanupOwnedProcessGroup = async (
           host,
           ownership.captureBaseline,
           relation,
+          exitSettlement,
         );
       }
     } catch (cause: unknown) {
@@ -429,6 +440,7 @@ export const verifyNoTokenOwnedProcesses = async (
   host: ProcessOwnershipHost = systemHost,
   captureBaseline?: ProcessOwnershipBaseline,
   relation?: OwnershipSweepRelation,
+  exitSettlement: ProcessExitSettlementBudget = { deadline: undefined },
 ): Promise<ProcessCleanupResult> => {
   const processTable = await readLiveProcessTable(host);
   if (!processTable.available)
@@ -442,6 +454,7 @@ export const verifyNoTokenOwnedProcesses = async (
     host,
     captureBaseline,
     relation,
+    exitSettlement,
   );
   if (scan.failures.length > 0)
     return cleanupValidationFailure(scan.failures, scan.unverified);
@@ -555,6 +568,7 @@ const settleLauncherExit = async (
   ownership: OwnedProcessGroup,
   processes: readonly ProcessTableEntry[],
   host: ProcessOwnershipHost,
+  exitSettlement: ProcessExitSettlementBudget,
 ): Promise<
   | readonly ProcessTableEntry[]
   | Extract<ProcessCleanupResult, { readonly cleaned: false }>
@@ -571,6 +585,8 @@ const settleLauncherExit = async (
       [launcher],
       host,
       initialIdentities,
+      undefined,
+      exitSettlement,
     );
     const identity = identities.get(launcher.pid);
     const initialIdentity = initialIdentities.get(launcher.pid);
@@ -647,8 +663,14 @@ const createOwnedCleanupPlan = async (
   ownership: OwnedProcessGroup,
   initialProcesses: readonly ProcessTableEntry[],
   host: ProcessOwnershipHost,
+  exitSettlement: ProcessExitSettlementBudget,
 ): Promise<OwnedCleanupPlan | ProcessCleanupResult> => {
-  const processes = await settleLauncherExit(ownership, initialProcesses, host);
+  const processes = await settleLauncherExit(
+    ownership,
+    initialProcesses,
+    host,
+    exitSettlement,
+  );
   if ("cleaned" in processes) return processes;
   const relationSnapshot = await readProcessRelationSnapshot(
     ownership,
@@ -676,6 +698,7 @@ const createOwnedCleanupPlan = async (
               ? {}
               : { sampledProcessGroupIds: [...sampledProcessGroupIds] }),
           },
+          exitSettlement,
         )
       : { owned: [], failures: [], unverified: [], identities: new Map() };
   const tokenOwnedGroupIds = new Set(
@@ -764,6 +787,7 @@ const createOwnedCleanupPlan = async (
       ownership.runId,
       host,
       tokenOwned.identities,
+      exitSettlement,
     );
     if (failures.length === 0 && unverifiableSampledGroups.has(processGroupId))
       unresolved.push(
@@ -839,6 +863,7 @@ const revalidateOwnedProcessGroup = async (
   ownership: OwnedProcessGroup,
   host: ProcessOwnershipHost,
   expectedIdentities: ReadonlyMap<number, string | null>,
+  exitSettlement: ProcessExitSettlementBudget,
 ): Promise<{ readonly empty: boolean } | ProcessCleanupResult> => {
   let members: readonly ProcessTableEntry[];
   try {
@@ -846,6 +871,7 @@ const revalidateOwnedProcessGroup = async (
       ownership,
       liveProcesses(await host.listProcesses()),
       host,
+      exitSettlement,
     );
     if ("cleaned" in processes) return processes;
     const relationSnapshot = await readProcessRelationSnapshot(
@@ -870,6 +896,7 @@ const revalidateOwnedProcessGroup = async (
     ownership.runId,
     host,
     expectedIdentities,
+    exitSettlement,
   );
   if (failures.length > 0) return cleanupValidationFailure(failures);
   if (
@@ -982,9 +1009,12 @@ const processOwnershipFailures = async (
   runId: string,
   host: ProcessOwnershipHost,
   expectedIdentities: ReadonlyMap<number, string | null> = new Map(),
+  exitSettlement: ProcessExitSettlementBudget = { deadline: undefined },
 ): Promise<readonly ProcessOwnershipValidationFailure[]> => {
   if (host.processIdentities !== undefined) {
-    const facts = await readProcessOwnershipFacts(members, host);
+    const facts = await readProcessOwnershipFacts(members, host, undefined, {
+      exitSettlement,
+    });
     const failures: ProcessOwnershipValidationFailure[] = [];
     for (const fact of facts) {
       if (processIdentityHasExited(fact.identityAfter)) continue;
@@ -1173,6 +1203,7 @@ const scanTokenOwnedProcesses = async (
   host: ProcessOwnershipHost,
   captureBaseline?: ProcessOwnershipBaseline,
   relation?: OwnershipSweepRelation,
+  exitSettlement: ProcessExitSettlementBudget = { deadline: undefined },
 ): Promise<TokenOwnedProcessScan> => {
   if (host.processIdentities !== undefined)
     return scanWithOwnershipEvidence(
@@ -1181,6 +1212,7 @@ const scanTokenOwnedProcesses = async (
       host,
       captureBaseline,
       relation,
+      exitSettlement,
     );
 
   const candidates = processes;
@@ -1273,6 +1305,7 @@ const scanWithOwnershipEvidence = async (
   host: ProcessOwnershipHost,
   captureBaseline: ProcessOwnershipBaseline | undefined,
   relation: OwnershipSweepRelation | undefined,
+  exitSettlement: ProcessExitSettlementBudget,
 ): Promise<TokenOwnedProcessScan> => {
   const evidenceOwner =
     relation === undefined
@@ -1323,6 +1356,7 @@ const scanWithOwnershipEvidence = async (
     undefined,
     {
       identityBefore: firstIdentities,
+      exitSettlement,
     },
   );
   let facts = initialFacts;
@@ -1337,7 +1371,12 @@ const scanWithOwnershipEvidence = async (
       .map(({ process }) => process);
     if (retryRows.length === 0) break;
     await delay(TOKEN_READ_RETRY_DELAY_MS);
-    const retries = await readProcessOwnershipFacts(retryRows, host);
+    const retries = await readProcessOwnershipFacts(
+      retryRows,
+      host,
+      undefined,
+      { exitSettlement },
+    );
     const retryByPid = new Map(retries.map((fact) => [fact.process.pid, fact]));
     facts = facts.map((fact) => retryByPid.get(fact.process.pid) ?? fact);
   }

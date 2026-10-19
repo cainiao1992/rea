@@ -10,6 +10,11 @@ export type ProcessLifecycleObservation =
 export const PROCESS_CLEANUP_VERIFICATION_GRACE_MS = 1_000;
 export const PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS = 25;
 
+/** One operation owns a lazily started native-exit waiting window. */
+export interface ProcessExitSettlementBudget {
+  deadline: number | undefined;
+}
+
 export const processIdentityHasExited = (
   identity: ProcessIdentityObservation | undefined,
 ): boolean =>

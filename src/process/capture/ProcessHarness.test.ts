@@ -42,6 +42,7 @@ const incompleteFilesystemCoverage = {
 } satisfies typeof emptyFilesystemCoverage;
 it("retains cancellation and cleanup facts when ownership baseline inspection aborts", async () => {
   const controller = new AbortController();
+  const reason = new Error("ownership baseline caller cancellation");
   const scenario = processScenarioSchema.parse({
     executable: process.execPath,
   });
@@ -58,7 +59,7 @@ it("retains cancellation and cleanup facts when ownership baseline inspection ab
       {
         createTemporaryRoot: async () => "/fixture/allocated-root",
         captureOwnershipBaseline: async () => {
-          controller.abort();
+          controller.abort(reason);
           controller.signal.throwIfAborted();
           return [];
         },
@@ -67,6 +68,7 @@ it("retains cancellation and cleanup facts when ownership baseline inspection ab
     ),
   ).rejects.toMatchObject({
     reason: "cancelled",
+    cause: reason,
     message: "process capture was cancelled",
     cleanupReport: {
       temporary_root: { state: "cleaned", reason: null },

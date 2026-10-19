@@ -102,8 +102,11 @@ export const describeProcessCaptureExecutionFailure = (
 };
 
 /** Caller-visible cancellation without exposing capture implementation state. */
-export const processCaptureCancelled = (): ProcessCaptureError =>
+export const processCaptureCancelled = (
+  reason?: unknown,
+): ProcessCaptureError =>
   new ProcessCaptureError("process capture was cancelled", {
+    cause: reason,
     userCategory: "cancelled",
     reason: "cancelled",
     userMessage: "Process capture was cancelled. Start it again when ready.",
@@ -142,6 +145,6 @@ export const normalizeCaptureFailure = (
     (cause === signal.reason ||
       (cause instanceof Error && cause.name === "AbortError"))
   )
-    return processCaptureCancelled();
+    return processCaptureCancelled(signal.reason);
   return cause;
 };

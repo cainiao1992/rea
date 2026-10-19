@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import {
   CANONICAL_BASE64_PATTERN,
   IDENTIFIER_PATTERN,
+  PADDED_BASE64_PATTERN,
   STABLE_IDENTIFIER_PATTERN,
 } from "./stringPatterns.js";
 
@@ -57,6 +58,11 @@ it("preserves canonical base64 padding and pad-bit validation", () => {
     "AAA",
     "====",
     "AA==\n",
+    "AA==\r\n",
+    "AA==\u2028",
+    "AA==\u2029",
+    "AA\nAA",
+    "AA=\n=",
     "AA-_",
     "a b c",
   ];
@@ -71,5 +77,22 @@ it("preserves canonical base64 padding and pad-bit validation", () => {
       expect(projected.test(sample), JSON.stringify({ flag, sample })).toBe(
         previous.test(sample),
       );
+  }
+});
+
+it("validates large canonical base64 under JSON Schema Unicode modes", () => {
+  // Near the 32 MiB capture input budget: a quartet expansion alone still
+  // overflows at this size, especially in Unicode-set client validators.
+  const body = Buffer.alloc(24 * 1024 * 1024 - 3, 0x81);
+  const encoded = body.toString("base64");
+  for (const flag of ["", "u", "v"]) {
+    const pattern = new RegExp(CANONICAL_BASE64_PATTERN.source, flag);
+    expect(pattern.test(encoded), flag).toBe(true);
+    expect(pattern.test(`${encoded.slice(0, -1)}!`), flag).toBe(false);
+    expect(pattern.test(`${encoded.slice(0, -3)}R==`), flag).toBe(false);
+    expect(pattern.test(`${encoded}A`), flag).toBe(false);
+    const padded = new RegExp(PADDED_BASE64_PATTERN.source, flag);
+    expect(padded.test(encoded), flag).toBe(true);
+    expect(padded.test(`${encoded.slice(0, -1)}!`), flag).toBe(false);
   }
 });

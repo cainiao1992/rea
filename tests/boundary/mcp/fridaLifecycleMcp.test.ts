@@ -492,6 +492,67 @@ it.each([
   },
 );
 
+it("preserves the native resume failure after MCP cancellation reaches the server", async () => {
+  const fixture = await connectedFixture();
+  const held = gate();
+  onTestFinished(held.release);
+  fixture.controls.resume = async () => {
+    await held.wait();
+    fixture.controls.resume = async () => {};
+    throw new Error("native resume rejected");
+  };
+  const delivery = vi.spyOn(ToolResultDelivery.prototype, "toCallToolResult");
+  onTestFinished(() => delivery.mockRestore());
+  let serverSignal: AbortSignal | undefined;
+  const resume = fixture.manager.resumeSession.bind(fixture.manager);
+  const resumeSpy = vi
+    .spyOn(fixture.manager, "resumeSession")
+    .mockImplementation((id, signal) => {
+      serverSignal = signal;
+      return resume(id, signal);
+    });
+  onTestFinished(() => resumeSpy.mockRestore());
+  const controller = new AbortController();
+  const pending = fixture.client
+    .callTool(
+      {
+        name: "instrument_with_frida",
+        arguments: {
+          mode: "spawn",
+          program: "/fixture",
+          device_id: "local",
+          source_kind: "inline",
+          source: "resume-failure",
+          duration_ms: 0,
+        },
+      },
+      { signal: controller.signal },
+    )
+    .catch((cause: unknown) => cause);
+  await held.entered;
+  controller.abort(new Error("cancel pending resume"));
+  await fixture.client.ping();
+  expect(serverSignal?.aborted).toBe(true);
+  held.release();
+  await pending;
+  await vi.waitFor(() => expect(delivery).toHaveBeenCalledOnce());
+  expect(delivery.mock.calls[0]?.[0]).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisCapabilityUnavailableError",
+      operation: "resume_frida_session",
+      message: expect.stringContaining("native resume rejected"),
+    },
+  });
+  expect(fixture.controls.detachCalls).toBe(1);
+  expect(fixture.unloaded).toEqual(["resume-failure"]);
+  expect(
+    fixture.session
+      .exportEvidenceBundle()
+      .records.filter((record) => record.operation === "instrument_with_frida"),
+  ).toEqual([]);
+});
+
 it("declares non-destructive session mutation when status retains Evidence", async () => {
   const { client, start } = await connectedFixture();
   const id = await start();

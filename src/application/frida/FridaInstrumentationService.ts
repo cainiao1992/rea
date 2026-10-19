@@ -313,15 +313,10 @@ export class FridaInstrumentationService {
         started.value.sessionId,
         signal,
       );
-      if (signal?.aborted)
-        return this.#cancelSession(
-          "instrument_with_frida",
-          started.value,
-          input,
-          signal.reason,
-          { script: loaded.value },
-        );
-      if (!resumed.ok) {
+      if (
+        !resumed.ok &&
+        !(signal?.aborted && resumed.error instanceof AnalysisCancelledError)
+      ) {
         const closed = await this.#provider.closeSession(
           started.value.sessionId,
         );
@@ -335,6 +330,14 @@ export class FridaInstrumentationService {
               ),
             );
       }
+      if (signal?.aborted)
+        return this.#cancelSession(
+          "instrument_with_frida",
+          started.value,
+          input,
+          signal.reason,
+          { script: loaded.value },
+        );
     }
     try {
       await delay(input.durationMs, undefined, { signal });

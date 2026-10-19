@@ -277,6 +277,127 @@ it("reports the spawned session when cancellation arrives during resume", async 
   expect(closes).toBe(1);
 });
 
+it.each([false, true])(
+  "preserves a native resume failure when cancellation arrives before it settles (cleanupFails=%s)",
+  async (cleanupFails) => {
+    const controller = new AbortController();
+    const abortReason = new Error("late cancellation during native resume");
+    const primary = new AnalysisCapabilityUnavailableError(
+      "frida",
+      "resume_frida_session",
+      "native resume failed",
+      { diagnostics: { native_status: "resume_rejected" } },
+    );
+    let markResumeEntered: (() => void) | undefined;
+    let finishResume:
+      | ((result: {
+          readonly ok: false;
+          readonly error: AnalysisCapabilityUnavailableError;
+        }) => void)
+      | undefined;
+    const resumeEntered = new Promise<void>((resolve) => {
+      markResumeEntered = resolve;
+    });
+    let closes = 0;
+    const service = new FridaInstrumentationService(
+      createProvider({
+        resumeSession() {
+          markResumeEntered?.();
+          return new Promise((resolve) => {
+            finishResume = resolve;
+          });
+        },
+        async closeSession() {
+          closes += 1;
+          return cleanupFails
+            ? {
+                ok: false,
+                error: new AnalysisCapabilityUnavailableError(
+                  "frida",
+                  "close_frida_session",
+                  "session cleanup failed",
+                ),
+              }
+            : { ok: true, value: { targetResumeObserved: false } };
+        },
+      }),
+    );
+
+    const pending = service.instrument(
+      {
+        mode: "spawn",
+        deviceId: "local",
+        program: "/fixture",
+        source: { sourceKind: "inline", source: "send('resume-failure')" },
+        durationMs: 0,
+      },
+      controller.signal,
+    );
+    await resumeEntered;
+    controller.abort(abortReason);
+    finishResume?.({ ok: false, error: primary });
+    const result = await pending;
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).not.toBeInstanceOf(AnalysisCancelledError);
+    if (cleanupFails) {
+      expect(result.error).toBeInstanceOf(AnalysisCapabilityUnavailableError);
+      expect(result.error.cause).toBe(primary);
+      expect(result.error.diagnostics).toEqual({
+        native_status: "resume_rejected",
+      });
+      expect(result.error.cleanup).toMatchObject({
+        reason: expect.stringContaining("session cleanup failed"),
+        resources: [createSession().sessionId],
+      });
+    } else {
+      expect(result.error).toBe(primary);
+    }
+    expect(closes).toBe(1);
+  },
+);
+
+it("keeps a typed resume cancellation as cancellation when its signal is aborted", async () => {
+  const controller = new AbortController();
+  const abortReason = new Error("native resume was cancelled");
+  let closes = 0;
+  const service = new FridaInstrumentationService(
+    createProvider({
+      async resumeSession() {
+        controller.abort(abortReason);
+        return {
+          ok: false,
+          error: new AnalysisCancelledError("resume_frida_session", {
+            cause: abortReason,
+          }),
+        };
+      },
+      async closeSession() {
+        closes += 1;
+        return { ok: true, value: { targetResumeObserved: false } };
+      },
+    }),
+  );
+
+  const result = await service.instrument(
+    {
+      mode: "spawn",
+      deviceId: "local",
+      program: "/fixture",
+      source: { sourceKind: "inline", source: "send('resume-cancel')" },
+      durationMs: 0,
+    },
+    controller.signal,
+  );
+
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+  expect(result.error.cause).toBe(abortReason);
+  expect(closes).toBe(1);
+});
+
 it("does not infer a Frida resume for a running attached target on cancellation", async () => {
   const controller = new AbortController();
   const service = new FridaInstrumentationService(

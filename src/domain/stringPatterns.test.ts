@@ -1,10 +1,16 @@
 import { expect, it } from "vitest";
+import { z } from "zod";
 
 import {
-  CANONICAL_BASE64_PATTERN,
+  BASE64_QUARTET_LENGTH_PATTERN,
+  INVALID_BASE64_CHARACTER_PATTERN,
+  INVALID_BASE64_PADDING_PATTERN,
+  INVALID_CANONICAL_BASE64_PAD_BITS_PATTERN,
   IDENTIFIER_PATTERN,
-  PADDED_BASE64_PATTERN,
   STABLE_IDENTIFIER_PATTERN,
+  canonicalBase64Schema,
+  isCanonicalBase64,
+  isPaddedBase64,
 } from "./stringPatterns.js";
 
 it("preserves identifier grammars under Unicode and Unicode-set compilation", () => {
@@ -43,7 +49,7 @@ it("preserves identifier grammars under Unicode and Unicode-set compilation", ()
   }
 });
 
-it("preserves canonical base64 padding and pad-bit validation", () => {
+it("preserves canonical and permissive padded base64 validation", () => {
   const previous =
     /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$/;
   const samples = [
@@ -71,28 +77,62 @@ it("preserves canonical base64 padding and pad-bit validation", () => {
   for (const first of alphabet)
     for (const second of alphabet)
       samples.push(`${first}${second}==`, `A${first}${second}=`);
-  for (const flag of ["u", "v"]) {
-    const projected = new RegExp(CANONICAL_BASE64_PATTERN.source, flag);
-    for (const sample of samples)
-      expect(projected.test(sample), JSON.stringify({ flag, sample })).toBe(
-        previous.test(sample),
-      );
+  for (const sample of samples) {
+    expect(isCanonicalBase64(sample), JSON.stringify({ sample })).toBe(
+      previous.test(sample),
+    );
+    expect(isPaddedBase64(sample), JSON.stringify({ sample })).toBe(
+      sample.length % 4 === 0 && /^[A-Za-z0-9+/]*(?:==|=)?$/.test(sample),
+    );
   }
 });
 
-it("validates large canonical base64 under JSON Schema Unicode modes", () => {
-  // Near the 32 MiB capture input budget: a quartet expansion alone still
-  // overflows at this size, especially in Unicode-set client validators.
+it("advertises every portable base64 constraint and keeps large inputs stack-safe", () => {
+  const jsonSchema = z.toJSONSchema(canonicalBase64Schema, {
+    target: "draft-2020-12",
+  });
+  expect(jsonSchema).toMatchObject({
+    allOf: expect.arrayContaining([
+      { pattern: BASE64_QUARTET_LENGTH_PATTERN.source },
+      { not: { pattern: INVALID_BASE64_CHARACTER_PATTERN.source } },
+      { not: { pattern: INVALID_BASE64_PADDING_PATTERN.source } },
+      { not: { pattern: INVALID_CANONICAL_BASE64_PAD_BITS_PATTERN.source } },
+    ]),
+  });
+
   const body = Buffer.alloc(24 * 1024 * 1024 - 3, 0x81);
   const encoded = body.toString("base64");
   for (const flag of ["", "u", "v"]) {
-    const pattern = new RegExp(CANONICAL_BASE64_PATTERN.source, flag);
-    expect(pattern.test(encoded), flag).toBe(true);
-    expect(pattern.test(`${encoded.slice(0, -1)}!`), flag).toBe(false);
-    expect(pattern.test(`${encoded.slice(0, -3)}R==`), flag).toBe(false);
-    expect(pattern.test(`${encoded}A`), flag).toBe(false);
-    const padded = new RegExp(PADDED_BASE64_PATTERN.source, flag);
-    expect(padded.test(encoded), flag).toBe(true);
-    expect(padded.test(`${encoded.slice(0, -1)}!`), flag).toBe(false);
+    expect(
+      new RegExp(BASE64_QUARTET_LENGTH_PATTERN.source, flag).test(encoded),
+      flag,
+    ).toBe(true);
+    expect(
+      new RegExp(INVALID_BASE64_CHARACTER_PATTERN.source, flag).test(encoded),
+      flag,
+    ).toBe(false);
+    expect(
+      new RegExp(INVALID_BASE64_PADDING_PATTERN.source, flag).test(encoded),
+      flag,
+    ).toBe(false);
+    expect(
+      new RegExp(INVALID_CANONICAL_BASE64_PAD_BITS_PATTERN.source, flag).test(
+        encoded,
+      ),
+      flag,
+    ).toBe(false);
+    expect(
+      new RegExp(INVALID_BASE64_CHARACTER_PATTERN.source, flag).test(
+        `${encoded.slice(0, -1)}!`,
+      ),
+      flag,
+    ).toBe(true);
+    expect(
+      new RegExp(INVALID_CANONICAL_BASE64_PAD_BITS_PATTERN.source, flag).test(
+        `${encoded.slice(0, -3)}R==`,
+      ),
+      flag,
+    ).toBe(true);
   }
+  expect(isCanonicalBase64(encoded)).toBe(true);
 });

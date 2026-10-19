@@ -32,7 +32,11 @@ describe("Linux process start identities", () => {
       state: "S",
       command: process.execPath,
     } satisfies ProcessTableEntry;
-    const identities = await host.processIdentities?.([observedProcess]);
+    const identities = await host.processIdentities?.(
+      [observedProcess],
+      undefined,
+      new Set([observedProcess.pid]),
+    );
     expect(identities?.get(observedProcess.pid)).toMatchObject({
       state: "readable",
       identity: expect.stringMatching(/^linux-starttime:\d+$/u),
@@ -43,8 +47,9 @@ describe("Linux process start identities", () => {
         processGroupId: expect.any(Number),
       },
     });
-    expect(identities?.get(observedProcess.pid)).not.toHaveProperty(
+    expect(identities?.get(observedProcess.pid)).toHaveProperty(
       "effectiveUid",
+      process.geteuid!(),
     );
     const baseline = await host.captureBaseline?.();
     expect(baseline).toContainEqual({
@@ -110,9 +115,11 @@ it("validates and cleans an exact-token owner without a capture baseline", async
   expect(signalGroup).toHaveBeenCalledWith(process.processGroupId, "SIGKILL");
 });
 
-it.skipIf(typeof process.getuid !== "function")(
-  "uses a same-generation native UID instead of the process-table UID for unreadable tokens",
-  async () => {
+it
+  .skipIf(typeof process.getuid !== "function")
+  .each(["EINVAL", "EACCES: permission denied"])(
+  "uses a same-generation native UID instead of the process-table UID for unreadable tokens: %s",
+  async (diagnostic) => {
     const callerUid = process.getuid!();
     const foreignUid = callerUid === 0 ? 1 : 0;
     const verify = async (rowUid: number, effectiveUid: number) => {
@@ -132,7 +139,7 @@ it.skipIf(typeof process.getuid !== "function")(
         runTokens: () =>
           Promise.resolve(
             new Map([
-              [906, { state: "unavailable", reason: "EINVAL" } as const],
+              [906, { state: "unavailable", reason: diagnostic } as const],
             ]),
           ),
         processIdentities: (entries) =>
@@ -161,7 +168,7 @@ it.skipIf(typeof process.getuid !== "function")(
     });
     await expect(verify(callerUid, foreignUid)).resolves.toMatchObject({
       cleaned: true,
-      unverified: [{ pid: 906, diagnostic: "EINVAL" }],
+      unverified: [{ pid: 906, diagnostic }],
     });
   },
 );

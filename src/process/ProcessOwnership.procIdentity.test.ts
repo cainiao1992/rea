@@ -9,8 +9,14 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...original, readFile: filesystem.readFile };
 });
 
-import { createSystemProcessOwnershipHost } from "./ProcessOwnershipObservation.js";
-import type { ProcessTableEntry } from "./ProcessOwnership.js";
+import {
+  createSystemProcessOwnershipHost,
+  readProcessOwnershipFacts,
+} from "./ProcessOwnershipObservation.js";
+import type {
+  ProcessOwnershipHost,
+  ProcessTableEntry,
+} from "./ProcessOwnership.js";
 
 const entry: ProcessTableEntry = {
   pid: 42,
@@ -22,6 +28,144 @@ const entry: ProcessTableEntry = {
 
 const filesystemError = (code: string): NodeJS.ErrnoException =>
   Object.assign(new Error(code), { code });
+
+const procStat = (
+  startTime: number,
+  parentPid = 1,
+  processGroupId = 42,
+  pid = 42,
+) => {
+  const fields = ["S", String(parentPid), String(processGroupId), "42"];
+  while (fields.length < 19) fields.push("0");
+  fields.push(String(startTime));
+  return `${String(pid)} (fixture) ${fields.join(" ")}`;
+};
+
+it("binds Linux effective UID to the same native process generation", async () => {
+  const host = createSystemProcessOwnershipHost("linux", {});
+  filesystem.readFile
+    .mockResolvedValueOnce(procStat(100, 10, 42))
+    .mockResolvedValueOnce("Name:\tfixture\nUid:\t1000\t1001\t1002\t1003\n")
+    .mockResolvedValueOnce(procStat(100, 11, 43));
+
+  await expect(
+    host.processIdentities?.([entry], undefined, new Set([entry.pid])),
+  ).resolves.toEqual(
+    new Map([
+      [
+        42,
+        {
+          state: "readable",
+          identity: "linux-starttime:100",
+          effectiveUid: 1001,
+          lifecycle: { state: "observed", lifecycle: "non-zombie" },
+          relation: {
+            state: "observed",
+            parentPid: 11,
+            processGroupId: 43,
+          },
+        },
+      ],
+    ]),
+  );
+  expect(filesystem.readFile.mock.calls.map(([path]) => path)).toEqual([
+    "/proc/42/stat",
+    "/proc/42/status",
+    "/proc/42/stat",
+  ]);
+});
+
+it("keeps native identity when status UID is unavailable", async () => {
+  const host = createSystemProcessOwnershipHost("linux", {});
+  filesystem.readFile
+    .mockResolvedValueOnce(procStat(100))
+    .mockRejectedValueOnce(filesystemError("EACCES"));
+
+  await expect(
+    host.processIdentities?.([entry], undefined, new Set([entry.pid])),
+  ).resolves.toEqual(
+    new Map([
+      [
+        42,
+        {
+          state: "readable",
+          identity: "linux-starttime:100",
+          lifecycle: { state: "observed", lifecycle: "non-zombie" },
+          relation: {
+            state: "observed",
+            parentPid: 1,
+            processGroupId: 42,
+          },
+        },
+      ],
+    ]),
+  );
+  expect(filesystem.readFile).toHaveBeenCalledTimes(2);
+});
+
+it("does not attach a UID when the process generation changes around status", async () => {
+  const host = createSystemProcessOwnershipHost("linux", {});
+  filesystem.readFile
+    .mockResolvedValueOnce(procStat(100))
+    .mockResolvedValueOnce("Uid:\t1000\t1001\t1002\t1003\n")
+    .mockResolvedValueOnce(procStat(101));
+
+  await expect(
+    host.processIdentities?.([entry], undefined, new Set([entry.pid])),
+  ).resolves.toEqual(
+    new Map([
+      [
+        42,
+        {
+          state: "unavailable",
+          reason: "process_identity_changed_during_uid_observation",
+        },
+      ],
+    ]),
+  );
+});
+
+it("reads Linux effective UID only for token-unavailable rows", async () => {
+  const rows = [entry, { ...entry, pid: 43, processGroupId: 43 }];
+  const statReads = new Map<number, number>();
+  const uidStatusPids: number[] = [];
+  filesystem.readFile.mockImplementation(async (path) => {
+    const match = /^\/proc\/(\d+)\/(stat|status)$/u.exec(String(path));
+    if (match === null) throw new Error(`unexpected path: ${String(path)}`);
+    const pid = Number(match[1]);
+    if (match[2] === "status") {
+      uidStatusPids.push(pid);
+      return "Uid:\t1000\t1001\t1002\t1003\n";
+    }
+    const reads = (statReads.get(pid) ?? 0) + 1;
+    statReads.set(pid, reads);
+    return procStat(100, 1, pid, pid);
+  });
+  const systemHost = createSystemProcessOwnershipHost("linux", {});
+  const host: ProcessOwnershipHost = {
+    ...systemHost,
+    runTokens: async () =>
+      new Map([
+        [entry.pid, { state: "unavailable", reason: "EACCES" }],
+        [43, { state: "readable", runId: undefined }],
+      ]),
+  };
+
+  const facts = await readProcessOwnershipFacts(rows, host);
+
+  expect(uidStatusPids).toEqual([entry.pid]);
+  expect(facts.map(({ identityAfter }) => identityAfter)).toMatchObject([
+    { state: "readable", effectiveUid: 1001 },
+    { state: "readable" },
+  ]);
+  expect(facts[1]?.identityAfter).not.toHaveProperty("effectiveUid");
+  expect(statReads).toEqual(
+    new Map([
+      [entry.pid, 3],
+      [43, 2],
+    ]),
+  );
+});
 
 it("reports absence only when /proc lookup and signal-zero both report ESRCH", async () => {
   const host = createSystemProcessOwnershipHost("linux", {});

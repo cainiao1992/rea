@@ -119,6 +119,10 @@ const DEFERRED_IMPORTS = [
     path: "/dist/application/environment/environmentSource.js",
   },
   {
+    name: "environment-export",
+    path: "/dist/application/environment/environmentExport.js",
+  },
+  {
     name: "environment-server",
     path: "/dist/server/environment/serveEnvironment.js",
   },
@@ -176,6 +180,13 @@ describe("CLI startup imports", () => {
         ),
       ),
     ).resolves.toContain("environment-source");
+    await expect(
+      resolvedPackages(
+        evaluate(
+          'await import("./dist/application/environment/environmentExport.js");',
+        ),
+      ),
+    ).resolves.toContain("environment-export");
     const missingBrowser = join(
       await createTestTempDirectory("rea-startup-browser-"),
       "missing-browser",

@@ -4,7 +4,8 @@ Use `rea environment-serve` to serve an environment manifest as an agent
 environment: an MCP server whose tools answer from the records of one retained
 web network capture, plus the environment card the agentenv framework reads to
 discover it. Nothing is fetched from the recorded application; every answer is
-retained Evidence.
+retained Evidence. `rea environment-export` writes the same pair as a bundle
+folder `agent-env run` builds and runs; see [Export a bundle](#export-a-bundle).
 
 ```sh
 rea inspect-web-network-capture /absolute/session.har har --format json > capture.json
@@ -224,6 +225,94 @@ schema does not carry.
 `extensions`, `operations` and `children_environments` are fixed to `null`,
 `[]` and `null`: a replay environment declares no extensions, no data-plane
 operations and no children.
+
+## Export a bundle
+
+`rea environment-export` writes the same pair as a bundle folder the agentenv
+framework runs directly, shaped like its own echo example:
+
+```sh
+rea environment-export manifest.json --evidence capture.json ./grafana-example --json
+agent-env run ./grafana-example
+```
+
+```text
+grafana-example/
+  README.md                                 provenance, replay limits, run command, rights note
+  envs/grafana-example/Dockerfile           pinned image: node:24.18.0-bookworm-slim + rea-agents@<this version>
+  envs/grafana-example/env.toml             environment_name = "grafana-example"
+  envs/grafana-example/manifest.json        byte-exact copy of manifest.json
+  envs/grafana-example/evidence.json        byte-exact copy of capture.json
+  artifacts/check_grafana-example/verify.py the replay verifier
+  tasks/smoke.json                          deploy_env (local sandbox), then env_outcome_verifier
+```
+
+The command reads each file once, after checking that reading and parsing the
+whole file, including sealing traversal, fits the process's live heap headroom (a file that does not is
+refused as a `resource_constraint` before it is read), then authenticates and cross-checks the
+pair as `environment-serve` does, so a manifest projected from another capture
+is refused with the same `invalid_request` before anything is written, and the
+bytes it copies are the bytes it authenticated. The bundle directory must be
+absent or empty; an occupied directory is refused and nothing in it changes.
+The complete tool catalog must also fit the server's advertised catalog budget
+before any files are written. Privately parsed JSON is sealed once so authentication
+and replay share immutable response trees rather than copying the capture repeatedly.
+`--name` replaces the manifest's portable kebab-case name as the env folder and env id
+(Windows device names such as `con` and `lpt1` are refused);
+`--package-tarball <path>` copies a packed `rea-agents` tarball into the env
+folder and makes the Dockerfile install it instead of the registry package and
+remove it in the same layer, which is how a checkout rather than a release is
+run. The command prints the
+written files with their sizes and the pinned package source.
+
+Export uses the shared output-tree owner to check directory identities around
+exclusive creates, verify written bytes, and reject unowned entries before
+reporting success. It does not delete an inspectable partial folder on failure.
+Node's portable pathname APIs leave a syscall-boundary race, so the output's
+parent directories must be trusted. On POSIX output files use mode `0600`;
+Windows inherits ACLs and REA does not establish owner-only access there. Choose
+an already private Windows destination when captured content needs it.
+
+The Dockerfile sets `MCP_HOST=0.0.0.0` and `MCP_PORT=18765`, the port the
+framework maps for an MCP server env; the framework's own deploy supplies
+`MCP_HOST`, `MCP_PORT` and `ENVIRONMENT_NAME`, so the served card carries the
+env's name. It installs Debian's `python3` because the framework's local
+sandbox probes a container's readiness with `python3` inside it, which the slim
+Node image lacks. It copies the two inputs owned by the image's non-root `node`
+user, so a private host umask cannot leave them unreadable, runs as that user and starts
+`rea environment-serve /env/manifest.json --evidence /env/evidence.json`. The
+`env.toml` names the environment because the framework otherwise reads the
+name from Python sources the image does not have.
+
+`verify.py` is the framework's `async def verify(mcp_url)` shape over its
+Python MCP client: it lists the tools and checks the count equals the
+manifest's, calls the first `GET` tool without path parameters with no
+arguments and checks the call did not fail and its replayed `status` equals the
+recorded status of that tool's first cited record (an unknown recorded status
+stays unknown; it is not borrowed from another record), and returns one
+`replay` result whose description
+reports both checks. A manifest with no such tool yields a verifier that checks
+the count only and says so. `tasks/smoke.json` deploys the env on the local
+sandbox and runs that verifier against the env's MCP endpoint; the first run
+also builds the framework's own infrastructure, and the run tears everything
+down when it ends.
+
+The README written into the bundle records the capture artifact's SHA-256, the
+capture and manifest Evidence ids, the manifest view digest, the tool count and
+the package source, and states that the recorded content belongs to the
+captured application and must not be published without the rights to it.
+
+## Compatibility verification
+
+`npm run verify:agentenv:environment` is the hosted `real-agentenv` lane
+described in [testing](testing.md#exported-environment-bundles). It projects
+the Grafana-shaped source-owned capture through the built CLI, packs the
+checkout, exports a bundle with `--package-tarball`, runs it with the pinned
+`agentenv-framework` release on the runner's Docker and requires the smoke task
+to pass with no container left behind other than the framework's own
+image-registry helper, which the receipt reports. It proves that one exported bundle runs
+on one framework release; it does not claim any hosted platform or other
+framework versions.
 
 ## Resource and lifecycle boundaries
 

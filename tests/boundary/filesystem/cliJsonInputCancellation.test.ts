@@ -28,3 +28,18 @@ it("cancels a pending regular-file JSON read through the owning reader", async (
     error: { code: "cancelled", details: { operation: "test-input" } },
   });
 });
+
+it("cancels cooperative sealing of an owned inline Evidence input", async () => {
+  const controller = new AbortController();
+  const input = JSON.stringify(
+    Array.from({ length: 20000 }, () => ({ value: 1 })),
+  );
+  const pending = parseCliJsonInput(input, "test-input", controller.signal, {
+    snapshot: true,
+  });
+  controller.abort();
+  expect(await pending).toMatchObject({
+    ok: false,
+    error: { code: "cancelled" },
+  });
+});

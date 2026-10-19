@@ -1,3 +1,5 @@
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
+import type { EnvironmentExportResult } from "../application/environment/environmentExport.js";
 import { z } from "incur";
 import type { Logger } from "pino";
 
@@ -91,12 +93,14 @@ const serveEnvironmentCommand = async (
     input.manifest,
     CLI_COMMANDS.environmentServe,
     signal,
+    { snapshot: true },
   );
   if (!manifest.ok) return manifest.error;
   const evidence = await parseCliJsonInput(
     input.evidence,
     CLI_COMMANDS.environmentServe,
     signal,
+    { snapshot: true },
   );
   if (!evidence.ok) return evidence.error;
   const { loadEnvironmentSource } =
@@ -153,28 +157,126 @@ const serveEnvironmentCommand = async (
   };
 };
 
-/** Register the long-running agent environment server command. */
+interface ExportArguments {
+  readonly manifest: string;
+  readonly evidence: string;
+  readonly directory: string;
+  readonly packageTarball?: string | undefined;
+  readonly name?: string | undefined;
+}
+
+/** The written files with sizes and the pinned package source, as the command prints them. */
+const exportDocument = (result: EnvironmentExportResult): JsonValue => ({
+  status: result.status,
+  directory: result.directory,
+  name: result.name,
+  tool_count: result.tool_count,
+  evidence_id: result.evidence_id,
+  manifest_evidence_id: result.manifest_evidence_id,
+  package_source: result.package_source,
+  files: result.files.map(({ path, bytes }) => ({ path, bytes })),
+});
+
+/** Read each file once, authenticate the pair as the serve command does, then write the bundle from the same bytes. */
+const exportEnvironmentCommand = async (
+  input: ExportArguments,
+): Promise<JsonValue> => {
+  const { readEnvironmentExportInputs, exportEnvironmentBundle } =
+    await import("../application/environment/environmentExport.js");
+  const inputs = await readEnvironmentExportInputs(
+    input.manifest,
+    input.evidence,
+  );
+  if (!inputs.ok) return cliError(inputs.error);
+  // Loaded here, as for environment-serve, so registering the command catalog never loads it.
+  const { loadEnvironmentSource } =
+    await import("../application/environment/environmentSource.js");
+  const source = loadEnvironmentSource(
+    inputs.value.manifest.value,
+    inputs.value.evidence.value,
+    CLI_COMMANDS.environmentExport,
+  );
+  if (!source.ok) return cliError(source.error);
+  const exported = await exportEnvironmentBundle({
+    ...inputs.value,
+    source: source.value,
+    directory: absoluteCallerPath(input.directory),
+    name: input.name,
+    packageTarball:
+      input.packageTarball === undefined
+        ? undefined
+        : absoluteCallerPath(input.packageTarball),
+  });
+  return exported.ok
+    ? exportDocument(exported.value)
+    : cliError(exported.error);
+};
+
+const manifestArgument = z
+  .string()
+  .describe(
+    "Environment manifest Evidence JSON path (inspect-analysis-view environment-manifest output)",
+  );
+const evidenceOption = z
+  .string()
+  .describe(
+    "Parent capture Evidence JSON path (inspect-web-network-capture output) the manifest cites",
+  );
+
+/** Register the one-shot bundle export command. */
+const registerExportCommand = (cli: CliInstance, logger: Logger): void => {
+  cli.command(CLI_COMMANDS.environmentExport, {
+    description:
+      "Export an environment manifest and its capture Evidence as an agent environment bundle folder the agentenv framework runs with agent-env run",
+    args: z.object({
+      manifest: manifestArgument,
+      directory: z
+        .string()
+        .describe(
+          "Bundle directory to create; must be absent or empty, nothing is overwritten",
+        ),
+    }),
+    options: z.object({
+      evidence: evidenceOption,
+      packageTarball: z
+        .string()
+        .optional()
+        .describe(
+          "Packed rea-agents tarball (npm pack) copied into the env folder and installed by the Dockerfile instead of the registry package pinned to this version",
+        ),
+      name: z
+        .string()
+        .optional()
+        .describe(
+          "Env folder and env id (kebab-case); default the manifest's name",
+        ),
+    }),
+    run: ({ args, options }) =>
+      logCliCommand(logger, CLI_COMMANDS.environmentExport, () =>
+        exportEnvironmentCommand({
+          manifest: args.manifest,
+          evidence: options.evidence,
+          directory: args.directory,
+          packageTarball: options.packageTarball,
+          name: options.name,
+        }),
+      ),
+  });
+};
+
+/** Register the long-running agent environment server command and the bundle export. */
 export const registerEnvironmentCommands = (
   cli: CliInstance,
   logger: Logger,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): void => {
+  registerExportCommand(cli, logger);
   cli.command(CLI_COMMANDS.environmentServe, {
     description:
       "Serve an environment manifest as an agent environment that replays retained capture records over streamable HTTP until SIGINT or SIGTERM",
-    args: z.object({
-      manifest: z
-        .string()
-        .describe(
-          "Environment manifest Evidence JSON path (inspect-analysis-view environment-manifest output)",
-        ),
-    }),
+    args: z.object({ manifest: manifestArgument }),
     options: z.object({
-      evidence: z
-        .string()
-        .describe(
-          "Parent capture Evidence JSON path (inspect-web-network-capture output) the manifest cites",
-        ),
+      evidence: evidenceOption,
       host: z
         .string()
         .min(1)

@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 
+import { sealOwnedJsonInput } from "./application/OwnedJsonInput.js";
 import { readJsonInputFile } from "./application/JsonInputFile.js";
 import { NonRegularFileReadError } from "./filesystem/RegularFile.js";
 import {
@@ -16,6 +17,7 @@ export const parseCliJsonInput = async (
   value: string,
   operation: string,
   signal?: AbortSignal,
+  options?: { readonly snapshot?: boolean },
 ): Promise<
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly error: JsonValue }
@@ -28,10 +30,28 @@ export const parseCliJsonInput = async (
     },
   });
   if (signal?.aborted) return cancelled();
-  const inline = safeParseJson(value);
-  if (inline.ok) return { ok: true, value: inline.value };
   try {
-    const parsed = await readJsonInputFile(value, operation, signal);
+    const inline = safeParseJson(value);
+    if (inline.ok) {
+      if (!options?.snapshot) return { ok: true, value: inline.value };
+      const sealed = await sealOwnedJsonInput(inline.value, operation, signal);
+      return sealed.ok
+        ? { ok: true, value: sealed.value }
+        : {
+            ok: false,
+            error: {
+              error: "Application workflow failed",
+              ...projectAnalysisError(sealed.error),
+            },
+          };
+    }
+    const parsed = await readJsonInputFile(
+      value,
+      operation,
+      signal,
+      undefined,
+      options?.snapshot ?? false,
+    );
     if (parsed.ok && signal?.aborted) return cancelled();
     return parsed.ok
       ? { ok: true, value: parsed.value }

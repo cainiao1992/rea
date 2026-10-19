@@ -202,6 +202,7 @@ export const environmentToolDefinitions = (
   manifest: EnvironmentManifest,
   evidenceId: string,
   name: string = manifest.name,
+  operation: string = ENVIRONMENT_SERVE_OPERATION,
 ): Result<
   readonly EnvironmentToolDefinition[],
   AnalysisResourceConstraintError
@@ -216,7 +217,7 @@ export const environmentToolDefinitions = (
   const refused = () =>
     err(
       new AnalysisResourceConstraintError(
-        ENVIRONMENT_SERVE_OPERATION,
+        operation,
         "capacity",
         "Environment discovery exceeds its serialization reservation budget",
         {

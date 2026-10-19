@@ -361,6 +361,35 @@ like a blank `MCP_HOST`. The bound URL is written to stderr as one JSON log line
 [agent environments](agent-environments.md) for what replay returns and does
 not establish.
 
+## Export an environment bundle
+
+`rea environment-export <manifest.json> --evidence <capture.json> <dir>
+[--package-tarball <path>] [--name <override>]` writes the same manifest and
+capture pair as a bundle folder the agentenv framework runs with
+`agent-env run <dir>`. It reads each file once, authenticates and cross-checks
+the pair with the same checks as `environment-serve`, copies the bytes it
+authenticated, refuses to write into a directory that exists and is not empty,
+and never overwrites a file.
+
+```sh
+rea environment-export manifest.json --evidence capture.json ./grafana-example --json
+```
+
+The folder holds a `README.md` with the bundle's provenance, an env folder
+`envs/<name>/` with a `Dockerfile` that installs this exact `rea-agents`
+version and serves the copied `manifest.json` and `evidence.json` (written
+with mode `0600` on POSIX; Windows retains inherited ACLs) with
+`environment-serve`, a Python verifier under `artifacts/check_<name>/` and the
+smoke task `tasks/smoke.json`. `--package-tarball` copies a packed `rea-agents`
+tarball into the env folder and installs it instead of the registry package,
+which is how the hosted lane proves a checkout rather than a release. `--name`
+replaces the manifest's kebab-case name as the env folder and env id; a device
+name Windows reserves (`con`, `nul`, `com1` and the like) is refused. The
+command prints one JSON document listing the written files with their sizes
+and the pinned package source. See
+[agent environments](agent-environments.md#export-a-bundle) for the folder
+layout and what the smoke task checks.
+
 ## Output and exit status
 
 `rea mcp doctor --json` checks production MCP startup and reports child logs in
@@ -407,6 +436,15 @@ Refusals before binding (unreadable files, non-Evidence JSON, capture Evidence
 in a format other than HAR, a manifest whose parent is not the supplied
 evidence, an unbindable port) print a structured
 error and exit `1`, as does a listener that fails after binding.
+`rea environment-export` is one-shot: it prints the written files and exits
+`0`, or prints a structured `invalid_request` error and exits `1` for the same
+pair refusals, a non-empty or file-occupied directory, a missing package
+tarball or a name that is not a kebab-case label or is a Windows device name,
+writing nothing in each case.
+A write that fails after the first file (a permission or disk-space failure
+on a later path) propagates as the host's failure and leaves the partial
+folder in place for inspection; remove it before retrying, since the next
+attempt refuses the non-empty directory.
 
 A `cancelled` result does not by itself determine the exit status; it depends on
 the command's signal handling. Commands routed through the shared

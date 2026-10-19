@@ -59,6 +59,7 @@ jobs:
       web_network: ${{ steps.plan.outputs.web_network }}
       web_runtime: ${{ steps.plan.outputs.web_runtime }}
       web_source_map: ${{ steps.plan.outputs.web_source_map }}
+      agentenv: ${{ steps.plan.outputs.agentenv }}
       nativeaot: ${{ steps.plan.outputs.nativeaot }}
       ghidra_bridge: ${{ steps.plan.outputs.ghidra_bridge }}
       website: ${{ steps.plan.outputs.website }}
@@ -302,7 +303,8 @@ jobs:
       needs.changes.outputs.recorded_crash == 'true' ||
       needs.changes.outputs.web_network == 'true' ||
       needs.changes.outputs.web_runtime == 'true' ||
-      needs.changes.outputs.web_source_map == 'true'
+      needs.changes.outputs.web_source_map == 'true' ||
+      needs.changes.outputs.agentenv == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -909,6 +911,13 @@ jobs:
     with:
       build_cache_artifact: rea-build-cache
 
+  agentenv:
+    needs: [changes, static, build]
+    if: needs.changes.outputs.agentenv == 'true'
+    uses: ./.github/workflows/real-agentenv.yml
+    with:
+      build_cache_artifact: rea-build-cache
+
   nativeaot:
     needs: [changes, static]
     if: needs.changes.outputs.nativeaot == 'true'
@@ -953,6 +962,7 @@ jobs:
         web_network,
         web_runtime,
         web_source_map,
+        agentenv,
         nativeaot,
         ghidra_bridge,
         website,

@@ -27,7 +27,14 @@ const createFridaTestProvider = (
   async listProcesses() {
     return {
       ok: true,
-      value: { deviceId: "remote-device", processes: [], cleanupError: null },
+      value: {
+        deviceId: "remote-device",
+        processes: [
+          { pid: 0, name: "idle", identifier: null },
+          { pid: 10, name: "target", identifier: "example.target" },
+        ],
+        cleanupError: "earlier endpoint cleanup diagnostic",
+      },
     };
   },
   async startSession(input) {
@@ -112,6 +119,26 @@ const expectFridaToolsAvailable = async (client: Client) => {
   );
 };
 
+const expectFridaProcessDiscovery = async (client: Client) => {
+  const processes = await client.callTool({
+    name: "list_frida_processes",
+    arguments: { device_id: "remote-device" },
+  });
+  expect(processes.isError).not.toBe(true);
+  expect(
+    toolContract("list_frida_processes").outputSchema.parse(
+      processes.structuredContent,
+    ),
+  ).toEqual({
+    device_id: "remote-device",
+    processes: [
+      { pid: 0, name: "idle", identifier: null },
+      { pid: 10, name: "target", identifier: "example.target" },
+    ],
+    cleanup_error: "earlier endpoint cleanup diagnostic",
+  });
+};
+
 it("advertises Frida MCP schemas and keeps remote credentials out of results", async () => {
   const session = createTestBinarySession(() => {
     throw new Error("Binary provider must not start");
@@ -156,13 +183,17 @@ it("advertises Frida MCP schemas and keeps remote credentials out of results", a
     "synthetic-secret-token",
   );
   expect(ajv.validate(outputSchema, response.structuredContent)).toBe(true);
+  expect(
+    toolContract("list_frida_devices").outputSchema.parse(
+      response.structuredContent,
+    ),
+  ).toEqual({
+    devices: [{ device_id: "remote-device", name: "target", type: "remote" }],
+    cleanup_error: null,
+  });
   expect(toolContract("start_frida_session").effects.mutatesTarget).toBe(true);
 
-  const processes = await client.callTool({
-    name: "list_frida_processes",
-    arguments: { device_id: "remote-device" },
-  });
-  expect(processes.isError).not.toBe(true);
+  await expectFridaProcessDiscovery(client);
 
   const started = await client.callTool({
     name: "start_frida_session",

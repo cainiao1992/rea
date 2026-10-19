@@ -6,9 +6,112 @@ import { expect, it } from "vitest";
 import type { DeviceManager } from "frida";
 
 import { createCli } from "../../../src/cli.js";
+import { toolContract } from "../../../src/contracts/toolContracts.js";
 import type { FridaInstrumentationPort } from "../../../src/application/frida/FridaInstrumentationPort.js";
 import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysisErrorCore.js";
 import { FridaInstrumentationManager } from "../../../src/frida/FridaInstrumentationManager.js";
+
+it.each([
+  { devices: [], cleanupError: null },
+  {
+    devices: [
+      { deviceId: "local", name: "Local System", type: "local" },
+      { deviceId: "socket", name: "Local Socket", type: "remote" },
+    ],
+    cleanupError: null,
+  },
+  {
+    devices: [{ deviceId: "remote-device", name: "endpoint", type: "remote" }],
+    cleanupError: "remote removal failed",
+  },
+])("returns canonical Frida device JSON for %j", async (observation) => {
+  const provider: FridaInstrumentationPort = new FridaInstrumentationManager();
+  provider.listDevices = async () => ({ ok: true, value: observation });
+  let closed = false;
+  provider.closeAll = async () => {
+    closed = true;
+  };
+  let stdout = "";
+  let exitCode = 0;
+  await createCli({}, undefined, provider).serve(
+    ["list-frida-devices", "--json"],
+    {
+      env: {},
+      exit: (code) => {
+        exitCode = code;
+      },
+      stdout: (text) => {
+        stdout += text;
+      },
+    },
+  );
+  expect(exitCode).toBe(0);
+  expect(closed).toBe(true);
+  const output = toolContract("list_frida_devices").outputSchema.parse(
+    JSON.parse(stdout),
+  );
+  expect(output).toEqual({
+    devices: observation.devices.map(({ deviceId, name, type }) => ({
+      device_id: deviceId,
+      name,
+      type,
+    })),
+    cleanup_error: observation.cleanupError,
+  });
+});
+
+it.each([false, true])(
+  "preserves canonical process discovery when CLI cleanup fails: %s",
+  async (cleanupFails) => {
+    const provider: FridaInstrumentationPort =
+      new FridaInstrumentationManager();
+    const processes = [
+      { pid: 0, name: "idle", identifier: null },
+      { pid: 71, name: "target", identifier: "example.target" },
+    ];
+    provider.listProcesses = async (selector) => {
+      expect(selector).toEqual({ deviceId: "chosen-device" });
+      return {
+        ok: true,
+        value: {
+          deviceId: "chosen-device",
+          processes,
+          cleanupError: "earlier endpoint cleanup diagnostic",
+        },
+      };
+    };
+    provider.closeAll = async () => {
+      if (cleanupFails) throw new Error("final cleanup failed");
+    };
+    let stdout = "";
+    await createCli({}, undefined, provider).serve(
+      ["list-frida-processes", "--device-id", "chosen-device", "--json"],
+      {
+        env: {},
+        exit: () => {},
+        stdout: (text) => {
+          stdout += text;
+        },
+      },
+    );
+    const expected = {
+      device_id: "chosen-device",
+      processes,
+      cleanup_error: "earlier endpoint cleanup diagnostic",
+    };
+    if (cleanupFails)
+      expect(JSON.parse(stdout)).toMatchObject({
+        code: "cleanup_incomplete",
+        details: { diagnostics: { partial_observation: expected } },
+      });
+    else
+      expect(
+        toolContract("list_frida_processes").outputSchema.parse(
+          JSON.parse(stdout),
+        ),
+      ).toEqual(expected);
+  },
+);
 
 it("maps one-shot Frida CLI target, script, duration, and remote options", async () => {
   const calls: unknown[] = [];
@@ -365,7 +468,20 @@ it("preserves observed devices when CLI provider cleanup fails", async () => {
   const output: unknown = JSON.parse(stdout);
   expect(output).toMatchObject({
     code: "cleanup_incomplete",
-    details: { diagnostics: { partial_observation: { devices } } },
+    details: {
+      diagnostics: {
+        partial_observation: {
+          devices: [
+            {
+              device_id: "remote-device",
+              name: "selected endpoint",
+              type: "remote",
+            },
+          ],
+          cleanup_error: null,
+        },
+      },
+    },
   });
 });
 

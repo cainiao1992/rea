@@ -1,7 +1,9 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
+import type { z } from "zod";
 
+import type { toolContract } from "../../contracts/toolContracts.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import { jsonObjectSchema, jsonValueSchema } from "../../domain/jsonValue.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
@@ -23,6 +25,13 @@ import type {
   FridaSessionStatus,
   StartFridaSessionInput,
 } from "./FridaInstrumentationPort.js";
+
+type DeviceListOutput = z.output<
+  ReturnType<typeof toolContract<"list_frida_devices">>["outputSchema"]
+>;
+type ProcessListOutput = z.output<
+  ReturnType<typeof toolContract<"list_frida_processes">>["outputSchema"]
+>;
 
 const unreadableScriptFile = async (
   source: FridaScriptSource,
@@ -90,12 +99,33 @@ export class FridaInstrumentationService {
     this.#provider = provider;
   }
 
-  listDevices(remote?: FridaRemoteConnection) {
-    return this.#provider.listDevices(remote);
+  async listDevices(
+    remote?: FridaRemoteConnection,
+  ): Promise<Result<DeviceListOutput, AnalysisError>> {
+    const result = await this.#provider.listDevices(remote);
+    return result.ok
+      ? ok({
+          devices: result.value.devices.map(({ deviceId, name, type }) => ({
+            device_id: deviceId,
+            name,
+            type,
+          })),
+          cleanup_error: result.value.cleanupError,
+        })
+      : result;
   }
 
-  listProcesses(selector: FridaDeviceSelector) {
-    return this.#provider.listProcesses(selector);
+  async listProcesses(
+    selector: FridaDeviceSelector,
+  ): Promise<Result<ProcessListOutput, AnalysisError>> {
+    const result = await this.#provider.listProcesses(selector);
+    return result.ok
+      ? ok({
+          device_id: result.value.deviceId,
+          processes: [...result.value.processes],
+          cleanup_error: result.value.cleanupError,
+        })
+      : result;
   }
 
   async startSession(input: StartFridaSessionInput, signal?: AbortSignal) {

@@ -130,7 +130,7 @@ const readPsRowsRaw = async (
   const { stdout } = await execFileOutput(
     "ps",
     ["-axo", "pid=,ppid=,pgid=,sess=,command="],
-    { signal },
+    { signal, stopSignal: "SIGTERM" },
   );
   return stdout
     .split("\n")

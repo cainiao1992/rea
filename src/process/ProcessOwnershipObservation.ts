@@ -259,7 +259,11 @@ export const createSystemProcessOwnershipHost = (
     const { stdout } = await execFileOutput(
       "ps",
       ["-axo", "pid=,ppid=,pgid=,uid=,stat=,command="],
-      { env: hostEnvironment, ...(signal === undefined ? {} : { signal }) },
+      {
+        env: hostEnvironment,
+        stopSignal: "SIGTERM",
+        ...(signal === undefined ? {} : { signal }),
+      },
     );
     return stdout
       .split("\n")
@@ -412,6 +416,7 @@ export const createSystemProcessOwnershipHost = (
         ["eww", "-p", String(pid)],
         {
           env: hostEnvironment,
+          stopSignal: "SIGTERM",
           ...(signal === undefined ? {} : { signal }),
         },
       );

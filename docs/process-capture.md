@@ -38,6 +38,10 @@ supervision on macOS. REA removes that directory when it exits. REA does not
 install Xcode, Command Line Tools, or other software. Capability checks prepare
 this helper before reporting macOS capture as available.
 
+Stopping process sampling or cancelling an ownership query waits for its issued
+inspection command to exit. Closing a macOS ownership reader rejects new queries
+and waits for admitted helper commands before removing their executable directory.
+
 ## Capture a command
 
 For a small first capture, save this as `scenario.json`:

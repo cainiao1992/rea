@@ -14,6 +14,8 @@ export interface OwnedWorkerRuntimeOptions {
   readonly rootPrefix: string;
   readonly launcher?: typeof spawnOwnedProviderProcess;
   readonly supervisorOptions?: ProviderProcessSupervisorOptions;
+  /** Let a higher-level owner release its dependent resources before this root. */
+  readonly retryCleanup?: () => Promise<void>;
 }
 
 export class OwnedWorkerRuntimeCleanupError extends Error {
@@ -95,6 +97,7 @@ export class OwnedWorkerRuntime {
   #supervisor: ProviderProcessSupervisor | undefined;
   #processId: number | null = null;
   #acquisition: Promise<void> | undefined;
+  #cleanupRetryAttempt: Promise<void> | undefined;
   #stopAttempt: Promise<ProviderProcessStopResult> | undefined;
   #closeAttempt: Promise<void> | undefined;
   #closing = false;
@@ -171,7 +174,20 @@ export class OwnedWorkerRuntime {
     if (this.#terminalCloseRequested || this.#closing)
       return Promise.reject(new Error("Owned worker runtime is closing"));
     if (this.#acquisition !== undefined) return this.#acquisition;
-    if (this.#supervisor !== undefined) return Promise.resolve();
+    if (
+      this.#supervisor !== undefined &&
+      !OwnedWorkerRuntime.#pending.has(this)
+    )
+      return Promise.resolve();
+    if (
+      this.options.retryCleanup !== undefined &&
+      OwnedWorkerRuntime.#pending.has(this)
+    )
+      return this.#retryOwnedCleanup().then(() => {
+        if (this.#terminalCloseRequested || this.#closing)
+          throw new Error("Owned worker runtime is closing");
+        return this.start(spawnOptions, initialize);
+      });
     const ownRetry = OwnedWorkerRuntime.#pending.has(this)
       ? this.#retryPending()
       : Promise.resolve();
@@ -226,6 +242,8 @@ export class OwnedWorkerRuntime {
   }
 
   async #retryPending(): Promise<void> {
+    if (this.options.retryCleanup !== undefined)
+      return this.#retryOwnedCleanup();
     if (this.#terminalCloseRequested) return this.close();
     this.#closing = true;
     if (this.#closeAttempt === undefined) {
@@ -249,6 +267,27 @@ export class OwnedWorkerRuntime {
       if (!this.#terminalCloseRequested) this.#closing = false;
       throw cause;
     }
+  }
+
+  #retryOwnedCleanup(): Promise<void> {
+    if (this.#cleanupRetryAttempt !== undefined)
+      return this.#cleanupRetryAttempt;
+    const attempt = Promise.resolve()
+      .then(() => this.options.retryCleanup?.())
+      .then(() => {
+        if (OwnedWorkerRuntime.#pending.has(this))
+          throw this.#cleanupError(
+            "Higher-level cleanup retry returned while ownership remains pending",
+          );
+      });
+    this.#cleanupRetryAttempt = attempt;
+    void attempt
+      .finally(() => {
+        if (this.#cleanupRetryAttempt === attempt)
+          this.#cleanupRetryAttempt = undefined;
+      })
+      .catch(() => undefined);
+    return attempt;
   }
 
   async #start(

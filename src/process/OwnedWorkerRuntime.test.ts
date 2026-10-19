@@ -243,3 +243,101 @@ it("binds a late cleanup projection to its released root epoch after runtime reu
     await runtime.close();
   }
 });
+
+it("routes shared cleanup retry through the registered higher-level owner", async () => {
+  let failCleanup = true;
+  let allowOwnerClose = false;
+  let delegateCalls = 0;
+  let runtime: OwnedWorkerRuntime;
+  runtime = new OwnedWorkerRuntime(
+    runtimeOptions({
+      launcher: async (options) => {
+        const spawned = await spawnOwnedProviderProcess(options);
+        return {
+          ...spawned,
+          cleanup: async () => {
+            if (failCleanup)
+              return { cleaned: false, reason: "controlled delegated cleanup" };
+            return spawned.cleanup === undefined
+              ? cleanupOwnedProcessGroup(spawned.ownership)
+              : spawned.cleanup();
+          },
+        };
+      },
+      retryCleanup: async () => {
+        delegateCalls += 1;
+        if (!allowOwnerClose)
+          throw new Error("higher-level owner still retains a descriptor");
+        await runtime.close();
+      },
+    }),
+  );
+  await runtime.start(startOptions());
+  const rootPath = runtime.rootPath;
+  try {
+    await expect(runtime.stop()).resolves.toMatchObject({
+      status: "incomplete",
+    });
+    await expect(OwnedWorkerRuntime.retryPending()).rejects.toThrow(
+      "higher-level owner still retains a descriptor",
+    );
+    expect(delegateCalls).toBe(1);
+    // A retained supervisor is not permission to bypass its dependent owner.
+    await expect(runtime.start(startOptions())).rejects.toThrow(
+      "higher-level owner still retains a descriptor",
+    );
+    expect(delegateCalls).toBe(2);
+    expect(runtime.rootPath).toBe(rootPath);
+    await access(rootPath as string);
+
+    allowOwnerClose = true;
+    failCleanup = false;
+    await OwnedWorkerRuntime.retryPending();
+
+    expect(delegateCalls).toBe(3);
+    expect(runtime.rootPath).toBeUndefined();
+    await expect(access(rootPath as string)).rejects.toThrow();
+  } finally {
+    allowOwnerClose = true;
+    failCleanup = false;
+    await runtime.close();
+  }
+});
+
+it("runs deferred delegated cleanup before registering a pending start acquisition", async () => {
+  let runtime: OwnedWorkerRuntime;
+  let delegatedClose: Promise<void> | undefined;
+  let delegateTimedOut = false;
+  runtime = new OwnedWorkerRuntime(
+    runtimeOptions({
+      retryCleanup: async () => {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        delegatedClose = runtime.close();
+        let timer: NodeJS.Timeout | undefined;
+        const outcome = await Promise.race([
+          delegatedClose.then(() => "closed" as const),
+          new Promise<"timeout">((resolve) => {
+            timer = setTimeout(() => resolve("timeout"), 250);
+          }),
+        ]);
+        if (timer !== undefined) clearTimeout(timer);
+        delegateTimedOut = outcome === "timeout";
+      },
+    }),
+  );
+  try {
+    await runtime.start(startOptions());
+    const stopped = await runtime.stop();
+    expect(stopped.status).not.toBe("incomplete");
+    runtime.retainForCleanup();
+
+    await expect(runtime.start(startOptions())).rejects.toThrow(
+      "Owned worker runtime is closing",
+    );
+    expect(delegateTimedOut).toBe(false);
+    await delegatedClose;
+    expect(runtime.rootPath).toBeUndefined();
+  } finally {
+    await runtime.close();
+  }
+});

@@ -3,7 +3,10 @@ import type {
   InspectWebPageInput,
   ListBrowserTargetsInput,
 } from "../domain/browserObservation.js";
-import type { AnalyzeWebBundleInput } from "../domain/webBundleAnalysis.js";
+import {
+  webBundleAnalysisSchema,
+  type AnalyzeWebBundleInput,
+} from "../domain/webBundleAnalysis.js";
 import type { ObserveWebSessionInput } from "../domain/browserSession.js";
 import type { DiscoverWebMcpToolsInput } from "../domain/webMcpDiscovery.js";
 import type { BrowserCaptureComparisonInput } from "../domain/browserCaptureComparison.js";
@@ -24,6 +27,7 @@ import { createBrowserEvidence } from "./BrowserEvidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { completeProviderEvidence } from "./ProviderOperationExecution.js";
 import { webPageInspectionSchema } from "../domain/browserObservationSchemas.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 
 /** List browser targets within the endpoint and origin scope in the request. */
 export const listBrowserTargets = async (
@@ -59,7 +63,7 @@ export const inspectWebPage = async (
     return err(new AnalysisCancelledError("inspect_web_page"));
   const result = await ready.value.inspectPage(input, options);
   if (!result.ok)
-    return retainPageInspection(
+    return retainBrowserObservation(
       result.error,
       input,
       ready.value,
@@ -88,7 +92,7 @@ export const analyzeWebBundle = async (
     return err(new AnalysisCancelledError("analyze_web_bundle"));
   const analyzed = await ready.value.analyzeBundle(input, options);
   if (!analyzed.ok)
-    return retainPageInspection(
+    return retainBrowserObservation(
       analyzed.error,
       input,
       ready.value,
@@ -247,14 +251,46 @@ const browserEvidence = (
   );
 };
 
-/** Convert a provider-retained page capture without claiming bundle analysis completed. */
-const retainPageInspection = (
+/** Retain the completed capture or bundle facts under their actual operation. */
+const retainBrowserObservation = (
   error: AnalysisError,
   input: InspectWebPageInput | AnalyzeWebBundleInput,
   provider: BrowserObservationPort,
   errorOperation: "inspect_web_page" | "analyze_web_bundle",
 ): Result<Evidence, AnalysisError> => {
   const partial = error.partialObservation;
+  if (
+    errorOperation === "analyze_web_bundle" &&
+    partial !== undefined &&
+    !("evidence_id" in partial) &&
+    "observations" in partial &&
+    "capture" in partial
+  ) {
+    const bundle = webBundleAnalysisSchema.safeParse(partial);
+    if (!bundle.success) {
+      const malformed = new AnalysisOutputError(
+        errorOperation,
+        "Browser provider retained malformed completed bundle facts.",
+        { cause: bundle.error },
+      );
+      return err(
+        error.cleanupIncomplete
+          ? analysisErrorWithCleanupFailure(
+              malformed,
+              error,
+              errorOperation,
+            ).bindCleanupDependencies([malformed, error])
+          : malformed,
+      );
+    }
+    error.partialObservation = createBrowserEvidence(
+      "analyze_web_bundle",
+      input,
+      bundle.data,
+      provider.identity(),
+    );
+    return err(error);
+  }
   if (
     partial === undefined ||
     "evidence_id" in partial ||

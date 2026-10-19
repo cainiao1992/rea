@@ -68,7 +68,12 @@ Script metadata retains its execution-context frame ID when CDP supplies one. Th
 inventories worker, service-worker, and shared-worker targets with
 validated opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.
-Collection counts and aggregate script-source bytes are not capped. Like every
+Script-source collection retains at most 32 MiB of UTF-8 text across scripts
+and shares a 20-second collection deadline. Omitted sources retain their script
+metadata and an explicit reason; later smaller sources may still fit after an
+oversized source is omitted. The separate 64 MiB CDP response limit bounds one
+wire message before retention admission, rather than total transient memory.
+The source budget adds no script-count cap. Like every
 target, frame, script, and resource, a worker URL must resolve to a local
 file before it is retained. Relationship IDs improve
 attribution but do not prove which static module started a worker or that its

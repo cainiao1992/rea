@@ -139,6 +139,49 @@ const expectFridaProcessDiscovery = async (client: Client) => {
   });
 };
 
+const expectFridaSelectorGuidance = async (
+  client: Client,
+  tools: Awaited<ReturnType<Client["listTools"]>>["tools"],
+) => {
+  const ajv = new Ajv2020({ strict: false, validateFormats: false });
+  const processTool = tools.find(
+    (tool) => tool.name === "list_frida_processes",
+  );
+  if (processTool === undefined) throw new Error("Missing Frida process tool");
+  expect(processTool.inputSchema.description).toMatch(
+    /exactly one of device_id or remote/u,
+  );
+  expect(ajv.validateSchema(processTool.inputSchema)).toBe(true);
+  for (const args of [
+    { device_id: "local" },
+    { remote: { address: "127.0.0.1:27042" } },
+  ]) {
+    expect(ajv.validate(processTool.inputSchema, args)).toBe(true);
+    expect(
+      (await client.callTool({ name: "list_frida_processes", arguments: args }))
+        .isError,
+    ).not.toBe(true);
+  }
+  // Runtime refinements enforce the choice that advertisement describes.
+  for (const { args, reason } of [
+    { args: {}, reason: "Select a device_id or a remote endpoint" },
+    {
+      args: { device_id: "local", remote: { address: "127.0.0.1:27042" } },
+      reason: "Choose either device_id or remote, not both",
+    },
+  ]) {
+    const rejected = await client.callTool({
+      name: "list_frida_processes",
+      arguments: args,
+    });
+    expect(rejected.isError).toBe(true);
+    expect(rejected.content).toContainEqual({
+      type: "text",
+      text: expect.stringContaining(reason),
+    });
+  }
+};
+
 it("advertises Frida MCP schemas and keeps remote credentials out of results", async () => {
   const session = createTestBinarySession(() => {
     throw new Error("Binary provider must not start");
@@ -192,6 +235,8 @@ it("advertises Frida MCP schemas and keeps remote credentials out of results", a
     cleanup_error: null,
   });
   expect(toolContract("start_frida_session").effects.mutatesTarget).toBe(true);
+
+  await expectFridaSelectorGuidance(client, tools);
 
   await expectFridaProcessDiscovery(client);
 

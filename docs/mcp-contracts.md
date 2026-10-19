@@ -132,6 +132,12 @@ is null. `total` counts all matching heads; each page preserves complete records
 in stable unknown ID order. Filters apply before paging. Pages reflect current
 session state, so keep the unknown ledger unchanged while traversing it.
 
+Automatically retained workflow questions include their immutable result
+Evidence ID. Distinct results retain independent questions and source links;
+repeating the same result does not create another unknown. Workflow Evidence
+keeps the original residual question text. Explicit `record_unknown` requests
+keep caller-selected identity and reject duplicate creation.
+
 For a portable exported bundle, the CLI shares this projection:
 `rea inspect-evidence-bundle '{"path":"/tmp/evidence.json","detail":"summary","filters":{"operation":"analyze_function"}}' --format json`.
 The CLI validates and materializes that local bundle under its existing memory

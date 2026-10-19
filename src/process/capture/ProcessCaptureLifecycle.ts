@@ -4,6 +4,7 @@ import { open, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate, setTimeout as delay } from "node:timers/promises";
+import { readFileHandleChunks } from "../../filesystem/readFileHandleChunks.js";
 import type { IPty } from "@lydell/node-pty";
 import {
   AnalysisCleanupLease,
@@ -44,6 +45,7 @@ import {
 import {
   describeProcessCaptureExecutionFailure,
   normalizeCaptureFailure,
+  processCaptureCancelled,
   ProcessCaptureError,
 } from "./ProcessCaptureError.js";
 import { assertNotCancelled } from "./ProcessScenarioRuntimeValidation.js";
@@ -563,13 +565,14 @@ export const observeSelectedExecutable = async (
               "Selected executable path changed while it was being opened.",
           };
 
-        // IO above can settle after cancellation. Do not construct a stream with an
-        // already-aborted signal: Node can emit a second, unhandled AbortError.
+        // IO above can settle after cancellation. Native FileHandle streams can
+        // invalidate the descriptor on abort even with autoClose:false; borrowed
+        // positional reads leave its close exclusively with the capture owner.
         assertNotCancelled(signal);
         const hash = createHash("sha256");
-        for await (const chunk of handle.createReadStream({
-          autoClose: false,
+        for await (const chunk of readFileHandleChunks(handle, {
           signal,
+          cancellationFailure: processCaptureCancelled,
         })) {
           assertNotCancelled(signal);
           hash.update(chunk);
@@ -596,7 +599,7 @@ export const observeSelectedExecutable = async (
     if (
       cause instanceof ProcessCaptureReadFailure &&
       !cause.cleanupIncomplete &&
-      cause.userCategory !== "cancelled" &&
+      cause.cancellation === undefined &&
       cause.outcome.kind === "failed"
     ) {
       const reason = filesystemFailure(cause.outcome.cause);

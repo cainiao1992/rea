@@ -206,6 +206,7 @@ const connectProgressClient = async (
 ): Promise<{
   readonly client: Client;
   readonly notifications: string[];
+  readonly cleanupProgress: Promise<void>;
 }> => {
   const session = createTestBinarySession(() => {
     throw new Error("Process capture must not launch a binary provider");
@@ -219,9 +220,14 @@ const connectProgressClient = async (
     version: "1",
   });
   const notifications: string[] = [];
+  let sawCleanup: (() => void) | undefined;
+  const cleanupProgress = new Promise<void>((resolve) => {
+    sawCleanup = resolve;
+  });
   if (recordNotifications) {
     client.setNotificationHandler("notifications/progress", (notification) => {
       notifications.push(JSON.stringify(notification));
+      if (notification.params.message?.startsWith("cleanup:")) sawCleanup?.();
     });
   }
   const [clientTransport, serverTransport] =
@@ -231,7 +237,7 @@ const connectProgressClient = async (
   onTestFinished(async () => {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   });
-  return { client, notifications };
+  return { client, notifications, cleanupProgress };
 };
 
 itWithCaptureCapability(
@@ -283,7 +289,7 @@ itWithCaptureCapability(
 );
 
 itWithCaptureCapability(
-  "reports unknown resource cleanup when temporary-root preparation fails",
+  "reports no acquired resources when temporary-root creation fails",
   async () => {
     const scenario = await writeScenario(
       "rea-process-progress-prepare-failed-",
@@ -311,9 +317,9 @@ itWithCaptureCapability(
       terminal: true,
       details: {
         disposition: "failed",
-        owned_process_group: "unverified",
-        terminal_renderer: "unverified",
-        temporary_root: "unverified",
+        owned_process_group: "not_required",
+        terminal_renderer: "not_required",
+        temporary_root: "not_required",
       },
     });
   },
@@ -590,9 +596,13 @@ itWithCaptureCapability(
       controller.abort();
       await completion;
     }
-    await expect
-      .poll(() => cancelling.notifications.join("\n"))
-      .toContain("disposition=cancelled");
+    // Client cancellation ends its wait before the server has released its
+    // process tree. Wait for the actual terminal notification under the test's
+    // existing deadline instead of giving cleanup a separate polling deadline.
+    await cancelling.cleanupProgress;
+    expect(cancelling.notifications.join("\n")).toContain(
+      "disposition=cancelled",
+    );
     expect(cancelling.notifications.join("\n")).toContain(
       "owned_process_group=cleaned",
     );

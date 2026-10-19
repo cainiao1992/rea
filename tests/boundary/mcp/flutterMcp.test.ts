@@ -219,7 +219,14 @@ it("advertises and enforces the same Unicode selector grammar through MCP", asyn
   if (tool === undefined) throw new Error("Missing AOT tool");
   const ajv = new Ajv2020({ strict: false, validateFormats: false });
   expect(ajv.validateSchema(tool.inputSchema)).toBe(true);
-  for (const abi of ["😀".repeat(1010), "l".repeat(1010)]) {
+  for (const abi of [
+    "😀".repeat(1010),
+    "l".repeat(1010),
+    "😀".repeat(1009) + "\n",
+    ...["\n", "\r", "\u2028", "\u2029"].map(
+      (terminator) => "l".repeat(1009) + terminator,
+    ),
+  ]) {
     const arguments_ = { path: "/fixture.apk", abi };
     expect(ajv.validate(tool.inputSchema, arguments_)).toBe(true);
     expect(
@@ -235,7 +242,9 @@ it("advertises and enforces the same Unicode selector grammar through MCP", asyn
     "",
     "lib/x86_64",
     "😀".repeat(1011),
-    "l".repeat(1010) + "\n",
+    ...["\n", "\r", "\u2028", "\u2029"].map(
+      (terminator) => "l".repeat(1010) + terminator,
+    ),
   ]) {
     const arguments_ = { path: "/fixture.apk", abi };
     expect(ajv.validate(tool.inputSchema, arguments_)).toBe(false);

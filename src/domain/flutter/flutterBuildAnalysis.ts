@@ -15,19 +15,25 @@ const ABI_SELECTOR_MAX_CHARACTERS =
 
 /**
  * ZIP labels are literal names, including backslashes and controls. They are
- * never used as extraction paths. A Unicode regex gives runtime validation
- * and JSON Schema the same character unit; Zod max() counts UTF-16 units.
- * The final lookahead requires the actual end, including a trailing newline.
+ * never used as extraction paths. Count Unicode code points without copying
+ * the label; Zod max() counts UTF-16 units. Advertise the same code-point
+ * budget as JSON Schema maxLength, including every trailing line terminator.
  */
+const ABI_SELECTOR_MESSAGE = `ABI must be the exact lib/ directory label: 1–${String(ABI_SELECTOR_MAX_CHARACTERS)} Unicode characters without '/'.`;
 const abiSelectorSchema = z
   .string()
-  .regex(
-    new RegExp(
-      `^[^/]{1,${String(ABI_SELECTOR_MAX_CHARACTERS)}}(?![\\s\\S])`,
-      "u",
-    ),
-    `ABI must be the exact lib/ directory label: 1–${String(ABI_SELECTOR_MAX_CHARACTERS)} Unicode characters without '/'.`,
-  );
+  .min(1, ABI_SELECTOR_MESSAGE)
+  .refine(
+    (label) => {
+      const characters = label[Symbol.iterator]();
+      for (let count = 0; count <= ABI_SELECTOR_MAX_CHARACTERS; count += 1)
+        if (characters.next().done) return true;
+      return false;
+    },
+    { message: ABI_SELECTOR_MESSAGE, abort: true },
+  )
+  .regex(/^[^\/]*$/u, ABI_SELECTOR_MESSAGE)
+  .meta({ maxLength: ABI_SELECTOR_MAX_CHARACTERS });
 
 /**
  * Caller intent for Flutter build identification. This family is pure

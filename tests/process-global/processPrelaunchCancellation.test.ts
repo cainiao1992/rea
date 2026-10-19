@@ -49,12 +49,17 @@ vi.mock("node:fs/promises", async (load) => {
       control.handle = handle;
       const nativeStat = handle.stat.bind(handle);
       const nativeClose = handle.close.bind(handle);
-      const nativeStream = handle.createReadStream.bind(handle);
-      handle.createReadStream = (options) => {
-        const stream = nativeStream(options);
-        stream.once("end", () => (control.sampled = true));
-        return stream;
-      };
+      const nativeRead = handle.read.bind(handle);
+      handle.read = (async (
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number | bigint | null,
+      ) => {
+        const result = await nativeRead(buffer, offset, length, position);
+        if (result.bytesRead === 0) control.sampled = true;
+        return result;
+      }) as typeof handle.read;
       handle.stat = (async (...parameters: Parameters<typeof handle.stat>) => {
         const metadata = await nativeStat(...parameters);
         if (control.sampled && control.stage === "final-stat")
@@ -125,7 +130,6 @@ it.each(["none", "before", "open", "final-stat", "close"] as const)(
       },
     );
     expect(control.launches).toBe(stage === "none" ? 1 : 0);
-    expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected sentinel failure or cancellation");
     if (stage === "none")
       expect(String(result.error.cause)).toContain("PTY launch sentinel");

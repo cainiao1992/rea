@@ -92,7 +92,7 @@ without serial scheduling. Pure domain/service, composition, conformance,
 evaluation, CLI boundary, and MCP boundary projects share module graphs. Their
 tests avoid process-global state and keep resource cleanup test-scoped. Each
 MCP session still owns its resources, and CLI cases retain fresh command
-instances or subprocesses. CLI module mocks belong in `tests/process-global/`
+instances or subprocesses. CLI and MCP module mocks belong in `tests/process-global/`
 so they keep per-file isolation. Product catalog verification stays with the
 isolated filesystem boundary tests because it loads both source and compiled
 module graphs. Adapter, other boundary, acceptance, and process-global projects

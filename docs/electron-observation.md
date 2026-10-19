@@ -33,6 +33,12 @@ encoded path separators, ASAR directories or links, and nonexistent paths are
 rejected. The endpoint exposes every eligible target and its local path
 metadata.
 
+Cancellation stops further file authorization after an already-started filesystem
+operation settles. ASAR descriptor-close failures remain typed incomplete cleanup
+with an exact retryable owner; they are not treated as a missing or unauthorized
+page. A later authorization and provider shutdown retry retained descriptors
+before reporting their release.
+
 ## Workflow
 
 `list_electron_targets` returns every eligible target served by the supplied endpoint in one inline array.

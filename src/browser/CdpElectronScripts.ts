@@ -40,7 +40,12 @@ export const captureElectronScripts = async (
       : undefined;
   try {
     for (const script of input.scripts) {
-      const path = await authorizedElectronFile(script.rawUrl);
+      throwIfCallerCancelled(input.signal);
+      const path = await authorizedElectronFile(
+        script.rawUrl,
+        input.signal,
+        "inspect_electron_page",
+      );
       if (path === undefined) {
         input.completeness.exclude("scripts", "out_of_target_scope");
         continue;

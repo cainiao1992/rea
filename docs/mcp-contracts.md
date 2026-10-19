@@ -776,6 +776,12 @@ after SDK conversion and check advertised validation and actual calls.
 Individual model APIs can impose additional nesting limits; complete producer
 captures can exceed ten structural levels.
 
+`search_bytes` advertises its pattern and mask as descriptive strings. Its
+shared canonical validator scans byte pairs, whitespace, wildcards and aligned
+masks without a repeating regular expression or temporary byte arrays. The
+server rejects malformed or unconstrained patterns before provider dispatch;
+the advertised strings alone do not express those rules.
+
 Boolean literal constraints in input schemas are relaxed only in this
 advertisement. For example, a boolean `const` is presented as `type: boolean`;
 an affected `not` is omitted, conditional predicates and their branches are

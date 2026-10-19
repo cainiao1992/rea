@@ -77,7 +77,7 @@ export const observeOwnedProcessGroups = async (
         pendingGroups.delete(member.processGroupId);
       }
     } else {
-      const gone = await processIsGone(host, member.pid);
+      const gone = await processIsGone(host, member.pid, signal);
       signal?.throwIfAborted();
       if (!gone) {
         observations.set(member.processGroupId, {
@@ -564,13 +564,17 @@ export const prepareProcessOwnershipInspection = async (
 const processIsGone = async (
   host: ProcessOwnershipHost,
   pid: number,
+  signal?: AbortSignal,
 ): Promise<boolean> => {
   try {
-    return !liveProcesses(await host.listProcesses()).some(
-      (process) => process.pid === pid,
-    );
+    const processes =
+      signal === undefined
+        ? await host.listProcesses()
+        : await host.listProcesses(signal);
+    return !liveProcesses(processes).some((process) => process.pid === pid);
   } catch (cause: unknown) {
-    // best-effort cleanup: optional liveness probing; failure means not gone.
+    signal?.throwIfAborted();
+    // A failed optional probe cannot establish that the process exited.
     void cause;
     return false;
   }

@@ -197,3 +197,21 @@ it("retains completed bundle facts as bundle Evidence after cancellation", async
     normalized_result: bundle,
   });
 });
+
+it("preserves a prior caller reason without admitting browser work", async () => {
+  const reason = new AnalysisOutputError(
+    "inspect_web_page",
+    "caller supplied reason",
+  );
+  const result = await listBrowserTargets(
+    provider(async () => {
+      throw new Error("Cancelled inventory must not start");
+    }),
+    input,
+    { signal: AbortSignal.abort(reason) },
+  );
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("Expected cancelled inventory");
+  expect(result.error._tag).toBe("AnalysisCancelledError");
+  expect(result.error.cause).toBe(reason);
+});

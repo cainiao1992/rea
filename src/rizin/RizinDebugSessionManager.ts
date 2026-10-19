@@ -1041,20 +1041,13 @@ export class RizinDebugSessionManager {
     const protocolOutput = [...session.history, partialFrame]
       .filter((frame) => frame.length > 0)
       .join("\n");
-    const protocolBytes = Buffer.from(protocolOutput, "utf8");
-    let stdoutBytes = Math.min(protocolBytes.length, MAX_DIAGNOSTIC_BYTES);
-    while (
-      stdoutBytes > 0 &&
-      stdoutBytes < protocolBytes.length &&
-      (protocolBytes[stdoutBytes]! & 0xc0) === 0x80
-    )
-      stdoutBytes -= 1;
+    const stdout = truncateUtf8(protocolOutput, MAX_DIAGNOSTIC_BYTES);
     return {
-      stdout: protocolBytes.subarray(0, stdoutBytes).toString("utf8"),
+      stdout,
       stderr: output.stderr.text,
       truncated:
         session.historyTruncated ||
-        protocolBytes.length > stdoutBytes ||
+        protocolOutput.length > stdout.length ||
         output.diagnosticTruncated === true ||
         output.stdout.observedBytes > output.stdout.bytes ||
         output.stderr.observedBytes > output.stderr.bytes,
@@ -1066,13 +1059,15 @@ export class RizinDebugSessionManager {
     frame: RizinFrame,
     frameBytes: number,
   ): void {
-    const historyFrame =
-      frameBytes > MAX_RECENT_FRAME_BYTES || frame.truncated
-        ? `${frame.text.slice(0, MAX_RECENT_FRAME_BYTES)}[recent frame truncated]`
-        : frame.text;
-    if (frameBytes > MAX_RECENT_FRAME_BYTES || frame.truncated)
-      session.historyTruncated = true;
-    session.history.push(historyFrame);
+    const historyPrefix = truncateUtf8(frame.text, MAX_RECENT_FRAME_BYTES);
+    const historyTruncated =
+      historyPrefix.length < frame.text.length || frame.truncated;
+    if (historyTruncated) session.historyTruncated = true;
+    session.history.push(
+      historyTruncated
+        ? `${historyPrefix}[recent frame truncated]`
+        : historyPrefix,
+    );
     if (session.history.length > 64) {
       session.history.splice(0, session.history.length - 64);
       session.historyTruncated = true;
@@ -1548,11 +1543,11 @@ const waitForCommandFrames = async (
 
 const truncateUtf8 = (value: string, maximumBytes: number): string => {
   if (maximumBytes <= 0) return "";
-  const bytes = Buffer.from(value, "utf8");
-  let end = Math.min(bytes.length, maximumBytes);
-  while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80)
-    end -= 1;
-  return bytes.subarray(0, end).toString("utf8");
+  // A UTF-16 code unit needs at most three UTF-8 bytes. Buffer.write stops
+  // before a partial character; only decode bytes it actually initialized.
+  const bytes = Buffer.allocUnsafe(Math.min(value.length * 3, maximumBytes));
+  const written = bytes.write(value, "utf8");
+  return bytes.toString("utf8", 0, written);
 };
 
 const waitForFrame = (

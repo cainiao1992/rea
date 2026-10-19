@@ -1189,7 +1189,8 @@ export class RizinDebugSessionManager {
       identity.startTime,
       await readLinuxProcessStartTime(pid),
     );
-    await this.#verifyInferiorOutputConfiguration(session, pid);
+    await this.#verifyDebuggerExitPolicy(session);
+    await this.#verifyInferiorOutputDescriptors(session, pid);
     await this.#runInternalCommand(session, `o- ${fd}`);
     const after = parseRizinPtraceRows(
       await this.#runInternalCommand(session, "olj"),
@@ -1203,12 +1204,14 @@ export class RizinDebugSessionManager {
       throw new Error(
         "Rizin did not confirm that the selected inferior FD was detached.",
       );
+    // Protocol readback must never be waived by proof that a process ended.
+    await this.#verifyDebuggerExitPolicy(session);
     try {
       assertRizinProcessStartTimeStable(
         identity.startTime,
         await readLinuxProcessStartTime(pid),
       );
-      await this.#verifyInferiorOutputConfiguration(session, pid);
+      await this.#verifyInferiorOutputDescriptors(session, pid);
     } catch (cause) {
       // Detach resumes the inferior. Its identity or descriptors may disappear
       // before readback; only a previously identified process can prove its end.
@@ -1219,15 +1222,18 @@ export class RizinDebugSessionManager {
     return { status: "detached", outputSink: "durable" };
   }
 
-  async #verifyInferiorOutputConfiguration(
-    session: RizinDebugSession,
-    pid: string,
-  ): Promise<void> {
+  async #verifyDebuggerExitPolicy(session: RizinDebugSession): Promise<void> {
     const exitKills = (
       await this.#runInternalCommand(session, "e dbg.exitkills")
     ).trim();
     if (exitKills !== "false")
       throw new Error("Rizin dbg.exitkills readback did not confirm false.");
+  }
+
+  async #verifyInferiorOutputDescriptors(
+    session: RizinDebugSession,
+    pid: string,
+  ): Promise<void> {
     for (const descriptor of ["1", "2"]) {
       const descriptorPath = `/proc/${pid}/fd/${descriptor}`;
       const destination = await readlink(descriptorPath);

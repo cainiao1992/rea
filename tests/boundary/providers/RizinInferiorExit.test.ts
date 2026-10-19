@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import {
   ProviderProcessSupervisor,
@@ -33,7 +33,9 @@ afterEach(async () => {
   }
 });
 
-it.skipIf(process.platform !== "linux").each(["exit", "redirect"] as const)(
+it
+  .skipIf(process.platform !== "linux")
+  .each(["exit", "redirect", "ambiguous-policy"] as const)(
   "verifies the original inferior after %s during detach",
   async (mode) => {
     const directory = await mkdtemp(join(tmpdir(), "rea-rizin-exit-"));
@@ -98,17 +100,25 @@ process.stdin.resume();`,
                 );
               else if (line === "o- 3") {
                 descriptorOpen = false;
-                launched.process.stdin!.write(`${mode}\n`);
-                if (mode === "exit")
+                if (mode !== "ambiguous-policy") {
+                  launched.process.stdin!.write(`${mode}\n`);
+                  if (mode === "exit")
+                    expect(await supervisor.waitForExit(1_000)).toBe(true);
+                  else
+                    await expect
+                      .poll(() => readFile(redirected, "utf8"), {
+                        timeout: 1_000,
+                      })
+                      .toBe("redirected");
+                }
+              } else if (line === "e dbg.exitkills") {
+                if (mode === "ambiguous-policy" && !descriptorOpen) {
+                  // End the identified process only during the final policy query.
+                  launched.process.stdin!.write("exit\n");
                   expect(await supervisor.waitForExit(1_000)).toBe(true);
-                else
-                  await expect
-                    .poll(() => readFile(redirected, "utf8"), {
-                      timeout: 1_000,
-                    })
-                    .toBe("redirected");
-              } else if (line === "e dbg.exitkills") control.output("false\0");
-              else if (line.startsWith("!echo "))
+                  control.output("ambiguous\0");
+                } else control.output("false\0");
+              } else if (line.startsWith("!echo "))
                 control.output(`${line.slice(6)}\0`);
             }
           })
@@ -118,6 +128,7 @@ process.stdin.resume();`,
           });
       },
     });
+    const debuggerExit = vi.spyOn(injected.control, "exit");
     const manager = createRizinTestManager(
       {},
       {
@@ -146,10 +157,15 @@ process.stdin.resume();`,
       } else {
         expect(closed.ok).toBe(false);
         expect(manager.status(started.value.session_id)).toBeDefined();
-        expect(supervisor.observedExit()).toBeUndefined();
+        expect(debuggerExit).not.toHaveBeenCalled();
+        if (mode === "redirect")
+          expect(supervisor.observedExit()).toBeUndefined();
+        else expect(supervisor.observedExit()?.code).toBe(0);
         if (!closed.ok)
           expect(closed.error.message).toContain(
-            "not routed to the selected TTY",
+            mode === "redirect"
+              ? "not routed to the selected TTY"
+              : "dbg.exitkills readback did not confirm false",
           );
       }
     } finally {

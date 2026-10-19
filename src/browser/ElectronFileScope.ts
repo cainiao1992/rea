@@ -236,7 +236,7 @@ const asarFiles = async (
       throwIfAborted(signal);
       if (!opened.isFile() || archiveIdentity(opened) !== identity)
         throw new Error("ASAR identity changed before header read");
-      const header = await admitAsarHeader(file);
+      const header = await admitAsarHeader(file, signal);
       throwIfAborted(signal);
       jsonBytes = header.jsonBytes;
       const json = Buffer.alloc(jsonBytes);

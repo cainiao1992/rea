@@ -19,7 +19,15 @@ import {
 } from "../../domain/process/processScenario.js";
 import { parseProcessCapture } from "../../domain/process/processCaptureParsing.js";
 import { PRODUCT_IDENTITY } from "../../identity.js";
-import { snapshotRoots } from "./FilesystemSnapshot.js";
+import {
+  snapshotRoots,
+  ProcessCaptureSnapshotFailure,
+} from "./FilesystemSnapshot.js";
+import {
+  withProcessCaptureFile,
+  ProcessCaptureReadFailure,
+  type ProcessCaptureCleanupRetainer,
+} from "./ProcessCaptureRead.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
 import {
   cleanupOwnedProcessGroup,
@@ -186,7 +194,7 @@ export const createProcessCaptureObservationBuffer = (options: {
   readonly interactions: readonly InteractionEvent[];
   readonly samples: readonly ProcessSample[];
   readonly eventJournal: readonly ProcessCaptureEventJournalEntry[];
-  readonly before: ProcessFilesystemSnapshot;
+  readonly before: ProcessFilesystemSnapshot | undefined;
   /** Seed a finalization observation only for a scenario with an interval. */
   readonly finalizationEnabled?: boolean;
 }): ProcessCaptureObservationBuffer => ({
@@ -221,10 +229,13 @@ export const createProcessCaptureObservationBuffer = (options: {
   },
   process_samples: { state: "available", value: options.samples },
   filesystem_snapshots: {
-    before: {
-      state: "available",
-      value: options.before,
-    },
+    before:
+      options.before === undefined
+        ? {
+            state: "unavailable",
+            reason: "Initial filesystem snapshot did not complete.",
+          }
+        : { state: "available", value: options.before },
     after: {
       state: "unavailable",
       reason:
@@ -517,63 +528,83 @@ export const observeSelectedExecutable = async (
   path: string,
   signal?: AbortSignal,
   fileSystem: SelectedExecutableFileSystem = selectedExecutableFileSystem,
+  cleanupRetainer?: ProcessCaptureCleanupRetainer,
 ): Promise<SelectedExecutableObservation> => {
   assertNotCancelled(signal);
-  let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    handle = await fileSystem.open(
+    const handle = await fileSystem.open(
       path,
       constants.O_RDONLY | constants.O_NONBLOCK,
     );
-    const openedStats = await handle.stat({ bigint: true });
-    if (!openedStats.isFile())
-      return {
-        sha256: null,
-        identity: null,
-        reason: "Selected executable is not a regular file.",
-      };
-    const openedIdentity = identityFromStats(openedStats);
-    const selectedPathIdentity = identityFromStats(await fileSystem.stat(path));
-    if (!sameExecutableIdentity(openedIdentity, selectedPathIdentity))
-      return {
-        sha256: null,
-        identity: null,
-        reason: "Selected executable path changed while it was being opened.",
-      };
-
-    // IO above can settle after cancellation. Do not construct a stream with an
-    // already-aborted signal: Node can emit a second, unhandled AbortError.
-    assertNotCancelled(signal);
-    const hash = createHash("sha256");
-    for await (const chunk of handle.createReadStream({
-      autoClose: false,
+    return await withProcessCaptureFile(
+      path,
+      handle,
       signal,
-    })) {
-      assertNotCancelled(signal);
-      hash.update(chunk);
-    }
-    assertNotCancelled(signal);
-    const finalIdentity = identityFromStats(
-      await handle.stat({ bigint: true }),
+      cleanupRetainer,
+      async (handle): Promise<SelectedExecutableObservation> => {
+        const openedStats = await handle.stat({ bigint: true });
+        if (!openedStats.isFile())
+          return {
+            sha256: null,
+            identity: null,
+            reason: "Selected executable is not a regular file.",
+          };
+        const openedIdentity = identityFromStats(openedStats);
+        const selectedPathIdentity = identityFromStats(
+          await fileSystem.stat(path),
+        );
+        if (!sameExecutableIdentity(openedIdentity, selectedPathIdentity))
+          return {
+            sha256: null,
+            identity: null,
+            reason:
+              "Selected executable path changed while it was being opened.",
+          };
+
+        // IO above can settle after cancellation. Do not construct a stream with an
+        // already-aborted signal: Node can emit a second, unhandled AbortError.
+        assertNotCancelled(signal);
+        const hash = createHash("sha256");
+        for await (const chunk of handle.createReadStream({
+          autoClose: false,
+          signal,
+        })) {
+          assertNotCancelled(signal);
+          hash.update(chunk);
+        }
+        assertNotCancelled(signal);
+        const finalIdentity = identityFromStats(
+          await handle.stat({ bigint: true }),
+        );
+        if (!sameExecutableIdentity(openedIdentity, finalIdentity))
+          return {
+            sha256: null,
+            identity: null,
+            reason:
+              "Selected executable changed while its contents were sampled.",
+          };
+        return {
+          sha256: hash.digest("hex"),
+          identity: openedIdentity,
+          reason: null,
+        };
+      },
     );
-    if (!sameExecutableIdentity(openedIdentity, finalIdentity))
-      return {
-        sha256: null,
-        identity: null,
-        reason: "Selected executable changed while its contents were sampled.",
-      };
-    return {
-      sha256: hash.digest("hex"),
-      identity: openedIdentity,
-      reason: null,
-    };
   } catch (cause: unknown) {
-    assertNotCancelled(signal);
-    const reason = filesystemFailure(cause);
+    if (
+      cause instanceof ProcessCaptureReadFailure &&
+      !cause.cleanupIncomplete &&
+      cause.userCategory !== "cancelled" &&
+      cause.outcome.kind === "failed"
+    ) {
+      const reason = filesystemFailure(cause.outcome.cause);
+      if (reason !== undefined) return { sha256: null, identity: null, reason };
+    }
+    const failure = normalizeCaptureFailure(cause, signal);
+    if (failure instanceof ProcessCaptureError) throw failure;
+    const reason = filesystemFailure(failure);
     if (reason !== undefined) return { sha256: null, identity: null, reason };
-    throw cause;
-  } finally {
-    await handle?.close();
+    throw failure;
   }
 };
 
@@ -1282,6 +1313,11 @@ export class ProcessCaptureResourceScope {
     }
   }
 
+  /** Retain an exact child owner acquired by an already admitted capture. */
+  retain(lease: AnalysisCleanupLease): void {
+    if (!lease.released) this.#pending.add(lease);
+  }
+
   async release(
     options: ProcessCaptureResourceCleanupOptions,
   ): Promise<ProcessCaptureCleanupOutcome> {
@@ -1603,28 +1639,49 @@ export const prepareProcessCapture = async (
   assertNotCancelled(signal);
   await host.prepareOwnershipInspector?.(signal);
   assertNotCancelled(signal);
-  const before = await captureSnapshot(scenario, signal);
+  let before: ProcessFilesystemSnapshot | undefined;
+  let temporaryRoot: string | undefined;
   const runId = randomUUID();
-  const temporaryRoot = await host.createTemporaryRoot();
   try {
+    before = await captureSnapshot(scenario, signal, undefined, resourceScope);
+    temporaryRoot = await host.createTemporaryRoot();
     assertNotCancelled(signal);
     const ownershipBaseline =
       (await host.captureOwnershipBaseline?.(signal)) ?? [];
     assertNotCancelled(signal);
     return { temporaryRoot, runId, ownershipBaseline, before };
   } catch (cause: unknown) {
-    const cleanupOptions: ProcessCaptureResourceCleanupOptions = {
-      timers: new Set(),
-      terminal: undefined,
-      renderer: undefined,
-      runId,
-      temporaryRoot,
-      host: { ...processCaptureCleanupHost, removeTemporaryRoot: host.cleanup },
-    };
-    const cleanup =
-      resourceScope === undefined
-        ? await releaseProcessResources(cleanupOptions)
-        : await resourceScope.release(cleanupOptions);
+    if (cause instanceof ProcessCaptureSnapshotFailure) {
+      before = cause.snapshot;
+      for (const lease of cause.cleanupLeases) resourceScope?.retain(lease);
+    }
+    const cleanupOptions =
+      temporaryRoot === undefined
+        ? undefined
+        : ({
+            timers: new Set<ProcessTimer>(),
+            terminal: undefined,
+            renderer: undefined,
+            runId,
+            temporaryRoot,
+            host: {
+              ...processCaptureCleanupHost,
+              removeTemporaryRoot: host.cleanup,
+            },
+          } satisfies ProcessCaptureResourceCleanupOptions);
+    const cleanup: ProcessCaptureCleanupOutcome =
+      cleanupOptions === undefined
+        ? {
+            report: {
+              terminal_renderer: { state: "not_required", reason: null },
+              owned_process_group: { state: "not_required", reason: null },
+              temporary_root: { state: "not_required", reason: null },
+            },
+            cleanupLease: undefined,
+          }
+        : resourceScope === undefined
+          ? await releaseProcessResources(cleanupOptions)
+          : await resourceScope.release(cleanupOptions);
     resolveProcessResult(
       undefined,
       normalizeCaptureFailure(cause, signal),

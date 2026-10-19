@@ -457,6 +457,15 @@ owner confirms release, the live error status clears `cleanup_incomplete`.
 The original failure, observations and `cleanup_report` retain the facts from
 the earlier attempt, including any cleanup failure recorded then.
 
+Snapshot file handles, directory handles, and the selected executable reader
+follow the same ownership rule. A failed close preserves completed observations
+and any primary read failure; it cannot turn a completed digest into a successful
+capture with unresolved cleanup. Interrupted snapshots retain examined entries
+with incomplete coverage in `partial_observation`, alongside the failure.
+File-handle retry uses the exact retained owner. After a directory close rejects,
+Node does not expose enough handle validity to authorize another native close;
+REA retains that unresolved owner and blocks further captures in the session.
+
 On macOS, changing a Node process's `process.title` can make its run token
 unreadable. Node documents that [setting the title overwrites argv memory](https://nodejs.org/download/release/v24.18.0/docs/api/process.html#processtitle).
 With the pinned toolchain, a live child retained a readable start identity

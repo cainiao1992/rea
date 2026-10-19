@@ -5,6 +5,7 @@ import { parseProcessCapture } from "../../domain/process/processCaptureParsing.
 import { err, ok, type Result } from "../../domain/result.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import {
   describeProcessCaptureExecutionFailure,
   ProcessCaptureError,
@@ -20,7 +21,10 @@ import type {
   TerminalFrame,
 } from "../../domain/process/processCapture.js";
 import { startProcessSampler } from "./ProcessSampling.js";
-import { snapshotRoots } from "./FilesystemSnapshot.js";
+import {
+  snapshotRoots,
+  ProcessCaptureSnapshotFailure,
+} from "./FilesystemSnapshot.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
 import type { ProcessTimer } from "./ProcessTimer.js";
 import {
@@ -271,6 +275,8 @@ const startCaptureRuntime = async (
     const selectedExecutable = await observeSelectedExecutable(
       scenario.executable,
       options.signal,
+      undefined,
+      options.resourceScope,
     );
     const startedAt = new Date();
     const started = monotonicProcessCaptureClock();
@@ -478,6 +484,7 @@ const completeCapture = async (options: {
   >;
   readonly signal?: AbortSignal;
   readonly captureSnapshot: typeof snapshotRoots;
+  readonly resourceScope?: ProcessCaptureResourceScope;
   readonly eventJournal: readonly ProcessCaptureEventJournalEntry[];
   readonly observationBuffer: ProcessCaptureObservationBuffer;
   readonly recordEvent: RecordProcessCaptureEvent;
@@ -521,14 +528,22 @@ const completeCapture = async (options: {
       scenario,
       options.signal,
       options.before,
+      options.resourceScope,
     );
   } catch (cause: unknown) {
+    if (cause instanceof ProcessCaptureSnapshotFailure)
+      for (const lease of cause.cleanupLeases)
+        options.resourceScope?.retain(lease);
     options.observationBuffer.filesystem_snapshots = {
       ...options.observationBuffer.filesystem_snapshots,
-      after: {
-        state: "unavailable",
-        reason: unavailableReason("Final filesystem snapshot", cause),
-      },
+      after:
+        cause instanceof ProcessCaptureSnapshotFailure &&
+        cause.snapshot !== undefined
+          ? { state: "available", value: cause.snapshot }
+          : {
+              state: "unavailable",
+              reason: unavailableReason("Final filesystem snapshot", cause),
+            },
     };
     throw cause;
   }
@@ -794,6 +809,7 @@ const runProcessScenario = async (
       observationBuffer: observations,
       recordEvent,
       captureSnapshot,
+      ...(resourceScope === undefined ? {} : { resourceScope }),
       ...(signal === undefined ? {} : { signal }),
       ...(progress === undefined ? {} : { onLiveProgress: reportSettling }),
     });
@@ -926,6 +942,21 @@ export const captureProcessScenario = async (
     }
   }
   const capture = await runResourceScope.run(execute);
-  await runResourceScope.close().catch(() => undefined);
+  try {
+    await runResourceScope.close();
+  } catch (cause: unknown) {
+    if (!(cause instanceof AnalysisError)) throw cause;
+    return err(
+      capture.ok
+        ? cause
+        : capture.error instanceof ProcessCaptureError
+          ? capture.error.withFinalization({ cleanupFailure: cause })
+          : analysisErrorWithCleanupFailure(
+              capture.error,
+              cause,
+              "capture_process_scenario",
+            ).bindCleanupDependencies([capture.error, cause]),
+    );
+  }
   return capture;
 };

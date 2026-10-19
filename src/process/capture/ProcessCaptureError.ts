@@ -61,7 +61,8 @@ export class ProcessCaptureError extends AnalysisError {
     const partialObservation =
       this.partialObservation ?? options.partialObservation;
     const cleanupReport = this.cleanupReport ?? options.cleanupReport;
-    return new ProcessCaptureError(this.message, {
+    const finalized = new ProcessCaptureError(this.message, {
+      cleanupPrimary: this,
       ...(Object.hasOwn(this, "cause") ? { cause: this.cause } : {}),
       ...(this.userMessage === undefined
         ? {}
@@ -70,9 +71,6 @@ export class ProcessCaptureError extends AnalysisError {
         ? {}
         : { userCategory: this.userCategory }),
       reason: this.reason,
-      ...(this.diagnostics === undefined
-        ? {}
-        : { diagnostics: this.diagnostics }),
       ...(this.capturedOutput === undefined
         ? {}
         : { capturedOutput: this.capturedOutput }),
@@ -88,6 +86,8 @@ export class ProcessCaptureError extends AnalysisError {
       this,
       ...(secondary === undefined ? [] : [secondary]),
     ]);
+    if (secondary !== undefined) finalized.retainSecondaryFailure(secondary);
+    return finalized;
   }
 }
 

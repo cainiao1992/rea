@@ -289,7 +289,7 @@ itWithCaptureCapability(
 );
 
 itWithCaptureCapability(
-  "reports no acquired resources when temporary-root creation fails",
+  "reports startup cleanup coverage when temporary storage is unavailable",
   async () => {
     const scenario = await writeScenario(
       "rea-process-progress-prepare-failed-",
@@ -312,14 +312,25 @@ itWithCaptureCapability(
     });
 
     expect(capture.exitCode).toBe(1);
+    const error = analysisCliErrorEnvelopeSchema.parse(
+      JSON.parse(capture.stdout),
+    );
+    expect(error).toMatchObject({
+      code: "process_capture_failed",
+      details: { execution_failure: expect.stringContaining(missingTempRoot) },
+    });
+    // Darwin prepares its native inspector before acquiring capture resources.
+    // Other hosts reach the capture root allocation, whose failure is accounted.
+    const cleanupState =
+      process.platform === "darwin" ? "unverified" : "not_required";
     expect(capture.lines.at(-1)?.update).toMatchObject({
       phase: "cleanup",
       terminal: true,
       details: {
         disposition: "failed",
-        owned_process_group: "not_required",
-        terminal_renderer: "not_required",
-        temporary_root: "not_required",
+        owned_process_group: cleanupState,
+        terminal_renderer: cleanupState,
+        temporary_root: cleanupState,
       },
     });
   },

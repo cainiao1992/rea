@@ -31,6 +31,7 @@ import { registerFlutterCommands } from "./cli/flutterCommands.js";
 import { registerJebCommands } from "./cli/jebCommands.js";
 import { registerAdbCommands } from "./cli/adbCommands.js";
 import { registerEvidenceCommands } from "./cliEvidenceCommands.js";
+import { registerEnvironmentCommands } from "./cli/environmentCommands.js";
 import { registerProcessCommands } from "./cli/processCommands.js";
 import { registerBrowserCommands } from "./cli/browserCommands.js";
 import { registerWebScriptCommands } from "./cli/webScriptCommands.js";
@@ -131,6 +132,7 @@ export const createCli = (
   registerAnalysisViewCommands(cli, logger);
   registerFridaCommands(cli, logger, fridaInstrumentation);
   registerEvidenceCommands(cli, logger);
+  registerEnvironmentCommands(cli, logger, environment);
   registerProcessCommands(cli, logger, environment);
   registerBrowserCommands(cli, logger);
   registerWebScriptCommands(cli, logger);

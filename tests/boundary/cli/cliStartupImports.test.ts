@@ -114,6 +114,14 @@ const DEFERRED_IMPORTS = [
     name: "reconstruction-obligation-ledger",
     path: "/dist/application/ReconstructionObligationLedgerService.js",
   },
+  {
+    name: "environment-source",
+    path: "/dist/application/environment/environmentSource.js",
+  },
+  {
+    name: "environment-server",
+    path: "/dist/server/environment/serveEnvironment.js",
+  },
 ] as const;
 // Report each resolved deferred package on stderr without changing resolution.
 const RESOLUTION_HOOK = `data:text/javascript,${encodeURIComponent(`
@@ -161,6 +169,13 @@ const evaluate = (source: string): readonly string[] => [
 
 describe("CLI startup imports", () => {
   it("detects each deferred package when its command code loads", async () => {
+    await expect(
+      resolvedPackages(
+        evaluate(
+          'await import("./dist/application/environment/environmentSource.js");',
+        ),
+      ),
+    ).resolves.toContain("environment-source");
     const missingBrowser = join(
       await createTestTempDirectory("rea-startup-browser-"),
       "missing-browser",
@@ -190,6 +205,9 @@ describe("CLI startup imports", () => {
   it("does not load command-specific code to register the command catalog", async () => {
     await expect(
       resolvedPackages(["scripts/rea.mjs", "--help"]),
+    ).resolves.toEqual(new Set());
+    await expect(
+      resolvedPackages(evaluate('await import("./dist/cli.js");')),
     ).resolves.toEqual(new Set());
   });
 

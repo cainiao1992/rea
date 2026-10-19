@@ -257,6 +257,22 @@ it("preserves the actionable Darwin ownership compiler prerequisite", () => {
   });
 });
 
+it("settles the capture journal when the application timer is unavailable", async () => {
+  const applicationTimer = vi
+    .spyOn(globalThis, "setTimeout")
+    .mockImplementation(() => {
+      throw new Error("application timer is unavailable");
+    });
+  try {
+    await expect(
+      settleProcessCaptureJournal([], 0, 50),
+    ).resolves.toBeUndefined();
+    expect(applicationTimer).not.toHaveBeenCalled();
+  } finally {
+    applicationTimer.mockRestore();
+  }
+});
+
 it("waits for terminal observations delivered after the exit callback", async () => {
   const journal: Array<{
     capture_order: number;

@@ -289,7 +289,7 @@ export const settleProcessCaptureJournal = async (
   let observed = journal.length;
   let lastChangeAt = monotonicProcessCaptureClock();
   while (monotonicProcessCaptureClock() < deadline) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 4));
+    await delay(4);
     // A stalled event loop can leave timer and poll callbacks that were already
     // due queued behind this wake-up. Drain them before judging silence so a
     // trailing observation is not dropped by an early settle.

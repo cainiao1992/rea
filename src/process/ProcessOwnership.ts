@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { performance } from "node:perf_hooks";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
 import {
@@ -389,11 +390,8 @@ export const cleanupOwnedProcessGroup = async (
       while (!verification.cleaned) {
         const remaining = deadline - performance.now();
         if (remaining <= 0) break;
-        await new Promise<void>((resolve) =>
-          setTimeout(
-            resolve,
-            Math.min(PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS, remaining),
-          ),
+        await delay(
+          Math.min(PROCESS_CLEANUP_VERIFICATION_INTERVAL_MS, remaining),
         );
         verification = await verifyNoTokenOwnedProcesses(
           ownership.runId,
@@ -1089,9 +1087,7 @@ const recheckOwnershipFailures = async (
       );
       attempt += 1
     ) {
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, TOKEN_READ_RETRY_DELAY_MS),
-      );
+      await delay(TOKEN_READ_RETRY_DELAY_MS);
       processes = await host.listProcesses();
     }
     const live = new Set(liveProcesses(processes).map(({ pid }) => pid));
@@ -1336,9 +1332,7 @@ const scanWithOwnershipEvidence = async (
       )
       .map(({ process }) => process);
     if (retryRows.length === 0) break;
-    await new Promise<void>((resolve) =>
-      setTimeout(resolve, TOKEN_READ_RETRY_DELAY_MS),
-    );
+    await delay(TOKEN_READ_RETRY_DELAY_MS);
     const retries = await readProcessOwnershipFacts(retryRows, host);
     const retryByPid = new Map(retries.map((fact) => [fact.process.pid, fact]));
     facts = facts.map((fact) => retryByPid.get(fact.process.pid) ?? fact);
@@ -1509,9 +1503,7 @@ const settleUnreadableTokenCandidates = async (
     attempt < TOKEN_READ_RETRY_ATTEMPTS && remaining.length > 0;
     attempt += 1
   ) {
-    await new Promise<void>((resolve) =>
-      setTimeout(resolve, TOKEN_READ_RETRY_DELAY_MS),
-    );
+    await delay(TOKEN_READ_RETRY_DELAY_MS);
     let live: ReadonlySet<number> | undefined;
     try {
       live = new Set(

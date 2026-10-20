@@ -1,3 +1,6 @@
+import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.js";
+import { nativeFunctionMatchingSummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
+import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
 import { analysisDetailOutputSchemaOf } from "./analysisDetail.js";
 import { nativeInventorySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
 import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
@@ -158,15 +161,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   procedure_callers: evidenceResultOf(addressList),
   procedure_info: procedureInfoOutput,
   read_function_instructions: evidenceResultOf(functionInstructionWindowSchema),
-  read_bytes: evidenceResultOf(
-    z.object({
-      address: z.string(),
-      requested_bytes: z.number().int().min(1),
-      returned_bytes: z.number().int().min(0),
-      bytes_hex: z.string().regex(/^(?:[a-f0-9]{2})*$/u),
-      complete: z.boolean(),
-    }),
-  ),
+  read_bytes: evidenceResultOf(nativeByteReadSchema),
   address_to_file_offset: evidenceResultOf(
     z.object({
       address: z.string(),
@@ -595,6 +590,12 @@ export const sessionOutputSchemas = {
   compare_process_captures: evidenceResultOf(processCaptureComparisonSchema),
   compare_artifacts: evidenceResultOf(artifactComparisonResultSchema),
   compare_functions: evidenceResultOf(functionComparisonResultSchema),
+  match_native_functions: evidenceResultOf(
+    z.union([
+      nativeFunctionMatchingSchema,
+      nativeFunctionMatchingSummaryViewResultSchema,
+    ]),
+  ),
   compare_bundles: evidenceResultOf(bundleComparisonResultSchema),
   find_changed_behavior: evidenceResultOf(changedBehaviorResultSchema),
   build_call_path: evidenceResultOf(callPathResultSchema),

@@ -1,11 +1,9 @@
+import { procedureInfoSchema } from "../domain/native/procedureInfo.js";
 import { z } from "zod";
 
 import {
-  procedureClassificationSchema,
   procedureIdentitySchema,
-  localVariableSchema,
   functionDossierSchema,
-  functionBodySchema,
 } from "../domain/hopperValues.js";
 import { analysisProfileSchema } from "../domain/analysisProfile.js";
 import {
@@ -598,18 +596,7 @@ export const segmentOutput = evidenceResultOf(
   z.array(memoryRegionOutput.extend({ sections: z.array(memoryRegionOutput) })),
 );
 
-export const procedureInfoOutput = evidenceResultOf(
-  z.object({
-    name: z.string(),
-    entrypoint: z.string(),
-    basicblock_count: z.number().int().min(0),
-    length: z.number().min(0),
-    signature: nullableText,
-    locals: z.array(localVariableSchema),
-    classification: procedureClassificationSchema.nullable(),
-    body: functionBodySchema,
-  }),
-);
+export const procedureInfoOutput = evidenceResultOf(procedureInfoSchema);
 
 export const symbolDiscoveryOutput = (property: "classes" | "protocols") =>
   evidenceResultOf(

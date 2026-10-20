@@ -41,6 +41,7 @@ interface ParsedLoadCommands {
   }>;
   uuid: string | null;
   readonly flags: Set<string>;
+  readonly omittedDependencyCommands: string[];
 }
 
 const DYLIB_COMMANDS = new Set([
@@ -51,6 +52,11 @@ const DYLIB_COMMANDS = new Set([
   "LC_LAZY_LOAD_DYLIB",
   "LC_LOAD_UPWARD_DYLIB",
 ]);
+/**
+ * Dependency commands whose install name is not in the otool command text.
+ * `LC_LAZY_LOAD_DYLIB_INFO` stores it in a linkedit payload.
+ */
+const PAYLOAD_DEPENDENCY_COMMANDS = new Set(["LC_LAZY_LOAD_DYLIB_INFO"]);
 
 const DYLIB_FIELDS = [
   "cmd",
@@ -142,6 +148,7 @@ export const parseOtoolLoadCommands = (raw: string) => {
     commands: state.commands,
     segments: state.segments,
     dependencies: state.dependencies,
+    omittedDependencyCommands: state.omittedDependencyCommands,
     entrypoints: state.entrypoints,
     builds: state.builds,
   };
@@ -265,6 +272,7 @@ const createLoadCommandState = (
   builds: [],
   uuid: null,
   flags: new Set(headerFlags ?? []),
+  omittedDependencyCommands: [],
 });
 
 const parseLoadCommand = (block: string, state: ParsedLoadCommands): void => {
@@ -290,6 +298,8 @@ const parseLoadCommand = (block: string, state: ParsedLoadCommands): void => {
   collectEntrypoint(kind, fields, state);
   collectBuild(kind, block, fields, state);
   collectDependency(kind, fields, state);
+  if (PAYLOAD_DEPENDENCY_COMMANDS.has(kind))
+    state.omittedDependencyCommands.push(kind);
   collectSegment(kind, block, fields, state);
 };
 

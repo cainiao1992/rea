@@ -188,6 +188,25 @@ export const fatImage = (
   return bytes;
 };
 
+/** A minimal BSD ar archive containing one inert member for container tests. */
+export const arArchive = (memberName = "fixture.o"): Uint8Array => {
+  const name = `${memberName}/`.slice(0, 16).padEnd(16, " ");
+  const header = [
+    name,
+    "0           ",
+    "0     ",
+    "0     ",
+    "100644  ",
+    "1         ",
+    "`\n",
+  ].join("");
+  const bytes = new Uint8Array(8 + 60 + 2);
+  bytes.set(encoder.encode("!<arch>\n"), 0);
+  bytes.set(encoder.encode(header), 8);
+  bytes[68] = 0x78;
+  return bytes;
+};
+
 /** In-memory `ReadAt` over one buffer. */
 export const readerOf =
   (bytes: Uint8Array) =>

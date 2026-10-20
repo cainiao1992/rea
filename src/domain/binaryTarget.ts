@@ -19,6 +19,9 @@ import {
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
+  readFatSliceHeaderFacts,
+  validateFatSliceIdentity,
+  type FatSliceHeaderEvidence,
 } from "./apple/machoContainer.js";
 
 /** Format and architecture facts recovered from an executable header. */
@@ -81,6 +84,7 @@ export const parseExecutableHeader = (
   hostArchitecture: NodeJS.Architecture,
   fileSize = bytes.length,
   mzWindowsHeaderSignature?: Buffer,
+  fatEvidence?: FatSliceHeaderEvidence,
 ): Result<ExecutableMetadata, string> => {
   if (
     bytes.length >= 4 &&
@@ -93,9 +97,10 @@ export const parseExecutableHeader = (
   const magic = bytes.readUInt32BE(0);
   if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic))
     return parseThinMachO(bytes, magic, fileSize);
-  const fatHeader = readFatContainerHeader(bytes, fileSize);
+  const fatHeader =
+    fatEvidence?.header ?? readFatContainerHeader(bytes, fileSize);
   if (fatHeader.state !== "not-fat")
-    return parseFatMachO(bytes, hostArchitecture, fatHeader);
+    return parseFatMachO(bytes, hostArchitecture, fatHeader, fatEvidence);
   return err("unsupported binary format");
 };
 
@@ -134,12 +139,23 @@ const parseFatMachO = (
     ReturnType<typeof readFatContainerHeader>,
     { state: "not-fat" }
   >,
+  fatEvidence?: FatSliceHeaderEvidence,
 ): Result<ExecutableMetadata, string> => {
   if (header.state === "needs-data")
     return err("truncated or invalid FAT architecture table");
   if (header.state === "malformed") return err(header.reason);
-  const identityError = fatIdentityError(bytes, header);
+  const identityError = fatIdentityError(
+    bytes,
+    header,
+    fatEvidence?.sliceHeadersByOffset,
+  );
   if (identityError !== null) return err(identityError);
+  const sliceIdentityError = fatSliceIdentityError(
+    bytes,
+    header,
+    fatEvidence?.sliceHeadersByOffset,
+  );
+  if (sliceIdentityError !== null) return err(sliceIdentityError);
   const architectures: HeaderArchitecture[] = [];
   const slices = new Map<
     HeaderArchitecture,
@@ -171,6 +187,41 @@ const parseFatMachO = (
   });
 };
 
+const fatSliceIdentityError = (
+  bytes: Buffer,
+  header: Extract<
+    ReturnType<typeof readFatContainerHeader>,
+    { state: "parsed" }
+  >,
+  sliceHeadersByOffset?: ReadonlyMap<
+    number,
+    ReturnType<typeof readFatSliceHeaderFacts>
+  >,
+): string | null => {
+  for (let index = 0; index < header.slices.length; index += 1) {
+    const declaration = header.slices[index];
+    if (declaration === undefined || header.rangeIssues[index] !== null)
+      continue;
+    let facts: ReturnType<typeof readFatSliceHeaderFacts> | undefined;
+    if (sliceHeadersByOffset?.has(declaration.offset)) {
+      facts = sliceHeadersByOffset.get(declaration.offset);
+    } else if (
+      declaration.size >= 12 &&
+      declaration.offset <= bytes.length - 12
+    ) {
+      facts = readFatSliceHeaderFacts(
+        bytes.subarray(declaration.offset, declaration.offset + 12),
+      );
+    }
+    const identity = facts?.identity;
+    if (identity === null || identity === undefined)
+      return `FAT architecture ${declaration.index} thin Mach-O CPU identity is outside the bounded header`;
+    const identityError = validateFatSliceIdentity(declaration, identity);
+    if (identityError !== null) return identityError;
+  }
+  return null;
+};
+
 const fatHostArchitecture = (
   host: NodeJS.Architecture,
 ): HeaderArchitecture | undefined => {
@@ -194,11 +245,24 @@ const fatIdentityError = (
     ReturnType<typeof readFatContainerHeader>,
     { state: "parsed" }
   >,
+  sliceHeadersByOffset?: ReadonlyMap<
+    number,
+    ReturnType<typeof readFatSliceHeaderFacts>
+  >,
 ): string | null => {
   const identity = classifyFatContainerIdentity(header, (offset) => {
-    if (offset >= bytes.length) return undefined;
-    if (offset + 4 > bytes.length) return null;
-    return bytes.readUInt32BE(offset);
+    if (sliceHeadersByOffset?.has(offset))
+      return sliceHeadersByOffset.get(offset)?.magic;
+    const slice = header.slices.find(
+      (candidate) => candidate.offset === offset,
+    );
+    if (slice === undefined || offset >= bytes.length) return undefined;
+    const available = Math.max(
+      0,
+      Math.min(slice.size, bytes.length - offset, 12),
+    );
+    return readFatSliceHeaderFacts(bytes.subarray(offset, offset + available))
+      .magic;
   });
   if (identity.state === "needs-slice-header")
     return "FAT slice identity is outside the bounded prefix";

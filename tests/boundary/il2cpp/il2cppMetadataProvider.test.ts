@@ -42,6 +42,96 @@ const sharedNameMetadata = (
   return Buffer.concat([header, name, records]);
 };
 
+/** Fixed-width metadata whose literals share one span; no target code is involved. */
+const sharedLiteralMetadata = (literalBytes: Buffer, count: number) => {
+  const header = Buffer.alloc(256),
+    records = Buffer.alloc(count * 8);
+  header.writeUInt32LE(0xfab11baf, 0);
+  header.writeInt32LE(29, 4);
+  for (let i = 0; i < count; i++)
+    records.writeUInt32LE(literalBytes.length, i * 8);
+  let cursor = 256;
+  for (let section = 0; section < 31; section++) {
+    const size =
+      section === 0 ? records.length : section === 1 ? literalBytes.length : 0;
+    header.writeInt32LE(cursor, 8 + section * 8);
+    header.writeInt32LE(size, 12 + section * 8);
+    cursor += size;
+  }
+  return Buffer.concat([header, records, literalBytes]);
+};
+
+it("bounds repeated literal output during decoding and reuses one span instead of allocating every repetition", async () => {
+  const root = await createTestTempDirectory("rea-il2cpp-literals-");
+  const path = join(root, "global-metadata.dat");
+  await writeFile(path, sharedLiteralMetadata(Buffer.alloc(4096, 65), 20));
+  const decode = vi.spyOn(TextDecoder.prototype, "decode");
+  const provider = new Il2cppMetadataProvider(12_000);
+  try {
+    const result = await provider.inspect({ path });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expanded literals accepted");
+    expect(result.error).toBeInstanceOf(AnalysisResourceConstraintError);
+    expect(result.error.partialObservation).toMatchObject({
+      normalized_result: {
+        validated_section_row_counts: { string_literals: 20 },
+      },
+    });
+    expect(
+      decode.mock.calls.filter(([bytes]) => bytes?.byteLength === 4096),
+    ).toHaveLength(1);
+  } finally {
+    await provider.close();
+  }
+});
+
+it("refuses raw literal expansion before decoding and admits invalid UTF-8 only when base64 fits", async () => {
+  const root = await createTestTempDirectory("rea-il2cpp-literal-forms-");
+  const path = join(root, "global-metadata.dat");
+  const decode = vi.spyOn(TextDecoder.prototype, "decode");
+  for (const [bytes, limit, expectedDecodes] of [
+    [Buffer.alloc(4096, 65), 1024, 0],
+    [Buffer.alloc(2048, 255), 2400, 1],
+  ] as const) {
+    decode.mockClear();
+    await writeFile(path, sharedLiteralMetadata(bytes, 1));
+    const provider = new Il2cppMetadataProvider(limit);
+    try {
+      const result = await provider.inspect({ path });
+      expect(result.ok).toBe(false);
+      if (!result.ok)
+        expect(result.error).toBeInstanceOf(AnalysisResourceConstraintError);
+      expect(
+        decode.mock.calls.filter(
+          ([value]) => value?.byteLength === bytes.length,
+        ),
+      ).toHaveLength(expectedDecodes);
+    } finally {
+      await provider.close();
+    }
+  }
+});
+
+it("counts an unclaimed parameter table before allocating any member rows", async () => {
+  const root = await createTestTempDirectory("rea-il2cpp-member-counts-");
+  const path = join(root, "global-metadata.dat");
+  const fixture = createIl2cppMetadataFixture({
+    wide: { fillerTypes: 0, genericContainers: 0, parameters: 2000 },
+  });
+  const bytes = Buffer.from(fixture.bytes);
+  bytes.writeInt32LE(0x7fffffff, fixture.section("parameters").offset);
+  await writeFile(path, bytes);
+  const provider = new Il2cppMetadataProvider(4096);
+  try {
+    const result = await provider.inspect({ path });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toBeInstanceOf(AnalysisResourceConstraintError);
+  } finally {
+    await provider.close();
+  }
+});
+
 it("refuses an oversized report from its row lower bound before serializing it", async () => {
   const root = await createTestTempDirectory("rea-il2cpp-provider-budget-");
   const path = join(root, "global-metadata.dat");

@@ -5,10 +5,14 @@ import type { JsonValue } from "../jsonValue.js";
 import { isImmutableJsonSnapshot } from "../immutableJson.js";
 import {
   il2cppMetadataImageSchema,
+  il2cppMetadataMemberSchema,
   il2cppMetadataMethodSchema,
   il2cppMetadataSectionSchema,
+  il2cppMetadataParameterSchema,
+  il2cppMetadataStringLiteralSchema,
   il2cppMetadataObjectSchema,
-  il2cppMetadataSchema,
+  il2cppMetadataParentSchema,
+  il2cppMetadataMemberCollections,
   il2cppMetadataTypeSchema,
 } from "../il2cpp/il2cppMetadata.js";
 import { err, ok, type Result } from "../result.js";
@@ -29,10 +33,25 @@ const countsSchema = z.strictObject({
   types: z.number().int().nonnegative(),
   methods: z.number().int().nonnegative(),
   nested_types: z.number().int().nonnegative(),
+  fields: z.number().int().nonnegative().nullable(),
+  properties: z.number().int().nonnegative().nullable(),
+  events: z.number().int().nonnegative().nullable(),
+  parameters: z.number().int().nonnegative().nullable(),
+  string_literals: z.number().int().nonnegative().nullable(),
 });
 
 export const il2cppMetadataSummarySchema = il2cppMetadataObjectSchema
-  .omit({ images: true, types: true, methods: true, sections: true })
+  .omit({
+    sections: true,
+    images: true,
+    types: true,
+    methods: true,
+    fields: true,
+    properties: true,
+    events: true,
+    parameters: true,
+    string_literals: true,
+  })
   .extend({ counts: countsSchema });
 
 const indexSchema = z.number().int().nonnegative();
@@ -44,13 +63,22 @@ const typeRowSchema = il2cppMetadataTypeSchema.extend({ index: indexSchema });
 const methodRowSchema = il2cppMetadataMethodSchema.extend({
   index: indexSchema,
 });
-const page = {
+const memberRowSchema = il2cppMetadataMemberSchema.extend({
+  index: indexSchema,
+});
+const parameterRowSchema = il2cppMetadataParameterSchema.extend({
+  index: indexSchema,
+});
+const stringLiteralRowSchema = il2cppMetadataStringLiteralSchema.extend({
+  index: indexSchema,
+});
+const indexPage = {
   kind: z.literal("il2cpp-metadata"),
   indices: z.array(indexSchema).optional(),
-  names: z.array(z.string()).optional(),
   offset: indexSchema.default(0),
   limit: z.number().int().positive().default(64),
 };
+const page = { ...indexPage, names: z.array(z.string()).optional() };
 const declaringTypes = z.array(z.number().int().min(-1)).optional();
 
 /** Filters intersect; pages use metadata order and always retain the source row index. */
@@ -81,6 +109,25 @@ export const il2cppMetadataViewRequestSchema = z.discriminatedUnion(
       declaring_types: declaringTypes,
       fields: z.array(methodRowSchema.keyof()).optional(),
     }),
+    ...(["fields", "properties", "events"] as const).map((collection) =>
+      z.strictObject({
+        ...page,
+        collection: z.literal(collection),
+        declaring_types: declaringTypes,
+        fields: z.array(memberRowSchema.keyof()).optional(),
+      }),
+    ),
+    z.strictObject({
+      ...page,
+      collection: z.literal("parameters"),
+      method_indices: z.array(indexSchema).optional(),
+      fields: z.array(parameterRowSchema.keyof()).optional(),
+    }),
+    z.strictObject({
+      ...indexPage,
+      collection: z.literal("string_literals"),
+      fields: z.array(stringLiteralRowSchema.keyof()).optional(),
+    }),
   ],
 );
 
@@ -89,6 +136,9 @@ export const il2cppMetadataViewItemsSchema = z.union([
   z.array(imageRowSchema.partial().required({ index: true })),
   z.array(typeRowSchema.partial().required({ index: true })),
   z.array(methodRowSchema.partial().required({ index: true })),
+  z.array(memberRowSchema.partial().required({ index: true })),
+  z.array(parameterRowSchema.partial().required({ index: true })),
+  z.array(stringLiteralRowSchema.partial().required({ index: true })),
 ]);
 
 export const il2cppMetadataViewContextSchema = z.strictObject({
@@ -96,9 +146,9 @@ export const il2cppMetadataViewContextSchema = z.strictObject({
   counts: countsSchema,
 });
 
-type Report = z.infer<typeof il2cppMetadataSchema>;
+type Report = z.infer<typeof il2cppMetadataParentSchema>;
 type Request = z.infer<typeof il2cppMetadataViewRequestSchema>;
-type Row = Report[Request["collection"]][number];
+type Row = NonNullable<Report[Request["collection"]]>[number];
 interface CheckedReport {
   readonly report: Report;
   readonly counts: z.infer<typeof countsSchema>;
@@ -119,7 +169,7 @@ const parseMetadataReport = (
     isImmutableJsonSnapshot(key);
   const cached = reusable ? checkedReports.get(key) : undefined;
   if (cached !== undefined) return ok(cached);
-  const parsed = parseAnalysisViewResult(il2cppMetadataSchema, parent);
+  const parsed = parseAnalysisViewResult(il2cppMetadataParentSchema, parent);
   if (!parsed.ok) return parsed;
   // This schema has no coercions/transforms; the authenticated owner value is
   // equivalent to the validated clone and remains immutable across pages.
@@ -135,6 +185,11 @@ const parseMetadataReport = (
         (count, type) => count + Number(type.declaring_type !== -1),
         0,
       ),
+      fields: report.fields?.length ?? null,
+      properties: report.properties?.length ?? null,
+      events: report.events?.length ?? null,
+      parameters: report.parameters?.length ?? null,
+      string_literals: report.string_literals?.length ?? null,
     },
   };
   if (reusable) checkedReports.set(key, checked);
@@ -168,12 +223,18 @@ const selectFields = (
 
 /** Compile caller selections once; large batches do not multiply per-row work. */
 const selection = (view: Request, report: Report) => {
-  const names = view.names === undefined ? undefined : new Set(view.names);
+  const names =
+    !("names" in view) || view.names === undefined
+      ? undefined
+      : new Set(view.names);
   const owners =
-    (view.collection !== "types" && view.collection !== "methods") ||
-    view.declaring_types === undefined
+    !("declaring_types" in view) || view.declaring_types === undefined
       ? undefined
       : new Set(view.declaring_types);
+  const methods =
+    view.collection === "parameters" && view.method_indices !== undefined
+      ? new Set(view.method_indices)
+      : undefined;
   const namespaces =
     view.collection !== "types" || view.namespaces === undefined
       ? undefined
@@ -203,7 +264,11 @@ const selection = (view: Request, report: Report) => {
     }
   }
   return (row: Row, index: number) => {
-    if (names !== undefined && !names.has(row.name)) return false;
+    if (
+      names !== undefined &&
+      (!("name" in row) || row.name === null || !names.has(row.name))
+    )
+      return false;
     if (
       owners !== undefined &&
       (!("declaring_type" in row) || !owners.has(row.declaring_type))
@@ -212,6 +277,11 @@ const selection = (view: Request, report: Report) => {
     if (
       namespaces !== undefined &&
       (!("namespace" in row) || !namespaces.has(row.namespace))
+    )
+      return false;
+    if (
+      methods !== undefined &&
+      (!("method" in row) || !methods.has(row.method))
     )
       return false;
     if (imageIndices === undefined) return true;
@@ -239,7 +309,7 @@ export const projectIl2cppMetadataView = (
           path: ["view"],
           reason: "invalid_value",
           message:
-            "IL2CPP metadata Evidence supports summary and selected sections/images/types/methods pages.",
+            "IL2CPP metadata Evidence supports summary and selected sections, images, types, methods, member, parameter and string literal pages.",
         },
       ]),
     );
@@ -262,7 +332,29 @@ export const projectIl2cppMetadataView = (
         },
       ]),
     );
-  const { sections, images, types, methods, ...identity } = report;
+  const {
+    sections,
+    images,
+    types,
+    methods,
+    fields,
+    properties,
+    events,
+    parameters,
+    string_literals,
+    ...identity
+  } = report;
+  const allRows = {
+    sections,
+    images,
+    types,
+    methods,
+    fields,
+    properties,
+    events,
+    parameters,
+    string_literals,
+  };
   const shared = {
     parent_evidence_id: parent.evidenceId,
     parent_operation: "inspect_il2cpp_metadata" as const,
@@ -270,7 +362,13 @@ export const projectIl2cppMetadataView = (
     artifact: { path: report.artifact.path, sha256: report.artifact.sha256 },
     limitations: [...parent.limitations],
     unknowns: [
-      "Counts and page exhaustion cover retained metadata facts, not runtime loading or native code addresses.",
+      ...il2cppMetadataMemberCollections
+        .filter((name) => report[name] === undefined)
+        .map(
+          (name) =>
+            `Retained Evidence did not collect ${name}; its count is unknown. Reinspect the metadata to acquire these facts.`,
+        ),
+      "Names come from unencrypted metadata only; native code addresses and runtime registration remain unknown.",
       ...(parent.subject == null
         ? [
             "The parent has no recorded subject; its normalized artifact identity cannot be cross-checked against a subject digest.",
@@ -286,9 +384,19 @@ export const projectIl2cppMetadataView = (
       summary: { ...identity, counts },
       coverage: completeWithinViewCoverage(1, 1),
     });
-  const rows = { sections, images, types, methods }[view.collection];
+  const rows = allRows[view.collection];
+  if (rows === undefined)
+    return err(
+      analysisViewInputError([
+        {
+          path: ["view", "collection"],
+          reason: "invalid_value",
+          message: `Retained Evidence did not collect ${view.collection}; inspect the metadata again to acquire these facts.`,
+        },
+      ]),
+    );
   const matches = selection(view, report);
-  const fields =
+  const selectedFields =
     view.fields === undefined ? undefined : new Set<string>(view.fields);
   const items = [];
   let total = 0;
@@ -296,7 +404,7 @@ export const projectIl2cppMetadataView = (
     const row = rows[index]!;
     if (!matches(row, index)) continue;
     if (total >= view.offset && items.length < view.limit)
-      items.push(selectFields(row, index, fields));
+      items.push(selectFields(row, index, selectedFields));
     total++;
   }
   return ok({

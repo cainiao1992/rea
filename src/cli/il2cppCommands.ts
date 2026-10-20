@@ -18,11 +18,11 @@ export const registerIl2cppCommands = (
 ): void => {
   cli.command(CLI_COMMANDS.inspectIl2cppMetadata, {
     description:
-      "Inventory IL2CPP global-metadata.dat images, types and methods",
+      "Inventory IL2CPP global-metadata.dat names, owners and string literals",
     args: z.object({
       path: z
         .string()
-        .describe("Local global-metadata.dat (version 29, 31 or 39)"),
+        .describe("Local global-metadata.dat (version 24, 27, 29, 31 or 39)"),
     }),
     options: z.object(analysisEvidenceDeliveryOptions),
     run: ({ args, options }) =>

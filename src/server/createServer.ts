@@ -525,6 +525,7 @@ export const createServer = (
             operation,
             rebindFailure,
           ),
+    evidenceById,
   );
   registerFridaTools(
     server,
@@ -554,6 +555,7 @@ export const createServer = (
       ? undefined
       : (evidence) => session.recordEvidence(evidence),
     session,
+    evidenceById,
   );
   registerRizinDebugTools(
     server,

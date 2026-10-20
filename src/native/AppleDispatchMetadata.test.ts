@@ -906,7 +906,12 @@ describe("malformed Apple dispatch metadata", () => {
     const coverage = result.coverage.find(
       ({ facet }) => facet === "swift_class_vtable_descriptors",
     );
-    expect(coverage).toMatchObject({ status: "partial", examined: 3 });
+    expect(coverage).toMatchObject({
+      status: "partial",
+      examined: 2,
+      decoded: 2,
+      reason: expect.stringContaining("class name is empty"),
+    });
   });
 
   it("rejects malformed command and section boundaries", () => {

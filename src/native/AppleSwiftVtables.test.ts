@@ -8,13 +8,13 @@ import type { DispatchRecordBudget } from "./AppleSwiftDispatchFacets.js";
 import { issue } from "./AppleDispatchDecodeFacts.js";
 
 describe("Swift vtable coverage facts: unresolved Swift dispatch slots", () => {
-  it("returns a located issue for an emitted unresolved async slot", () => {
+  it("counts examined slots and reports an unresolved async slot", () => {
     const result = objcSwiftMetadataSchema.parse({ db_save_result: null });
     const values = new Map<bigint, number>([
       [0x200n, 0x80000010], // class descriptor with a vtable
       [0x22cn, 0], // table offset
-      [0x230n, 1], // slot count
-      [0x21cn, 1], // descriptor positive words
+      [0x230n, 2], // slot count
+      [0x21cn, 2], // descriptor positive words
       [0x234n, 0x40], // async method flag
     ]);
     const facts = decodeSwiftClassVtables({
@@ -41,14 +41,17 @@ describe("Swift vtable coverage facts: unresolved Swift dispatch slots", () => {
             artifact_sha256: "a".repeat(64),
           },
         ],
-        executable: () => false,
+        executable: (address) => address === 0x400n,
         admit: () => true,
       },
     });
 
     expect(result.swift_dispatch_slots[0]?.decode.status).toBe("partial");
+    expect(result.swift_dispatch_slots[1]?.decode.status).toBe("decoded");
     expect(facts).toMatchObject({
       facet: "swift_class_vtable_descriptors",
+      examined: 2,
+      decoded: 1,
       exhaustive: false,
       issues: [{ code: "vtable_implementation_unresolved", location: "0x234" }],
     });
@@ -88,6 +91,8 @@ describe("Swift vtable coverage facts: unresolved Swift dispatch slots", () => {
       ),
     ).toMatchObject({
       status: "partial",
+      examined: 2,
+      decoded: 1,
       reason: expect.stringContaining("0x234"),
     });
   });

@@ -25,6 +25,8 @@ export const decodeSwiftClassVtables = (input: {
   const { readers: read, result } = input;
   const failures: string[] = [];
   const issues = [] as ReturnType<typeof issue>[];
+  // Coverage counts vtable slots, matching `decoded`; descriptor entries are
+  // a discovery input and are not slot records.
   let examined = 0;
   let decoded = 0;
   for (const field of input.entries) {
@@ -40,7 +42,6 @@ export const decodeSwiftClassVtables = (input: {
       );
       break;
     }
-    examined++;
     try {
       const descriptor = read.relative(field);
       const flags = read.u32(descriptor);
@@ -84,6 +85,7 @@ export const decodeSwiftClassVtables = (input: {
           );
           break;
         }
+        examined++;
         const methodFlags = read.u32(entry);
         // Async slots reference async descriptors; coroutine and future kinds need separate decoders.
         const synchronous =

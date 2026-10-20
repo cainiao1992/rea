@@ -51,3 +51,16 @@ export const checkRange = (
       `${label} range [${start}, ${start + length}) is outside the ${total} available entries`,
     );
 };
+
+/** Read a serialized index; the all-ones value of narrow widths means -1. */
+export const readIndex = (bytes: Buffer, offset: number, width: 1 | 2 | 4) => {
+  if (width === 1) {
+    const value = bytes.readUInt8(offset);
+    return value === 0xff ? -1 : value;
+  }
+  if (width === 2) {
+    const value = bytes.readUInt16LE(offset);
+    return value === 0xffff ? -1 : value;
+  }
+  return bytes.readInt32LE(offset);
+};

@@ -87,6 +87,7 @@ export const readGoPeImage = (bytes: Buffer): GoBinaryContainer => {
     "PE sections",
   );
   const mappings: GoFileMapping[] = [];
+  const executableMappings: GoFileMapping[] = [];
   const zeroFills: GoZeroFillMapping[] = [];
   const sections: GoImageSection[] = [];
   let search: GoFileMapping | null = null;
@@ -124,7 +125,11 @@ export const readGoPeImage = (bytes: Buffer): GoBinaryContainer => {
         : reader.fileRange(BigInt(offset), BigInt(size), "PE section")),
       address,
     };
-    if (size !== 0) mappings.push(mapping);
+    if (size !== 0) {
+      mappings.push(mapping);
+      if ((characteristics & 0x20000000) !== 0)
+        executableMappings.push({ ...mapping, size: contentSize });
+    }
     if (virtualSize > size)
       zeroFills.push({
         address: address + BigInt(size),
@@ -151,10 +156,12 @@ export const readGoPeImage = (bytes: Buffer): GoBinaryContainer => {
   ]);
   return {
     format: "pe",
+    image_base: imageBase,
     architecture: names.get(machine) ?? `pe-machine-${machine}`,
     bits,
     byte_order: "little",
     mappings,
+    executable_mappings: executableMappings,
     zero_fills: zeroFills,
     sections,
     search: search === null ? [] : [search],

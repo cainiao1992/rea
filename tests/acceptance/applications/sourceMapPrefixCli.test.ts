@@ -282,7 +282,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
 );
 
 cliTest.for(["CLI", "stdio MCP"] as const)(
-  "rejects non-string source-map names without inventing originals through %s",
+  "retains valid declarations beside non-string source-map names through %s",
   async (surface, { cli }) => {
     const root = await createTestTempDirectory("rea-invalid-map-source-");
     const mapText = JSON.stringify({
@@ -295,11 +295,29 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     await writeFixtureFiles(root, { "invalid.js.map": mapText });
     const { graph } = await analyzeJavaScriptDirectory(surface, cli, root);
     expect(graph.coverage.status).toBe("partial");
-    expect(
-      graph.nodes.some(
-        (node) => node.identity.strategy === "source-map-original",
-      ),
-    ).toBe(false);
+    const mapDigest = createHash("sha256").update(mapText).digest("hex");
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        kind: "source-module",
+        identity: expect.objectContaining({
+          strategy: "source-map-original",
+          source_map_sha256: mapDigest,
+          original_source: "discarded.ts",
+          source_sha256: createHash("sha256")
+            .update("export const answer: number = 42;")
+            .digest("hex"),
+        }),
+        observations: expect.arrayContaining([
+          expect.objectContaining({
+            properties: expect.objectContaining({
+              section_path: [],
+              source_index: 1,
+              declaration_index: 0,
+            }),
+          }),
+        ]),
+      }),
+    );
     expect(graph.nodes).toContainEqual(
       expect.objectContaining({
         kind: "unknown",
@@ -310,10 +328,10 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
             }),
             evidence: expect.objectContaining({
               artifact: expect.objectContaining({
-                sha256: createHash("sha256").update(mapText).digest("hex"),
+                sha256: mapDigest,
               }),
               limitations: expect.arrayContaining([
-                "Source map contains a non-string source name.",
+                "Source map contains a non-string source name at index 0.",
               ]),
             }),
           }),
@@ -321,5 +339,81 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       }),
     );
     expect(await readFile(join(root, "invalid.js.map"), "utf8")).toBe(mapText);
+  },
+);
+
+cliTest.for(["CLI", "stdio MCP"] as const)(
+  "keeps external indexed sections unknown while retaining embedded siblings through %s",
+  async (surface, { cli }) => {
+    const root = await createTestTempDirectory("rea-external-indexed-map-");
+    const url = "https://app.test/maps/part.map?revision=7";
+    const mapText = JSON.stringify({
+      version: 3,
+      sections: [
+        {
+          offset: { line: 0, column: 0 },
+          map: {
+            version: 3,
+            sources: ["before.ts"],
+            sourcesContent: ["export const before = 1;"],
+            names: [],
+            mappings: "AAAA",
+          },
+        },
+        { offset: { line: 1, column: 0 }, url },
+        {
+          offset: { line: 2, column: 0 },
+          map: {
+            version: 3,
+            sources: ["after.ts"],
+            sourcesContent: ["export const after = 2;"],
+            names: [],
+            mappings: "AAAA",
+          },
+        },
+      ],
+    });
+    await writeFixtureFiles(root, { "indexed.js.map": mapText });
+    const { graph } = await analyzeJavaScriptDirectory(surface, cli, root);
+    const mapDigest = createHash("sha256").update(mapText).digest("hex");
+
+    expect(graph.coverage.status).toBe("partial");
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        kind: "unknown",
+        observations: expect.arrayContaining([
+          expect.objectContaining({
+            properties: expect.objectContaining({
+              path: "indexed.js.map",
+              operation: "parse-local-source-map",
+              limitation: `External source-map section URL is not fetched: ${url}`,
+              external_sections: [{ section_path: [1], url }],
+            }),
+            evidence: expect.objectContaining({
+              artifact: expect.objectContaining({ sha256: mapDigest }),
+              limitations: [
+                `External source-map section URL is not fetched: ${url}`,
+              ],
+            }),
+          }),
+        ]),
+      }),
+    );
+    for (const [source, content] of [
+      ["before.ts", "export const before = 1;"],
+      ["after.ts", "export const after = 2;"],
+    ] as const)
+      expect(graph.nodes).toContainEqual(
+        expect.objectContaining({
+          kind: "source-module",
+          identity: expect.objectContaining({
+            strategy: "source-map-original",
+            source_map_sha256: mapDigest,
+            original_source: source,
+            source_sha256: createHash("sha256").update(content).digest("hex"),
+          }),
+        }),
+      );
+    expect(await readFile(join(root, "indexed.js.map"), "utf8")).toBe(mapText);
   },
 );

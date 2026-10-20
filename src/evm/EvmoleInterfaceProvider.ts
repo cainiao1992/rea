@@ -758,16 +758,19 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
         bindArtifactFileCleanup(artifactFailure, failure);
       result = err(failure);
     }
-    if (result.ok && options?.signal?.aborted)
-      result = err(
-        new AnalysisCancelledError(OPERATION, {
-          cause: options.signal.reason,
-          partialObservation: evmInterfaceEvidence(input, result.value),
-          ...(retainedOutput === undefined
-            ? {}
-            : { capturedOutput: retainedOutput }),
-        }),
-      );
+    const retainCancellation = (outcome: EvmOutcome): EvmOutcome =>
+      outcome.ok && options?.signal?.aborted
+        ? err(
+            new AnalysisCancelledError(OPERATION, {
+              cause: options.signal.reason,
+              partialObservation: evmInterfaceEvidence(input, outcome.value),
+              ...(retainedOutput === undefined
+                ? {}
+                : { capturedOutput: retainedOutput }),
+            }),
+          )
+        : outcome;
+    result = retainCancellation(result);
     if (processOwner !== undefined) {
       const lease = processLeaseFor(processOwner);
       const rootOwnerLease =
@@ -838,18 +841,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
       } catch (cause: unknown) {
         const retainedRoot = root;
         const lease = rootLeaseFor(retainedRoot);
-        const cleanupResult =
-          result.ok && options?.signal?.aborted
-            ? err(
-                new AnalysisCancelledError(OPERATION, {
-                  cause: options.signal.reason,
-                  partialObservation: evmInterfaceEvidence(input, result.value),
-                  ...(retainedOutput === undefined
-                    ? {}
-                    : { capturedOutput: retainedOutput }),
-                }),
-              )
-            : result;
+        const cleanupResult = retainCancellation(result);
         this.#pendingCleanup = {
           input,
           result: cleanupResult,
@@ -874,7 +866,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
         return err(failure);
       }
     }
-    return result;
+    return retainCancellation(result);
   }
 
   async close(): Promise<void> {

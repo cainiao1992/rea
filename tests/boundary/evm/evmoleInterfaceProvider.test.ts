@@ -783,6 +783,7 @@ it
     else expect(result.error.cleanupIncomplete).toBe(true);
     if (scenario === "cancelled-cleanup-failure") {
       expect(result.error.cleanupPrimary?.cause).toBe(reason);
+      denyClose = false;
       await provider.close();
       expect(result.error.cleanupIncomplete).toBe(false);
       expect(projectAnalysisError(result.error).category).toBe("cancelled");

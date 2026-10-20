@@ -171,6 +171,15 @@ explicit path or endpoint and do not need it.
   absent metadata does not prove a binary is not Go, and unparsed text records
   remain explicit. See the
   [Go binary guide](https://github.com/morluto/rea/blob/main/docs/go-binaries.md).
+- Bundled GGUF or safetensors model declarations: `inspect_model_artifact`
+  with the explicit local file. Default header hashing leaves full-file identity
+  unknown; `hash: "full"` additionally reads all weights for SHA-256. MCP returns
+  retained summaries; optional `view` selects one page in the initial call. Use
+  `inspect_analysis_view` kind `model-artifact` for
+  batched metadata keys, tensor names or type totals, selected fields and pages.
+  Preserve header-scoped indices and array preview omissions; do not infer model
+  behavior from declared architecture or tensor types. See the
+  [model file guide](https://github.com/morluto/rea/blob/main/docs/model-artifacts.md).
 - Unity IL2CPP names, member owners and string literals from `global-metadata.dat`:
   `inspect_il2cpp_metadata` with the explicit local file; MCP defaults to compact
   counts. Query sections, images, types, methods, fields, properties, events,

@@ -27,6 +27,8 @@ import { createRecordedCrashService } from "../composition/binaryDiagnostics.js"
 import { createDesktopApplicationService } from "../composition/desktop.js";
 import { registerDesktopApplicationTool } from "./registerDesktopApplicationTool.js";
 import { createGoBinaryService } from "../composition/go.js";
+import { createModelArtifactService } from "../composition/model.js";
+import { registerModelArtifactTools } from "./registerModelArtifactTools.js";
 import { createIl2cppMetadataService } from "../composition/il2cpp.js";
 import type { Il2cppMetadataService } from "../application/il2cpp/Il2cppMetadataService.js";
 import type { GoBinaryService } from "../application/go/GoBinaryService.js";
@@ -329,6 +331,7 @@ export const createServer = (
   const desktopApplication = createDesktopApplicationService();
   const goBinary = options.goBinary ?? createGoBinaryService();
   const rustBinary = options.rustBinary ?? createRustBinaryService();
+  const modelArtifact = createModelArtifactService();
   const il2cppMetadata =
     options.il2cppMetadata ?? createIl2cppMetadataService();
   const peResources = createPeResourcesService();
@@ -416,6 +419,7 @@ export const createServer = (
       goBinary.close(),
       rustBinary.close(),
       il2cppMetadata.close(),
+      modelArtifact.close(),
       peResources.close(),
       electronFuses.close(),
       webNetworkCapture.close(),
@@ -486,6 +490,14 @@ export const createServer = (
   registerDesktopApplicationTool(
     server,
     desktopApplication,
+    toolLogger,
+    recordEvidence,
+    analysisAdmission,
+    evidenceById,
+  );
+  registerModelArtifactTools(
+    server,
+    modelArtifact,
     toolLogger,
     recordEvidence,
     analysisAdmission,

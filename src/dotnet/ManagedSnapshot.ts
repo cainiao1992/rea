@@ -17,6 +17,7 @@ import {
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
+import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
 import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
@@ -42,6 +43,7 @@ const managedSnapshotCapacityError = (
     "memory",
     "Managed static inspection requires an eagerly retained PE snapshot within its input byte budget.",
     { max_snapshot_bytes: MAX_MANAGED_SNAPSHOT_BYTES },
+    fixedAllowanceOptions("The managed PE snapshot allowance", "parser"),
   );
 
 export const readManagedSnapshot = async (

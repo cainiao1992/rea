@@ -146,6 +146,9 @@ jobs:
       - name: Cache npm package downloads
         id: npm-cache
         uses: ./.github/actions/npm-cache
+        with:
+          # Linux x64 writer. Parallel Linux jobs restore this key.
+          save: "true"
       - run: npm ci
       - name: Restore static task cache
         if: needs.changes.outputs.code == 'true'
@@ -658,6 +661,9 @@ jobs:
       - name: Cache npm package downloads
         id: npm-cache
         uses: ./.github/actions/npm-cache
+        with:
+          # ubuntu-latest is the Linux x64 writer above. Other hosts save their own key.
+          save: ${{ matrix.os != 'ubuntu-latest' }}
       - name: Verify native runtime identity
         env:
           EXPECTED_CI_PLATFORM: ${{ matrix.platform }}
@@ -794,6 +800,8 @@ jobs:
       - name: Cache npm package downloads
         id: npm-cache
         uses: ./.github/actions/npm-cache
+        with:
+          save: "true"
       - run: npm ci
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

@@ -13,6 +13,12 @@ const actionPath = join(repository, ".github/actions/npm-cache/action.yml");
 const readAction = async () =>
   z
     .object({
+      inputs: z
+        .record(
+          z.string(),
+          z.object({ default: z.string().optional() }).passthrough(),
+        )
+        .optional(),
       outputs: z.record(z.string(), z.object({ value: z.string() })),
       runs: z.object({
         steps: z.array(
@@ -42,9 +48,11 @@ const readWorkflows = async () => {
           jobs: z
             .record(
               z.string(),
-              z.object({
-                steps: z.array(z.record(z.string(), z.unknown())).optional(),
-              }),
+              z
+                .object({
+                  steps: z.array(z.record(z.string(), z.unknown())).optional(),
+                })
+                .passthrough(),
             )
             .optional(),
         })
@@ -107,6 +115,9 @@ printf '%s\n' 'C:\Users\runner with spaces\AppData\Local\npm-cache'
       expect(output).toContain(
         `key=npm-download-Windows-${process.arch}-lock-hash\n`,
       );
+      expect(output).toContain(
+        `restore-key=npm-download-Windows-${process.arch}-\n`,
+      );
     }
   });
 
@@ -120,6 +131,7 @@ printf '%s\n' 'C:\Users\runner with spaces\AppData\Local\npm-cache'
       step.uses?.startsWith("actions/cache/restore@"),
     );
 
+    expect(action.inputs?.save?.default).toBe("false");
     expect(action.outputs["can-save"]?.value).toBe(
       "${{ steps.context.outputs.can-save }}",
     );
@@ -138,19 +150,27 @@ printf '%s\n' 'C:\Users\runner with spaces\AppData\Local\npm-cache'
     expect(restoreAndSave?.uses).toBe(
       "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
     );
-    expect(restoreAndSave?.if).toBe("steps.context.outputs.can-save == 'true'");
+    expect(restoreAndSave?.if).toBe(
+      "steps.context.outputs.can-save == 'true' && inputs.save == 'true'",
+    );
     expect(restoreOnly?.uses).toBe(
       "actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830",
     );
-    expect(restoreOnly?.if).toBe("steps.context.outputs.can-save != 'true'");
+    expect(restoreOnly?.if).toBe(
+      "steps.context.outputs.can-save != 'true' || inputs.save != 'true'",
+    );
     expect(restoreAndSave?.with?.path).toBe(
       "${{ steps.context.outputs.path }}",
     );
     expect(restoreOnly?.with?.path).toBe(restoreAndSave?.with?.path);
     expect(restoreAndSave?.with?.key).toBe("${{ steps.context.outputs.key }}");
     expect(restoreOnly?.with?.key).toBe(restoreAndSave?.with?.key);
-    expect(restoreAndSave?.with).not.toHaveProperty("restore-keys");
-    expect(restoreOnly?.with).not.toHaveProperty("restore-keys");
+    expect(restoreAndSave?.with?.["restore-keys"]).toBe(
+      "${{ steps.context.outputs.restore-key }}",
+    );
+    expect(restoreOnly?.with?.["restore-keys"]).toBe(
+      restoreAndSave?.with?.["restore-keys"],
+    );
   });
 
   it("replaces every inline setup-node npm cache immediately and preserves conditions", async () => {
@@ -257,6 +277,153 @@ it("shares static task snapshots only after validation using the npm cache owner
   expect(knipSave?.with).toEqual({
     path: "node_modules/.cache/knip",
     key: "${{ steps.knip-cache.outputs.cache-primary-key }}",
+  });
+  expect(
+    steps.find((step) => step.run === "node scripts/ci/cache-retention.mjs"),
+  ).toBeUndefined();
+});
+
+it("deletes superseded caches only from the trusted follow-up workflow", async () => {
+  const workflow = z
+    .object({
+      on: z.object({
+        workflow_run: z.object({
+          workflows: z.array(z.literal("CI")),
+          types: z.array(z.literal("completed")),
+        }),
+        workflow_call: z.unknown().optional(),
+        pull_request: z.unknown().optional(),
+      }),
+      permissions: z.record(z.string(), z.string()),
+      jobs: z.record(
+        z.string(),
+        z.object({
+          if: z.string(),
+          "runs-on": z.literal("ubuntu-latest"),
+          steps: z.array(z.record(z.string(), z.unknown())),
+        }),
+      ),
+    })
+    .parse(
+      parse(
+        await readFile(
+          join(repository, ".github/workflows/cache-retention.yml"),
+          "utf8",
+        ),
+      ),
+    );
+  expect(workflow.on.workflow_call).toBeUndefined();
+  expect(workflow.on.pull_request).toBeUndefined();
+  expect(workflow.permissions).toEqual({
+    contents: "read",
+    actions: "write",
+  });
+  const job = workflow.jobs.retain;
+  expect(job?.if).toContain(
+    "github.event.workflow_run.conclusion == 'success'",
+  );
+  expect(job?.if).toContain(
+    "github.event.workflow_run.conclusion == 'failure'",
+  );
+  expect(job?.if).toContain(
+    "github.event.workflow_run.conclusion == 'timed_out'",
+  );
+  expect(job?.if).toContain(
+    "github.event.workflow_run.conclusion == 'cancelled'",
+  );
+  expect(job?.if).toContain(
+    "github.event.workflow_run.head_repository.full_name == github.repository",
+  );
+  expect(job?.if).toContain(
+    "github.event.workflow_run.head_branch == github.event.repository.default_branch",
+  );
+  expect(job?.if).toContain("github.event.workflow_run.event == 'push'");
+  expect(job?.if).toContain("github.event.workflow_run.event == 'schedule'");
+  expect(job?.if).toContain(
+    "github.event.workflow_run.event == 'workflow_dispatch'",
+  );
+  expect(job?.if).not.toContain("pull_request");
+  const steps = job?.steps ?? [];
+  expect(steps.some((step) => step.run === "npm ci")).toBe(false);
+  const checkout = steps[0];
+  expect(checkout?.uses).toBe(
+    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+  );
+  expect(checkout?.with).toMatchObject({
+    ref: "${{ github.event.workflow_run.head_sha }}",
+    "persist-credentials": false,
+  });
+  const retention = steps.find(
+    (step) => step.run === "node scripts/ci/cache-retention.mjs",
+  );
+  const retentionEnv = z.record(z.string(), z.string()).parse(retention?.env);
+  expect(retentionEnv.CACHE_PREFIX).toBe(
+    "rea-static-v1-${{ runner.os }}-${{ runner.arch }}-",
+  );
+  expect(retentionEnv.CACHE_KEEP_KEY).toBe(
+    "rea-static-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', '.npmrc', 'package-lock.json') }}-${{ github.event.workflow_run.head_sha }}",
+  );
+  expect(retentionEnv.CACHE_PORTABLE_PREFIX).toBe(
+    "rea-portable-build-v2-${{ runner.os }}-${{ runner.arch }}-",
+  );
+  expect(retentionEnv.DEDUPE_NPM_DOWNLOADS).toBe("true");
+  expect(retentionEnv.GH_TOKEN).toBe("${{ github.token }}");
+  const ci = (await readWorkflows()).find(({ file }) => file === "ci.yml");
+  expect(JSON.stringify(ci?.workflow)).not.toContain('"actions":"write"');
+  const deepSteps = ci?.workflow.jobs?.["static-deep"]?.steps ?? [];
+  const publishedKey = (id: string) =>
+    z
+      .string()
+      .parse(
+        z
+          .record(z.string(), z.unknown())
+          .parse(deepSteps.find((step) => step.id === id)?.with).key,
+      );
+  const savedOnThisRun = "${{ github.event.workflow_run.head_sha }}";
+  const deepPrefix = "rea-static-deep-v1-${{ runner.os }}-${{ runner.arch }}-";
+  const knipPrefix = "knip-meta-v1-${{ runner.os }}-";
+  expect(retentionEnv.CACHE_DEEP_PREFIX).toBe(deepPrefix);
+  expect(retentionEnv.CACHE_DEEP_KEEP_KEY).toBe(
+    publishedKey("static-cache").replaceAll(
+      "${{ github.sha }}",
+      savedOnThisRun,
+    ),
+  );
+  expect(publishedKey("static-cache").startsWith(deepPrefix)).toBe(true);
+  expect(retentionEnv.CACHE_KNIP_PREFIX).toBe(knipPrefix);
+  expect(retentionEnv.CACHE_KNIP_KEEP_KEY).toBe(
+    publishedKey("knip-cache").replaceAll("${{ github.sha }}", savedOnThisRun),
+  );
+  expect(publishedKey("knip-cache").startsWith(knipPrefix)).toBe(true);
+});
+
+it("publishes each hosted npm download cache from one writer", async () => {
+  const workflows = await readWorkflows();
+  const writers: { file: string; job: string; save: string }[] = [];
+  for (const { file, workflow } of workflows)
+    for (const [job, definition] of Object.entries(workflow.jobs ?? {}))
+      for (const step of definition.steps ?? []) {
+        if (step.uses !== "./.github/actions/npm-cache") continue;
+        const save = z
+          .record(z.string(), z.unknown())
+          .parse(step.with ?? {}).save;
+        if (save === undefined) continue;
+        writers.push({ file, job, save: z.string().parse(save) });
+      }
+  expect(writers).toEqual([
+    { file: "ci.yml", job: "static", save: "true" },
+    {
+      file: "ci.yml",
+      job: "package-e2e",
+      save: "${{ matrix.os != 'ubuntu-latest' }}",
+    },
+    { file: "ci.yml", job: "windows-curated", save: "true" },
+  ]);
+  const ci = workflows.find(({ file }) => file === "ci.yml");
+  expect(ci?.workflow.jobs?.static?.permissions).toBeUndefined();
+  expect(ci?.workflow.jobs?.build?.permissions).toEqual({
+    contents: "read",
+    actions: "read",
   });
 });
 

@@ -146,6 +146,17 @@ the fixture cache. These subprocesses are outside aggregate Vitest coverage;
 subprocess coverage attachment remains disabled. Cold-start import checks launch
 independently without this fixture cache.
 
+`analyzeJavaScriptDirectory` stdio MCP cases in one `cliTest` file share one
+server and that compile cache. The first case pays startup; later cases reuse
+the process. File teardown waits for startup still in flight, closes a server
+registered during that wait, and does not open a server after close. A failed
+handshake stays the caller error when its cleanup also fails, including a
+rejection without a reason. That cleanup stays owned until a later close or
+call releases it. Another server does not open while the cleanup remains, and
+a cleanup that already succeeded is not run again. Pass
+`mcpCall` when a case needs its own server, environment, or lifecycle. CLI
+cases still start a fresh process.
+
 The Apple artifact verifier step shares a job-temporary bytecode cache among
 its fresh CLI/MCP children via `REA_ARTIFACT_NODE_COMPILE_CACHE`. The artifact
 helper maps this setting to child `NODE_COMPILE_CACHE`; npm, Turbo, and nested
@@ -568,8 +579,9 @@ metadata, and available manifests into `.cache/ci-build-cache/`.
 `portable-build-cache.json` records availability per task. Evicted or partially
 missing entries are omitted as whole entries, and consumers rebuild cache misses,
 including when every entry is unavailable. Malformed plans, non-file entries,
-and I/O errors other than disappearance still fail publication. Older cross-run entries stay in the
-original cache. The Windows lane relies on the Linux static job for typechecking. They retain the normal build and prepack
+and I/O errors other than disappearance still fail publication. After a trusted
+static run, superseded cross-run Turbo snapshots for that OS and architecture
+are deleted down to the two newest generations. The Windows lane relies on the Linux static job for typechecking. They retain the normal build and prepack
 commands, which restore matching outputs or rebuild on a cache miss. Native
 artifacts, dependency installs, package archives, and runtime verification remain
 host-local. Keep platform-dependent outputs out of this shared cache.
@@ -1359,13 +1371,35 @@ token leaves the local Turbo cache in place.
 
 The shared npm-cache action caches downloads, not `node_modules`, and every
 consumer still runs `npm ci`. Keys cover the runner OS, actual Node architecture,
-root lockfiles, and `.npmrc`. Only push, schedule, and manual events on the
-repository's default branch may save shared npm caches; PRs restore only.
-Static snapshots use the same write authority and are saved only after the
-static job's validation succeeds. Main warms the new cache namespace after
-merge; a cold cache or changed lockfile falls back to the normal install.
-This prevents each PR from saving another branch-scoped copy of the same
-download cache. It does not remove runner assignment waits.
+root lockfiles, and `.npmrc`. An exact-key miss restores the newest cache for
+that OS and architecture, so a lockfile change reuses unchanged tarballs while
+`npm ci` still verifies the lockfile. Only push, schedule, and manual events on
+the repository's default branch may save shared npm caches, and only from the
+opted-in writer for that host: Static checks for Linux x64, the package matrix
+for every other included host, and the Windows curated lane. Every other job
+restores without saving, so parallel jobs do not publish duplicate copies.
+Pull requests restore only. Static snapshots are saved only after the static
+job's validation succeeds. Cache deletion is a
+separate workflow, because reusable qualification calls this workflow and
+cannot raise its read-only token. After a push, schedule, or manual CI run on
+the default branch finishes, including when a later lane fails, times out, or
+is cancelled, that workflow runs on `ubuntu-latest` and deletes older
+`rea-static-v1`, `rea-static-deep-v1`, and `rea-portable-build-v2` entries for
+that runner's OS and architecture, plus older `knip-meta-v1` entries for that
+OS. It keeps two generations plus the key that run saved. A fast run that did
+not publish a deep or Knip snapshot still leaves the two newest entries in
+those families. It
+deletes an npm download record only when another record has the same key, cache
+version, and git ref, and it keeps the most recently accessed copy. A different
+version or ref is a different restore target and stays. One cache id is one
+record: a repeated id keeps the later access time when its key, version, ref,
+size, and creation time agree, and an inconsistent repeat deletes nothing. An
+incomplete or unexpected cache list deletes nothing.
+Distinct lockfile generations of the download cache stay, so the restore
+prefix still has a seed.
+Main warms the new cache namespace after merge; a cold cache falls back to the
+normal install. This prevents each PR from saving another branch-scoped copy of
+the same download cache. It does not remove runner assignment waits.
 
 Portable owner-based test selection remains observational. Its reports compare
 proposed omissions with the full run; incomplete or skipped observations do not

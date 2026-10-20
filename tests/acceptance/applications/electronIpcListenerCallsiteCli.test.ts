@@ -104,12 +104,12 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     };
     let traceEvidence: unknown;
     if (surface === "CLI") {
+      // The application Evidence document exceeds the runner argument limit
+      // when it is placed on argv. The command reads the same JSON from a file.
+      const traceInput = join(root, "trace-input.json");
+      await writeFile(traceInput, JSON.stringify(traceArguments));
       const response = await cli.run({
-        arguments: [
-          "trace-application-feature",
-          JSON.stringify(traceArguments),
-          "--json",
-        ],
+        arguments: ["trace-application-feature", traceInput, "--json"],
       });
       expect(response.exitCode, response.stderr).toBe(0);
       traceEvidence = response.json;

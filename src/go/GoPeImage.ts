@@ -137,7 +137,7 @@ export const readGoPeImage = (bytes: Buffer): GoBinaryContainer => {
       size !== 0 &&
       (characteristics & ~0x00600000) >>> 0 === 0xc0000040
     ) {
-      search = { ...mapping, size: Math.min(size, virtualSize) };
+      search = { ...mapping, size: contentSize };
     }
   }
   const machine = reader.u16(pe + 4);

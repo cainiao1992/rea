@@ -10,6 +10,7 @@ import {
   createGoSplitElfFixture,
   createGoOverlappingElfFixture,
   createGoBinaryPathFailureFixture,
+  setGoPeVirtualSize,
   GO_MODULE_TEXT,
 } from "../fixtures/go/image.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
@@ -75,6 +76,56 @@ cliTest(
   },
   30000,
 );
+
+for (const bits of [32, 64] as const) {
+  for (const encoding of ["inline", "pointer"] as const) {
+    cliTest(
+      `preserves PE ${bits}-bit ${encoding} build info at zero VirtualSize through CLI and stdio MCP`,
+      async ({ cli }) => {
+        const root = await createTestTempDirectory("rea-go-pe-zero-vsize-");
+        const fixture = createGoBinaryFixture({ format: "pe", bits, encoding });
+        const ordinaryBytes = Buffer.from(fixture.bytes);
+        const zeroSizeBytes = Buffer.from(fixture.bytes);
+        setGoPeVirtualSize(zeroSizeBytes, 0);
+        const { client, call } = await connectLocalToolsMcp();
+        const buildInfos = [];
+
+        for (const [label, bytes] of [
+          ["ordinary", ordinaryBytes],
+          ["zero-vsize", zeroSizeBytes],
+        ] as const) {
+          const path = join(root, `${label}.exe`);
+          await writeFile(path, bytes);
+          const result = await cli.run({
+            arguments: ["inspect-go-binary", path, "--json"],
+          });
+          expect(result.exitCode, result.stderr).toBe(0);
+          const evidence = toolContract("inspect_go_binary").outputSchema.parse(
+            result.json,
+          );
+          expect(evidence.subject?.digest.sha256).toBe(
+            createHash("sha256").update(bytes).digest("hex"),
+          );
+          expect(evidence.normalized_result.build_info).toMatchObject({
+            go_version: "go1.26.0",
+            encoding,
+            header_offset: fixture.headerOffset,
+            module_text: GO_MODULE_TEXT,
+          });
+          buildInfos.push(evidence.normalized_result.build_info);
+
+          const response = await call("inspect_go_binary", { path });
+          expect(response.isError, JSON.stringify(response)).not.toBe(true);
+          expect(response.structuredContent).toEqual(evidence);
+        }
+
+        expect(buildInfos[1]).toEqual(buildInfos[0]);
+        await client.ping();
+      },
+      30000,
+    );
+  }
+}
 
 for (const expectedErrno of ["ELOOP", "ENAMETOOLONG"] as const) {
   cliTest.skipIf(expectedErrno === "ELOOP" && process.platform === "win32")(

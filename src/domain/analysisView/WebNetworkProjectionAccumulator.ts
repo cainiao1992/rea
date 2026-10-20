@@ -7,7 +7,7 @@ import type { AnalysisError } from "../analysisErrorBase.js";
 import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
 import { err, ok, type Result } from "../result.js";
 import {
-  webNetworkCaptureSchema,
+  safeParseOwnedWebNetworkCapture,
   type WebNetworkCapture,
 } from "../webNetworkCapture.js";
 import { admitAnalysisViewData } from "./analysisViewDataAdmission.js";
@@ -116,7 +116,7 @@ export const admitHarCaptureParent = (
     );
   const admitted = accumulator.admitCaptureClone(parent.normalizedResult);
   if (!admitted.ok) return admitted;
-  const parsed = webNetworkCaptureSchema.safeParse(parent.normalizedResult);
+  const parsed = safeParseOwnedWebNetworkCapture(parent.normalizedResult);
   if (!parsed.success)
     return err(
       analysisViewInputError([

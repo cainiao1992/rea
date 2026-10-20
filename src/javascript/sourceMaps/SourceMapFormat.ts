@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { WEB_SOURCE_MAP_LIMITS } from "../../domain/webSourceLocation.js";
-import { sourceMapJsonText } from "../../domain/sourceMapEnvelope.js";
+import {
+  sourceMapJsonText,
+  sourceMapMappingsSchema,
+} from "../../domain/sourceMapEnvelope.js";
 import type { EncodedSourceMapXInput } from "@jridgewell/trace-mapping";
 
 const leafSchema = z.object({
@@ -10,7 +13,7 @@ const leafSchema = z.object({
   sources: z.array(z.string().nullable()),
   sourcesContent: z.array(z.string().nullable()).nullable().optional(),
   names: z.array(z.string()).default([]),
-  mappings: z.string().regex(/^[A-Za-z0-9+/,;]*$/u),
+  mappings: sourceMapMappingsSchema.regex(/^[A-Za-z0-9+/,;]*$/u),
   ignoreList: z.array(z.number().int().min(0)).optional(),
   x_google_ignoreList: z.array(z.number().int().min(0)).optional(),
 });

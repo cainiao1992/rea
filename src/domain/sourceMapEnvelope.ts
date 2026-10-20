@@ -1,5 +1,10 @@
+import { z } from "zod";
+
 /** Artifact source declarations do not require generated-position decoding. */
 type SourceMapRecord = Readonly<Record<string, unknown>>;
+
+/** ECMA-426 requires a string mapping payload on every regular map leaf. */
+export const sourceMapMappingsSchema = z.string();
 
 /**
  * Return the JSON parsing view of retained source-map text. ECMA-426 permits

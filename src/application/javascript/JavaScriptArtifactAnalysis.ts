@@ -13,6 +13,7 @@ import { hasValidSourceMapContents } from "../../domain/sourceMapContents.js";
 import {
   flattenSourceMapLeaves,
   sourceMapJsonText,
+  sourceMapMappingsSchema,
 } from "../../domain/sourceMapEnvelope.js";
 import type { JavaScriptStaticAnalysis } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import { failedJavaScriptStaticAnalysis } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
@@ -603,6 +604,7 @@ const collectSourceMapOriginals = (
   maps: readonly Readonly<Record<string, unknown>>[],
 ): JavaScriptSourceMapObservation => {
   const sources: JavaScriptSourceMapOriginal[] = [];
+  let limitation: string | null = null;
   let declarationIndex = 0;
   for (const map of maps) {
     const names = map.sources;
@@ -645,7 +647,10 @@ const collectSourceMapOriginals = (
         content_sha256: content === null ? null : sha256(content),
       });
     }
+    if (!sourceMapMappingsSchema.safeParse(map.mappings).success)
+      limitation ??= "Source map has no mappings string.";
   }
+  if (limitation !== null) return invalidSourceMap(file, limitation, sources);
   return {
     path: file.path,
     sha256: file.sha256,
@@ -689,11 +694,12 @@ const unavailableSourceMap = (
 const invalidSourceMap = (
   file: JavaScriptArtifactFile,
   limitation: string,
+  sources: readonly JavaScriptSourceMapOriginal[] = [],
 ): JavaScriptSourceMapObservation => ({
   path: file.path,
   sha256: file.sha256,
   status: "invalid",
-  sources: [],
+  sources,
   limitation,
 });
 

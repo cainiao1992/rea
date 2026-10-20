@@ -10,6 +10,98 @@ import { analyzeJavaScriptDirectory } from "../../support/cli/javascriptApplicat
 import { writeFixtureFiles } from "../../support/javascriptApplicationFixture.js";
 
 cliTest.for(["CLI", "stdio MCP"] as const)(
+  "keeps missing source-map mappings partial while retaining explicit declarations through %s",
+  async (surface, { cli }) => {
+    const root = await createTestTempDirectory("rea-source-map-mappings-");
+    const original = "export const answer: number = 42;";
+    const cases = [
+      {
+        directory: "missing",
+        map: {
+          version: 3,
+          sources: ["original.ts"],
+          sourcesContent: [original],
+          names: [],
+        },
+        expectedCoverage: "partial",
+        limitation: "Source map has no mappings string.",
+      },
+      {
+        directory: "empty",
+        map: {
+          version: 3,
+          sources: ["original.ts"],
+          sourcesContent: [original],
+          names: [],
+          mappings: "",
+        },
+        expectedCoverage: "complete",
+        limitation: null,
+      },
+      {
+        directory: "mapped",
+        map: {
+          version: 3,
+          sources: ["original.ts"],
+          sourcesContent: [original],
+          names: [],
+          mappings: "AAAA",
+        },
+        expectedCoverage: "complete",
+        limitation: null,
+      },
+    ] as const;
+    for (const { directory, map, expectedCoverage, limitation } of cases) {
+      const app = join(root, directory);
+      const mapText = JSON.stringify(map);
+      await writeFixtureFiles(app, { "app.js.map": mapText });
+      const { graph } = await analyzeJavaScriptDirectory(surface, cli, app);
+      const mapDigest = createHash("sha256").update(mapText).digest("hex");
+      const source = graph.nodes.find(
+        (node) =>
+          node.kind === "source-module" &&
+          node.identity.strategy === "source-map-original" &&
+          node.identity.source_map_sha256 === mapDigest,
+      );
+
+      expect(graph.coverage.status).toBe(expectedCoverage);
+      expect(source).toMatchObject({
+        identity: {
+          strategy: "source-map-original",
+          original_source: "original.ts",
+          source_sha256: createHash("sha256").update(original).digest("hex"),
+        },
+        observations: [
+          expect.objectContaining({
+            evidence: expect.objectContaining({
+              artifact: expect.objectContaining({ sha256: mapDigest }),
+              limitations: limitation === null ? [] : [limitation],
+            }),
+          }),
+        ],
+      });
+      if (limitation !== null)
+        expect(graph.nodes).toContainEqual(
+          expect.objectContaining({
+            kind: "unknown",
+            observations: expect.arrayContaining([
+              expect.objectContaining({
+                properties: expect.objectContaining({
+                  operation: "parse-local-source-map",
+                }),
+                evidence: expect.objectContaining({
+                  artifact: expect.objectContaining({ sha256: mapDigest }),
+                  limitations: [limitation],
+                }),
+              }),
+            ]),
+          }),
+        );
+    }
+  },
+);
+
+cliTest.for(["CLI", "stdio MCP"] as const)(
   "recovers retained prefixed source-map originals and byte identity through %s",
   async (surface, { cli }) => {
     const root = await createTestTempDirectory("rea-retained-map-prefix-");

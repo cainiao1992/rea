@@ -627,8 +627,14 @@ class NativeMacOSClient implements AnalysisClient {
       signal,
     );
     if (!display.ok) return display;
-    const unsigned = isNonzeroUnsignedObservation(display.value);
-    const displayFailure = codeSignCaptureFailure(display.value);
+    const unsigned = isNonzeroUnsignedObservation(
+      display.value,
+      binding.snapshotPath,
+    );
+    const displayFailure = codeSignCaptureFailure(
+      display.value,
+      binding.snapshotPath,
+    );
     if (displayFailure !== null) return err(displayFailure);
     const requirements = await this.#captureSignature(
       binding,
@@ -636,7 +642,10 @@ class NativeMacOSClient implements AnalysisClient {
       signal,
     );
     if (!requirements.ok) return requirements;
-    const requirementsFailure = codeSignCaptureFailure(requirements.value);
+    const requirementsFailure = codeSignCaptureFailure(
+      requirements.value,
+      binding.snapshotPath,
+    );
     if (requirementsFailure !== null) return err(requirementsFailure);
     const entitlements = await this.#captureSignature(
       binding,
@@ -644,7 +653,10 @@ class NativeMacOSClient implements AnalysisClient {
       signal,
     );
     if (!entitlements.ok) return entitlements;
-    const entitlementsFailure = codeSignCaptureFailure(entitlements.value);
+    const entitlementsFailure = codeSignCaptureFailure(
+      entitlements.value,
+      binding.snapshotPath,
+    );
     if (entitlementsFailure !== null) return err(entitlementsFailure);
     // codesign echoes the resolved executable path in its diagnostics.
     const parsed = parseCodeSignature(display.value.stderr, unsigned, [
@@ -669,8 +681,8 @@ class NativeMacOSClient implements AnalysisClient {
     ];
     const mixedSigning =
       !unsigned &&
-      (isNonzeroUnsignedObservation(requirements.value) ||
-        isNonzeroUnsignedObservation(entitlements.value));
+      (isNonzeroUnsignedObservation(requirements.value, binding.snapshotPath) ||
+        isNonzeroUnsignedObservation(entitlements.value, binding.snapshotPath));
     if (mixedSigning) {
       const slices = await this.#inspectMixedSignatureSlices(
         binding,
@@ -721,7 +733,7 @@ class NativeMacOSClient implements AnalysisClient {
       if (!slice.ok) return slice;
       captures.push(slice.value);
       if (slice.value.exitCode === 0) continue;
-      if (isNonzeroUnsignedObservation(slice.value))
+      if (isNonzeroUnsignedObservation(slice.value, binding.snapshotPath))
         unsigned.push(architecture);
       else unclassified.push(architecture);
     }
@@ -1239,17 +1251,28 @@ const translateCodeSignExitFailure = (
     ),
   );
 
-const commandOutput = (capture: NativeCommandCapture): string =>
-  `${capture.stdout}\n${capture.stderr}`;
-
 /**
- * A signed artifact exits zero; its diagnostics can still contain this text
- * through the echoed path or identifier.
+ * Accept only codesign's exact unsigned diagnostic for the bound snapshot.
+ * The operand is framed byte-for-byte so caller-controlled path text cannot
+ * supply the phrase that determines signature state.
  */
-const isNonzeroUnsignedObservation = (capture: NativeCommandCapture): boolean =>
-  capture.exitCode !== null &&
-  capture.exitCode !== 0 &&
-  /not signed at all|code object is not signed/iu.test(commandOutput(capture));
+const isNonzeroUnsignedObservation = (
+  capture: NativeCommandCapture,
+  snapshotPath: string,
+): boolean => {
+  if (
+    capture.exitCode === null ||
+    capture.exitCode === 0 ||
+    capture.signal !== null ||
+    capture.arguments.at(-1) !== snapshotPath ||
+    capture.stdout !== ""
+  )
+    return false;
+  const diagnostic = `${snapshotPath}: code object is not signed at all`;
+  return [diagnostic, `${diagnostic}\n`, `${diagnostic}\r\n`].includes(
+    capture.stderr,
+  );
+};
 
 const canonicalPath = async (path: string): Promise<string[]> => {
   try {
@@ -1261,8 +1284,9 @@ const canonicalPath = async (path: string): Promise<string[]> => {
 
 const codeSignCaptureFailure = (
   capture: NativeCommandCapture,
+  snapshotPath: string,
 ): AnalysisError | null =>
-  capture.exitCode === 0 || isNonzeroUnsignedObservation(capture)
+  capture.exitCode === 0 || isNonzeroUnsignedObservation(capture, snapshotPath)
     ? null
     : translateCodeSignExitFailure(capture);
 

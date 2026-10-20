@@ -24,7 +24,7 @@ import {
 } from "./hashStableRootArtifact.js";
 import type { ArtifactInventoryOptions } from "./types.js";
 import type { FatSliceHeaderEvidence } from "../../domain/apple/machoContainer.js";
-import { readFatSliceHeaderFacts } from "../../domain/apple/machoContainer.js";
+import { readMachoHeaderPrefixFacts } from "../../domain/apple/machoContainer.js";
 
 interface RootClassification {
   readonly format: ArtifactOccurrence["artifact_format"];
@@ -225,7 +225,7 @@ const readRootFatSliceHeaders = async (
     }
     sliceHeadersByOffset.set(
       slice.offset,
-      readFatSliceHeaderFacts(thinHeader.subarray(0, bytesRead)),
+      readMachoHeaderPrefixFacts(thinHeader.subarray(0, bytesRead)),
     );
   }
   return { header, sliceHeadersByOffset };

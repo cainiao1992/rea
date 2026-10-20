@@ -19,7 +19,7 @@ import {
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
-  readFatSliceHeaderFacts,
+  readMachoHeaderPrefixFacts,
   validateFatSliceIdentity,
   type FatSliceHeaderEvidence,
 } from "./apple/machoContainer.js";
@@ -115,10 +115,12 @@ const parseThinMachO = (
     return err(
       `truncated Mach-O header: a ${is64 ? 64 : 32}-bit header needs ${headerSize} bytes; the file has ${fileSize}`,
     );
+  const identity = readMachoHeaderPrefixFacts(bytes.subarray(0, 12)).identity;
+  if (identity === null) return err("unsupported Mach-O architecture");
   const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
   const read = (offset: number): number =>
     little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
-  const architecture = machArchitecture(read(4));
+  const architecture = machArchitecture(identity.cpuType);
   if (architecture === undefined) return err("unsupported Mach-O architecture");
   const commandBytes = read(20);
   if (headerSize + commandBytes > fileSize)
@@ -195,21 +197,21 @@ const fatSliceIdentityError = (
   >,
   sliceHeadersByOffset?: ReadonlyMap<
     number,
-    ReturnType<typeof readFatSliceHeaderFacts>
+    ReturnType<typeof readMachoHeaderPrefixFacts>
   >,
 ): string | null => {
   for (let index = 0; index < header.slices.length; index += 1) {
     const declaration = header.slices[index];
     if (declaration === undefined || header.rangeIssues[index] !== null)
       continue;
-    let facts: ReturnType<typeof readFatSliceHeaderFacts> | undefined;
+    let facts: ReturnType<typeof readMachoHeaderPrefixFacts> | undefined;
     if (sliceHeadersByOffset?.has(declaration.offset)) {
       facts = sliceHeadersByOffset.get(declaration.offset);
     } else if (
       declaration.size >= 12 &&
       declaration.offset <= bytes.length - 12
     ) {
-      facts = readFatSliceHeaderFacts(
+      facts = readMachoHeaderPrefixFacts(
         bytes.subarray(declaration.offset, declaration.offset + 12),
       );
     }
@@ -247,7 +249,7 @@ const fatIdentityError = (
   >,
   sliceHeadersByOffset?: ReadonlyMap<
     number,
-    ReturnType<typeof readFatSliceHeaderFacts>
+    ReturnType<typeof readMachoHeaderPrefixFacts>
   >,
 ): string | null => {
   const identity = classifyFatContainerIdentity(header, (offset) => {
@@ -261,8 +263,9 @@ const fatIdentityError = (
       0,
       Math.min(slice.size, bytes.length - offset, 12),
     );
-    return readFatSliceHeaderFacts(bytes.subarray(offset, offset + available))
-      .magic;
+    return readMachoHeaderPrefixFacts(
+      bytes.subarray(offset, offset + available),
+    ).magic;
   });
   if (identity.state === "needs-slice-header")
     return "FAT slice identity is outside the bounded prefix";

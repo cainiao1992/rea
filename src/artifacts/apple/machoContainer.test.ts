@@ -13,7 +13,7 @@ import { parseExecutableHeader } from "../../domain/binaryTarget.js";
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
-  readFatSliceHeaderFacts,
+  readMachoHeaderPrefixFacts,
 } from "../../domain/apple/machoContainer.js";
 
 const classify = (bytes: Uint8Array) => {
@@ -105,25 +105,25 @@ describe("FAT Mach-O identity", () => {
     bigEndian.writeUInt32BE(0xfeedfacf, 0);
     bigEndian.writeUInt32BE(CPU.x86_64.type, 4);
     bigEndian.writeUInt32BE(CPU.x86_64.subtype, 8);
-    expect(readFatSliceHeaderFacts(littleEndian.subarray(0, 12))).toEqual({
+    expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 12))).toEqual({
       magic: 0xcffaedfe,
       identity: {
         cpuType: CPU.arm64.type,
         cpuSubtype: CPU.arm64.subtype,
       },
     });
-    expect(readFatSliceHeaderFacts(bigEndian)).toEqual({
+    expect(readMachoHeaderPrefixFacts(bigEndian)).toEqual({
       magic: 0xfeedfacf,
       identity: {
         cpuType: CPU.x86_64.type,
         cpuSubtype: CPU.x86_64.subtype,
       },
     });
-    expect(readFatSliceHeaderFacts(littleEndian.subarray(0, 11))).toEqual({
+    expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 11))).toEqual({
       magic: 0xcffaedfe,
       identity: null,
     });
-    expect(readFatSliceHeaderFacts(littleEndian.subarray(0, 3))).toEqual({
+    expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 3))).toEqual({
       magic: null,
       identity: null,
     });

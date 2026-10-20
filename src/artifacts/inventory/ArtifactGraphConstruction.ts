@@ -33,7 +33,7 @@ import {
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
-  readFatSliceHeaderFacts,
+  readMachoHeaderPrefixFacts,
 } from "../../domain/apple/machoContainer.js";
 
 /** Mutable internal occurrence used until root-bound IDs are known. */
@@ -617,8 +617,9 @@ const classifyFatArtifact = (
       0,
       Math.min(slice.size, prefix.length - offset, 12),
     );
-    return readFatSliceHeaderFacts(prefix.subarray(offset, offset + available))
-      .magic;
+    return readMachoHeaderPrefixFacts(
+      prefix.subarray(offset, offset + available),
+    ).magic;
   });
   return identity.state === "mach-o" ? "mach-o-universal" : "unknown";
 };

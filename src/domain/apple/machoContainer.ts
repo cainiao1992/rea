@@ -37,11 +37,11 @@ export type FatContainerHeader =
 /** Exact slice-header observations collected by a complete, bounded reader. */
 export interface FatSliceHeaderEvidence {
   readonly header: Extract<FatContainerHeader, { readonly state: "parsed" }>;
-  readonly sliceHeadersByOffset: ReadonlyMap<number, FatSliceHeaderFacts>;
+  readonly sliceHeadersByOffset: ReadonlyMap<number, MachoHeaderPrefixFacts>;
 }
 
-/** Parsed observations from the bounded prefix of one declared slice header. */
-export interface FatSliceHeaderFacts {
+/** Parsed observations from the bounded prefix of a thin Mach-O header. */
+export interface MachoHeaderPrefixFacts {
   /** Raw format evidence; null means fewer than four bytes were observed. */
   readonly magic: number | null;
   /** Present only for a recognized Mach-O magic and a complete 12-byte prefix. */
@@ -52,9 +52,9 @@ export interface FatSliceHeaderFacts {
 }
 
 /** Parse only facts present in the observed prefix of a thin Mach-O header. */
-export const readFatSliceHeaderFacts = (
+export const readMachoHeaderPrefixFacts = (
   bytes: Uint8Array,
-): FatSliceHeaderFacts => {
+): MachoHeaderPrefixFacts => {
   if (bytes.byteLength < 4) return { magic: null, identity: null };
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const magic = view.getUint32(0, false);

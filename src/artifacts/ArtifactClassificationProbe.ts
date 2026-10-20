@@ -9,9 +9,9 @@ import {
 import {
   readFatContainerHeader,
   readFatContainerTable,
-  readFatSliceHeaderFacts,
+  readMachoHeaderPrefixFacts,
   type FatContainerTable,
-  type FatSliceHeaderFacts,
+  type MachoHeaderPrefixFacts,
   type FatSliceHeaderEvidence,
 } from "../domain/apple/machoContainer.js";
 
@@ -27,7 +27,7 @@ export interface ArtifactClassificationEvidence {
 
 const observeFatSliceHeaders = (input: {
   readonly table: FatContainerTable | undefined;
-  readonly observedHeaders: Map<number, FatSliceHeaderFacts>;
+  readonly observedHeaders: Map<number, MachoHeaderPrefixFacts>;
   readonly partialHeaders: Map<
     number,
     { readonly bytes: Buffer; count: number }
@@ -58,7 +58,7 @@ const observeFatSliceHeaders = (input: {
     pending.count += end - start;
     observedHeaders.set(
       slice.offset,
-      readFatSliceHeaderFacts(
+      readMachoHeaderPrefixFacts(
         pending.bytes.subarray(0, Math.min(pending.count, headerLength)),
       ),
     );
@@ -72,7 +72,7 @@ const finishClassificationEvidence = (
   prefix: Buffer,
   archiveBytes: number,
   finishAsar: (archiveBytes: number) => FinalAsarHeaderProbeObservation,
-  sliceHeadersByOffset: Map<number, FatSliceHeaderFacts>,
+  sliceHeadersByOffset: Map<number, MachoHeaderPrefixFacts>,
 ): ArtifactClassificationEvidence => {
   const finalHeader = readFatContainerHeader(prefix, archiveBytes);
   if (finalHeader.state === "parsed") {
@@ -87,7 +87,7 @@ const finishClassificationEvidence = (
       if (available === 0) continue;
       sliceHeadersByOffset.set(
         slice.offset,
-        readFatSliceHeaderFacts(
+        readMachoHeaderPrefixFacts(
           prefix.subarray(slice.offset, slice.offset + available),
         ),
       );
@@ -112,8 +112,8 @@ export const createArtifactClassificationProbe = () => {
   let retainedBytes = 0;
   let observedBytes = 0;
   let fatTable: FatContainerTable | undefined;
-  const fatSliceHeadersByOffset = new Map<number, FatSliceHeaderFacts>();
-  const partialFatMagics = new Map<
+  const fatSliceHeadersByOffset = new Map<number, MachoHeaderPrefixFacts>();
+  const partialFatHeaders = new Map<
     number,
     { readonly bytes: Buffer; count: number }
   >();
@@ -186,7 +186,7 @@ export const createArtifactClassificationProbe = () => {
       observeFatSliceHeaders({
         table: fatTable,
         observedHeaders: fatSliceHeadersByOffset,
-        partialHeaders: partialFatMagics,
+        partialHeaders: partialFatHeaders,
         streamOffset,
         bytes,
       });

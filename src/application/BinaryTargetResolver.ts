@@ -55,9 +55,9 @@ import {
 } from "../domain/binaryTarget.js";
 import {
   readFatContainerHeader,
-  readFatSliceHeaderFacts,
+  readMachoHeaderPrefixFacts,
   type FatSliceHeaderEvidence,
-  type FatSliceHeaderFacts,
+  type MachoHeaderPrefixFacts,
 } from "../domain/apple/machoContainer.js";
 import type { PeCodeViewRecord } from "../domain/binaryTargetTypes.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
@@ -608,14 +608,14 @@ const readFatSliceHeaderEvidence = async (
   }
   if (header.state !== "parsed") return undefined;
 
-  const sliceHeadersByOffset = new Map<number, FatSliceHeaderFacts>();
+  const sliceHeadersByOffset = new Map<number, MachoHeaderPrefixFacts>();
   for (let index = 0; index < header.slices.length; index += 1) {
     const slice = header.slices[index];
     if (slice === undefined) continue;
     if (header.rangeIssues[index] !== null) {
       sliceHeadersByOffset.set(
         slice.offset,
-        readFatSliceHeaderFacts(Buffer.alloc(0)),
+        readMachoHeaderPrefixFacts(Buffer.alloc(0)),
       );
       continue;
     }
@@ -636,7 +636,7 @@ const readFatSliceHeaderEvidence = async (
     }
     sliceHeadersByOffset.set(
       slice.offset,
-      readFatSliceHeaderFacts(thinHeader.subarray(0, bytesRead)),
+      readMachoHeaderPrefixFacts(thinHeader.subarray(0, bytesRead)),
     );
   }
   return { header, sliceHeadersByOffset };

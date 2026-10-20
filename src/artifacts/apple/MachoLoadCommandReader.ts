@@ -8,6 +8,7 @@ import {
   machoLoadCommandAlignment,
   classifyFatContainerIdentity,
   readFatContainerHeader,
+  readMachoHeaderPrefixFacts,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
 } from "../../domain/apple/machoContainer.js";
@@ -259,8 +260,19 @@ const readSlice = async (
   } | null = null,
 ): Promise<MachoSlice> => {
   const header = viewOf(await readExact(readAt, base, 28, "Mach-O header"));
+  const headerBytes = new Uint8Array(
+    header.buffer,
+    header.byteOffset,
+    header.byteLength,
+  );
+  const identity = readMachoHeaderPrefixFacts(headerBytes).identity;
   const magic = header.getUint32(0, true);
   if (magic === MH_MAGIC_64 || magic === MH_MAGIC) {
+    if (identity === null)
+      throw new MachoFormatIssue(
+        "malformed",
+        `slice at offset ${base} has no Mach-O header`,
+      );
     const wide = magic === MH_MAGIC_64;
     const headerSize = wide ? 32 : 28;
     const commandCount = header.getUint32(16, true);
@@ -283,8 +295,8 @@ const readSlice = async (
     );
     const slice = decodeCommands(commands, {
       wide,
-      cpuType: header.getUint32(4, true),
-      cpuSubtype: header.getUint32(8, true),
+      cpuType: identity.cpuType,
+      cpuSubtype: identity.cpuSubtype,
       fileType: header.getUint32(12, true),
       commandCount,
       sliceOffset: base,

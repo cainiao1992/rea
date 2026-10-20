@@ -458,8 +458,9 @@ disposable HOME and CODEX_HOME under `~/.cache/rea-agent-evaluations/`. Set
 directory: current Codex refuses helper aliases under `/tmp`, preventing shell
 commands and skill reads even if MCP works. Each owned run directory is removed
 after verification unless fixture retention is requested. Commands share the
-owned-process supervisor: timeouts join bounded process-tree and output cleanup
-before returning. If cleanup remains incomplete, the lane retries its retained
+owned-process supervisor: native ownership preparation has its own bounded
+deadline before each short command budget, and timeouts join bounded process-tree
+and output cleanup before returning. If cleanup remains incomplete, the lane retries its retained
 owner and preserves the run directory (including disposable auth) rather than
 removing files still in use; the error retains ownership and recovery details.
 Command stderr is limited to 32 KiB and combined version output to 8 KiB;

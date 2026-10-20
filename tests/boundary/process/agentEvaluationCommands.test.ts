@@ -82,7 +82,6 @@ for (const name of ["runCodex", "runProcess", "readCommandVersion"]) {
   assert.equal(child.stdout.destroyed, true);
   assert.equal(child.stderr.destroyed, true);
 }
-await commands.close();
 process.env.FIXTURE_MODE = "success";
 const result = await commands.runCodex("fixture", ["open_binary"]);
 assert.deepEqual(result, { events: [{ type: "fixture", text: "你好" }], exitCode: 0, stderr: "" });
@@ -126,8 +125,11 @@ processTest.for([false, true])(
     const source = `
       import { mkdir, readdir, writeFile } from "node:fs/promises";
       import { join } from "node:path";
+      export async function prepareOwnedCommand() {}
       export class OwnedCommandFailure extends Error {
         reason = "timeout";
+        resources = ["fixture-evaluation-command"];
+        cleanupFailure = "fixture cleanup denied";
         cleanupOwner = { stop: async () => {
           await writeFile(${JSON.stringify(join(root, "retried"))}, "exact owner retried");
           return ${JSON.stringify(incomplete ? { status: "incomplete", reason: "fixture cleanup denied" } : { status: "stopped" })};
@@ -176,7 +178,7 @@ registerHooks({ load(url, context, nextLoad) {
       await readFile(receipt, "utf8"),
     );
     if (incomplete) {
-      expect(result.stderr).toContain("Evaluation processes remain owned");
+      expect(result.stderr).toContain("Artifact cleanup remains incomplete");
       expect(result.stderr).toContain("fixture cleanup denied");
       expect(await readFile(join(run, "codex/auth.json"), "utf8")).toBe(
         "inert fixture",
@@ -184,6 +186,114 @@ registerHooks({ load(url, context, nextLoad) {
     } else {
       await expect(
         readFile(join(run, "codex/auth.json")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  },
+);
+
+processTest.for([
+  { phase: "ordered", incomplete: false },
+  { phase: "direct", incomplete: false },
+  { phase: "direct", incomplete: true },
+  { phase: "nested", incomplete: false },
+  { phase: "nested", incomplete: true },
+])(
+  "prepares before the command deadline and retains $phase preparation ownership (incomplete: $incomplete)",
+  async ({ phase, incomplete }, { processes }) => {
+    const root = await createTestTempDirectory("rea-agent-preparation-");
+    const parent = join(root, "evaluations");
+    const loader = join(root, "loader.mjs");
+    const receipt = join(root, "receipt.json");
+    const retried = join(root, "retried");
+    const source = `
+      import { mkdir, readdir, writeFile } from "node:fs/promises";
+      import { join } from "node:path";
+      import { setTimeout as delay } from "node:timers/promises";
+      import { DarwinProcessOwnershipInspectionError } from ${JSON.stringify(new URL("../../../dist/process/DarwinProcessRunTokenReader.js", import.meta.url).href)};
+      import { ProviderCleanupError } from ${JSON.stringify(new URL("../../../dist/domain/providerCleanupError.js", import.meta.url).href)};
+      let prepared = false;
+      const cleanup = new ProviderCleanupError("fixture", ["darwin-fixture-reader"], { reason: "fixture preparation cleanup denied" });
+      const preparation = new DarwinProcessOwnershipInspectionError("fixture preparation failure", {
+        cleanupFailure: cleanup,
+        cleanupOwner: { close: async () => {
+          await writeFile(${JSON.stringify(retried)}, "exact preparation owner retried");
+          if (${String(incomplete)}) throw new Error("fixture preparation cleanup denied");
+          cleanup.resolveCleanup();
+        } },
+      });
+      export class OwnedCommandFailure extends Error {
+        reason = "timeout";
+        resources = [];
+        cleanupFailure = null;
+        preparationFailure = preparation;
+      }
+      export async function prepareOwnedCommand() {
+        const run = join(${JSON.stringify(parent)}, (await readdir(${JSON.stringify(parent)}))[0]);
+        await mkdir(join(run, "codex"));
+        await writeFile(join(run, "codex/auth.json"), "inert preparation fixture");
+        await delay(10);
+        prepared = true;
+        await writeFile(${JSON.stringify(receipt)}, JSON.stringify({ run, prepared }));
+        if (${JSON.stringify(phase)} === "direct") throw preparation;
+      }
+      export async function runOwnedCommand() {
+        if (!prepared) throw new Error("Command started before ownership preparation");
+        if (${JSON.stringify(phase)} === "ordered") throw new Error("fixture command reached after preparation");
+        throw new OwnedCommandFailure("nested fixture preparation failure");
+      }
+    `;
+    await writeFile(
+      loader,
+      `import { registerHooks } from "node:module";
+registerHooks({ load(url, context, nextLoad) {
+  if (url === ${JSON.stringify(new URL("../../../dist/process/OwnedCommand.js", import.meta.url).href)})
+    return { format: "module", shortCircuit: true, source: ${JSON.stringify(source)} };
+  return nextLoad(url, context);
+}});`,
+    );
+    const result = await processes.run(
+      process.execPath,
+      [
+        "--import",
+        loader,
+        fileURLToPath(
+          new URL(
+            "../../../scripts/verify-agent-experience.mjs",
+            import.meta.url,
+          ),
+        ),
+      ],
+      {
+        env: { ...process.env, REA_AGENT_EVAL_ROOT: parent },
+        timeoutMs: 10_000,
+      },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).not.toContain(
+      "Command started before ownership preparation",
+    );
+    expect(result.stderr).toContain(
+      phase === "ordered"
+        ? "fixture command reached after preparation"
+        : "fixture preparation failure",
+    );
+    const observed: { run: string; prepared: boolean } = JSON.parse(
+      await readFile(receipt, "utf8"),
+    );
+    expect(observed.prepared).toBe(true);
+    if (phase !== "ordered")
+      expect(await readFile(retried, "utf8")).toBe(
+        "exact preparation owner retried",
+      );
+    if (incomplete) {
+      expect(result.stderr).toContain("Artifact cleanup remains incomplete");
+      expect(result.stderr).toContain("darwin-fixture-reader");
+      expect(
+        await readFile(join(observed.run, "codex/auth.json"), "utf8"),
+      ).toBe("inert preparation fixture");
+    } else {
+      await expect(
+        readFile(join(observed.run, "codex/auth.json")),
       ).rejects.toMatchObject({ code: "ENOENT" });
     }
   },

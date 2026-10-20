@@ -11,6 +11,7 @@ import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import { authorizedMainFrame } from "./CdpAuthorizedMainFrame.js";
 import {
   allowedSanitizedUrl,
+  delayWithCancellation,
   isHttpUrl,
   numberValue,
   recordValue,
@@ -356,32 +357,38 @@ const waitForWindow = async (
   signal?: AbortSignal,
 ): Promise<EndReason> =>
   await new Promise<EndReason>((resolve, reject) => {
+    const timerController = new AbortController();
     let settled = false;
     let removeEnd = (): void => {};
-    const finish = (reason: EndReason): void => {
+    const settle = (complete: () => void): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      timerController.abort();
       signal?.removeEventListener("abort", onAbort);
       removeEnd();
-      resolve(reason);
+      complete();
     };
-    const onAbort = (): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
-      removeEnd();
-      reject(
-        new AnalysisCancelledError("observe_web_session", {
-          cause: signal?.reason,
-        }),
-      );
-    };
-    const timer = setTimeout(() => finish("window_elapsed"), durationMs);
-    removeEnd = capture.onEnd(finish);
+    const finish = (reason: EndReason): void => settle(() => resolve(reason));
+    const onAbort = (): void =>
+      settle(() => {
+        reject(
+          new AnalysisCancelledError("observe_web_session", {
+            cause: signal?.reason,
+          }),
+        );
+      });
     signal?.addEventListener("abort", onAbort, { once: true });
     if (signal?.aborted === true) onAbort();
+    if (!settled) removeEnd = capture.onEnd(finish);
+    if (settled) return;
+    void delayWithCancellation(
+      durationMs,
+      "observe_web_session",
+      timerController.signal,
+    ).then(
+      () => finish("window_elapsed"),
+      (cause: unknown) => settle(() => reject(cause)),
+    );
   });
 
 const captureFinalUrl = async (

@@ -201,6 +201,11 @@ rea inspect-web-page http://127.0.0.1:9222 TARGET_ID \
   --json
 ```
 
+Passive observation honors the requested duration using cancellable waits within
+the runtime's timer range. Long windows stay pending across successive waits;
+caller cancellation, target termination or leaving the allowed origins ends
+collection early. `window_elapsed` identifies completion of the requested wait.
+
 Static bundle analysis and a user-driven observation window are separate operations:
 
 ```bash

@@ -483,8 +483,13 @@ const parseField = (rawLine: string): readonly [string, string] | undefined => {
   const option = /^\s*(string #[1-9]\d*)(?: (.*))?$/u.exec(rawLine);
   if (option?.[1] !== undefined) return [option[1], option[2] ?? ""];
   const line = rawLine.trim();
-  // Match time stamp as a whole without swallowing `name stamp plugin.dylib`.
-  const match = /^((?:time stamp)|\S+(?:\s+version)?)(?:\s+(.+))?$/u.exec(line);
+  // These are the compound field labels used by otool. Keeping this list
+  // explicit prevents a one-word field value such as `sectname version` from
+  // being consumed as an invented `sectname version` key.
+  const match =
+    /^(time stamp|current version|compatibility version|\S+)(?:\s+(.+))?$/u.exec(
+      line,
+    );
   return match?.[1] === undefined
     ? undefined
     : [match[1], match[2]?.trim() ?? ""];

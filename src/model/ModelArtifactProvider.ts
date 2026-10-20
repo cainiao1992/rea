@@ -1,12 +1,19 @@
 import { lstat, type FileHandle } from "node:fs/promises";
 import type { ModelArtifactPort } from "../application/model/ModelArtifactPort.js";
-import { createModelArtifactEvidence } from "../application/model/ModelArtifactEvidence.js";
+import {
+  createModelArtifactEvidence,
+  createModelArtifactPartialEvidence,
+} from "../application/model/ModelArtifactEvidence.js";
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import type {
   ModelArtifact,
+  ModelArtifactPartial,
   ModelArtifactInput,
 } from "../domain/model/modelArtifact.js";
-import { modelArtifactSchema } from "../domain/model/modelArtifact.js";
+import {
+  modelArtifactPartialSchema,
+  modelArtifactSchema,
+} from "../domain/model/modelArtifact.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   AnalysisArtifactChangedError,
@@ -86,6 +93,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
         ),
       );
     this.#busy = true;
+    let partialProgress: ModelArtifactPartial | undefined;
     try {
       return ok(
         await this.#resources.run(() =>
@@ -93,7 +101,10 @@ export class ModelArtifactProvider implements ModelArtifactPort {
             input.path,
             this.#resources,
             options?.signal,
-            (file) => this.#read(file, input, options?.signal),
+            (file) =>
+              this.#read(file, input, options?.signal, (progress) => {
+                partialProgress = progress;
+              }),
           ),
         ),
       );
@@ -207,6 +218,23 @@ export class ModelArtifactProvider implements ModelArtifactPort {
             createModelArtifactEvidence(report.data, this.identity, input),
           );
       }
+      if (
+        error.partialObservation === undefined &&
+        partialProgress !== undefined &&
+        (partialProgress.metadata.length > 0 ||
+          partialProgress.tensor_declarations.length > 0 ||
+          partialProgress.tensors.length > 0)
+      ) {
+        const parsed = modelArtifactPartialSchema.safeParse(partialProgress);
+        if (parsed.success)
+          error.retainPartialObservation(
+            createModelArtifactPartialEvidence(
+              parsed.data,
+              this.identity,
+              input,
+            ),
+          );
+      }
       bindArtifactFileCleanup(cause, error);
       return err(error);
     } finally {
@@ -218,6 +246,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
     file: FileHandle,
     input: ModelArtifactInput,
     signal?: AbortSignal,
+    retainProgress?: (progress: ModelArtifactPartial) => void,
   ): Promise<ModelArtifact> {
     const initial = await file.stat({ bigint: true });
     if (initial.size > BigInt(Number.MAX_SAFE_INTEGER))
@@ -236,9 +265,60 @@ export class ModelArtifactProvider implements ModelArtifactPort {
         "PyTorch pickle/ZIP model deserialization is unsupported; supply GGUF or safetensors instead",
       );
     const format = first.equals(Buffer.from("GGUF")) ? "gguf" : "safetensors";
+    let partial: ModelArtifactPartial | undefined;
+    if (format === "gguf") {
+      partial = {
+        kind: "model-artifact-partial",
+        artifact: {
+          path: input.path,
+          observed_file_size: Number(initial.size),
+          header_sha256: null,
+          sha256: null,
+          file_identity: "unverified",
+        },
+        format,
+        version: null,
+        byte_order: null,
+        alignment: null,
+        declared_metadata_count: null,
+        declared_tensor_count: null,
+        metadata: [],
+        tensor_declarations: [],
+        tensors: [],
+        coverage: {
+          header: "partial",
+          metadata: "not-started",
+          tensors: "not-started",
+        },
+        limitations: [
+          "This partial observation contains only rows fully parsed before the interrupted read.",
+          "Header and full-file digests and final file identity are unknown because finalization did not complete.",
+          "No model behavior or tensor payload values were interpreted.",
+        ],
+      };
+      retainProgress?.(partial);
+    }
     const parsed =
       format === "gguf"
-        ? await new GgufHeader(reader).read()
+        ? await new GgufHeader(reader).read({
+            onHeader: (info) => {
+              if (partial === undefined) return;
+              partial.version = info.version;
+              partial.byte_order = info.byte_order;
+              partial.declared_metadata_count = info.declared_metadata_count;
+              partial.declared_tensor_count = info.declared_tensor_count;
+              partial.coverage.metadata = "partial";
+            },
+            onMetadata: (row) => partial?.metadata.push(row),
+            onMetadataComplete: () => {
+              if (partial !== undefined) partial.coverage.metadata = "complete";
+            },
+            onTensorsStarted: () => {
+              if (partial !== undefined) partial.coverage.tensors = "partial";
+            },
+            onTensorDeclaration: (row) =>
+              partial?.tensor_declarations.push(row),
+          })
         : await readSafetensorsHeader(reader, first);
     const intervals = parsed.tensors
       .filter((row) => row.byte_length !== null)
@@ -248,6 +328,12 @@ export class ModelArtifactProvider implements ModelArtifactPort {
       if (row.file_offset < end && row.byte_length !== 0)
         rejectModel(`Overlapping tensor byte ranges at ${row.name}`);
       end = Math.max(end, row.file_offset + (row.byte_length ?? 0));
+    }
+    if (partial !== undefined && format === "gguf") {
+      partial.tensor_declarations = [];
+      partial.tensors = parsed.tensors;
+      partial.coverage.tensors = "complete";
+      partial.coverage.header = "complete";
     }
     const header_length = reader.position;
     const hashes = await reader.finish(input.hash === "full");

@@ -4,6 +4,7 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import type {
   ModelMetadata,
   ModelTensor,
+  ModelArtifactPartialTensor,
 } from "../domain/model/modelArtifact.js";
 import { ModelHeaderReader } from "./ModelHeaderReader.js";
 import {
@@ -30,6 +31,19 @@ const NAMES = [
   "FLOAT64",
 ] as const;
 const WIDTHS = [1, 1, 2, 2, 4, 4, 4, 1, 8, 12, 8, 8, 8];
+
+export interface GgufProgress {
+  onHeader(info: {
+    version: number;
+    byte_order: "little" | "big";
+    declared_metadata_count: number;
+    declared_tensor_count: number;
+  }): void;
+  onMetadata(row: ModelMetadata): void;
+  onMetadataComplete(): void;
+  onTensorsStarted(): void;
+  onTensorDeclaration(row: ModelArtifactPartialTensor): void;
+}
 
 /** Explicit-endian GGUF v2/v3 metadata and tensor-directory parser. */
 export class GgufHeader {
@@ -216,7 +230,7 @@ export class GgufHeader {
     };
   }
 
-  async read(): Promise<{
+  async read(progress?: GgufProgress): Promise<{
     version: number;
     byte_order: "little" | "big";
     alignment: number;
@@ -239,6 +253,12 @@ export class GgufHeader {
       rejectModel("Big-endian GGUF requires version 3");
     const tensorCount = await this.#unsigned(8);
     const metadataCount = await this.#unsigned(8);
+    progress?.onHeader({
+      version,
+      byte_order: this.#little ? "little" : "big",
+      declared_metadata_count: metadataCount,
+      declared_tensor_count: tensorCount,
+    });
     this.#budget.charge((tensorCount + metadataCount) * 512);
     this.reader.guarantee(tensorCount * 20 + metadataCount * 13);
     const metadata: ModelMetadata[] = [];
@@ -259,7 +279,7 @@ export class GgufHeader {
       keys.add(key);
       const type = await this.#unsigned(4);
       const parsed = await this.#value(type, true);
-      metadata.push({
+      const row = {
         index,
         key,
         type: NAMES[type] ?? String(type),
@@ -270,7 +290,7 @@ export class GgufHeader {
         source_offset: start,
         source_length: this.reader.position - start,
         json_pointer: null,
-      });
+      } satisfies ModelMetadata;
       if (key === "general.alignment") {
         if (
           type !== 4 ||
@@ -283,8 +303,12 @@ export class GgufHeader {
           );
         alignment = parsed.value;
       }
+      metadata.push(row);
+      progress?.onMetadata(row);
     }
-    const tensors: ModelTensor[] = [];
+    progress?.onMetadataComplete();
+    progress?.onTensorsStarted();
+    const tensors: ModelArtifactPartialTensor[] = [];
     const names = new Set<string>();
     for (let index = 0; index < tensorCount; index++) {
       this.reader.guarantee((tensorCount - index) * 20);
@@ -321,22 +345,24 @@ export class GgufHeader {
           );
         length = Number(bytes);
       }
-      tensors.push({
+      const tensor = {
         index,
         name,
         type: type?.[0] ?? `UNKNOWN_${String(id)}`,
         type_id: id,
         shape,
         data_offset: offset,
-        file_offset: 0,
+        file_offset: null,
         byte_length: length,
         parameter_count: parameters.toString(),
         byte_length_state: length === null ? "unknown" : "derived",
-        storage_validation: length === null ? "unknown" : "consistent",
+        storage_validation: "not-established",
         source_offset: start,
         source_length: this.reader.position - start,
         json_pointer: null,
-      });
+      } satisfies ModelArtifactPartialTensor;
+      tensors.push(tensor);
+      progress?.onTensorDeclaration(tensor);
     }
     const tensor_data_offset =
       tensorCount === 0
@@ -351,13 +377,19 @@ export class GgufHeader {
         rejectModel(`GGUF tensor ${tensor.name} range is outside the file`);
       tensor.file_offset = Number(offset);
     }
+    const completeTensors: ModelTensor[] = tensors.map((tensor) => ({
+      ...tensor,
+      file_offset: tensor.file_offset!,
+      storage_validation:
+        tensor.byte_length === null ? "unknown" : "consistent",
+    }));
     return {
       version,
       byte_order: this.#little ? "little" : "big",
       alignment,
       tensor_data_offset,
       metadata,
-      tensors,
+      tensors: completeTensors,
     };
   }
 }

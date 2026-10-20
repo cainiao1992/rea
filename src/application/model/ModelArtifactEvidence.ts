@@ -1,6 +1,7 @@
 import type { ProviderIdentity } from "../AnalysisProvider.js";
 import type {
   ModelArtifact,
+  ModelArtifactPartial,
   ModelArtifactInput,
 } from "../../domain/model/modelArtifact.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
@@ -32,3 +33,21 @@ export const createModelArtifactEvidence = (
     },
   );
 };
+
+/** Evidence for completed GGUF facts retained before final identity verification. */
+export const createModelArtifactPartialEvidence = (
+  partial: ModelArtifactPartial,
+  provider: ProviderIdentity,
+  parameters: ModelArtifactInput,
+): Evidence =>
+  createEvidence(undefined, provider, {
+    operation: "inspect_model_artifact",
+    parameters: { path: parameters.path, hash: parameters.hash },
+    result: partial,
+    confidence: "observed",
+    subjectUnavailableReason:
+      "The interrupted read did not complete final file identity verification; digest and identity remain unknown.",
+    // Each retained row already owns its exact source offset and length.
+    locations: [{ kind: "artifact-path", path: partial.artifact.path }],
+    limitations: partial.limitations,
+  });

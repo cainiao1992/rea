@@ -31,6 +31,67 @@ const firstText = (result: {
   return undefined;
 };
 
+const expectFittingSdkValidationRecovery = (result: {
+  readonly isError?: boolean | undefined;
+  readonly content: readonly {
+    readonly type: string;
+    readonly text?: string;
+  }[];
+}): void => {
+  expect(result.isError).toBe(true);
+  expect(JSON.parse(firstText(result) ?? "null")).toMatchObject({
+    error: {
+      code: "invalid_request",
+      recovery: {
+        kind: "inspect_input_contract",
+        operation: "procedure_pseudo_code",
+      },
+      details: {
+        operation: "procedure_pseudo_code",
+        issues: [
+          {
+            path: [],
+            reason: "invalid_value",
+            message: expect.stringContaining("required"),
+          },
+        ],
+      },
+    },
+  });
+};
+
+const expectEscapedSdkDiagnosticRetention = async (
+  client: Client,
+  records: InvestigationRecords,
+  previousEvidenceId: string,
+): Promise<void> => {
+  const quotedKey = '"\\'.repeat(350);
+  const quoted = await client.callTool({
+    name: "procedure_pseudo_code",
+    arguments: { required: "present", [quotedKey]: true },
+  });
+  expect(quoted.isError).toBe(true);
+  expect(JSON.parse(firstText(quoted) ?? "null")).toMatchObject({
+    error: {
+      code: "resource_constraint",
+      details: {
+        reported_limits: {
+          evidence_reference: { kind: "retained-evidence" },
+        },
+      },
+    },
+  });
+  expect(Buffer.byteLength(JSON.stringify(quoted))).toBeLessThan(4096);
+  const bundle = records.exportEvidenceBundle();
+  expect(bundle.records).toHaveLength(2);
+  const quotedOriginal = bundle.records.find(
+    (record) => record.evidence_id !== previousEvidenceId,
+  );
+  expect(quotedOriginal?.raw_result).toMatchObject({
+    content: [{ text: expect.stringContaining(quotedKey) }],
+  });
+};
+
 describe("MCP request bookkeeping", () => {
   it("releases list, tool, and completion state when cancellation arrives", () => {
     const completion = new AbortController();
@@ -55,7 +116,7 @@ describe("MCP request bookkeeping", () => {
 describe("Modern protocol error delivery", () => {
   it("preserves the modern wire envelope when replacing an oversized error", async () => {
     const records = new InvestigationRecords();
-    const delivery = new ToolResultDelivery(4096);
+    const delivery = new ToolResultDelivery(16384);
     const info = { name: "wire-error-recovery", version: "1" };
     const handler = createMcpHandler(() => {
       const server = new EvidenceMcpServer(
@@ -92,16 +153,28 @@ describe("Modern protocol error delivery", () => {
     });
     try {
       await client.connect(transport);
+      const invalidField = `unexpected_${"x".repeat(5000)}_tail`;
       const fitting = await client.callTool({
         name: "procedure_pseudo_code",
-        arguments: { unexpected: true },
+        arguments: { [invalidField]: true },
       });
       expect(fitting.isError).toBe(true);
-      expect(firstText(fitting)).toContain("Input validation error");
+      expect(JSON.parse(firstText(fitting) ?? "null")).toMatchObject({
+        error: {
+          code: "invalid_request",
+          recovery: {
+            kind: "inspect_input_contract",
+            operation: "procedure_pseudo_code",
+          },
+          details: {
+            issues: [{ message: expect.stringContaining(invalidField) }],
+          },
+        },
+      });
 
       const recovered = await client.callTool({
         name: "procedure_pseudo_code",
-        arguments: { selected: "value", ["x".repeat(10000)]: true },
+        arguments: { selected: "value", ["x".repeat(20000)]: true },
       });
       expect(recovered.isError).toBe(true);
       expect(recovered.structuredContent).toBeUndefined();
@@ -137,7 +210,7 @@ describe("Modern protocol error delivery", () => {
         });
       }
       expect(Buffer.byteLength(JSON.stringify(toolResults[1]))).toBeLessThan(
-        4096,
+        16384,
       );
       expect(toolResults[1]?._meta).toMatchObject({
         provenance: { untrusted_content: true, source: "analysis_target" },
@@ -203,8 +276,13 @@ describe("SDK validation error delivery", () => {
           name: "procedure_pseudo_code",
           arguments: { unexpected: true },
         });
-        expect(fitting.isError).toBe(true);
-        expect(firstText(fitting)).toContain("Input validation error");
+        expectFittingSdkValidationRecovery(fitting);
+
+        await expect(
+          client.callTool({ name: "missing_tool", arguments: {} }),
+        ).rejects.toThrow(
+          "Call tools/list, select an advertised tool, and retry",
+        );
 
         const oversized = await client.callTool({
           name: "procedure_pseudo_code",
@@ -260,15 +338,11 @@ describe("SDK validation error delivery", () => {
           evidenceReference.evidence_id,
         );
 
-        const quotedKey = '"\\'.repeat(350);
-        const quoted = await client.callTool({
-          name: "procedure_pseudo_code",
-          arguments: { required: "present", [quotedKey]: true },
-        });
-        expect(quoted.isError).toBe(true);
-        expect(firstText(quoted)).toContain("Input validation error");
-        expect(Buffer.byteLength(JSON.stringify(quoted))).toBeLessThan(4096);
-        expect(records.exportEvidenceBundle().records).toHaveLength(1);
+        await expectEscapedSdkDiagnosticRetention(
+          client,
+          records,
+          evidenceReference.evidence_id,
+        );
 
         const recovered = await client.callTool({
           name: "procedure_pseudo_code",

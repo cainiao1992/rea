@@ -332,7 +332,7 @@ const runAnalysis = async (
           : await session.openResolvedTarget(resolvedTarget, openOptions);
       if (!opened.ok) return cliError(opened.error);
       const evidenceProfile = analysisProfileForEvidence(session, tool);
-      const { output, evidence } = await executeAnalysisTool({
+      const { output, evidence, cachePolicy } = await executeAnalysisTool({
         session,
         openedTarget: opened.value,
         tool,
@@ -362,7 +362,11 @@ const runAnalysis = async (
         evidence !== undefined &&
         session.allowsSnapshotReplay(tool)
       ) {
-        const workflowRecord = workflowSnapshotRecord(evidence, tool);
+        const workflowRecord = workflowSnapshotRecord(
+          evidence,
+          tool,
+          cachePolicy,
+        );
         if (workflowRecord !== undefined) {
           const recorded = session.recordWorkflowSnapshot(workflowRecord);
           if (!recorded.ok)
@@ -408,7 +412,11 @@ const executeAnalysisTool = async (input: {
   readonly arguments: Readonly<Record<string, JsonValue>>;
   readonly signal: AbortSignal;
   readonly evidenceProfile: AnalysisProfileCommitment | undefined;
-}): Promise<{ readonly output: JsonValue; readonly evidence?: Evidence }> => {
+}): Promise<{
+  readonly output: JsonValue;
+  readonly evidence?: Evidence;
+  readonly cachePolicy?: "live";
+}> => {
   const { session, tool, signal, evidenceProfile } = input;
   if (tool === "analyze_function") {
     const { executeFunctionAnalysisEvidence } =
@@ -444,7 +452,13 @@ const executeAnalysisTool = async (input: {
       upstreamProfile: evidenceProfile,
       upstreamLimitations: result.value.limitations,
     });
-    return { output: evidence, evidence };
+    return {
+      output: evidence,
+      evidence,
+      ...(result.value.cachePolicy === undefined
+        ? {}
+        : { cachePolicy: result.value.cachePolicy }),
+    };
   }
   let result = await session.execute(tool, input.arguments, { signal });
   if (

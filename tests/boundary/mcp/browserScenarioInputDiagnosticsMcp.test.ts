@@ -101,7 +101,14 @@ cliTest(
           code: "invalid_request",
           category: "invalid_input",
           retryable: true,
-          remediation: { action: "Correct the listed arguments and retry." },
+          remediation: {
+            action:
+              "Read the declared input schema or CLI usage for capture_browser_scenario; if using MCP and the catalog may be stale, call tools/list. Correct the listed fields, then retry. Do not repeat the unchanged call.",
+          },
+          recovery: {
+            kind: "inspect_input_contract",
+            operation: "capture_browser_scenario",
+          },
           details: {
             operation: "capture_browser_scenario",
             issues: [

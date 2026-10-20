@@ -4,6 +4,7 @@ import type {
 } from "../domain/il2cpp/il2cppMetadata.js";
 import {
   checkRange,
+  readIndex,
   Il2cppMetadataFormatFailure,
 } from "./Il2cppMetadataFormat.js";
 import type { MetadataTables } from "./Il2cppMetadataFile.js";
@@ -132,6 +133,22 @@ function* readNamed<
       ),
       owners[index]!,
     );
+    if (
+      tables.linkFacts !== undefined &&
+      (name === "fields" || name === "parameters")
+    ) {
+      const column =
+        name === "fields"
+          ? tables.linkFacts.fieldTypes
+          : tables.linkFacts.parameterTypes;
+      column[index] = readIndex(
+        tables.bytes,
+        section.offset +
+          index * tables.members.recordBytes[name] +
+          (name === "fields" ? 4 : 8),
+        tables.widths.type,
+      );
+    }
     tables.onRow?.(row);
     rows.push(row);
   }

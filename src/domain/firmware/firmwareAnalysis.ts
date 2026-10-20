@@ -45,6 +45,16 @@ export const firmwareInputSchemas = {
       .max(100_000)
       .default(10_000)
       .describe("Staging entry budget, including directories and links"),
+    publication_timeout_ms: z
+      .number()
+      .int()
+      .min(1)
+      // Node timers cannot represent longer delays without overflow.
+      .max(2_147_483_647)
+      .default(120_000)
+      .describe(
+        "Publication and final cleanup budget in milliseconds, started after extraction and inventory; increase for a slow destination",
+      ),
   }),
 } as const;
 

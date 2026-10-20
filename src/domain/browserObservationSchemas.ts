@@ -185,7 +185,7 @@ const browserConsoleEventSchema = z.object({
 });
 const browserWebSocketFrameSchema = z.object({
   direction: z.enum(["sent", "received"]),
-  opcode: z.number().int().min(0),
+  opcode: z.number().int().min(0).max(15).nullable(),
   payload_bytes: z.number().int().min(0).nullable(),
   payload_shape: z
     .object({

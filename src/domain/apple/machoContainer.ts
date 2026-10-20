@@ -1,5 +1,9 @@
 import { isJvmClassFile } from "./jvmClassFile.js";
 
+/** loader.h: load commands are 8-byte aligned in 64-bit images, 4 in 32-bit. */
+export const machoLoadCommandAlignment = (wide: boolean): 4 | 8 =>
+  wide ? 8 : 4;
+
 /** Physical facts for one entry in a Mach-O FAT architecture table. */
 export interface FatSliceDeclaration {
   readonly index: number;

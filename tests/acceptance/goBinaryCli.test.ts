@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
+import { machoImageWithUnknownCommand } from "../../src/artifacts/apple/MachoImage.fixture.js";
 import {
   createGoBinaryByteStringFixture,
   createGoBinaryDiagnosticFixtures,
@@ -126,6 +127,62 @@ for (const bits of [32, 64] as const) {
     );
   }
 }
+
+cliTest(
+  "rejects misaligned 64-bit Mach-O through Go CLI and stdio MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-go-macho-alignment-");
+    const { client, call } = await connectLocalToolsMcp();
+    const expectedFailure = {
+      code: "invalid_request",
+      details: {
+        operation: "inspect_go_binary",
+        issues: [{ path: ["path"], reason: "invalid_format" }],
+      },
+    };
+
+    for (const fixture of [
+      { wide: true, size: 12, bits: 64, malformed: true },
+      { wide: true, size: 16, bits: 64, malformed: false },
+      { wide: false, size: 12, bits: 32, malformed: false },
+    ]) {
+      const path = join(root, `image-${fixture.bits}-${fixture.size}.macho`);
+      await writeFile(
+        path,
+        machoImageWithUnknownCommand(fixture.wide, fixture.size),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-go-binary", path, "--json"],
+      });
+      const response = await call("inspect_go_binary", { path });
+
+      if (fixture.malformed) {
+        expect(result.exitCode).toBe(1);
+        expect(result.json).toMatchObject(expectedFailure);
+        expect(result.json).not.toHaveProperty("normalized_result");
+        expect(parseMcpToolError(response).error).toMatchObject(
+          expectedFailure,
+        );
+        expect(response.structuredContent).toBeUndefined();
+        continue;
+      }
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_go_binary").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result).toMatchObject({
+        format: "macho",
+        bits: fixture.bits,
+        build_info: null,
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      expect(response.structuredContent).toEqual(evidence);
+    }
+    await client.ping();
+  },
+  30000,
+);
 
 for (const expectedErrno of ["ELOOP", "ENAMETOOLONG"] as const) {
   cliTest.skipIf(expectedErrno === "ELOOP" && process.platform === "win32")(

@@ -130,6 +130,22 @@ export const machoImage = (options: {
   return bytes;
 };
 
+/** Thin Mach-O with one unknown command, for width and command-size regressions. */
+export const machoImageWithUnknownCommand = (
+  wide: boolean,
+  commandSize: number,
+): Uint8Array => {
+  const command = new Uint8Array(commandSize);
+  const view = new DataView(command.buffer);
+  view.setUint32(0, 0x7f000001, true);
+  view.setUint32(4, commandSize, true);
+  return machoImage({
+    cpu: wide ? CPU.arm64 : CPU.i386,
+    wide,
+    commands: [command],
+  });
+};
+
 /**
  * A FAT container whose slices start on 4 KiB boundaries. Headers are
  * big-endian unless `littleEndian` selects the swapped FAT_CIGAM magics.

@@ -8,6 +8,7 @@ import {
   type GoImageSection,
   type GoZeroFillMapping,
 } from "./GoBinaryContainer.js";
+import { machoLoadCommandAlignment } from "../domain/apple/machoContainer.js";
 
 /** Read thin Mach-O images, retaining the slice's exact file-backed mappings. */
 export const readGoMachoImage = (bytes: Buffer): GoBinaryContainer => {
@@ -40,7 +41,11 @@ export const readGoMachoImage = (bytes: Buffer): GoBinaryContainer => {
   for (let index = 0; index < count; index++) {
     const command = reader.u32(offset);
     const size = reader.u32(offset + 4);
-    if (size < 8 || size % 4 !== 0 || size > end - offset)
+    if (
+      size < 8 ||
+      size % machoLoadCommandAlignment(bits === 64) !== 0 ||
+      size > end - offset
+    )
       throw new GoBinaryFormatFailure(
         "malformed",
         "Mach-O load command size is invalid or truncated",

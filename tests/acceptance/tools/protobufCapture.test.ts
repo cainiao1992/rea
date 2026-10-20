@@ -20,8 +20,28 @@ import { analysisViewResultSchema } from "../../../src/domain/analysisView/analy
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
-type CaptureCall = Awaited<ReturnType<typeof connectLocalToolsMcp>>["call"];
 type CaptureRequest = z.input<typeof inspectWebNetworkCaptureInputSchema>;
+
+// Acceptance files have isolated workers; the file owns one server and each case owns its inputs.
+const captureTest = cliTest.extend<{
+  $worker: { mcp: Awaited<ReturnType<typeof connectLocalToolsMcp>> };
+}>({
+  mcp: [
+    // oxlint-disable-next-line no-empty-pattern -- Vitest parses fixture dependencies from object destructuring.
+    async ({}, use) => {
+      let close: (() => Promise<void>) | undefined;
+      try {
+        const mcp = await connectLocalToolsMcp({}, (cleanup) => {
+          close = cleanup;
+        });
+        await use(mcp);
+      } finally {
+        await close?.();
+      }
+    },
+    { scope: "worker" },
+  ],
+});
 
 const retainedCaptureDetailsSchema = z.object({
   partial_observation: z.strictObject({
@@ -30,321 +50,332 @@ const retainedCaptureDetailsSchema = z.object({
   }),
 });
 
-async function verifyCaptureExclusions(
-  call: CaptureCall,
-  args: CaptureRequest,
-  root: string,
-): Promise<void> {
-  const redacted = await call("inspect_web_network_capture", {
-    ...args,
-    sensitive_values: ["hello"],
-  });
-  expect(redacted.isError, JSON.stringify(redacted)).not.toBe(true);
-  const excluded = webNetworkCaptureSchema.parse(
-    parseEvidence(redacted.structuredContent).normalized_result,
-  );
-  expect(excluded.records[0]?.protobuf).toBeUndefined();
-  expect(excluded.protobuf_coverage).toMatchObject({
-    status: "partial",
-    selected_records: 1,
-    inspected_records: 1,
-  });
-  expect(JSON.stringify(redacted)).not.toContain("hello");
-  const textPath = join(root, "text.har");
-  await writeFile(
-    textPath,
-    protobufHar(
-      Buffer.from(protobufCaptureBody().toString("base64")),
-      "application/grpc-web-text",
-    ),
-  );
-  const textExcluded = await call("inspect_web_network_capture", {
-    capture_path: textPath,
+async function prepareMcpCapture(
+  call: Awaited<ReturnType<typeof connectLocalToolsMcp>>["call"],
+) {
+  const root = await createTestTempDirectory("rea-protobuf-mcp-");
+  const capture = join(root, "capture.har");
+  const descriptor = join(root, "capture.pb");
+  await writeFile(capture, protobufHar());
+  await writeFile(descriptor, protobufCaptureDescriptor());
+  const args: CaptureRequest = {
+    capture_path: capture,
     format: "har",
     record_ordinals: [0],
-    sensitive_values: ["hello"],
-  });
-  expect(textExcluded.isError, JSON.stringify(textExcluded)).not.toBe(true);
-  const excludedText = webNetworkCaptureSchema.parse(
-    parseEvidence(textExcluded.structuredContent).normalized_result,
-  );
-  expect(excludedText.records[0]?.binary_fields[0]).toMatchObject({
-    state: "redacted",
-    content_base64: null,
-    sha256: null,
-  });
-  expect(excludedText.records[0]?.reported).toMatchObject({
-    response: { content: { text: null } },
-  });
-  expect(excludedText.records[0]?.protobuf).toBeUndefined();
-  const credentialPath = join(root, "trailer.har");
-  await writeFile(
-    credentialPath,
-    protobufHar(
-      Buffer.concat([
-        protobufFrame(Buffer.from("0a0568656c6c6f", "hex")),
-        protobufFrame(
-          Buffer.from(
-            "grpc-status: 0\r\nauthorization: Bearer fixture-only-credential\r\n",
-          ),
-          128,
-        ),
-      ]),
-    ),
-  );
-  const credential = await call("inspect_web_network_capture", {
-    capture_path: credentialPath,
-    format: "har",
-    record_ordinals: [0],
-  });
-  expect(credential.isError, JSON.stringify(credential)).not.toBe(true);
-  const excludedCredential = webNetworkCaptureSchema.parse(
-    parseEvidence(credential.structuredContent).normalized_result,
-  );
-  expect(excludedCredential.records[0]?.binary_fields[0]).toMatchObject({
-    state: "redacted",
-    content_base64: null,
-  });
-  expect(excludedCredential.records[0]?.redactions).toContainEqual({
-    pointer: "/response/content/text",
-    reason: "transport-credential",
-  });
-  expect(excludedCredential.records[0]?.protobuf).toBeUndefined();
-  expect(JSON.stringify(credential)).not.toContain("fixture-only-credential");
-}
-
-async function verifyPartialCaptureSources(
-  call: CaptureCall,
-  args: CaptureRequest,
-  root: string,
-  descriptor: string,
-): Promise<void> {
-  const missing = await call("inspect_web_network_capture", {
-    ...args,
-    sensitive_values: ["unrelated fixture exclusion"],
     protobuf: {
       schema: {
         descriptor_set_path: descriptor,
-        message_type: "capture.Missing",
+        message_type: "capture.Message",
       },
     },
-  });
-  const missingError = parseMcpToolError(missing).error;
-  expect(missingError.code).toBe("invalid_request");
-  const retainedSource = retainedCaptureDetailsSchema.parse(
-    missingError.details,
-  ).partial_observation;
-  const retainedSummary = await call("inspect_analysis_view", {
-    source: retainedSource,
-    view: { kind: "summary" },
-  });
-  expect(retainedSummary.isError, JSON.stringify(retainedSummary)).not.toBe(
-    true,
-  );
-  expect(
-    analysisViewResultSchema.parse(
-      parseEvidence(retainedSummary.structuredContent).normalized_result,
-    ),
-  ).toMatchObject({
-    summary: {
-      protobuf_coverage: { status: "partial", inspected_records: 0 },
-    },
-  });
-  const missingView = await call("inspect_analysis_view", {
-    source: retainedSource,
-    view: { kind: "protobuf", collection: "fields", offset: 0, limit: 1 },
-  });
-  expect(missingView.isError, JSON.stringify(missingView)).not.toBe(true);
-  expect(
-    analysisViewResultSchema.parse(
-      parseEvidence(missingView.structuredContent).normalized_result,
-    ),
-  ).toMatchObject({ source_status: "partial", items: [] });
-  const capacityPath = join(root, "capacity.har");
-  const repeated = Buffer.alloc(200000);
-  for (let index = 0; index < repeated.length; index += 2) {
-    repeated[index] = 8;
-    repeated[index + 1] = 1;
-  }
-  await writeFile(capacityPath, protobufHar(protobufFrame(repeated)));
-  const capacity = await call("inspect_web_network_capture", {
-    capture_path: capacityPath,
-    format: "har",
-    record_ordinals: [0],
-    sensitive_values: ["unrelated fixture exclusion"],
-  });
-  const capacityError = parseMcpToolError(capacity).error;
-  expect(capacityError.code).toBe("resource_constraint");
-  expect(capacityError.retryable).toBe(false);
-  const capacitySource = retainedCaptureDetailsSchema.parse(
-    capacityError.details,
-  ).partial_observation;
-  const capacitySummary = await call("inspect_analysis_view", {
-    source: capacitySource,
-    view: { kind: "summary" },
-  });
-  expect(capacitySummary.isError, JSON.stringify(capacitySummary)).not.toBe(
-    true,
-  );
-  expect(
-    analysisViewResultSchema.parse(
-      parseEvidence(capacitySummary.structuredContent).normalized_result,
-    ),
-  ).toMatchObject({
-    summary: {
-      protobuf_coverage: { status: "partial", inspected_records: 0 },
-    },
-  });
-  expect(JSON.stringify(capacity)).not.toContain("content_base64");
+  };
+  return { call, args, root, capture, descriptor };
 }
 
-async function verifyCredentialPreflight(
-  call: CaptureCall,
-  root: string,
-  descriptor: string,
-): Promise<void> {
-  const repeated = Buffer.alloc(200000);
-  for (let index = 0; index < repeated.length; index += 2) {
-    repeated[index] = 8;
-    repeated[index + 1] = 1;
-  }
-  const large = protobufFrame(repeated);
-  const credential = protobufFrame(
-    Buffer.from(
-      "grpc-status: 0\r\nauthorization: fixture-only-trailer-credential\r\n",
-    ),
-    128,
-  );
-  const small = protobufFrame(Buffer.from([8, 1]));
-  for (const [name, body, mimeType, framing] of [
-    [
-      "large",
-      Buffer.concat([large, credential]),
-      "application/grpc-web+proto",
-      "auto",
-    ],
-    [
-      "malformed",
-      Buffer.concat([
-        small,
-        protobufFrame(
-          Buffer.from(
-            "malformed\r\nauthorization: fixture-only-trailer-credential\r\n",
-          ),
-          128,
-        ),
-      ]),
-      "application/grpc-web+proto",
-      "auto",
-    ],
-    [
-      "text-override",
-      Buffer.from(Buffer.concat([small, credential]).toString("base64")),
-      "application/grpc-web-text",
-      "raw",
-    ],
-  ] as const) {
-    const path = join(root, `credential-${name}.har`);
-    await writeFile(path, protobufHar(body, mimeType));
-    const response = await call("inspect_web_network_capture", {
-      capture_path: path,
+captureTest(
+  "excludes Protobuf values in text framing and trailer credentials through MCP",
+  async ({ mcp }) => {
+    const { call, root } = await prepareMcpCapture(mcp.call);
+    const textPath = join(root, "text.har");
+    await writeFile(
+      textPath,
+      protobufHar(
+        Buffer.from(protobufCaptureBody().toString("base64")),
+        "application/grpc-web-text",
+      ),
+    );
+    const textExcluded = await call("inspect_web_network_capture", {
+      capture_path: textPath,
       format: "har",
       record_ordinals: [0],
-      protobuf: { framing },
+      sensitive_values: ["hello"],
     });
-    expect(response.isError, JSON.stringify(response)).not.toBe(true);
-    const capture = webNetworkCaptureSchema.parse(
-      parseEvidence(response.structuredContent).normalized_result,
+    expect(textExcluded.isError, JSON.stringify(textExcluded)).not.toBe(true);
+    const excludedText = webNetworkCaptureSchema.parse(
+      parseEvidence(textExcluded.structuredContent).normalized_result,
     );
-    expect(capture.records[0]?.binary_fields[0]).toMatchObject({
+    expect(excludedText.records[0]?.binary_fields[0]).toMatchObject({
       state: "redacted",
       content_base64: null,
       sha256: null,
     });
-    expect(capture.records[0]?.protobuf).toBeUndefined();
-    expect(capture.protobuf_coverage?.status).toBe("partial");
-  }
-  const path = join(root, "credential-later-record.har");
-  await writeFile(
-    path,
-    protobufHar(large, "application/grpc-web+proto", [
-      Buffer.concat([small, credential]),
-    ]),
-  );
-  for (const schema of [
-    undefined,
-    { descriptor_set_path: descriptor, message_type: "capture.Missing" },
-  ]) {
-    const response = await call("inspect_web_network_capture", {
-      capture_path: path,
+    expect(excludedText.records[0]?.reported).toMatchObject({
+      response: { content: { text: null } },
+    });
+    expect(excludedText.records[0]?.protobuf).toBeUndefined();
+    const credentialPath = join(root, "trailer.har");
+    await writeFile(
+      credentialPath,
+      protobufHar(
+        Buffer.concat([
+          protobufFrame(Buffer.from("0a0568656c6c6f", "hex")),
+          protobufFrame(
+            Buffer.from(
+              "grpc-status: 0\r\nauthorization: Bearer fixture-only-credential\r\n",
+            ),
+            128,
+          ),
+        ]),
+      ),
+    );
+    const credential = await call("inspect_web_network_capture", {
+      capture_path: credentialPath,
       format: "har",
-      record_ordinals: [0, 1],
-      sensitive_values: ["unrelated fixture exclusion"],
-      ...(schema === undefined ? {} : { protobuf: { schema } }),
+      record_ordinals: [0],
     });
-    const error = parseMcpToolError(response).error;
-    expect(error.code).toBe(
-      schema === undefined ? "resource_constraint" : "invalid_request",
+    expect(credential.isError, JSON.stringify(credential)).not.toBe(true);
+    const excludedCredential = webNetworkCaptureSchema.parse(
+      parseEvidence(credential.structuredContent).normalized_result,
     );
-    const source = retainedCaptureDetailsSchema.parse(
-      error.details,
-    ).partial_observation;
-    const retained = await call("inspect_analysis_view", {
-      source,
-      view: { kind: "capture", detail: "complete", offset: 0, limit: 2 },
+    expect(excludedCredential.records[0]?.binary_fields[0]).toMatchObject({
+      state: "redacted",
+      content_base64: null,
     });
-    expect(retained.isError, JSON.stringify(retained)).not.toBe(true);
-    const view = analysisViewResultSchema.parse(
-      parseEvidence(retained.structuredContent).normalized_result,
-    );
-    expect(view).toMatchObject({
-      items: [
-        expect.anything(),
-        {
-          binary_fields: [
-            { state: "redacted", content_base64: null, sha256: null },
-          ],
-        },
-      ],
+    expect(excludedCredential.records[0]?.redactions).toContainEqual({
+      pointer: "/response/content/text",
+      reason: "transport-credential",
     });
-  }
-}
+    expect(excludedCredential.records[0]?.protobuf).toBeUndefined();
+    expect(JSON.stringify(credential)).not.toContain("fixture-only-credential");
+  },
+);
 
-async function verifyDescriptorReadFailures(
-  call: CaptureCall,
-  args: CaptureRequest,
-  root: string,
-): Promise<void> {
-  const directory = join(root, "descriptor-directory");
-  const oversized = join(root, "oversized.pb");
-  await mkdir(directory);
-  await writeFile(oversized, "");
-  await truncate(oversized, 32 * 1024 * 1024 + 1);
-  for (const [path, reason] of [
-    [join(root, "missing.pb"), "invalid_value"],
-    [directory, "invalid_format"],
-    [oversized, "out_of_range"],
-  ] as const) {
-    const response = await call("inspect_web_network_capture", {
+captureTest(
+  "retains partial capture Evidence after schema and capacity failures through MCP",
+  async ({ mcp }) => {
+    const { call, args, root, descriptor } = await prepareMcpCapture(mcp.call);
+    const missing = await call("inspect_web_network_capture", {
       ...args,
       sensitive_values: ["unrelated fixture exclusion"],
       protobuf: {
-        schema: { descriptor_set_path: path, message_type: "capture.Message" },
+        schema: {
+          descriptor_set_path: descriptor,
+          message_type: "capture.Missing",
+        },
       },
     });
-    const error = parseMcpToolError(response).error;
-    expect(error.code).toBe("invalid_request");
-    expect(error.details).toMatchObject({
-      issues: [{ path: ["protobuf", "schema", "descriptor_set_path"], reason }],
+    const missingError = parseMcpToolError(missing).error;
+    expect(missingError.code).toBe("invalid_request");
+    const retainedSource = retainedCaptureDetailsSchema.parse(
+      missingError.details,
+    ).partial_observation;
+    const retainedSummary = await call("inspect_analysis_view", {
+      source: retainedSource,
+      view: { kind: "summary" },
     });
+    expect(retainedSummary.isError, JSON.stringify(retainedSummary)).not.toBe(
+      true,
+    );
     expect(
-      retainedCaptureDetailsSchema.parse(error.details).partial_observation
-        .kind,
-    ).toBe("retained-evidence");
-  }
-}
+      analysisViewResultSchema.parse(
+        parseEvidence(retainedSummary.structuredContent).normalized_result,
+      ),
+    ).toMatchObject({
+      summary: {
+        protobuf_coverage: { status: "partial", inspected_records: 0 },
+      },
+    });
+    const missingView = await call("inspect_analysis_view", {
+      source: retainedSource,
+      view: { kind: "protobuf", collection: "fields", offset: 0, limit: 1 },
+    });
+    expect(missingView.isError, JSON.stringify(missingView)).not.toBe(true);
+    expect(
+      analysisViewResultSchema.parse(
+        parseEvidence(missingView.structuredContent).normalized_result,
+      ),
+    ).toMatchObject({ source_status: "partial", items: [] });
+    const capacityPath = join(root, "capacity.har");
+    const repeated = Buffer.alloc(200000);
+    for (let index = 0; index < repeated.length; index += 2) {
+      repeated[index] = 8;
+      repeated[index + 1] = 1;
+    }
+    await writeFile(capacityPath, protobufHar(protobufFrame(repeated)));
+    const capacity = await call("inspect_web_network_capture", {
+      capture_path: capacityPath,
+      format: "har",
+      record_ordinals: [0],
+      sensitive_values: ["unrelated fixture exclusion"],
+    });
+    const capacityError = parseMcpToolError(capacity).error;
+    expect(capacityError.code).toBe("resource_constraint");
+    expect(capacityError.retryable).toBe(false);
+    const capacitySource = retainedCaptureDetailsSchema.parse(
+      capacityError.details,
+    ).partial_observation;
+    const capacitySummary = await call("inspect_analysis_view", {
+      source: capacitySource,
+      view: { kind: "summary" },
+    });
+    expect(capacitySummary.isError, JSON.stringify(capacitySummary)).not.toBe(
+      true,
+    );
+    expect(
+      analysisViewResultSchema.parse(
+        parseEvidence(capacitySummary.structuredContent).normalized_result,
+      ),
+    ).toMatchObject({
+      summary: {
+        protobuf_coverage: { status: "partial", inspected_records: 0 },
+      },
+    });
+    expect(JSON.stringify(capacity)).not.toContain("content_base64");
+  },
+);
 
-cliTest(
+captureTest(
+  "preflights trailer credentials before parsing and retaining later records through MCP",
+  async ({ mcp }) => {
+    const { call, root, descriptor } = await prepareMcpCapture(mcp.call);
+    const repeated = Buffer.alloc(200000);
+    for (let index = 0; index < repeated.length; index += 2) {
+      repeated[index] = 8;
+      repeated[index + 1] = 1;
+    }
+    const large = protobufFrame(repeated);
+    const credential = protobufFrame(
+      Buffer.from(
+        "grpc-status: 0\r\nauthorization: fixture-only-trailer-credential\r\n",
+      ),
+      128,
+    );
+    const small = protobufFrame(Buffer.from([8, 1]));
+    for (const [name, body, mimeType, framing] of [
+      [
+        "large",
+        Buffer.concat([large, credential]),
+        "application/grpc-web+proto",
+        "auto",
+      ],
+      [
+        "malformed",
+        Buffer.concat([
+          small,
+          protobufFrame(
+            Buffer.from(
+              "malformed\r\nauthorization: fixture-only-trailer-credential\r\n",
+            ),
+            128,
+          ),
+        ]),
+        "application/grpc-web+proto",
+        "auto",
+      ],
+      [
+        "text-override",
+        Buffer.from(Buffer.concat([small, credential]).toString("base64")),
+        "application/grpc-web-text",
+        "raw",
+      ],
+    ] as const) {
+      const path = join(root, `credential-${name}.har`);
+      await writeFile(path, protobufHar(body, mimeType));
+      const response = await call("inspect_web_network_capture", {
+        capture_path: path,
+        format: "har",
+        record_ordinals: [0],
+        protobuf: { framing },
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      const capture = webNetworkCaptureSchema.parse(
+        parseEvidence(response.structuredContent).normalized_result,
+      );
+      expect(capture.records[0]?.binary_fields[0]).toMatchObject({
+        state: "redacted",
+        content_base64: null,
+        sha256: null,
+      });
+      expect(capture.records[0]?.protobuf).toBeUndefined();
+      expect(capture.protobuf_coverage?.status).toBe("partial");
+    }
+    const path = join(root, "credential-later-record.har");
+    await writeFile(
+      path,
+      protobufHar(large, "application/grpc-web+proto", [
+        Buffer.concat([small, credential]),
+      ]),
+    );
+    for (const schema of [
+      undefined,
+      { descriptor_set_path: descriptor, message_type: "capture.Missing" },
+    ]) {
+      const response = await call("inspect_web_network_capture", {
+        capture_path: path,
+        format: "har",
+        record_ordinals: [0, 1],
+        sensitive_values: ["unrelated fixture exclusion"],
+        ...(schema === undefined ? {} : { protobuf: { schema } }),
+      });
+      const error = parseMcpToolError(response).error;
+      expect(error.code).toBe(
+        schema === undefined ? "resource_constraint" : "invalid_request",
+      );
+      const source = retainedCaptureDetailsSchema.parse(
+        error.details,
+      ).partial_observation;
+      const retained = await call("inspect_analysis_view", {
+        source,
+        view: { kind: "capture", detail: "complete", offset: 0, limit: 2 },
+      });
+      expect(retained.isError, JSON.stringify(retained)).not.toBe(true);
+      const view = analysisViewResultSchema.parse(
+        parseEvidence(retained.structuredContent).normalized_result,
+      );
+      expect(view).toMatchObject({
+        items: [
+          expect.anything(),
+          {
+            binary_fields: [
+              { state: "redacted", content_base64: null, sha256: null },
+            ],
+          },
+        ],
+      });
+    }
+  },
+);
+
+captureTest(
+  "reports descriptor read failures with retained capture Evidence through MCP",
+  async ({ mcp }) => {
+    const { call, args, root } = await prepareMcpCapture(mcp.call);
+    const directory = join(root, "descriptor-directory");
+    const oversized = join(root, "oversized.pb");
+    await mkdir(directory);
+    await writeFile(oversized, "");
+    await truncate(oversized, 32 * 1024 * 1024 + 1);
+    for (const [path, reason] of [
+      [join(root, "missing.pb"), "invalid_value"],
+      [directory, "invalid_format"],
+      [oversized, "out_of_range"],
+    ] as const) {
+      const response = await call("inspect_web_network_capture", {
+        ...args,
+        sensitive_values: ["unrelated fixture exclusion"],
+        protobuf: {
+          schema: {
+            descriptor_set_path: path,
+            message_type: "capture.Message",
+          },
+        },
+      });
+      const error = parseMcpToolError(response).error;
+      expect(error.code).toBe("invalid_request");
+      expect(error.details).toMatchObject({
+        issues: [
+          { path: ["protobuf", "schema", "descriptor_set_path"], reason },
+        ],
+      });
+      expect(
+        retainedCaptureDetailsSchema.parse(error.details).partial_observation
+          .kind,
+      ).toBe("retained-evidence");
+    }
+  },
+);
+
+captureTest(
   "decodes selected capture bytes with a supplied descriptor and pages exported facts after both sources disappear",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-protobuf-cli-");
@@ -442,26 +473,12 @@ cliTest(
   },
 );
 
-cliTest(
+captureTest(
   "uses production MCP schemas, retained pages and CLI-equivalent decoding without reopening sources",
-  async ({ cli }) => {
-    const root = await createTestTempDirectory("rea-protobuf-mcp-");
-    const capture = join(root, "capture.har");
-    const descriptor = join(root, "capture.pb");
-    await writeFile(capture, protobufHar());
-    await writeFile(descriptor, protobufCaptureDescriptor());
-    const { call } = await connectLocalToolsMcp();
-    const args: CaptureRequest = {
-      capture_path: capture,
-      format: "har",
-      record_ordinals: [0],
-      protobuf: {
-        schema: {
-          descriptor_set_path: descriptor,
-          message_type: "capture.Message",
-        },
-      },
-    };
+  async ({ cli, mcp }) => {
+    const { call, args, capture, descriptor } = await prepareMcpCapture(
+      mcp.call,
+    );
     const complete = await call("inspect_web_network_capture", args);
     expect(complete.isError, JSON.stringify(complete)).not.toBe(true);
     const parent = parseEvidence(complete.structuredContent);
@@ -481,10 +498,21 @@ cliTest(
     });
     expect(cliResult.exitCode, cliResult.stdout + cliResult.stderr).toBe(0);
     expect(parseEvidence(cliResult.json).evidence_id).toBe(parent.evidence_id);
-    await verifyCaptureExclusions(call, args, root);
-    await verifyPartialCaptureSources(call, args, root, descriptor);
-    await verifyCredentialPreflight(call, root, descriptor);
-    await verifyDescriptorReadFailures(call, args, root);
+    const redacted = await call("inspect_web_network_capture", {
+      ...args,
+      sensitive_values: ["hello"],
+    });
+    expect(redacted.isError, JSON.stringify(redacted)).not.toBe(true);
+    const excluded = webNetworkCaptureSchema.parse(
+      parseEvidence(redacted.structuredContent).normalized_result,
+    );
+    expect(excluded.records[0]?.protobuf).toBeUndefined();
+    expect(excluded.protobuf_coverage).toMatchObject({
+      status: "partial",
+      selected_records: 1,
+      inspected_records: 1,
+    });
+    expect(JSON.stringify(redacted)).not.toContain("hello");
     const summary = await call("inspect_web_network_capture", {
       ...args,
       detail: "summary",
@@ -497,6 +525,12 @@ cliTest(
       kind: "summary",
       parent_evidence_id: parent.evidence_id,
     });
+    const invalid = await call("inspect_web_network_capture", {
+      ...args,
+      record_ordinals: undefined,
+    });
+    expect(invalid.isError).toBe(true);
+    expect(parseMcpToolError(invalid).error.code).toBe("invalid_request");
     await unlink(capture);
     await unlink(descriptor);
     const viewed = await call("inspect_analysis_view", {
@@ -520,11 +554,5 @@ cliTest(
       items: [{ schema_name: "values", schema_value: '["1","2"]' }],
       coverage: { total: 1, exhausted: true },
     });
-    const invalid = await call("inspect_web_network_capture", {
-      ...args,
-      record_ordinals: undefined,
-    });
-    expect(invalid.isError).toBe(true);
-    expect(parseMcpToolError(invalid).error.code).toBe("invalid_request");
   },
 );

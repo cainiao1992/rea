@@ -783,6 +783,13 @@ the current client, so it is not a fresh-start recovery. On the same connection:
    `provider_id: "ghidra"`, then retry the first query with an appropriate client
    deadline. The connection and selected provider do not need to change.
 
+If REA's provider startup allowance also needs raising, preserve Evidence and
+close as above, then update `REA_GHIDRA_STARTUP_TIMEOUT_MS` in REA's launch
+environment and restart the server. Reconnect the MCP client before reopening
+the target. Configuration is read at process startup; close/reopen on the same
+connection cannot apply a changed environment. See the
+[CLI retry example](installation.md#ghidra).
+
 This close/reopen flow was exercised on one real Linux stdio connection after a
 controlled startup timeout, followed by a successful overview and function
 analysis. A separate Windows x64 stdio run with Ghidra 12.1.4, JDK 21 and Node

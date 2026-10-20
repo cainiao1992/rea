@@ -3,18 +3,23 @@ import {
   RegularFileOperationCancelled,
 } from "../filesystem/RegularFile.js";
 import { constants } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { access, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  AnalysisCleanupLease,
+  AnalysisCleanupLeaseGroup,
+} from "../artifacts/AnalysisCleanupLease.js";
 import {
   hashStableFile,
   stableFileHashCause,
 } from "../filesystem/StableFileHash.js";
-import type { FileCloseResourceOwner } from "../application/AnalysisProvider.js";
+import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
 import {
   RegularFileCleanupFailure,
   RegularFileCancelled,
@@ -22,10 +27,15 @@ import {
   withOwnedRegularFile,
 } from "../filesystem/OwnedRegularFile.js";
 import {
-  execFileOutput,
-  execFileOutputFailure,
-  ExecFileOutputCancelledError,
-} from "../process/ExecFileOutput.js";
+  OwnedCommandFailure,
+  runOwnedCommand,
+} from "../process/OwnedCommand.js";
+import { retainOwnedCommandCleanup } from "../providers/OwnedCommandCleanup.js";
+import type {
+  OwnedProviderProcessSpawnOptions,
+  ProviderProcessSnapshot,
+  SpawnedOwnedProviderProcess,
+} from "../process/ProviderProcess.js";
 import {
   readKunaConfiguration,
   type KunaConfiguration,
@@ -43,6 +53,45 @@ const VERSION_PROBE_MAX_OUTPUT_BYTES = 64 * 1024;
 
 /** Release CI prints exactly `kuna <MAJOR.MINOR>`; source builds print the Cargo version. */
 const VERSION_LINE = /^kuna (\d+\.\d+(?:\.\d+)?)\r?\n?$/u;
+
+const versionProbeOutput = (snapshot: ProviderProcessSnapshot | null) => ({
+  stdout: snapshot?.stdout.text ?? "",
+  stderr: snapshot?.stderr.text ?? "",
+  exitCode: snapshot?.exitCode ?? null,
+  signal: snapshot?.signal ?? null,
+  stdoutBytes: snapshot?.stdout.bytes ?? 0,
+  stdoutObservedBytes: snapshot?.stdout.observedBytes ?? 0,
+  stderrBytes: snapshot?.stderr.bytes ?? 0,
+  stderrObservedBytes: snapshot?.stderr.observedBytes ?? 0,
+  stdoutInvalidUtf8: snapshot?.stdout.invalidUtf8 === true,
+  stderrInvalidUtf8: snapshot?.stderr.invalidUtf8 === true,
+  diagnosticTruncated: snapshot?.diagnosticTruncated === true,
+  outputIncomplete: snapshot?.outputIncomplete === true,
+  truncated:
+    snapshot?.diagnosticTruncated === true ||
+    snapshot?.outputIncomplete === true ||
+    (snapshot !== null &&
+      snapshot !== undefined &&
+      snapshot.stdout.bytes < snapshot.stdout.observedBytes),
+});
+
+const versionProbeOutputDiagnostics = (
+  output: ReturnType<typeof versionProbeOutput>,
+) => ({
+  stdout: output.stdout,
+  stderr: output.stderr,
+  exit_code: output.exitCode,
+  signal: output.signal,
+  stdout_bytes: output.stdoutBytes,
+  stdout_observed_bytes: output.stdoutObservedBytes,
+  stderr_bytes: output.stderrBytes,
+  stderr_observed_bytes: output.stderrObservedBytes,
+  ...(output.stdoutInvalidUtf8 ? { stdout_invalid_utf8: true } : {}),
+  ...(output.stderrInvalidUtf8 ? { stderr_invalid_utf8: true } : {}),
+  diagnostic_truncated: output.diagnosticTruncated,
+  output_incomplete: output.outputIncomplete,
+  output_truncated: output.truncated,
+});
 
 /** One observed Kuna executable, identified by its bytes as well as its version. */
 export interface KunaInstallation {
@@ -77,7 +126,11 @@ export interface KunaInstallationOptions {
   readonly signal?: AbortSignal;
   /** Probe deadline; tests shorten it. */
   readonly probeTimeoutMs?: number;
-  readonly fileCloseResources: FileCloseResourceOwner;
+  readonly resourceScope: RetainedResourceScope;
+  /** Test seam for the owned command launcher; production uses the verified default. */
+  readonly processLauncher?: (
+    options: OwnedProviderProcessSpawnOptions,
+  ) => Promise<SpawnedOwnedProviderProcess>;
 }
 
 /** Cancellation facts normalized by the installation inspection that observed them. */
@@ -113,30 +166,52 @@ export const kunaInstallationCancellation = (
   };
 };
 
-/** One installation inspection's file owners and their originating errors. */
-export interface KunaFileCloseScope {
-  readonly owner: FileCloseResourceOwner;
+/** One installation inspection's retained owners and originating errors. */
+export interface KunaResourceScope {
+  readonly owner: RetainedResourceScope;
+  readonly cleanupResources: readonly string[] | undefined;
+  readonly hasPending: boolean;
   bindFailure(failure: RegularFileCleanupFailure, error: AnalysisError): void;
+  bindRetainedFailure(error: AnalysisError): void;
 }
 
-/** Adapt retained descriptor owners into leases and bind errors to exact owners. */
-export const createKunaFileCloseScope = (
-  parent: FileCloseResourceOwner,
-): KunaFileCloseScope => {
+/** Adapt retained resource owners into leases and bind errors to exact owners. */
+export const createKunaResourceScope = (
+  parent: RetainedResourceScope,
+): KunaResourceScope => {
   const leases = new Map<
-    Parameters<FileCloseResourceOwner["retain"]>[0],
-    AnalysisCleanupLease
+    Parameters<RetainedResourceScope["retain"]>[0],
+    { readonly lease: AnalysisCleanupLease }
   >();
+  const bindPendingFailure = (error: AnalysisError) => {
+    const retained = [...leases.values()]
+      .map(({ lease }) => lease)
+      .filter((lease) => !lease.released);
+    if (retained.length > 0) new AnalysisCleanupLeaseGroup(error, retained);
+  };
   return {
+    get hasPending() {
+      return [...leases.values()].some(({ lease }) => !lease.released);
+    },
+    get cleanupResources() {
+      const pending = [...leases.values()]
+        .map(({ lease }) => lease)
+        .filter((lease) => !lease.released);
+      if (pending.some((lease) => lease.cleanupResources === undefined))
+        return undefined;
+      return [
+        ...new Set(pending.flatMap((lease) => lease.cleanupResources ?? [])),
+      ];
+    },
     owner: {
       retain: (owner, resource) => {
         const lease = AnalysisCleanupLease.forCloseOwner(owner, resource);
-        leases.set(owner, lease);
+        leases.set(owner, { lease });
         parent.retain(
           {
             close: () => lease.release(),
             get cleanupResources() {
-              return lease.cleanupResources ?? [resource];
+              return lease.cleanupResources;
             },
           },
           resource,
@@ -144,8 +219,10 @@ export const createKunaFileCloseScope = (
       },
       run: (operation) => parent.run(operation),
     },
-    bindFailure: (failure, error) =>
-      leases.get(failure.owner)?.bindCleanupError(error),
+    bindFailure: (failure, error) => {
+      if (leases.has(failure.owner)) bindPendingFailure(error);
+    },
+    bindRetainedFailure: bindPendingFailure,
   };
 };
 
@@ -211,40 +288,105 @@ export const inspectKunaInstallation = async (
   assertRegularFileActive(options.signal);
 
   const deadline = options.probeTimeoutMs ?? VERSION_PROBE_TIMEOUT_MS;
-  let stdout: string;
+  let snapshot: ProviderProcessSnapshot;
   try {
-    ({ stdout } = await execFileOutput(executable, ["--version"], {
-      env: kunaChildEnvironment(configuration.value),
-      timeout: deadline,
-      maxBuffer: VERSION_PROBE_MAX_OUTPUT_BYTES,
-      // Escalate to SIGKILL so an executable that ignores SIGTERM cannot hang doctor.
-      stopSignal: "SIGTERM",
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    }));
+    snapshot = await options.resourceScope.run(() =>
+      runOwnedCommand(
+        {
+          command: executable,
+          arguments: ["--version"],
+          runId: `rea-kuna-version-${randomUUID()}`,
+          // The configured command may be an interpreter-driven shim.
+          expectedCommand: null,
+          hostEnvironment: kunaChildEnvironment(configuration.value),
+        },
+        {
+          timeoutMs: deadline,
+          diagnosticBytes: VERSION_PROBE_MAX_OUTPUT_BYTES,
+        },
+        {
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+          ...(options.processLauncher === undefined
+            ? {}
+            : { launcher: options.processLauncher }),
+        },
+      ),
+    );
   } catch (cause: unknown) {
-    if (cause instanceof ExecFileOutputCancelledError)
-      throw new RegularFileOperationCancelled(cause.cause);
-    const output = execFileOutputFailure(cause);
+    if (cause instanceof ArtifactReaderFailure) throw cause;
+    const retainedCleanup = retainOwnedCommandCleanup(
+      cause,
+      options.resourceScope,
+      "kuna",
+      "kuna:installation",
+    );
+    const cleanupIncomplete = retainedCleanup.length > 0;
+    if (cause instanceof OwnedCommandFailure) {
+      const output = versionProbeOutput(cause.snapshot);
+      if (cause.reason === "cancelled") {
+        const cancellation = new RegularFileOperationCancelled(
+          cause.cancellation?.reason,
+        );
+        installationFailureDiagnostics.set(cancellation, {
+          kuna_version_probe: {
+            status: "partial",
+            command,
+            executable,
+            deadline_ms: deadline,
+            ...versionProbeOutputDiagnostics(output),
+            probe_failure_reason: cause.reason,
+            stop_requested: cause.snapshot !== null,
+            cleanup_incomplete: cleanupIncomplete,
+          },
+        });
+        throw cancellation;
+      }
+      return failure(
+        "version_unresolved",
+        `${executable} --version failed: ${output.stderr.trim() || cause.message}. ${KUNA_VERSION_PROBE_REMEDIATION}`,
+        {
+          command,
+          executable,
+          probe_failure_reason: cause.reason,
+          stop_requested: cause.snapshot !== null,
+          cleanup_incomplete: cleanupIncomplete,
+          deadline_ms: deadline,
+          ...versionProbeOutputDiagnostics(output),
+        },
+      );
+    }
     return failure(
       "version_unresolved",
-      `${executable} --version failed: ${output?.stderr.trim() || message(cause)}. ${KUNA_VERSION_PROBE_REMEDIATION}`,
+      `${executable} --version failed: ${message(cause)}. ${KUNA_VERSION_PROBE_REMEDIATION}`,
       {
         command,
         executable,
-        exit_code: typeof output?.code === "number" ? output.code : null,
-        signal: output?.signal ?? null,
-        killed: output?.killed ?? false,
-        output_truncated: output?.outputTruncated ?? false,
+        exit_code: null,
+        signal: null,
+        cleanup_incomplete: cleanupIncomplete,
         deadline_ms: deadline,
       },
     );
   }
-  const version = VERSION_LINE.exec(stdout)?.[1];
+  const probeOutput = versionProbeOutput(snapshot);
+  if (probeOutput.truncated)
+    return failure(
+      "version_unresolved",
+      `${executable} --version output was incomplete. ${KUNA_VERSION_PROBE_REMEDIATION}`,
+      {
+        command,
+        executable,
+        deadline_ms: deadline,
+        output_truncated: true,
+        stdout: probeOutput.stdout.slice(0, 256),
+      },
+    );
+  const version = VERSION_LINE.exec(probeOutput.stdout)?.[1];
   if (version === undefined)
     return failure(
       "version_unresolved",
       `${executable} --version printed no recognizable Kuna version. ${KUNA_VERSION_PROBE_REMEDIATION}`,
-      { command, executable, stdout: stdout.slice(0, 256) },
+      { command, executable, stdout: probeOutput.stdout.slice(0, 256) },
     );
 
   let fingerprint: { readonly sha256: string; readonly bytes: number };
@@ -255,26 +397,24 @@ export const inspectKunaInstallation = async (
     script?: boolean;
   } = { phase: "fingerprint" };
   try {
-    ({ fingerprint, script } = await options.fileCloseResources.run(
-      async () => {
-        const fingerprint = await hashStableFile(executable, {
-          ...(options.signal === undefined ? {} : { signal: options.signal }),
-          retainFailedClose: (owner) =>
-            options.fileCloseResources.retain(owner, executable),
-        });
-        observed.completed_hash = fingerprint;
-        assertRegularFileActive(options.signal);
-        observed.phase = "shebang";
-        const script = await startsWithShebang(
-          executable,
-          options.fileCloseResources,
-          options.signal,
-        );
-        observed.script = script;
-        assertRegularFileActive(options.signal);
-        return { fingerprint, script };
-      },
-    ));
+    ({ fingerprint, script } = await options.resourceScope.run(async () => {
+      const fingerprint = await hashStableFile(executable, {
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        retainFailedClose: (owner) =>
+          options.resourceScope.retain(owner, executable),
+      });
+      observed.completed_hash = fingerprint;
+      assertRegularFileActive(options.signal);
+      observed.phase = "shebang";
+      const script = await startsWithShebang(
+        executable,
+        options.resourceScope,
+        options.signal,
+      );
+      observed.script = script;
+      assertRegularFileActive(options.signal);
+      return { fingerprint, script };
+    }));
   } catch (cause: unknown) {
     const cancellation = regularFileCancellation(cause);
     if (
@@ -332,7 +472,7 @@ export const inspectKunaInstallation = async (
 
 const startsWithShebang = (
   path: string,
-  fileCloseResources: FileCloseResourceOwner,
+  resourceScope: RetainedResourceScope,
   signal?: AbortSignal,
 ): Promise<boolean> =>
   withOwnedRegularFile(
@@ -340,7 +480,7 @@ const startsWithShebang = (
     {
       symlinks: "follow",
       ...(signal === undefined ? {} : { signal }),
-      retainFailedClose: (owner) => fileCloseResources.retain(owner, path),
+      retainFailedClose: (owner) => resourceScope.retain(owner, path),
     },
     async (handle) => {
       const prefix = Buffer.alloc(2);

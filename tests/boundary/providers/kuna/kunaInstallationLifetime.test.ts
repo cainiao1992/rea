@@ -61,7 +61,7 @@ vi.mock("../../../../src/filesystem/RegularFile.js", async (importOriginal) => {
 });
 
 import { ArtifactResourceScope } from "../../../../src/artifacts/ArtifactResourceScope.js";
-import type { FileCloseResourceOwner } from "../../../../src/application/AnalysisProvider.js";
+import type { RetainedResourceScope } from "../../../../src/application/AnalysisProvider.js";
 import {
   inspectKunaInstallation,
   kunaInstallationCancellation,
@@ -91,7 +91,7 @@ it
     const root = await createTestTempDirectory("rea-kuna-inspection-lifetime-");
     const executable = await writeFakeKuna(root);
     const scope = new ArtifactResourceScope();
-    const fileCloseResources: FileCloseResourceOwner = {
+    const resourceScope: RetainedResourceScope = {
       retain: (owner, resource) =>
         scope.retain({
           kind: "lease",
@@ -103,7 +103,7 @@ it
     const controller = new AbortController();
     const inspection = inspectKunaInstallation(
       { REA_KUNA_COMMAND: executable },
-      { fileCloseResources, signal: controller.signal },
+      { resourceScope, signal: controller.signal },
     );
 
     const inspectionOutcome = inspection.then(

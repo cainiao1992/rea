@@ -39,7 +39,7 @@ import {
   type AnalysisProviderCandidateEvaluation,
 } from "./AnalysisProviderEvaluation.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
-import type { FileCloseResourceOwner } from "../AnalysisProvider.js";
+import type { RetainedResourceScope } from "../AnalysisProvider.js";
 
 /** Deterministic discovery truth for one configured deep provider. */
 export interface AnalysisProviderCandidateStatus {
@@ -108,15 +108,15 @@ export class AnalysisProviderRegistry {
     >
   >();
   readonly #selectionCleanup = new Set<AnalysisError>();
-  readonly #profileFiles = new ArtifactResourceScope();
-  readonly #profileFileOwner: FileCloseResourceOwner = {
+  readonly #profileResources = new ArtifactResourceScope();
+  readonly #profileOwner: RetainedResourceScope = {
     retain: (owner, resource) =>
-      this.#profileFiles.retain({
+      this.#profileResources.retain({
         kind: "lease",
         resource,
         lease: AnalysisCleanupLease.forCloseOwner(owner, resource),
       }),
-    run: (operation) => this.#profileFiles.run(operation),
+    run: (operation) => this.#profileResources.run(operation),
   };
   #closing: Promise<Result<null, AnalysisError>> | undefined;
 
@@ -186,7 +186,7 @@ export class AnalysisProviderRegistry {
     return (
       this.#selections.size > 0 ||
       this.#discoveries.size > 0 ||
-      this.#profileFiles.hasPending ||
+      this.#profileResources.hasPending ||
       [...this.#selectionCleanup].some((error) => error.cleanupIncomplete) ||
       this.#providers.some(
         (provider) => provider.hasPendingOwnedResources?.() === true,
@@ -215,7 +215,7 @@ export class AnalysisProviderRegistry {
     ]);
     const failures: AnalysisError[] = [];
     try {
-      await this.#profileFiles.retryCleanup();
+      await this.#profileResources.retryCleanup();
     } catch (cause: unknown) {
       const cleanup = ArtifactReaderFailure.cleanupObservation(
         cause,
@@ -564,7 +564,7 @@ export class AnalysisProviderRegistry {
       provider,
       initial,
       target,
-      { signal, fileCloseResources: this.#profileFileOwner, scope },
+      { signal, resourceScope: this.#profileOwner, scope },
     );
     if (!evaluation.ok) return evaluation;
     const evaluated = evaluation.value;
@@ -608,7 +608,7 @@ export class AnalysisProviderRegistry {
             status.targetSupport.status === "supported"
             ? evaluateAnalysisProviderCandidate(provider, status, target, {
                 signal,
-                fileCloseResources: this.#profileFileOwner,
+                resourceScope: this.#profileOwner,
                 scope,
               })
             : ok({

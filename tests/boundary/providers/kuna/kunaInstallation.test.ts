@@ -12,9 +12,10 @@ import { expect, it as test } from "vitest";
 
 import { kunaInstallationCancellation } from "../../../../src/kuna/KunaInstallation.js";
 import { readKunaConfiguration } from "../../../../src/kuna/KunaConfiguration.js";
-import { inspectKunaInstallationOwned as inspectKunaInstallation } from "./kunaFileCloseOwner.js";
+import { inspectKunaInstallationOwned as inspectKunaInstallation } from "./kunaResourceScope.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 import { fakeKunaCalls, writeFakeKuna } from "./fakeKuna.js";
+import { makeLauncher, ownedGroupCleanup } from "./kunaVersionProbeProcess.js";
 
 const it = test.skipIf(process.platform === "win32");
 
@@ -98,7 +99,7 @@ it("reports a failed version probe with its exit status", async () => {
     error: {
       code: "version_unresolved",
       reason: expect.stringContaining("version probe failed"),
-      diagnostics: { exit_code: 3, killed: false },
+      diagnostics: { exit_code: 3, stop_requested: true },
     },
   });
 });
@@ -210,19 +211,19 @@ it("stops a version probe that ignores SIGTERM instead of waiting on it", async 
 
   const result = await inspectKunaInstallation(
     { REA_KUNA_COMMAND: kuna },
-    // Long enough for Node to start the fake and install its SIGTERM handler.
-    { probeTimeoutMs: 1500 },
+    // Allow owned-process identity preparation, then exercise the stopped child.
+    { probeTimeoutMs: 4_000 },
   );
 
   expect(result).toMatchObject({
     ok: false,
     error: {
       code: "version_unresolved",
-      diagnostics: { killed: true, deadline_ms: 1500 },
+      diagnostics: { stop_requested: true, deadline_ms: 4_000 },
     },
   });
-  // The deadline plus ExecFileOutput's bounded kill grace, never an open-ended wait.
-  expect(Date.now() - started).toBeLessThan(15_000);
+  // The owned process-group stop is bounded and must not wait on inherited output forever.
+  expect(Date.now() - started).toBeLessThan(10_000);
   const pid = (await fakeKunaCalls(kuna))[0]?.pid ?? 0;
   expect(() => process.kill(pid, 0)).toThrow();
 }, 20_000);
@@ -232,6 +233,24 @@ it("keeps a version deadline ahead of cancellation during its joined stop", asyn
   const command = join(root, "probe.cjs");
   const stopped = join(root, "stopped");
   const release = join(root, "release");
+  const launcher = makeLauncher(async (_child, pid) => {
+    process.kill(-pid, "SIGTERM");
+    const waitFor = async (path: string) => {
+      const deadline = Date.now() + 2_000;
+      while (Date.now() < deadline) {
+        try {
+          await readFile(path);
+          return;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
+      throw new Error(`Timed out waiting for ${path}`);
+    };
+    await waitFor(stopped);
+    await waitFor(release);
+    return ownedGroupCleanup(pid);
+  });
   await (
     await import("node:fs/promises")
   ).writeFile(
@@ -252,7 +271,11 @@ setTimeout(() => process.exit(9), 10000).unref();
       REA_KUNA_COMMAND: command,
       REA_KUNA_CACHE_DIR: join(root, "cache"),
     },
-    { signal: controller.signal, probeTimeoutMs: 1000 },
+    {
+      signal: controller.signal,
+      probeTimeoutMs: 1_000,
+      processLauncher: launcher.launcher,
+    },
   );
   const outcome = pending.then(
     (value) => ({ kind: "result" as const, value }),
@@ -277,7 +300,7 @@ setTimeout(() => process.exit(9), 10000).unref();
         ok: false,
         error: {
           code: "version_unresolved",
-          diagnostics: { deadline_ms: 1000, killed: true },
+          diagnostics: { deadline_ms: 1000, stop_requested: true },
         },
       },
     });

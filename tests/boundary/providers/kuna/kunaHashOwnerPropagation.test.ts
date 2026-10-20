@@ -14,7 +14,7 @@ import { AnalysisError } from "../../../../src/domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 
 import { ArtifactResourceScope } from "../../../../src/artifacts/ArtifactResourceScope.js";
-import type { FileCloseResourceOwner } from "../../../../src/application/AnalysisProvider.js";
+import type { RetainedResourceScope } from "../../../../src/application/AnalysisProvider.js";
 
 const injected = vi.hoisted(() => ({
   failNextClose: false,
@@ -125,7 +125,7 @@ import { composeBinarySession } from "../../../../src/application/binary/BinaryS
 import { KunaTargetCommands } from "../../../../src/kuna/KunaTargetCommands.js";
 import { KunaProjectCache } from "../../../../src/kuna/KunaProjectCache.js";
 import { inspectKunaProvider } from "../../../../src/kuna/KunaDoctor.js";
-import { inspectKunaInstallationOwned } from "./kunaFileCloseOwner.js";
+import { inspectKunaInstallationOwned } from "./kunaResourceScope.js";
 import { fakeKunaCalls } from "./fakeKuna.js";
 import { run, session } from "./kunaSessionFixture.js";
 
@@ -575,7 +575,7 @@ it.skipIf(process.platform === "win32")(
     injected.closeCalls = 0;
     injected.failNextClose = true;
     const resources = new ArtifactResourceScope();
-    const fileCloseResources: FileCloseResourceOwner = {
+    const resourceScope: RetainedResourceScope = {
       retain: (owner, resource) =>
         resources.retain({
           kind: "lease",
@@ -591,7 +591,7 @@ it.skipIf(process.platform === "win32")(
           REA_KUNA_CACHE_DIR: fixture.cacheRoot,
         },
         process.platform,
-        { fileCloseResources },
+        { resourceScope },
       );
       expect(inspection.checks[0]).toMatchObject({
         ok: false,
@@ -678,7 +678,7 @@ it.skipIf(process.platform === "win32").each(
     const controller = new AbortController();
     const reason = { request: "cancel completed Kuna installation read" };
     const resources = new ArtifactResourceScope();
-    const fileCloseResources: FileCloseResourceOwner = {
+    const resourceScope: RetainedResourceScope = {
       retain: (owner, resource) =>
         resources.retain({
           kind: "lease",
@@ -700,7 +700,7 @@ it.skipIf(process.platform === "win32").each(
             REA_KUNA_CACHE_DIR: fixture.cacheRoot,
           },
           process.platform,
-          { fileCloseResources, signal: controller.signal },
+          { resourceScope, signal: controller.signal },
         ).then(
           (inspection) => {
             expect(closeRefusal).toBe(true);
@@ -718,7 +718,7 @@ it.skipIf(process.platform === "win32").each(
         const result =
           consumer === "profile"
             ? await fixture.provider.resolveAnalysisProfile(fixture.target, {
-                fileCloseResources,
+                resourceScope,
                 signal: controller.signal,
               })
             : await client!.execute(

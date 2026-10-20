@@ -442,6 +442,11 @@ redirected, which keeps large results smaller for agents and scripts; pipe
 through `jq .` for indented files. Output selection and formatting do not change
 operation status.
 
+`--filter-output` selects fields from successful command data. Classified failures
+retain their complete typed diagnostic projection even when the selector matches
+a field such as `code` or `message`, or names a missing field. `--full-output`
+controls whether the outer `{ok, error, meta}` envelope is included.
+
 For `cutter-command`, `--json-output` requests command-specific JSON from
 Cutter when available. This is separate from `--format json`, which selects the
 CLI result representation; the global `--json` flag selects that same CLI

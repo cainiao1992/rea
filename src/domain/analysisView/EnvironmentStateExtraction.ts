@@ -20,7 +20,6 @@ import {
   locateItem,
   locateList,
   rootOf,
-  rootsRelated,
   scalarText,
   segmentsOf,
   apiBaseLengths,
@@ -51,6 +50,7 @@ import {
   type StateGateContext,
   type StatePlan,
 } from "./environmentStateGate.js";
+import { StateWriteCutoffs } from "./environmentStateWriteCutoffs.js";
 
 class StateBudgetExhausted extends Error {}
 
@@ -78,6 +78,8 @@ export class EnvironmentStateExtraction {
   readonly #writes: readonly StateRecordFacts[];
   readonly #writeWithin: ReturnType<typeof writeSpanCheck>;
   readonly #bases: ReadonlyMap<string, number>;
+  #writeCutoffs: StateWriteCutoffs | undefined;
+  readonly #initLimits = new Map<string, StateRecordFacts | undefined>();
   readonly #identity = new Map<
     string,
     { readonly field: string; readonly basis: StateType["id_basis"] }
@@ -115,6 +117,15 @@ export class EnvironmentStateExtraction {
   /** The extracted state, or null when the representation budget is exhausted. */
   run(): ExtractedState | null {
     try {
+      if (this.#writes.length > 0)
+        this.#writeCutoffs = new StateWriteCutoffs(
+          this.#writes,
+          this.#bases,
+          (left, right) =>
+            this.#position.get(left.ordinal)! <
+            this.#position.get(right.ordinal)!,
+          (bytes) => this.#retain(bytes),
+        );
       const candidates = this.#candidates();
       for (const candidate of candidates.filter((entry) => entry.item))
         this.#planItem(candidate);
@@ -187,10 +198,12 @@ export class EnvironmentStateExtraction {
 
   /** The first write whose root relates to the template's bounds its init recordings. */
   #initLimit(template: string): StateRecordFacts | undefined {
-    const root = rootOf(template, this.#bases);
-    return this.#writes.find((write) =>
-      rootsRelated(root, rootOf(write.path, this.#bases)),
-    );
+    if (this.#writeCutoffs === undefined) return undefined;
+    if (this.#initLimits.has(template)) return this.#initLimits.get(template);
+    const first = this.#writeCutoffs.first(rootOf(template, this.#bases));
+    this.#retain(ENTRY_BYTES + textBytes(template.length));
+    this.#initLimits.set(template, first);
+    return first;
   }
 
   /** Successful recordings that finished before the first related write began. */
@@ -545,17 +558,19 @@ export class EnvironmentStateExtraction {
 
   /** Types and entities that at least one state-backed view renders; view values only for those views. */
   #result(documents: StateDocument[]): ExtractedState {
-    const backed = new Set(
-      [...this.#views.values()].flatMap((view) =>
-        view.shape === "item" || view.shape === "list" ? [view.tool] : [],
-      ),
-    );
+    const backed = new Set<string>();
+    const backedTypes = new Set<string>();
+    for (const view of this.#views.values())
+      if (view.shape === "item" || view.shape === "list") {
+        this.#retain(ENTRY_BYTES);
+        backed.add(view.tool);
+        if (!backedTypes.has(view.type)) {
+          this.#retain(ENTRY_BYTES);
+          backedTypes.add(view.type);
+        }
+      }
     const types = [...this.#identity.entries()]
-      .filter(([type]) =>
-        this.#plans.some(
-          (plan) => plan.type === type && backed.has(plan.tool.name),
-        ),
-      )
+      .filter(([type]) => backedTypes.has(type))
       .map(([type, { field, basis }]): StateType => ({
         collection_template: type,
         id_field: field,

@@ -266,18 +266,6 @@ export const rootOf = (
   return segments.slice(0, end + 1);
 };
 
-/** Roots relate when they agree on their common length; template parameters match any segment. */
-export const rootsRelated = (
-  left: readonly string[],
-  right: readonly string[],
-): boolean =>
-  left
-    .slice(0, right.length)
-    .every(
-      (segment, index) =>
-        segment === right[index] || isParam(segment) || isParam(right[index]!),
-    );
-
 /** Value bytes as retained state, charged before a value is kept. */
 export const jsonBytes = (value: JsonValue): number => {
   if (typeof value === "string") return textBytes(value.length);

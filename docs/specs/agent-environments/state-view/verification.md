@@ -91,7 +91,7 @@ workflow: 22.836 s / 19.880 CPU s / 1,072.43 MiB; actual browser-state workflow:
 exhausts an isolated decoder heap and verifies that MCP remains usable; no
 workspace OOM occurred.
 
-Before/after used immutable pre-fix `29e745923` and the final source, the same
+The first follow-up benchmark used pre-fix `29e745923` and `6ad63bcc2`, the same
 completed Evidence files, Node and CPU affinity. One fresh process per revision,
 with a first call and two warm repeats; filesystem caches were not cleared.
 Complete normalized output digests matched for both synthetic projection tasks.
@@ -116,3 +116,41 @@ No new macOS/Windows runtime, state serving, AgentEnv data-plane or write-effect
 claim is made. A type first observed only after an unrelated-root write may
 still lack the earlier observation needed to detect its effect. Item-shaped
 and delete-only document paths remain recorded, as specified.
+
+## Post-merge write-cutoff follow-up
+
+Base `3fca2e0ca` includes #5319 and the validated immutable-capture reuse from
+#5349. The remaining review finding was repeated write-root parsing for each
+read type and again during output assembly. One admitted prefix/wildcard index
+now owns parsed write roots, with per-projection positive/negative cutoff
+caching. Backed type membership is collected once, replacing another plan scan.
+The old linear matcher is removed. Prefix, parameter, redacted-root and timeline
+semantics are preserved; no cross-request cache or new authority is introduced.
+
+- Source checks: 41 files, 508 passed, 3 existing skips, including independent
+  matching-oracle and 12,000-segment iterative-lookup checks.
+- Serial static/build/artifact gate: 11 tasks passed, 197.356 s wall /
+  197.195 CPU s / 4,744.92 MiB peak process-family RSS.
+- Both selected compiled state CLI/MCP cases passed after rebuilding.
+- Live Gitea HAR workflows and fresh actual Chromium capture passed again:
+  initial values, recorded fallbacks, CLI/default stdio parity and six exact
+  HTTP replays. HAR workflow: 22.834 s wall / 19.623 CPU s / 1,067.36 MiB;
+  browser workflow: 22.858 s / 20.912 CPU s / 1,546.59 MiB. Owned processes stopped.
+
+The same completed Evidence with 1,000 collection reads and 1,000 unrelated
+writes was projected before and after on one CPU. Two larger full-HAR inputs
+(3,000/4,000 total records) were refused by the existing 96 MiB admission budget;
+the limit was retained. One fresh process per revision, first call plus one
+warm repeat, filesystem caches not cleared:
+
+| Complete file-to-state projection                        | Main before         | Follow-up           |
+| -------------------------------------------------------- | ------------------- | ------------------- |
+| First call wall / CPU (ms)                               | 1,727.89 / 1,727.36 | 1,244.82 / 1,244.05 |
+| Warm call wall / CPU (ms)                                | 1,300.84 / 1,300.42 | 624.01 / 623.89     |
+| Process wall / CPU (s), including imports and both calls | 4.690 / 4.363       | 3.370 / 3.062       |
+| Sampled process-family peak RSS (MiB)                    | 365.84              | 360.03              |
+
+Parent Evidence IDs and complete normalized output digests were identical.
+RSS sampling is every 50 ms, includes descendants and can double-count shared
+pages; these few runs do not establish a general memory reduction. Model token
+usage remains unmeasured. No workspace OOM occurred.

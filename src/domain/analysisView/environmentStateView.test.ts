@@ -590,6 +590,64 @@ it("proves the identity field against every item response", () => {
   expect(state.entities.map((entity) => entity.id)).toEqual(["1", "2"]);
 });
 
+it.each(["/api", "/api/items/1/update"])(
+  "bounds a type by a write at a related root (%s)",
+  (path) => {
+    const state = stateOf(
+      captureOf([
+        ["GET", "/api/items/1", { id: 1, title: "initial" }],
+        ["POST", path, {}],
+        ["GET", "/api/items/1", { id: 1, title: "after" }],
+      ]),
+    );
+    expect(state.types).toMatchObject([{ init_before_ordinal: 1 }]);
+    expect(state.entities).toMatchObject([{ fields: { title: "initial" } }]);
+  },
+);
+
+it("chooses the earliest related write in timeline order, across ancestor and descendant roots", () => {
+  const parent = captureOf([
+    ["GET", "/api/items/1", { id: 1, title: "initial" }],
+    ["POST", "/api/items/1/update", {}],
+    ["POST", "/api", {}],
+    ["GET", "/api/items/1", { id: 1, title: "after" }],
+  ]);
+  const data = structuredClone(parent.normalizedResult) as {
+    records: { reported: { startedDateTime: string } }[];
+  };
+  const first = data.records[1]!.reported.startedDateTime;
+  data.records[1]!.reported.startedDateTime =
+    data.records[2]!.reported.startedDateTime;
+  data.records[2]!.reported.startedDateTime = first;
+  const state = stateOf({ ...parent, normalizedResult: data });
+  expect(state.types).toMatchObject([{ init_before_ordinal: 2 }]);
+  expect(state.entities).toMatchObject([{ fields: { title: "initial" } }]);
+});
+
+it("bounds a parameterized namespace by concrete writes before publishing new items", () => {
+  const result = projectAnalysisView(
+    captureOf([
+      ["GET", "/api/v1/repos/alice/alpha/issues/1", { id: 1 }],
+      ["GET", "/api/v1/repos/bob/beta/issues/2", { id: 2 }],
+      ["GET", "/api/v1/repos/carol/gamma/issues/3", { id: 3 }],
+      ["POST", "/api/v1/repos/dana/delta/issues", { id: 4 }],
+      ["GET", "/api/v1/repos/dana/delta/issues/4", { id: 4 }],
+    ]),
+    {
+      kind: "environment-state",
+      template_rules: [...ALL_RULES, "sibling-pair-variance"],
+    },
+  );
+  if (!result.ok || result.value.kind !== "environment-state")
+    throw new Error("Expected state");
+  expect(result.value.entities.map((entity) => entity.id)).toEqual([
+    "1",
+    "2",
+    "3",
+  ]);
+  expect(result.value.types).toMatchObject([{ init_before_ordinal: 3 }]);
+});
+
 it.each(["totalcount", "itemcount"])(
   "recognizes a compact compound item total (%s)",
   (name) => {

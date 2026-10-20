@@ -95,7 +95,7 @@ export class SqliteDatabaseService {
     const report = sqliteDatabaseSchema.safeParse(execution.result);
     if (
       !report.success ||
-      execution.subject === null ||
+      execution.subject == null ||
       !matchesSelectedDatabase(report.data, input.data, execution.subject)
     )
       return err(

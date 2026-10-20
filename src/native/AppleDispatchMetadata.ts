@@ -271,15 +271,9 @@ export const inspectAppleDispatchMetadata = async (
       const before = await handle.stat();
       if (before.size > maximumBytes) throw capacityError();
       if (signal?.aborted) throw cancelled();
-      const read = await readBoundedFileBytes(
-        handle,
-        maximumBytes,
+      const read = await readBoundedFileBytes(handle, maximumBytes, {
         signal,
-      ).catch((cause: unknown) => {
-        // The bounded reader rejects with the caller's exact abort reason.
-        if (signal?.aborted === true && cause === signal.reason)
-          throw cancelled();
-        throw cause;
+        cancellationFailure: () => cancelled(),
       });
       if (read === undefined) throw capacityError();
       const sha256 = createHash("sha256").update(read).digest("hex");

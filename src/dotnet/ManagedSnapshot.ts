@@ -61,7 +61,7 @@ export const readManagedSnapshot = async (
       const bytes = await readBoundedFileBytes(
         handle,
         MAX_MANAGED_SNAPSHOT_BYTES,
-        signal,
+        { signal },
       );
       if (bytes === undefined) throw managedSnapshotCapacityError(operation);
       signal?.throwIfAborted();

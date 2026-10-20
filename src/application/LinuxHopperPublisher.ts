@@ -926,7 +926,9 @@ export class LinuxHopperPublisher {
             "integrity",
             "Retained Hopper evidence exceeds its resource byte budget.",
           );
-        const bytes = await readBoundedFileBytes(handle, stats.size, signal);
+        const bytes = await readBoundedFileBytes(handle, stats.size, {
+          signal,
+        });
         if (bytes === undefined)
           throw new HopperReleaseError(
             "integrity",

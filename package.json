@@ -323,6 +323,7 @@
   "dependencies": {
     "@babel/parser": "8.0.4",
     "@babel/types": "8.0.4",
+    "@bufbuild/protobuf": "2.16.0",
     "@clack/prompts": "1.7.0",
     "@electron/asar": "4.2.0",
     "@jridgewell/trace-mapping": "0.3.31",

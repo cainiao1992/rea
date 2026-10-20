@@ -1,3 +1,8 @@
+import {
+  protobufViewRequestSchema,
+  protobufViewItemsSchema,
+  protobufViewContextSchema,
+} from "./protobufCaptureView.js";
 import { isAbsolute } from "node:path";
 
 import { localPathStringSchema } from "../localPath.js";
@@ -247,6 +252,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   environmentManifestViewRequestSchema,
   environmentStateViewRequestSchema,
   captureViewRequestSchema,
+  protobufViewRequestSchema,
   qlogViewRequestSchema,
   pcapViewRequestSchema,
   dartAotViewRequestSchema,
@@ -550,6 +556,14 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     ]),
   }),
   z.strictObject({
+    kind: z.literal("protobuf"),
+    view: protobufViewRequestSchema,
+    items: protobufViewItemsSchema,
+    ...viewResultBase,
+    ...protobufViewContextSchema.shape,
+    parent_operation: z.literal("inspect_web_network_capture"),
+  }),
+  z.strictObject({
     kind: z.literal("capture"),
     view: captureViewRequestSchema,
     items: captureViewItemsSchema,
@@ -710,79 +724,10 @@ export interface AnalysisViewParent {
 }
 
 /** View payload before the content digest is attached. */
-export type UnsignedAnalysisView =
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "desktop-application" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "api-surface" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "environment-manifest" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "environment-state" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "summary" }>,
-      "view_digest"
-    >
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "facet" }>, "view_digest">
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "item" }>, "view_digest">
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "page" }>, "view_digest">
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "javascript" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "javascript-facts" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "native" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "inventory" }>,
-      "view_digest"
-    >
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "wasm" }>, "view_digest">
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "macho" }>, "view_digest">
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "interface-builder" }>,
-      "view_digest"
-    >
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "evm" }>, "view_digest">
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "qlog" }>, "view_digest">
-  | Omit<Extract<AnalysisViewResult, { readonly kind: "pcap" }>, "view_digest">
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "capture" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "managed" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "managed-members" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "android" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "dart-aot" }>,
-      "view_digest"
-    >
-  | Omit<
-      Extract<AnalysisViewResult, { readonly kind: "il2cpp-metadata" }>,
-      "view_digest"
-    >;
+type WithoutViewDigest<T> = T extends { readonly view_digest: string }
+  ? Omit<T, "view_digest">
+  : never;
+export type UnsignedAnalysisView = WithoutViewDigest<AnalysisViewResult>;
 
 /** Attach the content digest that must change when projected bytes change. */
 export const sealAnalysisView = (

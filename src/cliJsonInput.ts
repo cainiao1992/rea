@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { absoluteCallerPath } from "./filesystem/callerPath.js";
 
 import { sealOwnedJsonInput } from "./application/OwnedJsonInput.js";
 import { readJsonInputFile } from "./application/JsonInputFile.js";
@@ -141,7 +141,7 @@ const resolveJsonPath = (
           typeof entry === "string" &&
           entry.trim().length > 0 &&
           !URL_REFERENCE.test(entry)
-            ? resolve(entry)
+            ? absoluteCallerPath(entry)
             : entry,
         ];
       return [key, resolveJsonPath(entry, tail)];

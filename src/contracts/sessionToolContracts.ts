@@ -1,8 +1,7 @@
 import { matchNativeFunctionsInputSchema } from "./native/functionMatchingContracts.js";
 import { z } from "zod";
 
-import { isAbsolute } from "node:path";
-import { localPathStringSchema } from "../domain/localPath.js";
+import { absoluteLocalPathStringSchema } from "../domain/localPath.js";
 import { artifactComparisonInputSchema } from "../domain/artifactComparison.js";
 import { callPathInputSchema } from "../domain/callPathSchemas.js";
 import { changedBehaviorInputSchema } from "../domain/changedBehavior.js";
@@ -55,14 +54,9 @@ const session = <
 
 /** Session-owned Evidence bundle export options. */
 export const exportEvidenceBundleInputSchema = z.strictObject({
-  path: localPathStringSchema
-    .refine(isAbsolute, {
-      message:
-        "path must be an absolute local filesystem path (for example /tmp/rea/evidence.json or C:\\rea\\evidence.json)",
-    })
-    .describe(
-      "Absolute local filesystem path for the exported evidence bundle; relative paths are rejected.",
-    ),
+  path: absoluteLocalPathStringSchema.describe(
+    "Absolute local filesystem path for the exported evidence bundle; relative paths are rejected.",
+  ),
   overwrite: z.boolean().default(false),
 });
 

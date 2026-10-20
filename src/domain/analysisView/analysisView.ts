@@ -20,9 +20,8 @@ import {
   NATIVE_INVENTORY_OPERATIONS,
   nativeInventoryOperationSchema,
 } from "../native/nativeInventory.js";
-import { isAbsolute } from "node:path";
 
-import { localPathStringSchema } from "../localPath.js";
+import { absoluteLocalPathStringSchema } from "../localPath.js";
 import { z } from "zod";
 import {
   desktopViewRequestSchema,
@@ -297,14 +296,9 @@ export const analysisViewSourceSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("evidence-file"),
-    path: localPathStringSchema
-      .refine(isAbsolute, {
-        message:
-          "path must be an absolute local filesystem path (for example /tmp/capture.json or C:\\rea\\capture.json)",
-      })
-      .describe(
-        "Absolute local path of one completed Evidence JSON file. REA reads and authenticates it, then projects it like retained Evidence, so large captures are not charged as inline input.",
-      ),
+    path: absoluteLocalPathStringSchema.describe(
+      "Absolute local path of one completed Evidence JSON file. REA reads and authenticates it, then projects it like retained Evidence, so large captures are not charged as inline input.",
+    ),
   }),
 ]);
 

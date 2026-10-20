@@ -535,6 +535,7 @@ export const createServer = (
     session === undefined
       ? undefined
       : (evidence) => session.recordEvidence(evidence),
+    evidenceById,
   );
   registerCutterTools(
     server,

@@ -11,7 +11,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { expect, vi } from "vitest";
+import { expect, onTestFinished, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
@@ -24,6 +24,7 @@ import { snapshotRoots } from "../../../src/process/capture/FilesystemSnapshot.j
 import { ProcessCaptureError } from "../../../src/process/capture/ProcessCaptureError.js";
 import { expectUnverifiedHostCleanup } from "../../support/hostCleanup.js";
 import {
+  ProcessCaptureResourceScope,
   type ProcessCaptureCleanupHost,
   observeLaunchedExecutable,
   observeSelectedExecutable,
@@ -175,12 +176,15 @@ itWithCaptureCapability(
 
 itWithCaptureCapability(
   "keeps the process deadline bounded when the wall clock moves backward",
-  async () => {
+  async ({ signal }) => {
     let wallNow = Date.now();
     const now = vi.spyOn(Date, "now").mockImplementation(() => wallNow);
-    const controller = new AbortController();
-    let fallback: ReturnType<typeof setTimeout> | undefined;
+    const resources = new ProcessCaptureResourceScope();
     let reachedRunning = false;
+    onTestFinished(async () => {
+      now.mockRestore();
+      await resources.close();
+    }, 10_000);
     try {
       const result = await captureProcessScenario(
         parseProcessScenario({
@@ -190,7 +194,7 @@ itWithCaptureCapability(
           timeout_ms: 100,
           idle_timeout_ms: 5_000,
         }),
-        controller.signal,
+        signal,
         process.platform,
         process.env,
         undefined,
@@ -200,20 +204,15 @@ itWithCaptureCapability(
             if (update.phase === "running" && !reachedRunning) {
               reachedRunning = true;
               wallNow -= 60_000;
-              fallback = setTimeout(() => controller.abort(), 1_500);
-            } else if (
-              update.phase === "settling" ||
-              update.phase === "cleanup"
-            )
-              clearTimeout(fallback);
+            }
           },
         },
+        resources,
       );
       expect(reachedRunning).toBe(true);
       const { capture } = captureObservations(result);
       expect(capture.exit.reason).toBe("timeout");
     } finally {
-      clearTimeout(fallback);
       now.mockRestore();
     }
   },

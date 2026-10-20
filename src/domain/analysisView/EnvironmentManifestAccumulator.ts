@@ -195,9 +195,15 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     maximumBytes = WEB_NETWORK_CAPTURE_LIMITS.outputBytes,
     readonly includeQueryParameterNames = true,
     rules: readonly TemplateRule[] = [],
+    budgetSubject = "Environment-manifest",
   ) {
-    super(maximumBytes, "Environment-manifest");
+    super(maximumBytes, budgetSubject);
     this.#rules = new Set(rules);
+  }
+
+  /** Whether the finished projection publishes body shapes, and so states their limitation. */
+  protected get reportsBodyShapes(): boolean {
+    return true;
   }
 
   add(record: WebNetworkCaptureRecord): Result<void, AnalysisError> {
@@ -500,7 +506,8 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
         compare(left.reason, right.reason),
     );
     const limitations = this.addLimitations([
-      ...(tools.some((tool) => tool.body_shape !== null)
+      ...(this.reportsBodyShapes &&
+      tools.some((tool) => tool.body_shape !== null)
         ? [
             "Body shapes list top-level JSON key types from one recorded request each; they do not establish required fields or a complete schema.",
           ]

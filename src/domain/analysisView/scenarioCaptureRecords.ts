@@ -293,9 +293,10 @@ const derivedTextBytes = (value: unknown): number => {
   return 64 + largestBody * 2 + requestText;
 };
 
-/** Admit a capture_browser_scenario parent whose network content identifies response media types. */
+/** Admit a capture_browser_scenario parent whose network content identifies response media types; state also needs bodies. */
 export const admitScenarioCaptureParent = (
   parent: AnalysisViewParent,
+  viewKind: "environment-manifest" | "environment-state",
   accumulator: WebNetworkProjectionAccumulator,
 ): Result<ScenarioCaptureRecords, AnalysisError> => {
   const admitted = accumulator.admitCaptureClone(parent.normalizedResult);
@@ -321,13 +322,19 @@ export const admitScenarioCaptureParent = (
       ]),
     );
   const content = parsed.data.scenario.network_content;
-  // Tools are chosen by response media type, which only bodies or header values carry.
-  if (!content.response_body && !content.header_values)
+  // Tools are chosen by response media type, which only bodies or header values carry; state is read from bodies.
+  if (
+    viewKind === "environment-state"
+      ? !content.response_body
+      : !content.response_body && !content.header_values
+  )
     return err(
       new AnalysisUnsupportedTargetError(
         "inspect_analysis_view",
         parent.evidenceId,
-        "environment-manifest needs a capture_browser_scenario capture with capture.network.response_body or header_values selected.",
+        viewKind === "environment-state"
+          ? "environment-state needs a capture_browser_scenario capture with capture.network.response_body selected."
+          : "environment-manifest needs a capture_browser_scenario capture with capture.network.response_body or header_values selected.",
       ),
     );
   return ok(scenarioCaptureRecords(parsed.data, "manifest"));

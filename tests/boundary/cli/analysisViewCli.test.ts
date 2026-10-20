@@ -22,6 +22,7 @@ import {
   analysisViewJavaScriptAnalysisWithSource,
   analysisViewNativeEvidence,
   environmentManifestCaptureFixture,
+  environmentStateCaptureFixture,
 } from "../../fixtures/analysisView.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
@@ -658,6 +659,52 @@ cliTest(
       code: "resource_constraint",
       details: { resource: "memory" },
     });
+  },
+);
+
+cliTest(
+  "extracts an environment state through the compiled CLI with recorded values",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-environment-state-cli-");
+    const path = join(root, "view.json");
+    await writeFile(
+      path,
+      JSON.stringify({
+        source: {
+          kind: "inline",
+          evidence: analysisViewCaptureEvidence(
+            environmentStateCaptureFixture(),
+          ),
+        },
+        view: {
+          kind: "environment-state",
+          template_rules: [
+            "after-uid-literal",
+            "opaque-token",
+            "sibling-variance",
+          ],
+        },
+      }),
+    );
+    const result = await cli.run({
+      arguments: ["inspect-analysis-view", path, "--json"],
+    });
+    expect(result.exitCode, result.stdout).toBe(0);
+    const evidence = parseEvidence(result.json);
+    expect(evidence.confidence).toBe("inferred");
+    expect(evidence.normalized_result).toMatchObject({
+      kind: "environment-state",
+      origin: "http://grafana.example",
+      timeline: "recorded-start-time",
+      types: expect.arrayContaining([
+        expect.objectContaining({
+          collection_template: "/api/folders",
+          id_field: "uid",
+        }),
+      ]),
+    });
+    for (const value of ["probe folder", "probe@example.test"])
+      expect(result.stdout).toContain(value);
   },
 );
 

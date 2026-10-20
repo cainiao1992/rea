@@ -105,11 +105,17 @@ import {
 } from "./webNetworkCaptureView.js";
 import type { WebNetworkApiSurfaceAccumulator } from "./WebNetworkApiSurfaceAccumulator.js";
 import type { EnvironmentManifestAccumulator } from "./EnvironmentManifestAccumulator.js";
+import type { EnvironmentStateAccumulator } from "./EnvironmentStateAccumulator.js";
 import {
   projectEnvironmentManifestView,
   environmentManifestFields,
   environmentManifestViewRequestSchema,
 } from "./environmentManifestView.js";
+import {
+  environmentStateFields,
+  environmentStateViewRequestSchema,
+  projectEnvironmentStateView,
+} from "./environmentStateView.js";
 import {
   pcapViewRequestSchema,
   pcapViewPageSchema,
@@ -239,6 +245,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   androidViewRequestSchema,
   apiSurfaceViewSchema,
   environmentManifestViewRequestSchema,
+  environmentStateViewRequestSchema,
   captureViewRequestSchema,
   qlogViewRequestSchema,
   pcapViewRequestSchema,
@@ -513,6 +520,16 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: environmentManifestViewRequestSchema,
   }),
   z.strictObject({
+    ...viewResultBase,
+    ...environmentStateFields,
+    kind: z.literal("environment-state"),
+    parent_operation: z.enum([
+      "inspect_web_network_capture",
+      "capture_browser_scenario",
+    ]),
+    view: environmentStateViewRequestSchema,
+  }),
+  z.strictObject({
     ...summaryViewResultBase,
     summary: z.union([
       layoutSummarySchema,
@@ -707,6 +724,10 @@ export type UnsignedAnalysisView =
       "view_digest"
     >
   | Omit<
+      Extract<AnalysisViewResult, { readonly kind: "environment-state" }>,
+      "view_digest"
+    >
+  | Omit<
       Extract<AnalysisViewResult, { readonly kind: "summary" }>,
       "view_digest"
     >
@@ -807,7 +828,7 @@ const unsupportedParent = (
     INSPECT_ANALYSIS_VIEW_OPERATION,
     parentArtifactPath(parent),
     parent.operation === "capture_browser_scenario"
-      ? `Parent Evidence operation "capture_browser_scenario" supports only the environment-manifest view.`
+      ? `Parent Evidence operation "capture_browser_scenario" supports only the environment-manifest and environment-state views.`
       : `Parent Evidence operation ${JSON.stringify(parent.operation)} does not support analysis views. Use completed binary layout, JavaScript application, native function, artifact inventory/inspection, WASM, Mach-O, Interface Builder, EVM, managed artifact or member, Android package, Dart AOT, IL2CPP metadata, or web network capture Evidence.`,
   );
 
@@ -848,12 +869,47 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inventory_artifact", projectArtifactInventoryView],
 ]);
 
+/** Budgets a caller created before admitting the source; each grouping view uses its own. */
+export interface AnalysisViewAccumulators {
+  readonly apiSurface?: WebNetworkApiSurfaceAccumulator | undefined;
+  readonly manifest?: EnvironmentManifestAccumulator | undefined;
+  readonly state?: EnvironmentStateAccumulator | undefined;
+}
+
+type GroupingViewRequest = Extract<
+  AnalysisViewRequest,
+  { kind: "api-surface" | "environment-manifest" | "environment-state" }
+>;
+
+const isGroupingView = (
+  view: AnalysisViewRequest,
+): view is GroupingViewRequest =>
+  view.kind === "api-surface" ||
+  view.kind === "environment-manifest" ||
+  view.kind === "environment-state";
+
+/** Views that group a capture's records, each under the budget its caller created. */
+const projectGroupingView = (
+  parent: AnalysisViewParent,
+  view: GroupingViewRequest,
+  accumulators: AnalysisViewAccumulators,
+): Result<UnsignedAnalysisView, AnalysisError> => {
+  if (view.kind === "api-surface")
+    return projectWebNetworkApiSurfaceView(
+      parent,
+      view,
+      accumulators.apiSurface,
+    );
+  if (view.kind === "environment-manifest")
+    return projectEnvironmentManifestView(parent, view, accumulators.manifest);
+  return projectEnvironmentStateView(parent, view, accumulators.state);
+};
+
 /** Project one selected view from authenticated parent analysis Evidence. */
 export const projectAnalysisView = (
   parent: AnalysisViewParent,
   view: AnalysisViewRequest,
-  apiSurfaceAccumulator?: WebNetworkApiSurfaceAccumulator,
-  manifestAccumulator?: EnvironmentManifestAccumulator,
+  accumulators: AnalysisViewAccumulators = {},
 ): Result<AnalysisViewResult, AnalysisError> => {
   const digest = parentDigest(parent.evidenceId);
   if (!digestSchema.safeParse(digest).success)
@@ -866,21 +922,9 @@ export const projectAnalysisView = (
         },
       ]),
     );
-  if (view.kind === "api-surface") {
-    const projected = projectWebNetworkApiSurfaceView(
-      parent,
-      view,
-      apiSurfaceAccumulator,
-    );
-    return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
-  }
-  if (view.kind === "environment-manifest") {
-    const projected = projectEnvironmentManifestView(
-      parent,
-      view,
-      manifestAccumulator,
-    );
-    return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
+  if (isGroupingView(view)) {
+    const grouped = projectGroupingView(parent, view, accumulators);
+    return grouped.ok ? ok(sealAnalysisView(grouped.value)) : grouped;
   }
   if (parent.operation === "inspect_web_network_capture") {
     const projected = projectWebNetworkCaptureView(parent, view);

@@ -99,7 +99,7 @@ export abstract class WebNetworkProjectionAccumulator {
 /** Authenticate and gate a retained HAR parent before a grouping view reads any record. */
 export const admitHarCaptureParent = (
   parent: AnalysisViewParent,
-  viewKind: "api-surface" | "environment-manifest",
+  viewKind: "api-surface" | "environment-manifest" | "environment-state",
   accumulator: WebNetworkProjectionAccumulator,
 ): Result<WebNetworkCapture, AnalysisError> => {
   const unsupported = (reason: string) =>
@@ -112,7 +112,7 @@ export const admitHarCaptureParent = (
     );
   if (parent.operation !== "inspect_web_network_capture")
     return unsupported(
-      `View ${viewKind} is unsupported for parent operation ${parent.operation}; ${viewKind} requires ${viewKind === "environment-manifest" ? "inspect_web_network_capture or capture_browser_scenario" : "inspect_web_network_capture"}.`,
+      `View ${viewKind} is unsupported for parent operation ${parent.operation}; ${viewKind} requires ${viewKind === "api-surface" ? "inspect_web_network_capture" : "inspect_web_network_capture or capture_browser_scenario"}.`,
     );
   const admitted = accumulator.admitCaptureClone(parent.normalizedResult);
   if (!admitted.ok) return admitted;
@@ -132,11 +132,11 @@ export const admitHarCaptureParent = (
     return unsupported(
       `${viewKind} does not support capture format ${parsed.data.format}.`,
     );
-  // The manifest cites the report path and digest, so its parent's subject must be exactly them;
+  // Environment views cite the report path and digest, so their parent's subject must be exactly them;
   // the api-surface view keeps the admission its existing callers rely on.
   const { artifact } = parsed.data;
   if (
-    viewKind === "environment-manifest" &&
+    viewKind !== "api-surface" &&
     artifact.sha256 !== null &&
     (parent.subject == null ||
       parent.subject.local_path !== artifact.path ||

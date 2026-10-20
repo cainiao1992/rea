@@ -158,6 +158,7 @@ it("reserves retained request-body expansion before schema decoding or projectio
         normalizedResult: capture,
         limitations: [],
       },
+      "environment-manifest",
       new EnvironmentManifestAccumulator(128 * 1024),
     );
     expect(projected).toMatchObject({
@@ -205,6 +206,7 @@ it("reserves request text even when another event's body was not captured", () =
         normalizedResult: { ...capture, events: { ...capture.events, items } },
         limitations: [],
       },
+      "environment-manifest",
       new EnvironmentManifestAccumulator(8 * 1024 * 1024),
     );
     expect(projected).toMatchObject({

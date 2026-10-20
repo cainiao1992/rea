@@ -471,8 +471,8 @@ partial diagnostics and preflights do not establish complete mutation outcomes
 or qualify the release revision for mutation coverage.
 
 Fast CI starts the source-only projects after classification, independently of
-build and static checks, and runs five built-dependent shards after the build.
-The six test jobs still select every portable test. Full qualification keeps six
+build and static checks, and runs eight built-dependent shards after the build.
+Those nine test jobs still select every portable test. Full qualification keeps six
 complete Vitest shards with coverage. Neither tier retries tests. Canonical
 project ownership lives in `scripts/lib/test-projects.mjs`, shared by Vitest,
 CI group execution, and development-test preparation. A test importing compiled
@@ -533,11 +533,35 @@ JSON artifact members without executing artifact content. Reports and limits
 are retained in `ci-health-diagnostics`; its ten-minute job limit covers the
 existing four-minute timing collection plus the bounded diagnostic stages.
 
-Shard-count reduction remains deferred: the available successful timing sample
-covers an older inventory, and file phase weights are not job wall time. The
-one-source/five-built split retains six test jobs; it makes no hosted speedup
-claim. Current complete timings and completed candidate hosted runs are needed
-before enabling a smaller adaptive matrix.
+Fast built shards target under ten minutes of uncontended shard-job execution.
+That figure is the `test-shard` job. The job waits for classification and the
+build, and the portable-test merge runs after the slowest shard. On 2026-10-20,
+run `39451548945` measured those surrounding jobs with runner queue excluded:
+classification 15 seconds, build 49 seconds, and the portable-test merge 29
+seconds. Shard 1/5 of that run spent 22 seconds before built Vitest and 3
+seconds after it, including `npm ci` at 9 seconds. `node_modules` is about 674
+MiB, so publishing it as a shared artifact would transfer more data than that
+install saves. The npm download cache stays the setup cache.
+
+File timings from that run put the built suite at 7944 seconds of module time.
+The sequencer keeps each file's full duration on one worker. Extra workers
+overlap other files in the same sequence group, and `process-boundary` runs
+after that group. Scheduling the unsplit inventory onto five shards peaks at
+820 seconds of tests. That run's slowest built shard job lasted 925 seconds
+(shard 4/5), and shard 1/5 spent 874 seconds in built Vitest, so hosted job
+time sits above the file schedule. Six shards of the same inventory peak at
+684 seconds of tests. Eight shards, after the 578-second loader file is split
+by case count (54 cases stay in that file and 46 move into each of three
+files), peak at 513 seconds of tests. With the measured 25-second shard setup,
+that shard job is about 538 seconds. Adding the measured classification, build,
+and merge makes an uncontended portable critical path of about 631 seconds,
+still before the gap between this file schedule and hosted Vitest. Runner queue
+is separate and grows when more shard jobs compete for runners.
+`process-boundary` stays serial because process-tree sampling shares the host.
+Raising the worker cap from two to four on this four-core host cut a six-file
+acceptance sample from 96–101 seconds to 71 seconds and did not remove the
+single-file floor, so the cap stays two. Full qualification keeps six covered
+shards; its longer instrumentation is outside this fast budget.
 
 The separate `CI timings` workflow batches recent completed CI and Release runs
 hourly or on manual dispatch. It uploads `ci-job-timings-batch` with raw API pages and
@@ -1130,7 +1154,7 @@ suite, without the source-test shards or native package
 lanes. Classification compares the PR head with its merge base, so later
 base-branch changes do not expand that scope. Static and portable-test aggregate jobs
 remain present and fail if classification fails. Every code change retains the
-complete six-shard Linux suite; individual test files are not selected by
+complete portable Linux suite; individual test files are not selected by
 imports or filenames.
 
 Ordinary PRs also produce an **observational** test-selection plan. The candidate
@@ -1141,7 +1165,7 @@ tests. Shared inputs, unknown paths, missing owner tests, and removed tests fall
 back to the complete inventory. Renames account for both paths. Main, scheduled,
 manual, and `ci:full` runs always propose the full suite.
 
-All six shards still execute the complete suite. The existing report merge
+The source group and every built shard together still execute the complete suite. The existing report merge
 compares the proposal with actual module outcomes and retains
 `.cache/ci-test-selection/report.json` in `test-results`, including selected and
 omitted paths, changed input paths, missed failures, unobserved files, scheduling weights, PR head and
@@ -1223,7 +1247,7 @@ push: changes from failed or cancelled intermediate runs remain in scope.
 Missing, untrusted, or non-ancestor history selects the fast Linux x64
 baseline: portable checks and the Linux runtime lane. The lookup is
 bounded to the last 100 successful push runs; lookup failures broaden selection.
-Every code change still selects all six portable shards, without coverage
+Every code change still selects the source group and all eight fast built shards, without coverage
 instrumentation in this fast tier. Ordinary PR matrices cancel remaining
 shards after the first failure; passing PRs execute the complete suite. Main,
 `ci:full`, scheduled, manual, and release qualification retain every shard's
@@ -1336,13 +1360,15 @@ producer; newer schedules that reuse qualification without producing timings do
 not hide the last full run's artifact.
 CI assigns discovered files by historical duration, with a deterministic
 fallback weight for new files, rather than dividing only by file count.
-`process-boundary` files are weighted at their full duration because that
-project runs files serially. Other projects are weighted at half their file
-duration, matching the two-worker cap, so a serial file does not look as cheap
-as a file that overlaps with another. Every
-discovered file still belongs to exactly one shard; worker limits and project
-ordering remain unchanged. Fast qualification keeps five built shards without
-coverage. The merge job rejects successful reports with missing,
+Each file keeps its full duration on one worker. Extra workers overlap other
+files in the same sequence group, and `process-boundary` runs after that
+group. History published before the competing-loader split still names only
+`javascriptLiteralPercentPaths.test.ts`. Until that artifact records one of
+the three new files, the sequencer assigns that recorded duration by the
+pre-split case counts: 54/192 to the remaining file and 46/192 to each new
+file. Every discovered file still belongs to exactly one shard; worker limits
+and project ordering remain unchanged. Fast qualification keeps eight built
+shards without coverage. The merge job rejects successful reports with missing,
 unexpected, or duplicate portable files. Coverage instrumentation and aggregate
 thresholds remain enforced in full qualification.
 Missing or unusable history falls back to Vitest's default assignment. Only

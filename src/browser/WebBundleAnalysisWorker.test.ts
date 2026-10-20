@@ -112,7 +112,6 @@ const protocolWorkerProgram = (
   import { getHeapStatistics } from "node:v8";
   const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
   send({ kind: "ready", heap_limit_bytes: getHeapStatistics().heap_size_limit });
-  ${failure === "abort-first-exit" ? `process.on("SIGTERM", () => {}); setTimeout(() => process.stderr.write("late natural exit 7\\n", () => process.exit(7)), 50);` : ""}
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
   input.once("line", (line) => {
     const request = JSON.parse(line);
@@ -130,7 +129,7 @@ const protocolWorkerProgram = (
             : failure === "truncated-exit"
               ? `process.stderr.write("x".repeat(300 * 1024), () => process.exit(7));`
               : failure === "abort-first-exit"
-                ? `setInterval(() => {}, 1_000);`
+                ? `process.stderr.write("late natural exit 7\\n", () => process.exit(7));`
                 : failure === "malformed"
                   ? `process.stdout.write("{not-json}\\n"); setInterval(() => {}, 1_000);`
                   : failure === "wrong-job-failure"
@@ -360,22 +359,34 @@ it("retains exit-7 output when abort follows the observed exit", async () => {
 it("keeps cancellation when abort is observed before a later child exit", async () => {
   const controller = new AbortController();
   let childExit: Promise<number | null> | undefined;
-  const worker = new WebBundleAnalysisWorker(
-    128,
-    launcherFor(
-      { kind: "protocol", failure: "abort-first-exit" },
-      {
-        onSpawn: ({ process: child }) => {
-          childExit = new Promise((resolve) =>
-            child.once("exit", (code) => resolve(code)),
-          );
-          child.stdout?.once("data", () =>
-            queueMicrotask(() => controller.abort(null)),
-          );
-        },
+  const launch = launcherFor(
+    { kind: "protocol", failure: "abort-first-exit" },
+    {
+      onSpawn: ({ process: child }) => {
+        childExit = new Promise((resolve) =>
+          child.once("exit", (code) => resolve(code)),
+        );
+        child.stdout?.once("data", () =>
+          queueMicrotask(() => controller.abort(null)),
+        );
       },
-    ),
+    },
   );
+  const worker = new WebBundleAnalysisWorker(128, async (request) => {
+    const spawned = await launch(request);
+    return {
+      ...spawned,
+      cleanup: async () => {
+        // Cancellation is already observed. Explicitly release the fixture's
+        // later exit before invoking the real process-group cleanup owner.
+        spawned.process.stdin?.write("{}\n");
+        await waitForExit(spawned.process);
+        return spawned.cleanup === undefined
+          ? cleanupOwnedProcessGroup(spawned.ownership)
+          : spawned.cleanup();
+      },
+    };
+  });
   try {
     const result = await worker.analyze(
       makeScript("fetch('/abort-first');"),

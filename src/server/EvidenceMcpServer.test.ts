@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import {
+  Client,
+  InMemoryTransport,
+  StreamableHTTPClientTransport,
+} from "@modelcontextprotocol/client";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import { InvestigationRecords } from "../application/investigation/InvestigationRecords.js";
@@ -39,6 +44,103 @@ describe("MCP request bookkeeping", () => {
     expect(pendingToolLists.has(7)).toBe(false);
     expect(completion.signal.aborted).toBe(true);
     expect(pendingCompletions.has(7)).toBe(false);
+  });
+});
+
+describe("Modern protocol error delivery", () => {
+  it("preserves the modern wire envelope when replacing an oversized error", async () => {
+    const records = new InvestigationRecords();
+    const delivery = new ToolResultDelivery(4096);
+    const info = { name: "wire-error-recovery", version: "1" };
+    const handler = createMcpHandler(() => {
+      const server = new EvidenceMcpServer(
+        info,
+        { capabilities: {} },
+        (evidence) => records.recordEvidence(evidence),
+        delivery,
+      );
+      server.registerTool(
+        "procedure_pseudo_code",
+        { inputSchema: z.strictObject({ selected: z.string() }) },
+        async () => ({ content: [{ type: "text", text: "valid call" }] }),
+      );
+      return server;
+    });
+    const responses: unknown[] = [];
+    const transport = new StreamableHTTPClientTransport(
+      new URL("http://rea-test.invalid/mcp"),
+      {
+        fetch: async (url, init) => {
+          const response = await handler.fetch(new Request(url, init));
+          if (
+            response.headers.get("content-type")?.includes("application/json")
+          )
+            responses.push(await response.clone().json());
+          return response;
+        },
+      },
+    );
+    const client = new Client(info, {
+      versionNegotiation: {
+        mode: { pin: "2026-07-28" },
+      },
+    });
+    try {
+      await client.connect(transport);
+      const fitting = await client.callTool({
+        name: "procedure_pseudo_code",
+        arguments: { unexpected: true },
+      });
+      expect(fitting.isError).toBe(true);
+      expect(firstText(fitting)).toContain("Input validation error");
+
+      const recovered = await client.callTool({
+        name: "procedure_pseudo_code",
+        arguments: { selected: "value", ["x".repeat(10000)]: true },
+      });
+      expect(recovered.isError).toBe(true);
+      expect(recovered.structuredContent).toBeUndefined();
+      expect(JSON.parse(firstText(recovered) ?? "null")).toMatchObject({
+        error: {
+          code: "resource_constraint",
+          details: {
+            reported_limits: {
+              evidence_reference: { kind: "retained-evidence" },
+            },
+          },
+        },
+      });
+      expect(records.exportEvidenceBundle().records).toHaveLength(1);
+
+      const valid = await client.callTool({
+        name: "procedure_pseudo_code",
+        arguments: { selected: "value" },
+      });
+      expect(firstText(valid)).toBe("valid call");
+      const toolResponse = z.object({
+        result: z.object({ content: z.array(z.unknown()) }).passthrough(),
+      });
+      const toolResults = responses.flatMap((response) => {
+        const parsed = toolResponse.safeParse(response);
+        return parsed.success ? [parsed.data.result] : [];
+      });
+      expect(toolResults).toHaveLength(3);
+      for (const result of toolResults) {
+        expect(result.resultType).toBe("complete");
+        expect(result._meta).toMatchObject({
+          "io.modelcontextprotocol/serverInfo": info,
+        });
+      }
+      expect(Buffer.byteLength(JSON.stringify(toolResults[1]))).toBeLessThan(
+        4096,
+      );
+      expect(toolResults[1]?._meta).toMatchObject({
+        provenance: { untrusted_content: true, source: "analysis_target" },
+      });
+    } finally {
+      await client.close();
+      await handler.close();
+    }
   });
 });
 

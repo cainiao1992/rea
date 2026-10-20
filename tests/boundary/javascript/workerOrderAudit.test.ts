@@ -1,12 +1,62 @@
 import { createHash } from "node:crypto";
+import { once } from "node:events";
+import { createInterface } from "node:readline";
+import { PassThrough, type Readable } from "node:stream";
+import { setImmediate as yieldToIo } from "node:timers/promises";
 import { expect, it } from "vitest";
 import {
   AnalysisCancelledError,
   AnalysisOutputError,
 } from "../../../src/domain/analysisErrorCore.js";
 import { JavaScriptAnalysisWorker } from "../../../src/javascript/analysis/JavaScriptAnalysisWorker.js";
+import {
+  javaScriptWorkerMessageSchema,
+  type JavaScriptWorkerMessage,
+} from "../../../src/javascript/analysis/JavaScriptAnalysisWorkerProtocol.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import type { JavaScriptArtifactFile } from "../../../src/domain/javascript/javascriptArtifactFiles.js";
+
+const observeWorkerFrames = (
+  stdout: Readable | null | undefined,
+  observe: (frame: JavaScriptWorkerMessage, beforeEof: boolean) => void,
+): void => {
+  if (stdout === null || stdout === undefined)
+    throw new Error("Expected fixture worker stdout pipe");
+  // The runtime attaches its diagnostic and protocol readers together after
+  // adopting the launch. Wait for that owner before starting a flowing reader.
+  const attach = (event: string | symbol): void => {
+    if (event !== "data") return;
+    stdout.off("newListener", attach);
+    createInterface({ input: stdout }).on("line", (line) =>
+      observe(
+        javaScriptWorkerMessageSchema.parse(JSON.parse(line)),
+        !stdout.readableEnded,
+      ),
+    );
+  };
+  stdout.on("newListener", attach);
+};
+
+it("preserves buffered startup bytes until the runtime owns stdout", async () => {
+  const stdout = new PassThrough();
+  const frame = { kind: "ready", heap_limit_bytes: 1 } as const;
+  const encoded = JSON.stringify(frame) + "\n";
+  const observed: JavaScriptWorkerMessage[] = [];
+  const owned: Buffer[] = [];
+  observeWorkerFrames(stdout, (message) => observed.push(message));
+  try {
+    stdout.write(encoded);
+    await yieldToIo();
+    expect(observed).toEqual([]);
+    stdout.on("data", (chunk: Buffer) => owned.push(chunk));
+    stdout.end();
+    await once(stdout, "end");
+    expect(observed).toEqual([frame]);
+    expect(Buffer.concat(owned).toString()).toBe(encoded);
+  } finally {
+    stdout.destroy();
+  }
+});
 
 const sourceText = "export const observed = 1;";
 const file: JavaScriptArtifactFile = {
@@ -396,10 +446,11 @@ it("keeps a parsed terminal failure primary over startup-close abort", async () 
 });
 
 it.each([false, true])(
-  "admits a valid complete response with static facts before EOF cancellation (%s)",
+  "admits valid static facts and honors cancellation before terminal admission (%s)",
   async (abortAfterTerminal) => {
     const controller = new AbortController();
     const reason = { requested: "abort after valid terminal frame" };
+    let abortedBeforeEof = false;
     const encodedStatic = JSON.stringify(staticCheckpointFacts);
     const worker = new JavaScriptAnalysisWorker(
       { heapMb: 128, timeoutMs: 30_000 },
@@ -411,10 +462,13 @@ it.each([false, true])(
             `${ready} const fs=require("node:fs"); const {createHash}=require("node:crypto"); const staticFacts=JSON.parse(${JSON.stringify(encodedStatic)}); let id; require("node:readline").createInterface({input:process.stdin}).on("line", line => { const request=JSON.parse(line); if(request.file){ id=request.id; const text=JSON.stringify(staticFacts); fs.writeFileSync(id+".static.json",text); process.stdout.write(JSON.stringify({kind:"static",id,bytes:Buffer.byteLength(text),sha256:createHash("sha256").update(text).digest("hex")})+"\\n"); } else { process.stdout.write(JSON.stringify({kind:"complete",id,descriptor:null})+"\\n",()=>process.exit(0)); } });`,
           ],
         });
-        if (abortAfterTerminal)
-          launched.process.once("close", () =>
-            queueMicrotask(() => controller.abort(reason)),
-          );
+        if (abortAfterTerminal) {
+          observeWorkerFrames(launched.process.stdout, (frame, beforeEof) => {
+            if (frame.kind !== "complete") return;
+            abortedBeforeEof = beforeEof;
+            controller.abort(reason);
+          });
+        }
         return launched;
       },
     );
@@ -426,6 +480,7 @@ it.each([false, true])(
       );
       expect(controller.signal.aborted).toBe(abortAfterTerminal);
       if (abortAfterTerminal) {
+        expect(abortedBeforeEof).toBe(true);
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.error._tag).toBe("AnalysisCancelledError");
@@ -1076,15 +1131,13 @@ it.each([
           ...request,
           arguments: [
             "-e",
-            `${ready} process.stdin.once("data", chunk => { const id=JSON.parse(String(chunk)).id; process.stdout.write(JSON.stringify({kind:"phase",id,phase:"parse"})+"\\n"); const failure=${JSON.stringify(failure)}; failure.kind="failure"; failure.id=id; setTimeout(() => process.stdout.write(JSON.stringify(failure)+"\\n"),20); setInterval(()=>{},1000); });`,
+            `${ready} process.stdin.once("data", chunk => { const id=JSON.parse(String(chunk)).id; const phase={kind:"phase",id,phase:"parse"}; const failure={...${JSON.stringify(failure)},kind:"failure",id,message:"fixture failure delivered after caller cancellation"}; process.stdout.write(JSON.stringify(phase)+"\\n"+JSON.stringify(failure)+"\\n"); setInterval(()=>{},1000); });`,
           ],
         });
-        launched.process.stdout?.on("data", (chunk: Buffer | string) => {
-          if (String(chunk).includes('"kind":"phase"')) controller.abort(null);
-          if (
-            controller.signal.aborted &&
-            String(chunk).includes('"kind":"failure"')
-          )
+        observeWorkerFrames(launched.process.stdout, (frame) => {
+          // This launcher observer precedes the worker's protocol reader.
+          if (frame.kind === "phase") controller.abort(null);
+          if (controller.signal.aborted && frame.kind === "failure")
             failureFrameSeenAfterAbort = true;
         });
         return launched;

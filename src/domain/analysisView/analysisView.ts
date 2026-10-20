@@ -32,10 +32,7 @@ import { safeParseOwnedBinaryLayout } from "../native/binaryLayout.js";
 import { functionDossierSchema } from "../hopperValues.js";
 import {
   artifactGraphManifestSchema,
-  artifactNodeSchema,
-  artifactOccurrenceSchema,
-  artifactEdgeSchema,
-  integrityContradictionSchema,
+  artifactInventoryCoverageSchema,
 } from "../artifactGraph.js";
 import { artifactInspectionResultSchema } from "../artifactInspection.js";
 import {
@@ -57,7 +54,12 @@ import {
   evmViewItemSchema,
   evmSummarySchema,
 } from "./evmInterfaceView.js";
-import { projectArtifactInventoryView } from "./artifactInventoryView.js";
+import {
+  projectArtifactInventoryView,
+  artifactInventoryViewRequestSchema,
+  artifactInventoryItemsSchema,
+  artifactInventorySummarySchema,
+} from "./artifactInventoryView.js";
 import {
   projectManagedArtifactView,
   managedViewRequestSchema,
@@ -214,28 +216,6 @@ const nativeViewSchema = z.strictObject({
   limit: z.number().int().positive().default(64),
 });
 
-/** Original inventory records in stable order, optionally matching exact paths. */
-const inventoryViewSchema = z.discriminatedUnion("collection", [
-  z.strictObject({
-    kind: z.literal("inventory"),
-    collection: z.literal("occurrences"),
-    logical_paths: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Exact recorded logical paths. Omitted selects all available occurrences; an empty array selects none. This does not resolve filesystem paths.",
-      ),
-    offset: z.number().int().nonnegative().default(0),
-    limit: z.number().int().positive().default(64),
-  }),
-  z.strictObject({
-    kind: z.literal("inventory"),
-    collection: z.enum(["nodes", "edges", "integrity_contradictions"]),
-    offset: z.number().int().nonnegative().default(0),
-    limit: z.number().int().positive().default(64),
-  }),
-]);
-
 /** Caller-selected projection of already completed analysis Evidence. */
 export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   summaryViewSchema,
@@ -246,7 +226,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   javascriptModuleReferencesRequestSchema,
   javascriptFactsViewRequestSchema,
   nativeViewSchema,
-  inventoryViewSchema,
+  artifactInventoryViewRequestSchema,
   wasmViewRequestSchema,
   machoViewRequestSchema,
   interfaceBuilderViewRequestSchema,
@@ -337,32 +317,6 @@ const javascriptSummarySchema = z.strictObject({
   limitation_count: z.number().int().nonnegative(),
 });
 
-const inventorySummarySchema = z.strictObject({
-  manifest: artifactGraphManifestSchema,
-  available_counts: z.strictObject({
-    nodes: z.number().int().nonnegative(),
-    occurrences: z.number().int().nonnegative(),
-    edges: z.number().int().nonnegative(),
-    integrity_contradictions: z.number().int().nonnegative(),
-  }),
-  observed_entry_kind_counts: z.strictObject({
-    file: z.number().int().nonnegative(),
-    directory: z.number().int().nonnegative(),
-    symlink: z.number().int().nonnegative(),
-    slice: z.number().int().nonnegative(),
-  }),
-  source_complete: z.boolean(),
-  inventory_evidence_ids: z.array(prefixedDigestSchema("ev")).min(1),
-  inspection: z
-    .strictObject({
-      coverage: artifactInspectionResultSchema.shape.coverage,
-      unexplored_branches:
-        artifactInspectionResultSchema.shape.unexplored_branches,
-    })
-    .nullable(),
-  limitation_count: z.number().int().nonnegative(),
-});
-
 const viewResultBase = {
   parent_evidence_id: prefixedDigestSchema("ev"),
   parent_operation: z.enum([
@@ -436,7 +390,7 @@ const javascriptFactsViewResultSchema = z.strictObject({
 export const artifactInventorySummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.enum(["inspect_artifact", "inventory_artifact"]),
-  summary: inventorySummarySchema,
+  summary: artifactInventorySummarySchema,
 });
 
 export const desktopApplicationSummaryViewResultSchema = z.strictObject({
@@ -550,7 +504,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
       layoutSummarySchema,
       desktopSummarySchema,
       javascriptSummarySchema,
-      inventorySummarySchema,
+      artifactInventorySummarySchema,
       wasmSummarySchema,
       machoSummarySchema,
       interfaceBuilderSummarySchema,
@@ -692,18 +646,12 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("inventory"),
-    view: inventoryViewSchema,
+    view: artifactInventoryViewRequestSchema,
+    source_coverage: artifactInventoryCoverageSchema.exactOptional(),
     manifest: artifactGraphManifestSchema,
     inventory_evidence_ids: z.array(prefixedDigestSchema("ev")).min(1),
     source_complete: z.boolean(),
-    items: z.array(
-      z.union([
-        artifactNodeSchema,
-        artifactOccurrenceSchema,
-        artifactEdgeSchema,
-        integrityContradictionSchema,
-      ]),
-    ),
+    items: artifactInventoryItemsSchema,
     ...viewResultBase,
   }),
 ]);

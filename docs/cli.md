@@ -85,6 +85,17 @@ The shared CLI/MCP workflow reports compiler version, modules, replacements,
 build settings, original bytes and SHA-256. See [Go binaries](go-binaries.md)
 for supported containers and absent or malformed metadata.
 
+Inspect a Godot PCK without running the game:
+
+```sh
+rea inspect-artifact game.pck --detail summary --evidence_output evidence.json --json
+rea extract-artifact game.pck --json
+```
+
+Formats 2, 3 and 4 retain header, directory and integrity facts. Compact delivery
+keeps complete Evidence in the requested bundle. See [Godot PCK](godot-pck.md)
+for embedded packs, batch queries and unknown encrypted coverage.
+
 Inspect Unity IL2CPP metadata names without Unity or a disassembler:
 
 ```bash

@@ -1,3 +1,4 @@
+import { projectArtifactIntegrityDetails } from "./artifactIntegrity.js";
 import { jsonValueSchema, type JsonValue } from "./jsonValue.js";
 import { isImmutableJsonSnapshot } from "./immutableJson.js";
 
@@ -335,12 +336,7 @@ const artifactStateErrorDetails = (
   error: AnalysisError,
 ): Readonly<Record<string, JsonValue>> | undefined => {
   if (error instanceof ArtifactOperationError && error.artifactDetails)
-    return {
-      logical_path: error.artifactDetails.logicalPath,
-      declared_sha256: error.artifactDetails.declaredSha256,
-      calculated_sha256: error.artifactDetails.calculatedSha256,
-      unpacked: error.artifactDetails.unpacked,
-    };
+    return projectArtifactIntegrityDetails(error.artifactDetails);
   if (error instanceof ArtifactOperationError)
     return {
       operation: error.operation,

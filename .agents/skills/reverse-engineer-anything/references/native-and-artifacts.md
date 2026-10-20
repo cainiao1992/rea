@@ -1,5 +1,16 @@
 # Native, managed, and packaged artifacts
 
+For release comparisons, export `list_procedures` Evidence from each target before
+closing it. Close clears session records: import both bundles after collecting the
+two targets, or supply portable inline Evidence. `match_native_functions` pairs unique exact names and, when supplied,
+complete observed body bytes. Reuse optional same-context `list_names`,
+`procedure_info`, `read_bytes` and existing `analyze_function` Evidence; avoid
+decompiling every function merely to match it. Its summary retains a parent for
+`inspect_analysis_view` `function-matches` collections `matches` and `functions`.
+Select columns, batch IDs and page individual facts; aliases remain unresolved.
+Unpaired observations do not prove additions/removals. Existing matched dossier
+pairs include inputs for `compare_functions`; otherwise analyze just chosen pairs.
+
 ## Desktop installation directories
 
 When an installation directory is supplied and its runtime is unknown, use

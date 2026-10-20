@@ -427,6 +427,8 @@ complete observation.
   start after the conformance header. Names unavailable in metadata remain null.
   The `swift_class_vtable_descriptors` coverage counters count examined vtable
   slots and successfully decoded slots, rather than type-section entries.
+  The `objc_class_method_ivar_metadata` counters count admitted class and
+  metaclass objects and successfully decoded objects.
   Pointers are decoded through the image's fixups:
   - `LC_DYLD_CHAINED_FIXUPS` rebases and binds, including the authenticated
     arm64e formats;

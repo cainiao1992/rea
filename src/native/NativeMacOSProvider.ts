@@ -8,6 +8,7 @@ import {
 import { bindArtifactFileCleanup } from "../artifacts/ArtifactFileOperation.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import {
+  APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
   NATIVE_MACOS_PROVIDER_IDENTITY as IDENTITY,
   nativeMacOSCapabilities,
 } from "./NativeMacOSProviderMetadata.js";
@@ -237,6 +238,7 @@ class NativeMacOSClient implements AnalysisClient {
         );
         return ok(
           createAnalysisExecution(result, result.provider, {
+            analysisProfile: APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
             locations: [{ kind: "artifact-path", path: this.target.path }],
             limitations: result.result.coverage.flatMap(({ reason }) =>
               reason === null ? [] : [reason],

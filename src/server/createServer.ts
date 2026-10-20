@@ -905,7 +905,10 @@ const registerBinaryAnalysisTools = ({
   registerEnhancedTools(server, {
     ...analysisOptions,
     analysisProfile:
-      session === undefined ? undefined : () => session.analysisProfile(),
+      session === undefined
+        ? undefined
+        : (operation) =>
+            session.analysisProfile() ?? session.analysisProfile(operation),
     allowsSnapshotReplay:
       session === undefined
         ? undefined

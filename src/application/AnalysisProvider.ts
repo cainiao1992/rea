@@ -279,6 +279,8 @@ export type CapabilityDescriptor = CapabilityAvailability & {
    * exclusions apply to every policy.
    */
   readonly cachePolicy?: "snapshot" | "live";
+  /** Exact source profile for an operation implemented by a versioned local reader. */
+  readonly analysisProfile?: AnalysisProfileCommitment;
   readonly provider: ProviderIdentity;
   readonly operation: Exclude<AnalysisOperation, "health">;
   readonly effects: CapabilityEffects;

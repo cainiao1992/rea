@@ -13,7 +13,6 @@ import {
 } from "./javascriptAstValues.js";
 import {
   resolveSemanticBindingState,
-  semanticStableInitializer,
   type JavaScriptSemanticAnalysisState,
   type JavaScriptSemanticBindingState,
   type JavaScriptSemanticInitializer,
@@ -128,9 +127,7 @@ const resolveIdentifier = (
   );
   // Knowing every local candidate does not prove that any write replaced the
   // incoming value, or that a write in another activation precedes this read.
-  const covered =
-    read.hasDefiniteInitializer ||
-    semanticStableInitializer(binding, context.state) !== undefined;
+  const covered = read.hasDefiniteInitializer;
   const resolution =
     candidates.complete && !covered
       ? {

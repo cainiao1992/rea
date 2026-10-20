@@ -2,6 +2,7 @@ import * as t from "@babel/types";
 
 import {
   delayedInstanceFieldValue,
+  semanticComputedMethodKey,
   semanticBranchMayBeSkipped,
   semanticIterationCardinality,
 } from "./javascriptSemanticEvaluationOrder.js";
@@ -377,6 +378,16 @@ const computeDirectInitializerPosition = (
   node: t.Node,
   parents: WeakMap<t.Node, t.Node>,
 ): StatementPosition | null => {
+  if (t.isClassDeclaration(node) && node.id !== null) {
+    const parent = parents.get(node);
+    const statement =
+      (t.isExportNamedDeclaration(parent) ||
+        t.isExportDefaultDeclaration(parent)) &&
+      parent.declaration === node
+        ? parent
+        : node;
+    return statementPosition(statement, parents);
+  }
   if (
     (t.isAssignmentExpression(node) &&
       t.isIdentifier(unwrapJavaScriptExpression(node.left).node)) ||
@@ -597,7 +608,7 @@ const bindingReadPosition = (
     }
     if (
       parent === undefined ||
-      t.isFunction(parent) ||
+      (t.isFunction(parent) && !semanticComputedMethodKey(parent, current)) ||
       delayedInstanceFieldValue(parent, current)
     ) {
       result = { position: null, repeating: false };
@@ -646,6 +657,17 @@ export const semanticBindingAtRead = (
     binding.referenceInitializers.length === 0
   )
     return { status: "ordered", binding, hasDefiniteInitializer: false };
+  const [soleInitializer] = binding.initializers;
+  if (
+    binding.initializers.length === 1 &&
+    binding.referenceInitializers.length === 0 &&
+    binding.declarationKinds.size === 0 &&
+    binding.definitions.length === 1 &&
+    binding.definitions[0]?.kind === "function" &&
+    soleInitializer !== undefined &&
+    t.isFunctionDeclaration(soleInitializer.node)
+  )
+    return { status: "ordered", binding, hasDefiniteInitializer: true };
   const initializer = binding.initializers[0];
   const reference = binding.referenceInitializers[0];
   const origin = initializer ?? reference;

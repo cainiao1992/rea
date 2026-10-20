@@ -143,6 +143,12 @@ export const createAnalysisExecutionEvidence = (
     result: execution.result,
     rawResult: execution.rawResult,
     limitations: execution.limitations,
+    ...(execution.analysisProfile === undefined
+      ? {}
+      : { analysisProfile: execution.analysisProfile }),
+    ...(execution.relationshipCoverage === undefined
+      ? {}
+      : { relationshipCoverage: execution.relationshipCoverage }),
     locations: execution.locations,
     confidence,
   });

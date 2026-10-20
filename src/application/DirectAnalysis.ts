@@ -40,6 +40,7 @@ import type {
   AnalysisExecution,
   ProviderIdentity,
 } from "./AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "./AnalysisProvider.js";
 import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,
@@ -208,17 +209,7 @@ const runManagedProviderAnalysis = async (
   );
   if (!execution.ok) return cliError(execution.error);
   const value = execution.value;
-  return createEvidence(value.subject ?? undefined, value.provider, {
-    operation: tool,
-    parameters: arguments_,
-    result: value.result,
-    rawResult: value.rawResult,
-    limitations: value.limitations,
-    ...(value.relationshipCoverage === undefined
-      ? {}
-      : { relationshipCoverage: value.relationshipCoverage }),
-    locations: value.locations,
-  });
+  return createAnalysisExecutionEvidence(tool, arguments_, value, "observed");
 };
 
 const runAnalysis = async (

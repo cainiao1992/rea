@@ -288,6 +288,20 @@ Call `list_browser_targets` first because target IDs are browser-instance-specif
 
 REA establishes a main-frame origin boundary before enabling Runtime, Debugger, or Network observation, rechecks it before document capture, and validates it again afterward. If the main frame navigates during final capture, REA discards the mixed result and returns `target_changed`.
 
+The web-session timeline uses CDP monotonic seconds where the event producer
+provides a comparable timestamp; absent or invalid timestamps are `null` rather
+than a synthetic zero. Events buffered while REA samples the window boundary are
+retained only when their timestamp places them after that boundary; older events
+are excluded. A buffered event without a comparable timestamp may remain as
+contextual evidence with `timestamp: null`, accompanied by a limitation stating
+that it does not establish activity in the selected window. Main-frame scope
+enforcement still applies to contextual navigation events. Network redirect
+events retain their paired prior-hop response context when the timestamped
+next-request event falls inside the window. The pre-arm timeline buffer is bounded
+by original CDP message bytes. If clock sampling completes after that budget is
+exhausted, the operation returns `payload_limit` instead of a partial window.
+Cancellation and clock-request failures retain their own outcomes.
+
 ## Data minimization
 
 The Link projection parses repeated CDP header field lines independently and

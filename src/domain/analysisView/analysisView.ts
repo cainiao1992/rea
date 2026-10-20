@@ -1,4 +1,11 @@
 import {
+  goBinarySummarySchema,
+  goBinaryViewContextSchema,
+  goBinaryViewPageSchema,
+  goBinaryViewRequestSchema,
+  projectGoBinaryView,
+} from "./goBinaryView.js";
+import {
   projectNativeFunctionMatchingView,
   nativeFunctionMatchingViewRequestSchema,
   nativeFunctionMatchingViewItemsSchema,
@@ -250,6 +257,7 @@ const nativeViewSchema = z.strictObject({
 export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   nativeFunctionMatchingViewRequestSchema,
   summaryViewSchema,
+  goBinaryViewRequestSchema,
   desktopViewRequestSchema,
   facetViewSchema,
   itemViewSchema,
@@ -361,6 +369,7 @@ const viewResultBase = {
   parent_evidence_id: prefixedDigestSchema("ev"),
   parent_operation: z.enum([
     "inspect_binary_layout",
+    "inspect_go_binary",
     "inspect_desktop_application",
     "analyze_javascript_application",
     "analyze_function",
@@ -393,6 +402,14 @@ const summaryViewResultBase = {
   view: summaryViewSchema,
   ...viewResultBase,
 } as const;
+
+/** Opt-in Go delivery retains original bytes and exposes build identity/counts. */
+export const goBinarySummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  ...goBinaryViewContextSchema.shape,
+  parent_operation: z.literal("inspect_go_binary"),
+  summary: goBinarySummarySchema,
+});
 
 /** Summary `inspect_binary_layout` detail returns; no other view kind. */
 export const binaryLayoutSummaryViewResultSchema = z.strictObject({
@@ -577,6 +594,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: environmentStateViewRequestSchema,
   }),
   z.discriminatedUnion("parent_operation", [
+    goBinarySummaryViewResultSchema,
     binaryLayoutSummaryViewResultSchema,
     desktopApplicationSummaryViewResultSchema,
     javascriptApplicationSummaryViewResultSchema,
@@ -640,6 +658,14 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: facetViewSchema,
     facet: jsonValueSchema,
     ...viewResultBase,
+  }),
+  z.strictObject({
+    ...viewResultBase,
+    ...goBinaryViewContextSchema.shape,
+    kind: z.literal("go"),
+    parent_operation: z.literal("inspect_go_binary"),
+    view: goBinaryViewRequestSchema,
+    page: goBinaryViewPageSchema,
   }),
   z.strictObject({
     kind: z.literal("item"),
@@ -851,6 +877,7 @@ const parentArtifactPath = (parent: AnalysisViewParent): string => {
 
 /** Named source owners for views that need no extra decoder or accumulator. */
 const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
+  ["inspect_go_binary", projectGoBinaryView],
   ...NATIVE_INVENTORY_OPERATIONS.map(
     (operation) => [operation, projectNativeInventoryView] as const,
   ),

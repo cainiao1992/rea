@@ -917,9 +917,10 @@ class NativeMacOSClient implements AnalysisClient {
     return inspectNativeMacho({
       target: this.target,
       ...(signal === undefined ? {} : { signal }),
-      run: (tool, arguments_, commandSignal) =>
+      run: (tool, arguments_, commandSignal, acceptNonZeroIf) =>
         this.#run("inspect_macho", tool, arguments_, {
           signal: commandSignal,
+          ...(acceptNonZeroIf === undefined ? {} : { acceptNonZeroIf }),
         }),
       invocation: (capture) => invocation(capture, this.target.path),
     });
@@ -932,6 +933,9 @@ class NativeMacOSClient implements AnalysisClient {
     options: {
       readonly signal?: AbortSignal | undefined;
       readonly acceptNonZero?: boolean;
+      readonly acceptNonZeroIf?:
+        | ((capture: NativeCommandCapture) => boolean)
+        | undefined;
     } = {},
   ): Promise<Result<NativeCommandCapture, AnalysisError>> {
     if (this.#closed)
@@ -944,7 +948,8 @@ class NativeMacOSClient implements AnalysisClient {
       );
     const command = this.runner.run(tool, arguments_, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      acceptNonZero: options.acceptNonZero ?? false,
+      acceptNonZero:
+        options.acceptNonZero ?? options.acceptNonZeroIf !== undefined,
     });
     this.#pendingCommands.add(command);
     let captured: Awaited<typeof command>;
@@ -953,7 +958,40 @@ class NativeMacOSClient implements AnalysisClient {
     } finally {
       this.#pendingCommands.delete(command);
     }
-    if (captured.ok) return captured;
+    if (captured.ok) {
+      const hasFailedExit =
+        captured.value.exitCode !== 0 || captured.value.signal !== null;
+      if (
+        hasFailedExit &&
+        options.acceptNonZeroIf !== undefined &&
+        !options.acceptNonZeroIf(captured.value)
+      )
+        return err(
+          translateCommandFailure(
+            operation,
+            new NativeCommandFailure(
+              tool,
+              captured.value.signal !== null ||
+                (captured.value.exitCode !== null &&
+                  captured.value.exitCode !== 0)
+                ? "nonzero-exit"
+                : "io",
+              captured.value.exitCode,
+              undefined,
+              {
+                stdout: captured.value.stdout,
+                stderr: captured.value.stderr,
+                stdoutBytes: captured.value.stdoutBytes,
+                stderrBytes: captured.value.stderrBytes,
+                exitCode: captured.value.exitCode,
+                signal: captured.value.signal,
+                truncated: false,
+              },
+            ),
+          ),
+        );
+      return captured;
+    }
     return err(translateCommandFailure(operation, captured.error));
   }
 }

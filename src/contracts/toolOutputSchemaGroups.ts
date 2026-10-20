@@ -88,6 +88,7 @@ import {
   lifecycleResultOf,
   nullableText,
   procedureInfoOutput,
+  objcClassDiscoveryOutput,
   evidenceResultOf,
   segmentOutput,
   sessionProvider,
@@ -309,7 +310,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   ),
   trace_native_values: evidenceResultOf(nativeValueTraceSchema),
   trace_native_ui_action: evidenceResultOf(nativeInvestigationTraceSchema),
-  get_objc_classes: symbolDiscoveryOutput("classes"),
+  get_objc_classes: objcClassDiscoveryOutput,
   get_objc_protocols: symbolDiscoveryOutput("protocols"),
   batch_decompile: evidenceResultOf(
     z.object({

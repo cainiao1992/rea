@@ -35,7 +35,10 @@ import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import { pushDispatchCoverage } from "./AppleDispatchCoverage.js";
 import { parsePointerFixups } from "./AppleMachoFixups.js";
-import { parseMachoLayout } from "./AppleMachoSelection.js";
+import {
+  parseMachoLayout,
+  UnsupportedMachoMetadataFormatError,
+} from "./AppleMachoSelection.js";
 import { decodeObjcDispatchFacets } from "./AppleObjcDispatchFacets.js";
 import {
   createSwiftRelativeReader,
@@ -43,6 +46,7 @@ import {
   type DispatchRecordBudget,
 } from "./AppleSwiftDispatchFacets.js";
 import { decodeSwiftClassVtables } from "./AppleSwiftVtables.js";
+import { inspectObjcClassImportBindings } from "./AppleObjcClassImportBindings.js";
 
 /** Decode validated little-endian 64-bit Apple Objective-C metadata without loading target code. */
 export const decodeAppleDispatchMetadata = (
@@ -50,6 +54,8 @@ export const decodeAppleDispatchMetadata = (
   maxRecords: number,
   provenance: { path: string; sha256: string },
   architecture = "arm64",
+  objcClassImportAddresses?: readonly string[],
+  objcClassImportAddressesComplete = true,
 ): ObjcSwiftMetadata => {
   const layout = parseMachoLayout(bytes, architecture);
   const { segments, sections, offset } = layout;
@@ -59,6 +65,14 @@ export const decodeAppleDispatchMetadata = (
     segments,
     layout.baseAddress,
   );
+  const objcClassImports = inspectObjcClassImportBindings({
+    bytes,
+    layout,
+    fixups,
+    addresses: objcClassImportAddresses,
+    addressesComplete: objcClassImportAddressesComplete,
+    maxRecords,
+  });
   const u32 = (address: bigint) => bytes.readUInt32LE(offset(address, 4));
   const decodePointer = (address: bigint) =>
     fixups.decode(address, bytes.readBigUInt64LE(offset(address, 8)));
@@ -96,7 +110,27 @@ export const decodeAppleDispatchMetadata = (
       bytes.subarray(start, end),
     );
   };
-  const result = objcSwiftMetadataSchema.parse({ db_save_result: null });
+  const result = objcSwiftMetadataSchema.parse({
+    db_save_result: null,
+    target_selection: {
+      kind: "macho-selected-image-v1",
+      container: layout.selectedImage.container,
+      offset: layout.selectedImage.offset,
+      byte_length: layout.selectedImage.byteLength,
+      cpu_type: layout.selectedImage.cpuType,
+      cpu_subtype: layout.selectedImage.cpuSubtype,
+      container_table_sha256: layout.selectedImage.containerTableSha256,
+    },
+    ...(objcClassImportAddresses === undefined
+      ? {}
+      : {
+          objc_class_import_bindings: objcClassImports.bindings,
+          objc_class_import_binding_coverage: {
+            facet: "objc_class_import_bindings",
+            ...objcClassImports.coverage,
+          },
+        }),
+  });
   let records = 0;
   const budget: DispatchRecordBudget = {
     truncated: false,
@@ -208,6 +242,8 @@ export const inspectAppleDispatchMetadata = async (
   maxRecords: number,
   resources: ArtifactResourceScope,
   signal?: AbortSignal,
+  objcClassImportAddresses?: readonly string[],
+  objcClassImportAddressesComplete = true,
 ) => {
   if (target.kind !== "executable" || !isMachOFormat(target.format))
     throw new TypeError("Apple dispatch metadata requires a Mach-O target");
@@ -257,6 +293,7 @@ export const inspectAppleDispatchMetadata = async (
   );
   return nativeDispatchMetadataResultSchema.parse({
     target_sha256: target.sha256,
+    target_architecture: target.architecture,
     provider: APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE.provider,
     analysis_profile_digest: APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE.digest,
     result: decodeAppleDispatchMetadata(
@@ -264,6 +301,8 @@ export const inspectAppleDispatchMetadata = async (
       maxRecords,
       { path: target.path, sha256: digest },
       target.architecture,
+      objcClassImportAddresses,
+      objcClassImportAddressesComplete,
     ),
   });
 };
@@ -302,6 +341,13 @@ export const appleDispatchMetadataFailure = (
     return failure;
   }
   if (cause instanceof AnalysisError) return cause;
+  if (cause instanceof UnsupportedMachoMetadataFormatError)
+    return new AnalysisCapabilityUnavailableError(
+      IDENTITY.id,
+      OPERATION,
+      cause.message,
+      { cause },
+    );
   if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
     return new AnalysisCancelledError(OPERATION, {
       cause: artifactFileCancellationCause(cause),

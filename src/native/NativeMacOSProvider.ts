@@ -55,6 +55,7 @@ import {
   AnalysisResourceConstraintError,
   AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
+import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
@@ -1216,7 +1217,13 @@ const translateCommandFailure = (
         "memory",
         `Native command output exceeded ${String(NATIVE_COMMAND_OUTPUT_BUDGET_BYTES)} bytes; complete output is required for analysis.`,
         { max_output_bytes: NATIVE_COMMAND_OUTPUT_BUDGET_BYTES },
-        errorOptions,
+        {
+          ...errorOptions,
+          ...fixedAllowanceOptions(
+            "The native command output capture allowance",
+            "capture",
+          ),
+        },
       ),
     );
   return bindCleanup(

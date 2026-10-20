@@ -63,16 +63,15 @@ export abstract class WebNetworkProjectionAccumulator {
   }
 
   /** Reserve schema output and validation scratch while the borrowed parent stays live. */
-  admitCaptureClone(
-    value: unknown,
-    options?: { readonly copiedStrings: boolean },
-  ): Result<void, AnalysisError> {
-    return admitAnalysisViewData(
-      value,
-      false,
-      (bytes) => (this.retain(bytes) ? ok(undefined) : this.overBudget()),
-      options?.copiedStrings,
+  admitCaptureClone(value: unknown): Result<void, AnalysisError> {
+    return admitAnalysisViewData(value, false, (bytes) =>
+      this.retain(bytes) ? ok(undefined) : this.overBudget(),
     );
+  }
+
+  /** Reserve bytes a view derives from the borrowed parent before it allocates them. */
+  admitDerivedBytes(bytes: number): Result<void, AnalysisError> {
+    return this.retain(bytes) ? ok(undefined) : this.overBudget();
   }
 
   /** Admit the complete portable envelope before cloning or authenticating it. */

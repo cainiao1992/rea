@@ -439,6 +439,22 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
       });
   }
 
+  /** One limitation per selected sibling rule when a route is too long for it to compare. */
+  #segmentLimitLimitations(toolGroups: readonly ToolGroup[]): string[] {
+    if (
+      !toolGroups.some(
+        (group) => group.parts.length > SIBLING_VARIANCE_SEGMENT_LIMIT,
+      )
+    )
+      return [];
+    return (["sibling-variance", "sibling-pair-variance"] as const)
+      .filter((rule) => this.#rules.has(rule))
+      .map(
+        (rule) =>
+          `Routes with more than ${String(SIBLING_VARIANCE_SEGMENT_LIMIT)} segments are not compared by ${rule}; they keep their grouped templates.`,
+      );
+  }
+
   /** Project the complete manifest; tools, records and exclusions are sorted deterministically. */
   finish(): Result<ManifestFields, AnalysisError> {
     const primary = this.#primaryOrigin();
@@ -494,14 +510,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
             "A top-level __proto__ key in a recorded JSON body is omitted from body_shape; it cannot be an own property of the published object.",
           ]
         : []),
-      ...(this.#rules.has("sibling-variance") &&
-      toolGroups.some(
-        (group) => group.parts.length > SIBLING_VARIANCE_SEGMENT_LIMIT,
-      )
-        ? [
-            `Routes with more than ${String(SIBLING_VARIANCE_SEGMENT_LIMIT)} segments are not compared by sibling-variance; they keep their grouped templates.`,
-          ]
-        : []),
+      ...this.#segmentLimitLimitations(toolGroups),
       ...(this.#unrepresented > 0
         ? [
             `${String(this.#unrepresented)} retained records without a usable request line are not represented in the manifest.`,

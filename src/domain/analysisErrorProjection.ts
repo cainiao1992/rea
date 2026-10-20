@@ -350,6 +350,14 @@ const artifactStateErrorDetails = (
       operation: error.operation,
       reason: error.reason,
       ...(error.path === undefined ? {} : { path: error.path }),
+      ...(error.contentIssues === undefined
+        ? {}
+        : {
+            content_issues: error.contentIssues.map((issue) => ({
+              ...issue,
+              path: [...issue.path],
+            })),
+          }),
       ...(error.published === undefined
         ? {}
         : {

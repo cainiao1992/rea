@@ -30,6 +30,13 @@ jq -c '{source: {kind: "inline", evidence: .}, view: {kind: "summary"}}' app-evi
 rea inspect-analysis-view app-view.json
 ```
 
+The request can also name the saved file instead of embedding it:
+`{"source": {"kind": "evidence-file", "path": "app-evidence.json"}, "view": {"kind": "summary"}}`.
+The CLI resolves a relative path against the working directory; MCP clients
+pass an absolute path. REA reads and authenticates the file, then projects it
+like retained Evidence, so a large file is bounded by the file reader rather
+than charged as inline input.
+
 For example, a 334 MB Obsidian application Evidence file yields a summary view
 of about 10 KB. Replace the view with
 `{"kind": "page", "collection": "modules", "offset": 0, "limit": 32}` for a

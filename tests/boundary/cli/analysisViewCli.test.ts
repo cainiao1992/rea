@@ -548,6 +548,49 @@ cliTest(
 );
 
 cliTest(
+  "projects an environment manifest from an Evidence file through the compiled CLI",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-evidence-file-cli-");
+    const capturePath = join(root, "capture.json");
+    const parent = analysisViewCaptureEvidence(
+      environmentManifestCaptureFixture(),
+    );
+    await writeFile(capturePath, JSON.stringify(parent));
+    const requestPath = join(root, "view.json");
+    const view = {
+      kind: "environment-manifest",
+      template_rules: ["opaque-token", "sibling-pair-variance"],
+    } as const;
+    await writeFile(
+      requestPath,
+      JSON.stringify({
+        source: { kind: "evidence-file", path: capturePath },
+        view,
+      }),
+    );
+    const result = await cli.run({
+      arguments: ["inspect-analysis-view", requestPath, "--json"],
+    });
+    expect(result.exitCode, result.stdout).toBe(0);
+    const evidence = parseEvidence(result.json);
+    expect(evidence.parameters).toMatchObject({
+      parent_evidence_id: parent.evidence_id,
+    });
+    // The file source projects exactly what the same Evidence projects inline.
+    const inline = inspectAnalysisView({
+      source: { kind: "inline", evidence: parent },
+      view,
+    });
+    if (!inline.ok) throw inline.error;
+    expect(evidence.normalized_result).toEqual(inline.value.normalized_result);
+    expect(evidence.normalized_result).toMatchObject({
+      kind: "environment-manifest",
+      origin: "http://grafana.example",
+    });
+  },
+);
+
+cliTest(
   "projects an environment manifest through the compiled CLI without recorded values",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-environment-manifest-cli-");

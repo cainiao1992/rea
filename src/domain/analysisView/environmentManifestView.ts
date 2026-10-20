@@ -25,7 +25,7 @@ export const environmentManifestViewRequestSchema = z.strictObject({
     .meta({ uniqueItems: true })
     .default([])
     .describe(
-      "Opt-in template rules applied after the four format rules, each listed at most once: after-uid-literal templates the segment following a literal uid, opaque-token templates long mixed alphanumeric segments, sibling-variance merges groups that differ in one identifier-like segment. Literal sibling folding into existing opt-in parameters also requires sibling-variance. Merged parameters are inferences.",
+      "Opt-in template rules applied after the four format rules, each listed at most once: after-uid-literal templates the segment following a literal uid, opaque-token templates long mixed alphanumeric segments, sibling-variance merges groups that differ in one identifier-like segment, sibling-pair-variance merges groups that differ in two adjacent literals between a plural literal and another literal when at least three distinct pairs vary in both. Literal sibling folding into existing opt-in parameters also requires sibling-variance. Merged parameters are inferences.",
     ),
   include_query_parameter_names: z
     .boolean()

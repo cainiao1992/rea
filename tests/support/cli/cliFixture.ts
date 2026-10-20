@@ -182,9 +182,8 @@ const createFileMcpSession = (
   compileCache: string,
 ): { session: SharedMcpSession; close(): Promise<void> } =>
   createSharedMcpSession(async (registerCleanup, isClosed) => {
-    const { connectLocalToolsMcp } = await import(
-      "../../fixtures/localToolsMcp.js"
-    );
+    const { connectLocalToolsMcp } =
+      await import("../../fixtures/localToolsMcp.js");
     if (isClosed()) throw sharedMcpSessionClosed();
     const mcp = await connectLocalToolsMcp(
       { NODE_COMPILE_CACHE: compileCache },

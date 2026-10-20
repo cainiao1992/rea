@@ -263,7 +263,9 @@ it.each([
 ] as const)(
   "classifies a $code command failure with captured output $captured while the caller is aborted",
   async ({ captured, code, tag }) => {
-    const directory = await mkdtemp(join(tmpdir(), "rea-reverse-command-abort-"));
+    const directory = await mkdtemp(
+      join(tmpdir(), "rea-reverse-command-abort-"),
+    );
     const path = join(directory, "fixture.bin");
     await writeFile(path, "fixture");
     const reason = Object.freeze({ requested: `stop-${code}` });
@@ -287,9 +289,7 @@ it.each([
       );
       expect(result).toMatchObject({ ok: false, error: { _tag: tag } });
       if (result.ok) return;
-      expect(result.error.cause).toBe(
-        code === "ABORT_ERR" ? reason : failure,
-      );
+      expect(result.error.cause).toBe(code === "ABORT_ERR" ? reason : failure);
       if (captured && code === "ABORT_ERR") {
         expect(result.error.capturedOutput).toMatchObject({
           stdout: "partial stdout",

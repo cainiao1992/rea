@@ -21,6 +21,12 @@ on:
 
 env:
   HUSKY: "0"
+  # Remote cache stays local when either value is empty.
+  # Writes only on the default branch for push, schedule, manual dispatch,
+  # and workflow_call. Pull requests get an empty token and remote read-only mode.
+  TURBO_TOKEN: "${{ (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')) && secrets.TURBO_TOKEN || '' }}"
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_CACHE: "${{ (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')) && 'local:rw,remote:rw' || 'local:rw,remote:r' }}"
 
 concurrency:
   group: release-${{ inputs.release_branch || github.event.pull_request.merge_commit_sha || github.ref_name }}
@@ -301,8 +307,11 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/ci.yml
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     with:
       source_sha: ${{ needs.merged-release.outputs.sha || needs.release-please.outputs.sha }}
+      remote_cache_write: true
 
   rehearsal:
     name: Rehearse qualified release on a clean runner

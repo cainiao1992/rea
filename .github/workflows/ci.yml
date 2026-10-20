@@ -15,6 +15,15 @@ on:
         description: Exact qualification source; must match the caller revision.
         required: true
         type: string
+      remote_cache_write:
+        description: Trusted release qualification may publish the remote cache.
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      TURBO_TOKEN:
+        description: Remote cache token. Only trusted release qualification passes it.
+        required: false
 
 permissions:
   contents: read
@@ -29,6 +38,15 @@ concurrency:
 
 env:
   HUSKY: "0"
+  # Set Actions secret TURBO_TOKEN and variable TURBO_TEAM. OIDC can mint
+  # TURBO_TOKEN via vercel/setup-turborepo-remote-cache-action; do not commit a token.
+  # A called workflow sees the caller event, so workflow_call is not an event
+  # name here. Release qualification sets remote_cache_write and passes the
+  # token. Open pull requests get an empty token and the local cache only.
+  # Remote reads need a credential, and pull requests do not receive one.
+  TURBO_TOKEN: "${{ (inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'))) && secrets.TURBO_TOKEN || '' }}"
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_CACHE: "${{ (inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'))) && 'local:rw,remote:rw' || 'local:rw' }}"
 
 jobs:
   changes:
@@ -151,14 +169,10 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         env:
           CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_STATIC_CONTEXT_SCRIPT: check:ci:fast:tasks
         run: npm run ci:static-context
       - if: needs.changes.outputs.code == 'true'
-        run: npm run check:ci
-      - if: needs.changes.outputs.code == 'true'
-        run: npm run verify:test-discovery
-      - name: Check LLDB producer retention and launch contracts
-        if: needs.changes.outputs.code == 'true'
-        run: npm run test:python
+        run: npm run check:ci:fast
       - if: needs.changes.outputs.code != 'true'
         run: npm run format:check
       - name: Save validated static task cache
@@ -175,6 +189,72 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: static-check-reports
+          path: .cache/static-checks/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  static-deep:
+    name: Deep static checks
+    needs: changes
+    # Full qualification only. Provider lanes wait on fast static, not this job.
+    if: needs.changes.outputs.tier == 'full' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Cache npm package downloads
+        id: npm-cache
+        uses: ./.github/actions/npm-cache
+      - run: npm ci
+      - name: Restore deep static task cache
+        id: static-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo/cache/
+          key: rea-static-deep-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', '.npmrc', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: rea-static-deep-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', '.npmrc', 'package-lock.json') }}-
+      - name: Restore Knip analysis cache
+        id: knip-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules/.cache/knip
+          # Each trusted commit publishes a new entry. Restore still matches the
+          # configuration prefix from the previous successful full run.
+          key: knip-meta-v1-${{ runner.os }}-${{ hashFiles('knip.json', 'tsconfig.json', 'package.json', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: knip-meta-v1-${{ runner.os }}-${{ hashFiles('knip.json', 'tsconfig.json', 'package.json', 'package-lock.json') }}-
+      - name: Record deep static task source and execution identity
+        continue-on-error: true
+        env:
+          CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_STATIC_CONTEXT_SCRIPT: check:ci:deep:tasks
+        run: npm run ci:static-context
+      - name: Run deep static checks
+        run: npm run check:ci:deep
+      - name: Save validated deep static task cache
+        if: >-
+          success() && steps.npm-cache.outputs.can-save == 'true' &&
+          steps.static-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo/cache/
+          key: ${{ steps.static-cache.outputs.cache-primary-key }}
+      - name: Save Knip analysis cache
+        if: >-
+          success() && steps.npm-cache.outputs.can-save == 'true' &&
+          steps.knip-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: node_modules/.cache/knip
+          key: ${{ steps.knip-cache.outputs.cache-primary-key }}
+      - name: Upload complete deep static diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: static-deep-check-reports
           path: .cache/static-checks/
           include-hidden-files: true
           if-no-files-found: ignore
@@ -373,8 +453,9 @@ jobs:
           retention-days: 7
 
   sqlite-runtime:
-    # Preserve all selected coverage, but admit expensive host/provider work
-    # only after static validation. Portable tests still provide early feedback.
+    # Admit expensive host/provider work after fast static validation
+    # (typecheck, lint, format). Deep static does not gate these lanes.
+    # Portable tests still provide early feedback.
     needs: [changes, static, build]
     if: needs.changes.outputs.sqlite == 'true'
     uses: ./.github/workflows/sqlite-runtime.yml
@@ -858,68 +939,96 @@ jobs:
             skills/reverse-engineer-anything
           if-no-files-found: error
 
+  # Provider lanes wait for fast static and the portable build, not deep static.
   browser:
     needs: [changes, static, build]
     if: needs.changes.outputs.browser == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-browser.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   binary_layout:
     needs: [changes, static, build]
     if: needs.changes.outputs.binary_layout == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-binary-layout.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   evm:
     needs: [changes, static, build]
     if: needs.changes.outputs.evm == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-evm-interface.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   javascript_recovery:
     needs: [changes, static, build]
     if: needs.changes.outputs.javascript_recovery == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-javascript-recovery.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   recorded_crash:
     needs: [changes, static, build]
     if: needs.changes.outputs.recorded_crash == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-recorded-crash.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   web_network:
     needs: [changes, static, build]
     if: needs.changes.outputs.web_network == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-web-network-captures.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   web_runtime:
     needs: [changes, static, build]
     if: needs.changes.outputs.web_runtime == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-web-runtime.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   web_source_map:
     needs: [changes, static, build]
     if: needs.changes.outputs.web_source_map == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-web-source-map.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   agentenv:
     needs: [changes, static, build]
     if: needs.changes.outputs.agentenv == 'true'
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     uses: ./.github/workflows/real-agentenv.yml
     with:
       build_cache_artifact: rea-build-cache
+      remote_cache_write: ${{ inputs.remote_cache_write == true || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
   nativeaot:
     needs: [changes, static]
@@ -944,6 +1053,7 @@ jobs:
       [
         changes,
         static,
+        static-deep,
         build,
         reverse-tools-quality,
         test-shard,

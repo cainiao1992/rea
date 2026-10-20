@@ -15,7 +15,7 @@ import { hashVerifierFile } from "./lib/verifier-file-resources.mjs";
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "Usage: npm run verify:il2cpp:metadata -- [--metadata PATH]\nPATH is a caller-owned, unencrypted global-metadata.dat (version 29, 31 or 39). Without --metadata, only the advertised contract is verified.",
+    "Usage: npm run verify:il2cpp:metadata -- [--metadata PATH]\nPATH is a caller-owned, unencrypted global-metadata.dat (version 24, 27, 29, 31 or 39). Without --metadata, only the advertised contract is verified.",
   );
   process.exit(0);
 }
@@ -120,6 +120,11 @@ try {
       methods: report.methods.length,
       nested_types: report.types.filter((type) => type.declaring_type !== -1)
         .length,
+      fields: report.fields.length,
+      properties: report.properties.length,
+      events: report.events.length,
+      parameters: report.parameters.length,
+      string_literals: report.string_literals.length,
     });
     const page = analysisViewResultSchema.parse(
       (

@@ -2,16 +2,20 @@
 
 `inspect_il2cpp_metadata` / `inspect-il2cpp-metadata` decodes one selected local
 Unity IL2CPP `global-metadata.dat` file and returns its assembly images, type
-definitions and method definitions by name, namespace, index range and count,
+definitions, methods and named members with their owners, plus managed string
+literals, by stable index, namespace, range and count,
 with the header sections and serialized index widths. It reads the file without
 running it and requires no Unity installation, IL2CPP binary, active target,
 Hopper, Ghidra or IDA.
 
-Metadata versions 29, 31 and 39 are supported. For example, Unity 2022.3.30f1
+Metadata versions 24, 27, 29, 31 and 39 are supported. For example, Unity 2019.4.41f2
+wrote version 24, 2020.3.49f1 version 27, 2022.3.30f1
 wrote version 29, 2022.3.62f3 wrote 31 and 6000.4.2f1 wrote 39; other Unity
 releases that write these numbers have not been checked. Other versions are
-rejected as unsupported. The path must name a regular file; directories and
-symbolic links are rejected.
+rejected as unsupported. Version 24 decoding covers the 264-byte header layout
+used by the cited Unity 2019.4 build; earlier 24.x layouts are not inferred from
+the version number and are refused when their header or records differ. The path
+must name a regular file; directories and symbolic links are rejected.
 
 ## MCP
 
@@ -29,8 +33,9 @@ the session. MCP requires an absolute filesystem path:
 
 The summary retains the complete decoded Evidence in the session and returns a
 linked `inspect_analysis_view` overview: artifact identity, metadata version,
-index widths and `counts` (`sections`, `images`, `types`, `methods` and
-`nested_types`) without rows. Use `normalized_result.parent_evidence_id` to page
+index widths and `counts` (`sections`, `images`, `types`, `methods`,
+`nested_types`, `fields`, `properties`, `events`, `parameters` and
+`string_literals`) without rows. Use `normalized_result.parent_evidence_id` to page
 the original rows without reopening or decoding the file:
 
 ```json
@@ -48,11 +53,15 @@ the original rows without reopening or decoding the file:
 }
 ```
 
-Collections are `sections`, `images`, `types` and `methods`. Every returned row
-includes its source `index`, scoped by artifact SHA-256 and collection. All
-collections accept batch `indices`, exact `names` and `fields`. Types also accept
-`image_indices`, `namespaces` and `declaring_types`; methods accept
-`declaring_types`. Filters intersect, duplicate indices are returned once, and
+Collections are `sections`, `images`, `types`, `methods`, `fields`,
+`properties`, `events`, `parameters` and `string_literals`. Every returned row includes
+its source `index`, scoped by artifact SHA-256 and collection. All collections
+accept batch `indices` and `fields`; collections whose rows have a `name` also
+accept exact `names`. Types also accept `image_indices`, `namespaces` and
+`declaring_types`; methods, fields, properties and events accept
+`declaring_types`. Parameters accept exact `method_indices`, so a batch of
+method indices retrieves their parameters without reading the entire parameter
+table. Filters intersect, duplicate indices are returned once, and
 rows retain metadata order. An empty filter selects no rows; `fields: []`
 returns indices only. Omitted fields return the complete selected rows.
 
@@ -73,6 +82,29 @@ For example, after resolving a type index, retrieve selected method facts:
   }
 }
 ```
+
+After finding method indices, parameters can be requested directly:
+
+```json
+{
+  "source": {
+    "kind": "retained-evidence",
+    "evidence_id": "<parent_evidence_id>"
+  },
+  "view": {
+    "kind": "il2cpp-metadata",
+    "collection": "parameters",
+    "method_indices": [9785],
+    "fields": ["name", "method"],
+    "limit": 64
+  }
+}
+```
+
+Historical Evidence that predates these member collections remains queryable.
+A missing collection has an unknown (`null`) summary count, and requesting it
+reports that it was not collected; it is never presented as an empty inventory.
+Existing empty collections retain a zero count. Full Evidence is preserved.
 
 `offset` counts matching rows, not source indices. `limit` defaults to 64;
 `coverage.next_offset` continues that filtered page. Coverage describes retained
@@ -110,19 +142,24 @@ The result contains:
 
 - `artifact`: path, SHA-256 and byte length;
 - `magic`: unsigned little-endian header signature (`0xFAB11BAF`, delivered as a JSON number);
-- `metadata_version`: `29`, `31` or `39`;
+- `metadata_version`: `24`, `27`, `29`, `31` or `39`;
 - `index_widths`: the serialized widths (1, 2 or 4 bytes) of
   `type_definition`, `generic_container`, `parameter` and `type` indices, and
   `type_width_source`. Version 39 derives the type index width from the
-  `interface-offsets-record` or the `type-definition-record`; versions 29 and
-  31 always use 4-byte indices (`fixed-width-version`);
-- `sections`: all 31 header sections in header order, each with `offset`, `size`
-  and `count`. Versions 29 and 31 record no counts, so `count` is `null` and
+  `interface-offsets-record` or the `type-definition-record`; versions 24, 27, 29
+  and 31 always use 4-byte indices (`fixed-width-version`);
+- `sections`: all version-specific header sections in header order, each with `offset`, `size`
+  and `count`. Versions 24 to 31 record no counts, so `count` is `null` and
   record counts come from the section sizes;
 - `images`: `name`, `type_start` and `type_count`;
 - `types`: `name`, `namespace`, `method_start`, `method_count`,
   `nested_type_start`, `nested_type_count` and `declaring_type`;
 - `methods`: `name` and `declaring_type`;
+- `fields`, `properties` and `events`: `name` and `declaring_type`, the type
+  whose member range holds the row (`-1` when none does);
+- `parameters`: `name` and `method`, the method whose parameter range holds it;
+- `string_literals`: managed string literals as `value`, or `value_base64` with
+  the exact bytes when they are not valid UTF-8;
 - `limitations`.
 
 A row's position in its collection is its metadata index, so `type_start`,
@@ -141,7 +178,7 @@ unneeded rows out of agent context without discarding the source Evidence.
 
 A file whose magic is not `0xFAB11BAF` fails as an unsupported target with
 `unrecognized-magic`. The file may be encrypted or may not be IL2CPP metadata.
-A version other than 29, 31 or 39 fails as an unsupported target with
+A version other than 24, 27, 29, 31 or 39 fails as an unsupported target with
 `unsupported-version`.
 
 Damaged metadata returns an input error (`invalid_format`) whose
@@ -150,7 +187,7 @@ message names one reason:
 | Reason                    | Meaning                                                                                                          |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `truncated-header`        | The file is shorter than the header.                                                                             |
-| `unexpected-header-size`  | `stringLiterals.offset` is not the header size: 256 bytes for versions 29 and 31, 380 for 39.                    |
+| `unexpected-header-size`  | `stringLiterals.offset` is not the header size: 264 bytes for version 24, 256 for 27, 29 and 31, 380 for 39.     |
 | `section-out-of-bounds`   | A section extends beyond the file, or a non-empty section starts inside the header.                              |
 | `section-overlap`         | Two sections overlap. Zero-size sections are exempt and gaps are allowed.                                        |
 | `record-size-mismatch`    | A section size does not divide into its records, or the record size differs from the one the index widths imply. |
@@ -177,19 +214,19 @@ relationships were decoded. A file that changes during reading and a cancelled
 request keep distinct errors. Decode checkpoints yield for cancellation, and
 close waits for active work. Each reader admits one inspection at a time.
 Resource guards bound the selected file to 256 MiB and the encoded complete
-report to 64 MiB, checking JSON/UTF-8 expansion before serialization. MCP also applies its
+report to 64 MiB, checking row counts before allocation and JSON/UTF-8/base64 expansion during
+decoding, before serialization. Names and identical literal spans are decoded
+once within one stable file snapshot; no filesystem results are cached across
+inspections. Ownership assignment also yields to cancellation. MCP also applies its
 [response transport budget](mcp-contracts.md); a complete report within the
 report limit can still require the summary and paging path.
 
 ## Outside this tool
 
 - Decrypting or deobfuscating protected metadata.
-- Linking metadata to the native binary (`GameAssembly`, `UnityFramework`),
-  including method RVAs and code addresses.
-- Fields, properties, signatures, parameters and generic instances.
-- Ghidra or other disassembler integration. Use the
+- Native code addresses, member types and method signatures; use the
   [native workflow](native-investigation.md) for native code.
-- Metadata versions other than 29, 31 and 39.
+- Metadata versions other than 24, 27, 29, 31 and 39.
 
 Names come from the metadata file only. They do not establish which methods
 were compiled into the native binary or how they behave at runtime.

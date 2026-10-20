@@ -100,7 +100,13 @@ export class Il2cppMetadataService {
                   name === "typeDefinitions" ||
                   name === "methods" ||
                   name === "nestedTypes" ||
-                  name === "strings"),
+                  name === "strings" ||
+                  name === "fields" ||
+                  name === "properties" ||
+                  name === "events" ||
+                  name === "parameters" ||
+                  name === "stringLiterals" ||
+                  name === "stringLiteralData"),
             )
             .map(({ offset, size }) => ({
               kind: "file-offset-range" as const,

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { digestSchema } from "../digests.js";
 import { localPathStringSchema } from "../localPath.js";
+import { canonicalBase64Schema } from "../stringPatterns.js";
 
 /** Unsigned little-endian signature observed at file offset zero. */
 export const IL2CPP_METADATA_MAGIC = 0xfab11baf;
@@ -40,8 +41,43 @@ export const IL2CPP_METADATA_SECTION_NAMES = [
   "exportedTypeDefinitions",
 ] as const;
 
-/** Decoded metadata versions; 29 and 31 use fixed 4-byte indices. */
-export const IL2CPP_METADATA_VERSIONS = [29, 31, 39] as const;
+/** Version 27 names for the four custom-attribute and indirect-call sections. */
+export const IL2CPP_METADATA_V27_SECTION_NAMES = [
+  ...IL2CPP_METADATA_SECTION_NAMES.slice(0, 24),
+  "attributesInfo",
+  "attributeTypes",
+  "unresolvedVirtualCallParameterTypes",
+  "unresolvedVirtualCallParameterRanges",
+  ...IL2CPP_METADATA_SECTION_NAMES.slice(28),
+] as const;
+
+/** Version 24 header: 32 (offset, byte size) pairs in this order. */
+export const IL2CPP_METADATA_V24_SECTION_NAMES = [
+  ...IL2CPP_METADATA_SECTION_NAMES.slice(0, 22),
+  "metadataUsageLists",
+  "metadataUsagePairs",
+  "fieldRefs",
+  "referencedAssemblies",
+  "attributesInfo",
+  "attributeTypes",
+  "unresolvedVirtualCallParameterTypes",
+  "unresolvedVirtualCallParameterRanges",
+  "windowsRuntimeTypeNames",
+  "exportedTypeDefinitions",
+] as const;
+
+/** Decoded metadata versions; all but 39 use fixed 4-byte indices. */
+export const IL2CPP_METADATA_VERSIONS = [24, 27, 29, 31, 39] as const;
+
+/** Header section names in order for one metadata version. */
+export const il2cppMetadataSectionNames = (
+  version: number,
+): readonly IL2cppMetadataSectionName[] =>
+  version === 24
+    ? IL2CPP_METADATA_V24_SECTION_NAMES
+    : version === 27
+      ? IL2CPP_METADATA_V27_SECTION_NAMES
+      : IL2CPP_METADATA_SECTION_NAMES;
 
 const count = z.number().int().nonnegative();
 /** Serialized metadata indices use -1 for an absent reference. */
@@ -57,12 +93,24 @@ export const inspectIl2cppMetadataInputSchema = z.strictObject({
     .enum(["complete", "summary"])
     .default("summary")
     .describe(
-      "summary (default) retains complete Evidence and returns identity and collection counts; complete returns every image, type and method row inline",
+      "summary (default) retains complete Evidence and returns identity and collection counts; complete returns every image, type, method, member, parameter and string-literal row inline",
     ),
 });
 
+export type IL2cppMetadataSectionName = z.infer<
+  typeof il2cppMetadataSectionSchema
+>["name"];
+
 export const il2cppMetadataSectionSchema = z.strictObject({
-  name: z.enum(IL2CPP_METADATA_SECTION_NAMES),
+  name: z.enum([
+    ...IL2CPP_METADATA_SECTION_NAMES,
+    "attributesInfo",
+    "attributeTypes",
+    "unresolvedVirtualCallParameterTypes",
+    "unresolvedVirtualCallParameterRanges",
+    "metadataUsageLists",
+    "metadataUsagePairs",
+  ]),
   offset: count,
   size: count,
   /** Header-recorded entry count; versions 29 and 31 record none. */
@@ -98,6 +146,26 @@ export const il2cppMetadataMethodSchema = z.strictObject({
   ),
 });
 
+/** Field, property or event name and the type whose member range holds it. */
+export const il2cppMetadataMemberSchema = z.strictObject({
+  name: z.string(),
+  /** -1 when no type range claims the row. */
+  declaring_type: optionalIndex,
+});
+
+/** Parameter name and the method whose parameter range holds it. */
+export const il2cppMetadataParameterSchema = z.strictObject({
+  name: z.string(),
+  /** -1 when no method range claims the row. */
+  method: optionalIndex,
+});
+
+/** Managed string literal; undecodable UTF-8 keeps its exact bytes instead. */
+export const il2cppMetadataStringLiteralSchema = z.strictObject({
+  value: z.string().nullable(),
+  value_base64: canonicalBase64Schema.nullable(),
+});
+
 /** Unrefined report fields, shared with projections that omit row collections. */
 export const il2cppMetadataObjectSchema = z.strictObject({
   artifact: z.strictObject({
@@ -120,34 +188,94 @@ export const il2cppMetadataObjectSchema = z.strictObject({
       "fixed-width-version",
     ]),
   }),
-  sections: z
-    .array(il2cppMetadataSectionSchema)
-    .length(IL2CPP_METADATA_SECTION_NAMES.length),
+  sections: z.array(il2cppMetadataSectionSchema),
   images: z.array(il2cppMetadataImageSchema),
   types: z.array(il2cppMetadataTypeSchema),
   methods: z.array(il2cppMetadataMethodSchema),
+  fields: z.array(il2cppMetadataMemberSchema),
+  properties: z.array(il2cppMetadataMemberSchema),
+  events: z.array(il2cppMetadataMemberSchema),
+  parameters: z.array(il2cppMetadataParameterSchema),
+  string_literals: z.array(il2cppMetadataStringLiteralSchema),
   limitations: z.array(z.string()),
 });
 
 /** Complete name and count inventory of one decoded global-metadata.dat file. */
-export const il2cppMetadataSchema = il2cppMetadataObjectSchema.superRefine(
-  (report, context) => {
-    report.sections.forEach((section, index) => {
-      if (section.name !== IL2CPP_METADATA_SECTION_NAMES[index])
+export const il2cppMetadataMemberCollections = [
+  "fields",
+  "properties",
+  "events",
+  "parameters",
+  "string_literals",
+] as const;
+
+/** Historical reports retain omission instead of inventing empty member inventories. */
+const il2cppMetadataParentObjectSchema = il2cppMetadataObjectSchema.partial({
+  fields: true,
+  properties: true,
+  events: true,
+  parameters: true,
+  string_literals: true,
+});
+
+const validateMetadataFacts = (
+  report: z.infer<typeof il2cppMetadataParentObjectSchema>,
+  context: z.RefinementCtx,
+): void => {
+  const names = il2cppMetadataSectionNames(report.metadata_version);
+  if (report.sections.length !== names.length)
+    context.addIssue({
+      code: "custom",
+      path: ["sections"],
+      message: `Version ${report.metadata_version} headers have ${names.length} sections.`,
+    });
+  report.sections.forEach((section, index) => {
+    if (section.name !== names[index])
+      context.addIssue({
+        code: "custom",
+        path: ["sections", index, "name"],
+        message: "Sections must follow header order.",
+      });
+    if (section.offset + section.size > report.artifact.bytes)
+      context.addIssue({
+        code: "custom",
+        path: ["sections", index],
+        message: "Section range is outside the selected artifact.",
+      });
+  });
+  for (const collection of ["fields", "properties", "events"] as const)
+    report[collection]?.forEach((row, index) => {
+      if (row.declaring_type >= report.types.length)
         context.addIssue({
           code: "custom",
-          path: ["sections", index, "name"],
-          message: "Sections must follow header order.",
-        });
-      if (section.offset + section.size > report.artifact.bytes)
-        context.addIssue({
-          code: "custom",
-          path: ["sections", index],
-          message: "Section range is outside the selected artifact.",
+          path: [collection, index, "declaring_type"],
+          message: "Member owner is outside the retained type definitions.",
         });
     });
-  },
+  report.parameters?.forEach((row, index) => {
+    if (row.method >= report.methods.length)
+      context.addIssue({
+        code: "custom",
+        path: ["parameters", index, "method"],
+        message: "Parameter owner is outside the retained method definitions.",
+      });
+  });
+  report.string_literals?.forEach((row, index) => {
+    if ((row.value === null) === (row.value_base64 === null))
+      context.addIssue({
+        code: "custom",
+        path: ["string_literals", index],
+        message:
+          "A literal must retain exactly one UTF-8 or byte-exact base64 representation.",
+      });
+  });
+};
+
+export const il2cppMetadataSchema = il2cppMetadataObjectSchema.superRefine(
+  validateMetadataFacts,
 );
+export const il2cppMetadataParentSchema =
+  il2cppMetadataParentObjectSchema.superRefine(validateMetadataFacts);
 
 export type InspectIl2cppMetadataInput = z.infer<
   typeof inspectIl2cppMetadataInputSchema

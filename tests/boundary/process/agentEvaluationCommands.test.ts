@@ -3,12 +3,17 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
 
+import { resolveSwiftcCompileTimeoutMs } from "../../../src/process/DarwinProcessRunTokenReader.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { processTest } from "../../support/process/processFixture.js";
 
+// The driver prepares ownership before exercising its short command budgets.
+const preparationBudgetMs =
+  process.platform === "darwin" ? resolveSwiftcCompileTimeoutMs() : 0;
+
 processTest.skipIf(process.platform === "win32")(
   "joins real evaluation command/output cleanup while retaining timeout diagnostics",
-  { timeout: 40_000 },
+  { timeout: Math.min(2_147_483_647, preparationBudgetMs + 40_000) },
   async ({ processes }) => {
     const root = await createTestTempDirectory("rea-agent-command-");
     const fixture = join(root, "codex-fixture.mjs");
@@ -63,10 +68,16 @@ const { createAgentEvaluationCommands } = await import(${JSON.stringify(
 const { OwnedCommandFailure, prepareOwnedCommand } = await import(${JSON.stringify(
         new URL("../../../dist/process/OwnedCommand.js", import.meta.url).href,
       )});
+const { closeVerifierResources } = await import(${JSON.stringify(
+        new URL("../../../scripts/lib/verifier-cleanup.mjs", import.meta.url)
+          .href,
+      )});
 await prepareOwnedCommand();
 const root = ${JSON.stringify(root)}, fixture = ${JSON.stringify(fixture)};
 const commands = createAgentEvaluationCommands({ codex: fixture, evaluationRoot: root,
   evaluationEnvironment: process.env, timeoutMs: 1000, repositoryRoot: root });
+let primaryError;
+try {
 for (const name of ["runCodex", "runProcess", "readCommandVersion"]) {
   await assert.rejects(() => name === "runCodex" ? commands.runCodex("fixture", []) :
     name === "runProcess" ? commands.runProcess(fixture, [], root, 1000) : commands.readCommandVersion(fixture), error => {
@@ -98,12 +109,17 @@ await assert.rejects(() => commands.runProcess(fixture, [], root, 2000), error =
   assert.ok(error.snapshot.stderr.bytes <= 32768);
   return true;
 });
-await commands.close();
+} catch (cause) {
+  primaryError = cause;
+  throw cause;
+} finally {
+  await closeVerifierResources([() => commands.close()], primaryError);
+}
 console.log(JSON.stringify({ passed: true, timeoutHelpers: 3, controls: 7, childrenClosed: children.every(x => x.closed) }));
 `,
     );
     const result = await processes.run(process.execPath, [driver], {
-      timeoutMs: 35_000,
+      timeoutMs: Math.min(2_147_483_647, preparationBudgetMs + 35_000),
     });
     expect(result.exitCode, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({

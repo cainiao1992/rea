@@ -4,8 +4,12 @@ import { PassThrough, Writable } from "node:stream";
 
 import {
   OwnedCommandFailure,
+  prepareOwnedCommand,
   runOwnedCommand,
 } from "../../dist/process/OwnedCommand.js";
+import { ArtifactResourceScope } from "../../dist/artifacts/ArtifactResourceScope.js";
+import { AnalysisCleanupLease } from "../../dist/artifacts/AnalysisCleanupLease.js";
+import { retainOwnedCommandCleanup } from "../../dist/providers/OwnedCommandCleanup.js";
 
 /** Keep command ownership through failure and join cleanup before removing a run. */
 export function createAgentEvaluationCommands({
@@ -16,7 +20,17 @@ export function createAgentEvaluationCommands({
   timeoutMs,
   repositoryRoot,
 }) {
-  const pendingCleanup = new Map();
+  const resources = new ArtifactResourceScope();
+  const resourceOwner = {
+    retain(owner, resource) {
+      resources.retain({
+        kind: "lease",
+        resource,
+        lease: AnalysisCleanupLease.forCloseOwner(owner, resource),
+      });
+    },
+    run: (work) => resources.run(work),
+  };
   const diagnosticBytes = 32_768;
 
   async function execute(
@@ -27,30 +41,36 @@ export function createAgentEvaluationCommands({
     limits,
     timeoutMessage,
   ) {
-    try {
-      return await runOwnedCommand(
-        {
+    return resourceOwner.run(async () => {
+      try {
+        // Fresh Darwin helper compilation has its own bounded deadline.
+        await prepareOwnedCommand();
+        return await runOwnedCommand(
+          {
+            command,
+            arguments: arguments_,
+            // CLI shims may execute through a shebang interpreter. Ownership
+            // still uses the launch generation and token, not an argv prefix.
+            expectedCommand: null,
+            cwd,
+            hostEnvironment: env,
+            runId: randomUUID(),
+            sweepTokenOwnedProcesses: true,
+          },
+          { diagnosticBytes, acceptNonZeroExit: true, ...limits },
+        );
+      } catch (cause) {
+        retainOwnedCommandCleanup(
+          cause,
+          resourceOwner,
+          "agent-evaluation",
           command,
-          arguments: arguments_,
-          // CLI shims may execute through a shebang interpreter. Ownership
-          // still uses the launch generation and token, not an argv prefix.
-          expectedCommand: null,
-          cwd,
-          hostEnvironment: env,
-          runId: randomUUID(),
-          sweepTokenOwnedProcesses: true,
-        },
-        { diagnosticBytes, acceptNonZeroExit: true, ...limits },
-      );
-    } catch (cause) {
-      if (cause instanceof OwnedCommandFailure) {
-        if (cause.cleanupOwner !== undefined)
-          pendingCleanup.set(cause.cleanupOwner, cause);
-        if (cause.reason === "timeout")
+        );
+        if (cause instanceof OwnedCommandFailure && cause.reason === "timeout")
           throw new Error(timeoutMessage, { cause });
+        throw cause;
       }
-      throw cause;
-    }
+    });
   }
 
   return {
@@ -166,28 +186,6 @@ export function createAgentEvaluationCommands({
       return version;
     },
 
-    async close() {
-      const failures = [];
-      for (const [owner, failure] of pendingCleanup) {
-        try {
-          const result = await owner.stop();
-          if (result.status === "incomplete")
-            failures.push(new Error(result.reason, { cause: failure }));
-          else pendingCleanup.delete(owner);
-        } catch (cause) {
-          failures.push(
-            new AggregateError(
-              [failure, cause],
-              "Evaluation process cleanup failed",
-            ),
-          );
-        }
-      }
-      if (failures.length > 0)
-        throw new AggregateError(
-          failures,
-          "Evaluation processes remain owned; preserve the run directory and retry cleanup through the retained owners",
-        );
-    },
+    close: () => resources.close(),
   };
 }

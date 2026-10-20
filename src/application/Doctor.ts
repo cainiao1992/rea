@@ -486,7 +486,12 @@ export interface SystemDoctorHostOptions {
   readonly providerRegistrationEnvironment?: () => Readonly<
     Record<string, string>
   >;
-  readonly resolveProviderRequestBudget?: ProviderRequestBudgetResolver;
+  readonly resolveProviderRequestBudget?: (
+    provider: Parameters<ProviderRequestBudgetResolver>[0],
+    environment: Parameters<ProviderRequestBudgetResolver>[1],
+    resources: RetainedResourceScope,
+    signal: AbortSignal,
+  ) => ReturnType<ProviderRequestBudgetResolver>;
   readonly linuxDemoRuntimeCheck?: () => Promise<DoctorCheck>;
 }
 
@@ -515,6 +520,19 @@ export const systemDoctorHost = (
       }),
     run: (operation) => resources.run(operation),
   };
+  const resolveProviderRequestBudget =
+    options.resolveProviderRequestBudget === undefined
+      ? undefined
+      : (
+          provider: Parameters<ProviderRequestBudgetResolver>[0],
+          environment: Parameters<ProviderRequestBudgetResolver>[1],
+        ) =>
+          options.resolveProviderRequestBudget!(
+            provider,
+            environment,
+            resourceScope,
+            inspectionSignal,
+          );
   return {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     platform,
@@ -629,9 +647,9 @@ export const systemDoctorHost = (
           providerRegistrationEnvironment:
             options.providerRegistrationEnvironment,
         }),
-    ...(options.resolveProviderRequestBudget === undefined
+    ...(resolveProviderRequestBudget === undefined
       ? {}
-      : { resolveProviderRequestBudget: options.resolveProviderRequestBudget }),
+      : { resolveProviderRequestBudget }),
     async ilspyCmdVersion(path) {
       try {
         await access(path, constants.X_OK);
@@ -696,11 +714,10 @@ export const systemDoctorHost = (
         platform,
         environment,
         resources,
-        ...(options.resolveProviderRequestBudget === undefined
+        ...(resolveProviderRequestBudget === undefined
           ? {}
           : {
-              resolveProviderRequestBudget:
-                options.resolveProviderRequestBudget,
+              resolveProviderRequestBudget,
             }),
       }),
   };

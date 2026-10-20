@@ -237,12 +237,21 @@ export interface ProviderIdentity {
 /** Typed analysis profile resolved before provider startup; null means unresolved. */
 export interface AnalysisProfileResolution {
   readonly profile: AnalysisProfileCommitment | null;
+  /** Keep provider-private facts bound to this selection without Evidence serialization. */
+  readonly createClient?: AnalysisProviderBoundClientFactory;
 }
+
+export type AnalysisProviderBoundClientFactory = (
+  target: BinaryTarget,
+  profile: AnalysisProfileCommitment,
+  context?: AnalysisClientContext,
+) => AnalysisClient;
 
 /** Cancellation context for side-effect-free provider profile resolution. */
 export interface AnalysisProviderInspectionOptions {
   readonly signal?: AbortSignal;
   readonly scope?: ProviderInspectionScope;
+  readonly resourceScope?: RetainedResourceScope;
 }
 
 export interface AnalysisProfileResolutionOptions extends AnalysisProviderInspectionOptions {
@@ -320,6 +329,12 @@ export type ProviderAvailability =
 /** Provider-owned target support observation before profile resolution. */
 export type ProviderTargetSupport =
   | {
+      readonly status: "unknown";
+      readonly code: null;
+      readonly reason: string;
+      readonly diagnostics: Readonly<Record<string, JsonValue>>;
+    }
+  | {
       readonly status: "supported";
       readonly code: null;
       readonly reason: null;
@@ -365,6 +380,10 @@ export interface AnalysisProviderCandidate extends AnalysisProvider {
     | AnalysisProviderReadinessSnapshot
     | Promise<AnalysisProviderReadinessSnapshot>;
   inspectTargetSupport(target: BinaryTarget): ProviderTargetSupport;
+  inspectTargetSupportWithOptions?(
+    target: BinaryTarget,
+    options?: AnalysisProviderInspectionOptions,
+  ): Promise<ProviderTargetSupport>;
   /** Observe retained candidate cleanup without starting or retrying work. */
   hasPendingOwnedResources?(): boolean;
   /** Release candidate resources that are independent of any active client. */

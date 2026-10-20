@@ -4,6 +4,11 @@ import { stat as statPath } from "node:fs/promises";
 import type { Stats } from "node:fs";
 
 import {
+  requireAnalysisViewRetention,
+  summarizeRetainedAnalysis,
+  type AnalysisViewRetention,
+} from "../analysisView/AnalysisViewService.js";
+import {
   AnalysisAccessDeniedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
@@ -179,29 +184,41 @@ export class ReverseEngineeringService {
     if (!cleanup.ok) throw cleanup.error;
   }
 
-  inspectWithObjdump(
+  async inspectWithObjdump(
     rawInput: unknown,
     options: { readonly signal?: AbortSignal } = {},
+    retention: AnalysisViewRetention = {
+      evidenceById: undefined,
+      recordEvidence: undefined,
+    },
   ): Promise<Result<Evidence, AnalysisError>> {
     const parsed = objdumpInputSchema.safeParse(rawInput);
     if (!parsed.success)
-      return Promise.resolve(
-        err(new AnalysisInputError("inspect_with_objdump")),
+      return err(new AnalysisInputError("inspect_with_objdump"));
+    const { detail, ...input } = parsed.data;
+    if (detail === "summary") {
+      const ready = requireAnalysisViewRetention(
+        "inspect_with_objdump",
+        retention,
       );
-    const input = parsed.data;
+      if (!ready.ok) return ready;
+    }
     const command = this.#commands.objdump(input);
     let parameters: Readonly<Record<string, JsonValue>>;
     if (input.operation === "disassemble") {
       const { symbol, ...base } = input;
       parameters = symbol === undefined ? base : { ...base, symbol };
     } else parameters = input;
-    return this.#observe(
+    const observed = await this.#observe(
       "inspect_with_objdump",
       command,
       input.operation === "architectures" ? undefined : input.path,
       parameters,
       options.signal,
     );
+    return observed.ok && detail === "summary"
+      ? summarizeRetainedAnalysis(observed.value, retention)
+      : observed;
   }
 
   executeRizinCommand(

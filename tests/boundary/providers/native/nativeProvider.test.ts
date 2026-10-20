@@ -631,7 +631,7 @@ describe("native macOS provider inspection", () => {
     if (!execution.ok) throw execution.error;
     expect(execution.value.provider.id).toBe("native-macos");
     expect(execution.value.result).toMatchObject({
-      format: "mach-o",
+      format: "mach-o-universal",
       word_size: 64,
       uuid: "01234567-89AB-CDEF-0123-456789ABCDEF",
       architectures: { total: 2, exhaustive: true },

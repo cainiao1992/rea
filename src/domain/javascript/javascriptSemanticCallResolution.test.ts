@@ -40,6 +40,23 @@ const indexed = (source: string) => {
   };
 };
 
+it("orders exported callable initializers within their enclosing declaration", () => {
+  const ir = analyzeJavaScriptSemantics(`
+    function original() {}
+    export const first = original, second = first;
+    second();
+    export const before = later, later = original;
+    before();
+  `);
+  const original = ir.callables.find(({ name }) => name === "original");
+  if (original === undefined) throw new Error("Missing original callable");
+  expect(ir.callSites[0]).toMatchObject({
+    resolution: "exact",
+    calleeCallableIds: [original.callableId],
+  });
+  expect(ir.callSites[1]?.resolution).not.toBe("exact");
+});
+
 it.each([
   "if(flag)({make}={make:replacement});",
   "if(flag)[make]=[replacement];",

@@ -19,7 +19,23 @@ Inspect native SAZ or HAR 1.2 offline with REA, or connect Everywhere's separate
 - `analyze_web_bundle` / `rea analyze-web-bundle` parses selected script artifacts without execution and derives chunk edges, route and endpoint candidates, vendor fingerprints, static WebMCP declarations, and optionally source-map/original-source evidence.
 - `observe_web_session` / `rea observe-web-session` arms an observation window of the requested duration for an external user action and records ordered reload, SPA navigation, redirect, failure, lifecycle, and target-termination metadata.
 - `discover_webmcp_tools` / `rea discover-webmcp-tools` uses the experimental CDP WebMCP domain to return every in-scope registration and its complete observed `input_schema` declaration and canonical `input_schema_sha256` digest inline. Declarations are untrusted JSON data, including declared types, required fields, enums, examples and reference URLs. REA does not resolve schema references. These fields replace `input_schema_shape`. Registrations with the same name and URL in distinct observed frames retain separate identities. `tool_key` includes the observed frame ID; it is not a stable identity across navigation or browser sessions. Same-frame registration updates replace that owner only, and removal leaves other owners intact. Declared `readOnly`, `untrustedContent`, `consequential`, and `autosubmit` annotation hints are reported per registration: `true`/`false` are declared values, `null` means the declaration did not provide the hint in that capture, and a missing `consequential` key means the hint was not recorded, either in a historical capture or because the observed annotation was invalid. Consult discovery completeness and exclusions to distinguish these cases. Malformed annotation values retain the registration with incomplete coverage and an `invalid_protocol_value` exclusion. Other malformed protocol payloads can fail discovery explicitly. REA never exposes `WebMCP.invokeTool`.
+
 - `compare_web_captures` / `rea compare-web-captures` compares passive captures or exact-step-aligned browser scenarios. Scenario results commit reproducible literal normalization and expose alignment failures plus artifact-level action, screenshot, DOM, accessibility, URL, history, storage, and event differences. Missing or truncated evidence is never treated as equivalence.
+
+For `analyze_web_bundle`, each `webmcp_declarations` entry's
+`schema_property_names` is a source-derived projection of statically known own
+property keys, not schema validation. `schema_property_names_coverage` reports
+how complete that projection is: `complete` means a literal properties object
+was fully enumerated (including an empty literal); `partial` means a literal
+object was available but some computed or spread membership was unresolved,
+and the name array retains keys that were known; `unknown` means the schema or
+properties owner could not be enumerated as an object literal, including
+explicit non-object values; `not_present` means no effective schema or own
+`properties` member was present after the `inputSchema ?? input_schema` alias
+selection. `not_present` describes this projection only: it does not validate a
+schema or rule out properties expressed through other schema constructs. Older
+observations may omit the coverage field; treat omission as `unknown` rather
+than inferring completeness from the array.
 
 Passive DOM comparison checks complete node inventories and complete frame
 parent/child structure independently. Frame IDs and sibling enumeration order

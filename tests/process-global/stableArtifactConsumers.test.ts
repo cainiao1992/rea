@@ -59,6 +59,8 @@ import { ArtifactReaderFailure } from "../../src/artifacts/ArtifactReader.js";
 import { GoBinaryProvider } from "../../src/go/GoBinaryProvider.js";
 import { PeResourcesProvider } from "../../src/native/pe/PeResourcesProvider.js";
 import { Il2cppMetadataProvider } from "../../src/il2cpp/Il2cppMetadataProvider.js";
+import { ModelArtifactProvider } from "../../src/model/ModelArtifactProvider.js";
+import { ggufFixture } from "../fixtures/model/model.js";
 import { inspectPeResourcesInputSchema } from "../../src/domain/native/peResources.js";
 import { peResourceFixture } from "../../src/native/pe/PeResources.fixture.js";
 import { createServer } from "../../src/server/createServer.js";
@@ -285,6 +287,80 @@ const selectedImage = async () => {
   fault.path = path;
   return path;
 };
+
+it.each([
+  "confirmed-close-cancel",
+  "failed-close",
+  "failed-close-cancel",
+] as const)(
+  "retains complete scoped model observations through %s and retries the exact file owner",
+  async (mode) => {
+    const path = await selectedImage();
+    await writeFile(path, ggufFixture().bytes);
+    const provider = new ModelArtifactProvider();
+    const controller = new AbortController();
+    const reason = new Error("model close cancellation");
+    fault.blockNew = mode !== "confirmed-close-cancel";
+    if (mode !== "failed-close") fault.onClose = () => controller.abort(reason);
+    try {
+      const result = await provider.inspect(
+        { path, hash: "header" },
+        { signal: controller.signal },
+      );
+      if (result.ok) throw new Error("Expected finalization failure");
+      const evidence = parseEvidence(result.error.partialObservation);
+      expect(evidence.operation).toBe("inspect_model_artifact");
+      expect(evidence.subject).toBeNull();
+      expect(evidence.normalized_result).toMatchObject({
+        artifact: { path, sha256: null, read_scope: "header" },
+        tensors: [{ name: "weight" }, { name: "quant" }],
+      });
+      if (mode === "confirmed-close-cancel") {
+        expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+        expect(result.error.cause).toBe(reason);
+        expect(fault.handles[0]?.fd).toBe(-1);
+      } else {
+        expect(result.error.cleanupIncomplete).toBe(true);
+        if (mode === "failed-close-cancel")
+          expect(result.error.cleanupPrimary?.cause).toBe(reason);
+        expect(fault.handles[0]?.fd).toBeGreaterThanOrEqual(0);
+        fault.blocked.clear();
+        await provider.close();
+        expect(result.error.cleanupIncomplete).toBe(false);
+        expect(fault.handles[0]?.fd).toBe(-1);
+      }
+    } finally {
+      fault.onClose = undefined;
+      fault.blocked.clear();
+      await provider.close();
+    }
+  },
+);
+
+it("preserves a model permission failure when cancellation arrives during close", async () => {
+  const path = await selectedImage();
+  const provider = new ModelArtifactProvider();
+  const denied = Object.assign(new Error("model read denied"), {
+    code: "EACCES",
+  });
+  fault.readFailure = { cause: denied };
+  fault.blockNew = false;
+  const controller = new AbortController();
+  fault.onClose = () => controller.abort(new Error("later stop"));
+  try {
+    const result = await provider.inspect(
+      { path, hash: "header" },
+      { signal: controller.signal },
+    );
+    if (result.ok) throw new Error("Read failure disappeared");
+    expect(result.error).toBeInstanceOf(AnalysisAccessDeniedError);
+    expect(result.error.cause).toBe(denied);
+    expect(result.error.partialObservation).toBeUndefined();
+  } finally {
+    fault.onClose = undefined;
+    await provider.close();
+  }
+});
 
 mcpTest(
   "retains Rust descriptor cleanup and recovers in the same MCP connection",

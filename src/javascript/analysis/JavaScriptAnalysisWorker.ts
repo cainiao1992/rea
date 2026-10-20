@@ -96,6 +96,8 @@ export class JavaScriptAnalysisWorker {
   #primaryFailure: WorkerPrimaryFailure | undefined;
   #activeJobId: string | undefined;
   #activeJobPhase = "startup";
+  #staticResponseId: string | undefined;
+  #terminalResponseId: string | undefined;
   #phase = "startup";
   #lastFailure: AnalysisError | undefined;
   #estimatedRetainedBytes = 0;
@@ -262,6 +264,8 @@ export class JavaScriptAnalysisWorker {
         throw new TypeError("JavaScript worker has no writable request stream");
       this.#activeJobId = id;
       this.#activeJobPhase = this.#phase;
+      this.#staticResponseId = undefined;
+      this.#terminalResponseId = undefined;
       await new Promise<void>((resolve, reject) =>
         stdin.write(frame, (error) =>
           error === null || error === undefined ? resolve() : reject(error),
@@ -736,6 +740,7 @@ export class JavaScriptAnalysisWorker {
       stderr: snapshot?.stderr.text ?? "",
       truncated:
         snapshot?.diagnosticTruncated === true ||
+        snapshot?.outputIncomplete === true ||
         (supervisor !== undefined && !supervisor.observedOutputClose()),
       stderr_bytes: snapshot?.stderr.observedBytes ?? 0,
       exit_code: snapshot?.exitCode ?? null,
@@ -745,6 +750,17 @@ export class JavaScriptAnalysisWorker {
   #observeProcessDiagnostic(event: ProviderProcessDiagnostic): void {
     if (this.#deadline?.interruption !== undefined) return;
     this.#observeMemoryLimit();
+    if (event.type === "output-close") {
+      if (
+        this.#deadline !== undefined &&
+        (this.#activeJobId === undefined ||
+          this.#terminalResponseId !== this.#activeJobId)
+      )
+        this.#latchOutputFailure(
+          "JavaScript worker closed output before the operation received its terminal response",
+        );
+      return;
+    }
     if (
       event.type === "output" &&
       event.stream === "stderr" &&
@@ -812,6 +828,24 @@ export class JavaScriptAnalysisWorker {
       this.#activeJobPhase = frame.phase;
       return;
     }
+    if (frame.kind === "static") {
+      this.#staticResponseId = frame.id;
+      return;
+    }
+    if (frame.kind === "complete") {
+      if (this.#staticResponseId !== frame.id) {
+        if (this.#primaryFailure === undefined)
+          this.#primaryFailure = {
+            kind: "output",
+            reason: "JavaScript worker completed before a static checkpoint",
+          };
+        this.#wakeFrameWaiters("failure");
+        return;
+      }
+      this.#terminalResponseId = frame.id;
+      return;
+    }
+    if (frame.kind === "failure") this.#terminalResponseId = frame.id;
     if (frame.kind === "failure" && this.#primaryFailure === undefined)
       this.#primaryFailure = {
         kind: "protocol",
@@ -1101,6 +1135,9 @@ export class JavaScriptAnalysisWorker {
     this.#pending = "";
     this.#decoder = new StringDecoder("utf8");
     this.#primaryFailure = undefined;
+    this.#activeJobId = undefined;
+    this.#staticResponseId = undefined;
+    this.#terminalResponseId = undefined;
   }
 }
 

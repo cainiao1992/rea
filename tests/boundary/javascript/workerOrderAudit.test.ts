@@ -20,6 +20,27 @@ const ready =
   'process.stdout.write(JSON.stringify({kind:"ready",heap_limit_bytes:require("node:v8").getHeapStatistics().heap_size_limit})+"\\n");';
 const phaseAfterRequest =
   'process.stdin.once("data", chunk => { const request=JSON.parse(String(chunk)); process.stdout.write(JSON.stringify({kind:"phase",id:request.id,phase:"parse"})+"\\n");';
+const staticCheckpointFacts = {
+  parse_status: "complete",
+  parse_error_count: 0,
+  visited_ast_nodes: 1,
+  references: [],
+  endpoints: [],
+  storage: [],
+  bundler_registrations: [],
+  role_paths: [],
+  source_map_urls: [],
+  vendors: [],
+  electron: {
+    browser_windows: [],
+    context_bridge_apis: [],
+    ipc: [],
+    sender_validations: [],
+    utility_processes: [],
+    native_addon_bindings: [],
+  },
+  limitations: [],
+};
 
 it.each([false, true])(
   "keeps an owned worker exit observed before caller abort as the primary result (memory limit: %s)",
@@ -166,28 +187,7 @@ it("clears a consumed resource frame before the next reusable worker job", async
 });
 
 it("keeps coalesced static and resource frames in FIFO order and reuses the worker", async () => {
-  const staticFacts = {
-    parse_status: "complete",
-    parse_error_count: 0,
-    visited_ast_nodes: 1,
-    references: [],
-    endpoints: [],
-    storage: [],
-    bundler_registrations: [],
-    role_paths: [],
-    source_map_urls: [],
-    vendors: [],
-    electron: {
-      browser_windows: [],
-      context_bridge_apis: [],
-      ipc: [],
-      sender_validations: [],
-      utility_processes: [],
-      native_addon_bindings: [],
-    },
-    limitations: [],
-  };
-  const encodedStatic = JSON.stringify(staticFacts);
+  const encodedStatic = JSON.stringify(staticCheckpointFacts);
   let launchCount = 0;
   const worker = new JavaScriptAnalysisWorker(
     { heapMb: 128, timeoutMs: 30_000 },
@@ -225,28 +225,7 @@ it("keeps coalesced static and resource frames in FIFO order and reuses the work
 
 it("retains coalesced static evidence when abort follows a resource frame", async () => {
   const controller = new AbortController();
-  const staticFacts = {
-    parse_status: "complete",
-    parse_error_count: 0,
-    visited_ast_nodes: 1,
-    references: [],
-    endpoints: [],
-    storage: [],
-    bundler_registrations: [],
-    role_paths: [],
-    source_map_urls: [],
-    vendors: [],
-    electron: {
-      browser_windows: [],
-      context_bridge_apis: [],
-      ipc: [],
-      sender_validations: [],
-      utility_processes: [],
-      native_addon_bindings: [],
-    },
-    limitations: [],
-  };
-  const encodedStatic = JSON.stringify(staticFacts);
+  const encodedStatic = JSON.stringify(staticCheckpointFacts);
   const worker = new JavaScriptAnalysisWorker(
     { heapMb: 128, timeoutMs: 30_000 },
     async (request) => {
@@ -278,6 +257,249 @@ it("retains coalesced static evidence when abort follows a resource frame", asyn
         reason: "resource failure before abort",
       });
       expect(result.error.javascript?.parse_status).toBe("complete");
+    }
+  } finally {
+    await worker.close();
+  }
+});
+
+it("selects output EOF before a later abort when the current job has no terminal frame", async () => {
+  const controller = new AbortController();
+  const worker = new JavaScriptAnalysisWorker(
+    { heapMb: 128, timeoutMs: 30_000 },
+    async (request) => {
+      const launched = await spawnOwnedProviderProcess({
+        ...request,
+        arguments: [
+          "-e",
+          `${ready} process.stdin.once("data", () => process.exit(0));`,
+        ],
+      });
+      launched.process.once("close", () => {
+        queueMicrotask(() =>
+          controller.abort({ requested: "abort after EOF" }),
+        );
+      });
+      return launched;
+    },
+  );
+  try {
+    const result = await worker.analyze(
+      file,
+      { nodes: 100, unknowns: 100 },
+      controller.signal,
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error.error).toMatchObject({
+        _tag: "AnalysisOutputError",
+        reason:
+          "JavaScript worker closed output before the operation received its terminal response",
+      });
+  } finally {
+    await worker.close();
+  }
+});
+
+it("selects startup EOF before an abort queued by the same close event", async () => {
+  const controller = new AbortController();
+  const worker = new JavaScriptAnalysisWorker(
+    { heapMb: 128, timeoutMs: 30_000 },
+    async (request) => {
+      const launched = await spawnOwnedProviderProcess({
+        ...request,
+        arguments: ["-e", "process.exit(0);"],
+      });
+      launched.process.once("close", () => {
+        queueMicrotask(() =>
+          controller.abort({ requested: "abort after startup EOF" }),
+        );
+      });
+      return launched;
+    },
+  );
+  try {
+    const result = await worker.analyze(
+      file,
+      { nodes: 100, unknowns: 100 },
+      controller.signal,
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error.error).toMatchObject({
+        _tag: "AnalysisOutputError",
+        reason:
+          "JavaScript worker closed output before the operation received its terminal response",
+      });
+  } finally {
+    await worker.close();
+  }
+});
+
+it("keeps a parsed terminal failure primary over startup-close abort", async () => {
+  const controller = new AbortController();
+  const worker = new JavaScriptAnalysisWorker(
+    { heapMb: 128, timeoutMs: 30_000 },
+    async (request) => {
+      const launched = await spawnOwnedProviderProcess({
+        ...request,
+        arguments: [
+          "-e",
+          `${ready} process.stdin.once("data", chunk => { const id=JSON.parse(String(chunk)).id; process.stdout.write(JSON.stringify({kind:"failure",id,reason:"output",resource:null,limits:null,message:"terminal failure before EOF"})+"\\n",()=>process.exit(0)); });`,
+        ],
+      });
+      launched.process.once("close", () => {
+        queueMicrotask(() =>
+          controller.abort({ requested: "abort after terminal EOF" }),
+        );
+      });
+      return launched;
+    },
+  );
+  try {
+    const result = await worker.analyze(
+      file,
+      { nodes: 100, unknowns: 100 },
+      controller.signal,
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error.error).toMatchObject({
+        _tag: "AnalysisOutputError",
+        reason: "app.mjs during source-transfer: terminal failure before EOF",
+      });
+  } finally {
+    await worker.close();
+  }
+});
+
+it.each([false, true])(
+  "admits a valid complete response with static facts before EOF cancellation (%s)",
+  async (abortAfterTerminal) => {
+    const controller = new AbortController();
+    const reason = { requested: "abort after valid terminal frame" };
+    const encodedStatic = JSON.stringify(staticCheckpointFacts);
+    const worker = new JavaScriptAnalysisWorker(
+      { heapMb: 128, timeoutMs: 30_000 },
+      async (request) => {
+        const launched = await spawnOwnedProviderProcess({
+          ...request,
+          arguments: [
+            "-e",
+            `${ready} const fs=require("node:fs"); const {createHash}=require("node:crypto"); const staticFacts=JSON.parse(${JSON.stringify(encodedStatic)}); let id; require("node:readline").createInterface({input:process.stdin}).on("line", line => { const request=JSON.parse(line); if(request.file){ id=request.id; const text=JSON.stringify(staticFacts); fs.writeFileSync(id+".static.json",text); process.stdout.write(JSON.stringify({kind:"static",id,bytes:Buffer.byteLength(text),sha256:createHash("sha256").update(text).digest("hex")})+"\\n"); } else { process.stdout.write(JSON.stringify({kind:"complete",id,descriptor:null})+"\\n",()=>process.exit(0)); } });`,
+          ],
+        });
+        if (abortAfterTerminal)
+          launched.process.once("close", () =>
+            queueMicrotask(() => controller.abort(reason)),
+          );
+        return launched;
+      },
+    );
+    try {
+      const result = await worker.analyze(
+        file,
+        { nodes: 100, unknowns: 100 },
+        controller.signal,
+      );
+      expect(controller.signal.aborted).toBe(abortAfterTerminal);
+      if (abortAfterTerminal) {
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.error._tag).toBe("AnalysisCancelledError");
+          expect(result.error.error.cause).toBe(reason);
+          expect(result.error.javascript?.parse_status).toBe("complete");
+        }
+      } else {
+        expect(result).toMatchObject({
+          ok: true,
+          value: { javascript: { parse_status: "complete" } },
+        });
+      }
+    } finally {
+      await worker.close();
+    }
+  },
+);
+
+it.each([false, true])(
+  "keeps a complete-before-static protocol failure ahead of later abort (%s)",
+  async (abortAfterComplete) => {
+    const controller = new AbortController();
+    const worker = new JavaScriptAnalysisWorker(
+      { heapMb: 128, timeoutMs: 30_000 },
+      async (request) => {
+        const launched = await spawnOwnedProviderProcess({
+          ...request,
+          arguments: [
+            "-e",
+            `${ready} require("node:readline").createInterface({input:process.stdin}).once("line", line => { const {id}=JSON.parse(line); process.stdout.write(JSON.stringify({kind:"complete",id,descriptor:null})+"\\n"); setInterval(()=>{},1000); });`,
+          ],
+        });
+        if (abortAfterComplete) {
+          const stdout = launched.process.stdout;
+          let readySeen = false;
+          stdout?.on("data", (chunk: Buffer | string) => {
+            if (!readySeen && String(chunk).includes('"kind":"ready"')) {
+              readySeen = true;
+              stdout.on("data", (responseChunk: Buffer | string) => {
+                if (String(responseChunk).includes('"kind":"complete"'))
+                  queueMicrotask(() => controller.abort());
+              });
+            }
+          });
+        }
+        return launched;
+      },
+    );
+    try {
+      const result = await worker.analyze(
+        file,
+        { nodes: 100, unknowns: 100 },
+        controller.signal,
+      );
+      expect(controller.signal.aborted).toBe(abortAfterComplete);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.error).toMatchObject({
+          _tag: "AnalysisOutputError",
+          reason: "JavaScript worker completed before a static checkpoint",
+        });
+      }
+    } finally {
+      await worker.close();
+    }
+  },
+);
+
+it("includes the owned process output-loss marker in captured truncation", async () => {
+  const worker = new JavaScriptAnalysisWorker(
+    { heapMb: 128, timeoutMs: 30_000 },
+    async (request) => {
+      const launched = await spawnOwnedProviderProcess({
+        ...request,
+        arguments: [
+          "-e",
+          `${ready} process.stdin.once("data", () => process.exit(0));`,
+        ],
+      });
+      Object.defineProperty(launched.process, "outputIncomplete", {
+        value: true,
+      });
+      return launched;
+    },
+  );
+  try {
+    const result = await worker.analyze(file, { nodes: 100, unknowns: 100 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.error._tag).toBe("AnalysisOutputError");
+      expect(result.error.error.capturedOutput).toMatchObject({
+        truncated: true,
+      });
     }
   } finally {
     await worker.close();

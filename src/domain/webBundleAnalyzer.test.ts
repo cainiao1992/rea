@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createWebPageInspection } from "../../tests/support/browser/webPageInspection.js";
 
-import { webPageInspectionSchema } from "./browserObservationSchemas.js";
 import { analyzeJavaScriptStaticSource } from "./javascript/javascriptStaticAnalysis.js";
 import {
   analyzeCapturedWebBundle,
@@ -1146,112 +1146,15 @@ describe("deep captured web bundle syntax", () => {
 });
 
 const inspection = (source: string) =>
-  webPageInspectionSchema.parse({
-    browser: {
-      product: "Fake Chrome",
-      protocol_version: "1.3",
-      revision: "1",
-      user_agent: "fake",
-      js_version: "1",
-    },
-    target: {
-      target_id: "page-1",
-      type: "page",
-      title: "App",
-      url: `${origin}/app`,
+  createWebPageInspection([
+    {
+      source,
+      scriptKey: `scr_${"1".repeat(64)}`,
+      url: `${origin}/assets/app.js`,
       origin,
-      attached: false,
+      cdpHash: "hash",
     },
-    capture_window: {
-      started_at: "2026-07-14T00:00:00.000Z",
-      ended_at: "2026-07-14T00:00:01.000Z",
-      observation_ms: 1_000,
-    },
-    completeness: {
-      status: "attach_limited",
-      conditions: ["attach_limited"],
-      policy_filtered_sections: [],
-      attach_limited_sections: ["network_requests"],
-      truncated_sections: [],
-      unavailable_sections: [],
-      excluded: [],
-      dropped_events: {
-        scripts: 0,
-        network_requests: 0,
-        console_events: 0,
-        websocket_connections: 0,
-        websocket_frames: 0,
-        webmcp_tools: 0,
-        timeline_events: 0,
-        total: 0,
-      },
-    },
-    frames: [],
-    dom: { total_nodes: 0, nodes: [] },
-    accessibility: {
-      total_nodes: 0,
-      text_capture: {
-        status: "not_approved",
-        retained_bytes: 0,
-        excluded_fields: 0,
-      },
-      nodes: [],
-    },
-    scripts: {
-      total: 1,
-      items: [
-        {
-          script_key: `scr_${"1".repeat(64)}`,
-          url: `${origin}/assets/app.js`,
-          origin,
-          cdp_hash: "hash",
-          length: Buffer.byteLength(source),
-          is_module: true,
-          language: "JavaScript",
-          source_map_url: null,
-          resource_reconciliation: {
-            status: "unmatched",
-            reason: "no_exact_sanitized_url",
-          },
-          source: {
-            included: true,
-            artifact: createWebTextArtifact(source, "text/javascript"),
-          },
-        },
-      ],
-    },
-    resources: [],
-    network: {
-      requests: [],
-      websocket_connections: [],
-      coverage_started_at: "2026-07-14T00:00:00.000Z",
-      prior_activity_available: false,
-    },
-    console: {
-      events: [],
-      coverage_started_at: "2026-07-14T00:00:00.000Z",
-      prior_activity_available: false,
-    },
-    workers: [],
-    metadata: {
-      responses: [],
-      dom_urls: [],
-      agent_hints: [],
-      excluded_dom_urls: 0,
-      headers_allowlisted: true,
-    },
-    storage: {
-      origin,
-      usage_bytes: null,
-      quota_bytes: null,
-      local_storage_keys: [],
-      session_storage_keys: [],
-      indexed_db_names: [],
-      cache_names: [],
-      values_redacted: true,
-    },
-    limitations: [],
-  });
+  ]);
 
 describe("per-script web bundle analysis", () => {
   it("keeps parser failures as analyzed outcomes with their own coverage", () => {

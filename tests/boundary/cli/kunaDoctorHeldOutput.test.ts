@@ -106,7 +106,6 @@ process.exit(0);
                 code: "version_unresolved",
                 details: expect.objectContaining({
                   probe_failure_reason: "timeout",
-                  stop_requested: true,
                   exit_code: 0,
                   signal: null,
                   stdout: "kuna 1.833\n",

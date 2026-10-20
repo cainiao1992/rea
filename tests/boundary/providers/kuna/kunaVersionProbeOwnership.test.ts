@@ -120,7 +120,7 @@ it.skipIf(process.platform === "win32")(
           diagnostics: {
             exit_code: 0,
             signal: null,
-            stop_requested: true,
+            probe_failure_reason: "timeout",
             stdout: "kuna 1.833\n",
             stderr: "x".repeat(1024),
             stdout_bytes: 11,
@@ -188,7 +188,6 @@ it.skipIf(process.platform === "win32")(
         exit_code: 0,
         signal: null,
         probe_failure_reason: "process",
-        stop_requested: true,
         cleanup_incomplete: true,
         stdout: "kuna 1.833\n",
         stderr: "x".repeat(1024),

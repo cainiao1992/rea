@@ -57,6 +57,48 @@ it("identifies a caller-selected kuna by version and digest", async () => {
   ]);
 });
 
+it("refuses to pair version output with executable bytes replaced during the probe", async () => {
+  const root = await createTestTempDirectory(
+    "rea-kuna-replaced-during-version-",
+  );
+  const kuna = join(root, "kuna");
+  const replacement = `#!${process.execPath}\nconsole.log("kuna 1.900");\n`;
+  const source = `#!${process.execPath}
+const fs = require("node:fs");
+const replacement = ${JSON.stringify(replacement)};
+console.log("kuna 1.833");
+fs.writeFileSync(process.argv[1] + ".new", replacement, { mode: 0o700 });
+fs.renameSync(process.argv[1] + ".new", process.argv[1]);
+`;
+  await writeFile(kuna, source, { mode: 0o700 });
+  await chmod(kuna, 0o700);
+  const before = await readFile(kuna);
+
+  const result = await inspectKunaInstallation({
+    REA_KUNA_COMMAND: kuna,
+    REA_KUNA_CACHE_DIR: join(root, "cache"),
+  });
+  const after = await readFile(kuna);
+
+  expect(createHash("sha256").update(after).digest("hex")).not.toBe(
+    createHash("sha256").update(before).digest("hex"),
+  );
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      code: "version_unresolved",
+      diagnostics: {
+        installation_identity_changed: true,
+        version: "1.833",
+        before_sha256: createHash("sha256").update(before).digest("hex"),
+        after_sha256: createHash("sha256").update(after).digest("hex"),
+        before_bytes: before.length,
+        after_bytes: after.length,
+      },
+    },
+  });
+});
+
 it("accepts another release but reports it as unverified", async () => {
   const root = await createTestTempDirectory("rea-kuna-unverified-");
   const kuna = await writeFakeKuna(root, {
@@ -99,7 +141,7 @@ it("reports a failed version probe with its exit status", async () => {
     error: {
       code: "version_unresolved",
       reason: expect.stringContaining("version probe failed"),
-      diagnostics: { exit_code: 3, stop_requested: true },
+      diagnostics: { exit_code: 3, probe_failure_reason: "process" },
     },
   });
 });
@@ -219,7 +261,10 @@ it("stops a version probe that ignores SIGTERM instead of waiting on it", async 
     ok: false,
     error: {
       code: "version_unresolved",
-      diagnostics: { stop_requested: true, deadline_ms: 4_000 },
+      diagnostics: {
+        probe_failure_reason: "timeout",
+        deadline_ms: 4_000,
+      },
     },
   });
   // The owned process-group stop is bounded and must not wait on inherited output forever.
@@ -300,7 +345,10 @@ setTimeout(() => process.exit(9), 10000).unref();
         ok: false,
         error: {
           code: "version_unresolved",
-          diagnostics: { deadline_ms: 1000, stop_requested: true },
+          diagnostics: {
+            deadline_ms: 1000,
+            probe_failure_reason: "timeout",
+          },
         },
       },
     });

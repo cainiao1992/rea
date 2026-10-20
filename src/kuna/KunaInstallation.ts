@@ -17,6 +17,7 @@ import {
 } from "../artifacts/AnalysisCleanupLease.js";
 import {
   hashStableFile,
+  observeStableFile,
   stableFileHashCause,
 } from "../filesystem/StableFileHash.js";
 import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
@@ -24,7 +25,6 @@ import {
   RegularFileCleanupFailure,
   RegularFileCancelled,
   regularFileCancellation,
-  withOwnedRegularFile,
 } from "../filesystem/OwnedRegularFile.js";
 import {
   OwnedCommandFailure,
@@ -251,6 +251,103 @@ const failure = (
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+interface InstallationFileObservation {
+  readonly phase: "fingerprint" | "identity";
+  readonly completedHash?: { readonly sha256: string; readonly bytes: number };
+  readonly script?: boolean;
+  readonly beforeProbeFingerprint?: {
+    readonly sha256: string;
+    readonly bytes: number;
+  };
+  readonly probe?: {
+    readonly deadlineMs: number;
+    readonly output: ReturnType<typeof versionProbeOutput>;
+  };
+}
+
+/** Keep completed file facts attached when cancellation or close failure interrupts inspection. */
+const recordPartialInstallationFileOperation = (
+  cause: unknown,
+  facts: {
+    readonly command: string;
+    readonly executable: string;
+    readonly version?: string;
+    readonly observed: InstallationFileObservation;
+  },
+): boolean => {
+  const cancellation = regularFileCancellation(cause);
+  if (
+    !(cause instanceof Error) ||
+    (!(cause instanceof RegularFileCleanupFailure) &&
+      cancellation === undefined)
+  )
+    return false;
+
+  const outcome =
+    cause instanceof RegularFileCancelled ||
+    cause instanceof RegularFileCleanupFailure
+      ? cause.outcome
+      : undefined;
+  const completed = outcome?.kind === "completed" ? outcome.value : undefined;
+  const completedRecord =
+    completed !== null &&
+    typeof completed === "object" &&
+    !Array.isArray(completed)
+      ? (completed as Record<string, unknown>)
+      : undefined;
+  const completedFingerprint =
+    facts.observed.phase === "fingerprint"
+      ? completed
+      : completedRecord === undefined
+        ? undefined
+        : {
+            sha256: completedRecord["sha256"],
+            bytes: completedRecord["bytes"],
+          };
+  const completedHash =
+    facts.observed.completedHash ??
+    (outcome?.kind === "completed" && completedFingerprint !== undefined
+      ? jsonValueSchema.parse(completedFingerprint)
+      : undefined);
+  const completedScript =
+    facts.observed.script ??
+    (facts.observed.phase === "identity" &&
+    Buffer.isBuffer(completedRecord?.["prefix"])
+      ? completedRecord["prefix"].toString("latin1") === "#!"
+      : undefined);
+  installationFailureDiagnostics.set(cause, {
+    kuna_installation: {
+      status: "partial",
+      command: facts.command,
+      executable: facts.executable,
+      ...(facts.version === undefined
+        ? {}
+        : {
+            version: facts.version,
+            verified: facts.version === KUNA_VERIFIED_VERSION,
+          }),
+      ...(completedHash === undefined ? {} : { completed_hash: completedHash }),
+      ...(completedScript === undefined ? {} : { script: completedScript }),
+      ...(facts.observed.beforeProbeFingerprint === undefined
+        ? {}
+        : {
+            before_probe_sha256: facts.observed.beforeProbeFingerprint.sha256,
+            before_probe_bytes: facts.observed.beforeProbeFingerprint.bytes,
+          }),
+    },
+    ...(facts.observed.probe === undefined
+      ? {}
+      : {
+          kuna_version_probe: {
+            status: "completed",
+            deadline_ms: facts.observed.probe.deadlineMs,
+            ...versionProbeOutputDiagnostics(facts.observed.probe.output),
+          },
+        }),
+  });
+  return true;
+};
+
 /** Resolve, version-probe and fingerprint the configured executable. */
 export const inspectKunaInstallation = async (
   environment: Readonly<NodeJS.ProcessEnv>,
@@ -286,6 +383,38 @@ export const inspectKunaInstallation = async (
   }
 
   assertRegularFileActive(options.signal);
+
+  let beforeProbeFingerprint: {
+    readonly sha256: string;
+    readonly bytes: number;
+  };
+  const beforeProbeObservation: InstallationFileObservation = {
+    phase: "fingerprint",
+  };
+  try {
+    beforeProbeFingerprint = await options.resourceScope.run(() =>
+      hashStableFile(executable, {
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        retainFailedClose: (owner) =>
+          options.resourceScope.retain(owner, executable),
+      }),
+    );
+  } catch (cause: unknown) {
+    if (cause instanceof ArtifactReaderFailure) throw cause;
+    if (
+      recordPartialInstallationFileOperation(cause, {
+        command,
+        executable,
+        observed: beforeProbeObservation,
+      })
+    )
+      throw cause;
+    return failure(
+      "executable_missing",
+      `Cannot fingerprint ${executable}: ${message(stableFileHashCause(cause))}`,
+      { command, executable },
+    );
+  }
 
   const deadline = options.probeTimeoutMs ?? VERSION_PROBE_TIMEOUT_MS;
   let snapshot: ProviderProcessSnapshot;
@@ -335,7 +464,6 @@ export const inspectKunaInstallation = async (
             deadline_ms: deadline,
             ...versionProbeOutputDiagnostics(output),
             probe_failure_reason: cause.reason,
-            stop_requested: cause.snapshot !== null,
             cleanup_incomplete: cleanupIncomplete,
           },
         });
@@ -348,7 +476,6 @@ export const inspectKunaInstallation = async (
           command,
           executable,
           probe_failure_reason: cause.reason,
-          stop_requested: cause.snapshot !== null,
           cleanup_incomplete: cleanupIncomplete,
           deadline_ms: deadline,
           ...versionProbeOutputDiagnostics(output),
@@ -392,73 +519,93 @@ export const inspectKunaInstallation = async (
   let fingerprint: { readonly sha256: string; readonly bytes: number };
   let script: boolean;
   const observed: {
-    phase: "fingerprint" | "shebang";
-    completed_hash?: { readonly sha256: string; readonly bytes: number };
+    phase: "fingerprint" | "identity";
+    completedHash?: { readonly sha256: string; readonly bytes: number };
     script?: boolean;
-  } = { phase: "fingerprint" };
+    beforeProbeFingerprint?: {
+      readonly sha256: string;
+      readonly bytes: number;
+    };
+    probe?: {
+      readonly deadlineMs: number;
+      readonly output: ReturnType<typeof versionProbeOutput>;
+    };
+  } = {
+    phase: "fingerprint",
+    beforeProbeFingerprint,
+    probe: { deadlineMs: deadline, output: probeOutput },
+  };
   try {
     ({ fingerprint, script } = await options.resourceScope.run(async () => {
-      const fingerprint = await hashStableFile(executable, {
+      observed.phase = "identity";
+      const observation = await observeStableFile(executable, {
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         retainFailedClose: (owner) =>
           options.resourceScope.retain(owner, executable),
       });
-      observed.completed_hash = fingerprint;
-      assertRegularFileActive(options.signal);
-      observed.phase = "shebang";
-      const script = await startsWithShebang(
-        executable,
-        options.resourceScope,
-        options.signal,
-      );
+      const fingerprint = {
+        sha256: observation.sha256,
+        bytes: observation.bytes,
+      };
+      const script =
+        observation.prefix.length === 2 &&
+        observation.prefix.toString("latin1") === "#!";
+      observed.completedHash = fingerprint;
       observed.script = script;
       assertRegularFileActive(options.signal);
       return { fingerprint, script };
     }));
   } catch (cause: unknown) {
-    const cancellation = regularFileCancellation(cause);
+    if (cause instanceof ArtifactReaderFailure) throw cause;
     if (
-      cause instanceof Error &&
-      (cause instanceof RegularFileCleanupFailure || cancellation !== undefined)
+      recordPartialInstallationFileOperation(cause, {
+        command,
+        executable,
+        version,
+        observed,
+      })
     ) {
-      const outcome =
-        cause instanceof RegularFileCancelled ||
-        cause instanceof RegularFileCleanupFailure
-          ? cause.outcome
-          : undefined;
-      const completed =
-        outcome?.kind === "completed" ? outcome.value : undefined;
-      const completedHash =
-        observed.completed_hash ??
-        (observed.phase === "fingerprint" && outcome?.kind === "completed"
-          ? jsonValueSchema.parse(completed)
-          : undefined);
-      const completedScript =
-        observed.script ??
-        (observed.phase === "shebang" && typeof completed === "boolean"
-          ? completed
-          : undefined);
-      installationFailureDiagnostics.set(cause, {
-        kuna_installation: {
-          status: "partial",
-          command,
-          executable,
-          version,
-          verified: version === KUNA_VERIFIED_VERSION,
-          ...(completedHash === undefined
-            ? {}
-            : { completed_hash: completedHash }),
-          ...(completedScript === undefined ? {} : { script: completedScript }),
-        },
-      });
       throw cause;
     }
     return failure(
       "executable_missing",
-      `Cannot fingerprint ${executable}: ${message(stableFileHashCause(cause))}`,
-      { command, executable },
+      `Cannot observe ${executable} after its --version probe: ${message(stableFileHashCause(cause))}`,
+      {
+        command,
+        executable,
+        version,
+        verified: version === KUNA_VERIFIED_VERSION,
+        identity_observation_phase: "post_probe",
+        identity_observation_failure: message(stableFileHashCause(cause)),
+        before_probe_sha256: beforeProbeFingerprint.sha256,
+        before_probe_bytes: beforeProbeFingerprint.bytes,
+        deadline_ms: deadline,
+        ...versionProbeOutputDiagnostics(probeOutput),
+      },
     );
   }
+
+  if (
+    beforeProbeFingerprint.sha256 !== fingerprint.sha256 ||
+    beforeProbeFingerprint.bytes !== fingerprint.bytes
+  )
+    return failure(
+      "version_unresolved",
+      `${executable} changed during the --version probe. ${KUNA_VERSION_PROBE_REMEDIATION}`,
+      {
+        command,
+        executable,
+        version,
+        verified: version === KUNA_VERIFIED_VERSION,
+        installation_identity_changed: true,
+        before_sha256: beforeProbeFingerprint.sha256,
+        before_bytes: beforeProbeFingerprint.bytes,
+        after_sha256: fingerprint.sha256,
+        after_bytes: fingerprint.bytes,
+        deadline_ms: deadline,
+        ...versionProbeOutputDiagnostics(probeOutput),
+      },
+    );
 
   return ok({
     configuration: configuration.value,
@@ -469,22 +616,3 @@ export const inspectKunaInstallation = async (
     script,
   });
 };
-
-const startsWithShebang = (
-  path: string,
-  resourceScope: RetainedResourceScope,
-  signal?: AbortSignal,
-): Promise<boolean> =>
-  withOwnedRegularFile(
-    path,
-    {
-      symlinks: "follow",
-      ...(signal === undefined ? {} : { signal }),
-      retainFailedClose: (owner) => resourceScope.retain(owner, path),
-    },
-    async (handle) => {
-      const prefix = Buffer.alloc(2);
-      const { bytesRead } = await handle.read(prefix, 0, 2, 0);
-      return bytesRead === 2 && prefix.toString("latin1") === "#!";
-    },
-  );

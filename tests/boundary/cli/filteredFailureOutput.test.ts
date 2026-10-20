@@ -50,15 +50,21 @@ const runCli = async (arguments_: readonly string[]) => {
 };
 
 const expectMissingInputFailureText = (text: string, path: string): void => {
+  const normalizedText = text.replace(/\s+/g, " ");
   for (const value of [
     "invalid_request",
     "invalid_input",
-    "Correct the listed arguments and retry.",
+    "Read the declared input schema or CLI usage",
+    "trace-application-feature",
+    "tools/list",
+    "Correct the listed fields, then retry.",
+    "Do not repeat the unchanged call.",
+    "inspect_input_contract",
     path,
     "read-failed",
     "ENOENT",
   ])
-    expect(text).toContain(value);
+    expect(normalizedText).toContain(value);
 };
 
 it.each(["json", "toon", "yaml", "md"] as const)(
@@ -81,13 +87,22 @@ it.each(["json", "toon", "yaml", "md"] as const)(
         expect(result.output.failed).toBe(false);
         expect(result.fallback).toBe("");
         expect(result.output.handled).toBe(true);
-        if (format === "json") {
-          expect(JSON.parse(result.text)).toMatchObject({
+        expectMissingInputFailureText(result.text, missingPath);
+        if (format === "json" || format === "yaml") {
+          const document =
+            format === "json"
+              ? JSON.parse(result.text)
+              : parseYaml(result.text);
+          expect(document).toMatchObject({
             code: "invalid_request",
             category: "invalid_input",
             retryable: true,
             remediation: {
-              action: "Correct the listed arguments and retry.",
+              action: expect.stringContaining("tools/list"),
+            },
+            recovery: {
+              kind: "inspect_input_contract",
+              operation: "trace-application-feature",
             },
             details: {
               input_path: missingPath,
@@ -99,7 +114,7 @@ it.each(["json", "toon", "yaml", "md"] as const)(
               ],
             },
           });
-        } else expectMissingInputFailureText(result.text, missingPath);
+        }
       } finally {
         process.exitCode = previousExitCode;
       }
@@ -127,6 +142,13 @@ it.each(["json", "toon", "yaml", "md"] as const)(
             code: "invalid_request",
             category: "invalid_input",
             retryable: true,
+            remediation: {
+              action: expect.stringContaining("tools/list"),
+            },
+            recovery: {
+              kind: "inspect_input_contract",
+              operation: "trace-application-feature",
+            },
             details: {
               input_path: missingPath,
               input_reason: "read-failed",

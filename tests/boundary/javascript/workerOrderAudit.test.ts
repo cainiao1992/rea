@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
-import { AnalysisOutputError } from "../../../src/domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisOutputError,
+} from "../../../src/domain/analysisErrorCore.js";
 import { JavaScriptAnalysisWorker } from "../../../src/javascript/analysis/JavaScriptAnalysisWorker.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import type { JavaScriptArtifactFile } from "../../../src/domain/javascript/javascriptArtifactFiles.js";
@@ -42,11 +45,21 @@ const staticCheckpointFacts = {
   limitations: [],
 };
 
-it.each([false, true])(
-  "keeps an owned worker exit observed before caller abort as the primary result (memory limit: %s)",
-  async (memoryLimitReached) => {
+it.each([
+  {
+    memoryLimitReached: false,
+    reason: { requested: "interrupt after worker exit" },
+  },
+  { memoryLimitReached: false, reason: null },
+  {
+    memoryLimitReached: true,
+    reason: { requested: "interrupt after memory limit" },
+  },
+  { memoryLimitReached: true, reason: null },
+])(
+  "keeps an owned worker exit primary and retains later abort ($memoryLimitReached, $reason)",
+  async ({ memoryLimitReached, reason }) => {
     const controller = new AbortController();
-    const reason = { requested: "interrupt after worker exit" };
     const worker = new JavaScriptAnalysisWorker(
       { heapMb: 128, timeoutMs: 30_000 },
       async (request) => {
@@ -76,7 +89,7 @@ it.each([false, true])(
       );
       expect(controller.signal.reason).toBe(reason);
       expect(result.ok).toBe(false);
-      if (!result.ok)
+      if (!result.ok) {
         expect(result.error.error).toMatchObject(
           memoryLimitReached
             ? { _tag: "AnalysisResourceConstraintError", resource: "memory" }
@@ -85,6 +98,12 @@ it.each([false, true])(
                 diagnostics: { exit_code: 7 },
               },
         );
+        expect(result.error.error.secondaryFailures).toHaveLength(1);
+        expect(result.error.error.secondaryFailures[0]).toBeInstanceOf(
+          AnalysisCancelledError,
+        );
+        expect(result.error.error.secondaryFailures[0]?.cause).toBe(reason);
+      }
     } finally {
       await worker.close();
     }
@@ -425,9 +444,13 @@ it.each([false, true])(
   },
 );
 
-it.each([false, true])(
-  "keeps a complete-before-static protocol failure ahead of later abort (%s)",
-  async (abortAfterComplete) => {
+it.each([
+  { abortAfterComplete: false, reason: undefined },
+  { abortAfterComplete: true, reason: { requested: "after protocol failure" } },
+  { abortAfterComplete: true, reason: null },
+])(
+  "keeps a complete-before-static protocol failure primary and retains later abort ($abortAfterComplete, $reason)",
+  async ({ abortAfterComplete, reason }) => {
     const controller = new AbortController();
     const worker = new JavaScriptAnalysisWorker(
       { heapMb: 128, timeoutMs: 30_000 },
@@ -447,7 +470,7 @@ it.each([false, true])(
               readySeen = true;
               stdout.on("data", (responseChunk: Buffer | string) => {
                 if (String(responseChunk).includes('"kind":"complete"'))
-                  queueMicrotask(() => controller.abort());
+                  queueMicrotask(() => controller.abort(reason));
               });
             }
           });
@@ -468,6 +491,15 @@ it.each([false, true])(
           _tag: "AnalysisOutputError",
           reason: "JavaScript worker completed before a static checkpoint",
         });
+        if (abortAfterComplete) {
+          expect(result.error.error.secondaryFailures).toHaveLength(1);
+          expect(result.error.error.secondaryFailures[0]).toBeInstanceOf(
+            AnalysisCancelledError,
+          );
+          expect(result.error.error.secondaryFailures[0]?.cause).toBe(reason);
+        } else {
+          expect(result.error.error.secondaryFailures).toHaveLength(0);
+        }
       }
     } finally {
       await worker.close();
@@ -586,6 +618,7 @@ it("keeps abort-first cancellation when the owned worker exits during stop", asy
     if (!result.ok) {
       expect(result.error.error._tag).toBe("AnalysisCancelledError");
       expect(result.error.error.cause).toBe(reason);
+      expect(result.error.error.secondaryFailures).toHaveLength(0);
     }
   } finally {
     await worker.close();

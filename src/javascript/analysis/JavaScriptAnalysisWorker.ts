@@ -429,6 +429,16 @@ export class JavaScriptAnalysisWorker {
         throw this.#projectPrimaryFailure(file.path);
     } catch (cause: unknown) {
       const error = this.#failure(cause, file.path, deadline, signal);
+      if (
+        this.#primaryFailure !== undefined &&
+        deadline?.interruption === "cancelled"
+      )
+        error.retainSecondaryFailure(
+          new AnalysisCancelledError(OPERATION, {
+            cause: deadline.signal.reason,
+            capturedOutput: this.#captured(),
+          }),
+        );
       this.#lastFailure = error;
       // Complete checkpoints remain readable after a child crash or cancellation.
       const cleanup = await this.#stop(error);

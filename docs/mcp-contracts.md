@@ -101,8 +101,9 @@ unresolved relationship reads. Cancellation remains a tool error.
 
 REA prepares complete MCP results within the pinned stdio client's 10 MiB
 receive-buffer budget, including both text and structured representations and
-room for the JSON-RPC envelope. Tool errors carry only their text
-representation and `isError` flag, so only those count against the budget. Response budget settings are captured at startup;
+room for the JSON-RPC envelope. Tool errors omit `structuredContent` from the
+wire; their text, `isError`, provenance marker and negotiated protocol framing
+count toward the wire budget. Response budget settings are captured at startup;
 restart or recreate the server to apply changes. If a result cannot fit, REA returns
 `resource_constraint` with `details.resource: "transport"` before constructing
 a document-sized string. Analysis Evidence remains complete in the current
@@ -111,6 +112,12 @@ session. Its exact reference is reported in
 that reference for a summary, one section/module, or a stable page, or call
 `export_evidence_bundle` with a destination path. Complete
 bundle exports stream canonical JSON into an atomically published file.
+
+On protocol revision `2026-07-28`, completed replies retain the SDK's
+`resultType: "complete"`, including the replacement for an oversized error.
+This marks completion of the MCP exchange; Evidence coverage, partial facts
+and unknowns retain their separate meaning. Legacy replies keep their existing
+framing.
 
 For oversized native function Evidence, `details.reported_limits.continuation`
 contains a ready-to-call `inspect_analysis_view` request for the retained

@@ -1020,14 +1020,15 @@ verify the compact advertisement through the same client boundary.
 
 Some function-calling providers reject a request while any single tool's
 `parameters` schema exceeds a literal serialized size cap; Moonshot clients
-such as kimi-cli fail every request while the default catalog is attached
+such as kimi-cli have reported failures with the full catalog attached
 ([#1484](https://github.com/morluto/rea/issues/1484)). Setting the server's
-`REA_MCP_INPUT_SCHEMA_PROFILE` environment variable to `compact` renders every
-advertised input schema within a 13,312-byte budget, measured to sit below
+`REA_MCP_INPUT_SCHEMA_PROFILE` environment variable to `compact` (the default)
+renders every advertised input schema within a 13,312-byte budget, measured to sit below
 Moonshot's observed cap (community measurements: a 13.7 KB schema is accepted
 while a ~15 KB one is rejected). The setting is read at startup; restart the
-server to apply changes, as with `REA_MCP_MAX_RESPONSE_BYTES`. The default
-value `full` keeps the complete advertisement unchanged. Compact presentation
+server to apply changes, as with `REA_MCP_MAX_RESPONSE_BYTES`. Explicitly select
+`full` to retain complete advertised input guidance and nested validation detail.
+Existing explicit profile choices are preserved. Compact presentation
 also reduces schemas whose expanded JSON tree exceeds ten levels, the limit
 reported by strict-depth MCP clients in [#2813](https://github.com/morluto/rea/issues/2813).
 WorkBuddy/CodeBuddy gateways have also rejected full REA catalogs with an

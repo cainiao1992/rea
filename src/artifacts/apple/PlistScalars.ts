@@ -191,10 +191,13 @@ export const scanBinaryPlistScalars = (
         });
       }
     }
-    if (!validOffsets.has(offset) || visitedOffsets.has(offset)) {
+    if (!validOffsets.has(offset)) {
       incomplete = true;
       continue;
     }
+    // Several table entries may share one record. Its source facts are
+    // identical for every entry, so observe them once.
+    if (visitedOffsets.has(offset)) continue;
     visitedOffsets.add(offset);
     const marker = bytes[offset] ?? 0;
     const type = marker >> 4;

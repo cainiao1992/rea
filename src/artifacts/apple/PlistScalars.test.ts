@@ -290,6 +290,127 @@ describe("binary plist number rewriting", () => {
   });
 });
 
+/**
+ * Three-element array whose last two entries share one scalar record, beside
+ * an unrelated Int64 sibling. Objects: array, shared scalar, duplicate entry,
+ * sibling.
+ */
+const sharedScalarEntries = (scalar: Buffer): Buffer => {
+  const sibling = Buffer.alloc(9);
+  sibling[0] = 0x13;
+  sibling.writeBigInt64BE(1152921504606846979n, 1);
+  const scalarOffset = 12;
+  const siblingOffset = scalarOffset + scalar.length;
+  const tableOffset = siblingOffset + sibling.length;
+  const bytes = Buffer.alloc(tableOffset + 4 + 32);
+  bytes.set([0xa3, 1, 2, 3], 8);
+  scalar.copy(bytes, scalarOffset);
+  sibling.copy(bytes, siblingOffset);
+  return binaryPlistObjectTable(
+    bytes,
+    [8, scalarOffset, scalarOffset, siblingOffset],
+    tableOffset,
+  );
+};
+
+const int64 = (value: bigint): Buffer => {
+  const bytes = Buffer.alloc(9);
+  bytes[0] = 0x13;
+  bytes.writeBigInt64BE(value, 1);
+  return bytes;
+};
+
+describe("binary plist shared object-table entries", () => {
+  const plan = (bytes: Buffer) =>
+    estimateBinaryPlistExpansion(bytes, 1024 * 1024, {
+      numberProjection: true,
+    });
+
+  it("keeps every exact integer when two entries share one Int64 record", () => {
+    const bytes = sharedScalarEntries(int64(9007199254740993n));
+    const original = Buffer.from(bytes);
+    const scalarPlan = plan(bytes);
+    const metadata = scanBinaryPlistScalars(bytes, scalarPlan);
+
+    expect(metadata.literals.incomplete).toBe(false);
+    // The shared record is one source literal, not two.
+    expect(metadata.literals.unsafeIntegerLiterals).toBe(2);
+    const decoded = decodeBinaryPlistScalars(bytes, metadata, scalarPlan);
+    const parsed = projectPlistValue(parseBinary(decoded));
+    const numbers = createPlistNumberProjection(metadata.literals);
+    expect(numbers.project(parsed.value)).toEqual([
+      { $plist_type: "integer", decimal: "9007199254740993" },
+      { $plist_type: "integer", decimal: "9007199254740993" },
+      { $plist_type: "integer", decimal: "1152921504606846979" },
+    ]);
+    expect(numbers.limitations().join("\n")).not.toContain(
+      "could not be completely observed",
+    );
+    expect(bytes).toEqual(original);
+  });
+
+  it("rewrites a shared 16-byte integer once for every entry", () => {
+    const wide = Buffer.alloc(17);
+    wide[0] = 0x14;
+    wide.writeBigUInt64BE(1n, 1);
+    wide.writeBigUInt64BE(2n, 9);
+    const bytes = sharedScalarEntries(wide);
+    const original = Buffer.from(bytes);
+    const scalarPlan = plan(bytes);
+    const metadata = scanBinaryPlistScalars(bytes, scalarPlan);
+
+    expect(metadata.literals.incomplete).toBe(false);
+    expect(metadata.wideIntegers).toEqual([
+      { offset: 12, value: (1n << 64n) | 2n },
+    ]);
+    const decoded = decodeBinaryPlistScalars(bytes, metadata, scalarPlan);
+    const parsed = projectPlistValue(parseBinary(decoded));
+    expect(
+      createPlistNumberProjection(metadata.literals).project(parsed.value),
+    ).toEqual([
+      { $plist_type: "integer", decimal: "18446744073709551618" },
+      { $plist_type: "integer", decimal: "18446744073709551618" },
+      { $plist_type: "integer", decimal: "1152921504606846979" },
+    ]);
+    expect(bytes).toEqual(original);
+  });
+
+  it("records a shared date once and keeps its sibling exact", () => {
+    const date = Buffer.alloc(9);
+    date[0] = 0x33;
+    date.writeDoubleBE(0.1005, 1);
+    const bytes = sharedScalarEntries(date);
+    const scalarPlan = plan(bytes);
+    const metadata = scanBinaryPlistScalars(bytes, scalarPlan);
+
+    expect(metadata.literals.incomplete).toBe(false);
+    expect(metadata.dates).toEqual([
+      { offset: 12, payloadOffset: 13, secondsSince2001: 0.1005 },
+    ]);
+    const decoded = decodeBinaryPlistScalars(bytes, metadata, scalarPlan);
+    const [first, second, sibling] = parseBinary(decoded) as [
+      Date,
+      Date,
+      number,
+    ];
+    expect(Number.isNaN(first.getTime())).toBe(true);
+    expect(Number.isNaN(second.getTime())).toBe(true);
+    expect(
+      createPlistNumberProjection(metadata.literals).project(sibling),
+    ).toEqual({ $plist_type: "integer", decimal: "1152921504606846979" });
+  });
+
+  it("still reports metadata incomplete for an out-of-range entry", () => {
+    const bytes = sharedScalarEntries(int64(9007199254740993n));
+    expect(scanBinaryPlistScalars(bytes).literals.incomplete).toBe(false);
+    // Repoint the duplicate into the header, before the object region.
+    const table = Number(bytes.readBigUInt64BE(bytes.length - 8));
+    bytes[table + 2] = 7;
+    expect(bytes.subarray(0, 8).toString("ascii")).toBe("bplist00");
+    expect(scanBinaryPlistScalars(bytes).literals.incomplete).toBe(true);
+  });
+});
+
 describe("binary plist numeric association", () => {
   it("keeps an overlapping int64 exact without rewriting either object", () => {
     const bytes = integerPayloadContainingReal();

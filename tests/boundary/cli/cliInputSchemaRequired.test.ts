@@ -61,11 +61,18 @@ const parserSchema = (
   return schema instanceof z.ZodObject ? schema : undefined;
 };
 
+/**
+ * Reject a key only when an object parse that omits it fails.
+ * `exactOptional()` rejects explicit `undefined` and still accepts omission.
+ */
 const omissionRejected = (schema: z.ZodObject | undefined): string[] =>
   Object.entries(schema?.shape ?? {})
-    .filter(([key, field]) => !z.object({ [key]: field }).safeParse({}).success)
+    .filter(([key, field]) => !acceptsOmittedKey(key, field))
     .map(([key]) => key)
     .sort();
+
+const acceptsOmittedKey = (key: string, field: z.ZodType): boolean =>
+  z.object({ [key]: field }).safeParse({}).success;
 
 describe("CLI advertised input schemas", () => {
   it("require exactly the inputs whose omission the parser rejects", async () => {

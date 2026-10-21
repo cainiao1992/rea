@@ -89,43 +89,43 @@ describe("guided prompt completion from live analysis", () => {
   });
 });
 
-describe("guided prompt completion from investigation records", () => {
-  it("offers only captures admitted by the process comparison identity", async () => {
-    const session = createTestBinarySession(() => client([]));
-    const captureResult = jsonValueSchema.parse(EMPTY_PROCESS_CAPTURE_EXAMPLE);
-    const unsupportedProvider = createEvidence(undefined, fixtureProvider, {
-      predicateType: "rea.process-capture",
-      operation: "capture_process_scenario",
-      parameters: {},
-      result: captureResult,
-      confidence: "observed",
-      authority: "controlled-replay",
-      environment: fixtureEnvironment,
-    });
-    const wrongPredicate = createEvidence(undefined, PROCESS_PROVIDER, {
-      predicateType: "rea.other-process-data",
-      operation: "capture_process_scenario",
-      parameters: {},
-      result: captureResult,
-      confidence: "observed",
-      authority: "controlled-replay",
-      environment: fixtureEnvironment,
-    });
-    for (const evidence of [
-      PROCESS_CAPTURE_REFERENCE,
-      unsupportedProvider,
-      wrongPredicate,
-    ])
-      expect(session.recordEvidence(evidence).ok).toBe(true);
-    const completion = createPromptCompletionSource(session, session);
-
-    expect(await completion.complete("capture", "ev_")).toEqual([
-      PROCESS_CAPTURE_REFERENCE.evidence_id,
-    ]);
-
-    await session.close();
+it("offers only captures admitted by the process comparison identity", async () => {
+  const session = createTestBinarySession(() => client([]));
+  const captureResult = jsonValueSchema.parse(EMPTY_PROCESS_CAPTURE_EXAMPLE);
+  const unsupportedProvider = createEvidence(undefined, fixtureProvider, {
+    predicateType: "rea.process-capture",
+    operation: "capture_process_scenario",
+    parameters: {},
+    result: captureResult,
+    confidence: "observed",
+    authority: "controlled-replay",
+    environment: fixtureEnvironment,
   });
+  const wrongPredicate = createEvidence(undefined, PROCESS_PROVIDER, {
+    predicateType: "rea.other-process-data",
+    operation: "capture_process_scenario",
+    parameters: {},
+    result: captureResult,
+    confidence: "observed",
+    authority: "controlled-replay",
+    environment: fixtureEnvironment,
+  });
+  for (const evidence of [
+    PROCESS_CAPTURE_REFERENCE,
+    unsupportedProvider,
+    wrongPredicate,
+  ])
+    expect(session.recordEvidence(evidence).ok).toBe(true);
+  const completion = createPromptCompletionSource(session, session);
 
+  expect(await completion.complete("capture", "ev_")).toEqual([
+    PROCESS_CAPTURE_REFERENCE.evidence_id,
+  ]);
+
+  await session.close();
+});
+
+describe("guided prompt completion from investigation records", () => {
   it("excludes process captures missing canonical executable identity", async () => {
     const session = createTestBinarySession(() => client([]));
     const {

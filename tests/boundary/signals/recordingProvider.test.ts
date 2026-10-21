@@ -16,6 +16,11 @@ import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { createDeferred } from "../../fixtures/binarySession.js";
+import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { Cli } from "incur";
+import { registerSignalCommands } from "../../../src/cli/signalCommands.js";
+import { silentLogger } from "../../../src/logger.js";
 
 // A command-boundary simulator: real process ownership/filesystem, not real sigrok coverage.
 const fixture = async (mode = "ok", failCleanup = false) => {
@@ -300,17 +305,105 @@ it.each([
   },
 );
 
+it("reports an unknown decoder ID as the rejected field of each MCP operation", async () => {
+  const f = await fixture("unknown-decoder");
+  const harness = await createApplicationMcpHarness({
+    serverOptions: { environment: {}, signalRecording: f.service },
+  });
+  onTestFinished(harness.close);
+  const refusal = "Failed to load protocol decoder nosuchdecoder.";
+  for (const [name, args, field, recovery] of [
+    [
+      "inspect_signal_decoders",
+      { decoder: "nosuchdecoder" },
+      "decoder",
+      "Omit decoder to list installed decoder IDs",
+    ],
+    [
+      "decode_signal_recording",
+      { path: f.path, decoders: "nosuchdecoder" },
+      "decoders",
+      "Use inspect_signal_decoders to list installed decoder IDs",
+    ],
+  ] as const) {
+    const { error } = parseMcpToolError(
+      await harness.client.callTool({ name, arguments: args }),
+    );
+    const message = `sigrok-cli rejected the ${field} selector: ${refusal} ${recovery}`;
+    expect(error).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      message: expect.stringContaining(message),
+      recovery: { kind: "inspect_input_contract", operation: name },
+      details: {
+        operation: name,
+        issues: [
+          {
+            path: [field],
+            reason: "invalid_value",
+            message: expect.stringContaining(message),
+          },
+        ],
+        captured_output: {
+          exit_code: 1,
+          stderr: expect.stringContaining(refusal),
+        },
+      },
+    });
+  }
+  expect(
+    (await readdir(f.directory)).filter((name) => name.startsWith("decoder-")),
+  ).toEqual([]);
+});
+
+it("reports an unknown decoder help selection as CLI invalid input", async () => {
+  const f = await fixture("unknown-decoder");
+  const cli = Cli.create("signal-refusal-test", { sync: false });
+  registerSignalCommands(cli, silentLogger, {}, f.service);
+  let stdout = "";
+  await cli.serve(
+    [
+      "inspect-signal-decoders",
+      "--decoder",
+      "nosuchdecoder",
+      "--format",
+      "json",
+    ],
+    {
+      stdout: (text) => {
+        stdout += text;
+      },
+      exit: () => {},
+    },
+  );
+  expect(JSON.parse(stdout)).toMatchObject({
+    code: "invalid_request",
+    message: expect.stringContaining("Omit decoder"),
+    details: {
+      operation: "inspect_signal_decoders",
+      issues: [{ path: ["decoder"], reason: "invalid_value" }],
+      captured_output: { exit_code: 1 },
+    },
+  });
+});
+
 it.each([
   // An installed decoder whose own dependency is missing is an installation fault.
   ["broken-decoder", { decoders: "uart" }],
+  ["broken-decoder", { decoder: "uart" }],
   // Refusals naming selectors the caller did not supply stay unclassified.
   ["unknown-decoder", { decoders: "uart" }],
+  ["unknown-decoder", { decoder: "uart" }],
+  ["unknown-decoder", {}],
   ["unknown-annotation", { decoders: "uart", annotations: "uart=rx-data" }],
 ] as const)(
-  "keeps %s outside caller selectors as a provider failure",
+  "keeps %s outside caller selectors %j as a provider failure",
   async (mode, selection) => {
     const f = await fixture(mode);
-    const result = await f.service.decode({ path: f.path, ...selection });
+    const result =
+      "decoders" in selection
+        ? await f.service.decode({ path: f.path, ...selection })
+        : await f.service.inspectDecoders(selection);
     if (result.ok) throw new Error("Expected decoder failure");
     expect(result.error._tag).toBe("ProviderAdapterError");
   },

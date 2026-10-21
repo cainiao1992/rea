@@ -9,7 +9,7 @@ import {
 } from "./parseDecoderDiscovery.js";
 import {
   parseSigrokSelectorRejection,
-  type SigrokSelectorRejection,
+  type SigrokSelection,
 } from "./sigrokSelectorRejection.js";
 import {
   BOUNDED_PRODUCER_LIMITS as LIMITS,
@@ -172,9 +172,8 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
       const snapshotPath = join(root.path, "recording");
       const execute = async (
         args: readonly string[],
-        rejectedSelector?: (
-          stderr: string,
-        ) => SigrokSelectorRejection | undefined,
+        // Caller selectors this command loads; their refusals are input errors.
+        selection?: SigrokSelection,
       ) => {
         capturedOutput = undefined;
         const output = await runOwnedCommand(
@@ -232,9 +231,9 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
         phase = previousPhase;
         resourcePath = "path" in input ? input.path : command;
         const rejection =
-          output.exitCode === 0
+          output.exitCode === 0 || selection === undefined
             ? undefined
-            : rejectedSelector?.(output.stderr.text);
+            : parseSigrokSelectorRejection(output.stderr.text, selection);
         if (rejection !== undefined)
           throw new AnalysisInputError(
             operation,
@@ -289,7 +288,7 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
           input.decoder === null
             ? ["--dont-scan", "--list-supported"]
             : ["--dont-scan", `--protocol-decoders=${input.decoder}`, "--show"];
-        const output = await execute(args);
+        const output = await execute(args, input);
         const report = signalDecodersSchema.parse({
           selection: input,
           ...parseDecoderDiscovery(output.stdout.text, input),
@@ -330,9 +329,7 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
             ? []
             : [`--protocol-decoder-annotations=${input.annotations}`]),
         ];
-        const output = await execute(args, (stderr) =>
-          parseSigrokSelectorRejection(stderr, input),
-        );
+        const output = await execute(args, input);
         phase = "integrity";
         resourcePath = snapshotPath;
         if (

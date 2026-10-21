@@ -40,7 +40,7 @@ import {
 import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
-import { cliTest } from "../support/cli/cliFixture.js";
+import { cliTest, runFileCli } from "../support/cli/cliFixture.js";
 
 const parseCliMetadata = (value: unknown) =>
   il2cppMetadataSchema.parse(
@@ -63,7 +63,7 @@ cliTest(
       });
       const path = join(root, `valid-${count}.dat`);
       await writeFile(path, bytes);
-      const output = await cli.run({
+      const output = await runFileCli(cli, {
         arguments: ["inspect-il2cpp-metadata", path, "--json"],
       });
       expect(output.exitCode, output.stderr).toBe(0);
@@ -96,7 +96,7 @@ cliTest(
       );
       const path = join(root, `invalid-${declaredCount}-${declaredBytes}.dat`);
       await writeFile(path, fixture.bytes);
-      const output = await cli.run({
+      const output = await runFileCli(cli, {
         arguments: ["inspect-il2cpp-metadata", path, "--json"],
       });
       expect(output.exitCode).toBe(1);
@@ -136,7 +136,7 @@ cliTest(
       propertiesAndEvents: true,
     });
     await writeFile(path, bytes);
-    const result = await cli.run({
+    const result = await runFileCli(cli, {
       arguments: ["inspect-il2cpp-metadata", path, "--json"],
     });
     expect(result.exitCode, result.stderr).toBe(0);
@@ -285,7 +285,7 @@ cliTest(
     ] as const) {
       const path = join(root, name);
       await writeFile(path, bytes);
-      const result = await cli.run({
+      const result = await runFileCli(cli, {
         arguments: ["inspect-il2cpp-metadata", path, "--json"],
       });
       expect(result.exitCode).toBe(1);
@@ -335,7 +335,7 @@ cliTest(
           },
         },
       };
-      const result = await cli.run({
+      const result = await runFileCli(cli, {
         arguments: ["inspect-il2cpp-metadata", path, "--json"],
       });
       expect(result.exitCode).toBe(1);
@@ -643,7 +643,7 @@ cliTest(
     const root = await createTestTempDirectory("rea-il2cpp-cli-export-");
     const path = join(root, "global-metadata.dat");
     const bundle = join(root, "evidence.json");
-    const refused = await cli.run({
+    const refused = await runFileCli(cli, {
       arguments: [
         "inspect-il2cpp-metadata",
         join(root, "must-not-be-read"),
@@ -667,14 +667,14 @@ cliTest(
       bundle,
       "--json",
     ];
-    const result = await cli.run({ arguments: args });
+    const result = await runFileCli(cli, { arguments: args });
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.json).toMatchObject({
       evidence_bundle: { path: bundle, bytes: expect.any(Number) },
       summary: { normalized_result: { kind: "summary" } },
     });
     const before = await readFile(bundle);
-    const overwrite = await cli.run({ arguments: args });
+    const overwrite = await runFileCli(cli, { arguments: args });
     expect(overwrite.exitCode).toBe(1);
     expect(await readFile(bundle)).toEqual(before);
     const saved = await readEvidenceBundle(bundle);
@@ -700,7 +700,7 @@ cliTest(
         },
       }),
     );
-    const selected = await cli.run({
+    const selected = await runFileCli(cli, {
       arguments: ["inspect-analysis-view", query, "--json"],
     });
     expect(selected.exitCode, selected.stderr).toBe(0);
@@ -727,7 +727,7 @@ cliTest.skipIf(process.platform === "win32")(
     const decoy = join(root, "evidence.json");
     await writeFile(decoy, "unrelated caller data");
     const selected = `${root}/link/../evidence.json`;
-    const result = await cli.run({
+    const result = await runFileCli(cli, {
       arguments: [
         "inspect-il2cpp-metadata",
         path,
@@ -746,7 +746,7 @@ cliTest.skipIf(process.platform === "win32")(
     expect(
       JSON.parse(await readFile(join(actual, "evidence.json"), "utf8")),
     ).toEqual(saved.value);
-    const read = await cli.run({
+    const read = await runFileCli(cli, {
       arguments: [
         "inspect-evidence-bundle",
         JSON.stringify({ path: selected, detail: "summary" }),
@@ -781,7 +781,7 @@ cliTest(
             rva: `0x${(address - FIXTURE_BINARY_BASE).toString(16)}`,
           },
     );
-    const result = await cli.run({
+    const result = await runFileCli(cli, {
       arguments: [
         "inspect-il2cpp-metadata",
         path,
@@ -868,7 +868,7 @@ cliTest(
         { machine: 62 },
       ),
     );
-    const result = await cli.run({
+    const result = await runFileCli(cli, {
       arguments: [
         "inspect-il2cpp-metadata",
         path,
@@ -900,7 +900,7 @@ cliTest(
     await writeFile(path, createIl2cppMetadataFixture().bytes);
     await writeFile(binaryPath, createElfFixture(createIl2cppBinaryFixture()));
     const run = (output: string, extra: readonly string[] = []) =>
-      cli.run({
+      runFileCli(cli, {
         arguments: [
           "inspect-il2cpp-metadata",
           path,
@@ -955,7 +955,7 @@ cliTest(
     });
     expect(await readFile(seeds, "utf8")).toBe("kept\n");
 
-    const unlinked = await cli.run({
+    const unlinked = await runFileCli(cli, {
       arguments: [
         "inspect-il2cpp-metadata",
         path,

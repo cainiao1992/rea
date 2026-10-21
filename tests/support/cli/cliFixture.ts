@@ -251,6 +251,20 @@ export const cliCompileCacheEnvironment = (
   ...environment,
 });
 
+/**
+ * Run one command on the file-scoped compiled CLI. Stdin and explicit
+ * deadlines stay on `TestCli.run`, which starts a fresh process.
+ */
+export const runFileCli = (
+  cli: TestCli,
+  invocation: CliInvocation,
+): Promise<CliResult> => {
+  const run = cli.sharedCliRun;
+  if (run === undefined)
+    throw new Error("cliTest did not provide a shared CLI session");
+  return run(invocation);
+};
+
 /** Create a compiled CLI driver backed by the supplied process registry. */
 export const createTestCli = (
   processes: TestProcesses,

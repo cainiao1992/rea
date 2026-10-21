@@ -163,8 +163,10 @@ the worker reports a resident set of at least 1 GiB. A fatal worker failure
 or a broken session frame retires that process and waits for it to exit before
 the next command starts.
 `cli.run` still starts a fresh process, including stdin and explicit deadlines.
-File teardown stops the shared CLI process, including startup still in flight,
-and does not open another after close.
+`runFileCli` uses the file session for commands that have neither. Go binary,
+IL2CPP metadata, and dylib-resolution commands use that session. File teardown
+stops the shared CLI process, including startup still in flight, and does not
+open another after close.
 `exportedFunctionBindingsCli.test.ts` keeps its own compiled CLI parity
 process for the file and still compares that process's JSON command results
 with the MCP session. A command that does not respond is rejected. That
@@ -172,6 +174,9 @@ process stays owned until it exits, and another process does not start while
 it remains. A process that stays running after SIGKILL remains owned so a
 later close can retry. Closing the session reports a failure when the process
 does not exit after stdin closes, once the child has been stopped.
+`applicationWorkflowCli.test.ts` keeps one compiled CLI process for its JSON
+commands, including a non-zero status whose stdout is still a JSON document,
+and closes that process after the file.
 
 The Apple artifact verifier step shares a job-temporary bytecode cache among
 its fresh CLI/MCP children via `REA_ARTIFACT_NODE_COMPILE_CACHE`. The artifact

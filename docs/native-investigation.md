@@ -451,6 +451,13 @@ complete observation.
   an unfixed zero in a nullable ABI field is treated as null. Incomplete or
   conflicting fixup streams keep affected pointers unresolved; coverage reports
   parsing and resource limits while retaining validated prefix facts.
+  Conformance records preserve the raw three-bit `type_reference_kind`. Kinds
+  0 and 1 identify direct and indirect nominal descriptors; kind 2 preserves
+  the inline Objective-C class name and its source location. Kind 3 preserves
+  an imported class binding or the local class-object address when available,
+  but class metadata/name recovery requiring the Objective-C runtime remains
+  partial. Unknown kinds retain the raw kind and reference location without
+  being treated as absent or assigned a guessed type name.
 
   So an external superclass resolves from its `_OBJC_CLASS_$_` bind (for
   example `NSObject`). The `pointer_fixups` coverage facet names the mechanism.

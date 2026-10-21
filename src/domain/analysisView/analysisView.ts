@@ -24,6 +24,13 @@ import {
   projectGoBinaryView,
 } from "./goBinaryView.js";
 import {
+  rustBinarySummarySchema,
+  rustBinaryViewContextSchema,
+  rustBinaryViewPageSchema,
+  rustBinaryViewRequestSchema,
+  projectRustBinaryView,
+} from "./rustBinaryView.js";
+import {
   projectNativeFunctionMatchingView,
   nativeFunctionMatchingViewRequestSchema,
   nativeFunctionMatchingViewItemsSchema,
@@ -277,6 +284,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   nativeFunctionMatchingViewRequestSchema,
   summaryViewSchema,
   goBinaryViewRequestSchema,
+  rustBinaryViewRequestSchema,
   desktopViewRequestSchema,
   facetViewSchema,
   itemViewSchema,
@@ -460,6 +468,24 @@ export const goBinarySummaryViewResultSchema = z.strictObject({
   ...goBinaryViewContextSchema.shape,
   parent_operation: z.literal("inspect_go_binary"),
   summary: goBinarySummarySchema,
+});
+
+/** Compact source identity and counts, retaining the complete embedded graph. */
+export const rustBinarySummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  ...rustBinaryViewContextSchema.shape,
+  parent_operation: z.literal("inspect_rust_binary"),
+  summary: rustBinarySummarySchema,
+});
+
+export const rustBinaryPageViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  ...rustBinaryViewContextSchema.shape,
+  kind: z.literal("rust"),
+  parent_operation: z.literal("inspect_rust_binary"),
+  view: rustBinaryViewRequestSchema,
+  rust: rustBinarySummarySchema,
+  page: rustBinaryViewPageSchema,
 });
 
 /** Summary `inspect_binary_layout` detail returns; no other view kind. */
@@ -665,6 +691,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     objdumpSummaryViewResultSchema,
     fridaSessionStatusSummaryViewResultSchema,
     goBinarySummaryViewResultSchema,
+    rustBinarySummaryViewResultSchema,
     binaryLayoutSummaryViewResultSchema,
     desktopApplicationSummaryViewResultSchema,
     javascriptApplicationSummaryViewResultSchema,
@@ -738,6 +765,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: goBinaryViewRequestSchema,
     page: goBinaryViewPageSchema,
   }),
+  rustBinaryPageViewResultSchema,
   z.strictObject({
     kind: z.literal("item"),
     view: itemViewSchema,
@@ -954,6 +982,7 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["gdb_console", projectCommandObservationView],
   ["inspect_with_objdump", projectCommandObservationView],
   ["inspect_go_binary", projectGoBinaryView],
+  ["inspect_rust_binary", projectRustBinaryView],
   ...NATIVE_INVENTORY_OPERATIONS.map(
     (operation) => [operation, projectNativeInventoryView] as const,
   ),

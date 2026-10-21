@@ -63,7 +63,7 @@ const parserSchema = (
 
 const omissionRejected = (schema: z.ZodObject | undefined): string[] =>
   Object.entries(schema?.shape ?? {})
-    .filter(([, field]) => !field.safeParse(undefined).success)
+    .filter(([key, field]) => !z.object({ [key]: field }).safeParse({}).success)
     .map(([key]) => key)
     .sort();
 
@@ -102,6 +102,30 @@ describe("CLI advertised input schemas", () => {
       }
     }
     expect(mismatches).toEqual([]);
+  });
+
+  it("allows an omitted WASM timeout while validating explicitly supplied values", async () => {
+    const cli = createCli({});
+    const advertised = await advertisedSchema(cli, "inspect-wasm-artifact");
+    const options = parserSchema(cli, "inspect-wasm-artifact", "options");
+    expect(options).toBeDefined();
+    const validate = new Ajv2020({ strict: false }).compile(
+      advertised.options ?? {},
+    );
+
+    expect(options?.safeParse({}).success).toBe(true);
+    expect(validate({})).toBe(true);
+    expect(options?.safeParse({ commandTimeoutMs: undefined }).success).toBe(
+      false,
+    );
+    for (const commandTimeoutMs of [1, 30_000, 2_147_483_647]) {
+      expect(options?.safeParse({ commandTimeoutMs }).success).toBe(true);
+      expect(validate({ commandTimeoutMs })).toBe(true);
+    }
+    for (const commandTimeoutMs of [0, 1.5, 2_147_483_648]) {
+      expect(options?.safeParse({ commandTimeoutMs }).success).toBe(false);
+      expect(validate({ commandTimeoutMs })).toBe(false);
+    }
   });
 
   it("accepts the one-argument keyed-archive call and keeps its constraints", async () => {

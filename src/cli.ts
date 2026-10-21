@@ -58,6 +58,8 @@ import {
 import { registerReverseEngineeringCommands } from "./cli/reverseEngineeringCommands.js";
 import { registerCutterCommands } from "./cli/cutterCommands.js";
 
+export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
+
 /**
  * Describe CLI settings that are invalid before any command runs, as MCP does.
  * Keep this aligned with PROCESS_START_CONFIGURATION_SETTINGS.

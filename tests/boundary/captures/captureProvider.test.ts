@@ -478,6 +478,9 @@ it("preserves termination signal and effective file ceiling as a resource failur
     reportedLimits: { file_bytes: 1048576 },
     capturedOutput: { signal: "SIGXFSZ", stderr: "before file limit\n" },
   });
+  expect(analysisErrorRemediationAction(result.error)).toContain(
+    "REA retains the tighter inherited limit",
+  );
 });
 
 it("rejects oversized selector lists and UTF-8 argv expansion before provider work", async () => {

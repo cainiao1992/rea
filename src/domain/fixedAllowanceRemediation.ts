@@ -54,3 +54,16 @@ export const fixedAllowanceOptions = (
   retryable: false,
   fixedAllowance: { name: allowance, kind },
 });
+
+/**
+ * Name a fixed producer input allowance in bytes. Host and inherited limits
+ * do not raise it, and this release has no runtime override.
+ */
+export const fixedProducerInputAllowance = (
+  bytes: number,
+  allowance: string,
+): { readonly retryable: false; readonly fixedAllowance: FixedAllowance } =>
+  fixedAllowanceOptions(
+    `${allowance} of ${String(bytes)} bytes (this release has no runtime override)`,
+    "input",
+  );

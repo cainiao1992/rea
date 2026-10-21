@@ -24,7 +24,6 @@ import { err, ok, type Result } from "../../domain/result.js";
 import {
   decodedPathSegment,
   pathValueMatches,
-  REPLAY_BODY_LIMIT_BYTES,
   replayAnswer,
   replayEnvironmentTool,
   selectReplayExchange,
@@ -34,6 +33,7 @@ import {
 } from "./environmentReplay.js";
 import {
   ENVIRONMENT_SERVE_OPERATION,
+  REPLAY_BODY_LIMIT_BYTES,
   type EnvironmentManifestTool,
   type EnvironmentSource,
   type RecordedExchange,

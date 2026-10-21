@@ -31,6 +31,10 @@ import {
 } from "./fridaSessionStatusView.js";
 import { commandObservationSchema } from "../commandObservation.js";
 import {
+  rustBinaryViewPageSchema,
+  rustBinaryViewRequestSchema,
+} from "../rust/rustBinaryQuery.js";
+import {
   goBinarySummarySchema,
   goBinaryViewContextSchema,
   goBinaryViewPageSchema,
@@ -40,8 +44,6 @@ import {
 import {
   rustBinarySummarySchema,
   rustBinaryViewContextSchema,
-  rustBinaryViewPageSchema,
-  rustBinaryViewRequestSchema,
   projectRustBinaryView,
 } from "./rustBinaryView.js";
 import {

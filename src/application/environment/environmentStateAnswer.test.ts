@@ -9,8 +9,10 @@ import {
   environmentStateServeInputs,
 } from "../../../tests/fixtures/environmentServe.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
-import { REPLAY_BODY_LIMIT_BYTES } from "./environmentReplay.js";
-import type { EnvironmentSource } from "./environmentSource.js";
+import {
+  REPLAY_BODY_LIMIT_BYTES,
+  type EnvironmentSource,
+} from "./environmentSource.js";
 import {
   answerFromState,
   type StateServing,

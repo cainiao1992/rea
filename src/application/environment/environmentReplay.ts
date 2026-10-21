@@ -16,8 +16,6 @@ import {
   type RecordedExchange,
 } from "./environmentSource.js";
 
-export { REPLAY_BODY_LIMIT_BYTES } from "./environmentSource.js";
-
 /** Caller arguments as the MCP tool receives them. */
 export type ReplayArguments = Readonly<Record<string, unknown>>;
 

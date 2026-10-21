@@ -77,7 +77,7 @@ export function safeSha(value: unknown): string | null;
 export function validRepoPath(value: unknown): value is string;
 export function selectStaticCheckArtifact(
   page: unknown,
-  run: { id?: string | number; head_sha?: string },
+  run: Pick<CiRun, "id" | "head_sha">,
   runAttempt: number,
   name?: string,
 ): unknown | null;

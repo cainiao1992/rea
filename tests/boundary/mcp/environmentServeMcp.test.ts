@@ -20,9 +20,9 @@ import {
 
 const HTTP_BOUNDARY_TIMEOUT_MS = 90_000;
 const CARD_PATH = "/.well-known/agent-env.json";
-/** SHA-256 of the 11,131-byte card main serves for the fixture named "renamed"; pure replay must serve the same bytes. */
-const MAIN_REPLAY_CARD_SHA256 =
-  "f12f16011feb5f675b2bbf6a04a8b28a2ed8041074e4fe188cf74e7a66b15207";
+/** SHA-256 of the 12,818-byte card served for the fixture named "renamed", its descriptions naming each tool's recorded responses; pure replay must serve these bytes. */
+const REPLAY_CARD_SHA256 =
+  "7c65ab63f0c00ce79b570024c4611c225729677b44fc49bbde32b2d65f868961";
 
 /** Serve the fixture pair as pure replay through the built CLI. */
 const serveReplayOnly = async (
@@ -69,6 +69,15 @@ describe("rea environment-serve --replay-only", () => {
         expect(tools.map(({ name }) => name).sort()).toEqual(
           source.manifest.tools.map(({ name }) => name).sort(),
         );
+        const users = tools.find(({ name }) => name === "get_users_by_id");
+        expect(users?.description).toContain(
+          '; returns a JSON object with fields "id", "uid", "login", "email"; recorded statuses 200;',
+        );
+        expect(users?.annotations).toEqual({
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        });
         const exact = await client.callTool({
           name: "get_users_by_id",
           arguments: { id: "2" },
@@ -122,7 +131,7 @@ describe("rea environment-serve --replay-only", () => {
       expect(card.status).toBe(200);
       const text = await card.text();
       expect(createHash("sha256").update(text).digest("hex")).toBe(
-        MAIN_REPLAY_CARD_SHA256,
+        REPLAY_CARD_SHA256,
       );
       const body: unknown = JSON.parse(text);
       expect(body).toMatchObject({

@@ -48,17 +48,18 @@ it("charges environment identity, aggregate tools and escaped text before produc
     query_parameter_names: [],
   }));
   expect(
-    environmentToolDefinitions({ ...source.manifest, tools }, source.evidenceId)
-      .ok,
+    environmentToolDefinitions({
+      ...source,
+      manifest: { ...source.manifest, tools },
+    }).ok,
   ).toBe(false);
   expect(
     environmentToolDefinitions(
-      source.manifest,
-      source.evidenceId,
+      source,
       "x".repeat(ENVIRONMENT_CATALOG_LIMIT_BYTES),
     ).ok,
   ).toBe(false);
-  const normal = environmentToolDefinitions(source.manifest, source.evidenceId);
+  const normal = environmentToolDefinitions(source);
   expect(normal.ok).toBe(true);
   if (!normal.ok) throw normal.error;
   expect(
@@ -74,12 +75,9 @@ it("reserves the state card only when the state data plane is served", () => {
   const source = environmentServeSource();
   const manifest = { ...source.manifest, tools: [] };
   const admits = (length: number, dataPlane: "none" | "state") =>
-    environmentToolDefinitions(
-      manifest,
-      source.evidenceId,
-      "x".repeat(length),
-      { dataPlane },
-    ).ok;
+    environmentToolDefinitions({ ...source, manifest }, "x".repeat(length), {
+      dataPlane,
+    }).ok;
   // With no tools, the name and the card are the whole reservation: six bytes per name unit plus quotes.
   const longest = (dataPlane: "none" | "state") =>
     Math.floor(

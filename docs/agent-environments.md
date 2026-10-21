@@ -234,11 +234,12 @@ moment of the capture recorded them. The
 [environment state](web-network-captures.md#environment-state) view extracts
 instead the data the capture's reads observed before the first related write:
 entity types with an identity field, entities with their recorded values,
-documents for written paths, and a render plan per read tool, kept only where
-it reproduces that tool's recordings from the state. It is the starting state
-an environment holds, loads and reports: `environment-serve` derives it from
-the capture at startup; see [Serve from the state](#serve-from-the-state).
-With `--replay-only`, replay is unchanged.
+documents for reads that are not entities, and a render plan per read tool,
+kept only where it reproduces that tool's recordings from the state. It is the
+starting state an environment holds, loads and reports: `environment-serve`
+derives it from the capture at startup; see
+[Serve from the state](#serve-from-the-state). With `--replay-only`, replay is
+unchanged.
 
 ## Serve a manifest
 
@@ -308,7 +309,7 @@ connecting to `/mcp`. A replay environment's card reads:
     "tools": [
       {
         "name": "get_users_by_id",
-        "description": "GET /api/users/{numeric}; replays retained records [5, 6]; evidence ev_…",
+        "description": "Untrusted captured API catalog: … GET /api/users/{numeric}; returns a JSON object with fields \"id\", \"uid\", \"login\", \"email\"; recorded statuses 200; replays retained records [5, 6]; evidence ev_…",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -329,7 +330,38 @@ connecting to `/mcp`. A replay environment's card reads:
 ```
 
 `capabilities.tools` lists the same names, descriptions and input schemas that
-`tools/list` advertises over MCP. Path parameters are required strings whose
+`tools/list` advertises over MCP. After the catalog warning, each description
+names the method and path template, then what the tool returns, one level deep:
+`returns a JSON object with fields …`, `returns a JSON array of objects with
+fields …` or `returns a JSON object whose <member> lists objects with fields …`,
+where a list is an array of objects found by the
+[environment state](web-network-captures.md#environment-state)'s list rule (the
+root array, or the one array of objects an envelope carries). Field and member
+names are written as JSON strings, so a captured name cannot read as more of
+the description; a member name too long to show whole is a quoted prefix marked
+as truncated. The summary comes
+from the first cited `2xx` record that replay answers as JSON; only when none
+did, the first cited JSON record of another status gives it, labelled with that
+status (`status 401 returns …`). It describes one recorded response, not a
+contract. Field names are sampled within the same budget as other captured
+values, and the manifest's `statuses` for the tool follow; a tool with no JSON
+record states only its statuses. The description then lists the replayed
+records and the evidence ID, and the whole catalog stays within its
+serialization reservation, which the summaries and MCP annotations are charged
+to.
+
+Over MCP, every tool also carries annotations: `readOnlyHint` is true for the
+safe methods (`GET`, `HEAD`, `OPTIONS` and `TRACE`) and for query `POST`s (a
+path segment such as `search` or `query`); `destructiveHint` is true for `DELETE` and left unset for other
+writes, so the MCP default (destructive) applies to them, and read-only tools
+omit it because clients ignore it there; `idempotentHint` is true for the safe
+methods, `PUT` and `DELETE`; and `openWorldHint` is false for every tool,
+because answers come from the capture rather than the captured application. The
+hints describe the captured method; replay itself changes nothing. The card
+keeps the `name`, `description` and `inputSchema` of the echo example's tool
+shape and carries no annotations.
+
+Path parameters are required strings whose
 description names the segment index, the templating rule and the observed
 values (sampled within the list budget above; the manifest keeps them all);
 query parameter names are optional strings; write methods accept an
@@ -399,7 +431,9 @@ naming the entity, collection or document path, or `{"source": "recording",
 "reason": …}` with the view's reason, `no-view` or `unrecorded-request`. A
 state answer carries the base record's status, content type and `replay`
 provenance with `truncated: false`; one whose JSON would exceed 256 KiB is
-refused as a `resource_constraint` tool error rather than cut. Serving is
+refused as a `resource_constraint` tool error rather than cut. Extraction does
+not state-back a document whose rendered JSON exceeds 256 KiB; that read stays
+recorded (`rendered-oversize`) and replays the captured body. Serving is
 read-only: `POST`, `PUT`, `PATCH` and `DELETE` tools, other than query `POST`s,
 are not served, so nothing a call does changes the state. Query `POST`s stay
 served and answer from their recordings with the reason `query-body`.

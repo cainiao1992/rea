@@ -485,12 +485,12 @@ describe("rea-state/v1 validation", () => {
       "a document for a tool that is not a document view",
       (document: Editable) => {
         document.rea_state.documents.push({
-          tool: "get_org",
-          path: "/api/org",
+          tool: "get_folders",
+          path: "/api/folders",
           value: {},
         });
       },
-      "rea_state/documents/0/tool",
+      `rea_state/documents/${String(state.documents.length)}/tool`,
     ],
     [
       "a member the format does not define",

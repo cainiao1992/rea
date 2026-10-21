@@ -1,8 +1,5 @@
-import { isJsonLike } from "../../domain/analysisView/EnvironmentManifestAccumulator.js";
-import { mediaTypeEssence } from "../../domain/analysisView/webNetworkRouteTemplates.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
-import { parseExactJson } from "../../domain/exactJsonNumber.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import {
   iterateUrlQueryParameters,
@@ -13,6 +10,7 @@ import { environmentToolArguments } from "./environmentTools.js";
 import {
   REPLAY_BODY_LIMIT_BYTES,
   ENVIRONMENT_SERVE_OPERATION,
+  replayedBody,
   type EnvironmentManifestTool,
   type EnvironmentSource,
   type RecordedExchange,
@@ -183,11 +181,6 @@ const utf8Prefix = (text: string, maxBytes: number): string => {
   return text.slice(0, read);
 };
 
-/** Bytes a padded base64 string decodes to. */
-const decodedBase64Bytes = (encoded: string): number =>
-  Math.floor((encoded.length * 3) / 4) -
-  (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0);
-
 /** Base64 characters, in whole groups, whose bytes fit the replay limit. */
 const BASE64_LIMIT_CHARS = Math.floor(REPLAY_BODY_LIMIT_BYTES / 3) * 4;
 
@@ -196,29 +189,26 @@ interface ReplayBody {
   readonly truncated: boolean;
 }
 
-/** The limit applies to the recorded bytes, not to their base64 spelling. */
-const replayBase64Body = (encoded: string, cut: boolean): ReplayBody =>
-  !cut && decodedBase64Bytes(encoded) <= REPLAY_BODY_LIMIT_BYTES
-    ? { body: encoded, truncated: false }
-    : { body: encoded.slice(0, BASE64_LIMIT_CHARS), truncated: true };
-
-/** Parse a retained body as JSON when its content type is JSON-like; otherwise return the text. */
+/** The reply body and whether it was cut, as the source classifies the retained body. */
 const replayBody = (exchange: RecordedExchange): ReplayBody => {
-  const text = exchange.bodyText;
-  if (text === null) return { body: null, truncated: false };
-  if (exchange.bodyEncoding === "base64")
-    return replayBase64Body(text, exchange.bodyCut === true);
-  const prefix = utf8Prefix(text, REPLAY_BODY_LIMIT_BYTES);
-  if (prefix.length < text.length || exchange.bodyCut === true)
-    return { body: prefix, truncated: true };
-  if (
-    exchange.contentType !== null &&
-    isJsonLike(mediaTypeEssence(exchange.contentType))
-  ) {
-    const value = parseExactJson(text);
-    if (value !== undefined) return { body: value, truncated: false };
+  const body = replayedBody(exchange);
+  switch (body.kind) {
+    case "none":
+      return { body: null, truncated: false };
+    case "base64":
+      return body.whole
+        ? { body: body.encoded, truncated: false }
+        : { body: body.encoded.slice(0, BASE64_LIMIT_CHARS), truncated: true };
+    case "cut":
+      return {
+        body: utf8Prefix(body.text, REPLAY_BODY_LIMIT_BYTES),
+        truncated: true,
+      };
+    case "json":
+      return { body: body.value, truncated: false };
+    case "text":
+      return { body: body.text, truncated: false };
   }
-  return { body: text, truncated: false };
 };
 
 /** Recorded paths and queries are cut to this many UTF-8 bytes in replies. */

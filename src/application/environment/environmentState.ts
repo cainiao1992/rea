@@ -61,17 +61,19 @@ export const servedCatalog = (
   operation: string = ENVIRONMENT_SERVE_OPERATION,
 ): Result<ServedCatalog, AnalysisResourceConstraintError> => {
   const dataPlane: EnvironmentDataPlane = fromState ? "state" : "none";
-  const tools = environmentToolDefinitions(
-    fromState
-      ? {
+  const catalogSource: EnvironmentSource = fromState
+    ? {
+        ...source,
+        manifest: {
           ...source.manifest,
           tools: source.manifest.tools.filter(servedFromState),
-        }
-      : source.manifest,
-    source.evidenceId,
-    name,
-    { operation, dataPlane },
-  );
+        },
+      }
+    : source;
+  const tools = environmentToolDefinitions(catalogSource, name, {
+    operation,
+    dataPlane,
+  });
   return tools.ok ? ok({ tools: tools.value, dataPlane }) : tools;
 };
 

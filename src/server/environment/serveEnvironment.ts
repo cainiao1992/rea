@@ -115,6 +115,7 @@ export const createEnvironmentMcpServer = (
       {
         description: definition.description,
         inputSchema: fromJsonSchema<ReplayArguments>(definition.inputSchema),
+        annotations: definition.annotations,
       },
       (args): CallToolResult => {
         const replayed = answer(definition.tool, args);

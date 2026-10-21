@@ -387,10 +387,11 @@ describe("planEnvironmentBundle without a state", () => {
 
   it("serves and predicts replay when the state's catalog exceeds the discovery budget that replay's fits", () => {
     // Read tools only, so leaving out write tools saves nothing while each state description is longer.
+    // 300 sits between the two catalogs on this fixture: replay still fits and the state catalog does not.
     const reads = servedSource.manifest.tools.filter(
       ({ method }) => method === "GET",
     );
-    const tools = Array.from({ length: 350 }, (_, index) => {
+    const tools = Array.from({ length: 300 }, (_, index) => {
       const tool = reads[index % reads.length]!;
       return index < reads.length
         ? tool
@@ -416,7 +417,7 @@ describe("planEnvironmentBundle without a state", () => {
       served: false,
       code: "resource_constraint",
     });
-    expect(planned.value.toolCount).toBe(350);
+    expect(planned.value.toolCount).toBe(300);
     expect(planned.value.check).toEqual({
       tool: "get_annotations",
       recordOrdinal: 25,

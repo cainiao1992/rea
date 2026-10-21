@@ -311,6 +311,17 @@ describe("recorded and document answers", () => {
     });
   });
 
+  it("replays a read whose rendered document exceeds the body limit", () => {
+    const values = Array.from({ length: 60_000 }, () => "1e3").join(",");
+    const body = `{"values":[${values}]}`;
+    const serving = servingFrom([["GET", "/api/config", body]]);
+    expect(serving.store.state.documents).toEqual([]);
+    expect(answer(serving, "get_config", {})).toMatchObject({
+      replay: { record_ordinal: 0 },
+      state: { source: "recording", reason: "rendered-oversize" },
+    });
+  });
+
   it("answers a document's recorded line with the state's value for it", () => {
     const capture = timedCaptureEvidence([
       ["GET", "/api/settings", { theme: "dark", density: "compact" }],

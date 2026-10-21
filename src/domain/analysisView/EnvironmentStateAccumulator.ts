@@ -18,6 +18,7 @@ import {
   deeperThan,
   hasPrototypeKey,
   isStateWrite,
+  STATE_BODY_LIMIT_BYTES,
   type ParsedBody,
   type StateRecordFacts,
   type StateTimeline,
@@ -50,8 +51,7 @@ type StateFields = Pick<
   | "limitations"
 >;
 
-/** Bodies beyond this many UTF-8 bytes are not parsed into state; their views stay recorded. */
-export const STATE_BODY_LIMIT_BYTES = 256 * 1024;
+export { STATE_BODY_LIMIT_BYTES };
 
 /**
  * Levels the state's own nesting adds above a recorded value: Evidence, a `data/get` reply and a

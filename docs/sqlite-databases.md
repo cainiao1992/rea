@@ -57,7 +57,12 @@ triggers or arbitrary SQL.
 Rows are optional. `table` selects one exact ordinary-table name. `columns`
 (CLI repeated `--column`) selects exact visible column names in the requested
 order; omission selects all visible columns, including generated columns.
-Unselected cells are not evaluated or projected. Malformed column-name bytes
+Unselected cells are not evaluated or projected. A selected virtual generated
+column whose expression needs a function REA's connection lacks (extensions and
+application functions are not loaded), or raises an SQL error for a sampled
+row, is refused as `capability_unavailable`. The error names the table and
+each failing selected column with SQLite's message, and recommends only columns
+whose sampled values were read; stored and other generated cells stay readable. Malformed column-name bytes
 cause a format refusal when all columns are requested. In inventory scope, an explicit valid subset can
 still be sampled without decoding unrelated malformed column names.
 Column selection requires a

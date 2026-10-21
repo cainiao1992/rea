@@ -12,6 +12,7 @@ export class SqliteInspectionFailure extends Error {
       | "format"
       | "selection"
       | "column-selection"
+      | "column-evaluation"
       | "unsupported"
       | "unavailable"
       | "output-limit"
@@ -21,3 +22,20 @@ export class SqliteInspectionFailure extends Error {
     super(message);
   }
 }
+/** Selected generated cells the private connection cannot compute; the database stays readable. */
+export class SqliteColumnEvaluationFailure extends SqliteInspectionFailure {
+  constructor(
+    message: string,
+    /** Selected or stored columns that remain readable without the failed expressions. */
+    readonly readableColumns: readonly string[],
+  ) {
+    super("column-evaluation", message);
+  }
+}
+/** SQLite's primary result code for a native node:sqlite failure, if it carries one. */
+export const sqlitePrimaryResultCode = (cause: unknown): number | undefined =>
+  cause instanceof Error &&
+  "errcode" in cause &&
+  typeof cause.errcode === "number"
+    ? cause.errcode & 0xff
+    : undefined;

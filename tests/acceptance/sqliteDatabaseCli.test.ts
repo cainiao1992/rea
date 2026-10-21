@@ -796,3 +796,98 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
     }
   },
 );
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "attributes an unevaluable generated column to its selection, not the readable database path",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-sqlite-generated-");
+    const path = join(root, "hashes.db");
+    const producer = new DatabaseSync(path);
+    try {
+      // The producing application supplies a function REA's connection lacks.
+      producer.function(
+        "application_digest",
+        { deterministic: true },
+        (value) => (typeof value === "string" ? `digest:${value}` : null),
+      );
+      producer.exec(`
+        CREATE TABLE t(a TEXT, b TEXT GENERATED ALWAYS AS (application_digest(a)) VIRTUAL);
+        INSERT INTO t(a) VALUES ('hello'), ('world');
+      `);
+    } finally {
+      producer.close();
+    }
+    const before = await readFile(path);
+    const { call } = await connectLocalToolsMcp();
+    const message = `SQLite cannot evaluate selected column(s) of table "t" on REA's read-only connection: "b": unknown function: application_digest()`;
+    const expectedError = {
+      code: "capability_unavailable",
+      retryable: false,
+      message,
+      details: { provider_id: "sqlite", reason: message },
+      remediation: {
+        action: expect.stringContaining(
+          'Select columns whose values were read: columns: ["a"] (CLI: one --column per name)',
+        ),
+      },
+    };
+    for (const columns of [["b", "a"], undefined]) {
+      const result = await cli.run({
+        arguments: [
+          "inspect-sqlite-database",
+          path,
+          "--table",
+          "t",
+          ...(columns ?? []).flatMap((column) => ["--column", column]),
+          "--json",
+        ],
+        environment: { REA_LOG_LEVEL: "silent" },
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+      expect(result.json).toMatchObject(expectedError);
+      expect(result.stdout).not.toContain("invalid_format");
+      const response = await call("inspect_sqlite_database", {
+        path,
+        table: "t",
+        ...(columns === undefined ? {} : { columns }),
+      });
+      expect(parseMcpToolError(response).error).toMatchObject(expectedError);
+    }
+    const base = await cli.run({
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--table",
+        "t",
+        "--column",
+        "a",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(base.exitCode, base.stdout + base.stderr).toBe(0);
+    expect(base.json).toMatchObject({
+      normalized_result: { rows: { columns: ["a"], returned_rows: 2 } },
+    });
+    const schema = await call("inspect_sqlite_database", {
+      path,
+      schema_scope: "database",
+    });
+    expect(schema.isError).not.toBe(true);
+    expect(schema.structuredContent).toMatchObject({
+      normalized_result: {
+        rows: null,
+        schema: {
+          tables: [
+            {
+              name: "t",
+              sql: expect.stringContaining("application_digest(a)"),
+              columns: [{ name: "a" }, { name: "b", hidden: 2 }],
+            },
+          ],
+        },
+      },
+    });
+    expect(await readFile(path)).toEqual(before);
+  },
+);

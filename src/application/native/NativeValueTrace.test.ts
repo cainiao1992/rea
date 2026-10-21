@@ -405,6 +405,11 @@ describe("native value failed-callee traversal", () => {
         );
       },
     };
+    const expectedCalls = [
+      { source: "0x1000/bad-1", target: "0x2000" },
+      { source: "0x1000/bad-2", target: "0x2000" },
+      { source: "0x1000/good", target: "0x3000" },
+    ];
     // A new invocation retries the failed selector: failures are not cached
     // across traces, and successful procedure identity remains separate.
     for (let run = 0; run < 2; run++) {
@@ -426,9 +431,24 @@ describe("native value failed-callee traversal", () => {
         address: null,
         reason: expect.stringContaining("Callee unavailable"),
       });
-      expect(trace.edges.filter(({ kind }) => kind === "call")).toHaveLength(3);
+      expect(
+        trace.edges
+          .filter(({ kind }) => kind === "call")
+          .map(({ source, target }) => ({ source, target })),
+      ).toEqual(expectedCalls);
       expect(trace.truncated).toBe(false);
     }
+    const capped = await traceNativeValues(port, {
+      procedure: "0x1000",
+      max_functions: 3,
+      max_edges: 2,
+    });
+    if (!capped.ok) throw capped.error;
+    const cappedTrace = nativeValueTraceSchema.parse(capped.value);
+    expect(
+      cappedTrace.edges.map(({ source, target }) => ({ source, target })),
+    ).toEqual(expectedCalls.slice(0, 2));
+    expect(cappedTrace.truncated).toBe(true);
   });
 });
 

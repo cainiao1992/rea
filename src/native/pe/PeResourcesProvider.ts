@@ -1,4 +1,4 @@
-import { fixedAllowanceOptions } from "../../domain/fixedAllowanceRemediation.js";
+import { fixedNativeAllowance } from "../../domain/native/nativeDeadlines.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
 import {
@@ -142,9 +142,10 @@ const peResourcesFailurePrimary = (
           ...(cause.boundary === undefined
             ? {}
             : metadata
-              ? fixedAllowanceOptions(
+              ? fixedNativeAllowance(
                   "The PE resource metadata allowance",
                   "parser",
+                  `${String(PE_RESOURCE_METADATA_BYTES)} bytes (8 MiB)`,
                 )
               : {
                   retryable: false as const,

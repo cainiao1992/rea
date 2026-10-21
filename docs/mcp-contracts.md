@@ -355,7 +355,9 @@ page size or export retained Evidence if the view is too large.
 Completed `inspect_artifact` and atomic `inventory_artifact` Evidence also
 support summary and inventory views. A summary reports the manifest's expected
 counts separately from available record counts, observed entry kinds, inventory
-Evidence IDs and inspection coverage. An inventory view selects `nodes`,
+Evidence IDs, the inventory producer's traversal `source_coverage` and
+inspection coverage. Inspection coverage is `partial` when that traversal
+coverage is unknown. An inventory view selects `nodes`,
 `occurrences`, `edges`, or `integrity_contradictions`, with `offset` and `limit`
 defaulting to 0 and 64. For occurrences, optional `logical_paths` matches exact
 recorded strings: omission selects all available records; `[]` selects none.

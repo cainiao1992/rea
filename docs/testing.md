@@ -521,9 +521,15 @@ reports even when a shard fails, uploads available diagnostics, and writes the
 slowest files to the workflow summary. Partial reports are marked diagnostic
 only. Failed, cancelled, or missing selected shards still fail the required gate,
 and aggregate coverage thresholds remain enforced in full qualification.
-Only successful complete full-tier merges publish the small `test-timings` artifact, with
-checkout-relative paths; the build job downloads that artifact for the sequencer
-instead of the coverage/JUnit bundle. Timing weights come from Vitest module
+Only a successful complete merge on the default branch publishes shard history,
+and only from a push, schedule, or manual run. Fast runs publish
+`test-timings-fast`. Full runs publish `test-timings-full`. Pull requests do not
+publish it: the lookup reads one unpaginated artifact page, and pull-request
+artifacts would crowd out the default branch. The build job downloads the
+artifact that matches its tier, so fast shards use durations measured without
+coverage and full shards keep coverage-weighted durations. A tier with no
+qualifying artifact leaves history unset. The download is that small
+checkout-relative timing file, not the coverage/JUnit bundle. Timing weights come from Vitest module
 diagnostics and include tests and hooks, worker preparation, environment,
 imports, and setup. Import timings already include transform waits, which are
 not added again. The weights describe file costs under the measured worker and
@@ -1390,11 +1396,22 @@ catalog, and managed-conformance metadata. Each shard still installs the locked
 dependencies and runs its assigned tests; full qualification enables coverage. It no longer
 regenerates the same metadata independently.
 
-The build job also finds an available `test-timings` artifact from a successful
-trusted default-branch scheduled or manual qualification and includes that same
-report in each shard's snapshot. The bounded lookup verifies the artifact's
-producer; newer schedules that reuse qualification without producing timings do
-not hide the last full run's artifact.
+The build job finds the newest trusted timing artifact for its tier
+(`test-timings-fast` or `test-timings-full`) from a successful default-branch
+push, schedule, or manual CI run, and includes that same report in each shard's
+snapshot. The bounded lookup verifies the producer. Pull-request runs and other
+branches are not producers. A tier with no qualifying artifact leaves history
+unset, and Vitest uses its own assignment. A later schedule that reuses
+qualification without uploading timings leaves the previous artifact in place.
+
+On 2026-10-21 the newest full history was run
+`39545047294`, recorded before compiled-CLI session reuse. Fast run
+`39552964873` packed its eight built shards from that history, and those shard
+jobs executed for 319–591 seconds. Replaying that run's file durations through
+the sequencer's two-worker schedule balances every shard at about 404 seconds
+of file time. The same replay with the stale history weights leaves the slowest
+shard near 547 seconds and the fastest near 293. That spread is file-schedule
+time, not runner queue, which is why each tier keeps its own history.
 CI assigns discovered files by historical duration, with a deterministic
 fallback weight for new files, rather than dividing only by file count.
 Each file keeps its full duration on one worker. Extra workers overlap other

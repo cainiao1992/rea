@@ -3,12 +3,17 @@ import type {
   NativeMetadataEvidence,
   NativeMetadataLocation,
 } from "../domain/native/objcSwiftMetadata.js";
+import type {
+  SwiftRelativeField,
+  SwiftRelativeValue,
+} from "./AppleSwiftDispatchFacets.js";
+import { unresolvedSwiftRelativeReason } from "./AppleSwiftDispatchFacets.js";
 import { issue, type FacetDecodeFacts } from "./AppleDispatchDecodeFacts.js";
 
 /** Byte readers shared with the validated Mach-O metadata boundary. */
 export interface SwiftMetadataReaders {
   u32(address: bigint): number;
-  relative(address: bigint): bigint;
+  relative(address: bigint, kind: SwiftRelativeField): SwiftRelativeValue;
   string(address: bigint): string;
   location(address: bigint): NativeMetadataLocation;
   evidence(address: bigint, description: string): NativeMetadataEvidence[];
@@ -43,7 +48,12 @@ export const decodeSwiftClassVtables = (input: {
       break;
     }
     try {
-      const descriptor = read.relative(field);
+      const descriptorValue = read.relative(field, "typeMetadataRecord");
+      if (descriptorValue.kind !== "target")
+        throw new RangeError(
+          unresolvedSwiftRelativeReason(descriptorValue, "typeMetadataRecord"),
+        );
+      const descriptor = descriptorValue.target;
       const flags = read.u32(descriptor);
       if ((flags & 31) !== 16) continue;
       const specific = flags >>> 16;
@@ -66,7 +76,13 @@ export const decodeSwiftClassVtables = (input: {
         throw new RangeError(
           "Swift vtable count or offset exceeds declared metadata bounds",
         );
-      const owner = read.string(read.relative(descriptor + 8n));
+      const ownerValue = read.relative(descriptor + 8n, "classDescriptorName");
+      if (ownerValue.kind !== "target")
+        throw new RangeError(
+          unresolvedSwiftRelativeReason(ownerValue, "classDescriptorName"),
+        );
+      const ownerAddress = ownerValue.target;
+      const owner = read.string(ownerAddress);
       if (owner.length === 0)
         throw new RangeError(
           "Swift class vtable descriptor class name is empty",
@@ -90,8 +106,25 @@ export const decodeSwiftClassVtables = (input: {
         // Async slots reference async descriptors; coroutine and future kinds need separate decoders.
         const synchronous =
           (methodFlags & 0x40) === 0 && (methodFlags & 15) <= 3;
-        const implementation = read.relative(entry + 4n);
-        const resolved = synchronous && read.executable(implementation);
+        const implementationValue = read.relative(
+          entry + 4n,
+          "methodImplementation",
+        );
+        const implementation =
+          implementationValue.kind === "target"
+            ? implementationValue.target
+            : null;
+        const implementationReason =
+          implementationValue.kind === "target"
+            ? null
+            : unresolvedSwiftRelativeReason(
+                implementationValue,
+                "methodImplementation",
+              );
+        const resolved =
+          implementation !== null &&
+          synchronous &&
+          read.executable(implementation);
         result.swift_dispatch_slots.push({
           owner,
           table_kind: "class_vtable",
@@ -108,7 +141,9 @@ export const decodeSwiftClassVtables = (input: {
             : {
                 status: "partial",
                 reason:
-                  "Async, coroutine, external or unmapped vtable implementation is unresolved",
+                  implementation === null
+                    ? implementationReason
+                    : "Async, coroutine, external or unmapped vtable implementation is unresolved",
               },
           evidence: read.evidence(
             entry,
@@ -121,7 +156,9 @@ export const decodeSwiftClassVtables = (input: {
             issue(
               "swift_class_vtable_descriptors",
               "vtable_implementation_unresolved",
-              "Async, coroutine, external or unmapped vtable implementation is unresolved",
+              implementation === null
+                ? implementationReason!
+                : "Async, coroutine, external or unmapped vtable implementation is unresolved",
               `0x${entry.toString(16)}`,
             ),
           );

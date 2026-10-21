@@ -432,7 +432,18 @@ complete observation.
   Pointers are decoded through the image's fixups:
   - `LC_DYLD_CHAINED_FIXUPS` rebases and binds, including the authenticated
     arm64e formats;
-  - legacy `LC_DYLD_INFO` bind opcodes.
+  - legacy `LC_DYLD_INFO` rebase and bind opcodes.
+
+  A Swift conformance whose type or protocol reference is an external bind
+  keeps its name as `null` and carries the raw dyld identity in
+  `type_binding` or `protocol_binding`; that record and its facet coverage are
+  partial. Consumers of this output must handle nullable conformance names
+  and use the typed binding fields instead of substituting a symbol as a
+  display name. Indirect relative-pointer records also retain their binding
+  identity. A decoded rebase to virtual address zero remains an address; only
+  an unfixed zero in a nullable ABI field is treated as null. Incomplete or
+  conflicting fixup streams keep affected pointers unresolved; coverage reports
+  parsing and resource limits while retaining validated prefix facts.
 
   So an external superclass resolves from its `_OBJC_CLASS_$_` bind (for
   example `NSObject`). The `pointer_fixups` coverage facet names the mechanism.

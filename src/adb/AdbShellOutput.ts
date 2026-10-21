@@ -381,6 +381,14 @@ export const parseBugreportCopiedPath = (stdout: string): string | null => {
   return match === null ? null : match[1]!;
 };
 
+/**
+ * Read the digest from one `sha256sum FILE` line, or null when the output
+ * names none. GNU sha256sum starts the line with a backslash when it escaped
+ * the echoed name; the digest itself is never escaped.
+ */
+export const parseSha256sumOutput = (stdout: string): string | null =>
+  /^\\?([a-f0-9]{64}) [ *]/u.exec(stdout)?.[1] ?? null;
+
 /** Read the device's `Failure [REASON]` verdict from package-change output. */
 export const packageChangeFailureReason = (output: string): string | null =>
   /Failure \[([^\]]+)\]/u.exec(output)?.[1] ?? null;

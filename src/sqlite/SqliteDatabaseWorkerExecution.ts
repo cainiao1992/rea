@@ -8,7 +8,6 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import type { AnalysisCapturedOutput } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
@@ -36,6 +35,7 @@ const operation = "inspect_sqlite_database";
 const {
   artifact: _artifactSchema,
   wal: _walSchema,
+  worker_timeout_ms: _workerTimeoutSchema,
   ...inspectionShape
 } = sqliteDatabaseSchema.shape;
 const inspectionSchema = z.strictObject(inspectionShape);
@@ -101,7 +101,9 @@ const rejectedReply = (
       },
       {
         capturedOutput,
-        ...fixedAllowanceOptions("The SQLite worker reply allowance", "report"),
+        retryable: false,
+        remediationAction:
+          "The SQLite value/record and worker JSON reply allowances are fixed at 16 MiB; worker_timeout_ms and client deadlines do not raise them. If it preserves the requested facts, select exact columns, reduce row_limit, or use schema_scope: inventory instead of database. This worker refusal leaves no completed Evidence to retrieve. Do not repeat the unchanged request or truncate required database bytes.",
       },
     );
   const argument = rejectedArgument[reply.reason];
@@ -123,6 +125,7 @@ export const executeSqliteDatabaseWorker = async (request: {
   readonly input: InspectSqliteDatabaseInput;
   readonly root: string;
   readonly snapshotPath: string;
+  readonly timeoutMs: number;
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly resourceScope: ArtifactResourceScope;
   readonly launcher?: SqliteWorkerLauncher;
@@ -160,7 +163,7 @@ export const executeSqliteDatabaseWorker = async (request: {
       hostEnvironment: environment,
     },
     {
-      timeoutMs: SQLITE_DATABASE_LIMITS.timeoutMs,
+      timeoutMs: request.timeoutMs,
       diagnosticBytes: SQLITE_DATABASE_LIMITS.diagnosticBytes,
     },
     {

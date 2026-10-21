@@ -86,11 +86,20 @@ cliTest(
       })),
     );
     const cliResult = await cli.run({
-      arguments: ["inspect-sqlite-database", path, "--json"],
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--worker-timeout-ms",
+        "60000",
+        "--json",
+      ],
       environment: { REA_LOG_LEVEL: "silent" },
     });
     const { call } = await connectLocalToolsMcp();
-    const mcpResponse = await call("inspect_sqlite_database", { path });
+    const mcpResponse = await call("inspect_sqlite_database", {
+      path,
+      worker_timeout_ms: 60000,
+    });
     const mcpError = parseMcpToolError(mcpResponse).error;
     const expectedError = {
       code: "resource_constraint",
@@ -240,10 +249,13 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       path,
       table: "selected",
       columns: ["", "id", "id"],
+      worker_timeout_ms: 42000,
     });
     expect(selected.isError).not.toBe(true);
     expect(selected.structuredContent).toMatchObject({
+      parameters: { worker_timeout_ms: 42000 },
       normalized_result: {
+        worker_timeout_ms: 42000,
         schema: {
           scope: "selected_table",
           tables: [{ name: "selected" }],
@@ -283,13 +295,19 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
         "",
         "--row-limit",
         "1",
+        "--worker-timeout-ms",
+        "42000",
         "--json",
       ],
       environment: { REA_LOG_LEVEL: "silent" },
     });
     expect(cliResult.exitCode, cliResult.stdout + cliResult.stderr).toBe(0);
     expect(cliResult.json).toMatchObject({
-      normalized_result: { rows: { columns: ["id", ""], returned_rows: 1 } },
+      parameters: { worker_timeout_ms: 42000 },
+      normalized_result: {
+        worker_timeout_ms: 42000,
+        rows: { columns: ["id", ""], returned_rows: 1 },
+      },
     });
     for (const input of [
       { path, columns: ["id"] },

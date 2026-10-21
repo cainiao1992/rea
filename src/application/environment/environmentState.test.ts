@@ -418,6 +418,30 @@ describe("EnvironmentStateStore", () => {
   });
 });
 
+describe("caller-owned state replacement", () => {
+  it("does not retain mutable data from a caller-owned replacement", () => {
+    const store = new EnvironmentStateStore(state);
+    const document = documentWith((value) => {
+      const entity = value.rea_state.entities.find((item) => item.id === "2");
+      if (!entity) throw new Error("Expected the user entity");
+      entity.fields = { ...(entity.fields as object), login: "renamed" };
+    });
+    expect(store.replace(document).ok).toBe(true);
+    const callerEntity = document.rea_state.entities.find(
+      (entity) => entity.id === "2",
+    );
+    if (!callerEntity) throw new Error("Expected the caller's user entity");
+    (callerEntity.fields as Record<string, unknown>).login = "later edit";
+
+    expect(store.snapshot().rea_state.entities).toContainEqual(
+      expect.objectContaining({
+        id: "2",
+        fields: expect.objectContaining({ login: "renamed" }),
+      }),
+    );
+  });
+});
+
 describe("rea-state/v1 validation", () => {
   it.each([
     [
@@ -568,5 +592,38 @@ describe("rea-state/v1 validation", () => {
     expect(
       firstProblem({ rea_state: { version: 2, entities: [], documents: [] } }),
     ).toMatchObject({ path: "rea_state/version" });
+  });
+});
+
+describe("wide state value validation", () => {
+  it("preserves a wide caller value through the state replacement boundary", () => {
+    const wide = Array.from({ length: 200_000 }, (_, index) => index % 10);
+    const wideObject = Object.fromEntries(
+      Array.from({ length: 20_000 }, (_, index) => [
+        `field_${String(index)}`,
+        index,
+      ]),
+    );
+    const document = documentWith((value) => {
+      const fields = value.rea_state.entities[0]!.fields as Record<
+        string,
+        unknown
+      >;
+      value.rea_state.entities[0]!.fields = {
+        ...fields,
+        caller_wide: wide,
+        caller_wide_object: wideObject,
+      };
+    });
+    const store = new EnvironmentStateStore(state);
+
+    expect(store.replace(document).ok).toBe(true);
+    const retained = store.snapshot().rea_state.entities[0]?.fields.caller_wide;
+    if (!Array.isArray(retained)) throw new Error("Expected the wide value");
+    expect(retained).toHaveLength(wide.length);
+    expect(retained.at(-1)).toBe(wide.at(-1));
+    const retainedObject =
+      store.snapshot().rea_state.entities[0]?.fields.caller_wide_object;
+    expect(retainedObject).toEqual(wideObject);
   });
 });

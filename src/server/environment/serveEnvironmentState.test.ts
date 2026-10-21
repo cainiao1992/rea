@@ -7,6 +7,32 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+const closeFailureControl = vi.hoisted(() => ({
+  failure: null as Error | null,
+}));
+
+vi.mock("../http/serveStreamableHttp.js", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../http/serveStreamableHttp.js")>();
+  return {
+    ...original,
+    serveStreamableHttp: async (
+      ...args: Parameters<typeof original.serveStreamableHttp>
+    ) => {
+      const served = await original.serveStreamableHttp(...args);
+      return {
+        ...served,
+        close: async () => {
+          await served.close();
+          const failure = closeFailureControl.failure;
+          closeFailureControl.failure = null;
+          if (failure !== null) throw failure;
+        },
+      };
+    },
+  };
+});
+
 import { timedCaptureEvidence } from "../../../tests/fixtures/analysisView.js";
 import {
   environmentStateServeFixture,
@@ -672,11 +698,62 @@ describe("state data plane response budget", () => {
             typeof value === "object" &&
             value !== null &&
             "result" in value &&
+            typeof (value as { result?: unknown }).result === "object" &&
             (value as { id?: unknown }).id === 3,
         ),
       ).toBe(false);
     } finally {
       stringify.mockRestore();
+    }
+  });
+});
+
+describe("repeated state reads", () => {
+  it("reuses the encoded size of a state for refused repeated data/get calls", async () => {
+    const plane = dataPlane();
+    const document = renamedDocument();
+    const large = {
+      rea_state: {
+        ...document.rea_state,
+        entities: document.rea_state.entities.map((entity) =>
+          entity.type === "/api/users" && entity.id === "2"
+            ? {
+                ...entity,
+                fields: { ...entity.fields, large: "x".repeat(1024 * 1024) },
+              }
+            : entity,
+        ),
+      },
+    };
+    await plane.add({ kind: "data", data: large });
+    const fields = plane.store
+      .snapshot()
+      .rea_state.entities.find((entity) => entity.id === "2")?.fields;
+    if (fields === undefined) throw new Error("Expected the loaded entity");
+
+    const originalKeys = Object.keys;
+    let fieldEnumerations = 0;
+    const keys = vi.spyOn(Object, "keys").mockImplementation((value) => {
+      if (value === fields) fieldEnumerations += 1;
+      return originalKeys(value);
+    });
+    try {
+      const batch = await plane.post(
+        Array.from({ length: 100 }, (_, index) => ({
+          jsonrpc: "2.0",
+          id: index + 1,
+          method: "data/get",
+        })),
+      );
+      expect(
+        (batch.json as { error?: unknown }[]).filter((reply) => reply.error),
+      ).not.toHaveLength(0);
+      expect(fieldEnumerations).toBeLessThan(65);
+      expect(Buffer.byteLength(JSON.stringify(batch.json))).toBeLessThanOrEqual(
+        MAX_RPC_RESPONSE_BYTES,
+      );
+    } finally {
+      keys.mockRestore();
     }
   });
 });
@@ -891,7 +968,47 @@ describe("serveEnvironment with a state", () => {
     await expect(environment.close()).resolves.toBeUndefined();
     expect(owners[0]?.handle.fd).toBe(-1);
   });
+});
 
+describe("serveEnvironment cleanup retries", () => {
+  it("attempts state-file cleanup after listener failure and keeps both failures retryable", async () => {
+    const environment = await serveState({ source, state });
+    const uri = await renamedStateUri();
+    let failing = true;
+    const owners = failFirstFileClose(() => failing);
+    const response = await fetch(
+      new URL(ENVIRONMENT_RPC_PATH, environment.url),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(addByUri(1, uri)),
+      },
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: -32000,
+        message: expect.stringContaining("could not be closed"),
+      },
+    });
+
+    const listenerFailure = new Error("injected listener cleanup failure");
+    closeFailureControl.failure = listenerFailure;
+    await expect(environment.close()).rejects.toSatisfy((cause: unknown) => {
+      if (!(cause instanceof AggregateError)) return false;
+      return (
+        cause.errors[0] === listenerFailure &&
+        cause.errors[1] instanceof ArtifactResourceRetryFailure
+      );
+    });
+    expect(owners[0]?.handle.fd).toBeGreaterThanOrEqual(0);
+
+    failing = false;
+    await expect(environment.close()).resolves.toBeUndefined();
+    expect(owners[0]?.handle.fd).toBe(-1);
+  });
+});
+
+describe("serveEnvironment with a state", () => {
   it("serves query POSTs from their recordings and leaves state-changing writes out", async () => {
     const environment = await serveState(
       environmentStateServeInputs(

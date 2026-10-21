@@ -58,9 +58,21 @@ export class EnvironmentStateStore {
     this.#install(this.state);
   }
 
-  /** Validate a `rea-state/v1` document and, only when it is valid, make it the whole state. */
+  /** Validate a caller-owned document and copy its JSON values before retaining them. */
   replace(document: unknown): Result<void, AnalysisInputError> {
-    const content = parseStateDocument(this.state, document);
+    return this.#replace(document, false);
+  }
+
+  /** Validate and retain a JSON document created exclusively by the serving boundary. */
+  replaceOwnedDocument(document: unknown): Result<void, AnalysisInputError> {
+    return this.#replace(document, true);
+  }
+
+  #replace(
+    document: unknown,
+    owned: boolean,
+  ): Result<void, AnalysisInputError> {
+    const content = parseStateDocument(this.state, document, owned);
     if (!content.ok) return content;
     // data/get writes members a document may omit, so the state it reports must still be one data/add loads.
     if (jsonBytes(this.#snapshotOf(content.value)) > STATE_INTAKE_LIMIT_BYTES)

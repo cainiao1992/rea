@@ -1,3 +1,4 @@
+import { types } from "node:util";
 import { z } from "zod";
 
 import {
@@ -16,7 +17,11 @@ import {
 } from "../../domain/analysisErrorCore.js";
 import { canonicalJson } from "../../domain/comparisonSemantics.js";
 import { projectInputIssues } from "../../domain/inputIssueProjection.js";
-import { jsonValueSchema } from "../../domain/jsonValue.js";
+import {
+  jsonValueSchema,
+  ownedJsonValueSchema,
+  type JsonValue,
+} from "../../domain/jsonValue.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { compositeKey } from "../../domain/unicodeCodePointOrder.js";
 import type { EnvironmentState } from "./environmentState.js";
@@ -37,37 +42,42 @@ export interface StateContent {
   readonly documents: readonly HeldDocument[];
 }
 
-const fieldsSchema = z.record(z.string(), jsonValueSchema);
-const ordinalSchema = z.number().int().nonnegative();
+const stateDocumentSchemaFor = (jsonValue: z.ZodType<JsonValue, unknown>) => {
+  const fieldsSchema = z.record(z.string(), jsonValue);
+  const ordinalSchema = z.number().int().nonnegative();
 
-const stateDocumentSchema = z.strictObject({
-  rea_state: z.strictObject({
-    version: z.literal(1),
-    // `data/get` reports these; accepting them back lets its output be loaded unchanged.
-    state_evidence_id: z.string().optional(),
-    types: z.array(jsonValueSchema).optional(),
-    entities: z.array(
-      z.strictObject({
-        type: z.string(),
-        collection: z.string(),
-        id: z.string(),
-        fields: fieldsSchema,
-        view_fields: z
-          .array(z.strictObject({ tool: z.string(), fields: fieldsSchema }))
-          .optional(),
-        record_ordinals: z.array(ordinalSchema).optional(),
-      }),
-    ),
-    documents: z.array(
-      z.strictObject({
-        tool: z.string(),
-        path: z.string(),
-        value: jsonValueSchema,
-        record_ordinal: ordinalSchema.optional(),
-      }),
-    ),
-  }),
-});
+  return z.strictObject({
+    rea_state: z.strictObject({
+      version: z.literal(1),
+      // `data/get` reports these; accepting them back lets its output be loaded unchanged.
+      state_evidence_id: z.string().optional(),
+      types: z.array(jsonValue).optional(),
+      entities: z.array(
+        z.strictObject({
+          type: z.string(),
+          collection: z.string(),
+          id: z.string(),
+          fields: fieldsSchema,
+          view_fields: z
+            .array(z.strictObject({ tool: z.string(), fields: fieldsSchema }))
+            .optional(),
+          record_ordinals: z.array(ordinalSchema).optional(),
+        }),
+      ),
+      documents: z.array(
+        z.strictObject({
+          tool: z.string(),
+          path: z.string(),
+          value: jsonValue,
+          record_ordinal: ordinalSchema.optional(),
+        }),
+      ),
+    }),
+  });
+};
+
+const stateDocumentSchema = stateDocumentSchemaFor(jsonValueSchema);
+const ownedStateDocumentSchema = stateDocumentSchemaFor(ownedJsonValueSchema);
 
 type ParsedDocument = z.output<typeof stateDocumentSchema>["rea_state"];
 type ParsedEntity = ParsedDocument["entities"][number];
@@ -105,31 +115,82 @@ const memberProblem = (path: Path): AnalysisInputIssue => {
 
 /** The path of the first `__proto__` member in document order; schema parsing would drop such a member rather than refuse it. */
 const prototypeMemberPath = (root: unknown): Path | undefined => {
-  interface Node {
+  interface Cursor {
     readonly value: unknown;
-    readonly parent: Node | undefined;
+    readonly parent: Cursor | undefined;
     readonly key: string | number;
+    readonly entries?: Generator<string>;
+    index: number;
   }
-  const pathOf = (node: Node): (string | number)[] => {
+  const pathOf = (node: Cursor): (string | number)[] => {
     const path: (string | number)[] = [];
-    for (let at: Node = node; at.parent !== undefined; at = at.parent)
+    for (let at: Cursor = node; at.parent !== undefined; at = at.parent)
       path.push(at.key);
     return path.reverse();
   };
-  const pending: Node[] = [{ value: root, parent: undefined, key: "" }];
-  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+  function* ownKeys(value: Record<string, unknown>): Generator<string> {
+    // `for...in` is lazy. The ownership check keeps inherited enumerable
+    // properties out, matching Object.entries without allocating all entries.
+    for (const key in value) if (Object.hasOwn(value, key)) yield key;
+  }
+  const cursor = (
+    value: unknown,
+    parent: Cursor | undefined,
+    key: string | number,
+  ): Cursor => ({
+    value,
+    parent,
+    key,
+    index: 0,
+    ...(!Array.isArray(value) && typeof value === "object" && value !== null
+      ? { entries: ownKeys(value as Record<string, unknown>) }
+      : {}),
+  });
+  const pending: Cursor[] = [cursor(root, undefined, "")];
+  while (pending.length > 0) {
+    const node = pending[pending.length - 1]!;
     const { value } = node;
-    if (typeof value !== "object" || value === null) continue;
+    if (typeof value !== "object" || value === null) {
+      pending.pop();
+      continue;
+    }
+    // The canonical JSON validator reports proxies without invoking their traps.
+    if (types.isProxy(value)) {
+      pending.pop();
+      continue;
+    }
     const array = Array.isArray(value);
     if (!array && Object.hasOwn(value, "__proto__"))
       return [...pathOf(node), "__proto__"];
-    const entries = Object.entries(value);
-    for (let index = entries.length - 1; index >= 0; index -= 1)
-      pending.push({
-        value: entries[index]![1],
-        parent: node,
-        key: array ? index : entries[index]![0],
-      });
+    if (array) {
+      if (node.index >= value.length) {
+        pending.pop();
+        continue;
+      }
+      const index = node.index++;
+      const descriptor = Object.getOwnPropertyDescriptor(value, index);
+      if (
+        descriptor?.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      )
+        continue;
+      const child: unknown = descriptor.value;
+      if (typeof child === "object" && child !== null)
+        pending.push(cursor(child, node, index));
+      continue;
+    }
+    const next = node.entries?.next();
+    if (next === undefined || next.done) {
+      pending.pop();
+      continue;
+    }
+    const key = next.value;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor?.enumerable !== true || !Object.hasOwn(descriptor, "value"))
+      continue;
+    const child: unknown = descriptor.value;
+    if (typeof child === "object" && child !== null)
+      pending.push(cursor(child, node, key));
   }
   return undefined;
 };
@@ -365,9 +426,12 @@ const heldContent = (
 export const parseStateDocument = (
   state: EnvironmentState,
   value: unknown,
+  owned = false,
 ): Result<StateContent, AnalysisInputError> => {
   const prototype = prototypeMemberPath(value);
-  const parsed = stateDocumentSchema.safeParse(value);
+  const parsed = (
+    owned ? ownedStateDocumentSchema : stateDocumentSchema
+  ).safeParse(value);
   const initial = new Map(
     state.entities.map((entity) => [entityKey(entity), entity]),
   );

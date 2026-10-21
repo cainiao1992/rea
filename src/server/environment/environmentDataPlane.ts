@@ -60,7 +60,7 @@ const addState = async (
   if (!document.ok) return { error: document.error };
   // A file read is not interruptible, so a cancellation during it is honoured here, before the state changes.
   if (cancel.aborted) return { error: CANCELLED };
-  const replaced = store.replace(document.value);
+  const replaced = store.replaceOwnedDocument(document.value);
   return replaced.ok
     ? { result: {} }
     : { error: documentError(replaced.error) };

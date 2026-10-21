@@ -597,7 +597,7 @@ export class BinarySession
               }),
               closed.error,
               "open_binary",
-            ),
+            ).bindCleanupDependencies([closed.error]),
           );
         return closed;
       }

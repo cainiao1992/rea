@@ -4,6 +4,10 @@ import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  AnalysisCleanupLeaseGroup,
+  type AnalysisCleanupLease,
+} from "../artifacts/AnalysisCleanupLease.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { publishWebScripts } from "../browser/assets/PublishWebScripts.js";
 import { selectScriptCapture } from "../browser/assets/ScriptCaptureAdapters.js";
@@ -48,6 +52,7 @@ interface CaptureRead {
     readonly reason: string;
     readonly incomplete: boolean;
     readonly cause: unknown;
+    readonly lease?: AnalysisCleanupLease;
   };
 }
 
@@ -259,6 +264,9 @@ const readCapture = async (
         reason: retry.cleanup?.reason ?? errorMessage(cause.cleanupCause),
         incomplete: retry.cleanup !== undefined,
         cause: cause.cleanupCause,
+        ...(retry.cleanupLease === undefined
+          ? {}
+          : { lease: retry.cleanupLease }),
       };
       if (retry.outcome.kind === "completed") {
         const cancellation =
@@ -353,8 +361,8 @@ const incompleteCaptureCleanup = (
   primary: AnalysisError,
   path: string,
   cleanup: NonNullable<CaptureRead["cleanup"]>,
-): AnalysisError =>
-  analysisErrorWithCleanupFailure(
+): AnalysisError => {
+  const error = analysisErrorWithCleanupFailure(
     primary,
     new ProviderCleanupError(
       PROVIDER.id,
@@ -364,6 +372,10 @@ const incompleteCaptureCleanup = (
     ),
     OPERATION,
   );
+  if (cleanup.lease !== undefined)
+    new AnalysisCleanupLeaseGroup(error, [cleanup.lease]);
+  return error;
+};
 
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);

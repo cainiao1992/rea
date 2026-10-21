@@ -628,34 +628,52 @@ describe("captured script final commit cancellation", () => {
     }
   });
 
-  it("returns cancellation with the caller reason when a retried capture close recovers", async () => {
-    const { input, resources } = await setup();
-    const controller = new AbortController();
-    const reason = { request: "stop export" };
-    let closeCalls = 0;
-    openMock.mockImplementation(async (...args) => {
-      const handle = await actualFs.open(...args);
-      if (String(args[0]) !== input.capture_path) return handle;
-      const close = handle.close.bind(handle);
-      vi.spyOn(handle, "close").mockImplementation(async () => {
-        closeCalls += 1;
-        if (closeCalls === 1) {
-          controller.abort(reason);
-          throw new Error("injected capture close failure");
-        }
-        await close();
+  it.each([1, 2])(
+    "returns cancellation after %i failed capture close attempts recover",
+    async (failedCloses) => {
+      const { input, resources } = await setup();
+      const controller = new AbortController();
+      const reason = { request: "stop export" };
+      let closeCalls = 0;
+      openMock.mockImplementation(async (...args) => {
+        const handle = await actualFs.open(...args);
+        if (String(args[0]) !== input.capture_path) return handle;
+        const close = handle.close.bind(handle);
+        vi.spyOn(handle, "close").mockImplementation(async () => {
+          closeCalls += 1;
+          if (closeCalls <= failedCloses) {
+            controller.abort(reason);
+            throw new Error("injected capture close failure");
+          }
+          await close();
+        });
+        return handle;
       });
-      return handle;
-    });
-    const result = await exportWebScripts(input, resources, {
-      signal: controller.signal,
-    });
-    if (result.ok) throw new Error("Expected cancellation");
-    expect(closeCalls).toBe(2);
-    expect(result.error._tag).toBe("AnalysisCancelledError");
-    expect(result.error.cause).toBe(reason);
-    expect(resources.hasPending).toBe(false);
-  });
+      const result = await exportWebScripts(input, resources, {
+        signal: controller.signal,
+      });
+      if (result.ok) throw new Error("Expected cancellation");
+      expect(closeCalls).toBe(2);
+      expect(result.error.cleanupIncomplete).toBe(failedCloses === 2);
+      expect(resources.hasPending).toBe(failedCloses === 2);
+      if (failedCloses === 2) {
+        expect(projectAnalysisError(result.error)).toMatchObject({
+          code: "cleanup_incomplete",
+          details: { resources: [input.capture_path] },
+        });
+        expect(result.error.cleanupPrimary?.cause).toBe(reason);
+      } else {
+        expect(result.error.cause).toBe(reason);
+      }
+      await resources.close();
+      expect(closeCalls).toBe(failedCloses + 1);
+      expect(resources.hasPending).toBe(false);
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "cancelled",
+      });
+    },
+  );
 
   it("identifies a missing capture file and rejected host path syntax", async () => {
     const { input, resources } = await setup();
@@ -925,6 +943,11 @@ describe("capture read and close failure", () => {
       await resources.close();
       expect(closeCalls).toBe(4);
       expect(openedHandle.fd).toBe(-1);
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "artifact_operation_failed",
+        details: { reason: "io" },
+      });
     } finally {
       allowClose = true;
       await resources.close().catch(() => undefined);
@@ -984,6 +1007,10 @@ describe("capture handle ownership", () => {
       allowClose = true;
       await resources.close();
       expect([...closeCalls.values()]).toEqual([4]);
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "invalid_request",
+      });
     } finally {
       allowClose = true;
       await resources.close().catch(() => undefined);

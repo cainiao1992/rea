@@ -2,6 +2,10 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 
+import {
+  AnalysisCleanupLease,
+  AnalysisCleanupLeaseGroup,
+} from "../../../src/artifacts/AnalysisCleanupLease.js";
 import type { AnalysisClient } from "../../../src/application/AnalysisProvider.js";
 import { HopperStartError } from "../../../src/domain/hopperErrors.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
@@ -33,6 +37,11 @@ const retryFixture = async (
     reason: "owned runtime removal denied",
     leftover_paths: [runtime],
   });
+  const cleanupLease = new AnalysisCleanupLease(
+    () => rm(runtime, { recursive: true, force: true }),
+    [runtime],
+  );
+  new AnalysisCleanupLeaseGroup(cleanupError, [cleanupLease]);
   const client: AnalysisClient = {
     execute,
     operationHealthSnapshot: () => ({
@@ -45,7 +54,7 @@ const retryFixture = async (
     close: async (options) => {
       onClose?.();
       if (!allowed) return err(cleanupError);
-      await rm(runtime, { recursive: true, force: true });
+      await cleanupLease.release();
       if (options?.retainDocument !== true) await rm(document, { force: true });
       return resultOk(null);
     },
@@ -243,6 +252,12 @@ it("keeps cancellation as the primary when previous-client retirement fails afte
   });
   fixture.allowCleanup();
   expect((await fixture.session.close()).ok).toBe(true);
+  expect(fixture.cleanupError.cleanupIncomplete).toBe(false);
+  expect(result.error.cleanupIncomplete).toBe(false);
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "cancelled",
+  });
+  expect(result.error.cleanupPrimary?.cause).toBe(reason);
 });
 
 it("preserves caller-selected document retention when retrying cleanup", async () => {

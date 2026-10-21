@@ -217,10 +217,16 @@ const registerElectronTargetList = (
       withCommandCancellation((signal) =>
         logCliCommand(logger, "list-electron-targets", async () => {
           const context = await electronObservationContext();
-          const parsed = listElectronTargetsInputSchema.safeParse({
+          const input = {
             cdp_endpoint: args.endpoint,
-          });
-          if (!parsed.success) return inputError("list_electron_targets");
+          };
+          const parsed = listElectronTargetsInputSchema.safeParse(input);
+          if (!parsed.success)
+            return inputError(
+              "list_electron_targets",
+              parsed.error.issues,
+              input,
+            );
           const { listElectronTargets } =
             await import("../application/javascript/ElectronObservationService.js");
           return await finishAnalysisCommand(
@@ -255,13 +261,19 @@ const registerElectronPageInspection = (
       withCommandCancellation((signal) =>
         logCliCommand(logger, "inspect-electron-page", async () => {
           const context = await electronObservationContext();
-          const parsed = inspectElectronPageInputSchema.safeParse({
+          const input = {
             cdp_endpoint: args.endpoint,
             target_id: args.targetId,
             observation_ms: options.observationMs,
             include_script_sources: options.includeScriptSources,
-          });
-          if (!parsed.success) return inputError("inspect_electron_page");
+          };
+          const parsed = inspectElectronPageInputSchema.safeParse(input);
+          if (!parsed.success)
+            return inputError(
+              "inspect_electron_page",
+              parsed.error.issues,
+              input,
+            );
           const { inspectElectronPage } =
             await import("../application/javascript/ElectronObservationService.js");
           return await finishAnalysisCommand(

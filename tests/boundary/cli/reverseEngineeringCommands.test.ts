@@ -50,14 +50,22 @@ const observation = (completionStatus: "complete" | "unknown") =>
 const runObjdump = async (
   service: Partial<ReverseEngineeringService>,
   path = "/tmp/sample",
-  selection: { operation?: string; symbol?: string } = {},
+  selection: {
+    operation?: string;
+    symbol?: string;
+    commandTimeoutMs?: number;
+  } = {},
 ) => {
   const commands = new Map<
     string,
     {
       run(input: {
         args: { path: string; operation: string };
-        options: { followDebugLinks: boolean; symbol?: string };
+        options: {
+          followDebugLinks: boolean;
+          symbol?: string;
+          commandTimeoutMs?: number;
+        };
       }): Promise<unknown>;
     }
   >();
@@ -67,7 +75,11 @@ const runObjdump = async (
       definition: {
         run(input: {
           args: { path: string; operation: string };
-          options: { followDebugLinks: boolean; symbol?: string };
+          options: {
+            followDebugLinks: boolean;
+            symbol?: string;
+            commandTimeoutMs?: number;
+          };
         }): Promise<unknown>;
       },
     ) => {
@@ -90,6 +102,9 @@ const runObjdump = async (
     options: {
       followDebugLinks: false,
       ...(selection.symbol === undefined ? {} : { symbol: selection.symbol }),
+      ...(selection.commandTimeoutMs === undefined
+        ? {}
+        : { commandTimeoutMs: selection.commandTimeoutMs }),
     },
   });
 };
@@ -108,6 +123,26 @@ it("forwards the selected native symbol to the shared workflow", async () => {
     operation: "disassemble",
     follow_debug_links: false,
     symbol: "_Z3foov@@VERSION_1",
+  });
+});
+
+it("forwards a selected objdump command deadline and omits the field otherwise", async () => {
+  const inspectWithObjdump = vi.fn(async (_input: unknown) =>
+    ok(observation("complete")),
+  );
+  const service = { inspectWithObjdump, close: async () => undefined };
+  await runObjdump(service, "/tmp/sample", { commandTimeoutMs: 5_000 });
+  expect(inspectWithObjdump.mock.calls[0]?.[0]).toEqual({
+    path: "/tmp/sample",
+    operation: "file_headers",
+    follow_debug_links: false,
+    command_timeout_ms: 5_000,
+  });
+  await runObjdump(service, "/tmp/sample");
+  expect(inspectWithObjdump.mock.calls[1]?.[0]).toEqual({
+    path: "/tmp/sample",
+    operation: "file_headers",
+    follow_debug_links: false,
   });
 });
 

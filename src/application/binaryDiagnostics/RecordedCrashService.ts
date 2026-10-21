@@ -55,7 +55,11 @@ export class RecordedCrashService {
     ) => ReturnType<RecordedCrashPort["inspect"]>,
   ): Promise<Result<Evidence, AnalysisError>> {
     if (options?.signal?.aborted)
-      return err(new AnalysisCancelledError(OPERATION));
+      return err(
+        new AnalysisCancelledError(OPERATION, {
+          cause: options.signal.reason,
+        }),
+      );
     const input = inspectRecordedCrashInputSchema.safeParse(rawInput);
     if (!input.success)
       return err(

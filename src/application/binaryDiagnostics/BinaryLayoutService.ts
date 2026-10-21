@@ -54,7 +54,11 @@ export class BinaryLayoutService {
     ) => ReturnType<BinaryLayoutPort["inspect"]>,
   ): Promise<Result<Evidence, AnalysisError>> {
     if (options?.signal?.aborted)
-      return err(new AnalysisCancelledError(OPERATION));
+      return err(
+        new AnalysisCancelledError(OPERATION, {
+          cause: options.signal.reason,
+        }),
+      );
     const input = inspectBinaryLayoutInputSchema.safeParse(rawInput);
     if (!input.success)
       return err(

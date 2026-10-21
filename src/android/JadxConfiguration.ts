@@ -544,11 +544,20 @@ const resolveJar = async (
   environment: Readonly<Record<string, string | undefined>>,
 ): Promise<string> => {
   const jar = environment.REA_JADX_MCP_JAR;
-  if (jar === undefined || !isAbsolute(jar))
+  if (jar === undefined)
     throw configurationFailure(
       "not_configured",
       JADX_JAR_CONFIGURATION_REMEDIATION,
       { jar_configured: false },
+      "jar",
+    );
+  // A supplied selection stays configured even when rejected, so callers can
+  // tell it from an omitted setting and see the exact value REA refused.
+  if (!isAbsolute(jar))
+    throw configurationFailure(
+      "open_options_invalid",
+      `REA_JADX_MCP_JAR must be an absolute path; received ${JSON.stringify(jar)}. ${JADX_JAR_CONFIGURATION_REMEDIATION}`,
+      { jar_configured: true, jar_path: jar, path_requirement: "absolute" },
       "jar",
     );
   try {

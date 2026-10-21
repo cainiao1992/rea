@@ -25,7 +25,7 @@ export interface StateToolFacts {
   readonly record_ordinals: readonly number[];
 }
 
-/** A record's response body as JSON, or unusable when absent, cut, not JSON or not exactly representable. */
+/** A record's response body as JSON, or unusable when absent, cut, not JSON, not exactly representable or carrying a `__proto__` member. */
 export type ParsedBody =
   | { readonly kind: "json"; readonly value: JsonValue }
   | { readonly kind: "unusable" };
@@ -189,7 +189,7 @@ export const normalizedPath = (path: string): string =>
 
 /** An item record's collection is its path without the identity segment; a list record's is its path. */
 export const collectionPathOf = (
-  record: StateRecordFacts,
+  record: Pick<StateRecordFacts, "path">,
   item: boolean,
 ): string =>
   item
@@ -201,10 +201,13 @@ export const isQueryPost = (method: string, path: string): boolean =>
   method === "POST" &&
   segmentsOf(path).some((segment) => QUERY_SEGMENTS.has(segment.toLowerCase()));
 
-/** Whether a record may change state: a successful or unanswered write that is not a query POST. */
+/** Whether a request with this method and path may change state: a write method that is not a query POST. */
+export const changesState = (method: string, path: string): boolean =>
+  WRITE_METHODS.has(method) && !isQueryPost(method, path);
+
+/** Whether a record may change state: a successful or unanswered request that `changesState` names. */
 export const isStateWrite = (record: StateRecordFacts): boolean =>
-  WRITE_METHODS.has(record.method) &&
-  !isQueryPost(record.method, record.path) &&
+  changesState(record.method, record.path) &&
   (record.status === null || (record.status >= 200 && record.status < 400));
 
 /** Whether any write overlaps the span from one record's start to a later record's end; writes come in timeline order. */
@@ -280,6 +283,24 @@ export const jsonBytes = (value: JsonValue): number => {
       ENTRY_BYTES,
     );
   return ENTRY_BYTES;
+};
+
+/** Whether a JSON value nests more than `limit` levels below its root. */
+export const deeperThan = (value: JsonValue, limit: number): boolean => {
+  const pending: { readonly value: JsonValue; readonly depth: number }[] = [
+    { value, depth: 0 },
+  ];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (next.depth > limit) return true;
+    const children = Array.isArray(next.value)
+      ? next.value
+      : isObject(next.value)
+        ? Object.values(next.value)
+        : [];
+    for (const child of children)
+      pending.push({ value: child, depth: next.depth + 1 });
+  }
+  return false;
 };
 
 /** JSON parsers keep a `__proto__` member that plain object construction would turn into a prototype. */

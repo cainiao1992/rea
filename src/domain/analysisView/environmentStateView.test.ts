@@ -3,6 +3,8 @@ import {
   analysisViewCaptureEvidence,
   environmentManifestCaptureFixture,
   environmentStateCaptureFixture,
+  timedCaptureEvidence,
+  type TimedCaptureRow,
 } from "../../../tests/fixtures/analysisView.js";
 import {
   SCENARIO_EXCHANGES,
@@ -48,35 +50,8 @@ const stateOf = (parent: AnalysisViewParent = parentOf()): State => {
   return result.value;
 };
 
-type Row = readonly [
-  method: string,
-  path: string,
-  body?: JsonValue,
-  status?: number,
-];
-
-/** HAR entries one second apart on one origin; a string body is recorded as written. */
-const captureOf = (rows: readonly Row[]): AnalysisViewParent =>
-  parentOf(
-    analysisViewCaptureEvidence(
-      environmentManifestCaptureFixture(
-        rows.map(([method, path, body = null, status = 200], index) => ({
-          startedDateTime: new Date(
-            Date.parse("2026-10-17T18:00:00.000Z") + index * 1000,
-          ).toISOString(),
-          time: 5,
-          request: { method, url: `http://app.example${path}` },
-          response: {
-            status,
-            content: {
-              mimeType: "application/json",
-              text: typeof body === "string" ? body : JSON.stringify(body),
-            },
-          },
-        })),
-      ),
-    ),
-  );
+const captureOf = (rows: readonly TimedCaptureRow[]): AnalysisViewParent =>
+  parentOf(timedCaptureEvidence(rows));
 
 const viewOf = (state: State, tool: string) =>
   state.views.find((view) => view.tool === tool);
@@ -278,7 +253,7 @@ it("does not list the whole collection when a counter exceeds the number listed"
 });
 
 it("lists the whole collection with its counter only when every recording did", () => {
-  const rows: Row[] = [
+  const rows: TimedCaptureRow[] = [
     [
       "GET",
       "/api/items",
@@ -350,6 +325,23 @@ it("leaves recorded the views it cannot reproduce, with the reason", () => {
   ]);
   expect(state.types).toEqual([]);
   expect(state.entities).toEqual([]);
+});
+
+it("leaves a body too deep for the state's own nesting recorded instead of failing to seal", () => {
+  let deep: JsonValue = { theme: "dark" };
+  for (let level = 0; level < 995; level += 1) deep = { nested: deep };
+  const state = stateOf(
+    captureOf([
+      ["GET", "/api/settings", deep],
+      ["PUT", "/api/settings", { theme: "light" }],
+    ]),
+  );
+  expect(state.documents).toEqual([]);
+  expect(viewOf(state, "get_settings")).toEqual({
+    tool: "get_settings",
+    shape: "recorded",
+    reason: "body-unusable",
+  });
 });
 
 it("holds a written path's non-entity read as a document", () => {

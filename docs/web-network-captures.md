@@ -611,7 +611,10 @@ computes responses or derived values, and no effects of writes. The state
 accumulator charges the manifest's admission and grouping, every record line,
 each body as temporary bytes before it is decoded and parsed, and every value
 it keeps, within the same 96 MiB budget. The view performs no network activity
-and serves nothing.
+and serves nothing; `rea environment-serve` derives it from the capture at
+startup, serves read tools from it and loads replacement states through the
+AgentEnv data plane, as
+[serve from the state](agent-environments.md#serve-from-the-state) describes.
 
 ## Resource and lifecycle boundaries
 

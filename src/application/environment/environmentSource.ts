@@ -21,7 +21,7 @@ import { projectInputIssues } from "../../domain/inputIssueProjection.js";
 import { immutableJsonSnapshotMember } from "../../domain/immutableJson.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
-  webNetworkCaptureSchema,
+  safeParseOwnedWebNetworkCapture,
   type WebNetworkCaptureRecord,
 } from "../../domain/webNetworkCapture.js";
 
@@ -66,7 +66,8 @@ export interface EnvironmentSource {
   readonly exchanges: ReadonlyMap<number, RecordedExchange>;
 }
 
-const inputError = (
+/** An input refusal whose issue paths name the offending file. */
+export const inputError = (
   operation: string,
   issues: readonly AnalysisInputIssue[],
   userMessage?: string,
@@ -78,9 +79,9 @@ const inputError = (
   );
 
 /** Authenticate one Evidence file; schema failures name the file role in their paths. */
-const parseEvidenceFile = (
+export const parseEvidenceFile = (
   operation: string,
-  role: "manifest" | "evidence",
+  role: "manifest" | "evidence" | "state",
   value: unknown,
 ): Result<Evidence, AnalysisError> => {
   try {
@@ -117,15 +118,20 @@ const recordedExchange = (
   };
 };
 
-/** Authenticate the manifest file and require the environment-manifest view kind. */
-const parseManifestEvidence = (
+/** Authenticate a view Evidence file and require one view kind; a refusal names the file role. */
+export const parseViewEvidence = <Kind extends AnalysisViewResult["kind"]>(
   operation: string,
+  role: "manifest" | "state",
   value: unknown,
+  kind: Kind,
 ): Result<
-  { readonly manifest: EnvironmentManifest; readonly evidenceId: string },
+  {
+    readonly view: Extract<AnalysisViewResult, { kind: Kind }>;
+    readonly evidenceId: string;
+  },
   AnalysisError
 > => {
-  const evidence = parseEvidenceFile(operation, "manifest", value);
+  const evidence = parseEvidenceFile(operation, role, value);
   if (!evidence.ok) return evidence;
   const view = analysisViewResultSchema.safeParse(
     evidence.value.normalized_result,
@@ -133,24 +139,26 @@ const parseManifestEvidence = (
   if (
     evidence.value.operation !== "inspect_analysis_view" ||
     !view.success ||
-    view.data.kind !== "environment-manifest"
+    view.data.kind !== kind
   )
     return err(
       inputError(
         operation,
         [
           {
-            path: ["manifest", "normalized_result", "kind"],
+            path: [role, "normalized_result", "kind"],
             reason: "invalid_value",
-            expected: "environment-manifest",
-            message:
-              "The manifest file must be inspect_analysis_view Evidence of kind environment-manifest.",
+            expected: kind,
+            message: `The ${role} file must be inspect_analysis_view Evidence of kind ${kind}.`,
           },
         ],
-        "The manifest file is not environment-manifest view Evidence.",
+        `The ${role} file is not ${kind} view Evidence.`,
       ),
     );
-  return ok({ manifest: view.data, evidenceId: evidence.value.evidence_id });
+  return ok({
+    view: view.data as Extract<AnalysisViewResult, { kind: Kind }>,
+    evidenceId: evidence.value.evidence_id,
+  });
 };
 
 /** Authenticate the evidence file and require complete capture Evidence of either kind. */
@@ -194,7 +202,8 @@ const parseCaptureEvidence = (
         const record = immutableJsonSnapshotMember(records, String(index));
         immutableJsonSnapshotMember(record, "reported");
       }
-    const capture = webNetworkCaptureSchema.safeParse(normalized);
+    // An owned snapshot is validated once and borrowed, so deriving the state reuses this validation.
+    const capture = safeParseOwnedWebNetworkCapture(normalized);
     if (capture.success) {
       // The manifest view projects HAR captures only, and replay reads HAR's response fields.
       if (capture.data.format !== "har")
@@ -269,11 +278,16 @@ export const loadEnvironmentSource = (
   evidenceValue: unknown,
   operation: string = ENVIRONMENT_SERVE_OPERATION,
 ): Result<EnvironmentSource, AnalysisError> => {
-  const manifest = parseManifestEvidence(operation, manifestValue);
+  const manifest = parseViewEvidence(
+    operation,
+    "manifest",
+    manifestValue,
+    "environment-manifest",
+  );
   if (!manifest.ok) return manifest;
   const capture = parseCaptureEvidence(operation, evidenceValue);
   if (!capture.ok) return capture;
-  const parentId = manifest.value.manifest.parent_evidence_id;
+  const parentId = manifest.value.view.parent_evidence_id;
   if (parentId !== capture.value.evidenceId)
     return err(
       inputError(
@@ -290,11 +304,11 @@ export const loadEnvironmentSource = (
       ),
     );
   return ok({
-    manifest: manifest.value.manifest,
+    manifest: manifest.value.view,
     manifestEvidenceId: manifest.value.evidenceId,
     evidenceId: capture.value.evidenceId,
     captureKind: capture.value.captureKind,
     captureSha256: capture.value.captureSha256,
-    exchanges: indexExchanges(manifest.value.manifest, capture.value.records),
+    exchanges: indexExchanges(manifest.value.view, capture.value.records),
   });
 };

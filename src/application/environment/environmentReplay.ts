@@ -51,13 +51,18 @@ interface MatchScore {
   readonly exact: boolean;
 }
 
-const decoded = (segment: string): string => {
+/** A path segment percent-decoded, or as written when it is not valid percent-encoding. */
+export const decodedPathSegment = (segment: string): string => {
   try {
     return decodeURIComponent(segment);
   } catch {
     return segment;
   }
 };
+
+/** Replay's path rule: a supplied value matches a recorded segment equal to it verbatim or after percent-decoding. */
+export const pathValueMatches = (segment: string, value: string): boolean =>
+  segment === value || decodedPathSegment(segment) === value;
 
 /** Count how many supplied path and query values the recorded request line satisfies. */
 const scoreExchange = (
@@ -86,10 +91,7 @@ const scoreExchange = (
   for (const { index, value } of providedPaths) {
     const segment = segments.get(index);
     if (segment === value) verbatimMatches += 1;
-    if (
-      segment !== undefined &&
-      (segment === value || decoded(segment) === value)
-    )
+    if (segment !== undefined && pathValueMatches(segment, value))
       pathMatches += 1;
   }
   const supplied = new Map<string, string>();
@@ -150,6 +152,30 @@ export const selectReplayExchange = (
     : { exchange: best.exchange, exact: best.score.exact };
 };
 
+/** Whether the arguments name one recorded request line exactly: every path value supplied and matching, every supplied query value matching, and every recorded query parameter supplied with its recorded value. */
+export const selectsRecordedLine = (
+  tool: EnvironmentManifestTool,
+  exchange: RecordedExchange,
+  args: ReplayArguments,
+): boolean => {
+  const argumentsMap = environmentToolArguments(tool);
+  if (
+    !tool.params.every(
+      (param) =>
+        typeof args[argumentsMap.path.get(param.name) ?? param.name] ===
+        "string",
+    ) ||
+    !scoreExchange(tool, argumentsMap.path, argumentsMap.query, exchange, args)
+      .exact
+  )
+    return false;
+  for (const [name, value] of iterateUrlQueryParameters(exchange.query ?? "")) {
+    const argument = argumentsMap.query.get(name);
+    if (argument === undefined || args[argument] !== value) return false;
+  }
+  return true;
+};
+
 /** The longest prefix of text whose UTF-8 encoding fits the byte limit, encoding only that prefix. */
 const utf8Prefix = (text: string, maxBytes: number): string => {
   // encodeInto stops before the first character that does not fit, so `read` ends on a boundary.
@@ -165,19 +191,19 @@ const decodedBase64Bytes = (encoded: string): number =>
 /** Base64 characters, in whole groups, whose bytes fit the replay limit. */
 const BASE64_LIMIT_CHARS = Math.floor(REPLAY_BODY_LIMIT_BYTES / 3) * 4;
 
+interface ReplayBody {
+  readonly body: JsonValue;
+  readonly truncated: boolean;
+}
+
 /** The limit applies to the recorded bytes, not to their base64 spelling. */
-const replayBase64Body = (
-  encoded: string,
-  cut: boolean,
-): { readonly body: JsonValue; readonly truncated: boolean } =>
+const replayBase64Body = (encoded: string, cut: boolean): ReplayBody =>
   !cut && decodedBase64Bytes(encoded) <= REPLAY_BODY_LIMIT_BYTES
     ? { body: encoded, truncated: false }
     : { body: encoded.slice(0, BASE64_LIMIT_CHARS), truncated: true };
 
 /** Parse a retained body as JSON when its content type is JSON-like; otherwise return the text. */
-const replayBody = (
-  exchange: RecordedExchange,
-): { readonly body: JsonValue; readonly truncated: boolean } => {
+const replayBody = (exchange: RecordedExchange): ReplayBody => {
   const text = exchange.bodyText;
   if (text === null) return { body: null, truncated: false };
   if (exchange.bodyEncoding === "base64")
@@ -215,8 +241,16 @@ export const replayEnvironmentTool = (
         [{ path: ["tool"], reason: "invalid_value", expected: tool.name }],
       ),
     );
-  const { exchange, exact } = selected;
-  const { body, truncated } = replayBody(exchange);
+  return ok(replayAnswer(source, selected.exchange, selected.exact));
+};
+
+/** A tool answer with one recorded exchange's status, content type and provenance; the body defaults to the recorded one. */
+export const replayAnswer = (
+  source: EnvironmentSource,
+  exchange: RecordedExchange,
+  exact: boolean,
+  { body, truncated }: ReplayBody = replayBody(exchange),
+): ReplayResult => {
   const recordedPath = utf8Prefix(exchange.path, REPLAY_METADATA_LIMIT_BYTES);
   const recordedQuery =
     exchange.query === null
@@ -226,7 +260,7 @@ export const replayEnvironmentTool = (
     exchange.contentType === null
       ? null
       : utf8Prefix(exchange.contentType, REPLAY_METADATA_LIMIT_BYTES);
-  return ok({
+  return {
     status: exchange.status,
     content_type: contentType,
     body,
@@ -244,5 +278,5 @@ export const replayEnvironmentTool = (
       body_encoding: exchange.bodyEncoding ?? "utf-8",
       truncated,
     },
-  });
+  };
 };

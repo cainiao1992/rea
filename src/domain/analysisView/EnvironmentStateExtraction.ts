@@ -13,7 +13,6 @@ import {
   isQueryPost,
   isStateWrite,
   jsonBytes,
-  hasPrototypeKey,
   lastSegmentValue,
   listItems,
   normalizedPath,
@@ -162,11 +161,7 @@ export class EnvironmentStateExtraction {
     const parsed = this.#budget.body(ordinal);
     if (parsed === null) throw new StateBudgetExhausted();
     try {
-      return use(
-        parsed.kind === "json" && !hasPrototypeKey(parsed.value)
-          ? parsed.value
-          : undefined,
-      );
+      return use(parsed.kind === "json" ? parsed.value : undefined);
     } finally {
       this.#budget.release();
     }

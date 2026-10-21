@@ -197,12 +197,24 @@ const EMPTY_TOOL_BYTES = JSON.stringify({
   },
 }).length;
 
+/** What a served environment answers beyond replay: nothing, or a live state with its data plane. */
+export type EnvironmentDataPlane = "none" | "state";
+
+/** How one catalog is served: the operation a refusal names and the data plane its card declares. */
+export interface EnvironmentCatalogOptions {
+  readonly operation?: string;
+  readonly dataPlane?: EnvironmentDataPlane;
+}
+
 /** Admit complete discovery before binding; six bytes per UTF-16 unit covers JSON escaping and UTF-8 expansion. */
 export const environmentToolDefinitions = (
   manifest: EnvironmentManifest,
   evidenceId: string,
   name: string = manifest.name,
-  operation: string = ENVIRONMENT_SERVE_OPERATION,
+  {
+    operation = ENVIRONMENT_SERVE_OPERATION,
+    dataPlane = "none",
+  }: EnvironmentCatalogOptions = {},
 ): Result<
   readonly EnvironmentToolDefinition[],
   AnalysisResourceConstraintError
@@ -232,8 +244,15 @@ export const environmentToolDefinitions = (
         },
       ),
     );
-  if (!text(name) || !reserve(JSON.stringify(environmentCard("", [])).length))
+  if (
+    !text(name) ||
+    !reserve(JSON.stringify(environmentCard("", [], dataPlane)).length)
+  )
     return refused();
+  const answers =
+    dataPlane === "state"
+      ? "answers from the served environment state where the state backs this tool, otherwise replays retained records"
+      : "replays retained records";
   const definitions: EnvironmentToolDefinition[] = [];
   for (const tool of manifest.tools) {
     if (!reserve(EMPTY_TOOL_BYTES) || !text(tool.name)) return refused();
@@ -243,7 +262,7 @@ export const environmentToolDefinitions = (
       (WRITE_METHODS.has(tool.method) ? 1 : 0);
     // A lower bound rejects enormous argument lists before constructing their alias map.
     if (!reserve(count * EMPTY_PROPERTY_BYTES)) return refused();
-    const description = `${REPLAY_CATALOG_INSTRUCTIONS} ${describeText(tool.method, "method")} ${describeText(tool.path_template, "path")}; replays retained records [${describeList(tool.record_ordinals, tool.record_ordinals.length)}]; evidence ${evidenceId}`;
+    const description = `${REPLAY_CATALOG_INSTRUCTIONS} ${describeText(tool.method, "method")} ${describeText(tool.path_template, "path")}; ${answers} [${describeList(tool.record_ordinals, tool.record_ordinals.length)}]; evidence ${evidenceId}`;
     if (!text(description)) return refused();
     const args = environmentToolArguments(tool);
     const properties = new Map<string, EnvironmentToolProperty>();
@@ -276,6 +295,30 @@ export const environmentToolDefinitions = (
   return ok(definitions);
 };
 
+/** The document format a state-served data plane loads and reports. */
+export const REA_STATE_FORMAT = "rea-state/v1";
+
+/** The data-plane methods an environment served from a state answers. */
+export const STATE_OPERATIONS = ["data/reset", "data/add", "data/get"] as const;
+
+/** The intake declaration a state-served card carries: what `data/add` loads and `data/get` returns. */
+export const STATE_INTAKE_EXTENSION = {
+  uri: "urn:agentenv:intake/v1",
+  description: `data/add replaces the whole environment state with one ${REA_STATE_FORMAT} document; data/get returns the current state in the same format.`,
+  params: {
+    add: [
+      { part: "data", format: REA_STATE_FORMAT, load: "replace" },
+      {
+        part: "file",
+        format: REA_STATE_FORMAT,
+        mimeTypes: ["application/json"],
+        load: "replace",
+      },
+    ],
+    get: [{ part: "data", format: REA_STATE_FORMAT }],
+  },
+} as const;
+
 /** The environment card served at `/.well-known/agent-env.json`; key order is part of the contract. */
 export interface EnvironmentCard {
   readonly name: string;
@@ -284,20 +327,22 @@ export interface EnvironmentCard {
   readonly preferredTransport: "JSONRPC";
   readonly additionalInterfaces: readonly [{ url: "/mcp"; transport: "mcp" }];
   readonly capabilities: {
-    readonly extensions: null;
+    /** Null for a replay environment; the intake declaration when served from a state. */
+    readonly extensions: null | readonly [typeof STATE_INTAKE_EXTENSION];
     readonly tools: readonly Pick<
       EnvironmentToolDefinition,
       "name" | "description" | "inputSchema"
     >[];
-    readonly operations: readonly [];
+    readonly operations: readonly [] | typeof STATE_OPERATIONS;
   };
   readonly children_environments: null;
 }
 
-/** Build the card from the served name and the tool definitions. */
+/** Build the card from the served name and the tool definitions; a state-served card declares its data plane. */
 export const environmentCard = (
   name: string,
   tools: readonly EnvironmentToolDefinition[],
+  dataPlane: EnvironmentDataPlane = "none",
 ): EnvironmentCard => ({
   name,
   protocolVersion: "1.0",
@@ -305,13 +350,13 @@ export const environmentCard = (
   preferredTransport: "JSONRPC",
   additionalInterfaces: [{ url: "/mcp", transport: "mcp" }],
   capabilities: {
-    extensions: null,
+    extensions: dataPlane === "state" ? [STATE_INTAKE_EXTENSION] : null,
     tools: tools.map(({ name: toolName, description, inputSchema }) => ({
       name: toolName,
       description,
       inputSchema,
     })),
-    operations: [],
+    operations: dataPlane === "state" ? STATE_OPERATIONS : [],
   },
   children_environments: null,
 });

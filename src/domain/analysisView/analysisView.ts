@@ -12,10 +12,10 @@ import {
   projectGpuCodeObjectsView,
 } from "./gpuCodeObjectsView.js";
 import { gpuCodeObjectsObjectSchema } from "../gpu/gpuCodeObjects.js";
+import { modelArtifactViewRequestSchema } from "../model/modelArtifactQuery.js";
 import {
   projectModelArtifactView,
   modelArtifactSummarySchema,
-  modelArtifactViewRequestSchema,
   modelArtifactViewItemsSchema,
   modelArtifactViewContextSchema,
 } from "./modelArtifactView.js";

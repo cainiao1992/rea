@@ -54,7 +54,7 @@ export function* jsonValueValidationSteps(
     if (item === undefined) break;
     if (item.depth > MAX_JSON_DEPTH)
       return finish(
-        `JSON value exceeds maximum nesting depth of ${MAX_JSON_DEPTH}`,
+        `JSON value exceeds maximum nesting depth of ${MAX_JSON_DEPTH}. This release has no runtime override.`,
       );
     const value = item.value;
     if (typeof value === "object" && value !== null && types.isProxy(value))

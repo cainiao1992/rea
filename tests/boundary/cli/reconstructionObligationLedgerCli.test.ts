@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
+import {
+  MIXED_AUTHORITY_SUMMARY,
+  mixedAuthorityRequest,
+} from "../../../src/application/ReconstructionObligationLedger.fixture.js";
 
 const execute = promisify(execFile);
 
@@ -115,5 +119,45 @@ describe("reconstruction obligation ledger CLI parity", () => {
         summary: { total: 0 },
       },
     });
+  }, 20_000);
+
+  it("summarizes obligations by their cited Evidence authorities", async () => {
+    const { stdout } = await execute(
+      process.execPath,
+      [
+        "scripts/rea.mjs",
+        "build-reconstruction-obligation-ledger",
+        JSON.stringify(mixedAuthorityRequest()),
+        "--json",
+      ],
+      { cwd: process.cwd(), env: process.env, maxBuffer: 16 * 1_024 * 1_024 },
+    );
+    const ledger = JSON.parse(stdout).normalized_result;
+    expect(ledger.summary).toMatchObject(MIXED_AUTHORITY_SUMMARY);
+    expect(
+      ledger.obligations.map(
+        (obligation: {
+          readonly obligation_id: string;
+          readonly authority_references: readonly {
+            readonly authority: string;
+            readonly state: string;
+          }[];
+        }) => [
+          obligation.obligation_id,
+          obligation.authority_references.map(
+            ({ authority, state }) => `${authority}/${state}`,
+          ),
+        ],
+      ),
+    ).toEqual([
+      [
+        "review.mixed",
+        expect.arrayContaining([
+          "shipped-artifact/candidate",
+          "controlled-replay/reviewed",
+        ]),
+      ],
+      ["review.shipped", ["shipped-artifact/candidate"]],
+    ]);
   }, 20_000);
 });

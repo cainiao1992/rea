@@ -149,3 +149,63 @@ export const reviewedObligation = (
   disposition: "active",
   review_evidence_ids: [evidenceId],
 });
+
+const authorityEvidence = (
+  label: string,
+  authority: "shipped-artifact" | "controlled-replay",
+) =>
+  createEvidence(
+    undefined,
+    { id: "fixture", name: "Fixture", version: "1" },
+    {
+      operation: "observe",
+      parameters: { label },
+      result: { present: true },
+      confidence: "observed",
+      authority,
+    },
+  );
+
+/**
+ * Request with one single-reference shipped-artifact obligation and one
+ * obligation citing two shipped-artifact records and one controlled-replay
+ * record. Shipped-artifact review references have candidate state while both
+ * reviewed obligations have reviewed source state.
+ */
+export const mixedAuthorityRequest =
+  (): ReconstructionObligationLedgerInput => {
+    const shipped = authorityEvidence("shipped", "shipped-artifact");
+    const otherShipped = authorityEvidence("other-shipped", "shipped-artifact");
+    const replay = authorityEvidence("replay", "controlled-replay");
+    return request([shipped, otherShipped, replay], {
+      reviewed_obligations: [
+        reviewedObligation("review.shipped", shipped.evidence_id),
+        {
+          ...reviewedObligation("review.mixed", shipped.evidence_id),
+          review_evidence_ids: [
+            shipped.evidence_id,
+            replay.evidence_id,
+            otherShipped.evidence_id,
+          ],
+        },
+      ],
+    });
+  };
+
+/** Summary buckets expected for {@link mixedAuthorityRequest}. */
+export const MIXED_AUTHORITY_SUMMARY = {
+  total: 2,
+  by_evidence_authority: [
+    { key: "shipped-artifact", count: 2 },
+    { key: "controlled-replay", count: 1 },
+    { key: "historical-reference", count: 0 },
+    { key: "external-service", count: 0 },
+    { key: "analyst-inference", count: 0 },
+  ],
+  by_source_state: [
+    { key: "candidate", count: 0 },
+    { key: "observed", count: 0 },
+    { key: "reviewed", count: 2 },
+    { key: "unknown", count: 0 },
+  ],
+} as const;

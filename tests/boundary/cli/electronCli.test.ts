@@ -264,6 +264,25 @@ describe("Electron CLI artifact behavior", () => {
   );
 });
 
+describe("Electron CLI runtime reconciliation input", () => {
+  it(
+    "labels schema-invalid reconciliation input without naming Electron",
+    async () => {
+      const rejected = await runCli(
+        ["reconcile-javascript-runtime", "{}", "--json"],
+        process.env,
+      );
+      expect(rejected).toMatchObject({
+        error: "Application workflow failed",
+        code: "invalid_request",
+        category: "invalid_input",
+        details: { operation: "reconcile_javascript_runtime" },
+      });
+    },
+    INTEGRATION_TEST_TIMEOUT_MS,
+  );
+});
+
 describe("Electron CLI runtime reconciliation", () => {
   it(
     "reads a file and returns the derived static/runtime reconciliation contract",

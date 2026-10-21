@@ -135,6 +135,7 @@ export const parseBinaryTarget = async (
         return ok({
           path,
           sourcePath,
+          ...bundle,
           sha256: await sha256Handle(handle, path, metadata, signal),
           kind: "executable",
           format: "raw-binary",
@@ -174,6 +175,7 @@ export const parseBinaryTarget = async (
         return ok({
           path,
           sourcePath,
+          ...bundle,
           sha256: await sha256Handle(handle, path, metadata, signal),
           kind: "executable",
           format: "dos-com",

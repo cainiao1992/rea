@@ -1,4 +1,12 @@
 import {
+  gpuCodeObjectsViewRequestSchema,
+  gpuCodeObjectsSummarySchema,
+  gpuCodeObjectsItemsSchema,
+  gpuCodeObjectsPtxPageSchema,
+  projectGpuCodeObjectsView,
+} from "./gpuCodeObjectsView.js";
+import { gpuCodeObjectsObjectSchema } from "../gpu/gpuCodeObjects.js";
+import {
   projectModelArtifactView,
   modelArtifactSummarySchema,
   modelArtifactViewRequestSchema,
@@ -311,6 +319,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   dartAotViewRequestSchema,
   il2cppMetadataViewRequestSchema,
   modelArtifactViewRequestSchema,
+  gpuCodeObjectsViewRequestSchema,
 ]);
 
 // The application owns admission and authenticated Evidence parsing. SDK and
@@ -420,6 +429,7 @@ const viewResultBase = {
     "inspect_dart_aot",
     "inspect_il2cpp_metadata",
     "inspect_model_artifact",
+    "inspect_gpu_code_objects",
     ...NATIVE_INVENTORY_OPERATIONS,
     "match_native_functions",
   ]),
@@ -605,6 +615,21 @@ export const dartAotSummaryViewResultSchema = z.strictObject({
   summary: dartAotSummarySchema,
 });
 
+export const gpuCodeObjectsSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_gpu_code_objects"),
+  summary: gpuCodeObjectsSummarySchema,
+});
+export const gpuCodeObjectsPageViewResultSchema = z.strictObject({
+  kind: z.literal("gpu-code-objects"),
+  view: gpuCodeObjectsViewRequestSchema,
+  items: gpuCodeObjectsItemsSchema,
+  ptx: gpuCodeObjectsPtxPageSchema.nullable(),
+  source_coverage: gpuCodeObjectsObjectSchema.shape.coverage,
+  ...viewResultBase,
+  parent_operation: z.literal("inspect_gpu_code_objects"),
+});
+
 export const modelArtifactSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.literal("inspect_model_artifact"),
@@ -708,6 +733,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     dartAotSummaryViewResultSchema,
     il2cppMetadataSummaryViewResultSchema,
     modelArtifactSummaryViewResultSchema,
+    gpuCodeObjectsSummaryViewResultSchema,
     nativeInventorySummaryViewResultSchema,
     nativeFunctionMatchingSummaryViewResultSchema,
   ]),
@@ -857,6 +883,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     parent_operation: z.literal("inspect_dart_aot"),
   }),
   modelArtifactPageViewResultSchema,
+  gpuCodeObjectsPageViewResultSchema,
   z.strictObject({
     kind: z.literal("il2cpp-metadata"),
     view: il2cppMetadataViewRequestSchema,
@@ -997,6 +1024,7 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inspect_dart_aot", projectDartAotView],
   ["inspect_il2cpp_metadata", projectIl2cppMetadataView],
   ["inspect_model_artifact", projectModelArtifactView],
+  ["inspect_gpu_code_objects", projectGpuCodeObjectsView],
   ["match_native_functions", projectNativeFunctionMatchingView],
   ["inspect_artifact", projectArtifactInventoryView],
   ["inventory_artifact", projectArtifactInventoryView],

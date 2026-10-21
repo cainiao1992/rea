@@ -181,6 +181,8 @@ explicit path or endpoint and do not need it.
   absent metadata does not prove a binary is not Go, and unparsed text records
   remain explicit. See the
   [Go binary guide](https://github.com/morluto/rea/blob/main/docs/go-binaries.md).
+- Embedded CUDA/HIP code objects: `inspect_gpu_code_objects`; inventory targets
+  first, then decode selected payloads and query retained GPU Evidence.
 - Bundled GGUF or safetensors model declarations: `inspect_model_artifact`
   with the explicit local file. Default header hashing leaves full-file identity
   unknown; `hash: "full"` additionally reads all weights for SHA-256. MCP returns

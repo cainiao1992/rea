@@ -33,6 +33,7 @@ import { ZipArtifactReader } from "../artifacts/ZipArtifactReader.js";
 import type { DoctorProviderCheck } from "../application/Doctor.js";
 import {
   DEFAULT_JADX_OPERATION_TIMEOUT_MS,
+  jadxOperationTimeoutGuidance,
   JADX_JAR_CONFIGURATION_REMEDIATION,
   JADX_JAVA_PROBE_REMEDIATION,
   JADX_JAVA_RUNTIME_REMEDIATION,
@@ -483,6 +484,7 @@ const archiveCancellation = (
     ? new AnalysisTimeoutError(operation, options.operationDeadline.timeoutMs, {
         cause: reason,
         diagnostics,
+        ...jadxOperationTimeoutGuidance(options.operationDeadline.timeoutMs),
       })
     : new AnalysisCancelledError(operation, { cause: reason, diagnostics });
 };

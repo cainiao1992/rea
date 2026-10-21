@@ -8,6 +8,7 @@ import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import {
   MIXED_AUTHORITY_SUMMARY,
   mixedAuthorityRequest,
+  readyProcessLedgerRequest,
 } from "../../../src/application/ReconstructionObligationLedger.fixture.js";
 
 const execute = promisify(execFile);
@@ -159,5 +160,66 @@ describe("reconstruction obligation ledger CLI parity", () => {
       ],
       ["review.shipped", ["shipped-artifact/candidate"]],
     ]);
+  }, 20_000);
+});
+
+describe("reconstruction obligation ledger CLI contradictions", () => {
+  it("keeps a complete contradiction beside an entry naming absent Evidence", async () => {
+    const input = readyProcessLedgerRequest();
+    const obligationId = input.manifest.bindings[0]?.obligation_id;
+    const [present, other] = input.evidence_bundle.records.map(
+      ({ evidence_id: id }) => id,
+    );
+    if (
+      obligationId === undefined ||
+      present === undefined ||
+      other === undefined
+    )
+      throw new Error("Expected a bound obligation and two Evidence records");
+    const absent = `ev_${"f".repeat(64)}`;
+    const complete = {
+      obligation_id: obligationId,
+      evidence_ids: [present, other],
+    };
+    const incomplete = {
+      obligation_id: obligationId,
+      evidence_ids: [present, absent],
+    };
+    // Each entry is its own claim; entry order must not decide the outcome.
+    for (const contradictions of [
+      [complete, incomplete],
+      [incomplete, complete],
+    ]) {
+      const { stdout } = await execute(
+        process.execPath,
+        [
+          "scripts/rea.mjs",
+          "build-reconstruction-obligation-ledger",
+          JSON.stringify({
+            ...input,
+            manifest: { ...input.manifest, contradictions },
+          }),
+          "--json",
+        ],
+        { cwd: process.cwd(), env: process.env, maxBuffer: 16 * 1_024 * 1_024 },
+      );
+      const ledger = JSON.parse(stdout).normalized_result;
+      expect(ledger).toMatchObject({
+        status: "failed",
+        reports: { contradicted_obligation_ids: [obligationId] },
+        obligations: [
+          {
+            status: "contradicted",
+            diagnostics: [
+              {
+                code: "contradiction-evidence-missing",
+                detail: `Contradiction references missing Evidence: ${absent}.`,
+              },
+              { code: "contradiction" },
+            ],
+          },
+        ],
+      });
+    }
   }, 20_000);
 });

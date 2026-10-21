@@ -33,8 +33,7 @@ const COMPARISON_EVIDENCE_IDENTITIES = {
   },
 } as const;
 
-type ComparisonEvidenceOperation =
-  keyof typeof COMPARISON_EVIDENCE_IDENTITIES;
+type ComparisonEvidenceOperation = keyof typeof COMPARISON_EVIDENCE_IDENTITIES;
 
 /** Whether an operation is one of the comparison workflows this domain owns. */
 export const isComparisonEvidenceOperation = (
@@ -43,9 +42,7 @@ export const isComparisonEvidenceOperation = (
   Object.hasOwn(COMPARISON_EVIDENCE_IDENTITIES, operation);
 
 /** Check shared Evidence identity without imposing a consumer's link policy. */
-export const hasComparisonEvidenceIdentity = (
-  evidence: Evidence,
-): boolean => {
+export const hasComparisonEvidenceIdentity = (evidence: Evidence): boolean => {
   if (!isComparisonEvidenceOperation(evidence.operation)) return false;
   const expected = COMPARISON_EVIDENCE_IDENTITIES[evidence.operation];
   const providerMatches =

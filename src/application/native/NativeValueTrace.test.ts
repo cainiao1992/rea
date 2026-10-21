@@ -698,6 +698,25 @@ describe("bounded native value dependency composition", () => {
       error: { _tag: "AnalysisOutputError" },
     });
   });
+
+  it("returns typed cancellation when the caller aborts with the final provider reply", async () => {
+    const controller = new AbortController();
+    const reason = { request: "stop trace" };
+    const result = await traceNativeValues(
+      {
+        execute: async (operation, parameters, options) => {
+          const value = await analysis.execute(operation, parameters, options);
+          if (parameters.procedure === "0x2000") controller.abort(reason);
+          return value;
+        },
+      },
+      { procedure: "0x1000" },
+      controller.signal,
+    );
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error._tag).toBe("AnalysisCancelledError");
+    expect(result.error.cause).toBe(reason);
+  });
 });
 
 describe("native value trace selector origin", () => {

@@ -274,6 +274,7 @@ const runAssetUtil = async (
         env: environment,
         timeout: 60_000,
         maxBuffer: MAX_CATALOG_BYTES,
+        stopSignal: "SIGTERM",
         ...(signal === undefined ? {} : { signal }),
       })
     ).stdout;

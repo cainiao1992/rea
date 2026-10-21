@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import { createReverseEngineeringService } from "../composition/reverseEngineering.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
+  AnalysisCancelledError,
   AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
@@ -33,6 +34,7 @@ import {
 
 const executeWithCleanup = async (
   service: ReverseEngineeringService,
+  signal: AbortSignal,
   execute: () => Promise<Result<Evidence, AnalysisError>>,
 ): Promise<Result<Evidence, AnalysisError>> => {
   let result: Result<Evidence, AnalysisError>;
@@ -66,10 +68,25 @@ const executeWithCleanup = async (
   }
   if (!result.ok && hadIncompleteCleanup && !result.error.cleanupIncomplete) {
     const evidence = cleanupOnlyCompleteEvidence(result.error);
-    if (evidence !== undefined) return { ok: true, value: evidence };
+    if (evidence !== undefined)
+      return cancelledAfterCleanup({ ok: true, value: evidence }, signal);
   }
-  return result;
+  return cancelledAfterCleanup(result, signal);
 };
+
+/** Late cancellation observed during finalization keeps the completed Evidence as partial data. */
+const cancelledAfterCleanup = (
+  result: Result<Evidence, AnalysisError>,
+  signal: AbortSignal,
+): Result<Evidence, AnalysisError> =>
+  result.ok && signal.aborted
+    ? err(
+        new AnalysisCancelledError(result.value.operation, {
+          cause: signal.reason,
+          partialObservation: result.value,
+        }),
+      )
+    : result;
 
 const cleanupOnlyCompleteEvidence = (
   error: AnalysisError,
@@ -152,7 +169,7 @@ export const registerReverseEngineeringCommands = (
           };
           const inputError = cliEvidenceDeliveryInputError(delivery);
           if (inputError !== undefined) return projectAnalysisError(inputError);
-          const result = await executeWithCleanup(service, () =>
+          const result = await executeWithCleanup(service, signal, () =>
             service.inspectWithObjdump(
               {
                 ...args,
@@ -196,7 +213,7 @@ export const registerReverseEngineeringCommands = (
             const inputError = cliEvidenceDeliveryInputError(delivery);
             if (inputError !== undefined)
               return projectAnalysisError(inputError);
-            const result = await executeWithCleanup(service, () =>
+            const result = await executeWithCleanup(service, signal, () =>
               service.inspectWithObjdump(
                 {
                   operation: "architectures",
@@ -229,7 +246,7 @@ export const registerReverseEngineeringCommands = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.executeRizinCommand, async () => {
-          const result = await executeWithCleanup(service, () =>
+          const result = await executeWithCleanup(service, signal, () =>
             service.executeRizinCommand(
               {
                 ...args,

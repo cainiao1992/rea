@@ -17,6 +17,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const retryFixture = async (
   execute: AnalysisClient["execute"] = () => Promise.resolve(ok(null)),
+  onClose?: () => void,
 ) => {
   const parent = await createTestTempDirectory("rea-session-cleanup-retry-");
   const runtime = join(parent, "owned-runtime");
@@ -42,6 +43,7 @@ const retryFixture = async (
       requests: [],
     }),
     close: async (options) => {
+      onClose?.();
       if (!allowed) return err(cleanupError);
       await rm(runtime, { recursive: true, force: true });
       if (options?.retainDocument !== true) await rm(document, { force: true });
@@ -219,6 +221,28 @@ it("retains cancelled startup cleanup and the cancellation reason", async () => 
   await expect(access(fixture.runtime)).rejects.toMatchObject({
     code: "ENOENT",
   });
+});
+
+it("keeps cancellation as the primary when previous-client retirement fails after abort", async () => {
+  const controller = new AbortController();
+  const reason = { phase: "binary-retirement" };
+  const fixture = await retryFixture(undefined, () => controller.abort(reason));
+  expect((await fixture.session.open(fixture.targets[0])).ok).toBe(true);
+  const result = await fixture.session.open(fixture.targets[1], {
+    signal: controller.signal,
+  });
+  if (result.ok) throw new Error("Expected cancelled retirement");
+  expect(result.error.cleanupIncomplete).toBe(true);
+  expect(result.error.cleanupPrimary).toMatchObject({
+    _tag: "AnalysisCancelledError",
+  });
+  expect(result.error.cleanupPrimary?.cause).toBe(reason);
+  expect(await fixture.session.status()).toMatchObject({
+    open: false,
+    cleanup_pending: true,
+  });
+  fixture.allowCleanup();
+  expect((await fixture.session.close()).ok).toBe(true);
 });
 
 it("preserves caller-selected document retention when retrying cleanup", async () => {

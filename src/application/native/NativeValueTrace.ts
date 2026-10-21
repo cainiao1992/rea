@@ -446,5 +446,11 @@ export const traceNativeValues = async (
         "Graph output exceeds 33554432 bytes (32 MiB). This release has no runtime override. Lower max_nodes, max_edges, or the page limit.",
       ),
     );
+  if (signal?.aborted)
+    return err(
+      new AnalysisCancelledError("trace_native_values", {
+        cause: signal.reason,
+      }),
+    );
   return ok(result);
 };

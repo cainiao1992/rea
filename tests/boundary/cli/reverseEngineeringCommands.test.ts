@@ -369,6 +369,20 @@ it("does not project cancellation cleanup as incomplete after a successful retry
   });
 });
 
+it("returns cancellation with the completed observation when the caller interrupts service close", async () => {
+  const service = {
+    inspectWithObjdump: vi.fn(async () => ok(observation("complete"))),
+    close: vi.fn(async () => {
+      process.emit("SIGINT");
+    }),
+  };
+
+  const result = await runObjdump(service);
+
+  expect(result).toMatchObject({ code: "cancelled" });
+  expect(process.exitCode).toBe(130);
+});
+
 it("parses the Rizin inferior TTY as an option and passes it to the manager", async () => {
   const commands = new Map<
     string,

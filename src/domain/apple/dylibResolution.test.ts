@@ -398,6 +398,9 @@ describe("dyld resolution outcomes: checking candidate format and compatibility"
         ({ outcome }) => outcome,
       ),
     ).toEqual(["not-mach-o", "malformed", "architecture-missing"]);
+    expect(trace.findings[0]?.explanation).toContain(
+      "No usable candidate for @rpath/lib.dylib exists in the analyzed root; found Contents/MacOS/a/lib.dylib (not a Mach-O image), Contents/MacOS/b/lib.dylib (malformed), Contents/MacOS/c/lib.dylib (missing the process architecture)",
+    );
     expect(trace.coverage).toEqual({
       status: "partial",
       unparsed_images: ["Contents/MacOS/b/lib.dylib"],

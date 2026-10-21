@@ -213,8 +213,16 @@ Resolution follows dyld:
 Each edge lists every candidate path tried, with its outcome: `resolved`,
 `absent`, `not-mach-o`, `malformed`, `unsupported` (recognized Mach-O outside
 parser coverage, such as big-endian images), `architecture-missing`,
-`outside-target`, `escapes-target`, or `undetermined`. Slices follow dyld's
-graded architectures, so an `x86_64h` process also loads `x86_64`. The edge's `resolution` is one of:
+`not-loadable`, `platform-mismatch`, `outside-target`, `escapes-target`, or
+`undetermined`. `not-loadable` means a
+matching-architecture Mach-O image was found but it is not a dylib and cannot
+satisfy a dylib dependency. `platform-mismatch` means a matching-architecture
+dylib was found but its observed platform is incompatible with the process.
+These outcomes reject that candidate; dyld search may continue and resolve a
+later candidate. Candidate outcomes describe individual search paths, while
+`resolution.status` describes the final edge. Slices follow dyld's graded
+architectures, so an `x86_64h` process also loads `x86_64`. The edge's
+`resolution` is one of:
 
 | Status         | Meaning                                                                                                                                                        |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |

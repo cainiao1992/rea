@@ -4,7 +4,10 @@ import {
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../artifacts/ArtifactFileOperation.js";
-import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import {
+  projectAnalysisError,
+  projectAnalysisErrorWithoutCapturedOutput,
+} from "../domain/analysisErrorProjection.js";
 import {
   AnalysisError,
   type AnalysisCapturedOutput,
@@ -48,15 +51,12 @@ export const createSqliteCleanupError = (
 ): ProviderCleanupError => {
   const capturedOutput =
     options.capturedOutput ?? options.cleanupPrimary?.capturedOutput;
-  let previous =
+  const previous =
     options.cleanupPrimary === undefined
       ? null
-      : projectAnalysisError(options.cleanupPrimary);
-  // History carries facts/recovery; the wrapper delivers output only once.
-  if (capturedOutput !== undefined && previous?.details !== undefined) {
-    const { captured_output: _capturedOutput, ...metadata } = previous.details;
-    previous = { ...previous, details: metadata };
-  }
+      : capturedOutput === undefined
+        ? projectAnalysisError(options.cleanupPrimary)
+        : projectAnalysisErrorWithoutCapturedOutput(options.cleanupPrimary);
   return new ProviderCleanupError(
     SQLITE_PROVIDER_IDENTITY.id,
     resources,

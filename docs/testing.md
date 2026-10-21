@@ -46,6 +46,24 @@ without executing tests or building. A missing Git base reports how to fetch
 it or select another revision.
 
 Source typechecking needs no compiled runtime or generated test metadata.
+Typecheck, runtime compilation, and Frida binding verification share
+`scripts/run-typescript.mjs`. The pinned tsrs package supplies Linux x64/arm64
+(GNU and musl) and macOS arm64 compilers. Windows and other unsupported hosts
+retain the existing stable official TypeScript compiler. Its upstream version
+can differ from tsrs, so both compiler tasks hash the selected package and version
+through `scripts/run-turbo.mjs` before cache lookup. Outputs from different
+compilers occupy different cache entries. Repository npm scripts and focused-test
+preparation use that entrypoint; a raw Turbo compiler task without matching
+identity fails instead of publishing an ambiguous successful cache entry.
+A missing binary on a supported host also fails without silently falling back.
+
+The Rust compiler defaults to at most two checker threads. For `--noEmit` checks,
+`--maxMemory 3G` also sets a soft memory target; emit builds do not use that target.
+Explicit compiler arguments can override the defaults. These controls do not
+impose a process-family memory limit. Termux's explicit build, Stryker's compiler
+API dependency, and independent fixture compiler oracles keep their existing
+TypeScript versions.
+
 `npm run build:cached` compiles the CLI/MCP runtime and its packaged skill.
 Turbo's strict task environment preserves caller-selected `GOMAXPROCS`,
 `GOMEMLIMIT`, and `UV_THREADPOOL_SIZE` for resource-constrained builds and
@@ -232,6 +250,11 @@ Stateless source-analysis matrices may share a file-owned stdio MCP connection
 and retain representative compiled CLI parity checks. Every distinct source
 scenario still runs through the public workflow; session-lifecycle scenarios
 need their own sessions and cleanup assertions.
+
+When a matrix already holds a named tool definition from live `tools/list`,
+pass that definition through the SDK's `toolDefinition` call option. This keeps
+the selected output-schema validation without eagerly compiling unrelated
+catalog schemas. Re-read definitions if the server advertises a changed list.
 
 Report unavailable authority as a named skip. Await owned cleanup before a
 verifier reports success. Native process inspectors are released at Vitest
@@ -648,8 +671,11 @@ missing entries are omitted as whole entries, and consumers rebuild cache misses
 including when every entry is unavailable. Malformed plans, non-file entries,
 and I/O errors other than disappearance still fail publication. After a trusted
 static run, superseded cross-run Turbo snapshots for that OS and architecture
-are deleted down to the two newest generations. The Windows lane relies on the Linux static job for typechecking. They retain the normal build and prepack
-commands, which restore matching outputs or rebuild on a cache miss. Native
+are deleted down to the two newest generations. The Windows lane also runs the
+official compiler's complete source typecheck with two checker threads,
+independently of the accelerated Linux checker. Both lanes retain the normal
+build and prepack commands, which restore matching outputs or rebuild on a cache
+miss. Native
 artifacts, dependency installs, package archives, and runtime verification remain
 host-local. Keep platform-dependent outputs out of this shared cache.
 

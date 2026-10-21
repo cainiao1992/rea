@@ -53,6 +53,80 @@ const parseMetadataSummary = (value: unknown) =>
   );
 
 cliTest(
+  "validates generic-container extents before returning CLI or MCP metadata",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-il2cpp-container-extents-");
+    const { call } = await connectLocalToolsMcp();
+    for (const count of [0, 1, 300]) {
+      const { bytes } = createIl2cppMetadataFixture({
+        wide: { fillerTypes: 0, genericContainers: count, parameters: 0 },
+      });
+      const path = join(root, `valid-${count}.dat`);
+      await writeFile(path, bytes);
+      const output = await cli.run({
+        arguments: ["inspect-il2cpp-metadata", path, "--json"],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      const report = parseCliMetadata(output.json);
+      expect(report.index_widths.generic_container).toBe(count > 255 ? 2 : 1);
+      const response = await call("inspect_il2cpp_metadata", {
+        path,
+        detail: "complete",
+      });
+      expect(response.isError).not.toBe(true);
+      expect(parseCliMetadata(response.structuredContent)).toEqual(report);
+      expect(await readFile(path)).toEqual(bytes);
+    }
+    for (const [records, declaredCount, declaredBytes] of [
+      [0, 1, 0],
+      [0, 300, 0],
+      [1, 1, 1],
+      [1, 0, 16],
+    ] as const) {
+      const fixture = createIl2cppMetadataFixture({
+        wide: { fillerTypes: 0, genericContainers: records, parameters: 0 },
+      });
+      fixture.bytes.writeInt32LE(
+        declaredCount,
+        fixture.header("genericContainers", "count"),
+      );
+      fixture.bytes.writeInt32LE(
+        declaredBytes,
+        fixture.header("genericContainers", "size"),
+      );
+      const path = join(root, `invalid-${declaredCount}-${declaredBytes}.dat`);
+      await writeFile(path, fixture.bytes);
+      const output = await cli.run({
+        arguments: ["inspect-il2cpp-metadata", path, "--json"],
+      });
+      expect(output.exitCode).toBe(1);
+      const expected = {
+        code: "invalid_request",
+        details: {
+          operation: "inspect_il2cpp_metadata",
+          issues: [
+            {
+              path: ["path"],
+              reason: "invalid_format",
+              message: expect.stringContaining("record-size-mismatch"),
+            },
+          ],
+        },
+      };
+      expect(output.json).toMatchObject(expected);
+      const response = await call("inspect_il2cpp_metadata", {
+        path,
+        detail: "complete",
+      });
+      expect(response.isError).toBe(true);
+      expect(parseMcpToolError(response).error).toMatchObject(expected);
+      expect(await readFile(path)).toEqual(fixture.bytes);
+    }
+  },
+  30000,
+);
+
+cliTest(
   "returns identical complete inventories through CLI and MCP and pages a retained summary after removal",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-il2cpp-metadata-");

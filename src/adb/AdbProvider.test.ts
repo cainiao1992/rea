@@ -1617,6 +1617,7 @@ it("resolves packages by case-insensitive substring", async () => {
     },
   ]);
   expect(result.exact_match).toBe(false);
+  expect(result.unparsed_lines).toEqual([]);
   expect(result.coverage).toBe("complete");
 });
 

@@ -162,8 +162,9 @@ and during shutdown.
   APKs keep other names report the `unknown` role rather than guessing.
 - **Partial results keep facts.** Failed individual pulls return successful
   artifacts with `coverage: "partial"` and per-file `failures`. Listings
-  that contain unrecognized lines report them as `unparsed_lines` and mark
-  partial coverage instead of dropping rows.
+  and package searches that contain unrecognized lines report the first ten
+  as `unparsed_lines`, state the exact total in a limitation when more were
+  seen, and mark partial coverage instead of dropping rows.
 - **Mutations are explicit.** `push_adb_file`, `install_adb_package`, and
   `uninstall_adb_package` declare `mutatesTarget` and never run implicitly:
   pushes check for existing device files before transfer and refuse them

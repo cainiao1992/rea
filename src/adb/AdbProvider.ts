@@ -121,6 +121,7 @@ import {
   parseWmDensityOutput,
   parseWmSizeOutput,
 } from "./AdbShellOutput.js";
+import type { AdbUnparsedLines } from "./AdbUnparsedLines.js";
 
 /** Stable identity for the ADB device-acquisition provider. */
 export const ADB_PROVIDER_IDENTITY = {
@@ -152,7 +153,6 @@ const SCREEN_TIMEOUT_MS = 60_000;
 const SCREEN_MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 const BUGREPORT_TIMEOUT_MS = 600_000;
 const BUGREPORT_MAX_OUTPUT_BYTES = 1024 * 1024;
-const UNPARSED_LINES_REPORTED = 10;
 
 /** Carry the exact digest owner through caller-specific partial-result mapping. */
 class AdbDigestFailure extends Error {
@@ -381,23 +381,35 @@ const clientIdentityResult = (
 type ClientIdentity = ReturnType<typeof clientIdentityResult>;
 type ProviderIdentity = { id: string; name: string; version: string | null };
 
-const reported = (
-  unparsedLines: readonly string[],
-  coverage: "complete" | "partial",
-) => ({
-  unparsed_lines: unparsedLines.slice(0, UNPARSED_LINES_REPORTED),
-  coverage:
-    coverage === "partial" || unparsedLines.length > 0 ? "partial" : "complete",
-});
-
-const unparsedOverflowLimitation = (
-  unparsedLines: readonly string[],
-): string[] =>
-  unparsedLines.length > UNPARSED_LINES_REPORTED
-    ? [
-        `unparsed_lines reports the first ${String(UNPARSED_LINES_REPORTED)} of ${String(unparsedLines.length)} unrecognized lines`,
-      ]
-    : [];
+/**
+ * Build a parsed-listing execution whose `unparsed_lines`, coverage, and
+ * truncation limitation all derive from the parser's unrecognized-line facts,
+ * so the limitation can never describe a field the result does not carry.
+ */
+const parsedListingExecution = (
+  result: Readonly<Record<string, unknown>>,
+  unparsed: AdbUnparsedLines,
+  provider: ProviderIdentity,
+  limitations: readonly string[] = [],
+) =>
+  createAnalysisExecution(
+    {
+      ...result,
+      unparsed_lines: unparsed.sample,
+      coverage: unparsed.total > 0 ? "partial" : "complete",
+    },
+    provider,
+    {
+      limitations: [
+        ...limitations,
+        ...(unparsed.total > unparsed.sample.length
+          ? [
+              `unparsed_lines reports the first ${String(unparsed.sample.length)} of ${String(unparsed.total)} unrecognized lines`,
+            ]
+          : []),
+      ],
+    },
+  );
 
 /** Materialize the caller's output directory, refusing existing files inside. */
 const prepareOutputDirectory = async (
@@ -1355,10 +1367,10 @@ export class AdbProvider {
           ran.value.stdout,
           ran.value.stderr,
         );
-        if (unparsedLines.length > 0)
+        if (unparsedLines.total > 0)
           return err(
             new AnalysisProtocolError(
-              `adb devices reported an unrecognized line: ${unparsedLines[0]}`,
+              `adb devices reported an unrecognized line: ${unparsedLines.sample[0]!}`,
             ),
           );
         return ok(
@@ -1435,21 +1447,18 @@ export class AdbProvider {
           ran.value.stdout,
         );
         return ok(
-          createAnalysisExecution(
+          parsedListingExecution(
             {
               client,
               serial: request.input.serial,
               scope: request.input.scope,
               packages,
-              ...reported(unparsedLines, "complete"),
             },
+            unparsedLines,
             provider,
-            {
-              limitations: [
-                "base_apk_device_path is a device filesystem path, not a host-local path",
-                ...unparsedOverflowLimitation(unparsedLines),
-              ],
-            },
+            [
+              "base_apk_device_path is a device filesystem path, not a host-local path",
+            ],
           ),
         );
       }
@@ -1603,16 +1612,10 @@ export class AdbProvider {
           ran.value.stdout,
         );
         return ok(
-          createAnalysisExecution(
-            {
-              client,
-              serial: request.input.serial,
-              columns,
-              processes,
-              ...reported(unparsedLines, "complete"),
-            },
+          parsedListingExecution(
+            { client, serial: request.input.serial, columns, processes },
+            unparsedLines,
             provider,
-            { limitations: unparsedOverflowLimitation(unparsedLines) },
           ),
         );
       }
@@ -1642,21 +1645,18 @@ export class AdbProvider {
           ran.value.stdout,
         );
         return ok(
-          createAnalysisExecution(
+          parsedListingExecution(
             {
               client,
               serial: request.input.serial,
               device_path: request.input.device_path,
               entries,
-              ...reported(unparsedLines, "complete"),
             },
+            unparsedLines,
             provider,
-            {
-              limitations: [
-                "Entry kinds derive from stat permission mode; directory contents and link targets may change during capture",
-                ...unparsedOverflowLimitation(unparsedLines),
-              ],
-            },
+            [
+              "Entry kinds derive from stat permission mode; directory contents and link targets may change during capture",
+            ],
           ),
         );
       }
@@ -1670,15 +1670,10 @@ export class AdbProvider {
           ran.value.stdout,
         );
         return ok(
-          createAnalysisExecution(
-            {
-              client,
-              serial: request.input.serial,
-              features,
-              ...reported(unparsedLines, "complete"),
-            },
+          parsedListingExecution(
+            { client, serial: request.input.serial, features },
+            unparsedLines,
             provider,
-            { limitations: unparsedOverflowLimitation(unparsedLines) },
           ),
         );
       }
@@ -1692,15 +1687,10 @@ export class AdbProvider {
           ran.value.stdout,
         );
         return ok(
-          createAnalysisExecution(
-            {
-              client,
-              serial: request.input.serial,
-              services,
-              ...reported(unparsedLines, "complete"),
-            },
+          parsedListingExecution(
+            { client, serial: request.input.serial, services },
+            unparsedLines,
             provider,
-            { limitations: unparsedOverflowLimitation(unparsedLines) },
           ),
         );
       }
@@ -1830,7 +1820,7 @@ export class AdbProvider {
           entry.package_name.toLowerCase().includes(needle),
         );
         return ok(
-          createAnalysisExecution(
+          parsedListingExecution(
             {
               client,
               serial: request.input.serial,
@@ -1839,15 +1829,12 @@ export class AdbProvider {
               exact_match:
                 matches.length === 1 &&
                 matches[0]!.package_name.toLowerCase() === needle,
-              coverage: unparsedLines.length > 0 ? "partial" : "complete",
             },
+            unparsedLines,
             provider,
-            {
-              limitations: [
-                "Matching is a case-insensitive substring over package names; application display labels are not part of pm output",
-                ...unparsedOverflowLimitation(unparsedLines),
-              ],
-            },
+            [
+              "Matching is a case-insensitive substring over package names; application display labels are not part of pm output",
+            ],
           ),
         );
       }
@@ -1952,7 +1939,7 @@ export class AdbProvider {
         }),
       );
     }
-    if (parsed.paths.length === 0 && parsed.unparsedLines.length === 0)
+    if (parsed.paths.length === 0 && parsed.unparsedLines.total === 0)
       return err(
         new AnalysisUnsupportedTargetError(
           operation,
@@ -1960,10 +1947,10 @@ export class AdbProvider {
           `Package Manager reported no APK paths for ${packageName}; it may not be installed for user 0`,
         ),
       );
-    if (parsed.unparsedLines.length > 0)
+    if (parsed.unparsedLines.total > 0)
       return err(
         new AnalysisProtocolError(
-          `pm path reported an unrecognized line: ${parsed.unparsedLines[0]}`,
+          `pm path reported an unrecognized line: ${parsed.unparsedLines.sample[0]!}`,
           { capturedOutput },
         ),
       );

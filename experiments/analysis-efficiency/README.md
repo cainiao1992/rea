@@ -1,5 +1,9 @@
 # Analysis efficiency measurements
 
+The [WAT framing checkpoint](wasm-string-framing.md) measures structural scanning
+on real SQLite and VS Code components, with unchanged Evidence and token costs,
+small whole-task timing gains and no memory improvement.
+
 The [native inventory view checkpoint](native-inventory-views.md) compares
 complete delivery with summaries and selected rows on real `true` and jq
 inventories, including oversized-response recovery, portable old Evidence,

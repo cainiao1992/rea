@@ -51,6 +51,11 @@ export const analysisErrorRemediationAction = (
     return error.remediationAction;
   if (
     error instanceof BrowserObservationError &&
+    error.remediationAction !== undefined
+  )
+    return error.remediationAction;
+  if (
+    error instanceof BrowserObservationError &&
     error.reason === "service_worker_blocked"
   )
     return "Set environment.service_workers to allow to permit this capture, or remove the service worker registration through the browser. REA never removes existing registrations.";

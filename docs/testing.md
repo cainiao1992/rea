@@ -78,8 +78,9 @@ without the artifacts lock, so it can record hashes while `check:pr` or
 `check:test` already holds that lock. The CI jobs still run the locked
 `check:ci:fast` and `check:ci:deep` commands.
 Use `npm run lint:details` or `npm run jscpd:details` for all console diagnostics.
-Both duplicate commands scan production and test code with the same 3% limit;
-the summary commands preserve checker failures and restore reports from cached
+Both duplicate commands scan production and test code using the limit in
+[`.jscpd.json`](https://github.com/morluto/rea/blob/main/.jscpd.json).
+The summary commands preserve checker failures and restore reports from cached
 static tasks. Both lint caches include the website, documentation configuration,
 and experiment code scanned by the checker; a regression compares the actual
 lint inventory with Turbo's resolved inputs.

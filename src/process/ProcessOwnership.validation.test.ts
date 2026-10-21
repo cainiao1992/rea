@@ -24,6 +24,24 @@ const launcher: ProcessTableEntry = {
   state: "S",
   command: "fixture",
 };
+const nonSignalingObserver = (
+  listProcesses: ProcessOwnershipHost["listProcesses"],
+): ProcessOwnershipHost => ({
+  listProcesses,
+  environment: () => Promise.resolve({}),
+  signalGroup: () => {
+    throw new Error("Observation must never signal processes");
+  },
+});
+const expectUnownedLineage = (adapter: ProcessOwnershipHost) =>
+  expect(observeOwnedProcessLineage(ownership, adapter)).resolves.toEqual({
+    status: "unavailable",
+    observedAt: expect.any(String),
+    runId: "run-token",
+    launcherPid: 100,
+    processGroupId: 100,
+    reason: "process lineage contains an unowned or PID-reused process",
+  });
 
 describe("owned process-group cleanup validation: ownership and lineage", () => {
   it("settles unreadable observations for Darwin processes exiting in the kernel", async () => {
@@ -79,32 +97,14 @@ describe("owned process-group cleanup validation: ownership and lineage", () => 
         }),
       signalGroup: vi.fn(),
     };
-    await expect(
-      observeOwnedProcessLineage(ownership, adapter),
-    ).resolves.toEqual({
-      status: "unavailable",
-      observedAt: expect.any(String),
-      runId: "run-token",
-      launcherPid: 100,
-      processGroupId: 100,
-      reason: "process lineage contains an unowned or PID-reused process",
-    });
+    await expectUnownedLineage(adapter);
   });
   it("does not publish lineage when any member fails ownership checks", async () => {
     const { adapter } = host({
       100: { REA_PROCESS_RUN_ID: "run-token" },
       101: { REA_PROCESS_RUN_ID: "other-run" },
     });
-    await expect(
-      observeOwnedProcessLineage(ownership, adapter),
-    ).resolves.toEqual({
-      status: "unavailable",
-      observedAt: expect.any(String),
-      runId: "run-token",
-      launcherPid: 100,
-      processGroupId: 100,
-      reason: "process lineage contains an unowned or PID-reused process",
-    });
+    await expectUnownedLineage(adapter);
   });
   it("fails closed for stale metadata or an unrelated concurrent process", async () => {
     const { adapter, signalGroup } = host({
@@ -1024,17 +1024,11 @@ describe("owned process-group cleanup validation: exited members", () => {
   it("preserves cancellation during process-table observation instead of reporting unverifiable ownership", async () => {
     const controller = new AbortController();
     const reason = new Error("cancelled process observation");
-    const adapter: ProcessOwnershipHost = {
-      listProcesses: async (signal) => {
-        controller.abort(reason);
-        signal?.throwIfAborted();
-        return [];
-      },
-      environment: () => Promise.resolve({}),
-      signalGroup: () => {
-        throw new Error("Observation must never signal processes");
-      },
-    };
+    const adapter = nonSignalingObserver(async (signal) => {
+      controller.abort(reason);
+      signal?.throwIfAborted();
+      return [];
+    });
     await expect(
       observeOwnedProcessGroups(
         ownership.runId,
@@ -1048,15 +1042,9 @@ describe("owned process-group cleanup validation: exited members", () => {
     const controller = new AbortController();
     const reason = new Error("already cancelled observation");
     controller.abort(reason);
-    const adapter: ProcessOwnershipHost = {
-      listProcesses: () => {
-        throw new Error("Cancelled observation must not inspect processes");
-      },
-      environment: () => Promise.resolve({}),
-      signalGroup: () => {
-        throw new Error("Observation must never signal processes");
-      },
-    };
+    const adapter = nonSignalingObserver(() => {
+      throw new Error("Cancelled observation must not inspect processes");
+    });
     await expect(
       observeOwnedProcessGroups(
         ownership.runId,

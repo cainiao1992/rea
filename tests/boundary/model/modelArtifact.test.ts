@@ -22,6 +22,57 @@ const providerAt = async (bytes: Buffer) => {
   return { provider, path, root };
 };
 
+it.each([
+  ["01000000", 1, 16_777_216],
+  ["00000001", 16_777_216, 1],
+  ["04000000", 4, 67_108_864],
+  ["00000004", 67_108_864, 4],
+  ["e7030000", 999, 3_875_733_504],
+  ["000003e7", 3_875_733_504, 999],
+  ["00000000", 0, 0],
+  ["ffffffff", 4_294_967_295, 4_294_967_295],
+] as const)(
+  "preserves unsupported GGUF version bytes %s without assuming byte order",
+  async (versionBytes, little, big) => {
+    // No counts are needed to explain a version refusal. Do not reinterpret
+    // an unknown version's subsequent layout or publish a header observation.
+    const { provider, path } = await providerAt(
+      Buffer.from(`47475546${versionBytes}`, "hex"),
+    );
+    const result = await provider.inspect({ path, hash: "header" });
+    if (result.ok) throw new Error("Unknown version admitted");
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisUnsupportedTargetError",
+      reason: `GGUF version bytes ${versionBytes} are unsupported (little-endian ${String(little)}, big-endian ${String(big)}; byte order unknown); supported versions are 2 and 3`,
+    });
+  },
+);
+
+it("continues reading little-endian GGUF v2 declarations", async () => {
+  const { provider, path } = await providerAt(
+    ggufFixture({ version: 2 }).bytes,
+  );
+  const result = await provider.inspect({ path, hash: "header" });
+  if (!result.ok) throw result.error;
+  expect(result.value).toMatchObject({ version: 2, byte_order: "little" });
+  expect(result.value.tensors.map(({ name }) => name)).toEqual([
+    "weight",
+    "quant",
+  ]);
+});
+
+it("continues refusing the unsupported big-endian GGUF v2 layout", async () => {
+  const { provider, path } = await providerAt(
+    ggufFixture({ version: 2, bigEndian: true }).bytes,
+  );
+  const result = await provider.inspect({ path, hash: "header" });
+  if (result.ok) throw new Error("Big-endian GGUF v2 admitted");
+  expect(result.error).toMatchObject({
+    _tag: "BinaryTargetError",
+    constraint: "file_format_rejected",
+  });
+});
+
 it.each([false, true])(
   "reads exact GGUF declarations, endian=%s, without hashing tensor payload",
   async (bigEndian) => {

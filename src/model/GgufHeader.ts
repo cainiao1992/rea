@@ -1,3 +1,4 @@
+import { isUtf8 } from "node:buffer";
 import { TextDecoder } from "node:util";
 import { setImmediate } from "node:timers/promises";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -73,6 +74,13 @@ export class GgufHeader {
       rejectModel("GGUF name exceeds its format byte limit");
     if (retain) this.#budget.charge(6 * length + 2);
     this.reader.guarantee(length);
+    // Omitted preview entries still need validation, but not decoded strings.
+    // Keep the streaming decoder for values spanning multiple read chunks.
+    if (!retain && length <= 65536) {
+      if (!isUtf8(await this.reader.take(length)))
+        rejectModel("GGUF string is not valid UTF-8");
+      return "";
+    }
     const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
     let result = "";
     try {

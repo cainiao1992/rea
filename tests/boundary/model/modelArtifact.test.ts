@@ -368,6 +368,91 @@ it("validates booleans beyond an array preview without allocating the full value
   });
 });
 
+it.each([false, true])(
+  "validates omitted UTF-8 strings across chunk boundaries, big endian=%s",
+  async (bigEndian) => {
+    const base = ggufFixture({ bigEndian });
+    const preview = Array.from({ length: 8 }, (_, n) => `\uFEFFtoken-${n} 🦙`);
+    const strings = [
+      ...preview,
+      "",
+      "a".repeat(65533) + "€",
+      "a".repeat(65535) + "🦙",
+      "\0tail",
+    ];
+    const fixture = ggufFixture({
+      bigEndian,
+      metadata: [
+        {
+          key: "custom.strings",
+          type: 9,
+          value: Buffer.concat([
+            base.u32(8),
+            base.u64(BigInt(strings.length)),
+            ...strings.map(base.text),
+          ]),
+        },
+      ],
+    });
+    const { path, provider } = await providerAt(fixture.bytes);
+    const result = await provider.inspect({ path, hash: "header" });
+    if (!result.ok) throw result.error;
+    expect(result.value.metadata[0]).toMatchObject({
+      value: preview,
+      element_count: strings.length,
+      preview_complete: false,
+    });
+    expect(result.value.artifact).toMatchObject({
+      bytes_read: fixture.header.length,
+      header_sha256: createHash("sha256").update(fixture.header).digest("hex"),
+    });
+    expect(result.value.tensors).toHaveLength(2);
+  },
+);
+
+it.each([
+  ["short", Buffer.from([0xc0, 0x80])],
+  [
+    "chunk-sized",
+    Buffer.concat([Buffer.alloc(65535, 0x61), Buffer.from([0xe2])]),
+  ],
+  [
+    "cross-chunk",
+    Buffer.concat([
+      Buffer.alloc(65535, 0x61),
+      Buffer.from([0xf0, 0x9f, 0x61, 0x80]),
+    ]),
+  ],
+] as const)(
+  "rejects malformed omitted %s UTF-8 strings",
+  async (_, invalid) => {
+    const base = ggufFixture();
+    const fixture = ggufFixture({
+      metadata: [
+        {
+          key: "custom.strings",
+          type: 9,
+          value: Buffer.concat([
+            base.u32(8),
+            base.u64(9n),
+            ...Array.from({ length: 8 }, () => base.text("valid")),
+            base.u64(BigInt(invalid.length)),
+            invalid,
+          ]),
+        },
+      ],
+    });
+    const { path, provider } = await providerAt(fixture.bytes);
+    const result = await provider.inspect({ path, hash: "header" });
+    if (result.ok) throw new Error("Invalid omitted UTF-8 string was accepted");
+    expect(result.error).toMatchObject({
+      _tag: "BinaryTargetError",
+      constraint: "file_format_rejected",
+      message: expect.stringContaining("GGUF string is not valid UTF-8"),
+    });
+  },
+);
+
 it("refuses an oversized declared header before reading or expanding it", async () => {
   const bytes = Buffer.alloc(9);
   bytes.writeBigUInt64LE(100_000_001n);

@@ -679,6 +679,14 @@ miss. Native
 artifacts, dependency installs, package archives, and runtime verification remain
 host-local. Keep platform-dependent outputs out of this shared cache.
 
+The Windows native verifier's private-runtime ACL observer reads SID rules once
+for both trustee validation and counting. It deliberately rejects the convenience
+`Access` property, which resolves account names. Its `private-runtime-acl` stderr
+markers report completed phases and elapsed time; inspect these on a timeout
+before attributing it to startup, ACL reads, or identity lookup. The original
+15-second deadline and all ownership, DACL, and readonly assertions remain in
+force. A passing retry alone does not explain a previous timeout.
+
 Record cold and warm preparation separately from fresh test execution when
 benchmarking the optional `npm run check:pr` gate. Compare multiple runs on the
 same host, including subprocess and queue costs; a cached pass is not a test

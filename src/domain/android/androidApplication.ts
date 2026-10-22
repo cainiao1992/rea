@@ -1,3 +1,7 @@
+import {
+  bridgeCandidateCoverageSchema,
+  projectCartesianCandidates,
+} from "../bridgeCandidateProjection.js";
 import { z } from "zod";
 
 import {
@@ -10,8 +14,6 @@ import { nativeRuntimeConvention } from "../nativeConvention.js";
 import {
   applicationInventoryProjectionInputSchema,
   type MobileApplicationProjectionWithSources,
-  bridgeCandidateCoverageSchema,
-  projectCartesianCandidates,
   projectedBridgeCandidateSchema,
   projectedComponentSchema,
   projectedInventoryEntries,

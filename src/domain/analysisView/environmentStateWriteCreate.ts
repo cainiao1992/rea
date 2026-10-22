@@ -1,17 +1,22 @@
 import type { JsonValue } from "../jsonValue.js";
 import { ok } from "../result.js";
 import {
+  collectionPathOf,
   isObject,
+  isParam,
   isStateWrite,
+  normalizedPath,
   scalarText,
+  segmentsOf,
+  selectedCollection,
   type JsonObject,
   type StateEntity,
+  type SuppliedSegment,
 } from "./environmentStateRules.js";
 import { createdFields } from "./environmentStateWriteApply.js";
 import {
   collectionTarget,
   entityTarget,
-  heldCollection,
 } from "./environmentStateWriteChecks.js";
 import {
   built,
@@ -231,6 +236,64 @@ const takeSequences = (
   }
 };
 
+/** Segments of a recorded path as a create call supplies them: template literals, and each parameter's recorded spelling. */
+const recordedSegments = (
+  template: string,
+  path: string,
+): SuppliedSegment[] | undefined => {
+  const pattern = segmentsOf(template);
+  const concrete = segmentsOf(path);
+  if (pattern.length !== concrete.length) return undefined;
+  const segments: SuppliedSegment[] = [];
+  for (const [index, part] of pattern.entries()) {
+    const value = concrete[index]!;
+    if (!isParam(part)) {
+      if (part !== value) return undefined;
+      segments.push({ text: part, supplied: false });
+      continue;
+    }
+    if (value.length === 0) return undefined;
+    segments.push({ text: value, supplied: true });
+  }
+  return segments;
+};
+
+/** Collections a create may join, in serving's order: held ones, then emptied ones as first known, then checked list lines. */
+const createCandidates = (context: EffectContext, type: string): string[] => {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const add = (collection: string): void => {
+    if (seen.has(collection)) return;
+    seen.add(collection);
+    candidates.push(collection);
+  };
+  for (const entity of context.state.ofType(type)) add(entity.collection);
+  for (const collection of context.state.knownCollections(type))
+    add(collection);
+  for (const record of context.records) {
+    const view = context.viewOf(record.ordinal);
+    if (
+      view?.shape === "list" &&
+      view.type === type &&
+      view.checked_record_ordinals.includes(record.ordinal)
+    )
+      add(collectionPathOf(record, false));
+  }
+  return candidates;
+};
+
+/** The collection serving would write this recorded create into, when the path instantiates the tool. */
+const servedCollection = (
+  context: EffectContext,
+  step: WriteStep,
+  type: string,
+): string | undefined => {
+  const segments = recordedSegments(step.tool.path_template, step.record.path);
+  return segments === undefined
+    ? undefined
+    : selectedCollection(segments, createCandidates(context, type));
+};
+
 /** Add a created entity to the state at the plan's insert position, or last before the plan has one. */
 const insertCreated = (
   context: EffectContext,
@@ -258,8 +321,15 @@ export const applyCreate = (
 ): EffectResult => {
   const type = draft.plan.target!;
   const idField = context.idField(type);
-  // The held collection serving would pick for this path, as an item read's names its entity.
-  const collection = heldCollection(context.state, type, step.record.path);
+  const spelled = normalizedPath(step.record.path);
+  // Serving writes a create into the collection it chooses for the path, and a tied plan refuses any other, so a create there is not counted.
+  const collection = servedCollection(context, step, type) ?? spelled;
+  if (
+    built(draft) &&
+    draft.plan.collection !== null &&
+    draft.plan.collection !== collection
+  )
+    return UNKNOWN;
   const body = requestObject(context, step.record);
   const observed = createdObservation(context, step, {
     type,

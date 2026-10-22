@@ -21,6 +21,10 @@ import {
   toolNameRegistry,
 } from "./environmentManifestNames.js";
 import {
+  primaryOrigin,
+  type OriginStats,
+} from "./environmentManifestOrigin.js";
+import {
   applyTemplateRules,
   SEGMENT_LIMITED_RULES,
   SIBLING_VARIANCE_SEGMENT_LIMIT,
@@ -189,7 +193,7 @@ const hasParam = (parts: readonly MutablePart[]): boolean =>
 export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumulator {
   readonly #groups = new Map<string, GroupState>();
   readonly #records: RecordLine[] = [];
-  readonly #origins = new Map<string, { records: number; jsonLike: number }>();
+  readonly #origins = new Map<string, OriginStats>();
   readonly #rules: ReadonlySet<TemplateRule>;
   #unrepresented = 0;
   #unrepresentableBodyKey = false;
@@ -385,24 +389,6 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     return ok(undefined);
   }
 
-  /** The origin with the most JSON-like records, then most records, then lowest code points. */
-  #primaryOrigin(): string | null {
-    let best: { origin: string; records: number; jsonLike: number } | null =
-      null;
-    for (const [origin, stats] of this.#origins) {
-      if (
-        best === null ||
-        stats.jsonLike > best.jsonLike ||
-        (stats.jsonLike === best.jsonLike &&
-          (stats.records > best.records ||
-            (stats.records === best.records &&
-              compare(origin, best.origin) < 0)))
-      )
-        best = { origin, ...stats };
-    }
-    return best?.origin ?? null;
-  }
-
   #tools(groups: readonly ToolGroup[]): Tool[] {
     const registry = toolNameRegistry();
     return applyTemplateRules(groups, this.#rules)
@@ -464,7 +450,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
 
   /** Project the complete manifest; tools, records and exclusions are sorted deterministically. */
   finish(): Result<ManifestFields, AnalysisError> {
-    const primary = this.#primaryOrigin();
+    const primary = primaryOrigin(this.#origins);
     const toolGroups: GroupState[] = [];
     const exclusions = new Map<string, Exclusion & { templated: boolean }>();
     for (const group of this.#groups.values()) {

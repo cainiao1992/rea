@@ -137,8 +137,9 @@ response, with the entity re-rendered when the response carries it.
 **Documents.** A document write merges the body's members (replaces them, for
 `PUT`) into the document object that holds most of them: the root or one
 member. Later calls write at the exemplar's object. Document reads answer only on their recorded line, so a write is
-served only at the path the state holds the document at, and the gate treats a
-recorded write at another path as an unmodelled write. A recorded write whose
+served only at the path the state holds the document at, each segment verbatim
+or either spelling once percent-decoded, and the gate treats a recorded write
+at another path as an unmodelled write. A recorded write whose
 body serving would refuse (a member of another JSON type than the document
 holds) is `unexplained-change`.
 
@@ -174,7 +175,10 @@ entity (below): its call cannot be checked, so it adds nothing to a built plan.
 A later create whose generated
 values take another form than serving gives them (a sequence value out of
 order, a clock in another format, a non-UUID unique value) makes the plan
-`unexplained-change`; integer identities are left to the id mapping. An update or
+`unexplained-change`; integer identities are left to the id mapping. A later
+create outside the collection a tied plan permits is unmodelled, as serving
+refuses that call, so a read of what it recorded does not confirm the plan. The
+gate picks that collection among equal spellings in serving's order (below). An update or
 delete names its entity as an item read does (below). A later update that does
 not answer with its entity is observed only by a read whose view shows every
 clock the plan learned, since serving stamps them; without one it is unmodelled.
@@ -205,12 +209,12 @@ of a write.
 from the state:
 
 - an item read of a state-backed item view, of the entity serving would name:
-  in a held collection the read's path matches, each segment verbatim or once
-  percent-decoded and verbatim spellings first, the id percent-decoded once,
-  then as written;
+  in a held collection the read's path matches, each segment verbatim or either
+  spelling once percent-decoded and verbatim spellings first, the id
+  percent-decoded once, then as written;
 - a list or document read on one of its view's checked request lines,
   chosen as replay chooses the line for the read's call: each path parameter
-  the read's value verbatim or once percent-decoded, preferring verbatim
+  the read's value verbatim or either spelling once percent-decoded, preferring verbatim
   spellings, then recorded order, and the query values decoded, in any order.
   A read with no query on a whole list falls back, as serving does, on a
   checked line that only pages it. A line whose query repeats a name with
@@ -221,7 +225,10 @@ from the state:
   of zero is no bound on a line whose recording listed items under it, while its
   other sizes and range still bound the page) of a
   whole list checks nothing once the collection holds more entities than the
-  page, which serving then answers from its recording.
+  page, which serving then answers from its recording. A line without proof of
+  whole membership lists its recorded members still held, unless a learned
+  query evaluates the read over the state. An empty later page therefore does
+  not contradict a create outside that page.
 - A read made while a modelled write to its entity or collection was still
   running, starting before that write ended, checks nothing: it may show the
   state before or after the write. Nor does such a read show an unknown entity
@@ -336,7 +343,8 @@ entity; a collection keeps its spelling after its last entity is deleted. A
 reset or load knows the spellings of the Evidence's state, of the state it
 installs and of the type's checked list lines (so a collection the capture
 listed empty keeps its spelling), never those of a state it replaced. When two
-spellings fit a call equally, the one holding entities wins. `data/add` refuses a document that `data/get` would write back past the
+spellings fit a call equally, the one holding entities wins, the earlier first
+entity in state order among held ones and the earlier known among emptied ones. `data/add` refuses a document that `data/get` would write back past the
 32 MiB intake limit once it adds the members a document may omit, such as
 `types` and the state Evidence id. A derived state `data/get` would write
 past that limit is not served: the environment serves replay and reports the
@@ -365,11 +373,15 @@ answers with the tool's latest recorded 400, 404 or 410 response, or 2xx JSON
 them, so the read gate's `membership: "all"` also covers a line that only pages
 its list (`limit`, `offset`, `page`, `per_page`, `perpage`, `page_size`,
 `pagesize`, `size`, `start`, `_start`, `_end`) when its recording listed the
-whole collection. A list call with no query argument answers from such a line
-of an `all` view of the collection its path arguments name, with
+whole collection at a proved zero start. Positive `page` values do not prove
+the beginning, because their base is unknown. Whole membership is per line:
+`all_record_ordinals` can name whole lines within a recorded-membership view.
+A learned query can filter, search, sort and page the state; otherwise a later
+page lists its recorded members still held. A list call with no query argument
+answers from a whole line of the collection its path arguments name, with
 `replay.exact_match` false; a collection with no such line answers from its
-recording. A call that asks for a page
-still answers from its recording.
+recording. A call that asks for a page evaluates a learned query when one
+covers its arguments; otherwise it keeps the recorded page members.
 
 **Provenance.** Write answers carry `state: {source: "state", view: "create" |
 "update" | "delete", type, collection, id}`, or `{source: "state", view:

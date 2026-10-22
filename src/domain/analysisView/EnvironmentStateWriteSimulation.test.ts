@@ -1,3 +1,4 @@
+import { checkedLines, servedLine } from "./environmentStateCheckedLines.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -38,6 +39,52 @@ const gated = (rows: readonly TimedCaptureRow[], tool: string) => {
 };
 
 const RENAMED = renamedBook(FIRST_BOOK, "Renamed Book", 3);
+
+/** A book whose constant names organisation 1, created at exchange `seconds`. */
+const tiedToOrgOne = (id: number, name: string, seconds: number): Book => ({
+  ...book(id, name, bookClock(seconds)),
+  org: "/orgs/1",
+});
+
+/**
+ * Two organisations, a create tied to the first by a constant that names it, then the same constant
+ * recorded under the second. `confirmOwn` also reads the created book back from the first.
+ */
+const tiedCreateRows = (confirmOwn: boolean): TimedCaptureRow[] => {
+  const alpha = { ...book(1, "Alpha", "2026-10-01T09:00:00Z"), org: "/orgs/1" };
+  const beta = { ...book(10, "Beta", "2026-10-01T10:00:00Z"), org: "/orgs/2" };
+  const made = tiedToOrgOne(2, "Made", 4);
+  const other = tiedToOrgOne(11, "Other", confirmOwn ? 6 : 5);
+  const rows: TimedCaptureRow[] = [
+    ["GET", "/api/orgs/1/books", [alpha]],
+    ["GET", "/api/orgs/2/books", [beta]],
+    ["GET", "/api/orgs/1/books/1", alpha],
+    ["GET", "/api/orgs/2/books/10", beta],
+    ["POST", "/api/orgs/1/books", made, 201, { name: "Made" }],
+  ];
+  if (confirmOwn) rows.push(["GET", "/api/orgs/1/books/2", made]);
+  rows.push(
+    ["POST", "/api/orgs/2/books", other, 201, { name: "Other" }],
+    ["GET", "/api/orgs/2/books/11", other],
+  );
+  return rows;
+};
+
+/** A book whose constant names organisation `acme1`, created at exchange `seconds`. */
+const tiedToAcme = (id: number, name: string, seconds: number): Book => ({
+  ...book(id, name, bookClock(seconds)),
+  team: "/orgs/uid/acme1",
+});
+
+/** The create plan the gate gives a capture of `rows` when the segment after `uid` is a parameter. */
+const acmeCreate = (rows: readonly TimedCaptureRow[]) => {
+  const { writes } = environmentStateViewOf(timedCaptureEvidence(rows), [
+    "after-uid-literal",
+  ]);
+  const plan = writes.find((candidate) => candidate.effect === "create");
+  if (plan === undefined) throw new Error("The gate planned no create");
+  return plan;
+};
 
 describe("reads compared as the served environment answers them", () => {
   /** Item reads in a `{data, revision}` envelope, a rename, then a read recorded at `revision`. */
@@ -955,6 +1002,27 @@ describe("what a read shows of a write", () => {
       checked_record_ordinals: [3],
     });
   });
+
+  it("confirms a document write whose path encodes a parent the plain read holds", () => {
+    const rows: TimedCaptureRow[] = [
+      ["GET", "/api/orgs/uid/acme1/settings", { theme: "light", lang: "en" }],
+      [
+        "PATCH",
+        "/api/orgs/uid/%61cme1/settings",
+        { theme: "dark", lang: "en" },
+        200,
+        { theme: "dark" },
+      ],
+      ["GET", "/api/orgs/uid/acme1/settings", { theme: "dark", lang: "en" }],
+    ];
+    const { writes } = environmentStateViewOf(timedCaptureEvidence(rows), [
+      "after-uid-literal",
+    ]);
+    expect(writes.find((plan) => plan.effect === "document")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [2],
+    });
+  });
 });
 
 describe("document writes later writes overwrite", () => {
@@ -1159,6 +1227,102 @@ describe("reads named as serving names them", () => {
     expect(writes.find((plan) => plan.effect === "create")).toMatchObject({
       served: true,
       collection: "/api/orgs/%61cme1/books",
+    });
+  });
+});
+
+describe("encoded parent spellings", () => {
+  it("names the plainly held entity from a path that encodes its parent", () => {
+    const type = "/api/orgs/uid/{uid}/books";
+    const collection = "/api/orgs/uid/acme1/books";
+    const state = new SimulatedState(
+      [
+        {
+          type,
+          collection,
+          id: "1",
+          fields: { id: 1, name: "Alpha" },
+          view_fields: [],
+          record_ordinals: [],
+        },
+      ],
+      [],
+    );
+    expect(
+      itemTarget(state, type, { path: "/api/orgs/uid/%61cme1/books/1" }),
+    ).toEqual({ collection, id: "1" });
+  });
+
+  it("answers an encoded read from the plain checked line", () => {
+    const tool = {
+      name: "get_orgs_books_by_uid",
+      method: "GET",
+      path_template: "/api/orgs/uid/{uid}/books",
+      record_ordinals: [0],
+    };
+    const record = {
+      ordinal: 0,
+      method: "GET",
+      path: "/api/orgs/uid/acme1/books",
+      query: undefined,
+      status: 200,
+      start: 0,
+      end: 0,
+    };
+    const lines = checkedLines({
+      tools: [tool],
+      records: [record],
+      views: new Map([
+        [
+          tool.name,
+          {
+            tool: tool.name,
+            type: "/api/orgs/uid/{uid}/books",
+            shape: "list",
+            pointer: "",
+            fields: ["id"],
+            required_fields: ["id"],
+            checked_record_ordinals: [0],
+            membership: "all",
+            counters: [],
+          },
+        ],
+      ]),
+    });
+    expect(
+      servedLine(lines.get(tool.name), {
+        ...record,
+        ordinal: 1,
+        path: "/api/orgs/uid/%61cme1/books",
+      }),
+    ).toEqual({
+      ordinal: 0,
+      collection: "/api/orgs/uid/acme1/books",
+      named: true,
+    });
+  });
+
+  it("confirms an update whose path encodes a parent the plain reads hold", () => {
+    const alpha = { id: 1, org: "acme1", name: "Alpha" };
+    const renamed = { id: 1, org: "acme1", name: "Renamed" };
+    const rows: TimedCaptureRow[] = [
+      ["GET", "/api/orgs/uid/acme1/books", [alpha]],
+      ["GET", "/api/orgs/uid/acme1/books/1", alpha],
+      [
+        "PATCH",
+        "/api/orgs/uid/%61cme1/books/1",
+        renamed,
+        200,
+        { name: "Renamed" },
+      ],
+      ["GET", "/api/orgs/uid/acme1/books/1", renamed],
+    ];
+    const { writes } = environmentStateViewOf(timedCaptureEvidence(rows), [
+      "after-uid-literal",
+    ]);
+    expect(writes.find((plan) => plan.effect === "update")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [3],
     });
   });
 });
@@ -2370,6 +2534,45 @@ describe("what later calls must keep consistent", () => {
     });
   });
 
+  it("does not let a later empty ?page=2 page contradict a create", () => {
+    const alpha = { id: 1, name: "Alpha", org: "1" };
+    const beta = { id: 2, name: "Beta", org: "2" };
+    const rows: TimedCaptureRow[] = [
+      ["GET", "/api/orgs/1/books", [alpha]],
+      ["GET", "/api/orgs/1/books/1", alpha],
+      ["GET", "/api/orgs/2/books?page=2", []],
+      ["POST", "/api/orgs/2/books", beta, 201, { name: "Beta" }],
+      ["GET", "/api/orgs/2/books/2", beta],
+      ["GET", "/api/orgs/2/books?page=2", []],
+    ];
+    const { writes } = environmentStateViewOf(timedCaptureEvidence(rows));
+    expect(writes.find((plan) => plan.effect === "create")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [4],
+    });
+  });
+
+  it.each(["offset", "start", "_start"])(
+    "does not let a later empty ?%s=1 page contradict a create",
+    (name) => {
+      const alpha = { id: 1, name: "Alpha", org: "1" };
+      const beta = { id: 2, name: "Beta", org: "2" };
+      const rows: TimedCaptureRow[] = [
+        ["GET", "/api/orgs/1/books", [alpha]],
+        ["GET", "/api/orgs/1/books/1", alpha],
+        ["GET", `/api/orgs/2/books?${name}=1`, []],
+        ["POST", "/api/orgs/2/books", beta, 201, { name: "Beta" }],
+        ["GET", "/api/orgs/2/books/2", beta],
+        ["GET", `/api/orgs/2/books?${name}=1`, []],
+      ];
+      const { writes } = environmentStateViewOf(timedCaptureEvidence(rows));
+      expect(writes.find((plan) => plan.effect === "create")).toMatchObject({
+        served: true,
+        checked_record_ordinals: [4],
+      });
+    },
+  );
+
   it("checks nothing by a whole line recorded empty under a zero limit once a create fills its collection", () => {
     const alpha = { id: 1, name: "Alpha", org: "1" };
     const beta = { id: 2, name: "Beta", org: "2" };
@@ -2386,6 +2589,145 @@ describe("what later calls must keep consistent", () => {
     expect(writes.find((plan) => plan.effect === "create")).toMatchObject({
       served: true,
       checked_record_ordinals: [4],
+    });
+  });
+});
+
+describe("creates tied to one collection", () => {
+  it("does not let a later create in another collection confirm the plan", () => {
+    expect(gated(tiedCreateRows(false), "post_orgs_books_by_id")).toMatchObject(
+      {
+        served: false,
+        reason: "unconfirmed",
+        collection: "/api/orgs/1/books",
+        checked_record_ordinals: [],
+      },
+    );
+  });
+
+  it("still confirms the plan from a read of the collection it is tied to", () => {
+    expect(gated(tiedCreateRows(true), "post_orgs_books_by_id")).toMatchObject({
+      served: true,
+      collection: "/api/orgs/1/books",
+      checked_record_ordinals: [5],
+    });
+  });
+
+  const acmeRows = (
+    laterPath: string,
+    heldEncoded: boolean,
+  ): TimedCaptureRow[] => {
+    const alpha = {
+      ...book(1, "Alpha", "2026-10-01T09:00:00Z"),
+      team: "/orgs/uid/acme1",
+    };
+    const made = tiedToAcme(2, "Made", 2);
+    const other = tiedToAcme(3, "Other", heldEncoded ? 5 : 3);
+    const rows: TimedCaptureRow[] = [
+      ["GET", "/api/orgs/uid/acme1/books", [alpha]],
+      ["GET", "/api/orgs/uid/acme1/books/1", alpha],
+    ];
+    if (heldEncoded) {
+      const encoded = {
+        ...book(10, "Encoded", "2026-10-01T10:00:00Z"),
+        team: "/orgs/uid/acme1",
+      };
+      rows.push(
+        ["GET", "/api/orgs/uid/%61cme1/books", [encoded]],
+        ["GET", "/api/orgs/uid/%61cme1/books/10", encoded],
+      );
+    }
+    rows.push(
+      ["POST", "/api/orgs/uid/acme1/books", made, 201, { name: "Made" }],
+      ["POST", laterPath, other, 201, { name: "Other" }],
+      ["GET", "/api/orgs/uid/acme1/books/3", other],
+    );
+    return rows;
+  };
+
+  it("confirms a tied create whose later call spells the held collection encoded", () => {
+    expect(
+      acmeCreate(acmeRows("/api/orgs/uid/%61cme1/books", false)),
+    ).toMatchObject({
+      served: true,
+      collection: "/api/orgs/uid/acme1/books",
+      checked_record_ordinals: [4],
+    });
+  });
+
+  it("does not treat an encoded spelling as the tied collection when that spelling is held itself", () => {
+    // Serving keeps the verbatim encoded collection, outside the plain tie. The plain read of the
+    // entity that create did not add is related to the exemplar, so the plan is a side effect.
+    expect(
+      acmeCreate(acmeRows("/api/orgs/uid/%61cme1/books", true)),
+    ).toMatchObject({
+      served: false,
+      reason: "side-effect",
+      collection: "/api/orgs/uid/acme1/books",
+      checked_record_ordinals: [],
+    });
+  });
+
+  it("chooses among emptied spellings of a tied collection in the order serving remembers them", () => {
+    const first = "/api/orgs/uid/%61cme1/books";
+    const second = "/api/orgs/uid/a%63me1/books";
+    const alpha = {
+      ...book(1, "Alpha", "2026-10-01T09:00:00Z"),
+      team: "/orgs/uid/acme1",
+    };
+    const beta = {
+      ...book(10, "Beta", "2026-10-01T10:00:00Z"),
+      team: "/orgs/uid/acme1",
+    };
+    const made = tiedToAcme(2, "Made", 4);
+    const other = tiedToAcme(3, "Other", 8);
+    // The second spelling empties before the first, but serving still offers the first spelling first.
+    const rows: TimedCaptureRow[] = [
+      ["GET", first, [alpha]],
+      ["GET", second, [beta]],
+      ["GET", `${first}/1`, alpha],
+      ["GET", `${second}/10`, beta],
+      ["POST", second, made, 201, { name: "Made" }],
+      ["DELETE", `${second}/10`, "", 204],
+      ["DELETE", `${second}/2`, "", 204],
+      ["DELETE", `${first}/1`, "", 204],
+      ["POST", "/api/orgs/uid/acme1/books", other, 201, { name: "Other" }],
+      ["GET", "/api/orgs/uid/acme1/books/3", other],
+    ];
+    expect(acmeCreate(rows)).toMatchObject({
+      collection: second,
+      checked_record_ordinals: [],
+    });
+  });
+
+  it("keeps a tied collection ahead of another spelling once its first entity is gone, as serving orders them", () => {
+    const first = "/api/orgs/uid/%61cme1/books";
+    const second = "/api/orgs/uid/a%63me1/books";
+    const alpha = {
+      ...book(1, "Alpha", "2026-10-01T09:00:00Z"),
+      team: "/orgs/uid/acme1",
+    };
+    const beta = {
+      ...book(10, "Beta", "2026-10-01T10:00:00Z"),
+      team: "/orgs/uid/acme1",
+    };
+    const made = tiedToAcme(2, "Made", 4);
+    const other = tiedToAcme(3, "Other", 6);
+    // Serving places the created book beside its collection, so the first spelling still leads after its first book goes.
+    const rows: TimedCaptureRow[] = [
+      ["GET", first, [alpha]],
+      ["GET", second, [beta]],
+      ["GET", `${first}/1`, alpha],
+      ["GET", `${second}/10`, beta],
+      ["POST", first, made, 201, { name: "Made" }],
+      ["DELETE", `${first}/1`, "", 204],
+      ["POST", "/api/orgs/uid/acme1/books", other, 201, { name: "Other" }],
+      ["GET", "/api/orgs/uid/acme1/books/3", other],
+    ];
+    expect(acmeCreate(rows)).toMatchObject({
+      served: true,
+      collection: first,
+      checked_record_ordinals: [7],
     });
   });
 });
@@ -2424,6 +2766,49 @@ describe("path fields of a create", () => {
   it("confirms a later create whose read shows the parent decoded from the collection serving selects", () => {
     expect(planOf(rowsWith("%61cme1"))).toMatchObject({
       served: true,
+      checked_record_ordinals: [4],
+    });
+  });
+});
+
+describe("path fields of a create tied to its collection", () => {
+  const held = "/api/orgs/uid/%61cme1/books";
+
+  /** A tied create in the held encoded collection, then one spelled double-encoded whose parent the application stored as `org`. */
+  const parentRows = (org: string): TimedCaptureRow[] => {
+    const alpha = {
+      ...book(1, "Alpha", "2026-10-01T09:00:00Z"),
+      team: "/orgs/uid/acme1",
+      org: "acme1",
+    };
+    const made = { ...tiedToAcme(2, "Made", 2), org: "acme1" };
+    const other = { ...tiedToAcme(3, "Other", 3), org };
+    return [
+      ["GET", held, [alpha]],
+      ["GET", `${held}/1`, alpha],
+      ["POST", held, made, 201, { name: "Made" }],
+      ["POST", "/api/orgs/uid/%2561cme1/books", other, 201, { name: "Other" }],
+      ["GET", `${held}/3`, other],
+    ];
+  };
+
+  it("contradicts a later create whose read shows a parent serving would not write", () => {
+    // Serving selects the held collection and decodes the parent from it, not from the call's spelling.
+    expect(acmeCreate(parentRows("%61cme1"))).toMatchObject({
+      served: false,
+      collection: held,
+      rules: expect.arrayContaining([
+        expect.objectContaining({ field: "org", rule: "path" }),
+      ]),
+      checked_record_ordinals: [],
+      contradicted_by: 4,
+    });
+  });
+
+  it("confirms a later create whose read shows the parent decoded from the selected collection", () => {
+    expect(acmeCreate(parentRows("acme1"))).toMatchObject({
+      served: true,
+      collection: held,
       checked_record_ordinals: [4],
     });
   });

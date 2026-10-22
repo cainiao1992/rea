@@ -1,5 +1,6 @@
 import { stateBodyJson } from "../../domain/analysisView/EnvironmentStateAccumulator.js";
 import {
+  collectionMatch,
   collectionPathOf,
   decodedSegment,
   allLines,
@@ -13,6 +14,7 @@ import {
   type JsonObject,
   type RecordedViewReason,
   type StateEntity,
+  type SuppliedSegment,
   type StateItemView,
   type StateListView,
   type StateView,
@@ -48,10 +50,8 @@ import {
   callQuery,
   callSegments,
   checkedLine,
-  collectionMatch,
   queryLine,
   unfilteredLine,
-  type CallSegment,
 } from "./environmentStateCallLines.js";
 import type { EnvironmentStateStore } from "./environmentStateStore.js";
 
@@ -182,7 +182,7 @@ export const stateAnswer = (
 
 /** An item call's collection segments and identity value, kept as supplied rather than joined and re-split. */
 export interface ItemCall {
-  readonly segments: readonly CallSegment[];
+  readonly segments: readonly SuppliedSegment[];
   readonly id: string;
 }
 

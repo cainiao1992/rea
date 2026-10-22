@@ -34,6 +34,7 @@ import {
   unavailableComponentSchema,
   type ProjectedInventoryEntry,
 } from "../mobileApplicationGraphProjection.js";
+import { uniqueSortedBy } from "../canonicalOrdering.js";
 import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
@@ -145,10 +146,10 @@ export const projectAppleApplication = (
   const runtimeFamilies = identifyRuntimeFamilies(all);
   const bridgeProjection = identifyBridgeCandidates(
     classified.javascript,
-    deduplicateComponents([
-      ...classified.executables,
-      ...classified.native_libraries,
-    ]),
+    uniqueSortedBy(
+      [...classified.executables, ...classified.native_libraries],
+      (component) => component.path,
+    ),
     roots,
   );
   const uninventoriedImage =
@@ -303,11 +304,6 @@ const classifyComponents = (
     ),
   };
 };
-
-const deduplicateComponents = (values: readonly Component[]): Component[] =>
-  [...new Map(values.map((value) => [value.path, value])).values()].sort(
-    (left, right) => compare(left.path, right.path),
-  );
 
 const identifyRuntimeFamilies = (all: readonly Component[]) => {
   const families = new Set<

@@ -1315,11 +1315,19 @@ const htmlCandidate = (
       "The HTML reference path percent-decodes to NUL or to bytes that are not UTF-8.",
     ]);
   if (declaredPath.startsWith("/"))
-    return urlRelativeCandidate("", declaredPath);
+    return exactUrlPathCandidate(
+      declaredPath,
+      urlRelativeCandidate("", declaredPath),
+      "HTML",
+    );
   if (base === undefined || base === null || base === "")
     return declaredPath === ""
       ? input.sourcePath
-      : urlRelativeCandidate(posix.dirname(input.sourcePath), declaredPath);
+      : exactUrlPathCandidate(
+          declaredPath,
+          urlRelativeCandidate(posix.dirname(input.sourcePath), declaredPath),
+          "HTML",
+        );
   // A local base href is a second untrusted path input; apply the same
   // admission rules a declared path gets so it cannot smuggle traversal or
   // separator syntax past canonicalization.
@@ -1338,23 +1346,28 @@ const htmlCandidate = (
     urlDirectoryState(posix.dirname(input.sourcePath)),
     decodedBase,
   );
-  if (declaredPath === "") {
-    const basePath = urlPathCandidate(baseState);
-    return typeof basePath === "string"
-      ? exactUrlPathCandidate(decodedBase, basePath, "HTML")
-      : basePath;
-  }
-  return urlPathCandidate(
-    applyUrlReference(urlBaseDirectory(baseState), declaredPath),
+  if (declaredPath === "")
+    return exactUrlPathCandidate(
+      decodedBase,
+      urlPathCandidate(baseState),
+      "HTML",
+    );
+  return exactUrlPathCandidate(
+    declaredPath,
+    urlPathCandidate(
+      applyUrlReference(urlBaseDirectory(baseState), declaredPath),
+    ),
+    "HTML",
   );
 };
 
 const exactUrlPathCandidate = (
   declared: string,
-  candidate: string,
+  candidate: string | CandidateResolution,
   kind: "HTML" | "URL" | "module URL",
 ): string | CandidateResolution => {
-  if (!urlPathIsDirectory(declared)) return candidate;
+  if (typeof candidate !== "string" || !urlPathIsDirectory(declared))
+    return candidate;
   const confined = confineCandidate(candidate);
   if (typeof confined !== "string") return confined;
   return unresolvedCandidate("not-found", [

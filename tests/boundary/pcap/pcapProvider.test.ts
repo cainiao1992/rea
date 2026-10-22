@@ -5,6 +5,10 @@ import { dirname, join } from "node:path";
 import { expect, onTestFinished, test, vi } from "vitest";
 
 import { PcapProvider } from "../../../src/pcap/PcapProvider.js";
+import {
+  CAPINFOS_COMMAND_ENV,
+  TSHARK_COMMAND_ENV,
+} from "../../../src/pcap/PcapConfiguration.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import {
   pcapResultSchemas,
@@ -419,10 +423,16 @@ it("reports relative configuration and missing capinfos as capability gaps", asy
     });
     if (result.ok) throw new Error("expected unavailable tools");
     const projected = projectAnalysisError(result.error);
-    expect(projected.code).toBe("capability_unavailable");
-    expect(projected.message).toContain(
-      "Supply Wireshark 4.x tshark and capinfos",
-    );
+    expect(projected).toMatchObject({
+      code: "capability_unavailable",
+      details: { provider_id: "pcap", operation: "inspect_pcap_client" },
+    });
+    expect(projected.message).toContain(TSHARK_COMMAND_ENV);
+    expect(projected.message).toContain(CAPINFOS_COMMAND_ENV);
+    expect(projected.message).toContain("Wireshark 4.x");
+    expect(projected.message).toContain("PATH");
+    expect(projected.message).toContain("absolute");
+    expect(projected.message).toContain("does not install");
   }
 });
 
@@ -443,10 +453,12 @@ it("names the prlimit selection when the Linux limiter is unusable", async () =>
   });
   if (result.ok) throw new Error("expected an unusable limiter");
   const projected = projectAnalysisError(result.error);
-  expect(projected.code).toBe("capability_unavailable");
-  expect(projected.message).toContain(
-    "(REA_TSHARK_PRLIMIT_COMMAND must be absolute.) Check that REA_TSHARK_PRLIMIT_COMMAND",
-  );
+  expect(projected).toMatchObject({
+    code: "capability_unavailable",
+    details: { provider_id: "pcap", operation: "inspect_pcap_capture" },
+  });
+  expect(projected.message).toContain("must be absolute");
+  expect(projected.message).toContain("Check that REA_TSHARK_PRLIMIT_COMMAND");
 });
 
 const nodeTool = async (

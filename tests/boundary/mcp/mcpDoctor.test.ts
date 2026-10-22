@@ -19,7 +19,23 @@ import {
   createCatalogIdentity,
 } from "../../../src/catalogIdentity.js";
 import { compactPresentationForMcpInputSchemaProfile } from "../../../src/config/mcpInputSchemaProfile.js";
+import {
+  MCP_PHASE_BUDGET_FLOOR_MS,
+  MCP_PHASE_BUDGET_MAXIMUM_MS,
+} from "../../../src/config/mcpStartupBudgets.js";
 import { MCP_STARTUP_POLICY } from "../../../src/mcpStartupPolicy.js";
+
+const expectDoctorDeadline = (
+  detail: string | undefined,
+  milliseconds: number,
+) => {
+  expect(detail).toContain("REA_MCP_DOCTOR_DEADLINE_MS");
+  expect(detail).toContain(`${String(milliseconds)} ms (source setting`);
+  expect(detail).toContain(
+    `startup_timeout_sec of ${String(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds)} seconds`,
+  );
+  expect(detail).not.toContain("no runtime override");
+};
 
 afterEach(() => vi.useRealTimers());
 
@@ -410,16 +426,8 @@ describe("production MCP doctor child lifecycle", () => {
     const result = await vi.waitFor(() => pending, { timeout: 10_000 });
     vi.useRealTimers();
     expect(result.healthy).toBe(false);
-    expect(result.checks[0]?.detail).toContain(
-      "The effective REA_MCP_DOCTOR_DEADLINE_MS value for the MCP doctor startup deadline is 60000 ms (source setting; default 30000 ms, floor 1 ms, maximum 2147483647 ms).",
-    );
-    expect(result.checks[0]?.detail).toContain(
-      "Set REA_MCP_DOCTOR_DEADLINE_MS in the environment that starts REA",
-    );
-    expect(result.checks[0]?.detail).not.toContain("no runtime override");
-    expect(result.checks[0]?.detail).toContain(
-      "Codex startup_timeout_sec of 30 seconds is client guidance",
-    );
+    expectDoctorDeadline(result.checks[0]?.detail, 60_000);
+    expect(result.checks[0]?.detail).toContain("client guidance");
     expect(result.checks[0]?.detail).not.toContain("REA_MCP_STARTUP");
     await expect(waitForExit(pid)).resolves.toBeUndefined();
   }, 10_000);
@@ -455,17 +463,9 @@ describe("production MCP doctor request-flow deadline", () => {
       (check) => check.name === "request-flow",
     );
     expect(requestFlow?.ok).toBe(false);
-    expect(requestFlow?.detail).toContain(
-      "The effective REA_MCP_DOCTOR_DEADLINE_MS value for the MCP doctor startup deadline is 60000 ms (source setting; default 30000 ms, floor 1 ms, maximum 2147483647 ms).",
-    );
-    expect(requestFlow?.detail).toContain(
-      "Set REA_MCP_DOCTOR_DEADLINE_MS in the environment that starts REA",
-    );
-    expect(requestFlow?.detail).not.toContain("no runtime override");
-    expect(requestFlow?.detail).toContain(
-      "Codex startup_timeout_sec of 30 seconds is client guidance",
-    );
-    expect(requestFlow?.detail).not.toContain("is 30000 ms");
+    expectDoctorDeadline(requestFlow?.detail, 60_000);
+    expect(requestFlow?.detail).toContain("client guidance");
+    expect(requestFlow?.detail).not.toContain("source default");
     expect(requestFlow?.detail).not.toContain("REA_MCP_STARTUP");
   }, 15_000);
 
@@ -526,10 +526,7 @@ describe("production MCP doctor request-flow deadline", () => {
     const result = await vi.waitFor(() => pending, { timeout: 10_000 });
     vi.useRealTimers();
     expect(result.healthy).toBe(false);
-    expect(result.checks[0]?.detail).toContain(
-      "The effective REA_MCP_DOCTOR_DEADLINE_MS value for the MCP doctor startup deadline is 2000 ms (source setting; default 30000 ms, floor 1 ms, maximum 2147483647 ms).",
-    );
-    expect(result.checks[0]?.detail).not.toContain("no runtime override");
+    expectDoctorDeadline(result.checks[0]?.detail, 2_000);
     await expect(waitForExit(pid)).resolves.toBeUndefined();
   }, 10_000);
 
@@ -550,10 +547,11 @@ describe("production MCP doctor request-flow deadline", () => {
       "REA_MCP_INITIALIZE_BUDGET_MS",
       "REA_MCP_DOCTOR_DEADLINE_MS",
     ]);
-    expect(result.checks[0]?.detail).toContain(
-      "REA_MCP_INITIALIZE_BUDGET_MS must be a positive decimal integer from 1 to 2147483647 ms",
-    );
+    const budgetRange = `from ${String(MCP_PHASE_BUDGET_FLOOR_MS)} to ${String(MCP_PHASE_BUDGET_MAXIMUM_MS)} ms`;
+    expect(result.checks[0]?.detail).toContain("REA_MCP_INITIALIZE_BUDGET_MS");
+    expect(result.checks[0]?.detail).toContain(budgetRange);
     expect(result.checks[1]?.detail).toContain("REA_MCP_DOCTOR_DEADLINE_MS");
+    expect(result.checks[1]?.detail).toContain(budgetRange);
     expect(result.checks[0]?.detail).not.toContain("no runtime override");
   });
 });

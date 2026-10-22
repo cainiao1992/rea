@@ -13,6 +13,10 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { PcapProvider } from "../../../src/pcap/PcapProvider.js";
+import {
+  CAPINFOS_COMMAND_ENV,
+  TSHARK_COMMAND_ENV,
+} from "../../../src/pcap/PcapConfiguration.js";
 import { PcapSnapshot } from "../../../src/pcap/PcapSnapshot.js";
 import * as regularFile from "../../../src/filesystem/RegularFile.js";
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
@@ -124,12 +128,17 @@ it("projects a missing configured tool as a capability gap", async () => {
   });
   expect(result.ok).toBe(false);
   if (result.ok) return;
-  expect(projectAnalysisError(result.error)).toMatchObject({
+  const projected = projectAnalysisError(result.error);
+  expect(projected).toMatchObject({
     code: "capability_unavailable",
-    message: expect.stringContaining(
-      "Supply Wireshark 4.x tshark and capinfos",
-    ),
+    details: { provider_id: "pcap", operation: "inspect_pcap_client" },
   });
+  expect(projected.message).toContain(TSHARK_COMMAND_ENV);
+  expect(projected.message).toContain(CAPINFOS_COMMAND_ENV);
+  expect(projected.message).toContain("Wireshark 4.x");
+  expect(projected.message).toContain("PATH");
+  expect(projected.message).toContain("absolute");
+  expect(projected.message).toContain("does not install");
 });
 
 it.skipIf(isWindows)(
@@ -302,11 +311,23 @@ it.runIf(!hasNativeBound)(
     expect(result.ok).toBe(false);
     if (result.ok) return;
     const projected = projectAnalysisError(result.error);
-    expect(projected.code).toBe("capability_unavailable");
+    expect(projected).toMatchObject({
+      code: "capability_unavailable",
+      details: { provider_id: "pcap", operation: "inspect_pcap_capture" },
+    });
     // The refusal concerns this host, so it must not suggest another target.
-    expect(projected.message).toContain(
-      "Linux with util-linux prlimit, or Windows with owned Job Objects",
-    );
+    const reason =
+      projected.details &&
+      "reason" in projected.details &&
+      typeof projected.details.reason === "string"
+        ? projected.details.reason
+        : "";
+    expect(reason).toContain("Linux");
+    expect(reason).toContain("util-linux");
+    expect(reason).toContain("prlimit");
+    expect(reason).toContain("Windows");
+    expect(reason).toContain("owned");
+    expect(reason).toContain("Job Objects");
     expect(projected.remediation.action).toBe(projected.message);
   },
 );

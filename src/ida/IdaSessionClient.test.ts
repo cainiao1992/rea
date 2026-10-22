@@ -7,13 +7,16 @@ import {
   RecordingIdaMcp,
 } from "../../tests/fixtures/idaMcp.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
+import {
+  DEFAULT_REGEX_MATCHING_DEADLINE,
+  REGEX_MATCHING_DEADLINE_SETTING,
+} from "../config/regexMatchingDeadline.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import {
   AnalysisProtocolError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
-import { DEFAULT_REGEX_MATCHING_DEADLINE } from "../config/regexMatchingDeadline.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { WindowsPrivateRuntime } from "../windows/WindowsPrivateRuntime.js";
@@ -590,6 +593,7 @@ describe("attached IDA regex supervision", () => {
           matching_deadline_source: DEFAULT_REGEX_MATCHING_DEADLINE.source,
         },
       });
+      expect(result.error.message).toContain(REGEX_MATCHING_DEADLINE_SETTING);
       const recovered = await client.execute("search_strings", {
         pattern: "!$",
         mode: "regex",
@@ -597,6 +601,10 @@ describe("attached IDA regex supervision", () => {
       expect(recovered.ok && recovered.value.result).toEqual([
         expect.objectContaining({ address: "0x3000", value }),
       ]);
+      if (recovered.ok)
+        expect(recovered.value.limitations.join("\n")).toContain(
+          REGEX_MATCHING_DEADLINE_SETTING,
+        );
     } finally {
       await client.close();
     }

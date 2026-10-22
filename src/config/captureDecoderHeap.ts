@@ -16,10 +16,6 @@ export const DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB = 192;
  */
 export const CAPTURE_DECODER_SEMI_SPACE_MIB = 8;
 
-/** Smallest old generation that still starts the decoder with that semi-space. */
-export const MINIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB =
-  CAPTURE_DECODER_SEMI_SPACE_MIB;
-
 /**
  * Largest old generation one owned decoder may request. 16 GiB is the same
  * ceiling REA already uses for an isolated JavaScript analysis worker. Node
@@ -39,7 +35,7 @@ export const DEFAULT_CAPTURE_DECODER_HEAP: CaptureDecoderHeap = {
   source: "default",
 };
 
-export const captureDecoderHeapConstraint = `${CAPTURE_DECODER_OLD_GENERATION_SETTING} must be a decimal integer from ${String(MINIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} to ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB; the default is ${String(DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB. An old generation below the decoder's ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} MiB semi-space aborts Node during startup instead of enforcing a limit, and a larger value is refused.`;
+export const captureDecoderHeapConstraint = `${CAPTURE_DECODER_OLD_GENERATION_SETTING} must be a decimal integer from ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} to ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB; the default is ${String(DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB. An old generation below the decoder's ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} MiB semi-space aborts Node during startup instead of enforcing a limit, and a larger value is refused.`;
 
 const decimalInteger = /^[1-9]\d*$/u;
 
@@ -48,7 +44,7 @@ const withinHeapRange = (value: string): boolean => {
   if (!decimalInteger.test(value)) return true;
   const parsed = BigInt(value);
   return (
-    parsed >= BigInt(MINIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB) &&
+    parsed >= BigInt(CAPTURE_DECODER_SEMI_SPACE_MIB) &&
     parsed <= BigInt(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)
   );
 };
@@ -98,8 +94,8 @@ export const resolveCaptureDecoderHeap = (
 /** How to read and change the effective HAR/SAZ/qlog old-generation heap. */
 export const captureDecoderHeapRecovery = (heap: CaptureDecoderHeap): string =>
   [
-    `The effective ${CAPTURE_DECODER_OLD_GENERATION_SETTING} value is ${String(heap.oldGenerationMiB)} MiB (source ${heap.source}; default ${String(DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB, floor ${String(MINIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB, maximum ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB).`,
-    `Set ${CAPTURE_DECODER_OLD_GENERATION_SETTING} in the environment that starts REA to a decimal integer from ${String(MINIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} to ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)}, then restart REA.`,
+    `The effective ${CAPTURE_DECODER_OLD_GENERATION_SETTING} value is ${String(heap.oldGenerationMiB)} MiB (source ${heap.source}; default ${String(DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB, floor ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} MiB, maximum ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)} MiB).`,
+    `Set ${CAPTURE_DECODER_OLD_GENERATION_SETTING} in the environment that starts REA to a decimal integer from ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} to ${String(MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB)}, then restart REA.`,
     `On Node.js the decoder passes --max-old-space-size=${String(heap.oldGenerationMiB)} and removes inherited NODE_OPTIONS, so additional host memory and NODE_OPTIONS do not raise this heap. The ${String(CAPTURE_DECODER_SEMI_SPACE_MIB)} MiB semi-space stays fixed.`,
     "On Bun the V8 flags are ignored. Windows limits the decoder's committed memory to this value plus a 512 MiB reserve. Other Bun hosts enforce no decoder heap limit.",
   ].join(" ");

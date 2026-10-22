@@ -83,6 +83,7 @@ describe("production MCP doctor", () => {
       {
         dispatcherPath: resolve("tests/fixtures/mcpDoctorExit.mjs"),
         packageRoot: process.cwd(),
+        stdoutIsTerminal: false,
       },
     );
     expect(result.exitCode).toBe(1);
@@ -189,6 +190,38 @@ describe("production MCP doctor", () => {
     },
     30_000,
   );
+});
+
+describe("production MCP doctor output", () => {
+  it.each([
+    { name: "report", args: ["--json"] },
+    { name: "full-output envelope", args: ["--json", "--full-output"] },
+    { name: "validation error", args: ["--json", "--unknown"] },
+  ])("indents $name JSON only for a terminal stdout", async ({ args }) => {
+    const render = (stdoutIsTerminal: boolean) =>
+      runProductionMcpDoctorCli(args, {
+        dispatcherPath: resolve("tests/fixtures/mcpDoctorExit.mjs"),
+        packageRoot: process.cwd(),
+        stdoutIsTerminal,
+      });
+    const [redirected, terminal] = await Promise.all([
+      render(false),
+      render(true),
+    ]);
+
+    expect(redirected.output.split("\n")).toHaveLength(2);
+    expect(redirected.output.endsWith("\n")).toBe(true);
+    expect(terminal.output).toContain('\n  "');
+    const withoutDuration = (output: string): unknown => {
+      const value = JSON.parse(output) as { meta?: { duration?: string } };
+      if (value.meta) delete value.meta.duration;
+      return value;
+    };
+    expect(withoutDuration(redirected.output)).toEqual(
+      withoutDuration(terminal.output),
+    );
+    expect(redirected.exitCode).toBe(terminal.exitCode);
+  });
 });
 
 describe("production MCP doctor probe validation", () => {

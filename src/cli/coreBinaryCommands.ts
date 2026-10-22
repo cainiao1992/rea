@@ -23,8 +23,9 @@ export const registerCoreBinaryCommands = (
   cli: CliInstance,
   logger: Logger,
   runDirectAnalysis: DirectAnalysis["runDirectAnalysis"],
+  environment: Readonly<Record<string, string | undefined>>,
 ): void => {
-  registerOverviewCommands(cli, logger, runDirectAnalysis);
+  registerOverviewCommands(cli, logger, runDirectAnalysis, environment);
   registerDecompileCommand(cli, logger, runDirectAnalysis);
   registerFunctionCommand(cli, logger, runDirectAnalysis);
   registerInstructionsCommand(cli, logger, runDirectAnalysis);
@@ -37,6 +38,7 @@ const registerOverviewCommands = (
   cli: CliInstance,
   logger: Logger,
   runDirectAnalysis: DirectAnalysis["runDirectAnalysis"],
+  environment: Readonly<Record<string, string | undefined>>,
 ): void => {
   const overviewOptions = z.object({
     snapshot: snapshotSelectionOption,
@@ -88,6 +90,7 @@ const registerOverviewCommands = (
                   ? {}
                   : { source_paths: options.sourcePath }),
               },
+              environment,
               signal,
             ),
           ),

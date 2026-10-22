@@ -1003,6 +1003,7 @@ const registerObservationTools = ({
   recordEvidenceWithUnknown,
   withAdmittedAnalysis,
   artifactResources,
+  environment,
 }: ServerToolContext): void => {
   const common = { logger, recordEvidence, withAdmittedAnalysis };
   registerWebScriptTool(server, { ...common, artifactResources });
@@ -1019,6 +1020,7 @@ const registerObservationTools = ({
   registerElectronTools(server, {
     ...common,
     artifactResources,
+    environment,
     evidenceById,
     electron: options.electronObservation,
     electronActive: options.electronActiveObservation,

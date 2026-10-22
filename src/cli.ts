@@ -121,7 +121,12 @@ export const createCli = (
   registerSetupCommands(cli, logger, environment);
   registerReverseEngineeringCommands(cli, logger, environment);
   registerCutterCommands(cli, logger, environment);
-  registerCoreAnalysisCommands(cli, logger, analysis.runDirectAnalysis);
+  registerCoreAnalysisCommands(
+    cli,
+    logger,
+    analysis.runDirectAnalysis,
+    environment,
+  );
   registerUtilityCommands(cli, logger, environment, analysis);
   registerWasmCommands(cli, logger, environment);
   registerCaptureCommands(cli, logger, environment);
@@ -160,7 +165,7 @@ export const createCli = (
   registerAdvancedBrowserCommands(cli, logger);
   registerBrowserScenarioCommands(cli, logger, environment);
   registerElectronCommands(cli, logger, environment);
-  registerJavaScriptRuntimeObservationCommands(cli, logger);
+  registerJavaScriptRuntimeObservationCommands(cli, logger, environment);
   registerApplicationCommands(cli, logger);
   presentOmittableDefaults(cli);
   if (resultOutput !== undefined) streamCliCommandResults(cli, resultOutput);

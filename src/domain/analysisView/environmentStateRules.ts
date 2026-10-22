@@ -1,3 +1,4 @@
+import type { ListQuery } from "./environmentStateListQuery.js";
 import { canonicalJson } from "../comparisonSemantics.js";
 import type { JsonValue } from "../jsonValue.js";
 import type { StateWritePlan } from "./environmentStateWriteRules.js";
@@ -111,6 +112,8 @@ export type StateListView = EntityViewPlan & {
   /** With recorded membership, the checked lines that each list their whole collection. */
   readonly all_record_ordinals?: number[] | undefined;
   readonly counters: string[];
+  /** The query the view's other lines follow, when one explains any of them. */
+  readonly query?: ListQuery | undefined;
 };
 
 /** Whether a list view answers on a checked line with every entity of the collection. */

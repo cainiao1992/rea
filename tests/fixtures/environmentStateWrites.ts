@@ -114,6 +114,34 @@ export const LIST_LINE_ROWS: readonly TimedCaptureRow[] = [
   ["GET", "/api/books", bookPage([FIRST_BOOK, SECOND_BOOK, THIRD_BOOK_AT_4])],
 ];
 
+const shelved = (entry: Book, shelf: string): Book => ({ ...entry, shelf });
+const SHELVED_FIRST = shelved(FIRST_BOOK, "a");
+const SHELVED_SECOND = shelved(SECOND_BOOK, "b");
+/** The book the create at exchange 7 of QUERY_ROWS made, on shelf a. */
+export const SHELVED_THIRD = shelved(book(3, "Third Book", bookClock(7)), "a");
+
+/**
+ * One list tool recorded whole, filtered by shelf, searched, sorted and with a flag that changes nothing; item reads;
+ * then a create the shelf filter later lists.
+ */
+export const QUERY_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", [SHELVED_FIRST, SHELVED_SECOND]],
+  ["GET", "/api/books?shelf=a", [SHELVED_FIRST]],
+  ["GET", "/api/books?q=second", [SHELVED_SECOND]],
+  ["GET", "/api/books?sort=-id", [SHELVED_SECOND, SHELVED_FIRST]],
+  ["GET", "/api/books?include=all", [SHELVED_FIRST, SHELVED_SECOND]],
+  ["GET", "/api/books/1", SHELVED_FIRST],
+  ["GET", "/api/books/2", SHELVED_SECOND],
+  [
+    "POST",
+    "/api/books",
+    SHELVED_THIRD,
+    201,
+    { name: "Third Book", shelf: "a" },
+  ],
+  ["GET", "/api/books?shelf=a", [SHELVED_FIRST, SHELVED_THIRD]],
+];
+
 /** The end of the last exchange of BOOK_ROWS, to the next whole second: where the served clock starts. */
 export const BOOK_WRITE_CLOCK = "2026-10-17T18:00:12.000Z";
 

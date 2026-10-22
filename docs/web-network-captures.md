@@ -618,6 +618,29 @@ when its content type is
 JSON-like, it is UTF-8 text of at most 256 KiB, every number survives native
 conversion exactly, and no member is named `__proto__`.
 
+A list view also learns, from its checked lines that do not list the whole
+collection, what each query parameter does, and names the result in `query`.
+Each such line is explained by the first combination of roles that lists
+exactly what it recorded from the collection's initial entities:
+
+| Role        | Parameter                                                                                  | Effect                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `filter`    | any, on a `field` every listed item holds the value in                                     | entities whose field equals the value as text, or whose array field holds it directly or as an object's `id`, `slug` or `name`                                  |
+| `search`    | `q`, `query`, `search`, `searchTerm`, `term`, `keyword`(s)                                 | entities with one of `fields` containing the value, ignoring case; the fields are those it matched in the listed items, URLs only where nothing else matched    |
+| `sort`      | `order`, `orderBy`, `ordering`, `sort`, `sortBy` (and `_by` spellings)                     | ordered by the field the value names (`name`, `-name`, `name:desc`, `name-ASC`): numbers by value, text ignoring case, null last ascending, ties in state order |
+| `direction` | `dir`, `direction`, `order`, `orderDirection`, `sortDir`, `sortOrder` with `asc` or `desc` | the sort's direction                                                                                                                                            |
+| `limit`     | `limit`, `per_page`, `perPage`, `page_size`, `size`, `count`, `take`, `itemsPerPage`       | page size; zero or a negative value lists every match                                                                                                           |
+| `offset`    | `offset`, `start`, `_start`, `skip`                                                        | matches skipped before the page                                                                                                                                 |
+| `page`      | `page`                                                                                     | page number, counted from `first` (1 or 0, whichever explains the line)                                                                                         |
+| `inert`     | any                                                                                        | changes nothing for its recorded `values`; other values are not computed                                                                                        |
+
+Lines that disagree on a parameter's role drop it, inert values gather and
+search fields unite. `query.record_ordinals` are the lines the merged roles
+reproduce, envelope and fields included, and `query.totals` the envelope
+members that count every match before paging on each of them (a
+`number`-of-items member counts the page). The roles are inferences from the
+recorded lines; a line they do not reproduce keeps its recorded members.
+
 `writes` lists one plan per tool whose request may change state, in tool
 order. Its `effect` is `create` for a `POST` to a type's
 `collection_template`, `update` for a `PUT`, `PATCH` or `POST` to that template
@@ -640,6 +663,11 @@ sending must be a clock, an increment or a slug, or the plan is
 `unexplained-change`; an increment or slug must hold for every call of the
 tool. Every member the first call sent is required, except by `PATCH` and
 `POST` updates.
+
+A read on a line `query` answers is checked against the query evaluated over
+the replayed state. It covers the collection only when every parameter sorts or
+pages and the answer holds every match; otherwise it covers the entities it
+lists, and those the line or the read listed that the state no longer holds.
 
 The view then replays the timeline on a copy of the initial state. Modelled
 writes apply their effect; only a `2xx` write is modelled or an example, and

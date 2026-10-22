@@ -1,3 +1,7 @@
+import {
+  JsonSchemaReferences,
+  type JsonSchemaScope,
+} from "./jsonSchemaReferences.js";
 import { isDeepStrictEqual } from "node:util";
 
 import {
@@ -9,43 +13,38 @@ import {
 const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const resolveReference = (
-  root: Readonly<Record<string, unknown>>,
-  reference: string,
-): unknown => {
-  if (reference === "#") return root;
-  if (!reference.startsWith("#/")) return undefined;
-  let value: unknown = root;
-  for (const token of reference.slice(2).split("/")) {
-    const key = token.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (!isObject(value) || !Object.hasOwn(value, key)) return undefined;
-    value = value[key];
-  }
-  return value;
-};
-
 const referencedDescription = (
-  root: Readonly<Record<string, unknown>>,
+  references: JsonSchemaReferences,
   schema: Readonly<Record<string, unknown>>,
+  inherited: JsonSchemaScope | undefined,
 ): string | undefined => {
   let value: unknown = schema;
-  const active = new Set<string>();
+  let scope = inherited;
+  const active = new Set<object>();
   while (isObject(value)) {
-    if (typeof value.description === "string") return value.description;
-    if (typeof value.$ref !== "string" || active.has(value.$ref))
-      return undefined;
-    active.add(value.$ref);
-    value = resolveReference(root, value.$ref);
+    scope = references.enter(value, scope);
+    if (
+      typeof value.description === "string" &&
+      (typeof value.$ref !== "string" || scope?.dialect !== "draft-07")
+    )
+      return value.description;
+    if (typeof value.$ref !== "string" || active.has(value)) return undefined;
+    active.add(value);
+    const target = references.resolve(scope, value.$ref);
+    if (target.kind !== "target") return undefined;
+    value = target.value;
   }
   return undefined;
 };
 
 const describeSchema = (
   schema: unknown,
-  root: Readonly<Record<string, unknown>>,
+  references: JsonSchemaReferences,
+  inherited: JsonSchemaScope | undefined,
   describeProperty: (property: string) => string | undefined,
 ): unknown => {
   if (!isObject(schema)) return schema;
+  const scope = references.enter(schema, inherited);
   return Object.fromEntries(
     Object.entries(schema).map(([key, value]) => {
       if (schemaMaps.has(key) && isObject(value))
@@ -53,11 +52,20 @@ const describeSchema = (
           key,
           Object.fromEntries(
             Object.entries(value).map(([name, child]) => {
-              const described = describeSchema(child, root, describeProperty);
-              if (key !== "properties" || !isObject(described))
+              const described = describeSchema(
+                child,
+                references,
+                scope,
+                describeProperty,
+              );
+              if (
+                key !== "properties" ||
+                !isObject(described) ||
+                !isObject(child)
+              )
                 return [name, described];
               const description =
-                referencedDescription(root, described) ??
+                referencedDescription(references, child, scope) ??
                 describeProperty(name);
               return [
                 name,
@@ -71,16 +79,18 @@ const describeSchema = (
       if (schemaArrays.has(key) && Array.isArray(value))
         return [
           key,
-          value.map((child) => describeSchema(child, root, describeProperty)),
+          value.map((child) =>
+            describeSchema(child, references, scope, describeProperty),
+          ),
         ];
       if (schemaChildren.has(key))
         return [
           key,
           Array.isArray(value)
             ? value.map((child) =>
-                describeSchema(child, root, describeProperty),
+                describeSchema(child, references, scope, describeProperty),
               )
-            : describeSchema(value, root, describeProperty),
+            : describeSchema(value, references, scope, describeProperty),
         ];
       // Annotation values and literal const/enum data are not schemas.
       return [key, value];
@@ -89,18 +99,29 @@ const describeSchema = (
 };
 
 const objectBranch = (
-  root: Readonly<Record<string, unknown>>,
+  references: JsonSchemaReferences,
   branch: unknown,
 ): Readonly<Record<string, unknown>> | undefined => {
   // Reference siblings evaluate separately from the target in 2020-12, so a
   // merged object could accept inputs the branch rejects.
-  const resolved =
-    isObject(branch) && typeof branch.$ref === "string"
-      ? Object.keys(branch).length === 1
-        ? resolveReference(root, branch.$ref)
-        : undefined
-      : branch;
+  let resolved = branch;
+  if (isObject(branch) && typeof branch.$ref === "string") {
+    if (Object.keys(branch).length !== 1) return undefined;
+    const target = references.resolve(references.rootScope, branch.$ref);
+    if (target.kind !== "target") return undefined;
+    resolved = target.value;
+  }
   return isObject(resolved) &&
+    references.enter(resolved, references.rootScope) === references.rootScope &&
+    ![
+      "$id",
+      "$schema",
+      "$anchor",
+      "$dynamicAnchor",
+      "$recursiveAnchor",
+      "$dynamicRef",
+      "$recursiveRef",
+    ].some((key) => Object.hasOwn(resolved, key)) &&
     resolved.type === "object" &&
     isObject(resolved.properties)
     ? resolved
@@ -324,6 +345,7 @@ const normalizeAdvertisedSchema = (value: unknown): SchemaNormalization => {
 // union of the groups. The canonical Zod schema still enforces the exact group.
 const flattenRootObjectUnion = (
   root: Record<string, unknown>,
+  references: JsonSchemaReferences,
 ): Record<string, unknown> => {
   const { anyOf, oneOf, ...rest } = root;
   const alternatives = Array.isArray(anyOf) ? anyOf : oneOf;
@@ -333,7 +355,21 @@ const flattenRootObjectUnion = (
     root.properties !== undefined
   )
     return root;
-  const branches = alternatives.map((branch) => objectBranch(root, branch));
+  // Lifting removes union locations and branch identities. References into those
+  // locations, named anchors or unresolved bases cannot survive that rewrite.
+  for (const { scope, target } of references.references())
+    if (
+      (target.kind === "unresolved" && target.reason === "dynamic") ||
+      (scope === references.rootScope &&
+        (target.kind !== "target" ||
+          target.path.length === 0 ||
+          target.path[0] === "anyOf" ||
+          target.path[0] === "oneOf"))
+    )
+      return root;
+  const branches = alternatives.map((branch) =>
+    objectBranch(references, branch),
+  );
   if (!branches.every((branch) => branch !== undefined)) return root;
   const variants = new Map<string, unknown[]>();
   for (const branch of branches)
@@ -385,15 +421,17 @@ const presentDiscriminatedRoot = (
   root: Record<string, unknown>,
 ): Record<string, unknown> => {
   const { "x-rea-root-discriminator": discriminator, ...canonical } = root;
-  const flattened = flattenRootObjectUnion(canonical);
-  if (typeof discriminator !== "string") return flattened;
+  const references = new JsonSchemaReferences(canonical);
+  const flattened = flattenRootObjectUnion(canonical, references);
+  if (typeof discriminator !== "string" || flattened === canonical)
+    return flattened;
   const alternatives = canonical.anyOf ?? canonical.oneOf;
   if (!Array.isArray(alternatives) || alternatives.length !== 2)
     throw new TypeError(
       "A presented root discriminator requires two object alternatives",
     );
   const branches = alternatives.map((alternative) => {
-    const branch = objectBranch(canonical, alternative);
+    const branch = objectBranch(references, alternative);
     if (branch === undefined || branch.additionalProperties !== false)
       throw new TypeError(
         "A presented root discriminator requires strict objects",
@@ -487,7 +525,13 @@ export const presentInputJsonSchema = (
   describeProperty: (property: string) => string | undefined,
 ): Record<string, unknown> => {
   const flattened = presentDiscriminatedRoot(root);
-  const described = describeSchema(flattened, flattened, describeProperty);
+  const references = new JsonSchemaReferences(flattened);
+  const described = describeSchema(
+    flattened,
+    references,
+    references.rootScope,
+    describeProperty,
+  );
   if (!isObject(described))
     return normalizeAdvertisedSchema(flattened).schema as Record<
       string,

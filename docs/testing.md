@@ -946,7 +946,7 @@ analyzed as native code (75k methods on arm64) and decompiled through both
 CLI and MCP with explicit unit selection, plus the thin Java wrapper and
 decoded manifest. The dedicated Dart snapshot processor and `run_script`
 remained GUI-only surfaces in that headless build.
-The separate [Linux CE native audit](../experiments/analysis-efficiency/jeb-linux-native.md)
+The separate [Linux CE native audit](https://github.com/morluto/rea/blob/42e1a17d6e6c0487f17be0bae248553c4caba7f7/experiments/analysis-efficiency/jeb-linux-native.md)
 uses the official CE `5.48.0.202610071539` direct CLI launcher and real
 CLI/stdio MCP ELF workflows. That audit does not qualify CE Java/Android
 decompilation or GUI project opening, and it does not replace the licensed

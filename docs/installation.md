@@ -104,9 +104,11 @@ your investigation. Failed steps and diagnostics remain in terminal history.
 
 Select exact clients in scripts with repeatable `--client` flags. Each explicit
 client skips interactive selection. Use `--all-detected` only when you intend
-to configure every detected supported client. `--skill=false` omits the
-workflow, and `--dry-run` returns a read-only plan with status `planned` and
-exit code 0:
+to configure every detected supported client. Combining `--client` with
+`--all-detected` configures both the explicitly selected and detected clients,
+even when an explicit client is not detected. Each client is configured once.
+`--skill=false` omits the workflow, and `--dry-run` returns a read-only plan
+with status `planned` and exit code 0:
 
 ```bash
 rea setup --client codex --client cursor --skill=false --dry-run

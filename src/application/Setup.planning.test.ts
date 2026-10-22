@@ -224,6 +224,61 @@ describe("setup workflow", () => {
 });
 
 describe("setup client selection", () => {
+  it.each([
+    {
+      name: "explicit clients before detected clients without duplicates",
+      selection: { clientIds: ["cursor", "codex", "cursor"] },
+      expected: ["cursor", "codex"],
+    },
+    {
+      name: "readiness-scope clients when no explicit list is supplied",
+      selection: { readinessScope: { clients: ["cursor"] } },
+      expected: ["cursor", "codex"],
+    },
+    {
+      name: "only detected clients without an explicit selection",
+      selection: {},
+      expected: ["codex"],
+    },
+  ])("configures and verifies $name", async ({ selection, expected }) => {
+    const host = new FakeSetupHost();
+    host.hopper = "/Applications/Hopper";
+    host.skill = "unchanged";
+    const codex = {
+      name: "codex",
+      configPath: "/codex.toml",
+      format: "toml" as const,
+    };
+    host.clients = [codex];
+    host.availableClients = [
+      { name: "cursor", configPath: "/cursor.json" },
+      codex,
+    ];
+
+    const result = await runSetup(
+      { ...options(true), ...selection, allDetectedClients: true },
+      host,
+    );
+
+    expect(result.status).toBe("ready");
+    expect(result.plannedActions.map(({ id }) => id)).toEqual(
+      expected.map((id) => `configure_client:${id}`),
+    );
+    expect(result.appliedActions).toEqual(
+      expected.map((id) => `configured_${id}`),
+    );
+    expect(host.configurations).toBe(expected.length);
+    expect(host.skillDirectoryValidations).toEqual([expected, expected]);
+    expect(host.doctorScopes.at(-1)).toEqual({
+      clients: expected,
+      providers: [],
+      skill: true,
+      skillClients: expected,
+    });
+    expect(host.hopperInstalls).toBe(0);
+    expect(host.skillInstalls).toBe(0);
+  });
+
   it.each([true, false])(
     "handles repeated clients once in first-selected order (dry run: %s)",
     async (dryRun) => {

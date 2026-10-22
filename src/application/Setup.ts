@@ -128,13 +128,13 @@ const runSetupWorkflow = async (
     options.installSkill === undefined;
   const interactiveSelection =
     confirm !== undefined && !options.structured && clientSelectionAllowed;
+  const requestedClientIds =
+    options.clientIds ?? options.readinessScope?.clients;
   let selectedClientIds = [
     ...new Set(
       options.allDetectedClients
-        ? discovery.detectedClientIds
-        : (options.clientIds ??
-            options.readinessScope?.clients ??
-            discovery.defaultClientIds),
+        ? [...(requestedClientIds ?? []), ...discovery.detectedClientIds]
+        : (requestedClientIds ?? discovery.defaultClientIds),
     ),
   ];
   let selectedSkillClientIds =

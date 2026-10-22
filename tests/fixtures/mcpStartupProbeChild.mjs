@@ -1,5 +1,6 @@
-import { createInterface } from "node:readline";
+import { writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
+import { createInterface } from "node:readline";
 
 const mode = process.env.REA_MCP_PROBE_MODE ?? "serve";
 
@@ -54,6 +55,9 @@ input.on("line", (line) => {
         capabilities: { tools: {}, prompts: {} },
         serverInfo: { name: "probe-fixture", version: "1" },
       };
+      // Synchronous so a parent can observe initialize before the next phase hangs.
+      if (process.env.REA_MCP_PROBE_INITIALIZED_PATH !== undefined)
+        writeFileSync(process.env.REA_MCP_PROBE_INITIALIZED_PATH, "ready");
       break;
     case "tools/list":
       result = { tools: [] };

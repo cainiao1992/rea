@@ -188,6 +188,10 @@ it.each([
       REA_CAPTURE_DECODER_OLD_GENERATION_MIB: "256",
       REA_REGEX_MATCHING_DEADLINE_MS: "10000",
       REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
+      REA_MCP_INITIALIZE_BUDGET_MS: "16000",
+      REA_MCP_TOOLS_LIST_BUDGET_MS: "6000",
+      REA_MCP_FIRST_CATALOG_BUDGET_MS: "21000",
+      REA_MCP_DOCTOR_DEADLINE_MS: "31000",
     },
     providerConfigured: false,
     installHopper: true,
@@ -223,10 +227,20 @@ it.each([
           REA_CAPTURE_DECODER_OLD_GENERATION_MIB: "256",
           REA_REGEX_MATCHING_DEADLINE_MS: "10000",
           REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
+          REA_MCP_INITIALIZE_BUDGET_MS: "16000",
+          REA_MCP_TOOLS_LIST_BUDGET_MS: "6000",
+          REA_MCP_FIRST_CATALOG_BUDGET_MS: "21000",
+          REA_MCP_DOCTOR_DEADLINE_MS: "31000",
         });
       } else {
         expect(initial.providerEnvironment).not.toHaveProperty(
           "REA_REGEX_MATCHING_DEADLINE_MS",
+        );
+        expect(initial.providerEnvironment).not.toHaveProperty(
+          "REA_REGEX_WORKER_HEAP_REQUEST_MIB",
+        );
+        expect(initial.providerEnvironment).not.toHaveProperty(
+          "REA_MCP_INITIALIZE_BUDGET_MS",
         );
       }
       const discovery = await discoverSetupState({

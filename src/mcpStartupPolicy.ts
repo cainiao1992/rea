@@ -1,38 +1,51 @@
 import type { AnalysisProviderSelector } from "./contracts/providerSelection.js";
+import {
+  DEFAULT_MCP_DOCTOR_DEADLINE_MS,
+  DEFAULT_MCP_FIRST_CATALOG_BUDGET_MS,
+  DEFAULT_MCP_INITIALIZE_BUDGET_MS,
+  DEFAULT_MCP_TOOLS_LIST_BUDGET_MS,
+  mcpPhaseBudgetRecovery,
+  resolveMcpStartupBudgets,
+  type McpPhaseBudget,
+  type McpStartupBudgets,
+} from "./config/mcpStartupBudgets.js";
 
 /**
  * Supported MCP startup deadlines and operation headroom.
  *
- * Client timeouts are caller-facing configuration. The smaller phase budgets
- * preserve operational headroom, while the doctor deadline covers additional
- * inventory requests after initialization.
+ * Client timeouts are caller-facing configuration. The phase budgets below
+ * are the unset defaults of `REA_MCP_INITIALIZE_BUDGET_MS`,
+ * `REA_MCP_TOOLS_LIST_BUDGET_MS`, `REA_MCP_FIRST_CATALOG_BUDGET_MS`, and
+ * `REA_MCP_DOCTOR_DEADLINE_MS`. Callers that enforce a phase read
+ * `resolveMcpStartupProbePolicy` so a selected value is not ignored.
+ * `codexStartupTimeoutSeconds` stays client guidance and is not a setting.
  */
 export const MCP_STARTUP_POLICY = {
   codexStartupTimeoutSeconds: 30,
   kimiStartupTimeoutMs: 30_000,
   toolOperationHeadroomMs: 120_000,
-  initializeBudgetMs: 15_000,
-  toolsListBudgetMs: 5_000,
-  firstCatalogBudgetMs: 20_000,
-  doctorDeadlineMs: 30_000,
+  initializeBudgetMs: DEFAULT_MCP_INITIALIZE_BUDGET_MS,
+  toolsListBudgetMs: DEFAULT_MCP_TOOLS_LIST_BUDGET_MS,
+  firstCatalogBudgetMs: DEFAULT_MCP_FIRST_CATALOG_BUDGET_MS,
+  doctorDeadlineMs: DEFAULT_MCP_DOCTOR_DEADLINE_MS,
   doctorStderrBytes: 64 * 1024,
 } as const;
 
+/** Phase budgets the packaged startup probe enforces. */
+export type McpStartupProbePolicy = McpStartupBudgets;
+
 /**
- * Recovery for a fixed MCP startup phase budget. Codex's startup figure is
- * client guidance and is not named here; doctor text adds that distinction
- * because its deadline uses the same 30 second magnitude.
+ * Resolve the probe policy from the environment that starts the probe.
+ * An invalid phase setting is refused. Codex's 30 second startup figure
+ * is not part of this policy.
  */
-export const fixedMcpPhaseBudgetRecovery = (
-  phase: string,
-  value: number,
-  unit: "ms" | "bytes",
-): string =>
-  `REA's fixed ${phase} is ${String(value)} ${unit} and this release has no runtime override.`;
+export const resolveMcpStartupProbePolicy = (
+  environment: Readonly<Record<string, string | undefined>>,
+): McpStartupProbePolicy => resolveMcpStartupBudgets(environment);
 
 /** Doctor startup recovery. The Codex figure is client guidance REA does not enforce. */
-export const mcpDoctorDeadlineRecovery = (budgetMs: number): string =>
-  `${fixedMcpPhaseBudgetRecovery("MCP doctor startup deadline", budgetMs, "ms")} Codex startup_timeout_sec of ${String(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds)} seconds is client guidance; REA does not enforce that figure as this deadline.`;
+export const mcpDoctorDeadlineRecovery = (budget: McpPhaseBudget): string =>
+  `${mcpPhaseBudgetRecovery(budget)} Codex startup_timeout_sec of ${String(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds)} seconds is client guidance; REA does not enforce that figure as this deadline.`;
 
 /** Parsed startup and upstream request budgets affecting a client's tool deadline. */
 export interface McpToolTimeoutInputs {

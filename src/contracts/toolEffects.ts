@@ -131,6 +131,7 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   inspect_model_artifact: evidence,
   inspect_gpu_code_objects: evidence,
   inspect_rust_binary: evidence,
+  inspect_erlang_beam: evidence,
   inspect_sqlite_database: effects({
     mutatesSession: true,
     writesFilesystem: true,

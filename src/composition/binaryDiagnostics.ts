@@ -8,11 +8,16 @@ import { PeResourcesProvider } from "../native/pe/PeResourcesProvider.js";
 import { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import { ElfNotesProvider } from "../native/elf/ElfNotesProvider.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { NativeExportsService } from "../application/binaryDiagnostics/NativeExportsService.js";
+import { NativeExportsProvider } from "../native/exports/NativeExportsProvider.js";
 
 /** Portable PE inspection with no engine, installation or target acquisition. */
 export const createPeResourcesService = (): PeResourcesService =>
   new PeResourcesService(new PeResourcesProvider());
 
+/** Portable PE/ELF export tables with no engine, toolchain or target acquisition. */
+export const createNativeExportsService = (): NativeExportsService =>
+  new NativeExportsService(new NativeExportsProvider());
 /** Portable ELF note-table inspection with no engine or package catalog. */
 export const createElfNotesService = (): ElfNotesService =>
   new ElfNotesService(new ElfNotesProvider());

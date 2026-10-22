@@ -14,12 +14,15 @@ import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { captureProviderEnvironment } from "./providerEnvironment.js";
 import {
   createElfNotesService,
+  createNativeExportsService,
   createPeResourcesService,
 } from "../composition/binaryDiagnostics.js";
 import type { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import type { PeResourcesService } from "../application/binaryDiagnostics/PeResourcesService.js";
+import type { NativeExportsService } from "../application/binaryDiagnostics/NativeExportsService.js";
 import { registerElfNotesTool } from "./registerElfNotesTool.js";
 import { registerPeResourcesTool } from "./registerPeResourcesTool.js";
+import { registerNativeExportsTool } from "./registerNativeExportsTool.js";
 import type { EvmInterfaceService } from "../application/evm/EvmInterfaceService.js";
 import {
   evmInterfaceModule,
@@ -355,6 +358,7 @@ export const createServer = (
   const il2cppMetadata =
     options.il2cppMetadata ?? createIl2cppMetadataService();
   const peResources = createPeResourcesService();
+  const nativeExports = createNativeExportsService();
   const elfNotes = createElfNotesService();
   const electronFuses = options.electronFuses ?? createElectronFuseService();
   const webNetworkCapture =
@@ -457,6 +461,7 @@ export const createServer = (
       modelArtifact.close(),
       gpuCodeObjects.close(),
       peResources.close(),
+      nativeExports.close(),
       elfNotes.close(),
       electronFuses.close(),
       webNetworkCapture.close(),
@@ -521,6 +526,7 @@ export const createServer = (
     rustBinary,
     il2cppMetadata,
     peResources,
+    nativeExports,
     elfNotes,
     electronFuses,
     webNetworkCapture,
@@ -753,6 +759,7 @@ const registerConfiguredAnalysisTools = (
     rustBinary,
     il2cppMetadata,
     peResources,
+    nativeExports,
     elfNotes,
     webNetworkCapture,
     artifactResources,
@@ -799,6 +806,13 @@ const registerConfiguredAnalysisTools = (
   registerPeResourcesTool(
     server,
     peResources,
+    toolLogger,
+    recordEvidence,
+    withAdmittedAnalysis,
+  );
+  registerNativeExportsTool(
+    server,
+    nativeExports,
     toolLogger,
     recordEvidence,
     withAdmittedAnalysis,
@@ -943,6 +957,7 @@ interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
   readonly rustBinary: RustBinaryService;
   readonly il2cppMetadata: Il2cppMetadataService;
   readonly peResources: PeResourcesService;
+  readonly nativeExports: NativeExportsService;
   readonly elfNotes: ElfNotesService;
   readonly electronFuses: ElectronFuseService;
   readonly webNetworkCapture: WebNetworkCaptureService;

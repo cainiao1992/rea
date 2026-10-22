@@ -265,6 +265,13 @@ export const providerCatalog = (sources) => {
         ),
     },
     {
+      identity: sources.artifactProviders.NATIVE_EXPORTS_PROVIDER,
+      contracts:
+        sources.binaryDiagnosticsContracts.BINARY_DIAGNOSTICS_TOOL_CONTRACTS.filter(
+          ({ name }) => name === "inspect_native_exports",
+        ),
+    },
+    {
       identity: sources.captureProvider.TSHARK_PROVIDER_IDENTITY,
       contracts: sources.captureContracts.CAPTURE_TOOL_CONTRACTS,
     },

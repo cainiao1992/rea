@@ -409,6 +409,16 @@ Other payloads are opaque, and this operation does not decode images or simulate
 Windows resource loading. Consult the budgets and supported tree profile in
 [offline binary diagnostics](https://github.com/morluto/rea/blob/main/docs/binary-diagnostics.md).
 
+## Offline PE and ELF export tables
+
+Use `inspect_native_exports` with an absolute `path`, or
+`rea inspect-native-exports ./libexample.so --json`, to read a PE export
+directory or ELF dynamic symbol table on any host without opening a native
+target. Ordinal-only, forwarded and hidden-version exports stay distinct;
+partial or unsupported coverage means the inventory is incomplete, not that
+exports are absent. Use `inspect_macho` for Mach-O. See
+[offline binary diagnostics](https://github.com/morluto/rea/blob/main/docs/binary-diagnostics.md).
+
 For exact core-module import/export differences, use `compare_wasm_interfaces`
 with two complete inspection Evidence records (or current-session retained
 references) and explicit scope. Preserve unknown types/duplicate names; static

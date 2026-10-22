@@ -62,6 +62,13 @@ export const BYTE_ENTROPY_PROVIDER = Object.freeze({
   version: "1",
 } as const);
 
+/** Provider identity for portable, execution-free PE and ELF export tables. */
+export const NATIVE_EXPORTS_PROVIDER = Object.freeze({
+  id: "rea-native-exports",
+  name: "REA PE/ELF export table reader",
+  version: "1",
+} as const);
+
 /** Provider identity for deterministic managed-code comparison workflows. */
 export const MANAGED_WORKFLOW_PROVIDER = {
   id: "rea-dotnet-workflows",

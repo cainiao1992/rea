@@ -14,6 +14,10 @@ import {
   analysisDetailOutputSchemaOf,
   analysisDetailSchema,
 } from "../analysisDetail.js";
+import {
+  inspectNativeExportsInputSchema,
+  nativeExportsSchema,
+} from "../../domain/native/nativeExports.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { toolContractMetadata } from "../toolEffects.js";
 import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
@@ -92,6 +96,21 @@ export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
       {
         title: "Inspect PE resource identities and icon relationships",
         input: { path: "/artifacts/application.exe" },
+      },
+    ],
+  },
+  {
+    name: "inspect_native_exports",
+    ...toolContractMetadata("inspect_native_exports"),
+    kind: "native-provider",
+    description:
+      "Inspect one explicit local PE or ELF image's export table without executing it or opening an engine: PE export-directory names, ordinals, addresses and forwarders, or ELF defined default/protected global, weak and unique .dynsym symbols with type, binding and symbol version. Ordinal-only, forwarded and hidden-version exports stay distinct. Portable on any supported host. Coverage is partial when table entries are unreadable and unsupported for an ELF without section headers; an empty complete inventory means the image declares no exports. Mach-O exports use inspect_macho.",
+    inputSchema: inspectNativeExportsInputSchema,
+    outputSchema: evidenceResultOf(nativeExportsSchema),
+    examples: [
+      {
+        title: "List a native library's exports",
+        input: { path: "/artifacts/native/libexample.so" },
       },
     ],
   },

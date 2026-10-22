@@ -1,3 +1,4 @@
+import { enhancedInputSchemas } from "../contracts/enhancedInputs.js";
 import { z } from "incur";
 
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
@@ -272,6 +273,9 @@ const registerNativeDispatchMetadataCommand = (
         .max(20_000)
         .default(5_000)
         .describe("Maximum symbol records to inspect"),
+      maxInputBytes:
+        enhancedInputSchemas.inspect_native_dispatch_metadata.shape
+          .max_input_bytes,
       snapshot: snapshotSelectionOption.describe(
         "Load or update the local analysis snapshot",
       ),
@@ -282,7 +286,12 @@ const registerNativeDispatchMetadataCommand = (
         runDirectAnalysis(
           args.path,
           "inspect_native_dispatch_metadata",
-          { max_records: options.maxRecords },
+          {
+            max_records: options.maxRecords,
+            ...(options.maxInputBytes === undefined
+              ? {}
+              : { max_input_bytes: options.maxInputBytes }),
+          },
           directAnalysisOptionsFromCli(logger, options),
         ),
       ),

@@ -369,6 +369,30 @@ export const objcSwiftMetadataSchema = z.strictObject({
 export type ObjcSwiftMetadata = z.infer<typeof objcSwiftMetadataSchema>;
 
 /** Provider and target identity for one normalized dispatch-metadata result. */
+/** Retained-image budget when the caller selects none. */
+export const DEFAULT_DISPATCH_METADATA_INPUT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Largest caller-selected budget. The reader holds the whole selected file in
+ * REA's own heap; larger images belong to a deep provider that loads them in
+ * its own process.
+ */
+export const MAXIMUM_DISPATCH_METADATA_INPUT_BYTES = 1024 * 1024 * 1024;
+
+/** Effective input budget of one binary metadata read and the bytes it retained. */
+export const dispatchMetadataInputAdmissionSchema = z.strictObject({
+  maximum_bytes: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAXIMUM_DISPATCH_METADATA_INPUT_BYTES),
+  source: z.enum(["default", "caller"]),
+  retained_bytes: z.number().int().nonnegative(),
+});
+export type DispatchMetadataInputAdmission = z.infer<
+  typeof dispatchMetadataInputAdmissionSchema
+>;
+
 export const nativeDispatchMetadataResultSchema = z.strictObject({
   target_sha256: z
     .string()
@@ -381,6 +405,8 @@ export const nativeDispatchMetadataResultSchema = z.strictObject({
     version: z.string().nullable(),
   }),
   analysis_profile_digest: z.string().min(1).nullable(),
+  /** Present when REA read the target bytes itself; symbol-only inventories have none. */
+  input_admission: dispatchMetadataInputAdmissionSchema.exactOptional(),
   result: objcSwiftMetadataSchema,
 });
 

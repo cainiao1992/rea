@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import {
+  DEFAULT_DISPATCH_METADATA_INPUT_BYTES,
+  MAXIMUM_DISPATCH_METADATA_INPUT_BYTES,
   objcSwiftMetadataSchema,
   nativeDispatchMetadataResultSchema,
+  type DispatchMetadataInputAdmission,
   type ObjcSwiftMetadata,
 } from "../domain/native/objcSwiftMetadata.js";
 import {
@@ -24,7 +27,6 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import { fixedNativeAllowance } from "../domain/native/nativeDeadlines.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
@@ -254,35 +256,78 @@ export const decodeAppleDispatchMetadata = (
   return objcSwiftMetadataSchema.parse(result);
 };
 
+const OPERATION = "inspect_native_dispatch_metadata";
+const MEBIBYTE = 1024 * 1024;
+const bytesWithUnits = (bytes: number): string =>
+  Number.isInteger(bytes / (MEBIBYTE * 1024))
+    ? `${String(bytes)} bytes (${String(bytes / (MEBIBYTE * 1024))} GiB)`
+    : Number.isInteger(bytes / MEBIBYTE)
+      ? `${String(bytes)} bytes (${String(bytes / MEBIBYTE)} MiB)`
+      : `${String(bytes)} bytes`;
+
+/** Refuse a file larger than the effective budget, naming how to raise it if possible. */
+const inputBudgetExceeded = (
+  admission: Omit<DispatchMetadataInputAdmission, "retained_bytes">,
+  observedBytes: number | null,
+): AnalysisResourceConstraintError => {
+  const budget = `${admission.source === "caller" ? "the selected max_input_bytes" : "the default input budget"} of ${bytesWithUnits(admission.maximum_bytes)}`;
+  const observed =
+    observedBytes === null ? "" : ` (${String(observedBytes)} bytes)`;
+  const remediationAction =
+    observedBytes === null
+      ? "The file grew while it was read. Retry once the file is stable."
+      : observedBytes <= MAXIMUM_DISPATCH_METADATA_INPUT_BYTES
+        ? `Retry with max_input_bytes (CLI --max-input-bytes) of at least ${String(observedBytes)}, at most ${bytesWithUnits(MAXIMUM_DISPATCH_METADATA_INPUT_BYTES)}; REA holds that many bytes in memory for the read.`
+        : `The file exceeds the largest selectable budget of ${bytesWithUnits(MAXIMUM_DISPATCH_METADATA_INPUT_BYTES)}; use a deep analysis provider for its Objective-C and Swift metadata.`;
+  return new AnalysisResourceConstraintError(
+    OPERATION,
+    "memory",
+    `Apple static metadata input${observed} exceeds ${budget}.`,
+    {
+      input_bytes: admission.maximum_bytes,
+      input_bytes_source: admission.source,
+      maximum_selectable_input_bytes: MAXIMUM_DISPATCH_METADATA_INPUT_BYTES,
+      ...(observedBytes === null
+        ? {}
+        : { observed_input_bytes: observedBytes }),
+    },
+    { retryable: false, remediationAction },
+  );
+};
+
+/** Optional per-read selections beyond the record budget. */
+export interface AppleDispatchMetadataOptions {
+  readonly signal?: AbortSignal | undefined;
+  readonly objcClassImportAddresses?: readonly string[] | undefined;
+  readonly objcClassImportAddressesComplete?: boolean | undefined;
+  /** Caller-selected input budget; the default applies when omitted. */
+  readonly maxInputBytes?: number | undefined;
+}
+
 /**
- * Read digest-verified target bytes under a 64 MiB static metadata budget.
- * The caller's scope retains the target descriptor when its final close fails.
+ * Read digest-verified target bytes under the effective input budget and
+ * decode their static metadata. The caller's scope retains the target
+ * descriptor when its final close fails.
  */
 export const inspectAppleDispatchMetadata = async (
   target: BinaryTarget,
   maxRecords: number,
   resources: ArtifactResourceScope,
-  signal?: AbortSignal,
-  objcClassImportAddresses?: readonly string[],
-  objcClassImportAddressesComplete = true,
+  options: AppleDispatchMetadataOptions = {},
 ) => {
+  const { signal } = options;
   if (target.kind !== "executable" || !isMachOFormat(target.format))
     throw new TypeError("Apple dispatch metadata requires a Mach-O target");
-  const maximumBytes = 64 * 1024 * 1024;
-  const capacityError = () =>
-    new AnalysisResourceConstraintError(
-      "inspect_native_dispatch_metadata",
-      "memory",
-      `Apple static metadata input exceeds its ${String(maximumBytes)}-byte (64 MiB) snapshot budget. This release has no runtime override.`,
-      { input_bytes: maximumBytes },
-      fixedNativeAllowance(
-        "The Apple static metadata snapshot allowance",
-        "parser",
-        `${String(maximumBytes)} bytes`,
-      ),
-    );
+  const admission =
+    options.maxInputBytes === undefined
+      ? {
+          maximum_bytes: DEFAULT_DISPATCH_METADATA_INPUT_BYTES,
+          source: "default" as const,
+        }
+      : { maximum_bytes: options.maxInputBytes, source: "caller" as const };
+  const maximumBytes = admission.maximum_bytes;
   const cancelled = () =>
-    new AnalysisCancelledError("inspect_native_dispatch_metadata", {
+    new AnalysisCancelledError(OPERATION, {
       cause: signal?.reason,
     });
   const { bytes, digest } = await withArtifactRegularFile(
@@ -291,13 +336,14 @@ export const inspectAppleDispatchMetadata = async (
     signal,
     async (handle) => {
       const before = await handle.stat();
-      if (before.size > maximumBytes) throw capacityError();
+      if (before.size > maximumBytes)
+        throw inputBudgetExceeded(admission, before.size);
       if (signal?.aborted) throw cancelled();
       const read = await readBoundedFileBytes(handle, maximumBytes, {
         signal,
         cancellationFailure: () => cancelled(),
       });
-      if (read === undefined) throw capacityError();
+      if (read === undefined) throw inputBudgetExceeded(admission, null);
       const sha256 = createHash("sha256").update(read).digest("hex");
       if (sha256 !== target.sha256)
         throw new EvidenceIntegrityError(
@@ -312,18 +358,17 @@ export const inspectAppleDispatchMetadata = async (
     target_architecture: target.architecture,
     provider: APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE.provider,
     analysis_profile_digest: APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE.digest,
+    input_admission: { ...admission, retained_bytes: bytes.length },
     result: decodeAppleDispatchMetadata(
       bytes,
       maxRecords,
       { path: target.path, sha256: digest },
       target.architecture,
-      objcClassImportAddresses,
-      objcClassImportAddressesComplete,
+      options.objcClassImportAddresses,
+      options.objcClassImportAddressesComplete ?? true,
     ),
   });
 };
-
-const OPERATION = "inspect_native_dispatch_metadata";
 
 /** Translate the owned target read, keeping a failed close beside its physical outcome. */
 export const appleDispatchMetadataFailure = (

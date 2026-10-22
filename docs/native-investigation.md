@@ -467,6 +467,14 @@ complete observation.
   vtable descriptors. Records include exact virtual addresses/file offsets and
   artifact evidence. Vtable indexes are metadata word offsets; witness indexes
   start after the conformance header. Names unavailable in metadata remain null.
+  The byte reader holds the whole selected file in memory, so it admits files up
+  to 64 MiB / 67108864 bytes by default. Select a larger budget with
+  `max_input_bytes` (CLI `--max-input-bytes`), at most 1 GiB / 1073741824
+  bytes. The whole file counts, including every slice of a universal Mach-O.
+  Results record `input_admission` with the effective budget, its source
+  (`default` or `caller`) and the bytes retained. A refusal names the observed
+  file size, the effective budget and its source, and either the budget to
+  select or, above 1 GiB, a deep analysis provider.
   The `swift_class_vtable_descriptors` coverage counters count examined vtable
   slots and successfully decoded slots, rather than type-section entries.
   The `objc_class_method_ivar_metadata` counters count admitted class and

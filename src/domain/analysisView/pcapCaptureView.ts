@@ -19,8 +19,8 @@ const captureSchema = pcapResultSchemas.inspect_pcap_capture;
 const fields = captureSchema.shape;
 const pageShape = {
   kind: z.literal("pcap"),
-  offset: z.number().int().nonnegative().default(0),
-  limit: z.number().int().positive().default(64),
+  offset: z.int().nonnegative().default(0),
+  limit: z.int().positive().default(64),
 };
 export const pcapViewRequestSchema = z.discriminatedUnion("facet", [
   z.strictObject({
@@ -51,7 +51,7 @@ export const pcapViewPageSchema = z.discriminatedUnion("facet", [
     facet: z.literal("dns-queries"),
     items: z.array(
       fields.dns_queries.element.omit({ response_addresses: true }).extend({
-        retained_response_address_count: z.number().int().nonnegative(),
+        retained_response_address_count: z.int().nonnegative(),
       }),
     ),
   }),
@@ -90,17 +90,17 @@ export const pcapSummarySchema = captureSchema
   })
   .extend({
     retained_counts: z.strictObject({
-      endpoints: z.number().int().nonnegative(),
-      dns_queries: z.number().int().nonnegative(),
-      tls_sni_values: z.number().int().nonnegative(),
-      protocol_distribution: z.number().int().nonnegative(),
-      http_request_uris: z.number().int().nonnegative(),
-      unattributed_dns_addresses: z.number().int().nonnegative(),
+      endpoints: z.int().nonnegative(),
+      dns_queries: z.int().nonnegative(),
+      tls_sni_values: z.int().nonnegative(),
+      protocol_distribution: z.int().nonnegative(),
+      http_request_uris: z.int().nonnegative(),
+      unattributed_dns_addresses: z.int().nonnegative(),
     }),
     diagnostics_code_units: z
       .strictObject({
-        tshark: z.number().int().nonnegative(),
-        capinfos: z.number().int().nonnegative(),
+        tshark: z.int().nonnegative(),
+        capinfos: z.int().nonnegative(),
       })
       .nullable(),
   });

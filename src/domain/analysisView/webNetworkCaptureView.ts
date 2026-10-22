@@ -36,8 +36,8 @@ import {
 export const captureViewRequestSchema = z.strictObject({
   kind: z.literal("capture"),
   detail: z.enum(["preview", "complete"]).default("preview"),
-  offset: z.number().int().nonnegative().default(0),
-  limit: z.number().int().positive().default(64),
+  offset: z.int().nonnegative().default(0),
+  limit: z.int().positive().default(64),
 });
 
 const protobufSummarySchema = z.strictObject({
@@ -73,8 +73,8 @@ export const captureSummarySchema = z.strictObject({
   artifact: webNetworkCaptureArtifactSchema,
   decoder: webNetworkCaptureDecoderSchema,
   format: z.enum(WEB_NETWORK_CAPTURE_FORMATS),
-  total_records: z.number().int().nonnegative(),
-  retained_records: z.number().int().nonnegative(),
+  total_records: z.int().nonnegative(),
+  retained_records: z.int().nonnegative(),
   runtime_attribution: z.literal("unknown"),
   protobuf: protobufSummarySchema.exactOptional(),
   qlog: qlogSummarySchema.optional(),

@@ -28,7 +28,7 @@ const environmentSchema = z.strictObject({
 });
 const scenarioSchema = z.strictObject({
   id: identifierSchema,
-  version: z.number().int().positive(),
+  version: z.int().positive(),
 });
 const skillDigestSchema = z.strictObject({
   skill_id: identifierSchema,
@@ -37,29 +37,29 @@ const skillDigestSchema = z.strictObject({
 const verifierRunSchema = z
   .strictObject({
     run_id: z.string().uuid(),
-    verifier_pid: z.number().int().positive(),
-    parent_pid: z.number().int().nonnegative(),
+    verifier_pid: z.int().positive(),
+    parent_pid: z.int().nonnegative(),
     process_lineage: z.discriminatedUnion("status", [
       z.strictObject({
         status: z.literal("verified"),
         observed_at: z.iso.datetime(),
-        launcher_pid: z.number().int().positive(),
-        launcher_parent_pid: z.number().int().nonnegative(),
-        process_group_id: z.number().int().positive(),
+        launcher_pid: z.int().positive(),
+        launcher_parent_pid: z.int().nonnegative(),
+        process_group_id: z.int().positive(),
         descendants: z.array(
           z.strictObject({
-            pid: z.number().int().positive(),
-            parent_pid: z.number().int().nonnegative(),
-            process_group_id: z.number().int().positive(),
+            pid: z.int().positive(),
+            parent_pid: z.int().nonnegative(),
+            process_group_id: z.int().positive(),
           }),
         ),
       }),
       z.strictObject({
         status: z.literal("unavailable"),
         observed_at: z.iso.datetime(),
-        launcher_pid: z.number().int().positive(),
-        launcher_parent_pid: z.number().int().nonnegative(),
-        process_group_id: z.number().int().positive().nullable(),
+        launcher_pid: z.int().positive(),
+        launcher_parent_pid: z.int().nonnegative(),
+        process_group_id: z.int().positive().nullable(),
         reason: z.string().min(1),
       }),
     ]),

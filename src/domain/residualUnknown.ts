@@ -77,7 +77,7 @@ const resolutionSchema = z.discriminatedUnion("disposition", [
 /** Strict durable record for one unresolved or evidence-qualified question. */
 const residualUnknownObjectSchema = z.strictObject({
   unknown_id: unknownIdSchema,
-  revision: z.number().int().min(1),
+  revision: z.int().min(1),
   previous_revision_digest: z
     .string()
     .regex(/^[a-f0-9]{64}$/u)
@@ -265,7 +265,7 @@ export type RecordUnknownInput = z.infer<typeof recordUnknownInputSchema>;
 /** Explicit optimistic-concurrency update command for one unknown. */
 export const updateUnknownInputSchema = z.strictObject({
   unknown_id: unknownIdSchema,
-  expected_revision: z.number().int().min(1),
+  expected_revision: z.int().min(1),
   status: residualUnknownObjectSchema.shape.status,
   severity: residualUnknownObjectSchema.shape.severity,
   supporting_evidence_ids: z.array(evidenceIdSchema),

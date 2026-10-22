@@ -19,12 +19,7 @@ export type CallRelationshipDirection = z.output<
 export const enhancedInputSchemas = {
   trace_native_values: nativeValueTraceInputSchema,
   inspect_native_dispatch_metadata: z.strictObject({
-    max_records: z
-      .number()
-      .int()
-      .min(1)
-      .max(MAX_ENHANCED_RECORDS)
-      .default(5_000),
+    max_records: z.int().min(1).max(MAX_ENHANCED_RECORDS).default(5_000),
     objc_class_import_addresses: z
       .array(z.string())
       .max(MAX_ENHANCED_RECORDS)
@@ -101,9 +96,9 @@ export const enhancedInputSchemas = {
       .describe(
         "A unique compiled UI action selector, interface object ID, native symbol or exact function address",
       ),
-    max_depth: z.number().int().min(0).max(32).default(8),
-    max_nodes: z.number().int().min(1).max(2_000).default(250),
-    max_edges: z.number().int().min(1).max(5_000).default(500),
+    max_depth: z.int().min(0).max(32).default(8),
+    max_nodes: z.int().min(1).max(2_000).default(250),
+    max_edges: z.int().min(1).max(5_000).default(500),
   }),
 } as const;
 

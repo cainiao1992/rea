@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Ajv2020 } from "ajv/dist/2020.js";
+import { sampleRetainedHeap } from "./mcp-retained-heap.mjs";
 import {
   captureRuntimeBinding,
   assertRuntimeBinding,
@@ -24,10 +25,12 @@ const { values } = parseArgs({
     "cache-root": { type: "string" },
     bindings: { type: "string" },
     role: { type: "string" },
+    "diagnostic-heap": { type: "boolean", default: false },
   },
 });
 assert.ok(["analysis", "discovery"].includes(values.phase));
 assert.ok(["cold", "warm"].includes(values.cache));
+assert.ok(!values["diagnostic-heap"] || values.phase === "analysis");
 for (const key of values.phase === "analysis"
   ? ["runtime", "artifact", "oracle", "output"]
   : ["runtime", "output"])
@@ -60,7 +63,11 @@ if (values.bindings !== undefined) {
   const inputBytes = await readFile(values.bindings);
   measurementInputsSha256 = hash(inputBytes);
   const inputs = JSON.parse(inputBytes.toString("utf8"));
-  for (const name of ["mcp-input-catalog.mjs", "managed-cli-runtime.mjs"]) {
+  for (const name of [
+    "mcp-input-catalog.mjs",
+    "managed-cli-runtime.mjs",
+    "mcp-retained-heap.mjs",
+  ]) {
     producerSources[name] = hash(
       await readFile(new URL(name, import.meta.url)),
     );
@@ -87,7 +94,11 @@ const environment = {
 };
 const transport = new StdioClientTransport({
   command: process.execPath,
-  args: [join(values.runtime, "scripts/rea.mjs"), "mcp"],
+  args: [
+    ...(values["diagnostic-heap"] ? ["--inspect=127.0.0.1:0"] : []),
+    join(values.runtime, "scripts/rea.mjs"),
+    "mcp",
+  ],
   cwd: values.output,
   env: environment,
   stderr: "pipe",
@@ -118,8 +129,13 @@ const report = {
 };
 const transcript = [];
 let stderr = "";
+let inspectorEndpoint;
 transport.stderr?.on("data", (value) => {
   stderr += value;
+  if (values["diagnostic-heap"] && inspectorEndpoint === undefined)
+    inspectorEndpoint = stderr.match(
+      /Debugger listening on (ws:\/\/127\.0\.0\.1:\d+\/[^\s]+)/u,
+    )?.[1];
 });
 const began = performance.now();
 try {
@@ -252,6 +268,15 @@ try {
     );
     report.checks.push(
       "Catalog remains identical after canonical materialization",
+    );
+    report.status = "passed";
+  }
+  if (values["diagnostic-heap"]) {
+    report.status = "incomplete";
+    assert.ok(inspectorEndpoint, "Missing explicitly launched inspector");
+    report.diagnostic_heap = await sampleRetainedHeap(
+      inspectorEndpoint,
+      transport.pid,
     );
     report.status = "passed";
   }

@@ -223,15 +223,15 @@ export const webBundleResultAdmissionFailure = (input: {
 
 const sourceLocationSchema = z.object({
   script_key: z.string(),
-  line: z.number().int().min(1).nullable(),
-  column: z.number().int().min(0).nullable(),
+  line: z.int().min(1).nullable(),
+  column: z.int().min(0).nullable(),
 });
 
 const basisSchema = z.object({
   script_key: z.string(),
   artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-  line: z.number().int().min(1).nullable(),
-  column: z.number().int().min(0).nullable(),
+  line: z.int().min(1).nullable(),
+  column: z.int().min(0).nullable(),
   detector: z.string(),
 });
 
@@ -242,8 +242,8 @@ const findingSchema = z.object({
 });
 
 const originalSourceSchema = z.object({
-  source_index: z.number().int().min(0).optional(),
-  declaration_index: z.number().int().min(0).optional(),
+  source_index: z.int().min(0).optional(),
+  declaration_index: z.int().min(0).optional(),
   source: z.string().nullable(),
   artifact: webTextArtifactSchema.nullable(),
 });
@@ -254,13 +254,13 @@ const originalModuleEdgeSchema = z.object({
   resolved_source: z.string().nullable(),
 });
 const sourceMapMappingSchema = z.object({
-  source_index: z.number().int().min(0).optional(),
-  declaration_index: z.number().int().min(0).optional(),
-  generated_line: z.number().int().min(1),
-  generated_column: z.number().int().min(0),
+  source_index: z.int().min(0).optional(),
+  declaration_index: z.int().min(0).optional(),
+  generated_line: z.int().min(1),
+  generated_column: z.int().min(0),
   source: z.string().nullable(),
-  original_line: z.number().int().min(1),
-  original_column: z.number().int().min(0),
+  original_line: z.int().min(1),
+  original_column: z.int().min(0),
   name: z.string().nullable(),
 });
 const sourceMapContextShape = {
@@ -308,8 +308,8 @@ const webTextArtifactSummarySchema = webTextArtifactMetadataSchema.extend({
 export const webSourceMapsSchema = z
   .object({
     status: z.enum(["not_requested", "included", "partial", "unavailable"]),
-    requested: z.number().int().min(0),
-    processed: z.number().int().min(0),
+    requested: z.int().min(0),
+    processed: z.int().min(0),
     items: z.array(sourceMapSchema),
     limitation: z.string().min(1).optional(),
   })
@@ -364,8 +364,8 @@ export type WebSourceMaps = z.infer<typeof webSourceMapsSchema>;
 export const webBundleAnalysisSchema = z.object({
   capture: z.object({
     target_url: z.string(),
-    scripts_observed: z.number().int().min(0),
-    scripts_analyzed: z.number().int().min(0),
+    scripts_observed: z.int().min(0),
+    scripts_analyzed: z.int().min(0),
     source_artifacts: z.array(webTextArtifactSummarySchema),
   }),
   observations: z.object({
@@ -375,7 +375,7 @@ export const webBundleAnalysisSchema = z.object({
           script_key: z.string(),
           url: z.string(),
           artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-          bytes: z.number().int().min(0),
+          bytes: z.int().min(0),
         }),
       ),
       edges: z.array(
@@ -438,9 +438,9 @@ export const webBundleAnalysisSchema = z.object({
   ),
   completeness: z.object({
     status: z.enum(["complete", "partial"]),
-    parsed_scripts: z.number().int().min(0),
-    parse_failures: z.number().int().min(0),
-    visited_ast_nodes: z.number().int().min(0),
+    parsed_scripts: z.int().min(0),
+    parse_failures: z.int().min(0),
+    visited_ast_nodes: z.int().min(0),
   }),
   limitations: z.array(z.string()),
 });

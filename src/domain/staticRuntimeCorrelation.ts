@@ -122,9 +122,9 @@ const correlationItemSchema = z.object({
 export const staticRuntimeCorrelationResultSchema = z.object({
   status: z.enum(["correlated", "contradicted", "unknown", "truncated"]),
   summary: z.object({
-    hypotheses: z.number().int().min(0),
-    contradictions: z.number().int().min(0),
-    unresolved: z.number().int().min(0),
+    hypotheses: z.int().min(0),
+    contradictions: z.int().min(0),
+    unresolved: z.int().min(0),
   }),
   correlations: z.object({
     items: z.array(correlationItemSchema),

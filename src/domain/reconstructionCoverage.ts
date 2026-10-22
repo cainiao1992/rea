@@ -106,8 +106,8 @@ const verifierContractBaseSchema = z.strictObject({
     "live-observation",
     "external",
   ]),
-  max_age_ms: z.number().int().min(1),
-  minimum_repeats: z.number().int().min(1),
+  max_age_ms: z.int().min(1),
+  minimum_repeats: z.int().min(1),
   normalization_sha256: digestSchema,
   normalization_removes_dimensions: z.literal(false),
 });
@@ -133,7 +133,7 @@ const verifierResultSchema = z.strictObject({
   artifact_sha256s: z.array(digestSchema).min(1),
   owner_sha256s: z.array(digestSchema),
   normalization_sha256: digestSchema,
-  repeats: z.number().int().min(1),
+  repeats: z.int().min(1),
   evidence_ids: z.array(evidenceIdSchema).min(1),
 });
 
@@ -259,9 +259,9 @@ export const reconstructionClosureResultSchema = z.strictObject({
   boundary_id: stableIdSchema,
   status: z.enum(["partial", "failed", "unknown", "ready"]),
   summary: z.strictObject({
-    required_surfaces: z.number().int().min(0),
-    required_claims: z.number().int().min(0),
-    reasons: z.number().int().min(0),
+    required_surfaces: z.int().min(0),
+    required_claims: z.int().min(0),
+    reasons: z.int().min(0),
   }),
   reasons: z.array(closureReasonSchema),
   recommended_probes: z.array(

@@ -226,7 +226,7 @@ const facetViewSchema = z.strictObject({
   facet: z.enum(["mitigations", "linkage"]),
 });
 const indexSelectorSchema = z.strictObject({
-  index: z.number().int().nonnegative(),
+  index: z.int().nonnegative(),
 });
 const nameSelectorSchema = z.strictObject({ name: z.string() });
 const pathSelectorSchema = z.strictObject({
@@ -264,8 +264,8 @@ const itemViewSchema = z.discriminatedUnion("collection", [
 const pageViewSchema = z.strictObject({
   kind: z.literal("page"),
   collection: z.enum(["sections", "symbols", "modules"]),
-  offset: z.number().int().nonnegative(),
-  limit: z.number().int().positive(),
+  offset: z.int().nonnegative(),
+  limit: z.int().positive(),
 });
 
 /** Bounded native function facets of already authenticated analyze_function Evidence. */
@@ -294,8 +294,8 @@ const nativeViewSchema = z.strictObject({
     "value_flow_parameters",
     "value_flow_parameter_uses",
   ]),
-  offset: z.number().int().nonnegative().default(0),
-  limit: z.number().int().positive().default(64),
+  offset: z.int().nonnegative().default(0),
+  limit: z.int().positive().default(64),
 });
 
 /** Caller-selected projection of already completed analysis Evidence. */
@@ -367,9 +367,9 @@ export const inspectAnalysisViewInputSchema = z.strictObject({
 
 const coverageSchema = z.strictObject({
   status: z.enum(["complete-within-view", "page", "empty"]),
-  examined: z.number().int().nonnegative(),
-  total: z.number().int().nonnegative(),
-  next_offset: z.number().int().nonnegative().nullable(),
+  examined: z.int().nonnegative(),
+  total: z.int().nonnegative(),
+  next_offset: z.int().nonnegative().nullable(),
   exhausted: z.boolean(),
 });
 
@@ -393,12 +393,12 @@ const layoutSummarySchema = z.strictObject({
     execution_status: z.literal("unknown"),
   }),
   counts: z.strictObject({
-    sections: z.number().int().nonnegative(),
-    segments: z.number().int().nonnegative(),
-    symbols: z.number().int().nonnegative(),
-    relocations: z.number().int().nonnegative(),
+    sections: z.int().nonnegative(),
+    segments: z.int().nonnegative(),
+    symbols: z.int().nonnegative(),
+    relocations: z.int().nonnegative(),
   }),
-  limitation_count: z.number().int().nonnegative(),
+  limitation_count: z.int().nonnegative(),
 });
 
 const javascriptSummarySchema = z.strictObject({
@@ -409,7 +409,7 @@ const javascriptSummarySchema = z.strictObject({
   statistics: jsonObjectSchema,
   electron: jsonObjectSchema,
   coverage: jsonObjectSchema,
-  limitation_count: z.number().int().nonnegative(),
+  limitation_count: z.int().nonnegative(),
 });
 
 const viewResultBase = {

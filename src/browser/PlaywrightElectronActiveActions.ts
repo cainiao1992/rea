@@ -33,7 +33,7 @@ const hookSnapshotSchema = z.strictObject({
   dropped_runtime: retention.dropped_runtime,
   dropped_event_families: retention.dropped_event_families,
   dropped_event_roles: retention.dropped_event_roles,
-  observed: z.number().int().min(0),
+  observed: z.int().min(0),
   observed_ipc: retention.observed_ipc,
   observed_runtime: retention.observed_runtime,
   hook_error: z.boolean(),

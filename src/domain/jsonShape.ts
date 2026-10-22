@@ -22,13 +22,13 @@ type JsonShapePathSegment = z.infer<typeof jsonShapePathSegmentSchema>;
 /** Value-free structural summary of one approved JSON payload. */
 export const jsonShapeSchema = z.object({
   root_type: jsonValueTypeSchema,
-  node_count: z.number().int().min(1),
-  max_depth_observed: z.number().int().min(0),
+  node_count: z.int().min(1),
+  max_depth_observed: z.int().min(0),
   properties: z.array(
     z.object({
       path: z.array(jsonShapePathSegmentSchema).min(1),
       types: z.array(jsonValueTypeSchema).min(1),
-      observations: z.number().int().min(1),
+      observations: z.int().min(1),
     }),
   ),
 });

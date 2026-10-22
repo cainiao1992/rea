@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { digestCanonicalValue } from "../canonicalDigest.js";
 import { emptyArraySchema } from "../emptyArraySchema.js";
 import { evidenceSchema } from "../evidence.js";
 import {
@@ -18,7 +19,7 @@ import {
   buildFieldItems,
   buildMethodItems,
 } from "./managedMemberComparisonItems.js";
-import { keyMembers, sha256 } from "./managedMemberComparisonMatch.js";
+import { keyMembers } from "./managedMemberComparisonMatch.js";
 import { hasSignatureResolution } from "./managedMemberSignatureIdentity.js";
 import { digestSchema } from "../digests.js";
 import { prefixedDigestSchema } from "../digests.js";
@@ -247,12 +248,15 @@ export const compareManagedMembers = (
   });
   const limitations = comparisonLimitations(left.result, right.result);
   const result = {
-    comparison_id: `mmc_${sha256({
-      left: left.evidenceId,
-      right: right.evidenceId,
-      methods: [...methodItems],
-      fields: [...fieldItems],
-    })}`,
+    comparison_id: `mmc_${digestCanonicalValue(
+      {
+        left: left.evidenceId,
+        right: right.evidenceId,
+        methods: [...methodItems],
+        fields: [...fieldItems],
+      },
+      "Managed comparison",
+    )}`,
     algorithm: {
       name: "rea-managed-member-comparison" as const,
       token_identity: "build-local" as const,

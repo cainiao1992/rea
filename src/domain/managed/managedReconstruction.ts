@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { evidenceSchema, type Evidence } from "../evidence.js";
@@ -10,7 +9,7 @@ import {
   managedMemberInspectionSchema,
   type ManagedMemberInspection,
 } from "./managedArtifact.js";
-import type { JsonValue } from "../jsonValue.js";
+import { digestCanonicalValue } from "../canonicalDigest.js";
 import { digestSchema, prefixedDigestSchema } from "../digests.js";
 import { parseManagedInspectionEvidence } from "./managedInspectionEvidence.js";
 
@@ -122,13 +121,6 @@ type StaticObservation =
 const sha256Text = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
 
-const sha256Json = (value: JsonValue): string => {
-  const serialized = canonicalize(value);
-  if (serialized === undefined)
-    throw new TypeError("Managed reconstruction canonicalization failed");
-  return createHash("sha256").update(serialized).digest("hex");
-};
-
 const countLines = (text: string): number =>
   text.length === 0 ? 0 : text.split(/\r\n|\r|\n/u).length;
 
@@ -227,7 +219,10 @@ const buildDecompilerRecord = (
   decompiler: ManagedReconstructionImportInput["decompiler"],
 ): ManagedReconstructionImportResult["decompiler"] => ({
   ...decompiler,
-  options_sha256: sha256Json(decompiler.options),
+  options_sha256: digestCanonicalValue(
+    decompiler.options,
+    "Managed reconstruction",
+  ),
 });
 
 const RECONSTRUCTION_LIMITATIONS = [
@@ -282,6 +277,9 @@ export const importManagedReconstruction = (
   );
   return managedReconstructionImportResultSchema.parse({
     ...withoutId,
-    reconstruction_id: `mre_${sha256Json(withoutId)}`,
+    reconstruction_id: `mre_${digestCanonicalValue(
+      withoutId,
+      "Managed reconstruction",
+    )}`,
   });
 };

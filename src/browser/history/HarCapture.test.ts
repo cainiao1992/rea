@@ -683,6 +683,25 @@ it("excludes a declared literal in encoded HAR text from its binary sidecar too"
   expect(result.records[0]?.binary_fields[0]?.state).toBe("redacted");
 });
 
+it.each([
+  { depth: 64, innermost: "[]", accepted: true },
+  { depth: 64, innermost: "{}", accepted: true },
+  { depth: 64, innermost: "[0]", accepted: true },
+  { depth: 65, innermost: "[]", accepted: false },
+  { depth: 65, innermost: "{}", accepted: false },
+  { depth: 65, innermost: "[0]", accepted: false },
+  { depth: 66, innermost: "[]", accepted: false },
+])(
+  "bounds a $innermost extension at container level $depth",
+  ({ depth, innermost, accepted }) => {
+    // The root and log objects are the first two levels.
+    const enclosing = depth - 3;
+    const text = `{"log":{"version":"1.2","creator":{"name":"fixture","version":"1"},"entries":[],"_extension":${"[".repeat(enclosing)}${innermost}${"]".repeat(enclosing)}}}`;
+    if (accepted) expect(decodeHarCapture(text, []).total_records).toBe(0);
+    else expect(() => decodeHarCapture(text, [])).toThrow("nesting budget");
+  },
+);
+
 it("rejects excessive extension nesting instead of returning a partial capture", () => {
   let extension: unknown = null;
   for (let index = 0; index < 66; index++) extension = { child: extension };

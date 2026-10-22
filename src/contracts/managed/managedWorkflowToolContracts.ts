@@ -139,7 +139,7 @@ export const MANAGED_WORKFLOW_TOOL_CONTRACTS = [
     name: "project_managed_application_graph",
     ...toolContractMetadata("project_managed_application_graph"),
     description:
-      "Project authenticated managed artifact, member, and native-boundary Evidence into the provider-neutral application graph without executing managed code, loading assemblies, or translating managed metadata tokens to native addresses. The graph preserves managed static observations as managed-specific nodes linked to source Evidence.",
+      "Project authenticated managed artifact, member, and native-boundary Evidence into the provider-neutral application graph without executing managed code, loading assemblies, or translating managed metadata tokens to native addresses. The graph preserves managed static observations as managed-specific nodes linked to source Evidence, with in-module calls and field-access edges; other call and field-access sites are counted in limitations.",
     kind: "application",
     inputSchema: managedApplicationGraphReferenceInputSchema,
     outputSchema: managedApplicationGraphOutputSchema,

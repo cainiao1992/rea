@@ -48,6 +48,7 @@ import { FridaInstrumentationManager } from "../frida/FridaInstrumentationManage
 import { registerFridaTools } from "./registerFridaTools.js";
 import { createBinaryLayoutService } from "../composition/binaryDiagnostics.js";
 import type { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
+import { createCatalogIdentity } from "../catalogIdentity.js";
 import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 import {
   createToolResultDelivery,
@@ -161,6 +162,10 @@ const RECOVERY_INSTRUCTIONS =
   "Recovery: For invalid arguments, read the connected tool's input schema (refresh tools/list if stale), fix the reported fields and do not repeat the unchanged call. A returned REA provider_timeout is a server/provider deadline: follow its remediation and reuse accessible partial Evidence. A host error such as 'timed out awaiting tools/call' without a REA result is a client deadline, not proof that work or cleanup stopped. Do not repeat the unchanged analysis. Increase the host's tool deadline with execution/cleanup/delivery headroom; when configuration is not editable, report the required setting (Codex: mcp_servers.<server>.tool_timeout_sec, seconds). Server analysis_timeout_ms, when advertised, is a separate millisecond budget; raising it cannot fix a shorter client deadline. Session state does not establish completion of every target-free operation.";
 
 export interface CreateServerOptions {
+  /** Preserve the connection's creation time when materializing its runtime. */
+  readonly startedAt?: string;
+  /** Existing SDK server whose deferred registrations are being materialized. */
+  readonly mcpServer?: EvidenceMcpServer;
   readonly environment?: Readonly<NodeJS.ProcessEnv>;
   readonly delivery?: ToolResultDelivery;
   readonly packetCapture?: PacketCaptureService;
@@ -298,6 +303,10 @@ const createMcpServer = (
     delivery,
     compactPresentation,
     omitOutputSchemas,
+    createCatalogIdentity(
+      compactPresentation,
+      omitOutputSchemas ? "off" : "full",
+    ),
   );
 
 /**
@@ -361,14 +370,28 @@ export const createServer = (
     webModuleTrace,
     javascriptRecovery,
   };
-  const startedAt = new Date().toISOString();
+  const startedAt = options.startedAt ?? new Date().toISOString();
   const logger = options.logger ?? silentLogger;
-  const server = createMcpServer(
-    session,
-    delivery,
-    selectCompactInputSchemaPresentation(environment),
-    omitOutputSchemas,
-  );
+  const server =
+    options.mcpServer ??
+    createMcpServer(
+      session,
+      delivery,
+      selectCompactInputSchemaPresentation(environment),
+      omitOutputSchemas,
+    );
+  if (options.mcpServer !== undefined) {
+    server.attachRuntime(
+      session === undefined
+        ? undefined
+        : (evidence) => session.recordEvidence(evidence),
+      delivery,
+      createCatalogIdentity(
+        selectCompactInputSchemaPresentation(environment),
+        omitOutputSchemas ? "off" : "full",
+      ),
+    );
+  }
   const gdbSessions = new GdbSessionManager({
     environment: providerEnvironment,
   });

@@ -65,6 +65,18 @@ API dependency, and independent fixture compiler oracles keep their existing
 TypeScript versions.
 
 `npm run build:cached` compiles the CLI/MCP runtime and its packaged skill.
+The build also records `dist/mcp-catalog.json` (compact inputs) and
+`dist/mcp-catalog-full.json` from the canonical SDK registrations and binds
+each to the runtime with its own SHA-256 digest. These are
+runtime artifacts, separate from the test catalog below. Default target-free
+MCP startup serves its schemas without constructing analysis validators;
+the first tool or guided-workflow request materializes the canonical runtime
+on that same SDK server. Explicit compact/full input selections preserve
+their advertised schemas throughout materialization. Initial-target,
+HTTP and output-schema-off startup keep the eager path; source runs without
+recorded artifacts also use eager composition. Compare memory both after discovery and after a completed
+request; report diagnostic GC separately from normal resident memory.
+
 Turbo's strict task environment preserves caller-selected `GOMAXPROCS`,
 `GOMEMLIMIT`, and `UV_THREADPOOL_SIZE` for resource-constrained builds and
 checks. These execution controls do not change artifact content, so changing

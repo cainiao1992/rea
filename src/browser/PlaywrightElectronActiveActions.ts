@@ -7,6 +7,7 @@ import {
   electronActiveTimelineEventSchema,
   electronActiveProcessMetricSchema,
   electronActiveWindowSchema,
+  electronActiveObservationResultSchema,
   type ElectronActiveObservationInput,
   type ElectronActiveObservationResult,
 } from "../domain/javascript/electronActiveObservation.js";
@@ -19,30 +20,22 @@ const OPERATION = "capture_electron_scenario" as const;
 const CANCELLED_STATE_READ_TIMEOUT_MS = 5_000;
 const GRACE_EXPIRED = Symbol("cancellation grace expired");
 
+const retention = electronActiveObservationResultSchema.shape.retention.shape;
 const hookSnapshotSchema = z.strictObject({
   events: z.array(electronActiveTimelineEventSchema),
-  retention_budget_bytes: z.number().int().min(0),
-  estimated_retained_bytes: z.number().int().min(0),
-  event_serialized_byte_upper_bound: z.number().int().min(0),
-  retained: z.number().int().min(0),
-  dropped: z.number().int().min(0),
-  dropped_ipc: z.number().int().min(0),
-  dropped_runtime: z.number().int().min(0),
-  dropped_event_families: z.array(
-    z.strictObject({
-      family: z.string().min(1),
-      count: z.number().int().min(1),
-    }),
-  ),
-  dropped_event_roles: z.array(
-    z.strictObject({
-      role: z.string().min(1),
-      count: z.number().int().min(1),
-    }),
-  ),
+  retention_budget_bytes: retention.budget_bytes,
+  estimated_retained_bytes: retention.estimated_retained_bytes,
+  event_serialized_byte_upper_bound:
+    retention.event_serialized_byte_upper_bound,
+  retained: retention.retained,
+  dropped: retention.dropped,
+  dropped_ipc: retention.dropped_ipc,
+  dropped_runtime: retention.dropped_runtime,
+  dropped_event_families: retention.dropped_event_families,
+  dropped_event_roles: retention.dropped_event_roles,
   observed: z.number().int().min(0),
-  observed_ipc: z.number().int().min(0),
-  observed_runtime: z.number().int().min(0),
+  observed_ipc: retention.observed_ipc,
+  observed_runtime: retention.observed_runtime,
   hook_error: z.boolean(),
 });
 

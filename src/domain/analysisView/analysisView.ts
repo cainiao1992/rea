@@ -1,3 +1,12 @@
+import {
+  apkSignatureViewRequestSchema,
+  apkSignatureViewItemsSchema,
+} from "../apkSignature/apkSignatureQuery.js";
+import {
+  projectApkSignatureView,
+  apkSignatureSummarySchema,
+  apkSignatureSourceCoverageSchema,
+} from "./apkSignatureView.js";
 import { byteEntropySchema } from "../native/byteEntropy.js";
 import {
   byteEntropySummarySchema,
@@ -347,6 +356,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   pcapViewRequestSchema,
   dartAotViewRequestSchema,
   il2cppMetadataViewRequestSchema,
+  apkSignatureViewRequestSchema,
   modelArtifactViewRequestSchema,
   gpuCodeObjectsViewRequestSchema,
 ]);
@@ -683,6 +693,20 @@ export const gpuCodeObjectsPageViewResultSchema = z.strictObject({
   parent_operation: z.literal("inspect_gpu_code_objects"),
 });
 
+export const apkSignatureSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_apk_signature"),
+  summary: apkSignatureSummarySchema,
+});
+export const apkSignaturePageViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  kind: z.literal("apk-signature"),
+  parent_operation: z.literal("inspect_apk_signature"),
+  view: apkSignatureViewRequestSchema,
+  items: apkSignatureViewItemsSchema,
+  source_coverage: apkSignatureSourceCoverageSchema,
+});
+
 export const modelArtifactSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.literal("inspect_model_artifact"),
@@ -804,6 +828,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     pcapCaptureSummaryViewResultSchema,
     dartAotSummaryViewResultSchema,
     il2cppMetadataSummaryViewResultSchema,
+    apkSignatureSummaryViewResultSchema,
     modelArtifactSummaryViewResultSchema,
     gpuCodeObjectsSummaryViewResultSchema,
     nativeInventorySummaryViewResultSchema,
@@ -955,6 +980,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     ...dartAotViewContextSchema.shape,
     parent_operation: z.literal("inspect_dart_aot"),
   }),
+  apkSignaturePageViewResultSchema,
   modelArtifactPageViewResultSchema,
   gpuCodeObjectsPageViewResultSchema,
   z.strictObject({
@@ -1086,6 +1112,7 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inspect_android_package", projectAndroidPackageView],
   ["inspect_dart_aot", projectDartAotView],
   ["inspect_il2cpp_metadata", projectIl2cppMetadataView],
+  ["inspect_apk_signature", projectApkSignatureView],
   ["inspect_model_artifact", projectModelArtifactView],
   ["inspect_gpu_code_objects", projectGpuCodeObjectsView],
   ["match_native_functions", projectNativeFunctionMatchingView],

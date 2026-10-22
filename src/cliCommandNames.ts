@@ -7,6 +7,7 @@ export const CLI_COMMANDS = Object.freeze({
   matchNativeFunctions: "match-native-functions",
   compareWasmInterfaces: "compare-wasm-interfaces",
   inspectWasmArtifact: "inspect-wasm-artifact",
+  inspectApkSignature: "inspect-apk-signature",
   inspectSqliteDatabase: "inspect-sqlite-database",
   inspectEvmInterface: "inspect-evm-interface",
   inspectWebNetworkCapture: "inspect-web-network-capture",

@@ -576,6 +576,10 @@ it.each<[string, string, boolean]>([
   ["/users/42", "/users/43", false],
   ["/users", "/teams/{id}", false],
   ["/{tenant}/users", "/acme/teams", false],
+  ["/orgs/%61cme/books", "/orgs/acme/books/1", true],
+  ["/orgs/%2561cme/books", "/orgs/%61cme/books/1", true],
+  ["/orgs/%2561cme/books", "/orgs/acme/books/1", false],
+  ["/orgs/a%2Fb/books", "/orgs/a/b/books/1", false],
 ])("relates %s and %s by prefix: %s", (left, right, related) => {
   expect(prefixRelated(left, right)).toBe(related);
   expect(prefixRelated(right, left)).toBe(related);

@@ -477,7 +477,9 @@ export const applyUpdate = (
     (member) => member !== draft.plan.body?.identity,
   );
   const derived = Object.keys(written.value).filter(
-    (field) => !same(written.value[field], entity.fields[field]),
+    (field) =>
+      !Object.hasOwn(entity.fields, field) ||
+      !same(written.value[field], entity.fields[field]),
   );
   const changed = {
     fields: [...new Set([...sent, ...derived])],

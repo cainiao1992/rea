@@ -81,7 +81,11 @@ identity the client sends is an echo:
    format is kept: ISO-8601 with its separator, fraction digits and zone, or
    epoch seconds or milliseconds.
 7. **Sequence.** An integer one greater than the largest value of the field in
-   the collection, else in the type.
+   the collection, else in the type. The integer may be written as `-`-separated
+   digit groups of one width of at least two digits (an asset number `000-005`;
+   not a date, version or address); a served value keeps the recorded value's
+   groups and zero padding, and digits that outgrow them lead. A later call must
+   record the value spelled that way.
 8. **Unique.** A UUID-shaped string that no other entity of the type shares.
 9. **Template.** A string containing a generated value as a delimited token
    (for example a URL that ends in the new id). It is rebuilt around the new

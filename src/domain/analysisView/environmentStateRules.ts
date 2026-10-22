@@ -104,7 +104,25 @@ interface EntityViewPlan {
 export type StateItemView = EntityViewPlan & {
   readonly shape: "item";
   readonly envelope_ordinal: number;
+  /** Recorded reads that asked for some fields only and did not return the item, which replay answers. */
+  readonly projected_record_ordinals?: number[] | undefined;
 };
+
+/** A query parameter that asks for some fields only (`fields`, `fields[...]`, `select`, `$select`). */
+export const isProjectionParameter = (name: string): boolean => {
+  const lower = name.toLowerCase();
+  return (
+    lower === "fields" ||
+    lower.startsWith("fields[") ||
+    lower === "select" ||
+    lower === "$select"
+  );
+};
+
+/** Whether a recorded query string names a projection parameter. */
+export const projectsFields = (query: string | undefined): boolean =>
+  query !== undefined &&
+  [...new URLSearchParams(query).keys()].some(isProjectionParameter);
 
 export type StateListView = EntityViewPlan & {
   readonly shape: "list";

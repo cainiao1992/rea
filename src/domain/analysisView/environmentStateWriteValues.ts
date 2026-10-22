@@ -120,7 +120,58 @@ export const nextSequence = (
 
 /** An integer spelled as the recorded value spells integers: a number, or a string of digits. */
 export const spelledLike = (exemplar: JsonValue, value: number): JsonValue =>
-  typeof exemplar === "string" ? String(value) : value;
+  maskedCount(exemplar) !== undefined
+    ? fillMask(exemplar as string, value)
+    : typeof exemplar === "string"
+      ? String(value)
+      : value;
+
+const MASKED_DIGITS = /^\d{2,}(?:-\d{2,})+$/u;
+
+/** The count `-`-separated digit groups of one width spell, such as an asset number `000-005`; dates, versions and addresses are not counts. */
+const maskedCount = (value: JsonValue | undefined): number | undefined => {
+  if (typeof value !== "string" || !MASKED_DIGITS.test(value)) return undefined;
+  const groups = value.split("-");
+  if (groups.some((group) => group.length !== groups[0]!.length))
+    return undefined;
+  const digits = groups.join("");
+  return digits.length <= 15 ? Number(digits) : undefined;
+};
+
+/** A count that outgrew the exemplar's mask, read only when it is spelled as serving spells it, so dates never match. */
+const outgrownMask = (
+  value: JsonValue | undefined,
+  exemplar: JsonValue | undefined,
+): number | undefined => {
+  if (typeof value !== "string" || maskedCount(exemplar) === undefined)
+    return undefined;
+  const digits = value.replaceAll("-", "");
+  if (!/^\d{1,15}$/u.test(digits)) return undefined;
+  const count = Number(digits);
+  return fillMask(exemplar as string, count) === value ? count : undefined;
+};
+
+/** A sequence's number: an integer, digit groups that count, or with the sequence's exemplar a count that outgrew its mask. */
+export const sequenceNumber = (
+  value: JsonValue | undefined,
+  exemplar?: JsonValue,
+): number | undefined =>
+  integerOf(value) ?? maskedCount(value) ?? outgrownMask(value, exemplar);
+
+/** A number written into a mask's digit positions, zero-padded; digits that outgrow the mask lead it. */
+const fillMask = (mask: string, value: number): string => {
+  const padded = String(value).padStart(mask.replace(/\D/gu, "").length, "0");
+  let next = padded.length - 1;
+  let out = "";
+  for (let at = mask.length - 1; at >= 0; at -= 1) {
+    const character = mask[at]!;
+    if (/\d/u.test(character)) {
+      out = padded[next]! + out;
+      next -= 1;
+    } else out = character + out;
+  }
+  return padded.slice(0, next + 1) + out;
+};
 
 /** Lower case, with every run of other characters joined by one `-` and none at either end. */
 export const slugOf = (text: string): string =>

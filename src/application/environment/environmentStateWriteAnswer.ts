@@ -128,11 +128,16 @@ const observedEntity = (
   return isObject(object) ? object : undefined;
 };
 
-/** One past the largest integer these entities hold in the field, or undefined when none holds one. */
-const nextHeld = (entities: readonly StateEntity[], field: string) =>
+/** One past the largest integer these entities hold in the field, read as the exemplar spells it, or undefined when none holds one. */
+const nextHeld = (
+  entities: readonly StateEntity[],
+  field: string,
+  exemplar: JsonValue,
+) =>
   nextInteger(
     entities.map((entity) => entity.fields),
     field,
+    exemplar,
   );
 
 /**
@@ -197,6 +202,7 @@ const generator = (
                   ? [...target.collection, ...startedIn]
                   : [...ofType, ...started],
                 rule.field,
+                exemplar,
               ),
             ),
           ),
@@ -212,7 +218,11 @@ const generator = (
               exemplar,
               sequence(
                 `${request.plan.target ?? ""} ${rule.field} ${target.name}`,
-                nextHeld([...target.collection, ...startedIn], rule.field),
+                nextHeld(
+                  [...target.collection, ...startedIn],
+                  rule.field,
+                  exemplar,
+                ),
               ),
             ),
           );

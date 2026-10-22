@@ -1,7 +1,9 @@
+import { environmentToolArguments } from "./environmentTools.js";
 import { stateBodyJson } from "../../domain/analysisView/EnvironmentStateAccumulator.js";
 import {
   collectionMatch,
   collectionPathOf,
+  isProjectionParameter,
   decodedSegment,
   allLines,
   listItems,
@@ -63,7 +65,8 @@ export type StateProvenance =
         | RecordedViewReason
         | "no-view"
         | "unrecorded-request"
-        | "page-exceeded";
+        | "page-exceeded"
+        | "projection";
     }
   | {
       readonly source: "state";
@@ -143,6 +146,18 @@ const fromRecording = (
     ? ok({ ...replayed.value, state: { source: "recording", reason } })
     : replayed;
 };
+
+/** Whether a call names a projection parameter of an item view with projected reads, which the state's whole entities cannot answer. */
+const asksProjection = (
+  view: StateItemView,
+  tool: EnvironmentManifestTool,
+  args: ReplayArguments,
+): boolean =>
+  view.projected_record_ordinals !== undefined &&
+  [...environmentToolArguments(tool).query].some(
+    ([name, argument]) =>
+      isProjectionParameter(name) && args[argument] !== undefined,
+  );
 
 /** A recorded body the state renders into, usable exactly when extraction could use it. */
 export const recordedJson = (
@@ -291,6 +306,9 @@ const answerItem = (
       collection: `/${call.segments.map(({ text }) => text).join("/")}`,
       id: call.id,
     });
+  // A projection of an entity the state holds replays as the capture's projected reads did.
+  if (asksProjection(view, tool, args))
+    return fromRecording(source, tool, args, "projection");
   const shown = shownEntity(
     tool,
     view,

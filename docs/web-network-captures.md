@@ -410,7 +410,8 @@ agent environment later serves from retained Evidence. The view reuses the
 api-surface grouping, then keeps the groups on the primary origin, the origin
 with the most JSON-like records (`application/json`, `application/*+json`,
 `text/plain`, `text/markdown`), whose path starts with `/api/` or `/apis/` or
-whose content types are JSON-like. Every other group is listed under
+whose content types are JSON-like, and the write groups answered with no body
+(a bodiless `204 DELETE`). Every other group is listed under
 `excluded` with reason `other-origin`, `ui-page-or-asset` or `non-json`, and
 retained records without a usable request line are counted in a limitation.
 

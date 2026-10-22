@@ -115,6 +115,12 @@ const viewSchema = z.discriminatedUnion("shape", [
       .describe(
         "Record whose response, with the entity object replaced, every item response shares.",
       ),
+    projected_record_ordinals: z
+      .array(z.number().int().nonnegative())
+      .optional()
+      .describe(
+        "Recorded reads that asked for some fields only (`fields`, `select`) and did not return the item; calls naming a projection replay.",
+      ),
   }),
   z.strictObject({
     ...entityViewFields,

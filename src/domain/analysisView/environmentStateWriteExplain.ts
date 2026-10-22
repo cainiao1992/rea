@@ -23,6 +23,7 @@ import {
   integerOf,
   isUuid,
   readClock,
+  sequenceNumber,
   slugOf,
 } from "./environmentStateWriteValues.js";
 
@@ -100,10 +101,11 @@ const isClockNear = (
 export const nextInteger = (
   members: readonly JsonObject[],
   field: string,
+  exemplar?: JsonValue,
 ): number | undefined => {
   let largest: number | undefined;
   for (const member of members) {
-    const value = integerOf(member[field]);
+    const value = sequenceNumber(member[field], exemplar);
     if (value !== undefined && (largest === undefined || value > largest))
       largest = value;
   }
@@ -156,11 +158,11 @@ const generatedRule = (
   const clock = readClock(value);
   if (clock !== undefined && isClockNear(value, evidence.startMs))
     return { field, rule: "clock", format: clock.format };
-  const integer = integerOf(value);
+  const integer = sequenceNumber(value);
   if (integer !== undefined) {
-    if (nextInteger(evidence.collection, field) === integer)
+    if (nextInteger(evidence.collection, field, value) === integer)
       return { field, rule: "sequence", scope: "collection" };
-    if (nextInteger(evidence.type, field) === integer)
+    if (nextInteger(evidence.type, field, value) === integer)
       return { field, rule: "sequence", scope: "type" };
   }
   if (

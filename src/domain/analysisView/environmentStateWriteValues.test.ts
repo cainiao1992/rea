@@ -10,6 +10,7 @@ import {
   replaceDelimited,
   seededToken,
   seededUuid,
+  sequenceNumber,
   slugOf,
   spelledLike,
   type ClockFormat,
@@ -253,4 +254,31 @@ it("draws tokens from the whole alphabet the recorded token uses", () => {
   expect(seededToken("seed-a", "k9x2m7q4z1w8")).not.toBe(
     seededToken("seed-b", "k9x2m7q4z1w8"),
   );
+});
+
+it("reads a sequence written as digit groups of one width, but not a date, version or address", () => {
+  expect(sequenceNumber("000-005")).toBe(5);
+  expect(sequenceNumber("00-01-12")).toBe(112);
+  expect(sequenceNumber(7)).toBe(7);
+  for (const other of ["2026-10-21", "2026-08", "12.04", "1.2.3", "10.0.0.9"])
+    expect(sequenceNumber(other)).toBeUndefined();
+  expect(sequenceNumber("A-005")).toBeUndefined();
+  expect(sequenceNumber("000-")).toBeUndefined();
+});
+
+it("reads a count that outgrew its mask only as the exemplar's spelling of it", () => {
+  expect(sequenceNumber("100-00", "99-99")).toBe(10_000);
+  expect(sequenceNumber("1000-000", "000-005")).toBe(1_000_000);
+  expect(sequenceNumber("100-00")).toBeUndefined();
+  for (const other of ["2026-10-21", "20261-02", "100-0"])
+    expect(sequenceNumber(other, "000-005")).toBeUndefined();
+  expect(sequenceNumber("100-00", "2026-10")).toBeUndefined();
+});
+
+it("spells a sequence value in the recorded value's digit groups, the overflow leading", () => {
+  expect(spelledLike("000-005", 6)).toBe("000-006");
+  expect(spelledLike("000-999", 1000)).toBe("001-000");
+  expect(spelledLike("999-999", 1_000_000)).toBe("1000-000");
+  expect(spelledLike("12", 13)).toBe("13");
+  expect(spelledLike(12, 13)).toBe(13);
 });

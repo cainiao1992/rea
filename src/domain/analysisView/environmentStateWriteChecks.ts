@@ -192,6 +192,8 @@ export interface CheckOutcome {
   readonly unheld: readonly string[];
   /** For a failed list read that differs only in some members' fields, those members' targets. */
   readonly differing?: readonly string[];
+  /** Required fields the read shows the application leaves out of entities the state holds. */
+  readonly omitted?: readonly string[];
 }
 
 /** Whether a passing check shows where a create placed its entity: a list's does unless a sort orders that entity, leaving it tied with none, or it matched alone. */
@@ -208,7 +210,7 @@ export const showsPlacement = (
     ));
 
 /** What a check compares: the read's recorded body and the served base recording it would answer on. */
-interface ReadBodies {
+export interface ReadBodies {
   readonly body: JsonValue | undefined;
   /** The recording whose envelope the served answer keeps: an item view's envelope, a list line's latest init recording. */
   readonly base: JsonValue | undefined;

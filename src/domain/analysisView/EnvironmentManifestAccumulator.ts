@@ -91,8 +91,36 @@ interface GroupState extends ToolGroup {
   readonly queryNames: Set<string>;
   readonly apiPath: boolean;
   jsonLike: boolean;
+  /** Every response of the write group had no body, as a 204 has. */
+  bodiless: boolean;
 }
 
+const responseTextSchema = z.object({
+  response: z.object({
+    status: z.unknown().optional(),
+    content: z
+      .object({ text: z.unknown().optional(), size: z.unknown().optional() })
+      .nullable()
+      .optional(),
+  }),
+});
+/** Whether a record's response had no body: a 204 or 205, an empty text, or a recorded size of zero; a missing text alone may be a body not kept. */
+const emptyResponse = (reported: unknown): boolean => {
+  const parsed = responseTextSchema.safeParse(reported);
+  if (!parsed.success) return false;
+  const { status, content } = parsed.data.response;
+  return (
+    status === 204 ||
+    status === 205 ||
+    content?.text === "" ||
+    ((content?.text === undefined || content.text === null) &&
+      content?.size === 0)
+  );
+};
+/** A write group every response of which had no body, at least one of them a success. */
+const answeredEmpty = (group: GroupState): boolean =>
+  group.bodiless &&
+  [...group.statuses].some((status) => status >= 200 && status < 300);
 const postDataSchema = z.object({
   request: z.object({
     postData: z
@@ -118,6 +146,8 @@ const ASSET_PREFIXES = ["image/", "font/", "audio/", "video/"];
 const ASSET_PATH =
   /\.(?:m?js|css|map|html?|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf)$/iu;
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH"]);
+/** A write whose every response is empty is a tool whatever its content type: the empty reply is its answer. */
+const BODILESS_WRITE_METHODS = new Set([...WRITE_METHODS, "DELETE"]);
 /** Quotes, separators and brackets a four-part composite key adds around its texts. */
 const KEY_OVERHEAD_CHARS = 32;
 const UNKNOWNS: Manifest["unknowns"] = [
@@ -262,7 +292,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
         route,
         queryNames,
         { key, group },
-        bodyShape.value,
+        { shape: bodyShape.value, empty: emptyResponse(record.reported) },
       );
     } finally {
       this.releaseTemporary();
@@ -304,8 +334,9 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     route: RouteTemplate,
     queryNames: ReadonlySet<string> | undefined,
     bucket: { readonly key: string; readonly group: GroupState | undefined },
-    bodyShape: BodyShape | null,
+    exchange: { readonly shape: BodyShape | null; readonly empty: boolean },
   ): Result<void, AnalysisError> {
+    const bodyShape = exchange.shape;
     const mime = mediaTypeEssence(line.rawMime);
     let group = bucket.group;
     // One retained record pointer, including its projected output.
@@ -373,6 +404,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
         bodyShape,
         apiPath: isApiPath(route.template),
         jsonLike: false,
+        bodiless: BODILESS_WRITE_METHODS.has(line.method),
       };
       this.#groups.set(bucket.key, group);
     } else {
@@ -383,6 +415,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     }
     group.positions.push(position);
     group.jsonLike ||= jsonLike;
+    group.bodiless &&= exchange.empty;
     if (line.status !== null) group.statuses.add(line.status);
     if (mime !== null) group.contentTypes.add(mime);
     for (const name of queryNames ?? []) group.queryNames.add(name);
@@ -457,7 +490,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
       const reason: Exclusion["reason"] | null =
         group.origin !== primary
           ? "other-origin"
-          : group.apiPath || group.jsonLike
+          : group.apiPath || group.jsonLike || answeredEmpty(group)
             ? null
             : isAsset(group)
               ? "ui-page-or-asset"

@@ -51,10 +51,11 @@ import {
   type WriteCall,
 } from "./environmentStateWriteRules.js";
 import {
-  integerOf,
   isUuid,
   nextSequence,
   readClock,
+  sequenceNumber,
+  spelledLike,
 } from "./environmentStateWriteValues.js";
 
 /** The id a response names alone: a scalar body, or an object's id field or single scalar member. */
@@ -180,7 +181,7 @@ const sequencesOf = (
       : [],
   );
 
-/** Whether a later call's sequences hold what serving generates: one past the largest value their scope holds or started with, and past the plan's last. */
+/** Whether a later call's sequences hold what serving generates: one past the largest value their scope holds or started with and past the plan's last, spelled as the exemplar spells it. */
 const followsSequences = (
   context: EffectContext,
   draft: WriteDraft,
@@ -195,10 +196,13 @@ const followsSequences = (
         rule.scope === "type" || entity.collection === created.collection,
     );
     const next = nextSequence(
-      nextInteger(fieldsOf(scope), rule.field),
+      nextInteger(fieldsOf(scope), rule.field, draft.observed?.[rule.field]),
       draft.sequences.get(key),
     );
-    return integerOf(created.fields[rule.field]) === next;
+    return (
+      created.fields[rule.field] ===
+      spelledLike(draft.observed?.[rule.field] ?? "", next)
+    );
   });
 
 /** Whether a later call's generated values take the forms serving generates them in: clocks in the learned format, unique values and UUID identities as UUIDs, and sequences in order. */
@@ -231,7 +235,10 @@ const takeSequences = (
   created: Pick<StateEntity, "collection" | "fields">,
 ): void => {
   for (const { rule, key } of sequencesOf(draft, created.collection)) {
-    const value = integerOf(created.fields[rule.field]);
+    const value = sequenceNumber(
+      created.fields[rule.field],
+      draft.observed?.[rule.field],
+    );
     if (value !== undefined) draft.sequences.set(key, value);
   }
 };

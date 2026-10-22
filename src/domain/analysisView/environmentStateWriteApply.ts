@@ -37,6 +37,13 @@ export type GenerateValue = (
 const kindOf = (value: JsonValue | undefined): string =>
   value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
 
+/** JSON objects contain only their own members, even when a name also exists on Object.prototype. */
+const ownMember = (
+  object: JsonObject,
+  member: string,
+): JsonValue | undefined =>
+  Object.hasOwn(object, member) ? object[member] : undefined;
+
 /** The JSON types `stored` holds members in, for those `observed` shows no value of. */
 export const storedKinds = (
   members: readonly string[],
@@ -44,8 +51,8 @@ export const storedKinds = (
   stored: JsonObject,
 ): WriteBody["kinds"] =>
   members.flatMap((member) => {
-    const value = stored[member];
-    return (observed[member] ?? null) === null &&
+    const value = ownMember(stored, member);
+    return (ownMember(observed, member) ?? null) === null &&
       value !== undefined &&
       value !== null
       ? [{ member, kind: kindOf(value) as JsonKind }]
@@ -100,7 +107,7 @@ export const bodyProblem = (
     }
     if (!body.accepted.includes(member))
       return `Member ${member} is not one the capture showed stored (${bodyContract(body)}).`;
-    const recorded = shapes.entity[member];
+    const recorded = ownMember(shapes.entity, member);
     const kind =
       recorded === undefined || recorded === null
         ? kinds.get(member)
@@ -361,7 +368,7 @@ export const updatedEntity = (
 ): StateEntity => {
   const changed = new Set(
     Object.keys(fields).filter(
-      (field) => !same(entity.fields[field], fields[field]),
+      (field) => !same(ownMember(entity.fields, field), fields[field]),
     ),
   );
   // Written values are no longer the ones the cited records show.

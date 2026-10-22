@@ -42,6 +42,8 @@ export interface StatePlan {
   readonly recordings: readonly StateRecordFacts[];
   /** The latest of them per request line, in timeline order. */
   readonly latest: readonly StateRecordFacts[];
+  /** Item reads left to replay because they asked for some fields only. */
+  readonly projected?: readonly number[];
 }
 
 /** What the gate reads from an extraction; `withBody` drops each body's temporary work after `use`. */
@@ -166,6 +168,9 @@ export const checkItemPlan = (
     required_fields: union.required,
     envelope_ordinal: plan.latest[0]!.ordinal,
     checked_record_ordinals: plan.latest.map((record) => record.ordinal),
+    ...(plan.projected === undefined || plan.projected.length === 0
+      ? {}
+      : { projected_record_ordinals: [...plan.projected] }),
   };
 };
 

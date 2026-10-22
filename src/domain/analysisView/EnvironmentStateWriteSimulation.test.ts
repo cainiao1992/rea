@@ -1,3 +1,4 @@
+import { OmittedFields } from "./environmentStateWriteOmitted.js";
 import { checkedLines, servedLine } from "./environmentStateCheckedLines.js";
 import { describe, expect, it } from "vitest";
 
@@ -19,7 +20,11 @@ import {
 } from "../../../tests/fixtures/environmentStateWrites.js";
 import type { JsonValue } from "../jsonValue.js";
 import { ok } from "../result.js";
-import { itemTarget, SimulatedState } from "./environmentStateWriteChecks.js";
+import {
+  checkItemRead,
+  itemTarget,
+  SimulatedState,
+} from "./environmentStateWriteChecks.js";
 import {
   laterObservation,
   type ObservationSearch,
@@ -639,16 +644,23 @@ describe("reads the served answer no longer matches", () => {
     });
   });
 
-  it("confirms no create whose entity lacks a field every recording of its item view carried", () => {
+  it("confirms a create that lacks a field every item recording carried only when its own read leaves the field out too", () => {
     const detailed = (entry: Book): Book => ({ ...entry, detail: "x" });
-    const rows: TimedCaptureRow[] = [
+    const rows = (readBack: Book): TimedCaptureRow[] => [
       ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
       ["GET", "/api/books/1", detailed(FIRST_BOOK)],
       ["GET", "/api/books/2", detailed(SECOND_BOOK)],
       ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
-      ["GET", "/api/books/3", THIRD_BOOK],
+      ["GET", "/api/books/3", readBack],
     ];
-    expect(gated(rows, "post_books")).toMatchObject({ served: false });
+    // The application omits the field for this book, so serving need not invent it.
+    expect(gated(rows(THIRD_BOOK), "post_books")).toMatchObject({
+      served: true,
+    });
+    // The read shows the field the create's own answer left out: the state cannot render it.
+    expect(gated(rows(detailed(THIRD_BOOK)), "post_books")).toMatchObject({
+      served: false,
+    });
   });
 });
 
@@ -2811,5 +2823,84 @@ describe("path fields of a create tied to its collection", () => {
       collection: held,
       checked_record_ordinals: [4],
     });
+  });
+});
+
+it("withholds a create when a sibling read through an encoded collection reveals an extra change", () => {
+  const alpha = { id: 1, name: "Alpha" };
+  const beta = { id: 2, name: "Beta" };
+  const gamma = { id: 3, name: "Gamma" };
+  const delta = { id: 4, name: "Delta" };
+  const rows: TimedCaptureRow[] = [
+    ["GET", "/api/orgs/%61cme1/books", [alpha]],
+    ["GET", "/api/orgs/beta2/books", [beta]],
+    ["GET", "/api/orgs/%61cme1/books/1", alpha],
+    ["GET", "/api/orgs/beta2/books/2", beta],
+    ["POST", "/api/orgs/acme1/books", gamma, 201, { name: "Gamma" }],
+    ["GET", "/api/orgs/acme1/books/3", gamma],
+    ["GET", "/api/orgs/%61cme1/books/1", { ...alpha, name: "Changed" }],
+    ["POST", "/api/orgs/beta2/books", delta, 201, { name: "Delta" }],
+  ];
+  const state = environmentStateViewOf(timedCaptureEvidence(rows), [
+    "sibling-variance",
+  ]);
+  expect(state.writes.find((plan) => plan.effect === "create")).toMatchObject({
+    served: false,
+    reason: "side-effect",
+  });
+});
+
+it("learns omitted fields using the raw ID resolved by the item owner", () => {
+  const state = new SimulatedState(
+    [
+      {
+        type: "/api/books",
+        collection: "/api/books",
+        id: "%63",
+        fields: { id: "%63", name: "Created" },
+        view_fields: [],
+        record_ordinals: [],
+      },
+    ],
+    [],
+  );
+  const view = {
+    tool: "get_books_by_id",
+    type: "/api/books",
+    shape: "item" as const,
+    pointer: "",
+    fields: ["id", "name", "detail"],
+    required_fields: ["id", "name", "detail"],
+    checked_record_ordinals: [0],
+    envelope_ordinal: 0,
+  };
+  const record = {
+    ordinal: 1,
+    method: "GET",
+    path: "/api/books/%63",
+    query: undefined,
+    status: 200,
+    start: 1,
+    end: 1,
+  };
+  const target = itemTarget(state, view.type, record);
+  expect(target.id).toBe("%63");
+  const read = {
+    body: { id: "%63", name: "Created" },
+    base: { id: "seed", name: "Seed", detail: "x" },
+    volatile: new Set<string>(),
+    idField: "id",
+    collection: target.collection,
+    itemId: target.id,
+  };
+  const omitted = new OmittedFields(() => {});
+  const outcome = omitted.check(state, view, record, read, (loosened) =>
+    checkItemRead(state, loosened, record, read),
+  );
+  expect(outcome).toMatchObject({ pass: true, omitted: ["detail"] });
+  if (outcome === undefined) throw new Error("Expected a counted read");
+  omitted.keep(view, outcome);
+  expect(omitted.views([view])[0]).toMatchObject({
+    required_fields: ["id", "name"],
   });
 });

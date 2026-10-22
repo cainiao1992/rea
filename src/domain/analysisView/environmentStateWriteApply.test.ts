@@ -4,6 +4,7 @@ import { err, ok } from "../result.js";
 import type { JsonObject, StateEntity } from "./environmentStateRules.js";
 import {
   bodyProblem,
+  storedKinds,
   createdFields,
   updatedEntity,
   updatedFields,
@@ -531,4 +532,11 @@ it("drops view-specific values of the fields an update changed and cites no reco
   expect(updatedEntity(entity, entity.fields).view_fields).toEqual(
     entity.view_fields,
   );
+});
+
+it("learns own stored JSON member kinds without inheriting prototype members", () => {
+  expect(storedKinds(["constructor"], {}, { constructor: "value" })).toEqual([
+    { member: "constructor", kind: "string" },
+  ]);
+  expect(storedKinds(["constructor", "toString"], {}, {})).toEqual([]);
 });

@@ -94,6 +94,62 @@ export const BOOK_ROWS: readonly TimedCaptureRow[] = [
   ["POST", "/api/exports", { queued: true }, 202, { format: "csv" }],
 ];
 
+/** A book whose item reads carry a `detail` member, which the application leaves out of books that have none. */
+export const detailedBook = (entity: Book): Book => ({
+  ...entity,
+  detail: "x",
+});
+
+/** Seeded books read with `detail`; a created book read back without it. */
+export const OMITTED_FIELD_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+  ["GET", "/api/books/1", detailedBook(FIRST_BOOK)],
+  ["GET", "/api/books/2", detailedBook(SECOND_BOOK)],
+  ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+  ["GET", "/api/books/3", THIRD_BOOK],
+];
+
+/** Seeded books listed and read with `detail`; a created book read back by item alone, without it. */
+export const DETAILED_LIST_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", [detailedBook(FIRST_BOOK), detailedBook(SECOND_BOOK)]],
+  ["GET", "/api/books/1", detailedBook(FIRST_BOOK)],
+  ["GET", "/api/books/2", detailedBook(SECOND_BOOK)],
+  ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+  ["GET", "/api/books/3", THIRD_BOOK],
+];
+
+/** Item reads of both books, one of them asking for its name only, which leaves its id out. */
+export const PROJECTED_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+  ["GET", "/api/books/1", FIRST_BOOK],
+  ["GET", "/api/books/2", SECOND_BOOK],
+  ["GET", "/api/books/2?fields=name", { name: "Second Book" }],
+];
+
+/** A book numbered as an asset, in digit groups. */
+export const assetBook = (entity: Book, asset: string): Book => ({
+  ...entity,
+  asset,
+});
+
+const ASSET_THIRD = assetBook(THIRD_BOOK, "000-003");
+const ASSET_FOURTH = assetBook(book(4, "Fourth Book", bookClock(5)), "000-004");
+
+/** Two creates whose asset number follows the largest held one, in its digit groups. */
+export const ASSET_ROWS: readonly TimedCaptureRow[] = [
+  [
+    "GET",
+    "/api/books",
+    [assetBook(FIRST_BOOK, "000-001"), assetBook(SECOND_BOOK, "000-002")],
+  ],
+  ["GET", "/api/books/1", assetBook(FIRST_BOOK, "000-001")],
+  ["GET", "/api/books/2", assetBook(SECOND_BOOK, "000-002")],
+  ["POST", "/api/books", ASSET_THIRD, 201, { name: "Third Book" }],
+  ["GET", "/api/books/3", ASSET_THIRD],
+  ["POST", "/api/books", ASSET_FOURTH, 201, { name: "Fourth Book" }],
+  ["GET", "/api/books/4", ASSET_FOURTH],
+];
+
 /** A page of books as a paging API wraps it, counting what it lists. */
 export const bookPage = (books: readonly Book[]) => ({
   content: [...books],

@@ -7,8 +7,10 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { createEvidence } from "../domain/evidence.js";
 import { parseFunctionDossier } from "../domain/hopperValues.js";
 import { jsonObjectSchema, type JsonValue } from "../domain/jsonValue.js";
-import { err, ok } from "../domain/result.js";
+import { err } from "../domain/result.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import { completeProviderEvidence } from "./ProviderOperationExecution.js";
 
 /** Preserve the provider's observations when presenting a validated function dossier. */
 export const executeFunctionAnalysisEvidence = async (
@@ -17,6 +19,12 @@ export const executeFunctionAnalysisEvidence = async (
   target: BinaryTarget | undefined,
   options?: ExecutionOptions,
 ) => {
+  if (options?.signal?.aborted)
+    return err(
+      new AnalysisCancelledError("analyze_function", {
+        cause: options.signal.reason,
+      }),
+    );
   const input =
     toolContract("analyze_function").inputSchema.safeParse(parameters);
   if (!input.success)
@@ -38,7 +46,7 @@ export const executeFunctionAnalysisEvidence = async (
   const dossier = parseFunctionDossier(execution.value.result);
   if (!dossier.ok) return dossier;
   const observation = execution.value;
-  return ok(
+  return completeProviderEvidence(
     createEvidence(
       observation.subject === undefined
         ? target
@@ -59,5 +67,6 @@ export const executeFunctionAnalysisEvidence = async (
           : { analysisProfile: observation.analysisProfile }),
       },
     ),
+    options?.signal,
   );
 };

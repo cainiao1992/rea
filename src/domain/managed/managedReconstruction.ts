@@ -6,6 +6,7 @@ import { z } from "zod";
 import { evidenceSchema, type Evidence } from "../evidence.js";
 import {
   cliMetadataGuidSchema,
+  managedMetadataTokenSchema,
   managedMemberInspectionSchema,
   type ManagedMemberInspection,
 } from "./managedArtifact.js";
@@ -14,7 +15,6 @@ import { digestSchema, prefixedDigestSchema } from "../digests.js";
 import { parseManagedInspectionEvidence } from "./managedInspectionEvidence.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
-const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
 const textSchema = z.string().min(1);
 
 const decompilerSchema = z.strictObject({
@@ -26,7 +26,7 @@ const decompilerSchema = z.strictObject({
 });
 
 const managedReconstructionMethodInputSchema = z.strictObject({
-  token: tokenSchema,
+  token: managedMetadataTokenSchema,
   signature_sha256: digestSchema,
   normalized_il_sha256: digestSchema.nullable(),
   reconstruction: z.strictObject({
@@ -52,7 +52,7 @@ export const managedReconstructionImportInputSchema = z.strictObject({
 });
 
 const importedMethodSchema = z.strictObject({
-  token: tokenSchema,
+  token: managedMetadataTokenSchema,
   declaring_type: z.string().nullable(),
   name: z.string(),
   signature_sha256: digestSchema,

@@ -4,6 +4,7 @@ import { emptyArraySchema } from "../emptyArraySchema.js";
 import { evidenceSchema } from "../evidence.js";
 import {
   cliMetadataGuidSchema,
+  managedMetadataTokenSchema,
   type ManagedMemberInspection,
 } from "./managedArtifact.js";
 import {
@@ -23,7 +24,6 @@ import { digestSchema } from "../digests.js";
 import { prefixedDigestSchema } from "../digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
-const tokenSchema = z.string().regex(/^0x[0-9a-f]{8}$/u);
 const boundedTextSchema = z.string().min(1);
 
 /** Two authenticated managed member observations. */
@@ -47,7 +47,7 @@ const concreteMatchBasisSchema = z.enum([
   "structural-method-shape",
   "field-signature",
 ]);
-const candidateTokensSchema = z.array(tokenSchema).min(1);
+const candidateTokensSchema = z.array(managedMetadataTokenSchema).min(1);
 const matchedComparisonSchema = z.strictObject({
   status: z.literal("matched"),
   basis: concreteMatchBasisSchema,
@@ -70,7 +70,7 @@ const ambiguousComparisonSchema = z.strictObject({
   candidate_right_tokens: candidateTokensSchema,
 });
 const memberIdentitySchema = z.strictObject({
-  token: tokenSchema,
+  token: managedMetadataTokenSchema,
   declaring_type: z.string().nullable(),
   name: z.string(),
   signature_sha256: digestSchema,

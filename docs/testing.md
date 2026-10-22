@@ -26,6 +26,14 @@ behavior, and complete CI evidence before merging.
 | `npm run check:pr`                | Opt-in complete local deterministic gate and generated-file checks                                                      |
 | `npm run docs:check`              | Generated-document validation and fresh onboarding example consistency checks                                           |
 
+The general source suite above runs on Linux in CI, and Windows CI runs a
+curated lane ([Native platform baseline in CI](#native-platform-baseline-in-ci)).
+A Windows source checkout can fail source tests for reasons unrelated to the
+change, such as POSIX fixture paths, `#!/bin/sh` tool stubs, or POSIX rename
+semantics. Compare failures against the base revision, or run the suite on
+Linux or WSL, before attributing them to a change. See `CONTRIBUTING.md` →
+Windows source checkouts.
+
 For example:
 
 ```bash

@@ -9,6 +9,7 @@ import {
   decodedSegment,
   isObject,
   isParam,
+  listsAll,
   listItems,
   missingRequiredFields,
   renderStateEntity,
@@ -27,6 +28,8 @@ import {
   type StateView,
 } from "./environmentStateRules.js";
 import { pageBound, pagesOnly } from "./environmentStatePaging.js";
+import { insertIndex } from "./environmentStateWriteExplain.js";
+import type { InsertRule } from "./environmentStateWriteRules.js";
 
 /** A query as replay compares a call's: decoded values by name, in any order; undefined when it repeats a name with another value, which no call's arguments can carry. */
 const queryKey = (query: string | undefined): string | undefined => {
@@ -49,7 +52,7 @@ interface CheckedLine {
 export interface CheckedLines {
   readonly params: ReadonlySet<number>;
   readonly byQuery: ReadonlyMap<string, readonly CheckedLine[]>;
-  /** A whole list's lines that only page it, which serving answers a call supplying no query from. */
+  /** The lines listing their whole collection that only page it, which serving answers a call supplying no query from. */
   readonly unfiltered: readonly CheckedLine[];
 }
 
@@ -76,14 +79,18 @@ export const checkedLines = (input: {
     const checked = new Set(view.checked_record_ordinals);
     const byQuery = new Map<string, CheckedLine[]>();
     const unfiltered: CheckedLine[] = [];
-    const whole = view.shape === "list" && view.membership === "all";
     for (const ordinal of tool.record_ordinals) {
       const record = byOrdinal.get(ordinal);
       const key = record === undefined ? undefined : queryKey(record.query);
       if (!checked.has(ordinal) || key === undefined) continue;
       const line = { ordinal, segments: segmentsOf(record!.path) };
       byQuery.set(key, [...(byQuery.get(key) ?? []), line]);
-      if (whole && pagesOnly(record!.query)) unfiltered.push(line);
+      if (
+        view.shape === "list" &&
+        listsAll(view, ordinal) &&
+        pagesOnly(record!.query)
+      )
+        unfiltered.push(line);
     }
     const params = new Set(
       segmentsOf(tool.path_template).flatMap((segment, index) =>
@@ -232,6 +239,22 @@ export class SimulatedState {
         target.type === type &&
         !this.#entities.has(entityTarget(type, target.collection, target.id)),
     );
+  }
+
+  /** Place created entities again as a create under another insert rule would have. */
+  reinsert(
+    type: string,
+    collection: string,
+    entities: readonly StateEntity[],
+    rule: InsertRule,
+  ): void {
+    for (const entity of entities) this.remove(entity);
+    for (const entity of entities) {
+      const order = this.members(type, collection).map(
+        (member) => member.fields,
+      );
+      this.put(entity, insertIndex(rule, order, entity.fields));
+    }
   }
 
   document(tool: string): JsonValue | undefined {
@@ -504,12 +527,17 @@ const checkRecordedList = (
   return { ...listCheck(view, check, members), targets, unheld };
 };
 
-/** A list read on a checked line, compared with the answer the served environment renders on that line's base recording from the collection it names. */
+/** A list read on a checked line, compared with the answer the served environment renders on that line's base recording from the collection it names: every entity when that line lists them all. */
 export const checkListRead = (
   state: SimulatedState,
   view: StateListView,
   record: StateRecordFacts,
-  check: ReadBodies & { readonly idField: string; readonly collection: string },
+  check: ReadBodies & {
+    readonly idField: string;
+    readonly collection: string;
+    /** Whether the base line lists every entity of its collection. */
+    readonly all: boolean;
+  },
 ): CheckOutcome | undefined => {
   if (!succeeded(record)) return undefined;
   const { body, base } = check;
@@ -520,7 +548,7 @@ export const checkListRead = (
   // Serving answers a page too small for the collection from its recording, so such a read checks nothing.
   const size = pageBound(record.query, baseItems.length);
   if (
-    view.membership === "all" &&
+    check.all &&
     size !== undefined &&
     state.members(view.type, check.collection).length > size
   )
@@ -528,10 +556,9 @@ export const checkListRead = (
   // A usable body that no longer holds the list is not what serving answers on this line.
   const items = listItems(body, view.pointer);
   const bodies = { ...check, body, base, items: items ?? [], baseItems };
-  const outcome =
-    view.membership === "all"
-      ? checkAllList(state, view, bodies)
-      : checkRecordedList(state, view, bodies);
+  const outcome = check.all
+    ? checkAllList(state, view, bodies)
+    : checkRecordedList(state, view, bodies);
   return items === undefined ? { ...outcome, pass: false } : outcome;
 };
 
@@ -550,36 +577,4 @@ export const checkDocumentRead = (
     targets: [documentTarget(tool)],
     unheld: [],
   };
-};
-
-/**
- * Check, field by field, the writes that changed an entity an unmodelled write also changed:
- * each write's own fields must show as the state holds them, but for volatile ones, which take
- * the read's value and so show nothing of a write. A create wrote every field, so it cannot be
- * told apart from the unmodelled change and is not checked.
- */
-export const writtenFieldChecks = (
-  entity: StateEntity,
-  view: StateItemView,
-  observed: JsonObject,
-  check: {
-    readonly volatile: ReadonlySet<string>;
-    readonly writes: ReadonlyMap<string, readonly string[] | null>;
-  },
-): Map<string, boolean> => {
-  const shown = renderStateEntity(entity, view, check.volatile, observed);
-  const outcomes = new Map<string, boolean>();
-  for (const [tool, fields] of check.writes) {
-    const compared = (fields ?? []).filter(
-      (field) =>
-        !check.volatile.has(field) &&
-        (Object.hasOwn(observed, field) || Object.hasOwn(shown, field)),
-    );
-    if (fields === null || compared.length === 0) continue;
-    outcomes.set(
-      tool,
-      compared.every((field) => same(shown[field], observed[field])),
-    );
-  }
-  return outcomes;
 };

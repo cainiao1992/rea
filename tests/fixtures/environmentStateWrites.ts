@@ -60,6 +60,8 @@ export const FIRST_BOOK = book(1, "First Book", "2026-10-01T09:00:00Z");
 export const SECOND_BOOK = book(2, "Second Book", "2026-10-01T10:00:00Z");
 /** The book the recorded create at exchange 3 made. */
 export const THIRD_BOOK = book(3, "Third Book", bookClock(3));
+/** The book a create recorded at exchange 4 made. */
+const THIRD_BOOK_AT_4 = book(3, "Third Book", bookClock(4));
 /** The first book after the recorded update at exchange 5. */
 export const RENAMED_BOOK = renamedBook(FIRST_BOOK, "Renamed Book", 5);
 
@@ -90,6 +92,26 @@ export const BOOK_ROWS: readonly TimedCaptureRow[] = [
   ["GET", "/api/books", [RENAMED_BOOK, SECOND_BOOK]],
   ["DELETE", "/api/books/9", DELETE_NOT_FOUND, 404],
   ["POST", "/api/exports", { queued: true }, 202, { format: "csv" }],
+];
+
+/** A page of books as a paging API wraps it, counting what it lists. */
+export const bookPage = (books: readonly Book[]) => ({
+  content: [...books],
+  totalElements: books.length,
+  numberOfElements: books.length,
+});
+
+/**
+ * One list tool with a line that lists every book and a line filtered by name, item reads, then a
+ * create the whole list confirms.
+ */
+export const LIST_LINE_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", bookPage([FIRST_BOOK, SECOND_BOOK])],
+  ["GET", "/api/books?name=First%20Book", bookPage([FIRST_BOOK])],
+  ...BOOK_INIT_ROWS.slice(1),
+  ["POST", "/api/books", THIRD_BOOK_AT_4, 201, { name: "Third Book" }],
+  ["GET", "/api/books/3", THIRD_BOOK_AT_4],
+  ["GET", "/api/books", bookPage([FIRST_BOOK, SECOND_BOOK, THIRD_BOOK_AT_4])],
 ];
 
 /** The end of the last exchange of BOOK_ROWS, to the next whole second: where the served clock starts. */

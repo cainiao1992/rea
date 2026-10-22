@@ -3,6 +3,7 @@ import {
   changesState,
   isObject,
   isStateWrite,
+  listsAll,
   normalizedPath,
   type JsonObject,
   type StateEntity,
@@ -24,7 +25,6 @@ import {
   servedLine,
   succeeded,
   withBodies,
-  writtenFieldChecks,
   SimulatedState,
   type CheckOutcome,
   type CheckedLines,
@@ -42,6 +42,7 @@ import {
   WriteEffects,
   type PendingTargets,
   type TouchedTargets,
+  writtenFieldChecks,
 } from "./environmentStateWriteAttribution.js";
 import { applyCreate } from "./environmentStateWriteCreate.js";
 import { applyDocument } from "./environmentStateWriteDocument.js";
@@ -54,7 +55,6 @@ import {
   type WriteSimulationInput,
   type WriteStep,
 } from "./environmentStateWriteEffects.js";
-import { insertIndex } from "./environmentStateWriteExplain.js";
 import {
   classifyWrite,
   prefixRelated,
@@ -270,7 +270,7 @@ export class EnvironmentStateWriteSimulation {
     this.#taint.known(entity.type, entity.collection, entity.id);
     this.#touched.delete(target);
     if (isAbsence(record.status)) {
-      this.#state.remove(entity);
+      this.#removeEntity(entity);
       return;
     }
     const object = this.#checkFields(view, record, entity, writes);
@@ -336,7 +336,10 @@ export class EnvironmentStateWriteSimulation {
       };
       return item
         ? checkItemRead(this.#state, view, record, check)
-        : checkListRead(this.#state, view, record, check);
+        : checkListRead(this.#state, view, record, {
+            ...check,
+            all: listsAll(view, base),
+          });
     });
   }
 
@@ -484,7 +487,13 @@ export class EnvironmentStateWriteSimulation {
     );
     if (isObject(object))
       this.#state.put(updatedEntity(entity, { ...entity.fields, ...object }));
-    else this.#state.remove(entity);
+    else this.#removeEntity(entity);
+  }
+
+  /** A read showed the entity gone: the state drops it, and no write keeps a claim on its collection through it. */
+  #removeEntity(entity: StateEntity): void {
+    this.#state.remove(entity);
+    this.#effects.removed(this.#touched, entity);
   }
 
   /** Contradict the writes a failed check exercised, or, when none, the related writes since its targets were last checked; a failed list stops being checked. */
@@ -521,9 +530,9 @@ export class EnvironmentStateWriteSimulation {
     record: StateRecordFacts,
     exercised: ReadonlySet<string>,
   ): boolean {
-    const collection = this.#line(view, record)?.collection;
-    if (view.membership !== "all" || collection === undefined) return false;
-    const members = this.#state.members(view.type, collection);
+    const line = this.#line(view, record);
+    if (line === undefined || !listsAll(view, line.ordinal)) return false;
+    const members = this.#state.members(view.type, line.collection);
     const key = (entity: StateEntity) =>
       entityTarget(entity.type, entity.collection, entity.id);
     const inserted = members.filter((entity) =>
@@ -538,13 +547,7 @@ export class EnvironmentStateWriteSimulation {
     // An item read confirms the entity, not where a list places it.
     if (!exercised.has(name!) || this.#placed.has(name!)) return false;
     for (const candidate of draft.candidates.slice(1)) {
-      for (const entity of inserted) this.#state.remove(entity);
-      for (const entity of inserted) {
-        const order = this.#state
-          .members(view.type, collection)
-          .map((member) => member.fields);
-        this.#state.put(entity, insertIndex(candidate, order, entity.fields));
-      }
+      this.#state.reinsert(view.type, line.collection, inserted, candidate);
       if (this.#check(view, record)?.pass === true) {
         draft.plan.insert = candidate;
         return true;

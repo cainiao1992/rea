@@ -11,6 +11,7 @@ import {
   BOOK_ROWS,
   BOOK_WRITE_CLOCK,
   FIRST_BOOK,
+  LIST_LINE_ROWS,
   SECOND_BOOK,
   THIRD_BOOK,
   book,
@@ -539,5 +540,67 @@ describe("observation from a later read", () => {
       response: { ordinal: 3, shape: "identity", pointer: "/created_id" },
       checked_record_ordinals: [5],
     });
+  });
+});
+
+describe("list lines", () => {
+  it("lists every entity on a line that lists its whole collection, though another line of the tool is filtered", () => {
+    const state = stateOf(LIST_LINE_ROWS);
+    expect(state.views.find((view) => view.tool === "get_books")).toMatchObject(
+      {
+        shape: "list",
+        pointer: "/content",
+        membership: "recorded",
+        all_record_ordinals: [0],
+        counters: ["numberOfElements", "totalElements"],
+        checked_record_ordinals: [0, 1],
+      },
+    );
+    // The whole list after the create shows the created book, which confirms it.
+    expect(planOf(state, "post_books")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5, 6],
+    });
+  });
+
+  it("confirms no create by a whole list taken after a read showed its entity gone", () => {
+    const rows: TimedCaptureRow[] = [
+      ...BOOK_INIT_ROWS,
+      ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+      // A redirected delete is not modelled; the read after it shows the book gone.
+      ["DELETE", "/api/books/3", "", 302],
+      ["GET", "/api/books/3", BOOK_NOT_FOUND, 404],
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+    ];
+    expect(planOf(stateOf(rows), "post_books")).toMatchObject({
+      served: false,
+      reason: "unconfirmed",
+    });
+  });
+
+  it("confirms no create by a whole list after an item read showed nothing of its entity", () => {
+    const rows: TimedCaptureRow[] = [
+      ...BOOK_INIT_ROWS,
+      ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+      // An unmodelled write elsewhere may explain the next read, which the state then takes.
+      ["POST", "/api/exports", { queued: true }, 202, { format: "csv" }],
+      ["GET", "/api/books/3", null],
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+    ];
+    expect(planOf(stateOf(rows), "post_books")).toMatchObject({
+      served: false,
+      checked_record_ordinals: [],
+    });
+  });
+
+  it("names no line when every line lists its whole collection, or none does", () => {
+    const listOf = (rows: readonly TimedCaptureRow[]) =>
+      stateOf(rows).views.find((view) => view.tool === "get_books");
+    const whole = listOf(LIST_LINE_ROWS.filter((_, index) => index !== 1));
+    expect(whole).toMatchObject({ membership: "all" });
+    expect(whole).not.toHaveProperty("all_record_ordinals");
+    expect(listOf(LIST_LINE_ROWS.slice(1))).not.toHaveProperty(
+      "all_record_ordinals",
+    );
   });
 });

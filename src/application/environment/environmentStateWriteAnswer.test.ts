@@ -10,10 +10,12 @@ import {
   BOOK_ROWS,
   DELETE_NOT_FOUND,
   FIRST_BOOK,
+  LIST_LINE_ROWS,
   SECOND_BOOK,
   THIRD_BOOK,
   book,
   bookClock,
+  bookPage,
   renamedBook,
   type Book,
 } from "../../../tests/fixtures/environmentStateWrites.js";
@@ -535,6 +537,97 @@ describe("paged list lines", () => {
     expect(paged.answer("get_books", { limit: "10" })).toMatchObject({
       body: [FIRST_BOOK, SECOND_BOOK],
       state: { source: "recording", reason: "unrecorded-request" },
+    });
+  });
+});
+
+describe("list lines", () => {
+  it("keeps an empty later page recorded after data/add, while a first line lists the loaded entity", () => {
+    for (const [query, whole] of [
+      ["offset=0", true],
+      ["start=0", true],
+      ["_start=0", true],
+      ["page=0", true],
+      ["offset=2", false],
+      ["start=2", false],
+      ["_start=2", false],
+      ["page=1", false],
+      ["offset=-1", false],
+      ["offset=unknown", false],
+    ] as const) {
+      const alpha = { id: 1, name: "Alpha", org: "1" };
+      const beta = { id: 2, name: "Beta", org: "2" };
+      const books = servedFrom([
+        ["GET", "/api/orgs/1/books", [alpha]],
+        ["GET", "/api/orgs/1/books?name=Alpha", [alpha]],
+        ["GET", `/api/orgs/2/books?${query}&limit=50`, []],
+        ["GET", "/api/orgs/1/books/1", alpha],
+      ]);
+      const held = books.store.snapshot().rea_state;
+      const loaded = books.store.replace({
+        rea_state: {
+          ...held,
+          entities: [
+            ...held.entities,
+            {
+              type: held.entities[0]!.type,
+              collection: "/api/orgs/2/books",
+              id: "2",
+              fields: beta,
+              view_fields: [],
+              record_ordinals: [],
+            },
+          ],
+        },
+      });
+      if (!loaded.ok) throw loaded.error;
+      expect(
+        books.answer("get_orgs_books_by_id", {
+          id: "2",
+          ...Object.fromEntries(new URLSearchParams(query)),
+          limit: "50",
+        }),
+      ).toMatchObject({
+        body: whole ? [beta] : [],
+        state: {
+          source: "state",
+          membership: whole ? "all" : "recorded",
+          listed: whole ? 1 : 0,
+        },
+      });
+    }
+  });
+
+  it("lists a created book on the line that lists every book, while a filtered line keeps its recorded members", () => {
+    const books = servedFrom(LIST_LINE_ROWS);
+    const created = books.answer("post_books", CREATE_NEW_BOOK).body as Book;
+    expect(books.answer("get_books")).toMatchObject({
+      body: bookPage([FIRST_BOOK, SECOND_BOOK, created]),
+      state: { source: "state", membership: "all", listed: 3 },
+    });
+    expect(books.answer("get_books", { name: "First Book" })).toMatchObject({
+      body: bookPage([FIRST_BOOK]),
+      state: { source: "state", membership: "recorded", listed: 1 },
+    });
+  });
+
+  it("updates on each line only the counters its recording counted, so a partial page keeps its total", () => {
+    const partial = {
+      content: [FIRST_BOOK],
+      totalElements: 2,
+      numberOfElements: 1,
+    };
+    const books = servedFrom([
+      ["GET", "/api/books", bookPage([FIRST_BOOK, SECOND_BOOK])],
+      ["GET", "/api/books?page=1&size=1", partial],
+      ...LIST_LINE_ROWS.slice(2),
+    ]);
+    const created = books.answer("post_books", CREATE_NEW_BOOK).body as Book;
+    expect(books.answer("get_books")).toMatchObject({
+      body: bookPage([FIRST_BOOK, SECOND_BOOK, created]),
+    });
+    expect(books.answer("get_books", { page: "1", size: "1" })).toMatchObject({
+      body: partial,
     });
   });
 });

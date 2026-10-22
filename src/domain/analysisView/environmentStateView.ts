@@ -58,7 +58,13 @@ const viewSchema = z.discriminatedUnion("shape", [
     membership: z
       .enum(["all", "recorded"])
       .describe(
-        "all: every entity of the collection in state order; recorded: the entities each recorded response listed.",
+        "all: every entity of the collection in state order; recorded: the entities each recorded response listed, except on the lines all_record_ordinals names.",
+      ),
+    all_record_ordinals: z
+      .array(z.number().int().nonnegative())
+      .optional()
+      .describe(
+        "With recorded membership, the checked lines that each listed every entity of their collection in state order, with only paging parameters starting at zero; a call answered on one lists the whole collection. Absent when none does.",
       ),
     counters: z
       .array(z.string())

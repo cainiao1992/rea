@@ -29,6 +29,38 @@ import {
   readManagedSnapshot,
 } from "../../../../src/dotnet/ManagedSnapshot.js";
 import * as boundedFileBytes from "../../../../src/process/BoundedFileBytes.js";
+import { buildManagedMemberCapacityFixture } from "../../../fixtures/managedMemberCapacity.js";
+
+it("keeps missing members unknown when the opposite inspection retains only types", async () => {
+  const directory = await createTestTempDirectory(
+    "rea-managed-type-recovery-comparison-",
+  );
+  const completePath = join(directory, "complete.dll");
+  const limitedPath = join(directory, "limited.dll");
+  await writeFile(
+    completePath,
+    buildManagedPeFixture({ additionalEmptyTypes: 2 }),
+  );
+  await writeFile(limitedPath, buildManagedMemberCapacityFixture());
+  for (const [leftPath, rightPath] of [
+    [completePath, limitedPath],
+    [limitedPath, completePath],
+  ]) {
+    const result = await compareManagedMemberPaths({
+      leftPath: leftPath!,
+      rightPath: rightPath!,
+    });
+    if (!result.ok) throw result.error;
+    const report = managedMemberComparisonResultSchema.parse(
+      result.value.normalized_result,
+    );
+    expect(report.coverage.status).toBe("partial");
+    expect(report.methods).toHaveLength(1);
+    expect(report.fields).toHaveLength(1);
+    expect(report.methods[0]?.status).toBe("unknown");
+    expect(report.fields[0]?.status).toBe("unknown");
+  }
+});
 
 it.each([
   ["accessibility", 6, 0x0011],

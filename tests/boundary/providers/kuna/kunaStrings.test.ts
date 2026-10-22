@@ -94,7 +94,13 @@ it("shares a typed string scan across concurrent searches and exact address read
       });
     expect(
       await client.execute("search_strings", { pattern: "[", mode: "regex" }),
-    ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
+    ).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisInputError",
+        issues: [{ path: ["pattern"], reason: "invalid_format" }],
+      },
+    });
     expect((await run(client, "list_strings")).result).toHaveLength(2);
   } finally {
     expect(await client.close()).toEqual({ ok: true, value: null });

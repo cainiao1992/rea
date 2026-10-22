@@ -502,6 +502,35 @@ it("preserves Unicode matching order and refuses a pre-cancelled match", async (
   ).toMatchObject({ ok: false, error: { _tag: "AnalysisCancelledError" } });
 });
 
+it("names the rejected pattern field for a default invalid-pattern refusal", async () => {
+  const matched = await matchRegexValues({
+    operation: "search_procedures",
+    pattern: "[",
+    caseSensitive: false,
+    values: ["value"],
+  });
+  expect(matched.ok).toBe(false);
+  if (matched.ok) return;
+  expect(projectAnalysisError(matched.error)).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    recovery: {
+      kind: "inspect_input_contract",
+      operation: "search_procedures",
+    },
+    details: {
+      operation: "search_procedures",
+      issues: [
+        {
+          path: ["pattern"],
+          reason: "invalid_format",
+          message: "Supply a valid regular expression.",
+        },
+      ],
+    },
+  });
+});
+
 it("keeps Hopper's result projection and invalid-pattern contract with the shared worker", async () => {
   const search = new HopperRegexSearch({
     callTool: async () =>

@@ -555,9 +555,19 @@ export const matchRegexValues = async (input: {
           return finish(
             err(
               input.invalidPattern?.(reply.data.reason) ??
-                new AnalysisInputError(input.operation, {
-                  userMessage: `Invalid regex pattern: ${reply.data.reason}`,
-                }),
+                new AnalysisInputError(
+                  input.operation,
+                  {
+                    userMessage: `Invalid regex pattern: ${reply.data.reason}`,
+                  },
+                  [
+                    {
+                      path: ["pattern"],
+                      reason: "invalid_format",
+                      message: "Supply a valid regular expression.",
+                    },
+                  ],
+                ),
             ),
           );
         if (

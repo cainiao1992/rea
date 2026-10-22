@@ -2619,8 +2619,17 @@ pre code {
     width: calc(100% - 2.5rem);
   }
   .navigation {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: space-between;
     gap: 0.5rem 0.8rem;
     font-size: 0.875rem;
+  }
+  .navigation a {
+    min-width: 0;
+    min-height: 40px;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .hero {
     padding-block: 3.5rem 3rem;
@@ -2931,6 +2940,11 @@ html[dir="rtl"] .brand-name {
   }
   .explanatory-figure figcaption a {
     white-space: normal;
+  }
+}
+@media (max-width: 340px) {
+  .navigation {
+    column-gap: 0.6rem;
   }
 }
 @media (max-width: 400px) {

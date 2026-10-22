@@ -42,6 +42,7 @@ import { readSafetensorsHeader } from "./SafetensorsHeader.js";
 import {
   ModelFormatFailure,
   rejectModel,
+  rejectPickle,
   MODEL_REPORT_BYTES,
   modelCapacityRemediation,
   modelCapacityReportedLimits,
@@ -274,14 +275,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
       );
     const reader = new ModelHeaderReader(file, Number(initial.size), signal);
     const first = await reader.take(4);
-    if (
-      (first[0] === 0x80 && (first[1] ?? 0) >= 2 && (first[1] ?? 0) <= 5) ||
-      first.equals(Buffer.from([0x50, 0x4b, 3, 4]))
-    )
-      throw new ModelFormatFailure(
-        "unsupported",
-        "PyTorch pickle/ZIP model deserialization is unsupported; supply GGUF or safetensors instead",
-      );
+    if (first.equals(Buffer.from([0x50, 0x4b, 3, 4]))) rejectPickle();
     const format = first.equals(Buffer.from("GGUF")) ? "gguf" : "safetensors";
     let partial: ModelArtifactPartial | undefined;
     if (format === "gguf") {

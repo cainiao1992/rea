@@ -49,6 +49,7 @@ export const CLI_COMMANDS = Object.freeze({
   inspectAssetCatalog: "inspect-asset-catalog",
   inspectManagedArtifact: "inspect-managed-artifact",
   inspectRecordedCrash: "inspect-recorded-crash",
+  inspectByteEntropy: "inspect-byte-entropy",
   inspectBinaryLayout: "inspect-binary-layout",
   listCutterSessions: "list-cutter-sessions",
   cutterCommand: "cutter-command",

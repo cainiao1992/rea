@@ -1,9 +1,11 @@
+import { ByteEntropyService } from "../application/binaryDiagnostics/ByteEntropyService.js";
 import { RecordedCrashService } from "../application/binaryDiagnostics/RecordedCrashService.js";
 import { PwntoolsRecordedCrashProvider } from "../native/pwntools/PwntoolsRecordedCrashProvider.js";
 import { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
 import { PwntoolsLayoutProvider } from "../native/pwntools/PwntoolsLayoutProvider.js";
 import { PeResourcesService } from "../application/binaryDiagnostics/PeResourcesService.js";
 import { PeResourcesProvider } from "../native/pe/PeResourcesProvider.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 
 /** Portable PE inspection with no engine, installation or target acquisition. */
 export const createPeResourcesService = (): PeResourcesService =>
@@ -20,3 +22,8 @@ export const createRecordedCrashService = (
   environment: Readonly<NodeJS.ProcessEnv> = process.env,
 ): RecordedCrashService =>
   new RecordedCrashService(new PwntoolsRecordedCrashProvider(environment));
+
+/** Provider-free local byte analysis. */
+export const createByteEntropyService = (
+  resources?: ArtifactResourceScope,
+): ByteEntropyService => new ByteEntropyService(undefined, resources);

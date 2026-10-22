@@ -1,5 +1,7 @@
+import { inspectByteEntropyInputSchema } from "../domain/native/byteEntropy.js";
 import { z } from "incur";
 import {
+  createByteEntropyService,
   createRecordedCrashService,
   createBinaryLayoutService,
   createPeResourcesService,
@@ -22,6 +24,44 @@ export const registerBinaryDiagnosticsCommands = (
   logger: Logger,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): void => {
+  const entropy = createByteEntropyService();
+  cli.command(CLI_COMMANDS.inspectByteEntropy, {
+    description:
+      "Inspect file-wide and block byte entropy without executing the file",
+    args: z.object({ path: z.string().describe("Local file") }),
+    options: z.object({
+      blockSize: inspectByteEntropyInputSchema.shape.block_size.describe(
+        "Power-of-two block size from 256 to 65536 bytes (default 4096)",
+      ),
+      offset: inspectByteEntropyInputSchema.shape.offset.describe(
+        "Window start as a decimal file byte offset (default 0)",
+      ),
+      length: inspectByteEntropyInputSchema.shape.length.describe(
+        "Window length in bytes; omit to extend through EOF",
+      ),
+    }),
+    run: ({ args, options }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.inspectByteEntropy, async () => {
+          return await finishAnalysisCommand(
+            () =>
+              entropy.inspect(
+                {
+                  path: absoluteCallerPath(args.path),
+                  block_size: options.blockSize,
+                  offset: options.offset,
+                  length: options.length,
+                },
+                { signal },
+              ),
+            entropy,
+            "rea-byte-entropy",
+            "inspect_byte_entropy",
+            signal,
+          );
+        }),
+      ),
+  });
   cli.command(CLI_COMMANDS.inspectPeResources, {
     description:
       "Inspect PE resource identities, payload ranges, hashes and icon-group relationships",

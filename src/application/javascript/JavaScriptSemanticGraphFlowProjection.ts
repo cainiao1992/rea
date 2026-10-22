@@ -1,6 +1,9 @@
 import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
 import { javaScriptSemanticNodeId } from "../../domain/javascript/javascriptSemanticGraph.js";
-import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSemanticIr.js";
+import type {
+  JavaScriptSemanticIr,
+  JavaScriptSemanticProjectedResultBinding,
+} from "../../domain/javascript/javascriptSemanticIr.js";
 import { sourceRangesEqual } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
@@ -33,6 +36,26 @@ export interface SemanticFlowProjectionContext {
     range: JavaScriptSourceRange,
   ) => JavaScriptSemanticGraphNode | undefined;
 }
+
+/** Project result destructuring consistently for timers, child processes, and requests. */
+export const projectSemanticResultBindings = (
+  context: Pick<SemanticFlowProjectionContext, "state" | "bindingNodes">,
+  source: JavaScriptSemanticGraphNode | undefined,
+  bindings: readonly JavaScriptSemanticProjectedResultBinding[],
+): void => {
+  for (const projected of bindings)
+    addSemanticGraphRelation(context.state, {
+      source,
+      target: context.bindingNodes.get(projected.bindingId),
+      relation: "destructures",
+      resolution:
+        projected.resolution === "complete" ? "resolved" : "candidate",
+      properties: {
+        projection_path: [...projected.projectionPath],
+        projection_resolution: projected.resolution,
+      },
+    });
+};
 
 /** Project explicit static Promise/task ownership without runtime claims. */
 export const projectSemanticPromises = (

@@ -124,13 +124,35 @@ const deriveApplicationCandidates = (
       );
     }
     if (source.semanticGraph !== null) {
+      const semanticGraph = source.semanticGraph;
+      const unknownIdsByNode = new Map<string, string[]>();
+      for (const unknown of semanticGraph.unknowns) {
+        // Candidate targets are possibilities, not established node bindings.
+        if (unknown.node_id !== null) {
+          const ids = unknownIdsByNode.get(unknown.node_id) ?? [];
+          ids.push(unknown.unknown_id);
+          unknownIdsByNode.set(unknown.node_id, ids);
+        }
+        // Keep every frontier visible, including families without a policy.
+        limitations.add(
+          `Semantic graph ${semanticGraph.graph_id} contains unresolved ${unknown.family} unknown ${unknown.unknown_id}: ${unknown.detail}`,
+        );
+      }
+      if (semanticGraph.coverage.status !== "complete")
+        limitations.add(
+          `Semantic graph ${semanticGraph.graph_id} coverage is ${semanticGraph.coverage.status}; omitted candidates remain unknown.`,
+        );
+      for (const limitation of semanticGraph.limitations)
+        limitations.add(
+          `Semantic graph ${semanticGraph.graph_id}: ${limitation}`,
+        );
       const evidenceContexts = new Map(
-        source.semanticGraph.evidence_contexts.map((context) => [
+        semanticGraph.evidence_contexts.map((context) => [
           context.context_id,
           context,
         ]),
       );
-      for (const node of source.semanticGraph.nodes) {
+      for (const node of semanticGraph.nodes) {
         const candidatePolicy = semanticObligationPolicy(node.kind);
         if (candidatePolicy === undefined) continue;
         const evidenceContext = evidenceContexts.get(node.evidence.context_id);
@@ -147,13 +169,14 @@ const deriveApplicationCandidates = (
             artifactSha256: node.identity.artifact_sha256,
             applicationNodeId: node.application_node_ids[0] ?? null,
             semanticNodeId: node.node_id,
-            location: `semantic-graph:${source.semanticGraph.graph_id}/nodes/${node.node_id}`,
+            residualUnknownIds: unknownIdsByNode.get(node.node_id) ?? [],
+            location: `semantic-graph:${semanticGraph.graph_id}/nodes/${node.node_id}`,
             authorityReferences: [
               graphReference(
                 evidence,
                 records,
                 evidenceContext,
-                `${source.semanticGraph.graph_id}/node/${node.node_id}`,
+                `${semanticGraph.graph_id}/node/${node.node_id}`,
               ),
             ],
           }),
@@ -271,6 +294,7 @@ interface GeneratedCandidateInput {
   readonly applicationNodeId: string | null;
   readonly semanticNodeId: string | null;
   readonly location: string;
+  readonly residualUnknownIds?: ReconstructionObligation["residual_unknown_ids"];
   readonly authorityReferences: ReconstructionObligation["authority_references"];
 }
 
@@ -283,6 +307,7 @@ const generatedCandidate = ({
   semanticNodeId,
   location,
   authorityReferences,
+  residualUnknownIds = [],
 }: GeneratedCandidateInput): ReconstructionObligationCandidate => ({
   obligation_id: obligationId(key),
   obligation_version: 1,
@@ -306,7 +331,7 @@ const generatedCandidate = ({
   required_verifier_authority: candidatePolicy.verifierAuthority,
   requires_parser_type: candidatePolicy.requiresParserType,
   dependency_obligation_ids: [],
-  residual_unknown_ids: [],
+  residual_unknown_ids: residualUnknownIds,
   unavailable_authority: [],
   required_next_evidence: [
     `Obtain ${candidatePolicy.originalAuthority} authority for this finite ${candidatePolicy.family} claim.`,
@@ -419,6 +444,10 @@ const addCandidate = (
       ...current.authority_references,
       ...candidate.authority_references,
     ]),
+    residual_unknown_ids: uniqueBy(
+      [...current.residual_unknown_ids, ...candidate.residual_unknown_ids],
+      (item) => item,
+    ),
     // Each observation keeps its own unresolved authority and next steps.
     unavailable_authority: uniqueSorted([
       ...current.unavailable_authority,

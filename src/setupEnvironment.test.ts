@@ -186,6 +186,7 @@ it.each([
       REA_HOPPER_STARTUP_TIMEOUT_MS: "120000",
       REA_MCP_INPUT_SCHEMA_PROFILE: "full",
       REA_REGEX_MATCHING_DEADLINE_MS: "10000",
+      REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
     },
     providerConfigured: false,
     installHopper: true,
@@ -219,6 +220,7 @@ it.each([
           REA_HOPPER_STARTUP_TIMEOUT_MS: "120000",
           REA_MCP_INPUT_SCHEMA_PROFILE: "full",
           REA_REGEX_MATCHING_DEADLINE_MS: "10000",
+          REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
         });
       } else {
         expect(initial.providerEnvironment).not.toHaveProperty(

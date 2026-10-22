@@ -77,7 +77,10 @@ export class HopperProvider implements AnalysisProviderCandidate {
     private readonly platform: NodeJS.Platform = process.platform,
   ) {
     this.environment = snapshotEnvironment(environment, platform);
-    this.#capabilities = hopperCapabilities(config.regexMatchingDeadline);
+    this.#capabilities = hopperCapabilities(
+      config.regexMatchingDeadline,
+      config.regexWorkerHeapRequest,
+    );
   }
 
   identity(): ProviderIdentity {
@@ -314,6 +317,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
     const regexSearch = new HopperRegexSearch(
       client,
       this.config.regexMatchingDeadline,
+      this.config.regexWorkerHeapRequest,
     );
     const projectExecution = (
       operation: AnalysisOperation,

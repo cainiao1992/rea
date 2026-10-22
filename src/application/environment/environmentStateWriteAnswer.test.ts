@@ -20,6 +20,7 @@ import {
   HANDLE_ROWS,
   LIST_LINE_ROWS,
   QUERY_ROWS,
+  OFFSET_LIST_ROWS,
   SECOND_BOOK,
   THIRD_BOOK,
   assetBook,
@@ -30,6 +31,7 @@ import {
   VERSIONED_ROWS,
   numberedUuid,
   bookPage,
+  offsetListed,
   renamedBook,
   type Book,
 } from "../../../tests/fixtures/environmentStateWrites.js";
@@ -448,6 +450,19 @@ describe("values the application assigns", () => {
       code: "fifth-handle",
       link: "https://books.example.test/b/fifth-handle",
     });
+  });
+});
+
+describe("clock spellings per view", () => {
+  it("lists a created book with the list's clock spelling and reads it back with the item's", () => {
+    const books = servedFrom(OFFSET_LIST_ROWS);
+    // The served clock starts after the sixth recorded exchange.
+    const created = book(3, "New Book", bookClock(7));
+    books.answer("post_books", CREATE_NEW_BOOK);
+    expect(books.answer("get_books").body).toEqual(
+      [FIRST_BOOK, SECOND_BOOK, created].map(offsetListed),
+    );
+    expect(books.answer("get_books_by_id", { id: "3" }).body).toEqual(created);
   });
 });
 

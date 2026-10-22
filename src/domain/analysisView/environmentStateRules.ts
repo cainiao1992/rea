@@ -2,6 +2,10 @@ import type { ListQuery } from "./environmentStateListQuery.js";
 import { canonicalJson } from "../comparisonSemantics.js";
 import type { JsonValue } from "../jsonValue.js";
 import type { StateWritePlan } from "./environmentStateWriteRules.js";
+import {
+  respellClock,
+  type ClockFormat,
+} from "./environmentStateWriteValues.js";
 import { ENTRY_BYTES, textBytes } from "./webNetworkRouteTemplates.js";
 
 /** How records are ordered: by recorded start time, or by record order when any start time is missing. */
@@ -99,6 +103,8 @@ interface EntityViewPlan {
   readonly fields: string[];
   readonly required_fields: string[];
   readonly checked_record_ordinals: number[];
+  /** How the view spells the clock fields it always spells otherwise than the entities' stored values. */
+  readonly clock_formats?: Readonly<Record<string, ClockFormat>> | undefined;
 }
 
 export type StateItemView = EntityViewPlan & {
@@ -588,13 +594,14 @@ export const listItems = (
 /** One entity as a view shows it: the view's fields it has, view-specific values first; volatile fields take `observed` values when given. */
 export const renderStateEntity = (
   entity: StateEntity,
-  view: Pick<EntityViewPlan, "tool" | "fields">,
+  view: Pick<EntityViewPlan, "tool" | "fields" | "clock_formats">,
   volatileFields: ReadonlySet<string>,
   observed?: JsonObject,
 ): JsonObject => {
   const own =
     entity.view_fields.find((candidate) => candidate.tool === view.tool)
       ?.fields ?? {};
+  const formats = view.clock_formats ?? {};
   return Object.fromEntries(
     view.fields.flatMap((name): [string, JsonValue][] => {
       const source =
@@ -603,7 +610,16 @@ export const renderStateEntity = (
           : Object.hasOwn(own, name)
             ? own
             : entity.fields;
-      return Object.hasOwn(source, name) ? [[name, source[name]!]] : [];
+      if (!Object.hasOwn(source, name)) return [];
+      // A stored value the view never recorded, such as a written one, takes the view's spelling.
+      return [
+        [
+          name,
+          source === entity.fields && Object.hasOwn(formats, name)
+            ? respellClock(source[name]!, formats[name]!)
+            : source[name]!,
+        ],
+      ];
     }),
   );
 };

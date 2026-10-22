@@ -320,6 +320,31 @@ export const QUERY_ROWS: readonly TimedCaptureRow[] = [
   ["GET", "/api/books?shelf=a", [SHELVED_FIRST, SHELVED_THIRD]],
 ];
 
+/** A clock spelled with a `+00:00` offset where the books application's item reads spell `Z`. */
+export const offsetClock = (clock: JsonValue | undefined): string =>
+  String(clock).replace(/Z$/u, "+00:00");
+
+/** A book as a list that spells its clocks with an offset shows it. */
+export const offsetListed = (entity: Book): Book => ({
+  ...entity,
+  created_at: offsetClock(entity.created_at),
+  updated_at: offsetClock(entity.updated_at),
+});
+
+/** Item reads spell clocks with `Z`, the whole list with `+00:00`; a create is read back both ways. */
+export const OFFSET_LIST_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK].map(offsetListed)],
+  ["GET", "/api/books/1", FIRST_BOOK],
+  ["GET", "/api/books/2", SECOND_BOOK],
+  ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+  ["GET", "/api/books/3", THIRD_BOOK],
+  [
+    "GET",
+    "/api/books",
+    [FIRST_BOOK, SECOND_BOOK, THIRD_BOOK].map(offsetListed),
+  ],
+];
+
 /** The end of the last exchange of BOOK_ROWS, to the next whole second: where the served clock starts. */
 export const BOOK_WRITE_CLOCK = "2026-10-17T18:00:12.000Z";
 

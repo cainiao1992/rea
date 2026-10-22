@@ -25,6 +25,7 @@ import {
   replaceAt,
   type JsonObject,
 } from "./environmentStateRules.js";
+import { environmentStateFields } from "./environmentStateView.js";
 
 type State = Extract<AnalysisViewResult, { kind: "environment-state" }>;
 const ALL_RULES = [
@@ -1206,4 +1207,20 @@ it("keeps a document out of the state when its value changed across a write unde
   expect(unchanged.documents).toMatchObject([
     { tool: "get_me", value: { credits: 10, plan: "free" }, record_ordinal: 2 },
   ]);
+});
+
+it("refuses a view clock spelling wider than nine fraction digits", () => {
+  const item = stateOf().views.find((view) => view.shape === "item")!;
+  const spelled = (fraction: number) => [
+    {
+      ...item,
+      clock_formats: {
+        created: { kind: "iso", separator: "T", fraction, zone: "Z" },
+      },
+    },
+  ];
+  expect(environmentStateFields.views.safeParse(spelled(9)).success).toBe(true);
+  expect(environmentStateFields.views.safeParse(spelled(10)).success).toBe(
+    false,
+  );
 });

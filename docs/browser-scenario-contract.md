@@ -437,6 +437,15 @@ sorted canonically before application, making the same policy reproducible
 regardless of input order. Rules operate only on already-redacted durable
 capture fields and are preserved in the result.
 
+Cookies, local storage, and session storage are compared as unordered inventories
+after caller literal rules apply. Enumeration order alone does not establish a
+storage change. Canonical ordering uses the complete entry, preserving cookie
+scope/flags, value fingerprints, and duplicate entries even when redaction or
+literal rules make names collide. Captured storage arrays retain their original
+order. The `compare_storage_entries_as_unordered_collection` built-in rule
+participates in the normalization commitment; new storage comparison digests
+therefore differ from earlier order-sensitive comparisons.
+
 Each aligned step reports changed, unchanged, or unknown. Changed and unknown
 action, screenshot, DOM, accessibility, URL, history, storage, and event
 artifacts carry their normalized before/after digests and capture states.

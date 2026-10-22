@@ -1162,3 +1162,121 @@ const textArtifact = (text: string) => {
     text,
   };
 };
+
+const storageScenarioCapture = (
+  family: "cookies" | "local_storage" | "session_storage",
+  entries: readonly { name: string; value_sha256: string }[],
+): BrowserScenarioCapture => {
+  const capture = scenarioCapture({});
+  const values = entries.map((entry) => ({
+    ...(family === "cookies"
+      ? {
+          domain: "app.example.test",
+          path: "/",
+          secure: true,
+          http_only: false,
+          same_site: "Lax",
+        }
+      : {}),
+    ...entry,
+    value_state: "hashed",
+  }));
+  return browserScenarioCaptureSchema.parse({
+    ...capture,
+    steps: capture.steps.map((step) => ({
+      ...step,
+      artifacts: {
+        ...step.artifacts,
+        storage: {
+          state: "captured",
+          value: {
+            cookies: [],
+            local_storage: [],
+            session_storage: [],
+            [family]: values,
+          },
+        },
+      },
+    })),
+  });
+};
+
+it.each(["cookies", "local_storage", "session_storage"] as const)(
+  "compares %s contents independently of enumeration order without losing edits or multiplicity",
+  (family) => {
+    const entries = [
+      { name: "theme", value_sha256: "a".repeat(64) },
+      { name: "locale", value_sha256: "b".repeat(64) },
+    ] as const;
+    const before = storageScenarioCapture(family, entries);
+    const after = storageScenarioCapture(family, entries.toReversed());
+    const retained = structuredClone(after);
+    const compare = (right: BrowserScenarioCapture) =>
+      compareBrowserScenarios(
+        compareBrowserScenariosInputSchema.parse({
+          before_scenario: before,
+          after_scenario: right,
+        }),
+      );
+    expect(compare(after).overall_status).toBe("unchanged");
+    expect(compare(after).normalization.built_in_rules).toContain(
+      "compare_storage_entries_as_unordered_collection",
+    );
+    expect(after).toEqual(retained);
+    const normalized = compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: before,
+        after_scenario: after,
+        normalization: {
+          rules: [
+            {
+              rule_id: "names",
+              artifacts: ["storage"],
+              match: "theme",
+              replacement: "locale",
+            },
+          ],
+        },
+      }),
+    );
+    expect(normalized.overall_status).toBe("unchanged");
+    for (const changed of [
+      [{ ...entries[0], value_sha256: "c".repeat(64) }, entries[1]],
+      [entries[0]],
+      [...entries, entries[0]],
+    ]) {
+      const result = compare(storageScenarioCapture(family, changed));
+      expect(result.overall_status).toBe("changed");
+      expect(result.steps[0]?.artifact_diffs).toContainEqual(
+        expect.objectContaining({ artifact: "storage", status: "changed" }),
+      );
+    }
+  },
+);
+
+it("retains cookie scope and flags when canonicalizing storage inventories", () => {
+  const before = storageScenarioCapture("cookies", [
+    { name: "session", value_sha256: "a".repeat(64) },
+  ]);
+  for (const change of [
+    { path: "/profile" },
+    { domain: ".example.test" },
+    { secure: false },
+    { http_only: true },
+    { same_site: "Strict" },
+  ]) {
+    const after = structuredClone(before);
+    const storage = after.steps[0]?.artifacts.storage;
+    if (storage?.state !== "captured" || storage.value.cookies[0] === undefined)
+      throw new Error("Expected captured cookie fixture");
+    Object.assign(storage.value.cookies[0], change);
+    expect(
+      compareBrowserScenarios(
+        compareBrowserScenariosInputSchema.parse({
+          before_scenario: before,
+          after_scenario: after,
+        }),
+      ).overall_status,
+    ).toBe("changed");
+  }
+});

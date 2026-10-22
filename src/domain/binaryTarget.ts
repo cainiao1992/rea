@@ -50,6 +50,12 @@ export type ExecutableMetadata =
       readonly availableArchitectures: readonly "hexagon"[];
     }
   | {
+      readonly format: "mach-o";
+      readonly architecture: "arm64_32";
+      readonly availableArchitectures: readonly "arm64_32"[];
+      readonly universalSlice?: never;
+    }
+  | {
       readonly format: "mach-o" | "elf" | "dos-mz" | "dos-com";
       readonly architecture: HeaderArchitecture;
       readonly availableArchitectures: readonly HeaderArchitecture[];
@@ -120,6 +126,9 @@ export const parseExecutableHeader = (
   return err("unsupported binary format");
 };
 
+/** CPU_TYPE_ARM64_32: AArch64 instructions with 32-bit pointers (watchOS). */
+const CPU_TYPE_ARM64_32 = 0x0200000c;
+
 const parseThinMachO = (
   bytes: Buffer,
   magic: number,
@@ -136,13 +145,22 @@ const parseThinMachO = (
   const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
   const read = (offset: number): number =>
     little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
-  const architecture = machArchitecture(identity.cpuType);
+  const architecture =
+    identity.cpuType === CPU_TYPE_ARM64_32
+      ? "arm64_32"
+      : machArchitecture(identity.cpuType);
   if (architecture === undefined) return err("unsupported Mach-O architecture");
   const commandBytes = read(20);
   if (headerSize + commandBytes > fileSize)
     return err(
       `truncated Mach-O load commands: the header declares ${commandBytes} bytes after its ${headerSize}-byte header; the file has ${fileSize}`,
     );
+  if (architecture === "arm64_32")
+    return ok({
+      format: "mach-o",
+      architecture,
+      availableArchitectures: [architecture],
+    });
   return ok({
     format: "mach-o",
     architecture,

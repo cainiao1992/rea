@@ -37,7 +37,7 @@ import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { parseConfig } from "../config/parseConfig.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { parseExecutableHeader } from "../domain/binaryTarget.js";
-import { elf } from "../domain/binaryTarget.fixture.js";
+import { elf, thinMach } from "../domain/binaryTarget.fixture.js";
 import { GhidraProvider } from "./GhidraProvider.js";
 import type { GhidraTargetSnapshot } from "./GhidraClient.js";
 import type { GhidraProviderClientFactory } from "./GhidraProviderClient.js";
@@ -512,6 +512,24 @@ describe("Ghidra raw-binary profile", () => {
 });
 
 describe("Ghidra Mach-O slice support", () => {
+  it("declines parsed thin arm64_32 Mach-O targets", () => {
+    const parsed = parseExecutableHeader(
+      thinMach(0xcefaedfe, 0x0200000c),
+      "arm64",
+    );
+    if (!parsed.ok) throw new Error("Expected valid arm64_32 Mach-O target");
+    expect(
+      provider().inspectTargetSupport({
+        path: "/tmp/watch.o",
+        sha256: "a".repeat(64),
+        kind: "executable",
+        ...parsed.value,
+      }),
+    ).toMatchObject({
+      status: "unsupported",
+      code: "architecture_unsupported",
+    });
+  });
   it("refuses universal targets whose selected slice cannot be enforced", () => {
     const ghidra = provider();
     const universal: BinaryTarget = {

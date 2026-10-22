@@ -20,6 +20,7 @@ describe("executable header parsing", () => {
     [elf(1, 1, 164), "elf", "hexagon"],
     [thinMach(0xfeedfacf, 0x0100000c), "mach-o", "arm64"],
     [thinMach(0xcefaedfe, 0x01000007), "mach-o", "x86_64"],
+    [thinMach(0xcefaedfe, 0x0200000c), "mach-o", "arm64_32"],
     [pe(0x8664), "pe", "x86_64"],
     [pe(0xaa64), "pe", "arm64"],
   ] as const)("parses metadata for %s", (bytes, format, architecture) => {

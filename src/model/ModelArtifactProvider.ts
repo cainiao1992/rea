@@ -57,6 +57,17 @@ export const MODEL_ARTIFACT_PROVIDER_IDENTITY = {
   version: "1",
 } as const;
 const OPERATION = "inspect_model_artifact";
+// Codes that describe the selected path itself. Other host errors (EMFILE,
+// EIO, ...) are execution failures, not a reason to reselect the model.
+const SELECTED_TARGET_CODES = new Set([
+  "ENOENT",
+  "ENOTDIR",
+  "ELOOP",
+  "ENAMETOOLONG",
+  "EISDIR",
+  "ENOTFILE",
+  "ESTALE",
+]);
 
 /** One admitted descriptor and bounded report at a time; retained cleanup blocks new work. */
 export class ModelArtifactProvider implements ModelArtifactPort {
@@ -182,7 +193,11 @@ export class ModelArtifactProvider implements ModelArtifactPort {
           {},
           { cause: primary },
         );
-      else if (primary instanceof Error && "code" in primary)
+      else if (
+        primary instanceof Error &&
+        "code" in primary &&
+        SELECTED_TARGET_CODES.has(String(primary.code))
+      )
         error = new BinaryTargetError(input.path, primary.message, { cause });
       else
         error = new ProviderAdapterError(this.identity.id, OPERATION, {

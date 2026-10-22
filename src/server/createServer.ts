@@ -52,6 +52,9 @@ import { registerIl2cppTools } from "./registerIl2cppTools.js";
 import { createRustBinaryService } from "../composition/rust.js";
 import type { RustBinaryService } from "../application/rust/RustBinaryService.js";
 import { registerRustTools } from "./registerRustTools.js";
+import { createPythonPycService } from "../composition/pythonPyc.js";
+import type { PythonPycService } from "../application/python/PythonPycService.js";
+import { registerPythonPycTool } from "./registerPythonPycTool.js";
 import { createBeamService } from "../composition/erlang.js";
 import type { BeamService } from "../application/erlang/BeamService.js";
 import { registerErlangTools } from "./registerErlangTools.js";
@@ -196,6 +199,7 @@ export interface CreateServerOptions {
   readonly goBinary?: GoBinaryService;
   readonly il2cppMetadata?: Il2cppMetadataService;
   readonly rustBinary?: RustBinaryService;
+  readonly pythonPyc?: PythonPycService;
   readonly erlangBeam?: BeamService;
   readonly electronFuses?: ElectronFuseService;
   readonly recordedCrash?: RecordedCrashService;
@@ -370,6 +374,7 @@ export const createServer = (
   const elfNotes = createElfNotesService();
   const peCertificates = createPeCertificatesService();
   const electronFuses = options.electronFuses ?? createElectronFuseService();
+  const pythonPyc = options.pythonPyc ?? createPythonPycService();
   const webNetworkCapture =
     options.webNetworkCapture ?? createWebNetworkCaptureService(environment);
   const javascriptRecovery =
@@ -475,6 +480,7 @@ export const createServer = (
       elfNotes.close(),
       peCertificates.close(),
       electronFuses.close(),
+      pythonPyc.close(),
       webNetworkCapture.close(),
       javascriptRecovery.close?.() ?? Promise.resolve(),
       ...(options.optionalObservationProviderOwner === "caller"
@@ -542,6 +548,7 @@ export const createServer = (
     elfNotes,
     peCertificates,
     electronFuses,
+    pythonPyc,
     webNetworkCapture,
   };
   registerDesktopApplicationTool(
@@ -776,6 +783,7 @@ const registerConfiguredAnalysisTools = (
     nativeExports,
     elfNotes,
     peCertificates,
+    pythonPyc,
     webNetworkCapture,
     artifactResources,
   }: ServerToolContext,
@@ -869,6 +877,13 @@ const registerConfiguredAnalysisTools = (
     recordEvidence,
     withAdmittedAnalysis,
     evidenceById,
+  );
+  registerPythonPycTool(
+    server,
+    pythonPyc,
+    toolLogger,
+    recordEvidence,
+    withAdmittedAnalysis,
   );
   registerErlangTools(
     server,
@@ -991,6 +1006,7 @@ interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
   readonly elfNotes: ElfNotesService;
   readonly peCertificates: PeCertificatesService;
   readonly electronFuses: ElectronFuseService;
+  readonly pythonPyc: PythonPycService;
   readonly webNetworkCapture: WebNetworkCaptureService;
   readonly artifactResources: ArtifactResourceScope;
   readonly server: EvidenceMcpServer;

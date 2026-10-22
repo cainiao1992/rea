@@ -121,6 +121,16 @@ absence of those declarations, not proof the image never carried notes in
 another container. See
 [ELF note tables](https://github.com/morluto/rea/blob/main/docs/elf-notes.md).
 
+## CPython pyc files
+
+Use `inspect_python_pyc` for an explicit local CPython 3.7–3.13 `.pyc` when the
+question concerns the header magic, PEP 552 source hash or timestamp, nested
+code-object names, or bytecode identity. No `open_binary`, Python installation,
+or target execution is required. The CLI equivalent is `inspect-python-pyc PATH`.
+Preserve artifact SHA-256, the 16-byte header fields, nested code names, and
+bytecode SHA-256. Bytecode is not decompiled. A decoded header does not prove
+the matching `.py` is present. See [CPython pyc inspection](https://github.com/morluto/rea/blob/main/docs/python-pyc.md).
+
 ## Erlang BEAM files
 
 Use `inspect_erlang_beam` for an explicit local `FOR1`/`BEAM` file when the

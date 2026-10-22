@@ -233,6 +233,13 @@ explicit path or endpoint and do not need it.
   build-id or ABI-tag fields. A missing table is observed absence of those
   declarations, not proof the image never carried notes. See the
   [ELF notes guide](https://github.com/morluto/rea/blob/main/docs/elf-notes.md).
+- CPython 3.7–3.13 `.pyc` header, nested marshal code objects and bytecode
+  identity: `inspect_python_pyc` with the explicit local file. This built-in
+  target-free inspection requires no Python installation. Preserve magic,
+  PEP 552 hash or mtime/size, nested names, and bytecode SHA-256. Bytecode is
+  not decompiled, and a decoded header does not prove the matching `.py` is
+  present. See the
+  [CPython pyc guide](https://github.com/morluto/rea/blob/main/docs/python-pyc.md).
 - Erlang BEAM IFF container: `inspect_erlang_beam` with the explicit local
   `.beam` file. This built-in target-free inspection requires no Erlang
   installation. Preserve chunk names, atom order, export/import/lambda tables,

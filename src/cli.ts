@@ -11,6 +11,7 @@ import { registerGoCommands } from "./cli/goCommands.js";
 import { registerModelCommands } from "./cli/modelCommands.js";
 import { registerIl2cppCommands } from "./cli/il2cppCommands.js";
 import { registerRustCommands } from "./cli/rustCommands.js";
+import { registerPythonPycCommands } from "./cli/pythonPycCommands.js";
 import { registerErlangCommands } from "./cli/erlangCommands.js";
 import { registerSqliteCommands } from "./cli/sqliteCommands.js";
 import { registerAnalysisViewCommands } from "./cli/analysisViewCommands.js";
@@ -140,6 +141,7 @@ export const createCli = (
   registerModelCommands(cli, logger);
   registerGpuCommands(cli, logger);
   registerRustCommands(cli, logger);
+  registerPythonPycCommands(cli, logger);
   registerErlangCommands(cli, logger);
   registerSqliteCommands(cli, logger, environment);
   registerArtifactCommands(cli, logger, analysis.runProviderAnalysis);

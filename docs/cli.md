@@ -177,6 +177,17 @@ The workflow reports note owners, types, descriptor hashes, and GNU build-id
 or ABI-tag fields when those descriptors match. A missing note table is
 observed absence of those declarations. See [ELF note tables](elf-notes.md).
 
+Inspect a CPython 3.7–3.13 `.pyc` header and nested marshal code objects
+without executing bytecode or installing Python:
+
+```bash
+rea inspect-python-pyc /absolute/path/to/module.pyc --json
+```
+
+The workflow reports the pinned CPython version for the magic, PEP 552 hash or
+mtime/size fields, nested function names, and bytecode SHA-256. Bytecode is
+not decompiled. See [CPython pyc inspection](python-pyc.md).
+
 Inspect an Erlang BEAM file without executing bytecode:
 
 ```bash

@@ -77,6 +77,8 @@ const SOURCE_PATHS = {
   il2cppProvider: "dist/il2cpp/Il2cppMetadataProvider.js",
   rustContracts: "dist/contracts/rust/rustToolContracts.js",
   rustProvider: "dist/rust/RustBinaryProvider.js",
+  pythonPycContracts: "dist/contracts/python/pythonPycToolContracts.js",
+  pythonPycProvider: "dist/python/PythonPycProvider.js",
   erlangContracts: "dist/contracts/erlang/beamToolContracts.js",
   erlangProvider: "dist/erlang/BeamProvider.js",
   artifactContracts: "dist/contracts/artifactToolContracts.js",

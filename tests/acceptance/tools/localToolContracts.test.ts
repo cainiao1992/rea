@@ -221,6 +221,7 @@ const pathRequests: readonly [string, Record<string, unknown>][] = [
   ["inspect_pe_certificates", { path: nul }],
   ["inspect_native_exports", { path: nul }],
   ["inspect_elf_notes", { path: nul }],
+  ["inspect_python_pyc", { path: nul }],
   ["inspect_erlang_beam", { path: nul }],
   ["inspect_binary_layout", { path: nul }],
   ["inspect_recorded_crash", { path: nul }],

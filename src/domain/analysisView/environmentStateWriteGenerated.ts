@@ -15,14 +15,16 @@ export const GENERATED: ReadonlySet<FieldRule["rule"]> = new Set([
   "unique",
 ]);
 
+interface GeneratedUpdateEvidence {
+  readonly before: JsonObject;
+  readonly after: JsonObject;
+  readonly call: { readonly body: JsonObject };
+  readonly others: readonly JsonObject[];
+}
+
 /** An independently generated UUID: not sent, held by another entity, or linked to another output field. */
 export const freshUuid = (
-  evidence: {
-    readonly before: JsonObject;
-    readonly after: JsonObject;
-    readonly call: { readonly body: JsonObject };
-    readonly others: readonly JsonObject[];
-  },
+  evidence: GeneratedUpdateEvidence,
   field: string,
 ): boolean => {
   const before = evidence.before[field];
@@ -36,12 +38,13 @@ export const freshUuid = (
   return (
     before.toLowerCase() !== fresh &&
     !uuidsIn(evidence.call.body).has(fresh) &&
-    !uuidsIn(evidence.others.map((other) => other[field] ?? null)).has(fresh)
+    !evidence.others.some((other) => uuidsIn(other).has(fresh))
   );
 };
 
 /** What an update renewed in a value: each old UUID's new one, and the pointers (`*` for any array index) it renewed at. */
 export interface Renewal {
+  /** Canonical identities, independent of each occurrence's source spelling. */
   readonly uuids: ReadonlyMap<string, string>;
   readonly pointers: string[];
 }
@@ -49,8 +52,6 @@ export interface Renewal {
 /** The UUIDs two values hold at each pointer: those that changed, and those kept in place. */
 interface Paired {
   readonly renewed: Map<string, string>;
-  /** The same renewal in lower case, so one UUID spelled two ways is still one. */
-  readonly lower: Map<string, string>;
   readonly changedAt: Set<string>;
   readonly keptAt: Set<string>;
   readonly kept: Set<string>;
@@ -64,7 +65,6 @@ const childPointer = (pointer: string, key: string | number): string =>
 const pairUuids = (before: JsonValue, after: JsonValue): Paired | undefined => {
   const paired: Paired = {
     renewed: new Map(),
-    lower: new Map(),
     changedAt: new Set(),
     keptAt: new Set(),
     kept: new Set(),
@@ -80,13 +80,12 @@ const pairUuids = (before: JsonValue, after: JsonValue): Paired | undefined => {
         paired.keptAt.add(pointer);
       } else if (
         was.toLowerCase() === now.toLowerCase() ||
-        (paired.lower.get(was.toLowerCase()) ?? now.toLowerCase()) !==
+        (paired.renewed.get(was.toLowerCase()) ?? now.toLowerCase()) !==
           now.toLowerCase()
       )
         return undefined;
       else {
-        paired.renewed.set(was, now);
-        paired.lower.set(was.toLowerCase(), now.toLowerCase());
+        paired.renewed.set(was.toLowerCase(), now.toLowerCase());
         paired.changedAt.add(pointer);
       }
     } else if (Array.isArray(was) && Array.isArray(now)) {
@@ -116,8 +115,8 @@ export const renewedUuids = (
   const paired = pairUuids(before, after);
   if (paired === undefined || paired.renewed.size === 0) return undefined;
   const { renewed, changedAt, keptAt, kept } = paired;
-  const old = [...renewed.keys()].map((uuid) => uuid.toLowerCase());
-  const fresh = [...renewed.values()].map((uuid) => uuid.toLowerCase());
+  const old = [...renewed.keys()];
+  const fresh = [...renewed.values()];
   const held = new Set([...kept, ...old]);
   // A UUID kept where another was renewed, renewed twice into one, or already held is a reference that moved, not a fresh one.
   return [...changedAt].every((at) => !keptAt.has(at)) &&
@@ -154,22 +153,38 @@ export const renewedRule = (
     : undefined;
 };
 
-/** Renewed fields of one update that give an old UUID another new one than an earlier field did, or another old UUID's new one, in any letter case, as serving renews each UUID once and alike. */
-export const disagreeingRenewals = (
+/** Renewals whose identities are not fresh or whose links the shared nested generator cannot reproduce. */
+export const unexplainedRenewals = (
   rules: readonly FieldRule[],
-  before: JsonObject,
-  after: JsonObject,
+  evidence: GeneratedUpdateEvidence,
 ): string[] => {
+  const { before, after, call, others } = evidence;
+  const generated = new Set(
+    rules.filter((rule) => rule.rule === "renewed").map((rule) => rule.field),
+  );
+  if (generated.size === 0) return [];
+  // Requests, previous identities and non-renewed output locations have different
+  // ownership from generated rows. Their UUIDs cannot be replaced independently.
+  const held = uuidsIn([
+    before,
+    call.body,
+    ...others,
+    ...Object.entries(after)
+      .filter(([field]) => !generated.has(field))
+      .map(([, value]) => value),
+  ]);
   const renewed = new Map<string, string>();
   const owners = new Map<string, string>();
   const fields = new Set<string>();
   for (const rule of rules) {
     if (rule.rule !== "renewed") continue;
     const renewal = renewedUuids(before[rule.field]!, after[rule.field]!);
-    for (const [spelledWas, spelledNow] of renewal?.uuids ?? []) {
-      const was = spelledWas.toLowerCase();
-      const now = spelledNow.toLowerCase();
-      if ((renewed.get(was) ?? now) !== now || (owners.get(now) ?? was) !== was)
+    for (const [was, now] of renewal?.uuids ?? []) {
+      if (
+        held.has(now) ||
+        (renewed.get(was) ?? now) !== now ||
+        (owners.get(now) ?? was) !== was
+      )
         fields.add(rule.field);
       renewed.set(was, now);
       owners.set(now, was);

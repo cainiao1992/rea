@@ -31,6 +31,10 @@ These writes are now explained, and served where every recorded call agrees with
   - `renewed`: an array or object whose only changes are UUIDs replaced by ones neither it nor another entity of the
     type held, at the pointers the rule names (`*` for any array index): every UUID there is new, each old UUID by a
     single new one, and UUIDs elsewhere are kept. A lone UUID is never renewed: it is either `unique` or unexplained.
+    Renewal identity is canonical and case-insensitive, including repeated mixed-case occurrences within one field;
+    source spelling remains in the retained entity and is preserved by serving. Fresh values must not be sent in the
+    request, owned by an earlier or another entity, or shared with non-renewed output fields. Such relations remain
+    unexplained until a generation rule can reproduce them. Nested renewed fields may still share one fresh replacement.
 - **Serving.** A `unique` field gets a UUID derived as for creates. A `renewed` field keeps the entity's current
   value with each UUID at the rule's pointers replaced by one seeded by the call, the same replacement wherever the
   call renews that UUID; an entity without the field stays without it.

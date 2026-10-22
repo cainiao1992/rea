@@ -30,7 +30,7 @@ import {
   templateRule,
 } from "./environmentStateWriteCopies.js";
 import {
-  disagreeingRenewals,
+  unexplainedRenewals,
   freshUuid,
   GENERATED,
   renewedRule,
@@ -378,9 +378,7 @@ export const explainUpdate = (
     else rules.push(rule);
   }
   // Serving renews one UUID alike in every field, so the call must have.
-  unexplained.push(
-    ...disagreeingRenewals(rules, evidence.before, evidence.after),
-  );
+  unexplained.push(...unexplainedRenewals(rules, evidence));
   const shaped = bodyOf(
     Object.fromEntries(
       Object.entries(body).filter(([member]) => member !== identity),

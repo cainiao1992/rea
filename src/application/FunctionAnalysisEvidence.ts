@@ -2,11 +2,11 @@ import type {
   AnalysisOperationPort,
   ExecutionOptions,
 } from "./AnalysisProvider.js";
-import { toolContract } from "../contracts/toolContracts.js";
+import { nativeProcedureInputSchema } from "../domain/native/nativeProcedureInput.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { createEvidence } from "../domain/evidence.js";
 import { parseFunctionDossier } from "../domain/hopperValues.js";
-import { jsonObjectSchema, type JsonValue } from "../domain/jsonValue.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import { err } from "../domain/result.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
@@ -25,8 +25,7 @@ export const executeFunctionAnalysisEvidence = async (
         cause: options.signal.reason,
       }),
     );
-  const input =
-    toolContract("analyze_function").inputSchema.safeParse(parameters);
+  const input = nativeProcedureInputSchema.safeParse(parameters);
   if (!input.success)
     return err(
       analysisInputErrorFromIssues(
@@ -36,7 +35,7 @@ export const executeFunctionAnalysisEvidence = async (
         { cause: input.error },
       ),
     );
-  const arguments_ = jsonObjectSchema.parse(input.data);
+  const arguments_ = input.data;
   const execution = await analysis.execute(
     "analyze_function",
     arguments_,

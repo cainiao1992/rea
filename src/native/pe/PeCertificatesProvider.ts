@@ -1,7 +1,7 @@
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
 import {
-  ArtifactFileCleanupFailure,
+  artifactFilePrimaryFailure,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../../artifacts/ArtifactFileOperation.js";
@@ -77,7 +77,7 @@ export class PeCertificatesProvider implements PeCertificatesPort {
         );
       });
     } catch (cause) {
-      return err(peCertificatesFailure(cause, input, options?.signal));
+      return err(peCertificatesFailure(cause, input));
     }
   }
 }
@@ -175,18 +175,11 @@ const peCertificatesFailurePrimary = (
 const peCertificatesFailure = (
   cause: unknown,
   input: InspectPeCertificatesInput,
-  signal: AbortSignal | undefined,
 ) => {
-  const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? peCertificatesFailurePrimary(
-          cause.fileCleanupFailure.outcome.cause,
-          input,
-        )
-      : cause instanceof ArtifactFileCleanupFailure && signal?.aborted
-        ? new AnalysisCancelledError(OPERATION, { cause: signal.reason })
-        : peCertificatesFailurePrimary(cause, input);
+  const primary = peCertificatesFailurePrimary(
+    artifactFilePrimaryFailure(cause),
+    input,
+  );
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

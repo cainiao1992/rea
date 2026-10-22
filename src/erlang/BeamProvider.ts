@@ -1,7 +1,7 @@
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
-  ArtifactFileCleanupFailure,
+  artifactFilePrimaryFailure,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -85,7 +85,7 @@ export class BeamProvider implements BeamPort {
         );
       });
     } catch (cause) {
-      return err(beamFailure(cause, input, options?.signal));
+      return err(beamFailure(cause, input));
     }
   }
 }
@@ -185,18 +185,8 @@ const beamFailurePrimary = (cause: unknown, input: InspectErlangBeamInput) => {
   );
 };
 
-const beamFailure = (
-  cause: unknown,
-  input: InspectErlangBeamInput,
-  signal: AbortSignal | undefined,
-) => {
-  const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? beamFailurePrimary(cause.fileCleanupFailure.outcome.cause, input)
-      : cause instanceof ArtifactFileCleanupFailure && signal?.aborted
-        ? new AnalysisCancelledError(OPERATION, { cause: signal.reason })
-        : beamFailurePrimary(cause, input);
+const beamFailure = (cause: unknown, input: InspectErlangBeamInput) => {
+  const primary = beamFailurePrimary(artifactFilePrimaryFailure(cause), input);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

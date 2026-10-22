@@ -1,7 +1,7 @@
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
 import {
-  ArtifactFileCleanupFailure,
+  artifactFilePrimaryFailure,
   assertArtifactReadActive,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
@@ -81,7 +81,7 @@ export class NativeExportsProvider implements NativeExportsPort {
         return ok(report);
       });
     } catch (cause) {
-      return err(nativeExportsFailure(cause, input, options?.signal));
+      return err(nativeExportsFailure(cause, input));
     }
   }
 }
@@ -186,18 +186,11 @@ const nativeExportsFailurePrimary = (
 const nativeExportsFailure = (
   cause: unknown,
   input: InspectNativeExportsInput,
-  signal: AbortSignal | undefined,
 ): AnalysisError => {
-  const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? nativeExportsFailurePrimary(
-          cause.fileCleanupFailure.outcome.cause,
-          input,
-        )
-      : cause instanceof ArtifactFileCleanupFailure && signal?.aborted
-        ? new AnalysisCancelledError(OPERATION, { cause: signal.reason })
-        : nativeExportsFailurePrimary(cause, input);
+  const primary = nativeExportsFailurePrimary(
+    artifactFilePrimaryFailure(cause),
+    input,
+  );
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

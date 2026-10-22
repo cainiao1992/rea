@@ -106,7 +106,11 @@ nodes. REA evaluates compatible static candidates conservatively:
    that disagreement. If a mapped candidate's digest is unavailable and no
    mapped content match is known, the comparison remains `unknown`.
 6. Missing authorization mappings and incomplete or truncated input coverage
-   remain unknown or truncated rather than becoming absence claims.
+   remain unknown or truncated rather than becoming absence claims. A runtime
+   location with no automatic artifact-root or caller-declared mapping into
+   any layer, and no unique content match, is `unknown` with
+   `no-authorized-location-mapping`, with or without captured bytes. Only a
+   mapped location can be `unmatched` with `no-static-content-match`.
 
 Every successful cross-layer `observed_as` edge has
 `authority: cross-layer-reconciliation` and `state: inferred`. The underlying

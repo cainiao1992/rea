@@ -1243,7 +1243,9 @@ host behavior or native process-supervision controls.
 real `.nib` with Xcode `ibtool`, wraps it in a temporary app bundle, and runs
 the compiled CLI and stdio MCP server with production providers. It compares
 their decoded results and checks the view hierarchy, outlet, action, evidence coverage, and truncation
-status. Storyboard compilation additionally requires an installed iOS platform.
+status. It also recompiles the XIB with toggled control booleans and requires
+both decodes to match `ibtool --export` for each source. Storyboard compilation
+additionally requires an installed iOS platform.
 
 Keep the provider-specific acceptance path independent from optional
 cross-compilers. Cross-format failures belong to the cross-format lane and must

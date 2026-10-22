@@ -277,7 +277,7 @@ const managedModuleReferenceSchema = z.object({
   name: z.string(),
 });
 
-const managedNativeImportSchema = z.object({
+export const managedNativeImportSchema = z.object({
   token: managedMetadataTokenSchema,
   row_offset: offsetSchema,
   mapping_flags: z.number().int().min(0).max(0xffff),

@@ -9,7 +9,11 @@ import {
 import { IdaSessionClient } from "./IdaSessionClient.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
-import { AnalysisProtocolError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisProtocolError,
+  AnalysisResourceConstraintError,
+} from "../domain/analysisErrorCore.js";
+import { DEFAULT_REGEX_MATCHING_DEADLINE } from "../config/regexMatchingDeadline.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { WindowsPrivateRuntime } from "../windows/WindowsPrivateRuntime.js";
@@ -573,8 +577,19 @@ describe("attached IDA regex supervision", () => {
         mode: "regex",
       });
       expect(result.ok).toBe(false);
-      if (!result.ok)
-        expect(result.error._tag).toBe("AnalysisResourceConstraintError");
+      if (
+        result.ok ||
+        !(result.error instanceof AnalysisResourceConstraintError)
+      )
+        throw new Error("Expected a supervised regex deadline");
+      expect(result.error).toMatchObject({
+        operation: "search_strings",
+        resource: "cpu",
+        reportedLimits: {
+          matching_deadline_ms: DEFAULT_REGEX_MATCHING_DEADLINE.deadlineMs,
+          matching_deadline_source: DEFAULT_REGEX_MATCHING_DEADLINE.source,
+        },
+      });
       const recovered = await client.execute("search_strings", {
         pattern: "!$",
         mode: "regex",

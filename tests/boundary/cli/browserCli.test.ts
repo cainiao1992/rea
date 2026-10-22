@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { runCliJson as runCli } from "../../fixtures/cliJsonProcess.js";
 import { DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS } from "../../../src/domain/browserScenarioCaptureLimits.js";
+import { BROWSER_STORAGE_FINGERPRINT_VERSION } from "../../../src/domain/browserScenarioCaptureValues.js";
 import {
   startFakeCdpBrowser,
   type FakeCdpBrowser,
@@ -704,7 +705,12 @@ it(
           ...step.artifacts,
           storage: {
             state: "captured",
-            value: { cookies: [], local_storage: values, session_storage: [] },
+            value: {
+              fingerprint_version: BROWSER_STORAGE_FINGERPRINT_VERSION,
+              cookies: [],
+              local_storage: values,
+              session_storage: [],
+            },
           },
         },
       })),

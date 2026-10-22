@@ -9,7 +9,6 @@ import {
   linuxPackageManagerCommands,
   linuxSharedLibrariesAvailable,
   parseLinuxDistribution,
-  readLinuxDistribution,
   supportsReaHost,
   LinuxHopperTemporaryCleanupOwner,
   systemLinuxHopperInstallHost,
@@ -386,7 +385,7 @@ describe("Linux Hopper cleanup and failure details", () => {
         HOME: directory,
         XDG_CACHE_HOME: join(directory, "cache"),
       },
-      () => readLinuxDistribution(process.arch),
+      async () => undefined,
     );
     const command = vi
       .spyOn(nativeCommands, "execFileOutput")

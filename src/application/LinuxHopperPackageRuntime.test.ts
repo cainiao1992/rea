@@ -6,11 +6,8 @@ import { err, ok } from "../domain/result.js";
 import * as pythonRuntime from "./LinuxHopperPython.js";
 import {
   linuxHopperInstallDisclosure,
-  readLinuxDistribution,
   systemLinuxHopperInstallHost,
 } from "./LinuxHopper.js";
-
-const hostDistribution = () => readLinuxDistribution(process.arch);
 
 const missingPython = {
   interpreter: "/usr/bin/python3",
@@ -85,7 +82,7 @@ describe("Linux Hopper package runtime", () => {
     );
     const host = systemLinuxHopperInstallHost(
       { XDG_CACHE_HOME: directory },
-      hostDistribution,
+      async () => undefined,
     );
     const command = vi
       .spyOn(boundedCommands, "execFileBoundedOutput")
@@ -123,7 +120,7 @@ describe("Linux Hopper package runtime", () => {
     );
     const host = systemLinuxHopperInstallHost(
       { XDG_CACHE_HOME: directory },
-      hostDistribution,
+      async () => undefined,
     );
     const failed = {
       exitCode: 67,
@@ -164,7 +161,7 @@ describe("Linux Hopper package mapping", () => {
     const directory = await createTestTempDirectory("rea-python-package-map-");
     const host = systemLinuxHopperInstallHost(
       { XDG_CACHE_HOME: directory },
-      hostDistribution,
+      async () => undefined,
     );
     const command = vi
       .spyOn(boundedCommands, "execFileBoundedOutput")
@@ -215,7 +212,7 @@ describe("Linux Hopper package cancellation and disclosure", () => {
       );
       const host = systemLinuxHopperInstallHost(
         { XDG_CACHE_HOME: directory },
-        hostDistribution,
+        async () => undefined,
       );
       const controller = new AbortController();
       const cause = new Error("caller cancelled at " + phase);

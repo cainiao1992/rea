@@ -12,6 +12,7 @@ import {
   type BrowserScenarioCapture,
 } from "./browserScenarioCapture.js";
 import { DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS } from "./browserScenarioCaptureLimits.js";
+import { BROWSER_STORAGE_FINGERPRINT_VERSION } from "./browserScenarioCaptureValues.js";
 
 const noEventOmissions = {
   by_kind: [],
@@ -1190,7 +1191,7 @@ const storageScenarioCapture = (
         storage: {
           state: "captured",
           value: {
-            fingerprint_version: 2,
+            fingerprint_version: BROWSER_STORAGE_FINGERPRINT_VERSION,
             cookies: [],
             local_storage: [],
             session_storage: [],

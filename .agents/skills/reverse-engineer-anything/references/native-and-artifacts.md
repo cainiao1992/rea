@@ -96,6 +96,17 @@ dependencies. An omitted package kind stays null. A rustc commit hash is
 inferred from a read-only `/rustc/<40-hex>/` path and does not by itself
 identify the compiler. See [Rust binaries](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md).
 
+## ELF note tables
+
+Use `inspect_elf_notes` for an explicit local ELF32/ELF64 image when the
+question concerns PT_NOTE/SHT_NOTE owners, GNU build-id, or GNU ABI-tag
+fields. No `open_binary` or target execution is required. The CLI equivalent
+is `inspect-elf-notes PATH`. Preserve artifact SHA-256, table file ranges,
+descriptor hashes, and original owner spellings. A missing table is observed
+absence of those declarations, not proof the image never carried notes in
+another container. See
+[ELF note tables](https://github.com/morluto/rea/blob/main/docs/elf-notes.md).
+
 ## SQLite snapshots
 
 Use `inspect_sqlite_database` with an explicit local database snapshot for its

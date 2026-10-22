@@ -26,6 +26,7 @@ export class ArtifactOperationError extends AnalysisError {
       | "inspect_artifact"
       | "inspect_desktop_application"
       | "inspect_pe_resources"
+      | "inspect_elf_notes"
       | "extract_artifact"
       | "decode_interface_builder"
       | "inspect_asset_catalog"

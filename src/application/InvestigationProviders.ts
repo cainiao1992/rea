@@ -48,6 +48,13 @@ export const PE_RESOURCES_PROVIDER = Object.freeze({
   version: "1",
 } as const);
 
+/** Provider identity for portable, execution-free ELF note-table decoding. */
+export const ELF_NOTES_PROVIDER = Object.freeze({
+  id: "rea-elf-notes",
+  name: "REA ELF note parser",
+  version: "1",
+} as const);
+
 /** Provider identity for execution-free Shannon byte-entropy profiling. */
 export const BYTE_ENTROPY_PROVIDER = Object.freeze({
   id: "byte-entropy",

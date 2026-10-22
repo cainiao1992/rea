@@ -21,6 +21,10 @@ import {
   inspectPeResourcesInputSchema,
   peResourcesSchema,
 } from "../../domain/native/peResources.js";
+import {
+  inspectElfNotesInputSchema,
+  elfNotesSchema,
+} from "../../domain/native/elfNotes.js";
 
 /** Caller-selected delivery of completed binary layout Evidence. */
 export const inspectBinaryLayoutRequestSchema =
@@ -36,6 +40,21 @@ export const inspectByteEntropyRequestSchema = publicInputStrictObject(
 
 /** Offline binary diagnostics are independent of macOS process/UI providers. */
 export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
+  {
+    name: "inspect_elf_notes",
+    ...toolContractMetadata("inspect_elf_notes"),
+    kind: "native-provider",
+    description:
+      "Inspect one explicit local ELF32/ELF64 image's PT_NOTE program headers and SHT_NOTE sections without executing it or opening a disassembler. Returns note-table file ranges, owners, types, descriptor SHA-256 and hex previews, plus GNU build-id, ABI-tag and gold-version fields when those descriptors match. A missing table is observed absence of those declarations, not proof the image never carried notes in another container. Reads a stable regular file; malformed ELF headers, truncated notes and exhausted budgets return no partial success. Portable on supported Node hosts; no debug package or catalog is required.",
+    inputSchema: inspectElfNotesInputSchema,
+    outputSchema: evidenceResultOf(elfNotesSchema),
+    examples: [
+      {
+        title: "Inspect ELF GNU build-id and ABI-tag notes",
+        input: { path: "/artifacts/program" },
+      },
+    ],
+  },
   {
     name: "inspect_byte_entropy",
     ...toolContractMetadata("inspect_byte_entropy"),

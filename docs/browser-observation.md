@@ -391,6 +391,14 @@ validation and resource bounds. Omitted script metadata makes its affected
 section explicitly truncated.
 Disallowed-origin entries are filtered before retention.
 
+Script metadata and selected source reads use one fixed admitted-script snapshot.
+New in-scope script IDs still retained when the final CDP read completes are
+counted in `scripts.total` and `completeness.dropped_events.scripts`, with
+`scripts` marked truncated; they do not extend the source-read pass. Repeated
+late events for the same ID count once. The original snapshot is not replaced
+or reduced by later updates to an existing ID. These omissions do not imply
+that a source byte or time budget was exhausted.
+
 Selected script-source collection shares a 32 MiB aggregate UTF-8 retention
 budget and the `command_timeout_ms` deadline (default 20000 ms) across the
 capture. The byte budget has no runtime override. An oversized source is

@@ -1140,6 +1140,100 @@ describe("headless IDA session ownership and cleanup", () => {
   });
 });
 
+describe("headless IDA blanked-identity inventory rows", () => {
+  it("releases cleanly when the closed worker lingers in inventory without an identity", async () => {
+    const { producer, client, root } = await fixture("headless");
+    expect((await client.execute("health", {})).ok).toBe(true);
+    let released = false;
+    producer.beforeCall = async (name) => {
+      if (name === "idb_close") released = true;
+    };
+    // A worker observed mid-teardown: identity cleared, private input retained.
+    producer.overrideCall = (name) =>
+      name === "idb_list" && released
+        ? {
+            sessions: [
+              {
+                session_id: "",
+                input_path: producer.inputPath,
+                owned: false,
+                backend: "worker",
+                is_active: false,
+              },
+            ],
+            count: 1,
+          }
+        : undefined;
+
+    expect((await client.close()).ok).toBe(true);
+    expect(await readdir(root)).toEqual(["target.elf"]);
+  });
+
+  it("still reports a same-input gui row whose identity is blank", async () => {
+    const { producer, client, root } = await fixture("headless");
+    expect((await client.execute("health", {})).ok).toBe(true);
+    let released = false;
+    producer.beforeCall = async (name) => {
+      if (name === "idb_close") released = true;
+    };
+    // A gui binding belongs to an IDA instance REA does not control, so the
+    // blanked-identity exception must not reach it.
+    producer.overrideCall = (name) =>
+      name === "idb_list" && released
+        ? {
+            sessions: [
+              {
+                session_id: "",
+                input_path: producer.inputPath,
+                owned: false,
+                backend: "gui",
+                is_active: false,
+              },
+            ],
+            count: 1,
+          }
+        : undefined;
+
+    const result = await client.close();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.cleanupIncomplete).toBe(true);
+    expect(
+      (await readdir(root)).some((name) => name.startsWith("rea-ida-")),
+    ).toBe(true);
+  });
+
+  it("still reports a same-input peer that keeps a session identity", async () => {
+    const { producer, client, root } = await fixture("headless");
+    expect((await client.execute("health", {})).ok).toBe(true);
+    let released = false;
+    producer.beforeCall = async (name) => {
+      if (name === "idb_close") released = true;
+    };
+    producer.overrideCall = (name) =>
+      name === "idb_list" && released
+        ? {
+            sessions: [
+              {
+                session_id: "unrelated-live-peer",
+                input_path: producer.inputPath,
+                owned: false,
+                backend: "worker",
+                is_active: false,
+              },
+            ],
+            count: 1,
+          }
+        : undefined;
+
+    const result = await client.close();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.cleanupIncomplete).toBe(true);
+    expect(
+      (await readdir(root)).some((name) => name.startsWith("rea-ida-")),
+    ).toBe(true);
+  });
+});
+
 describe("headless IDA reaped worker cleanup", () => {
   it("recovers a reaped worker only after inventory confirms its session and private input are absent", async () => {
     const { producer, client, root } = await fixture("headless");

@@ -10,6 +10,7 @@ import { inspectRustBinaryRequestSchema } from "../domain/rust/rustBinaryQuery.j
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import { safeParseJson } from "../domain/safeJson.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
@@ -44,21 +45,26 @@ export const registerRustCommands = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.inspectRustBinary, async () => {
-          let view: unknown;
-          try {
-            view =
-              options.view === undefined ? undefined : JSON.parse(options.view);
-          } catch (cause) {
+          const decoded =
+            options.view === undefined
+              ? { ok: true as const, value: undefined }
+              : safeParseJson(options.view);
+          if (!decoded.ok) {
             return projectAnalysisError(
-              new AnalysisInputError("inspect_rust_binary", { cause }, [
-                {
-                  path: ["view"],
-                  reason: "invalid_format",
-                  message: "view must be a JSON package or edge selection",
-                },
-              ]),
+              new AnalysisInputError(
+                "inspect_rust_binary",
+                { cause: decoded.cause },
+                [
+                  {
+                    path: ["view"],
+                    reason: "invalid_format",
+                    message: "view must be a JSON package or edge selection",
+                  },
+                ],
+              ),
             );
           }
+          const view = decoded.value;
           const input = inspectRustBinaryRequestSchema.safeParse({
             path: absoluteCallerPath(args.path),
             ...(options.detail === undefined ? {} : { detail: options.detail }),

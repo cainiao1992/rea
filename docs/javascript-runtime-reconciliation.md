@@ -57,7 +57,11 @@ are complete Evidence objects, not only evidence IDs:
 `static_layers` requires exactly one `application` role and permits additional
 `cache` and `assets` roles. A `file-root` mapping translates a canonical runtime
 filesystem root to an artifact-relative prefix. A `url-prefix` mapping does the
-same for one exact HTTP(S) origin and path prefix. Mappings cannot add CDP
+same for one exact HTTP(S) origin and path prefix. Each URL path segment below
+the prefix is percent-decoded separately: an encoded slash (`%2F`) stays inside
+its segment and never names a nested artifact, so such a location, like one
+with malformed or non-UTF-8 escapes, has no artifact path under that mapping.
+An encoded backslash (`%5C`) remains a literal name byte. Mappings cannot add CDP
 origins, broaden Electron roots, read files, or authorize source-map access;
 they are caller-declared inference inputs applied only to already-authorized
 locations.
@@ -133,6 +137,8 @@ classification:
 - `unknown` covers incomplete captures, layers outside runtime scope, and
   unresolved correspondence. Nodes outside a mapped artifact prefix stay
   unknown even when another prefix in the same static layer was observed.
+  Nodes beneath a mapped artifact prefix also stay unknown when a runtime
+  script or worker under that mapping has no artifact path.
 
 None of these states proves feature execution, initialization order,
 reachability, or causality. In particular, `not-observed-in-capture` never means

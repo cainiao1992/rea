@@ -19,6 +19,7 @@ import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import {
   builtinDataEffectMethod,
+  dataEffectArgumentBindingId,
   dataEffectLiteralString,
   dataEffectMemberCallee,
   assignedSemanticResultBindings,
@@ -155,7 +156,7 @@ const collectEvent = (
     emitterKey: emitter.key,
     emitterBindingId: emitter.bindingId,
     eventName,
-    listenerBindingId: bindingId(listenerArgument, state),
+    listenerBindingId: dataEffectArgumentBindingId(listenerArgument, state),
     listenerLocation: t.isNode(listenerArgument)
       ? range(listenerArgument)
       : null,
@@ -261,7 +262,7 @@ const collectTimer = (input: TimerCollectionInput): void => {
     handleBindingId:
       kind === "schedule"
         ? scalarAssignedResultBinding(projectedResultBindings)
-        : bindingId(node.arguments[0], state),
+        : dataEffectArgumentBindingId(node.arguments[0], state),
     projectedResultBindings:
       kind === "schedule"
         ? semanticProjectedBindingFacts(
@@ -347,19 +348,6 @@ const admittedTimerMethod = (
   [...TIMER_SCHEDULE_METHODS, ...TIMER_CANCEL_METHODS].find(
     (candidate) => candidate === value,
   ) ?? null;
-
-const bindingId = (
-  node:
-    | t.Expression
-    | t.SpreadElement
-    | t.JSXNamespacedName
-    | t.ArgumentPlaceholder
-    | undefined,
-  state: JavaScriptSemanticAnalysisState,
-): string | null =>
-  t.isIdentifier(node)
-    ? (resolveSemanticBindingState(state, node, node.name)?.bindingId ?? null)
-    : null;
 
 const timerDelay = (candidate: TimerCandidate): number | null => {
   if (candidate.kind !== "schedule" || candidate.method === "setImmediate")

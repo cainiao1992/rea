@@ -36,6 +36,9 @@ import {
   processEvidence,
 } from "../../src/application/ReconstructionObligationLedger.fixture.js";
 import { processCaptureSchema } from "../../src/domain/process/processCapture.js";
+import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { javaScriptSemanticQueryResultSchema } from "../../src/domain/javascript/javascriptSemanticQuerySchemas.js";
 
 /** Unexpected implementation failures retain the SDK text surface, without a typed caller error. */
 const expectUnexpectedToolFailure = (
@@ -461,6 +464,44 @@ describe("ledger generation failure ownership through the public SDK", () => {
         const response = await client.callTool({
           name: "build_reconstruction_obligation_ledger",
           arguments: input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+});
+
+describe("semantic query output failures through the public SDK", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from generated query validation",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const application = JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE;
+        const analysis = javascriptApplicationAnalysisResultSchema.parse(
+          application.normalized_result,
+        );
+        const node = analysis.semantic_graph.nodes[0];
+        if (node === undefined)
+          throw new Error("Expected a semantic fixture node");
+        const failure = createFailure();
+        vi.spyOn(
+          javaScriptSemanticQueryResultSchema,
+          "parse",
+        ).mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "trace_javascript_semantics",
+          arguments: {
+            application,
+            query: {
+              seed: { kind: "semantic-node", node_id: node.node_id },
+              direction: "backward-provenance",
+            },
+          },
         });
         expectUnexpectedToolFailure(response, failure);
         expect(session.exportEvidenceBundle().records).toEqual([]);

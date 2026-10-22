@@ -426,26 +426,36 @@ describe("production MCP doctor request-flow deadline", () => {
     expect(requestFlow?.detail).not.toContain("REA_MCP_STARTUP");
   }, 15_000);
 
-  it("does not add deadline guidance to an unrelated binary_session failure", async () => {
-    const result = await runProductionMcpDoctor({
-      command: process.execPath,
-      args: [resolve("tests/fixtures/mcpStartupProbeChild.mjs")],
-      cwd: process.cwd(),
-      environment: {
-        ...process.env,
-        REA_MCP_PROBE_MODE: "refuse-call",
-      },
-      deadlineMs: 5_000,
-    });
-    expect(result.server).not.toBeNull();
-    const requestFlow = result.checks.find(
-      (check) => check.name === "request-flow",
-    );
-    expect(requestFlow?.ok).toBe(false);
-    expect(requestFlow?.detail).toContain("unrelated fixture method refusal");
-    expect(requestFlow?.detail).not.toContain("no runtime override");
-    expect(requestFlow?.detail).not.toContain("MCP doctor startup deadline");
-  }, 10_000);
+  it.each([
+    "unrelated fixture method refusal",
+    "Request timed out while reading a remote fixture",
+    "Maximum total timeout exceeded in a remote operation",
+    "Production MCP doctor deadline expired is remote diagnostic text",
+  ])(
+    "does not infer the doctor deadline from remote failure prose: %s",
+    async (message) => {
+      const result = await runProductionMcpDoctor({
+        command: process.execPath,
+        args: [resolve("tests/fixtures/mcpStartupProbeChild.mjs")],
+        cwd: process.cwd(),
+        environment: {
+          ...process.env,
+          REA_MCP_PROBE_MODE: "refuse-call",
+          REA_MCP_PROBE_ERROR_MESSAGE: message,
+        },
+        deadlineMs: 5_000,
+      });
+      expect(result.server).not.toBeNull();
+      const requestFlow = result.checks.find(
+        (check) => check.name === "request-flow",
+      );
+      expect(requestFlow?.ok).toBe(false);
+      expect(requestFlow?.detail).toContain(message);
+      expect(requestFlow?.detail).not.toContain("no runtime override");
+      expect(requestFlow?.detail).not.toContain("MCP doctor startup deadline");
+    },
+    10_000,
+  );
 });
 
 const runNoisyDoctorChild = async (body: string) => {

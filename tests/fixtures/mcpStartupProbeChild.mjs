@@ -14,7 +14,9 @@ const respond = (id, result) => {
       ? {
           error: {
             code: -32601,
-            message: "unrelated fixture method refusal",
+            message:
+              process.env.REA_MCP_PROBE_ERROR_MESSAGE ??
+              "unrelated fixture method refusal",
           },
         }
       : { result };

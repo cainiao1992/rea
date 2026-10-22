@@ -471,9 +471,8 @@ const providerError = (
     operation,
   );
   if (fileFailure !== undefined) return fileFailure;
-  return cause instanceof BrowserObservationError &&
-    cause.operation !== operation
-    ? new BrowserObservationError(operation, cause.reason, { cause })
+  return cause instanceof BrowserObservationError
+    ? cause.forOperation(operation)
     : cause instanceof AnalysisError
       ? cause
       : new ProviderAdapterError(CDP_ELECTRON_PROVIDER_IDENTITY.id, operation, {

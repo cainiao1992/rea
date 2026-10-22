@@ -40,6 +40,28 @@ const moduleIdentitySchema = z.object({
   row_offset: offsetSchema,
 });
 
+const managedArtifactReferenceSchema = z.object({
+  path: z.string().min(1),
+  sha256: digestSchema,
+  byte_length: z.number().int().min(0),
+  format: z.literal("pe"),
+});
+
+const managedMetadataSummarySchema = z.object({
+  status: z.enum(["absent", "complete", "partial", "malformed"]),
+  version: z.string().nullable(),
+  table_row_counts: z.record(
+    z.string(),
+    z.number().int().min(0).max(0xffff_ffff),
+  ),
+});
+
+const managedTokenIdentityScopeSchema = z.object({
+  token_identity: z.literal("build-local"),
+  requires_artifact_sha256: digestSchema,
+  requires_mvid: cliMetadataGuidSchema.nullable(),
+});
+
 const assemblyReferenceSchema = z.object({
   name: z.string(),
   version: z.string().regex(/^\d+\.\d+\.\d+\.\d+$/u),
@@ -362,12 +384,7 @@ const managedParseIssueSchema = z.object({
 
 /** Provider-neutral, execution-free PE/CLI triage and identity result. */
 export const managedArtifactInspectionSchema = z.object({
-  artifact: z.object({
-    path: z.string().min(1),
-    sha256: digestSchema,
-    byte_length: z.number().int().min(0),
-    format: z.literal("pe"),
-  }),
+  artifact: managedArtifactReferenceSchema,
   pe: z.object({
     machine: z.number().int().min(0).max(0xffff),
     machine_hex: z.string().regex(/^0x[0-9a-f]{4}$/u),
@@ -464,26 +481,10 @@ export const managedMemberInspectionSchema = z.object({
     .describe(
       "Signature type-name resolution was examined, including unresolved operands; null means historical Evidence without this attestation.",
     ),
-  artifact: z.object({
-    path: z.string().min(1),
-    sha256: digestSchema,
-    byte_length: z.number().int().min(0),
-    format: z.literal("pe"),
-  }),
+  artifact: managedArtifactReferenceSchema,
   module: moduleIdentitySchema.nullable(),
-  metadata: z.object({
-    status: z.enum(["absent", "complete", "partial", "malformed"]),
-    version: z.string().nullable(),
-    table_row_counts: z.record(
-      z.string(),
-      z.number().int().min(0).max(0xffff_ffff),
-    ),
-  }),
-  identity_scope: z.object({
-    token_identity: z.literal("build-local"),
-    requires_artifact_sha256: digestSchema,
-    requires_mvid: cliMetadataGuidSchema.nullable(),
-  }),
+  metadata: managedMetadataSummarySchema,
+  identity_scope: managedTokenIdentityScopeSchema,
   types: z.array(managedTypeSchema),
   // Member Evidence recorded before NestedClass rows were read omits this
   // field; null is historical uncertainty. False means a current NestedClass
@@ -531,26 +532,10 @@ export const managedMemberInspectionSchema = z.object({
 
 /** Provider-neutral managed/native boundary observations from PE/CLI metadata. */
 export const managedNativeBoundaryInspectionSchema = z.object({
-  artifact: z.object({
-    path: z.string().min(1),
-    sha256: digestSchema,
-    byte_length: z.number().int().min(0),
-    format: z.literal("pe"),
-  }),
+  artifact: managedArtifactReferenceSchema,
   module: moduleIdentitySchema.nullable(),
-  metadata: z.object({
-    status: z.enum(["absent", "complete", "partial", "malformed"]),
-    version: z.string().nullable(),
-    table_row_counts: z.record(
-      z.string(),
-      z.number().int().min(0).max(0xffff_ffff),
-    ),
-  }),
-  identity_scope: z.object({
-    token_identity: z.literal("build-local"),
-    requires_artifact_sha256: digestSchema,
-    requires_mvid: cliMetadataGuidSchema.nullable(),
-  }),
+  metadata: managedMetadataSummarySchema,
+  identity_scope: managedTokenIdentityScopeSchema,
   cli_native: z
     .object({
       il_only: z.boolean(),

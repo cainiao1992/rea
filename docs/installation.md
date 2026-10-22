@@ -1127,17 +1127,22 @@ override in `analyzer_preset` (for example
 open when its committed profile and the setting differ. A name starts with a
 letter or digit and contains only letters, digits, spaces, periods, underscores,
 and hyphens; at most 32 names are admitted, each at most 120 characters.
-Names must identify analyzers registered for the selected program. Unknown names
-or options that remain enabled abort the headless import before auto-analysis
-and the bridge, so an unsuccessful override cannot produce a session claiming
-that the analyzer was disabled. The setting applies to every import in the REA
-server. A format-specific analyzer may not be registered for another target, so
-the same override can prevent that target from opening. For mixed-target work,
-omit the override or use a separate REA server configured for the affected
-format. Changing the environment requires restarting the server; reopening a
-target alone keeps the current setting. For Windows PE resource analysis, the
-exact name is `WindowsResourceReference`. Disabling an analyzer skips the facts
-it would have produced.
+
+The setting applies to every import in the REA server, but Ghidra registers
+format-specific analyzers, such as `Objective-C Message Analyzer` or
+`Demangler Swift`, only for programs they can analyze. A name that the Ghidra
+installation provides but did not register for the selected program is not
+applicable: the import continues, the profile still commits the configured
+names, and result limitations report the applied preset with that name marked,
+for example `ghidra-default+disabled:Objective-C Message Analyzer(n/a)`. A name
+that no installed analyzer provides, or an option that remains enabled, aborts
+the headless import before auto-analysis and the bridge with an error naming
+`REA_GHIDRA_DISABLED_ANALYZERS` and the analyzer, so a misspelled override
+cannot produce a session claiming that the analyzer was disabled. Changing the
+environment requires restarting the server; reopening a target alone keeps the
+current setting. For Windows PE resource analysis, the exact name is
+`WindowsResourceReference`. Disabling an analyzer skips the facts it would have
+produced.
 
 ### Ghidra heap and CPU controls
 

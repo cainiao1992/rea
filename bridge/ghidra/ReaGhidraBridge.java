@@ -523,6 +523,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         String seeds = currentProgram.getOptions(ghidra.program.model.listing.Program.PROGRAM_INFO)
             .getString("REA analysis seeds", null);
         if (seeds != null) result.add("analysis_seeds", JsonParser.parseString(seeds));
+        // Written by ReaGhidraAnalysisOptions before auto-analysis; REA checks it
+        // against the committed profile.
+        String disabledAnalyzers = currentProgram.getOptions(ghidra.program.model.listing.Program.PROGRAM_INFO)
+            .getString("REA disabled analyzers", null);
+        if (disabledAnalyzers != null) result.add("disabled_analyzers", JsonParser.parseString(disabledAnalyzers));
         // Written by ReaGhidraMipsSoftFloat after analysis; REA requires it
         // exactly when the committed profile declares soft-float storage.
         String softFloat = currentProgram.getOptions(ghidra.program.model.listing.Program.PROGRAM_INFO)

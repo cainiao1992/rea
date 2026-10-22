@@ -222,11 +222,11 @@ const decodeDirectoryString = (
     case 0x16:
     case 0x17:
     case 0x18:
-    case 0x1b:
       return decodeUtf8(node.content, budget);
     default:
-      chargeDecodedName(budget, node.content.length);
-      return node.content.toString("latin1");
+      return fail(
+        `Unsupported certificate name encoding (DER tag 0x${node.tag.toString(16).padStart(2, "0")}).`,
+      );
   }
 };
 

@@ -48,7 +48,9 @@ fails the same way. SignedData must contain at least one `SignerInfo`, and
 each `SignerInfo` must carry a non-empty signature value. Each embedded X.509
 certificate must include `subjectPublicKeyInfo` and `signatureValue`. Decoded
 certificate name text, serials, validity spellings, and subject key identifiers
-share a 64 KiB budget per PKCS#7 payload.
+share a 64 KiB budget per PKCS#7 payload. Unsupported certificate name
+encodings, including TeletexString (T.61) and GeneralString, fail explicitly
+rather than returning names decoded with an assumed character set.
 
 This workflow does not verify signatures, certificate chains, timestamps, or
 Authenticode digest coverage of image bytes.

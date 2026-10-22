@@ -445,6 +445,27 @@ it("rejects a UTF8String name that is not valid UTF-8", () => {
   ).toBe("commonName=é");
 });
 
+it.each([
+  ["TeletexString", 0x14, Buffer.from([0xc2, 0x65])],
+  ["GeneralString", 0x1b, Buffer.from("name")],
+  ["OCTET STRING", 0x04, Buffer.from("name")],
+] as const)(
+  "rejects unsupported %s certificate names",
+  (_encoding, tag, bytes) => {
+    const certificate = readDer(
+      namedCertificate(
+        directoryName(der(0x0c, Buffer.from("Issuer"))),
+        directoryName(der(tag, bytes)),
+      ),
+    );
+    expect(() => parseCertificate(certificate)).toThrow(
+      new PeCertificateDerFailure(
+        `Unsupported certificate name encoding (DER tag 0x${tag.toString(16).padStart(2, "0")}).`,
+      ),
+    );
+  },
+);
+
 it("decodes BMPString names once and shares the decoded-byte budget", () => {
   const bmp = (text: string) => {
     const content = Buffer.alloc(text.length * 2);

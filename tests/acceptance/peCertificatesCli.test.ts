@@ -5,6 +5,7 @@ import { toolContract } from "../../src/contracts/toolContracts.js";
 import {
   peCertificateFixture,
   peWithoutCertificateTableFixture,
+  pkcs7SignedDataFixture,
 } from "../../src/native/pe/PeCertificates.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
@@ -62,3 +63,34 @@ cliTest("reports a truncated PE as invalid input", async ({ cli }) => {
     details: { operation: "inspect_pe_certificates" },
   });
 });
+
+cliTest(
+  "rejects TeletexString names without returning corrupted identity text",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pe-cert-cli-teletex-");
+    const path = join(root, "teletex.exe");
+    const payload = pkcs7SignedDataFixture("é");
+    const nameAt = payload.indexOf(Buffer.from([0x0c, 0x02, 0xc3, 0xa9]));
+    expect(nameAt).toBeGreaterThanOrEqual(0);
+    // Replace an equal-length UTF8String with T.61's acute accent plus 'e'.
+    Buffer.from([0x14, 0x02, 0xc2, 0x65]).copy(payload, nameAt);
+    await writeFile(path, peCertificateFixture(false, payload));
+    const result = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "invalid_request",
+      details: {
+        operation: "inspect_pe_certificates",
+        issues: [
+          {
+            message: expect.stringContaining(
+              "Unsupported certificate name encoding (DER tag 0x14)",
+            ),
+          },
+        ],
+      },
+    });
+  },
+);

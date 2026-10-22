@@ -45,7 +45,8 @@ See [desktop installations](https://github.com/morluto/rea/blob/main/docs/deskto
 
 ## Go build metadata
 
-Use `inspect_go_binary` for an explicit local ELF, PE or thin Mach-O when the
+Use `inspect_go_binary` for an explicit local ELF, PE or Mach-O (universal
+files need `architecture`) when the
 question concerns the embedded compiler version, module/dependency versions,
 local replacements or build settings. No `open_binary`, Go installation or
 target execution is required. The CLI equivalent is `inspect-go-binary PATH`.
@@ -84,7 +85,8 @@ See [IL2CPP metadata](https://github.com/morluto/rea/blob/main/docs/il2cpp-metad
 
 ## Rust dependency metadata
 
-Use `inspect_rust_binary` for an explicit local ELF, PE, or thin Mach-O when
+Use `inspect_rust_binary` for an explicit local ELF, PE, or Mach-O (universal
+files need `architecture`) when
 the question concerns the cargo-auditable crate list embedded in `.dep-v0`
 (Mach-O: `__DATA,.dep-v0`). No `open_binary`, Rust installation, or target
 execution is required. The CLI equivalent is `inspect-rust-binary PATH`.

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { BINARY_ARCHITECTURES } from "../binaryTargetTypes.js";
+import {
+  machoSelectionContainsRange,
+  selectedSliceAgreesWithReport,
+  machoSliceArchitectureSchema,
+  machoTargetSelectionSchema,
+} from "../apple/machoTargetSelection.js";
 import { digestSchema } from "../digests.js";
 import {
   absoluteLocalPathStringSchema,
@@ -52,6 +58,7 @@ export const inspectGoBinaryInputSchema = z.strictObject({
   path: absoluteLocalPathStringSchema.describe(
     "Absolute filesystem path to the selected executable or library",
   ),
+  architecture: machoSliceArchitectureSchema.exactOptional(),
   detail: z
     .enum(["complete", "summary"])
     .default("complete")
@@ -85,11 +92,48 @@ export const goBinarySchema = z
     architecture: z.string(),
     bits: z.union([z.literal(32), z.literal(64)]),
     byte_order: z.enum(["little", "big"]),
+    /** The universal slice that was read; source ranges stay file offsets inside it. */
+    selected_slice: machoTargetSelectionSchema.exactOptional(),
     build_info: goBuildInfoSchema.nullable(),
     limitations: z.array(z.string()),
   })
   .superRefine((report, context) => {
     const info = report.build_info;
+    const slice = report.selected_slice;
+    if (
+      slice !== undefined &&
+      (!selectedSliceAgreesWithReport(
+        slice,
+        report.format,
+        goArchitectureForSubject(report.architecture),
+      ) ||
+        !machoSelectionContainsRange(
+          slice,
+          report.artifact.bytes,
+          slice.offset,
+          0,
+        ) ||
+        (info !== null &&
+          [
+            { offset: info.header_offset, bytes: 32 },
+            info.version_location,
+            info.module_location,
+          ].some(
+            (range) =>
+              !machoSelectionContainsRange(
+                slice,
+                report.artifact.bytes,
+                range.offset,
+                range.bytes,
+              ),
+          )))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["selected_slice"],
+        message:
+          "Selected universal slice must be a FAT slice of the artifact whose CPU matches the report's Mach-O architecture and that contains the build-info source ranges.",
+      });
     if (info === null) return;
     if (info.header_offset > report.artifact.bytes - 32)
       context.addIssue({

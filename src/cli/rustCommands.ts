@@ -15,6 +15,7 @@ import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
+import { machoSliceArchitectureSchema } from "../domain/apple/machoTargetSelection.js";
 
 /** Resolve caller paths and inspect embedded Rust dependencies through the shared workflow. */
 export const registerRustCommands = (
@@ -25,10 +26,17 @@ export const registerRustCommands = (
     description:
       "Inspect an embedded cargo-auditable Rust dependency list without target execution",
     args: z.object({
-      path: z.string().describe("Local ELF, PE or thin Mach-O image"),
+      path: z
+        .string()
+        .describe("Local ELF, PE, thin Mach-O or universal Mach-O image"),
     }),
     options: z.object({
       ...analysisEvidenceDeliveryOptions,
+      architecture: machoSliceArchitectureSchema
+        .optional()
+        .describe(
+          "CPU family of the slice to read from a universal Mach-O; required for universal files",
+        ),
       detail: z
         .enum(["complete", "summary"])
         .optional()
@@ -67,6 +75,9 @@ export const registerRustCommands = (
           const view = decoded.value;
           const input = inspectRustBinaryRequestSchema.safeParse({
             path: absoluteCallerPath(args.path),
+            ...(options.architecture === undefined
+              ? {}
+              : { architecture: options.architecture }),
             ...(options.detail === undefined ? {} : { detail: options.detail }),
             ...(view === undefined ? {} : { view }),
           });
@@ -80,7 +91,16 @@ export const registerRustCommands = (
             );
           const service = createRustBinaryService();
           return deliverCliAnalysisEvidence({
-            run: () => service.inspect({ path: input.data.path }, { signal }),
+            run: () =>
+              service.inspect(
+                {
+                  path: input.data.path,
+                  ...(input.data.architecture === undefined
+                    ? {}
+                    : { architecture: input.data.architecture }),
+                },
+                { signal },
+              ),
             service,
             providerId: "rust-auditable",
             operation: "inspect_rust_binary",

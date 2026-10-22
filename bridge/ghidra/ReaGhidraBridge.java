@@ -1268,9 +1268,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("procedure", function == null ? JsonNull.INSTANCE : GSON.toJsonTree(canonicalAddress(function.getEntryPoint())));
         result.addProperty("architecture", currentProgram.getLanguageID().getIdAsString());
         result.addProperty("mode", currentProgram.getLanguage().getLanguageDescription().getVariant());
-        if (currentProgram.getLanguageID().getIdAsString().startsWith("MIPS:")) {
+        if (currentProgram.getLanguageID().getIdAsString().startsWith("MIPS:") ||
+            currentProgram.getLanguageID().getIdAsString().startsWith("ARM:")) {
             JsonArray decoderContext = new JsonArray();
-            var modeRegister = currentProgram.getRegister("ISA_MODE");
+            String regName = currentProgram.getLanguageID().getIdAsString().startsWith("MIPS:") ? "ISA_MODE" : "TMode";
+            var modeRegister = currentProgram.getRegister(regName);
             if (modeRegister != null) {
                 var modeValue = currentProgram.getProgramContext().getValue(modeRegister, address, false);
                 JsonObject context = new JsonObject();

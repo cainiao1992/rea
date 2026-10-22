@@ -51,7 +51,7 @@ const MIPS_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 const pe: BinaryTarget = {
-  path: "/fixture.exe",
+  path: process.platform === "win32" ? "C:\\fixture.exe" : "/fixture.exe",
   sha256: "a".repeat(64),
   kind: "executable",
   format: "pe",

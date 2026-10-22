@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
-
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
+import { digestCanonicalValue } from "./canonicalDigest.js";
 import { IDENTIFIER_PATTERN } from "./stringPatterns.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 import {
@@ -79,21 +77,9 @@ const summarize = (
   };
 };
 
-const canonicalJson = (value: unknown): string => {
-  const serialized = canonicalize(value);
-  if (serialized === undefined)
-    throw new TypeError(
-      "RFC 8785 canonicalization rejected the completion ledger",
-    );
-  return serialized;
-};
-
 const computeLedgerId = (
   records: readonly EvidenceCompletionRecord[],
-): string =>
-  `ecl_${createHash("sha256")
-    .update(canonicalJson({ records }))
-    .digest("hex")}`;
+): string => `ecl_${digestCanonicalValue({ records }, "Completion ledger")}`;
 
 const ledgerIssues = (
   ledger: EvidenceCompletionLedgerValue,

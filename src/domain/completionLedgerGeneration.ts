@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
-
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
+import { digestCanonicalValue } from "./canonicalDigest.js";
 import { IDENTIFIER_PATTERN } from "./stringPatterns.js";
 import {
   compareAsciiStrings,
@@ -125,19 +123,9 @@ const completionManifestObjectSchema = z.strictObject({
 });
 type CompletionManifestValue = z.infer<typeof completionManifestObjectSchema>;
 
-const canonicalJson = (value: unknown): string => {
-  const serialized = canonicalize(value);
-  if (serialized === undefined)
-    throw new TypeError(
-      "RFC 8785 canonicalization rejected completion metadata",
-    );
-  return serialized;
-};
-
 const computeManifestId = (
   manifest: Omit<CompletionManifestValue, "manifest_id">,
-): string =>
-  `ecm_${createHash("sha256").update(canonicalJson(manifest)).digest("hex")}`;
+): string => `ecm_${digestCanonicalValue(manifest, "Completion metadata")}`;
 
 const manifestIssues = (
   manifest: CompletionManifestValue,

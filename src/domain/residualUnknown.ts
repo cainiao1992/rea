@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
-
-import canonicalize from "canonicalize";
 import { z } from "zod";
+import { digestCanonicalValue } from "./canonicalDigest.js";
 import {
   compareUnicodeCodePoints,
   compositeKey,
@@ -26,18 +24,17 @@ const stableUnknownId = (
   scopeDigest: string | null,
   comparisonConclusionScope?: z.infer<typeof comparisonConclusionScopeSchema>,
 ): string =>
-  `unk_${createHash("sha256")
-    .update(
-      canonicalJson({
-        domain: domain.trim(),
-        question: question.replace(/\s+/gu, " ").trim(),
-        scope_digest: scopeDigest,
-        ...(comparisonConclusionScope === undefined
-          ? {}
-          : { comparison_conclusion_scope: comparisonConclusionScope }),
-      }),
-    )
-    .digest("hex")}`;
+  `unk_${digestCanonicalValue(
+    {
+      domain: domain.trim(),
+      question: question.replace(/\s+/gu, " ").trim(),
+      scope_digest: scopeDigest,
+      ...(comparisonConclusionScope === undefined
+        ? {}
+        : { comparison_conclusion_scope: comparisonConclusionScope }),
+    },
+    "Unknown identity",
+  )}`;
 
 const probeSchema = z.strictObject({
   operation: z.string().min(1),
@@ -385,13 +382,7 @@ const computeRevisionDigest = (
   const { revision_digest: _revisionDigest, ...semantic } =
     "revision_digest" in value ? value : { ...value, revision_digest: "" };
   void _revisionDigest;
-  return createHash("sha256").update(canonicalJson(semantic)).digest("hex");
-};
-
-const canonicalJson = (value: unknown): string => {
-  const serialized = canonicalize(value);
-  if (serialized === undefined) throw new TypeError("Unknown identity failed");
-  return serialized;
+  return digestCanonicalValue(semantic, "Unknown identity");
 };
 
 const sortedUnique = (values: readonly string[]): string[] =>

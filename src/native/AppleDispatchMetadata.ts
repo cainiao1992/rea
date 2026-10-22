@@ -48,7 +48,8 @@ import {
   type DispatchRecordBudget,
   type SwiftRelativeTargetLocation,
 } from "./AppleSwiftDispatchFacets.js";
-import { decodeSwiftClassVtables } from "./AppleSwiftVtables.js";
+import { createSwiftClassVtableDecoder } from "./AppleSwiftVtables.js";
+import { decodeSwiftNominalTypes } from "./AppleSwiftNominalTypes.js";
 import { inspectObjcClassImportBindings } from "./AppleObjcClassImportBindings.js";
 
 /** Decode validated little-endian 64-bit Apple Objective-C metadata without loading target code. */
@@ -221,23 +222,37 @@ export const decodeAppleDispatchMetadata = (
       typeEntries.push(section.address + BigInt(index * 4));
     if (section.size / 4 > maxRecords) budget.truncated = true;
   }
-  const vtables = decodeSwiftClassVtables({
+  const admit = () => budget.admit();
+  const executable = (address: bigint) =>
+    segments.some(
+      (segment) =>
+        segment.executable &&
+        address >= segment.address &&
+        address < segment.address + segment.size,
+    );
+  const vtables = createSwiftClassVtableDecoder({
+    result,
+    readers: {
+      u32,
+      relative: swiftRelative,
+      location,
+      evidence,
+      admit,
+      executable,
+    },
+  });
+  const declarations = decodeSwiftNominalTypes({
     entries: typeEntries,
     result,
+    visitor: vtables.visitor,
     readers: {
       u32,
       relative: swiftRelative,
       string,
       location,
       evidence,
-      admit: () => budget.admit(),
-      executable: (address) =>
-        segments.some(
-          (segment) =>
-            segment.executable &&
-            address >= segment.address &&
-            address < segment.address + segment.size,
-        ),
+      executable,
+      admit,
     },
   });
   pushDispatchCoverage({
@@ -250,7 +265,8 @@ export const decodeAppleDispatchMetadata = (
     objcClassListScanTruncated,
     truncated: budget.truncated,
     fixups,
-    vtables,
+    declarations,
+    vtables: vtables.facts(),
     swift,
   });
   return objcSwiftMetadataSchema.parse(result);

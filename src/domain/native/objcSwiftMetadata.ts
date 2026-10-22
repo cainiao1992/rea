@@ -290,38 +290,26 @@ export type ObjcClassImportBindingCoverage = z.infer<
   typeof objcClassImportBindingCoverageSchema
 >;
 
-/** Swift declaration kind. */
-export const swiftDeclKindSchema = z.enum([
-  "class",
-  "struct",
-  "enum",
-  "protocol",
-  "extension",
-  "actor",
-  "global_var",
-  "global_func",
-]);
+/** Nominal Swift type kinds recorded by `__swift5_types` descriptors. */
+export const swiftDeclKindSchema = z.enum(["class", "struct", "enum", "actor"]);
 
-/** Swift access level. */
-export const swiftAccessLevelSchema = z.enum([
-  "private",
-  "fileprivate",
-  "internal",
-  "public",
-  "open",
-]);
-/** Swift declaration metadata. */
+/**
+ * One nominal type context descriptor. `location` is the descriptor itself;
+ * evidence cites its `__swift5_types` record. `qualified_name` is null when a
+ * parent context is unresolved, rather than a shortened guess.
+ */
 export const swiftDeclSchema = z.strictObject({
   kind: swiftDeclKindSchema,
   name: z.string().min(1),
-  module: z.string().nullable(),
-  access_level: swiftAccessLevelSchema.default("internal"),
-  super_class: z.string().nullable(),
-  protocols: z.array(z.string()).default([]),
-  is_final: z.boolean().default(false),
-  is_required: z.boolean().default(false),
-  is_convenience_init: z.boolean().default(false),
-  is_override: z.boolean().default(false),
+  qualified_name: z.string().min(1).nullable(),
+  module: z.string().min(1).nullable(),
+  generic: z.boolean(),
+  /** A private or local declaration context was omitted from `qualified_name`. */
+  anonymous_context: z.boolean(),
+  accessor_address: z.string().min(1).nullable(),
+  location: nativeMetadataLocationSchema,
+  decode: nativeMetadataDecodeSchema,
+  evidence: z.array(nativeMetadataEvidenceSchema).min(1),
 });
 
 /** Database save/read operation type. */

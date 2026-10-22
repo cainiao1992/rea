@@ -1,47 +1,20 @@
 import type { AnalysisProviderSelector } from "./contracts/providerSelection.js";
 import {
-  DEFAULT_MCP_DOCTOR_DEADLINE_MS,
-  DEFAULT_MCP_FIRST_CATALOG_BUDGET_MS,
-  DEFAULT_MCP_INITIALIZE_BUDGET_MS,
-  DEFAULT_MCP_TOOLS_LIST_BUDGET_MS,
   mcpPhaseBudgetRecovery,
-  resolveMcpStartupBudgets,
   type McpPhaseBudget,
-  type McpStartupBudgets,
 } from "./config/mcpStartupBudgets.js";
 
 /**
- * Supported MCP startup deadlines and operation headroom.
- *
- * Client timeouts are caller-facing configuration. The phase budgets below
- * are the unset defaults of `REA_MCP_INITIALIZE_BUDGET_MS`,
- * `REA_MCP_TOOLS_LIST_BUDGET_MS`, `REA_MCP_FIRST_CATALOG_BUDGET_MS`, and
- * `REA_MCP_DOCTOR_DEADLINE_MS`. Callers that enforce a phase read
- * `resolveMcpStartupProbePolicy` so a selected value is not ignored.
- * `codexStartupTimeoutSeconds` stays client guidance and is not a setting.
+ * Client startup guidance, operation headroom, and doctor output retention.
+ * REA startup phase deadlines belong to config/mcpStartupBudgets; consumers
+ * resolve them from the selected environment with resolveMcpStartupBudgets.
  */
 export const MCP_STARTUP_POLICY = {
   codexStartupTimeoutSeconds: 30,
   kimiStartupTimeoutMs: 30_000,
   toolOperationHeadroomMs: 120_000,
-  initializeBudgetMs: DEFAULT_MCP_INITIALIZE_BUDGET_MS,
-  toolsListBudgetMs: DEFAULT_MCP_TOOLS_LIST_BUDGET_MS,
-  firstCatalogBudgetMs: DEFAULT_MCP_FIRST_CATALOG_BUDGET_MS,
-  doctorDeadlineMs: DEFAULT_MCP_DOCTOR_DEADLINE_MS,
   doctorStderrBytes: 64 * 1024,
 } as const;
-
-/** Phase budgets the packaged startup probe enforces. */
-export type McpStartupProbePolicy = McpStartupBudgets;
-
-/**
- * Resolve the probe policy from the environment that starts the probe.
- * An invalid phase setting is refused. Codex's 30 second startup figure
- * is not part of this policy.
- */
-export const resolveMcpStartupProbePolicy = (
-  environment: Readonly<Record<string, string | undefined>>,
-): McpStartupProbePolicy => resolveMcpStartupBudgets(environment);
 
 /** Doctor startup recovery. The Codex figure is client guidance REA does not enforce. */
 export const mcpDoctorDeadlineRecovery = (budget: McpPhaseBudget): string =>

@@ -3,13 +3,11 @@ import type {
   McpStartupBudgets,
 } from "../../src/config/mcpStartupBudgets.js";
 
-type McpStartupPolicy = McpStartupBudgets;
-
 interface McpProcessOptions {
   readonly command: string;
   readonly args: readonly string[];
   readonly environment: Readonly<Record<string, string | undefined>>;
-  readonly policy: McpStartupPolicy;
+  readonly policy: McpStartupBudgets;
 }
 
 interface McpModuleProfileOptions extends McpProcessOptions {

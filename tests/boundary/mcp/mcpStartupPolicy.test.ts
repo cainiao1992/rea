@@ -21,19 +21,17 @@ import {
 import {
   mcpDoctorDeadlineRecovery,
   MCP_STARTUP_POLICY,
-  resolveMcpStartupProbePolicy,
 } from "../../../src/mcpStartupPolicy.js";
 
 describe("MCP startup policy", () => {
   it("names phase budget settings without turning Codex's 30s into a REA knob", () => {
     const budgets = resolveMcpStartupBudgets({});
     expect(budgets).toEqual(DEFAULT_MCP_STARTUP_BUDGETS);
-    expect(resolveMcpStartupProbePolicy({})).toEqual(budgets);
     expect(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds).toBe(30);
-    expect(MCP_STARTUP_POLICY.initializeBudgetMs).toBe(15_000);
-    expect(MCP_STARTUP_POLICY.toolsListBudgetMs).toBe(5_000);
-    expect(MCP_STARTUP_POLICY.firstCatalogBudgetMs).toBe(20_000);
-    expect(MCP_STARTUP_POLICY.doctorDeadlineMs).toBe(30_000);
+    expect(budgets.initialize.milliseconds).toBe(15_000);
+    expect(budgets.toolsList.milliseconds).toBe(5_000);
+    expect(budgets.firstCatalog.milliseconds).toBe(20_000);
+    expect(budgets.doctor.milliseconds).toBe(30_000);
     const initialize = mcpPhaseBudgetRecovery(budgets.initialize);
     expect(initialize).toBe(
       "The effective REA_MCP_INITIALIZE_BUDGET_MS value for the MCP initialize phase budget is 15000 ms (source default; default 15000 ms, floor 1 ms, maximum 2147483647 ms). Set REA_MCP_INITIALIZE_BUDGET_MS in the environment that starts REA to a positive decimal integer from 1 to 2147483647, then restart REA.",
@@ -62,7 +60,7 @@ describe("MCP startup policy", () => {
     );
     expect(doctor).toContain("does not enforce");
     expect(doctor).not.toContain("REA_MCP_STARTUP");
-    const selected = resolveMcpStartupProbePolicy({
+    const selected = resolveMcpStartupBudgets({
       REA_MCP_INITIALIZE_BUDGET_MS: "16000",
     });
     expect(selected.initialize.milliseconds).toBe(16_000);

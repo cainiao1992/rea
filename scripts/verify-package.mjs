@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
-import { resolveMcpStartupProbePolicy } from "../dist/mcpStartupPolicy.js";
+import { resolveMcpStartupBudgets } from "../dist/config/mcpStartupBudgets.js";
 import * as prompts from "./verify-package-prompts.mjs";
 import { verifyPackageArtifactAndElectron } from "./verify-package-artifact.mjs";
 import { verifyPackageCapabilitiesAndSearch } from "./verify-package-capabilities.mjs";
@@ -124,7 +124,7 @@ try {
       environment: {
         ...environmentData.environment,
       },
-      policy: resolveMcpStartupProbePolicy(environmentData.environment),
+      policy: resolveMcpStartupBudgets(environmentData.environment),
     }),
   );
   mcpModuleLoading = await runStage("MCP module loading", () =>
@@ -134,7 +134,7 @@ try {
       environment: {
         ...environmentData.environment,
       },
-      policy: resolveMcpStartupProbePolicy(environmentData.environment),
+      policy: resolveMcpStartupBudgets(environmentData.environment),
       packageName: PRODUCT_IDENTITY.packageName,
     }),
   );

@@ -66,19 +66,6 @@ const PHASES = [
   },
 ] as const satisfies readonly McpPhaseBudgetDefinition[];
 
-/** Initialize budget used when `REA_MCP_INITIALIZE_BUDGET_MS` is unset. */
-export const DEFAULT_MCP_INITIALIZE_BUDGET_MS = PHASES[0].defaultMilliseconds;
-
-/** tools/list budget used when `REA_MCP_TOOLS_LIST_BUDGET_MS` is unset. */
-export const DEFAULT_MCP_TOOLS_LIST_BUDGET_MS = PHASES[1].defaultMilliseconds;
-
-/** First-catalog budget used when `REA_MCP_FIRST_CATALOG_BUDGET_MS` is unset. */
-export const DEFAULT_MCP_FIRST_CATALOG_BUDGET_MS =
-  PHASES[2].defaultMilliseconds;
-
-/** Doctor deadline used when `REA_MCP_DOCTOR_DEADLINE_MS` is unset. */
-export const DEFAULT_MCP_DOCTOR_DEADLINE_MS = PHASES[3].defaultMilliseconds;
-
 const phaseConstraint = (phase: McpPhaseBudgetDefinition): string =>
   `${phase.setting} must be a positive decimal integer from ${String(MCP_PHASE_BUDGET_FLOOR_MS)} to ${String(MCP_PHASE_BUDGET_MAXIMUM_MS)} ms; the default is ${String(phase.defaultMilliseconds)} ms. Node schedules a delay above that maximum as 1 ms, so a larger value is refused.`;
 

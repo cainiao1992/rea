@@ -42,6 +42,7 @@ import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
 import { requireOrdinaryWindowsVerifierCaller } from "./lib/windows-ordinary-user-verifier.mjs";
 import { verifyLargeScreenshotE2e } from "./lib/browser-screenshot-e2e.mjs";
+import { verifyViewportScreenshotE2e } from "./lib/browser-viewport-screenshot-e2e.mjs";
 import { verifyPopupEventCoverage } from "./lib/browser-popup-e2e.mjs";
 import { verifyBrowserNetworkEvidence } from "./lib/browser-network-e2e.mjs";
 import { verifyBrowserScriptExport } from "./lib/browser-script-export-e2e.mjs";
@@ -372,6 +373,11 @@ try {
 
   process.stderr.write("Browser verifier: large screenshot\n");
   const largeScreenshot = await verifyLargeScreenshotE2e(endpoint, site.origin);
+  process.stderr.write("Browser verifier: visual viewport screenshot\n");
+  const viewportScreenshot = await verifyViewportScreenshotE2e(
+    endpoint,
+    site.origin,
+  );
   process.stderr.write("Browser verifier: popup coverage\n");
   const popupEvents = await verifyPopupEventCoverage(executable);
   const networkEvidence = await verifyBrowserNetworkEvidence(
@@ -423,6 +429,7 @@ try {
     scenarioStorage,
     scenarioStorageFingerprints,
     scenarioServiceWorkers,
+    viewportScreenshot,
     verified: true,
   };
 } catch (cause) {

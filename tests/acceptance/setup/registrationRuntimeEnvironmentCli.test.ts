@@ -486,6 +486,7 @@ cliTest(
       REA_HOPPER_STARTUP_TIMEOUT_MS: "2800002",
       REA_JEB_MCP_TIMEOUT_MS: "2900003",
       REA_MCP_INPUT_SCHEMA_PROFILE: "full",
+      REA_CAPTURE_DECODER_OLD_GENERATION_MIB: "256",
       REA_REGEX_MATCHING_DEADLINE_MS: "10000",
       REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
       REA_UNRELATED_MARKER: "do-not-persist",
@@ -516,6 +517,9 @@ cliTest(
     );
     expect(codexRegistration).toMatchObject({ tool_timeout_sec: 3021 });
     expect(codexConfig).toContain('REA_JEB_MCP_TIMEOUT_MS = "2900003"');
+    expect(codexConfig).toContain(
+      'REA_CAPTURE_DECODER_OLD_GENERATION_MIB = "256"',
+    );
     expect(codexConfig).toContain('REA_REGEX_MATCHING_DEADLINE_MS = "10000"');
     expect(codexConfig).toContain('REA_REGEX_WORKER_HEAP_REQUEST_MIB = "256"');
     expect(codexConfig).not.toContain("REA_UNRELATED_MARKER");
@@ -533,6 +537,7 @@ cliTest(
         REA_HOPPER_STARTUP_TIMEOUT_MS: "2800002",
         REA_JEB_MCP_TIMEOUT_MS: "2900003",
         REA_MCP_INPUT_SCHEMA_PROFILE: "full",
+        REA_CAPTURE_DECODER_OLD_GENERATION_MIB: "256",
         REA_REGEX_MATCHING_DEADLINE_MS: "10000",
         REA_REGEX_WORKER_HEAP_REQUEST_MIB: "256",
       },

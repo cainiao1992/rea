@@ -126,7 +126,10 @@ explicit path or endpoint and do not need it.
   connect Everywhere's separate MCP server for live traffic.
 - Retained HAR/SAZ/native mitmproxy/aioquic qlog capture: `inspect_web_network_capture`. Select
   original record ordinals when useful; inspect producer fields and byte/number
-  sidecars without fetching recorded URLs or claiming live attribution. See
+  sidecars without fetching recorded URLs or claiming live attribution. HAR/SAZ/qlog
+  old-generation heap is `REA_CAPTURE_DECODER_OLD_GENERATION_MIB` (default 192 MiB,
+  floor 8, maximum 16384), set where REA starts. Host memory and `NODE_OPTIONS` do not
+  raise it. See
   [historical captures](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) for the exact upstream
   profile and credential exclusions. Qlog support starts with aioquic 1.5.0
   JSON 0.3; stream coverage and endpoint loss declarations do not recover bodies

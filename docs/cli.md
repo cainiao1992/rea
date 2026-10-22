@@ -551,6 +551,14 @@ command, objdump, Rizin and GDB, and the agent environment server
 signal-derived status. This describes the current source routing; it is not a
 claim that every command or provider runtime has been independently exercised.
 
+Commands with `--evidence_output` select their delivered view, then publish the
+complete Evidence bundle atomically. Cancellation before publication leaves no
+new file. A publication that has committed can win a later cancellation; the
+`cancelled` result then keeps the written path and byte count under
+`details.diagnostics.evidence_bundle`. If staging cleanup stays incomplete
+after commit, the `cleanup_incomplete` error reports the same file as
+`details.published_path` and `details.bytes`.
+
 When the reader of piped output closes early, as `rea ... | head` does, the
 CLI stops writing, prints no error and exits `141` (`128 + 13`, the status of a
 SIGPIPE-terminated writer). The operation itself may have completed; only its

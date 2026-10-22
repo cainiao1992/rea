@@ -7,7 +7,7 @@
  * refusal paths, and cancellation before spawn.
  */
 import { createHash } from "node:crypto";
-import { open, writeFile } from "node:fs/promises";
+import { open, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -52,6 +52,41 @@ const evidenceResult = async (
   return result.value.result as Record<string, unknown>;
 };
 
+// Windows keeps PATH/PATHEXT resolution in the launcher; POSIX hosts locate the file.
+it.skipIf(isWindows)(
+  "runs and reports the tools located on PATH rather than bare names",
+  async () => {
+    const directory = await createTestTempDirectory("rea-pcap-path-");
+    await symlink(tsharkStub, join(directory, "tshark"));
+    await symlink(capinfosStub, join(directory, "capinfos"));
+    const provider = new PcapProvider({
+      environment: { PATH: `relative-entry:${directory}` },
+    });
+    onTestFinished(() => provider.close());
+    const result = await evidenceResult(provider, {
+      operation: "inspect_pcap_client",
+      input: {},
+    });
+    expect(result.client).toMatchObject({
+      tshark_command: join(directory, "tshark"),
+      tshark_source: "path",
+      tshark_version: expect.stringContaining("4.6.6") as unknown,
+      tshark_resolved_path: await realpath(tsharkStub),
+      tshark_sha256: createHash("sha256")
+        .update(await readFile(join(directory, "tshark")))
+        .digest("hex"),
+      tshark_identity_status: "verified",
+      capinfos_command: join(directory, "capinfos"),
+      capinfos_source: "path",
+      capinfos_resolved_path: await realpath(capinfosStub),
+      capinfos_sha256: createHash("sha256")
+        .update(await readFile(join(directory, "capinfos")))
+        .digest("hex"),
+      capinfos_identity_status: "verified",
+    });
+  },
+);
+
 it("inspects both tools through cross-platform stubs", async () => {
   const result = await evidenceResult(providerOver(), {
     operation: "inspect_pcap_client",
@@ -60,10 +95,80 @@ it("inspects both tools through cross-platform stubs", async () => {
   expect(result.client).toMatchObject({
     tshark_source: "environment",
     tshark_version: expect.stringContaining("4.6.6") as unknown,
+    tshark_resolved_path: await realpath(tsharkStub),
     capinfos_source: "environment",
     capinfos_version: expect.stringContaining("4.6.6") as unknown,
+    capinfos_resolved_path: await realpath(capinfosStub),
+    tshark_sha256: createHash("sha256")
+      .update(await readFile(tsharkStub))
+      .digest("hex"),
+    tshark_identity_status: "verified",
+    capinfos_sha256: createHash("sha256")
+      .update(await readFile(capinfosStub))
+      .digest("hex"),
+    capinfos_identity_status: "verified",
   });
 });
+
+it("projects a missing configured tool as a capability gap", async () => {
+  const provider = new PcapProvider({
+    environment: {
+      REA_TSHARK_COMMAND: tsharkStub,
+      REA_CAPINFOS_COMMAND: join(import.meta.dirname, "missing-capinfos"),
+    },
+  });
+  onTestFinished(() => provider.close());
+  const result = await provider.execute({
+    operation: "inspect_pcap_client",
+    input: {},
+  });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "capability_unavailable",
+    message: expect.stringContaining(
+      "Supply Wireshark 4.x tshark and capinfos",
+    ),
+  });
+});
+
+it.skipIf(isWindows)(
+  "rejects TShark that changes during its version probe",
+  async () => {
+    const directory = await createTestTempDirectory("rea-pcap-mutated-tool-");
+    const tshark = join(directory, "tshark");
+    const capinfos = join(directory, "capinfos");
+    await writeFile(
+      tshark,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf 'TShark (Wireshark) 4.6.6-stub\\n'
+  printf '\\n# changed during version probe\\n' >> "$0"
+  exit 0
+fi
+exit 2
+`,
+      { mode: 0o755 },
+    );
+    await symlink(capinfosStub, capinfos);
+    const provider = new PcapProvider({
+      environment: {
+        REA_TSHARK_COMMAND: tshark,
+        REA_CAPINFOS_COMMAND: capinfos,
+      },
+    });
+    onTestFinished(() => provider.close());
+    const result = await provider.execute({
+      operation: "inspect_pcap_client",
+      input: {},
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "artifact_changed",
+      });
+  },
+);
 
 it("resolves a retained tool-probe error after its process owner closes", async () => {
   let mayClean = false;

@@ -140,6 +140,10 @@ import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysis
 import type { ApktoolResourceAnalysisPort } from "../application/apktool/ApktoolResourceAnalysisPort.js";
 import type { PcapAnalysisPort } from "../application/pcap/PcapAnalysisPort.js";
 import { PcapAnalysisService } from "../application/pcap/PcapAnalysisService.js";
+import {
+  locateWiresharkTool,
+  selectWiresharkTool,
+} from "../pcap/PcapConfiguration.js";
 import { ApktoolResourceAnalysisService } from "../application/apktool/ApktoolResourceAnalysisService.js";
 import type { FlutterBuildAnalysisPort } from "../application/flutter/FlutterBuildAnalysisPort.js";
 import { FlutterBuildAnalysisService } from "../application/flutter/FlutterBuildAnalysisService.js";
@@ -231,6 +235,21 @@ export interface CreateServerOptions {
   readonly optionalProviderLoadFailures?: OptionalProviderLoadFailures;
 }
 
+/** Apply the shared TShark selection rule without starting the tool. */
+const tsharkLocatable = (environment: Readonly<NodeJS.ProcessEnv>): boolean => {
+  try {
+    return (
+      locateWiresharkTool(
+        selectWiresharkTool(environment, "tshark"),
+        environment,
+      ) !== undefined
+    );
+  } catch {
+    // A relative REA_TSHARK_COMMAND is configuration the tool reports at execution.
+    return false;
+  }
+};
+
 const installSessionToolAvailability = (
   session: BinarySessionPort | undefined,
   options: CreateServerOptions,
@@ -247,7 +266,7 @@ const installSessionToolAvailability = (
     optionalFeatures: {
       packetCaptureEnabled:
         options.packetCapture !== undefined ||
-        (linux && isAbsolute(environment.REA_TSHARK_COMMAND ?? "")),
+        (linux && tsharkLocatable(environment)),
       signalRecordingEnabled:
         options.signalRecording !== undefined ||
         (linux && isAbsolute(environment.REA_SIGROK_COMMAND ?? "")),

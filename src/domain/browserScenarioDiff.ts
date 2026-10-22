@@ -11,6 +11,8 @@ import {
   prepareScenarioEvents,
   networkContentCoverageReason,
   screenshotProjection,
+  storageProjection,
+  storageFingerprintCoverageReason,
   type CaptureState,
 } from "./browserScenarioDiffEvidence.js";
 import {
@@ -363,6 +365,11 @@ const compareStepArtifacts = (
       artifact: "storage",
       before: input.beforeStep.artifacts.storage,
       after: input.afterStep.artifacts.storage,
+      project: storageProjection,
+      incomparableReason: storageFingerprintCoverageReason(
+        input.beforeStep.artifacts.storage,
+        input.afterStep.artifacts.storage,
+      ),
     }),
     compareScenarioEvents({
       ...common,

@@ -52,6 +52,7 @@ import { verifyBrowserCaptureMetadataBudget } from "./lib/browser-capture-metada
 import { artifactCliEvidence, artifactMcpResult } from "./lib/artifact-e2e.mjs";
 import { verifyScenarioEnvironment } from "./lib/browser-scenario-environment-e2e.mjs";
 import { verifyScenarioStorage } from "./lib/browser-scenario-storage-e2e.mjs";
+import { verifyScenarioStorageFingerprints } from "./lib/browser-scenario-storage-fingerprints-e2e.mjs";
 import { verifyScenarioServiceWorkers } from "./lib/browser-scenario-service-workers-e2e.mjs";
 import { verifyBrowserUrlUserInfo } from "./lib/browser-url-userinfo-e2e.mjs";
 
@@ -307,6 +308,11 @@ try {
     endpoint,
     targetId: target,
   });
+  process.stderr.write("Browser verifier: scenario storage fingerprints\n");
+  const scenarioStorageFingerprints = await verifyScenarioStorageFingerprints(
+    executable,
+    site.origin,
+  );
   process.stderr.write("Browser verifier: scenario service workers\n");
   const scenarioServiceWorkers = await verifyScenarioServiceWorkers(
     endpoint,
@@ -415,6 +421,7 @@ try {
     scenarioFailure,
     scenarioEnvironment,
     scenarioStorage,
+    scenarioStorageFingerprints,
     scenarioServiceWorkers,
     verified: true,
   };

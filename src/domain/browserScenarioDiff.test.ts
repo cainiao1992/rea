@@ -899,6 +899,158 @@ const multiStepScenarioCapture = (
   });
 };
 
+describe("storage fingerprint provenance", () => {
+  const withStorage = (value: unknown) => {
+    const base = scenarioCapture({});
+    return browserScenarioCaptureSchema.parse({
+      ...base,
+      steps: base.steps.map((step) => ({
+        ...step,
+        artifacts: {
+          ...step.artifacts,
+          storage: { state: "captured", value },
+        },
+      })),
+    });
+  };
+  const compare = (before: unknown, after: unknown) =>
+    compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: withStorage(before),
+        after_scenario: withStorage(after),
+      }),
+    );
+  const empty = { cookies: [], local_storage: [], session_storage: [] };
+
+  it.each(["cookies", "local_storage", "session_storage"])(
+    "withholds legacy %s value identity on either side",
+    (kind) => {
+      const entry = {
+        name: "value",
+        value_state: "hashed",
+        value_sha256: "a".repeat(64),
+      };
+      const value = {
+        ...empty,
+        [kind]: [
+          kind === "cookies"
+            ? {
+                ...entry,
+                domain: "app.example.test",
+                path: "/",
+                secure: false,
+                http_only: false,
+                same_site: "Lax",
+              }
+            : entry,
+        ],
+      };
+      const current = { ...value, fingerprint_version: 2 };
+      for (const [before, after] of [
+        [value, value],
+        [value, current],
+        [current, value],
+      ]) {
+        const result = compare(before, after);
+        expect(result.overall_status).toBe("unknown");
+        expect(result.steps.flatMap((step) => step.artifact_diffs)).toEqual([
+          expect.objectContaining({
+            artifact: "storage",
+            status: "unknown",
+            reason: expect.stringContaining("Legacy storage fingerprints"),
+          }),
+          expect.objectContaining({
+            artifact: "storage",
+            status: "unknown",
+            reason: expect.stringContaining("Legacy storage fingerprints"),
+          }),
+        ]);
+      }
+      expect(compare(current, current).overall_status).toBe("unchanged");
+    },
+  );
+
+  it("conservatively withholds legacy comparisons even when digests differ", () => {
+    const entry = {
+      name: "value",
+      value_state: "hashed",
+      value_sha256: "a".repeat(64),
+    };
+    const left = { ...empty, local_storage: [entry] };
+    const right = {
+      ...empty,
+      local_storage: [{ ...entry, value_sha256: "b".repeat(64) }],
+    };
+    for (const [before, after] of [
+      [left, right],
+      [left, { ...right, fingerprint_version: 2 }],
+      [{ ...left, fingerprint_version: 2 }, right],
+    ])
+      expect(compare(before, after).overall_status).toBe("unknown");
+  });
+
+  it("checks legacy provenance before applying storage normalization", () => {
+    const legacy = {
+      ...empty,
+      local_storage: [
+        {
+          name: "value",
+          value_state: "hashed",
+          value_sha256: "a".repeat(64),
+        },
+      ],
+    };
+    const result = compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: withStorage(legacy),
+        after_scenario: withStorage({ ...legacy, fingerprint_version: 2 }),
+        normalization: {
+          rules: [
+            {
+              rule_id: "rewrite-value-state",
+              artifacts: ["storage"],
+              match: "hashed",
+              replacement: "redacted-secret",
+            },
+          ],
+        },
+      }),
+    );
+    expect(result.overall_status).toBe("unknown");
+    expect(result.steps.flatMap((step) => step.artifact_diffs)).toEqual([
+      expect.objectContaining({
+        artifact: "storage",
+        status: "unknown",
+        reason: expect.stringContaining("Legacy storage fingerprints"),
+      }),
+      expect.objectContaining({
+        artifact: "storage",
+        status: "unknown",
+        reason: expect.stringContaining("Legacy storage fingerprints"),
+      }),
+    ]);
+  });
+
+  it.each([false, true])(
+    "does not turn encoding metadata alone into a storage change (redacted=%s)",
+    (redacted) => {
+      const entries = redacted
+        ? [
+            {
+              name: "secret",
+              value_state: "redacted-secret",
+              value_sha256: null,
+            },
+          ]
+        : [];
+      const legacy = { ...empty, local_storage: entries };
+      const current = { ...legacy, fingerprint_version: 2 };
+      expect(compare(legacy, current).overall_status).toBe("unchanged");
+      expect(compare(current, legacy).overall_status).toBe("unchanged");
+    },
+  );
+});
+
 interface ScenarioCaptureOptions {
   readonly stepId?: string;
   readonly action?: string;

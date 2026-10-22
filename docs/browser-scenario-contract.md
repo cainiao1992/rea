@@ -387,6 +387,24 @@ observed) and excludes the sequence reference from normalization.
 Playwright scenario capture does not supply initiator stacks; passive CDP
 observation retains its own initiator evidence.
 
+## Storage value fingerprints
+
+New storage snapshots include `fingerprint_version: 2`. Non-secret, well-formed
+JavaScript strings retain their SHA-256 over UTF-8. Strings with unpaired UTF-16
+surrogates use SHA-256 over a raw `0xff` byte followed by their exact UTF-16LE
+code units; this prefix cannot occur in UTF-8. Declared secrets remain
+`redacted-secret` with a null digest, without a second or legacy digest.
+
+A missing version identifies legacy UTF-8 fingerprints, which replaced unpaired
+surrogates and cannot establish value identity. Storage containing any legacy
+hashed value is conservatively compared as `unknown`, including old-to-old
+comparisons; recapture both sides to compare reliably. This also conservatively
+withholds some otherwise provable legacy differences. Empty or entirely
+secret-redacted storage keeps its existing comparison semantics. The version is
+checked before normalization and excluded from content comparison: changing
+encoding metadata alone does not establish a website change. Existing captures
+and their completeness records are not rewritten.
+
 ## Scenario comparison
 
 `compare_web_captures` and `compare-web-captures` also accept two complete

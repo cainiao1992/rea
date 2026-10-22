@@ -43,6 +43,8 @@ import { htmlArtifactReferences } from "../../domain/javascript/htmlArtifactRefe
 import type { JavaScriptSourceAnalysisPort } from "../../domain/javascript/javascriptSourceAnalysis.js";
 import type { JavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import { translateArtifactFailure } from "../../artifacts/ArtifactOperationFailure.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import {
   AnalysisCancelledError,
@@ -153,13 +155,16 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
         if (signal?.aborted === true) {
           interruption = new AnalysisCancelledError(
             "analyze_javascript_application",
+            { cause: signal.reason },
           );
           break;
         }
         continue;
       }
       if (signal?.aborted === true)
-        throw new AnalysisCancelledError("analyze_javascript_application");
+        throw new AnalysisCancelledError("analyze_javascript_application", {
+          cause: signal.reason,
+        });
       await beforeFile(file, selectedFileIndex++, selectedFileCount);
       analysisStarted = true;
       if (file.kind !== "javascript" || !file.text.included) {
@@ -245,39 +250,44 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
         break;
       }
     } catch (cause: unknown) {
-      if (signal?.aborted !== true && !(cause instanceof AnalysisError))
-        throw cause;
-      interruption =
-        signal?.aborted === true
-          ? new AnalysisCancelledError("analyze_javascript_application")
-          : cause instanceof AnalysisError
-            ? cause
-            : null;
-      if (interruption !== null) {
-        const scope = javascriptArtifactAnalysisScopes[file.kind];
-        state.files.push({
-          file,
-          javascript: null,
-          semantic: null,
-          ...(scope === null
-            ? {}
-            : {
-                analysis_failure: {
-                  scope,
-                  status: analysisStarted ? "interrupted" : "not-started",
-                  reason: `${file.path}: ${interruption.message}`,
-                  error: projectAnalysisError(interruption),
-                  limits: null,
-                },
-              }),
-        });
-        projection.recordUnavailableFile(
-          file,
-          interruption.message,
-          null,
-          "incomplete-module",
+      if (cause instanceof AnalysisError) interruption = cause;
+      else if (
+        cause instanceof ArtifactReaderFailure &&
+        cause.reason === "cancelled"
+      )
+        interruption = translateArtifactFailure(
+          "analyze_javascript_application",
+          cause,
         );
-      }
+      else if (signal?.aborted === true && cause === signal.reason)
+        interruption = new AnalysisCancelledError(
+          "analyze_javascript_application",
+          { cause },
+        );
+      else throw cause;
+      const scope = javascriptArtifactAnalysisScopes[file.kind];
+      state.files.push({
+        file,
+        javascript: null,
+        semantic: null,
+        ...(scope === null
+          ? {}
+          : {
+              analysis_failure: {
+                scope,
+                status: analysisStarted ? "interrupted" : "not-started",
+                reason: `${file.path}: ${interruption.message}`,
+                error: projectAnalysisError(interruption),
+                limits: null,
+              },
+            }),
+      });
+      projection.recordUnavailableFile(
+        file,
+        interruption.message,
+        null,
+        "incomplete-module",
+      );
       break;
     }
   }

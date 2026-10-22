@@ -156,14 +156,16 @@ const ipcEventSchema = electronActiveTimelineEventSchema.extend({
   ]),
 });
 
-const processMetricSchema = z.strictObject({
+/** Process facts shared by the runtime boundary and retained active observation. */
+export const electronActiveProcessMetricSchema = z.strictObject({
   pid: z.number().int().min(1),
   type: z.string().min(1),
   name: z.string().nullable(),
   service_name: z.string().nullable(),
 });
 
-const windowResultSchema = z.strictObject({
+/** Window facts shared by the runtime boundary and retained active observation. */
+export const electronActiveWindowSchema = z.strictObject({
   window_id: z.string(),
   web_contents_id: z.string(),
   url: z.string(),
@@ -223,9 +225,9 @@ export const electronActiveObservationResultSchema = z.strictObject({
     cleanup: z.literal("terminated-owned-process"),
   }),
   actions: z.array(actionResultSchema),
-  windows: z.array(windowResultSchema),
+  windows: z.array(electronActiveWindowSchema),
   processes: z.strictObject({
-    items: z.array(processMetricSchema),
+    items: z.array(electronActiveProcessMetricSchema),
   }),
   ipc: z.strictObject({
     events: z.array(ipcEventSchema),

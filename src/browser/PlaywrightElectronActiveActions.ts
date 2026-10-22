@@ -5,6 +5,8 @@ import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import {
   electronActiveTimelineEventSchema,
+  electronActiveProcessMetricSchema,
+  electronActiveWindowSchema,
   type ElectronActiveObservationInput,
   type ElectronActiveObservationResult,
 } from "../domain/javascript/electronActiveObservation.js";
@@ -44,22 +46,6 @@ const hookSnapshotSchema = z.strictObject({
   hook_error: z.boolean(),
 });
 
-const metricSchema = z.strictObject({
-  pid: z.number().int().min(1),
-  type: z.string().min(1),
-  name: z.string().nullable(),
-  service_name: z.string().nullable(),
-});
-
-const windowMetadataSchema = z.strictObject({
-  window_id: z.string(),
-  web_contents_id: z.string(),
-  url: z.string(),
-  title: z.string(),
-  visible: z.boolean().nullable(),
-  destroyed: z.boolean(),
-});
-
 type ElectronAction = ElectronActiveObservationInput["actions"][number];
 type ElectronActions = ElectronActiveObservationResult["actions"];
 
@@ -67,8 +53,10 @@ export type ElectronHookSnapshot = z.infer<typeof hookSnapshotSchema>;
 export type ElectronHookEvent = z.infer<
   typeof electronActiveTimelineEventSchema
 >;
-export type ElectronMetrics = z.infer<typeof metricSchema>[];
-type ElectronWindowMetadata = z.infer<typeof windowMetadataSchema>;
+export type ElectronMetrics = z.infer<
+  typeof electronActiveProcessMetricSchema
+>[];
+type ElectronWindowMetadata = z.infer<typeof electronActiveWindowSchema>;
 type ElectronApplicationState = Awaited<
   ReturnType<typeof readApplicationState>
 >;
@@ -289,14 +277,7 @@ const emitDeepLink = (
 export const readApplicationState = async (
   application: ElectronApplication,
 ): Promise<{
-  readonly windows: ReadonlyArray<{
-    readonly window_id: string;
-    readonly web_contents_id: string;
-    readonly url: string;
-    readonly title: string;
-    readonly visible: boolean | null;
-    readonly destroyed: boolean;
-  }>;
+  readonly windows: ReadonlyArray<ElectronWindowMetadata>;
   readonly metrics: ElectronMetrics;
   readonly electronVersion: string;
   readonly hookSnapshot: ElectronHookSnapshot;
@@ -323,7 +304,7 @@ export const readApplicationState = async (
         }),
       ),
     )
-    .then((value) => z.array(windowMetadataSchema).parse(value));
+    .then((value) => z.array(electronActiveWindowSchema).parse(value));
   const processMetricsPromise: Promise<ElectronMetrics> = application
     .evaluate(({ app }) =>
       app
@@ -342,7 +323,7 @@ export const readApplicationState = async (
           }),
         ),
     )
-    .then((value) => z.array(metricSchema).parse(value));
+    .then((value) => z.array(electronActiveProcessMetricSchema).parse(value));
   const electronVersionPromise: Promise<string> = application
     .evaluate(() => process.versions.electron)
     .then((value) => z.string().parse(value));

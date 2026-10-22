@@ -1,4 +1,8 @@
 import {
+  parseAnalysisViewResult,
+  analysisViewResultInputError,
+} from "./analysisViewParent.js";
+import {
   sourceToBundleViewRequestSchema,
   sourceToBundleViewItemsSchema,
   sourceToBundleViewContextSchema,
@@ -115,7 +119,6 @@ import {
   parseOwnedJavaScriptApplicationAnalysisSteps,
   type JavaScriptApplicationAnalysisResult,
 } from "../javascript/javascriptApplicationAnalysis.js";
-import { analysisInputErrorFromIssues } from "../inputIssueProjection.js";
 import { projectBinaryLayoutView } from "./binaryLayoutView.js";
 import { projectJavaScriptApplicationView } from "./javascriptApplicationView.js";
 import {
@@ -983,17 +986,7 @@ const parseJavaScriptParent = (
     return ok(step.value);
   } catch (cause: unknown) {
     if (!(cause instanceof z.ZodError)) throw cause;
-    return err(
-      analysisInputErrorFromIssues(
-        INSPECT_ANALYSIS_VIEW_OPERATION,
-        cause.issues.map((issue) => ({
-          ...issue,
-          path: ["source", "normalized_result", ...issue.path],
-        })),
-        { source: { normalized_result: input } },
-        { cause },
-      ),
-    );
+    return err(analysisViewResultInputError(input, cause));
   }
 };
 
@@ -1149,20 +1142,9 @@ export const projectAnalysisView = (
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "analyze_function") {
-    const native = functionDossierSchema.safeParse(parent.normalizedResult);
-    if (!native.success)
-      return err(
-        analysisInputErrorFromIssues(
-          INSPECT_ANALYSIS_VIEW_OPERATION,
-          native.error.issues.map((issue) => ({
-            ...issue,
-            path: ["source", "normalized_result", ...issue.path],
-          })),
-          { source: { normalized_result: parent.normalizedResult } },
-          { cause: native.error },
-        ),
-      );
-    const projected = projectNativeFunctionView(parent, native.data, view);
+    const native = parseAnalysisViewResult(functionDossierSchema, parent);
+    if (!native.ok) return native;
+    const projected = projectNativeFunctionView(parent, native.value, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   const project = retainedViewProjectors.get(parent.operation);

@@ -1,7 +1,7 @@
 import { analysisViewInputError } from "./analysisViewErrors.js";
 import { z } from "zod";
 import { pcapResultSchemas } from "../pcap/pcapAnalysis.js";
-import { analysisInputErrorFromIssues } from "../inputIssueProjection.js";
+import { parseAnalysisViewResult } from "./analysisViewParent.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { err, ok, type Result } from "../result.js";
 import type {
@@ -111,19 +111,11 @@ type Page = z.output<typeof pcapViewPageSchema>;
 const parseParent = (
   parent: AnalysisViewParent,
 ): Result<Capture, AnalysisError> => {
-  const parsed = captureSchema.safeParse(parent.normalizedResult);
-  if (!parsed.success)
-    return err(
-      analysisInputErrorFromIssues(
-        "inspect_analysis_view",
-        parsed.error.issues,
-        parent.normalizedResult,
-        { cause: parsed.error },
-      ),
-    );
+  const parsed = parseAnalysisViewResult(captureSchema, parent);
+  if (!parsed.ok) return parsed;
   if (
-    parent.subject?.local_path !== parsed.data.target.path ||
-    parent.subject.digest.sha256 !== parsed.data.target.sha256
+    parent.subject?.local_path !== parsed.value.target.path ||
+    parent.subject.digest.sha256 !== parsed.value.target.sha256
   )
     return err(
       analysisViewInputError([
@@ -135,7 +127,7 @@ const parseParent = (
         },
       ]),
     );
-  return ok(parsed.data);
+  return ok(parsed.value);
 };
 const summarize = ({
   endpoints,

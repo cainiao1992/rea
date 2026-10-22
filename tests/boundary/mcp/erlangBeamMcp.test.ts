@@ -5,9 +5,14 @@ import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
-import { erlangBeamFixture } from "../../../src/erlang/Beam.fixture.js";
+import {
+  erlangBeamDeclaredRowsFixture,
+  erlangBeamFixture,
+} from "../../../src/erlang/Beam.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest, type TestMcp } from "../../support/mcp/mcpFixture.js";
+
+import { MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS } from "../../../src/domain/erlang/beam.js";
 
 const connect = async (mcp: TestMcp) => {
   const session = createTestBinarySession(() => {
@@ -62,6 +67,54 @@ mcpTest(
         code: "invalid_request",
         details: { operation: "inspect_erlang_beam" },
       });
+    } finally {
+      await session.close();
+    }
+  },
+);
+
+mcpTest(
+  "returns recovery for the actual exhausted BEAM allowance",
+  async ({ mcp }) => {
+    const { client, session } = await connect(mcp);
+    const root = await createTestTempDirectory("rea-beam-capacity-");
+    try {
+      for (const [label, bytes, settings, remediation] of [
+        [
+          "atoms",
+          erlangBeamFixture(),
+          { max_atoms: 1 },
+          "Raise max_atoms above 1",
+        ],
+        [
+          "chunks",
+          erlangBeamFixture(),
+          { max_chunks: 1 },
+          "Raise max_chunks above 1",
+        ],
+        [
+          "rows",
+          erlangBeamDeclaredRowsFixture([
+            ["ExpT", MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS + 1],
+          ]),
+          {},
+          `${String(MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS)}-row ceiling`,
+        ],
+      ] as const) {
+        const path = join(root, `${label}.beam`);
+        await writeFile(path, bytes);
+        const response = await client.callTool({
+          name: "inspect_erlang_beam",
+          arguments: { path, ...settings },
+        });
+        expect(response.isError).toBe(true);
+        const error = parseMcpToolError(response).error;
+        expect(error).toMatchObject({
+          code: "resource_constraint",
+          retryable: false,
+          remediation: { action: expect.stringContaining(remediation) },
+        });
+      }
     } finally {
       await session.close();
     }

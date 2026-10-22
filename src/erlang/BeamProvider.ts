@@ -21,12 +21,11 @@ import {
   MAX_INSPECT_ERLANG_BEAM_ATOMS,
   MAX_INSPECT_ERLANG_BEAM_CHUNKS,
   MAX_INSPECT_ERLANG_BEAM_FILE_BYTES,
-  MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS,
   type InspectErlangBeamInput,
 } from "../domain/erlang/beam.js";
 import { err, ok } from "../domain/result.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
-import { parseErlangBeam } from "./BeamParser.js";
+import { BeamCapacityFailure, parseErlangBeam } from "./BeamParser.js";
 
 /** Bundled format reader identity; module names are separate observed facts. */
 export const ERLANG_BEAM_PROVIDER_IDENTITY = {
@@ -91,23 +90,26 @@ export class BeamProvider implements BeamPort {
 }
 
 const inputBudgetRemediation = (
-  boundary: "file-size" | "capacity",
+  cause: ArtifactReaderFailure,
   input: InspectErlangBeamInput,
-  message: string,
-): string => {
-  if (boundary === "file-size")
+): string | undefined => {
+  if (cause.boundary === "file-size")
     return input.max_file_bytes >= MAX_INSPECT_ERLANG_BEAM_FILE_BYTES
       ? `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_FILE_BYTES)}-byte input ceiling this operation accepts; select a smaller artifact.`
       : `Raise max_file_bytes above ${String(input.max_file_bytes)} bytes or select a smaller artifact; the limit is the caller-selected input read budget.`;
-  if (message.includes("atom"))
-    return input.max_atoms >= MAX_INSPECT_ERLANG_BEAM_ATOMS
-      ? `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_ATOMS)}-atom ceiling this operation accepts; select a smaller artifact.`
-      : `Raise max_atoms above ${String(input.max_atoms)} or select a smaller artifact; the limit is the caller-selected atom budget.`;
-  if (message.includes("row budget"))
-    return `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS)}-row ceiling this operation accepts; select a smaller artifact.`;
-  return input.max_chunks >= MAX_INSPECT_ERLANG_BEAM_CHUNKS
-    ? `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_CHUNKS)}-chunk ceiling this operation accepts; select a smaller artifact.`
-    : `Raise max_chunks above ${String(input.max_chunks)} or select a smaller artifact; the limit is the caller-selected chunk budget.`;
+  if (!(cause instanceof BeamCapacityFailure)) return undefined;
+  switch (cause.resource) {
+    case "atoms":
+      return cause.maximum >= MAX_INSPECT_ERLANG_BEAM_ATOMS
+        ? `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_ATOMS)}-atom ceiling this operation accepts; select a smaller artifact.`
+        : `Raise max_atoms above ${String(cause.maximum)} or select a smaller artifact; the limit is the caller-selected atom budget.`;
+    case "table-rows":
+      return `The file exceeds the ${String(cause.maximum)}-row ceiling this operation accepts; select a smaller artifact.`;
+    case "chunks":
+      return cause.maximum >= MAX_INSPECT_ERLANG_BEAM_CHUNKS
+        ? `The file exceeds the ${String(MAX_INSPECT_ERLANG_BEAM_CHUNKS)}-chunk ceiling this operation accepts; select a smaller artifact.`
+        : `Raise max_chunks above ${String(cause.maximum)} or select a smaller artifact; the limit is the caller-selected chunk budget.`;
+  }
 };
 
 const beamFailurePrimary = (cause: unknown, input: InspectErlangBeamInput) => {
@@ -125,7 +127,8 @@ const beamFailurePrimary = (cause: unknown, input: InspectErlangBeamInput) => {
       cause: artifactFileCancellationCause(cause),
     });
   if (cause instanceof ArtifactReaderFailure) {
-    if (cause.reason === "limit")
+    if (cause.reason === "limit") {
+      const remediationAction = inputBudgetRemediation(cause, input);
       return new AnalysisResourceConstraintError(
         OPERATION,
         cause.boundary ?? "memory",
@@ -137,18 +140,15 @@ const beamFailurePrimary = (cause: unknown, input: InspectErlangBeamInput) => {
         },
         {
           cause,
-          ...(cause.boundary === undefined || cause.boundary === "memory"
+          ...(remediationAction === undefined
             ? {}
             : {
                 retryable: false,
-                remediationAction: inputBudgetRemediation(
-                  cause.boundary,
-                  input,
-                  cause.message,
-                ),
+                remediationAction,
               }),
         },
       );
+    }
     if (cause.reason === "path" || cause.reason === "format")
       return new AnalysisInputError(OPERATION, { cause }, [
         {

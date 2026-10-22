@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
 import {
   MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS,
   inspectErlangBeamInputSchema,
@@ -11,7 +12,9 @@ import {
   erlangBeamManyAtomsFixture,
   erlangBeamOtp29Fixture,
 } from "./Beam.fixture.js";
-import { parseErlangBeam } from "./BeamParser.js";
+import { BeamCapacityFailure, parseErlangBeam } from "./BeamParser.js";
+import { BeamProvider } from "./BeamProvider.js";
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 
 const defaults = inspectErlangBeamInputSchema.parse({
   path: "/artifacts/app.beam",
@@ -198,3 +201,94 @@ it("fails when the atom budget is exhausted", () => {
     ),
   ).toThrow(ArtifactReaderFailure);
 });
+
+it("does not infer a BEAM budget from diagnostic prose", async () => {
+  const provider = new BeamProvider();
+  const injection = vi
+    .spyOn(ArtifactResourceScope.prototype, "run")
+    .mockRejectedValueOnce(
+      new ArtifactReaderFailure(
+        "limit",
+        "atom row budget wording from another boundary",
+        { boundary: "capacity" },
+      ),
+    );
+  try {
+    const result = await provider.inspect(defaults);
+    if (result.ok) throw new Error("Expected unknown capacity failure");
+    expect(result.error).toBeInstanceOf(AnalysisResourceConstraintError);
+    if (!(result.error instanceof AnalysisResourceConstraintError))
+      throw new Error("Missing resource error");
+    expect(result.error.retryable).toBeUndefined();
+    expect(result.error.remediationAction).toBeUndefined();
+  } finally {
+    injection.mockRestore();
+    await provider.close();
+  }
+});
+
+it.each([
+  {
+    resource: "atoms",
+    bytes: erlangBeamManyAtomsFixture(3),
+    settings: { max_atoms: 1 },
+    maximum: 1,
+    remediation: "Raise max_atoms above 1",
+  },
+  {
+    resource: "chunks",
+    bytes: erlangBeamFixture(),
+    settings: { max_chunks: 1 },
+    maximum: 1,
+    remediation: "Raise max_chunks above 1",
+  },
+  {
+    resource: "table-rows",
+    bytes: erlangBeamDeclaredRowsFixture([
+      ["ExpT", MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS + 1],
+    ]),
+    settings: {},
+    maximum: MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS,
+    remediation: `${String(MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS)}-row ceiling`,
+  },
+])(
+  "retains the producing $resource allowance when diagnostic wording changes",
+  async ({ resource, bytes, settings, maximum, remediation }) => {
+    const input = inspectErlangBeamInputSchema.parse({
+      path: defaults.path,
+      ...settings,
+    });
+    let cause: unknown;
+    try {
+      parse(bytes, input);
+    } catch (failure) {
+      cause = failure;
+    }
+    expect(cause).toBeInstanceOf(BeamCapacityFailure);
+    if (!(cause instanceof BeamCapacityFailure))
+      throw new Error("Missing named parser allowance");
+    expect(cause).toMatchObject({
+      resource,
+      maximum,
+      reason: "limit",
+      boundary: "capacity",
+    });
+    cause.message = "BEAM parser allowance exhausted.";
+    const provider = new BeamProvider();
+    const injection = vi
+      .spyOn(ArtifactResourceScope.prototype, "run")
+      .mockRejectedValueOnce(cause);
+    try {
+      const result = await provider.inspect(input);
+      if (result.ok) throw new Error("Expected named capacity failure");
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisResourceConstraintError",
+        retryable: false,
+        remediationAction: expect.stringContaining(remediation),
+      });
+    } finally {
+      injection.mockRestore();
+      await provider.close();
+    }
+  },
+);

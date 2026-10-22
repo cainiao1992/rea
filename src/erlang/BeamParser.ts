@@ -7,6 +7,18 @@ import {
   type InspectErlangBeamInput,
 } from "../domain/erlang/beam.js";
 
+/** The producing parser names its count allowance independently of diagnostic text. */
+export class BeamCapacityFailure extends ArtifactReaderFailure {
+  constructor(
+    readonly resource: "atoms" | "chunks" | "table-rows",
+    readonly maximum: number,
+    message: string,
+  ) {
+    super("limit", message, { boundary: "capacity" });
+    this.name = "BeamCapacityFailure";
+  }
+}
+
 const fail = (message: string): never => {
   throw new ArtifactReaderFailure("format", message);
 };
@@ -77,10 +89,10 @@ const parseAtoms = (
   const compact = declared < 0;
   const count = Math.abs(declared);
   if (count > maxAtoms)
-    throw new ArtifactReaderFailure(
-      "limit",
+    throw new BeamCapacityFailure(
+      "atoms",
+      maxAtoms,
       `BEAM atom table exceeds the ${String(maxAtoms)}-atom budget.`,
-      { boundary: "capacity" },
     );
   const atoms: NonNullable<ErlangBeam["atoms"]> = [];
   let at = 4;
@@ -169,10 +181,10 @@ export const parseErlangBeam = (
   while (at < formEnd) {
     if (formEnd - at < 8) fail("BEAM chunk header is truncated.");
     if (chunks.length >= input.max_chunks)
-      throw new ArtifactReaderFailure(
-        "limit",
+      throw new BeamCapacityFailure(
+        "chunks",
+        input.max_chunks,
         `BEAM form exceeds the ${String(input.max_chunks)}-chunk budget.`,
-        { boundary: "capacity" },
       );
     const name = chunkName(bytes, at);
     const size = u32(bytes, at + 4);
@@ -215,12 +227,12 @@ export const parseErlangBeam = (
     declaredRows("ExpT") + declaredRows("ImpT") + declaredRows("FunT") >
     MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS
   )
-    throw new ArtifactReaderFailure(
-      "limit",
+    throw new BeamCapacityFailure(
+      "table-rows",
+      MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS,
       `BEAM tables exceed the ${String(
         MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS,
       )}-row budget.`,
-      { boundary: "capacity" },
     );
   const exports =
     payloads.get("ExpT") === undefined

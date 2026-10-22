@@ -444,10 +444,10 @@ const addCandidate = (
       ...current.authority_references,
       ...candidate.authority_references,
     ]),
-    residual_unknown_ids: uniqueBy(
-      [...current.residual_unknown_ids, ...candidate.residual_unknown_ids],
-      (item) => item,
-    ),
+    residual_unknown_ids: uniqueSorted([
+      ...current.residual_unknown_ids,
+      ...candidate.residual_unknown_ids,
+    ]),
     // Each observation keeps its own unresolved authority and next steps.
     unavailable_authority: uniqueSorted([
       ...current.unavailable_authority,

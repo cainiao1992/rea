@@ -579,10 +579,9 @@ describe("attached IDA regex supervision", () => {
         pattern: "!$",
         mode: "regex",
       });
-      expect(recovered.ok && recovered.value.result).toHaveLength(1);
-      expect(recovered.ok && recovered.value.limitations).toContain(
-        "Regex mode uses ECMAScript Unicode semantics in a cancellable worker with a 5-second matching deadline; matching failure leaves the service available.",
-      );
+      expect(recovered.ok && recovered.value.result).toEqual([
+        expect.objectContaining({ address: "0x3000", value }),
+      ]);
     } finally {
       await client.close();
     }

@@ -6,8 +6,11 @@ import { err, ok } from "../domain/result.js";
 import * as pythonRuntime from "./LinuxHopperPython.js";
 import {
   linuxHopperInstallDisclosure,
+  readLinuxDistribution,
   systemLinuxHopperInstallHost,
 } from "./LinuxHopper.js";
+
+const hostDistribution = () => readLinuxDistribution(process.arch);
 
 const missingPython = {
   interpreter: "/usr/bin/python3",
@@ -80,7 +83,10 @@ describe("Linux Hopper package runtime", () => {
     const directory = await createTestTempDirectory(
       "rea-linux-python-install-",
     );
-    const host = systemLinuxHopperInstallHost({ XDG_CACHE_HOME: directory });
+    const host = systemLinuxHopperInstallHost(
+      { XDG_CACHE_HOME: directory },
+      hostDistribution,
+    );
     const command = vi
       .spyOn(boundedCommands, "execFileBoundedOutput")
       .mockResolvedValue(commandSuccess);
@@ -115,7 +121,10 @@ describe("Linux Hopper package runtime", () => {
     const directory = await createTestTempDirectory(
       "rea-linux-python-failure-",
     );
-    const host = systemLinuxHopperInstallHost({ XDG_CACHE_HOME: directory });
+    const host = systemLinuxHopperInstallHost(
+      { XDG_CACHE_HOME: directory },
+      hostDistribution,
+    );
     const failed = {
       exitCode: 67,
       stdout: "original package output",
@@ -153,7 +162,10 @@ describe("Linux Hopper package mapping", () => {
     "/usr/lib/x86_64-linux-gnu/libpython3.13.so.1.0",
   ])("keeps an unproven APT mapping unknown: %s", async (path) => {
     const directory = await createTestTempDirectory("rea-python-package-map-");
-    const host = systemLinuxHopperInstallHost({ XDG_CACHE_HOME: directory });
+    const host = systemLinuxHopperInstallHost(
+      { XDG_CACHE_HOME: directory },
+      hostDistribution,
+    );
     const command = vi
       .spyOn(boundedCommands, "execFileBoundedOutput")
       .mockResolvedValue(commandSuccess);
@@ -201,7 +213,10 @@ describe("Linux Hopper package cancellation and disclosure", () => {
       const directory = await createTestTempDirectory(
         "rea-python-install-cancel-",
       );
-      const host = systemLinuxHopperInstallHost({ XDG_CACHE_HOME: directory });
+      const host = systemLinuxHopperInstallHost(
+        { XDG_CACHE_HOME: directory },
+        hostDistribution,
+      );
       const controller = new AbortController();
       const cause = new Error("caller cancelled at " + phase);
       let commandCount = 0;

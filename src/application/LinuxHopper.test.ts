@@ -9,6 +9,7 @@ import {
   linuxPackageManagerCommands,
   linuxSharedLibrariesAvailable,
   parseLinuxDistribution,
+  readLinuxDistribution,
   supportsReaHost,
   LinuxHopperTemporaryCleanupOwner,
   systemLinuxHopperInstallHost,
@@ -379,11 +380,14 @@ describe("Linux Hopper cleanup and failure details", () => {
     const directory = await createTestTempDirectory("rea-hopper-status-");
     const launcher = join(directory, "Hopper");
     await writeFile(launcher, "fixture launcher");
-    const host = systemLinuxHopperInstallHost({
-      ...process.env,
-      HOME: directory,
-      XDG_CACHE_HOME: join(directory, "cache"),
-    });
+    const host = systemLinuxHopperInstallHost(
+      {
+        ...process.env,
+        HOME: directory,
+        XDG_CACHE_HOME: join(directory, "cache"),
+      },
+      () => readLinuxDistribution(process.arch),
+    );
     const command = vi
       .spyOn(nativeCommands, "execFileOutput")
       .mockResolvedValue({

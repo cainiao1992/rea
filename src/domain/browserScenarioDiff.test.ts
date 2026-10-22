@@ -1190,6 +1190,7 @@ const storageScenarioCapture = (
         storage: {
           state: "captured",
           value: {
+            fingerprint_version: 2,
             cookies: [],
             local_storage: [],
             session_storage: [],

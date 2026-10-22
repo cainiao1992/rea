@@ -258,6 +258,13 @@ cases. Share setup without hiding inputs or expected evidence. For successful
 `.ok` assertion adds no coverage. Protocol fixtures must reject unmodeled
 commands and preserve actual producer reply shapes.
 
+Packed bridge validation uses Python's standard-library AST and tar readers
+with `-I -S`: caller-local modules, `PYTHONPATH`, and site startup hooks must
+not replace those readers or execute during validation. Controlled `ast.py`
+and `sitecustomize.py` fixtures must leave their markers absent and still
+reject malformed packed Python with `SyntaxError`. This checks static package
+verification, not real Hopper or Ghidra behavior.
+
 Stateless source-analysis matrices may share a file-owned stdio MCP connection
 and retain representative compiled CLI parity checks. Every distinct source
 scenario still runs through the public workflow; session-lifecycle scenarios

@@ -60,39 +60,24 @@ export class LocalWebSourceLocationArtifacts implements WebSourceLocationArtifac
   async #load(input: WebSourceLocationInput, options?: ExecutionOptions) {
     const loaded = await this.scripts.load(input, options);
     if (!loaded.ok) return loaded;
-    try {
-      const data = await readStableArtifact(
-        input.source_map.path,
-        WEB_SOURCE_MAP_LIMITS.mapBytes,
-        options?.signal,
-        undefined,
-        this.#resources,
-      );
-      return ok({
-        ...loaded.value,
-        sourceMap: {
-          file: {
-            path: input.source_map.path,
-            sha256: data.sha256,
-            bytes: data.bytes.length,
-          },
-          url: input.source_map.url,
-          text: decodeWebArtifact(data.bytes),
+    const data = await readStableArtifact(
+      input.source_map.path,
+      WEB_SOURCE_MAP_LIMITS.mapBytes,
+      options?.signal,
+      undefined,
+      this.#resources,
+    );
+    return ok({
+      ...loaded.value,
+      sourceMap: {
+        file: {
+          path: input.source_map.path,
+          sha256: data.sha256,
+          bytes: data.bytes.length,
         },
-      });
-    } catch (cause: unknown) {
-      return err(
-        webArtifactReadError(
-          cause,
-          {
-            operation: "trace_web_source_location",
-            field: ["source_map", "path"],
-            targetPath: input.source_map.path,
-            callerSelected: true,
-          },
-          options?.signal,
-        ),
-      );
-    }
+        url: input.source_map.url,
+        text: decodeWebArtifact(data.bytes),
+      },
+    });
   }
 }

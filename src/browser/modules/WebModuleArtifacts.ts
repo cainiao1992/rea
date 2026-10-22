@@ -69,36 +69,21 @@ export class LocalWebModuleArtifacts implements WebModuleArtifactPort {
     if (input.import_map === undefined)
       return ok({ ...loaded.value, importMap: null });
     const selected = input.import_map;
-    try {
-      const data = await readWebArtifactJson(
-        selected.path,
-        4 * 1024 * 1024,
-        options?.signal,
-        this.#resources,
-      );
-      const importMap: WebModuleArtifacts["importMap"] = {
-        file: {
-          path: selected.path,
-          sha256: data.sha256,
-          bytes: data.bytes.length,
-        },
-        baseUrl: selected.base_url,
-        value: jsonObjectSchema.parse(data.value),
-      };
-      return ok({ ...loaded.value, importMap });
-    } catch (cause: unknown) {
-      return err(
-        webArtifactReadError(
-          cause,
-          {
-            operation: "trace_web_module_imports",
-            field: ["import_map", "path"],
-            targetPath: selected.path,
-            callerSelected: true,
-          },
-          options?.signal,
-        ),
-      );
-    }
+    const data = await readWebArtifactJson(
+      selected.path,
+      4 * 1024 * 1024,
+      options?.signal,
+      this.#resources,
+    );
+    const importMap: WebModuleArtifacts["importMap"] = {
+      file: {
+        path: selected.path,
+        sha256: data.sha256,
+        bytes: data.bytes.length,
+      },
+      baseUrl: selected.base_url,
+      value: jsonObjectSchema.parse(data.value),
+    };
+    return ok({ ...loaded.value, importMap });
   }
 }

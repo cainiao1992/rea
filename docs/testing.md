@@ -1818,7 +1818,7 @@ the built CLI, packs the checkout with `npm pack`, exports the bundle with
 registry package, and runs `agent-env run` on the bundle. It checks that the
 export reports the planned file set with the inputs copied byte-exact and a
 bundle served from the derived state, which serves fewer tools than the
-manifest because write tools are not served, that the runner exits `0` with
+manifest because write tools the capture did not confirm are not served, that the runner exits `0` with
 `tasks/smoke.json` reported as passed and the verifier's description naming
 that served tool count, and that no container exists
 after the run that did not exist before; the container inventory runs even when

@@ -414,7 +414,8 @@ evidence file's `evidence_id`; otherwise the command refuses with
 `invalid_request` before binding. Before binding it derives the
 `environment-state` view of the capture with the manifest's `template_rules`,
 as `inspect-analysis-view` would, and serves from it: read tools whose views
-are state-backed answer from a live state, write tools are not served, and
+are state-backed answer from a live state, write tools are served only where
+the capture's later reads confirmed their effect, and
 `/agentenv` serves `data/reset`, `data/add` and `data/get`. When the state
 cannot be derived, or its catalog exceeds the discovery reservation, it logs a
 warning with the error code and message and serves replay; `--replay-only` serves replay without deriving. In replay every

@@ -413,6 +413,53 @@ symbolic link is retained and reported rather than followed. Uninstall checks
 REA's managed shared and Claude Code personal skill locations. See the
 [CLI guide](cli.md#output-and-exit-status) for exit statuses.
 
+### Missing dependencies in an npx installation
+
+If REA exits with `ERR_MODULE_NOT_FOUND` before `doctor` can produce a report,
+inspect the missing path in the error. A path under npm's `_npx/<key>/node_modules`
+identifies a package-runner installation. In [#5259](https://github.com/morluto/rea/issues/5259),
+the missing file was `@modelcontextprotocol/client/dist/index.mjs`. That file is
+present in a clean Windows installation of REA 6.7.0; its absence alone does not
+establish an incompatible dependency release or explain how the file went missing.
+
+`npm cache verify` checks npm's downloaded content cache; it does not restore
+missing files in an already extracted npx installation. Repeating the same npx
+command can reuse that incomplete installation. To reinstall only the affected
+entry:
+
+1. Stop the REA processes and agent clients using that entry. In the same shell
+   environment as the failing command, identify the cache and its entries:
+
+   ```powershell
+   npm.cmd config get cache
+   npm.cmd cache npx ls
+   npm.cmd cache npx info REA_CACHE_KEY
+   ```
+
+   Replace `REA_CACHE_KEY` with the key from the failing `_npx` path. Check that
+   `info` reports that location and the expected `rea-agents` version. Its
+   `valid` label describes the cache entry metadata, not the presence of every
+   installed file. These subcommands require npm with `cache npx` support.
+
+2. Remove that specific entry and rerun the affected version with registry
+   access. For the version reported in #5259:
+
+   ```powershell
+   npm.cmd cache npx rm REA_CACHE_KEY
+   npx.cmd --yes rea-agents@6.7.0 doctor --json
+   ```
+
+   Keep the key argument: this recovery does not require clearing all npm caches
+   or deleting REA configuration, skills, or Evidence. On Linux/macOS, use `npm`
+   and `npx` without `.cmd`. A JSON doctor report confirms startup recovered;
+   it can still exit nonzero for missing analysis engines or registrations.
+   Restart the affected agent after repairing its cache entry.
+
+If a fresh installation still loses the file, retain the error, REA/Node/npm
+versions and installation details in the issue. Check installation logs and,
+on Windows, security software's protection history before attributing the cause.
+Do not rename `index.cjs` to `index.mjs` or disable protection to make startup pass.
+
 ### Update the owning installation
 
 `rea update` installs the exact resolved

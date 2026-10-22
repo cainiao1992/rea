@@ -7,6 +7,7 @@ import type { Logger } from "pino";
 import {
   directAnalysisOptionsFromCli,
   nativeOpenOptionFields,
+  snapshotSelectionOption,
 } from "./options.js";
 import type { CliInstance } from "./types.js";
 
@@ -271,11 +272,9 @@ const registerNativeDispatchMetadataCommand = (
         .max(20_000)
         .default(5_000)
         .describe("Maximum symbol records to inspect"),
-      snapshot: z
-        .string()
-        .min(1)
-        .optional()
-        .describe("Load or update the local analysis snapshot"),
+      snapshot: snapshotSelectionOption.describe(
+        "Load or update the local analysis snapshot",
+      ),
       ...nativeOpenOptionFields,
     }),
     run: async ({ args, options }) =>
@@ -360,11 +359,7 @@ const registerNativeApiCommand = (
       address: z.string().describe("Procedure name or address"),
     }),
     options: z.object({
-      snapshot: z
-        .string()
-        .min(1)
-        .optional()
-        .describe("Load and update a local analysis snapshot"),
+      snapshot: snapshotSelectionOption,
       ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>

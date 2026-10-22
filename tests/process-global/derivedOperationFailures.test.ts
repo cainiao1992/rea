@@ -40,6 +40,13 @@ import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../src/contracts/jav
 import { javascriptApplicationAnalysisResultSchema } from "../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { javaScriptSemanticQueryResultSchema } from "../../src/domain/javascript/javascriptSemanticQuerySchemas.js";
 
+import { nativeFunctionMatchingSchema } from "../../src/domain/native/functionMatching.js";
+import { FunctionByteCoverage } from "../../src/domain/native/functionByteCoverage.js";
+import {
+  nativeMatchingInventory,
+  nativeMatchingDetails,
+} from "../fixtures/nativeFunctionMatching.js";
+
 /** Unexpected implementation failures retain the SDK text surface, without a typed caller error. */
 const expectUnexpectedToolFailure = (
   response: Awaited<ReturnType<Client["callTool"]>>,
@@ -502,6 +509,59 @@ describe("semantic query output failures through the public SDK", () => {
               direction: "backward-provenance",
             },
           },
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+});
+
+describe("native matching failure ownership through the public SDK", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const matchingInput = () => ({
+    left: nativeMatchingInventory("1", [{ address: "0x10", value: "main" }]),
+    right: nativeMatchingInventory("2", [{ address: "0x20", value: "main" }]),
+    left_observations: nativeMatchingDetails("1", "0x10", "c3"),
+    right_observations: nativeMatchingDetails("2", "0x20", "c3"),
+    detail: "complete",
+  });
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from native matching result validation",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const input = matchingInput();
+        const failure = createFailure();
+        vi.spyOn(nativeFunctionMatchingSchema, "parse").mockImplementation(
+          () => {
+            throw failure;
+          },
+        );
+        const response = await client.callTool({
+          name: "match_native_functions",
+          arguments: input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from native byte fingerprint derivation",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const input = matchingInput();
+        const failure = createFailure();
+        vi.spyOn(
+          FunctionByteCoverage.prototype,
+          "fingerprint",
+        ).mockRejectedValue(failure);
+        const response = await client.callTool({
+          name: "match_native_functions",
+          arguments: input,
         });
         expectUnexpectedToolFailure(response, failure);
         expect(session.exportEvidenceBundle().records).toEqual([]);

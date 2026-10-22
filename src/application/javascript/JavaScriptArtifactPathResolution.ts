@@ -1096,10 +1096,19 @@ const resolveLegacyEsmSubpath = (
   directory: string,
   subpath: string,
 ): CandidateResolution => {
-  const declarationRejection = rejectDeclaration(
-    stripQueryAndFragment(htmlUrlText(subpath)),
-  );
+  const subpathPath = stripQueryAndFragment(htmlUrlText(subpath));
+  const declarationRejection = rejectDeclaration(subpathPath);
   if (declarationRejection !== null) return declarationRejection;
+  let depth = directory === "." ? 0 : directory.split("/").length;
+  for (const segment of subpathPath.split("/")) {
+    if (segment === "..") {
+      if (depth === 0)
+        return unresolvedCandidate("rejected", [
+          "The resolved candidate escapes the canonical artifact root.",
+        ]);
+      depth--;
+    } else if (segment !== ".") depth++;
+  }
   const metadataUrl = packageMetadataUrl(
     posix.join(directory, "package.json"),
     subpath,
@@ -1208,7 +1217,9 @@ const resolveExportTarget = (
   const candidate = confineCandidate(decoded);
   if (typeof candidate !== "string") return withTargetSource(candidate);
   if (target.lookupLimitation !== undefined)
-    return unresolvedCandidate("unavailable", [target.lookupLimitation]);
+    return withTargetSource(
+      unresolvedCandidate("unavailable", [target.lookupLimitation]),
+    );
   return (
     resolveFileCandidates(input, [candidate]) ??
     withTargetSource(exactPackageTargetNotFound(candidate, mapKind))

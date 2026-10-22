@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import {
@@ -23,6 +20,7 @@ import {
 } from "./reconstructionCoverageEvaluation.js";
 import { digestSchema } from "./../domain/digests.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
+import { digestCanonicalValue } from "./canonicalDigest.js";
 import {
   offsetDateTimeInstantFromEpochMilliseconds,
   offsetDateTimeSchema,
@@ -289,7 +287,7 @@ export const createReconstructionVerifierContract = (
   const parsed = verifierContractBaseSchema.parse(input);
   return verifierContractSchema.parse({
     ...parsed,
-    contract_sha256: digest(parsed),
+    contract_sha256: digestCanonicalValue(parsed, "Reconstruction coverage"),
   });
 };
 
@@ -354,7 +352,13 @@ const validateCoverageReferences = (
   indexUnique(workspace.boundaries, "boundary_id");
   for (const contract of workspace.verifier_contracts) {
     const { contract_sha256: contractSha256, ...base } = contract;
-    if (contractSha256 !== digest(verifierContractBaseSchema.parse(base)))
+    if (
+      contractSha256 !==
+      digestCanonicalValue(
+        verifierContractBaseSchema.parse(base),
+        "Reconstruction coverage",
+      )
+    )
       throw new TypeError(
         `Verifier contract digest is invalid: ${contract.verifier_id}`,
       );
@@ -462,10 +466,3 @@ const reasonOrder = (left: ClosureReason, right: ClosureReason): number =>
     compositeKey([left.code, left.subject_id]),
     compositeKey([right.code, right.subject_id]),
   );
-
-const digest = (value: unknown): string => {
-  const encoded = canonicalize(value);
-  if (encoded === undefined)
-    throw new TypeError("Reconstruction coverage value is not canonical JSON");
-  return createHash("sha256").update(encoded).digest("hex");
-};

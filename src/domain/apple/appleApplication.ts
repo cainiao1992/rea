@@ -21,6 +21,7 @@ import {
 import { evidenceSchema } from "../evidence.js";
 import { digestSchema } from "../digests.js";
 import { prefixedDigestSchema } from "../digests.js";
+import { digestCanonicalValue } from "../canonicalDigest.js";
 import {
   bridgeCandidateCoverageSchema,
   projectCartesianCandidates,
@@ -30,7 +31,6 @@ import {
   projectedComponentSchema,
   projectedInventoryEntries,
   projectedFileComponents,
-  projectionDigest,
   unavailableComponentSchema,
   type ProjectedInventoryEntry,
 } from "../mobileApplicationGraphProjection.js";
@@ -212,7 +212,7 @@ export const projectAppleApplication = (
 
 /** Identify the complete projection, including source Evidence provenance. */
 export const appleProjectionId = (projection: unknown): string =>
-  `aap_${digest(projection)}`;
+  `aap_${digestCanonicalValue(projection, "Apple application projection")}`;
 
 /**
  * AppleDouble sidecars describe neighbouring files and are never components.
@@ -442,6 +442,3 @@ const projectionLimitations = (facts: {
   "Bridge candidates are path-based hypotheses, not observed runtime calls.",
   "A bridge basis is inferred from the native path and is repeated for every managed component.",
 ];
-
-const digest = (value: unknown): string =>
-  projectionDigest(value, "Apple application projection");

@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-
-import canonicalize from "canonicalize";
 import { z } from "zod";
 
 import { IDENTIFIER_PATTERN } from "./stringPatterns.js";
@@ -9,6 +6,7 @@ import { evidenceSchema } from "./evidence.js";
 import { evidenceBundleSchema } from "./evidenceBundle.js";
 import { err, ok, type Result } from "./result.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
+import { digestCanonicalValue } from "./canonicalDigest.js";
 
 const conformancePackageIdSchema = prefixedDigestSchema("cp");
 
@@ -317,8 +315,5 @@ const packageContents = (
 });
 
 const computePackageId = (contents: ConformancePackageContents): string => {
-  const json = canonicalize(contents);
-  if (json === undefined)
-    throw new TypeError("Could not canonicalize parsed conformance package");
-  return `cp_${createHash("sha256").update(json).digest("hex")}`;
+  return `cp_${digestCanonicalValue(contents, "Conformance package")}`;
 };

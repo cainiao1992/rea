@@ -37,6 +37,12 @@ export type GeneratedRule =
       readonly scope: "collection" | "type";
     }
   | { readonly field: string; readonly rule: "unique" }
+  /** The value kept with each UUID at the pointers (`*` for any array index) replaced by a fresh one, as rewritten child rows are. */
+  | {
+      readonly field: string;
+      readonly rule: "renewed";
+      readonly pointers: string[];
+    }
   | {
       readonly field: string;
       readonly rule: "clock";

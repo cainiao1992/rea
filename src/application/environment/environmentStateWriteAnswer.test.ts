@@ -14,6 +14,10 @@ import {
   FIRST_BOOK,
   OMITTED_FIELD_ROWS,
   PROJECTED_ROWS,
+  AUTHORED_ROWS,
+  CHAPTER_AUTHOR,
+  CONTENTS_ROWS,
+  HANDLE_ROWS,
   LIST_LINE_ROWS,
   QUERY_ROWS,
   SECOND_BOOK,
@@ -22,6 +26,9 @@ import {
   book,
   bookClock,
   detailedBook,
+  UNCHAPTERED_ROWS,
+  VERSIONED_ROWS,
+  numberedUuid,
   bookPage,
   renamedBook,
   type Book,
@@ -359,6 +366,88 @@ describe("write coverage limits", () => {
       detailedBook(SECOND_BOOK),
       created,
     ]);
+  });
+});
+
+describe("values the application assigns", () => {
+  it("gives each update a fresh version and new chapter ids, keeping the chapters' other values", () => {
+    const books = servedFrom(VERSIONED_ROWS);
+    const rename = (name: string) =>
+      books.answer("patch_books_by_id", {
+        id: "2",
+        body: { name, version_id: "any version" },
+      }).body as Book;
+    const first = rename("Second Edition");
+    const second = rename("Third Edition");
+    const held = [1, 2, 3, 4, 5, 6, 7, 8].map(numberedUuid);
+    for (const answer of [first, second]) {
+      expect(held).not.toContain(answer.version_id);
+      expect(answer.chapters).toEqual([
+        { id: expect.not.stringMatching(numberedUuid(4)), title: "Opening" },
+      ]);
+    }
+    expect(second.version_id).not.toBe(first.version_id);
+    expect(books.answer("get_books_by_id", { id: "2" }).body).toEqual(second);
+  });
+
+  it("renews chapter ids alone, keeping the author each chapter names", () => {
+    const answer = servedFrom(AUTHORED_ROWS).answer("patch_books_by_id", {
+      id: "2",
+      body: { name: "Second Edition", version_id: "any version" },
+    }).body as Book;
+    expect(answer.chapters).toEqual([
+      {
+        id: expect.not.stringMatching(numberedUuid(4)),
+        title: "Opening",
+        author_id: CHAPTER_AUTHOR,
+      },
+    ]);
+  });
+
+  it("renews a chapter id alike wherever an update renews it", () => {
+    const answer = servedFrom(CONTENTS_ROWS).answer("patch_books_by_id", {
+      id: "2",
+      body: { name: "Second Edition", version_id: "any version" },
+    }).body as {
+      chapters: [{ id: string }];
+      contents: [{ chapter_id: string }];
+    };
+    expect(answer.chapters[0].id).not.toBe(numberedUuid(4));
+    expect(answer.contents[0].chapter_id).toBe(answer.chapters[0].id);
+  });
+
+  it("gives no chapter rows to a book the state holds without them", () => {
+    const books = servedFrom(UNCHAPTERED_ROWS);
+    const before = books.snapshot();
+    expect(
+      books.refusal("patch_books_by_id", {
+        id: "2",
+        body: { name: "Second Edition", version_id: "any version" },
+      }).message,
+    ).toContain("lacks chapters");
+    expect(books.snapshot()).toBe(before);
+  });
+
+  it("refuses a handle of another JSON type than the code it is stored as", () => {
+    const books = servedFrom(HANDLE_ROWS);
+    for (const handle of [{ not: "a string" }, null])
+      expect(
+        books.refusal("post_books", { body: { name: "Fifth Book", handle } })
+          .message,
+      ).toContain("Member handle must be a JSON string");
+  });
+
+  it("stores a sent handle as the code and rebuilds the link around it", () => {
+    const books = servedFrom(HANDLE_ROWS);
+    expect(
+      books.answer("post_books", {
+        body: { name: "Fifth Book", handle: "fifth-handle" },
+      }).body,
+    ).toMatchObject({
+      id: 3,
+      code: "fifth-handle",
+      link: "https://books.example.test/b/fifth-handle",
+    });
   });
 });
 

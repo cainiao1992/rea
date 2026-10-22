@@ -193,6 +193,11 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
   z.strictObject({ ...ruled, rule: z.literal("unique") }),
   z.strictObject({
     ...ruled,
+    rule: z.literal("renewed"),
+    pointers: z.array(z.string()).min(1),
+  }),
+  z.strictObject({
+    ...ruled,
     rule: z.literal("clock"),
     format: clockFormatSchema,
   }),

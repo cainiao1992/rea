@@ -150,6 +150,128 @@ export const ASSET_ROWS: readonly TimedCaptureRow[] = [
   ["GET", "/api/books/4", ASSET_FOURTH],
 ];
 
+/** A UUID-shaped value numbered `n`. */
+export const numberedUuid = (n: number): string =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+/** A book with a version the application renews on every update and chapter rows it rewrites with new ids. */
+export const versionedBook = (
+  entity: Book,
+  version: number,
+  chapter: number,
+): Book => ({
+  ...entity,
+  version_id: numberedUuid(version),
+  chapters: [{ id: numberedUuid(chapter), title: "Opening" }],
+});
+
+/** Two renames of the first book, each sending the version it was read with; each gets a new version and the child rows `make` renews. */
+const renamingRows = (
+  make: (entity: Book, version: number, chapter: number) => Book,
+  second: Book = make(SECOND_BOOK, 3, 4),
+): TimedCaptureRow[] => {
+  const once = make(renamedBook(FIRST_BOOK, "Renamed Book", 3), 5, 6);
+  const twice = make(renamedBook(FIRST_BOOK, "Renamed Again", 5), 7, 8);
+  return [
+    ["GET", "/api/books", [make(FIRST_BOOK, 1, 2), second]],
+    ["GET", "/api/books/1", make(FIRST_BOOK, 1, 2)],
+    ["GET", "/api/books/2", second],
+    [
+      "PATCH",
+      "/api/books/1",
+      once,
+      200,
+      { name: "Renamed Book", version_id: numberedUuid(1) },
+    ],
+    ["GET", "/api/books/1", once],
+    [
+      "PATCH",
+      "/api/books/1",
+      twice,
+      200,
+      { name: "Renamed Again", version_id: numberedUuid(1) },
+    ],
+    ["GET", "/api/books/1", twice],
+  ];
+};
+
+/** Two renames of the first book, each sending the version it was read with; each gets a new version and chapter ids. */
+export const VERSIONED_ROWS: readonly TimedCaptureRow[] =
+  renamingRows(versionedBook);
+
+/** The author every chapter row names, which no renewal changes. */
+export const CHAPTER_AUTHOR = numberedUuid(99);
+
+/** As VERSIONED_ROWS, with chapter rows that also name their author. */
+export const AUTHORED_ROWS: readonly TimedCaptureRow[] = renamingRows(
+  (entity, version, chapter) => ({
+    ...versionedBook(entity, version, chapter),
+    chapters: [
+      {
+        id: numberedUuid(chapter),
+        title: "Opening",
+        author_id: CHAPTER_AUTHOR,
+      },
+    ],
+  }),
+);
+
+/** As VERSIONED_ROWS, with contents naming each chapter row by its id. */
+export const CONTENTS_ROWS: readonly TimedCaptureRow[] = renamingRows(
+  (entity, version, chapter) => ({
+    ...versionedBook(entity, version, chapter),
+    contents: [{ chapter_id: numberedUuid(chapter), page: 1 }],
+  }),
+);
+
+/** As VERSIONED_ROWS, with the second book known only without chapter rows. */
+export const UNCHAPTERED_ROWS: readonly TimedCaptureRow[] = renamingRows(
+  versionedBook,
+  { ...SECOND_BOOK, version_id: numberedUuid(3) },
+);
+
+/** A book whose sent handle the application stores as its code and embeds in its link. */
+export const handledBook = (entity: Book, handle: string): Book => ({
+  ...entity,
+  code: handle,
+  link: `https://books.example.test/b/${handle}`,
+});
+
+const FOURTH_BOOK = handledBook(
+  book(4, "Fourth Book", bookClock(5)),
+  "fourth-handle",
+);
+
+/** Two creates, each sending a handle the application stores under another name. */
+export const HANDLE_ROWS: readonly TimedCaptureRow[] = [
+  [
+    "GET",
+    "/api/books",
+    [
+      handledBook(FIRST_BOOK, "first-handle"),
+      handledBook(SECOND_BOOK, "second-handle"),
+    ],
+  ],
+  ["GET", "/api/books/1", handledBook(FIRST_BOOK, "first-handle")],
+  ["GET", "/api/books/2", handledBook(SECOND_BOOK, "second-handle")],
+  [
+    "POST",
+    "/api/books",
+    handledBook(THIRD_BOOK, "third-handle"),
+    201,
+    { name: "Third Book", handle: "third-handle" },
+  ],
+  ["GET", "/api/books/3", handledBook(THIRD_BOOK, "third-handle")],
+  [
+    "POST",
+    "/api/books",
+    FOURTH_BOOK,
+    201,
+    { name: "Fourth Book", handle: "fourth-handle" },
+  ],
+  ["GET", "/api/books/4", FOURTH_BOOK],
+];
+
 /** A page of books as a paging API wraps it, counting what it lists. */
 export const bookPage = (books: readonly Book[]) => ({
   content: [...books],

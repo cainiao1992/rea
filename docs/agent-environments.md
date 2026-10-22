@@ -457,7 +457,7 @@ every MCP session and `data/get` then see:
 | Effect     | Call                                                                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `create`   | Adds an entity to the collection the path names, built from the observed entity with each ruled field taken from the call or generated, at the plan's `insert` position. A plan tied to its exemplar's collection writes only there. |
-| `update`   | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, increment and slug changes the plan models.                                                        |
+| `update`   | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, increment, slug, unique and renewed changes the plan models.                                       |
 | `delete`   | Removes the entity the path names.                                                                                                                                                                                                   |
 | `document` | Merges the body into the plan's document object, or replaces it for `PUT`.                                                                                                                                                           |
 

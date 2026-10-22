@@ -1,6 +1,7 @@
 import {
   createdFields,
   documentBodyProblem,
+  renewUuids,
   updatedEntity,
   updatedFields,
   valueAt,
@@ -12,6 +13,7 @@ import {
   insertIndex,
   nextInteger,
 } from "../../domain/analysisView/environmentStateWriteExplain.js";
+import { callRenewal } from "../../domain/analysisView/environmentStateWriteGenerated.js";
 import {
   pathValuesOf,
   type GeneratedRule,
@@ -152,6 +154,8 @@ const generator = (
     readonly name: string;
     readonly collection: readonly StateEntity[];
     readonly observed: JsonObject;
+    /** The entity an update writes, whose values a renewed field keeps. */
+    readonly current?: JsonObject;
   },
 ): {
   readonly generate: GenerateValue;
@@ -169,6 +173,9 @@ const generator = (
   // A sequence never reuses a value the state started with, even after its entity was deleted.
   const started = store.startedWith(request.plan.target ?? "");
   const startedIn = started.filter((held) => held.collection === target.name);
+  const renewed = callRenewal(
+    `${store.state.evidenceId}:${request.tool.name}:renewed:${String(write.count)}`,
+  );
   const unused = (
     field: string,
     make: (attempt: number) => string,
@@ -210,6 +217,14 @@ const generator = (
       case "unique":
         return unused(rule.field, (attempt) =>
           seededUuid(seed(attempt), String(exemplar)),
+        );
+      case "renewed":
+        return ok(
+          renewUuids(
+            target.current?.[rule.field] ?? null,
+            rule.pointers,
+            renewed,
+          ),
         );
       case "identity":
         if (rule.generator === "sequence")
@@ -386,6 +401,7 @@ const answerUpdate = (
     name: entity.collection,
     collection: serving.store.inCollection(entity.type, entity.collection),
     observed,
+    current: entity.fields,
   });
   const written = updatedFields(
     plan,

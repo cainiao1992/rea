@@ -87,9 +87,13 @@ identity the client sends is an echo:
    groups and zero padding, and digits that outgrow them lead. A later call must
    record the value spelled that way.
 8. **Unique.** A UUID-shaped string that no other entity of the type shares.
-9. **Template.** A string containing a generated value as a delimited token
-   (for example a URL that ends in the new id). It is rebuilt around the new
-   value.
+9. **Template.** A string containing a generated value, or else a copied
+   value, as a delimited token (for example a URL that ends in the new id or in
+   a slug the call sent under another name). It is rebuilt around the new
+   value. An echoed value is not a token, nor is a copy of one: it may recur in
+   unrelated text. A copied member whose value also sits in text no template
+   rebuilds around it (beside another source in one template, or in a constant)
+   is accepted only with its recorded value.
 10. **Constant.** Otherwise the exemplar's value.
 
 When a constant, or the text a template keeps, contains a path value of the
@@ -98,8 +102,10 @@ naming the exemplar's collection.
 
 **Body members of a create.** A member is either accepted or not:
 
-- **Accepted.** An echoed member, or the identity field's value. Every member
-  the exemplar sent is required.
+- **Accepted.** An echoed member, a member copied whole into a field of another
+  name and stored under none of its own, or the identity field's value. A
+  member copied whole must have the JSON type of the field it is copied into.
+  Every member the exemplar sent is required.
 - **Not accepted.** A member the application stored with a different value
   (transformed), or one it did not show. A call that sends such a member is a
   tool error naming the accepted members.
@@ -115,7 +121,9 @@ calls use a member both as the identity and as a fixed member, or fix it at
 different values, is `unexplained-change`, as serving could not take every
 recorded call. So is an update a later read shows dropped a field the
 entity held, since serving keeps every field an update does not write; a write's
-own response may leave fields out. A member a later call is the first to store,
+own response may leave fields out. A member the application replaced
+with a fresh UUID (`unique`, below) is accepted with any value; a UUID stored
+as sent in another letter case is the sent value, not a fresh one. A member a later call is the first to store,
 which the plan's observation does not show, keeps the JSON type that call stored
 it as (the body's `kinds`), as an exemplar's member keeps the observation's.
 `PUT` requires every member the exemplar sent; `PATCH` and `POST` require at
@@ -124,14 +132,25 @@ explained as one of:
 
 - clock;
 - an increment by one;
-- a slug of an echoed member.
+- a slug of an echoed member;
+- `unique`: a UUID in place of another UUID, that no other entity of the type
+  holds and the call sent nowhere in its body (a version the application assigns
+  on every update);
+- `renewed`: an array or object whose only changes are UUIDs replaced by ones
+  that neither it nor another entity of the type held, as child rows an update
+  rewrites are. The rule names the pointers it renewed at (`*` for any array
+  index): every UUID at them is new, each old UUID by a single new one, and
+  UUIDs elsewhere, such as a row's references, are kept. One call renews a
+  UUID alike in every field and in either letter case, and never two old UUIDs
+  into one new one.
 
 A field the entity lacked before is a change too when the view that observed
 the update had shown the entity, so a field the application fills in on update
 follows its rule. Any other change is `unexplained-change`. An increment or a slug applies to
-every call that could take it, so the plan is also `unexplained-change` when
-such a rule would give a call of the tool another value than the one it
-recorded, or when a later call treats a member otherwise than the plan: one
+every call that could take it, and `unique` and `renewed` to every call, so the
+plan is also `unexplained-change` when such a rule would give a call of the
+tool another value than the one it recorded, a recorded call kept a `unique` or
+`renewed` field, or a later call treats a member otherwise than the plan: one
 call echoes it and another stores something else, or the two rule it
 differently.
 
@@ -364,6 +383,12 @@ their recorded format.
   sequences do not reuse values.
 - **UUIDs and tokens:** derived from a SHA-256 of the state Evidence id, the
   tool, the field and a write counter, skipping values the type already holds.
+- **Renewed fields:** the entity's current value with each UUID at the rule's
+  pointers replaced by one derived from a SHA-256 of the state Evidence id, the
+  tool, the write counter and the UUID's order in the call, the same
+  replacement wherever the call renews that UUID in either letter case, spelled
+  in each place's case; held values are not skipped.
+  An entity without the field is left without it.
 
 `data/reset` and `data/add` restart the clock, the counter and the
 sequences.

@@ -135,6 +135,15 @@ exits 1. Installing missing Hopper non-interactively additionally requires
 rea setup --yes --all-detected --install-hopper --json
 ```
 
+Client configuration writes detect changes to the file read by setup, including
+when a matching recovery backup already exists. A detected conflict reports
+`reason: "conflict"` and preserves the newer file; review it and rerun setup.
+Rollback likewise requires the file identity and content installed by that
+transaction. Requests for the same resolved path are serialized within one REA
+process. These checks do not provide an operating-system compare-and-swap or
+coordinate arbitrary external writers, so avoid editing client configuration
+while setup is applying it.
+
 ### Skill destinations
 
 The bundled skill is installed in each selected client's personal skill directory.

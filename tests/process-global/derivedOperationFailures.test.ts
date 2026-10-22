@@ -30,6 +30,25 @@ import { compareManagedMemberPaths } from "../../src/application/managed/Managed
 import { buildManagedPeFixture } from "../../src/dotnet/ManagedPe.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 
+import { reconstructionObligationLedgerSchema } from "../../src/domain/reconstructionObligationLedgerSchemas.js";
+import {
+  request as ledgerRequest,
+  processEvidence,
+} from "../../src/application/ReconstructionObligationLedger.fixture.js";
+import { processCaptureSchema } from "../../src/domain/process/processCapture.js";
+
+/** Unexpected implementation failures retain the SDK text surface, without a typed caller error. */
+const expectUnexpectedToolFailure = (
+  response: Awaited<ReturnType<Client["callTool"]>>,
+  failure: Error,
+): void => {
+  expect(response).toMatchObject({
+    isError: true,
+    content: [{ type: "text", text: failure.message }],
+  });
+  expect(response.structuredContent).toBeUndefined();
+};
+
 const unexpectedResultFailures = [
   ["TypeError", () => new TypeError("injected result parser TypeError")],
   ["Error", () => new Error("injected result parser Error")],
@@ -226,11 +245,7 @@ describe("derived operation failures through the public SDK", () => {
           },
         });
 
-        expect(response).toMatchObject({
-          isError: true,
-          content: [{ type: "text", text: failure.message }],
-        });
-        expect(response.structuredContent).toBeUndefined();
+        expectUnexpectedToolFailure(response, failure);
         expect(session.exportEvidenceBundle().records).toEqual([]);
       });
     },
@@ -251,11 +266,7 @@ describe("derived operation failures through the public SDK", () => {
           name: "evaluate_reconstruction_coverage",
           arguments: { coverage, boundary_id: "replacement.cli" },
         });
-        expect(response).toMatchObject({
-          isError: true,
-          content: [{ type: "text", text: failure.message }],
-        });
-        expect(response.structuredContent).toBeUndefined();
+        expectUnexpectedToolFailure(response, failure);
         expect(session.exportEvidenceBundle().records).toEqual([]);
       });
     },
@@ -366,11 +377,7 @@ describe.each(managedWorkflows)(
             name: workflow.name,
             arguments: workflow.input,
           });
-          expect(response).toMatchObject({
-            isError: true,
-            content: [{ type: "text", text: failure.message }],
-          });
-          expect(response.structuredContent).toBeUndefined();
+          expectUnexpectedToolFailure(response, failure);
           expect(session.exportEvidenceBundle().records).toEqual([]);
         });
       },
@@ -415,4 +422,49 @@ describe("managed comparison output failure with completed source reads", () => 
       },
     });
   });
+});
+
+describe("ledger generation failure ownership through the public SDK", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from generated ledger validation",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const input = ledgerRequest([processEvidence()]);
+        const failure = createFailure();
+        vi.spyOn(
+          reconstructionObligationLedgerSchema,
+          "parse",
+        ).mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "build_reconstruction_obligation_ledger",
+          arguments: input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+
+  it.each(unexpectedResultFailures.filter(([kind]) => kind !== "ZodError"))(
+    "preserves an unexpected %s while deriving process candidates",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const input = ledgerRequest([processEvidence()]);
+        const failure = createFailure();
+        vi.spyOn(processCaptureSchema, "parse").mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "build_reconstruction_obligation_ledger",
+          arguments: input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
 });

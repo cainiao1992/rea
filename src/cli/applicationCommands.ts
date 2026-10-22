@@ -17,7 +17,6 @@ import { compareApplicationVersionsInputSchema } from "../domain/javascript/java
 import { registerSourceToBundleCommand } from "./sourceToBundleCommand.js";
 import { compareJavaScriptExportShapesInputSchema } from "../domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
-import { reconstructionObligationLedgerInputSchema } from "../domain/reconstructionObligationLedgerSchemas.js";
 
 type CliInstance = ReturnType<typeof Cli.create>;
 
@@ -141,15 +140,11 @@ const registerObligationLedgerCommand = (
     name: CLI_COMMANDS.buildReconstructionObligationLedger,
     description:
       "Generate a deterministic Evidence-backed reconstruction obligation ledger page",
-    inputSchema: reconstructionObligationLedgerInputSchema,
+    inputSchema: z.unknown(),
     workflow: async (input) => {
-      const { buildReconstructionObligationLedgerEvidenceValidated } =
+      const { buildReconstructionObligationLedgerEvidence } =
         await import("../application/ReconstructionObligationLedgerService.js");
-      const result =
-        buildReconstructionObligationLedgerEvidenceValidated(input);
-      return result.ok
-        ? { ok: true, value: jsonValueSchema.parse(result.value) }
-        : result;
+      return buildReconstructionObligationLedgerEvidence(input);
     },
   });
 

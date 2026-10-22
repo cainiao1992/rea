@@ -29,7 +29,7 @@ import {
   parseProcessCaptureEvidence,
 } from "./ProcessEvidence.js";
 import { readJsonFile } from "../JsonFiles.js";
-import { RegularFileCleanupFailure } from "../RegularFileRead.js";
+import { RegularFileCleanupFailure } from "../../filesystem/OwnedRegularFile.js";
 
 /** Safe process-command failure returned to the CLI adapter. */
 export interface ProcessCliErrorOutput extends AnalysisErrorProjection {

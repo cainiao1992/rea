@@ -11,7 +11,7 @@ import { createEvidence } from "../../../src/domain/evidence.js";
 import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
-import { RegularFileCleanupFailure } from "../../../src/application/RegularFileRead.js";
+import { RegularFileCleanupFailure } from "../../../src/filesystem/OwnedRegularFile.js";
 import { analysisCliErrorEnvelopeSchema } from "../../../src/contracts/errorSchemas.js";
 import { EvidenceFileError } from "../../../src/domain/evidenceErrors.js";
 import { err } from "../../../src/domain/result.js";

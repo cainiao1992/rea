@@ -31,7 +31,7 @@ import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { readJsonObjectFile } from "../../../src/application/JsonInputFile.js";
 import { RegularFileChangedError } from "../../../src/filesystem/RegularFile.js";
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
-import { RegularFileCleanupFailure } from "../../../src/application/RegularFileRead.js";
+import { RegularFileCleanupFailure } from "../../../src/filesystem/OwnedRegularFile.js";
 import { OwnedStagedOutput } from "../../../src/filesystem/OwnedStagedOutput.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 

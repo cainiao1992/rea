@@ -7,7 +7,10 @@ import { resolveJavaScriptSourceMapReferences } from "../../domain/javascript/ja
 import { analyzeParsedJavaScriptStaticSourceSteps } from "../../domain/javascript/javascriptStaticAnalysis.js";
 import { analyzeParsedJavaScriptSemanticsSteps } from "../../domain/javascript/javascriptSemanticAnalysis.js";
 import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSemanticIr.js";
-import { projectJavaScriptModuleSemantics } from "../../domain/javascript/javascriptModuleSemanticIr.js";
+import {
+  type JavaScriptModuleSemanticIr,
+  projectJavaScriptModuleSemantics,
+} from "../../domain/javascript/javascriptModuleSemanticIr.js";
 import { parseJavaScriptSource } from "../../domain/javascript/javascriptSourceParser.js";
 import { hasValidSourceMapContents } from "../../domain/sourceMapContents.js";
 import {
@@ -28,7 +31,6 @@ import type {
   JavaScriptArtifactAnalysisScope,
   JavaScriptArtifactAnalysis,
   JavaScriptModuleArtifactAnalysis,
-  JavaScriptModuleSemanticIr,
   JavaScriptHtmlInlineScriptsObservation,
   JavaScriptHtmlScriptObservation,
   JavaScriptJsonModuleObservation,

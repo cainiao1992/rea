@@ -1,3 +1,4 @@
+import { describeValidationFailure } from "./validationFailure.js";
 import { equalJsonText } from "./jsonSerialization.js";
 import { z } from "zod";
 import canonicalize from "canonicalize";
@@ -262,18 +263,6 @@ export const describeEvidenceBundleFailure = (
           : `Evidence bundle validation failed: ${describeValidationFailure(cause)}. Recreate or re-export the bundle, then try again.`,
     };
   }
-};
-
-/** Locate the first schema issue, or keep a thrown constraint message. */
-export const describeValidationFailure = (cause: unknown): string => {
-  if (!(cause instanceof z.ZodError))
-    return cause instanceof Error ? cause.message : String(cause);
-  const [first, ...rest] = cause.issues;
-  const location =
-    first === undefined || first.path.length === 0
-      ? "the document root"
-      : first.path.map(String).join(".");
-  return `at ${location}: ${first?.message ?? "invalid value"}${rest.length === 0 ? "" : ` (${String(rest.length)} more issues)`}`;
 };
 
 /** Parse records, verify semantic IDs, and reject inconsistent manifests. */

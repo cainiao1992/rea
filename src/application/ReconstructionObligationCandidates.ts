@@ -2,8 +2,8 @@ import { uniqueSorted, uniqueSortedBy } from "../domain/canonicalOrdering.js";
 import { digestCanonicalValue } from "../domain/canonicalDigest.js";
 
 import type { Evidence } from "../domain/evidence.js";
+import { describeValidationFailure } from "../domain/validationFailure.js";
 import {
-  describeValidationFailure,
   parseEvidenceBundle,
   type EvidenceBundle,
 } from "../domain/evidenceBundle.js";

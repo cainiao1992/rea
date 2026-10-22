@@ -8,7 +8,7 @@ import {
   type WebSourceLocationInput,
 } from "../../domain/webSourceLocation.js";
 import { err, ok } from "../../domain/result.js";
-import { webArtifactCleanupFailures } from "../WebArtifactCleanup.js";
+import { closeWebArtifactResources } from "../WebArtifactCleanup.js";
 import { LocalWebScriptArtifacts } from "./LocalWebScriptArtifacts.js";
 import { decodeWebArtifact, webArtifactReadError } from "./WebArtifactReads.js";
 
@@ -30,34 +30,11 @@ export class LocalWebSourceLocationArtifacts implements WebSourceLocationArtifac
   }
 
   async close(): Promise<void> {
-    const closeScript =
-      this.scripts instanceof LocalWebScriptArtifacts &&
-      this.scripts.resources === this.#resources
-        ? undefined
-        : this.scripts.close?.bind(this.scripts);
-    const results = await Promise.allSettled([
-      Promise.resolve().then(() => this.#resources.close()),
-      ...(closeScript === undefined
-        ? []
-        : [Promise.resolve().then(closeScript)]),
-    ]);
-    const failures = results.flatMap((result, index) =>
-      result.status === "rejected"
-        ? [
-            {
-              cause: result.reason,
-              resource:
-                index === 0 ? "web source-location artifacts" : "web scripts",
-            },
-          ]
-        : [],
-    );
-    const error = webArtifactCleanupFailures(
+    return closeWebArtifactResources(
       "web-source-location-artifacts",
-      "trace_web_source_location",
-      failures,
+      this.#resources,
+      this.scripts,
     );
-    if (error !== undefined) throw error;
   }
 
   /** Preserve actual map identity separately from the selected deployment URL. */

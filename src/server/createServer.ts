@@ -14,13 +14,16 @@ import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { captureProviderEnvironment } from "./providerEnvironment.js";
 import {
   createElfNotesService,
+  createPeCertificatesService,
   createNativeExportsService,
   createPeResourcesService,
 } from "../composition/binaryDiagnostics.js";
 import type { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
+import type { PeCertificatesService } from "../application/binaryDiagnostics/PeCertificatesService.js";
 import type { PeResourcesService } from "../application/binaryDiagnostics/PeResourcesService.js";
 import type { NativeExportsService } from "../application/binaryDiagnostics/NativeExportsService.js";
 import { registerElfNotesTool } from "./registerElfNotesTool.js";
+import { registerPeCertificatesTool } from "./registerPeCertificatesTool.js";
 import { registerPeResourcesTool } from "./registerPeResourcesTool.js";
 import { registerNativeExportsTool } from "./registerNativeExportsTool.js";
 import type { EvmInterfaceService } from "../application/evm/EvmInterfaceService.js";
@@ -360,6 +363,7 @@ export const createServer = (
   const peResources = createPeResourcesService();
   const nativeExports = createNativeExportsService();
   const elfNotes = createElfNotesService();
+  const peCertificates = createPeCertificatesService();
   const electronFuses = options.electronFuses ?? createElectronFuseService();
   const webNetworkCapture =
     options.webNetworkCapture ?? createWebNetworkCaptureService(environment);
@@ -463,6 +467,7 @@ export const createServer = (
       peResources.close(),
       nativeExports.close(),
       elfNotes.close(),
+      peCertificates.close(),
       electronFuses.close(),
       webNetworkCapture.close(),
       javascriptRecovery.close?.() ?? Promise.resolve(),
@@ -528,6 +533,7 @@ export const createServer = (
     peResources,
     nativeExports,
     elfNotes,
+    peCertificates,
     electronFuses,
     webNetworkCapture,
   };
@@ -761,6 +767,7 @@ const registerConfiguredAnalysisTools = (
     peResources,
     nativeExports,
     elfNotes,
+    peCertificates,
     webNetworkCapture,
     artifactResources,
   }: ServerToolContext,
@@ -820,6 +827,13 @@ const registerConfiguredAnalysisTools = (
   registerElfNotesTool(
     server,
     elfNotes,
+    toolLogger,
+    recordEvidence,
+    withAdmittedAnalysis,
+  );
+  registerPeCertificatesTool(
+    server,
+    peCertificates,
     toolLogger,
     recordEvidence,
     withAdmittedAnalysis,
@@ -959,6 +973,7 @@ interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
   readonly peResources: PeResourcesService;
   readonly nativeExports: NativeExportsService;
   readonly elfNotes: ElfNotesService;
+  readonly peCertificates: PeCertificatesService;
   readonly electronFuses: ElectronFuseService;
   readonly webNetworkCapture: WebNetworkCaptureService;
   readonly artifactResources: ArtifactResourceScope;

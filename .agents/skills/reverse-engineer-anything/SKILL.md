@@ -219,6 +219,14 @@ explicit path or endpoint and do not need it.
   delivery requires `--evidence_output`.
   See the
   [Rust binary guide](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md).
+- PE Authenticode certificate table: `inspect_pe_certificates` with the explicit
+  local PE32/PE32+ file. This built-in target-free inspection requires no
+  Windows SDK. Preserve WIN_CERTIFICATE ranges, types, payload SHA-256, and
+  PKCS#7 signer/X.509 identity fields, including `subject_key_identifier_hex`
+  when the signer uses that form. A missing security directory is observed
+  absence of that table, not proof the image is unsigned in every catalog sense.
+  Signatures are not verified. See the
+  [PE certificate guide](https://github.com/morluto/rea/blob/main/docs/pe-certificates.md).
 - ELF note tables: `inspect_elf_notes` with the explicit local ELF32/ELF64
   file. This built-in target-free inspection requires no disassembler. Preserve
   PT_NOTE and SHT_NOTE ranges, owners, types, descriptor SHA-256, and GNU

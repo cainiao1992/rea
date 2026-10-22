@@ -5,6 +5,8 @@ import { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayo
 import { PwntoolsLayoutProvider } from "../native/pwntools/PwntoolsLayoutProvider.js";
 import { PeResourcesService } from "../application/binaryDiagnostics/PeResourcesService.js";
 import { PeResourcesProvider } from "../native/pe/PeResourcesProvider.js";
+import { PeCertificatesService } from "../application/binaryDiagnostics/PeCertificatesService.js";
+import { PeCertificatesProvider } from "../native/pe/PeCertificatesProvider.js";
 import { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import { ElfNotesProvider } from "../native/elf/ElfNotesProvider.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
@@ -14,6 +16,10 @@ import { NativeExportsProvider } from "../native/exports/NativeExportsProvider.j
 /** Portable PE inspection with no engine, installation or target acquisition. */
 export const createPeResourcesService = (): PeResourcesService =>
   new PeResourcesService(new PeResourcesProvider());
+
+/** Portable Authenticode table inspection with no engine or catalog verification. */
+export const createPeCertificatesService = (): PeCertificatesService =>
+  new PeCertificatesService(new PeCertificatesProvider());
 
 /** Portable PE/ELF export tables with no engine, toolchain or target acquisition. */
 export const createNativeExportsService = (): NativeExportsService =>

@@ -26,6 +26,10 @@ import {
   peResourcesSchema,
 } from "../../domain/native/peResources.js";
 import {
+  inspectPeCertificatesInputSchema,
+  peCertificatesSchema,
+} from "../../domain/native/peCertificates.js";
+import {
   inspectElfNotesInputSchema,
   elfNotesSchema,
 } from "../../domain/native/elfNotes.js";
@@ -81,6 +85,21 @@ export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
           block_size: 4096,
           detail: "summary",
         },
+      },
+    ],
+  },
+  {
+    name: "inspect_pe_certificates",
+    ...toolContractMetadata("inspect_pe_certificates"),
+    kind: "native-provider",
+    description:
+      "Inspect one explicit local PE32/PE32+ image's IMAGE_DIRECTORY_ENTRY_SECURITY table without executing it, verifying signatures or opening a disassembler. Returns WIN_CERTIFICATE file ranges, types and payload SHA-256, plus structurally decoded PKCS#7 signedData digest algorithms, embedded X.509 serial/issuer/subject/validity fields and signer identifiers, including a subject key identifier, when type 2 is present. A missing directory is observed absence of that table, not proof the image is unsigned in every catalog or overlay sense. Authenticode digest coverage, chain validity and timestamp trust remain unobserved. Reads a stable regular file; malformed PE headers, truncated WIN_CERTIFICATE entries, X.509 certificates missing subjectPublicKeyInfo or signatureValue, and non-signedData PKCS#7 return no partial success. Portable on supported Node hosts; no Windows SDK or engine installation required.",
+    inputSchema: inspectPeCertificatesInputSchema,
+    outputSchema: evidenceResultOf(peCertificatesSchema),
+    examples: [
+      {
+        title: "Inspect PE Authenticode certificate identities",
+        input: { path: "/artifacts/application.exe" },
       },
     ],
   },

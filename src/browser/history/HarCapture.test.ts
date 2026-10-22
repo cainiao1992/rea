@@ -1,8 +1,69 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
-import { historicalHar } from "../../../tests/fixtures/historicalHar.js";
+import {
+  historicalHar,
+  harWithContainerLookalikes,
+} from "../../../tests/fixtures/historicalHar.js";
 import { decodeCaptureText } from "./CaptureJson.js";
 import { decodeHarCapture } from "./HarCapture.js";
+
+it("interprets HTTP fields only within HAR entries, preserving document lookalikes", () => {
+  const fixture = harWithContainerLookalikes();
+  const decoded = decodeHarCapture(JSON.stringify(fixture), []);
+  expect(decoded.container.reported).toMatchObject({
+    request: fixture.request,
+    response: fixture.response,
+  });
+  expect(decoded.container.redactions).toEqual([]);
+  expect(decoded.records[0]).toMatchObject({
+    reported: {
+      request: {
+        url: "https://example.test/opaque",
+        headers: [{ name: "Authorization", value: null }],
+        cookies: [{ name: "session", value: null }],
+      },
+      response: {
+        redirectURL: "https://example.test/redirect",
+        headers: [{ name: "Set-Cookie", value: null }],
+      },
+    },
+    binary_fields: [
+      { pointer: "/response/content/text", content_base64: "QUJD", bytes: 3 },
+    ],
+  });
+  const marked = decodeHarCapture(JSON.stringify(fixture), [
+    "ordinary-root-evidence",
+  ]);
+  expect(marked.container.reported).toMatchObject({
+    request: {
+      headers: [{ value: null }],
+      cookies: [{ value: null }],
+    },
+    response: { headers: [{ value: null }], content: { text: null } },
+  });
+  expect(marked.container.redactions).toHaveLength(4);
+  expect(
+    marked.container.redactions.every(
+      ({ reason }) => reason === "explicit-sensitive-value",
+    ),
+  ).toBe(true);
+});
+
+it("does not decode container lookalikes when excluding explicitly sensitive body bytes", () => {
+  const fixture = harWithContainerLookalikes();
+  fixture.response.content.text = "QUJD";
+  const decoded = decodeHarCapture(JSON.stringify(fixture), ["ABC"]);
+  expect(decoded.container.reported).toMatchObject({
+    response: { content: { text: "QUJD" } },
+  });
+  expect(decoded.container.redactions).toEqual([]);
+  expect(decoded.records[0]).toMatchObject({
+    reported: { response: { content: { text: null } } },
+    binary_fields: [
+      { state: "redacted", content_base64: null, bytes: null, sha256: null },
+    ],
+  });
+});
 
 it.each([
   { values: [] },

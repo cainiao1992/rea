@@ -1,6 +1,7 @@
 import { stateBodyJson } from "../../domain/analysisView/EnvironmentStateAccumulator.js";
 import {
   collectionPathOf,
+  decodedSegment,
   listItems,
   missingRequiredFields,
   renderStateEntity,
@@ -28,7 +29,6 @@ import {
 import type { JsonValue } from "../../domain/jsonValue.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
-  decodedPathSegment,
   pathValueMatches,
   replayAnswer,
   replayEnvironmentTool,
@@ -243,7 +243,7 @@ export const namedEntity = (
   type: string,
   call: ItemCall,
 ): StateEntity | undefined => {
-  const ids = [...new Set([decodedPathSegment(call.id), call.id])];
+  const ids = [...new Set([decodedSegment(call.id), call.id])];
   const candidates = store
     .collectionsOf(type)
     .flatMap((collection) => {

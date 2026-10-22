@@ -97,8 +97,12 @@ it.runIf(linux)(
   },
 );
 
-it("reports packet tools missing when no absolute PATH entry holds TShark", async () => {
+it("reports packet tools unavailable when no absolute PATH entry holds TShark", async () => {
+  // Off Linux the host, not the missing tool, keeps packet tools unavailable.
   expect(
     await packetCaptureAvailability({ PATH: "relative-entry" }),
-  ).toMatchObject({ available: false, reason: "provider_missing" });
+  ).toMatchObject({
+    available: false,
+    reason: linux ? "provider_missing" : "unsupported_host",
+  });
 });

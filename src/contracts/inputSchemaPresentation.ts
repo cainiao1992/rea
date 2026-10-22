@@ -380,12 +380,113 @@ const flattenRootObjectUnion = (
   };
 };
 
+/** Preserve opt-in discriminator relationships without a root union. */
+const presentDiscriminatedRoot = (
+  root: Record<string, unknown>,
+): Record<string, unknown> => {
+  const { "x-rea-root-discriminator": discriminator, ...canonical } = root;
+  const flattened = flattenRootObjectUnion(canonical);
+  if (typeof discriminator !== "string") return flattened;
+  const alternatives = canonical.anyOf ?? canonical.oneOf;
+  if (!Array.isArray(alternatives) || alternatives.length !== 2)
+    throw new TypeError(
+      "A presented root discriminator requires two object alternatives",
+    );
+  const branches = alternatives.map((alternative) => {
+    const branch = objectBranch(canonical, alternative);
+    if (branch === undefined || branch.additionalProperties !== false)
+      throw new TypeError(
+        "A presented root discriminator requires strict objects",
+      );
+    return branch;
+  });
+  const requiredBranch = branches.find((branch) =>
+    requiredProperties(branch).includes(discriminator),
+  );
+  const fallback = branches.find(
+    (branch) => !requiredProperties(branch).includes(discriminator),
+  );
+  const literal = (
+    branch: Readonly<Record<string, unknown>> | undefined,
+  ): unknown => {
+    const properties = branch?.properties;
+    const schema = isObject(properties) ? properties[discriminator] : undefined;
+    return isObject(schema) ? schema.const : undefined;
+  };
+  const selected = literal(requiredBranch),
+    otherwise = literal(fallback);
+  if (
+    requiredBranch === undefined ||
+    fallback === undefined ||
+    typeof selected !== "string" ||
+    typeof otherwise !== "string" ||
+    selected === otherwise
+  )
+    throw new TypeError(
+      "A presented root discriminator requires distinct literals and one default alternative",
+    );
+  const properties = Object.fromEntries(
+    Object.entries(
+      isObject(flattened.properties) ? flattened.properties : {},
+    ).map(([key, schema]) => {
+      if (!isObject(schema) || !Array.isArray(schema.anyOf))
+        return [key, schema];
+      const possible = schema.anyOf.filter(
+        (alternative) =>
+          alternative !== false &&
+          !(
+            isObject(alternative) &&
+            isObject(alternative.not) &&
+            Object.keys(alternative.not).length === 0
+          ),
+      );
+      return [key, possible.length === 1 ? possible[0] : schema];
+    }),
+  );
+  const commonRequired = new Set(requiredProperties(flattened));
+  const constraints = (branch: Readonly<Record<string, unknown>>) => {
+    const own = isObject(branch.properties) ? branch.properties : {};
+    const differences = Object.fromEntries(
+      Object.entries(properties).flatMap(([key, schema]) => {
+        if (key === discriminator || isDeepStrictEqual(schema, own[key]))
+          return [];
+        return [[key, Object.hasOwn(own, key) ? own[key] : false]];
+      }),
+    );
+    const required = requiredProperties(branch).filter(
+      (key) => !commonRequired.has(key),
+    );
+    return {
+      ...(Object.keys(differences).length === 0
+        ? {}
+        : { properties: differences }),
+      ...(required.length === 0 ? {} : { required }),
+    };
+  };
+  // The canonical branch predicates supply validation; omit generic group
+  // guidance that would describe the forbidden never-valued property as optional.
+  const { description: _description, ...presentation } = flattened;
+  return {
+    ...presentation,
+    properties,
+    ...(canonical.description === undefined
+      ? {}
+      : { description: canonical.description }),
+    if: {
+      properties: { [discriminator]: { const: selected } },
+      required: [discriminator],
+    },
+    then: constraints(requiredBranch),
+    else: constraints(fallback),
+  };
+};
+
 /** Describe canonical input fields and present the root as one object. */
 export const presentInputJsonSchema = (
   root: Record<string, unknown>,
   describeProperty: (property: string) => string | undefined,
 ): Record<string, unknown> => {
-  const flattened = flattenRootObjectUnion(root);
+  const flattened = presentDiscriminatedRoot(root);
   const described = describeSchema(flattened, flattened, describeProperty);
   if (!isObject(described))
     return normalizeAdvertisedSchema(flattened).schema as Record<

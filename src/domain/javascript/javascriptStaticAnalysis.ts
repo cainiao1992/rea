@@ -1,5 +1,7 @@
 import { uniqueSortedBy } from "../canonicalOrdering.js";
 import * as t from "@babel/types";
+import { JavaScriptRouteScan } from "./javascriptRouteScan.js";
+import type { JavaScriptRouteSourceFacts } from "./javascriptRouteFacts.js";
 import { RETURNED_REFERENCE_WIDENING_LIMITATION } from "./javascriptSemanticCoverage.js";
 import { collectElectronWrappedCallPaths } from "./electronWrappedCallPaths.js";
 import {
@@ -26,12 +28,12 @@ import {
 } from "./javascriptStaticAnalysisHelpers.js";
 import {
   addReference,
+  addEndpoint,
   addSourceMapDirectives,
   finishPartialNetworkEndpoints,
   finishModuleRequireCalls,
   finishSqliteStorageCalls,
   inspectCall,
-  inspectRouteProperty,
   inspectRoleProperty,
   inspectRpcNode,
   finishRpcScanSteps,
@@ -112,7 +114,13 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
     rpcScan: createJavaScriptRpcScan(source, receivers.rpcClientRoots, index),
     expressionShapes: createSemanticExpressionShapeResolver(bindings),
   };
-  yield* traverseStaticSourceSteps(file, findings, bindings);
+  const routeScan = yield* JavaScriptRouteScan.createSteps(
+    file,
+    index,
+    (fact) => addEndpoint(findings, { ...fact, kind: "route" }),
+  );
+  yield* traverseStaticSourceSteps(file, findings, bindings, routeScan);
+  const routes = yield* routeScan.finishSteps();
   yield* finishElectronBrowserWindowsSteps(findings, index);
   if (accumulator.pendingModuleRequireCalls.length > 0) {
     yield* index.indexMemberMutationFactsSteps();
@@ -134,17 +142,19 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
     electronIdentity,
   );
   addSourceMapDirectives(source, file.comments ?? [], accumulator);
-  return finalizeStaticAnalysis(source, file, accumulator, bindings);
+  return finalizeStaticAnalysis(source, file, accumulator, bindings, routes);
 }
 
 function* traverseStaticSourceSteps(
   file: ParsedJavaScriptSource,
   findings: JavaScriptFindingContext,
   bindings: JavaScriptSemanticAnalysisState,
+  routeScan: JavaScriptRouteScan,
 ): Generator<void, void> {
   yield* traverseJavaScriptAstSteps(file, {
-    enter: (node) => {
+    enter: (node, parent) => {
       findings.accumulator.visitedNodes += 1;
+      routeScan.inspect(node, parent);
       inspectNode(node, findings, bindings);
       return undefined;
     },
@@ -157,6 +167,7 @@ const finalizeStaticAnalysis = (
   file: ParsedJavaScriptSource,
   accumulator: AnalysisAccumulator,
   bindings: JavaScriptSemanticAnalysisState,
+  routes: JavaScriptRouteSourceFacts,
 ): JavaScriptStaticAnalysis => {
   const parserErrors = file.errors.length;
   const limitations = [
@@ -216,6 +227,7 @@ const finalizeStaticAnalysis = (
       accumulator.endpoints,
       accumulator.moduleRangeIndex,
     ),
+    routes,
     storage: finalizeLocatedFindings(
       accumulator.storage,
       accumulator.moduleRangeIndex,
@@ -319,7 +331,6 @@ const inspectNode = (
       specifier: stringValue(node.source),
     });
   if (t.isObjectProperty(node)) {
-    inspectRouteProperty(node, findings);
     inspectRoleProperty(node, findings);
   }
   inspectRpcNode(node, findings);

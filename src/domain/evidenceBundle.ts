@@ -1,3 +1,5 @@
+import { EvidenceIntegrityError } from "./evidenceErrors.js";
+import { err, ok, type Result } from "./result.js";
 import { describeValidationFailure } from "./validationFailure.js";
 import { equalJsonText } from "./jsonSerialization.js";
 import { z } from "zod";
@@ -283,6 +285,29 @@ const parseBundle = (input: unknown, seal: boolean): EvidenceBundle => {
     if (owned !== undefined) return owned;
   }
   return authenticateBundle(evidenceBundleSchema.parse(input), seal);
+};
+
+/** Read a source bundle while preserving unexpected implementation failures. */
+export const readEvidenceBundle = (
+  input: unknown,
+): Result<EvidenceBundle, EvidenceIntegrityError> => {
+  try {
+    return ok(parseEvidenceBundle(input));
+  } catch (cause: unknown) {
+    if (
+      !(cause instanceof z.ZodError) &&
+      !(cause instanceof DuplicateEvidenceRecordError) &&
+      !(cause instanceof InvalidResidualUnknownGraphError) &&
+      !(cause instanceof NonCanonicalEvidenceBundleError)
+    )
+      throw cause;
+    return err(
+      new EvidenceIntegrityError(cause.message, {
+        cause,
+        userMessage: cause.message,
+      }),
+    );
+  }
 };
 
 /** Authenticate evidence and bundle invariants after the bundle shape is parsed. */

@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import { artifactComparisonResultSchema } from "./artifactComparison.js";
 import {
   ArtifactInventoryCarrierError,
@@ -13,12 +11,7 @@ import {
 } from "./comparisonSourceEvidence.js";
 import type { Evidence } from "./evidence.js";
 import { hasComparisonEvidenceIdentity } from "./comparisonEvidenceIdentity.js";
-import {
-  DuplicateEvidenceRecordError,
-  InvalidResidualUnknownGraphError,
-  NonCanonicalEvidenceBundleError,
-  parseEvidenceBundle,
-} from "./evidenceBundle.js";
+import { readEvidenceBundle } from "./evidenceBundle.js";
 import { AnalysisInputError } from "./analysisErrorCore.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
 import { projectInputIssues } from "./inputIssueProjection.js";
@@ -71,7 +64,9 @@ export const verifyReconstruction = (
       projectInputIssues(parsedSpecification.error.issues, specificationInput),
     );
   const specification = parsedSpecification.data;
-  const bundle = readOwnedEvidenceBundle(bundleInput);
+  const bundleResult = readEvidenceBundle(bundleInput);
+  if (!bundleResult.ok) throw bundleResult.error;
+  const bundle = bundleResult.value;
   const records = new Map(
     bundle.records.map((item) => [item.evidence_id, item]),
   );
@@ -360,22 +355,6 @@ const comparisonObservation = (
     result.changes.flatMap(({ evidence_links }) => evidence_links),
   );
   return { status: result.status, limitations: [] };
-};
-
-const readOwnedEvidenceBundle = (input: unknown) => {
-  try {
-    return parseEvidenceBundle(input);
-  } catch (cause: unknown) {
-    if (
-      !(cause instanceof z.ZodError) &&
-      !(cause instanceof DuplicateEvidenceRecordError) &&
-      !(cause instanceof InvalidResidualUnknownGraphError) &&
-      !(cause instanceof NonCanonicalEvidenceBundleError)
-    )
-      throw cause;
-    const message = cause.message;
-    throw new EvidenceIntegrityError(message, { cause, userMessage: message });
-  }
 };
 
 const missingSourceInputError = (claimIndex: number, message: string) =>

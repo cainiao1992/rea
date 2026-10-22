@@ -4,11 +4,26 @@ import { z } from "zod";
 
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../../src/contracts/artifactComparisonExample.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../../src/contracts/functionComparisonExample.js";
+import { completeReconstructionCoverageData } from "../../src/domain/reconstructionCoverage.fixture.js";
+import { reconstructionClosureResultSchema } from "../../src/domain/reconstructionCoverage.js";
 import { createEvidence } from "../../src/domain/evidence.js";
 import { functionComparisonResultSchema } from "../../src/domain/functionComparisonSchemas.js";
 import { createServer } from "../../src/server/createServer.js";
 import { createTestBinarySession } from "../fixtures/binarySession.js";
 import { parseMcpToolError } from "../fixtures/mcpToolError.js";
+
+const unexpectedResultFailures = [
+  ["TypeError", () => new TypeError("injected result parser TypeError")],
+  ["Error", () => new Error("injected result parser Error")],
+  [
+    "ZodError",
+    () => {
+      const result = z.string().safeParse(1);
+      if (result.success) throw new Error("Expected an invalid string parse");
+      return result.error;
+    },
+  ],
+] as const;
 
 const invalidFunctionOperationEvidence = () => {
   const left = FUNCTION_COMPARISON_EXAMPLE.left;
@@ -175,18 +190,7 @@ describe("derived operation failures through the public SDK", () => {
     });
   });
 
-  it.each([
-    ["TypeError", () => new TypeError("injected result parser TypeError")],
-    ["Error", () => new Error("injected result parser Error")],
-    [
-      "ZodError",
-      () => {
-        const result = z.string().safeParse(1);
-        if (result.success) throw new Error("Expected an invalid string parse");
-        return result.error;
-      },
-    ],
-  ])(
+  it.each(unexpectedResultFailures)(
     "preserves an unexpected %s from result validation",
     async (_label, createFailure) => {
       await withSdk(async ({ client, session }) => {
@@ -204,6 +208,31 @@ describe("derived operation failures through the public SDK", () => {
           },
         });
 
+        expect(response).toMatchObject({
+          isError: true,
+          content: [{ type: "text", text: failure.message }],
+        });
+        expect(response.structuredContent).toBeUndefined();
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from coverage result validation",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const coverage = completeReconstructionCoverageData();
+        const failure = createFailure();
+        vi.spyOn(reconstructionClosureResultSchema, "parse").mockImplementation(
+          () => {
+            throw failure;
+          },
+        );
+        const response = await client.callTool({
+          name: "evaluate_reconstruction_coverage",
+          arguments: { coverage, boundary_id: "replacement.cli" },
+        });
         expect(response).toMatchObject({
           isError: true,
           content: [{ type: "text", text: failure.message }],

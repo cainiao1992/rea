@@ -20,6 +20,7 @@ import {
   amdFixture,
   cubinFixture,
   hipFixture,
+  elfFixture,
 } from "../fixtures/gpu/codeObjects.js";
 
 cliTest(
@@ -61,6 +62,84 @@ cliTest(
       expect(report.kernels[0]!.parameter_bytes).toBe(12);
       expect(report.coverage.payloads).toBe("complete");
     }
+  },
+);
+
+cliTest(
+  "keeps embedded Clang bundle reads inside their native section",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-gpu-section-range-");
+    const magic = Buffer.from("__CLANG_OFFLOAD_BUNDLE__"),
+      truncated = magic,
+      complete = Buffer.concat([magic, Buffer.alloc(8)]);
+    const cases = [
+      ["truncated-zero-neighbor", truncated, Buffer.alloc(8)],
+      [
+        "truncated-one-neighbor",
+        truncated,
+        Buffer.from([1, ...Array(7).fill(0)]),
+      ],
+      ["complete", complete, Buffer.alloc(8)],
+    ] as const;
+    const reports = [];
+    for (const [name, bundle, adjacent] of cases) {
+      const bytes = elfFixture(62, [
+          { name: ".hip_fatbin", bytes: bundle },
+          { name: ".data", bytes: adjacent },
+        ]),
+        path = join(root, name);
+      await writeFile(path, bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          "kernels",
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const evidence = parseEvidence(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ),
+      );
+      const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+      expect(report.artifact.sha256).toBe(
+        createHash("sha256").update(bytes).digest("hex"),
+      );
+      reports.push(report);
+    }
+    const [zeroNeighbor, oneNeighbor, completeReport] = reports;
+    expect(zeroNeighbor!.coverage).toMatchObject({
+      discovery: "partial",
+      payloads: "partial",
+    });
+    expect(oneNeighbor!.coverage).toMatchObject({
+      discovery: "partial",
+      payloads: "partial",
+    });
+    expect(zeroNeighbor!.objects[0]).toMatchObject({
+      kind: "native-section",
+      inspection: "malformed",
+      location: { size: 24, section_name: ".hip_fatbin" },
+    });
+    expect(oneNeighbor!.objects[0]).toMatchObject({
+      kind: "native-section",
+      inspection: "malformed",
+      location: { size: 24, section_name: ".hip_fatbin" },
+    });
+    expect(completeReport!.coverage).toMatchObject({
+      discovery: "complete",
+      payloads: "complete",
+    });
+    expect(completeReport!.objects[0]).toMatchObject({
+      kind: "native-section",
+      inspection: "complete",
+      location: { size: 32, section_name: ".hip_fatbin" },
+    });
   },
 );
 

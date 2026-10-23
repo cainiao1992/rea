@@ -128,7 +128,9 @@ A location with `container_id: null` uses original file offsets. Other locations
 use that inventoried object's decoded byte coordinates. Follow its parent,
 encoded location and digest to trace decompressed metadata back to a native
 section and the original file. Decoded offsets are never presented as physical
-file offsets.
+file offsets. Reads from an ELF or PE GPU section stay within that declared
+section extent, so neighboring native section bytes cannot complete a
+truncated embedded bundle header.
 
 The CLI uses the same service and contracts:
 

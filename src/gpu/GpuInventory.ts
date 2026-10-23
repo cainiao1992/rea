@@ -197,7 +197,10 @@ export class GpuInventory {
           const borrowed: GpuSource = {
             size,
             containerId: source.containerId,
-            read: (start, length) => source.read(offset + start, length),
+            read: (start, length) => {
+              checkGpuRange(size, start, length);
+              return source.read(offset + start, length);
+            },
           };
           // A section is a coordinate space with an explicit physical backing, including PE short names.
           const row = gpuObject(source, {

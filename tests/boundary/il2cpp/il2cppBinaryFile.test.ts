@@ -511,6 +511,29 @@ it("reports a symbol-relocated method slot as unknown rather than no-body", () =
   expect(linked.method_addresses[0]).toEqual(expectedAddresses[0]);
 });
 
+it.each([
+  ["PC32", 2],
+  ["ABS32", 10],
+] as const)(
+  "keeps a method pointer beside a non-overlapping %s relocation",
+  (_, kind) => {
+    const binary = createIl2cppBinaryFixture();
+    const adjacent = createElfFixture(binary, {
+      machine: 62,
+      unresolvedRelocations: [{ offset: 0x2fc, kind }],
+    });
+    expect(link(adjacent).method_addresses).toEqual(expectedAddresses);
+
+    const overlapping = createElfFixture(binary, {
+      machine: 62,
+      unresolvedRelocations: [{ offset: 0x300, kind }],
+    });
+    expect(link(overlapping).method_addresses[1]).toEqual(
+      expectedAddress("unknown"),
+    );
+  },
+);
+
 it("reads a relative relocation into a zero-filled pointer array as a known value", () => {
   const bytes = createElfFixture(createIl2cppBinaryFixture(), {
     zeroFilledTable: true,

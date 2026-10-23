@@ -223,6 +223,11 @@ export interface ElfFixtureOptions {
   readonly dynamic?: boolean;
   /** Give every relocation a symbol index, so none is RELATIVE-only. */
   readonly symbolRelocations?: boolean;
+  /** Add unresolved dynamic relocations at offsets relative to the load base. */
+  readonly unresolvedRelocations?: readonly {
+    readonly offset: number;
+    readonly kind: number;
+  }[];
   /** Write DT_RELA twice. */
   readonly duplicateRela?: boolean;
   /** Override DT_RELASZ or DT_RELAENT. */
@@ -243,7 +248,7 @@ export const createElfFixture = (
 ): Buffer => {
   const body = Buffer.from(image);
   body.fill(0, 0, 0x100);
-  const relocations: [slot: bigint, value: bigint][] = [];
+  const relocations: [slot: bigint, value: bigint, kind?: number][] = [];
   for (let at = 0x100; at + 8 <= SIZE; at += 8) {
     const value = body.readBigUInt64LE(at);
     if (
@@ -254,6 +259,12 @@ export const createElfFixture = (
     relocations.push([FIXTURE_BINARY_BASE + BigInt(at), value]);
     body.writeBigUInt64LE(0n, at);
   }
+  for (const relocation of options.unresolvedRelocations ?? [])
+    relocations.push([
+      FIXTURE_BINARY_BASE + BigInt(relocation.offset),
+      0n,
+      relocation.kind,
+    ]);
   const tagCount =
     4 +
     (options.duplicateRela === true ? 1 : 0) +
@@ -266,11 +277,12 @@ export const createElfFixture = (
     entry[1] = FIXTURE_BINARY_BASE + BigInt(fileSize);
   }
   const rela = Buffer.alloc(relocations.length * 24);
-  relocations.forEach(([slot, value], index) => {
+  relocations.forEach(([slot, value, kind], index) => {
     rela.writeBigUInt64LE(slot, index * 24);
     rela.writeBigUInt64LE(
-      (options.symbolRelocations === true ? 1n << 32n : 0n) |
-        (options.machine === 62 ? 8n : 1027n),
+      (options.symbolRelocations === true || kind !== undefined
+        ? 1n << 32n
+        : 0n) | BigInt(kind ?? (options.machine === 62 ? 8 : 1027)),
       index * 24 + 8,
     );
     rela.writeBigInt64LE(value, index * 24 + 16);

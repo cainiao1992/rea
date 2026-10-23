@@ -66,7 +66,7 @@ export interface NativeImage {
   readonly bytes: Buffer;
   readonly container: BinaryContainer;
   readonly imageBase: bigint;
-  readonly unresolvedPointerSlots: ReadonlySet<bigint>;
+  readonly unresolvedPointerSlots: ReadonlyMap<bigint, number>;
   readonly zeroFillPointers: ReadonlyMap<bigint, bigint>;
 }
 
@@ -109,7 +109,7 @@ export function* openImageSteps(
   let relocated:
     | {
         bytes: Buffer;
-        unresolved: ReadonlySet<bigint>;
+        unresolved: ReadonlyMap<bigint, number>;
         zeroFillPointers: ReadonlyMap<bigint, bigint>;
       }
     | undefined;
@@ -151,7 +151,7 @@ export function* openImageSteps(
     bytes: image,
     container,
     imageBase,
-    unresolvedPointerSlots: relocated?.unresolved ?? new Set<bigint>(),
+    unresolvedPointerSlots: relocated?.unresolved ?? new Map<bigint, number>(),
     zeroFillPointers: relocated?.zeroFillPointers ?? new Map<bigint, bigint>(),
   };
 }
@@ -295,10 +295,10 @@ const hasUnresolvedPointer = (
   size = 8,
 ): boolean => {
   if (image.unresolvedPointerSlots.size === 0) return false;
-  // Unsupported relocation widths are unknown; conservatively cover any
-  // overlap with the pointer rather than infer a zero or trust stored bytes.
-  for (let delta = -7; delta < size; delta++)
-    if (image.unresolvedPointerSlots.has(address + BigInt(delta))) return true;
+  for (let delta = -7; delta < size; delta++) {
+    const width = image.unresolvedPointerSlots.get(address + BigInt(delta));
+    if (width !== undefined && delta + width > 0) return true;
+  }
   return false;
 };
 

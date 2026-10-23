@@ -19,6 +19,92 @@ import { ggufFixture, safetensorsFixture } from "../fixtures/model/model.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
+cliTest(
+  "preserves exact large safetensors dimensions while bounding actual offsets",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-model-shape-precision-");
+    const path = join(root, "empty.safetensors");
+    const fixture = safetensorsFixture(
+      '{"a":{"dtype":"F32","shape":[0,9007199254740992],"data_offsets":[0,0]},"b":{"dtype":"F32","shape":[18446744073709551615,0],"data_offsets":[0,0]}}',
+      Buffer.alloc(0),
+    );
+    await writeFile(path, fixture.bytes);
+    const result = await cli.run({
+      arguments: [
+        "inspect-model-artifact",
+        path,
+        "--detail",
+        "complete",
+        "--hash",
+        "full",
+        "--json",
+      ],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = modelArtifactSchema.parse(
+      toolContract("inspect_model_artifact").outputSchema.parse(result.json)
+        .normalized_result,
+    );
+    expect(
+      report.tensors.map(
+        ({ shape, parameter_count, byte_length, storage_validation }) => ({
+          shape,
+          parameter_count,
+          byte_length,
+          storage_validation,
+        }),
+      ),
+    ).toEqual([
+      {
+        shape: ["0", "9007199254740992"],
+        parameter_count: "0",
+        byte_length: 0,
+        storage_validation: "consistent",
+      },
+      {
+        shape: ["18446744073709551615", "0"],
+        parameter_count: "0",
+        byte_length: 0,
+        storage_validation: "consistent",
+      },
+    ]);
+    expect(report.totals).toMatchObject({
+      parameter_count: "0",
+      tensor_bytes: 0,
+    });
+    expect(report.artifact.sha256).toBe(
+      createHash("sha256").update(fixture.bytes).digest("hex"),
+    );
+    const { call } = await connectLocalToolsMcp();
+    const response = await call("inspect_model_artifact", {
+      path,
+      detail: "complete",
+      hash: "full",
+    });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    expect(parseEvidence(response.structuredContent).normalized_result).toEqual(
+      report,
+    );
+
+    await writeFile(
+      path,
+      safetensorsFixture(
+        '{"x":{"dtype":"F32","shape":[0],"data_offsets":[9007199254740992,9007199254740992]}}',
+        Buffer.alloc(0),
+      ).bytes,
+    );
+    const offsetFailure = parseMcpToolError(
+      await call("inspect_model_artifact", { path }),
+    );
+    expect(offsetFailure.error).toMatchObject({
+      code: "resource_constraint",
+      details: {
+        reported_limits: { maximum_exact_offset: Number.MAX_SAFE_INTEGER },
+      },
+    });
+  },
+);
+
 it.each(["named", "default", "inventory-only", "absent"] as const)(
   "reports actual chat-template presence in summaries and page context (%s)",
   async (kind) => {

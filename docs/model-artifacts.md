@@ -65,7 +65,13 @@ contradictions are rejected with a typed `file_format_rejected` constraint (publ
 A missing, non-regular or otherwise unusable selected path is also `target_unavailable`;
 host I/O or resource failures on a valid selection, such as `EMFILE` or `EIO`, are
 `execution_failure` with the path and reason in `details.diagnostics`. Empty
-tensors and scalar shapes are supported; packed sub-byte types require whole
+tensors and scalar shapes are supported. The reader retains shape dimensions as
+exact unsigned 64-bit values, including values above JavaScript's safe-integer
+range when a zero extent makes storage empty. Shape products are checked in
+declaration order, as in the
+[64-bit upstream reader](https://github.com/huggingface/safetensors/blob/e246a2560645b7525f5775669ed816eb57c5bcc8/safetensors/src/tensor.rs#L604-L609);
+a later zero does not erase an earlier product overflow. Actual file and data
+offsets must still fit exact host offset precision. Packed sub-byte types require whole
 byte storage. Unknown dtypes retain declared ranges and an explicit limitation
 that shape-to-storage validation is unavailable. Each tensor records
 `storage_validation: "consistent" | "unknown"`; `coverage.storage_sizes` remains

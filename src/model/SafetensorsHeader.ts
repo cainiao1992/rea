@@ -17,7 +17,7 @@ import { safetensorsBits } from "./ModelTensorTypes.js";
 
 type HeaderValue =
   | string
-  | number
+  | bigint
   | HeaderValue[]
   | { [key: string]: HeaderValue };
 
@@ -100,20 +100,20 @@ class HeaderJson {
       }
     }
     const start = this.#position;
-    while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) this.#position++;
+    while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) {
+      this.#position++;
+      if (this.#position - start > 20)
+        rejectModel("Safetensors unsigned integer exceeds uint64");
+    }
     const raw = this.text.slice(start, this.#position);
     if (!/^(?:0|[1-9][0-9]*)$/u.test(raw))
       return rejectModel(
         "Safetensors header requires unsigned integer declarations",
       );
-    const number = Number(raw);
-    if (!Number.isSafeInteger(number))
-      throw new ModelFormatFailure(
-        "capacity",
-        "Safetensors integer exceeds exact host offset precision",
-        "exact-offset",
-      );
-    return number;
+    const integer = BigInt(raw);
+    if (integer > 0xffffffffffffffffn)
+      rejectModel("Safetensors unsigned integer exceeds uint64");
+    return integer;
   }
   *read(): Generator<void, HeaderValue> {
     if (this.text[0] !== "{")
@@ -133,13 +133,22 @@ const objectOf = (
     return rejectModel("Expected safetensors header object");
   return value;
 };
-const integersOf = (value: HeaderValue | undefined): number[] => {
+const integersOf = (value: HeaderValue | undefined): bigint[] => {
   if (
     !Array.isArray(value) ||
-    !value.every((item): item is number => typeof item === "number")
+    !value.every((item): item is bigint => typeof item === "bigint")
   )
     return rejectModel("Expected safetensors integer array");
   return value;
+};
+const exactOffset = (value: bigint): number => {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new ModelFormatFailure(
+      "capacity",
+      "Safetensors data offset exceeds exact host offset precision",
+      "exact-offset",
+    );
+  return Number(value);
 };
 const pointer = (value: string): string =>
   value.replaceAll("~", "~0").replaceAll("/", "~1");
@@ -243,21 +252,20 @@ export const readSafetensorsHeader = async (
     const offsets = integersOf(entry.data_offsets);
     if (offsets.length !== 2)
       rejectModel(`Safetensors tensor ${name} requires two data offsets`);
-    const start = offsets[0] ?? 0;
-    const end = offsets[1] ?? 0;
+    const start = exactOffset(offsets[0] ?? 0n);
+    const end = exactOffset(offsets[1] ?? 0n);
     if (end < start || end > reader.size - tensor_data_offset)
       rejectModel(
         `Safetensors tensor ${name} range [${String(start)},${String(end)}) is outside the data buffer`,
       );
-    let parameters = shape.includes(0) ? 0n : 1n;
-    if (parameters !== 0n)
-      for (const dimension of shape) {
-        parameters *= BigInt(dimension);
-        if (parameters > 0xffffffffffffffffn)
-          rejectModel(
-            `Safetensors tensor ${name} parameter count overflows uint64`,
-          );
-      }
+    let parameters = 1n;
+    for (const dimension of shape) {
+      parameters *= dimension;
+      if (parameters > 0xffffffffffffffffn)
+        rejectModel(
+          `Safetensors tensor ${name} parameter count overflows uint64`,
+        );
+    }
     const bits = safetensorsBits(type);
     if (bits !== undefined) {
       const expected = parameters * BigInt(bits);

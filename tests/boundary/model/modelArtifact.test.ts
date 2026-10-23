@@ -693,6 +693,30 @@ const malformed = [
       ).bytes,
   ],
   [
+    "safetensors dimension exceeding uint64",
+    () =>
+      safetensorsFixture(
+        '{"x":{"dtype":"F32","shape":[0,18446744073709551616],"data_offsets":[0,0]}}',
+        Buffer.alloc(0),
+      ).bytes,
+  ],
+  [
+    "overlong safetensors integer",
+    () =>
+      safetensorsFixture(
+        '{"x":{"dtype":"F32","shape":[0,100000000000000000000],"data_offsets":[0,0]}}',
+        Buffer.alloc(0),
+      ).bytes,
+  ],
+  [
+    "safetensors shape product overflowing before a zero extent",
+    () =>
+      safetensorsFixture(
+        '{"x":{"dtype":"F32","shape":[18446744073709551615,18446744073709551615,0],"data_offsets":[0,0]}}',
+        Buffer.alloc(0),
+      ).bytes,
+  ],
+  [
     "safetensors shape mismatch",
     () =>
       safetensorsFixture(

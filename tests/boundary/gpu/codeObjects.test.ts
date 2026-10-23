@@ -429,7 +429,7 @@ it.each([
   ]);
 });
 it.each([
-  ["parameter", ".u64 output", ".u64 .ptr .global output"],
+  ["parameter", ".u64 output", ".u64 .vendor_specific output"],
   ["shared", "scratch[32]", "scratch[]"],
 ] as const)(
   "marks unknown PTX %s declarations partial while retaining known facts",
@@ -459,6 +459,24 @@ it.each([
     }
   },
 );
+it("keeps supported PTX pointer qualifiers complete through the provider", async () => {
+  const bytes = Buffer.from(
+    ptxFixture.replace(".u64 output", ".u64 .ptr .global output"),
+  );
+  const result = await inspect(bytes);
+  if (!result.ok) throw result.error;
+  expect(result.value.objects[0]!.inspection).toBe("complete");
+  expect(result.value.coverage.payloads).toBe("complete");
+  expect(result.value.ptx_artifacts[0]!.text).toBe(bytes.toString());
+  expect(result.value.kernels[0]).toMatchObject({
+    parameter_count: 2,
+    parameter_bytes: 12,
+    parameters: [
+      { name: "output", offset: 0, size: 8 },
+      { name: "value", offset: 8, size: 4 },
+    ],
+  });
+});
 it.each(["whitespace", "comment"] as const)(
   "recognizes standalone PTX after more than 64 KiB of leading %s",
   async (kind) => {

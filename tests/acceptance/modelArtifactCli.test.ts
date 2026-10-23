@@ -550,6 +550,134 @@ cliTest(
 );
 
 cliTest(
+  "preserves optional safetensors fields and aligns empty GGUF data in CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-model-boundary-compat-");
+    const { call } = await connectLocalToolsMcp();
+    const safetensors = safetensorsFixture(
+      '{"__metadata__":null,"weight":{"dtype":"F32","shape":[1],"data_offsets":[0,4],"note":{"source":"local","flags":[null,false,-1,1.25]}}}',
+      Buffer.alloc(4),
+    );
+    const emptyGgufHeader = ggufFixture({ tensors: [], metadata: [] });
+    const alignedOffset = Math.ceil(emptyGgufHeader.header.length / 32) * 32;
+    const emptyGguf = Buffer.concat([
+      emptyGgufHeader.header,
+      Buffer.alloc(alignedOffset - emptyGgufHeader.header.length),
+    ]);
+
+    for (const [name, bytes] of [
+      ["optional.safetensors", safetensors.bytes],
+      ["empty.gguf", emptyGguf],
+    ] as const) {
+      const path = join(root, name);
+      await writeFile(path, bytes);
+      const result = await cli.run({
+        arguments: [
+          "inspect-model-artifact",
+          path,
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const report = modelArtifactSchema.parse(
+        toolContract("inspect_model_artifact").outputSchema.parse(result.json)
+          .normalized_result,
+      );
+      if (name.endsWith("safetensors")) {
+        expect(report.metadata).toEqual([]);
+        expect(report.tensors[0]?.name).toBe("weight");
+        expect(report.artifact.header_sha256).toBe(
+          createHash("sha256").update(safetensors.header).digest("hex"),
+        );
+      } else {
+        expect(report.tensors).toEqual([]);
+        expect(report.tensor_data_offset).toBe(alignedOffset);
+        expect(report.artifact.header_length).toBe(
+          emptyGgufHeader.header.length,
+        );
+        expect(report.artifact.header_sha256).toBe(
+          createHash("sha256").update(emptyGgufHeader.header).digest("hex"),
+        );
+      }
+      const response = await call("inspect_model_artifact", {
+        path,
+        detail: "complete",
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      expect(
+        parseEvidence(response.structuredContent).normalized_result,
+      ).toEqual(report);
+    }
+
+    const mapPath = join(root, "same-key-map.safetensors");
+    await writeFile(
+      mapPath,
+      safetensorsFixture(
+        '{"__metadata__":{"json_number":"1.25"}}',
+        Buffer.alloc(0),
+      ).bytes,
+    );
+    const mapCli = await cli.run({
+      arguments: [
+        "inspect-model-artifact",
+        mapPath,
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(mapCli.exitCode, mapCli.stderr).toBe(0);
+    const mapReport = modelArtifactSchema.parse(
+      toolContract("inspect_model_artifact").outputSchema.parse(mapCli.json)
+        .normalized_result,
+    );
+    expect(
+      mapReport.metadata.map(({ key, value }) => ({ key, value })),
+    ).toEqual([{ key: "json_number", value: "1.25" }]);
+    const mapMcp = await call("inspect_model_artifact", {
+      path: mapPath,
+      detail: "complete",
+    });
+    expect(mapMcp.isError, JSON.stringify(mapMcp)).not.toBe(true);
+    expect(parseEvidence(mapMcp.structuredContent).normalized_result).toEqual(
+      mapReport,
+    );
+
+    for (const [name, numeric] of [
+      ["decimal", "1.25"],
+      ["negative", "-1"],
+      ["overflow", "18446744073709551616"],
+    ] as const) {
+      const malformedPath = join(root, `${name}-metadata.safetensors`);
+      await writeFile(
+        malformedPath,
+        safetensorsFixture(`{"__metadata__":${numeric}}`, Buffer.alloc(0))
+          .bytes,
+      );
+      const malformedCli = await cli.run({
+        arguments: ["inspect-model-artifact", malformedPath, "--json"],
+      });
+      expect(malformedCli.exitCode).toBe(1);
+      expect(malformedCli.json).toMatchObject({
+        code: "target_unavailable",
+        category: "unsupported_target",
+        details: { constraint: "file_format_rejected" },
+      });
+      const malformedMcp = parseMcpToolError(
+        await call("inspect_model_artifact", { path: malformedPath }),
+      );
+      expect(malformedMcp.error).toMatchObject({
+        code: "target_unavailable",
+        category: "unsupported_target",
+        details: { constraint: "file_format_rejected" },
+      });
+    }
+  },
+);
+
+cliTest(
   "exports complete model Evidence for portable paging and returns typed malformed errors",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-model-export-");

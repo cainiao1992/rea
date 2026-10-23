@@ -77,10 +77,7 @@ export const ggufFixture = (
       ]),
     ),
   ]);
-  const dataOffset =
-    tensors.length === 0
-      ? header.length
-      : Math.ceil(header.length / alignment) * alignment;
+  const dataOffset = Math.ceil(header.length / alignment) * alignment;
   const length = Math.max(
     dataOffset,
     ...tensors.map((t) => dataOffset + Number(t.offset) + t.bytes),

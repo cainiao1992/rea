@@ -384,9 +384,9 @@ export class GgufHeader {
       progress?.onTensorDeclaration(tensor);
     }
     const tensor_data_offset =
-      tensorCount === 0
-        ? this.reader.position
-        : Math.ceil(this.reader.position / alignment) * alignment;
+      Math.ceil(this.reader.position / alignment) * alignment;
+    if (tensor_data_offset > this.reader.size)
+      rejectModel("GGUF tensor data section begins outside the file");
     for (const tensor of tensors) {
       const offset = BigInt(tensor_data_offset) + BigInt(tensor.data_offset);
       if (

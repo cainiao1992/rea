@@ -8,6 +8,7 @@ import type {
 import { ModelHeaderReader } from "./ModelHeaderReader.js";
 import {
   MODEL_HEADER_BYTES,
+  MODEL_JSON_NESTING,
   ModelFormatFailure,
   ModelReportBudget,
   rejectModel,
@@ -15,9 +16,15 @@ import {
 } from "./ModelFormat.js";
 import { safetensorsBits } from "./ModelTensorTypes.js";
 
+class JsonNumber {
+  constructor(readonly raw: string) {}
+}
 type HeaderValue =
   | string
   | bigint
+  | boolean
+  | null
+  | JsonNumber
   | HeaderValue[]
   | { [key: string]: HeaderValue };
 
@@ -64,10 +71,26 @@ class HeaderJson {
     if (++this.#nodes % 4096 === 0) yield;
     this.#space();
     this.budget.charge(64);
-    if (depth > 4)
-      rejectModel("Safetensors header has an invalid nested structure");
+    if (depth > MODEL_JSON_NESTING)
+      throw new ModelFormatFailure(
+        "capacity",
+        `Safetensors JSON nesting exceeds ${String(MODEL_JSON_NESTING)} levels`,
+        "json-nesting",
+      );
     const c = this.text[this.#position];
     if (c === '"') return this.#string();
+    if (this.text.startsWith("null", this.#position)) {
+      this.#position += 4;
+      return null;
+    }
+    if (this.text.startsWith("true", this.#position)) {
+      this.#position += 4;
+      return true;
+    }
+    if (this.text.startsWith("false", this.#position)) {
+      this.#position += 5;
+      return false;
+    }
     if (c === "{" || c === "[") {
       this.#position++;
       const object: { [key: string]: HeaderValue } = Object.create(null) as {
@@ -100,20 +123,37 @@ class HeaderJson {
       }
     }
     const start = this.#position;
-    while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) {
+    if (this.text[this.#position] === "-") this.#position++;
+    const integerStart = this.#position;
+    if (this.text[this.#position] === "0") this.#position++;
+    else if (/^[1-9]$/u.test(this.text[this.#position] ?? "")) {
       this.#position++;
-      if (this.#position - start > 20)
-        rejectModel("Safetensors unsigned integer exceeds uint64");
+      while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) this.#position++;
     }
-    const raw = this.text.slice(start, this.#position);
-    if (!/^(?:0|[1-9][0-9]*)$/u.test(raw))
-      return rejectModel(
-        "Safetensors header requires unsigned integer declarations",
-      );
-    const integer = BigInt(raw);
-    if (integer > 0xffffffffffffffffn)
-      rejectModel("Safetensors unsigned integer exceeds uint64");
-    return integer;
+    if (this.#position === integerStart)
+      return rejectModel("Invalid safetensors JSON value");
+    if (this.text[this.#position] === ".") {
+      this.#position++;
+      const fractionStart = this.#position;
+      while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) this.#position++;
+      if (this.#position === fractionStart)
+        return rejectModel("Invalid safetensors JSON value");
+    }
+    if (/[eE]/u.test(this.text[this.#position] ?? "")) {
+      this.#position++;
+      if (/[+-]/u.test(this.text[this.#position] ?? "")) this.#position++;
+      const exponentStart = this.#position;
+      while (/^[0-9]$/u.test(this.text[this.#position] ?? "")) this.#position++;
+      if (this.#position === exponentStart)
+        return rejectModel("Invalid safetensors JSON value");
+    }
+    const numeric = this.text.slice(start, this.#position);
+    if (/^(?:0|[1-9][0-9]*)$/u.test(numeric)) {
+      if (numeric.length > 20) return new JsonNumber(numeric);
+      const integer = BigInt(numeric);
+      if (integer <= 0xffffffffffffffffn) return integer;
+    }
+    return new JsonNumber(numeric);
   }
   *read(): Generator<void, HeaderValue> {
     if (this.text[0] !== "{")
@@ -129,7 +169,13 @@ class HeaderJson {
 const objectOf = (
   value: HeaderValue | undefined,
 ): { [key: string]: HeaderValue } => {
-  if (value === undefined || typeof value !== "object" || Array.isArray(value))
+  if (
+    value === undefined ||
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    value instanceof JsonNumber
+  )
     return rejectModel("Expected safetensors header object");
   return value;
 };
@@ -211,7 +257,7 @@ export const readSafetensorsHeader = async (
   const root = objectOf(step.value);
   const source = { source_offset: 8, source_length: size };
   const metadata: ModelMetadata[] = [];
-  if (Object.hasOwn(root, "__metadata__")) {
+  if (Object.hasOwn(root, "__metadata__") && root.__metadata__ !== null) {
     for (const [key, value] of Object.entries(objectOf(root.__metadata__))) {
       if (typeof value !== "string")
         rejectModel("Safetensors __metadata__ values must be strings");
@@ -237,7 +283,6 @@ export const readSafetensorsHeader = async (
   for (const name of names) {
     const entry = objectOf(root[name]);
     if (
-      Object.keys(entry).length !== 3 ||
       !Object.hasOwn(entry, "dtype") ||
       !Object.hasOwn(entry, "shape") ||
       !Object.hasOwn(entry, "data_offsets")

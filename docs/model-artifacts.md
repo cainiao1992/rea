@@ -30,6 +30,9 @@ result records the exact selected path, file size, header length, header SHA-256
 bytes read and read scope. GGUF alignment padding is outside this prefix.
 `artifact.sha256` and the Evidence subject are null: a header digest is not a
 commitment to the weights. Different files can have identical headers and sizes.
+The reported GGUF tensor-data offset is aligned after the tensor directory,
+including when the directory contains no tensors; `header_length` still ends at
+the directory, before that padding.
 
 `hash: "full"` additionally streams the remaining file bytes through SHA-256.
 It returns a full-file digest and Evidence subject, while retaining the same
@@ -59,7 +62,10 @@ declared float type; negative zero is `"-0"`. Unknown tensor types retain their 
 lengths; affected totals and storage validation remain unknown.
 
 Safetensors reports the header extent, exact string `__metadata__` values, dtype,
-shape and declared data ranges. JSON duplicate keys, invalid UTF-8, out-of-file
+shape and declared data ranges. A null `__metadata__` is treated as omitted;
+unknown fields on tensor entries are ignored within the reader's 32-level JSON
+nesting limit, while the required dtype, shape and data offsets are still
+validated. JSON duplicate keys, invalid UTF-8, out-of-file
 ranges, overlaps, gaps, trailing unindexed data and known dtype/shape byte-length
 contradictions are rejected with a typed `file_format_rejected` constraint (public code `target_unavailable`, category `unsupported_target`).
 A missing, non-regular or otherwise unusable selected path is also `target_unavailable`;

@@ -3,6 +3,10 @@ import { locateGodotPck } from "../GodotPckLocation.js";
 import { withArtifactRegularFile } from "../ArtifactFileOperation.js";
 import type { ArtifactCleanupAttempt } from "../ArtifactResourceScope.js";
 import { lstat, realpath } from "node:fs/promises";
+import { dirname } from "node:path";
+import { absoluteCallerPath } from "../../filesystem/callerPath.js";
+import { isPathWithinRoot } from "../../domain/localPath.js";
+import { SafeOutputTreeDestinationRefusal } from "../SafeOutputTreeAdmission.js";
 
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import { digestCanonicalValue } from "../../domain/canonicalDigest.js";
@@ -104,6 +108,19 @@ const materializeArtifactInventoryInScope = async (
   snapshot: ArtifactInventorySnapshot,
   signal?: AbortSignal,
 ): Promise<ArtifactExtractionResult> => {
+  abortIfNeeded(signal);
+  // A directory source must never acquire its own output as a new member on
+  // the verification traversal. Resolve the selected parent before any write.
+  const canonicalSource = await realpath(sourcePath);
+  if ((await lstat(canonicalSource)).isDirectory()) {
+    const parent = await realpath(
+      dirname(absoluteCallerPath(input.outputRoot)),
+    );
+    if (isPathWithinRoot(canonicalSource, parent))
+      throw new SafeOutputTreeDestinationRefusal(
+        `Extraction output parent ${parent} is inside source directory ${canonicalSource}. Choose a temporary directory outside the source.`,
+      );
+  }
   abortIfNeeded(signal);
   const containerMetadata = snapshot.occurrences.find(
     (row) => row.logical_path === ".",

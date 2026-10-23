@@ -1,5 +1,5 @@
 import { lstat, realpath, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 import ignore from "ignore";
 import {
@@ -86,7 +86,7 @@ const resolveRoot = async (
           `Reference source root is not a directory: ${requestedRoot}`,
         ),
       );
-    const canonicalRoot = await realpath(resolve(requestedRoot));
+    const canonicalRoot = await realpath(requestedRoot);
     if (isAborted(signal))
       return err(failure("cancelled", "Reference source import cancelled"));
     return ok(canonicalRoot);

@@ -1010,6 +1010,9 @@ files. An active ASAR unpacked entry whose companion file is absent cannot be
 materialized; extraction fails as `unavailable` with that logical path.
 
 Extraction materializes regular files exposed by the active archive reader.
+Its temporary parent follows the filesystem semantics of `TMPDIR`, including
+POSIX symlinks followed by `..`. A destination inside a directory source is
+refused before copying; select a temporary parent outside that source.
 When that reader exposes a nested archive as a file, extraction copies the
 archive file; inspect and extract that file separately to unpack its contents.
 Extraction retains inventory and materialization traversal limitations in its

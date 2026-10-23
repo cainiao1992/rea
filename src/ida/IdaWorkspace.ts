@@ -22,7 +22,7 @@ export const sameIdaHostPath = (left: string, right: string): boolean =>
 
 /** Resolve the exact existing parent used by both readiness and allocation. */
 export const resolveIdaWorkspaceParent = (root = tmpdir()): Promise<string> =>
-  realpath(normalize(root));
+  realpath(root);
 
 /** Private input copy isolates upstream database and sidecar writes from the original. */
 export class IdaWorkspace {

@@ -1,5 +1,13 @@
 import fs from "node:fs";
-import { chmod, mkdir, open, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  open,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { add, commit, init } from "isomorphic-git";
@@ -52,6 +60,32 @@ const importTree = (
   });
 
 describe("reference source import projections", () => {
+  it.skipIf(process.platform === "win32")(
+    "imports the physical source selected through a symlink and ..",
+    async () => {
+      const root = await createTestTempDirectory("rea-reference-parent-");
+      await mkdir(join(root, "physical", "inner"), { recursive: true });
+      await mkdir(join(root, "physical", "source"));
+      await mkdir(join(root, "source"));
+      await writeFile(
+        join(root, "physical", "source", "intended.js"),
+        "export const intended = 1;\n",
+      );
+      await writeFile(
+        join(root, "source", "other.js"),
+        "export const other = 1;\n",
+      );
+      await symlink(join(root, "physical", "inner"), join(root, "link"));
+      const selected = `${root}/link/../source`;
+      const result = await importTree(selected);
+      const control = await importTree(await realpath(selected));
+      expect(result).toEqual(control);
+      expect(result.ok && result.value.entries.map(({ path }) => path)).toEqual(
+        ["intended.js"],
+      );
+    },
+  );
+
   it("deduplicates exact parse failures without collapsing distinct reasons", () => {
     const malformed = {
       path: "src/main.ts",

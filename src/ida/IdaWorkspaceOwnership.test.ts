@@ -1,5 +1,5 @@
-import { chmod, readdir, realpath, rm, symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, readdir, realpath, rm, symlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createIdaTarget,
@@ -8,6 +8,7 @@ import {
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
+import { IdaWorkspace } from "./IdaWorkspace.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -35,6 +36,28 @@ const clientFor = (root: string, target: BinaryTarget) => {
 };
 
 describe("IDA workspace ownership before input preparation", () => {
+  it.skipIf(process.platform === "win32")(
+    "allocates in the physical parent selected through a symlink and ..",
+    async () => {
+      const { root, target } = await createIdaTarget();
+      roots.push(root);
+      await mkdir(join(root, "physical", "inner"), { recursive: true });
+      await mkdir(join(root, "physical", "workspace"));
+      await mkdir(join(root, "workspace"));
+      await symlink(join(root, "physical", "inner"), join(root, "link"));
+      const selected = `${root}/link/../workspace`;
+      for (const parent of [selected, await realpath(selected)]) {
+        const workspace = await IdaWorkspace.allocate(target, parent);
+        try {
+          expect(dirname(workspace.directory)).toBe(await realpath(selected));
+          expect(await readdir(join(root, "workspace"))).toEqual([]);
+        } finally {
+          await workspace.remove();
+        }
+      }
+    },
+  );
+
   it.skipIf(process.platform === "win32")(
     "opens the private input through a canonical path when the workspace root is a symlink",
     async () => {

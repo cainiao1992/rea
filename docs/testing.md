@@ -277,6 +277,13 @@ distinct pair that would collapse if representation tags or scope were lost.
 For learned identifiers, cover conflicting pairs and reused values in different
 collections; mappings must remain one-to-one within their declared scope.
 
+For coverage propagation, compare the same returned rows under complete and
+incomplete examination. If a row exists on the left but is missing from a fully
+examined compatible right inventory, removal can be established. If the right
+side examined only eight of ten applicable records, or returns only one page,
+the same missing row remains unknown unless separate evidence proves absence.
+Assert the structured coverage and comparison status as well as the explanation.
+
 For format compatibility, identify the producer revision that establishes each
 rule. Include an accepted boundary case beside the rejected case so a stricter
 parser cannot pass by refusing both. Keep source-derived behavior, synthetic

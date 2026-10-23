@@ -60,7 +60,10 @@ Before applying changes, REA checks your current configuration. The plan lists:
 
 Malformed or unsafe existing configuration blocks the whole transaction before
 Hopper installation or any file write. Declining or pressing Ctrl-C makes no
-changes. Agent configuration writes preserve unrelated entries and comments,
+changes. Client configuration files and bundled skill files have separate
+publication and recovery paths; the guarantees in this paragraph apply to
+client configuration. See [skill destinations](#skill-destinations) for skill
+rollback limits. Agent configuration writes preserve unrelated entries and comments,
 create backups, stage changes in a private directory, and verify their result.
 Before publication, they refuse detected changes to the selected configuration.
 Replacement uses an explicit destination under the selected canonical parent;
@@ -85,6 +88,11 @@ Setup also retains valid environment overrides in REA's existing server entry,
 such as `REA_MCP_INPUT_SCHEMA_PROFILE`, `REA_MCP_OUTPUT_SCHEMA_PROFILE`, and
 `REA_MCP_MAX_RESPONSE_BYTES`.
 Detected provider settings replace only matching environment keys.
+Setup manages REA's launcher, selected provider settings, and supported timeout
+defaults. Client approval policies remain user choices, but the current Codex
+refresh drops those policies inside the REA entry; see the
+[Codex preservation limitation](client-configuration.md#codex-and-devin) before
+refreshing a customized registration.
 Setup and doctor report a malformed REA environment map or invalid runtime
 setting before setup writes files. Repair the named setting in the client
 configuration; setup does not silently discard the rest of the map.
@@ -161,6 +169,15 @@ do not block other setup choices. Doctor reports linked or non-directory skill
 paths as `unmanaged`, names the affected paths, and provides those alternatives;
 an unreadable skill identity remains `unknown`. Uninstall retains and reports
 files it cannot safely remove, including their ownership manifest.
+
+The skill installer backs up changed existing files and verifies the installed
+bytes. Its current rollback restores or removes files by pathname without
+checking that they are still the files published by that installation attempt.
+If another writer changes a skill file during a failed installation, rollback
+can overwrite that edit or remove a replacement first-install file
+([#5928](https://github.com/morluto/rea/issues/5928)). Avoid editing managed skill
+files or running another skill installer while setup is applying them. This
+limitation does not apply to the client-configuration rollback described above.
 
 `rea setup --skill-client claude_code --yes --json` refreshes and verifies the
 selected skill destination independently of MCP registration selection. The

@@ -203,6 +203,15 @@ completeness from examined records and exhaustiveness, rather than diagnostic
 prose or an empty failure list. Preserve observations independently of cleanup
 success.
 
+For example, if ten applicable records are discovered, eight are examined, and
+five are returned, the five returned records do not establish complete coverage
+of the ten. Keep discovered, applicable, examined, and retained scope distinct.
+A filtered page can be complete for its selection while the parent inventory
+remains partial. Carry the upstream coverage and unresolved reasons through
+filtering and paging; an item missing from that page is not proved absent from
+the target. Structured completeness and absence fields must agree with the
+stated limitations.
+
 Update canonical contracts, output schemas, examples, generated artifacts, and
 relevant docs together. Verify converted advertised schemas and success,
 malformed, unavailable, cancellation, and partial outcomes through affected

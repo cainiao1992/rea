@@ -17,6 +17,11 @@ input Evidence bundle. Contradictions, duplicate definitions or owners,
 residual unknowns, missing dependencies, and unavailable authority keep closure
 open or failed.
 
+Current proof qualification does not bind a passing record to the owner's
+implementation digest or obligation revision. Read the
+[proof applicability limitation](#proof-applicability) before relying on
+`verified` or `ready` after either changes.
+
 ## Complete CLI request
 
 This empty request is useful for checking client integration. It is valid and
@@ -225,10 +230,17 @@ sample Evidence ID with an authenticated review record already present in
 
 ## Manifest and closure
 
-A manifest binding names one owner and its exact implementation digest. Both
+A manifest binding names one owner and a caller-supplied `owner_sha256`. Both
 `original_cases` and the reconstruction fixture list must cover every
 `required_case_kinds` value with authenticated, comparable Evidence.
 `parser_type` is mandatory when `requires_parser_type` is true.
+
+The ledger does not read `module_path`, execute `verifier.command`, or compute
+the implementation digest. The owner fields do not specify whether the digest
+covers module bytes, a symbol representation, or a multi-file implementation.
+The proof producer must document the exact hashed inputs and any canonicalization
+so another verifier can reproduce that commitment; a path or symbol name alone
+does not define it.
 
 ```json
 {
@@ -322,6 +334,26 @@ A green unit test cannot close a `packaged-process` obligation. A static-only
 source cannot close a runtime or process claim. Marking a claim `blocked` or
 `out-of-scope` records the disposition but does not silently count it as verified.
 
+### Proof applicability
+
+Keep three checks separate:
+
+- **Authenticity:** the retained Evidence passes its integrity checks.
+- **Authority:** the observation has the kind and strength required by the claim.
+- **Applicability:** the proof describes the implementation and obligation
+  revision currently being evaluated.
+
+Current qualification checks authority, passing status and enumerated IDs, but
+does not compare proof identity with `owner_sha256` or `obligation_version`.
+Changing those fields while retaining old proof can therefore leave the result
+`verified` and `ready` ([#6854](https://github.com/morluto/rea/issues/6854)).
+Until that binding is enforced, clear the manifest binding's `verifier` after
+an implementation or requirement revision changes and replace stale fixture
+and verifier Evidence with proof for the new inputs. With `verifier: null`, the
+required obligation cannot be verified and carries `missing-verifier`; an
+authenticated old record alone does not establish applicability to the changed
+implementation.
+
 The `summary` counts obligations. `by_status`, `by_application_layer`, and
 `by_source_state` place each obligation in exactly one bucket.
 `by_evidence_authority` groups obligations by the Evidence `authority` of their
@@ -331,7 +363,9 @@ obligation's `source_state` do not affect its authority bucket.
 
 The tool returns every obligation inline. Its `ledger_id` and `closure_digest`
 identify the complete result, including summaries, reports, ownership and
-dependency graphs, Evidence links, and limitations.
+dependency graphs, Evidence links, and limitations. A new `closure_digest`
+identifies a changed ledger; it does not establish that a verifier ran again or
+that retained proof applies to the new owner or obligation revision.
 
 For named boundaries with explicit verifier contracts and package-proof kinds,
 see [reconstruction coverage](reconstruction-coverage.md).

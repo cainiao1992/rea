@@ -248,6 +248,20 @@ standalone CLI check.
 
 ## Codex and Devin
 
+REA manages its launcher and selected provider settings in the client
+registration. Codex's server and per-tool approval policies are user choices.
+Current limitation: doctor rejects nested `[mcp_servers.rea.tools.<name>]`
+approval tables as an invalid registration
+([#3862](https://github.com/morluto/rea/issues/3862)), and setup refresh rebuilds
+the REA entry without those tables or `default_tools_approval_mode`
+([#3863](https://github.com/morluto/rea/issues/3863)). Preserving unrelated server
+entries, valid environment overrides, and positive timeouts does not establish
+preservation of these policy fields. Do not rerun setup solely to clear this
+diagnostic. If a refresh is needed, back up the configuration and restore the
+policy fields from that backup or the reported recovery snapshot before
+restarting Codex. The per-tool table can still cause the doctor diagnostic
+after restoration.
+
 Codex treats an unset or empty `CODEX_HOME` as `~/.codex`. Its MCP server
 registration supports `startup_timeout_sec` for connection initialization and
 `tool_timeout_sec` for each tool call. New REA registrations use a 30-second

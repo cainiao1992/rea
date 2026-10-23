@@ -642,6 +642,13 @@ execution and memory limits continue to determine examined coverage. Raising onl
 a node capacity does not raise the unknown capacity. Graphs without unknown
 omissions omit this optional coverage field, preserving their existing identities.
 
+These node and unknown capacities bound retained graph projection. Parsing,
+static analysis and semantic fact construction precede that projection for an
+admitted source. Lowering the capacities can reduce projection and retention
+work, but does not bound upstream semantic-analysis time or memory. Select fewer
+`source_paths` to reduce the sources analyzed; heap and deadline controls set
+separate resource failure boundaries with the runtime-specific limits above.
+
 While sources remain, the sequential worker reserves one next compact static
 checkpoint at its 8 MiB bound with the same 6x retention expansion used at
 admission. Earlier checkpoints are already charged to retained bytes; the

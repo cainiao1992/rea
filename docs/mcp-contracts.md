@@ -1165,19 +1165,34 @@ block sizes and successor relationships. Text from different provider
 identities remains unknown.
 
 The `references` dimension preserves each edge's direction, endpoint identity
-and available kind facts. Within one artifact it compares exact raw endpoint
-coordinates, including the address space; hexadecimal case and zero padding
-do not change identity. Resolving an endpoint to a containing procedure does
-not replace the raw coordinate. Unparseable coordinates stay unknown.
+and available kind facts. When the subject digests match, the current comparator
+uses exact raw endpoint coordinates, including the address space; hexadecimal
+case and zero padding do not change identity. Resolving an endpoint to a
+containing procedure does not replace the raw coordinate. Unparseable
+coordinates stay unknown.
 
-Across artifacts, reference endpoints use stable procedure names. Missing or
-address-generated names remain unknown. A name observed at multiple procedure
+When the subject digests differ, reference endpoints use stable procedure names.
+Missing or address-generated names remain unknown. A name observed at multiple procedure
 entries retains its label constraint but cannot establish equal endpoints.
 Pairing preserves duplicate counts and considers alternative compatible
 pairings; array order never identifies an edge. Compatible records with
 unknown endpoint identity or kind facts remain `unknown`. Independent known
 facts that contradict every possible pairing still establish `changed`.
 Source Evidence retains the original addresses, names and unavailable facts.
+
+Coordinate identity requires a common executable context: artifact identity,
+selected image or architecture slice, address space, and applicable load mapping.
+Equal coordinates in different slices of one container do not establish equal
+endpoints. The current digest-only selection does not enforce that context and
+can report references unchanged across distinct slices
+([#6502](https://github.com/morluto/rea/issues/6502)).
+
+The `calls` dimension separately compares direction and procedure names without
+retaining endpoint addresses. Distinct same-named procedures can therefore
+compare unchanged ([#6853](https://github.com/morluto/rea/issues/6853)). Check
+the source dossiers' endpoint identities before using either affected dimension
+as a reconstruction proof; another dimension reporting a change does not repair
+the selected dimension's false equality.
 
 ### Comparison input shapes
 

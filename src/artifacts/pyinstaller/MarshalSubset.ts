@@ -67,6 +67,7 @@ const readObject = (
   if (!code.ok) return code;
   const flag = (code.value & FLAG_REF) !== 0;
   const type = code.value & ~FLAG_REF;
+  if (type === 0x72) return readReference(cursor);
   if (type === 0x69) return storeScalar(cursor, flag, readInt32(cursor));
   if (type === 0x6c) return storeScalar(cursor, flag, readLong(cursor));
   if (type === 0x7a || type === 0x5a)
@@ -78,7 +79,6 @@ const readObject = (
   if (type === 0x28) return readSequence(cursor, flag, readInt32(cursor));
   if (type === 0x29) return readSequence(cursor, flag, readByte(cursor));
   if (type === 0x5b) return readSequence(cursor, flag, readInt32(cursor));
-  if (type === 0x72) return readReference(cursor, flag);
   return err(
     pyInstallerFailure(
       "format",
@@ -130,7 +130,6 @@ const readSequence = (
 
 const readReference = (
   cursor: MarshalCursor,
-  flag: boolean,
 ): Result<MarshalValue, PyInstallerFailure> => {
   const index = readInt32(cursor);
   if (!index.ok) return index;
@@ -142,7 +141,6 @@ const readReference = (
         "PYZ marshal reference does not point at a completed value",
       ),
     );
-  if (flag) cursor.refs.push(value);
   return ok(value);
 };
 
@@ -219,6 +217,7 @@ const readLong = (
       pyInstallerFailure("limit", "PYZ marshal integer exceeds the safe range"),
     );
   let magnitude = 0n;
+  let mostSignificantDigit = 0;
   for (let index = 0; index < count; index += 1) {
     const digit = readUint16(cursor);
     if (!digit.ok) return digit;
@@ -226,8 +225,13 @@ const readLong = (
       return err(
         pyInstallerFailure("format", "PYZ marshal long digit is out of range"),
       );
+    mostSignificantDigit = digit.value;
     magnitude += BigInt(digit.value) << BigInt(15 * index);
   }
+  if (count > 0 && mostSignificantDigit === 0)
+    return err(
+      pyInstallerFailure("format", "PYZ marshal long is not normalized"),
+    );
   if (magnitude > BigInt(Number.MAX_SAFE_INTEGER))
     return err(
       pyInstallerFailure("limit", "PYZ marshal integer exceeds the safe range"),

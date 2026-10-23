@@ -62,6 +62,56 @@ cliTest(
 );
 
 cliTest(
+  "matches CPython reference slots for singleton and reference tags",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-ref-slots-");
+    const cases = [
+      {
+        name: "flagged-none",
+        consts: "2903cefa01787200000000",
+        expected: [
+          { kind: "none" },
+          { kind: "str", value: "x" },
+          { kind: "str", value: "x" },
+        ],
+      },
+      {
+        name: "flagged-ref",
+        consts: "2904fa0161f200000000fa01627201000000",
+        expected: [
+          { kind: "str", value: "a" },
+          { kind: "str", value: "a" },
+          { kind: "str", value: "b" },
+          { kind: "str", value: "b" },
+        ],
+      },
+    ];
+    for (const testCase of cases) {
+      const path = join(root, `${testCase.name}.pyc`);
+      await writeFile(
+        path,
+        Buffer.concat([
+          pythonPycHeader(3531),
+          marshalCode("py311", {
+            constsObject: Buffer.from(testCase.consts, "hex"),
+          }),
+        ]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result.code_objects[0]?.consts).toMatchObject(
+        testCase.expected,
+      );
+    }
+  },
+);
+
+cliTest(
   "counts code keys using the selected CPython equality rules",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-python-pyc-equality-");

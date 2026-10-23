@@ -1,10 +1,10 @@
 # CPython pyc inspection
 
-`inspect_python_pyc` / `inspect-python-pyc` answers which CPython version wrote
-one selected local `.pyc` file, how its 16-byte header records source identity,
-and which nested code objects marshal stored. It reads the file without running
-bytecode and requires no Python installation, active binary target, Hopper,
-Ghidra, or IDA.
+`inspect_python_pyc` / `inspect-python-pyc` reports the supported CPython format
+and version declared by one selected local `.pyc` file's magic, how its 16-byte
+header records source identity, and which nested code objects its decoded
+marshal graph contains. It reads the file without running bytecode and requires
+no Python installation, active binary target, Hopper, Ghidra, or IDA.
 
 ```bash
 rea inspect-python-pyc /absolute/path/to/module.pyc --json
@@ -33,10 +33,12 @@ The inline Evidence result contains the artifact path, SHA-256, and byte length.
 - `source_hash_hex` for hash-based pycs, or `source_mtime` and `source_size`
   for timestamp pycs.
 
-`code_objects` lists each distinct marshal code object once, the top-level
-module code first. `nested_code` holds the indexes of the distinct code objects
-reachable from that object's constants, including code nested in tuples and
-other containers and the owner itself when a constant container reaches it.
+`code_objects` lists each code object reachable in the decoded marshal graph
+once, the top-level module code first. This follows CPython container behavior;
+it is not an inventory of raw serialized code-object records. `nested_code`
+holds the indexes of the distinct code objects reachable from that object's
+constants, including code nested in tuples and other containers and the owner
+itself when a constant container reaches it.
 A function shared through a marshal reference is named by index once per owner,
 even when that owner reaches it again through the same container. Relationships
 are collected after the marshal graph is complete, so a container that a nested
@@ -45,6 +47,13 @@ Each object reports name, optional qualname,
 filename, the signed 32-bit `co_firstlineno` value, argument counts, flags,
 names, locals (or `localsplusnames` on 3.11+), const
 summaries, and bytecode length plus SHA-256.
+
+Code-object equality used by sets and dictionaries follows the selected layout:
+3.7–3.10 ignore line tables, while 3.11+ include line and exception tables. The
+artifact SHA-256 identifies the exact selected `.pyc` bytes independently of
+this decoded object graph. Reference slots follow each tag's CPython behavior:
+singleton values and `TYPE_REF` do not reserve new slots even when their tag
+has `FLAG_REF` set.
 
 Bytecode is not decompiled. Const strings may be truncated in the summary while
 the marshal walk still consumed the original bytes; a string summary's `bytes`

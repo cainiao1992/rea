@@ -88,6 +88,38 @@ const onefile = async (
   return path;
 };
 
+const int32 = (value: number): Buffer => {
+  const bytes = Buffer.alloc(4);
+  bytes.writeInt32LE(value);
+  return bytes;
+};
+
+const marshalInt = (value: number): Buffer =>
+  Buffer.concat([Buffer.from([0x69]), int32(value)]);
+
+const marshalLong = (digits: readonly number[]): Buffer =>
+  Buffer.concat([
+    Buffer.from([0x6c]),
+    int32(digits.length),
+    ...digits.map((digit) => {
+      const bytes = Buffer.alloc(2);
+      bytes.writeUInt16LE(digit);
+      return bytes;
+    }),
+  ]);
+
+const namespaceToc = (typeCode: Buffer): Buffer =>
+  Buffer.concat([
+    Buffer.from([0x5b]),
+    int32(1),
+    Buffer.from([0x29, 2, 0x7a, 3]),
+    Buffer.from("pkg"),
+    Buffer.from([0x29, 3]),
+    typeCode,
+    marshalInt(12),
+    marshalInt(0),
+  ]);
+
 const namespacePathCollision = async (): Promise<string> => {
   const directory = await createTestTempDirectory("rea-pyinstaller-namespace-");
   const path = join(directory, "collision");
@@ -344,6 +376,67 @@ it("reports unknown traversal through the CLI for an opaque PYZ", async () => {
     compression_flag: 1,
   });
 });
+
+it.each([
+  ["integer", marshalInt(3), true],
+  ["normalized long", marshalLong([3]), true],
+  ["unnormalized long", marshalLong([3, 0]), false],
+])(
+  "keeps PYZ namespace projection consistent with CPython for %s type codes",
+  async (_encoding, typeCode, decoded) => {
+    const path = await onefile(
+      PYTHON_39_MAGIC,
+      false,
+      false,
+      namespaceToc(typeCode),
+    );
+    const result = await execute(process.execPath, [
+      cli,
+      "inspect-artifact",
+      path,
+      "--json",
+    ]);
+    const inspection = artifactInspectionResultSchema.parse(
+      parseEvidence(JSON.parse(result.stdout)).normalized_result,
+    );
+    const inventory = inspection.substeps[0]?.evidence.normalized_result;
+    const pyz = inventory?.occurrences.find(
+      (row) => row.logical_path === "PYZ.pyz",
+    );
+    const healthySibling = inventory?.occurrences.find(
+      (row) => row.logical_path === "healthy.txt",
+    );
+    expect(healthySibling).toMatchObject({ hash_status: "verified" });
+    expect(
+      inventory?.nodes.find(
+        (node) => node.artifact_id === healthySibling?.artifact_id,
+      ),
+    ).toMatchObject({
+      sha256: createHash("sha256")
+        .update(Buffer.from("healthy sibling"))
+        .digest("hex"),
+      size: Buffer.byteLength("healthy sibling"),
+    });
+    if (decoded) {
+      expect(inventory?.coverage.status).toBe("complete");
+      expect(pyz?.format_metadata).toMatchObject({ pyz_status: "decoded" });
+      expect(
+        inventory?.occurrences.some(
+          (row) => row.logical_path === "PYZ.pyz/pkg",
+        ),
+      ).toBe(true);
+    } else {
+      expect(inventory?.coverage.status).toBe("unknown");
+      expect(pyz?.format_metadata).toMatchObject({ pyz_status: "opaque" });
+      expect(
+        inventory?.occurrences.some(
+          (row) => row.logical_path === "PYZ.pyz/pkg",
+        ),
+      ).toBe(false);
+      expect(pyz?.limitations.join(" ")).toContain("long is not normalized");
+    }
+  },
+);
 
 it.each([
   ["negative string length", "5b0100000073ffffffff"],

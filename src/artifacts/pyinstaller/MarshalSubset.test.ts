@@ -34,6 +34,13 @@ it("resolves a shared string through a reference reserved before the tuple", () 
   ]);
 });
 
+it("does not allocate a new reference slot for a flagged TYPE_REF", () => {
+  const parsed = readMarshalSubset(
+    bytes("2904fa0161f200000000fa01627201000000"),
+  );
+  expect(parsed).toEqual({ ok: true, value: ["a", "a", "b", "b"] });
+});
+
 it("reads a long integer that fits in a safe integer", () => {
   const parsed = readMarshalSubset(
     bytes(
@@ -43,6 +50,33 @@ it("reads a long integer that fits in a safe integer", () => {
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
   expect(parsed.value).toEqual([["big", [0, 2 ** 40, 5]]]);
+});
+
+it.each(["6c0200000003000000", "6cfeffffff03000000"])(
+  "rejects marshal long %s with a zero most-significant digit as malformed",
+  (hex) => {
+    expect(readMarshalSubset(bytes(hex))).toMatchObject({
+      ok: false,
+      error: {
+        reason: "format",
+        message: "PYZ marshal long is not normalized",
+      },
+    });
+  },
+);
+
+it("reads the zero-digit marshal long encoding as zero", () => {
+  expect(readMarshalSubset(bytes("6c00000000"))).toEqual({
+    ok: true,
+    value: 0,
+  });
+});
+
+it("keeps positive over-budget marshal long digit counts as resource refusals", () => {
+  expect(readMarshalSubset(bytes("6c09000000"))).toMatchObject({
+    ok: false,
+    error: { reason: "limit" },
+  });
 });
 
 it("reads a negative 32-bit integer", () => {

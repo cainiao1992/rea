@@ -96,8 +96,13 @@ returns a resource failure.
 
 Supported final Python bytecode magic values cover Python 3.7 through 3.14.
 Supported marshal directory values are lists, tuples, strings, integers and
-bytes. An unsupported magic or directory stays an opaque member with a
-limitation and `pyz_status: "opaque"`; its module contents remain unknown.
+bytes. Directory values follow the identified CPython marshal semantics; for
+example, a long integer with a zero most-significant digit is malformed and is
+not normalized into a valid table value. An unsupported magic or malformed or
+unsupported directory stays an opaque member with a limitation and
+`pyz_status: "opaque"`; no child entries from that table are projected, and
+their module contents remain unknown. The original PYZ member and its digest
+remain available independently. Healthy CArchive siblings are still inventoried.
 Any opaque PYZ makes producer traversal coverage unknown, including retained
 summaries and exhausted queries. Per-archive reasons remain on the opaque
 occurrences; the coverage observation summarizes their count without repeating

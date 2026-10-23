@@ -45,6 +45,14 @@ const TYPE_ASCII_INTERNED = 0x41;
 const TYPE_SMALL_TUPLE = 0x29;
 const TYPE_SHORT_ASCII = 0x7a;
 const TYPE_SHORT_ASCII_INTERNED = 0x5a;
+const TYPES_WITHOUT_REFERENCE_SLOTS = new Set([
+  TYPE_NULL,
+  TYPE_NONE,
+  TYPE_FALSE,
+  TYPE_TRUE,
+  TYPE_STOPITER,
+  TYPE_ELLIPSIS,
+]);
 /** CPython `CO_VARARGS` / `CO_VARKEYWORDS`. Each consumes one local name. */
 const CO_VARARGS = 0x04;
 const CO_VARKEYWORDS = 0x08;
@@ -309,11 +317,13 @@ class MarshalReader {
     const raw = this.u8();
     const flagged = (raw & FLAG_REF) !== 0;
     const type = raw & ~FLAG_REF;
-    if (type === TYPE_REF) {
-      if (flagged) malformed("TYPE_REF must not also set FLAG_REF.");
-      return this.readRef();
-    }
-    const slot = flagged ? this.#intern.length : undefined;
+    // CPython masks FLAG_REF before dispatch; TYPE_REF returns its existing
+    // slot directly, and singleton tags bypass reference registration.
+    if (type === TYPE_REF) return this.readRef();
+    const slot =
+      flagged && !TYPES_WITHOUT_REFERENCE_SLOTS.has(type)
+        ? this.#intern.length
+        : undefined;
     if (slot !== undefined) this.#intern.push(undefined);
     const value = this.readTyped(type, depth, slot);
     if (slot !== undefined && this.#intern[slot] === undefined)

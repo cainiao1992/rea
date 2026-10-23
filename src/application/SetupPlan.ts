@@ -1,3 +1,4 @@
+import { SetupSkillInstallError, type SkillDestination } from "./SetupSkill.js";
 import { classifyClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
 import type { LinuxPackageFamily } from "./HopperReleaseFeed.js";
 import {
@@ -5,7 +6,6 @@ import {
   LINUX_HOPPER_SETUP_HOSTS,
   type LinuxDistribution,
 } from "./LinuxHopper.js";
-import type { SkillDestination } from "./SetupSkill.js";
 import { macHopperInstallDisclosure } from "./MacHopper.js";
 import { macHopperUserApplicationPath } from "./MacHopperPaths.js";
 import type {
@@ -211,6 +211,19 @@ export const planSetupActions = async (input: {
       blocker: `${invalid.client.displayName ?? invalid.client.name}: ${invalid.inspection.remediation}`,
     };
   }
+  let skillDestinations: readonly SkillDestination[] = [];
+  try {
+    if (input.installSkill)
+      skillDestinations = input.host.skillDestinations(input.skillClientIds);
+  } catch (cause: unknown) {
+    if (!(cause instanceof SetupSkillInstallError)) throw cause;
+    return {
+      plannedActions: [],
+      selectedClients,
+      clientsToConfigure: [],
+      blocker: cause.remediation,
+    };
+  }
   const clientPlans = plannedClientWrites(
     inspections,
     input.discovery.installHopper,
@@ -224,7 +237,7 @@ export const planSetupActions = async (input: {
     installHopper: input.discovery.installHopper,
     installSkill: input.installSkill,
     skillClientIds: input.skillClientIds,
-    skillDestinations: input.host.skillDestinations(input.skillClientIds),
+    skillDestinations,
     clients: clientPlans,
     providerEnvironment: input.providerEnvironment,
     ...(input.discovery.linuxPackageFamily === undefined

@@ -582,6 +582,47 @@ describe("doctor", () => {
 });
 
 describe("doctor installation identity", () => {
+  it("names each stale or missing skill destination and its exact repair selection", async () => {
+    const result = await runDoctor(
+      undefined,
+      host({
+        installedSkillIdentity: () =>
+          Promise.resolve({
+            version: "current-first-copy",
+            toolCount: 0,
+            canonical: false,
+            issues: [
+              {
+                client: "claude_code",
+                path: "/home/.claude/skills/rea",
+                kind: "stale",
+                detail: "Selected skill copy is stale",
+              },
+              {
+                client: "shared",
+                path: "/home/.agents/skills/rea",
+                kind: "missing",
+                detail: "Selected skill copy is missing",
+              },
+            ],
+          }),
+      }),
+    );
+    expect(result.identity?.skill).toMatchObject({ state: "stale" });
+    expect(result.identity?.skill.remediation).toContain(
+      "rea setup --skill-client claude_code --skill",
+    );
+    expect(result.identity?.skill.remediation).toContain(
+      "rea setup --skill-client shared --skill",
+    );
+    expect(result.identity?.skill.remediation).toContain(
+      "/home/.claude/skills/rea",
+    );
+    expect(result.identity?.skill.remediation).toContain(
+      "/home/.agents/skills/rea",
+    );
+  });
+
   it("distinguishes stale skills, path shadowing, and unobservable live state", async () => {
     const result = await runDoctor(
       undefined,

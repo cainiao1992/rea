@@ -178,7 +178,10 @@ describe("skill directory admission", () => {
       references,
       process.platform === "win32" ? "junction" : "dir",
     );
-    expect(await existingSkillDestinations(directory)).toEqual([]);
+    expect(await existingSkillDestinations(directory)).toEqual({
+      destinations: [],
+      issues: [],
+    });
     expect((await lstat(references)).isSymbolicLink()).toBe(true);
     await access(join(retained, "native-and-artifacts.md"));
   });

@@ -154,17 +154,10 @@ const runSetupWorkflow = async (
   let installSkill = skillSelected && skillNeedsInstall;
   let planDiscovery = discovery;
   if (interactiveSelection) {
-    const selectionSkillClientIds = [
-      ...new Set([
-        ...discovery.defaultClientIds,
-        ...discovery.detectedClientIds,
-      ]),
-    ];
-    const selectionSkillNeedsInstall = await host.skillNeedsInstall(
-      selectionSkillClientIds,
-    );
-    const offerSkillAction =
-      options.installSkill !== false && selectionSkillNeedsInstall;
+    // The skill choice is intent; its final destination is determined after
+    // selecting clients. An empty client selection names the shared CLI copy.
+    const selectionSkillClientIds: readonly string[] = [];
+    const offerSkillAction = options.installSkill !== false;
     const selectionActions = await planSetupActions({
       discovery,
       host,

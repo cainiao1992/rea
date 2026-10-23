@@ -130,6 +130,42 @@ describe("OMP integration maintenance", () => {
 });
 
 describe("maintenance activation and layered configuration", () => {
+  it("keeps unresolved registrations out of writes without calling them current", async () => {
+    await writeClient("codex", staleCodex);
+    const cursor = await writeClient(
+      "cursor",
+      JSON.stringify({
+        mcpServers: {
+          rea: { command: join(home, "removed-release", "rea"), args: ["mcp"] },
+        },
+      }),
+    );
+    const before = await readFile(cursor, "utf8");
+    const result = await planIntegrationMaintenance(
+      home,
+      entryPoint,
+      process.env,
+      () => {
+        throw new Error("An unresolved maintenance scope must not be executed");
+      },
+    );
+    expect(result).toMatchObject({
+      status: "unavailable",
+      scope: {
+        clients: ["codex"],
+        unresolved: [
+          expect.objectContaining({
+            client: "cursor",
+            state: "unknown",
+            config_path: cursor,
+          }),
+        ],
+      },
+      remediation: expect.stringContaining("cursor"),
+    });
+    expect(await readFile(cursor, "utf8")).toBe(before);
+  });
+
   it("leaves an inherited disabled OpenCode V2 registration outside maintenance", async () => {
     const upper = await writeClient(
       "opencode",

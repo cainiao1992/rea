@@ -809,13 +809,24 @@ export const supportedClients = (
   });
 };
 
-/** Resolve personal skill roots using the same client environment as setup. */
+/** Resolved destinations and unresolved selections share one path-resolution owner. */
 export const clientSkillDirectories = (
   home: string,
   clientIds: readonly string[] | undefined,
   environment: Readonly<NodeJS.ProcessEnv> = {},
   platform: NodeJS.Platform = process.platform,
-): readonly { readonly client: string; readonly directory: string }[] => {
+): {
+  readonly directories: readonly {
+    readonly client: string;
+    readonly directory: string;
+  }[];
+  readonly unresolved: readonly {
+    readonly client: string;
+    readonly path: string;
+    readonly detail: string;
+  }[];
+} => {
+  const unresolved: { client: string; path: string; detail: string }[] = [];
   const definitions: readonly ClientDefinition[] = SUPPORTED_CLIENT_DEFINITIONS;
   const selected =
     clientIds === undefined
@@ -831,6 +842,14 @@ export const clientSkillDirectories = (
   const destinations = new Map<string, { client: string; directory: string }>();
   for (const client of selected) {
     const definition = definitions.find(({ name }) => name === client);
+    if (definition === undefined && client !== "shared") {
+      unresolved.push({
+        client,
+        path: client,
+        detail: `Unsupported skill client: ${client}`,
+      });
+      continue;
+    }
     let directory: string;
     try {
       const resolved =
@@ -841,11 +860,20 @@ export const clientSkillDirectories = (
               platform,
               env: environment,
             });
-      if (!resolved.ok) continue;
+      if (!resolved.ok) {
+        unresolved.push({
+          client,
+          path: resolved.error.path,
+          detail: resolved.error.message,
+        });
+        continue;
+      }
       directory = resolved.value;
     } catch (cause: unknown) {
-      // Registration diagnostics own an unresolved profile; never fall back to another skill root.
-      if (cause instanceof HermesClientPathError) continue;
+      if (cause instanceof HermesClientPathError) {
+        unresolved.push({ client, path: cause.path, detail: cause.message });
+        continue;
+      }
       throw cause;
     }
     if (!destinations.has(directory))
@@ -855,7 +883,10 @@ export const clientSkillDirectories = (
         directory,
       });
   }
-  return [...destinations.values()].sort((left, right) =>
-    compareUnicodeCodePoints(left.directory, right.directory),
-  );
+  return {
+    directories: [...destinations.values()].sort((left, right) =>
+      compareUnicodeCodePoints(left.directory, right.directory),
+    ),
+    unresolved,
+  };
 };

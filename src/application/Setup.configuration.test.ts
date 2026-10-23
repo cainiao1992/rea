@@ -286,6 +286,38 @@ describe("configured Linux Hopper selection", () => {
   });
 });
 
+it("offers shared skill intent when the detected personal copy is current", async () => {
+  const host = new FakeSetupHost();
+  host.hopper = "/Applications/Hopper";
+  host.clients = [{ name: "claude_code", configPath: "/claude.json" }];
+  host.skillNeedsInstall = (clients) => Promise.resolve(clients.length === 0);
+  const result = await runSetup(
+    { ...options(false), structured: false },
+    host,
+    async (actions, context) => {
+      if (context?.stage !== "select") return true;
+      expect(actions).toContainEqual(
+        expect.objectContaining({ id: "install_skill" }),
+      );
+      return { approved: false, selectedActionIds: ["install_skill"] };
+    },
+  );
+  expect(result.status).toBe("ready");
+  expect(result.plannedActions).toEqual([
+    expect.objectContaining({
+      id: "install_skill",
+      target: join(
+        host.homeDirectory,
+        ".agents",
+        "skills",
+        "reverse-engineer-anything",
+      ),
+    }),
+  ]);
+  expect(host.configurations).toBe(0);
+  expect(host.skillInstalls).toBe(1);
+});
+
 describe("setup workflow action selection", () => {
   it("executes only actions selected by the interactive adapter", async () => {
     const host = new FakeSetupHost();

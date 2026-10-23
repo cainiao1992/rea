@@ -62,9 +62,9 @@ describe("DeepSeek Harness configuration paths", () => {
         configPath: join(home, dshRoot, "cordis.patch.yml"),
         markerPath: join(home, dshRoot),
       });
-      expect(clientSkillDirectories(home, ["dsh"], environment)).toEqual([
-        { client, directory: join(home, agentsRoot, "skills") },
-      ]);
+      expect(
+        clientSkillDirectories(home, ["dsh"], environment).directories,
+      ).toEqual([{ client, directory: join(home, agentsRoot, "skills") }]);
     },
   );
 
@@ -82,9 +82,9 @@ describe("DeepSeek Harness configuration paths", () => {
         configPath: join(root, "cordis.patch.yml"),
         markerPath: root,
       });
-      expect(clientSkillDirectories(home, ["dsh"], environment)).toEqual([
-        { client: "dsh", directory: join(root, "skills") },
-      ]);
+      expect(
+        clientSkillDirectories(home, ["dsh"], environment).directories,
+      ).toEqual([{ client: "dsh", directory: join(root, "skills") }]);
     },
   );
 
@@ -103,7 +103,7 @@ describe("DeepSeek Harness configuration paths", () => {
     expect(
       clientSkillDirectories(join("/home/a"), ["dsh"], {
         DSH_AGENTS_HOME: "/custom/agents",
-      }),
+      }).directories,
     ).toEqual([
       { client: "dsh", directory: resolve("/custom/agents", "skills") },
     ]);

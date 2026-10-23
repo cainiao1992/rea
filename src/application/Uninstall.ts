@@ -26,7 +26,7 @@ import {
   isManagedSkillManifest,
   MANAGED_SKILL_FILES,
   readSkillFile,
-  skillDestinations,
+  skillDestinationSelection,
 } from "./SetupSkill.js";
 import { classifyClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
@@ -312,12 +312,21 @@ export const systemUninstallHost = (
         ),
       ),
     inspectSkill: async () => {
-      for (const destination of skillDestinations(
+      const selection = skillDestinationSelection(
         home,
         undefined,
         environment,
         platform,
-      )) {
+      );
+      if (selection.issues.length > 0)
+        return item(
+          "skill",
+          "failed",
+          selection.issues
+            .map(({ path, detail }) => `${detail} (${path})`)
+            .join(" "),
+        );
+      for (const destination of selection.destinations) {
         const inspected = await inspectManagedSkill(
           destination.path,
           destination.client,
@@ -810,16 +819,24 @@ const removeManagedSkills = async (
   platform: NodeJS.Platform,
   writeBlocker?: (path: string) => string | undefined,
 ): Promise<UninstallItem> => {
+  const selection = skillDestinationSelection(
+    home,
+    undefined,
+    environment,
+    platform,
+  );
+  if (selection.issues.length > 0)
+    return item(
+      "skill",
+      "failed",
+      selection.issues
+        .map(({ path, detail }) => `${detail} (${path})`)
+        .join(" "),
+    );
   // Every destination shares one summary item; preserve both client and path.
   const results = await Promise.all(
-    skillDestinations(home, undefined, environment, platform).map(
-      ({ client, path }) =>
-        removeManagedSkill(
-          path,
-          `${client} (${path})`,
-          fileSystem,
-          writeBlocker,
-        ),
+    selection.destinations.map(({ client, path }) =>
+      removeManagedSkill(path, `${client} (${path})`, fileSystem, writeBlocker),
     ),
   );
   const failed = results.find(({ status }) => status === "failed");

@@ -141,7 +141,7 @@ export class FakeSetupHost implements SetupHost {
     Promise.resolve(
       this.clientInspections.get(client.name) ?? { status: "update" },
     );
-  skillNeedsInstall = (): Promise<boolean> =>
+  skillNeedsInstall: SetupHost["skillNeedsInstall"] = (): Promise<boolean> =>
     Promise.resolve(this.skill !== "unchanged");
   validateSkillDirectories = (
     clientIds: readonly string[],

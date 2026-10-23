@@ -173,23 +173,64 @@ export interface InstalledSkillIdentity {
 /** Known management blockers and unresolved filesystem observations. */
 export interface SkillPathIssue {
   readonly path: string;
-  readonly kind: "symbolic_link" | "not_directory" | "unreadable";
+  readonly kind:
+    | "symbolic_link"
+    | "not_directory"
+    | "unreadable"
+    | "unresolved"
+    | "stale"
+    | "missing";
+  readonly client?: string;
   readonly detail: string;
 }
 
-/** Resolve the skill roots required by a client selection, or all owned roots. */
+/** Keep unresolved selected roots as diagnostics, never as writable destinations. */
+export const skillDestinationSelection = (
+  home: string,
+  clientIds: readonly string[] | undefined,
+  environment: Readonly<NodeJS.ProcessEnv> = {},
+  platform: NodeJS.Platform = process.platform,
+): {
+  readonly destinations: readonly SkillDestination[];
+  readonly issues: readonly SkillPathIssue[];
+} => {
+  const selection = clientSkillDirectories(
+    home,
+    clientIds,
+    environment,
+    platform,
+  );
+  return {
+    destinations: selection.directories.map(({ client, directory }) => ({
+      client,
+      path: join(directory, PRODUCT_IDENTITY.skillName),
+    })),
+    issues: selection.unresolved.map(({ client, path, detail }) => ({
+      client,
+      path,
+      detail,
+      kind: "unresolved",
+    })),
+  };
+};
+
+/** Writable destinations are available only after all selected roots resolve. */
 export const skillDestinations = (
   home: string,
   clientIds: readonly string[] | undefined,
   environment: Readonly<NodeJS.ProcessEnv> = {},
   platform: NodeJS.Platform = process.platform,
-): readonly SkillDestination[] =>
-  clientSkillDirectories(home, clientIds, environment, platform).map(
-    ({ client, directory }) => ({
-      client,
-      path: join(directory, PRODUCT_IDENTITY.skillName),
-    }),
+): readonly SkillDestination[] => {
+  const selection = skillDestinationSelection(
+    home,
+    clientIds,
+    environment,
+    platform,
   );
+  if (selection.issues.length > 0)
+    throw skillDirectoryFailure(selection.issues);
+  return selection.destinations;
+};
 
 /** Resolve existing REA-owned skill roots using setup's canonical destinations. */
 export const existingSkillDestinations = async (
@@ -197,19 +238,26 @@ export const existingSkillDestinations = async (
   environment: Readonly<NodeJS.ProcessEnv> = {},
   platform: NodeJS.Platform = process.platform,
   resources?: ArtifactResourceScope,
-): Promise<readonly SkillDestination[]> => {
-  const existing: SkillDestination[] = [];
-  for (const destination of skillDestinations(
+): Promise<{
+  readonly destinations: readonly SkillDestination[];
+  readonly issues: readonly SkillPathIssue[];
+}> => {
+  const selection = skillDestinationSelection(
     home,
     undefined,
     environment,
     platform,
-  )) {
+  );
+  const issues: SkillPathIssue[] = [...selection.issues];
+  const existing: SkillDestination[] = [];
+  for (const destination of selection.destinations) {
     try {
-      const issues = await skillDirectoryIssues([destination]);
-      if (issues.some(({ kind }) => kind === "unreadable"))
-        throw skillDirectoryFailure(issues);
-      if (issues.length > 0) continue;
+      const pathIssues = await skillDirectoryIssues([destination]);
+      if (pathIssues.some(({ kind }) => kind === "unreadable")) {
+        issues.push(...pathIssues);
+        continue;
+      }
+      if (pathIssues.length > 0) continue;
       const manifest = join(destination.path, "SKILL.md");
       const content = await readSkillFile(manifest, resources);
       if (isManagedSkillManifest(content)) existing.push(destination);
@@ -222,10 +270,15 @@ export const existingSkillDestinations = async (
       )
         throw cause;
       if (cause instanceof NonRegularFileReadError) continue;
-      throw cause;
+      issues.push({
+        client: destination.client,
+        path: destination.path,
+        kind: "unreadable",
+        detail: causeReason(cause),
+      });
     }
   }
-  return existing;
+  return { destinations: existing, issues };
 };
 
 const readOptionalSkillState = async (
@@ -305,9 +358,16 @@ export const validateCanonicalSkillDirectories = async (
   environment: Readonly<NodeJS.ProcessEnv> = {},
   platform: NodeJS.Platform = process.platform,
 ): Promise<Result<void, SetupSkillInstallError>> => {
-  const issues = await skillDirectoryIssues(
-    skillDestinations(home, clientIds, environment, platform),
+  const selection = skillDestinationSelection(
+    home,
+    clientIds,
+    environment,
+    platform,
   );
+  const issues = [
+    ...selection.issues,
+    ...(await skillDirectoryIssues(selection.destinations)),
+  ];
   return issues.length === 0
     ? ok(undefined)
     : err(skillDirectoryFailure(issues));
@@ -367,31 +427,21 @@ const inspectCanonicalSkill = async (
   platform: NodeJS.Platform,
   resources?: ArtifactResourceScope,
 ): Promise<Result<CanonicalSkillInspection, SkillInspectionFailure>> => {
-  const destinations = skillDestinations(
+  const selection = skillDestinationSelection(
     home,
     clientIds,
     environment,
     platform,
   );
-  const issues =
-    clientIds === undefined
-      ? []
-      : [...(await skillDirectoryIssues(destinations))];
-  if (issues.length > 0)
-    return err({
-      _tag: "SkillInspectionFailure",
-      issues,
-      cause: issues,
-      manifest: undefined,
-    });
+  const destinations = selection.destinations;
+  const issues: SkillPathIssue[] = [...selection.issues];
   let canonical = true;
   let manifest: string | undefined;
-  let failureCause: unknown;
+  let failureCause: unknown = issues.length > 0 ? issues : undefined;
   let installedDestination = false;
   for (const destination of destinations) {
     const { path: root } = destination;
-    const pathIssues =
-      clientIds === undefined ? await skillDirectoryIssues([destination]) : [];
+    const pathIssues = await skillDirectoryIssues([destination]);
     if (pathIssues.length > 0) {
       issues.push(...pathIssues);
       if (failureCause === undefined) failureCause = pathIssues;
@@ -437,6 +487,13 @@ const inspectCanonicalSkill = async (
       installedDestination ||= rootHasFiles;
       canonical = canonical && rootCanonical;
       issues.push(...rootIssues);
+      if (!rootCanonical && rootIssues.length === 0)
+        issues.push({
+          client: destination.client,
+          path: root,
+          kind: rootHasFiles ? "stale" : "missing",
+          detail: `Selected skill copy is ${rootHasFiles ? "stale" : "missing"}`,
+        });
     }
   }
   return issues.length === 0

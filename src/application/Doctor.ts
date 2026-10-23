@@ -428,9 +428,21 @@ const skillIdentityAligned = (
 const skillIdentityState = (
   identity: InstalledSkillIdentity | undefined,
 ): DoctorSkillState => {
-  if (identity?.issues?.some(({ kind }) => kind === "unreadable"))
+  if (
+    identity?.issues?.some(
+      ({ kind }) => kind === "unreadable" || kind === "unresolved",
+    )
+  )
     return "unknown";
-  if ((identity?.issues?.length ?? 0) > 0) return "unmanaged";
+  if (
+    identity?.issues?.some(
+      ({ kind }) => kind === "symbolic_link" || kind === "not_directory",
+    )
+  )
+    return "unmanaged";
+  if (identity?.issues?.some(({ kind }) => kind === "stale")) return "stale";
+  if (identity?.issues?.some(({ kind }) => kind === "missing"))
+    return "missing";
   return identity === undefined
     ? "missing"
     : skillIdentityAligned(identity)
@@ -443,7 +455,15 @@ const skillIdentityRemediation = (
 ): string => {
   const issues = identity?.issues;
   if (issues !== undefined && issues.length > 0)
-    return `${issues.map(({ path, detail }) => `${detail} (${path})`).join(" ")} Verify the reported paths and use regular skill directories, or run rea setup with --skill=false to configure the client without installing the skill.`;
+    return issues
+      .map(({ path, detail, kind, client }) => {
+        const repair =
+          kind === "stale" || kind === "missing"
+            ? `Run rea setup --skill-client ${client ?? "shared"} --skill to repair this copy.`
+            : "Repair the selected path/profile before rerunning setup, or use --skill=false to configure clients without installing the skill.";
+        return `${detail} (${path}). ${repair}`;
+      })
+      .join(" ");
   return "Run rea setup to update the installed REA skill.";
 };
 

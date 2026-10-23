@@ -2,8 +2,14 @@ import { z } from "zod";
 import { RegularFileCleanupFailure } from "../filesystem/OwnedRegularFile.js";
 
 import { classifyClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
-import { readClientRegistrationInspections } from "./ClientRegistrationStatus.js";
-import { existingSkillDestinations } from "./SetupSkill.js";
+import {
+  readClientRegistrationInspections,
+  type ClientRegistrationStatus,
+} from "./ClientRegistrationStatus.js";
+import {
+  existingSkillDestinations,
+  type SkillPathIssue,
+} from "./SetupSkill.js";
 import type { SetupAction } from "./SetupTypes.js";
 import type { Result } from "../domain/result.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
@@ -12,6 +18,8 @@ import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.j
 export interface MaintenanceScope {
   readonly clients: readonly string[];
   readonly skill: boolean;
+  readonly unresolved?: readonly ClientRegistrationStatus[];
+  readonly skillIssues?: readonly SkillPathIssue[];
   readonly skillDestinations?: readonly {
     readonly client: string;
     readonly path: string;
@@ -27,7 +35,11 @@ export type IntegrationMaintenance =
       readonly command: readonly string[];
       readonly plannedActions: readonly SetupAction[];
     }
-  | { readonly status: "unavailable"; readonly remediation: string };
+  | {
+      readonly status: "unavailable";
+      readonly remediation: string;
+      readonly scope?: MaintenanceScope;
+    };
 
 const setupPlanSchema = z.object({
   status: z.literal("planned"),
@@ -62,7 +74,12 @@ export const existingMaintenanceScope = async (
     },
   );
   const clients: string[] = [];
+  const unresolved: ClientRegistrationStatus[] = [];
   for (const { status: registration, activation } of registrations) {
+    if (registration.state === "unknown" || registration.state === "invalid") {
+      unresolved.push(registration);
+      continue;
+    }
     if (
       activation !== "enabled" ||
       (registration.state !== "aligned" && registration.state !== "stale") ||
@@ -72,7 +89,7 @@ export const existingMaintenanceScope = async (
       continue;
     clients.push(registration.client);
   }
-  const skillDestinations = await existingSkillDestinations(
+  const skills = await existingSkillDestinations(
     home,
     environment,
     process.platform,
@@ -80,8 +97,10 @@ export const existingMaintenanceScope = async (
   );
   return {
     clients,
-    skill: skillDestinations.length > 0,
-    skillDestinations,
+    skill: skills.destinations.length > 0,
+    skillDestinations: skills.destinations,
+    ...(skills.issues.length === 0 ? {} : { skillIssues: skills.issues }),
+    ...(unresolved.length === 0 ? {} : { unresolved }),
   };
 };
 
@@ -100,6 +119,24 @@ export const planIntegrationMaintenance = async (
       environment,
       resources,
     );
+    if (
+      (scope.unresolved?.length ?? 0) > 0 ||
+      (scope.skillIssues?.length ?? 0) > 0
+    )
+      return {
+        status: "unavailable",
+        scope,
+        remediation: `Integration maintenance is unresolved: ${[
+          ...(scope.unresolved ?? []).map(
+            ({ client, config_path, remediation }) =>
+              `${client} (${config_path}): ${remediation ?? "Registration identity is unresolved"}`,
+          ),
+          ...(scope.skillIssues ?? []).map(
+            ({ client, path, detail }) =>
+              `${client ?? "skill"} (${path}): ${detail}`,
+          ),
+        ].join(" ")}`,
+      };
     const skillDestinations = scope.skillDestinations ?? [];
     if (scope.clients.length === 0 && !scope.skill)
       return { status: "current", plannedActions: [] };

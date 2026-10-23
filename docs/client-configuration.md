@@ -334,7 +334,11 @@ Setup, doctor and uninstall follow the root's `active_profile` selection, as
 plain Hermes CLI commands do. An explicit `HERMES_HOME` pointing to
 `profiles/<name>` selects that named profile directly. An invalid, missing or
 deleted sticky profile is reported instead of writing into the default home;
-repair the profile or run `hermes profile use default` before retrying.
+it also remains an unresolved skill selection, so setup cannot report a
+successful empty installation. Overrides nested beneath the native Hermes home
+use that native home's sticky selection and profile root together, matching
+[Hermes's root rules](https://github.com/NousResearch/hermes-agent/blob/748c79a1c6873124d84071cdabb4062a75913e1f/hermes_constants.py#L83).
+Repair the profile or run `hermes profile use default` before retrying.
 REA follows `HERMES_HOME` whitespace trimming, environment-variable expansion,
 and home expansion before resolving that profile. Setup previews the resolved
 configuration and skill destinations; doctor and uninstall use those same paths.
@@ -495,3 +499,19 @@ npx -y rea-agents@<version> mcp
 
 Do not put credentials in that command or its arguments. `rea doctor --client grok_bot`
 reports this manual step. `rea uninstall` does not remove the account connector.
+
+## Skill selection and maintenance
+
+With no client selected, the interactive skill choice targets the shared
+`~/.agents/skills` copy. Selecting a client targets its personal destination
+when supported. Use `rea setup --skill-client shared --skill` for the shared
+copy, or `--skill-client claude_code --skill` for that client's copy. Setup
+resolves the final selection before deciding which files need installation.
+Doctor retains each selected stale or missing path and names the matching
+repair command; a current copy elsewhere does not establish freshness.
+
+Unresolved profile or directory selections remain diagnostics and never become
+write targets. Update maintenance considers only known enabled, owned REA
+registrations and owned skills. If identity or a selected skill root is
+unresolved, it reports maintenance as unavailable with the known scope and
+remaining diagnostics. An empty writable scope alone does not prove current.

@@ -258,7 +258,7 @@ export const projectArtifactInventoryView = (
     view.kind === "inventory" ||
     inventory.manifest.root_format === "godot-pck" ||
     inventory.manifest.root_format === "pyinstaller";
-  const counts = includeHashCounts ? inventoryCounts(source) : undefined;
+  const counts = inventoryCounts(source);
   const limitations = uniqueSorted([
     ...parent.limitations,
     ...inventory.limitations,
@@ -280,8 +280,7 @@ export const projectArtifactInventoryView = (
             "Producer traversal coverage is unknown; missing matches do not prove source absence.",
           ]
         : []),
-      ...(counts !== undefined &&
-      (counts.hashes.unavailable > 0 || counts.hashes["not-hashed"] > 0)
+      ...(counts.hashes.unavailable > 0 || counts.hashes["not-hashed"] > 0
         ? [
             "Content hashes are unknown for some recorded files; missing node IDs do not prove content absence.",
           ]
@@ -302,7 +301,6 @@ export const projectArtifactInventoryView = (
     | "unknowns"
   >;
   if (view.kind === "summary") {
-    const counts = inventoryCounts(source);
     const examined =
       inventory.nodes.length +
       inventory.occurrences.length +

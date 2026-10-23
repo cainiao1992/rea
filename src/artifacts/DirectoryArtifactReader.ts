@@ -14,6 +14,7 @@ import {
   sameArtifactSourceIdentity,
   type ArtifactEntry,
   type ArtifactReader,
+  type ArtifactReaderFailureOptions,
   type ArtifactTraversalOmission,
   type ArtifactTraversalOptions,
 } from "./ArtifactReader.js";
@@ -66,6 +67,23 @@ export class DirectoryArtifactTraversalLimit extends ArtifactReaderFailure {
  * the caller's selection classifies it; `cause` retains the host failure.
  */
 export class DirectoryArtifactRootFailure extends ArtifactReaderFailure {}
+
+/**
+ * A selected child entry could not be opened because the host denied read
+ * access. The consumer that owns the caller's selection classifies it;
+ * `systemCode` and `entryPath` retain what the host actually reported so the
+ * classification never has to be re-derived from message text.
+ */
+export class DirectoryArtifactEntryAccessDenied extends ArtifactReaderFailure {
+  constructor(
+    readonly systemCode: "EACCES" | "EPERM",
+    readonly entryPath: string,
+    message: string,
+    options?: ArtifactReaderFailureOptions,
+  ) {
+    super("io", message, options);
+  }
+}
 
 /** Non-symlink-following directory reader. */
 export class DirectoryArtifactReader implements ArtifactReader {
@@ -288,7 +306,7 @@ export class DirectoryArtifactReader implements ArtifactReader {
       entry.adapterKey,
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     ).catch((cause: unknown) => {
-      throw directoryIoFailure("open entry", entry.adapterKey, cause);
+      throw entryOpenFailure(entry, cause);
     });
     const owner = new OwnedFileHandle(fileHandle);
     this.#files.set(owner, entry.adapterKey);
@@ -528,19 +546,45 @@ const directoryIoFailure = (
   Failure: typeof ArtifactReaderFailure = ArtifactReaderFailure,
 ): ArtifactReaderFailure => {
   if (cause instanceof ArtifactReaderFailure) return cause;
-  const code =
-    typeof cause === "object" &&
-    cause !== null &&
-    "code" in cause &&
-    typeof cause.code === "string"
-      ? ` (${cause.code})`
-      : "";
+  const code = hostErrorCode(cause);
+  const suffix = code === undefined ? "" : ` (${code})`;
   const detail = failureMessage(cause);
   return new Failure(
     "io",
-    `Could not ${operation} at ${path}${code}: ${detail}`,
-    { cause },
+    `Could not ${operation} at ${path}${suffix}: ${detail}`,
+    {
+      cause,
+    },
   );
+};
+
+/** The host errno a lower-level failure reported, when it reported one. */
+const hostErrorCode = (cause: unknown): string | undefined =>
+  typeof cause === "object" &&
+  cause !== null &&
+  "code" in cause &&
+  typeof cause.code === "string"
+    ? cause.code
+    : undefined;
+
+/**
+ * Report a refused entry open as the host's read-access denial so the consumer
+ * that owns the caller's selection can classify it without re-reading text.
+ */
+const entryOpenFailure = (
+  entry: ArtifactEntry,
+  cause: unknown,
+): ArtifactReaderFailure => {
+  const failure = directoryIoFailure("open entry", entry.adapterKey, cause);
+  const code = hostErrorCode(cause);
+  return code === "EACCES" || code === "EPERM"
+    ? new DirectoryArtifactEntryAccessDenied(
+        code,
+        entry.path,
+        failure.message,
+        { cause },
+      )
+    : failure;
 };
 
 const failureMessage = (cause: unknown): string =>

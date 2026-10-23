@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parseBinary } from "plist";
 import { z } from "zod";
 import {
+  AnalysisAccessDeniedError,
   AnalysisInputError,
   AnalysisUnsupportedTargetError,
 } from "../../domain/analysisErrorCore.js";
@@ -28,9 +29,13 @@ import {
   keyedArchiveResultSchema,
   projectKeyedArchive,
 } from "../../domain/apple/keyedArchive.js";
-import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
+import {
+  DirectoryArtifactReader,
+  DirectoryArtifactEntryAccessDenied,
+} from "../DirectoryArtifactReader.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import type { ArtifactEntry } from "../ArtifactReader.js";
+import { bindArtifactFileCleanup } from "../ArtifactFileOperation.js";
 
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 import {
@@ -216,7 +221,11 @@ export const inspectBundleKeyedArchive = async (input: {
         "invalid_value",
         `No regular file exists at ${selected.path} in the active app bundle.`,
       );
-    const stream = await reader.open(entry, input.signal);
+    const stream = await reader
+      .open(entry, input.signal)
+      .catch((cause: unknown) => {
+        throw selectedArchiveReadFailure(input.bundlePath, entry, cause);
+      });
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of stream) {
@@ -284,3 +293,33 @@ const archivePathError = (
   new AnalysisInputError("inspect_keyed_archive", undefined, [
     { path: ["path"], reason, message },
   ]);
+
+/**
+ * The caller selected this entry, so a refused open is a selection outcome:
+ * preserve the host's read-access denial and its system code instead of
+ * reporting a generic artifact execution failure.
+ */
+const selectedArchiveReadFailure = (
+  bundlePath: string,
+  entry: ArtifactEntry,
+  cause: unknown,
+): unknown => {
+  if (!(cause instanceof DirectoryArtifactEntryAccessDenied)) return cause;
+  const error = new AnalysisAccessDeniedError(
+    "inspect_keyed_archive",
+    join(bundlePath, entry.path),
+    cause.systemCode,
+    {
+      cause,
+      // The cleanup observation, not just the leases, makes the projection
+      // report an unresolved resource; binding leases alone would claim the
+      // denied open left nothing owned.
+      ...(cause.cleanup === undefined ? {} : { cleanup: cause.cleanup }),
+      ...(cause.partialObservation === undefined
+        ? {}
+        : { partialObservation: cause.partialObservation }),
+    },
+  );
+  bindArtifactFileCleanup(cause, error);
+  return error;
+};

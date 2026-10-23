@@ -58,6 +58,11 @@ this decoded object graph. Reference slots follow each tag's CPython behavior:
 singleton values and `TYPE_REF` do not reserve new slots even when their tag
 has `FLAG_REF` set.
 
+Reported names are JavaScript display strings; distinct CPython Unicode names
+can therefore have the same displayed value and cannot always be reconstructed
+from that field alone. Code equality uses the retained marshal string bytes,
+while the artifact SHA-256 continues to identify the original file bytes.
+
 Bytecode is not decompiled. Const strings may be truncated in the summary while
 the marshal walk still consumed the original bytes; a string summary's `bytes`
 is that marshal length. Integer consts report `bits`; their decimal `value` is

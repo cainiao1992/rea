@@ -154,8 +154,15 @@ type CodeEquality = {
   /** The co_consts tuple itself, which may be a reference to an unfinished tuple. */
   readonly constsTuple: MarshalValue;
   readonly effectiveFlags: number;
+  readonly name: Buffer;
+  readonly nameTables: readonly (readonly Buffer[])[];
   readonly linetable: string;
   readonly exceptiontable: string;
+};
+
+type NameTable = {
+  readonly display: string[];
+  readonly equality: Buffer[];
 };
 
 const malformed = (message: string): never => {
@@ -445,10 +452,10 @@ class MarshalReader {
     const names = this.#nameTable(
       asTuple(this.readObject(depth + 1), "co_names"),
     );
-    let varnames: string[] | null = null;
-    let freevars: string[] | null = null;
-    let cellvars: string[] | null = null;
-    let localsplusnames: string[] | null = null;
+    let varnames: NameTable | null = null;
+    let freevars: NameTable | null = null;
+    let cellvars: NameTable | null = null;
+    let localsplusnames: NameTable | null = null;
     let localspluskinds_hex: string | null = null;
     if (this.layout === "py311") {
       localsplusnames = this.#nameTable(
@@ -458,7 +465,7 @@ class MarshalReader {
         this.readObject(depth + 1),
         "co_localspluskinds",
       );
-      if (localspluskinds.length !== localsplusnames.length)
+      if (localspluskinds.length !== localsplusnames.display.length)
         malformed(
           "co_localspluskinds length does not match co_localsplusnames.",
         );
@@ -483,11 +490,13 @@ class MarshalReader {
         argcount,
         kwonlyargcount,
         flags,
-        varnames.length,
+        varnames.display.length,
       );
     }
     const filename = asString(this.readObject(depth + 1), "co_filename");
-    const name = asString(this.readObject(depth + 1), "co_name");
+    const nameObject = this.readObject(depth + 1);
+    const codeName = asStringWithRaw(nameObject, "co_name");
+    const name = codeName.value;
     const qualname =
       this.layout === "py311"
         ? asString(this.readObject(depth + 1), "co_qualname")
@@ -502,11 +511,11 @@ class MarshalReader {
       name,
       qualname ?? "",
       filename,
-      ...names,
-      ...(varnames ?? []),
-      ...(freevars ?? []),
-      ...(cellvars ?? []),
-      ...(localsplusnames ?? []),
+      ...names.display,
+      ...(varnames?.display ?? []),
+      ...(freevars?.display ?? []),
+      ...(cellvars?.display ?? []),
+      ...(localsplusnames?.display ?? []),
       localspluskinds_hex ?? "",
     ]);
     const node: CodeNode = {
@@ -520,11 +529,11 @@ class MarshalReader {
       nlocals,
       stacksize,
       flags,
-      names,
-      varnames,
-      freevars,
-      cellvars,
-      localsplusnames,
+      names: names.display,
+      varnames: varnames?.display ?? null,
+      freevars: freevars?.display ?? null,
+      cellvars: cellvars?.display ?? null,
+      localsplusnames: localsplusnames?.display ?? null,
       localspluskinds_hex,
       bytecode: { bytes: bytecode.length, sha256: sha256(bytecode) },
       consts: [],
@@ -533,13 +542,24 @@ class MarshalReader {
     const effectiveFlags =
       this.layout === "py311"
         ? flags
-        : (freevars?.length ?? 0) === 0 && (cellvars?.length ?? 0) === 0
+        : (freevars?.display.length ?? 0) === 0 &&
+            (cellvars?.display.length ?? 0) === 0
           ? flags | CO_NOFREE
           : flags & ~CO_NOFREE;
     this.#codeEquality.set(node, {
       consts,
       constsTuple,
       effectiveFlags,
+      name: codeName.raw,
+      nameTables:
+        localsplusnames !== null
+          ? [names.equality, localsplusnames.equality]
+          : [
+              names.equality,
+              varnames?.equality ?? [],
+              freevars?.equality ?? [],
+              cellvars?.equality ?? [],
+            ],
       linetable: `${linetable.length}:${sha256(linetable)}`,
       exceptiontable: `${exceptiontable.length}:${sha256(exceptiontable)}`,
     });
@@ -601,11 +621,18 @@ class MarshalReader {
   /**
    * A name table shared through TYPE_REF is one marshal object and a full
    * copy in every code object. Empty strings add no report bytes, so charge
-   * each copied entry before `strings()` builds the array the report keeps.
+   * each copied entry before building the report and equality arrays.
    */
-  #nameTable(items: readonly MarshalValue[]): string[] {
+  #nameTable(items: readonly MarshalValue[]): NameTable {
     this.#chargeReported(items.length, "names");
-    return strings(items);
+    const display: string[] = [];
+    const equality: Buffer[] = [];
+    for (const [index, item] of items.entries()) {
+      const string = asStringWithRaw(item, `Tuple item ${index}`);
+      display.push(string.value);
+      equality.push(string.raw);
+    }
+    return { display, equality };
   }
 
   /**
@@ -1184,18 +1211,8 @@ class MarshalReader {
     const material =
       this.#codeEquality.get(node) ??
       malformed("Code object is missing equality material.");
-    const nameTables = [
-      this.#nameTableKey(node.names),
-      ...(node.localsplusnames !== null
-        ? [this.#nameTableKey(node.localsplusnames)]
-        : [
-            this.#nameTableKey(node.varnames ?? []),
-            this.#nameTableKey(node.freevars ?? []),
-            this.#nameTableKey(node.cellvars ?? []),
-          ]),
-    ];
     const fields = [
-      node.name,
+      this.#marshalStringKey(material.name),
       String(node.argcount),
       String(node.posonlyargcount ?? 0),
       String(node.kwonlyargcount),
@@ -1204,7 +1221,7 @@ class MarshalReader {
       String(node.firstlineno),
       `${node.bytecode.bytes}:${node.bytecode.sha256}`,
       this.#constKeyItems(material.consts),
-      ...nameTables,
+      ...material.nameTables.map((items) => this.#nameTableKey(items)),
       // CPython started including line and exception tables in code equality
       // with the 3.11 code layout; earlier layouts still retain their digests
       // in CodeEquality, but those fields do not affect container identity.
@@ -1251,8 +1268,22 @@ class MarshalReader {
    * bare NUL makes `()` and `("",)` the same key, and the same join hides
    * which of `co_varnames`, `co_freevars`, and `co_cellvars` held each name.
    */
-  #nameTableKey(items: readonly string[]): string {
-    const entries = items.map((item) => `${item.length}:${item}`).join(",");
+  #nameTableKey(items: readonly Buffer[]): string {
+    let size = `${items.length}[]`.length;
+    for (let index = 0; index < items.length; index += 1) {
+      const raw = items[index];
+      if (raw === undefined) continue;
+      const keyLength = this.#marshalStringKeyLength(raw.length);
+      size += String(keyLength).length + 1 + keyLength;
+      if (index > 0) size += 1;
+    }
+    this.#reserveKey(size);
+    const entries = items
+      .map((item) => {
+        const key = this.#marshalStringKey(item);
+        return `${key.length}:${key}`;
+      })
+      .join(",");
     return `${items.length}[${entries}]`;
   }
 
@@ -1269,8 +1300,16 @@ class MarshalReader {
 
   /** Python string identity is the marshal bytes, not the JavaScript string. */
   #stringKey(raw: Buffer): string {
-    this.#reserveKey(raw.length * 2 + 8);
+    return this.#marshalStringKey(raw);
+  }
+
+  #marshalStringKey(raw: Buffer): string {
+    this.#reserveKey(this.#marshalStringKeyLength(raw.length));
     return `s${raw.length}:${raw.toString("hex")}`;
+  }
+
+  #marshalStringKeyLength(bytes: number): number {
+    return String(bytes).length + bytes * 2 + 2;
   }
 
   #signedZero(value: number): string {
@@ -1582,6 +1621,15 @@ const asString = (value: MarshalValue, field: string): string => {
   return value.value;
 };
 
+const asStringWithRaw = (
+  value: MarshalValue,
+  field: string,
+): { readonly value: string; readonly raw: Buffer } => {
+  if (value.kind !== "str")
+    return malformed(`${field} is not a marshal string.`);
+  return value;
+};
+
 const asTuple = (
   value: MarshalValue,
   field: string,
@@ -1590,13 +1638,6 @@ const asTuple = (
     return malformed(`${field} is not a marshal tuple.`);
   return value.items;
 };
-
-const strings = (items: readonly MarshalValue[]): string[] =>
-  items.map((item, index) => {
-    if (item.kind !== "str")
-      return malformed(`Tuple item ${index} is not a marshal string.`);
-    return item.value;
-  });
 
 const constSummaries = new WeakMap<MarshalValue, PythonPycConst>();
 

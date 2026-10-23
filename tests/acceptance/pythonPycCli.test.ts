@@ -10,6 +10,55 @@ import {
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
+const marshalUtf8 = (bytes: Buffer): Buffer => {
+  const length = Buffer.alloc(4);
+  length.writeUInt32LE(bytes.length);
+  return Buffer.concat([Buffer.from([0x75]), length, bytes]);
+};
+
+cliTest(
+  "keeps distinct Python code names distinct when JavaScript display strings collide",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-unicode-name-");
+    const scalar = Buffer.from([0xf0, 0x9f, 0x98, 0x80]);
+    const surrogatePair = Buffer.from([0xed, 0xa0, 0xbd, 0xed, 0xb8, 0x80]);
+    const code = (name: Buffer) =>
+      marshalCode("py311", {
+        nameObject: marshalUtf8(name),
+        qualnameObject: marshalUtf8(name),
+      });
+    const frozenSet = Buffer.concat([
+      Buffer.from([0x3e, 2, 0, 0, 0]),
+      code(scalar),
+      code(surrogatePair),
+    ]);
+    const path = join(root, "unicode-names.pyc");
+    await writeFile(
+      path,
+      Buffer.concat([
+        pythonPycHeader(3531),
+        marshalCode("py311", { consts: [frozenSet] }),
+      ]),
+    );
+
+    const result = await cli.run({
+      arguments: ["inspect-python-pyc", path, "--json"],
+    });
+    expect(
+      result.exitCode,
+      `${result.stderr}\n${JSON.stringify(result.json)}`,
+    ).toBe(0);
+    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+      result.json,
+    );
+    const codes = evidence.normalized_result.code_objects;
+    expect(codes[1]?.name).toBe(codes[2]?.name);
+    expect(codes[0]?.consts).toEqual([
+      expect.objectContaining({ kind: "frozenset", length: 2 }),
+    ]);
+  },
+);
+
 cliTest(
   "reports nested CPython code objects through the public CLI",
   async ({ cli }) => {

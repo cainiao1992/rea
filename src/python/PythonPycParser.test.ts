@@ -1143,6 +1143,30 @@ const parseWith = (bytes: Buffer, limits: Partial<typeof defaults> = {}) =>
     { ...defaults, ...limits },
   );
 
+it("preflights expanded shared code-name keys before building their hex table", () => {
+  const width = 1000;
+  const name = Buffer.alloc(1100, 0x61);
+  const namesObject = Buffer.concat([
+    Buffer.from([0x28]),
+    i32(width),
+    Buffer.from([0x61 | 0x80]),
+    u32(name.length),
+    name,
+    ...Array.from({ length: width - 1 }, () => marshalRef(0)),
+  ]);
+  const child = marshalCode("py311", { namesObject });
+  const bytes = withConsts([
+    Buffer.concat([Buffer.from([0x3e]), u32(1), child]),
+  ]);
+
+  expect(() => parseWith(bytes, { max_string_bytes: 4096 })).toThrow(
+    expect.objectContaining({
+      boundary: "string",
+      message: expect.stringContaining("max_string_bytes 4096"),
+    }),
+  );
+});
+
 it("keeps one descendant list when many wrappers share a container", () => {
   const children = 1800;
   const wrappers = 14_000;

@@ -11,7 +11,10 @@ import {
   parseRecoveredJavaScript,
   parserPluginsForPath,
 } from "./javascript/javascriptSourceParser.js";
-import { referenceSourceRequireCallBases } from "./referenceSourceRequireBindings.js";
+import {
+  referenceSourceRequireCallBases,
+  type ReferenceSourceRequireCall,
+} from "./referenceSourceRequireBindings.js";
 import { isRelativeJavaScriptModuleSpecifier } from "./javascript/javascriptModuleSpecifier.js";
 import {
   isCallExpression,
@@ -242,12 +245,7 @@ const extractRequireAndDynamicImports = (
   from_path: string,
   relationships: ReferenceSourceImportRelationship[],
   limitations: string[],
-  requireCallBases: ReadonlyMap<
-    CallExpression,
-    | "source-file"
-    | { readonly kind: "source-relative-file"; readonly path: string }
-    | "unknown"
-  >,
+  requireCallBases: ReadonlyMap<CallExpression, ReferenceSourceRequireCall>,
 ): void => {
   // Single traversal owner: iterative, VISITOR_KEYS-gated, no recursion over
   // loc/comment objects. Survives deeply nested generated member chains that
@@ -273,15 +271,14 @@ const extractRequireAndDynamicImports = (
       });
       continue;
     }
-    const first = call.arguments[0];
     // The shared exact-literal reader owns argument exactness: it unwraps
     // runtime-transparent TS wrappers (`as const`, `!`, `satisfies`) and
     // admits quoted and expression-free template spellings alike.
-    const resolutionBase = requireCallBases.get(call);
-    if (resolutionBase !== undefined) {
-      const result = moduleSpecifierFromExpression(first);
+    const requireCall = requireCallBases.get(call);
+    if (requireCall !== undefined) {
+      const result = moduleSpecifierFromExpression(requireCall.arguments?.[0]);
       if (result !== undefined) {
-        const uncertainResolution = resolutionBase === "unknown";
+        const uncertainResolution = requireCall.resolutionBase === "unknown";
         appendRelationship(relationships, limitations, {
           fromPath: from_path,
           to: result.specifier,
@@ -291,9 +288,9 @@ const extractRequireAndDynamicImports = (
           ...(uncertainResolution
             ? {}
             : { resolutionStrategy: "runtime-require" as const }),
-          ...(typeof resolutionBase === "object"
+          ...(typeof requireCall.resolutionBase === "object"
             ? {
-                resolutionBasePath: resolutionBase.path,
+                resolutionBasePath: requireCall.resolutionBase.path,
               }
             : {}),
         });
@@ -301,6 +298,7 @@ const extractRequireAndDynamicImports = (
       continue;
     }
 
+    const first = call.arguments[0];
     if (isImport(call.callee) && isModuleExpression(first)) {
       const result = moduleSpecifierFromExpression(first);
       if (result !== undefined) {

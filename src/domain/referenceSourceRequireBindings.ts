@@ -11,6 +11,7 @@ import type { JavaScriptSemanticAnalysisState } from "./javascript/javascriptSem
 import {
   semanticRequireCallAt,
   semanticRequireLoaderAt,
+  type JavaScriptRequireCallFact,
 } from "./javascript/javascriptSemanticRequireOrigin.js";
 import {
   completeSemanticSteps,
@@ -26,11 +27,16 @@ export type ReferenceSourceRequireResolutionBase =
   | { readonly kind: "source-relative-file"; readonly path: string }
   | "unknown";
 
+export interface ReferenceSourceRequireCall {
+  readonly arguments: JavaScriptRequireCallFact["arguments"];
+  readonly resolutionBase: ReferenceSourceRequireResolutionBase;
+}
+
 /** Identify exact calls through a source-owned Node loader and their resolver base. */
 export const referenceSourceRequireCallBases = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
-): ReadonlyMap<t.CallExpression, ReferenceSourceRequireResolutionBase> => {
+): ReadonlyMap<t.CallExpression, ReferenceSourceRequireCall> => {
   // Unmarked paths depend on package scope or compiler options. Preserve their
   // candidate CommonJS edges; explicit module paths have no wrapper loader.
   const wrapperMode = commonJsWrapperMode(path);
@@ -44,6 +50,7 @@ export const referenceSourceRequireCallBases = (
   const candidates: {
     readonly call: t.CallExpression;
     readonly identifier: t.Identifier;
+    readonly arguments: JavaScriptRequireCallFact["arguments"];
     readonly resolutionBase: ReferenceSourceRequireResolutionBase;
   }[] = [];
   traverseJavaScriptAst(file.program, {
@@ -58,17 +65,15 @@ export const referenceSourceRequireCallBases = (
         completeSemanticSteps(index.indexMemberMutationFactsSteps());
         fact = semanticRequireLoaderAt(node, index.bindings, factoryBindings);
       }
-      if (
-        fact !== "create-require" &&
-        (fact !== "commonjs-loader" || wrapperMode === "absent")
-      )
-        return;
       const callFact = semanticRequireCallAt(
         node,
         index.bindings,
         factoryBindings,
       );
-      const sourceRelativePath = callFact?.sourceRelativePath;
+      if (callFact === undefined || callFact.loader === "local") return;
+      if (fact !== "create-require" && fact !== "commonjs-loader") return;
+      if (fact === "commonjs-loader" && wrapperMode === "absent") return;
+      const sourceRelativePath = callFact.sourceRelativePath;
       const normalizedSourceRelativePath =
         sourceRelativePath === undefined
           ? undefined
@@ -76,9 +81,9 @@ export const referenceSourceRequireCallBases = (
               posix.join(posix.dirname(path), sourceRelativePath),
             );
       const base: ReferenceSourceRequireResolutionBase =
-        fact === "create-require"
+        callFact.loader === "create-require"
           ? sourceRelativePath === undefined
-            ? callFact?.sourceRelative === true
+            ? callFact.sourceRelative === true
               ? "source-file"
               : "unknown"
             : normalizedSourceRelativePath === undefined ||
@@ -91,9 +96,12 @@ export const referenceSourceRequireCallBases = (
                     kind: "source-relative-file",
                     path: normalizedSourceRelativePath,
                   }
-          : "source-file";
+          : fact === "commonjs-loader" && callFact.loader === "commonjs-loader"
+            ? "source-file"
+            : "unknown";
       const searchBase = requireResolveSearchBase(
         node,
+        callFact.arguments,
         index.bindings,
         base,
         wrapperMode === "present",
@@ -101,6 +109,7 @@ export const referenceSourceRequireCallBases = (
       candidates.push({
         call: node,
         identifier,
+        arguments: callFact.arguments,
         resolutionBase: searchBase,
       });
     },
@@ -108,29 +117,35 @@ export const referenceSourceRequireCallBases = (
   if (candidates.some(({ call }) => !t.isIdentifier(call.callee)))
     completeSemanticSteps(index.indexMemberMutationFactsSteps());
   return new Map(
-    candidates
-      .filter(
-        ({ call, identifier }) =>
-          t.isIdentifier(call.callee) ||
-          !hasPriorMemberMutation(index, call, identifier),
-      )
-      .map(({ call, resolutionBase }) => [call, resolutionBase] as const),
+    candidates.map(
+      ({ call, identifier, arguments: callArguments, resolutionBase }) =>
+        [
+          call,
+          {
+            arguments: callArguments,
+            resolutionBase:
+              !t.isIdentifier(call.callee) &&
+              hasPriorMemberMutation(index, call, identifier)
+                ? "unknown"
+                : resolutionBase,
+          },
+        ] as const,
+    ),
   );
 };
 
 /** `require.resolve` options replace the default search paths unless exact current-directory paths are supplied. */
 const requireResolveSearchBase = (
   call: t.CallExpression,
+  callArguments: JavaScriptRequireCallFact["arguments"],
   bindings: JavaScriptSemanticAnalysisState,
   loaderBase: ReferenceSourceRequireResolutionBase,
   hasCommonJsWrapper: boolean,
 ): ReferenceSourceRequireResolutionBase => {
-  if (!isRequireResolveCall(call) || call.arguments.length < 2)
-    return loaderBase;
-  if (call.arguments.length !== 2) return "unknown";
-  const options = t.isExpression(call.arguments[1])
-    ? call.arguments[1]
-    : undefined;
+  const arguments_ = callArguments ?? [];
+  if (!isRequireResolveCall(call) || arguments_.length < 2) return loaderBase;
+  if (arguments_.length !== 2) return "unknown";
+  const options = t.isExpression(arguments_[1]) ? arguments_[1] : undefined;
   if (options === undefined || !t.isObjectExpression(options)) return "unknown";
   if (options.properties.length === 0) return loaderBase;
   if (options.properties.length !== 1) return "unknown";

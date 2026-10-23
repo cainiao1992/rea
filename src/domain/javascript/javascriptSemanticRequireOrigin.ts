@@ -289,12 +289,16 @@ const createRequireFactoryCallAt = (
         "factory",
       );
 
-const sourceRelativeCreateRequirePath = (
+type SourceRelativeCreateRequireBase =
+  | { readonly kind: "source-file" }
+  | { readonly kind: "source-relative-file"; readonly path: string };
+
+const sourceRelativeCreateRequireBaseAt = (
   value: t.Node | undefined,
   state: JavaScriptSemanticAnalysisState,
-): string | undefined => {
+): SourceRelativeCreateRequireBase | undefined => {
   if (value === undefined) return undefined;
-  if (isUnmodifiedImportMetaUrl(value, state)) return ".";
+  if (isUnmodifiedImportMetaUrl(value, state)) return { kind: "source-file" };
   if (!t.isNewExpression(value) || value.arguments.length !== 2)
     return undefined;
   const callee = unwrapJavaScriptExpression(value.callee).node;
@@ -312,14 +316,14 @@ const sourceRelativeCreateRequirePath = (
     urlPath.directory ||
     urlPath.path.startsWith("/")
     ? undefined
-    : urlPath.path;
+    : { kind: "source-relative-file", path: urlPath.path };
 };
 
 /** Eligibility for observable loader slots; an unknown factory is not invocation proof. */
 export const hasSemanticCreateRequireFactoryOrigin = (
   initializer: t.Node | undefined,
   state: JavaScriptSemanticAnalysisState,
-): initializer is t.CallExpression => {
+): boolean => {
   const factory = createRequireFactoryCallAt(initializer, state);
   return factory !== undefined && factory.loader !== "local";
 };
@@ -372,7 +376,7 @@ const selectedRequireSourcesAt = (
   let local = false;
   let nativeMemberAlternative = false;
   let sourceRelative = true;
-  let sourceRelativePath: string | undefined;
+  let sourceRelativeBase: SourceRelativeCreateRequireBase | undefined;
   while (pending.length > 0) {
     const current = pending.pop()!;
     const node = unwrapJavaScriptExpression(current.node).node;
@@ -558,16 +562,20 @@ const selectedRequireSourcesAt = (
                 selectedLoader !== "create-require");
             selectedLoader ??= "create-require";
             unknown ||= state.conditionallySkippedExpressions.has(node);
-            const factoryPath = sourceRelativeCreateRequirePath(
+            const factoryBase = sourceRelativeCreateRequireBaseAt(
               node.arguments[0],
               state,
             );
-            if (factoryPath === undefined) sourceRelative = false;
-            else if (sourceRelativePath === undefined)
-              sourceRelativePath = factoryPath;
-            else if (sourceRelativePath !== factoryPath) {
+            if (factoryBase === undefined) sourceRelative = false;
+            else if (sourceRelativeBase === undefined)
+              sourceRelativeBase = factoryBase;
+            else if (
+              sourceRelativeBase.kind !== factoryBase.kind ||
+              (sourceRelativeBase.kind === "source-relative-file" &&
+                factoryBase.kind === "source-relative-file" &&
+                sourceRelativeBase.path !== factoryBase.path)
+            ) {
               sourceRelative = false;
-              sourceRelativePath = undefined;
             }
           }
         } else if (factory?.loader === "local") local = true;
@@ -594,8 +602,11 @@ const selectedRequireSourcesAt = (
               ? (selectedLoader ?? "unknown")
               : "local",
         sourceRelative: found && sourceRelative && !unknown,
-        ...(found && !unknown && sourceRelativePath !== undefined
-          ? { sourceRelativePath }
+        ...(found &&
+        !unknown &&
+        sourceRelative &&
+        sourceRelativeBase?.kind === "source-relative-file"
+          ? { sourceRelativePath: sourceRelativeBase.path }
           : {}),
       }
     : undefined;

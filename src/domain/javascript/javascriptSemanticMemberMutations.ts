@@ -12,6 +12,7 @@ import {
   semanticMutableBuiltinOrigin,
   semanticRequireExportsIdentity,
   semanticRequireOrigin,
+  semanticRequireLoaderAt,
   hasSemanticCreateRequireFactoryOrigin,
 } from "./javascriptSemanticRequireOrigin.js";
 
@@ -840,6 +841,17 @@ export function* collectSemanticMemberMutationsSteps(
   }
   const markReceiver = (callee: t.Node, mutation: t.Node): void => {
     const expression = unwrapJavaScriptExpression(callee).node;
+    if (
+      (t.isCallExpression(mutation) || t.isOptionalCallExpression(mutation)) &&
+      (t.isMemberExpression(expression) ||
+        t.isOptionalMemberExpression(expression)) &&
+      semanticStaticPropertyKey(expression.property, expression.computed) ===
+        "resolve" &&
+      ["commonjs-loader", "create-require"].includes(
+        semanticRequireLoaderAt(mutation, state, new Set()),
+      )
+    )
+      return;
     if (
       t.isMemberExpression(expression) ||
       t.isOptionalMemberExpression(expression)

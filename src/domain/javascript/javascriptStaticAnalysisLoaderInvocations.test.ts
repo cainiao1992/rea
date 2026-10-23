@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
 import { referenceSourceRequireCallBases } from "../referenceSourceRequireBindings.js";
+import { parseReferenceSourceImports } from "../referenceSourceImportParsing.js";
 
 it.each(["require", "require.resolve", "require.main"])(
   "distinguishes invoked loading from reference association for %s",
@@ -32,7 +33,9 @@ it.each(["require", "require.resolve", "require.main"])(
     );
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected loader association fixture");
-    expect(referenceSourceRequireCallBases(parsed, "entry.cjs").size).toBe(1);
+    expect(referenceSourceRequireCallBases(parsed, "entry.cjs").size).toBe(
+      callee === "require.main" ? 0 : 1,
+    );
   },
 );
 
@@ -78,6 +81,84 @@ it("associates a renamed createRequire resolve method with search options", () =
   );
   if (parsed === null) throw new Error("Expected factory proof fixture");
   expect(referenceSourceRequireCallBases(parsed, "entry.mjs").size).toBe(1);
+});
+
+it("keeps current-file and mixed createRequire bases distinct", () => {
+  const currentFile = parseJavaScriptSource(
+    `${imported}const load=make(import.meta.url);load('./dep.cjs');`,
+  );
+  if (currentFile === null)
+    throw new Error("Expected current-file base fixture");
+  const currentCall = [
+    ...referenceSourceRequireCallBases(currentFile, "sub/main.mjs").keys(),
+  ][0];
+  expect(
+    referenceSourceRequireCallBases(currentFile, "sub/main.mjs").get(
+      currentCall!,
+    )?.resolutionBase,
+  ).toBe("source-file");
+
+  const mixed = parseJavaScriptSource(
+    `${imported}const load=make(flag?import.meta.url:new URL('./sub/entry.cjs',import.meta.url));load('./dep.cjs');`,
+  );
+  if (mixed === null) throw new Error("Expected mixed-base fixture");
+  const mixedBases = referenceSourceRequireCallBases(mixed, "main.mjs");
+  expect(
+    [...mixedBases.values()].map(({ resolutionBase }) => resolutionBase),
+  ).toEqual(["unknown"]);
+});
+
+it("keeps literal CommonJS resolve calls in historical source parsing", () => {
+  const source = [
+    'require.resolve("./dep.cjs");',
+    'require.resolve("./same-path.cjs", { paths: [__dirname] });',
+    'require.resolve("./dep.cjs", { paths: [__dirname + "/sub"] });',
+    'require.resolve("./dep.cjs", { paths: [] });',
+    'function shadow(__dirname) { require.resolve("./shadow.cjs", { paths: [__dirname] }); }',
+  ].join("\n");
+  const result = parseReferenceSourceImports(
+    "main.cjs",
+    new TextEncoder().encode(source),
+    "JavaScript",
+  );
+  expect(
+    result.relationships.map(({ to, resolution, parse_state }) => ({
+      to,
+      resolution,
+      parse_state,
+    })),
+  ).toEqual([
+    { to: "./dep.cjs", resolution: "internal", parse_state: "parsed" },
+    { to: "./same-path.cjs", resolution: "internal", parse_state: "parsed" },
+    { to: "./dep.cjs", resolution: "unknown", parse_state: "partial" },
+    { to: "./dep.cjs", resolution: "unknown", parse_state: "partial" },
+    { to: "./shadow.cjs", resolution: "unknown", parse_state: "partial" },
+  ]);
+});
+
+it("retains a mutated require.resolve request as an unknown fact", () => {
+  const source = `${imported}const load=make(import.meta.url);load.resolve=custom;load.resolve("./dep.cjs");`;
+  const result = parseReferenceSourceImports(
+    "main.mjs",
+    new TextEncoder().encode(source),
+    "JavaScript",
+  );
+  expect(
+    result.relationships.filter(({ kind }) => kind === "requires"),
+  ).toEqual([
+    expect.objectContaining({
+      from_path: "main.mjs",
+      to: "./dep.cjs",
+      kind: "requires",
+      resolution: "unknown",
+      parse_state: "partial",
+    }),
+  ]);
+  expect(
+    analyzeJavaScriptStaticSource(source).references.filter(
+      ({ kind }) => kind === "require",
+    ),
+  ).toEqual([expect.objectContaining({ kind: "require", specifier: null })]);
 });
 
 it.each([

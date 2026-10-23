@@ -23,6 +23,7 @@ import {
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
 import {
+  semanticStaticPropertyKey,
   semanticStaticPropertyName,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
@@ -50,6 +51,7 @@ import { semanticTopLevelEffectFollowsCapture } from "./javascriptSemanticMutati
 import {
   semanticFactoryLoaderMemberAt,
   semanticRequireCallAt,
+  semanticRequireLoaderAt,
   semanticModuleRequireCallAt,
   semanticModuleRequireReceiver,
 } from "./javascriptSemanticRequireOrigin.js";
@@ -69,9 +71,17 @@ export const inspectCall = (
   const { accumulator } = context;
   const name = calleeName(node.callee);
   const first = stringValue(node.arguments[0]);
+  const deferredRequireResolve =
+    isRequireResolveCall(node) &&
+    semanticRequireLoaderAt(
+      node,
+      bindings,
+      accumulator.factoryRequireBindingIds,
+    ) !== "local";
   const deferredModuleRequire =
     semanticModuleRequireReceiver(node) !== undefined ||
-    semanticModuleRequireCallAt(node, bindings, false);
+    semanticModuleRequireCallAt(node, bindings, false) ||
+    deferredRequireResolve;
   if (deferredModuleRequire) accumulator.pendingModuleRequireCalls.push(node);
   const requireCall = deferredModuleRequire
     ? null
@@ -254,6 +264,7 @@ const requireCallSpecifier = (
   node: JavaScriptCallLike,
   bindings: JavaScriptSemanticAnalysisState,
   context: FindingContext,
+  resolveMemberChanged = false,
 ): { readonly specifier: string | undefined } | null => {
   const call = semanticRequireCallAt(
     node,
@@ -261,7 +272,11 @@ const requireCallSpecifier = (
     context.accumulator.factoryRequireBindingIds,
   );
   if (call === undefined || call.loader === "local") return null;
-  if (call.loader === "unknown" || !call.sourceRelative) {
+  if (
+    resolveMemberChanged ||
+    call.loader === "unknown" ||
+    !call.sourceRelative
+  ) {
     context.accumulator.unknownFindings += 1;
     return { specifier: undefined };
   }
@@ -271,10 +286,26 @@ const requireCallSpecifier = (
 /** Examine member-loader receivers only after shared alias mutation facts settle. */
 export const finishModuleRequireCalls = (
   context: FindingContext,
-  bindings: JavaScriptSemanticAnalysisState,
+  index: JavaScriptBindingIndex,
 ): void => {
   for (const node of context.accumulator.pendingModuleRequireCalls) {
-    const call = requireCallSpecifier(node, bindings, context);
+    const resolveMemberChanged =
+      isRequireResolveCall(node) &&
+      (t.isMemberExpression(node.callee) ||
+        t.isOptionalMemberExpression(node.callee)) &&
+      index
+        .effectsForReferenceAt(node, node.callee.object, ["resolve"])
+        .effects.some(
+          ({ kind, timing }) =>
+            timing !== "after" &&
+            (kind === "member-write" || kind === "escape"),
+        );
+    const call = requireCallSpecifier(
+      node,
+      index.bindings,
+      context,
+      resolveMemberChanged,
+    );
     if (call !== null)
       addReference(context, {
         node,
@@ -287,6 +318,15 @@ export const finishModuleRequireCalls = (
     (left, right) => left.offset - right.offset,
   );
 };
+
+const isRequireResolveCall = (
+  node: JavaScriptCallLike,
+): node is t.CallExpression | t.OptionalCallExpression =>
+  (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
+  (t.isMemberExpression(node.callee) ||
+    t.isOptionalMemberExpression(node.callee)) &&
+  semanticStaticPropertyKey(node.callee.property, node.callee.computed) ===
+    "resolve";
 
 const chunkLoadSpecifier = (
   node: JavaScriptCallLike,

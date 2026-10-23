@@ -124,7 +124,7 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
   yield* finishElectronBrowserWindowsSteps(findings, index);
   if (accumulator.pendingModuleRequireCalls.length > 0) {
     yield* index.indexMemberMutationFactsSteps();
-    finishModuleRequireCalls(findings, bindings);
+    finishModuleRequireCalls(findings, index);
   }
   if (
     accumulator.pendingNetworkCalls.length > 0 ||

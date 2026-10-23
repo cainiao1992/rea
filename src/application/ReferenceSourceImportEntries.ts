@@ -2,7 +2,7 @@ import { err, ok, type Result } from "../domain/result.js";
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
-import type { ReferenceSourcePackageType } from "../domain/referenceSourceRequireBindings.js";
+import type { JavaScriptPackageType } from "../domain/javascript/javascriptSourceParser.js";
 import { decodeJavaScriptModuleUrlPath } from "../domain/javascript/javascriptModuleSpecifier.js";
 import { logicalPathEscapesRoot } from "../domain/artifactIdentity.js";
 import {
@@ -113,7 +113,7 @@ type PackageMain =
 
 interface PackageMetadata {
   readonly main: PackageMain;
-  readonly type: ReferenceSourcePackageType;
+  readonly type: JavaScriptPackageType;
 }
 const UNKNOWN_PACKAGE: PackageMetadata = {
   main: { state: "unknown" },
@@ -409,7 +409,7 @@ type ReadFile = Extract<ReferenceSourceEntry, { status: "read"; kind: "file" }>;
 const packageTypeForFile = (
   path: string,
   context: SpecifierContext,
-): ReferenceSourcePackageType => {
+): JavaScriptPackageType => {
   let directory = posix.dirname(path);
   while (true) {
     const manifest = packageMainForDirectory(directory, context);

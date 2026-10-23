@@ -162,7 +162,7 @@ it("resolves declared package mains and index fallback from source-owned fields"
       'require("./pkg");\nrequire("./dep");\nrequire("./fallback");\n',
     ],
     [
-      "main.ts",
+      "main.cts",
       'import dep = require("./typed");\n' +
         'require("./typed");\n' +
         'import data = require("./json-package");\n' +
@@ -239,28 +239,28 @@ it("resolves declared package mains and index fallback from source-owned fields"
     parse_state: "parsed",
   });
   expect(parsed.relationships).toContainEqual({
-    from_path: "main.ts",
+    from_path: "main.cts",
     to: "typed/index.ts",
     kind: "requires",
     resolution: "internal",
     parse_state: "parsed",
   });
   expect(parsed.relationships).toContainEqual({
-    from_path: "main.ts",
+    from_path: "main.cts",
     to: "typed.js",
     kind: "requires",
     resolution: "internal",
     parse_state: "parsed",
   });
   expect(parsed.relationships).toContainEqual({
-    from_path: "main.ts",
+    from_path: "main.cts",
     to: "json-package/data.json",
     kind: "requires",
     resolution: "internal",
     parse_state: "parsed",
   });
   expect(parsed.relationships).toContainEqual({
-    from_path: "main.ts",
+    from_path: "main.cts",
     to: "emitted.ts",
     kind: "requires",
     resolution: "internal",

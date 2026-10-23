@@ -504,6 +504,12 @@ identity after relocation while preserving original source diagnostics in full
 output and visible summary outline entries. Other substantive limitations still
 participate in the graph commitment.
 
+An unreadable child directory remains a partial inventory entry. Directory-scoped
+ignore policy is required before enumerating a directory that can be opened;
+an unreadable or invalid policy still fails the import. Project negations cannot
+override defaults or caller exclusions; caller patterns retain their own ordered
+negations. Configured secret exclusions remain final.
+
 `--outline-depth` requires `--detail summary` and accepts a nonnegative safe
 integer. Depth 1 shows root children, depth 2 (the default) also shows their
 children, and depth 0 omits all outline entries. Paths retain canonical Unicode
@@ -585,13 +591,16 @@ base are proven: this includes the exact
 `createRequire(new URL("./file.cjs", import.meta.url))` form and
 `require.resolve` with `{ paths: [__dirname] }`. Exact optional-call forms such
 as `require.resolve?.("./dep.cjs")` use the same loader and mutation facts. The
-nearest inventoried package manifest supplies `.js` module scope; an explicit
-`type: "module"` supplies no CommonJS wrapper, while an unreadable, excluded or
-malformed manifest, or package scope outside the selected inventory, leaves
-candidate loader resolution unknown. A nearest manifest without a `type` field
-uses the shared parser's JavaScript module-syntax facts. Other custom bases and search
-options remain partial with unknown resolution and the literal requested
-specifier. Overwritten resolver methods retain that uncertainty; they are not
+nearest inventoried package manifest supplies `.js`/`.ts` package facts to the
+shared parser; explicit filename modes take precedence. A known ES module has no
+implicit CommonJS wrapper, including when a factory is derived from an unbound
+`require`. An unreadable, excluded or malformed manifest, or package scope outside
+the selected inventory, leaves otherwise unproven loader resolution unknown with
+the requested specifier and a reason. A nearest manifest without a `type` field
+uses the shared parser's JavaScript module-syntax facts. Unresolved TypeScript,
+JSX compilation and declaration contexts do not establish runtime wrapper bases.
+Other custom bases and search options remain partial with unknown resolution and
+the literal requested specifier. Overwritten resolver methods retain that uncertainty; they are not
 attributed to Node. `require.main` is a module object, so calling it does not
 establish a loader reference. These relationships do not establish execution;
 Node's [`require.resolve`](https://nodejs.org/docs/v24.22.1/api/modules.html#requireresolverequest-options)

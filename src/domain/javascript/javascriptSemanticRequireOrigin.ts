@@ -10,6 +10,7 @@ import * as t from "@babel/types";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 import { BUILTIN_RESOURCE_METHODS } from "./javascriptBuiltinResourceMethods.js";
+import { javaScriptRuntimeContext } from "./javascriptSourceParser.js";
 import type { JavaScriptModuleOrigin } from "./javascriptSemanticIr.js";
 import {
   resolveSemanticBindingState,
@@ -163,7 +164,11 @@ const requireLoaderValueAt = (
     return "create-require";
   if (loader.name !== "require") return "local";
   if (binding === undefined) {
-    if (semanticResolutionBlocked(state, loader, "require")) return "unknown";
+    if (
+      javaScriptRuntimeContext(state.program) === "module" ||
+      semanticResolutionBlocked(state, loader, "require")
+    )
+      return "unknown";
     return (state.ambientBindingWrites.get("require") ?? []).some(
       (write) => semanticEffectTiming(node, write, state) !== "after",
     )
@@ -1525,7 +1530,8 @@ export const semanticRequireOrigin = (
       !isUnmodifiedCommonJsWrapperBinding(current.callee, "require", state) &&
       !isWrapperRequireInitializerCall(requireBinding, current, state)) ||
     (requireBinding === undefined &&
-      semanticResolutionBlocked(state, current.callee, "require")) ||
+      (javaScriptRuntimeContext(state.program) === "module" ||
+        semanticResolutionBlocked(state, current.callee, "require"))) ||
     (state.ambientBindingWrites.get("require") ?? []).some(
       (write) =>
         !semanticTopLevelEffectFollowsCapture(

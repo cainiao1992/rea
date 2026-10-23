@@ -87,7 +87,8 @@ it("distinguishes computed require member values from literal members in source 
     ].join("\n"),
   };
   for (const [index, callee] of literalCallees.entries())
-    sources[`member-${index}.cjs`] = `${callee}("./dep.js");\n`;
+    sources[`member-${String(index).padStart(2, "0")}.cjs`] =
+      `${callee}("./dep.js");\n`;
   await Promise.all(
     Object.entries(sources).map(([path, source]) =>
       writeFile(join(root, path), source),
@@ -137,7 +138,7 @@ it("distinguishes computed require member values from literal members in source 
         ? []
         : [
             {
-              from_path: `member-${index}.cjs`,
+              from_path: `member-${String(index).padStart(2, "0")}.cjs`,
               to: "dep.js",
               kind: "requires",
               resolution: "internal",

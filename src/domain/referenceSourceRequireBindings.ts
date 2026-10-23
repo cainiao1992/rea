@@ -18,17 +18,9 @@ import {
   traverseJavaScriptAst,
 } from "./javascript/javascriptSemanticTraversal.js";
 import {
-  isExplicitModuleSourcePath,
   javaScriptRuntimeContext,
   type ParsedJavaScriptSource,
 } from "./javascript/javascriptSourceParser.js";
-
-/** Package scope observed inside the selected inventory; missing scope stays unknown. */
-export type ReferenceSourcePackageType =
-  | "module"
-  | "commonjs"
-  | "unspecified"
-  | "unknown";
 
 export type ReferenceSourceRequireResolutionBase =
   | "source-file"
@@ -38,24 +30,24 @@ export type ReferenceSourceRequireResolutionBase =
 export interface ReferenceSourceRequireCall {
   readonly arguments: JavaScriptRequireCallFact["arguments"];
   readonly resolutionBase: ReferenceSourceRequireResolutionBase;
+  readonly limitation?: string;
 }
 
 /** Identify exact calls through a source-owned Node loader and their resolver base. */
 export const referenceSourceRequireCalls = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
-  packageType: ReferenceSourcePackageType = "unknown",
 ): ReadonlyMap<
   t.CallExpression | t.OptionalCallExpression,
   ReferenceSourceRequireCall
 > => {
   // Unmarked paths depend on package scope or compiler options. Preserve their
   // candidate CommonJS edges; explicit module paths have no wrapper loader.
-  const wrapperMode = commonJsWrapperMode(path, file.program, packageType);
+  const runtimeContext = javaScriptRuntimeContext(file.program);
   const index = completeSemanticSteps(
     indexJavaScriptBindingsWithReceiversSteps(
       file.program,
-      wrapperMode === "absent" ? undefined : "commonjs-wrapper",
+      runtimeContext === "module" ? undefined : "commonjs-wrapper",
     ),
   );
   const factoryBindings: ReadonlySet<string> = new Set();
@@ -64,6 +56,7 @@ export const referenceSourceRequireCalls = (
     readonly identifier: t.Identifier;
     readonly arguments: JavaScriptRequireCallFact["arguments"];
     readonly resolutionBase: ReferenceSourceRequireResolutionBase;
+    readonly limitation?: string;
   }[] = [];
   traverseJavaScriptAst(file.program, {
     enter: (node) => {
@@ -85,7 +78,6 @@ export const referenceSourceRequireCalls = (
       );
       if (callFact === undefined || callFact.loader === "local") return;
       if (fact !== "create-require" && fact !== "commonjs-loader") return;
-      if (fact === "commonjs-loader" && wrapperMode === "absent") return;
       const sourceRelativePath = callFact.sourceRelativePath;
       const normalizedSourceRelativePath =
         sourceRelativePath === undefined
@@ -94,38 +86,45 @@ export const referenceSourceRequireCalls = (
               posix.join(posix.dirname(path), sourceRelativePath),
             );
       const base: ReferenceSourceRequireResolutionBase =
-        callFact.loader === "create-require"
-          ? sourceRelativePath === undefined
-            ? callFact.sourceRelative === true
-              ? "source-file"
-              : "unknown"
-            : normalizedSourceRelativePath === undefined ||
-                normalizedSourceRelativePath === ".." ||
-                normalizedSourceRelativePath.startsWith("../")
-              ? "unknown"
-              : normalizedSourceRelativePath === path
+        runtimeContext === "unknown"
+          ? "unknown"
+          : callFact.loader === "create-require"
+            ? sourceRelativePath === undefined
+              ? callFact.sourceRelative === true
                 ? "source-file"
-                : {
-                    kind: "source-relative-file",
-                    path: normalizedSourceRelativePath,
-                  }
-          : fact === "commonjs-loader" && callFact.loader === "commonjs-loader"
-            ? path.endsWith(".js") && wrapperMode === "unknown"
-              ? "unknown"
-              : "source-file"
-            : "unknown";
+                : "unknown"
+              : normalizedSourceRelativePath === undefined ||
+                  normalizedSourceRelativePath === ".." ||
+                  normalizedSourceRelativePath.startsWith("../")
+                ? "unknown"
+                : normalizedSourceRelativePath === path
+                  ? "source-file"
+                  : {
+                      kind: "source-relative-file",
+                      path: normalizedSourceRelativePath,
+                    }
+            : fact === "commonjs-loader" &&
+                callFact.loader === "commonjs-loader" &&
+                runtimeContext === "commonjs"
+              ? "source-file"
+              : "unknown";
       const searchBase = requireResolveSearchBase(
         callFact.operation,
         callFact.arguments,
         index.bindings,
         base,
-        wrapperMode === "present",
+        runtimeContext === "commonjs",
       );
       candidates.push({
         call: node,
         identifier,
         arguments: callFact.arguments,
         resolutionBase: searchBase,
+        ...(runtimeContext === "unknown"
+          ? {
+              limitation: `Module context is unknown in ${path}; the requested dependency was retained without a proven loader base.`,
+            }
+          : {}),
       });
     },
   });
@@ -133,11 +132,18 @@ export const referenceSourceRequireCalls = (
     completeSemanticSteps(index.indexMemberMutationFactsSteps());
   return new Map(
     candidates.map(
-      ({ call, identifier, arguments: callArguments, resolutionBase }) =>
+      ({
+        call,
+        identifier,
+        arguments: callArguments,
+        resolutionBase,
+        limitation,
+      }) =>
         [
           call,
           {
             arguments: callArguments,
+            ...(limitation === undefined ? {} : { limitation }),
             resolutionBase:
               !t.isIdentifier(call.callee) &&
               hasPriorMemberMutation(index, call, identifier)
@@ -177,25 +183,6 @@ const requireResolveSearchBase = (
     isUnmodifiedGlobalReference(directory, bindings, "__dirname")
     ? "source-file"
     : "unknown";
-};
-
-type CommonJsWrapperMode = "present" | "absent" | "unknown";
-
-const commonJsWrapperMode = (
-  path: string,
-  program: t.Program,
-  packageType: ReferenceSourcePackageType,
-): CommonJsWrapperMode => {
-  if (path.endsWith(".cjs")) return "present";
-  if (isExplicitModuleSourcePath(path)) return "absent";
-  if (path.endsWith(".js")) {
-    if (packageType === "module") return "absent";
-    if (packageType === "commonjs") return "present";
-    if (packageType === "unknown") return "unknown";
-    if (javaScriptRuntimeContext(program) === "module") return "absent";
-    return "present";
-  }
-  return "unknown";
 };
 
 const hasPriorMemberMutation = (

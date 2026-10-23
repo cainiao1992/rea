@@ -15,6 +15,58 @@ const importTree = async (root: string) => {
   return result.value;
 };
 
+it("retains caller negations across project scopes while secrets remain excluded", async () => {
+  const root = await createTestTempDirectory("rea-reference-caller-policy-");
+  await mkdir(join(root, "nested"));
+  await writeFile(join(root, ".gitignore"), "*.log\n");
+  await writeFile(join(root, "nested", ".gitignore"), "*.log\n");
+  for (const path of ["keep.log", "nested/keep.log", "secret.log", "drop.log"])
+    await writeFile(join(root, path), "caller-selected bytes\n");
+  const result = await importReferenceSource({
+    root,
+    caller: "caller-policy-test",
+    policy: { secretPatterns: ["secret.log"] },
+    excludePaths: ["!keep.log", "!secret.log"],
+  });
+  if (!result.ok) throw result.error;
+  for (const path of ["keep.log", "nested/keep.log"])
+    expect(result.value.entries).toContainEqual(
+      expect.objectContaining({ path, kind: "file", content_state: "hashed" }),
+    );
+  expect(result.value.exclusions).toContainEqual({
+    path: "secret.log",
+    entry_kind: "file",
+    reason: "configured-secret",
+    pattern: "secret.log",
+  });
+  expect(result.value.exclusions).toContainEqual({
+    path: "drop.log",
+    entry_kind: "file",
+    reason: "default-ignored",
+    pattern: "*.log",
+  });
+});
+
+it("keeps unreadable scoped policy fatal after opening a readable directory", async () => {
+  const root = await createTestTempDirectory(
+    "rea-reference-scoped-policy-refusal-",
+  );
+  const child = join(root, "child");
+  await mkdir(join(child, ".gitignore"), { recursive: true });
+  await writeFile(join(child, "unexamined.ts"), "export const value = 1;\n");
+  const result = await importReferenceSource({
+    root,
+    caller: "scoped-policy-refusal-test",
+    policy: { secretPatterns: [] },
+  });
+  if (result.ok) throw new Error("Invalid scoped policy was ignored");
+  expect(result.error.code).toBe("io");
+  expect(result.error.message).toContain(join(child, ".gitignore"));
+  expect(result.error.partial?.entries).not.toContainEqual(
+    expect.objectContaining({ path: "child/unexamined.ts" }),
+  );
+});
+
 it("scopes nested ignore rules and negations like Git while preserving mandatory exclusions", async () => {
   const root = await createTestTempDirectory("rea-reference-scoped-policy-");
   await execFileOutput("git", ["init", "--initial-branch=main", root]);

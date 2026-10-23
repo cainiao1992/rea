@@ -347,6 +347,11 @@ remain `changed` while retaining any separate relationship uncertainty.
 An unknown item with no observed content, property, or relationship difference
 does not emit a `changed_from` edge; its pairing and uncertainty remain in the item.
 
+Within a valid `file_occurrence`, `container_sha256` records provenance and does
+not by itself count as a semantic property change. The graph retains the original
+occurrence; its path and source digest still participate in comparison.
+Unrecognized occurrence metadata remains part of property comparison.
+
 One-sided absence is `added` or `removed` only when the opposite input graph has
 complete coverage. With partial, unavailable, or truncated input, the same
 condition is `unknown`. The comparison retains every classified item and

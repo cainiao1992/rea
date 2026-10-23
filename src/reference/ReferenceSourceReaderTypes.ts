@@ -18,7 +18,7 @@ export type ReferenceSourceExclusionKind = ReferenceSourceEntryKind | "unknown";
 
 export interface ReferenceSourceReaderOptions {
   readonly signal?: AbortSignal;
-  /** Prepare directory-scoped policy after directory identity admission, before enumeration. */
+  /** Prepare policy after identity admission and opening, before enumeration; refusal closes the owned handle. */
   readonly beforeDirectory?: (
     path: string,
   ) => Promise<ReferenceSourceResult<undefined>>;
@@ -101,7 +101,7 @@ export type TraversalState = {
   readonly root: string;
   readonly rootIdentity: BigIntStats;
   readonly signal?: AbortSignal;
-  /** Prepare directory-scoped policy after directory identity admission, before enumeration. */
+  /** Prepare policy after identity admission and opening, before enumeration; refusal closes the owned handle. */
   readonly beforeDirectory?: (
     path: string,
   ) => Promise<ReferenceSourceResult<undefined>>;

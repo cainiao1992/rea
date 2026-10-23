@@ -289,7 +289,9 @@ const buildIgnored = async (
     ignored: {
       test: (path) => {
         const mandatoryMatch = mandatory.test(path);
-        if (mandatoryMatch.ignored) return mandatoryMatch;
+        // Caller negations override project rules just as caller exclusions do.
+        if (mandatoryMatch.ignored || mandatoryMatch.unignored)
+          return mandatoryMatch;
         let result = mandatoryMatch;
         const pieces = path.replace(/\/$/u, "").split("/");
         for (let depth = 0; depth < pieces.length; depth += 1) {

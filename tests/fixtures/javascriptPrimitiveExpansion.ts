@@ -1,6 +1,9 @@
-/** Expression whose unresolved alternatives exceed primitive candidate storage. */
+/** Independent unknown host inputs keep both conditional arms reachable. */
 export const primitiveCandidateExpansionExpression = (): string =>
-  Array.from({ length: 20 }, () => '(choice ? "a" : "b")').join(" + ");
+  Array.from(
+    { length: 20 },
+    (_, index) => `(globalThis.choice${String(index)} ? "a" : "b")`,
+  ).join(" + ");
 
 /** Source whose repeated doubling exceeds derived primitive string storage. */
 export const primitiveByteExpansionSource = (): string => {

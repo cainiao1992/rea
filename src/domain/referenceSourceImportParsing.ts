@@ -9,11 +9,11 @@ import { readExactJavaScriptLiteral } from "./javascript/javascriptAstValues.js"
 import {
   parseRecoveredJavaScript,
   parserPluginsForPath,
+  type JavaScriptPackageType,
 } from "./javascript/javascriptSourceParser.js";
 import {
   referenceSourceRequireCalls,
   type ReferenceSourceRequireCall,
-  type ReferenceSourcePackageType,
 } from "./referenceSourceRequireBindings.js";
 import { isRelativeJavaScriptModuleSpecifier } from "./javascript/javascriptModuleSpecifier.js";
 import {
@@ -198,6 +198,11 @@ const extractImports = (
         if (requireCall === undefined) return;
         const specifier = exactStringModuleName(requireCall.arguments?.[0]);
         if (specifier === undefined) return;
+        if (
+          requireCall.limitation !== undefined &&
+          !limitations.includes(requireCall.limitation)
+        )
+          limitations.push(requireCall.limitation);
         const uncertainResolution = requireCall.resolutionBase === "unknown";
         appendRelationship(relationships, limitations, {
           fromPath: from_path,
@@ -220,16 +225,13 @@ const extractImports = (
 const parseWithBabel = (
   path: string,
   source: string,
-  language: string | null,
+  packageType: JavaScriptPackageType | undefined,
 ): {
   ast: File | undefined;
   reasons: readonly string[];
   moduleOnlyErrors: readonly string[];
 } => {
-  // Single parser-mode owner: path-driven plugins (dts/JSX/mts) shared with
-  // the semantic pipeline. `language` only gates non-JS/TS callers upstream;
-  // TypeScript syntax must parse identically here and in semantic analysis.
-  void language;
+  // The shared parser owns filename precedence and observed package context.
   const plugins = parserPluginsForPath(path);
 
   try {
@@ -242,6 +244,7 @@ const parseWithBabel = (
         allowUndeclaredExports: true,
         plugins,
       },
+      packageType,
     );
     return {
       ast,
@@ -262,7 +265,7 @@ export const parseReferenceSourceImports = (
   path: string,
   bytes: Uint8Array,
   language: string | null,
-  packageType?: ReferenceSourcePackageType,
+  packageType?: JavaScriptPackageType,
 ): ReferenceSourceImportParseResult => {
   if (language !== null && !PARSEABLE_REFERENCE_SOURCE_LANGUAGES.has(language))
     return { relationships: [], parse_failures: [], limitations: [] };
@@ -287,7 +290,7 @@ export const parseReferenceSourceImports = (
   const { ast, reasons, moduleOnlyErrors } = parseWithBabel(
     path,
     source,
-    language,
+    packageType,
   );
   const limitations =
     moduleOnlyErrors.length === 0
@@ -315,7 +318,7 @@ export const parseReferenceSourceImports = (
     path,
     relationships,
     limitations,
-    referenceSourceRequireCalls(ast, path, packageType),
+    referenceSourceRequireCalls(ast, path),
   );
 
   return {

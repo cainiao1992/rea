@@ -76,11 +76,6 @@ export const traverseDirectory = async (
     );
     return { ok: true, value: undefined };
   }
-  const policy = await state.beforeDirectory?.(
-    pathFromRoot(state.root, current.path),
-  );
-  if (policy !== undefined && !policy.ok) return policy;
-  if (isAborted(state.signal)) return err(cancelled());
   const directories: PendingDirectory[] = [];
   let readFailure: FilesystemFailureDetail | undefined;
   let unrepresentableNameCount = 0;
@@ -101,7 +96,15 @@ export const traverseDirectory = async (
     let result: ReferenceSourceResult<undefined> = ok(undefined);
     let cleanup: ArtifactCleanupAttempt;
     try {
-      for (;;) {
+      // A directory that cannot be opened retains its ordinary partial-entry
+      // failure; only an opened directory needs policy before enumeration.
+      result = isAborted(state.signal)
+        ? err(cancelled())
+        : ((await state.beforeDirectory?.(
+            pathFromRoot(state.root, current.path),
+          )) ?? ok(undefined));
+      if (result.ok && isAborted(state.signal)) result = err(cancelled());
+      while (result.ok) {
         let child: Dirent | null;
         try {
           child = await handle.read();
@@ -123,7 +126,6 @@ export const traverseDirectory = async (
           continue;
         }
         result = await processEntry(state, current, decoded.name, directories);
-        if (!result.ok) break;
       }
     } finally {
       cleanup = await state.resources.release({

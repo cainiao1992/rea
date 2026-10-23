@@ -323,11 +323,10 @@ const accessorEffectOperands = (
       });
     if (
       t.isVariableDeclarator(node) &&
-      node.init != null &&
       t.isVariableDeclaration(parent) &&
       (parent.kind === "using" || parent.kind === "await using")
     )
-      operands.push({ kind: "escape", node: node.init });
+      operands.push({ kind: "escape", node: node.init ?? node.id });
     for (const child of childNodes(node).reverse())
       pending.push({ node: child, parent: node });
   }
@@ -445,7 +444,7 @@ export function* collectSemanticMemberMutationsSteps(
               const target = receiverReference
                 ? [...receiver, ...reference.path]
                 : reference.path;
-              if (operand.kind === "escape")
+              if (operand.kind === "escape" || t.isSuper(operand.node))
                 effects.push({ node: targetRoot, path: target });
               else
                 pending.push({

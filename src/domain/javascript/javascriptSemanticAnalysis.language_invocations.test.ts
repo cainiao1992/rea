@@ -225,9 +225,30 @@ it("follows superclass getter effects through the selected receiver", () => {
     returned(`
     const shared = { value: 1 };
     class Base { get trigger2() { this.state.value = 2; return 0; } }
-    class Box extends Base { state = shared; get trigger() { return super.trigger2; } }
+    class Box extends Base { state = shared; get trigger2() { return 0; } get trigger() { return super.trigger2; } }
     new Box().trigger;
     return shared.value;
   `)?.status,
   ).toBe("unknown");
+});
+
+it("summarizes per-iteration disposal inside invoked getters", () => {
+  expect(
+    returned(`
+    const shared = {value: 1, [Symbol.dispose]() {this.value = 2;}};
+    const box = {state: shared, get trigger() {for (using owned of [this.state]) {} return 0;}};
+    box.trigger;
+    return shared.value;
+  `)?.status,
+  ).toBe("unknown");
+});
+
+it("keeps same-receiver equality in an inert getter precise", () => {
+  expect(
+    returned(`
+    const state = {value: 1, get trigger() {return this == this;}};
+    state.trigger;
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
 });

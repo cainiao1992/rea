@@ -365,6 +365,14 @@ class GetterResultWalker {
   #visit(current: GetterWork): void {
     const expression = unwrapJavaScriptExpression(current.node).node;
     if (t.isIdentifier(expression) && this.#alias(current, expression)) return;
+    if (t.isForOfStatement(expression)) {
+      this.#enqueue(() => ({
+        ...current,
+        node: expression.right,
+        path: [null, ...current.path],
+      }));
+      return;
+    }
     if (t.isThisExpression(expression) || t.isSuper(expression))
       this.#thisValue(current, expression);
     else if (

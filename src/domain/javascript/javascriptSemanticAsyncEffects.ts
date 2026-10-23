@@ -196,10 +196,9 @@ const emitterIdentity = (
         ...read.binding.initializers,
         ...read.binding.referenceInitializers,
       ];
-      const replaced = [
-        ...binding.initializers,
-        ...binding.referenceInitializers,
-      ].some(({ assignment }) => assignment);
+      const replaced = binding.definitions.some(
+        ({ kind }) => kind === "assignment",
+      );
       const origin = origins.length === 1 ? origins[0] : undefined;
       const complete =
         !replaced ||

@@ -10,8 +10,8 @@ export const semanticCoercionOperands = (
     if (node.operator === "instanceof") return [node.left, node.right];
     if (
       ["==", "!="].includes(node.operator) &&
-      isObject(node.left) &&
-      isObject(node.right)
+      ((t.isThisExpression(node.left) && t.isThisExpression(node.right)) ||
+        (isObject(node.left) && isObject(node.right)))
     )
       return [];
     return node.operator === "in" ? [node.left] : [node.left, node.right];

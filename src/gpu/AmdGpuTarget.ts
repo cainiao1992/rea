@@ -2,11 +2,11 @@ const processor = String.raw`gfx[0-9a-z]+(?:-[0-9a-z]+)*`;
 const targetFeaturesSource = String.raw`(?:(?::[a-z0-9_-]+[+-])|(?:\+[a-z0-9_-]+))*`;
 const targetIdSource = `${processor}${targetFeaturesSource}`;
 const targetId = new RegExp(`^${targetIdSource}$`, "iu");
-const bundleTriple =
-  /^(?:hip|hipv4)-(?:amdgcn|amdgpu(?:[0-9]+(?:\.[0-9a-f]+)?)?)-amd-amdhsa-/iu;
+const targetTripleSource = String.raw`(?:amdgcn|amdgpu(?:[0-9]+(?:\.[0-9a-f]+)?)?)-amd-amdhsa`;
+const bundleTriple = new RegExp(`^(?:hip|hipv4)-${targetTripleSource}-`, "iu");
 const bundleTarget = new RegExp(`(?:--|-)(${targetIdSource})$`, "iu");
 const noteTarget = new RegExp(
-  `^amdgcn-amd-amdhsa(?:--|-unknown-)((${processor})${targetFeaturesSource})$`,
+  `^${targetTripleSource}(?:--|-unknown-)((${processor})${targetFeaturesSource})$`,
   "iu",
 );
 

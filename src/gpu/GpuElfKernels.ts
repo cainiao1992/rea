@@ -201,7 +201,7 @@ const attachCudaResources = (
   text: NativeSection,
   index: CudaMetadataIndex,
   symbolKey: string,
-): void => {
+): "complete" | "partial" => {
   const { source, directory } = index;
   const registerRows = index.registerFacts.get(symbolKey);
   const registerValues = new Set(registerRows?.keys());
@@ -222,12 +222,12 @@ const attachCudaResources = (
       section_index: text.index,
       section_name: text.name,
     };
-  if (
+  const registerConflict =
     registerValues.size > 1 ||
     (kernel.registers.physical !== null &&
       sectionRegisters !== 0 &&
-      kernel.registers.physical !== sectionRegisters)
-  ) {
+      kernel.registers.physical !== sectionRegisters);
+  if (registerConflict) {
     kernel.registers.physical = null;
     kernel.limitations.push(
       "Conflicting CUDA register declarations; physical count remains unknown",
@@ -248,6 +248,7 @@ const attachCudaResources = (
       section_index: shared[0]!.index,
       section_name: shared[0]!.name,
     };
+  return registerConflict ? "partial" : "complete";
 };
 
 const cudaKernels = async (
@@ -314,12 +315,15 @@ const cudaKernels = async (
         readElfString(names, symbol.name_offset),
         site(source, section, offset, width),
       );
-      attachCudaResources(
-        kernel,
-        text!,
-        index,
-        `${section.index}:${offset / width}`,
-      );
+      if (
+        attachCudaResources(
+          kernel,
+          text!,
+          index,
+          `${section.index}:${offset / width}`,
+        ) === "partial"
+      )
+        complete = false;
       const infos = index.infosByText.get(text!.index) ?? [];
       if (infos.length === 1) {
         const info = infos[0]!;

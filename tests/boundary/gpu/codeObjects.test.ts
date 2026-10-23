@@ -278,10 +278,17 @@ it("keeps AMDGPU processor identity unknown when ELF flags are unassigned", asyn
     inspection: "inventory",
   });
 });
-it.each(["gfx900:xnack+", "gfx900+xnack", "gfx900:sramecc-:xnack+"])(
-  "preserves matching AMDGPU note features with ELF processor flags (%s)",
-  async (target) => {
-    const noteTarget = `amdgcn-amd-amdhsa--${target}`;
+it.each([
+  ["amdgcn", "gfx900:xnack+"],
+  ["amdgcn", "gfx900+xnack"],
+  ["amdgcn", "gfx900:sramecc-:xnack+"],
+  ["amdgpu", "gfx900:xnack+"],
+  ["amdgpu9", "gfx900:xnack+"],
+  ["amdgpu9.00", "gfx900:sramecc-:xnack+"],
+])(
+  "preserves matching AMDGPU %s note features with ELF processor flags (%s)",
+  async (triple, target) => {
+    const noteTarget = `${triple}-amd-amdhsa--${target}`;
     const payload = amdFixture(false, undefined, noteTarget);
     payload.writeUInt32LE(0x12c, 48);
     const result = await inspect(
@@ -301,62 +308,70 @@ it.each(["gfx900:xnack+", "gfx900+xnack", "gfx900:sramecc-:xnack+"])(
     expect(result.value.coverage.payloads).toBe("complete");
   },
 );
-it("does not choose between conflicting AMDGPU note and ELF processor identities", async () => {
-  const bytes = amdFixture(
-    false,
-    undefined,
-    "amdgcn-amd-amdhsa--gfx900:xnack+",
-  );
-  bytes.writeUInt32LE(0x141, 48); // EF_AMDGPU_MACH gfx1100
-  const result = await inspect(bytes);
-  if (!result.ok) throw result.error;
-  expect(result.value.objects[0]).toMatchObject({
-    target: null,
-    target_consistency: "unknown",
-    inspection: "partial",
-  });
-  expect(result.value.objects[0]!.limitations.join(" ")).toContain(
-    "processor flags conflict with target note metadata",
-  );
-  expect(result.value.kernels).toHaveLength(1);
-});
-it.each(["match", "conflict", "feature-unknown"] as const)(
-  "compares AMDGPU targets with an explicit unknown environment (%s)",
-  async (comparison) => {
-    const payloadTarget =
-      comparison === "feature-unknown"
-        ? "amdgcn-amd-amdhsa-unknown-gfx900:xnack+"
-        : "amdgcn-amd-amdhsa-unknown-gfx900";
-    const inventoryTarget = comparison === "conflict" ? "gfx1100" : "gfx900";
-    const bytes = hipFixture(
-      amdFixture(false, undefined, payloadTarget),
-      `hipv4-amdgcn-amd-amdhsa--${inventoryTarget}`,
+it.each(["amdgcn", "amdgpu9.00"])(
+  "does not choose between conflicting AMDGPU %s note and ELF processor identities",
+  async (triple) => {
+    const bytes = amdFixture(
+      false,
+      undefined,
+      `${triple}-amd-amdhsa--gfx900:xnack+`,
     );
+    bytes.writeUInt32LE(0x141, 48); // EF_AMDGPU_MACH gfx1100
     const result = await inspect(bytes);
     if (!result.ok) throw result.error;
-    const row = result.value.objects.find((value) => value.kind === "amdgpu")!;
-    expect(row.payload_target).toBe(payloadTarget);
+    expect(result.value.objects[0]).toMatchObject({
+      target: null,
+      target_consistency: "unknown",
+      inspection: "partial",
+    });
+    expect(result.value.objects[0]!.limitations.join(" ")).toContain(
+      "processor flags conflict with target note metadata",
+    );
     expect(result.value.kernels).toHaveLength(1);
-    if (comparison === "conflict") {
-      expect(row).toMatchObject({
-        target: "gfx1100",
-        target_consistency: "conflict",
-        inspection: "partial",
-      });
-      expect(result.value.coverage.payloads).toBe("partial");
-      expect(result.value.kernels[0]!.limitations.join(" ")).toContain(
-        "Conflicting target declarations",
+  },
+);
+it.each([
+  "amdgcn-amd-amdhsa-unknown-",
+  "amdgpu9.00-amd-amdhsa--",
+  "amdgpu9.00-amd-amdhsa-unknown-",
+])(
+  "compares AMDGPU note processor and feature declarations with %s",
+  async (prefix) => {
+    for (const comparison of ["match", "conflict", "feature-unknown"]) {
+      const payloadTarget = `${prefix}gfx900${comparison === "feature-unknown" ? ":xnack+" : ""}`;
+      const inventoryTarget = comparison === "conflict" ? "gfx1100" : "gfx900";
+      const bytes = hipFixture(
+        amdFixture(false, undefined, payloadTarget),
+        `hipv4-amdgcn-amd-amdhsa--${inventoryTarget}`,
       );
-    } else {
-      expect(row).toMatchObject({
-        target: "gfx900",
-        target_consistency: comparison === "match" ? "consistent" : "unknown",
-        inspection: "complete",
-      });
-      expect(result.value.coverage.payloads).toBe("complete");
-      expect(result.value.kernels[0]!.limitations.join(" ")).not.toContain(
-        "Conflicting target declarations",
-      );
+      const result = await inspect(bytes);
+      if (!result.ok) throw result.error;
+      const row = result.value.objects.find(
+        (value) => value.kind === "amdgpu",
+      )!;
+      expect(row.payload_target).toBe(payloadTarget);
+      expect(result.value.kernels).toHaveLength(1);
+      if (comparison === "conflict") {
+        expect(row).toMatchObject({
+          target: "gfx1100",
+          target_consistency: "conflict",
+          inspection: "partial",
+        });
+        expect(result.value.coverage.payloads).toBe("partial");
+        expect(result.value.kernels[0]!.limitations.join(" ")).toContain(
+          "Conflicting target declarations",
+        );
+      } else {
+        expect(row).toMatchObject({
+          target: "gfx900",
+          target_consistency: comparison === "match" ? "consistent" : "unknown",
+          inspection: "complete",
+        });
+        expect(result.value.coverage.payloads).toBe("complete");
+        expect(result.value.kernels[0]!.limitations.join(" ")).not.toContain(
+          "Conflicting target declarations",
+        );
+      }
     }
   },
 );
@@ -482,6 +497,41 @@ it("retains unknown PTX virtual counts and partial payload coverage", async () =
     count: null,
   });
 });
+it.each(["spaced", "compact", "mixed"])(
+  "counts %s PTX register keywords while retaining byte provenance",
+  async (spacing) => {
+    const directive = spacing === "spaced" ? ".reg " : ".reg";
+    const header = ".version 8.8\n.target sm_80\n// GPU 寄存器 🎯\n";
+    const entry = `.entry k() { ${directive}.b32 %r<4>; ${spacing === "mixed" ? ".reg " : directive}.b32 r0, r1, %r4; ${directive}.b64 %rd<2>; ret; }`;
+    const source = header + entry;
+    const result = await inspect(Buffer.from(source));
+    if (!result.ok) throw result.error;
+    expect(result.value.objects[0]!.inspection).toBe("complete");
+    expect(result.value.coverage.payloads).toBe("complete");
+    expect(result.value.ptx_artifacts[0]!.text).toBe(source);
+    const kernel = result.value.kernels[0]!;
+    expect(kernel.registers.virtual).toEqual([
+      { type: ".b32", count: 7 },
+      { type: ".b64", count: 2 },
+    ]);
+    expect(kernel.location).toMatchObject({
+      offset: Buffer.byteLength(header),
+      size: Buffer.byteLength(entry),
+    });
+  },
+);
+it("keeps unsupported compact PTX register types partial", async () => {
+  const result = await inspect(
+    Buffer.from(ptxFixture.replace(".reg .b32", ".reg.v2.b32")),
+  );
+  if (!result.ok) throw result.error;
+  expect(result.value.objects[0]!.inspection).toBe("partial");
+  expect(result.value.coverage.payloads).toBe("partial");
+  expect(result.value.kernels[0]!.registers.virtual).toEqual([
+    { type: ".v2 .b32", count: null },
+    { type: ".b64", count: 5 },
+  ]);
+});
 it.each([64, 65])(
   "counts all %d scalar names in one PTX register list",
   async (count) => {
@@ -587,24 +637,74 @@ it.each([
     }
   },
 );
-it("keeps supported PTX pointer qualifiers complete through the provider", async () => {
-  const bytes = Buffer.from(
-    ptxFixture.replace(".u64 output", ".u64 .ptr .global output"),
-  );
-  const result = await inspect(bytes);
-  if (!result.ok) throw result.error;
-  expect(result.value.objects[0]!.inspection).toBe("complete");
-  expect(result.value.coverage.payloads).toBe("complete");
-  expect(result.value.ptx_artifacts[0]!.text).toBe(bytes.toString());
-  expect(result.value.kernels[0]).toMatchObject({
-    parameter_count: 2,
-    parameter_bytes: 12,
-    parameters: [
-      { name: "output", offset: 0, size: 8 },
-      { name: "value", offset: 8, size: 4 },
-    ],
-  });
-});
+it.each([
+  ".ptr .global",
+  ".ptr .global .align 16",
+  ".ptr.global.align 16",
+  ".ptr .global.align 16",
+  ".ptr.global .align 16",
+])(
+  "keeps PTX pointer qualifiers %s complete through the provider",
+  async (qualifiers) => {
+    const bytes = Buffer.from(
+      ptxFixture.replace(".u64 output", `.u64 ${qualifiers} output`),
+    );
+    const result = await inspect(bytes);
+    if (!result.ok) throw result.error;
+    expect(result.value.objects[0]!.inspection).toBe("complete");
+    expect(result.value.coverage.payloads).toBe("complete");
+    expect(result.value.ptx_artifacts[0]!.text).toBe(bytes.toString());
+    expect(result.value.kernels[0]).toMatchObject({
+      parameter_count: 2,
+      parameter_bytes: 12,
+      parameters: [
+        { name: "output", offset: 0, size: 8 },
+        { name: "value", offset: 8, size: 4 },
+      ],
+    });
+  },
+);
+it.each([".align 8 .b8", ".b8 .align 8"])(
+  "retains PTX array parameter identity and layout with %s",
+  async (type) => {
+    const bytes = Buffer.from(
+      ptxFixture.replace(".u64 output", `${type} payload[8]`),
+    );
+    const result = await inspect(bytes);
+    if (!result.ok) throw result.error;
+    expect(result.value.objects[0]!.inspection).toBe("complete");
+    expect(result.value.coverage.payloads).toBe("complete");
+    expect(result.value.ptx_artifacts[0]!.text).toBe(bytes.toString());
+    expect(result.value.kernels[0]).toMatchObject({
+      parameter_count: 2,
+      parameter_bytes: 12,
+      parameters: [
+        { name: "payload", type: ".b8", offset: 0, size: 8 },
+        { name: "value", offset: 8, size: 4 },
+      ],
+    });
+  },
+);
+it.each([".b8 .align 3", ".align 8 .b8 .align 8"])(
+  "retains PTX names and partial layout for unsupported alignment %s",
+  async (type) => {
+    const bytes = Buffer.from(
+      ptxFixture.replace(".u64 output", `${type} payload[8]`),
+    );
+    const result = await inspect(bytes);
+    if (!result.ok) throw result.error;
+    expect(result.value.objects[0]!.inspection).toBe("partial");
+    expect(result.value.coverage.payloads).toBe("partial");
+    expect(result.value.kernels[0]).toMatchObject({
+      parameter_count: 2,
+      parameter_bytes: null,
+      parameters: [
+        { name: "payload", type: ".b8", offset: null, size: null },
+        { name: "value", offset: null, size: 4 },
+      ],
+    });
+  },
+);
 it.each(["whitespace", "comment"] as const)(
   "recognizes standalone PTX after more than 64 KiB of leading %s",
   async (kind) => {
@@ -700,21 +800,33 @@ it.each(["section-names", "symbols"] as const)(
     );
   },
 );
-it("preserves parameters for long mangled names and rejects conflicting register counts", async () => {
-  const name = "kernel_" + "argument".repeat(64);
-  const result = await inspect(
-    cubinFixture({ name, textRegisters: 9, globalRegisters: 10 }),
-  );
-  if (!result.ok) throw result.error;
-  expect(result.value.kernels[0]).toMatchObject({
-    name,
-    parameter_count: 2,
-    registers: { physical: null },
-  });
-  expect(result.value.kernels[0]!.limitations.join(" ")).toContain(
-    "Conflicting",
-  );
-});
+it.each([9, 10])(
+  "preserves parameters and register coverage for text count %d",
+  async (textRegisters) => {
+    const name = "kernel_" + "argument".repeat(64);
+    const result = await inspect(
+      cubinFixture({ name, textRegisters, globalRegisters: 10 }),
+    );
+    if (!result.ok) throw result.error;
+    const conflict = textRegisters !== 10;
+    expect(result.value.kernels[0]).toMatchObject({
+      name,
+      parameter_count: 2,
+      registers: { physical: conflict ? null : 10 },
+    });
+    expect(result.value.objects[0]!.inspection).toBe(
+      conflict ? "partial" : "complete",
+    );
+    expect(result.value.coverage.payloads).toBe(
+      conflict ? "partial" : "complete",
+    );
+    expect(
+      result.value.kernels[0]!.limitations.some((value) =>
+        value.includes("Conflicting"),
+      ),
+    ).toBe(conflict);
+  },
+);
 it("iterates flat concatenated fatbins beyond the genuine container nesting limit", async () => {
   const result = await inspect(
     Buffer.concat(Array.from({ length: 20 }, () => cudaFixture())),

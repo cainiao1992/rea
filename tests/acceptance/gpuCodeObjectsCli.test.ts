@@ -246,10 +246,9 @@ cliTest(
   async ({ cli }) => {
     const target = "amdgcn-amd-amdhsa--gfx906+xnack",
       root = await createTestTempDirectory("rea-hip-v3-target-id-"),
-      bytes = hipFixture(
-        amdFixture(false, undefined, target),
-        "hip-amdgcn-amd-amdhsa--gfx906+xnack",
-      ),
+      payload = amdFixture(false, undefined, target);
+    payload.writeUInt32LE(0x2f, 48); // EF_AMDGPU_MACH_AMDGCN_GFX906
+    const bytes = hipFixture(payload, "hip-amdgcn-amd-amdhsa--gfx906+xnack"),
       path = join(root, "feature.bundle");
     await writeFile(path, bytes);
     const response = await cli.run({
@@ -281,17 +280,18 @@ cliTest(
 );
 
 cliTest(
-  "keeps PTX pointer names and excludes call prototypes from resources",
+  "keeps PTX qualifier layouts and compact registers while excluding call prototypes",
   async ({ cli }) => {
     const source = ptxFixture
         .replace(".u64 output", ".u64 .ptr .global output")
         .replace(
           ".u32 value",
-          ".u64 .ptr .global .align 4 ptr_arg, .param .u64 .ptr .align 1 increment_param_0, .param .u64 .ptr.global.align 4 joined_arg, .param .u32 value",
+          ".u64 .ptr .global .align 4 ptr_arg, .param .u64 .ptr .align 1 increment_param_0, .param .u64 .ptr.global.align 4 joined_arg, .param .u64 .ptr .global.align 16 partly_joined_arg, .param .u64 .ptr.global .align 16 joined_space_arg, .param .b8 .align 8 payload[8], .param .u32 value",
         )
+        .replace(".reg .b32", ".reg.b32")
         .replace(
           ".reg .b64 %rd<5>;",
-          ".reg .b64 %rd<5>; F: .callprototype _ (.reg .b32 _);",
+          ".reg .b64 %rd<5>; F: .callprototype _ (.reg.b32 _);",
         ),
       root = await createTestTempDirectory("rea-ptx-callprototype-"),
       path = join(root, "prototype.ptx");
@@ -315,13 +315,17 @@ cliTest(
     );
     const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
     expect(report.kernels[0]).toMatchObject({
-      parameter_count: 5,
+      parameter_count: 8,
+      parameter_bytes: 60,
       parameters: [
-        { name: "output", size: 8 },
-        { name: "ptr_arg", size: 8 },
-        { name: "increment_param_0", size: 8 },
-        { name: "joined_arg", size: 8 },
-        { name: "value", size: 4 },
+        { name: "output", offset: 0, size: 8 },
+        { name: "ptr_arg", offset: 8, size: 8 },
+        { name: "increment_param_0", offset: 16, size: 8 },
+        { name: "joined_arg", offset: 24, size: 8 },
+        { name: "partly_joined_arg", offset: 32, size: 8 },
+        { name: "joined_space_arg", offset: 40, size: 8 },
+        { name: "payload", offset: 48, size: 8 },
+        { name: "value", offset: 56, size: 4 },
       ],
       registers: {
         virtual: [
@@ -331,6 +335,7 @@ cliTest(
       },
     });
     expect(report.coverage.payloads).toBe("complete");
+    expect(report.ptx_artifacts[0]!.text).toBe(source);
   },
 );
 
@@ -696,36 +701,40 @@ cliTest(
 it("preserves incomplete decoder coverage through MCP target and object pages", async () => {
   const root = await createTestTempDirectory("rea-gpu-partial-"),
     { call } = await connectLocalToolsMcp();
-  for (const missing of [
-    "section-names",
-    "symbols",
-    "later-amd-note",
-    "target-conflict",
-    "ptx-parameter",
-    "ptx-shared",
-  ]) {
-    const bytes =
-        missing === "later-amd-note"
-          ? amdFixture(false, Buffer.alloc(3))
-          : missing === "target-conflict"
-            ? cudaFixture("none", [
-                {
-                  kind: 2,
-                  target: 80,
-                  bytes: cubinFixture({ architecture: 90 }),
-                },
-              ])
-            : missing === "ptx-parameter"
-              ? Buffer.from(
-                  ptxFixture.replace(".u64 output", ".u64 .vendor output"),
-                )
-              : missing === "ptx-shared"
-                ? Buffer.from(ptxFixture.replace("scratch[32]", "scratch[]"))
-                : cubinFixture(),
-      path = join(root, missing);
-    if (missing === "section-names") bytes.writeUInt16LE(0, 62);
-    else if (missing === "symbols")
+  const cases = {
+    "section-names": () => {
+      const bytes = cubinFixture();
+      bytes.writeUInt16LE(0, 62);
+      return bytes;
+    },
+    symbols: () => {
+      const bytes = cubinFixture();
       bytes.writeUInt32LE(1, Number(bytes.readBigUInt64LE(40)) + 3 * 64 + 4);
+      return bytes;
+    },
+    "later-amd-note": () => amdFixture(false, Buffer.alloc(3)),
+    "modern-amd-target-conflict": () =>
+      hipFixture(
+        amdFixture(false, undefined, "amdgpu9.00-amd-amdhsa--gfx900"),
+        "hipv4-amdgpu11.00-amd-amdhsa--gfx1100",
+      ),
+    "target-conflict": () =>
+      cudaFixture("none", [
+        {
+          kind: 2,
+          target: 80,
+          bytes: cubinFixture({ architecture: 90 }),
+        },
+      ]),
+    "register-conflict": () => cubinFixture({ textRegisters: 11 }),
+    "ptx-parameter": () =>
+      Buffer.from(ptxFixture.replace(".u64 output", ".u64 .vendor output")),
+    "ptx-shared": () =>
+      Buffer.from(ptxFixture.replace("scratch[32]", "scratch[]")),
+  };
+  for (const [missing, fixture] of Object.entries(cases)) {
+    const bytes = fixture(),
+      path = join(root, missing);
     await writeFile(path, bytes);
     const reply = await call("inspect_gpu_code_objects", {
       path,
@@ -740,7 +749,11 @@ it("preserves incomplete decoder coverage through MCP target and object pages", 
     expect(targets.items).toEqual([
       expect.objectContaining({
         target:
-          missing === "later-amd-note" ? "amdgcn-amd-amdhsa--gfx900" : "sm_80",
+          missing === "later-amd-note"
+            ? "amdgcn-amd-amdhsa--gfx900"
+            : missing === "modern-amd-target-conflict"
+              ? "gfx1100"
+              : "sm_80",
         kernel_count: missing === "symbols" ? 0 : 1,
         kernel_coverage: "partial",
       }),
@@ -761,6 +774,9 @@ it("preserves incomplete decoder coverage through MCP target and object pages", 
       parseEvidence(objectReply.structuredContent).normalized_result,
     );
     expect(objects.items).toEqual([
+      ...(missing === "modern-amd-target-conflict"
+        ? [expect.objectContaining({ kind: "host", inspection: "complete" })]
+        : []),
       expect.objectContaining({
         inspection: missing === "later-amd-note" ? "malformed" : "partial",
       }),
@@ -769,6 +785,13 @@ it("preserves incomplete decoder coverage through MCP target and object pages", 
       expect(objects.items[0]).toMatchObject({
         target: "sm_80",
         payload_target: "sm_90",
+        target_consistency: "conflict",
+      });
+    if (missing === "modern-amd-target-conflict")
+      expect(objects.items[1]).toMatchObject({
+        kind: "amdgpu",
+        target: "gfx1100",
+        payload_target: "amdgpu9.00-amd-amdhsa--gfx900",
         target_consistency: "conflict",
       });
   }

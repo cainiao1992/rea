@@ -32,10 +32,12 @@ unexamined payloads remain `unexamined`. An exact AMDGPU target is normalized at
 its note owner for comparison with a Clang bundle declaration; raw values remain
 intact. Unresolved feature comparisons stay `unknown`.
 
-HIP bundle recognition accepts both the legacy `amdgcn` triple and LLVM's
-`amdgpu` subarchitecture triples, including declared generic processors such
-as `gfx11-generic` and `gfx9-4-generic`. CUDA's legacy fatbinary compression
-flag is retained as an unsupported codec with its encoded and decoded extents;
+HIP bundle and metadata note recognition accept both the legacy `amdgcn` triple
+and LLVM's `amdgpu` subarchitecture triples, including declared generic processors
+such as `gfx11-generic` and `gfx9-4-generic`. Notes with the empty or explicit
+`unknown` environment use the same processor and feature comparison while
+retaining their raw triple spelling. CUDA's legacy fatbinary compression flag is
+retained as an unsupported codec with its encoded and decoded extents;
 compressed bytes are not treated as PTX text. CCOB is recognized by the exact
 four signature bytes `CCOB`; high-bit-corrupted bytes are not decoded as ASCII
 and accepted as a bundle. CCOB v1 has no stored total size, so a following
@@ -100,7 +102,9 @@ Kernel representations have different meanings:
   parameters are excluded from entry virtual-register counts. Parameter names
   remain available when pointer qualifiers are understood or an unsupported
   qualifier prevents layout decoding. A pointer's `.align` describes the
-  pointed-to memory and does not change parameter layout alignment.
+  pointed-to memory and does not change parameter layout alignment. Spaced,
+  joined and partly joined pointer qualifiers have the same meaning. Parameter
+  alignment before or after the scalar type retains its layout and name.
   Parameter names and following declarations are retained when an array
   extent uses a parenthesized expression or when dimensions are
   multidimensional, even though those forms do not currently yield a layout.
@@ -108,7 +112,8 @@ Kernel representations have different meanings:
   directive, including directives after entry declarations; unsupported or
   conflicting target profiles leave the effective target unknown.
   Scalar register declarations count each bare or percent-prefixed name and
-  each parameterized range. Unsupported declaration forms or overflowing totals
+  each parameterized range, including compact keywords such as `.reg.b32`.
+  Unsupported declaration forms or overflowing totals
   retain an unknown count and partial decoding coverage. Unsupported parameter
   layouts and unknown shared-memory declarations likewise retain their known
   facts, explicit limitations and partial coverage through retained pages.
@@ -116,6 +121,8 @@ Kernel representations have different meanings:
   including V2 kernel-parameter sizes, and native section declarations. Global
   register declarations also cover compiler
   versions that leave the older text-section register field empty.
+  Conflicting register declarations keep the physical count unknown, preserve the
+  kernel's other facts, and mark object/report/target decoding coverage partial.
 - AMDGPU reads v3+ MessagePack notes. V3 processor identity comes from the
   `EF_AMDGPU_MACH` field in ELF `e_flags`; known processor values are selectable
   even when the note omits `amdhsa.target`. This inventory reports the processor

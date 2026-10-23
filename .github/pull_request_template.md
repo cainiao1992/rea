@@ -17,7 +17,10 @@ describe the use case and observable outcome. -->
 ## Change and scope
 
 <!-- Explain the chosen approach, why it fits REA's architecture, and what is
-intentionally not included. -->
+intentionally not included. If adding complexity for a speculative or vanishingly
+unlikely race or security edge case, record the concrete failure mode, likelihood,
+complexity cost, and the user's buy-in obtained before implementation. Do not
+silently expand scope for theoretical robustness. -->
 
 Follow the [contribution scope](https://github.com/morluto/rea/blob/main/CONTRIBUTING.md#contribution-scope).
 Unresolved scope, authority, side effects, or required verification block

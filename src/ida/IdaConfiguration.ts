@@ -4,6 +4,7 @@ import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
 import { ConfigurationError } from "../domain/configurationErrors.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import { projectInputIssues } from "../domain/inputIssueProjection.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   withOwnedRegularFile,
@@ -132,17 +133,40 @@ export const readIdaConfiguration = (
       const envelope = z
         .object({ mcpServers: z.object({ "ida-pro-mcp": z.unknown() }) })
         .safeParse(input);
-      const parsed = registrationSchema.safeParse(
-        envelope.success ? envelope.data.mcpServers["ida-pro-mcp"] : input,
+      const registration = envelope.success
+        ? envelope.data.mcpServers["ida-pro-mcp"]
+        : input;
+      const parsed = registrationSchema.safeParse(registration);
+      if (parsed.success) return ok(parsed.data);
+      // Only schema-authored correction text is admitted; Zod's aggregate
+      // message can contain registration values, including credentials.
+      const constraints = projectInputIssues(
+        parsed.error.issues,
+        registration,
+      ).flatMap((issue) =>
+        issue.message === undefined
+          ? []
+          : [`${issue.path.join(".") || "registration"}: ${issue.message}`],
       );
-      return parsed.success
-        ? ok(parsed.data)
-        : err(
-            idaConfigurationError(
-              "REA_IDA_MCP_CONFIG must contain an IDA MCP command/args or local url registration; see docs/ida-provider.md.",
-              parsed.error,
-            ),
-          );
+      if (constraints.length === 0)
+        return err(
+          idaConfigurationError(
+            "REA_IDA_MCP_CONFIG must contain an IDA MCP command/args or local url registration; see docs/ida-provider.md.",
+            parsed.error,
+          ),
+        );
+      return err(
+        new ConfigurationError(
+          `REA_IDA_MCP_CONFIG: ${constraints.join("; ")}. See docs/ida-provider.md.`,
+          {
+            cause: parsed.error,
+            settings: constraints.map((constraint) => ({
+              setting: "REA_IDA_MCP_CONFIG",
+              constraint,
+            })),
+          },
+        ),
+      );
     } catch (cause: unknown) {
       if (cause instanceof ConfigurationError) return err(cause);
       if (cause instanceof NonRegularFileReadError)

@@ -195,3 +195,11 @@ an established provider failure. Cancellation retains the caller's original reas
 and collected diagnostics; metadata timeouts name the requested analysis operation
 while retaining the resource-read failure as their cause. This request cancellation
 does not authorize saving or closing an attached GUI database.
+
+Registration refusals retain schema-authored constraints, including the
+native/attached lifecycle requirement, local credential-free endpoint requirement
+and absolute workspace root. Configuration diagnostics omit registration values.
+Target and private-worker identity refusals retain the failed check, its reason
+and recovery guidance in the public error before any analysis replies exist.
+These diagnostics do not relax identity admission or authorize closing an attached
+GUI database.

@@ -79,3 +79,69 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
     expect(await readdir(parent)).toEqual([]);
   },
 );
+
+cliTest.for([
+  {
+    name: "native headless lifecycle conflict",
+    registration: {
+      mode: "headless",
+      protocol: "native",
+      url: "http://127.0.0.1:13337/mcp",
+    },
+    constraint: "requires attached mode",
+  },
+  {
+    name: "nonlocal endpoint",
+    registration: {
+      url: "http://192.0.2.10:13337/mcp",
+      headers: { Authorization: "Bearer registration-secret" },
+    },
+    constraint: "local HTTP endpoint without URL credentials",
+  },
+  {
+    name: "relative workspace root",
+    registration: {
+      command: "provider-must-not-launch",
+      workspaceRoot: "relative",
+    },
+    constraint: "workspaceRoot must be absolute",
+  },
+  {
+    name: "valid registration",
+    registration: { command: "provider-must-not-launch", args: [] },
+    constraint: undefined,
+  },
+] as const)(
+  "doctor retains the IDA registration constraint: $name",
+  async ({ registration, constraint }, { cli }) => {
+    const root = await createTestTempDirectory("rea-ida-doctor-constraint-");
+    const path = join(root, "registration.json");
+    await writeFile(path, JSON.stringify(registration));
+    const result = await cli.run({
+      arguments: ["doctor", "--provider", "ida", "--json"],
+      environment: { HOME: root, REA_IDA_MCP_CONFIG: path },
+      timeoutMs: 10_000,
+    });
+    expect(result.exitCode, result.stderr).toBe(
+      constraint === undefined ? 0 : 1,
+    );
+    expect(result.json).toMatchObject({
+      providerInspections: expect.arrayContaining([
+        expect.objectContaining({
+          id: "ida",
+          available: constraint === undefined,
+          checks: expect.arrayContaining([
+            expect.objectContaining({
+              name: "registration",
+              ok: constraint === undefined,
+              detail: expect.stringContaining(
+                constraint ?? "no IDA process was launched",
+              ),
+            }),
+          ]),
+        }),
+      ]),
+    });
+    expect(result.stdout).not.toContain("registration-secret");
+  },
+);

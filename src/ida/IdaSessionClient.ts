@@ -175,6 +175,17 @@ const isReleasedWorkerRow = (entry: {
   entry.owned === false &&
   entry.is_active === false;
 
+/** Format-owner facts for a refused database/target binding, before any operation replies exist. */
+class IdaIdentityRefusal extends AnalysisProtocolError {
+  constructor(
+    readonly reason: string,
+    readonly recovery: string,
+    check: string,
+  ) {
+    super(reason, { diagnostics: { identity_check: check, reason, recovery } });
+  }
+}
+
 /** Serial read-only session whose lifecycle authority excludes an attached GUI. */
 export class IdaSessionClient implements AnalysisClient {
   #tail: Promise<void> = Promise.resolve();
@@ -432,7 +443,14 @@ export class IdaSessionClient implements AnalysisClient {
     context: IdaOperationFailureContext,
   ) {
     let failure: AnalysisError;
-    if (cause instanceof AnalysisCancelledError) {
+    if (cause instanceof IdaIdentityRefusal) {
+      failure = new AnalysisOutputError(operation, cause.reason, {
+        cause,
+        userMessage: cause.reason,
+        remediationAction: cause.recovery,
+        diagnostics: cause.diagnostics,
+      });
+    } else if (cause instanceof AnalysisCancelledError) {
       failure = new AnalysisCancelledError(operation, {
         cause:
           cause.cause === undefined ? options?.signal?.reason : cause.cause,
@@ -680,12 +698,16 @@ export class IdaSessionClient implements AnalysisClient {
       if (
         !sameIdaHostPath(opened.session.input_path, this.#workspace.inputPath)
       )
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           "IDA opened a different input than the private admitted target copy.",
+          "Check the selected input and upstream worker binding. Retry only after retained private-worker cleanup is confirmed.",
+          "opened_input",
         );
       if (opened.session.session_id !== this.#workspace.sessionId)
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           "IDA returned an adopted or unexpected session instead of the requested private worker.",
+          "Use an IDA supervisor that honors the requested private worker session ID. Confirm retained cleanup before reopening the target.",
+          "worker_session",
         );
       const inventory = databaseListSchema.parse(
         await this.connection.call("idb_list", {}),
@@ -708,8 +730,10 @@ export class IdaSessionClient implements AnalysisClient {
         entry.is_active !== true ||
         !sameIdaHostPath(entry.input_path, this.#workspace.inputPath)
       )
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           "IDA did not return an active owned headless worker for the private input copy.",
+          "Configure the supervisor to return an active owned worker for the private input. Confirm retained cleanup before reopening the target.",
+          "owned_worker_binding",
         );
       this.#database = opened.session.session_id;
     }
@@ -742,8 +766,10 @@ export class IdaSessionClient implements AnalysisClient {
       this.#metadata = raw;
       onObserved?.(raw);
       if (metadata.sha256.toLowerCase() !== this.target.sha256.toLowerCase())
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           `The attached IDA input SHA-256 does not match the selected target ${this.target.path}; open that target in IDA or use headless mode.`,
+          "Open the selected original input in IDA, or configure headless mode and reopen the target through REA.",
+          "attached_sha256",
         );
       identity = JSON.stringify([
         metadata.path,
@@ -752,8 +778,10 @@ export class IdaSessionClient implements AnalysisClient {
       ]);
     } else {
       if (this.#database === undefined || this.#workspace === undefined)
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           "IDA headless session has no database binding.",
+          "Close the REA analysis session and reopen the selected target using the configured headless supervisor.",
+          "database_binding",
         );
       const raw = await readSettledHealth(this.connection, {
         database: this.#database,
@@ -768,8 +796,10 @@ export class IdaSessionClient implements AnalysisClient {
         (await idaFileDigest(this.#workspace.inputPath)) !==
           this.#workspace.inputSha256
       )
-        throw new AnalysisProtocolError(
+        throw new IdaIdentityRefusal(
           "IDA headless input identity changed after target admission.",
+          "Close the REA analysis session, confirm private-worker cleanup, then reopen the selected original target.",
+          "headless_input",
         );
       if (metadata.auto_analysis_ready !== true)
         throw new AnalysisCapabilityUnavailableError(
@@ -798,8 +828,10 @@ export class IdaSessionClient implements AnalysisClient {
       this.#initialIdentity !== undefined &&
       identity !== this.#initialIdentity
     )
-      throw new AnalysisProtocolError(
-        "The attached IDA target or image base changed during the REA session; reopen the target.",
+      throw new IdaIdentityRefusal(
+        "The IDA target or image base changed during the REA session; reopen the target.",
+        "Close the REA analysis session and reopen the selected target after confirming the intended input and image base in IDA.",
+        "session_identity",
       );
     this.#initialIdentity = identity;
     return this.#metadata;

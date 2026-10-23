@@ -620,7 +620,22 @@ describe("attached IDA function failure handling", () => {
     producer.inputSha256 = "a".repeat(64);
     const mismatch = await client.execute("health", {});
     expect(mismatch.ok).toBe(false);
-    if (!mismatch.ok) expect(mismatch.error.message).toContain("SHA-256");
+    if (!mismatch.ok) {
+      expect(projectAnalysisError(mismatch.error)).toMatchObject({
+        code: "unreadable_output",
+        retryable: false,
+        message: expect.stringContaining("SHA-256"),
+        remediation: { action: expect.stringContaining("headless mode") },
+        details: {
+          operation: "health",
+          diagnostics: {
+            identity_check: "attached_sha256",
+            reason: expect.stringContaining(target.path),
+          },
+        },
+      });
+    }
+    expect(producer.calls.map(({ name }) => name)).toEqual(["get_metadata"]);
     producer.inputSha256 = target.sha256;
     producer.beforeCall = async (name) => {
       if (name === "decompile_function") producer.imageBase = "0x2000";

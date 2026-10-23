@@ -34,6 +34,8 @@ type StartupMode =
   | "connect-timeout"
   | "catalog-timeout"
   | "catalog-refused"
+  | "headless-input-mismatch"
+  | "unexpected-worker"
   | "success";
 
 const createStartupSupervisor = async (mode: StartupMode) => {
@@ -98,7 +100,11 @@ const createStartupSupervisor = async (mode: StartupMode) => {
       input = z.string().parse(args.input_path);
       result = {
         success: true,
-        session: { session_id: database, input_path: input },
+        session: {
+          session_id:
+            mode === "unexpected-worker" ? "unexpected-worker" : database,
+          input_path: input,
+        },
       };
     } else if (name === "idb_list")
       result = {
@@ -127,7 +133,8 @@ const createStartupSupervisor = async (mode: StartupMode) => {
     } else if (name === "server_health")
       result = {
         status: "ok",
-        input_path: input,
+        input_path:
+          mode === "headless-input-mismatch" ? input + ".other" : input,
         idb_path: input + ".i64",
         module: "target.elf",
         imagebase: "0x1000",
@@ -165,6 +172,8 @@ workspaceCliTest.for([
   "connect-timeout",
   "catalog-timeout",
   "catalog-refused",
+  "headless-input-mismatch",
+  "unexpected-worker",
   "success",
 ] as const)(
   "attributes selected IDA startup to the public analysis: %s",
@@ -208,6 +217,36 @@ workspaceCliTest.for([
         return;
       }
       expect(result.exitCode).toBe(1);
+      if (mode === "headless-input-mismatch" || mode === "unexpected-worker") {
+        expect(calls).not.toContain("decompile");
+        expect(calls).toContain("idb_close");
+        expect(result.json).toMatchObject({
+          code: "unreadable_output",
+          retryable: false,
+          message: expect.stringContaining(
+            mode === "headless-input-mismatch"
+              ? "input identity changed"
+              : "unexpected session",
+          ),
+          remediation: {
+            action: expect.stringContaining(
+              mode === "headless-input-mismatch" ? "reopen" : "session ID",
+            ),
+          },
+          details: {
+            operation: "procedure_pseudo_code",
+            diagnostics: {
+              identity_check:
+                mode === "headless-input-mismatch"
+                  ? "headless_input"
+                  : "worker_session",
+              reason: expect.any(String),
+              recovery: expect.any(String),
+            },
+          },
+        });
+        return;
+      }
       expect(calls).toEqual([]);
       expect(result.json).toMatchObject({
         code: mode.endsWith("timeout")

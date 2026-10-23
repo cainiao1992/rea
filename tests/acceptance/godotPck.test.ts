@@ -124,6 +124,72 @@ cliTest(
 );
 
 cliTest(
+  "keeps native inventory when an incidental GDPC trailer does not point at a pack header",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pck-marker-candidate-");
+    const carrier = elf(2, 1, 62);
+    const candidates = [
+      Buffer.concat([carrier, Buffer.from("12345678ABCD", "ascii")]),
+      Buffer.concat([carrier, Buffer.from("12345678GDPC", "ascii")]),
+      Buffer.concat([
+        carrier,
+        Buffer.from("notpack!", "ascii"),
+        pckU64(8),
+        Buffer.from("GDPC", "ascii"),
+      ]),
+    ];
+
+    for (const [index, bytes] of candidates.entries()) {
+      const source = join(root, `candidate-${String(index)}.x86_64`);
+      await writeFile(source, bytes);
+      const reply = await cli.run({
+        arguments: ["inspect-artifact", source, "--json"],
+      });
+      expect(reply.exitCode, reply.stdout + reply.stderr).toBe(0);
+      const graph = graphFrom(reply.json);
+      expect(graph.manifest.root_format).toBe("elf");
+      expect(
+        graph.nodes.find(
+          (row) => row.artifact_id === graph.manifest.root_artifact_id,
+        )?.format,
+      ).toBe("elf");
+      expect(graph.occurrences).toHaveLength(1);
+    }
+  },
+);
+
+cliTest(
+  "refuses an unsupported version after an embedded trailer points at a PCK header",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pck-confirmed-malformed-");
+    const source = join(root, "unsupported.x86_64");
+    const pack = buildGodotPck(4, members);
+    pack.writeUInt32LE(1, 4);
+    await writeFile(
+      source,
+      Buffer.concat([
+        elf(2, 1, 62),
+        pack,
+        pckU64(pack.length),
+        Buffer.from("GDPC", "ascii"),
+      ]),
+    );
+
+    const reply = await cli.run({
+      arguments: ["inspect-artifact", source, "--json"],
+    });
+    expect(reply.exitCode).toBe(1);
+    expect(reply.json).toMatchObject({
+      code: "artifact_operation_failed",
+      details: {
+        reason: "unavailable",
+        detail: expect.stringContaining("Godot PCK format 1 is unsupported"),
+      },
+    });
+  },
+);
+
+cliTest(
   "applies strict and record-and-continue MD5 integrity to inspection and extraction",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-pck-integrity-cli-");

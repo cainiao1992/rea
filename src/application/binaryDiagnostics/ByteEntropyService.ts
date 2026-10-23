@@ -32,6 +32,7 @@ import {
   artifactFileCompletion,
   assertArtifactReadActive,
   artifactFileCancellationCause,
+  artifactSelectedPathErrno,
 } from "../../artifacts/ArtifactFileOperation.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
@@ -149,7 +150,8 @@ export class ByteEntropyService {
             cause.code,
             { cause },
           );
-        if (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+        const pathErrno = artifactSelectedPathErrno(cause);
+        if (pathErrno !== undefined)
           return admitted
             ? new AnalysisArtifactChangedError(
                 OPERATION,
@@ -157,7 +159,18 @@ export class ByteEntropyService {
                 "Selected file path changed during entropy inspection.",
                 { cause },
               )
-            : invalid("path", "Selected file could not be found.");
+            : new AnalysisInputError(OPERATION, { cause }, [
+                {
+                  path: ["path"],
+                  reason: "invalid_value",
+                  message:
+                    pathErrno === "ENOENT" || pathErrno === "ENOTDIR"
+                      ? "Selected file could not be found."
+                      : pathErrno === "ELOOP"
+                        ? `Selected file path could not be resolved because symbolic-link traversal looped or exceeded the host limit (ELOOP): ${input.path}`
+                        : `Selected file path exceeds the host path or component length limit (ENAMETOOLONG): ${input.path}`,
+                },
+              ]);
       }
       return new AnalysisOutputError(
         OPERATION,

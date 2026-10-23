@@ -256,7 +256,7 @@ export class ZipArtifactReader implements ArtifactReader {
         ),
       );
     const source = stored.source;
-    if (source.directory || isSymlink(source))
+    if (source.directory || source.symlink)
       return Promise.reject(
         new ArtifactReaderFailure("format", "ZIP entry is not a regular file"),
       );
@@ -285,7 +285,7 @@ const projectZipEntry = (
   entry: Entry,
   index: number,
 ): ArtifactEntry | undefined => {
-  const kind = isSymlink(entry)
+  const kind = entry.symlink
     ? "symlink"
     : entry.directory
       ? "directory"
@@ -471,9 +471,6 @@ async function* typedZipFailures<T>(
     throw typedZipFailure(cause);
   }
 }
-
-const isSymlink = (entry: Entry): boolean =>
-  entry.unixMode !== undefined && (entry.unixMode & 0o170000) === 0o120000;
 
 const toError = (cause: unknown): Error =>
   cause instanceof Error ? cause : new Error("ZIP extraction failed");

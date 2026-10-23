@@ -133,9 +133,9 @@ sections retain priority, and alignment, file mapping and record validation
 remain required. When ELF section names are unreadable, limitations report that
 coverage gap; the fallback search policy is unchanged.
 
-A named ELF build-info section selects the record's discovery range. For inline
-encoding, the following version and module strings may continue past that
-section into its file-backed load mapping; their bytes are still checked
+A named ELF or Mach-O build-info section selects the record's discovery range.
+For inline encoding, the following version and module strings may continue past
+that section into its file-backed load mapping; their bytes are still checked
 against the mapping and the existing aggregate string limit.
 
 Historical moduleless Go binaries can store their empty module-string header in
@@ -163,10 +163,12 @@ and `reported_limits.maximum_input_bytes`. Select a suitable input within that
 fixed allowance; changing an output-write or transport budget does not admit it.
 
 Resource guards bound the selected file and cumulative header searches to 256 MiB
-each, aggregate embedded strings
-to 1 MiB, structural table decoding to 16 MiB and the complete normalized metadata
-report to 8 MiB. Identical search spans with the same virtual alignment are
-searched once; partially overlapping spans consume the cumulative search budget
+each, aggregate embedded string contents to 1 MiB (varint length prefixes are
+framing and do not count toward this allowance), structural table decoding to
+16 MiB and the complete normalized metadata report to 8 MiB. Inline strings must
+also fit within their actual mapped source range. Identical search spans with
+the same virtual alignment are searched once; partially overlapping spans
+consume the cumulative search budget
 and fail with a CPU resource constraint when it is exhausted. Oversized results
 fail without partial success. MCP also applies
 its [response transport budget](mcp-contracts.md), which counts both text and

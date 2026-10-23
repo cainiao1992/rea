@@ -46,6 +46,7 @@ import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 import {
   decodeBinaryPlistScalars,
   scanBinaryPlistScalars,
+  UnsupportedBinaryPlistUidError,
   type BinaryPlistScalarDecodePlan,
 } from "./PlistScalars.js";
 import type { PlistNumberLiterals } from "../../domain/apple/plistNumbers.js";
@@ -132,6 +133,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
           reachableWideIntegerOffsets: [],
           overlappingWideIntegerOffsets: [],
           reachableNumericOffsets: [],
+          uidOffsetsToNormalize: [],
         };
         let datePrecisionOverlapCount = 0;
         if (isNibArchive) {
@@ -223,6 +225,12 @@ export const analyzeInterfaceBuilderBundle = async (input: {
           decodeBudget.release(plistReservation);
           omitted += 1;
           recordOmittedArchive(entry.path, cause.reason);
+          continue;
+        }
+        if (cause instanceof UnsupportedBinaryPlistUidError) {
+          decodeBudget.release(plistReservation);
+          omitted += 1;
+          recordOmittedArchive(entry.path, "unsupported_uid_exact_range");
           continue;
         }
         invalid.push(

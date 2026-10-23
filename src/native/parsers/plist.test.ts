@@ -244,6 +244,7 @@ it("does not treat a malformed date marker as a valid date scalar", () => {
       reachableWideIntegerOffsets: [],
       overlappingWideIntegerOffsets: [],
       reachableNumericOffsets: [],
+      uidOffsetsToNormalize: [],
     }),
   ).toBe(bytes);
 });

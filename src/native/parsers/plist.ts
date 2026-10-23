@@ -32,6 +32,7 @@ import {
 import {
   decodeBinaryPlistScalars,
   scanBinaryPlistScalars,
+  UnsupportedBinaryPlistUidError,
 } from "../../artifacts/apple/PlistScalars.js";
 import {
   estimateBinaryPlistExpansion,
@@ -248,7 +249,9 @@ export const parsePlistBinary = (
   bytes: Buffer,
 ): Result<
   ParsedPlist,
-  AnalysisOutputError | AnalysisResourceConstraintError
+  | AnalysisOutputError
+  | AnalysisResourceConstraintError
+  | UnsupportedBinaryPlistUidError
 > => {
   try {
     if (!hasBinaryPlistSignature(bytes))
@@ -293,6 +296,7 @@ export const parsePlistBinary = (
       ],
     });
   } catch (cause: unknown) {
+    if (cause instanceof UnsupportedBinaryPlistUidError) return err(cause);
     if (cause instanceof PropertyListDecodeBudgetFailure)
       return err(
         new AnalysisResourceConstraintError(

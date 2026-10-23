@@ -5,6 +5,7 @@ import { parseBinary } from "plist";
 import { z } from "zod";
 
 import { preflightPropertyListDecode } from "../artifacts/apple/PropertyListDecodeBudget.js";
+import { decodeBinaryPlistUids } from "../artifacts/apple/PlistScalars.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { isPathWithinRoot } from "../domain/localPath.js";
 import {
@@ -335,10 +336,14 @@ const executableEntrySchema = z.looseObject({ CFBundleExecutable: z.string() });
 
 /** Decode a binary plist in-process, so no host plist tool is required. */
 const parseBinaryPlistExecutable = (plist: Buffer): string => {
-  preflightPropertyListDecode(plist, BINARY_PLIST_DECODE_BYTES);
+  const plan = preflightPropertyListDecode(plist, BINARY_PLIST_DECODE_BYTES);
   // `plist` assigns a `__proto__` key as the prototype; copying drops it, as
   // the XML path does.
-  return executableName(omitPrototypeKeys(parseBinary(plist)).value);
+  return executableName(
+    omitPrototypeKeys(
+      parseBinary(decodeBinaryPlistUids(plist, plan.uidOffsetsToNormalize)),
+    ).value,
+  );
 };
 
 const isSafeExecutableName = (name: string): boolean =>

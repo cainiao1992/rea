@@ -1,8 +1,10 @@
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 import { hasBinaryPlistSignature } from "../../domain/apple/appleArchiveFormat.js";
 import {
+  binaryPlistCloneOffsetWidth,
   binaryDateRequiresExactSeconds,
   binaryPlistObjectEnd,
+  binaryPlistUidNormalizationWidth,
 } from "./PlistScalars.js";
 
 /** Preflight the representation created by the pinned plist decoder. */
@@ -42,6 +44,7 @@ export const preflightPropertyListDecode = (
         reachableWideIntegerOffsets: [],
         overlappingWideIntegerOffsets: [],
         reachableNumericOffsets: [],
+        uidOffsetsToNormalize: [],
       };
   if (expansion.estimatedBytes > maxBytes)
     throw fail("expansion", `plist representation exceeds ${budget}`);
@@ -176,6 +179,8 @@ export interface PlistDecodePreflight {
   readonly overlappingWideIntegerOffsets: readonly number[];
   /** Reachable integer and real source records for exact number association. */
   readonly reachableNumericOffsets: readonly number[];
+  /** Reachable UID records cloned to one of plist@5's supported widths. */
+  readonly uidOffsetsToNormalize: readonly { offset: number; width: number }[];
 }
 
 const PROTOTYPE_KEY = "__proto__";
@@ -207,21 +212,6 @@ const findOverlappingScalarOffsets = (
     maxPriorEnd = Math.max(maxPriorEnd, span.end);
   }
   return overlappingOffsets;
-};
-
-const findExactScalarCloneOffsetWidth = (
-  currentWidth: number,
-  firstCloneOffset: number,
-  cloneCount: number,
-): number | undefined => {
-  const lastCloneOffset = firstCloneOffset + cloneCount * 9 - 9;
-  return [currentWidth, 2, 4, 8]
-    .filter((width) => width >= currentWidth)
-    .find((width) =>
-      width === 8
-        ? lastCloneOffset <= Number.MAX_SAFE_INTEGER
-        : lastCloneOffset < 2 ** (width * 8),
-    );
 };
 
 /**
@@ -293,6 +283,7 @@ export const estimateBinaryPlistExpansion = (
   const reachableDateOffsets = new Set<number>();
   const reachableWideIntegerOffsets = new Set<number>();
   const reachableNumericOffsets = new Set<number>();
+  const uidWidthsToNormalize = new Map<number, number>();
   const reachableDateOccurrences: number[] = [];
   while (pending.length > 0) {
     const entry = pending.pop();
@@ -337,6 +328,15 @@ export const estimateBinaryPlistExpansion = (
         reachableDateOffsets.add(offset);
         reachableDateOccurrences.push(offset);
       }
+      continue;
+    }
+    if (type === 8) {
+      const uidWidth = (marker & 0x0f) + 1;
+      if (offset + 1 + uidWidth > objectsEnd)
+        throw new TypeError("binary plist UID object is truncated");
+      const normalizedWidth = binaryPlistUidNormalizationWidth(bytes, offset);
+      if (normalizedWidth !== undefined)
+        uidWidthsToNormalize.set(offset, normalizedWidth);
       continue;
     }
     if (type === 1 || type === 2) {
@@ -435,7 +435,29 @@ export const estimateBinaryPlistExpansion = (
     }
     pendingObjectCount += childCount;
   }
-  if (!numberProjection)
+  const uidOffsetsToNormalize = [...uidWidthsToNormalize]
+    .map(([offset, width]) => ({ offset, width }))
+    .sort((left, right) => left.offset - right.offset);
+  if (!numberProjection) {
+    const cloneLengths = uidOffsetsToNormalize.map(({ width }) => width + 1);
+    if (cloneLengths.length > 0) {
+      const cloneBytes = cloneLengths.reduce((sum, length) => sum + length, 0);
+      const newOffsetSize = binaryPlistCloneOffsetWidth(
+        offsetSize,
+        offsetTable,
+        cloneLengths,
+      );
+      if (newOffsetSize === undefined)
+        throw new TypeError(
+          "binary plist cloned UID offset exceeds supported width",
+        );
+      estimate += cloneBytes + objectCount * (newOffsetSize - offsetSize);
+      if (estimate > maxBytes)
+        throw fail(
+          "expansion",
+          `binary plist UID-copy expansion exceeds ${budget}`,
+        );
+    }
     return {
       estimatedBytes: estimate,
       binaryPrototypeKeyObserved,
@@ -445,7 +467,9 @@ export const estimateBinaryPlistExpansion = (
       reachableWideIntegerOffsets: [],
       overlappingWideIntegerOffsets: [],
       reachableNumericOffsets: [],
+      uidOffsetsToNormalize,
     };
+  }
 
   // Distinct objects can legally overlap in binary plists. Rewriting a date or
   // wide integer in place could change another reachable value, so isolate
@@ -482,12 +506,16 @@ export const estimateBinaryPlistExpansion = (
     ...precisionUnknownDateOffsets,
     ...overlappingWideIntegerOffsets,
   ]);
-  if (cloneOffsets.size > 0) {
-    const cloneBytes = cloneOffsets.size * 9;
-    const newOffsetSize = findExactScalarCloneOffsetWidth(
+  const cloneLengths = [
+    ...uidOffsetsToNormalize.map(({ width }) => width + 1),
+    ...Array.from(cloneOffsets, () => 9),
+  ];
+  if (cloneLengths.length > 0) {
+    const cloneBytes = cloneLengths.reduce((sum, length) => sum + length, 0);
+    const newOffsetSize = binaryPlistCloneOffsetWidth(
       offsetSize,
       offsetTable,
-      cloneOffsets.size,
+      cloneLengths,
     );
     if (newOffsetSize === undefined)
       throw new TypeError(
@@ -521,5 +549,6 @@ export const estimateBinaryPlistExpansion = (
     reachableNumericOffsets: [...reachableNumericOffsets].sort(
       (left, right) => left - right,
     ),
+    uidOffsetsToNormalize,
   };
 };

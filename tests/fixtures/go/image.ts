@@ -141,6 +141,60 @@ export const createGoBinaryFixture = (
   return { bytes, headerOffset, versionOffset, moduleOffset, moduleBytes };
 };
 
+/** Build an ELF inline record with a selected aggregate string-content size. */
+export const createGoInlineAggregateFixture = (contentBytes: number) => {
+  const fixture = createGoBinaryFixture({ moduleText: "" });
+  const version = Buffer.from("v");
+  const moduleBytes = Buffer.alloc(contentBytes - version.length, 0x78);
+  if (moduleBytes.length < 33)
+    throw new Error("Go module string must include its framing markers");
+  MODULE_START.copy(moduleBytes);
+  MODULE_END.copy(moduleBytes, moduleBytes.length - MODULE_END.length);
+  moduleBytes[moduleBytes.length - MODULE_END.length - 1] = 0x0a;
+  const versionLength = encodeVarint(version.length);
+  const moduleLength = encodeVarint(moduleBytes.length);
+  const versionOffset = fixture.headerOffset + 32 + versionLength.length;
+  const modulePrefixOffset = versionOffset + version.length;
+  const moduleOffset = modulePrefixOffset + moduleLength.length;
+  const end = moduleOffset + moduleBytes.length;
+  const bytes = Buffer.alloc(Math.ceil(Math.max(4096, end) / 16) * 16);
+  fixture.bytes.copy(bytes);
+  // Discovery names the header only; inline strings continue in PT_LOAD.
+  bytes.writeBigUInt64LE(32n, 416);
+  versionLength.copy(bytes, fixture.headerOffset + 32);
+  version.copy(bytes, versionOffset);
+  moduleLength.copy(bytes, modulePrefixOffset);
+  moduleBytes.copy(bytes, moduleOffset);
+  // ELF64 PT_LOAD p_filesz/p_memsz, matching this fixture's native identity.
+  bytes.writeBigUInt64LE(BigInt(bytes.length), 160);
+  bytes.writeBigUInt64LE(BigInt(bytes.length), 168);
+  return {
+    bytes,
+    headerOffset: fixture.headerOffset,
+    versionOffset,
+    moduleOffset,
+    moduleBytes,
+  };
+};
+
+/** Shorten the ELF file-backed load mapping while retaining the file bytes. */
+export const setGoElfLoadFileSize = (bytes: Buffer, size: number): void => {
+  bytes.writeBigUInt64LE(BigInt(size), 160);
+};
+
+/** Set the Go Mach-O discovery section while leaving its segment unchanged. */
+export const setGoMachOSectionSize = (bytes: Buffer, size: number): void => {
+  bytes.writeBigUInt64LE(BigInt(size), 144);
+};
+
+/** Shorten a Mach-O segment's file-backed range while retaining the file bytes. */
+export const setGoMachOSegmentFileSize = (
+  bytes: Buffer,
+  size: number,
+): void => {
+  bytes.writeBigUInt64LE(BigInt(size), 80);
+};
+
 /** Set the first PE section's declared virtual content size in an authored fixture. */
 export const setGoPeVirtualSize = (
   bytes: Buffer,

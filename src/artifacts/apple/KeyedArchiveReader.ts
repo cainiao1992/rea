@@ -18,6 +18,7 @@ import { createPlistNumberProjection } from "../../domain/apple/plistNumbers.js"
 import {
   decodeBinaryPlistScalars,
   scanBinaryPlistScalars,
+  UnsupportedBinaryPlistUidError,
 } from "./PlistScalars.js";
 import {
   omittedPrototypeKeysLimitation,
@@ -260,6 +261,13 @@ export const inspectBundleKeyedArchive = async (input: {
       });
     } catch (cause) {
       if (cause instanceof AnalysisInputError) throw cause;
+      if (cause instanceof UnsupportedBinaryPlistUidError)
+        throw new AnalysisUnsupportedTargetError(
+          "inspect_keyed_archive",
+          join(input.bundlePath, entry.path),
+          cause.message,
+          { cause },
+        );
       // An intact file of another kind is not a damaged archive.
       if (cause instanceof KeyedArchiveKindError)
         throw new AnalysisUnsupportedTargetError(

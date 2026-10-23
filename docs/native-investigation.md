@@ -449,6 +449,10 @@ complete observation.
   failures; explicit `<data></data>` represents empty data.
   Each XML dictionary key must have a following value element; a final key
   without one is malformed. An explicit empty string remains a value.
+  Binary UID payloads may use nonminimal byte widths. REA normalizes them only
+  in a private decoder copy; archive digests still identify the original bytes.
+  UID values above JavaScript's exact integer range return an unsupported-target
+  outcome instead of rounded reference identities.
   UID 0 cannot distinguish conditional nil from ordinary nil. Limits are
   64 MiB of input, 200,000 objects/references and 128 nesting levels.
   XML dictionary entries decoded as `__proto__` are omitted with an explicit

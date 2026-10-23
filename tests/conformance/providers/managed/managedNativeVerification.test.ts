@@ -190,6 +190,22 @@ it.each([
   { flags: 0x206, symbol: "Example", format: "pe", status: "verified" },
   { flags: 0x200, symbol: "ExampleA", format: "elf", status: "unresolved" },
   { flags: 0x206, symbol: "ExampleW", format: "elf", status: "unresolved" },
+  { flags: 0x202, symbol: "ExampleA", format: "elf", status: "unresolved" },
+  { flags: 0x204, symbol: "ExampleW", format: "elf", status: "unresolved" },
+  { flags: 0x204, symbol: "Example", format: "elf", status: "verified" },
+  { flags: 0x202, symbol: "ExampleA", format: "mach-o", status: "unresolved" },
+  { flags: 0x204, symbol: "ExampleW", format: "mach-o", status: "unresolved" },
+  { flags: 0x202, symbol: "Example", format: "mach-o", status: "verified" },
+  { flags: 0x300, symbol: "_Example", format: "elf", status: "unresolved" },
+  {
+    flags: 0x300,
+    symbol: "_Example@0",
+    format: "mach-o",
+    status: "unresolved",
+  },
+  { flags: 0x300, symbol: "_Example@0", format: "pe", status: "inferred" },
+  { flags: 0x200, symbol: "ExampleA", format: "file", status: "unresolved" },
+  { flags: 0x206, symbol: "ExampleW", format: "file", status: "unresolved" },
   {
     flags: 0x200,
     symbol: "A",
@@ -224,13 +240,68 @@ it.each([
     });
     expect(result.pinvoke_imports[0]).toMatchObject({
       status,
-      managed: { import_name: inspection.pinvoke_imports[0]?.import_name },
+      managed: {
+        import_name: inspection.pinvoke_imports[0]?.import_name,
+        char_set: inspection.pinvoke_imports[0]?.char_set,
+        no_mangle: inspection.pinvoke_imports[0]?.no_mangle,
+        call_convention: inspection.pinvoke_imports[0]?.call_convention,
+      },
     });
     expect(
       result.pinvoke_imports[0]?.candidates.map(({ name }) => name),
     ).toEqual(status === "unresolved" ? [] : [symbol]);
   },
 );
+
+it("keeps Windows name candidates tied to their native Evidence format", () => {
+  const bytes = buildManagedPeFixture({
+    pinvoke: {
+      mappingFlags: 0x204,
+      importName: "Example",
+      moduleName: "nativehelper.dll",
+    },
+  });
+  const target = managedPeFixtureTarget(bytes);
+  const inspection = inspectManagedNativeBoundariesBytes(bytes, target);
+  const managed = createEvidence(
+    target,
+    exampleInput().managed_boundaries.provider,
+    {
+      operation: "inspect_managed_native_boundaries",
+      parameters: {},
+      result: inspection,
+    },
+  );
+  const elf = nativeFunctionEvidence(
+    "/fixtures/nativehelper.dll",
+    "elf",
+    "ExampleW",
+  );
+  const pe = nativeFunctionEvidence(
+    "/fixtures/nativehelper.dll",
+    "pe",
+    "ExampleW",
+  );
+  const result = verifyManagedNativeBoundaries({
+    managed_boundaries: managed,
+    native_observations: [elf, pe],
+  });
+  expect(result.pinvoke_imports[0]).toMatchObject({
+    status: "inferred",
+    basis: "decorated-name-candidate",
+    candidates: [{ evidence_id: pe.evidence_id, name: "ExampleW" }],
+    evidence_links: [managed.evidence_id, pe.evidence_id],
+  });
+  expect(result.evidence_links).toEqual([
+    managed.evidence_id,
+    elf.evidence_id,
+    pe.evidence_id,
+  ]);
+  expect(inspection.pinvoke_imports[0]).toMatchObject({
+    mapping_flags: 0x204,
+    char_set: "unicode",
+  });
+});
 
 describe("managed/native boundary Evidence identity", () => {
   it("rejects managed boundary Evidence whose subject digest differs from its artifact", () => {

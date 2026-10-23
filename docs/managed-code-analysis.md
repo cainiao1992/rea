@@ -552,7 +552,12 @@ An empty declared import name remains unchanged in verification Evidence and
 produces no native-name candidates. With a supplied PE native context and
 `no_mangle: false`, an unspecified charset includes the ANSI `A` candidate;
 `auto` includes the Windows Unicode `W` candidate. Other native formats do not
-inherit these Windows defaults. These suffixes are static inferred candidates;
+inherit these Windows defaults. Known ELF and Mach-O contexts use the declared
+entry point without A/W suffixes or Windows stdcall decoration, including when
+the metadata declares an explicit ANSI or Unicode marshalling charset. The
+original charset and calling convention remain unchanged. This follows the
+[.NET runtime's platform-specific entry-point lookup](https://github.com/dotnet/runtime/blob/v10.0.0/src/coreclr/vm/method.cpp#L3134-L3177).
+Windows name decorations are static inferred candidates;
 exact spelling still suppresses decoration and no runtime binding is proven.
 The mapping follows [Microsoft's charset guidance](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/charset).
 Partial input coverage records a residual question even when no unresolved

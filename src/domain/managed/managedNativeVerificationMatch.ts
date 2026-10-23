@@ -256,7 +256,14 @@ const candidateNames = (
 ): readonly string[] => {
   if (managed.import_name.length === 0) return [];
   const names = new Set<string>([managed.import_name]);
-  if (!managed.no_mangle) {
+  // Unix P/Invoke lookup uses the declared entry point directly, regardless of
+  // marshalling charset or calling convention. Keep Windows decorations local
+  // to PE or an unresolved native platform; metadata flags remain unchanged.
+  if (
+    !managed.no_mangle &&
+    nativeFormat !== "elf" &&
+    nativeFormat !== "mach-o"
+  ) {
     if (
       managed.char_set === "unicode" ||
       (nativeFormat === "pe" && managed.char_set === "auto")

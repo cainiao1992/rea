@@ -46,6 +46,96 @@ module page. See
 [JavaScript application workflows](javascript-application-workflows.md) for
 views, feature traces and comparisons that take the same saved Evidence.
 
+## JSON Lines record output
+
+Use `--format jsonl` to consume row-oriented results one record per line:
+
+```bash
+cat > observations-view.json <<'JSON'
+{"source":{"kind":"evidence-file","path":"app-evidence.json"},"view":{"kind":"javascript-facts","property_keys":[],"offset":0,"limit":32}}
+JSON
+rea inspect-analysis-view observations-view.json --format jsonl > observations.jsonl
+```
+
+This request selects up to 32 observation identities and their provenance,
+without observation property values.
+
+This changes JSONL object-collection framing. Scripts that need one complete
+report or a scalar field should use `--format json`. For a full application
+graph, first project a supported analysis view rather than selecting an
+arbitrary nested graph array.
+
+A top-level array emits its elements in source order. An object must have one
+clear `rows`, `items`, `records`, or `occurrences` array, directly or under
+`page`. Evidence uses the same boundaries inside `normalized_result`.
+An arbitrary report or a scalar selection is refused with an actionable error;
+use `--format json` for a complete document. If several collections exist,
+select one with `--filter-output`, for example `normalized_result.rows`.
+
+Object collections finish with a control record:
+
+```json
+{
+  "$rea": "jsonl/v1",
+  "type": "metadata",
+  "records": {
+    "path": ["normalized_result", "rows"],
+    "emitted": 2,
+    "source": 10,
+    "filter": "normalized_result.rows[0,2]"
+  },
+  "context": {
+    "evidence_id": "ev_…",
+    "normalized_result": {
+      "coverage": {
+        "status": "page",
+        "examined": 10,
+        "total": 100,
+        "next_offset": 10,
+        "exhausted": false
+      }
+    }
+  }
+}
+```
+
+This abbreviated example illustrates framing. The actual `context` preserves
+all non-row fields, including Evidence subject, provider, authority, confidence,
+locations, links, limitations, parent/view digests, pagination and coverage.
+With `--full-output`, it also retains the command envelope and its metadata.
+A data filter selects row fields/slices while this context remains available;
+excluded peer record collections and unselected Evidence `raw_result` are not
+restored. An explicitly selected `raw_result` remains selected. Retain the
+original Evidence for complete observations.
+
+`records.emitted` and `records.source` count the selected output and its source
+array; they do not assert analysis completeness. Source coverage and unknowns
+retain their original meaning. Existing row identities and indices remain
+unchanged unless your field selection excludes them. Empty object collections
+still emit metadata; an empty top-level array emits no lines. Bare top-level
+arrays have no synthetic coverage record.
+
+Command and output-validation failures emit `{"$rea":"jsonl/v1","type":"error","ok":false,"result":…}`
+and retain the original diagnostic payload. SDK validation/sentinel errors use
+the SDK's exit status rather than guessing from data fields. `$rea` is reserved
+at the top level of a data record, so control records are unambiguous; collisions
+are refused before rows are written. Nested `$rea` values are ordinary data.
+A missing final metadata record or nonzero exit can indicate an interrupted
+export; do not treat already emitted rows as a complete result.
+
+`--token-count` estimates this exact representation, including metadata, one
+line at a time. Errors remain error records even with token counting enabled.
+Token windows cannot preserve JSON Lines and are rejected. JSON encoding and
+stdout writes are incremental, including large escaped strings; this is output
+streaming over a completed result, not incremental analysis. The analysis still
+needs its normal resources. A single record must fit the runtime string limit
+for token estimation; remove `--token-count` to stream a larger record.
+
+Standalone version and MCP doctor diagnostics remain single JSON documents
+in JSON Lines mode. Incur's streaming generator events and successful sentinel
+responses retain their SDK protocol. MCP application results and Evidence
+contracts are unchanged.
+
 ## Shell completion
 
 The CLI includes optional shell completion. Run `rea completions --help` to

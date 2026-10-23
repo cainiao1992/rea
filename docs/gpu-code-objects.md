@@ -32,6 +32,12 @@ unexamined payloads remain `unexamined`. An exact AMDGPU target is normalized at
 its note owner for comparison with a Clang bundle declaration; raw values remain
 intact. Unresolved feature comparisons stay `unknown`.
 
+A HIP target ID identifies a toolchain target, not its payload representation.
+Recognized raw or wrapped LLVM bitcode stays `unsupported` for kernel metadata
+inspection, with the bundle ID, range and selected payload digest retained.
+Bitcode validity and inner targets remain unexamined; malformed recognized ELF
+still reports `malformed`. Standalone bitcode is outside GPU container coverage.
+
 HIP bundle and metadata note recognition accept both the legacy `amdgcn` triple
 and LLVM's `amdgpu` subarchitecture triples, including declared generic processors
 such as `gfx11-generic` and `gfx9-4-generic`. Notes with the empty or explicit
@@ -40,16 +46,18 @@ retaining their raw triple spelling. CUDA's legacy fatbinary compression flag is
 retained as an unsupported codec with its encoded and decoded extents;
 compressed bytes are not treated as PTX text. CCOB is recognized by the exact
 four signature bytes `CCOB`; high-bit-corrupted bytes are not decoded as ASCII
-and accepted as a bundle. CCOB v1 has no stored total size: its zlib stream or
-Zstandard frame supplies the encoded payload extent. Literal `CCOB` bytes inside
-that stream are ordinary payload bytes. Zero-byte alignment padding between
-wrappers is skipped outside the preceding payload range; v2/v3 use their declared
-wrapper sizes.
+and accepted as a bundle. CCOB v1 has no stored total size: the completed zlib
+or Zstd stream determines its encoded extent. Embedded `CCOB` text is ordinary
+compressed data; zero-byte alignment after the stream belongs to neither
+payload. If decoding fails or its codec is unsupported, a later `CCOB` marker
+is only an uncertain recovery candidate. The affected row retains that
+limitation and discovery remains partial.
 
-A HIP bundle target identifies the toolchain target independently of payload
-representation. Recognized LLVM bitcode remains unsupported for kernel metadata
-inspection; its identity, location and available digest are retained with partial
-payload coverage. Corrupt recognized ELF payloads remain malformed.
+The declared decoded length bounds decompression. An understated length can
+stop decoding before codec completion, so any subsequent recovery extent stays
+unknown; the decoder does not expand its allowance to prove the bad declaration.
+Interrupted observations omit unfinished v1 rows. A terminal capacity row
+qualifies its retained range as the containing tail and does not infer siblings.
 
 `cuda_target_header` retains the OS ABI, normalized raw `e_flags` and exact
 header location. CUDA OS ABI `0x33` and the observed `0x41` flags layout use

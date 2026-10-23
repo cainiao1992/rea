@@ -1,11 +1,15 @@
-import { writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import {
+  erlangBeamChunksFixture,
   erlangBeamFixture,
+  erlangBeamLegacyAtomsFixture,
   erlangBeamOtp29Fixture,
 } from "../../src/erlang/Beam.fixture.js";
+import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
@@ -71,6 +75,86 @@ cliTest("reports BEAM exports through the public CLI", async ({ cli }) => {
     ),
   ).toBe(true);
 });
+
+cliTest(
+  "inspects empty optional BEAM chunks through CLI and MCP without losing source evidence",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-beam-empty-chunks-");
+    // Append an inert chunk to the compiler fixture; no bytecode is executed.
+    const original = erlangBeamOtp29Fixture();
+    const extension = erlangBeamChunksFixture([["FunT", Buffer.alloc(0)]]);
+    const emptyLambda = Buffer.concat([original, extension.subarray(12)]);
+    emptyLambda.writeUInt32BE(emptyLambda.length - 8, 4);
+    const { call } = await connectLocalToolsMcp();
+    for (const {
+      label,
+      bytes,
+      chunk,
+      module,
+      atomEncoding,
+      exportedFunction,
+    } of [
+      {
+        label: "lambda",
+        bytes: emptyLambda,
+        chunk: "FunT",
+        module: "rea_beam_fixture",
+        atomEncoding: "utf8",
+        exportedFunction: "hello",
+      },
+      // This reduced legacy container asserts structural facts, not runtime loading.
+      {
+        label: "legacy-atoms",
+        bytes: erlangBeamLegacyAtomsFixture(Buffer.alloc(0)),
+        chunk: "AtU8",
+        module: "demo",
+        atomEncoding: "latin1",
+        exportedFunction: "ÿ",
+      },
+    ]) {
+      const path = join(root, `${label}.beam`);
+      await writeFile(path, bytes);
+      const output = await cli.run({
+        arguments: ["inspect-erlang-beam", path, "--json"],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      const report = toolContract("inspect_erlang_beam").outputSchema.parse(
+        output.json,
+      ).normalized_result;
+      const reply = await call("inspect_erlang_beam", { path });
+      expect(reply.isError, JSON.stringify(reply)).not.toBe(true);
+      expect(
+        toolContract("inspect_erlang_beam").outputSchema.parse(
+          reply.structuredContent,
+        ).normalized_result,
+      ).toEqual(report);
+      expect(report).toMatchObject({
+        module,
+        atom_encoding: atomEncoding,
+        lambdas: null,
+        coverage: { status: "complete" },
+        artifact: {
+          path,
+          bytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        },
+      });
+      expect(report.exports).toContainEqual(
+        expect.objectContaining({ function: exportedFunction }),
+      );
+      expect(report.chunks).toContainEqual(
+        expect.objectContaining({
+          name: chunk,
+          payload: expect.objectContaining({
+            bytes: 0,
+            sha256: createHash("sha256").update(Buffer.alloc(0)).digest("hex"),
+          }),
+        }),
+      );
+      expect(await readFile(path)).toEqual(bytes);
+    }
+  },
+);
 
 cliTest(
   "decodes the last atom table while retaining every chunk occurrence",

@@ -1780,8 +1780,10 @@ the running Node engine's single-string limit. Shared input leaves keep the
 fixture's graph small; the verifier writes one temporary output file, checks its
 complete byte count and an independent digest, then removes it. It requires only
 Node and the built REA runtime, with space for the output plus a 1 GiB reserve.
-Run `npm run verify:javascript:output -- jsonl` for compact JSONL coverage. This
-opt-in lane is separate from routine tests and the canonical hash check
+Run `npm run verify:javascript:output -- jsonl` for compact JSONL coverage. Its
+row collection must match independent row and final-metadata byte/digest goldens;
+its token count is checked against the actual file one line at a time, even when
+the complete export exceeds the engine string limit. This opt-in lane is separate from routine tests and the canonical hash check
 `npm run verify:javascript:digests`. It verifies serialization rather than an
 arbitrary third-party application's parsing cost or MCP client capacity.
 

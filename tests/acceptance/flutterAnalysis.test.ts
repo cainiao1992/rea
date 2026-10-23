@@ -1,4 +1,7 @@
-import { gnuBuildIdNote } from "../../src/native/elf/ElfNotes.fixture.js";
+import {
+  gnuBuildIdNote,
+  compressedElfNoteSectionFixture,
+} from "../../src/native/elf/ElfNotes.fixture.js";
 import { createHash } from "node:crypto";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
@@ -341,5 +344,57 @@ cliTest(
           "1–64 byte projection",
         );
     }
+  },
+);
+
+cliTest(
+  "CLI and stdio MCP retain Flutter build-ID candidates with unsupported compressed notes",
+  async ({ cli }) => {
+    const compressed = appendElfRanges(
+      compressedElfNoteSectionFixture(),
+      "program",
+      [{ type: 1, offset: 0, size: 0 }],
+    );
+    const note = gnuBuildIdNote("0123456789abcdef");
+    const engine = appendElfRanges(
+      Buffer.concat([compressed, note]),
+      "section",
+      [{ type: 7, offset: compressed.length, size: note.length }],
+    );
+    const path = await createFlutterApk("compressed-notes.apk", [
+      { path: "lib/arm64-v8a/libapp.so", bytes: aotFixtureImage() },
+      { path: "lib/arm64-v8a/libflutter.so", bytes: engine },
+    ]);
+    const output = await cli.run({
+      arguments: ["identify-flutter-build", path, "--json"],
+    });
+    expect(output.exitCode, output.stderr).toBe(0);
+    const cliEvidence = parseEvidence(output.json);
+    const { call } = await connectLocalToolsMcp();
+    const response = await call("identify_flutter_build", { path });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    const mcpEvidence = parseEvidence(response.structuredContent);
+    expect(mcpEvidence.normalized_result).toEqual(
+      cliEvidence.normalized_result,
+    );
+    const result = flutterResultSchemas.identify_flutter_build.parse(
+      cliEvidence.normalized_result,
+    );
+    expect(result).toMatchObject({
+      coverage: "partial",
+      abis: [
+        {
+          libflutter: {
+            sha256: createHash("sha256").update(engine).digest("hex"),
+            build_id: null,
+            build_id_candidates: ["0123456789abcdef"],
+          },
+        },
+      ],
+    });
+    for (const evidence of [cliEvidence, mcpEvidence])
+      expect(evidence.limitations.join("\n")).toContain(
+        "Compressed ELF note sections are unsupported",
+      );
   },
 );

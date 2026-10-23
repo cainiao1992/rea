@@ -209,6 +209,50 @@ describe("production MCP doctor", () => {
 });
 
 describe("production MCP doctor output", () => {
+  it.each([false, true])(
+    "frames unhealthy JSONL diagnostics and retains the selected envelope (%s)",
+    async (full) => {
+      const result = await runProductionMcpDoctorCli(
+        ["--format", "jsonl", ...(full ? ["--full-output"] : [])],
+        {
+          dispatcherPath: resolve("tests/fixtures/mcpDoctorExit.mjs"),
+          packageRoot: process.cwd(),
+          stdoutIsTerminal: true,
+        },
+      );
+      expect(result.exitCode).toBe(1);
+      expect(result.output.trimEnd().split("\n")).toHaveLength(1);
+      expect(JSON.parse(result.output)).toMatchObject({
+        $rea: "jsonl/v1",
+        type: "error",
+        result: full
+          ? {
+              ok: false,
+              error: { healthy: false },
+              meta: { command: "rea mcp doctor" },
+            }
+          : { healthy: false },
+      });
+    },
+  );
+
+  it("frames JSONL validation errors before opening a diagnostic session", async () => {
+    const result = await runProductionMcpDoctorCli(
+      ["--format", "jsonl", "--unknown"],
+      {
+        dispatcherPath: "/must-not-start",
+        packageRoot: process.cwd(),
+        stdoutIsTerminal: false,
+      },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.output)).toMatchObject({
+      $rea: "jsonl/v1",
+      type: "error",
+      result: { code: "VALIDATION_ERROR" },
+    });
+  });
+
   it.each([
     { name: "report", args: ["--json"] },
     { name: "full-output envelope", args: ["--json", "--full-output"] },

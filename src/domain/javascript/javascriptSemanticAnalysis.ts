@@ -69,6 +69,7 @@ import { semanticBundledRequireOrigin } from "./javascriptBundledRequireOrigin.j
 import { collectSemanticMemberMutationsSteps } from "./javascriptSemanticMemberMutations.js";
 import { semanticEffectTiming } from "./javascriptSemanticMutationInitializers.js";
 import {
+  createAmbientPathResolver,
   indexJavaScriptAmbientWritesSteps,
   isUnmodifiedGlobalReference,
 } from "./javascriptSemanticAmbientWrites.js";
@@ -281,6 +282,20 @@ const visitSemanticReferenceEffectsAtSite = (
   } else if (lookup.kind === "ambient" || lookup.kind === "uncertain-ambient") {
     for (const node of state.ambientBindingWrites.get(root.name) ?? [])
       if (!retain("ambient-write", node)) return metadata;
+    const ambientRoots = createAmbientPathResolver(state, false)(root);
+    for (const ambientRoot of ambientRoots) {
+      const selectedPath = [...ambientRoot, ...path];
+      for (const [kind, effects] of [
+        ["member-write", state.ambientWriteEffects],
+        ["escape", state.ambientEscapeEffects],
+      ] as const)
+        for (const effect of effects)
+          if (
+            semanticPathsOverlap(selectedPath, effect.path) &&
+            !retain(kind, effect.node, effect.path.slice(ambientRoot.length))
+          )
+            return metadata;
+    }
   }
   return metadata;
 };

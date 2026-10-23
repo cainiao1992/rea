@@ -256,18 +256,16 @@ export const parseErlangBeam = (
     payloads.set(name, { payload, offset: at });
     at = padded;
   }
-  const utf8Atoms = payloads.get("AtU8");
-  const legacyAtoms = payloads.get("Atom");
-  const useLegacyAtoms =
-    (utf8Atoms?.payload.length ?? 0) === 0 &&
-    (legacyAtoms?.payload.length ?? 0) > 0;
-  const atomChunk = useLegacyAtoms ? legacyAtoms : (utf8Atoms ?? legacyAtoms);
+  const utf8AtomChunk = payloads.get("AtU8");
+  const legacyAtomChunk = payloads.get("Atom");
+  // Historical OTP selects Atom when AtU8 has no payload. Without a legacy
+  // table, a present empty AtU8 still fails its required count header.
+  const useUtf8Atoms =
+    utf8AtomChunk !== undefined &&
+    (utf8AtomChunk.payload.length > 0 || legacyAtomChunk === undefined);
+  const atomChunk = useUtf8Atoms ? utf8AtomChunk : legacyAtomChunk;
   const atomEncoding =
-    atomChunk === undefined
-      ? null
-      : useLegacyAtoms || utf8Atoms === undefined
-        ? "latin1"
-        : "utf8";
+    atomChunk === undefined ? null : useUtf8Atoms ? "utf8" : "latin1";
   const atoms =
     atomChunk === undefined || atomEncoding === null
       ? null
@@ -306,11 +304,13 @@ export const parseErlangBeam = (
           function: atomAt(atoms, row[1]!),
           arity: row[2]!,
         }));
-  const lambdaPayload = payloads.get("FunT")?.payload;
+  const lambdaChunk = payloads.get("FunT");
+  // OTP skips the optional lambda parser for a zero-byte selected chunk.
+  // A four-byte zero count remains a decoded, explicitly empty table.
   const lambdas =
-    lambdaPayload === undefined || lambdaPayload.length === 0
+    lambdaChunk === undefined || lambdaChunk.payload.length === 0
       ? null
-      : parseRows(lambdaPayload, 6, "lambda").map((row) => ({
+      : parseRows(lambdaChunk.payload, 6, "lambda").map((row) => ({
           function_index: row[0]!,
           function: atomAt(atoms, row[0]!),
           arity: row[1]!,

@@ -100,3 +100,25 @@ export const createSqliteApplicationCollationFixture = (
   }
   return path;
 };
+
+/** UTF-16 hex lookup keys exceed 16 MiB while both public schema scopes fit. */
+export const createSqliteLongNameFixture = (
+  root: string,
+  encoding: "UTF-8" | "UTF-16le" | "UTF-16be",
+): { path: string; names: string[] } => {
+  const path = join(root, `large-schema-${encoding}.db`);
+  const names = Array.from(
+    { length: 34 },
+    (_, index) => `${index}_${"x".repeat(128 * 1024)}`,
+  );
+  const producer = new DatabaseSync(path);
+  try {
+    producer.exec(`PRAGMA encoding='${encoding}'; BEGIN`);
+    for (const name of names)
+      producer.exec(`CREATE TABLE "${name}"(value TEXT)`);
+    producer.exec("COMMIT");
+  } finally {
+    producer.close();
+  }
+  return { path, names };
+};

@@ -31,21 +31,28 @@ The BEAM form size bounds the parsed chunks. Bytes after the declared form are
 ignored by the parser but remain part of the selected artifact's byte length
 and SHA-256.
 
-When `AtU8` or `Atom` is present, `atoms` is the 1-based name table and
+When a selected `AtU8` or `Atom` table is decoded, `atoms` is the 1-based name table and
 `module` is atom 1. Both the pre-OTP 28 table and the OTP 28+ compact table
 (negated count, compact-encoded name lengths) are read. `exports`, `imports`, and `lambdas` resolve atom indices to
 those names when the table is present; unresolved indices keep `function` or
 `module` null.
 
-A zero-byte `AtU8` chunk does not override a nonempty historical `Atom` table.
-The chunk inventory retains both occurrences. A nonempty malformed `AtU8`
-still fails instead of falling back to an older table.
-
 `code` reports the Code chunk instruction-set, opcode maximum, label count,
 function count, and the instruction stream's file range. Missing optional
-tables are null, not empty-everywhere. A zero-byte optional `FunT` has no decoded
-lambda table (`lambdas: null`); a four-byte zero count is an observed empty table
-(`lambdas: []`). Both chunks remain in the inventory.
+tables are null, not empty-everywhere.
+
+A zero-byte `AtU8` falls back to an available legacy `Atom` table, following
+[OTP 20.3's atom selection](https://github.com/erlang/otp/blob/a113f6117fd696ea6f84ed754055b4ec97a7ccb2/erts/emulator/beam/beam_load.c).
+A nonempty `AtU8` retains UTF-8 precedence, including an explicit zero atom
+count; malformed nonempty data fails instead of falling back. An empty atom
+chunk without an alternate table still fails its required count header.
+Absent and zero-byte optional `FunT` chunks produce `lambdas: null`, while a
+four-byte zero row count produces `lambdas: []`. This follows
+[OTP 29's positive-size lambda parsing rule](https://github.com/erlang/otp/blob/550d7b7898706c7822362c42e7b93120c1d1f29a/erts/emulator/beam/beam_file.c).
+Empty payloads retain their ranges and SHA-256 in the chunk inventory. These
+rules apply to the last occurrence of each chunk name; an empty final occurrence
+does not revive an earlier payload of that name. Nonempty truncated tables remain
+format failures.
 
 ## Limits and failures
 

@@ -68,12 +68,14 @@ const runCommand = async (args) => {
 
     let wroteOutput = false;
     let explicitExit;
+    resultOutput?.begin(outputOptions);
     try {
       await cli.serve(cliArgs, {
         stdout: (output) => {
           if (resultOutput?.handled) return;
           if (output.length === 0) return;
           wroteOutput = true;
+          if (resultOutput?.captureSdkOutput(output)) return;
           destination.write(output);
         },
         exit: (code) => {
@@ -94,6 +96,10 @@ const runCommand = async (args) => {
       const empty = renderEmptyFilteredCliOutput(outputOptions);
       if (empty !== undefined) destination.write(empty);
     }
+    await resultOutput?.finishSdkOutput(
+      explicitExit ??
+        (typeof process.exitCode === "number" ? process.exitCode : 0),
+    );
     // logCliCommand reports some failures only through process.exitCode.
     return {
       exitCode:

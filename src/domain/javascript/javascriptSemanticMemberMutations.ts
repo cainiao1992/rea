@@ -1,4 +1,8 @@
 import * as t from "@babel/types";
+import {
+  createAmbientPathResolver,
+  retainSemanticAmbientEffect,
+} from "./javascriptSemanticAmbientWrites.js";
 import { isIntrinsicMapLookup } from "./javascriptSemanticMapOperations.js";
 import {
   isIntrinsicTypedArrayConstruction,
@@ -604,6 +608,7 @@ export function* collectSemanticMemberMutationsSteps(
     iterableReferenceKeys.set(reference.node, keys);
     iterableReferences.push(reference);
   };
+  const ambientPaths = createAmbientPathResolver(state, true);
   const markValue = (
     node: t.Node,
     path: PropertyPath,
@@ -659,6 +664,18 @@ export function* collectSemanticMemberMutationsSteps(
       if (t.isIdentifier(expression)) {
         const binding = resolveBinding(expression, expression.name);
         if (binding === undefined) {
+          for (const path of ambientPaths(
+            expression,
+            current.originAt,
+            effect === "escape",
+            current.path.map((key) =>
+              key === null || typeof key === "object" ? null : String(key),
+            ),
+          ))
+            if (retainSemanticAmbientEffect(state, effect, path, mutation)) {
+              recordedEffectCount += 1;
+              clearSemanticValueCaches(state);
+            }
           const processOrigin = semanticGlobalProcessOrigin(expression, state);
           if (processOrigin !== undefined)
             recordRequiredEffect(
@@ -1610,6 +1627,7 @@ const observableMutationPaths = (
     prefix: PropertyPath,
   ) => boolean;
 } => {
+  const ambientPaths = createAmbientPathResolver(state, false);
   const bindingNodes = new Map<string, MutationObserverNode>();
   const expressions = new WeakMap<t.Node, MutationObserverNode>();
   const pendingExpressions: {
@@ -1749,6 +1767,8 @@ const observableMutationPaths = (
             ["globalThis", "global", "window", "self"].includes(expression.name)
           )
             (observer.origins ??= new Set()).add("ambient");
+          else if (ambientPaths(expression).length > 0)
+            (observer.origins ??= new Set()).add("opaque");
         } else if (
           t.isMemberExpression(expression) ||
           t.isOptionalMemberExpression(expression)
@@ -1818,11 +1838,12 @@ const observableMutationPaths = (
                 add("opaque");
               } else if (origin === "array-prototype" || origin === "opaque")
                 add(origin);
-              else if (
-                origin === "ambient" &&
-                semanticPropertyPathKeyMatches(key, "Array")
-              )
-                add("array");
+              else if (origin === "ambient")
+                add(
+                  semanticPropertyPathKeyMatches(key, "Array")
+                    ? "array"
+                    : "opaque",
+                );
               else if (
                 origin === "array" &&
                 semanticPropertyPathKeyMatches(key, "prototype")

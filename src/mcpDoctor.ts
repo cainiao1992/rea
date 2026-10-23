@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 import { createCatalogIdentity } from "./catalogIdentity.js";
+import { jsonLinesErrorRecord } from "./cli/jsonLines.js";
 import {
   CLI_OUTPUT_FORMATS,
   type CliOutputFormat,
@@ -343,7 +344,9 @@ export const runProductionMcpDoctorCli = async (
       return { output: `${renderMcpDoctorHelp()}\n`, exitCode: 0 };
     return {
       output: renderCliDocument(
-        { code: parsed.code, message: parsed.message },
+        parsed.format === "jsonl"
+          ? jsonLinesErrorRecord({ code: parsed.code, message: parsed.message })
+          : { code: parsed.code, message: parsed.message },
         parsed.format,
         input.stdoutIsTerminal,
       ),
@@ -368,7 +371,9 @@ export const runProductionMcpDoctorCli = async (
     : result;
   return {
     output: renderCliDocument(
-      outputValue,
+      parsed.format === "jsonl" && !result.healthy
+        ? jsonLinesErrorRecord(outputValue)
+        : outputValue,
       parsed.format,
       input.stdoutIsTerminal,
     ),

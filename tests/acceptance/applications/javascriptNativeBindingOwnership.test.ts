@@ -107,5 +107,23 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       ]),
     );
     expect(dependencySources).not.toContain("local.cjs");
+    const resolver = dependencies.filter(
+      (edge) =>
+        edge.evidence.location.available &&
+        edge.evidence.location.value.kind === "source-range" &&
+        edge.evidence.location.value.source === "resolver.cjs",
+    );
+    expect(resolver).toEqual([
+      expect.objectContaining({
+        relation: "imports",
+        properties: expect.objectContaining({
+          operation: "resolve",
+          resolved_path: "addon.node",
+        }),
+      }),
+    ]);
+    for (const edge of dependencies)
+      if (edge.properties.operation === "load")
+        expect(edge.relation).toBe("loads");
   },
 );

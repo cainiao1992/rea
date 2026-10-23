@@ -58,11 +58,14 @@ numbering (`PN_XNUM`, including a section count stored when `e_shnum` is 0) is
 unsupported and returns an unsupported-target outcome rather than invalid-input
 recovery.
 
-`SHF_COMPRESSED` note sections return an unsupported-target outcome before
-their compression bytes are interpreted as note records. This workflow reports
-note locations as original file ranges and does not yet represent decoded note
-coordinates. Inspect a separately decompressed copy when those notes are needed;
-retain the original artifact for provenance.
+`SHF_COMPRESSED` note sections return `unsupported_target` before their payload
+is interpreted or decompressed. Their compression header is storage metadata,
+not a note header. The current result requires physical file offsets for each
+note and descriptor, which decoded compressed notes cannot provide. This refusal
+does not label compressed note storage as malformed or allocate its declared
+decoded size. Compressed section-name tables remain supported within the limits
+above. Inspect a separately decompressed copy when these notes are needed,
+retaining the original artifact for provenance.
 
 This workflow does not execute the image or verify GNU build-id uniqueness
 against package catalogs.

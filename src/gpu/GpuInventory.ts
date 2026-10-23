@@ -1,9 +1,9 @@
 import {
   CCOB_MAGIC,
   CLANG_BUNDLE_MAGIC,
+  findLegacyCcobRecoveryTotal,
   readClangBundleDirectory,
   readCcobHeader,
-  ccobRecoveryOffset,
 } from "./ClangOffloadBundle.js";
 import { gpuObject, gpuLocation, type GpuPayloadTarget } from "./GpuObject.js";
 import { readCudaTarget } from "./CudaTarget.js";
@@ -53,17 +53,6 @@ import {
   readPtxTarget,
 } from "./PtxKernels.js";
 
-const requireAmdElfPayload = (bytes: Buffer): void => {
-  if (
-    bytes.subarray(0, 4).equals(Buffer.from([0x42, 0x43, 0xc0, 0xde])) ||
-    bytes.subarray(0, 4).equals(Buffer.from([0xde, 0xc0, 0x17, 0x0b]))
-  )
-    throw new BinaryFormatFailure(
-      "unsupported",
-      "HIP LLVM bitcode payload metadata is outside kernel inspection coverage",
-    );
-};
-
 /** File declarations only. Every child range stays in its named parent coordinate space. */
 export class GpuInventory {
   readonly objects: GpuObject[] = [];
@@ -109,6 +98,11 @@ export class GpuInventory {
     this.#retain({ sha256, decoded_size: size });
     row.sha256 = sha256;
     row.decoded_size = size;
+  }
+  #encodedExtent(row: GpuObject, size: number): void {
+    this.#retain({ encoded_size: size, size });
+    row.encoded_size = size;
+    row.location.size = size;
   }
   #objectLimitations(row: GpuObject, messages: string[]): void {
     this.#retain(messages);
@@ -405,9 +399,8 @@ export class GpuInventory {
           this.kernels.push(kernel);
         }
       } else if (row.kind === "cubin" || row.kind === "amdgpu") {
-        // A HIP target declaration does not identify its intermediate payload
-        // representation. LLVM bitcode is recognizable but outside ELF coverage.
-        if (row.kind === "amdgpu") requireAmdElfPayload(bytes);
+        if (row.kind === "amdgpu" && isLlvmBitcode(bytes))
+          throw new BinaryFormatFailure("unsupported", LLVM_BITCODE_LIMITATION);
         coverage = await this.#elfFacts(decoded, row, row.kind, preparedAmd);
       } else {
         row.inspection = "unsupported";
@@ -478,8 +471,19 @@ export class GpuInventory {
     };
 
     try {
-      if (directory === undefined)
-        requireAmdElfPayload(await child.read(0, Math.min(4, child.size)));
+      // An AMD target declaration does not establish an ELF representation.
+      // Without an outer target, inventory must still avoid an ELF corruption
+      // claim for recognizable bitcode; its inner target remains unexamined.
+      if (
+        directory === undefined &&
+        isLlvmBitcode(await child.read(0, Math.min(4, child.size)))
+      ) {
+        this.discovery = "partial";
+        if (this.input.analysis !== "kernels" || !this.#selected(row))
+          this.#objectLimitations(row, [LLVM_BITCODE_LIMITATION]);
+        await this.#payload(source, row);
+        return;
+      }
       const native =
         directory ??
         (await readGpuNativeDirectory(
@@ -544,6 +548,7 @@ export class GpuInventory {
   async #hip(source: GpuSource, depth: number): Promise<void> {
     let base = 0;
     let bundles = 0;
+    let legacyWindow: { offset: number; bytes: Buffer } | undefined;
     while (base < source.size) {
       if (++bundles % 128 === 0) {
         await scheduler.yield();
@@ -570,10 +575,8 @@ export class GpuInventory {
         rejectGpu("Unexpected bytes between Clang offload bundles");
       const header = readCcobHeader(prefix, source.size - base),
         { width, decoded, hash, version, method } = header;
-      let total =
-        version === 1
-          ? Math.min(header.total, width + GPU_OBJECT_BYTES)
-          : header.total;
+      let total = header.total;
+      let extentKnown = version !== 1;
       const row = gpuObject(source, {
         offset: base + width,
         size: total - width,
@@ -584,42 +587,81 @@ export class GpuInventory {
         method === 0 ? "zlib" : method === 1 ? "zstd" : "unsupported";
       row.compression_id = `ccob:${version}:${method}`;
       row.decoded_size = decoded;
-      this.#add(row);
-      let encoded: Buffer | undefined;
+      if (extentKnown) this.#add(row);
       if (row.compression === "unsupported") {
         row.inspection = "unsupported";
         this.#objectLimitations(row, ["Unsupported CCOB compression method"]);
         this.discovery = "partial";
       } else
         try {
-          this.#budgetWork(total - width, decoded);
-          encoded = await source.read(base + width, total - width);
-          const decodedPayload =
+          // v1 has no encoded size. Supply a bounded suffix, then retain only
+          // the codec's completed extent, never an embedded CCOB marker.
+          const inputSize =
             version === 1
-              ? await decodeGpuPayloadStream(
-                  encoded,
-                  row.compression,
-                  decoded,
-                  this.signal,
-                )
-              : {
-                  buffer: await decodeGpuPayload(
-                    encoded,
-                    row.compression,
-                    decoded,
-                    this.signal,
-                  ),
-                  consumedBytes: encoded.length,
-                };
-          const data = decodedPayload.buffer;
+              ? Math.min(total - width, GPU_OBJECT_BYTES)
+              : total - width;
+          let data: Buffer;
           if (version === 1) {
-            total = width + decodedPayload.consumedBytes;
-            row.encoded_size = decodedPayload.consumedBytes;
-            row.location.size = decodedPayload.consumedBytes;
+            const start = base + width;
+            const cached =
+              legacyWindow !== undefined &&
+              start >= legacyWindow.offset &&
+              start < legacyWindow.offset + legacyWindow.bytes.length;
+            const readWindow = async (): Promise<Buffer> => {
+              this.#budgetWork(inputSize, decoded);
+              legacyWindow = undefined;
+              const bytes = await source.read(start, inputSize);
+              legacyWindow = { offset: start, bytes };
+              return bytes;
+            };
+            if (cached) this.#budgetWork(decoded);
+            let encoded: Buffer | undefined = cached
+              ? legacyWindow!.bytes.subarray(start - legacyWindow!.offset)
+              : await readWindow();
+            const available = encoded.length;
+            const compression = row.compression;
+            const completed = await decodeGpuPayloadStream(
+              encoded,
+              compression,
+              decoded,
+              this.signal,
+            ).catch(async (cause: unknown) => {
+              // A cached window may end inside this sibling. Refill once
+              // before treating that incomplete view as a malformed stream.
+              if (
+                !(cause instanceof BinaryFormatFailure) ||
+                !cached ||
+                available >= inputSize
+              )
+                throw cause;
+              // Retire the previous window before allocating its replacement.
+              encoded = undefined;
+              return decodeGpuPayloadStream(
+                await readWindow(),
+                compression,
+                decoded,
+                this.signal,
+              );
+            });
+            total = width + completed.consumedBytes;
+            extentKnown = true;
+            this.#encodedExtent(row, completed.consumedBytes);
+            // Publish the completed parent extent before inspecting its children.
+            this.#add(row);
+            data = completed.buffer;
+            if (data.length !== decoded)
+              rejectGpu(
+                "GPU decompressed length disagrees with its declaration",
+              );
+          } else {
+            this.#budgetWork(inputSize, decoded);
+            data = await decodeGpuPayload(
+              await source.read(base + width, inputSize),
+              row.compression,
+              decoded,
+              this.signal,
+            );
           }
-          // Recovery scanning applies only when the codec could not establish
-          // an extent, not to hash failures or malformed decoded children.
-          encoded = undefined;
           if (
             createHash("md5").update(data).digest().readBigUInt64LE(0) !== hash
           )
@@ -628,24 +670,44 @@ export class GpuInventory {
           await this.inspect(new GpuBufferSource(data, row.id), depth + 1);
           row.inspection = "complete";
         } catch (cause) {
-          if (version === 1 && encoded !== undefined) {
-            const recovered = ccobRecoveryOffset(encoded);
-            if (recovered !== undefined) {
-              total = width + recovered;
-              row.encoded_size = recovered;
-              row.location.size = recovered;
-              this.#objectLimitations(row, [
-                "Legacy stream decoding failed; the next structurally recognized CCOB header is a recovery boundary, not a verified codec extent.",
-              ]);
-            }
-          }
           this.#retainFailure(row, cause);
           this.discovery = "partial";
         }
+      if (!extentKnown) {
+        if (row.inspection !== "capacity")
+          try {
+            total = await findLegacyCcobRecoveryTotal(source, base);
+          } catch (cause) {
+            if (!(cause instanceof BinaryResourceFailure)) throw cause;
+            this.#retainFailure(row, cause);
+          }
+        // A capacity refusal cannot establish a boundary for later siblings.
+        if (row.inspection === "capacity") {
+          this.#objectLimitations(row, [
+            "CCOB v1 codec extent is unknown; the retained size is only the containing tail, not a completed codec extent. Later siblings were not inferred.",
+          ]);
+          this.#add(row);
+          return;
+        }
+        this.#encodedExtent(row, total - width);
+        this.#objectLimitations(row, [
+          total < source.size - base
+            ? "CCOB v1 codec extent is unknown; the next CCOB marker is only an uncertain recovery candidate."
+            : "CCOB v1 codec extent is unknown; the retained range extends to the container end.",
+        ]);
+        this.#add(row);
+      }
       base = await nextGpuContainerOffset(source, base + total);
     }
   }
 }
+const LLVM_BITCODE_LIMITATION =
+  "LLVM bitcode kernel metadata is outside current coverage; bitcode validity and inner target were not inspected.";
+/** LLVM raw and wrapper signatures identify representation, not bitcode validity. */
+const isLlvmBitcode = (bytes: Buffer): boolean =>
+  bytes.length >= 4 &&
+  (bytes.readUInt32LE(0) === 0xdec04342 ||
+    bytes.readUInt32LE(0) === 0x0b17c0de);
 const isGpuSection = (name: string): boolean =>
   [
     ".nv_fatbin",

@@ -1,88 +1,29 @@
 import { expect, it } from "vitest";
-import { createHash } from "node:crypto";
-import { deflateSync } from "node:zlib";
 import { GpuInventory } from "./GpuInventory.js";
 import { GpuBufferSource } from "./GpuSource.js";
+import { assertArtifactReadActive } from "../artifacts/ArtifactFileOperation.js";
 import {
   ccobFixture,
   cubinFixture,
   cudaFixture,
-  hipFixture,
 } from "../../tests/fixtures/gpu/codeObjects.js";
 
-it("uses the zlib stream extent for legacy CCOB even when encoded literals contain CCOB", async () => {
-  const bundle = hipFixture(
-    Buffer.from("ordinary CCOB marker"),
-    "host-x86_64-unknown-linux",
-  );
-  const compressed = deflateSync(bundle, { level: 0 });
-  expect(compressed.indexOf("CCOB")).toBeGreaterThan(0);
-  const legacyHeader = Buffer.alloc(20);
-  legacyHeader.write("CCOB");
-  legacyHeader.writeUInt16LE(1, 4);
-  legacyHeader.writeUInt32LE(bundle.length, 8);
-  createHash("md5").update(bundle).digest().copy(legacyHeader, 12, 0, 8);
-  const legacy = Buffer.concat([legacyHeader, compressed]);
-  const following = ccobFixture(2, "zlib", bundle);
-  for (const bytes of [
-    legacy,
-    Buffer.concat([legacy, Buffer.alloc(4), following]),
-  ]) {
-    const inventory = new GpuInventory({
-      path: "/fixture",
-      analysis: "inventory",
-    });
-    await inventory.inspect(new GpuBufferSource(bytes, "fixture"));
-    expect(inventory.discovery).toBe("complete");
-    expect(inventory.objects[0]).toMatchObject({
-      encoded_size: compressed.length,
-      location: { offset: 20, size: compressed.length },
-      inspection: "complete",
-    });
-    if (bytes !== legacy)
-      expect(
-        inventory.objects.filter((row) => row.kind === "hip-bundle"),
-      ).toHaveLength(2);
-  }
-});
-
-it.each(["hip-amdgcn-amd-amdhsa--gfx1100", "hip-amdgcn-amd-amdhsa--"])(
-  "keeps HIP bitcode %s unsupported with its digest and target declaration",
-  async (id) => {
-    const payload = Buffer.from("4243c0de00000000", "hex");
-    const inventory = new GpuInventory({
-      path: "/fixture",
-      analysis: "kernels",
-    });
-    await inventory.inspect(
-      new GpuBufferSource(hipFixture(payload, id), "fixture"),
-    );
-    expect(inventory.objects.at(-1)).toMatchObject({
-      inspection: "unsupported",
-      limitations: expect.arrayContaining([
-        expect.stringContaining("LLVM bitcode"),
-      ]),
-    });
-    if (id.endsWith("gfx1100"))
-      expect(inventory.objects.at(-1)?.sha256).toBe(
-        createHash("sha256").update(payload).digest("hex"),
-      );
-    expect(inventory.kernels).toEqual([]);
-  },
-);
-
-it.each(["cuda", "ccob"] as const)(
+it.each(["cuda", "ccob", "ccob-v1"] as const)(
   "refuses oversized %s output before reading compressed input",
   async (kind) => {
     const bytes =
       kind === "cuda"
         ? cudaFixture("zstd", [{ kind: 2, target: 80, bytes: cubinFixture() }])
-        : ccobFixture(3);
-    const payloadOffset = kind === "cuda" ? 80 : 32;
-    bytes.writeBigUInt64LE(
-      BigInt(128 * 1024 * 1024 + 1),
-      kind === "cuda" ? 72 : 16,
-    );
+        : kind === "ccob"
+          ? ccobFixture(3)
+          : Buffer.concat([ccobFixture(1), ccobFixture(2)]);
+    const payloadOffset = kind === "cuda" ? 80 : kind === "ccob" ? 32 : 20;
+    if (kind === "ccob-v1") bytes.writeUInt32LE(128 * 1024 * 1024 + 1, 8);
+    else
+      bytes.writeBigUInt64LE(
+        BigInt(128 * 1024 * 1024 + 1),
+        kind === "cuda" ? 72 : 16,
+      );
     const source = new GpuBufferSource(bytes, "fixture"),
       reads: number[] = [],
       inventory = new GpuInventory({ path: "/fixture", analysis: "kernels" });
@@ -100,6 +41,65 @@ it.each(["cuda", "ccob"] as const)(
       sha256: null,
     });
     expect(inventory.kernels).toEqual([]);
+    if (kind === "ccob-v1") {
+      expect(inventory.objects).toHaveLength(1);
+      expect(inventory.objects[0]!.location.size).toBe(bytes.length - 20);
+      expect(inventory.objects[0]!.limitations.join(" ")).toContain(
+        "only the containing tail",
+      );
+      expect(inventory.objects[0]!.limitations.join(" ")).toContain(
+        "Later siblings were not inferred",
+      );
+    }
+  },
+);
+it.each(["zlib", "zstd"] as const)(
+  "omits an unfinished v1 %s extent when cancellation interrupts its source read",
+  async (codec) => {
+    const first = ccobFixture(2, codec),
+      second = ccobFixture(1, codec),
+      source = new GpuBufferSource(Buffer.concat([first, second]), "fixture"),
+      controller = new AbortController(),
+      reason = { selected: "cancel-v1-payload-read" },
+      inventory = new GpuInventory(
+        { path: "/fixture", analysis: "inventory" },
+        controller.signal,
+      );
+    let interrupted = false;
+    const result = inventory.inspect({
+      size: source.size,
+      containerId: source.containerId,
+      read: async (offset, size) => {
+        if (offset === first.length + 20) {
+          interrupted = true;
+          controller.abort(reason);
+          assertArtifactReadActive(controller.signal);
+        }
+        return source.read(offset, size);
+      },
+    });
+    await expect(result).rejects.toMatchObject({
+      reason: "cancelled",
+      cause: reason,
+    });
+    expect(interrupted).toBe(true);
+    const wrappers = inventory.objects.filter(
+      ({ kind }) => kind === "hip-bundle",
+    );
+    expect(wrappers).toHaveLength(1);
+    expect(wrappers[0]).toMatchObject({
+      id: "fixture@0",
+      inspection: "complete",
+      encoded_size: first.length - 24,
+      location: { offset: 24, size: first.length - 24 },
+    });
+    expect(
+      inventory.objects.every(
+        ({ id, parent_id }) =>
+          id !== `fixture@${first.length.toString(16)}` &&
+          parent_id !== `fixture@${first.length.toString(16)}`,
+      ),
+    ).toBe(true);
   },
 );
 it("observes cancellation while walking flat empty bundles in a decoded buffer", async () => {
@@ -119,3 +119,34 @@ it("observes cancellation while walking flat empty bundles in a decoded buffer",
     cause: reason,
   });
 });
+it.each(["zlib", "zstd"] as const)(
+  "reuses observed %s input across multiple valid legacy CCOB siblings",
+  async (codec) => {
+    const count = 16,
+      bytes = Buffer.concat(
+        Array.from({ length: count }, () => ccobFixture(1, codec)),
+      ),
+      source = new GpuBufferSource(bytes, "fixture"),
+      inventory = new GpuInventory({ path: "/fixture", analysis: "inventory" });
+    let observedReadBytes = 0;
+    await inventory.inspect({
+      size: source.size,
+      containerId: source.containerId,
+      read: async (offset, size) => {
+        observedReadBytes += size;
+        return source.read(offset, size);
+      },
+    });
+    const bundles = inventory.objects.filter(
+      ({ kind }) => kind === "hip-bundle",
+    );
+    expect(bundles).toHaveLength(count);
+    expect(bundles.every(({ inspection }) => inspection === "complete")).toBe(
+      true,
+    );
+    expect(inventory.discovery).toBe("complete");
+    // Includes prefix/alignment reads. Re-reading every suffix grows with the
+    // square of the sibling count and exceeds this physical-input allowance.
+    expect(observedReadBytes).toBeLessThan(2 * bytes.length);
+  },
+);

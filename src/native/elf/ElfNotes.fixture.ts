@@ -209,6 +209,33 @@ export const elfNoteFixture = (options: ElfNoteImageOptions = {}): Buffer => {
   return bytes;
 };
 
+/** A non-allocated SHT_NOTE whose stored bytes include an ELF compression header. */
+export const compressedElfNoteSectionFixture = (
+  bits: 32 | 64 = 64,
+  little = true,
+): Buffer => {
+  const notes = concat(
+    gnuBuildIdNote(undefined, little),
+    gnuAbiTagNote(little),
+  );
+  const header = Buffer.alloc(bits === 64 ? 24 : 12);
+  write32(header, 0, 1, little); // ELFCOMPRESS_ZLIB
+  writeWord(header, bits === 64 ? 8 : 4, notes.length, bits, little);
+  writeWord(header, bits === 64 ? 16 : 8, 4, bits, little);
+  const bytes = elfNoteFixture({
+    bits,
+    little,
+    type: 1,
+    ownership: "section",
+    sectionName: ".debug.notes",
+    alignment: bits === 64 ? 8 : 4,
+    notes: concat(header, deflateSync(notes)),
+  });
+  const noteSection = (bits === 64 ? 64 : 52) + (bits === 64 ? 64 : 40);
+  writeWord(bytes, noteSection + 8, 0x800, bits, little);
+  return bytes;
+};
+
 /** Valid ELF64 section count stored in section header zero per the gABI. */
 export const elfExtendedSectionCountFixture = (): Buffer => {
   const count = 0xff00;

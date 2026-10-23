@@ -111,6 +111,9 @@ server; older servers keep the complete request after schema discovery.
   Nonempty GNU build-ID descriptors up to 64 bytes are retained as lowercase
   hexadecimal, including IDs shorter than four bytes.
   Matching bytes outside declared note ranges cannot supply a build ID.
+  Compressed `SHT_NOTE` sections are skipped with an unsupported-compression
+  limitation and partial coverage; IDs from other note ranges remain candidates.
+  Encoded note storage is never interpreted as note headers or inflated.
 - Labeled strings must fit their complete grammar. `dart_version_capped`
   and `toolchain_capped` independently report labels omitted by grammar or
   projection bounds; either makes identification coverage partial. Values

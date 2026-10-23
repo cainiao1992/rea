@@ -1,7 +1,10 @@
 import { expect, it } from "vitest";
 
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
-import { indexJavaScriptBindingsSteps } from "./javascriptSemanticAnalysis.js";
+import {
+  indexJavaScriptBindingsSteps,
+  indexJavaScriptBindingsWithReceiversSteps,
+} from "./javascriptSemanticAnalysis.js";
 import { completeSemanticSteps } from "./javascriptSemanticTraversal.js";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
 
@@ -102,4 +105,26 @@ new Worker(new URL("./worker.js", import.meta.url));`;
     (reference) => reference.kind === "worker",
   );
   expect(worker?.specifier).toBe(specifier);
+});
+
+it("retains getter-derived ambient escapes once per invoked read site", () => {
+  const source = `const box={loader:require,get trigger(){this.loader.resolve=this.loader;return 0}};
+box.trigger;
+box.trigger;`;
+  const parsed = parseJavaScriptSource(source);
+  if (parsed === null) throw new Error("Expected getter fixture");
+  const index = completeSemanticSteps(
+    indexJavaScriptBindingsWithReceiversSteps(parsed.program),
+  );
+  completeSemanticSteps(index.indexMemberMutationFactsSteps());
+  const effects = index.bindings.ambientEscapeEffects.filter(
+    ({ path }) =>
+      JSON.stringify(path) === JSON.stringify(["global", "require", null]),
+  );
+  expect(
+    effects.map(({ node }) =>
+      node === undefined ? null : source.slice(node.start ?? 0, node.end ?? 0),
+    ),
+  ).toEqual(["box.trigger", "box.trigger"]);
+  expect(effects[0]?.node).not.toBe(effects[1]?.node);
 });

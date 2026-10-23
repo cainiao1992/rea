@@ -16,9 +16,18 @@ export const writeJsonOutput = async (
   destination: Writable,
   format: JsonOutputFormat = "json",
 ): Promise<void> => {
-  for (const part of bufferedJsonParts(
+  await writeOutputParts(
+    destination,
     jsonOutputParts(value, format, isTerminal(destination)),
-  ))
+  );
+};
+
+/** Share bounded writes and destination ownership across structured formats. */
+export const writeOutputParts = async (
+  destination: Writable,
+  parts: Iterable<string>,
+): Promise<void> => {
+  for (const part of bufferedJsonParts(parts))
     await writeOutputText(destination, part);
 };
 

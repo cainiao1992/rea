@@ -702,6 +702,13 @@ export const semanticRequireCallAt = (
       state,
       factoryBindingIds,
     );
+    if (loader === "unknown")
+      return {
+        operation: "load",
+        loader,
+        arguments: undefined,
+        sourceRelative: false,
+      };
     // Bundler factory loaders can share the `require` shape, but their
     // `.resolve` member is not Node's module resolver.
     if (loader === "commonjs-loader" || loader === "create-require") {

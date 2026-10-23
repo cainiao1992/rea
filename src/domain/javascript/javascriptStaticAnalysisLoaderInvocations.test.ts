@@ -157,7 +157,13 @@ it("retains a mutated require.resolve request as an unknown fact", () => {
     analyzeJavaScriptStaticSource(source).references.filter(
       ({ kind }) => kind === "require",
     ),
-  ).toEqual([expect.objectContaining({ kind: "require", specifier: null })]);
+  ).toEqual([
+    expect.objectContaining({
+      kind: "require",
+      operation: "load",
+      specifier: null,
+    }),
+  ]);
 });
 
 it("does not treat bundler factory resolve members as Node resolvers", () => {

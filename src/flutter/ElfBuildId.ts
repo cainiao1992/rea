@@ -71,6 +71,7 @@ export const readElfBuildIds = async (
     string,
     { offset: number; size: number; alignment: number }
   >();
+  let compressedNotes = false;
   tables: for (const table of [
     {
       offset: h.e_phoff,
@@ -117,6 +118,20 @@ export const readElfBuildIds = async (
         size > totalBytes - offset
       )
         return failure("ELF note range is not file-backed");
+      if (!table.program) {
+        const flags = h.is64
+          ? bytes.readBigUInt64LE(base + 8)
+          : BigInt(bytes.readUInt32LE(base + 8));
+        if ((flags & 0x800n) !== 0n) {
+          if (!compressedNotes) {
+            failures.push({
+              reason: "Compressed ELF note sections are unsupported",
+            });
+            compressedNotes = true;
+          }
+          continue;
+        }
+      }
       if (size === 0) continue;
       const alignmentAt =
         base + (table.program ? (h.is64 ? 48 : 28) : h.is64 ? 48 : 32);

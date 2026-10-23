@@ -315,8 +315,15 @@ cliTest(
         "operation",
       ],
     });
-    expect(jsonl.exitCode).toBe(0);
-    expect(jsonl.json).toBe("inspect_managed_members");
+    expect(jsonl.exitCode).toBe(1);
+    expect(jsonl.json).toMatchObject({
+      $rea: "jsonl/v1",
+      type: "error",
+      result: {
+        code: "unreadable_output",
+        remediation: { action: expect.stringContaining("--format json") },
+      },
+    });
   },
 );
 

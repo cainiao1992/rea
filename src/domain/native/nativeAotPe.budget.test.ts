@@ -188,8 +188,11 @@ describe("NativeAOT detail and summary byte accounting", () => {
           summary = candidate.summary;
           break;
         }
-      } catch {
+      } catch (cause: unknown) {
         // Budgets below the fixed report header cannot carry an honest summary.
+        expect(cause).toMatchObject({
+          message: "NativeAOT metadata summary exceeds its report-byte budget",
+        });
       }
       budget--;
     }

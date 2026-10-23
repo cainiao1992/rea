@@ -1442,9 +1442,8 @@ export const parseNativeAotPe = (
       ? ["The RTR directory has no FROZEN_OBJECT_REGION section."]
       : []),
   ];
-  const budgetSkeleton = {
+  const reportFacts = {
     format: "dotnet-nativeaot",
-    status: "complete",
     reason: recoveryReason,
     analysis_artifact_sha256: sha256,
     analysis_mode: "read-only-derived-overlay",
@@ -1453,11 +1452,6 @@ export const parseNativeAotPe = (
     format_major: directory.major,
     format_minor: directory.minor,
     method_tables: discovered.tables.includedCount,
-    types: [],
-    frozen_strings: [],
-    truncated: true,
-    types_omitted: discovered.tables.includedCount,
-    frozen_strings_omitted: frozenCandidateBound,
     output_budget_bytes: maximumSummaryBytes,
     derived_overlay:
       overlay === null
@@ -1468,39 +1462,54 @@ export const parseNativeAotPe = (
             sha256: overlay.sha256,
           },
     derived_memory: null,
-    coverage: {
-      pointer_candidates_examined: discovered.pointerCount,
-      pointer_slots_examined: discovered.pointerSlotsExamined,
-      scan_bytes_examined: discovered.scanBytesExamined,
-      scan_bytes_omitted: discovered.scanBytesOmitted,
-      rtr_signature_scan_bytes_examined: directorySearch.scanBytesExamined,
-      rtr_signature_scan_bytes_omitted: directorySearch.scanBytesOmitted,
-      method_table_validation_items_examined:
-        discovered.methodTableValidationItemsExamined,
-      // Reserve the largest numeric encodings used by the eventual coverage
-      // fields so the summary budget remains valid after frozen-region work.
-      work_units_examined: budget.limits.workUnits,
-      work_budget_units: budget.limits.workUnits,
-      source_byte_budget_bytes: budget.limits.sourceBytes,
-      working_memory_budget_bytes: budget.limits.workingMemoryBytes,
-      working_memory_bytes_peak: budget.limits.workingMemoryBytes,
-      truncation_reason: "response-budget",
-      method_tables_recovered: discovered.tables.includedCount,
-      frozen_string_candidates: 0,
-      frozen_scan_bytes_examined: frozenCandidateBound * 8,
-      frozen_string_data_bytes_examined:
-        frozen === undefined ? 0 : Number(frozen.end - frozen.start),
-      frozen_scan_bytes_omitted: frozenCandidateBound * 8,
-      basis:
-        overlay === null
-          ? "raw-image-pointer-scan"
-          : "raw-image-and-rehydrated-pointer-scan",
-    },
     diagnostics:
       hydrationError === null
         ? []
         : [`Read-only hydration stopped: ${hydrationError}`],
     limitations: reportLimitations,
+  } satisfies Omit<
+    NativeAotReport,
+    "status" | "types" | "frozen_strings" | "coverage"
+  >;
+  const coverageFacts = {
+    pointer_candidates_examined: discovered.pointerCount,
+    pointer_slots_examined: discovered.pointerSlotsExamined,
+    scan_bytes_examined: discovered.scanBytesExamined,
+    scan_bytes_omitted: discovered.scanBytesOmitted,
+    rtr_signature_scan_bytes_examined: directorySearch.scanBytesExamined,
+    rtr_signature_scan_bytes_omitted: directorySearch.scanBytesOmitted,
+    method_table_validation_items_examined:
+      discovered.methodTableValidationItemsExamined,
+    work_budget_units: budget.limits.workUnits,
+    source_byte_budget_bytes: budget.limits.sourceBytes,
+    working_memory_budget_bytes: budget.limits.workingMemoryBytes,
+    method_tables_recovered: discovered.tables.includedCount,
+    basis:
+      overlay === null
+        ? "raw-image-pointer-scan"
+        : "raw-image-and-rehydrated-pointer-scan",
+  } satisfies Omit<NativeAotReport["coverage"], "frozen_string_candidates">;
+  const budgetSkeleton: NativeAotReport = {
+    ...reportFacts,
+    status: "complete",
+    types: [],
+    frozen_strings: [],
+    truncated: true,
+    types_omitted: discovered.tables.includedCount,
+    frozen_strings_omitted: frozenCandidateBound,
+    coverage: {
+      ...coverageFacts,
+      // Reserve the largest numeric encodings used by the eventual coverage
+      // fields so the summary budget remains valid after frozen-region work.
+      work_units_examined: budget.limits.workUnits,
+      working_memory_bytes_peak: budget.limits.workingMemoryBytes,
+      truncation_reason: "response-budget",
+      frozen_string_candidates: 0,
+      frozen_scan_bytes_examined: frozenCandidateBound * 8,
+      frozen_string_data_bytes_examined:
+        frozen === undefined ? 0 : Number(frozen.end - frozen.start),
+      frozen_scan_bytes_omitted: frozenCandidateBound * 8,
+    },
   };
   let remainingSummaryBytes =
     maximumSummaryBytes - Buffer.byteLength(JSON.stringify(budgetSkeleton));
@@ -1591,56 +1600,25 @@ export const parseNativeAotPe = (
       ? "response-budget"
       : undefined);
   const summary: NativeAotReport = {
-    format: "dotnet-nativeaot",
+    ...reportFacts,
     status:
       truncated ||
       hydrationError !== null ||
       discovered.tables.includedCount === 0
         ? "partial"
         : "complete",
-    reason: recoveryReason,
-    analysis_artifact_sha256: sha256,
-    analysis_mode: "read-only-derived-overlay",
-    header_address: hex(directory.address),
-    discovery: "signature-heuristic",
-    format_major: directory.major,
-    format_minor: directory.minor,
-    method_tables: discovered.tables.includedCount,
     types,
     frozen_strings: frozenStrings,
     truncated,
     types_omitted: typesOmitted,
     frozen_strings_omitted: frozenStringsOmitted,
-    output_budget_bytes: maximumSummaryBytes,
-    derived_overlay:
-      overlay === null
-        ? null
-        : {
-            address: hex(overlay.base),
-            size_bytes: overlay.sizeBytes,
-            sha256: overlay.sha256,
-          },
-    derived_memory: null,
     coverage: {
-      pointer_candidates_examined: discovered.pointerCount,
-      pointer_slots_examined: discovered.pointerSlotsExamined,
-      scan_bytes_examined: discovered.scanBytesExamined,
-      scan_bytes_omitted: discovered.scanBytesOmitted,
-      rtr_signature_scan_bytes_examined: directorySearch.scanBytesExamined,
-      rtr_signature_scan_bytes_omitted: directorySearch.scanBytesOmitted,
-      method_table_validation_items_examined:
-        discovered.methodTableValidationItemsExamined,
+      ...coverageFacts,
       work_units_examined: budget.workUnits,
-      work_budget_units: budget.limits.workUnits,
-      source_byte_budget_bytes: budget.limits.sourceBytes,
-      working_memory_budget_bytes: budget.limits.workingMemoryBytes,
       working_memory_bytes_peak: budget.workingMemoryBytesPeak,
-      ...(budget.truncationReason === undefined
-        ? truncationReason === undefined
-          ? {}
-          : { truncation_reason: truncationReason }
-        : { truncation_reason: budget.truncationReason }),
-      method_tables_recovered: discovered.tables.includedCount,
+      ...(truncationReason === undefined
+        ? {}
+        : { truncation_reason: truncationReason }),
       frozen_string_candidates: frozenCandidates,
       frozen_scan_bytes_examined: frozenScanBytesExamined,
       frozen_string_data_bytes_examined: frozenStringDataBytesExamined,
@@ -1648,16 +1626,7 @@ export const parseNativeAotPe = (
         0,
         frozenCandidateBound * 8 - frozenScanBytesExamined,
       ),
-      basis:
-        overlay === null
-          ? "raw-image-pointer-scan"
-          : "raw-image-and-rehydrated-pointer-scan",
     },
-    diagnostics:
-      hydrationError === null
-        ? []
-        : [`Read-only hydration stopped: ${hydrationError}`],
-    limitations: reportLimitations,
   };
   if (Buffer.byteLength(JSON.stringify(summary)) > maximumSummaryBytes)
     throw new Error(

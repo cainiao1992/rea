@@ -3,10 +3,10 @@ import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
 import type { JavaScriptPackageType } from "../domain/javascript/javascriptSourceParser.js";
-import { decodeJavaScriptModuleUrlPath } from "../domain/javascript/javascriptModuleSpecifier.js";
 import { logicalPathEscapesRoot } from "../domain/artifactIdentity.js";
 import {
   createReferenceSourcePathLookup,
+  decodeReferenceSourceModuleUrlPath,
   isPortableAbsoluteReferenceTarget,
   type ReferenceSourcePathLookup,
 } from "../domain/referenceSourcePathIdentity.js";
@@ -322,7 +322,7 @@ const importLookupPath = (
     );
   if (!target.pathname.startsWith("/rea-reference/"))
     return err("The module URL escapes the selected source inventory.");
-  const decoded = decodeJavaScriptModuleUrlPath(
+  const decoded = decodeReferenceSourceModuleUrlPath(
     target.pathname.slice("/rea-reference/".length),
   );
   return decoded.ok

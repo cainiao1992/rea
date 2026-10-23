@@ -505,6 +505,13 @@ by file order. Omit `--evidence-bundle` when the request supplies inline Evidenc
 
 ## Import historical source
 
+Historical source inventories preserve exact filenames, including literal backslashes
+on POSIX hosts. Relative import lookup uses the recorded source file's owning
+directory and decodes URL percent escapes once; encoded slash, NUL and malformed
+escapes remain unresolved. A decoded backslash remains part of a filename rather
+than a directory separator. This inventory lookup does not claim that Node can
+load that filename or apply Node's runtime file-URL admission policy.
+
 Import an older source tree to compare with the current artifact:
 
 ```bash

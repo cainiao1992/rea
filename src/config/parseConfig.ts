@@ -83,6 +83,12 @@ export const parseConfig = (
     ghidraInstallDir: env.GHIDRA_INSTALL_DIR,
     ghidraJavaHome: env.JAVA_HOME,
     ghidraStartupTimeoutMs: env.REA_GHIDRA_STARTUP_TIMEOUT_MS,
+    ...(env.REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS === undefined
+      ? {}
+      : {
+          ghidraDecompileTimeoutSeconds:
+            env.REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS,
+        }),
     ...(env.REA_GHIDRA_LANGUAGE_ID === undefined
       ? {}
       : {

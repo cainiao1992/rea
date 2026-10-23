@@ -37,6 +37,7 @@ interface ResolvedClientRegistrationEnvironmentDetails extends ClientRegistratio
 
 const TIMEOUT_INPUT_SETTINGS: ReadonlySet<string> = new Set([
   "REA_ANALYSIS_PROVIDER",
+  "REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS",
   "REA_GHIDRA_STARTUP_TIMEOUT_MS",
   "REA_HOPPER_STARTUP_TIMEOUT_MS",
   "REA_JEB_MCP_TIMEOUT_MS",
@@ -212,6 +213,12 @@ const environmentDetails = (
     : {
         analysisProvider: configuration.REA_ANALYSIS_PROVIDER,
         ghidraStartupTimeoutMs: configuration.REA_GHIDRA_STARTUP_TIMEOUT_MS,
+        ...(configuration.REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS === undefined
+          ? {}
+          : {
+              ghidraDecompileTimeoutMs:
+                configuration.REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS * 1000,
+            }),
         hopperStartupTimeoutMs: configuration.REA_HOPPER_STARTUP_TIMEOUT_MS,
         ...(configuration.REA_JEB_MCP_TIMEOUT_MS === undefined
           ? {}

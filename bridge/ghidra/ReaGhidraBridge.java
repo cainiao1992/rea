@@ -178,6 +178,10 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private List<FunctionEntry> procedureInventory;
     private List<InventoryItem> stringInventory;
     private DecompInterface decompiler;
+    /** Per-function native decompiler limit from the session; 0 leaves it unbounded. */
+    private int decompileTimeoutSeconds;
+    // DecompileProcess converts seconds to an int millisecond timer delay.
+    private static final int MAX_DECOMPILE_TIMEOUT_SECONDS = Integer.MAX_VALUE / 1000;
     private final ReaGhidraExtensions analysisExtensions = new ReaGhidraExtensions();
     private static AddressSpace sessionDefaultAddressSpace;
 
@@ -189,6 +193,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
         Path descriptorPath = Path.of(arguments[0]);
         SessionDescriptor descriptor = readDescriptor(descriptorPath);
+        decompileTimeoutSeconds = descriptor.decompileTimeoutSeconds();
         // Windows retains a native immutable bearer descriptor lease until
         // runtime_close; POSIX removes it after this read. Normal cleanup removes
         // the Windows file, while abrupt owner death can leave private residue.
@@ -1557,7 +1562,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         } catch (RequestFailure failure) {
             // The listing, reference and CFG facts below do not depend on the
             // native decompiler. Cancellation still ends the request.
-            if (!failure.code.equals("decompile_failed")) throw failure;
+            if (!failure.code.equals("decompile_failed") &&
+                !failure.code.equals("decompile_timed_out")) throw failure;
             decompilation = null;
             decompilerFailure = failure.getMessage().strip();
         }
@@ -3359,11 +3365,21 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
         DecompileResults results = decompiler.decompileFunction(
             function,
-            0,
+            decompileTimeoutSeconds,
             monitor
         );
         if (results.isCancelled()) {
             throw new RequestFailure("decompile_cancelled", "Ghidra decompilation was cancelled");
+        }
+        // DecompInterface disposes the native process at the limit and starts a
+        // fresh one for the next request, so the session stays usable.
+        if (results.isTimedOut()) {
+            throw new RequestFailure(
+                "decompile_timed_out",
+                "Ghidra decompilation of " + canonicalAddress(function.getEntryPoint()) +
+                " exceeded the " + decompileTimeoutSeconds +
+                "-second limit set by REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS"
+            );
         }
         if (!results.decompileCompleted()) {
             throw new RequestFailure(
@@ -4714,10 +4730,11 @@ public final class ReaGhidraBridge extends HeadlessScript {
         };
     }
 
+    // The host queue owns session lifetime, including concurrent cancellation.
     private static RequestFailure regexStackExhausted(String expression, String stage) {
         return new RequestFailure("regex_stack_exhausted",
             "Ghidra's Java regex engine exhausted its stack while " + stage +
-            " pattern " + expression + ". Use literal mode or simplify the regex; the session remains usable.");
+            " pattern " + expression + ".");
     }
 
     private static SessionDescriptor readDescriptor(Path path) throws IOException {
@@ -4728,7 +4745,15 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Set<String> keys = new HashSet<>(DESCRIPTOR_KEYS);
         if (parsed.isJsonObject() && parsed.getAsJsonObject().has("analysis_extensions"))
             keys.add("analysis_extensions");
+        if (parsed.isJsonObject() && parsed.getAsJsonObject().has("decompile_timeout_seconds"))
+            keys.add("decompile_timeout_seconds");
         JsonObject object = requireObject(parsed, keys);
+        int decompileTimeout = 0;
+        if (object.has("decompile_timeout_seconds")) {
+            decompileTimeout = requireInteger(object, "decompile_timeout_seconds");
+            if (decompileTimeout < 1 || decompileTimeout > MAX_DECOMPILE_TIMEOUT_SECONDS)
+                throw new IllegalArgumentException("REA session descriptor is invalid");
+        }
         return new SessionDescriptor(
             requireString(object, "transport"),
             requireString(object, "endpoint_path"),
@@ -4737,7 +4762,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
             requireSha256(object, "target_sha256"),
             requireString(object, "provider_version"),
             requireString(object, "profile_digest"),
-            object.has("analysis_extensions") ? object.getAsJsonArray("analysis_extensions") : new JsonArray()
+            object.has("analysis_extensions") ? object.getAsJsonArray("analysis_extensions") : new JsonArray(),
+            decompileTimeout
         );
     }
 
@@ -4942,7 +4968,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         String targetSha256,
         String providerVersion,
         String profileDigest,
-        JsonArray analysisExtensions
+        JsonArray analysisExtensions,
+        int decompileTimeoutSeconds
     ) {}
     private record Request(int id, String method, JsonObject params) {}
 

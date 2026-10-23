@@ -86,8 +86,9 @@ const installationHost = (
 const provider = (
   host = installationHost(),
   clientFactory?: GhidraProviderClientFactory,
+  environment: Readonly<Record<string, string>> = {},
 ): GhidraProvider => {
-  const config = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL });
+  const config = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL, ...environment });
   if (!config.ok) throw config.error;
   return new GhidraProvider(
     config.value,
@@ -1365,6 +1366,169 @@ describe("Ghidra decompiler failure projection", () => {
       expect(projected.remediation.action).not.toContain("rea doctor");
     }
   });
+
+  it("reports one procedure's decompile limit as a request timeout", async () => {
+    const code = "decompile_timed_out";
+    const message =
+      "Ghidra decompilation of 0x401000 exceeded the 5-second limit set by REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS";
+    const ghidra = provider(
+      installationHost(),
+      () => ({
+        start: () => Promise.resolve(ok(sessionInfo())),
+        callTool: () =>
+          Promise.resolve(
+            err(
+              new GhidraSessionError(
+                "remote",
+                message,
+                { remote_code: code },
+                { remoteCode: code },
+              ),
+            ),
+          ),
+        close: () => Promise.resolve(ok(null)),
+      }),
+      { REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS: "5" },
+    );
+    const client = await createElfClient(ghidra);
+    const result = await client.execute("procedure_pseudo_code", {
+      procedure: "main",
+    });
+    // Not a ProviderAdapterError: BinarySession keeps other Ghidra
+    // operations available after a request-level timeout.
+    expect(result).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisTimeoutError", timeoutMs: 5000 },
+    });
+    if (!result.ok) {
+      const projected = projectAnalysisError(result.error);
+      expect(projected).toMatchObject({
+        code: "provider_timeout",
+        retryable: true,
+        message: `${message}. Only this procedure's decompilation was stopped; the Ghidra session remains usable.`,
+        recovery: { kind: "inspect_timeout_state", timeout_ms: 5000 },
+        details: { diagnostics: { remote_code: code } },
+      });
+      const action = projected.remediation.action;
+      expect(action).toContain("analyze_function");
+      expect(action).toContain("REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS");
+      expect(action).toContain("tool-call deadline");
+      expect(action).toContain("new Codex/Kimi registrations");
+      expect(action).toContain("preserves existing positive values");
+      expect(action).toContain("edit existing deadlines yourself");
+      expect(action).not.toContain("rea doctor");
+    }
+  });
+});
+
+describe("Ghidra failures during cancellation cleanup", () => {
+  it.each(
+    [
+      {
+        remoteCode: "decompile_failed",
+        projectedCode: "execution_failure",
+        message: "Ghidra decompilation failed: Injected backend failure",
+      },
+      {
+        remoteCode: "decompile_timed_out",
+        projectedCode: "provider_timeout",
+        message:
+          "Ghidra decompilation of 0x401000 exceeded the 5-second limit set by REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS",
+      },
+      {
+        remoteCode: "regex_stack_exhausted",
+        projectedCode: "resource_constraint",
+        message:
+          "Ghidra's Java regex engine exhausted its stack while matching pattern (a+)+$.",
+      },
+    ].flatMap((entry) => [
+      { ...entry, cancelled: false, cleanupFailed: false },
+      { ...entry, cancelled: true, cleanupFailed: false },
+      { ...entry, cancelled: true, cleanupFailed: true },
+    ]),
+  )(
+    "reports observed session state for $remoteCode (cancelled: $cancelled, cleanup failed: $cleanupFailed)",
+    async ({
+      remoteCode,
+      projectedCode,
+      message,
+      cancelled,
+      cleanupFailed,
+    }) => {
+      const cleanup = new ProviderCleanupError("ghidra", ["owned session"], {
+        reason: "Fixture cleanup still needs retry",
+      });
+      const observed = new GhidraSessionError(
+        "remote",
+        message,
+        { remote_code: remoteCode },
+        { remoteCode },
+      );
+      const remote = cancelled
+        ? observed.withConcurrentCancellation({ reason: "client deadline" })
+        : observed;
+      const ghidra = provider(
+        installationHost(),
+        () => ({
+          start: () => Promise.resolve(ok(sessionInfo())),
+          callTool: () =>
+            Promise.resolve(
+              err(cleanupFailed ? remote.withCleanupFailure(cleanup) : remote),
+            ),
+          close: () => Promise.resolve(ok(null)),
+        }),
+        { REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS: "5" },
+      );
+      const client = await createElfClient(ghidra);
+      const result =
+        remoteCode === "regex_stack_exhausted"
+          ? await client.execute("search_procedures", { pattern: "(a+)+$" })
+          : await client.execute("procedure_pseudo_code", {
+              procedure: "main",
+            });
+      if (result.ok) throw new Error("Expected the observed remote failure");
+      const projected = projectAnalysisError(result.error);
+      expect(projected.code).toBe(
+        cleanupFailed ? "cleanup_incomplete" : projectedCode,
+      );
+      expect(projected.message).toContain(message);
+      if (!cancelled) {
+        expect(projected.message).toContain(
+          remoteCode === "regex_stack_exhausted"
+            ? "remain available"
+            : "remains usable",
+        );
+        expect(projected.remediation.action).not.toContain("remain available");
+        return;
+      }
+      const explanation = JSON.stringify(projected);
+      expect(explanation).not.toContain("remains usable");
+      expect(explanation).not.toContain("remain available");
+      expect(explanation).toContain(
+        cleanupFailed
+          ? "retry retained cleanup"
+          : "REA closed the Ghidra session",
+      );
+      if (cleanupFailed) {
+        expect(explanation).not.toContain(
+          "the next request starts a new session",
+        );
+        expect(result.error).toMatchObject({ cleanupIncomplete: true });
+      }
+      expect(projected.details).toMatchObject({
+        diagnostics: cleanupFailed
+          ? {
+              primary_error: {
+                code: projectedCode,
+                details: {
+                  diagnostics: { session_closed_by_cancellation: true },
+                },
+              },
+            }
+          : { session_closed_by_cancellation: true },
+      });
+    },
+  );
 });
 
 describe("Ghidra PE CodeView debug symbol limitations", () => {

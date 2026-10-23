@@ -39,6 +39,8 @@ export interface GhidraSessionErrorOptions extends ErrorOptions {
   readonly timeoutMs?: number;
   readonly remoteCode?: string;
   readonly cleanupFailure?: AnalysisError;
+  /** Caller cancellation that closed the session while this failure settled. */
+  readonly concurrentCancellation?: { readonly reason: unknown };
 }
 
 /** Provider-owned failure with bounded, token-redacted local diagnostics. */
@@ -49,6 +51,7 @@ export class GhidraSessionError extends Error {
   readonly cleanupFailure: AnalysisError | undefined;
   readonly cancellation: { readonly reason: unknown } | undefined;
   readonly partialObservation: AnalysisPartialObservation | undefined;
+  readonly concurrentCancellation: { readonly reason: unknown } | undefined;
 
   constructor(
     readonly kind: GhidraSessionFailureKind,
@@ -64,6 +67,7 @@ export class GhidraSessionError extends Error {
     this.cleanupFailure = options.cleanupFailure;
     this.cancellation = options.cancellation;
     this.partialObservation = options.partialObservation;
+    this.concurrentCancellation = options.concurrentCancellation;
   }
 
   /** Refresh diagnostics without discarding owned failure or cleanup facts. */
@@ -101,11 +105,28 @@ export class GhidraSessionError extends Error {
     );
   }
 
+  /**
+   * Keep this failure primary while recording that caller cancellation closed
+   * the session before it settled, so projections do not promise reuse.
+   */
+  withConcurrentCancellation(cancellation: {
+    readonly reason: unknown;
+  }): GhidraSessionError {
+    return this.#copy(
+      { ...this.diagnostics, session_closed_by_cancellation: true },
+      this.cleanupFailure,
+      this.message,
+      this.partialObservation,
+      cancellation,
+    );
+  }
+
   #copy(
     diagnostics: Readonly<Record<string, JsonValue>>,
     cleanupFailure: AnalysisError | undefined,
     message = this.message,
     partialObservation = this.partialObservation,
+    concurrentCancellation = this.concurrentCancellation,
   ): GhidraSessionError {
     return new GhidraSessionError(this.kind, message, diagnostics, {
       ...(Object.hasOwn(this, "cause") ? { cause: this.cause } : {}),
@@ -116,6 +137,9 @@ export class GhidraSessionError extends Error {
       ...(this.remoteCode === undefined ? {} : { remoteCode: this.remoteCode }),
       ...(cleanupFailure === undefined ? {} : { cleanupFailure }),
       ...(partialObservation === undefined ? {} : { partialObservation }),
+      ...(concurrentCancellation === undefined
+        ? {}
+        : { concurrentCancellation }),
     });
   }
 }

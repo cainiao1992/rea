@@ -1180,7 +1180,28 @@ One session contains exactly one imported Program; use `provider_id: "ghidra"`, 
 One persistent decompiler is owned by the Program, and a serial queue keeps
 Ghidra API calls on the owning Program thread without a fixed queue length.
 Operations run until a result, caller cancellation, or provider shutdown; there
-is no fixed per-operation or response-size ceiling. Unresolved computed calls
+is no fixed per-operation or response-size ceiling. Cancelling an operation that
+is already running stops the Ghidra session, so one function whose
+decompilation runs past the MCP client's deadline costs the whole import.
+`REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS` (an integer from 1 to 2,147,483; absent by
+default, which leaves decompilation unbounded) bounds each native decompile
+instead. This maximum keeps Ghidra’s signed 32-bit seconds-to-milliseconds
+conversion from overflowing. The client must still support a deadline covering
+startup, that limit and operation headroom. Ghidra stops that one decompile and starts a fresh decompiler process
+for the next request. `analyze_function` still returns the function's assembly,
+references and basic blocks, with pseudocode, `native_api` and
+`native_value_flow` unavailable for the reason "exceeded the N-second limit",
+and that dossier is not saved to analysis snapshots. `procedure_pseudo_code`
+fails with `provider_timeout` and that message; other Ghidra tools stay
+available. If the caller also cancels while the timeout settles, the session
+still closes and the message says so. Session reuse concerns an active MCP or
+library session; a standalone CLI command still closes its own session when it
+finishes. The limit is read when a Ghidra session
+starts, and Codex/Kimi registrations derived by `rea setup` add it to the tool
+deadline as a single-decompile estimate. A bulk call can need that limit for
+every attempted function plus listing and file work; select the client deadline
+for the workload, split batches, use `decompile_all` limit/resume, or reduce
+`trace_native_values` `max_functions` to select fewer serial decompiles. Ghidra's own interactive default is 30 seconds. Unresolved computed calls
 remain unknown, reference-kind provenance is preserved, and provider-specific
 pseudocode is never treated as original source or Hopper-equivalent text.
 

@@ -492,7 +492,13 @@ const timeoutAdvisory = (
   const isKimi = client.name === "kimi";
   // A bigint is beyond the safe Number range, so rounding cannot cross the allowance.
   const toolTimeoutMs = Number(toolTimeout) * (isKimi ? 1 : 1000);
-  if (toolTimeoutMs >= providerAllowance) return undefined;
+  const batchScope =
+    timeoutInputs.ghidraDecompileTimeoutMs !== undefined &&
+    (timeoutInputs.analysisProvider === "ghidra" ||
+      timeoutInputs.analysisProvider === "auto")
+      ? "The derived Ghidra deadline is a single-decompile estimate. For multi-function workflows such as batch_decompile, decompile_all or trace_native_values, allow startup plus every attempted function's limit and other work; split calls, reduce trace_native_values max_functions, or select a larger client deadline when needed. Explicit caller deadlines remain unchanged."
+      : undefined;
+  if (toolTimeoutMs >= providerAllowance) return batchScope;
   const setting = isKimi ? "toolTimeoutMs" : "tool_timeout_sec";
   const currentValue = isKimi
     ? `${String(toolTimeout)} ms`
@@ -503,7 +509,10 @@ const timeoutAdvisory = (
   const headroom = isKimi
     ? `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs)} ms`
     : `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs / 1000)} seconds`;
-  return `The configured ${setting} (${currentValue}) is shorter than REA's known provider allowance (${String(providerAllowance)} ms), so provider startup or an upstream request may exceed this client deadline. REA recommends ${setting} = ${recommendedValue} to cover that allowance plus ${headroom} of operation headroom; this additional headroom is a recommendation, not a guarantee for every analysis.`;
+  const recommendation = `The configured ${setting} (${currentValue}) is shorter than REA's known provider allowance (${String(providerAllowance)} ms), so provider startup or an upstream request may exceed this client deadline. REA recommends ${setting} = ${recommendedValue} to cover that allowance plus ${headroom} of operation headroom; this additional headroom is a recommendation, not a guarantee for every analysis.`;
+  return batchScope === undefined
+    ? recommendation
+    : `${recommendation} ${batchScope}`;
 };
 
 const packageVersionRemediation = (

@@ -182,8 +182,16 @@ startup; an explicit Ghidra startup timeout of 2700000 ms produces a 2820000 ms
 tool timeout. The startup allowance follows an explicitly selected Ghidra or
 Hopper provider, and otherwise uses the larger known Ghidra/Hopper deadline.
 An explicit `REA_JEB_MCP_TIMEOUT_MS` deadline, shared by catalog discovery and
-each tools/call, also contributes to that maximum. For `ida` or `auto` selection, a valid IDA registration's parsed
+each tools/call, also contributes to that maximum. An explicit `REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS` is added to the Ghidra startup allowance, because a single-decompile call can import the target and then decompile up to that limit; setup forwards it into the registration. For `ida` or `auto` selection, a valid IDA registration's parsed
 `timeoutMs` also contributes to that maximum; its default is 300000 ms.
+The derived value is a single-decompile estimate, not a deadline for an
+unbounded batch. For example, startup 330 seconds plus two 600-second
+decompiles and 120 seconds of headroom needs an estimated 1650 seconds,
+before any additional listing or output work. Select the client tool deadline
+for the intended workload, split `batch_decompile`, use `decompile_all`
+limit/resume, or reduce `trace_native_values` `max_functions`. The trace can
+decompile several functions serially; its depth and graph budgets do not
+make the single-decompile allowance a whole-traversal deadline. Existing positive caller deadlines are preserved.
 Setup forwards these explicitly selected REA deadlines and the input schema
 profile into the registration; unrelated process values are omitted. An
 explicit `REA_JADX_OPERATION_TIMEOUT_MS` is forwarded with the JADX
@@ -336,7 +344,9 @@ not enforce Codex's 30 seconds as the doctor deadline. The 120000 ms
 tool-operation headroom and the 64 KiB doctor stderr cap stay fixed. Setup preserves positive caller-selected timeout
 values in the REA entry, and doctor reports a non-blocking advisory when a tool
 timeout is shorter than the known provider allowance. An explicitly selected
-JEB request budget also contributes to the allowance. A configured IDA
+JEB request budget also contributes to the allowance, and an explicit
+`REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS` is added to the Ghidra startup
+allowance. A configured IDA
 registration's parsed `timeoutMs` contributes for `ida` or `auto` selection.
 An explicit `REA_JADX_OPERATION_TIMEOUT_MS` is forwarded with the JADX
 registration but does not contribute; raise `tool_timeout_sec` to cover a

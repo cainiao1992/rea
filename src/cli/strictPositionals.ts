@@ -30,7 +30,7 @@ const optionTokenShape = (schema: z.ZodObject): z.ZodObject =>
             ? z.boolean().optional()
             : inner instanceof z.ZodArray
               ? z.array(z.unknown()).optional()
-              : z.unknown();
+              : z.unknown().optional();
         return [
           name,
           field.meta()?.count === true ? token.meta({ count: true }) : token,
@@ -63,7 +63,9 @@ export const rejectSurplusCliArguments = (
     let tail = "__rea_unbound_positionals";
     while (Object.hasOwn(fields, tail)) tail += "_";
     const args = z.object({
-      ...Object.fromEntries(entries.map(([name]) => [name, z.unknown()])),
+      ...Object.fromEntries(
+        entries.map(([name]) => [name, z.unknown().optional()]),
+      ),
       [tail]: z.array(z.string()).optional(),
     });
     const options =

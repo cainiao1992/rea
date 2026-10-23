@@ -17,6 +17,7 @@ import {
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { readClientRegistrationStatuses } from "../../../src/application/ClientRegistrationStatus.js";
 import {
+  clientRegistrationEnvironment,
   clientRegistrationEnvironmentDetails,
   clientRegistrationEnvironmentDetailsWithBudget,
 } from "../../../src/application/ClientRegistrationEnvironment.js";
@@ -262,7 +263,7 @@ it
     );
     expect(details.ok).toBe(true);
     if (!details.ok) throw details.error;
-    expect(details.value.timeoutInputs.analysisProvider).toBe("ghidra");
+    expect(details.value.timeoutInputs?.analysisProvider).toBe("ghidra");
     expect(
       await configureClientConfiguration(client, overrides, ["rea", "mcp"]),
     ).toEqual({ status: "unchanged" });
@@ -292,7 +293,7 @@ it.skipIf(process.platform !== "win32").each([
     const result = clientRegistrationEnvironmentDetails(parsed, overrides);
     expect(result.ok).toBe(true);
     if (!result.ok) throw result.error;
-    expect(result.value.timeoutInputs.analysisProvider).toBe(expected);
+    expect(result.value.timeoutInputs?.analysisProvider).toBe(expected);
     expect(snapshotEnvironment(result.value.values).REA_ANALYSIS_PROVIDER).toBe(
       expected,
     );
@@ -451,8 +452,163 @@ it.each(["linux", "win32"] as const)(
       ["__proto__", "selected"],
       ["constructor", "caller"],
     ]);
+    expect(details.value.unresolvedSettings).toEqual(new Set(["CUSTOM"]));
+    expect(details.value.timeoutInputs?.analysisProvider).toBe("auto");
   },
 );
+
+it.each(
+  [
+    "REA_ANALYSIS_PROVIDER",
+    "REA_GHIDRA_STARTUP_TIMEOUT_MS",
+    "REA_HOPPER_STARTUP_TIMEOUT_MS",
+    "REA_JEB_MCP_TIMEOUT_MS",
+  ].flatMap((setting) =>
+    (["linux", "win32"] as const).map((platform) => ({ setting, platform })),
+  ),
+)(
+  "keeps expression-backed $setting unknown on $platform when deriving timeout guidance",
+  async ({ setting, platform }) => {
+    const parsed = parseClientConfiguration(
+      `- insert:
+    - id: rea-mcp
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        env:
+          ${platform === "win32" ? setting.toLowerCase() : setting}: !!js caller.setting
+          CALLER_SETTING: retained
+`,
+      "dsh",
+    );
+    const values = clientRegistrationEnvironment(
+      parsed,
+      {},
+      "effective",
+      platform,
+    );
+    expect(values).toMatchObject({
+      ok: true,
+      value: { CALLER_SETTING: "retained" },
+    });
+    const details = clientRegistrationEnvironmentDetails(
+      parsed,
+      {},
+      "effective",
+      platform,
+    );
+    expect(details.ok).toBe(true);
+    if (!details.ok) throw details.error;
+    expect(details.value.values).toEqual({ CALLER_SETTING: "retained" });
+    expect(details.value.unresolvedSettings).toEqual(new Set([setting]));
+    expect(details.value.timeoutInputs).toBeUndefined();
+    let resolved = false;
+    const budget = await clientRegistrationEnvironmentDetailsWithBudget(
+      parsed,
+      {},
+      "effective",
+      async () => {
+        resolved = true;
+        return ok(17);
+      },
+      platform,
+    );
+    expect(budget).toMatchObject({
+      ok: false,
+      error: { settings: [{ setting }] },
+    });
+    expect(resolved).toBe(false);
+    const overridden = clientRegistrationEnvironmentDetails(
+      parsed,
+      {
+        [setting]: setting === "REA_ANALYSIS_PROVIDER" ? "ghidra" : "17000",
+      },
+      "effective",
+      platform,
+    );
+    expect(overridden.ok).toBe(true);
+    if (!overridden.ok) throw overridden.error;
+    expect(overridden.value.unresolvedSettings.size).toBe(0);
+    expect(overridden.value.timeoutInputs).toBeDefined();
+  },
+);
+
+it("retains an unknown companion while deriving unrelated literal timeout facts", () => {
+  const parsed = parseClientConfiguration(
+    `- insert:
+    - id: rea-mcp
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        env:
+          REA_GHIDRA_LANGUAGE_ID: !!js caller.language
+          REA_GHIDRA_COMPILER_SPEC_ID: borlandcpp
+          REA_GHIDRA_STARTUP_TIMEOUT_MS: "17000"
+`,
+    "dsh",
+  );
+  const details = clientRegistrationEnvironmentDetails(parsed);
+  expect(details.ok).toBe(true);
+  if (!details.ok) throw details.error;
+  expect(details.value.unresolvedSettings).toEqual(
+    new Set(["REA_GHIDRA_LANGUAGE_ID"]),
+  );
+  expect(details.value.timeoutInputs?.ghidraStartupTimeoutMs).toBe(17000);
+});
+
+it("does not resolve a provider budget from an expression omitted from literal values", async () => {
+  const parsed = parseClientConfiguration(
+    `- insert:
+    - id: rea-mcp
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        env:
+          REA_ANALYSIS_PROVIDER: ida
+          REA_IDA_MCP_CONFIG: !!js caller.idaConfig
+`,
+    "dsh",
+  );
+  const observations: string[] = [];
+  const resolveBudget = async (
+    provider: string,
+    environment: Readonly<Record<string, string>>,
+  ) => {
+    observations.push(provider, environment.REA_IDA_MCP_CONFIG ?? "missing");
+    return ok(17);
+  };
+  expect(
+    await clientRegistrationEnvironmentDetailsWithBudget(
+      parsed,
+      {},
+      "effective",
+      undefined,
+    ),
+  ).toMatchObject({
+    ok: true,
+    value: { timeoutInputs: { analysisProvider: "ida" } },
+  });
+  expect(
+    await clientRegistrationEnvironmentDetailsWithBudget(
+      parsed,
+      {},
+      "effective",
+      resolveBudget,
+    ),
+  ).toMatchObject({
+    ok: false,
+    error: { settings: [{ setting: "REA_IDA_MCP_CONFIG" }] },
+  });
+  expect(observations).toEqual([]);
+  const resolved = await clientRegistrationEnvironmentDetailsWithBudget(
+    parsed,
+    { REA_IDA_MCP_CONFIG: "/selected/ida.json" },
+    "effective",
+    resolveBudget,
+  );
+  expect(resolved).toMatchObject({
+    ok: true,
+    value: { timeoutInputs: { providerRequestTimeoutMs: 17 } },
+  });
+  expect(observations).toEqual(["ida", "/selected/ida.json"]);
+});
 
 it("rejects a non-string caller environment key before editing configuration", async () => {
   const root = await createTestTempDirectory("rea-invalid-own-environment-");

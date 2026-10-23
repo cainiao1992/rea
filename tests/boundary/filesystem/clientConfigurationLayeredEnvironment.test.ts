@@ -89,7 +89,7 @@ it.skipIf(process.platform !== "win32").each([
     );
     expect(environment.ok).toBe(true);
     if (!environment.ok) throw environment.error;
-    expect(environment.value.timeoutInputs.analysisProvider).toBe("ghidra");
+    expect(environment.value.timeoutInputs?.analysisProvider).toBe("ghidra");
     expect(environment.value.values).toHaveProperty(
       "REA_ANALYSIS_PROVIDER",
       "ghidra",

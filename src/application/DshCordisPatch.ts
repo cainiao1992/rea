@@ -2,6 +2,7 @@ import { isMap, isSeq, type Node, type YAMLMap } from "yaml";
 import {
   parseEnvironment,
   parseEnvironmentValues,
+  type Environment,
 } from "../config/environment.js";
 import { ConfigurationError } from "../domain/configurationErrors.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -190,7 +191,14 @@ export class DshCordisDocument {
     overrides: Readonly<Record<string, string>> = {},
     validation: "fragment" | "effective" = "effective",
     platform: NodeJS.Platform = process.platform,
-  ): Result<Readonly<Record<string, string>>, ConfigurationError> {
+  ): Result<
+    {
+      readonly values: Readonly<Record<string, string>>;
+      readonly configuration: Environment;
+      readonly unresolvedSettings: ReadonlySet<string>;
+    },
+    ConfigurationError
+  > {
     const config = this.#field("config");
     if (config instanceof CordisExpression)
       return err(
@@ -259,7 +267,13 @@ export class DshCordisDocument {
       validation === "fragment"
         ? parseEnvironmentValues(runtimeEnvironment, unresolved)
         : parseEnvironment(runtimeEnvironment, unresolved);
-    return validated.ok ? ok(literals) : validated;
+    return validated.ok
+      ? ok({
+          values: literals,
+          configuration: validated.value,
+          unresolvedSettings: unresolved,
+        })
+      : validated;
   }
 
   desired(

@@ -119,7 +119,7 @@ export const parseJebMcpTimeoutMs = (
   );
 };
 
-type Environment = Omit<
+export type Environment = Omit<
   z.infer<typeof environmentSchema>,
   "HOPPER_LOADER_ARGS_JSON" | "REA_REFERENCE_SECRET_PATTERNS_JSON"
 > & {

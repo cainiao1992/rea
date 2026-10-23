@@ -1,6 +1,7 @@
 import {
   parseEnvironment,
   parseEnvironmentValues,
+  type Environment,
 } from "../config/environment.js";
 import { ConfigurationError } from "../domain/configurationErrors.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -26,8 +27,20 @@ export type ProviderRequestBudgetResolver = (
 
 export interface ClientRegistrationEnvironmentDetails {
   readonly values: Readonly<Record<string, string>>;
+  readonly unresolvedSettings: ReadonlySet<string>;
+  readonly timeoutInputs: McpToolTimeoutInputs | undefined;
+}
+
+interface ResolvedClientRegistrationEnvironmentDetails extends ClientRegistrationEnvironmentDetails {
   readonly timeoutInputs: McpToolTimeoutInputs;
 }
+
+const TIMEOUT_INPUT_SETTINGS: ReadonlySet<string> = new Set([
+  "REA_ANALYSIS_PROVIDER",
+  "REA_GHIDRA_STARTUP_TIMEOUT_MS",
+  "REA_HOPPER_STARTUP_TIMEOUT_MS",
+  "REA_JEB_MCP_TIMEOUT_MS",
+]);
 
 const environmentSchema = clientConfigurationRecordSchema.transform(
   (values, context) => {
@@ -52,12 +65,14 @@ export const clientRegistrationEnvironment = (
   validation: "fragment" | "effective" = "effective",
   platform: NodeJS.Platform = process.platform,
 ): Result<Readonly<Record<string, string>>, ConfigurationError> => {
-  if (parsed?.dialect === "dsh")
-    return dshDocument(parsed.document).environment(
+  if (parsed?.dialect === "dsh") {
+    const environment = dshDocument(parsed.document).environment(
       overrides,
       validation,
       platform,
     );
+    return environment.ok ? ok(environment.value.values) : environment;
+  }
   const details = clientRegistrationEnvironmentDetails(
     parsed,
     overrides,
@@ -81,7 +96,13 @@ export const clientRegistrationEnvironmentDetails = (
       platform,
     );
     if (!environment.ok) return environment;
-    return validatedDetails(environment.value, validation, platform);
+    return ok(
+      environmentDetails(
+        environment.value.values,
+        environment.value.configuration,
+        environment.value.unresolvedSettings,
+      ),
+    );
   }
   const key =
     parsed?.dialect === "opencode" || parsed?.dialect === "opencode_v2"
@@ -124,7 +145,7 @@ export const clientRegistrationEnvironmentDetailsWithBudget = async (
   resolveProviderRequestBudget: ProviderRequestBudgetResolver | undefined,
   platform: NodeJS.Platform = process.platform,
 ): Promise<
-  Result<ClientRegistrationEnvironmentDetails, ConfigurationError>
+  Result<ResolvedClientRegistrationEnvironmentDetails, ConfigurationError>
 > => {
   const details = clientRegistrationEnvironmentDetails(
     parsed,
@@ -132,8 +153,31 @@ export const clientRegistrationEnvironmentDetailsWithBudget = async (
     validation,
     platform,
   );
-  if (!details.ok || resolveProviderRequestBudget === undefined) return details;
-  return validatedBudget(details.value, resolveProviderRequestBudget, platform);
+  if (!details.ok) return details;
+  const unresolved = [...details.value.unresolvedSettings].filter(
+    (setting) =>
+      resolveProviderRequestBudget !== undefined ||
+      TIMEOUT_INPUT_SETTINGS.has(setting),
+  );
+  if (details.value.timeoutInputs === undefined || unresolved.length > 0)
+    return err(
+      new ConfigurationError(
+        "Cannot derive a provider request budget from expression-backed settings",
+        {
+          settings: unresolved.map((setting) => ({
+            setting,
+            constraint:
+              "Resolve this setting to a literal before deriving a request budget",
+          })),
+        },
+      ),
+    );
+  const resolved = {
+    ...details.value,
+    timeoutInputs: details.value.timeoutInputs,
+  };
+  if (resolveProviderRequestBudget === undefined) return ok(resolved);
+  return validatedBudget(resolved, resolveProviderRequestBudget, platform);
 };
 
 const validatedDetails = (
@@ -147,29 +191,40 @@ const validatedDetails = (
       ? parseEnvironmentValues(runtimeEnvironment)
       : parseEnvironment(runtimeEnvironment);
   if (!validated.ok) return validated;
-  return ok({
-    values: Object.fromEntries(
-      Object.entries(environment).sort(([left], [right]) =>
-        compareUnicodeCodePoints(left, right),
-      ),
-    ),
-    timeoutInputs: {
-      analysisProvider: validated.value.REA_ANALYSIS_PROVIDER,
-      ghidraStartupTimeoutMs: validated.value.REA_GHIDRA_STARTUP_TIMEOUT_MS,
-      hopperStartupTimeoutMs: validated.value.REA_HOPPER_STARTUP_TIMEOUT_MS,
-      ...(validated.value.REA_JEB_MCP_TIMEOUT_MS === undefined
-        ? {}
-        : { jebMcpTimeoutMs: validated.value.REA_JEB_MCP_TIMEOUT_MS }),
-    },
-  });
+  return ok(environmentDetails(environment, validated.value));
 };
 
+const environmentDetails = (
+  environment: Readonly<Record<string, string>>,
+  configuration: Environment,
+  unresolvedSettings: ReadonlySet<string> = new Set(),
+): ClientRegistrationEnvironmentDetails => ({
+  values: Object.fromEntries(
+    Object.entries(environment).sort(([left], [right]) =>
+      compareUnicodeCodePoints(left, right),
+    ),
+  ),
+  unresolvedSettings,
+  timeoutInputs: [...unresolvedSettings].some((setting) =>
+    TIMEOUT_INPUT_SETTINGS.has(setting),
+  )
+    ? undefined
+    : {
+        analysisProvider: configuration.REA_ANALYSIS_PROVIDER,
+        ghidraStartupTimeoutMs: configuration.REA_GHIDRA_STARTUP_TIMEOUT_MS,
+        hopperStartupTimeoutMs: configuration.REA_HOPPER_STARTUP_TIMEOUT_MS,
+        ...(configuration.REA_JEB_MCP_TIMEOUT_MS === undefined
+          ? {}
+          : { jebMcpTimeoutMs: configuration.REA_JEB_MCP_TIMEOUT_MS }),
+      },
+});
+
 const validatedBudget = async (
-  details: ClientRegistrationEnvironmentDetails,
+  details: ResolvedClientRegistrationEnvironmentDetails,
   resolveProviderRequestBudget: ProviderRequestBudgetResolver,
   platform: NodeJS.Platform,
 ): Promise<
-  Result<ClientRegistrationEnvironmentDetails, ConfigurationError>
+  Result<ResolvedClientRegistrationEnvironmentDetails, ConfigurationError>
 > => {
   const providerBudget = await resolveProviderRequestBudget(
     details.timeoutInputs.analysisProvider,

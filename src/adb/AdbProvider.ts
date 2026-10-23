@@ -1,3 +1,4 @@
+import { execFileFailureCapturedOutput } from "../process/ExecFileOutput.js";
 import { collectNumericIssues } from "./AdbNumericIssues.js";
 import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { createHash } from "node:crypto";
@@ -84,7 +85,6 @@ import {
   runtimeControlCapabilityError,
 } from "../process/RuntimeControlUnavailableError.js";
 import {
-  adbCommandCapturedOutput,
   adbCommandOutputFailure,
   adbArguments,
   runAdb,
@@ -2964,7 +2964,7 @@ export class AdbProvider {
     );
     let stdout: string;
     let stderr: string;
-    let capturedOutput: ReturnType<typeof adbCommandCapturedOutput>;
+    let capturedOutput: ReturnType<typeof execFileFailureCapturedOutput>;
     let verdict: ReturnType<typeof parseAmStartOutput>;
     if (started.ok) {
       stdout = started.value.stdout;
@@ -2986,7 +2986,7 @@ export class AdbProvider {
         return started;
       stdout = commandFailure.stdout;
       stderr = commandFailure.stderr;
-      capturedOutput = adbCommandCapturedOutput(commandFailure);
+      capturedOutput = execFileFailureCapturedOutput(commandFailure);
       // Stderr carries adb transport diagnostics, not the Activity Manager
       // report, so it cannot establish a target refusal on this path.
       verdict = parseAmStartOutput(stdout);

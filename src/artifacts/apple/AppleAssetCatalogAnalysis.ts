@@ -34,6 +34,7 @@ import {
   ExecFileOutputCancelledError,
   execFileOutput,
   execFileOutputFailure,
+  execFileFailureCapturedOutput,
 } from "../../process/ExecFileOutput.js";
 
 const ASSETUTIL = "/usr/bin/assetutil";
@@ -422,21 +423,7 @@ const assetUtilFailure = (cause: unknown, signal?: AbortSignal): unknown => {
   const code =
     cause instanceof Error && "code" in cause ? cause.code : undefined;
   const capturedOutput: AnalysisCapturedOutput | undefined =
-    output === undefined
-      ? undefined
-      : {
-          stdout: output.stdout,
-          stderr: output.stderr,
-          truncated: output.outputTruncated,
-          ...(output.stdoutBytes === undefined
-            ? {}
-            : { stdout_bytes: output.stdoutBytes }),
-          ...(output.stderrBytes === undefined
-            ? {}
-            : { stderr_bytes: output.stderrBytes }),
-          exit_code: typeof output.code === "number" ? output.code : null,
-          signal: output.signal,
-        };
+    output === undefined ? undefined : execFileFailureCapturedOutput(output);
   const options = { cause, capturedOutput };
   if (code === "ETIMEDOUT")
     return new AnalysisTimeoutError("inspect_asset_catalog", 60_000, options);

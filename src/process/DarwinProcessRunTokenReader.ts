@@ -19,7 +19,11 @@ import type {
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import { boundedUtf8Text } from "./boundedUtf8Text.js";
-import { execFileOutput, execFileOutputFailure } from "./ExecFileOutput.js";
+import {
+  execFileOutput,
+  execFileOutputFailure,
+  execFileFailureCapturedOutput,
+} from "./ExecFileOutput.js";
 import type {
   ProcessIdentityObservation,
   ProcessRunTokenObservation,
@@ -256,18 +260,11 @@ const compilerFailureFacts = (
       ...(outcome === "timed_out" ? { timeoutMs } : {}),
     },
     capturedOutput: {
+      ...execFileFailureCapturedOutput(failure),
       stdout: stdout.text,
       stderr: stderr.text,
       truncated:
         stdout.truncated || stderr.truncated || failure.outputTruncated,
-      ...(failure.stdoutBytes === undefined
-        ? {}
-        : { stdout_bytes: failure.stdoutBytes }),
-      ...(failure.stderrBytes === undefined
-        ? {}
-        : { stderr_bytes: failure.stderrBytes }),
-      exit_code: typeof failure.code === "number" ? failure.code : null,
-      signal: failure.signal,
     },
   };
 };

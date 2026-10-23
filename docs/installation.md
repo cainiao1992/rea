@@ -170,14 +170,25 @@ paths as `unmanaged`, names the affected paths, and provides those alternatives;
 an unreadable skill identity remains `unknown`. Uninstall retains and reports
 files it cannot safely remove, including their ownership manifest.
 
-The skill installer backs up changed existing files and verifies the installed
-bytes. Its current rollback restores or removes files by pathname without
-checking that they are still the files published by that installation attempt.
-If another writer changes a skill file during a failed installation, rollback
-can overwrite that edit or remove a replacement first-install file
-([#5928](https://github.com/morluto/rea/issues/5928)). Avoid editing managed skill
-files or running another skill installer while setup is applying them. This
-limitation does not apply to the client-configuration rollback described above.
+The skill installer preserves byte-exact backups of changed existing files,
+including invalid UTF-8, BOMs, and permission modes, and verifies each published
+file through its owned descriptor. Before publication it checks the selected
+file identity; first installation uses an exclusive hard link and refuses a
+concurrently created destination. Filesystems without hard-link support cannot
+publish a first-install skill file.
+
+Rollback restores an existing file only while its published identity, state,
+and bytes still match that installation attempt. A recovery backup preserves
+the original bytes; it does not authorize overwriting a later user edit or
+replacement. Conflicts report the affected paths and recovery backups. If a
+newly created skill file cannot be verified, setup retains it and reports manual
+recovery rather than deleting by pathname. Staging cleanup failures remain
+owned and retryable, and setup does not report installation success while
+cleanup is unresolved.
+
+These checks do not lock out another writer modifying the same inode or exclude
+pathname changes between the last check and publication. Avoid editing managed
+skill files or running another installer while setup applies them.
 
 `rea setup --skill-client claude_code --yes --json` refreshes and verifies the
 selected skill destination independently of MCP registration selection. The

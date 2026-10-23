@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
-import { referenceSourceRequireCallBases } from "../referenceSourceRequireBindings.js";
+import { referenceSourceRequireCalls } from "../referenceSourceRequireBindings.js";
 import { parseReferenceSourceImports } from "../referenceSourceImportParsing.js";
 
 it.each(["require", "require.resolve", "require.main"])(
@@ -33,7 +33,7 @@ it.each(["require", "require.resolve", "require.main"])(
     );
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected loader association fixture");
-    expect(referenceSourceRequireCallBases(parsed, "entry.cjs").size).toBe(
+    expect(referenceSourceRequireCalls(parsed, "entry.cjs").size).toBe(
       callee === "require.main" ? 0 : 1,
     );
   },
@@ -64,7 +64,7 @@ it.each([
   (_name, source, associated, specifier) => {
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected factory proof fixture");
-    expect(referenceSourceRequireCallBases(parsed, "entry.mjs").size).toBe(
+    expect(referenceSourceRequireCalls(parsed, "entry.mjs").size).toBe(
       associated,
     );
     const analysis = analyzeJavaScriptStaticSource(source);
@@ -80,7 +80,7 @@ it("associates a renamed createRequire resolve method with search options", () =
     `${imported}const load=make(import.meta.url);load.resolve('node:path',{paths:[]});`,
   );
   if (parsed === null) throw new Error("Expected factory proof fixture");
-  expect(referenceSourceRequireCallBases(parsed, "entry.mjs").size).toBe(1);
+  expect(referenceSourceRequireCalls(parsed, "entry.mjs").size).toBe(1);
 });
 
 it("keeps current-file and mixed createRequire bases distinct", () => {
@@ -90,19 +90,18 @@ it("keeps current-file and mixed createRequire bases distinct", () => {
   if (currentFile === null)
     throw new Error("Expected current-file base fixture");
   const currentCall = [
-    ...referenceSourceRequireCallBases(currentFile, "sub/main.mjs").keys(),
+    ...referenceSourceRequireCalls(currentFile, "sub/main.mjs").keys(),
   ][0];
   expect(
-    referenceSourceRequireCallBases(currentFile, "sub/main.mjs").get(
-      currentCall!,
-    )?.resolutionBase,
+    referenceSourceRequireCalls(currentFile, "sub/main.mjs").get(currentCall!)
+      ?.resolutionBase,
   ).toBe("source-file");
 
   const mixed = parseJavaScriptSource(
     `${imported}const load=make(flag?import.meta.url:new URL('./sub/entry.cjs',import.meta.url));load('./dep.cjs');`,
   );
   if (mixed === null) throw new Error("Expected mixed-base fixture");
-  const mixedBases = referenceSourceRequireCallBases(mixed, "main.mjs");
+  const mixedBases = referenceSourceRequireCalls(mixed, "main.mjs");
   expect(
     [...mixedBases.values()].map(({ resolutionBase }) => resolutionBase),
   ).toEqual(["unknown"]);

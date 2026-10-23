@@ -33,7 +33,7 @@ export interface ReferenceSourceRequireCall {
 }
 
 /** Identify exact calls through a source-owned Node loader and their resolver base. */
-export const referenceSourceRequireCallBases = (
+export const referenceSourceRequireCalls = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
 ): ReadonlyMap<t.CallExpression, ReferenceSourceRequireCall> => {

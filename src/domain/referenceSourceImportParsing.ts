@@ -12,7 +12,7 @@ import {
   parserPluginsForPath,
 } from "./javascript/javascriptSourceParser.js";
 import {
-  referenceSourceRequireCallBases,
+  referenceSourceRequireCalls,
   type ReferenceSourceRequireCall,
 } from "./referenceSourceRequireBindings.js";
 import { isRelativeJavaScriptModuleSpecifier } from "./javascript/javascriptModuleSpecifier.js";
@@ -245,7 +245,7 @@ const extractRequireAndDynamicImports = (
   from_path: string,
   relationships: ReferenceSourceImportRelationship[],
   limitations: string[],
-  requireCallBases: ReadonlyMap<CallExpression, ReferenceSourceRequireCall>,
+  requireCalls: ReadonlyMap<CallExpression, ReferenceSourceRequireCall>,
 ): void => {
   // Single traversal owner: iterative, VISITOR_KEYS-gated, no recursion over
   // loc/comment objects. Survives deeply nested generated member chains that
@@ -274,7 +274,7 @@ const extractRequireAndDynamicImports = (
     // The shared exact-literal reader owns argument exactness: it unwraps
     // runtime-transparent TS wrappers (`as const`, `!`, `satisfies`) and
     // admits quoted and expression-free template spellings alike.
-    const requireCall = requireCallBases.get(call);
+    const requireCall = requireCalls.get(call);
     if (requireCall !== undefined) {
       const result = moduleSpecifierFromExpression(requireCall.arguments?.[0]);
       if (result !== undefined) {
@@ -411,7 +411,7 @@ export const parseReferenceSourceImports = (
     path,
     relationships,
     limitations,
-    referenceSourceRequireCallBases(ast, path),
+    referenceSourceRequireCalls(ast, path),
   );
 
   return {

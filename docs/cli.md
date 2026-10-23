@@ -410,11 +410,16 @@ strings, expression-free templates and runtime-transparent TypeScript wrappers
 retain their targets; computed imports remain unknown. TypeScript import-equals
 dependencies remain `requires` relationships whether or not they are exported.
 
-CommonJS `require` relationships retain the requested specifier. REA resolves
-them only when the loader base is proven: this includes the exact
+REA derives historical CommonJS paths only when the selected loader and its
+base are proven: this includes the exact
 `createRequire(new URL("./file.cjs", import.meta.url))` form and
 `require.resolve` with `{ paths: [__dirname] }`. Other custom bases and search
-options remain partial with unknown resolution. An excluded `package.json`
+options remain partial with unknown resolution and the literal requested
+specifier. Overwritten resolver methods retain that uncertainty; they are not
+attributed to Node. `require.main` is a module object, so calling it does not
+establish a loader reference. These relationships do not establish execution;
+Node's [`require.resolve`](https://nodejs.org/docs/v24.22.1/api/modules.html#requireresolverequest-options)
+performs lookup without loading the target. An excluded `package.json`
 also leaves package-directory selection unknown rather than treating the
 manifest as absent and applying an `index` fallback.
 

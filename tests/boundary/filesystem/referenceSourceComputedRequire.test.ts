@@ -9,6 +9,17 @@ import { expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { importReferenceSource } from "../../support/referenceSourceResourceScope.js";
 
+const hashedSourceEntry = (path: string, source: string) => ({
+  path,
+  kind: "file",
+  sha256: createHash("sha256").update(source).digest("hex"),
+  size: Buffer.byteLength(source),
+  language: "JavaScript",
+  classifications: ["source"],
+  content_state: "hashed",
+  limitations: [],
+});
+
 it("distinguishes computed require member values from literal members in source evidence", async () => {
   const root = await createTestTempDirectory("rea-reference-require-members-");
   const literalCallees = [
@@ -108,19 +119,39 @@ it("distinguishes computed require member values from literal members in source 
   expect(graph.parse_failures).toEqual([]);
   expect(graph.relationships).toEqual([
     {
+      from_path: "ignored.cjs",
+      to: "./dep.js",
+      kind: "requires",
+      resolution: "unknown",
+      parse_state: "partial",
+    },
+    {
       from_path: "literal.cjs",
       to: "dep.js",
       kind: "requires",
       resolution: "internal",
       parse_state: "parsed",
     },
-    ...literalCallees.map((_, index) => ({
-      from_path: `member-${index}.cjs`,
-      to: "dep.js",
+    ...literalCallees.flatMap((callee, index) =>
+      callee === "require.main" || callee === 'require["main"]'
+        ? []
+        : [
+            {
+              from_path: `member-${index}.cjs`,
+              to: "dep.js",
+              kind: "requires",
+              resolution: "internal",
+              parse_state: "parsed",
+            },
+          ],
+    ),
+    {
+      from_path: "unknown.cjs",
+      to: "./dep.js",
       kind: "requires",
-      resolution: "internal",
-      parse_state: "parsed",
-    })),
+      resolution: "unknown",
+      parse_state: "partial",
+    },
     {
       from_path: "unknown.cjs",
       to: "<dynamic-import>",
@@ -137,16 +168,6 @@ it("distinguishes computed require member values from literal members in source 
     },
   ]);
   expect(graph.entries).toHaveLength(Object.keys(sources).length);
-  for (const [path, source] of Object.entries(sources)) {
-    expect(graph.entries).toContainEqual({
-      path,
-      kind: "file",
-      sha256: createHash("sha256").update(source).digest("hex"),
-      size: Buffer.byteLength(source),
-      language: "JavaScript",
-      classifications: ["source"],
-      content_state: "hashed",
-      limitations: [],
-    });
-  }
+  for (const [path, source] of Object.entries(sources))
+    expect(graph.entries).toContainEqual(hashedSourceEntry(path, source));
 });

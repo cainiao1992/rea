@@ -1449,6 +1449,26 @@ REA process and analysis state. Direct registrations follow the installed CLI;
 use `rea update` to update it. Running setup through `npx` again selects the pinned
 package-runner command. Do not register paths inside npm's temporary package cache.
 
+### npm workspace errors before REA starts
+
+An `npx` launch can inspect the caller's npm project before executing REA. For
+example, a direct dependency whose override conflicts with its declared spec
+can cause npm's `EOVERRIDE`, even when the requested REA package is already
+cached. This is a package-runner failure: REA has not started and cannot return
+an MCP error. [#3690](https://github.com/morluto/rea/issues/3690) reproduced it
+outside OpenCode as well as through that client's workspace-default launch.
+
+Use the direct global-installation setup flow above to replace the affected
+package-runner registration, then restart the client. If REA is already installed
+globally, run that installed `rea setup --client <client-id> --dry-run`, review
+the direct launcher in the plan, and apply the approved scope. Installing a
+global copy alone does not change an existing registration. Keep the client's
+working directory: changing it to bypass npm inspection can change the meaning
+of relative target paths. A direct REA entrypoint preserves that directory
+without asking npm to resolve the workspace's dependency graph.
+
+### Global installation wrapper
+
 The optional curl wrapper installs only the global npm package:
 
 ```bash

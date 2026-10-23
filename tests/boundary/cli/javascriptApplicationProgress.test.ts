@@ -31,7 +31,7 @@ for (const command of ["analyze-javascript-application", "analyze"]) {
       if (!direct.ok) throw direct.error;
 
       const output = await cli.run({ arguments: [command, root, "--json"] });
-      expect(output.exitCode).toBe(0);
+      expect(output.exitCode, `${output.stdout}\n${output.stderr}`).toBe(0);
       expect(parseEvidence(output.json).evidence_id).toBe(
         direct.value.evidence_id,
       );

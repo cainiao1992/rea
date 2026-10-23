@@ -327,8 +327,16 @@ Cancellation and clock-request failures retain their own outcomes.
 ## Data minimization
 
 The Link projection parses repeated CDP header field lines independently and
-retains their declarations in order, including derived untrusted agent hints.
-Commas inside URI targets or quoted parameters remain part of those values.
+retains their declarations in order. Each link keeps its target in `href` and
+its relationship context in `context_url` with a separate `context_scope`;
+absent `anchor` uses the response URL, while a relative `anchor` resolves
+against that URL. Anchored links remain in the projection, but a `link_rel`
+agent hint is emitted only when the resolved context matches the response URL
+before userinfo credentials are removed. Following [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288.html),
+the `rel`, `anchor`, and `type` parameters use their first occurrence, and
+quoted-pair escapes are decoded as specified by [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4).
+The context fields are optional when reading older saved captures. Commas
+inside URI targets or quoted parameters remain part of those values.
 COOP and COEP projections retain the exact declared token after validating the
 complete Structured Field Item, including parameters such as `report-to`.
 These are declarations, not an assessment of the document's effective policy;

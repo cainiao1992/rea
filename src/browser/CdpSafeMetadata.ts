@@ -6,6 +6,11 @@ import { structuredFieldToken } from "./StructuredFieldToken.js";
 type ResponseMetadata = WebPageInspection["metadata"]["responses"][number];
 type LinkMetadata = ResponseMetadata["links"][number];
 type AgentHint = WebPageInspection["metadata"]["agent_hints"][number];
+type LinkParameter = { readonly name: string; readonly value: string };
+type ParsedLink = {
+  readonly metadata: LinkMetadata;
+  readonly contextMatchesResponse: boolean;
+};
 
 /** Normalize an allowlisted subset of response metadata and discard raw headers. */
 export const safeResponseMetadata = (
@@ -18,16 +23,22 @@ export const safeResponseMetadata = (
   readonly agentHints: AgentHint[];
 } => {
   const headers = normalizedHeaders(response.headers);
-  const links = parseLinks(headers.get("link"), url, allowedOrigins);
+  const responseUrl = cdpStringValue(response.url) ?? url;
+  const parsedLinks = parseLinks(
+    headers.get("link"),
+    responseUrl,
+    allowedOrigins,
+  );
+  const links = parsedLinks.map(({ metadata }) => metadata);
   const csp = parseCsp(
     headers.get("content-security-policy"),
     url,
     allowedOrigins,
   );
   const agentHints = [
-    ...links.flatMap((link) =>
-      link.rel.some(isAgentRel)
-        ? [agentHint("link_rel", link.rel.join(" "), link.href)]
+    ...parsedLinks.flatMap(({ metadata, contextMatchesResponse }) =>
+      contextMatchesResponse && metadata.rel.some(isAgentRel)
+        ? [agentHint("link_rel", metadata.rel.join(" "), metadata.href)]
         : [],
     ),
     ...agentHeaderNames.flatMap((name) =>
@@ -182,31 +193,49 @@ const schemeOf = (baseUrl: string): string | undefined => {
 
 const parseLinks = (
   value: string | undefined,
-  baseUrl: string,
+  responseUrl: string,
   allowedOrigins: ReadonlySet<string>,
-): LinkMetadata[] => {
-  const links: LinkMetadata[] = [];
+): ParsedLink[] => {
+  const links: ParsedLink[] = [];
+  // Compare resolved identities before safeDestination removes userinfo.
+  const responseIdentity = resolvedUrl(responseUrl, responseUrl);
   // CDP joins repeated field lines with LF; quoted delimiters belong to one line.
   for (const line of (value ?? "").split(/\r?\n/u)) {
     for (const entry of splitLinkHeader(line)) {
       const match = /^\s*<([^>]*)>(.*)$/u.exec(entry);
       if (match === null) continue;
       const parameters = linkParameters(match[2] ?? "");
+      const anchor = firstLinkParameter(parameters, "anchor");
+      const contextReference = anchor?.value ?? responseUrl;
       const destination = safeDestination(
         match[1] ?? "",
-        baseUrl,
+        responseUrl,
         allowedOrigins,
       );
+      const context = safeDestination(
+        contextReference,
+        responseUrl,
+        allowedOrigins,
+      );
+      const contextIdentity = resolvedUrl(contextReference, responseUrl);
+      // RFC 8288 assigns first-occurrence semantics to rel, anchor, and type.
+      const rel = firstLinkParameter(parameters, "rel")?.value ?? "";
       links.push({
-        href: destination.url,
-        destination_scope: destination.scope,
-        rel: (parameters.get("rel") ?? "")
-          .toLowerCase()
-          .split(/\s+/u)
-          .filter(Boolean),
-        as: boundedHeader(parameters.get("as")),
-        type: boundedHeader(parameters.get("type")),
-        crossorigin: boundedHeader(parameters.get("crossorigin")),
+        metadata: {
+          href: destination.url,
+          destination_scope: destination.scope,
+          context_url: context.url,
+          context_scope: context.scope,
+          rel: rel.toLowerCase().split(/\s+/u).filter(Boolean),
+          as: boundedHeader(lastLinkParameter(parameters, "as")?.value),
+          type: boundedHeader(firstLinkParameter(parameters, "type")?.value),
+          crossorigin: boundedHeader(
+            lastLinkParameter(parameters, "crossorigin")?.value,
+          ),
+        },
+        contextMatchesResponse:
+          responseIdentity !== undefined &&
+          contextIdentity === responseIdentity,
       });
     }
   }
@@ -242,8 +271,8 @@ const splitLinkHeader = (
   return entries;
 };
 
-const linkParameters = (value: string): ReadonlyMap<string, string> => {
-  const parameters = new Map<string, string>();
+const linkParameters = (value: string): readonly LinkParameter[] => {
+  const parameters: LinkParameter[] = [];
   for (const raw of splitLinkHeader(value, ";").slice(1)) {
     const separator = raw.indexOf("=");
     const name = (separator < 0 ? raw : raw.slice(0, separator))
@@ -251,9 +280,39 @@ const linkParameters = (value: string): ReadonlyMap<string, string> => {
       .toLowerCase();
     if (!/^[a-z][a-z0-9\x2d]*$/u.test(name)) continue;
     const parameter = separator < 0 ? "" : raw.slice(separator + 1).trim();
-    parameters.set(name, unquote(parameter));
+    parameters.push({ name, value: decodeLinkParameter(parameter) });
   }
   return parameters;
+};
+
+const firstLinkParameter = (
+  parameters: readonly LinkParameter[],
+  name: string,
+): LinkParameter | undefined =>
+  parameters.find((parameter) => parameter.name === name);
+
+const lastLinkParameter = (
+  parameters: readonly LinkParameter[],
+  name: string,
+): LinkParameter | undefined => {
+  for (let index = parameters.length - 1; index >= 0; index -= 1) {
+    const parameter = parameters[index];
+    if (parameter?.name === name) return parameter;
+  }
+  return undefined;
+};
+
+const resolvedUrl = (
+  reference: string,
+  baseUrl: string,
+): string | undefined => {
+  try {
+    return new URL(reference, baseUrl).href;
+  } catch (cause: unknown) {
+    // An unparseable Link URI has no usable identity for context comparison.
+    void cause;
+    return undefined;
+  }
 };
 
 const safeDestination = (
@@ -354,8 +413,23 @@ const contentLength = (value: string | undefined): number | null => {
 const boundedHeader = (value: string | undefined): string | null =>
   value === undefined ? null : value.trim().toLowerCase();
 
-const unquote = (value: string): string =>
-  value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+const decodeLinkParameter = (value: string): string => {
+  if (!value.startsWith('"')) return value;
+  let decoded = "";
+  for (let index = 1; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "\\") {
+      index += 1;
+      if (index >= value.length) return decoded;
+      decoded += value[index];
+    } else if (character === '"') {
+      return decoded;
+    } else {
+      decoded += character;
+    }
+  }
+  return decoded;
+};
 
 const agentHeaderNames = ["x-model-context", "x-webmcp", "mcp-server"] as const;
 const wellKnownAgentPaths: ReadonlySet<string> = new Set([

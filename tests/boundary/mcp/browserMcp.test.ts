@@ -3,6 +3,7 @@ import { crc32, deflateSync } from "node:zlib";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterEach, expect, it } from "vitest";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -26,6 +27,153 @@ import {
 const resources: Array<{ close(): Promise<unknown> }> = [];
 const browsers: FakeCdpBrowser[] = [];
 const INTEGRATION_TEST_TIMEOUT_MS = 20_000;
+
+it("preserves Link parameter order and context through the advertised MCP contract", async () => {
+  const links = [
+    '</duplicate-first>; rel="mcp"; rel="preload"; type="application/mcp"; type="application/preload"',
+    '</duplicate-last>; rel="preload"; rel="mcp"',
+    String.raw`</escaped-rel>; rel="m\cp"`,
+    '</other-context>; rel="mcp"; anchor="/other-document"; anchor="/page"',
+    '</default-context>; rel="mcp"',
+    '</same-context>; rel="mcp"; anchor="/page"',
+  ];
+  const browser = await startFakeCdpBrowser({
+    eventsBeforeReply: ["Network.enable"],
+    commandEvents(command, origin) {
+      if (command.method !== "Network.enable") return undefined;
+      const session =
+        command.sessionId === undefined ? {} : { sessionId: command.sessionId };
+      return [
+        {
+          ...session,
+          method: "Network.requestWillBeSent",
+          params: {
+            requestId: "link-metadata",
+            type: "Document",
+            request: { url: `${origin}/page`, method: "GET" },
+            initiator: { type: "parser" },
+          },
+        },
+        {
+          ...session,
+          method: "Network.responseReceived",
+          params: {
+            requestId: "link-metadata",
+            type: "Document",
+            response: {
+              url: `${origin}/page`,
+              status: 200,
+              mimeType: "text/html",
+              headers: {
+                Link: [
+                  ...links,
+                  `</credential-context>; rel="mcp"; anchor="${new URL(origin).protocol}//other-user:other-pass@${new URL(origin).host}/page"`,
+                ].join(", "),
+              },
+            },
+          },
+        },
+      ];
+    },
+  });
+  browsers.push(browser);
+  const connected = await connectBrowser();
+  const advertised = (await connected.client.listTools()).tools.find(
+    ({ name }) => name === "inspect_web_page",
+  );
+  if (advertised?.outputSchema === undefined)
+    throw new Error("inspect_web_page must advertise its output schema");
+
+  const inspected = await connected.client.callTool({
+    name: "inspect_web_page",
+    arguments: {
+      cdp_endpoint: browser.endpoint,
+      target_id: "allowed-page",
+      observation_ms: 0,
+    },
+  });
+  expect(inspected.isError).not.toBe(true);
+  const ajv = new Ajv2020({ strict: false, validateFormats: false });
+  const outputSchema: Record<string, unknown> = advertised.outputSchema;
+  expect(
+    ajv.validate(outputSchema, inspected.structuredContent),
+    JSON.stringify(ajv.errors),
+  ).toBe(true);
+
+  const normalized = webPageInspectionSchema.parse(
+    normalizedResultOf(inspected.structuredContent),
+  );
+  expect(normalized.metadata.responses).toContainEqual(
+    expect.objectContaining({
+      request_id: "link-metadata",
+      links: [
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/duplicate-first`,
+          rel: ["mcp"],
+          type: "application/mcp",
+          context_url: `${browser.allowedOrigin}/page`,
+          context_scope: "approved",
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/duplicate-last`,
+          rel: ["preload"],
+          context_url: `${browser.allowedOrigin}/page`,
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/escaped-rel`,
+          rel: ["mcp"],
+          context_url: `${browser.allowedOrigin}/page`,
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/other-context`,
+          rel: ["mcp"],
+          context_url: `${browser.allowedOrigin}/other-document`,
+          context_scope: "approved",
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/default-context`,
+          rel: ["mcp"],
+          context_url: `${browser.allowedOrigin}/page`,
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/same-context`,
+          rel: ["mcp"],
+          context_url: `${browser.allowedOrigin}/page`,
+        }),
+        expect.objectContaining({
+          href: `${browser.allowedOrigin}/credential-context`,
+          rel: ["mcp"],
+          context_url: `${browser.allowedOrigin}/page`,
+        }),
+      ],
+    }),
+  );
+  const linkHints = normalized.metadata.agent_hints.filter(
+    ({ mechanism }) => mechanism === "link_rel",
+  );
+  expect(linkHints.map(({ url }) => url)).toEqual([
+    `${browser.allowedOrigin}/duplicate-first`,
+    `${browser.allowedOrigin}/escaped-rel`,
+    `${browser.allowedOrigin}/default-context`,
+    `${browser.allowedOrigin}/same-context`,
+  ]);
+
+  const legacy = structuredClone(normalized);
+  for (const response of legacy.metadata.responses)
+    for (const projectedLink of response.links) {
+      delete projectedLink.context_url;
+      delete projectedLink.context_scope;
+    }
+  expect(webPageInspectionSchema.safeParse(legacy).success).toBe(true);
+  const legacyStructuredContent = {
+    ...(inspected.structuredContent as Record<string, unknown>),
+    normalized_result: legacy,
+  };
+  expect(
+    ajv.validate(outputSchema, legacyStructuredContent),
+    JSON.stringify(ajv.errors),
+  ).toBe(true);
+});
 
 it(
   "preserves full document URL identity through CLI and MCP",

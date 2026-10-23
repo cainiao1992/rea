@@ -199,6 +199,10 @@ const browserCspSourceSchema = z.object({
 const browserLinkMetadataSchema = z.object({
   href: z.string().nullable(),
   destination_scope: z.enum(["approved", "outside_policy", "unsupported"]),
+  context_url: z.string().nullable().optional(),
+  context_scope: z
+    .enum(["approved", "outside_policy", "unsupported"])
+    .optional(),
   rel: z.array(z.string()),
   as: z.string().nullable(),
   type: z.string().nullable(),

@@ -33,7 +33,6 @@ import {
 } from "./JavaScriptArtifactGraphEvidence.js";
 import {
   artifactPathResolutionProperties,
-  resolveArtifactPathByContext,
   type ArtifactPathResolution,
 } from "./JavaScriptArtifactPathResolution.js";
 
@@ -512,23 +511,6 @@ export const chunkLookupKey = (
   runtime: string,
   chunkKey: string,
 ): string => compositeKey([path, runtime, chunkKey]);
-
-/** Resolve a relative static specifier without escaping the artifact root. */
-export const resolveArtifactPath = (
-  specifier: string,
-  sourcePath: string,
-  files: ReadonlyMap<string, JavaScriptArtifactFile>,
-  moduleKind?: "import" | "require" | "compiler-dependent",
-  directoryPaths?: ReadonlySet<string>,
-): string | null =>
-  resolveArtifactPathByContext({
-    declaredPath: specifier,
-    sourcePath,
-    context: "module-specifier",
-    files,
-    ...(directoryPaths === undefined ? {} : { directoryPaths }),
-    ...(moduleKind === undefined ? {} : { moduleKind }),
-  }).resolved_path;
 
 /** Locate the recovered module that owns a static finding. */
 export const sourceNodeFor = (

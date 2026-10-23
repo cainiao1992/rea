@@ -14,6 +14,7 @@ import type {
   JavaScriptArtifactFileKind,
 } from "../../domain/javascript/javascriptArtifactFiles.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
+import type { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 
 interface JavaScriptStructuredObservation {
   readonly path: string;
@@ -200,6 +201,8 @@ export const isSkippedJavaScriptAnalysis = (
 export interface JavaScriptArtifactAnalysis<
   SemanticIr extends JavaScriptModuleSemanticIr = JavaScriptSemanticIr,
 > {
+  /** Internal source-facts owner shared with graph path resolution. */
+  readonly jsonDocuments: JavaScriptJsonDocuments;
   readonly files: readonly AnalyzedJavaScriptArtifactFile<SemanticIr>[];
   readonly packages: readonly JavaScriptPackageObservation[];
   readonly json_modules: readonly JavaScriptJsonModuleObservation[];

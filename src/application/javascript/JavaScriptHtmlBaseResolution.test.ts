@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
+import { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 const paths = [
   "renderer/index.html",
@@ -24,6 +25,7 @@ const files = new Map<string, JavaScriptArtifactFile>(
     },
   ]),
 );
+const jsonDocuments = new JavaScriptJsonDocuments();
 const resolve = (declaredPath: string, htmlBaseHref: string) =>
   resolveArtifactPathByContext({
     declaredPath,
@@ -31,6 +33,7 @@ const resolve = (declaredPath: string, htmlBaseHref: string) =>
     sourcePath: "renderer/index.html",
     context: "html-reference",
     files,
+    jsonDocuments,
   });
 const documentUrl = "https://artifact.test/renderer/index.html";
 describe("HTML base href URL components", () => {

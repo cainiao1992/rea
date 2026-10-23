@@ -4,6 +4,7 @@ import {
   resolveArtifactPathByContext,
   type ResolveArtifactPathInput,
 } from "./JavaScriptArtifactPathResolution.js";
+import { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import { artifactLocalIdentity } from "./JavaScriptArtifactGraphContext.js";
 import { applicationNodeIdentitySchema } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
@@ -3565,8 +3566,9 @@ describe("module-backed package main host paths", () => {
   );
 });
 
-const resolve = (input: ResolveArtifactPathInput) =>
-  resolveArtifactPathByContext(input);
+const jsonDocuments = new JavaScriptJsonDocuments();
+const resolve = (input: Omit<ResolveArtifactPathInput, "jsonDocuments">) =>
+  resolveArtifactPathByContext({ ...input, jsonDocuments });
 
 const fileMap = (files: readonly JavaScriptArtifactFile[]) =>
   new Map(files.map((value) => [value.path, value]));

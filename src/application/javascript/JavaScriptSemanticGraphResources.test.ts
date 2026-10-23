@@ -5,6 +5,7 @@ import { buildJavaScriptSemanticGraph } from "./JavaScriptSemanticGraphBuilder.j
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import { queryJavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticQuery.js";
 import { resolveJavaScriptSemanticEvidence } from "../../domain/javascript/javascriptSemanticGraph.js";
+import { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 
 const SHA256 = "a".repeat(64);
 const GRAPH_ID = `jag_${"b".repeat(64)}`;
@@ -347,6 +348,7 @@ it("uses unavailable evidence when no source produced semantic IR", () => {
 });
 
 const emptyAnalysis = (): JavaScriptArtifactAnalysis => ({
+  jsonDocuments: new JavaScriptJsonDocuments(),
   files: [],
   packages: [],
   json_modules: [],

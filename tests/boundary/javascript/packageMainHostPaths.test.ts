@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 
-import { resolveArtifactPathByContext } from "../../../src/application/javascript/JavaScriptArtifactPathResolution.js";
+import { resolveStandaloneArtifactPath } from "../../support/javascriptArtifactPathResolution.js";
 import type { JavaScriptArtifactFile } from "../../../src/domain/javascript/javascriptArtifactFiles.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { writeFixtureFiles } from "../../support/workspace/writeFixtureFiles.js";
@@ -55,7 +55,7 @@ it.each(["absolute-host", "relative-package"] as const)(
       ]),
     );
     expect(
-      resolveArtifactPathByContext({
+      resolveStandaloneArtifactPath({
         declaredPath: "fixture",
         sourcePath: "app/main.cjs",
         context: "module-specifier",

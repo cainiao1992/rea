@@ -117,6 +117,7 @@ it.each(
           context: "module-specifier",
           moduleKind: "require",
           files: new Map(files.files.map((file) => [file.path, file])),
+          jsonDocuments: analysis.jsonDocuments,
         }),
       ).toMatchObject({
         resolution_status: valid ? "resolved" : "unavailable",

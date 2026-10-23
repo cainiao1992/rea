@@ -17,6 +17,7 @@ import {
 } from "./JavaScriptArtifactGraphStructure.js";
 import { addJavaScriptStaticFindingsSteps } from "./JavaScriptArtifactGraphFindings.js";
 import { applicationContainerIdentity } from "./JavaScriptArtifactGraphContext.js";
+import { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 
 const SHA256 = "a".repeat(64);
 const REASON =
@@ -51,6 +52,7 @@ const skippedEntry = (
 const analysisFor = (
   entries: readonly AnalyzedJavaScriptArtifactFile[],
 ): JavaScriptModuleArtifactAnalysis => ({
+  jsonDocuments: new JavaScriptJsonDocuments(),
   files: entries,
   packages: [],
   json_modules: [],

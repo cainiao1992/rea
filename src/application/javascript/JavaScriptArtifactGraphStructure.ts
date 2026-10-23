@@ -562,6 +562,7 @@ export const addJavaScriptPackageNodes = (
           context: "package-entrypoint",
           runtimePathKind: "node-entrypoint",
           files: context.filesByPath,
+          jsonDocuments: context.analysis.jsonDocuments,
           directoryPaths: context.directoryPaths,
           unanalyzedFiles: context.unanalyzedFiles,
         }),
@@ -689,6 +690,7 @@ const addPackageRole = (
       ? { runtimePathKind: "node-entrypoint" as const }
       : {}),
     files: context.filesByPath,
+    jsonDocuments: context.analysis.jsonDocuments,
     directoryPaths: context.directoryPaths,
     unanalyzedFiles: context.unanalyzedFiles,
   });

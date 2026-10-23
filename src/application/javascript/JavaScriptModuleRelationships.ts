@@ -55,6 +55,7 @@ interface RelationshipInput {
 type ResolvedModuleTarget = {
   readonly node: ApplicationNode;
   readonly limitations: readonly string[];
+  readonly jsonStatus: "included" | "invalid" | "unavailable" | null;
   readonly resolution?: ArtifactPathResolution;
 } & (
   | {
@@ -289,6 +290,7 @@ const resolveModuleTarget = (
     sourcePath: input.file.path,
     context: "module-specifier",
     files: input.context.filesByPath,
+    jsonDocuments: input.context.analysis.jsonDocuments,
     directoryPaths: input.context.directoryPaths,
     unanalyzedFiles: input.context.unanalyzedFiles,
     moduleKind: moduleResolutionModeForJavaScriptReference(
@@ -304,6 +306,7 @@ const resolveModuleTarget = (
       node: unresolvedModuleNode(input, specifier, resolution),
       path: null,
       file: null,
+      jsonStatus: null,
       status: resolution.resolution_status,
       limitations: resolution.limitations,
       resolution,
@@ -321,6 +324,10 @@ const resolveModuleTarget = (
     node,
     path,
     file,
+    jsonStatus:
+      file.kind === "json" || file.kind === "package-json"
+        ? input.context.analysis.jsonDocuments.read(file).status
+        : null,
     status: "resolved",
     limitations: resolution.limitations,
     resolution,
@@ -404,10 +411,7 @@ const relationshipProperties = (
   resolution_status: target?.status ?? null,
   ...artifactPathResolutionProperties(target?.resolution),
   target_file_kind: target?.file?.kind ?? null,
-  target_json_status:
-    target?.file?.kind === "json" || target?.file?.kind === "package-json"
-      ? jsonStatus(target.file)
-      : null,
+  target_json_status: target?.jsonStatus ?? null,
 });
 
 const relationshipEvidence = (
@@ -465,20 +469,6 @@ const moduleFormat = (
       : commonJs
         ? "commonjs"
         : "unknown";
-};
-
-const jsonStatus = (
-  file: JavaScriptArtifactFile,
-): "included" | "invalid" | "unavailable" => {
-  if (!file.text.included) return "unavailable";
-  try {
-    JSON.parse(file.text.value);
-    return "included";
-  } catch (cause: unknown) {
-    // Invalid JSON is classified without further detail.
-    void cause;
-    return "invalid";
-  }
 };
 
 const isExportLink = (link: JavaScriptSemanticModuleLink): boolean =>

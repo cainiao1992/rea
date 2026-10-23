@@ -1,3 +1,4 @@
+import type { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import type { ElectronIpcFinding } from "../../domain/javascript/electronStaticAnalysisTypes.js";
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
@@ -164,6 +165,7 @@ export const summarizeElectronBoundaries = (
           specifier: finding.module_path,
           context: finding.module_resolution_context,
           files,
+          jsonDocuments: analysis.jsonDocuments,
           directoryPaths,
           runtimePathKind: "node-entrypoint",
         }),
@@ -175,6 +177,7 @@ export const summarizeElectronBoundaries = (
         specifier: finding.specifier,
         context: "module-specifier",
         files,
+        jsonDocuments: analysis.jsonDocuments,
         directoryPaths,
         kind: "native-addon",
         moduleKind: finding.module_kind,
@@ -209,6 +212,7 @@ interface ResolveToFileInput {
   readonly specifier: string;
   readonly context: "module-specifier" | "filesystem-expression";
   readonly files: ReadonlyMap<string, JavaScriptArtifactFile>;
+  readonly jsonDocuments: JavaScriptJsonDocuments;
   readonly directoryPaths?: ReadonlySet<string> | undefined;
   readonly kind?: JavaScriptArtifactFile["kind"];
   readonly moduleKind?: "import" | "require";
@@ -221,6 +225,7 @@ const resolvesToFile = (input: ResolveToFileInput): boolean => {
     sourcePath: input.file.path,
     context: input.context,
     files: input.files,
+    jsonDocuments: input.jsonDocuments,
     ...(input.directoryPaths === undefined
       ? {}
       : { directoryPaths: input.directoryPaths }),

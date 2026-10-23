@@ -1,9 +1,9 @@
+import { resolveArtifactPathByContext } from "./JavaScriptArtifactPathResolution.js";
 import { javascriptSourceRangeKey } from "../../domain/javascript/javascriptSourceCoordinates.js";
 import type { ElectronNativeAddonBindingFinding } from "../../domain/javascript/electronStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
   javascriptAnalysisCoverage,
-  resolveArtifactPath,
   type JavaScriptArtifactGraphContext,
   type JavaScriptArtifactGraphCoverage,
 } from "./JavaScriptArtifactGraphContext.js";
@@ -45,13 +45,17 @@ const addNativeBinding = (input: NativeBindingInput): void => {
     value.module_runtime,
   );
   if (source === undefined) return;
-  const resolved = resolveArtifactPath(
-    value.specifier,
-    file.path,
-    context.filesByPath,
-    value.module_kind,
-    context.directoryPaths,
-  );
+  const resolved = resolveArtifactPathByContext({
+    declaredPath: value.specifier,
+    sourcePath: file.path,
+    context: "module-specifier",
+    files: context.filesByPath,
+    jsonDocuments: context.analysis.jsonDocuments,
+    directoryPaths: context.directoryPaths,
+    ...(value.module_kind === undefined
+      ? {}
+      : { moduleKind: value.module_kind }),
+  }).resolved_path;
   const addon = resolved === null ? undefined : context.fileNodes.get(resolved);
   const binding = context.accumulator.addNode({
     kind: "native-export",

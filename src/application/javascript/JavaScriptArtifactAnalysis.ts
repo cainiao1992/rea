@@ -40,6 +40,10 @@ import type {
 } from "./JavaScriptArtifactAnalysisTypes.js";
 import { javascriptArtifactAnalysisScopes } from "./JavaScriptArtifactAnalysisTypes.js";
 import { analyzeJavaScriptJsonModule } from "./JavaScriptJsonModules.js";
+import {
+  JavaScriptJsonDocuments,
+  type JavaScriptJsonDocumentFacts,
+} from "./JavaScriptJsonDocuments.js";
 import { completeJavaScriptAnalysisSteps } from "./JavaScriptAnalysisControl.js";
 import { htmlArtifactReferences } from "../../domain/javascript/htmlArtifactReferences.js";
 import type { JavaScriptSourceAnalysisPort } from "../../domain/javascript/javascriptSourceAnalysis.js";
@@ -57,6 +61,7 @@ import {
 interface MutableArtifactAnalysis<
   SemanticIr extends JavaScriptModuleSemanticIr,
 > {
+  readonly jsonDocuments: JavaScriptJsonDocuments;
   readonly files: AnalyzedJavaScriptArtifactFile<SemanticIr>[];
   readonly packages: JavaScriptPackageObservation[];
   readonly jsonModules: JavaScriptJsonModuleObservation[];
@@ -359,6 +364,7 @@ const finalizeArtifactAnalysis = <
   state: MutableArtifactAnalysis<SemanticIr>,
 ): JavaScriptArtifactAnalysis<SemanticIr> => {
   return {
+    jsonDocuments: state.jsonDocuments,
     files: state.files,
     packages: state.packages,
     json_modules: state.jsonModules,
@@ -482,6 +488,7 @@ const addSourceMap = (
 const emptyArtifactAnalysis = <
   SemanticIr extends JavaScriptModuleSemanticIr,
 >(): MutableArtifactAnalysis<SemanticIr> => ({
+  jsonDocuments: new JavaScriptJsonDocuments(),
   files: [],
   packages: [],
   jsonModules: [],
@@ -498,27 +505,25 @@ const addStructuredObservations = (
   file: JavaScriptArtifactFile,
   state: MutableArtifactAnalysis<JavaScriptModuleSemanticIr>,
 ): void => {
-  if (file.kind === "package-json") state.packages.push(parsePackage(file));
+  if (file.kind === "package-json")
+    state.packages.push(parsePackage(file, state.jsonDocuments.read(file)));
   if (file.kind !== "json") return;
-  const json = analyzeJavaScriptJsonModule(file);
+  const json = analyzeJavaScriptJsonModule(file, state.jsonDocuments);
   state.jsonModules.push(json);
   if (json.status === "invalid") state.parseFailures += 1;
 };
 
 const parsePackage = (
   file: JavaScriptArtifactFile,
+  document: JavaScriptJsonDocumentFacts,
 ): JavaScriptPackageObservation => {
-  if (!file.text.included)
+  if (document.status === "unavailable")
     return unavailablePackage(file, "Package metadata text was unavailable.");
-  let value: unknown;
-  try {
-    value = JSON.parse(file.text.value);
-  } catch (cause: unknown) {
-    void cause;
+  if (document.status === "invalid")
     return invalidPackage(file, "package.json is not valid JSON.");
-  }
-  if (!isRecord(value))
+  if (document.packageFields === null)
     return invalidPackage(file, "package.json root is not an object.");
+  const value = document.packageFields;
   return {
     path: file.path,
     sha256: file.sha256,
@@ -780,6 +785,3 @@ const optionalString = (value: unknown): string | null =>
 
 const sha256 = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);

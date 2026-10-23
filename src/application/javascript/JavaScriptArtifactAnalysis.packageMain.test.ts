@@ -34,6 +34,50 @@ it.each([null, false, 123, {}, []].map((main) => ({ main })))(
   },
 );
 
+it("keeps valid JSON numeric overflow invalid as a package main", () => {
+  expect(packageObservation('{"main":1e400}')).toMatchObject({
+    status: "included",
+    main: null,
+    main_status: "invalid",
+    main_entrypoint: "",
+  });
+});
+
+it("treats a valid numeric JSON root as a package metadata shape failure", () => {
+  expect(packageObservation("1e400")).toMatchObject({
+    status: "invalid",
+    main: null,
+    main_status: "unavailable",
+    main_entrypoint: null,
+  });
+});
+
+it("retains valid numeric overflow as an ordinary JSON module", () => {
+  const text = "1e400";
+  const analysis = analyzeJavaScriptArtifactFiles({
+    files: [
+      {
+        path: "settings.json",
+        container_sha256: "a".repeat(64),
+        sha256: "b".repeat(64),
+        bytes: Buffer.byteLength(text),
+        inventory_artifact_id: "numeric-json-fixture",
+        kind: "json",
+        unpacked: false,
+        text: { included: true, value: text },
+      },
+    ],
+    unavailable_relevant_files: [],
+    containers: [],
+    text_bytes_read: Buffer.byteLength(text),
+    invalid_utf8_files: 0,
+  });
+
+  expect(analysis.json_modules).toMatchObject([
+    { status: "included", top_level_keys: [] },
+  ]);
+});
+
 it.each([
   ["{}", "default", ""],
   ['{"main":""}', "default", ""],

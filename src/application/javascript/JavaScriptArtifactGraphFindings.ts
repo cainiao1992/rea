@@ -488,6 +488,7 @@ const addDiscoveredRole = (
     sourcePath: input.file.path,
     context: input.value.resolution_context,
     files: context.filesByPath,
+    jsonDocuments: context.analysis.jsonDocuments,
     directoryPaths: context.directoryPaths,
     unanalyzedFiles: context.unanalyzedFiles,
     ...(input.value.role === "preload"
@@ -556,6 +557,7 @@ const addSourceMapEdge = (
     sourcePath: input.file.path,
     context: "url-reference",
     files: context.filesByPath,
+    jsonDocuments: context.analysis.jsonDocuments,
     directoryPaths: context.directoryPaths,
     unanalyzedFiles: context.unanalyzedFiles,
   });
@@ -660,6 +662,7 @@ const resolveReference = (
         sourcePath,
         context: "url-reference",
         files: context.filesByPath,
+        jsonDocuments: context.analysis.jsonDocuments,
         directoryPaths: context.directoryPaths,
         unanalyzedFiles: context.unanalyzedFiles,
       })
@@ -668,6 +671,7 @@ const resolveReference = (
         sourcePath,
         context: "module-specifier",
         files: context.filesByPath,
+        jsonDocuments: context.analysis.jsonDocuments,
         directoryPaths: context.directoryPaths,
         unanalyzedFiles: context.unanalyzedFiles,
         ...("require" === reference.kind ||

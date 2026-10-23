@@ -1,3 +1,4 @@
+import type { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 import { isBuiltin } from "node:module";
 import { posix, win32 } from "node:path";
 import { ELECTRON_MODULE } from "../../domain/javascript/javascriptElectronMemberWrites.js";
@@ -79,6 +80,7 @@ export type ArtifactPathResolution = ArtifactPathResolutionBase &
 
 /** Values needed to resolve a declaration without filesystem access. */
 export interface ResolveArtifactPathInput {
+  readonly jsonDocuments: JavaScriptJsonDocuments;
   readonly declaredPath: string;
   readonly sourcePath: string;
   readonly context: ArtifactPathResolutionContext;
@@ -1449,25 +1451,17 @@ const readPackageMetadata = (
       kind: "unavailable",
       limitation: `Directory package metadata ${path} was inventoried but its text is unavailable: ${file.text.reason}.`,
     };
-  let value: unknown;
-  try {
-    value = JSON.parse(file.text.value);
-  } catch (cause: unknown) {
-    void cause;
+  const document = input.jsonDocuments.read(file);
+  if (document.status !== "included" || document.packageFields === null)
     return {
       kind: "unavailable",
       limitation: `Directory package metadata ${path} is not valid package JSON.`,
     };
-  }
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    return {
-      kind: "unavailable",
-      limitation: `Directory package metadata ${path} is not valid package JSON.`,
-    };
-  const name = Reflect.get(value, "name");
-  const exports = Reflect.get(value, "exports");
-  const imports = Reflect.get(value, "imports");
-  const main = Reflect.get(value, "main");
+  const value = document.packageFields;
+  const name = value.name;
+  const exports = value.exports;
+  const imports = value.imports;
+  const main = value.main;
   return {
     kind: "available",
     path,
@@ -1488,7 +1482,7 @@ const readPackageMetadata = (
       input.moduleKind !== undefined && typeof main !== "string"
         ? undefined
         : main,
-    module: Reflect.get(value, "module"),
+    module: value.module,
   };
 };
 
@@ -1565,6 +1559,7 @@ const resolveDirectory = (
     sourcePath: metadata.path,
     context: "package-entrypoint",
     files: input.files,
+    jsonDocuments: input.jsonDocuments,
     ...(input.directoryPaths === undefined
       ? {}
       : { directoryPaths: input.directoryPaths }),

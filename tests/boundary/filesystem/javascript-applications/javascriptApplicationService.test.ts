@@ -20,6 +20,8 @@ import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javasc
 import { createJavaScriptSourceAnalysis } from "../../../../src/artifacts/javascript/JavaScriptSourceAnalysis.js";
 import { analyzeAndAdoptJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "../../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
+import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+import { writeFixtureFiles } from "../../../support/javascriptApplicationFixture.js";
 
 describe("JavaScript source selection cancellation boundary", () => {
   it("keeps unselected files outside scope when the real worker cancels after the last selected file", async () => {
@@ -85,6 +87,171 @@ describe("JavaScript source selection cancellation boundary", () => {
     }
   });
 });
+
+it("resolves lazy package and JSON facts without completing their skipped observations", async () => {
+  const root = await createTestTempDirectory("rea-js-lazy-json-facts-");
+  await writeFixtureFiles(root, {
+    "app/first.cjs": 'require("late-pkg"); require("./config.json");\n',
+    "app/second.cjs": "module.exports = 2;\n",
+    "app/config.json": "true",
+    "app/node_modules/late-pkg/package.json": JSON.stringify({
+      main: "index.cjs",
+    }),
+    "app/node_modules/late-pkg/index.cjs": "module.exports = 1;\n",
+    "app/vendor/package.json": JSON.stringify({ main: "vendor.cjs" }),
+  });
+  const snapshot = await scanCanonicalArtifactInventory(root, {});
+  const reader = createJavaScriptArtifactReader(root, "directory");
+  const controller = new AbortController();
+  const reason = { request: "stop before structured files" };
+  const sourcePaths = [
+    "app/first.cjs",
+    "app/second.cjs",
+    "app/node_modules/late-pkg/package.json",
+    "app/node_modules/late-pkg/index.cjs",
+    "app/config.json",
+  ];
+  try {
+    const files = await readJavaScriptArtifactFiles(
+      reader,
+      snapshot,
+      controller.signal,
+      sourcePaths,
+    );
+    const worker = await createJavaScriptSourceAnalysis(
+      { heapMb: 512, timeoutMs: 30_000 },
+      1,
+    );
+    let outcome: Awaited<
+      ReturnType<typeof analyzeAndAdoptJavaScriptArtifactFiles>
+    >;
+    let completedWorkers = 0;
+    const projection = createJavaScriptSemanticGraphProjection();
+    try {
+      const realWorker = worker.analyze.bind(worker);
+      outcome = await analyzeAndAdoptJavaScriptArtifactFiles(
+        files,
+        {
+          analyze: async (...args) => {
+            const result = await realWorker(...args);
+            completedWorkers += 1;
+            if (completedWorkers === 2) controller.abort(reason);
+            return result;
+          },
+        },
+        projection,
+        async () => {},
+        controller.signal,
+      );
+    } finally {
+      await worker.close();
+    }
+
+    expect(completedWorkers).toBe(2);
+    expect(outcome.interruption).toBeInstanceOf(AnalysisCancelledError);
+    expect(outcome.interruption?.cause).toBe(reason);
+    const analysisByPath = new Map(
+      outcome.analysis.files.map((entry) => [entry.file.path, entry]),
+    );
+    for (const path of sourcePaths.slice(0, 2))
+      expect(analysisByPath.get(path)?.javascript).toMatchObject({
+        parse_status: "complete",
+      });
+    for (const path of [
+      "app/node_modules/late-pkg/package.json",
+      "app/config.json",
+    ])
+      expect(analysisByPath.get(path)?.analysis_failure?.status).toBe(
+        "not-started",
+      );
+    expect(
+      outcome.analysis.packages.some(
+        ({ path }) => path === "app/node_modules/late-pkg/package.json",
+      ),
+    ).toBe(false);
+    expect(
+      outcome.analysis.json_modules.some(
+        ({ path }) => path === "app/config.json",
+      ),
+    ).toBe(false);
+
+    const graph = buildJavaScriptArtifactGraph(
+      snapshot,
+      files,
+      outcome.analysis,
+    );
+    expect(graph.coverage.status).toBe("partial");
+    expect(
+      graph.edges.find(
+        ({ relation, properties }) =>
+          relation === "imports" && properties.specifier === "late-pkg",
+      )?.properties,
+    ).toMatchObject({
+      resolution_status: "resolved",
+      resolved_path: "app/node_modules/late-pkg/index.cjs",
+    });
+    expect(
+      graph.edges.find(
+        ({ relation, properties }) =>
+          relation === "imports" && properties.specifier === "./config.json",
+      )?.properties,
+    ).toMatchObject({
+      target_file_kind: "json",
+      target_json_status: "included",
+    });
+    for (const [path, operation] of [
+      ["app/node_modules/late-pkg/package.json", "parse-package-json"],
+      ["app/config.json", "parse-json-module"],
+    ] as const)
+      expectSkippedStructuredSource(graph, path, operation);
+    const excluded = analysisByPath.get("app/vendor/package.json");
+    expect(excluded?.file.text).toMatchObject({
+      included: false,
+      reason: "outside-analysis-scope",
+    });
+    expect(excluded?.analysis_failure).toBeUndefined();
+    expect(
+      unknownScopeObservation(graph, "app/vendor/package.json"),
+    ).toMatchObject({
+      properties: { operation: "select-javascript-sources" },
+      evidence: { confidence: "unknown", state: "unavailable" },
+    });
+  } finally {
+    await reader.close();
+  }
+});
+
+const unknownScopeObservation = (
+  graph: ReturnType<typeof buildJavaScriptArtifactGraph>,
+  path: string,
+) =>
+  graph.nodes
+    .filter(({ kind }) => kind === "unknown")
+    .flatMap(({ observations }) => observations)
+    .find(({ properties }) => properties.path === path);
+
+const expectSkippedStructuredSource = (
+  graph: ReturnType<typeof buildJavaScriptArtifactGraph>,
+  path: string,
+  operation: string,
+): void => {
+  expect(
+    graph.nodes.some(
+      ({ kind, observations }) =>
+        kind === "package" &&
+        observations.some(({ properties }) => properties.path === path),
+    ),
+  ).toBe(false);
+  expect(
+    graph.nodes
+      .filter(({ kind }) => kind === "artifact")
+      .flatMap(({ observations }) => observations)
+      .find(({ properties }) => properties.path === path),
+  ).toMatchObject({ properties: { json_parse_status: null } });
+  expect(unknownScopeObservation(graph, path)).toMatchObject({
+    properties: { operation, analysis_status: "not-started" },
+  });
+};
 
 describe("Selected JavaScript source failure diagnostics", () => {
   it("analyzes selected files in first-request order and reports only selected progress", async () => {

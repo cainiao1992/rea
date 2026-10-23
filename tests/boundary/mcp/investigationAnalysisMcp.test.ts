@@ -592,3 +592,111 @@ const close = async (
 ) => {
   await Promise.allSettled([client.close(), server.close(), session.close()]);
 };
+
+it("keeps an aggregate function reconstruction unknown while a constituent dimension is unresolved", async () => {
+  const { session, server, client } = await connected();
+  try {
+    const left = FUNCTION_COMPARISON_EXAMPLE.left;
+    const right = createEvidence(
+      {
+        path: "/tmp/rebuilt-function",
+        sha256: "2".repeat(64),
+        format: "mach-o",
+      },
+      left.provider,
+      {
+        operation: left.operation,
+        parameters: left.parameters,
+        result: left.normalized_result,
+        confidence: left.confidence,
+        authority: left.authority,
+        relationshipCoverage: { status: "complete" },
+      },
+    );
+    const compared = await client.callTool({
+      name: "compare_functions",
+      arguments: { left, right },
+    });
+    expect(compared.isError).not.toBe(true);
+    const comparison = inlineEvidence(compared.structuredContent);
+    const specification = {
+      name: "Function reconstruction",
+      claims: ["overall", "pseudocode", "assembly"].map((dimension) => ({
+        kind: "structural-function",
+        claim_id: dimension,
+        title: dimension,
+        dimension,
+        comparison_evidence_id: comparison.evidence_id,
+      })),
+    };
+    const baseline = await client.callTool({
+      name: "verify_reconstruction",
+      arguments: { specification },
+    });
+    expect(
+      inlineEvidence(baseline.structuredContent).normalized_result,
+    ).toMatchObject({ status: "pass" });
+    const recorded = await client.callTool({
+      name: "record_unknown",
+      arguments: {
+        question: "Does the pseudocode preserve the unresolved edge case?",
+        severity: "high",
+        domain: "function-comparison",
+        supporting_evidence_ids: [comparison.evidence_id],
+        contradicting_evidence_ids: [],
+        required_authority: null,
+        required_confidence: "derived",
+        required_environment: null,
+        recommended_probes: [
+          {
+            operation: "analyze_function",
+            rationale: "Resolve the pseudocode edge case.",
+          },
+        ],
+        relationships: [],
+        comparison_conclusion_scope: {
+          comparison_evidence_id: comparison.evidence_id,
+          dimensions: ["pseudocode"],
+        },
+      },
+    });
+    expect(recorded.isError).not.toBe(true);
+    const result = await client.callTool({
+      name: "verify_reconstruction",
+      arguments: { specification },
+    });
+    const payload = inlineEvidence(result.structuredContent).normalized_result;
+    expect(payload).toMatchObject({
+      status: "unknown",
+      claims: {
+        items: [
+          { claim_id: "assembly", status: "pass", unknown_ids: [] },
+          {
+            claim_id: "overall",
+            status: "unknown",
+            unknown_ids: [expect.stringMatching(/^unk_/u)],
+          },
+          {
+            claim_id: "pseudocode",
+            status: "unknown",
+            unknown_ids: [expect.stringMatching(/^unk_/u)],
+          },
+        ],
+      },
+      recommended_probes: [
+        expect.objectContaining({ claim_ids: ["overall", "pseudocode"] }),
+      ],
+    });
+    const overallOnly = await client.callTool({
+      name: "verify_reconstruction",
+      arguments: {
+        specification: { ...specification, claims: [specification.claims[0]] },
+      },
+    });
+    expect(
+      inlineEvidence(overallOnly.structuredContent).normalized_result,
+    ).toMatchObject({ status: "unknown", summary: { unknown: 1 } });
+  } finally {
+    await close(session, server, client);
+  }
+});

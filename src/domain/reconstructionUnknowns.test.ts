@@ -64,7 +64,7 @@ it("keeps explicit dependencies while excluding unrelated scoped unknowns", () =
     ]),
     comparisonId,
     [ev("b")],
-    "calls",
+    ["calls"],
   );
   expect(selected.map(({ unknown_id }) => unknown_id)).toEqual([
     calls.unknown_id,

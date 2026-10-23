@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { matchNativeFunctions } from "./NativeFunctionMatchingService.js";
 import { inspectAnalysisView } from "../analysisView/AnalysisViewService.js";
-import { nativeMatchingInventory } from "../../../tests/fixtures/nativeFunctionMatching.js";
+import { nativeMatchingNamedInventory as nativeMatchingInventory } from "../../../tests/fixtures/nativeFunctionMatching.js";
 import { analysisViewResultSchema } from "../../domain/analysisView/analysisView.js";
 
 it("pages individual function facts without transferring an entire ambiguous alias group, preserving mandatory identity and source coverage", async () => {

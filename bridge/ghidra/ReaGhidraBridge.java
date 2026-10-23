@@ -1097,6 +1097,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Function function = resolveProcedure(requireString(params, "procedure"));
         JsonObject result = new JsonObject();
         result.addProperty("name", procedureName(function));
+        Symbol symbol = function.getSymbol();
+        result.add("symbol", symbol == null ? JsonNull.INSTANCE : symbolMetadata(symbol));
         result.addProperty("entrypoint", canonicalAddress(function.getEntryPoint()));
         result.addProperty("basicblock_count", basicBlocks(function).size());
         JsonObject body = functionBody(function);
@@ -2138,13 +2140,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
             if (!address.isMemoryAddress() && !address.isExternalAddress()) {
                 continue;
             }
-            JsonObject facts = new JsonObject();
-            facts.addProperty("primary", symbol.isPrimary());
-            facts.addProperty("dynamic", symbol.isDynamic());
-            facts.addProperty("external", symbol.isExternal());
-            facts.addProperty("type", normalizedSymbolType(symbol));
-            facts.addProperty("source", normalizedSource(symbol.getSource()));
-            result.add(new InventoryItem(address, symbol.getName(true), facts));
+            JsonObject facts = symbolMetadata(symbol);
+            result.add(new InventoryItem(address, symbol.getName(true), facts, null));
         }
         result.sort(INVENTORY_ORDER);
         nameInventory = List.copyOf(result);
@@ -2188,7 +2185,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
             InventoryItem item = new InventoryItem(
                 function.getEntryPoint(),
                 symbol == null ? function.getName() : symbol.getName(true),
-                facts
+                facts,
+                symbol == null ? null : symbolMetadata(symbol)
             );
             destination.add(new FunctionEntry(function, item));
         }
@@ -2219,7 +2217,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 instance.isMissingNullTerminator() ? "missing" : "present_or_not_required"
             );
             facts.addProperty("byte_length", Math.max(0, data.getLength()));
-            result.add(new InventoryItem(data.getAddress(), value, facts));
+            result.add(new InventoryItem(data.getAddress(), value, facts, null));
         }
         result.sort(INVENTORY_ORDER);
         stringInventory = List.copyOf(result);
@@ -4406,6 +4404,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (factsName != null) {
             result.add(factsName, item.facts.deepCopy());
         }
+        if (item.symbol != null) {
+            result.add("symbol", item.symbol.deepCopy());
+        }
         return result;
     }
 
@@ -4433,6 +4434,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonObject result = new JsonObject();
         result.addProperty("address", canonicalAddress(function.getEntryPoint()));
         result.addProperty("name", procedureName(function));
+        Symbol symbol = function.getSymbol();
+        result.add("symbol", symbol == null ? JsonNull.INSTANCE : symbolMetadata(symbol));
         result.add("classification", functionClassification(function));
         result.add("body", functionBody(function));
         return result;
@@ -4659,6 +4662,16 @@ public final class ReaGhidraBridge extends HeadlessScript {
             .replaceAll("[^a-z0-9]+", "_")
             .replaceAll("^_+|_+$", "");
         return value.isEmpty() ? "unknown" : value;
+    }
+
+    private static JsonObject symbolMetadata(Symbol symbol) {
+        JsonObject facts = new JsonObject();
+        facts.addProperty("primary", symbol.isPrimary());
+        facts.addProperty("dynamic", symbol.isDynamic());
+        facts.addProperty("external", symbol.isExternal());
+        facts.addProperty("type", normalizedSymbolType(symbol));
+        facts.addProperty("source", normalizedSource(symbol.getSource()));
+        return facts;
     }
 
     private static String normalizedSource(SourceType source) {
@@ -4907,7 +4920,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
             .thenComparingInt(Reference::getOperandIndex)
             .thenComparing(Reference::isPrimary);
 
-    private record InventoryItem(Address address, String value, JsonObject facts) {}
+    private record InventoryItem(Address address, String value, JsonObject facts, JsonObject symbol) {}
     private record AddressNameRequest(String inputAddress, Address address, String name) {}
     private record FunctionEntry(Function function, InventoryItem item) {}
     private record FunctionAnalysisObservation(JsonObject dossier, List<String> limitations, JsonObject relationshipCoverage, boolean decompilerFailed) {}

@@ -1,3 +1,4 @@
+import { hasStableNativeSymbol } from "./native/nativeSymbol.js";
 import { canonicalJson } from "./comparisonSemantics.js";
 import {
   compareFunctionRelationships,
@@ -9,7 +10,6 @@ import type { FunctionSnapshot } from "./functionDossierEvidence.js";
 import {
   commentProjection,
   identityProjection,
-  hasStableFunctionName,
   nameAndSwiftProjection,
   normalizeCfg,
   referencedStringProjection,
@@ -550,8 +550,14 @@ const compareIdentity = (
   context: ComparisonContext,
 ): FunctionDimension => {
   if (
-    !hasStableFunctionName(left.dossier.procedure.name) ||
-    !hasStableFunctionName(right.dossier.procedure.name)
+    !hasStableNativeSymbol(
+      left.dossier.procedure.name,
+      left.dossier.procedure.symbol,
+    ) ||
+    !hasStableNativeSymbol(
+      right.dossier.procedure.name,
+      right.dossier.procedure.symbol,
+    )
   )
     return unresolvedDimension({
       dimension: "identity",
@@ -559,7 +565,7 @@ const compareIdentity = (
       leftCount: null,
       rightCount: null,
       limitations: [
-        "Empty or address-derived function names are not stable cross-version identity.",
+        "Empty names, generated symbols and unknown symbol origins do not establish cross-version identity.",
       ],
     });
   return compareValues(

@@ -9,7 +9,7 @@ import {
   functionBodyEntryAgrees,
   functionDossierSchema,
 } from "../hopperValues.js";
-import { isAutoName } from "../functionComparisonNormalization.js";
+import { nativeSymbolOrigin } from "./nativeSymbol.js";
 import {
   addressedValueSchema,
   nativeInventoryRowsSchemas,
@@ -43,7 +43,12 @@ const matchingProcedureInfoSchema = procedureInfoSchema
     entrypoint: nativeAddressInputSchema,
     body: matchingBodySchema,
   })
-  .transform(({ entrypoint, body }) => ({ address: entrypoint, body }));
+  .transform(({ entrypoint, body, name, symbol }) => ({
+    address: entrypoint,
+    body,
+    name,
+    symbol,
+  }));
 const matchingFunctionDossierSchema = functionDossierSchema.safeExtend({
   procedure: functionDossierSchema.shape.procedure.safeExtend({
     address: nativeAddressInputSchema,
@@ -84,7 +89,11 @@ interface Facts {
   readonly bytes: FunctionByteCoverage;
 }
 
-const addBody = (observation: Evidence, details: Facts["details"]): void => {
+const addBody = (
+  observation: Evidence,
+  details: Facts["details"],
+  symbols: Facts["symbols"],
+): void => {
   const dossier =
     observation.operation === "analyze_function"
       ? sourcePayload(
@@ -96,6 +105,12 @@ const addBody = (observation: Evidence, details: Facts["details"]): void => {
     dossier?.procedure ??
     sourcePayload(matchingProcedureInfoSchema, observation.normalized_result);
   const address = procedure.address;
+  if (procedure.symbol != null)
+    addSymbol(
+      { address, value: procedure.name, symbol: procedure.symbol },
+      observation.evidence_id,
+      symbols,
+    );
   if (!functionBodyEntryAgrees(procedure.body, address))
     throw new EvidenceIntegrityError(
       "Procedure body entry membership contradicts its address",
@@ -125,6 +140,18 @@ const addBody = (observation: Evidence, details: Facts["details"]): void => {
   }
   detail.links.push(observation.evidence_id);
 };
+const addSymbol = (
+  symbol: AddressedValue,
+  evidenceId: string,
+  symbols: Facts["symbols"],
+): void => {
+  const address = symbol.address;
+  let group = symbols.get(address);
+  if (group === undefined)
+    symbols.set(address, (group = { values: [], links: new Set() }));
+  group.values.push(symbol);
+  group.links.add(evidenceId);
+};
 const addNames = async (
   observation: Evidence,
   symbols: Facts["symbols"],
@@ -135,12 +162,7 @@ const addNames = async (
     observation.normalized_result,
   )) {
     await checkpoint(128 + symbol.value.length * 2);
-    const address = symbol.address;
-    let group = symbols.get(address);
-    if (group === undefined)
-      symbols.set(address, (group = { values: [], links: new Set() }));
-    group.values.push(symbol);
-    group.links.add(observation.evidence_id);
+    addSymbol(symbol, observation.evidence_id, symbols);
   }
 };
 const addBytes = async (
@@ -184,18 +206,13 @@ const reportedSymbol = (
     ...(known?.values.filter((symbol) => symbol.value === row.value) ?? []),
   ];
   const generated = names.some(
-    (symbol) =>
-      symbol.symbol?.dynamic === true || symbol.symbol?.source === "default",
+    (symbol) => nativeSymbolOrigin(symbol.symbol) === "generated",
   );
   const named = names.some(
-    (symbol) =>
-      symbol.symbol?.dynamic === false && symbol.symbol.source !== "default",
+    (symbol) => nativeSymbolOrigin(symbol.symbol) === "named",
   );
   return {
-    value:
-      row.value.length === 0 || generated || (!named && isAutoName(row.value))
-        ? null
-        : row.value,
+    value: row.value.length === 0 || generated || !named ? null : row.value,
     origin:
       generated && named
         ? "conflicting"
@@ -242,7 +259,7 @@ const functionFact = async (
     );
   if (symbol.origin === "unknown")
     limitations.push(
-      "Symbol origin unavailable; exact-name matching uses the reported name and the existing automatic-name exclusion rule.",
+      "Symbol origin unavailable; exact-name matching is unavailable. Independent complete body bytes remain eligible.",
     );
   if (symbol.origin === "conflicting")
     limitations.push(
@@ -296,7 +313,7 @@ export const readFunctionInventory = async (
         break;
       case "procedure_info":
       case "analyze_function":
-        addBody(observation, facts.details);
+        addBody(observation, facts.details, facts.symbols);
         break;
     }
   }

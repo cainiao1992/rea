@@ -6,7 +6,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import {
-  nativeMatchingInventory,
+  nativeMatchingNamedInventory as nativeMatchingInventory,
   nativeMatchingDetails,
   nativeMatchingTarget,
 } from "../../fixtures/nativeFunctionMatching.js";

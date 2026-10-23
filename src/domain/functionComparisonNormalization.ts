@@ -1,3 +1,4 @@
+import { hasStableNativeSymbol } from "./native/nativeSymbol.js";
 import { canonicalJson } from "./comparisonSemantics.js";
 import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
 import { nativeAddressCoordinateInputSchema } from "./native/nativeAddress.js";
@@ -20,7 +21,8 @@ export const functionMatch = (
   const leftName = left.dossier.procedure.name;
   const rightName = right.dossier.procedure.name;
   const stableNames =
-    hasStableFunctionName(leftName) && hasStableFunctionName(rightName);
+    hasStableNativeSymbol(leftName, left.dossier.procedure.symbol) &&
+    hasStableNativeSymbol(rightName, right.dossier.procedure.symbol);
   if (stableNames && leftName === rightName)
     return {
       status: "matched",
@@ -223,14 +225,6 @@ export const sorted = <T>(values: readonly T[]): readonly T[] =>
     }))
     .sort((left, right) => compareUnicodeCodePoints(left.json, right.json))
     .map(({ value }) => value);
-
-/** Recognize address-derived procedure names without excluding named FUN_ symbols. */
-export const isAutoName = (name: string): boolean =>
-  /^(?:sub_[0-9a-f]+|fcn\.[0-9a-f]+|FUN_[0-9a-f]+)$/iu.test(name);
-
-/** A display label must be nonempty before it can constrain named correspondence. */
-export const hasStableFunctionName = (name: string): boolean =>
-  name.length > 0 && !isAutoName(name);
 
 const parseAddress = (value: string) => {
   const parsed = nativeAddressCoordinateInputSchema.safeParse(value);

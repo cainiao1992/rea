@@ -1276,14 +1276,15 @@ profiles, Ghidra universal-image imports without an exact slice commitment, and
 older or imported Evidence without a commitment leave coordinate identity
 unknown. Unparseable coordinates also remain unknown.
 
-Across different artifacts, endpoints use nonempty stable procedure names.
-Missing or address-generated names remain unknown. A name observed at multiple
-procedure entries across either dossier's call and reference facets retains its
-label constraint but cannot establish equal endpoints. Same-container records
-without a common coordinate context likewise cannot establish equality from
-matching labels. Procedure labels do not carry authoritative symbol-origin
-facts, so recognition of generated names remains conservative and cannot prove
-whether every provider label was generated or explicitly named.
+Across different artifacts, endpoints use nonempty procedure names whose observed
+symbol facts establish a named origin. Dynamic/default symbols and unknown origin
+remain unknown. Ghidra emits the same source/dynamic symbol facts for inventories
+and procedure identities; Hopper, IDA and older imported dossiers without verified
+origin facts cannot establish correspondence from display labels. No name-spelling
+rule classifies `EntryPoint` or a `FUN_` prefix as generated. A name observed at
+multiple procedure entries retains its label constraint but cannot establish equal
+endpoints. Same-container records without a common coordinate context likewise
+cannot establish equality from matching labels.
 
 Pairing preserves duplicate counts and considers alternative compatible
 pairings; array order never identifies an edge. Compatible records with unknown

@@ -71,6 +71,7 @@ const unknownBody = {
 const identity = (fn: IdaFunction) => ({
   address: fn.address,
   name: fn.name,
+  symbol: null,
   classification: null,
   body: unknownBody,
 });

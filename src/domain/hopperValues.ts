@@ -1,3 +1,4 @@
+import { nativeSymbolMetadataSchema } from "./native/nativeSymbol.js";
 import { z } from "zod";
 import { fixedTupleSchema } from "./fixedTupleSchema.js";
 import { addressCoordinate } from "./native/addressCoordinate.js";
@@ -204,6 +205,7 @@ export const procedureIdentitySchema = z
   .object({
     address: z.string(),
     name: z.string(),
+    symbol: nativeSymbolMetadataSchema.nullable().exactOptional(),
     classification: procedureClassificationSchema.nullable(),
     body: functionBodySchema,
   })

@@ -19,11 +19,14 @@ session references as `left` and `right`:
 }
 ```
 
-Unique exact reported names are paired first. Optional `list_names` Evidence
-identifies dynamic/default names to exclude. If origin is unavailable, the
-existing automatic-name exclusion rule applies and each function retains that
-limitation. Exact names establish name correspondence, not unchanged code or
-original-source identity.
+Unique exact names with observed symbol origin are paired first. Inventory rows
+or optional `list_names` Evidence identify dynamic/default names to exclude.
+Unknown or conflicting origin does not establish name correspondence; complete
+independent body bytes remain eligible. Exact names establish name correspondence,
+not unchanged code or original-source identity. Ghidra publishes its symbol facts;
+Hopper, IDA and older imported dossiers retain unknown origin when no such facts
+were observed. Display spelling alone, including `EntryPoint` or `FUN_` prefixes,
+does not establish whether a name was generated.
 
 Authentic Evidence selected for the wrong side, role, target, provider, profile
 or document returns an input error naming the selected field or observation

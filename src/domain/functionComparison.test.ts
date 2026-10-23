@@ -18,6 +18,13 @@ import type { RelationshipCoverage } from "./relationshipCoverage.js";
 const procedure = (address: string, name: string) => ({
   address,
   name,
+  symbol: {
+    primary: true,
+    dynamic: false,
+    external: false,
+    type: "function",
+    source: "imported" as const,
+  },
   classification: null,
   body: {
     available: false as const,
@@ -168,6 +175,7 @@ const keepsGeneratedNamesAmbiguous = (): void => {
       ...dossier("return 0;", base),
       procedure: {
         ...procedure(base, name),
+        symbol: null,
         signature: "int helper(void)",
         locals: [],
       },
@@ -265,7 +273,13 @@ describe("function comparison normalized identity", () => {
     keepsGeneratedNamesAmbiguous,
   );
 
-  it.each(["sub_deallocate", "sub_deadbeef_handler", "fcn.dispatch"])(
+  it.each([
+    "sub_deallocate",
+    "sub_deadbeef_handler",
+    "fcn.dispatch",
+    "EntryPoint",
+    "FUN_deadBEEF",
+  ])(
     "recognizes the explicit symbol %s without a generated-name prefix false positive",
     (name) => {
       const named = (base: "0x1000" | "0x2000") =>
@@ -292,14 +306,15 @@ describe("function comparison normalized identity", () => {
     },
   );
 
-  it.each(["sub_deadbeef", "fcn.00401000", "FUN_deadBEEF"])(
-    "keeps %s as an address-derived name",
+  it.each(["sub_deadbeef", "fcn.00401000", "FUN_deadBEEF", "EntryPoint"])(
+    "keeps unqualified label %s unknown regardless of spelling",
     (name) => {
       const generated = (base: "0x1000" | "0x2000") =>
         functionDossierSchema.parse({
           ...dossier("return 0;", base),
           procedure: {
             ...procedure(base, name),
+            symbol: null,
             name,
             signature: "int helper(void)",
             locals: [],
@@ -319,21 +334,42 @@ describe("function comparison normalized identity", () => {
 
 describe("function comparison address-derived call names", () => {
   it.each([
-    { name: "sub_deallocate", status: "unchanged", diagnostic: undefined },
+    {
+      name: "sub_deallocate",
+      source: "imported",
+      status: "unchanged",
+      diagnostic: undefined,
+    },
     {
       name: "sub_deadbeef",
+      source: "default",
       status: "unknown",
       diagnostic: "Provider retained an unresolved call target.",
     },
-    { name: "FUN_00401000", status: "unknown", diagnostic: undefined },
-    { name: "FUN_initialize", status: "unchanged", diagnostic: undefined },
+    {
+      name: "FUN_00401000",
+      source: "default",
+      status: "unknown",
+      diagnostic: undefined,
+    },
+    {
+      name: "FUN_initialize",
+      source: "imported",
+      status: "unchanged",
+      diagnostic: undefined,
+    },
   ])(
     "preserves the calls dimension for callee $name",
-    ({ name, status, diagnostic }) => {
+    ({ name, source, status, diagnostic }) => {
       const calling = (base: "0x1000" | "0x2000") =>
         functionDossierSchema.parse({
           ...dossier("return helper();", base),
-          callees: [procedure(base === "0x1000" ? "0x1010" : "0x2010", name)],
+          callees: [
+            {
+              ...procedure(base === "0x1000" ? "0x1010" : "0x2010", name),
+              symbol: { ...procedure(base, name).symbol, source },
+            },
+          ],
         });
       const result = compareFunctions(
         functionSnapshotFixture(observe("6", calling("0x1000"))),
@@ -996,6 +1032,7 @@ describe("function comparison identity and malformed CFG", () => {
         ...dossier("return 0;", base),
         procedure: {
           ...procedure(base, "sub_1000"),
+          symbol: null,
           name: "sub_1000",
           signature: "int helper(void)",
           locals: [],

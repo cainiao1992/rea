@@ -7,7 +7,8 @@ import { createAnalysisProfile } from "../../domain/analysisProfile.js";
 import { functionDossierSchema } from "../../domain/hopperValues.js";
 import { procedureInfoSchema } from "../../domain/native/procedureInfo.js";
 import {
-  nativeMatchingInventory,
+  nativeMatchingNamedInventory as nativeMatchingInventory,
+  nativeMatchingInventory as unqualifiedInventory,
   nativeMatchingDetails,
   nativeMatchingTarget,
   nativeMatchingProvider,
@@ -81,10 +82,10 @@ it("retains transitive provenance without treating dependencies as native observ
 });
 
 it("keeps symbol origin unknown when supplied metadata describes a different same-address alias", async () => {
-  const left = nativeMatchingInventory("1", [
+  const left = unqualifiedInventory("1", [
     { address: "0x10", value: "reported_name" },
   ]);
-  const right = nativeMatchingInventory("2", [
+  const right = unqualifiedInventory("2", [
     { address: "0x20", value: "reported_name" },
   ]);
   const alias = createEvidence(
@@ -109,13 +110,14 @@ it("keeps symbol origin unknown when supplied metadata describes a different sam
     },
   );
   const { report } = await compare({ left, right, left_observations: [alias] });
-  expect(report.summary.matched).toBe(1);
-  expect(report.matches[0]?.left[0]?.limitations).toContain(
-    "Symbol origin unavailable; exact-name matching uses the reported name and the existing automatic-name exclusion rule.",
+  expect(report.summary.matched).toBe(0);
+  const member = report.matches
+    .flatMap((match) => match.left)
+    .find((value) => value.address === "0x10");
+  expect(member?.limitations).toContain(
+    "Symbol origin unavailable; exact-name matching is unavailable. Independent complete body bytes remain eligible.",
   );
-  expect(report.matches[0]?.left[0]?.evidence_links).toContain(
-    alias.evidence_id,
-  );
+  expect(member?.evidence_links).toContain(alias.evidence_id);
 });
 
 it("preserves contradictory symbol origins from inventory/name facts or multiple name observations, independently of byte correspondence", async () => {
@@ -224,6 +226,13 @@ it.each(["", "ram:"])(
         {
           address: "0x500",
           name: "puts",
+          symbol: {
+            primary: true,
+            dynamic: false,
+            external: true,
+            type: "function",
+            source: "imported",
+          },
           classification: null,
           body: { available: false, reason: "Synthetic external target" },
         },
@@ -269,6 +278,19 @@ it.each(["", "ram:"])(
       report.matches[0]?.right[0]?.structural_candidate_sha256,
     );
     expect(report.matches[0]?.compare_functions_input).toBeNull();
+    const unknownOrigin = dossier("1", "0x10");
+    if (unknownOrigin.callees[0] === undefined)
+      throw new Error("Missing fixture callee");
+    unknownOrigin.callees[0].symbol = null;
+    const unqualified = await compare({
+      left,
+      right,
+      left_observations: [observe("1", "analyze_function", unknownOrigin)],
+      right_observations: [observe("2", "analyze_function", r)],
+    });
+    expect(unqualified.report.source_coverage.left_structural_candidates).toBe(
+      0,
+    );
     const incomplete = await compare({
       left,
       right,
@@ -637,8 +659,8 @@ it("does not use generated symbols and preserves literal named FUN_ symbols when
       })),
     });
   const { report } = await compare({
-    left: nativeMatchingInventory("1", entries),
-    right: nativeMatchingInventory("2", entries),
+    left: unqualifiedInventory("1", entries),
+    right: unqualifiedInventory("2", entries),
     left_observations: [names("1")],
     right_observations: [names("2")],
   });
@@ -1027,3 +1049,25 @@ it.each(["left_observations", "right_observations"] as const)(
     expect(restored.report.summary.matched).toBe(1);
   },
 );
+
+it("does not propose exact-symbol correspondence from unqualified EntryPoint labels", async () => {
+  const { report } = await compare({
+    left: unqualifiedInventory("1", [{ address: "0x10", value: "EntryPoint" }]),
+    right: unqualifiedInventory("2", [
+      { address: "0x20", value: "EntryPoint" },
+    ]),
+  });
+  expect(report.summary.matched).toBe(0);
+  expect(
+    report.matches.flatMap((match) => [...match.left, ...match.right]),
+  ).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: "EntryPoint",
+        limitations: expect.arrayContaining([
+          "Symbol origin unavailable; exact-name matching is unavailable. Independent complete body bytes remain eligible.",
+        ]),
+      }),
+    ]),
+  );
+});

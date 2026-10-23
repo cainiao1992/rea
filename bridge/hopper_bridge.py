@@ -400,6 +400,7 @@ def _procedure_identity(procedure):
     return {
         "address": _hex(procedure.getEntryPoint()),
         "name": _procedure_name(procedure),
+        "symbol": None,
         "classification": None,
         "body": {
             "available": False,
@@ -1070,6 +1071,7 @@ def _dispatch(method, params):
             length = sum(max(0, _basic_block_end(procedure, block) - block.getStartingAddress()) for block in blocks)
             return {
                 "name": _procedure_name(procedure),
+                "symbol": None,
                 "entrypoint": _hex(procedure.getEntryPoint()),
                 "basicblock_count": procedure.getBasicBlockCount(),
                 "length": length,

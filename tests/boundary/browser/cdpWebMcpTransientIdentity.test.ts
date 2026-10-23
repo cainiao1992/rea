@@ -113,7 +113,7 @@ it.each(
       result.value.completeness.attach_limited_sections.includes(
         "webmcp_tools",
       ),
-    ).toBe(!recover);
+    ).toBe(!recover || phase === "event");
     if (recover)
       expect(result.value.tools.items[0]?.frame_url).toBe(
         browser.allowedOrigin + "/child#current",
@@ -130,7 +130,7 @@ it.each(
       }),
     );
     expect(compared.dimensions.webmcp.status).toBe(
-      recover ? "unchanged" : "unknown",
+      recover && phase === "initial" ? "unchanged" : "unknown",
     );
   },
 );

@@ -22,6 +22,28 @@ const limitations = [
   "A mismatching memory digest identifies the reported source range; it does not locate the first differing byte inside that range.",
 ];
 
+/** Record one attestation's checks, preserving compared values and source locations. */
+const createLoadImageChecks = () => {
+  const checks: NativeLoadImageCheck[] = [];
+  const check = (
+    name: string,
+    expected: JsonValue,
+    observed: JsonValue,
+    fileOffset: number | null = null,
+    location: string | null = null,
+  ): void => {
+    checks.push({
+      name,
+      matched: JSON.stringify(expected) === JSON.stringify(observed),
+      expected,
+      observed,
+      file_offset: fileOffset,
+      address: location,
+    });
+  };
+  return { checks, check };
+};
+
 export type GhidraDosImage = {
   readonly header: DosMzHeader;
   readonly loadSegment: number;
@@ -93,23 +115,7 @@ export const attestGhidraDosLoadImage = (
       "Ghidra load-image snapshot digest does not match the admitted target",
     );
   const { header, loadSegment, modified, expectedRelocations } = source.image;
-  const checks: NativeLoadImageCheck[] = [];
-  const check = (
-    name: string,
-    expected: JsonValue,
-    observed: JsonValue,
-    fileOffset: number | null = null,
-    location: string | null = null,
-  ): void => {
-    checks.push({
-      name,
-      matched: JSON.stringify(expected) === JSON.stringify(observed),
-      expected,
-      observed,
-      file_offset: fileOffset,
-      address: location,
-    });
-  };
+  const { checks, check } = createLoadImageChecks();
   check(
     "executable_format",
     "Old-style DOS Executable (MZ)",
@@ -186,13 +192,7 @@ const checkMappings = (
   loadBase: number,
   modified: Buffer,
   observations: NativeLoadImageObservation,
-  check: (
-    name: string,
-    expected: JsonValue,
-    observed: JsonValue,
-    fileOffset?: number | null,
-    location?: string | null,
-  ) => void,
+  check: ReturnType<typeof createLoadImageChecks>["check"],
 ): void => {
   const backed = observations.mappings.filter(
     (mapping) => mapping.source_file_index !== null,
@@ -290,23 +290,7 @@ export const attestGhidraDosComLoadImage = (
     return err("Ghidra COM snapshot digest does not match the admitted target");
   const length = validateDosComLength(bytes.length);
   if (!length.ok) return length;
-  const checks: NativeLoadImageCheck[] = [];
-  const check = (
-    name: string,
-    expected: JsonValue,
-    observed: JsonValue,
-    fileOffset: number | null = null,
-    location: string | null = null,
-  ): void => {
-    checks.push({
-      name,
-      matched: JSON.stringify(expected) === JSON.stringify(observed),
-      expected,
-      observed,
-      file_offset: fileOffset,
-      address: location,
-    });
-  };
+  const { checks, check } = createLoadImageChecks();
   const source = observations.source_files[0];
   check("executable_format", "Raw Binary", observations.executable_format);
   check("language_id", "x86:LE:16:Real Mode", observations.language_id);
@@ -376,23 +360,7 @@ export const attestGhidraRawBinaryLoadImage = (
   const language = ghidraRawBinaryLanguage(target.architecture);
   const base = BigInt(target.entryPoint);
   const last = hexAddress(base + BigInt(snapshot.bytes) - 1n);
-  const checks: NativeLoadImageCheck[] = [];
-  const check = (
-    name: string,
-    expected: JsonValue,
-    observed: JsonValue,
-    fileOffset: number | null = null,
-    location: string | null = null,
-  ): void => {
-    checks.push({
-      name,
-      matched: JSON.stringify(expected) === JSON.stringify(observed),
-      expected,
-      observed,
-      file_offset: fileOffset,
-      address: location,
-    });
-  };
+  const { checks, check } = createLoadImageChecks();
   const source = observations.source_files[0];
   const fileMappings = observations.mappings.filter(
     (item) => item.source_file_index !== null,

@@ -368,8 +368,16 @@ Proxy-Authorization, Cookie, and Set-Cookie values are null with
 and their standard URI/form or JSON-escaped representations are replaced without
 decoding unrelated binary bytes. Other encodings are not interpreted. Digests describe the
 retained representation after redaction.
+The selected body-byte limit also bounds that retained representation after
+secret expansion, before base64 serialization. Credential header values are
+discarded before retained-header allocation accounting; their names and null
+projections still count. The transport/API has already materialized incoming
+bodies and headers, so these retained limits do not bound producer-side input
+allocation.
 
-Only completed responses are read. At the end of the final step, observation
+Only completed responses are read. The producer-observed terminal state is
+recorded independently of whether its event metadata fit the retention budget. An omitted completion event cannot turn a
+finished transaction into an unfinished one. When the final step ends, observation
 stops; requests still in flight emit `request-unfinished`, and their observed
 responses have explicitly unavailable bodies. Already-admitted content reads
 drain before browser cleanup. At most 16 reads run at once; queued work is

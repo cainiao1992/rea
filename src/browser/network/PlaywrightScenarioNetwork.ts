@@ -252,8 +252,8 @@ export class PlaywrightScenarioNetwork {
       this.omitOmittedTransactionPhase(request, "request-finished");
       return;
     }
-    if (!this.admitMetadata(transaction, "request-finished", request)) return;
     transaction.terminal = "finished";
+    if (!this.admitMetadata(transaction, "request-finished", request)) return;
     const admission = this.options.emit({
       ...this.metadata(request, transaction),
       kind: "request-finished",

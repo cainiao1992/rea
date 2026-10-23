@@ -171,6 +171,44 @@ const bodyText = (event: BrowserScenarioEvent) => {
 
 afterEach(() => vi.useRealTimers());
 
+it("keeps observed completion independent of rejected completion metadata", async () => {
+  const { secrets, limits } = harness();
+  let omit = false;
+  const omitted: string[] = [];
+  const collector = new PlaywrightScenarioNetwork({
+    selection: {
+      request_body: false,
+      response_body: false,
+      header_values: false,
+    },
+    limits,
+    secrets,
+    admitText: () =>
+      omit
+        ? {
+            status: "omitted",
+            sequence: 1,
+            reason: "max-total-event-allocation-bytes",
+          }
+        : { status: "retained", sequence: 1 },
+    emit: () => ({ status: "retained", sequence: 1 }),
+    admitContentBody: () => ({ status: "retained", sequence: 1 }),
+    omitNetwork: (_id, kind) => {
+      omitted.push(kind);
+    },
+    omitEvent: (kind) => {
+      omitted.push(kind);
+    },
+  });
+  const request = new RequestFixture("ordinary");
+  collector.request(request);
+  omit = true;
+  collector.finished(request);
+  await collector.finish();
+  expect(omitted).toContain("request-finished");
+  expect(omitted).not.toContain("request-unfinished");
+});
+
 it.each(["finished", "failed", "unfinished"])(
   "counts selected omitted response content when %s",
   async (terminal) => {

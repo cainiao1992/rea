@@ -127,6 +127,29 @@ it("returns null metadata when the dependency section is absent", () => {
   ]);
 });
 
+it("finds rustc paths in read-only ELF load data without section headers", () => {
+  const bytes = createRustImage({
+    format: "elf",
+    omitSection: true,
+    includeRustc: true,
+  });
+  bytes.writeBigUInt64LE(0n, 40);
+  bytes.writeUInt16LE(0, 60);
+  bytes.writeUInt16LE(0, 62);
+  bytes.writeUInt32LE(4, 132); // PF_R, no write or execute permission.
+
+  expect(readRustBinaryImage(bytes)).toMatchObject({
+    auditable_metadata: null,
+    rustc_commit: {
+      evidence_kind: "inferred",
+      hashes: [{ hash: RUSTC_HASH, file_offset: 2048 }],
+    },
+  });
+
+  bytes.writeUInt32LE(6, 132); // PF_R | PF_W is not read-only data.
+  expect(readRustBinaryImage(bytes).rustc_commit).toBeNull();
+});
+
 it("refuses a universal Mach-O container", () => {
   expect(() => readRustBinaryImage(fat([0x0100000c]))).toThrow(
     RustAuditableFormatFailure,

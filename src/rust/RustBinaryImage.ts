@@ -1,7 +1,7 @@
 import {
   BinaryFormatFailure,
   BinaryResourceFailure,
-  type ImageSection,
+  type BinaryContainer,
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
 import type {
@@ -42,7 +42,7 @@ export const readRustBinaryImage = (bytes: Buffer): RustBinaryImage => {
       dependency === null
         ? null
         : readDependency(bytes, container.format, dependency),
-    rustc_commit: rustcCommit(bytes, container.sections),
+    rustc_commit: rustcCommit(bytes, container),
   };
 };
 
@@ -108,29 +108,35 @@ const readDependency = (
 
 const rustcCommit = (
   bytes: Buffer,
-  sections: readonly ImageSection[],
+  container: BinaryContainer,
 ): RustBinaryImage["rustc_commit"] => {
   const hashes: { hash: string; file_offset: number }[] = [];
   const seen = new Set<string>();
-  // Overlapping declared sections are scanned once, so total work stays
-  // bounded by the file size however many sections reference a range.
-  for (const range of mergedReadOnlyRanges(sections))
+  const sections = container.sections
+    .filter((section) => section.read_only)
+    .map(({ offset, size }) => ({ offset, size }));
+  const loadRegions =
+    container.format === "elf"
+      ? (container.load_regions ?? [])
+          .filter((region) => region.read && !region.write && !region.execute)
+          .map(({ mapping }) => mapping)
+      : [];
+  // Overlapping section and ELF load ranges are scanned once, so total work
+  // stays bounded by the file size however many mappings reference a range.
+  for (const range of mergedReadOnlyFileRanges([...sections, ...loadRegions]))
     collectHashes(bytes, range, seen, hashes);
   return hashes.length === 0 ? null : { evidence_kind: "inferred", hashes };
 };
 
-const mergedReadOnlyRanges = (
-  sections: readonly ImageSection[],
+const mergedReadOnlyFileRanges = (
+  ranges: readonly { readonly offset: number; readonly size: number }[],
 ): { readonly offset: number; readonly end: number }[] => {
-  const ranges = sections
-    .filter((section) => section.read_only && section.size > 0)
-    .map((section) => ({
-      offset: section.offset,
-      end: section.offset + section.size,
-    }))
+  const sorted = ranges
+    .filter(({ size }) => size > 0)
+    .map(({ offset, size }) => ({ offset, end: offset + size }))
     .sort((left, right) => left.offset - right.offset);
   const merged: { offset: number; end: number }[] = [];
-  for (const range of ranges) {
+  for (const range of sorted) {
     const last = merged.at(-1);
     if (last !== undefined && range.offset <= last.end)
       last.end = Math.max(last.end, range.end);

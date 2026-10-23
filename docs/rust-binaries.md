@@ -109,9 +109,11 @@ removed the field entirely, as recorded in its
 [changelog](https://github.com/rust-secure-code/cargo-auditable/blob/v0.5.0/CHANGELOG.md).
 
 `rustc_commit` is present only when a `/rustc/<40-hex>/` path is found in
-read-only data. Its `evidence_kind` is `inferred`. The hash is not a claim that
-that compiler produced the binary. Several distinct hashes leave a single
-commit unknown.
+read-only data. For ELF, read-only non-executable `PT_LOAD` file ranges are
+searched alongside read-only sections, so an optional missing section-header
+table does not remove this search source. Its `evidence_kind` is `inferred`.
+The hash is not a claim that that compiler produced the binary. Several
+distinct hashes leave a single commit unknown.
 
 ## Limits and failures
 

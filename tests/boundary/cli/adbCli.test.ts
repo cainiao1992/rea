@@ -143,6 +143,54 @@ it.each(["string:key", ":", "string"])(
   },
 );
 
+it.skipIf(process.platform === "win32")(
+  "starts an explicitly selected nested Android activity through the CLI",
+  async () => {
+    const workspace = await createTestWorkspace("rea-adb-nested-activity-cli-");
+    onTestFinished(() => removeTestWorkspace(workspace.root));
+    const adb = await workspace.write(
+      "adb",
+      `#!/bin/sh
+if [ "$1" = version ]; then
+  printf 'Android Debug Bridge version 1.0.41\\nVersion 34.0.5-cli\\n'
+  exit 0
+fi
+if [ "$1" = -s ] && [ "$3" = shell ]; then
+  printf '%s\\n' 'Starting: Intent { act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity }' 'Status: ok' 'Activity: com.example/.Outer$InnerActivity' 'Complete'
+  exit 0
+fi
+exit 1
+`,
+    );
+    await chmod(adb, 0o755);
+
+    const result = await serve(
+      [
+        "start-adb-activity",
+        "emulator-5554",
+        "android.intent.action.MAIN",
+        "--component",
+        "com.example/.Outer$InnerActivity",
+        "--format",
+        "json",
+        "--full-output",
+      ],
+      { REA_ADB_PATH: adb },
+    );
+    expect(result.exitCode).toBe(0);
+    const output = JSON.parse(result.stdout);
+    expect(output.ok).toBe(true);
+    expect(
+      toolContract("start_adb_activity").outputSchema.parse(output.data)
+        .normalized_result,
+    ).toMatchObject({
+      component: "com.example/.Outer$InnerActivity",
+      started_activity:
+        "act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity",
+    });
+  },
+);
+
 it.each([
   ["bogus:key:value", "invalid_request"],
   ["string:key:value", "capability_unavailable"],

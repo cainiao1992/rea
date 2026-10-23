@@ -30,9 +30,10 @@ const createFakeAdb = async () => {
   const stdoutFile = join(directory, "stdout");
   const stderrFile = join(directory, "stderr");
   const callsFile = join(directory, "calls");
+  const exitCodeFile = join(directory, "exit-code");
   const fakeAdbSource = `#!/usr/bin/env node
 const fs = require("node:fs");
-const [stdoutPath, stderrPath, callsPath] = ${JSON.stringify([stdoutFile, stderrFile, callsFile])};
+const [stdoutPath, stderrPath, callsPath, exitCodePath] = ${JSON.stringify([stdoutFile, stderrFile, callsFile, exitCodeFile])};
 const args = process.argv.slice(2);
 fs.appendFileSync(callsPath, args.join(" ") + "\\n");
 if (args[0] === "version") {
@@ -42,6 +43,7 @@ if (args[0] === "version") {
 } else {
   process.stdout.write(fs.readFileSync(stdoutPath, "utf8"));
   process.stderr.write(fs.readFileSync(stderrPath, "utf8"));
+  if (args.includes("start")) process.exitCode = Number(fs.readFileSync(exitCodePath, "utf8"));
 }
 `;
   await writeFile(binary, fakeAdbSource);
@@ -49,9 +51,10 @@ if (args[0] === "version") {
   return {
     binary,
     calls: async () => (await readFile(callsFile, "utf8")).trim().split("\n"),
-    setReport: async (stdout: string, stderr: string) => {
+    setReport: async (stdout: string, stderr: string, exitCode = 0) => {
       await writeFile(stdoutFile, stdout);
       await writeFile(stderrFile, stderr);
+      await writeFile(exitCodeFile, String(exitCode));
     },
   };
 };
@@ -241,5 +244,165 @@ it
         ].join(" "),
       ),
     );
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "retains nonzero Activity Manager refusals and leaves transport failures distinct through MCP",
+  async () => {
+    const fakeAdb = await createFakeAdb();
+    const stdout =
+      "Starting: Intent { act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity }\n" +
+      "Error type 3\n" +
+      "Error: Activity class {com.example/com.example.Outer$InnerActivity} does not exist.\n";
+    await fakeAdb.setReport(stdout, "", 1);
+
+    const server = createServer(
+      {
+        kind: "session",
+        session: createTestBinarySession(() => {
+          throw new Error("ADB start must not open a deep-analysis provider");
+        }),
+      },
+      {
+        adbDeviceAnalysis: new AdbProvider({
+          environment: { REA_ADB_PATH: fakeAdb.binary },
+        }),
+      },
+    );
+    onTestFinished(() => server.close());
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({
+      name: "adb-start-refusal-mcp",
+      version: "0.0.0",
+    });
+    onTestFinished(() => client.close());
+    await client.connect(clientTransport);
+
+    const input = {
+      serial: "emulator-5554",
+      action: "android.intent.action.MAIN",
+      component: "com.example/.Outer$InnerActivity",
+    };
+    const advertised = (await client.listTools()).tools.find(
+      ({ name }) => name === "start_adb_activity",
+    );
+    if (advertised === undefined) throw new Error("Missing ADB activity tool");
+    const validateInput = new Ajv2020({
+      strict: false,
+      validateFormats: false,
+    }).compile(advertised.inputSchema);
+    expect(validateInput(input)).toBe(true);
+    const refused = await client.callTool({
+      name: "start_adb_activity",
+      arguments: input,
+    });
+    expect(refused.isError).toBe(true);
+    const refusal = analysisErrorProjectionSchema.parse(
+      JSON.parse(responseText(refused)).error,
+    );
+    expect(refusal).toMatchObject({
+      code: "unsupported_target",
+      details: {
+        path: "emulator-5554",
+        reason:
+          "Activity class {com.example/com.example.Outer$InnerActivity} does not exist.",
+        captured_output: { stdout, stderr: "", exit_code: 1, truncated: false },
+        partial_observation: {
+          provider_id: "adb",
+          operation: "start_adb_activity",
+          result: {
+            component: input.component,
+            started_activity:
+              "act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity",
+          },
+        },
+      },
+    });
+
+    const transportStdout =
+      "Starting: Intent { act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity }\n";
+    const transportStderr = "error: device offline\n";
+    await fakeAdb.setReport(transportStdout, transportStderr, 1);
+    const transport = await client.callTool({
+      name: "start_adb_activity",
+      arguments: input,
+    });
+    expect(transport.isError).toBe(true);
+    const transportError = analysisErrorProjectionSchema.parse(
+      JSON.parse(responseText(transport)).error,
+    );
+    expect(transportError).toMatchObject({
+      code: "unsupported_target",
+      details: { path: "emulator-5554", reason: "error: device offline" },
+    });
+    expect(transportError.details).not.toHaveProperty("partial_observation");
+
+    const incompleteStdout =
+      "Starting: Intent { act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity }\n";
+    const incompleteStderr = "transport disconnected by peer\n";
+    await fakeAdb.setReport(incompleteStdout, incompleteStderr, 1);
+    const incomplete = await client.callTool({
+      name: "start_adb_activity",
+      arguments: input,
+    });
+    expect(incomplete.isError).toBe(true);
+    const incompleteError = analysisErrorProjectionSchema.parse(
+      JSON.parse(responseText(incomplete)).error,
+    );
+    expect(incompleteError).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        captured_output: {
+          stdout: incompleteStdout,
+          stderr: incompleteStderr,
+          exit_code: 1,
+          truncated: false,
+        },
+      },
+    });
+    expect(incompleteError.details).not.toHaveProperty("partial_observation");
+
+    const stderrOnly =
+      "Error: Activity class {com.example/com.example.Outer$InnerActivity} does not exist.\n";
+    await fakeAdb.setReport("", stderrOnly, 1);
+    const stderrOnlyFailure = await client.callTool({
+      name: "start_adb_activity",
+      arguments: input,
+    });
+    expect(stderrOnlyFailure.isError).toBe(true);
+    const stderrOnlyError = analysisErrorProjectionSchema.parse(
+      JSON.parse(responseText(stderrOnlyFailure)).error,
+    );
+    expect(stderrOnlyError).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        captured_output: {
+          stdout: "",
+          stderr: stderrOnly,
+          exit_code: 1,
+          truncated: false,
+        },
+      },
+    });
+    expect(stderrOnlyError.details).not.toHaveProperty("partial_observation");
+
+    const oversizedReport =
+      "Starting: Intent { act=android.intent.action.MAIN cmp=com.example/.Outer$InnerActivity }\n" +
+      "Error: " +
+      "x".repeat(70 * 1024);
+    await fakeAdb.setReport(oversizedReport, "", 1);
+    const truncated = await client.callTool({
+      name: "start_adb_activity",
+      arguments: input,
+    });
+    expect(truncated.isError).toBe(true);
+    const truncatedError = analysisErrorProjectionSchema.parse(
+      JSON.parse(responseText(truncated)).error,
+    );
+    expect(truncatedError.code).toBe("resource_constraint");
+    expect(truncatedError.details).not.toHaveProperty("partial_observation");
   },
 );

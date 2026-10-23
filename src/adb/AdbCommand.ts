@@ -63,9 +63,18 @@ class AdbProtocolError extends AnalysisProtocolError {
     readonly commandFailure: ExecFileOutputFailure,
     cause: unknown,
   ) {
-    super(message, { cause });
+    super(message, {
+      cause,
+      capturedOutput: adbCommandCapturedOutput(commandFailure),
+    });
   }
 }
+
+/** Return the retained process result only for command failures owned here. */
+export const adbCommandOutputFailure = (
+  error: AnalysisError,
+): ExecFileOutputFailure | undefined =>
+  error instanceof AdbProtocolError ? error.commandFailure : undefined;
 
 /** adb joins shell operands into a remote POSIX command; quote at that boundary. */
 const quoteShellOperand = (value: string): string =>

@@ -77,6 +77,8 @@ import {
   runtimeControlCapabilityError,
 } from "../process/RuntimeControlUnavailableError.js";
 import {
+  adbCommandCapturedOutput,
+  adbCommandOutputFailure,
   adbArguments,
   runAdb,
   runAdbCapture,
@@ -2848,11 +2850,37 @@ export class AdbProvider {
       { timeoutMs: SHELL_TIMEOUT_MS, maxOutputBytes: PM_PATH_MAX_OUTPUT_BYTES },
       signal,
     );
-    if (!started.ok) return started;
-    const verdict = parseAmStartOutput(
-      started.value.stdout,
-      started.value.stderr,
-    );
+    let stdout: string;
+    let stderr: string;
+    let capturedOutput: ReturnType<typeof adbCommandCapturedOutput>;
+    let verdict: ReturnType<typeof parseAmStartOutput>;
+    if (started.ok) {
+      stdout = started.value.stdout;
+      stderr = started.value.stderr;
+      capturedOutput = { stdout, stderr, truncated: false };
+      verdict = parseAmStartOutput(stdout, stderr);
+    } else {
+      const commandFailure = adbCommandOutputFailure(started.error);
+      // AOSP ActivityManagerShellCommand returns 1 for class-not-found and
+      // emits its refusal report on stdout. Other exits remain command errors.
+      if (
+        commandFailure === undefined ||
+        commandFailure.code !== 1 ||
+        commandFailure.signal !== null ||
+        commandFailure.killed ||
+        commandFailure.outputTruncated ||
+        commandFailure.collectionFailure === true
+      )
+        return started;
+      stdout = commandFailure.stdout;
+      stderr = commandFailure.stderr;
+      capturedOutput = adbCommandCapturedOutput(commandFailure);
+      // Stderr carries adb transport diagnostics, not the Activity Manager
+      // report, so it cannot establish a target refusal on this path.
+      verdict = parseAmStartOutput(stdout);
+      if (verdict.status !== "refused" || verdict.startedActivity === null)
+        return started;
+    }
     const result = {
       ...resultFields,
       started_activity: verdict.startedActivity,
@@ -2877,22 +2905,15 @@ export class AdbProvider {
           operation,
           serial,
           verdict.reason ?? "am start refused the intent",
-          {
-            capturedOutput: {
-              stdout: started.value.stdout,
-              stderr: started.value.stderr,
-              truncated: false,
-            },
-            partialObservation,
-          },
+          { capturedOutput, partialObservation },
         ),
       );
     }
     return ok(
       createAnalysisExecution(result, provider, {
         rawResult: {
-          stdout: started.value.stdout,
-          stderr: started.value.stderr,
+          stdout,
+          stderr,
         },
         limitations: [
           "Starting an activity changes device state; am start -W waits for launch completion but no lifecycle observation is captured",

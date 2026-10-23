@@ -33,7 +33,7 @@ it("preserves ADB key, action and component admission when making advertised pat
           .success,
     },
     {
-      previous: /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]*)?$/u,
+      previous: /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._$-]*)?$/u,
       max: 512,
       accepts: (component: string) =>
         adbInputSchemas.start_adb_activity.safeParse({
@@ -52,6 +52,8 @@ it("preserves ADB key, action and component admission when making advertised pat
     "-",
     "android.intent.action.VIEW",
     "com.example/.MainActivity",
+    "com.example/.Outer$InnerActivity",
+    "com.example.Outer$InnerActivity",
     "com.example/",
     "com.example/a/b",
     "a\n",

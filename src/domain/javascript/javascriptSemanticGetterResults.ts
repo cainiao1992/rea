@@ -9,12 +9,17 @@ import { semanticReferenceSourcesInactive } from "./javascriptSemanticReferenceS
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticBindingState,
+  type JavaScriptSemanticAnalysisState,
 } from "./javascriptSemanticState.js";
-import type { JavaScriptSemanticObjectReference as Reference } from "./javascriptSemanticObjectReferences.js";
+import {
+  semanticObjectPropertyReferences,
+  semanticArrayPropertyReferences,
+  type JavaScriptSemanticObjectReference as Reference,
+} from "./javascriptSemanticObjectReferences.js";
 import type { JavaScriptSemanticPropertyPath as PropertyPath } from "./javascriptSemanticPropertyPaths.js";
-import type {
-  GetterQueryJob,
+import {
   SemanticGetterQuery,
+  type GetterQueryJob,
 } from "./javascriptSemanticGetterQueries.js";
 
 type ClassNode = t.ClassDeclaration | t.ClassExpression;
@@ -55,6 +60,10 @@ export interface GetterResultResolvers {
     isStatic: boolean,
   ) => boolean;
   readonly bases: (node: t.Node) => readonly ClassNode[];
+  readonly containerReferences?: (
+    node: t.ObjectExpression | t.ArrayExpression,
+    path: PropertyPath,
+  ) => readonly Reference[];
 }
 
 /** Branch syntax contributes alternatives without evaluating application code. */
@@ -83,10 +92,11 @@ class GetterResultWalker {
     readonly job: GetterQueryJob,
     readonly query: SemanticGetterQuery,
     readonly resolvers: GetterResultResolvers,
+    roots: readonly {
+      readonly node: t.Node | null;
+    }[] = semanticCallableResultExpressions(job.invocation.getter),
   ) {
-    for (const { node } of semanticCallableResultExpressions(
-      job.invocation.getter,
-    ))
+    for (const { node } of roots)
       if (node !== null) this.#enqueue(() => ({ node, path: job.path }));
     this.#scope = query.state.scopeByNode.get(job.invocation.getter)?.scopeId;
   }
@@ -364,7 +374,21 @@ class GetterResultWalker {
         for (const node of branches)
           this.#enqueue(() => ({ ...current, node }));
       else if (current.privateRead !== undefined) this.#privateRead(current);
-      else this.#retain(current, { node: expression, path: current.path });
+      else if (
+        current.path.length > 0 &&
+        (t.isObjectExpression(expression) || t.isArrayExpression(expression)) &&
+        this.resolvers.containerReferences !== undefined
+      ) {
+        for (const reference of this.resolvers.containerReferences(
+          expression,
+          current.path,
+        ))
+          this.#enqueue(() => ({
+            ...current,
+            node: reference.node,
+            path: reference.path,
+          }));
+      } else this.#retain(current, { node: expression, path: current.path });
     }
   }
 }
@@ -374,3 +398,39 @@ export const expandSemanticGetterResult = (
   query: SemanticGetterQuery,
   resolvers: GetterResultResolvers,
 ): void => new GetterResultWalker(job, query, resolvers).run();
+
+/** Project an effect operand through the same local aliases and `this` owner as getter results. */
+export const semanticGetterReceiverPaths = (
+  getter: t.ObjectMethod,
+  operand: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+): readonly PropertyPath[] => {
+  const owner = state.parentsByNode.get(getter);
+  if (!t.isObjectExpression(owner)) return [];
+  const query = new SemanticGetterQuery(state);
+  const references = query.run(
+    () => {
+      query.schedule({ getter, owner }, []);
+      return [];
+    },
+    (job) =>
+      new GetterResultWalker(
+        job,
+        query,
+        {
+          objectReferences: (_receiver, path) => [{ node: getter, path }],
+          classReferences: () => [],
+          privateReceiver: () => false,
+          bases: () => [],
+          containerReferences: (node, path) =>
+            t.isObjectExpression(node)
+              ? semanticObjectPropertyReferences(node, path, state)
+              : semanticArrayPropertyReferences(node, path),
+        },
+        [{ node: operand }],
+      ).run(),
+  );
+  return references
+    .filter(({ node }) => node === getter)
+    .map(({ path }) => path);
+};

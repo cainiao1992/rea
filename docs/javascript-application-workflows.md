@@ -413,12 +413,22 @@ containers, or assigned to a previously declared identifier. Saving the getter
 result in an alias does not make its old field values immutable. Known array
 indices include holes; an element after a spread has only a minimum possible
 index. For these returned-reference writes, unrelated properties and known
-array prefixes remain precise. Getter invocation has separate effects: a
-property read can invoke a getter that mutates its receiver without any write
-through the returned value. Current analysis can miss these invocation effects
-and retain a stale receiver-field literal
-([#6669](https://github.com/morluto/rea/issues/6669)); absence of a later write
-does not establish getter purity.
+array prefixes remain precise. Accessor applicability uses the shared object
+reference owner for literal definition order, own-property shadowing, known
+array elements and explicit literal prototypes. Getter invocation effects
+project write and call operands through the same local alias and `this` owner
+used by returned references. Reads of another selected getter continue that
+effect walk. A receiver reached by these effects becomes uncertain on an
+ordinary or optional read, compound assignment or update. A simple assignment
+or deletion does not invoke the getter. Selected setters invalidate
+the receiver on assignment, including through known array and prototype paths.
+Inert getters and ordinary data slots retain their supported precision.
+
+These are conservative source-derived effects, not execution results. The
+analysis does not establish general accessor purity, model every class or
+reflectively installed descriptor, or cover getter reads introduced by object
+spread/destructuring and all implicit coercion or disposal invocations. Absence of a later explicit write does not establish getter purity;
+unsupported invocation forms can still retain stale receiver-field facts.
 Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 

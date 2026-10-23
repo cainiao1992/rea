@@ -611,6 +611,20 @@ export const semanticObjectPropertyReferences = (
   );
 };
 
+/** Select accessor descriptors without invoking them or following their return values. */
+export const semanticObjectAccessorReferences = (
+  node: t.ObjectExpression,
+  key: PropertyPath[number],
+  state: JavaScriptSemanticAnalysisState,
+  accessor: "get" | "set",
+): readonly JavaScriptSemanticObjectReference[] =>
+  new ObjectReferenceWalk(
+    node,
+    [key],
+    new SemanticGetterQuery(state),
+    accessor,
+  ).run();
+
 class ObjectReferenceWalk {
   readonly #references: JavaScriptSemanticObjectReference[] = [];
   readonly #overwritten = new Set<string>();
@@ -625,6 +639,7 @@ class ObjectReferenceWalk {
     readonly node: t.ObjectExpression,
     path: PropertyPath,
     readonly query: SemanticGetterQuery,
+    readonly accessor?: "get" | "set",
   ) {
     [this.#key, ...this.#remaining] = path;
   }
@@ -648,12 +663,14 @@ class ObjectReferenceWalk {
     const selected = this.#key ?? null;
     if (typeof selected !== "object" && this.#overwritten.has(String(selected)))
       return;
-    this.#references.push({
-      node: property.argument,
-      path: [this.#spreadKey(), ...this.#remaining],
-      capturedSelectionAt: property.argument,
-      ownEnumerable: true,
-    });
+    // Spread creates data properties; the source descriptor is not installed.
+    if (this.accessor === undefined)
+      this.#references.push({
+        node: property.argument,
+        path: [this.#spreadKey(), ...this.#remaining],
+        capturedSelectionAt: property.argument,
+        ownEnumerable: true,
+      });
     if (
       selected !== null &&
       typeof selected !== "object" &&
@@ -703,9 +720,11 @@ class ObjectReferenceWalk {
       name === null &&
       this.#key != null &&
       typeof this.#key !== "object" &&
-      (t.isObjectMethod(property, { kind: "get" })
+      (t.isObjectMethod(property) && property.kind === (this.accessor ?? "get")
         ? this.#data.has(String(this.#key)) ||
-          this.#getters.has(String(this.#key))
+          (this.accessor === "set" ? this.#setters : this.#getters).has(
+            String(this.#key),
+          )
         : this.#overwritten.has(String(this.#key)))
     )
       return;
@@ -714,6 +733,11 @@ class ObjectReferenceWalk {
       !semanticPropertyPathKeyMatches(this.#key ?? null, name)
     )
       return;
+    if (this.accessor !== undefined) {
+      if (t.isObjectMethod(property) && property.kind === this.accessor)
+        this.#references.push({ node: property, path: [] });
+      return;
+    }
     if (t.isObjectMethod(property)) {
       if (property.kind === "get")
         this.query.schedule(

@@ -64,6 +64,8 @@ interface Candidate {
 
 export interface SemanticReturnedReferenceResult {
   readonly references: readonly SemanticReturnedReference[];
+  /** Source-local callable targets resolved by the same binding/projection owner. */
+  readonly callables: ReadonlySet<t.Function>;
   /** A visible invocation-method mutation prevents a source-local result proof. */
   readonly unresolvedInvocation?: boolean;
   /** Both states close the supported source-local may-target graph. Widened joins projections without dropping represented targets; it does not claim runtime completeness. */
@@ -144,9 +146,10 @@ export const createSemanticReturnedReferences = (
     let contextsWidened = false;
     const result: {
       references: readonly SemanticReturnedReference[];
+      callables: ReadonlySet<t.Function>;
       precision: SemanticReturnedReferenceResult["precision"];
       unresolvedInvocation?: boolean;
-    } = { references: [], precision: "exact" };
+    } = { references: [], callables: functions, precision: "exact" };
     // The invocation owner retains the actual callable receiver. A bare alias
     // of fn.call has lost that receiver and cannot execute fn by itself.
     const nativeArrayIteration = (array: t.ArrayExpression) =>

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { browserScenarioSchema } from "../../domain/browserScenario.js";
-import { BrowserScenarioSecrets } from "../BrowserScenarioSecrets.js";
+import { resolveScenarioSecrets } from "../../../tests/fixtures/browserScenarioSecrets.js";
 import {
   captureNetworkBody,
   captureNetworkHeaders,
@@ -12,8 +12,7 @@ const scenario = browserScenarioSchema.parse({
   actions: [{ step_id: "done", action: "wait_for_timeout", duration_ms: 1 }],
   secrets: [{ secret_id: "declared", environment_variable: "SECRET" }],
 });
-const secrets = BrowserScenarioSecrets.resolve(scenario, { SECRET: "x" });
-if (secrets === undefined) throw new Error("Fixture secret was not resolved");
+const secrets = resolveScenarioSecrets(scenario, { SECRET: "x" });
 const options = {
   timeoutMs: 100,
   maxBodyBytes: 4,

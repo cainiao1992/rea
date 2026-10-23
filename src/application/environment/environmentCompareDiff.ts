@@ -5,6 +5,7 @@ import {
   type ClockFormat,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
+import type { ReplayedBody } from "./environmentSource.js";
 import {
   IDENTITY_FIELD,
   keyedByLearnedIds,
@@ -318,9 +319,7 @@ class Differ {
 /** One answer: its status, and its JSON body, its text, or null without one. */
 export interface Answer {
   readonly status: number | null;
-  readonly body: JsonValue;
-  /** Set when the body was over the replay limit, so only a prefix is known. */
-  readonly cut?: boolean;
+  readonly body: ReplayedBody;
   /** Set when the probe did not record the body, so only the status is known. */
   readonly unobserved?: boolean;
 }
@@ -348,8 +347,50 @@ export const compareAnswers = (
       live: String(live.status),
       env: String(env.status),
     });
-  if (live.cut === true) differ.normalised.large_bodies += 1;
+  if (
+    live.body.kind === "cut" ||
+    (live.body.kind === "base64" && !live.body.whole)
+  )
+    differ.normalised.large_bodies += 1;
   else if (live.unobserved === true) differ.normalised.unobserved_bodies += 1;
-  else differ.value(live.body, env.body, "");
+  else if (
+    (live.body.kind === "none" &&
+      env.body.kind === "json" &&
+      env.body.value === null) ||
+    (env.body.kind === "none" &&
+      live.body.kind === "json" &&
+      live.body.value === null)
+  ) {
+    // The existing answer contract treats an absent body and JSON null alike.
+  } else if (live.body.kind === "base64" || env.body.kind === "base64") {
+    const bytes = (body: ReplayedBody): Buffer | undefined => {
+      if (body.kind === "base64") return Buffer.from(body.encoded, "base64");
+      if (body.kind === "text") return Buffer.from(body.text, "utf8");
+      return undefined;
+    };
+    const liveBytes = bytes(live.body);
+    const envBytes = bytes(env.body);
+    if (
+      liveBytes === undefined ||
+      envBytes === undefined ||
+      !liveBytes.equals(envBytes)
+    )
+      differ.add({
+        category: "value",
+        pointer: "",
+        live: shown(live.body),
+        env: shown(env.body),
+      });
+  } else if (live.body.kind !== env.body.kind)
+    differ.add({
+      category: "value",
+      pointer: "",
+      live: shown(live.body),
+      env: shown(env.body),
+    });
+  else if (live.body.kind === "json" && env.body.kind === "json")
+    differ.value(live.body.value, env.body.value, "");
+  else if (live.body.kind === "text" && env.body.kind === "text")
+    differ.value(live.body.text, env.body.text, "");
   return { differences: differ.differences, normalised: differ.normalised };
 };

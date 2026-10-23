@@ -62,8 +62,10 @@ credentials and resets it between sequences.
   reported `refused`. A browser probe keeps its request bodies; one captured without response bodies is refused, since
   only statuses would compare, and so is one that makes POST, PUT or PATCH calls without recorded request bodies, since
   those calls would be made empty.
-- Answers compare after normalisation: empty response text equals no body (a JSON empty string stays one); mapped ids
-  compare equal, in scalar sets as well, an entity's own identity within the call's collection and any other id by the
+- Answers compare after normalisation: empty response text and JSON `null` equal no body (a JSON empty string stays one);
+  decoded JSON values compare structurally, plain text compares as text, and retained base64 bodies compare as bytes
+  (including against UTF-8 text with the same bytes), without treating a base64 spelling as text. Mapped ids compare
+  equal, in scalar sets as well, an entity's own identity within the call's collection and any other id by the
   probe's mapping, and an entity's own identity both sides hold verbatim differs when its collection's mapping gives it
   another environment value (a reference keeps raw equality, as the probe's mapping cannot tell which collection it
   names); an object's members compare under the environment's mapped keys only when it is keyed by learned ids as

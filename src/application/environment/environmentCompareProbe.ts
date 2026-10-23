@@ -76,7 +76,7 @@ export const requestBody = (
     : text;
 };
 
-/** A body over the replay limit, text or bytes: only a prefix is known, so only the status compares. */
+/** A replay body the server cut at its size limit. */
 export const isCut = (body: ReplayedBody): boolean =>
   body.kind === "cut" || (body.kind === "base64" && !body.whole);
 
@@ -88,16 +88,11 @@ const liveAnswer = (
 ): Answer => {
   if (body.kind === "none")
     return method === "HEAD" || BODYLESS_STATUSES.has(status)
-      ? { status, body: null }
-      : { status, body: null, unobserved: true };
-  if (body.kind === "json") return { status, body: body.value };
-  if (body.kind === "base64")
-    return { status, body: body.encoded, cut: isCut(body) };
-  return {
-    status,
-    body: body.text === "" ? null : body.text,
-    cut: isCut(body),
-  };
+      ? { status, body }
+      : { status, body, unobserved: true };
+  if (body.kind === "text" && body.text === "")
+    return { status, body: { kind: "none" } };
+  return { status, body };
 };
 
 /** The origin a probe calls the application at, chosen as the manifest chooses its own. */

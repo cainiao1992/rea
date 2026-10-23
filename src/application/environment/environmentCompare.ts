@@ -38,6 +38,7 @@ import {
   replayedBody,
   type EnvironmentManifestTool,
   type EnvironmentSource,
+  type ReplayedBody,
 } from "./environmentSource.js";
 import {
   selectsRecordedLine,
@@ -159,13 +160,42 @@ const entityOf = (
 const fromState = (answer: ReplayResult): boolean =>
   (answer as Partial<StateAnswer>).state?.source === "state";
 
+/** Identity facts come from decoded JSON or text scalars, never binary presentations or truncated bodies. */
+const identityValue = (body: ReplayedBody): JsonValue | undefined => {
+  if (body.kind === "json") return body.value;
+  if (body.kind === "text") return body.text;
+  return undefined;
+};
+
 /** The environment's body as the application's is read: a replayed recording of empty text, unlike a JSON empty string, is no body. */
-const envBody = (run: ProbeRun, answer: ReplayResult): JsonValue => {
-  if (answer.body !== "" || fromState(answer)) return answer.body;
+const envBody = (run: ProbeRun, answer: ReplayResult): ReplayedBody => {
+  if (fromState(answer)) return { kind: "json", value: answer.body };
   const exchange = run.source.exchanges.get(answer.replay.record_ordinal);
-  return exchange !== undefined && replayedBody(exchange).kind === "json"
-    ? answer.body
-    : null;
+  if (exchange === undefined)
+    return answer.body === ""
+      ? { kind: "none" }
+      : { kind: "json", value: answer.body };
+  const body = replayedBody(exchange);
+  // Empty replayed text is no body; a JSON empty string remains a JSON value.
+  if (body.kind === "text" && body.text === "") return { kind: "none" };
+  if (body.kind === "json") return { kind: "json", value: answer.body };
+  if (body.kind === "text")
+    return {
+      kind: "text",
+      text: typeof answer.body === "string" ? answer.body : body.text,
+    };
+  if (body.kind === "base64")
+    return {
+      ...body,
+      encoded: typeof answer.body === "string" ? answer.body : body.encoded,
+      whole: body.whole && !answer.replay.truncated,
+    };
+  if (body.kind === "cut")
+    return {
+      kind: "cut",
+      text: typeof answer.body === "string" ? answer.body : body.text,
+    };
+  return body;
 };
 
 /**
@@ -323,7 +353,7 @@ const compareStep = (
   const entity = entityOf(run, call.tool, liveSegments);
   // Another call's recording holds other entities, whose ids would map wrongly and, the first pairing winning, for good.
   if (answersCall(run, call, args, answered.value))
-    learnIds(live.body, env.body, run.map, {
+    learnIds(identityValue(live.body), identityValue(env.body), run.map, {
       heldIds: heldIds(run.store),
       scope: entity.scope,
       entityAt: entity.at,

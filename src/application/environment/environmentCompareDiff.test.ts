@@ -11,8 +11,8 @@ const compare = (
   status: [number, number] = [200, 200],
 ) =>
   compareAnswers(
-    { status: status[0], body: live as never },
-    { status: status[1], body: env as never },
+    { status: status[0], body: { kind: "json", value: live as JsonValue } },
+    { status: status[1], body: { kind: "json", value: env as JsonValue } },
     map,
   );
 
@@ -145,11 +145,13 @@ describe("compareAnswers", () => {
         .differences,
     ).toEqual([]);
   });
+});
 
+describe("comparison body coverage", () => {
   it("compares a live body over the replay limit by status only and counts it", () => {
     const result = compareAnswers(
-      { status: 200, body: '{"data":[', cut: true },
-      { status: 200, body: null },
+      { status: 200, body: { kind: "cut", text: '{"data":[' } },
+      { status: 200, body: { kind: "none" } },
       new IdMap(),
     );
     expect(result.differences).toEqual([]);
@@ -157,17 +159,24 @@ describe("compareAnswers", () => {
   });
 
   it("compares a live body the probe did not record by status only and counts it", () => {
-    const unrecorded = { status: 200, body: null, unobserved: true };
+    const unrecorded = {
+      status: 200,
+      body: { kind: "none" as const },
+      unobserved: true,
+    };
     const result = compareAnswers(
       unrecorded,
-      { status: 200, body: { id: 1 } },
+      { status: 200, body: { kind: "json", value: { id: 1 } } },
       new IdMap(),
     );
     expect(result.differences).toEqual([]);
     expect(result.normalised.unobserved_bodies).toBe(1);
     expect(
-      compareAnswers(unrecorded, { status: 404, body: null }, new IdMap())
-        .differences,
+      compareAnswers(
+        unrecorded,
+        { status: 404, body: { kind: "none" } },
+        new IdMap(),
+      ).differences,
     ).toEqual([{ category: "status", pointer: "", live: "200", env: "404" }]);
   });
 });
@@ -178,8 +187,8 @@ describe("scalar sets of mapped ids", () => {
     map.learn(101, 1);
     map.learn(102, 2);
     const compared = compareAnswers(
-      { status: 200, body: { ids: [101, 102] } },
-      { status: 200, body: { ids: [2, 1] } },
+      { status: 200, body: { kind: "json", value: { ids: [101, 102] } } },
+      { status: 200, body: { kind: "json", value: { ids: [2, 1] } } },
       map,
     );
     expect(compared.differences).toEqual([
@@ -194,7 +203,10 @@ describe("ids two collections reuse", () => {
     const map = new IdMap();
     map.learn(101, 1, "/api/books");
     map.learn(101, 2, "/api/authors");
-    const answer = (body: JsonValue) => ({ status: 200, body });
+    const answer = (body: JsonValue) => ({
+      status: 200,
+      body: { kind: "json" as const, value: body },
+    });
     expect(
       compareAnswers(answer({ id: 101 }), answer({ id: 2 }), map, {
         scope: "/api/authors",
@@ -226,7 +238,10 @@ describe("identity responses two collections reuse", () => {
       entityAt: "/created",
       identity: true,
     });
-    const answer = (body: JsonValue) => ({ status: 201, body });
+    const answer = (body: JsonValue) => ({
+      status: 201,
+      body: { kind: "json" as const, value: body },
+    });
     expect(books.env(103)).toBe(1);
     expect(books.env(103, "/api/authors")).toBe(3);
     expect(created.env(103, "/api/authors")).toBe(3);
@@ -264,8 +279,14 @@ describe("wrapped answers", () => {
     expect(map.env(101, "/api/authors")).toBe(2);
     expect(
       compareAnswers(
-        { status: 200, body: { data: { id: 101, name: "Bob" } } },
-        { status: 200, body: { data: { id: 2, name: "Bob" } } },
+        {
+          status: 200,
+          body: { kind: "json", value: { data: { id: 101, name: "Bob" } } },
+        },
+        {
+          status: 200,
+          body: { kind: "json", value: { data: { id: 2, name: "Bob" } } },
+        },
         map,
         { scope: "/api/authors", at: "/data" },
       ).differences,
@@ -274,7 +295,10 @@ describe("wrapped answers", () => {
 });
 
 describe("raw ids a mapping gives to other entities", () => {
-  const answer = (body: JsonValue) => ({ status: 200, body });
+  const answer = (body: JsonValue) => ({
+    status: 200,
+    body: { kind: "json" as const, value: body },
+  });
 
   it("reports an entity's own identity equal on both sides that its collection's mapping gives to another entity", () => {
     const map = new IdMap();

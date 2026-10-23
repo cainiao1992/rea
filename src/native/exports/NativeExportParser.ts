@@ -5,7 +5,12 @@ import {
   mappedFileOffset,
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
-import { readElfString, readElfSymbol } from "../metadata/ElfSymbol.js";
+import { isUtf8 } from "node:buffer";
+import {
+  readElfString,
+  readElfStringBytes,
+  readElfSymbol,
+} from "../metadata/ElfSymbol.js";
 import {
   readNativeDirectoryFromBuffer,
   type NativeSection,
@@ -561,8 +566,12 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       }
     }
     let name: string;
+    let rawName: Buffer;
+    let nameUtf8Decodable: boolean;
     try {
-      name = readElfString(names, symbol.name_offset);
+      rawName = readElfStringBytes(names, symbol.name_offset);
+      nameUtf8Decodable = isUtf8(rawName);
+      name = rawName.toString(nameUtf8Decodable ? "utf8" : "latin1");
     } catch (cause) {
       issues.push({
         code: "name_unreadable",
@@ -579,9 +588,18 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       });
       continue;
     }
-    retain(name, typeof version === "object" ? (version?.name ?? null) : null);
+    const rawNameBase64 = rawName.some((byte) => byte >= 0x80)
+      ? rawName.toString("base64")
+      : null;
+    retain(
+      name,
+      typeof version === "object" ? (version?.name ?? null) : null,
+      rawNameBase64,
+    );
     exports.push({
       name,
+      name_bytes_base64: rawNameBase64,
+      name_utf8_decodable: nameUtf8Decodable,
       value: hex(symbol.value),
       size: symbol.size.toString(),
       type: ELF_TYPES[symbol.type] ?? "other",

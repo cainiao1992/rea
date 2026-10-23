@@ -518,6 +518,30 @@ describe("export inventory review regressions", () => {
   });
 });
 
+describe("ELF symbol-name text", () => {
+  it("decodes UTF-8 names and retains exact bytes", () => {
+    const result = parse(elfExportImage({ symbols: [{ name: "cafÃ©" }] }));
+    expect(result.format).toBe("elf");
+    if (result.format !== "elf") throw new TypeError("expected ELF result");
+    expect(result.exports[0]).toMatchObject({
+      name: "café",
+      name_bytes_base64: "Y2Fmw6k=",
+      name_utf8_decodable: true,
+    });
+  });
+
+  it("retains invalid UTF-8 bytes without replacement", () => {
+    const result = parse(elfExportImage({ symbols: [{ name: "\u00ff" }] }));
+    expect(result.format).toBe("elf");
+    if (result.format !== "elf") throw new TypeError("expected ELF result");
+    expect(result.exports[0]).toMatchObject({
+      name: "ÿ",
+      name_bytes_base64: "/w==",
+      name_utf8_decodable: false,
+    });
+  });
+});
+
 it("refuses formats other than PE and ELF", () => {
   const macho = Buffer.alloc(64);
   macho.writeUInt32LE(0xfeedfacf, 0);

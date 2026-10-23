@@ -54,6 +54,47 @@ describe("native export stable filesystem boundary", () => {
     await service.close();
   });
 
+  it("keeps ELF symbol bytes while exposing valid UTF-8 text", async () => {
+    const root = await createTestTempDirectory("rea-native-export-unicode-");
+    const path = join(root, "libfixture.so");
+    const bytes = elfExportImage({
+      symbols: [{ name: "cafÃ©" }, { name: "\u00ff" }],
+    });
+    await writeFile(path, bytes);
+    const service = createNativeExportsService();
+    const result = await service.inspect({ path });
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    expect(result.value.normalized_result).toMatchObject({
+      format: "elf",
+      exports: [
+        {
+          name: "café",
+          name_bytes_base64: "Y2Fmw6k=",
+          name_utf8_decodable: true,
+        },
+        {
+          name: "ÿ",
+          name_bytes_base64: "/w==",
+          name_utf8_decodable: false,
+        },
+      ],
+    });
+    const olderRows = JSON.parse(
+      JSON.stringify(result.value.normalized_result),
+    ) as { exports: Record<string, unknown>[] };
+    for (const row of olderRows.exports) {
+      delete row.name_bytes_base64;
+      delete row.name_utf8_decodable;
+    }
+    expect(nativeExportsSchema.parse(olderRows)).toMatchObject({
+      exports: [
+        { name: "café", name_bytes_base64: null, name_utf8_decodable: null },
+        { name: "ÿ", name_bytes_base64: null, name_utf8_decodable: null },
+      ],
+    });
+    await service.close();
+  });
+
   it("returns typed input, unsupported, budget and cancellation failures", async () => {
     const root = await createTestTempDirectory("rea-native-export-failures-");
     const path = join(root, "fixture.dll");

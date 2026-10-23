@@ -1112,13 +1112,12 @@ failures for such entries name this cause and the operation to rerun with
 ## Schema advertisement
 
 Advertised input and output schemas contain no reachable recursive references.
-Schemas share repeated definitions through schema-local references while
-preserving complete nested fields and validation rules. Input schemas whose
-shared definitions would exhaust a client's declaration-rendering reference
-budget (Pi 1.1.0 code-mode shares 32 reference expansions across an input and
-renders every later reference as `unknown`) are re-projected without shared
-definitions, so every advertised field renders with complete structure.
-Input properties retain their descriptions and literal examples.
+Input schemas inline repeated definitions before applying the selected
+presentation profile. Both `full` and `compact` start from this self-contained
+projection; output schemas can share schema-local definitions. Full inputs
+retain nested fields, descriptions and valid literal examples. The compatibility
+projections below can relax advertised constraints; canonical runtime validation
+still enforces the complete input contract.
 
 When a host forwards input schemas to the model, their examples consume context.
 REA's advertised examples therefore never copy complete producer Evidence.

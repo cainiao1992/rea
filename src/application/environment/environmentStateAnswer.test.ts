@@ -419,6 +419,59 @@ describe("recorded and document answers", () => {
     });
   });
 
+  it("caps a state-backed document by its exact serialized UTF-8 body bytes", () => {
+    const capture = timedCaptureEvidence([
+      ["GET", "/api/settings", { theme: "dark" }],
+      ["PUT", "/api/settings", { theme: "light" }],
+      ["GET", "/api/settings", { theme: "light" }],
+    ]);
+    const serving = servingOf(
+      environmentStateServeInputs(environmentStateServeFixture(capture)),
+    );
+    const loadDocument = (value: string) =>
+      load(serving, (entities) => entities, [
+        { tool: "get_settings", path: "/api/settings", value },
+      ]);
+
+    const exactLimit = "x".repeat(REPLAY_BODY_LIMIT_BYTES - 2);
+    expect(Buffer.byteLength(JSON.stringify(exactLimit), "utf8")).toBe(
+      REPLAY_BODY_LIMIT_BYTES,
+    );
+    loadDocument(exactLimit);
+    expect(answer(serving, "get_settings", {})).toMatchObject({
+      body: exactLimit,
+      replay: { truncated: false },
+      state: { source: "state", view: "document" },
+    });
+
+    // The content is under the limit as text, but JSON escaping makes the
+    // actual reply body exceed it. The refusal reports that encoded extent.
+    const escaped = "\n".repeat(REPLAY_BODY_LIMIT_BYTES / 2 + 1);
+    const bodyBytes = Buffer.byteLength(JSON.stringify(escaped), "utf8");
+    expect(escaped.length).toBeLessThan(REPLAY_BODY_LIMIT_BYTES);
+    expect(bodyBytes).toBeGreaterThan(REPLAY_BODY_LIMIT_BYTES);
+    loadDocument(escaped);
+    const before = serving.store.snapshot();
+    const result = answerFromState(
+      serving,
+      toolOf(serving.source, "get_settings"),
+      {},
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok)
+      throw new Error("Expected the oversized state answer to be refused");
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisResourceConstraintError",
+      operation: "environment-serve",
+      resource: "capacity",
+      reportedLimits: {
+        max_body_bytes: REPLAY_BODY_LIMIT_BYTES,
+        body_bytes: bodyBytes,
+      },
+    });
+    expect(serving.store.snapshot()).toEqual(before);
+  });
+
   it("answers a document's recorded line with the state's value for it", () => {
     const capture = timedCaptureEvidence([
       ["GET", "/api/settings", { theme: "dark", density: "compact" }],

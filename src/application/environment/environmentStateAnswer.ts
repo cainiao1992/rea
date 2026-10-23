@@ -32,6 +32,7 @@ import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
 } from "../../domain/analysisErrorCore.js";
+import { jsonByteLength } from "../../domain/jsonSerialization.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
@@ -171,7 +172,7 @@ export const stateAnswer = (
   body: JsonValue,
   state: StateProvenance,
 ): Result<StateAnswer, AnalysisError> => {
-  const bytes = Buffer.byteLength(JSON.stringify(body), "utf8");
+  const bytes = jsonByteLength(body);
   if (bytes > REPLAY_BODY_LIMIT_BYTES)
     return err(
       new AnalysisResourceConstraintError(

@@ -1,3 +1,4 @@
+import { jsonTextCodeUnits } from "../jsonSerialization.js";
 import type { JsonValue } from "../jsonValue.js";
 import {
   at as valueAt,
@@ -140,7 +141,7 @@ export const applyDocument = (
         : "recorded",
     pointer: null,
   }));
-  context.io.retain(64 + JSON.stringify(written.value).length * 2);
+  context.io.retain(64 + jsonTextCodeUnits(written.value) * 2);
   context.state.setDocument(tool, written.value);
   const fields = writtenPointers(draft, body!, {
     before: value!,

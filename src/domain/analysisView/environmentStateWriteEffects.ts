@@ -1,3 +1,4 @@
+import { jsonTextCodeUnits } from "../jsonSerialization.js";
 import type { JsonValue } from "../jsonValue.js";
 import { ok } from "../result.js";
 import {
@@ -306,8 +307,7 @@ export const retainFixed = (
   context: EffectContext,
   fixed: readonly { readonly sent: JsonValue }[],
 ): void => {
-  if (fixed.length > 0)
-    context.io.retain(64 + JSON.stringify(fixed).length * 2);
+  if (fixed.length > 0) context.io.retain(64 + jsonTextCodeUnits(fixed) * 2);
 };
 
 /** Build an update plan from its exemplar, or add what a later call showed. */
@@ -438,10 +438,10 @@ export const applyUpdate = (
   if (!written.ok || disagrees || unknown) return recorded();
   const facts = { shown: scalars(after.object), sent: scalars(body), kept };
   context.io.retain(
-    64 + JSON.stringify([...facts.shown, ...facts.sent, kept]).length * 2,
+    64 + jsonTextCodeUnits([...facts.shown, ...facts.sent, kept]) * 2,
   );
   draft.updates.push(facts);
-  context.io.retain(64 + JSON.stringify(written.value).length * 2);
+  context.io.retain(64 + jsonTextCodeUnits(written.value) * 2);
   context.state.put(updatedEntity(entity, written.value));
   // A later read that also shows an unmodelled change checks only the members this call sent.
   const sent = Object.keys(body).filter(

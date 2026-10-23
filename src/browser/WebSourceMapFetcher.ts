@@ -24,7 +24,7 @@ import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import { sourceMapJsonText } from "../domain/sourceMapEnvelope.js";
 import { resolveJavaScriptSourceMapUrl } from "../domain/javascript/javascriptSourceMapPaths.js";
-import { jsonParts } from "../domain/jsonSerialization.js";
+import { jsonByteLength } from "../domain/jsonSerialization.js";
 import {
   inspectSourceMapValue,
   SourceMapFormatFailure,
@@ -287,7 +287,10 @@ const fetchOne = async (
     const { response, fetchedUrl } = fetched;
     try {
       // Admit the resolution identity before reading or retaining its body.
-      consumeExpandedBytes(budget.decodedRecords, jsonBytes(fetchedUrl) - 4);
+      consumeExpandedBytes(
+        budget.decodedRecords,
+        jsonByteLength(fetchedUrl) - 4,
+      );
     } catch (cause: unknown) {
       try {
         await response.body?.cancel();
@@ -587,7 +590,7 @@ const normalizeSourceMap = (
       SOURCE_MAP_SUCCESS_ENVELOPE_BYTES;
     consumeExpandedBytes(
       context.budget,
-      jsonBytes(text) +
+      jsonByteLength(text) +
         artifactMetadataBytes("application/source-map+json", text) -
         4,
     );
@@ -629,7 +632,7 @@ const normalizeSourceMap = (
             (originalSources.length === 0 ? 0 : 1) +
             (content === null
               ? 0
-              : jsonBytes(content) +
+              : jsonByteLength(content) +
                 artifactMetadataBytes(mediaType, content) -
                 4),
         );
@@ -699,7 +702,7 @@ const normalizeSourceMap = (
     if (modules.incomplete.length > 0)
       consumeExpandedBytes(
         context.budget,
-        jsonBytes(
+        jsonByteLength(
           `Module edges are incomplete: ${modules.incomplete.length} of ${originalSources.filter(({ artifact }) => artifact !== null).length} original sources could not be parsed in full (${modules.incomplete.join(", ")}).`,
         ) - 4,
       );
@@ -938,7 +941,7 @@ const preflightResolvedSourceBytes = (
       resolvedBytes += bytes;
       sourcesForRoot.set(sourceKey, resolved);
       const sanitized = cachedSanitized(sanitizedByResolved, resolved);
-      estimate += jsonBytes(sanitized);
+      estimate += jsonByteLength(sanitized);
       if (estimate > WEB_SOURCE_MAP_LIMITS.outputBytes)
         throw expandedOutputFailure();
     }
@@ -979,12 +982,6 @@ const resolvedSourceLimitFailure = (): SourceMapFormatFailure =>
     `Resolved source-map identities exceed the ${String(SOURCE_MAP_RESPONSE_BYTES / (1024 * 1024))} MiB decoder representation budget. ${noRuntimeOverrideSentence("That representation budget stays fixed.", "source_map_fetch_timeout_ms")}`,
   );
 
-const jsonBytes = (value: string): number => {
-  let bytes = 0;
-  for (const part of jsonParts(value)) bytes += Buffer.byteLength(part, "utf8");
-  return bytes;
-};
-
 const artifactMetadataBytes = (mediaType: string, text: string): number =>
   Buffer.byteLength(
     JSON.stringify({
@@ -1024,17 +1021,17 @@ const sourceMapFailureReservation = (
   >["status"] = "fetch_failed",
 ): number =>
   SOURCE_MAP_FAILURE_ENVELOPE_BYTES +
-  jsonBytes(request.declaredUrl) +
-  jsonBytes(request.scriptKey) +
-  (effectiveUrl === null ? 0 : jsonBytes(effectiveUrl) - 4) +
+  jsonByteLength(request.declaredUrl) +
+  jsonByteLength(request.scriptKey) +
+  (effectiveUrl === null ? 0 : jsonByteLength(effectiveUrl) - 4) +
   Math.max(
     0,
-    (limitation === undefined ? 0 : jsonBytes(limitation)) -
+    (limitation === undefined ? 0 : jsonByteLength(limitation)) -
       SOURCE_MAP_FAILURE_LIMITATION_RESERVE -
       2,
   ) +
-  jsonBytes(status) -
-  jsonBytes("fetch_failed");
+  jsonByteLength(status) -
+  jsonByteLength("fetch_failed");
 
 const sourceEntryOverheadBytes = (
   sourceIndex: number,
@@ -1047,7 +1044,7 @@ const sourceEntryOverheadBytes = (
 const cachedJsonBytes = (cache: Map<string, number>, value: string): number => {
   const cached = cache.get(value);
   if (cached !== undefined) return cached;
-  const bytes = jsonBytes(value);
+  const bytes = jsonByteLength(value);
   cache.set(value, bytes);
   return bytes;
 };

@@ -1,3 +1,4 @@
+import { jsonTextCodeUnits } from "../jsonSerialization.js";
 import type { JsonValue } from "../jsonValue.js";
 import { ok } from "../result.js";
 import {
@@ -310,7 +311,7 @@ const insertCreated = (
   const members = fieldsOf(
     context.state.members(entity.type, entity.collection),
   );
-  context.io.retain(64 + JSON.stringify(entity.fields).length * 2);
+  context.io.retain(64 + jsonTextCodeUnits(entity.fields) * 2);
   context.state.put(
     entity,
     draft.plan.insert === null

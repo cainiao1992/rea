@@ -1,3 +1,4 @@
+import { jsonByteLength } from "../jsonSerialization.js";
 import type { JsonValue } from "../jsonValue.js";
 import {
   compareUnicodeCodePoints as compare,
@@ -15,7 +16,7 @@ import {
   isParam,
   isQueryPost,
   isStateWrite,
-  jsonBytes,
+  stateValueRetentionBytes,
   lastSegmentValue,
   STATE_BODY_LIMIT_BYTES,
   listItems,
@@ -536,7 +537,7 @@ export class EnvironmentStateExtraction {
       if (position < first || (position === first && index < at))
         entity.order = [position, index];
     }
-    this.#retain(ENTRY_BYTES + jsonBytes(object));
+    this.#retain(ENTRY_BYTES + stateValueRetentionBytes(object));
     entity.observations.push({
       position,
       ordinal: record.ordinal,
@@ -642,15 +643,14 @@ export class EnvironmentStateExtraction {
       // Parsing can lengthen a body that was admitted under the recorded-text limit:
       // `1e3` is four bytes once rendered as `1000`. Serving refuses that rendering,
       // so an oversized document stays the recorded replay instead of a failing read.
-      if (
-        Buffer.byteLength(JSON.stringify(value), "utf8") >
-        STATE_BODY_LIMIT_BYTES
-      ) {
+      if (jsonByteLength(value) > STATE_BODY_LIMIT_BYTES) {
         this.#recorded(tool, "rendered-oversize");
         continue;
       }
       this.#retain(
-        ENTRY_BYTES + jsonBytes(value) + textBytes(record.path.length),
+        ENTRY_BYTES +
+          stateValueRetentionBytes(value) +
+          textBytes(record.path.length),
       );
       documents.push({
         tool: tool.name,

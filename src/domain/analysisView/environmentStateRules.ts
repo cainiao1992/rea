@@ -383,16 +383,17 @@ export const rootOf = (
 };
 
 /** Value bytes as retained state, charged before a value is kept. */
-export const jsonBytes = (value: JsonValue): number => {
+export const stateValueRetentionBytes = (value: JsonValue): number => {
   if (typeof value === "string") return textBytes(value.length);
   if (Array.isArray(value))
     return value.reduce<number>(
-      (sum, item) => sum + jsonBytes(item),
+      (sum, item) => sum + stateValueRetentionBytes(item),
       ENTRY_BYTES,
     );
   if (isObject(value))
     return Object.entries(value).reduce<number>(
-      (sum, [name, item]) => sum + textBytes(name.length) + jsonBytes(item),
+      (sum, [name, item]) =>
+        sum + textBytes(name.length) + stateValueRetentionBytes(item),
       ENTRY_BYTES,
     );
   return ENTRY_BYTES;

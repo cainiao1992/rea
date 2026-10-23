@@ -94,6 +94,24 @@ const createFridaTestProvider = (
   ...overrides,
 });
 
+const connectFridaTestClient = async (
+  server: ReturnType<typeof createServer>,
+  session: ReturnType<typeof createTestBinarySession>,
+  name: string,
+): Promise<Client> => {
+  const client = new Client({ name, version: "1" });
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+    await session.close();
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  return client;
+};
+
 it("delivers Frida status summaries with complete retained Evidence for both truncation states", async () => {
   const id = "00000000-0000-4000-8000-000000000001";
   const messages = [
@@ -129,15 +147,11 @@ it("delivers Frida status summaries with complete retained Evidence for both tru
       }),
     },
   );
-  const client = new Client({ name: "frida-status-summary", version: "1" });
-  onTestFinished(async () => {
-    await client.close();
-    await server.close();
-    await session.close();
-  });
-  const [ct, st] = InMemoryTransport.createLinkedPair();
-  await server.connect(st);
-  await client.connect(ct);
+  const client = await connectFridaTestClient(
+    server,
+    session,
+    "frida-status-summary",
+  );
   const tools = (await client.listTools()).tools;
   const tool = tools.find((t) => t.name === "frida_session_status");
   if (!tool?.outputSchema) throw new Error("Missing Frida status schema");
@@ -350,16 +364,11 @@ it("advertises Frida MCP schemas and keeps remote credentials out of results", a
       fridaInstrumentation: createFridaTestProvider(),
     },
   );
-  const client = new Client({ name: "frida-contract", version: "1" });
-  onTestFinished(async () => {
-    await client.close();
-    await server.close();
-    await session.close();
-  });
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
+  const client = await connectFridaTestClient(
+    server,
+    session,
+    "frida-contract",
+  );
 
   const tools = (await client.listTools()).tools;
   const advertised = tools.find((tool) => tool.name === "list_frida_devices");

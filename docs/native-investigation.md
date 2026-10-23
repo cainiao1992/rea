@@ -841,11 +841,29 @@ Integral reals stay numbers, and ambiguous or incompletely observed values retai
 explicit precision limitations. Before plist decoding, the existing aggregate
 decode budget reserves estimated room for number metadata and attribute
 projection; these estimates are not a hard process-memory bound. Keyed-archive
-object identities come from their original `$objects` table indices unless an
-explicit `objectID` or `object-id` is present. An authored `archiveUID` field
-remains ordinary object data and does not change identity. NIBArchive float32
-and float64 values retain non-finite values and negative zero through projection
-as the same typed real wrappers used for plist values; per-document limitations
+object identities always come from their original `$objects` table indices.
+Authored `objectID`, `object-id`, `archiveUID` and `id` fields remain ordinary
+object data and do not change inventory, reference, connector or hierarchy
+identity. This changes keyed-archive graph IDs that previously used authored
+`objectID` or `object-id` values: `interface_builder_object_id` and linked node
+IDs now use the decimal table UID, while the authored values remain in attributes.
+For example, an authored `objectID: "2"` on table entry 1 now identifies object
+`"1"`; its graph node ends in `object:["1"]`. Nonkeyed ibtool dictionary IDs
+and native NIBArchive IDs keep their existing source-specific meaning.
+Connector endpoints require encoded UID references to archived objects; strings
+and dictionaries that merely resemble resolved reference stubs do not establish
+identity. Inline hierarchy dictionaries have no table identity and count as
+omitted references, while independently referenced children remain available.
+The UID identity rule follows the
+[Foundation unarchiver's table lookup](https://github.com/swiftlang/swift-corelibs-foundation/blob/28249ced079d8e7ec03b821c039bf9868738c3fc/Sources/Foundation/NSKeyedUnarchiver.swift#L213-L223).
+UIKit keyed nibs select their explicitly named
+`UINibTopLevelObjectsKey` collection; generic `root` is used when that named key
+is absent. Unsupported or dangling named roots remain incomplete rather than
+falling back to another collection. The key spelling follows the independent
+[WinObjC UINib reader](https://github.com/microsoft/WinObjC/blob/94f6b5bfdc09d945e30607b56124b6f94a5b9d7b/Frameworks/UIKit/UINib.mm#L104-L109).
+
+NIBArchive float32 and float64 values retain non-finite values and negative zero
+through projection as the same typed real wrappers used for plist values; per-document limitations
 count those values. NIBArchive nil remains JSON null.
 
 Dates are reported as `{ "$plist_type": "date", "iso8601": "<timestamp>" }`.

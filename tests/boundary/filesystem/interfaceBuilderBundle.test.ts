@@ -563,7 +563,7 @@ describe("keyed archive hierarchy coverage", () => {
       ]),
     );
     const rootId = analysis.graph.nodes.find(
-      ({ attributes }) => attributes.interface_builder_object_id === "root",
+      ({ attributes }) => attributes.interface_builder_object_id === "1",
     )?.id;
     const childNames = analysis.graph.edges
       .filter(
@@ -573,7 +573,7 @@ describe("keyed archive hierarchy coverage", () => {
           id.includes(":hierarchy:"),
       )
       .map(({ to }) => (to === null ? null : archiveIdsByNodeId.get(to)));
-    expect(childNames).toEqual(["first", "second"]);
+    expect(childNames).toEqual(["3", "5"]);
   });
 
   it.skipIf(process.platform !== "darwin")(

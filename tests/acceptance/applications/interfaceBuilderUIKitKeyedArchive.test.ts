@@ -1,13 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-import { build } from "plist";
+import { build, buildBinary } from "plist";
 import { expect } from "vitest";
 
 import { interfaceBuilderAnalysisSchema } from "../../../src/domain/apple/interfaceBuilderGraph.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
 /** Write an app bundle whose only Interface Builder document is `Main.nib`. */
@@ -91,6 +93,159 @@ cliTest(
         omitted: 0,
       }),
     );
+  },
+);
+
+cliTest.for(["xml", "binary"] as const)(
+  "preserves UID identity despite colliding authored IDs in %s through CLI and MCP",
+  async (format, { cli }) => {
+    // Source-derived keyed-nib records, not output from an Apple compiler.
+    const uid = (value: number) =>
+      format === "binary" ? { UID: value } : { CF$UID: value };
+    const source = {
+      $archiver: "NSKeyedArchiver",
+      $version: 100000,
+      $objects: [
+        "$null",
+        {
+          $class: uid(4),
+          id: "2",
+          archiveUID: 2,
+          objectID: uid(8),
+          "object-id": uid(9),
+          title: "Root",
+          NSSubviews: [uid(2)],
+        },
+        {
+          $class: uid(4),
+          objectID: uid(8),
+          "object-id": uid(9),
+          title: "Child",
+        },
+        {
+          $class: uid(5),
+          objectID: uid(8),
+          UISource: uid(2),
+          UIDestination: uid(1),
+          UILabel: "parent",
+        },
+        {
+          $classname: "ArchiveProbeView",
+          $classes: ["ArchiveProbeView", "UIView", "NSObject"],
+        },
+        {
+          $classname: "UIRuntimeOutletConnection",
+          $classes: [
+            "UIRuntimeOutletConnection",
+            "UIRuntimeConnection",
+            "NSObject",
+          ],
+        },
+        { $class: uid(7), "NS.objects": [uid(1)] },
+        { $classname: "NSArray", $classes: ["NSArray", "NSObject"] },
+        "2",
+        "shared",
+      ],
+      $top: { UINibTopLevelObjectsKey: uid(6) },
+    };
+    const bytes = Buffer.from(
+      format === "binary" ? buildBinary(source) : build(source),
+    );
+    const app = await writeUIKitApp("rea-keyed-nib-hierarchy-", bytes);
+    const path = join(app, "Contents/Resources/Main.nib");
+    const output = await cli.run({
+      arguments: ["decode-interface-builder", app, "--json"],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(output.exitCode, output.stderr).toBe(0);
+    const evidence = parseEvidence(output.json);
+    const { call } = await connectLocalToolsMcp();
+    const opened = await call("open_bundle_resources", { path: app });
+    expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
+    const reply = await call("decode_interface_builder", {});
+    expect(reply.isError, JSON.stringify(reply)).not.toBe(true);
+    expect(parseEvidence(reply.structuredContent).normalized_result).toEqual(
+      evidence.normalized_result,
+    );
+    const report = interfaceBuilderAnalysisSchema.parse(
+      evidence.normalized_result,
+    );
+    const nodes = new Map(report.graph.nodes.map((node) => [node.id, node]));
+    expect(
+      report.graph.edges
+        .filter(({ id }) => id.includes(":hierarchy:"))
+        .map(({ from, to, resolution }) => ({
+          from:
+            nodes.get(from)?.attributes.interface_builder_object_id ??
+            "document",
+          to:
+            to === null
+              ? null
+              : nodes.get(to)?.attributes.interface_builder_object_id,
+          resolution,
+        })),
+    ).toEqual([
+      { from: "document", to: "1", resolution: "observed" },
+      { from: "1", to: "2", resolution: "observed" },
+    ]);
+    expect(
+      report.graph.nodes.find(
+        ({ attributes }) => attributes.interface_builder_object_id === "1",
+      ),
+    ).toMatchObject({
+      attributes: {
+        id: "2",
+        archiveUID: 2,
+        objectID: "2",
+        "object-id": "shared",
+        title: "Root",
+      },
+    });
+    const root = report.graph.nodes.find(
+      ({ attributes }) => attributes.interface_builder_object_id === "1",
+    );
+    const child = report.graph.nodes.find(
+      ({ attributes }) => attributes.interface_builder_object_id === "2",
+    );
+    expect(child).toMatchObject({
+      name: "Child",
+      attributes: { objectID: "2", "object-id": "shared" },
+    });
+    const outlet = report.graph.nodes.find(({ kind }) => kind === "outlet");
+    expect(outlet).toMatchObject({
+      id: 'ib:"Contents/Resources/Main.nib":outlet:["archive:3"]',
+    });
+    expect(report.graph.edges).toContainEqual(
+      expect.objectContaining({
+        from: child?.id,
+        to: outlet?.id,
+        relation: "contains",
+        resolution: "observed",
+      }),
+    );
+    expect(report.graph.edges).toContainEqual(
+      expect.objectContaining({
+        from: outlet?.id,
+        to: root?.id,
+        relation: "outlet_to",
+        resolution: "observed",
+      }),
+    );
+    expect(report.documents[0]).toMatchObject({
+      archive_sha256: createHash("sha256").update(bytes).digest("hex"),
+      connection_count: 1,
+      hierarchy_complete: true,
+    });
+    expect(report.graph.coverage).toContainEqual(
+      expect.objectContaining({
+        facet: "hierarchy:Contents/Resources/Main.nib",
+        status: "complete",
+        examined: 2,
+        omitted: 0,
+      }),
+    );
+    expect(report.graph.truncated).toBe(false);
+    expect(await readFile(path)).toEqual(bytes);
   },
 );
 

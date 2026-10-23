@@ -24,7 +24,11 @@ import {
   omittedPrototypeKeysLimitation,
   parseXmlPropertyList,
 } from "../../domain/propertyListKeys.js";
-import { decodeNibArchive, type NibArchiveDocument } from "./NibArchive.js";
+import {
+  decodeNibArchive,
+  nibCollectionMembers,
+  type NibArchiveDocument,
+} from "./NibArchive.js";
 import { preflightPropertyListDecode } from "./PropertyListDecodeBudget.js";
 import {
   interfaceBuilderDecodeBudgetFailure,
@@ -633,7 +637,12 @@ const projectNibArchive = (
   };
   let projectedFields = 0;
   for (const object of archive.objects)
-    projectedFields += Object.keys(object.values).length;
+    projectedFields +=
+      Object.keys(object.values).length +
+      Object.values(object.repeated_values ?? {}).reduce(
+        (count, values) => count + values.length,
+        0,
+      );
   budget.reserve(
     archive.objects.length * 128 + projectedFields * 128,
     "NIBArchive graph projection exceeds the aggregate Interface Builder decode budget",
@@ -648,6 +657,7 @@ const projectNibArchive = (
     number,
     Readonly<Record<string, JsonValue>>
   >();
+  const projectedRepeatedValues = new Map<number, JsonValue>();
   for (const object of archive.objects) {
     const projected = projectPlistValue(object.values);
     nonFiniteRealCount += projected.nonFiniteRealCount;
@@ -656,6 +666,12 @@ const projectNibArchive = (
       object.id,
       projected.value as Readonly<Record<string, JsonValue>>,
     );
+    if (object.repeated_values !== undefined) {
+      const repeated = projectPlistValue(object.repeated_values);
+      nonFiniteRealCount += repeated.nonFiniteRealCount;
+      negativeZeroRealCount += repeated.negativeZeroRealCount;
+      projectedRepeatedValues.set(object.id, repeated.value);
+    }
   }
   const dereference = (value: JsonValue | undefined): JsonValue | undefined => {
     if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -714,7 +730,7 @@ const projectNibArchive = (
   const objects = Object.fromEntries(
     archive.objects
       .filter((object) => {
-        const name = runtimeClass(object.id) ?? "";
+        const name = normalizeClassName(object.class_name);
         return (
           !/^(?:NSObject|NSIBObjectData|NSString|NSMutableString|NSNumber|NSArray|NSMutableArray|NSSet|NSMutableSet|NSDictionary|NSMutableDictionary|NSApplication|NSNib.*Connector)$/u.test(
             name,
@@ -761,6 +777,9 @@ const projectNibArchive = (
             label: name,
             objectID: String(object.id),
             nibValues,
+            ...(projectedRepeatedValues.has(object.id)
+              ? { nibRepeatedValues: projectedRepeatedValues.get(object.id)! }
+              : {}),
             ...(className === normalizeClassName(object.class_name)
               ? {}
               : {
@@ -790,7 +809,6 @@ const projectNibArchive = (
     const className = normalizeClassName(object.class_name);
     // AppKit connectors use NS-prefixed keys; UIKit's runtime outlet and
     // event connections use UI-prefixed keys with the same roles.
-    const uiKit = isUIKitRuntimeConnectionClass(className);
     if (!isInterfaceBuilderConnectionClass(className)) continue;
     const values = object.values;
     const connectionFields = interfaceBuilderConnectionFieldNames(className);
@@ -814,14 +832,49 @@ const projectNibArchive = (
     // The source is the outlet owner or the sending control; the destination
     // is the outlet value or the action target, and a nil target is the
     // first responder.
-    (connections[String(source)] ??= []).push({
-      type,
-      "destination-id": destination === null ? null : String(destination),
-      label,
-      source_id: String(source),
-      archive_object_id: String(object.id),
-      ...(typeof eventMask === "number" ? { ui_event_mask: eventMask } : {}),
-    });
+    const members =
+      className === "UIRuntimeOutletCollectionConnection"
+        ? nibCollectionMembers(
+            destination === null ? undefined : byId.get(destination),
+          )
+        : undefined;
+    if (
+      className === "UIRuntimeOutletCollectionConnection" &&
+      members === undefined
+    ) {
+      unresolvedConnections += 1;
+      continue;
+    }
+    if (members !== undefined && members.length === 0) {
+      unexaminedSources.push({
+        reason: "empty_outlet_collection_not_projected",
+        facets: ["connections"],
+        description: `Outlet collection object ${object.id} has no serialized members; its raw collection endpoint is not projected as a relationship.`,
+      });
+      continue;
+    }
+    const destinations =
+      members === undefined ? [destination] : members.map(reference);
+    for (const [memberIndex, member] of destinations.entries()) {
+      if (members !== undefined && member === null) {
+        unresolvedConnections += 1;
+        continue;
+      }
+      (connections[String(source)] ??= []).push({
+        type,
+        "destination-id": member === null ? null : String(member),
+        label,
+        source_id: String(source),
+        archive_object_id: String(object.id),
+        ...(members === undefined
+          ? {}
+          : {
+              archive_collection_id: destination,
+              archive_collection_member_index: memberIndex,
+            }),
+        ...(typeof eventMask === "number" ? { ui_event_mask: eventMask } : {}),
+      });
+    }
   }
   let hierarchyOmitted = 0;
   let hierarchyNodeCount = 0;
@@ -861,7 +914,7 @@ const projectNibArchive = (
         continue;
       }
       if (/array|set/iu.test(target.class_name)) {
-        for (const candidate of Object.values(target.values)) {
+        for (const candidate of nibCollectionMembers(target) ?? []) {
           const child = reference(candidate);
           const nested =
             child === null ? null : hierarchyFor(child, nextSeen, depth + 1);

@@ -454,10 +454,6 @@ complete observation.
   undecodable filenames and skipped symlinks, as partial coverage. Known
   executable roots remain available; unexamined names and symlink targets
   cannot establish an empty root set or the absence of other roots.
-  Embedded `UINib` archive data remains retained and undecoded; affected
-  object, connection, class and hierarchy coverage is partial. Recognized
-  `UIStoryboardShowSegueTemplate` source records similarly qualify connection
-  coverage until their navigation semantics are decoded.
 - `inspect_asset_catalog` / `rea inspect-asset-catalog <app>` reads compiled
   `Assets.car` metadata through macOS `assetutil --info`. Catalog digests, raw
   rendition fields, pagination and exact UI resource-name matches are returned.
@@ -557,6 +553,17 @@ complete observation.
   coverage. Source I/O and identity failures retain their acquisition error
   instead of being labeled invalid archive content. Rejected plist decodes
   release their representation reservation for later documents.
+  Repeated NIBArchive fields retain all serialized values in order. Array
+  outlet connections resolve each serialized member and retain the collection
+  object ID and member position on the outlet observation. AppKit object-parent
+  registries use paired keys and parents; objects paired with `NSRoot` are
+  top-level, while nested objects keep their recorded parent. Conflicting or
+  unreadable registry pairs remain incomplete hierarchy evidence.
+  Embedded `UINib` archive data remains retained and undecoded; affected
+  object, connection, class and hierarchy coverage is partial. Recognized
+  `UIStoryboardShowSegueTemplate` source records similarly qualify connection
+  coverage until their navigation semantics are decoded.
+
 - `inspect_native_dispatch_metadata` /
   `rea inspect-native-dispatch-metadata <app-or-binary>` prefers a validated macOS Mach-O byte reader. It decodes
   64-bit little-endian Objective-C class/metaclass records, superclass pointers,

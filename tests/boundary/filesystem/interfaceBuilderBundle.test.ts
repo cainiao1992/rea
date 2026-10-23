@@ -2232,3 +2232,156 @@ it.each(["embedded", "segue", "neither"] as const)(
     }
   },
 );
+
+it.each([1, 2])(
+  "projects every serialized outlet collection member in source order: %i",
+  async (count) => {
+    const bundle = await createTestTempDirectory("rea-ui-outlet-collection-");
+    await writeFile(
+      join(bundle, "Main.nib"),
+      encodeNibArchiveFixture({
+        classes: [
+          "UIViewController",
+          "UIButton",
+          "UIRuntimeOutletCollectionConnection",
+          "NSMutableArray",
+          "NSString",
+        ],
+        objects: [
+          { classIndex: 0, values: {} },
+          { classIndex: 1, values: {} },
+          { classIndex: 1, values: {} },
+          {
+            classIndex: 2,
+            values: {
+              UISource: { ref: 0 },
+              UIDestination: { ref: 4 },
+              UILabel: { ref: 5 },
+            },
+          },
+          {
+            classIndex: 3,
+            values: [
+              ["UINibEncoderEmptyKey", { ref: 2 }],
+              ...(count === 2
+                ? ([["UINibEncoderEmptyKey", { ref: 1 }]] as const)
+                : []),
+            ],
+          },
+          { classIndex: 4, values: { "NS.bytes": "buttons" } },
+        ],
+      }),
+    );
+    const result = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+    });
+    const edges = result.graph.edges.filter(
+      ({ relation }) => relation === "outlet_to",
+    );
+    expect(edges).toHaveLength(count);
+    expect(
+      edges.every(
+        ({ resolution, reason }) =>
+          resolution === "observed" && reason === null,
+      ),
+    ).toBe(true);
+    const outlets = result.graph.nodes.filter(({ kind }) => kind === "outlet");
+    expect(
+      outlets.map(({ attributes }) => [
+        attributes.archive_collection_id,
+        attributes.archive_collection_member_index,
+      ]),
+    ).toEqual(Array.from({ length: count }, (_, index) => [4, index]));
+    expect(
+      edges.map(
+        ({ to }) =>
+          result.graph.nodes.find(({ id }) => id === to)?.attributes
+            .interface_builder_object_id,
+      ),
+    ).toEqual(count === 2 ? ["2", "1"] : ["2"]);
+  },
+);
+
+it("uses paired AppKit registry parents without promoting nested objects to roots", async () => {
+  const bundle = await createTestTempDirectory("rea-ui-parent-registry-");
+  await writeFile(
+    join(bundle, "Main.nib"),
+    encodeNibArchiveFixture({
+      classes: [
+        "NSIBObjectData",
+        "NSCustomObject",
+        "NSView",
+        "NSArray",
+        "NSString",
+      ],
+      objects: [
+        {
+          classIndex: 0,
+          values: {
+            NSRoot: { ref: 1 },
+            NSObjectsKeys: { ref: 6 },
+            NSObjectsValues: { ref: 7 },
+          },
+        },
+        { classIndex: 1, values: {} },
+        { classIndex: 1, values: { NSClassName: { ref: 8 } } },
+        { classIndex: 1, values: { NSClassName: { ref: 9 } } },
+        { classIndex: 2, values: {} },
+        { classIndex: 2, values: { NSSuperview: { ref: 4 } } },
+        {
+          classIndex: 3,
+          values: [
+            ["UINibEncoderEmptyKey", { ref: 2 }],
+            ["UINibEncoderEmptyKey", { ref: 3 }],
+            ["UINibEncoderEmptyKey", { ref: 4 }],
+            ["UINibEncoderEmptyKey", { ref: 5 }],
+          ],
+        },
+        {
+          classIndex: 3,
+          values: [
+            ["UINibEncoderEmptyKey", { ref: 1 }],
+            ["UINibEncoderEmptyKey", { ref: 1 }],
+            ["UINibEncoderEmptyKey", { ref: 1 }],
+            ["UINibEncoderEmptyKey", { ref: 4 }],
+          ],
+        },
+        { classIndex: 4, values: { "NS.bytes": "NSApplication" } },
+        { classIndex: 4, values: { "NS.bytes": "VerifierHelper" } },
+      ],
+    }),
+  );
+  const result = await analyzeInterfaceBuilderBundle({
+    bundlePath: bundle,
+    targetSha256: "a".repeat(64),
+  });
+  const nodes = result.graph.nodes;
+  const nodeId = (object: string) =>
+    nodes.find(
+      ({ attributes }) => attributes.interface_builder_object_id === object,
+    )?.id;
+  for (const object of ["2", "3", "4"])
+    expect(result.graph.edges).toContainEqual(
+      expect.objectContaining({
+        relation: "contains",
+        from: expect.stringMatching(/:root$/u),
+        to: nodeId(object),
+      }),
+    );
+  expect(result.graph.edges).toContainEqual(
+    expect.objectContaining({
+      relation: "contains",
+      from: nodeId("4"),
+      to: nodeId("5"),
+    }),
+  );
+  expect(result.graph.edges).not.toContainEqual(
+    expect.objectContaining({
+      relation: "contains",
+      from: expect.stringMatching(/:root$/u),
+      to: nodeId("5"),
+    }),
+  );
+  expect(result.documents[0]?.hierarchy_complete).toBe(true);
+});

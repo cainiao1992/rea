@@ -1075,8 +1075,6 @@ export const semanticEscapeFollowsCapture = (
     !semanticBindingPrecedesCapture(binding, capture, parents)
   )
     return false;
-  if (scopeExitOwners.has(escape))
-    return semanticEffectFollowsReference(capture, escape, parents);
   // A literal allocates here. Aliases are evaluated at the same capture point,
   // so an outer/persistent origin still receives all of its own escape effects.
   const origin = unwrapJavaScriptExpression(initializer.node).node;
@@ -1089,6 +1087,20 @@ export const semanticEscapeFollowsCapture = (
   )
     return false;
   const capturePosition = semanticCapturePosition(capture, parents);
+  const exit = scopeExitOwners.get(escape);
+  if (exit !== undefined) {
+    // Unlike a source-global ordering proof, this binding was initialized in
+    // the captured body. Its later sibling scope exits follow this activation.
+    const exitPosition = t.isStatement(exit)
+      ? statementPosition(exit, parents)
+      : null;
+    return (
+      withinScopeExit(capture, exit, parents) ||
+      (capturePosition !== null &&
+        exitPosition !== null &&
+        positionPrecedes(capturePosition, exitPosition))
+    );
+  }
   const escapePosition = directMutationPosition(escape, parents);
   return (
     capturePosition !== null &&

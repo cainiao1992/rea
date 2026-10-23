@@ -160,6 +160,19 @@ it("retains a mutated require.resolve request as an unknown fact", () => {
   ).toEqual([expect.objectContaining({ kind: "require", specifier: null })]);
 });
 
+it("does not treat bundler factory resolve members as Node resolvers", () => {
+  const analysis = analyzeJavaScriptStaticSource(`
+    globalThis.webpackChunkApp.push([[1], {
+      "factory": function (module, exports, loader) {
+        loader.resolve("./not-a-dependency.cjs");
+      }
+    }]);
+  `);
+  expect(analysis.references.filter(({ kind }) => kind === "require")).toEqual(
+    [],
+  );
+});
+
 it.each([
   [
     "captured wrapper",

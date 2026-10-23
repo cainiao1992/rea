@@ -385,6 +385,11 @@ const selectedRequireSourcesAt = (
       semanticAliasSelectionChoices(current.path[0]!).every(
         (key) => key === "call" || key === "apply",
       );
+    const nativeGenericMember =
+      target === "loader" &&
+      genericMember &&
+      t.isIdentifier(node) &&
+      requireLoaderValueAt(node, node, state, factoryBindingIds) !== "local";
     const key = JSON.stringify([current.path, loaderSourceContextKey(current)]);
     const paths = seen.get(node) ?? new Set<string>();
     if (paths.has(key)) continue;
@@ -401,10 +406,6 @@ const selectedRequireSourcesAt = (
         ]),
       );
     } else if (t.isIdentifier(node)) {
-      if (target === "loader" && genericMember)
-        nativeMemberAlternative ||=
-          requireLoaderValueAt(node, node, state, factoryBindingIds) !==
-          "local";
       if (target === "loader" && current.path.length === 0) {
         const captured = requireLoaderValueAt(
           node,
@@ -455,6 +456,17 @@ const selectedRequireSourcesAt = (
         current.readAt ?? node,
         current.capturedSelections,
       );
+      if (nativeGenericMember)
+        nativeMemberAlternative ||=
+          facts === undefined ||
+          facts.sources.length === 0 ||
+          !facts.sources.every(({ node: source }) => {
+            const value = unwrapJavaScriptExpression(source).node;
+            return (
+              t.isFunctionExpression(value) ||
+              t.isArrowFunctionExpression(value)
+            );
+          });
       if (target === "factory" && binding.directOrigins.length > 0) {
         const native = binding.directOrigins.some((origin) =>
           isCreateRequireOrigin(origin, current.path),
@@ -662,6 +674,15 @@ export const semanticRequireCallAt = (
   const callee = unwrapJavaScriptExpression(node.callee).node;
   if (
     (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
+    ["call", "apply"].includes(
+      semanticStaticPropertyKey(callee.property, callee.computed) ?? "",
+    ) &&
+    selectedRequireSourcesAt(callee, node, state, factoryBindingIds)?.loader ===
+      "local"
+  )
+    return { loader: "local", arguments: undefined, sourceRelative: false };
+  if (
+    (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
     semanticStaticPropertyKey(callee.property, callee.computed) === "resolve"
   ) {
     const loader = requireLoaderValueAt(
@@ -670,7 +691,9 @@ export const semanticRequireCallAt = (
       state,
       factoryBindingIds,
     );
-    if (loader !== "local") {
+    // Bundler factory loaders can share the `require` shape, but their
+    // `.resolve` member is not Node's module resolver.
+    if (loader === "commonjs-loader" || loader === "create-require") {
       const selected = selectedRequireSourcesAt(
         callee.object,
         node,

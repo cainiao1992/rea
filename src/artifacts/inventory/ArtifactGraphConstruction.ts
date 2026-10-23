@@ -332,7 +332,9 @@ export const createArtifactEdges = (
     const sourceCandidates =
       sourcePath === undefined ? [] : (byPath.get(sourcePath) ?? []);
     const mappedSource =
-      sourceCandidates.length === 1 && sourceCandidates[0]?.artifact_id !== null
+      sourceCandidates.length === 1 &&
+      sourceCandidates[0]?.entry_kind === "file" &&
+      sourceCandidates[0].artifact_id !== null
         ? sourceCandidates[0]
         : undefined;
     if (sourcePath !== undefined) {
@@ -342,7 +344,9 @@ export const createArtifactEdges = (
               occurrence: `Source-map target is unknown because multiple occurrences share ${JSON.stringify(sourcePath)}.`,
               coverage: `Source-map relationships are unknown because multiple occurrences share ${JSON.stringify(sourcePath)}.`,
             }
-          : sourceCandidates.length === 1 && mappedSource === undefined
+          : sourceCandidates.length === 1 &&
+              sourceCandidates[0]?.entry_kind === "file" &&
+              mappedSource === undefined
             ? {
                 occurrence: `Source-map target identity is unknown because the matching occurrence at ${JSON.stringify(sourcePath)} has no content identity.`,
                 coverage: `Source-map relationships are unknown because the matching occurrence at ${JSON.stringify(sourcePath)} has no content identity.`,

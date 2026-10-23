@@ -47,6 +47,11 @@ derived metadata keep their upstream representation. Read function results from
 `normalized_result`; older retained Evidence keeps its original representation
 and identity.
 
+Artifact source-map filename relationships require a unique, identified regular
+file at the sibling path. A known directory cannot be the mapped file; the map
+retains its actual container relation. This admission does not establish source
+byte correspondence or decode the map's original source paths.
+
 Artifact inventories declare `coverage.scope` (`root` or `container-entries`)
 and `coverage.status` (`complete` or `unknown`) independently of diagnostic
 wording. Comparison requires matching scopes, complete graph members and complete

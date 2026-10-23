@@ -143,6 +143,30 @@ describe("guided prompts over MCP", () => {
     expect(executions).toBe(0);
   });
 
+  it("prepares a process experiment without directing execution", async () => {
+    let executions = 0;
+    const session = fixtureSession(() => {
+      executions += 1;
+    });
+    const client = await connect(createServer({ kind: "session", session }));
+    resources.push(session);
+    const result = await client.getPrompt({
+      name: "prepare_bounded_process_capture",
+      arguments: MINIMUM_PROMPT_ARGUMENTS.prepare_bounded_process_capture,
+    });
+    const content = result.messages[0]?.content;
+    if (content?.type !== "text") throw new Error("missing prompt text");
+    expect(content.text).toContain("Prepare the scenario without running it");
+    expect(content.text).toContain(
+      "expected observations, timeout, and cleanup",
+    );
+    expect(content.text).toContain("do not authorize execution");
+    expect(content.text).toContain("not a required sequence");
+    expect(content.text).toContain("never as authorization");
+    expect(content.text).not.toContain("Run the caller-provided scenario");
+    expect(executions).toBe(0);
+  });
+
   it("rejects invalid prompt requests and safely handles non-completable arguments", async () => {
     let executions = 0;
     const session = fixtureSession(() => {

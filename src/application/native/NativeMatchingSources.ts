@@ -10,6 +10,8 @@ import {
 } from "../EvidenceInputResolver.js";
 import type { NativeMatchingAdmission } from "./NativeMatchingAdmission.js";
 
+import { nativeMatchingInputError } from "./NativeMatchingInputError.js";
+
 const INVENTORY_OPERATIONS = ["list_procedures"] as const;
 const OBSERVATION_OPERATIONS = [
   "list_names",
@@ -32,7 +34,10 @@ export const resolveNativeMatchingSources = async (
   readonly sources: readonly Evidence[];
 }> => {
   const sources = new Map<string, Evidence>();
-  const resolve = async (input: unknown): Promise<Evidence> => {
+  const resolve = async (
+    input: unknown,
+    path?: readonly (string | number)[],
+  ): Promise<Evidence> => {
     const reference = retainedEvidenceReferenceSchema.safeParse(input);
     let raw = input;
     if (reference.success) {
@@ -42,7 +47,15 @@ export const resolveNativeMatchingSources = async (
     }
     await admission.admit(raw);
     const checked = readEvidence(raw);
-    if (!checked.ok) throw checked.error;
+    if (!checked.ok)
+      throw path !== undefined && !reference.success
+        ? nativeMatchingInputError(
+            input,
+            path,
+            admission.operation,
+            checked.error,
+          )
+        : checked.error;
     const evidence = checked.value;
     const cached = sources.get(evidence.evidence_id);
     if (cached !== undefined) return cached;
@@ -54,7 +67,7 @@ export const resolveNativeMatchingSources = async (
     path: readonly (string | number)[],
     operations: readonly string[],
   ): Promise<Evidence> => {
-    const evidence = await resolve(raw);
+    const evidence = await resolve(raw, path);
     if (
       evidence.predicate_type !== "rea.analysis" ||
       !operations.includes(evidence.operation) ||

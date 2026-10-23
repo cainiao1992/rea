@@ -128,3 +128,5 @@ It includes unchanged/changed code, a byte-identical rename, a removed/added
 observation, an inlined function, identical-code aliases and a renamed changed
 function with an observed call/string signature. Analyze without executing the
 fixture. Full-provider verification still needs caller-supplied Ghidra and Java.
+
+Malformed inline Evidence is rejected after admission with its selected input field and observation index. A structurally valid record whose authenticated contents or digest disagree remains an integrity failure; changing input diagnostics does not make that record trustworthy.

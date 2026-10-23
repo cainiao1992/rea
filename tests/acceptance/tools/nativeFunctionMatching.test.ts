@@ -391,6 +391,76 @@ cliTest(
 );
 
 cliTest(
+  "native matching retains malformed inline field paths through MCP and CLI source admission",
+  async ({ cli }) => {
+    const left = nativeMatchingInventory("1", [
+      { address: "0x10", value: "main" },
+    ]);
+    const right = nativeMatchingInventory("2", [
+      { address: "0x20", value: "main" },
+    ]);
+    const root = await createTestTempDirectory("rea-matching-input-");
+    const bundlePath = join(root, "sources.json");
+    await writeFile(
+      bundlePath,
+      JSON.stringify(createEvidenceBundle([left, right])),
+    );
+    const { call } = await connectLocalToolsMcp();
+    for (const field of [
+      "left",
+      "right",
+      "left_observations",
+      "right_observations",
+    ] as const) {
+      const observation = field.endsWith("observations");
+      const request = {
+        left,
+        right,
+        detail: "complete",
+        [field]: observation ? ["not-evidence"] : "not-evidence",
+      };
+      const expected = {
+        code: "invalid_request",
+        details: {
+          issues: [
+            expect.objectContaining({
+              path: observation ? [field, 0] : [field],
+              reason: "invalid_type",
+            }),
+          ],
+        },
+      };
+      expect(
+        parseMcpToolError(await call("match_native_functions", request)).error,
+      ).toMatchObject(expected);
+      const requestPath = join(root, "request.json");
+      await writeFile(requestPath, JSON.stringify(request));
+      for (const sourceArguments of [[], ["--source_bundle", bundlePath]]) {
+        const rejected = await cli.run({
+          arguments: [
+            "match-native-functions",
+            requestPath,
+            ...sourceArguments,
+            "--json",
+          ],
+        });
+        expect(rejected.exitCode).not.toBe(0);
+        expect(rejected.json).toMatchObject(expected);
+      }
+    }
+    const corrected = await call("match_native_functions", {
+      left,
+      right,
+      detail: "complete",
+    });
+    expect(corrected.isError).not.toBe(true);
+    expect(
+      parseEvidence(corrected.structuredContent).normalized_result,
+    ).toMatchObject({ summary: { matched: 1 } });
+  },
+);
+
+cliTest(
   "native matching CLI inline and portable sources report the same validation errors",
   async ({ cli }) => {
     const fixture = await createMatchingFixture();

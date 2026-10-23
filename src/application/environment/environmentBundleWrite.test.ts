@@ -1,3 +1,4 @@
+import { requirePermissionDenial } from "../../../tests/fixtures/permissionDenial.js";
 import {
   appendFile,
   chmod,
@@ -167,9 +168,10 @@ it("uses confirmed publication after the output owner's descriptor cleanup compl
   }
 });
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "returns a tagged permission refusal for an existing read-only empty directory",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "directory-write");
     const root = await createTestTempDirectory("rea-bundle-readonly-");
     const files = await writeEnvironmentServeFiles(root);
     const inputs = await readEnvironmentExportInputs(
@@ -200,9 +202,10 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
   },
 );
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "names the nested path when write permission is lost after earlier files",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "directory-write");
     const root = await createTestTempDirectory("rea-bundle-later-denied-");
     const files = await writeEnvironmentServeFiles(root);
     const inputs = await readEnvironmentExportInputs(

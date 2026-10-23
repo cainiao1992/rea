@@ -1,3 +1,4 @@
+import { requirePermissionDenial } from "../../tests/fixtures/permissionDenial.js";
 import { chmod, mkdir, readdir, realpath, rm, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -93,9 +94,10 @@ describe("IDA workspace ownership before input preparation", () => {
     expect(await readdir(root)).toEqual([]);
   });
 
-  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  it.skipIf(process.platform === "win32")(
     "preserves the input identity failure and retries workspace removal after permission recovery",
-    async () => {
+    async (context) => {
+      await requirePermissionDenial(context, "directory-write");
       const { root, target } = await createIdaTarget();
       roots.push(root);
       const { client, producer } = clientFor(root, {

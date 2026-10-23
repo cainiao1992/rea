@@ -1,3 +1,4 @@
+import { requirePermissionDenial } from "../../../tests/fixtures/permissionDenial.js";
 import {
   chmod,
   mkdir,
@@ -104,9 +105,10 @@ it("distinguishes unavailable content hashes from completed path enumeration", a
   ).toMatchObject({ status: "deleted", before: { sha256: null }, after: null });
 });
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "retains readable entries and marks an unreadable directory subtree unknown",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "directory-read");
     const root = await createTestTempDirectory("rea-fs-unreadable-directory-");
     const visible = join(root, "a-visible.txt");
     const blocked = join(root, "z-blocked");
@@ -143,9 +145,10 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
   },
 );
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "retains unreadable-file and sibling observations in a complete snapshot",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "file-read");
     const root = await createTestTempDirectory("rea-fs-unreadable-file-");
     const unreadable = join(root, "unreadable.txt");
     const readable = join(root, "readable.txt");
@@ -398,9 +401,10 @@ it("preserves creation when the selected root was observed missing before captur
   ]);
 });
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "rejects only selected roots that cannot be admitted before launch",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "directory-search");
     const root = await createTestTempDirectory("rea-fs-root-admission-");
     await writeFile(join(root, "file"), "regular file");
     await mkdir(join(root, "denied"));
@@ -466,9 +470,10 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
   },
 );
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "records an unsearchable directory's children as omitted rather than failing",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "directory-search");
     const root = await createTestTempDirectory("rea-fs-unsearchable-");
     const listed = join(root, "listed");
     await mkdir(listed);

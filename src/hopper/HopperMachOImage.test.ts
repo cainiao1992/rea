@@ -1,3 +1,4 @@
+import { requirePermissionDenial } from "../../tests/fixtures/permissionDenial.js";
 import { createHash } from "node:crypto";
 import {
   access,
@@ -129,9 +130,10 @@ const resolveHopperMachOImage = (
     resourceScope: inspectionResources.owner,
   });
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+it.skipIf(process.platform === "win32")(
   "reports a FAT64 source that became unreadable as a host read denial",
-  async () => {
+  async (context) => {
+    await requirePermissionDenial(context, "file-read");
     const directory = await createTestTempDirectory("rea-hopper-fat64-");
     const path = join(directory, "universal");
     await writeFile(path, Buffer.alloc(64));

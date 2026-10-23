@@ -897,8 +897,13 @@ After import, deleting that source must preserve the captured database identity.
 Instruction inspection and containing-function lookup also agree across
 hexadecimal case, leading zeros, and encoded default address-space spellings.
 The same source-acquisition workflow exercises missing and directory-replaced
-inputs, plus real read-permission denial on a non-root host. Root runs report
-that permission-denial check as unverified. Filesystem integration separately checks selected-platform routing and exclusive creation.
+inputs, plus real read-permission denial on a host that enforces it. Permission
+fixtures must probe the relevant read, write or search operation before relying
+on POSIX mode bits: a non-root Linux process may bypass DAC through capabilities.
+`requirePermissionDenial` reports an explicit skip when the host permits the
+probe; it restores the probe's permissions before skipping. Such a skip leaves
+real permission coverage unverified. Filesystem integration separately checks
+selected-platform routing and exclusive creation.
 Namespace annotation probes compile a separate host C fixture with C++ ABI
 symbols, avoiding a C++ runtime prerequisite. Real Ghidra demangling supplies
 duplicate leaf names in two top-level namespaces and a nested namespace. The

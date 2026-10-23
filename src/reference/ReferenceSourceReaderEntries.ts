@@ -66,9 +66,16 @@ export const traverseDirectory = async (
   }
   const directories: PendingDirectory[] = [];
   let readFailure: string | undefined;
+  let unrepresentableNameCount = 0;
+  let firstUnrepresentableNameHex: string | undefined;
   let handle: Dir | undefined;
   try {
-    handle = await opendir(current.path);
+    // Preserve directory-entry identity until UTF-8 validity is established.
+    // Node's opendir accepts this byte-preserving encoding; @types/node's
+    // OpenDirOptions currently narrows it to text encodings.
+    handle = await opendir(current.path, {
+      encoding: "buffer" as BufferEncoding,
+    });
   } catch (cause: unknown) {
     readFailure = directoryReadFailure(cause);
   }
@@ -86,7 +93,17 @@ export const traverseDirectory = async (
           break;
         }
         if (child === null) break;
-        result = await processEntry(state, current, child.name, directories);
+        if (!Buffer.isBuffer(child.name)) {
+          readFailure = "Directory entry name was not returned as raw bytes";
+          break;
+        }
+        const name = child.name.toString("utf8");
+        if (!Buffer.from(name, "utf8").equals(child.name)) {
+          unrepresentableNameCount += 1;
+          firstUnrepresentableNameHex ??= child.name.toString("hex");
+          continue;
+        }
+        result = await processEntry(state, current, name, directories);
         if (!result.ok) break;
       }
     } finally {
@@ -152,7 +169,14 @@ export const traverseDirectory = async (
     scheduleObservedDirectories(state, directories);
     return { ok: true, value: undefined };
   }
-  if (current.path !== state.root)
+  if (unrepresentableNameCount > 0) {
+    recordDirectoryFailure(
+      state,
+      current.path,
+      "unsupported",
+      `Directory contains ${String(unrepresentableNameCount)} entry name(s) that are not valid UTF-8; no filesystem operations were performed for them. First raw basename bytes: ${firstUnrepresentableNameHex ?? "unknown"}.`,
+    );
+  } else if (current.path !== state.root)
     state.entries.push({
       status: "read",
       kind: "directory",

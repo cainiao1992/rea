@@ -206,6 +206,7 @@ describe("executable header completeness", () => {
 
   it("rejects Mach-O load commands that extend past the file", () => {
     const header = thinMach(0xcffaedfe, 0x0100000c);
+    header.writeUInt32LE(1, 16);
     header.writeUInt32LE(100, 20);
 
     expect(reason(header)).toBe(

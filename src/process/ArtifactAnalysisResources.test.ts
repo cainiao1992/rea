@@ -24,6 +24,57 @@ import { ArtifactAnalysisResources } from "./ArtifactAnalysisResources.js";
 import { readLinuxResourceLimits } from "./LinuxResourceLimits.js";
 import { ProviderProcessSupervisor } from "./ProviderProcess.js";
 
+it.each(["command", "limiter"])(
+  "attributes post-run %s read failure to its exact artifact and retains producer output",
+  async (failedPath) => {
+    const source = new ArtifactReaderFailure("path", "Artifact was replaced");
+    const reads: string[] = [];
+    const resources = new ArtifactAnalysisResources(
+      "fixture-provider",
+      "fixture-operation",
+      async (path) => {
+        reads.push(path);
+        if (path === failedPath) throw source;
+        return { bytes: Buffer.from("executable"), sha256: "unchanged" };
+      },
+      readLinuxResourceLimits,
+      { message: "busy", details: {} },
+    );
+    const output = {
+      stdout: "completed observation",
+      stderr: "producer warning",
+      truncated: true,
+      exit_code: 0,
+      signal: null,
+    };
+    try {
+      const result = await resources.run(async () =>
+        ok(
+          await resources.readCommandAfterRun(
+            "command",
+            { path: "limiter", sha256: "unchanged" },
+            output,
+            "inspect_signal_decoders",
+          ),
+        ),
+      );
+      if (result.ok) throw new Error("Expected failed post-run verification");
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisArtifactChangedError",
+        operation: "inspect_signal_decoders",
+        path: failedPath,
+        capturedOutput: output,
+      });
+      expect(result.error.cause).toBe(source);
+      expect(reads).toEqual(
+        failedPath === "command" ? ["command"] : ["command", "limiter"],
+      );
+    } finally {
+      await resources.close();
+    }
+  },
+);
+
 it("projects the specific reason and member evidence for retained cleanup", async () => {
   const producer = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),

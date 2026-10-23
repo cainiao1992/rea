@@ -16,6 +16,7 @@ import {
 } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
+  AnalysisArtifactChangedError,
   AnalysisResourceConstraintError,
   AnalysisOutputError,
   AnalysisTimeoutError,
@@ -32,13 +33,26 @@ import {
   type LinuxResourceLimits,
 } from "./LinuxResourceLimits.js";
 import type { PrivateRuntimeRoot } from "./PrivateRuntimeRoot.js";
-import type { ProviderProcessSupervisor } from "./ProviderProcess.js";
+import type {
+  ProviderProcessSnapshot,
+  ProviderProcessSupervisor,
+} from "./ProviderProcess.js";
 import { OwnedCommandFailure, ownedCommandResources } from "./OwnedCommand.js";
 
 export type ArtifactAnalysisRuntime = Pick<
   PrivateRuntimeRoot,
   "path" | "close"
 >;
+
+export const artifactCommandOutput = (
+  snapshot: ProviderProcessSnapshot,
+): AnalysisCapturedOutput => ({
+  stdout: snapshot.stdout.text,
+  stderr: snapshot.stderr.text,
+  truncated: snapshot.diagnosticTruncated ?? false,
+  exit_code: snapshot.exitCode ?? null,
+  signal: snapshot.signal ?? null,
+});
 
 /** Own admission, artifact descriptors, producer cleanup and private workspaces together. */
 export class ArtifactAnalysisResources {
@@ -134,6 +148,73 @@ export class ArtifactAnalysisResources {
 
   readLimits(limits: LinuxResourceLimits): Promise<LinuxResourceLimits> {
     return this.readKernelLimits(limits, this.#artifacts.scope);
+  }
+
+  /** Finish bounded identity reads after output, independently of caller cancellation. */
+  async readCommandAfterRun(
+    command: string,
+    limiter: { readonly path: string; readonly sha256: string },
+    capturedOutput: AnalysisCapturedOutput,
+    operation = this.operation,
+  ) {
+    const read = async (path: string) => {
+      try {
+        return await this.read(path, 64 * 1024 * 1024);
+      } catch (cause: unknown) {
+        throw this.integrityFailure(cause, path, capturedOutput, operation);
+      }
+    };
+    const current = await read(command);
+    const currentLimiter = await read(limiter.path);
+    if (currentLimiter.sha256 !== limiter.sha256)
+      throw new AnalysisArtifactChangedError(
+        operation,
+        limiter.path,
+        "Configured resource limiter changed during analysis.",
+        { capturedOutput },
+      );
+    return current;
+  }
+
+  integrityFailure(
+    cause: unknown,
+    path: string,
+    capturedOutput?: AnalysisCapturedOutput,
+    operation = this.operation,
+  ): AnalysisError {
+    if (cause instanceof AnalysisError) return cause;
+    if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
+      return this.cleanupFailure(
+        cause,
+        (primary) =>
+          this.integrityFailure(primary, path, capturedOutput, operation),
+        capturedOutput,
+        operation,
+      );
+    const detail = {
+      cause,
+      ...(capturedOutput === undefined ? {} : { capturedOutput }),
+    };
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+      return new AnalysisCancelledError(operation, {
+        ...detail,
+        cause: artifactFileCancellationCause(cause),
+      });
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      ["limit", "integrity", "path"].includes(cause.reason)
+    )
+      return new AnalysisArtifactChangedError(
+        operation,
+        path,
+        `Post-run identity verification failed for ${path}: ${reason}`,
+        detail,
+      );
+    return new ProviderAdapterError(this.providerId, operation, {
+      ...detail,
+      diagnostics: { stage: "integrity", resource_path: path, reason },
+    });
   }
 
   retain(
@@ -334,13 +415,7 @@ export class ArtifactAnalysisResources {
     const capturedOutput =
       cause.snapshot === null
         ? undefined
-        : {
-            stdout: cause.snapshot.stdout.text,
-            stderr: cause.snapshot.stderr.text,
-            truncated: cause.snapshot.diagnosticTruncated ?? false,
-            exit_code: cause.snapshot.exitCode ?? null,
-            signal: cause.snapshot.signal ?? null,
-          };
+        : artifactCommandOutput(cause.snapshot);
     const detail = {
       cause,
       ...(capturedOutput === undefined ? {} : { capturedOutput }),

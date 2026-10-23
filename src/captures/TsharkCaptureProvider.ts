@@ -28,6 +28,7 @@ import type { PacketCapturePort } from "../application/captures/PacketCaptureSer
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   ArtifactAnalysisResources,
+  artifactCommandOutput,
   type ArtifactAnalysisRuntime,
 } from "../process/ArtifactAnalysisResources.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
@@ -216,30 +217,13 @@ export class TsharkCaptureProvider implements PacketCapturePort {
             ...(this.launcher === undefined ? {} : { launcher: this.launcher }),
           },
         );
-        capturedOutput = {
-          stdout: output.stdout.text,
-          stderr: output.stderr.text,
-          truncated: output.diagnosticTruncated ?? false,
-          exit_code: output.exitCode ?? null,
-          signal: output.signal ?? null,
-        };
-        // Finish bounded integrity checks after output; service handles late cancellation with Evidence.
-        const previousPhase = phase;
-        phase = "integrity";
-        resourcePath = command;
-        const current = await this.#resources.read(command, 64 * 1024 * 1024);
-        resourcePath = limiter;
-        const currentLimiter = await this.#resources.read(
-          limiter,
-          64 * 1024 * 1024,
+        capturedOutput = artifactCommandOutput(output);
+        const current = await this.#resources.readCommandAfterRun(
+          command,
+          { path: limiter, sha256: limiterIdentity.sha256 },
+          capturedOutput,
+          operation,
         );
-        if (currentLimiter.sha256 !== limiterIdentity.sha256)
-          throw new AnalysisArtifactChangedError(
-            operation,
-            limiter,
-            "Configured resource limiter changed during analysis.",
-            { capturedOutput },
-          );
         assertWiresharkExecutableIdentity(
           operation,
           command,
@@ -247,7 +231,6 @@ export class TsharkCaptureProvider implements PacketCapturePort {
           wiresharkExecutableIdentity(current),
           { capturedOutput },
         );
-        phase = previousPhase;
         resourcePath = "path" in input ? input.path : command;
         if (output.exitCode !== 0)
           throw new ProviderAdapterError(
@@ -518,28 +501,13 @@ export class TsharkCaptureProvider implements PacketCapturePort {
         cause,
         workspacePath,
       );
-    if (phase === "integrity") {
-      const detail = {
+    if (phase === "integrity")
+      return this.#resources.integrityFailure(
         cause,
-        ...(observedOutput === undefined
-          ? {}
-          : { capturedOutput: observedOutput }),
-      };
-      if (
-        cause instanceof ArtifactReaderFailure &&
-        ["limit", "integrity", "path"].includes(cause.reason)
-      )
-        return new AnalysisArtifactChangedError(
-          operation,
-          path,
-          `Post-run identity verification failed for ${path}: ${reason}`,
-          detail,
-        );
-      return new ProviderAdapterError(TSHARK_PROVIDER_IDENTITY.id, operation, {
-        ...detail,
-        diagnostics: { stage: "integrity", resource_path: path, reason },
-      });
-    }
+        path,
+        observedOutput,
+        operation,
+      );
     if (phase === "configuration")
       return new AnalysisCapabilityUnavailableError(
         TSHARK_PROVIDER_IDENTITY.id,

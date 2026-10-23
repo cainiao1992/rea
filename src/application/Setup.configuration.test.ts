@@ -422,7 +422,9 @@ describe("setup workflow action selection", () => {
     expect(setupRegistrationCommand("win32", undefined, undefined)).toEqual([]);
     expect(setupRegistrationCommand("win32", "npx", undefined)).not.toEqual([]);
   });
+});
 
+describe("setup configuration failure recovery", () => {
   it.each([
     [
       "path",
@@ -445,13 +447,33 @@ describe("setup workflow action selection", () => {
     host.hopper = "/Applications/Hopper";
     host.clients = [{ name: "internal_client_key", configPath: "/agent.json" }];
     host.clientResults.set("internal_client_key", { status: "failed", reason });
+    // Exercise registration recovery without selecting a synthetic skill client.
     const result = await runSetup(
-      { ...options(true), clientIds: ["internal_client_key"] },
+      {
+        ...options(true),
+        clientIds: ["internal_client_key"],
+        installSkill: false,
+      },
       host,
     );
     expect(result.status).toBe("needs_human");
     expect(result.remediation).toBe(message);
     expect(result.remediation).not.toContain("internal_client_key");
+    expect(result.plannedActions).toEqual([
+      expect.objectContaining({
+        id: "configure_client:internal_client_key",
+        kind: "configure_client",
+        target: "/agent.json",
+      }),
+    ]);
+    expect(result.clients).toEqual({
+      internal_client_key: { status: "failed", reason },
+    });
+    expect(result.appliedActions).toEqual([]);
+    expect(host.configurations).toBe(1);
+    expect(host.skillDirectoryValidations).toEqual([]);
+    expect(host.skillInstalls).toBe(0);
+    expect(host.hopperInstalls).toBe(0);
   });
 
   it("names the recovery backup that holds the restored original after a readback failure", async () => {

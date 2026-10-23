@@ -949,9 +949,11 @@ it.each([null, "default", "imported"] as const)(
     const compared = await compare(
       harness.client,
       evidence("origin-left", "1", [leftEdge], {
+        procedureAddress: "0x1000",
         callees: [leftEdge.target_procedure],
       }),
       evidence("origin-right", "2", [rightEdge], {
+        procedureAddress: "0x2000",
         callees: [rightEdge.target_procedure],
       }),
     );

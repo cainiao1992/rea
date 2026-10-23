@@ -1224,6 +1224,11 @@ export class GdbSessionManager {
                 subjectUnavailableReason:
                   "The active GDB inferior identity is not established by the debugger session identifier.",
                 limitations: [
+                  ...(result.mi.length === 0
+                    ? [
+                        "A separately tokenized read-only query confirmed return to GDB's command loop. The original result record could not be framed independently from raw stdout; its bytes remain in records and its result class is unknown.",
+                      ]
+                    : []),
                   "MI records are returned as decoded text; their semantics depend on GDB version and target.",
                   ...(result.output_truncated
                     ? [
@@ -1635,6 +1640,26 @@ export class GdbSessionManager {
           pending.outputInvalidUtf8 ||= invalidUtf8;
         } else pending.outputTruncated = true;
       }
+      if (line === "(gdb)" || line === "(gdb) ") {
+        // Shell stdout can precede its result token without an LF. Never scan
+        // caller output for a token-looking suffix. Once GDB returns its prompt,
+        // correlate a fresh read-only query before completing that console turn.
+        for (const pending of session.pending.values()) {
+          if (
+            session.ready &&
+            pending.command.startsWith("-interpreter-exec console ") &&
+            pending.terminalRecord === undefined &&
+            pending.completionToken === undefined
+          ) {
+            pending.completionToken = session.nextToken++;
+            this.#writeMiRequest(
+              session,
+              pending.completionToken,
+              "-gdb-show mi-async",
+            );
+          }
+        }
+      }
       const match = /^(\d+)\^(done|running|connected|error|exit)(?:,|$)/u.exec(
         line,
       );
@@ -1672,7 +1697,11 @@ export class GdbSessionManager {
 
       pending.resolve({
         command: "",
-        mi: pending.terminalRecord ?? line,
+        // A query proves return to the command loop, not the class of a
+        // result record that raw stdout prevented us from framing separately.
+        mi:
+          pending.terminalRecord ??
+          (token === pending.completionToken ? "" : line),
         ...snapshotGdbCommandRecords(pending.lines),
         output_truncated: pending.outputTruncated,
         ...(pending.outputInvalidUtf8
@@ -2317,6 +2346,10 @@ export const gdbOneShotCommandMayInvalidateDetachProof = (
 
 /** @internal Classify commands that can invalidate the configured output sink. */
 export const commandMayChangeInferiorOutput = (command: string): boolean => {
+  // These complete built-in inspections cannot change output routing. Keep
+  // compound commands and abbreviations under the conservative rules below.
+  if (/^[ \t]*(?:show|help)[ \t]+inferior-tty[ \t]*$/iu.test(command))
+    return false;
   const setting = /^\s*(?:set|with)\s+(\S+)/iu.exec(command)?.[1];
   const maySetInferiorTty =
     setting !== undefined && "inferior-tty".startsWith(setting.toLowerCase());

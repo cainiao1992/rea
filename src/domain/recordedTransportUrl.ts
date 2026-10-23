@@ -122,7 +122,7 @@ function* queryFields(
 /** Scan one field at a time; selection avoids decoding unrelated values. */
 export function* iterateUrlQueryParameters(
   query: string,
-  selected?: ReadonlyMap<string, string>,
+  selected?: ReadonlyMap<string, unknown> | ReadonlySet<string>,
 ): IterableIterator<[string, string]> {
   for (const [start, nameEnd, end] of queryFields(query)) {
     const name = formComponent(query.slice(start, nameEnd));

@@ -52,3 +52,25 @@ it("bounds content-type display without changing body interpretation or retained
     contentType,
   );
 });
+
+it("keeps observed query order distinct from calls supplying only selected fields", () => {
+  const source = environmentServeSourceWithBody("{}", "application/json");
+  const original = source.manifest.tools.find(
+    (tool) => tool.name === "get_users_by_id",
+  )!;
+  const ordinal = original.record_ordinals[0]!;
+  const tool = { ...original, query_parameter_names: ["ignored", "q"] };
+  const retained = {
+    ...source.exchanges.get(ordinal)!,
+    query: `?${"ignored=%FF+value&".repeat(20000)}%71=hi%74`,
+  };
+  const exchanges = new Map([[ordinal, retained]]);
+  const args = { id: "2", q: "hit" };
+  expect(selectReplayExchange(tool, exchanges, args)?.exact).toBe(true);
+  expect(selectReplayExchange(tool, exchanges, args, "?q=hit")?.exact).toBe(
+    false,
+  );
+  expect(
+    selectReplayExchange(tool, exchanges, args, retained.query)?.exact,
+  ).toBe(true);
+});

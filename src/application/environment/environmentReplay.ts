@@ -51,10 +51,6 @@ interface MatchScore {
   readonly exact: boolean;
 }
 
-/** Replay matches verbatim segments or either spelling decoded once. */
-export const pathValueMatches = (segment: string, value: string): boolean =>
-  pathSegmentMatches(segment, value);
-
 /** Count how many supplied path and query values the recorded request line satisfies. */
 const scoreExchange = (
   tool: EnvironmentManifestTool,
@@ -83,7 +79,7 @@ const scoreExchange = (
   for (const { index, value } of providedPaths) {
     const segment = segments.get(index);
     if (segment === value) verbatimMatches += 1;
-    if (segment !== undefined && pathValueMatches(segment, value))
+    if (segment !== undefined && pathSegmentMatches(segment, value))
       pathMatches += 1;
   }
   const supplied = new Map<string, readonly string[]>();
@@ -99,9 +95,12 @@ const scoreExchange = (
   const recorded = new Map<string, string[]>();
   const inspectQuery = supplied.size > 0 || observedQuery !== undefined;
   const recordedPairs = inspectQuery
-    ? [...iterateUrlQueryParameters(exchange.query ?? "")].filter(([name]) =>
-        queryArguments.has(name),
-      )
+    ? [
+        ...iterateUrlQueryParameters(
+          exchange.query ?? "",
+          observedQuery === undefined ? supplied : queryArguments,
+        ),
+      ]
     : [];
   for (const [name, value] of recordedPairs) {
     const values = recorded.get(name) ?? [];
@@ -124,9 +123,8 @@ const scoreExchange = (
   const observedPairs =
     observedQuery === undefined
       ? undefined
-      : [...iterateUrlQueryParameters(observedQuery ?? "")]
-          .filter(([name]) => queryArguments.has(name))
-          .map(([name, rawValue]) => {
+      : [...iterateUrlQueryParameters(observedQuery ?? "", queryArguments)].map(
+          ([name, rawValue]) => {
             const occurrence = observedOccurrences.get(name) ?? 0;
             observedOccurrences.set(name, occurrence + 1);
             const argument = queryArguments.get(name);
@@ -140,7 +138,8 @@ const scoreExchange = (
                   ? value[occurrence]
                   : rawValue;
             return [name, normalized] as const;
-          });
+          },
+        );
   const observedOrderMatches =
     observedPairs === undefined
       ? 0
@@ -208,9 +207,12 @@ export const selectReplayExchange = (
   const queryWasSupplied = suppliedQueryNames.size > 0;
   const canInspectQuery = observedQuery !== undefined || queryWasSupplied;
   const bestPairs = canInspectQuery
-    ? [...iterateUrlQueryParameters(best.exchange.query ?? "")].filter(
-        ([name]) => suppliedQueryNames.has(name),
-      )
+    ? [
+        ...iterateUrlQueryParameters(
+          best.exchange.query ?? "",
+          suppliedQueryNames,
+        ),
+      ]
     : [];
   const orderAmbiguous =
     observedQuery === undefined &&
@@ -237,8 +239,8 @@ export const selectReplayExchange = (
       )
         return false;
       const pairs = [
-        ...iterateUrlQueryParameters(candidate.query ?? ""),
-      ].filter(([name]) => suppliedQueryNames.has(name));
+        ...iterateUrlQueryParameters(candidate.query ?? "", suppliedQueryNames),
+      ];
       return (
         pairs.length !== bestPairs.length ||
         pairs.some(

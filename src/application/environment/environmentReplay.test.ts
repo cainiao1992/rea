@@ -17,7 +17,6 @@ import {
   type RecordedExchange,
 } from "./environmentSource.js";
 import {
-  pathValueMatches,
   replayEnvironmentTool,
   selectReplayExchange,
 } from "./environmentReplay.js";
@@ -115,14 +114,32 @@ describe("replay argument mapping and query admission", () => {
   });
 });
 
-describe("pathValueMatches", () => {
-  it("matches one decode of either side and not a second decode of both", () => {
-    expect(pathValueMatches("2", "%32")).toBe(true);
-    expect(pathValueMatches("%32", "2")).toBe(true);
-    expect(pathValueMatches("book1", "book%2531")).toBe(false);
-    expect(pathValueMatches("book%2531", "book1")).toBe(false);
-    expect(pathValueMatches("book%31", "book%2531")).toBe(true);
-  });
+describe("encoded replay path segments", () => {
+  it.each([
+    ["2", "%32", true],
+    ["%32", "2", true],
+    ["book1", "book%2531", false],
+    ["book%2531", "book1", false],
+    ["book%31", "book%2531", true],
+  ] as const)(
+    "matches %s against %s by at most one decode",
+    (segment, value, exact) => {
+      const users = tool("get_users_by_id");
+      const ordinal = users.record_ordinals[0]!;
+      const exchange = {
+        ...source.exchanges.get(ordinal)!,
+        path: `/api/users/${segment}`,
+      };
+      expect(
+        selectReplayExchange(users, new Map([[ordinal, exchange]]), {
+          id: value,
+        }),
+      ).toMatchObject({
+        exchange,
+        exact,
+      });
+    },
+  );
 });
 
 describe("replayEnvironmentTool selection", () => {

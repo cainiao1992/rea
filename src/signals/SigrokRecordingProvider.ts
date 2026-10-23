@@ -240,8 +240,8 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
               },
             },
           );
-        // Some selected-channel refusals are diagnostics, not process failures:
-        // sigrok can emit fallback annotations and still exit successfully.
+        // Selected-channel and input-option refusals can be diagnostics rather
+        // than process failures: fallback annotations may still exit successfully.
         const rejection =
           selection === undefined
             ? undefined
@@ -331,7 +331,9 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
         phase = "producer";
         const args = [
           "--dont-scan",
-          `--input-file=${snapshotName}`,
+          // An explicit relative path preserves filename hints while keeping
+          // a recording named "-" distinct from sigrok's stdin operand.
+          `--input-file=./${snapshotName}`,
           `--protocol-decoders=${input.decoders}`,
           "--protocol-decoder-samplenum",
           ...(input.input_format === null

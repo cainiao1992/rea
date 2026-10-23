@@ -318,13 +318,11 @@ export const inspectManagedMembersBytes = (
             region.class_token === null
               ? 0
               : Number.parseInt(region.class_token.slice(4), 16);
-          const typeDefOrRefTag =
-            tokenTable === 2 ? 0 : tokenTable === 1 ? 1 : null;
           const identityResolved =
             region.class_token === null
               ? null
-              : classType !== null && typeDefOrRefTag !== null
-                ? signatureTypeName(tokenRow * 4 + typeDefOrRefTag) !== null
+              : classType !== null && tokenTable === 2
+                ? signatureTypeName(tokenRow * 4) !== null
                 : false;
           return {
             ...region,

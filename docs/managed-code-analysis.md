@@ -402,8 +402,8 @@ ranges, while `exception-target` compares each resolved catch type name.
 Exception tokens remain in the source facts but are not cross-build identity;
 an unresolved catch type leaves that facet unknown. The method body retains the
 resolved `class_type` name and whether its local token identity could be
-resolved; equal TypeRef names with invalid or unresolved scopes leave the
-comparison unknown.
+resolved. TypeRef names omit resolution-scope identity, so equal TypeRef names
+leave the comparison unknown even when each local scope is valid.
 
 Tokens are always remapped through observed structure. A caller cannot carry
 `0x06001234` into a new MVID and assume it names the same method.

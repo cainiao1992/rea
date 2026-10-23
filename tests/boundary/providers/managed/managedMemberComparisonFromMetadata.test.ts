@@ -254,6 +254,55 @@ describe("managed member structural matching", () => {
     expect(unresolved.methods[0]).toMatchObject({ status: "unknown" });
   });
 
+  it("keeps equal TypeRef catch names unknown when valid AssemblyRef scopes differ", () => {
+    const catchMethodBody = () => {
+      const header = Buffer.alloc(12);
+      header.writeUInt16LE(0x300b, 0);
+      header.writeUInt16LE(8, 2);
+      header.writeUInt32LE(1, 4);
+      const section = Buffer.alloc(16);
+      section[0] = 0x01;
+      section[1] = section.length;
+      section.writeUInt16LE(0, 4);
+      section.writeUInt16LE(0, 6);
+      section[8] = 1;
+      section.writeUInt16LE(0, 9);
+      section[11] = 1;
+      section.writeUInt32LE(0x0100_0001, 12);
+      return Buffer.concat([
+        header,
+        Buffer.from([0x2a]),
+        Buffer.alloc(3),
+        section,
+      ]);
+    };
+    const observe = (scope: number, path: string) =>
+      inspect(
+        buildManagedPeFixture({
+          ilBody: catchMethodBody(),
+          references: ["Scope.One", "Scope.Two"],
+          typeRefScopeRaw: scope,
+        }),
+        path,
+      );
+    const left = observe((1 << 2) | 2, "/tmp/catch-scope-one.dll");
+    const right = observe((2 << 2) | 2, "/tmp/catch-scope-two.dll");
+
+    expect(left.result.methods[0]?.body.exception_regions[0]).toMatchObject({
+      class_token: "0x01000001",
+      class_type: "System.Runtime.Versioning.TargetFrameworkAttribute",
+      class_type_identity_resolved: false,
+    });
+    expect(right.result.methods[0]?.body.exception_regions[0]).toMatchObject({
+      class_type: "System.Runtime.Versioning.TargetFrameworkAttribute",
+      class_type_identity_resolved: false,
+    });
+    expect(compareManagedMembers(left, right).methods[0]).toMatchObject({
+      status: "unknown",
+      dimensions: expect.arrayContaining(["availability"]),
+    });
+  });
+
   it("keeps unequal constants from becoming a structural remap", () => {
     const observe = (
       typeName: string,

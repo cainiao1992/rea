@@ -1156,8 +1156,12 @@ class MarshalReader {
       `${node.bytecode.bytes}:${node.bytecode.sha256}`,
       this.#constKeyItems(material.consts),
       ...nameTables,
-      material.linetable,
-      material.exceptiontable,
+      // CPython started including line and exception tables in code equality
+      // with the 3.11 code layout; earlier layouts still retain their digests
+      // in CodeEquality, but those fields do not affect container identity.
+      ...(this.layout === "py311"
+        ? [material.linetable, material.exceptiontable]
+        : []),
     ];
     const key = this.#boundedJoin(
       "",

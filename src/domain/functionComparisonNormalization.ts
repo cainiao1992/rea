@@ -93,21 +93,33 @@ export const commentProjection = (
   return values.some(({ offset }) => offset === null) ? null : sorted(values);
 };
 
-export const stringAndNameProjection = (
+export const referencedStringProjection = (snapshot: FunctionSnapshot) => {
+  const values = snapshot.dossier.referenced_strings.map(
+    ({ source_address: sourceAddress, value, decoding, string }) => ({
+      source_offset: relativeAddress(
+        sourceAddress,
+        snapshot.dossier.procedure.address,
+      ),
+      content: decoding === undefined ? value : null,
+      decoding_reason: decoding?.reason ?? null,
+      metadata:
+        string === undefined
+          ? null
+          : {
+              encoding: string.encoding,
+              termination: string.termination,
+              byte_length: string.byte_length,
+            },
+    }),
+  );
+  return sorted(values);
+};
+
+export const nameAndSwiftProjection = (
   snapshot: FunctionSnapshot,
   includeSwiftLiterals = true,
 ): readonly unknown[] | null => {
   const values = [
-    ...snapshot.dossier.referenced_strings.map(
-      ({ source_address: sourceAddress, value }) => ({
-        kind: "string",
-        source_offset: relativeAddress(
-          sourceAddress,
-          snapshot.dossier.procedure.address,
-        ),
-        value,
-      }),
-    ),
     ...snapshot.dossier.referenced_names.map(
       ({ source_address: sourceAddress, value }) => ({
         kind: "name",

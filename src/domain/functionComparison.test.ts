@@ -1086,7 +1086,7 @@ describe("function comparison Swift string literals", () => {
     ).toMatchObject({
       status: "unknown",
       limitations: [
-        "Swift String literal coverage differs or is partial; referenced strings and names match, and complete coverage does not establish a differing literal.",
+        "Swift String literal coverage differs or is partial; complete coverage does not establish a differing literal.",
       ],
     });
   });

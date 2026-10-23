@@ -86,6 +86,12 @@ can observe backend recovery; healthy dossiers keep their existing cache policy.
 `procedure_pseudo_code` still fails for that function. Hopper's unavailable reference-kind metadata and reported unresolved
 calls still prevent equality conclusions for those dimensions. Analysis profiles
 version these declarations so older snapshots are not reused as current results.
+For `strings_names`, a string marked with `decoding.available: false` keeps its
+provider display text in the source Evidence, but that text is not compared as
+decoded content. If no independently known string, name, or literal fact differs,
+the dimension remains `unknown` with the decoding reason. Known content and typed
+string-object differences can establish a change; missing typed metadata remains
+unknown, and `encoding_status` describes provenance rather than content.
 IDA declares the facets its selected adapter cannot provide; an empty
 unsupported array does not prove observed absence.
 Evidence and bundle imports reject unsupported fields in their envelopes,

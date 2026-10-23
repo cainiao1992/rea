@@ -7,9 +7,10 @@ import {
   commentProjection,
   identityProjection,
   isAutoName,
+  nameAndSwiftProjection,
   normalizeCfg,
+  referencedStringProjection,
   sorted,
-  stringAndNameProjection,
   swiftLiteralSitesConflict,
 } from "./functionComparisonNormalization.js";
 import type {
@@ -205,10 +206,34 @@ const compareStringsAndNames = (
   const complete =
     swiftLiteralCoverage(left) === swiftLiteralCoverage(right) &&
     swiftLiteralCoverage(left) !== "partial";
-  // Facts both dossiers record decide a change before Swift literal coverage can.
-  const leftValues = stringAndNameProjection(left, complete);
-  const rightValues = stringAndNameProjection(right, complete);
-  if (leftValues === null || rightValues === null)
+  const leftStrings = referencedStringProjection(left);
+  const rightStrings = referencedStringProjection(right);
+  const stringFacts = compareReferencedStrings(leftStrings, rightStrings);
+  const leftNamesAndLiterals = nameAndSwiftProjection(left, complete);
+  const rightNamesAndLiterals = nameAndSwiftProjection(right, complete);
+  if (stringFacts.changed)
+    return stringsAndNamesResult({
+      leftStrings,
+      rightStrings,
+      leftNamesAndLiterals,
+      rightNamesAndLiterals,
+      context,
+      status: "changed",
+      limitations: [
+        ...stringFacts.limitations,
+        ...(leftNamesAndLiterals === null || rightNamesAndLiterals === null
+          ? [
+              "Reference source locations could not be normalized to function offsets.",
+            ]
+          : []),
+        ...(complete
+          ? []
+          : [
+              "Swift String literal coverage differs or is partial; complete coverage does not establish a differing literal.",
+            ]),
+      ],
+    });
+  if (leftNamesAndLiterals === null || rightNamesAndLiterals === null)
     return unresolvedDimension({
       dimension: "strings_names",
       links: context.links,
@@ -220,27 +245,270 @@ const compareStringsAndNames = (
     });
   const compared = compareValues(
     "strings_names",
-    leftValues,
-    rightValues,
+    leftNamesAndLiterals,
+    rightNamesAndLiterals,
     context,
   );
-  if (complete || compared.status === "changed") return compared;
+  if (compared.status === "changed")
+    return stringsAndNamesResult({
+      leftStrings,
+      rightStrings,
+      leftNamesAndLiterals,
+      rightNamesAndLiterals,
+      context,
+      status: "changed",
+      limitations: stringFacts.limitations,
+    });
   // A retained literal differs only when the opposite dossier establishes its absence.
   if (swiftLiteralSitesConflict(left, right)) {
-    const leftAll = stringAndNameProjection(left);
-    const rightAll = stringAndNameProjection(right);
-    if (leftAll !== null && rightAll !== null)
-      return compareValues("strings_names", leftAll, rightAll, context);
+    const leftAll = nameAndSwiftProjection(left);
+    const rightAll = nameAndSwiftProjection(right);
+    if (leftAll !== null && rightAll !== null) {
+      const literalComparison = compareValues(
+        "strings_names",
+        leftAll,
+        rightAll,
+        context,
+      );
+      if (literalComparison.status === "changed")
+        return stringsAndNamesResult({
+          leftStrings,
+          rightStrings,
+          leftNamesAndLiterals: leftAll,
+          rightNamesAndLiterals: rightAll,
+          context,
+          status: "changed",
+          limitations: stringFacts.limitations,
+        });
+    }
   }
+  const limitations = [
+    ...stringFacts.limitations,
+    ...(complete
+      ? []
+      : [
+          "Swift String literal coverage differs or is partial; complete coverage does not establish a differing literal.",
+        ]),
+  ];
+  if (limitations.length === 0)
+    return stringsAndNamesResult({
+      leftStrings,
+      rightStrings,
+      leftNamesAndLiterals,
+      rightNamesAndLiterals,
+      context,
+      status: "unchanged",
+    });
   return unresolvedDimension({
     dimension: "strings_names",
     links: context.links,
     leftCount: null,
     rightCount: null,
-    limitations: [
-      "Swift String literal coverage differs or is partial; referenced strings and names match, and complete coverage does not establish a differing literal.",
-    ],
+    limitations,
   });
+};
+
+const stringsAndNamesResult = ({
+  leftStrings,
+  rightStrings,
+  leftNamesAndLiterals,
+  rightNamesAndLiterals,
+  context,
+  status,
+  limitations = [],
+}: {
+  readonly leftStrings: readonly ReferencedStringFact[];
+  readonly rightStrings: readonly ReferencedStringFact[];
+  readonly leftNamesAndLiterals: readonly unknown[] | null;
+  readonly rightNamesAndLiterals: readonly unknown[] | null;
+  readonly context: ComparisonContext;
+  readonly status: "changed" | "unchanged";
+  readonly limitations?: readonly string[];
+}): FunctionDimension =>
+  dimensionResult({
+    dimension: "strings_names",
+    status,
+    left: {
+      referenced_strings: leftStrings,
+      names_and_literals: leftNamesAndLiterals,
+    },
+    right: {
+      referenced_strings: rightStrings,
+      names_and_literals: rightNamesAndLiterals,
+    },
+    ...context,
+    leftCount: leftStrings.length + (leftNamesAndLiterals?.length ?? 0),
+    rightCount: rightStrings.length + (rightNamesAndLiterals?.length ?? 0),
+    textDelta: null,
+    limitations,
+  });
+
+type ReferencedStringFact = ReturnType<
+  typeof referencedStringProjection
+>[number];
+
+const compareReferencedStrings = (
+  left: readonly ReferencedStringFact[],
+  right: readonly ReferencedStringFact[],
+): { readonly changed: boolean; readonly limitations: readonly string[] } => {
+  const leftGroups = groupStringsByOffset(left);
+  const rightGroups = groupStringsByOffset(right);
+  const leftUnlocated = leftGroups.get(null) !== undefined;
+  const rightUnlocated = rightGroups.get(null) !== undefined;
+  const limitations = new Set(
+    [...left, ...right].flatMap(({ decoding_reason }) =>
+      decoding_reason === null
+        ? []
+        : [`Referenced string decoding unavailable: ${decoding_reason}`],
+    ),
+  );
+  let changed = false;
+  for (const offset of new Set([...leftGroups.keys(), ...rightGroups.keys()])) {
+    const leftRows = leftGroups.get(offset);
+    const rightRows = rightGroups.get(offset);
+    if (offset === null) {
+      limitations.add(
+        "Referenced string source location could not be normalized.",
+      );
+      continue;
+    }
+    if (leftRows === undefined || rightRows === undefined) {
+      if (leftUnlocated || rightUnlocated)
+        limitations.add(
+          `Referenced string membership at source offset ${offset} is ambiguous because another source location is unavailable.`,
+        );
+      else changed = true;
+      continue;
+    }
+    if (leftRows.length !== 1 || rightRows.length !== 1) {
+      const repeated = compareRepeatedStringRows(leftRows, rightRows);
+      if (repeated !== null) {
+        changed ||= repeated.changed;
+        for (const limitation of repeated.limitations)
+          limitations.add(limitation);
+        continue;
+      }
+      limitations.add(
+        `Multiple referenced strings at source offset ${offset} cannot be paired without ambiguity.`,
+      );
+      continue;
+    }
+    const leftRow = leftRows[0];
+    const rightRow = rightRows[0];
+    if (leftRow === undefined || rightRow === undefined) continue;
+    if (
+      leftRow.content !== null &&
+      rightRow.content !== null &&
+      leftRow.content !== rightRow.content
+    )
+      changed = true;
+    if (
+      leftRow.metadata !== null &&
+      rightRow.metadata !== null &&
+      (leftRow.metadata.encoding !== rightRow.metadata.encoding ||
+        leftRow.metadata.termination !== rightRow.metadata.termination ||
+        leftRow.metadata.byte_length !== rightRow.metadata.byte_length)
+    )
+      changed = true;
+    if ((leftRow.metadata === null) !== (rightRow.metadata === null))
+      limitations.add(
+        `Typed string metadata is unavailable at source offset ${offset}.`,
+      );
+    if (leftRow.content === null || rightRow.content === null) {
+      if (leftRow.content !== null || rightRow.content !== null)
+        limitations.add(
+          `Referenced string content is unavailable on one side at source offset ${offset}.`,
+        );
+    }
+  }
+  return { changed, limitations: [...limitations] };
+};
+
+const compareRepeatedStringRows = (
+  left: readonly ReferencedStringFact[],
+  right: readonly ReferencedStringFact[],
+): {
+  readonly changed: boolean;
+  readonly limitations: readonly string[];
+} | null => {
+  if (
+    left.some(({ content }) => content === null) ||
+    right.some(({ content }) => content === null)
+  )
+    return null;
+  const leftByContent = groupStringsByContent(left);
+  const rightByContent = groupStringsByContent(right);
+  let changed = !sameMultiset(
+    left.flatMap(({ content }) => (content === null ? [] : [content])),
+    right.flatMap(({ content }) => (content === null ? [] : [content])),
+  );
+  const limitations = new Set<string>();
+  for (const content of new Set([
+    ...leftByContent.keys(),
+    ...rightByContent.keys(),
+  ])) {
+    const leftRows = leftByContent.get(content) ?? [];
+    const rightRows = rightByContent.get(content) ?? [];
+    if (leftRows.length !== rightRows.length) continue;
+    const leftMetadata = leftRows.map(({ metadata }) => metadata);
+    const rightMetadata = rightRows.map(({ metadata }) => metadata);
+    if (
+      leftMetadata.every((metadata) => metadata === null) &&
+      rightMetadata.every((metadata) => metadata === null)
+    )
+      continue;
+    if (
+      leftMetadata.some((metadata) => metadata === null) ||
+      rightMetadata.some((metadata) => metadata === null)
+    ) {
+      limitations.add(
+        "Typed string metadata is unavailable for repeated content at a source offset.",
+      );
+      continue;
+    }
+    changed ||= !sameMultiset(
+      leftMetadata.map((metadata) => JSON.stringify(metadata)),
+      rightMetadata.map((metadata) => JSON.stringify(metadata)),
+    );
+  }
+  return { changed, limitations: [...limitations] };
+};
+
+const groupStringsByContent = (
+  strings: readonly ReferencedStringFact[],
+): Map<string, ReferencedStringFact[]> => {
+  const groups = new Map<string, ReferencedStringFact[]>();
+  for (const string of strings) {
+    if (string.content === null) continue;
+    const rows = groups.get(string.content);
+    if (rows === undefined) groups.set(string.content, [string]);
+    else rows.push(string);
+  }
+  return groups;
+};
+
+const sameMultiset = (
+  left: Iterable<string>,
+  right: Iterable<string>,
+): boolean => {
+  const leftValues = [...left].sort();
+  const rightValues = [...right].sort();
+  return (
+    leftValues.length === rightValues.length &&
+    leftValues.every((value, index) => value === rightValues[index])
+  );
+};
+
+const groupStringsByOffset = (
+  strings: readonly ReferencedStringFact[],
+): Map<string | null, ReferencedStringFact[]> => {
+  const groups = new Map<string | null, ReferencedStringFact[]>();
+  for (const string of strings) {
+    const rows = groups.get(string.source_offset);
+    if (rows === undefined) groups.set(string.source_offset, [string]);
+    else rows.push(string);
+  }
+  return groups;
 };
 
 const swiftLiteralCoverage = (

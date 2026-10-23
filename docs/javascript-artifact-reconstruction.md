@@ -513,6 +513,11 @@ inventory digest before parsing, and malformed ASAR operations return typed
 format diagnostics that retain the local container path. Native add-ons are
 represented by metadata only.
 
+POSIX directory names are read as raw bytes and admitted as logical paths only
+when they round-trip through UTF-8. Invalid names are left untouched, retained
+siblings remain inventoried, and traversal coverage is marked unknown with the
+first rejected basename bytes identified in hexadecimal.
+
 ## Bounds and coverage
 
 The reconstruction keeps internal resource safeguards for artifact entries,

@@ -32,6 +32,7 @@ import {
   ArtifactFileCleanupFailure,
 } from "./ArtifactFileOperation.js";
 import { AnalysisCleanupLease } from "./AnalysisCleanupLease.js";
+import { decodeDirectoryEntryName } from "../filesystem/decodeDirectoryEntryName.js";
 
 export type DirectoryArtifactEntry = ArtifactEntry & {
   readonly kind: "file" | "directory" | "symlink";
@@ -103,6 +104,8 @@ export class DirectoryArtifactReader implements ArtifactReader {
       examined += 1;
     };
     const pending = [root];
+    let unrepresentableNameCount = 0;
+    let firstUnrepresentableNameHex: string | undefined;
     while (pending.length > 0) {
       abortIfNeeded(signal);
       const directory = pending.pop();
@@ -116,12 +119,23 @@ export class DirectoryArtifactReader implements ArtifactReader {
         signal,
         options,
         examine,
+        (rawHex) => {
+          unrepresentableNameCount += 1;
+          firstUnrepresentableNameHex ??= rawHex;
+        },
       ))
         yield entry;
       await withDirectoryIoContext("inspect directory", directory, () =>
         assertContainedDirectory(root, directory, admittedRoot.identity),
       );
     }
+    if (unrepresentableNameCount > 0)
+      options?.onCoverage?.({
+        status: "unknown",
+        limitations: [
+          `Directory contains ${String(unrepresentableNameCount)} entry name(s) that are not valid UTF-8; no filesystem operations were performed for them. First raw basename bytes: ${firstUnrepresentableNameHex ?? "unknown"}.`,
+        ],
+      });
   }
 
   /** Admission facts, shared with traversal; the selected root may be a symlink. */
@@ -164,20 +178,23 @@ export class DirectoryArtifactReader implements ArtifactReader {
     signal: AbortSignal | undefined,
     options: DirectoryTraversalOptions | undefined,
     examine: () => void,
+    noteUnrepresentableName: (rawHex: string) => void,
   ): AsyncIterable<DirectoryArtifactEntry> {
     const admittedRoot = await this.#resolveRoot();
     const root = admittedRoot.canonicalPath;
     const handle = new OwnedDirectoryHandle(
-      await opendir(directory).catch((cause: unknown) => {
-        throw directoryIoFailure(
-          "open directory",
-          directory,
-          cause,
-          directory === root
-            ? DirectoryArtifactRootFailure
-            : ArtifactReaderFailure,
-        );
-      }),
+      await opendir(directory, { encoding: "buffer" as BufferEncoding }).catch(
+        (cause: unknown) => {
+          throw directoryIoFailure(
+            "open directory",
+            directory,
+            cause,
+            directory === root
+              ? DirectoryArtifactRootFailure
+              : ArtifactReaderFailure,
+          );
+        },
+      ),
     );
     this.#directories.add(handle);
     const childDirectories: string[] = [];
@@ -195,7 +212,12 @@ export class DirectoryArtifactReader implements ArtifactReader {
         if (child === null) break;
         examine();
         abortIfNeeded(signal);
-        const absolute = join(directory, child.name);
+        const decoded = decodeDirectoryEntryName(child.name);
+        if (decoded.kind === "unrepresentable") {
+          noteUnrepresentableName(decoded.rawHex);
+          continue;
+        }
+        const absolute = join(directory, decoded.name);
         const metadata = await lstat(absolute, { bigint: true }).catch(
           (cause: unknown) => {
             throw directoryIoFailure("inspect entry", absolute, cause);

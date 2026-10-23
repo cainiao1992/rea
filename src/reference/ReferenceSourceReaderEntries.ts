@@ -16,6 +16,7 @@ import {
 import { isPathWithinRoot } from "../domain/localPath.js";
 import { pathFromRoot } from "./ReferenceSourceReaderPaths.js";
 import { readStableFile } from "./ReferenceSourceReaderFile.js";
+import { decodeDirectoryEntryName } from "../filesystem/decodeDirectoryEntryName.js";
 import {
   isAborted,
   sameFile,
@@ -97,13 +98,13 @@ export const traverseDirectory = async (
           readFailure = "Directory entry name was not returned as raw bytes";
           break;
         }
-        const name = child.name.toString("utf8");
-        if (!Buffer.from(name, "utf8").equals(child.name)) {
+        const decoded = decodeDirectoryEntryName(child.name);
+        if (decoded.kind === "unrepresentable") {
           unrepresentableNameCount += 1;
-          firstUnrepresentableNameHex ??= child.name.toString("hex");
+          firstUnrepresentableNameHex ??= decoded.rawHex;
           continue;
         }
-        result = await processEntry(state, current, name, directories);
+        result = await processEntry(state, current, decoded.name, directories);
         if (!result.ok) break;
       }
     } finally {

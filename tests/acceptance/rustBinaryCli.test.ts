@@ -395,6 +395,78 @@ cliTest("reports malformed zlib as invalid input", async ({ cli }) => {
 });
 
 cliTest(
+  "rejects duplicate Rust dependency JSON through CLI and stdio MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-rust-cli-duplicate-json-");
+    const { client, call } = await connectLocalToolsMcp();
+    const path = join(root, "duplicate.elf");
+    await writeFile(
+      path,
+      createRustImage({
+        format: "elf",
+        payload: deflateSync(Buffer.from('{"packages":[],"packages":[]}')),
+        includeRustc: false,
+      }),
+    );
+
+    const result = await cli.run({
+      arguments: ["inspect-rust-binary", path, "--json"],
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "invalid_request",
+      details: { operation: "inspect_rust_binary" },
+    });
+    const response = await call("inspect_rust_binary", { path });
+    expect(parseMcpToolError(response).error).toMatchObject({
+      code: "invalid_request",
+      details: { operation: "inspect_rust_binary" },
+    });
+    await client.ping();
+  },
+  30000,
+);
+
+cliTest(
+  "reads PE cargo-auditable data padded to FileAlignment through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-rust-cli-pe-padding-");
+    const { client, call } = await connectLocalToolsMcp();
+    const path = join(root, "padded.exe");
+    const bytes = createRustImage({ format: "pe", includeRustc: false });
+    const compressedBytes = rustDependencyPayload().length;
+    const alignedSize = 512;
+    expect(compressedBytes).toBeLessThan(alignedSize);
+    bytes.writeUInt32LE(alignedSize, 152 + 36); // OptionalHeader.FileAlignment
+    bytes.writeUInt32LE(0, 264 + 8); // .dep-v0 VirtualSize
+    bytes.writeUInt32LE(alignedSize, 264 + 16); // .dep-v0 SizeOfRawData
+    await writeFile(path, bytes);
+
+    const result = await cli.run({
+      arguments: ["inspect-rust-binary", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = toolContract("inspect_rust_binary").outputSchema.parse(
+      result.json,
+    );
+    expect(
+      rustBinarySchema.parse(evidence.normalized_result).auditable_metadata,
+    ).toMatchObject({
+      compressed_bytes: compressedBytes,
+      packages: [
+        { name: "itoa", version: "1.0.18" },
+        { name: "sample", version: "0.1.0", root: true },
+      ],
+    });
+    const response = await call("inspect_rust_binary", { path });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    expect(response.structuredContent).toEqual(evidence);
+    await client.ping();
+  },
+  30000,
+);
+
+cliTest(
   "releases a failed Rust descriptor close before projecting the CLI failure",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-rust-cli-close-");

@@ -14,6 +14,8 @@ const section = (document: unknown) =>
     0,
     deflateSync(Buffer.from(JSON.stringify(document))),
   );
+const sectionJson = (document: string) =>
+  readAuditableSection(".dep-v0", 0, deflateSync(Buffer.from(document)));
 
 it("preserves package order, omitted kind, and the root index", () => {
   const parsed = section({
@@ -192,6 +194,23 @@ it("rejects invalid JSON, trailing zlib bytes, and an empty section", () => {
   expect(() =>
     readAuditableSection(".dep-v0", 0, Buffer.from([1, 2, 3])),
   ).toThrow(RustAuditableFormatFailure);
+});
+
+it("rejects duplicate decoded JSON fields before object conversion", () => {
+  for (const document of [
+    '{"packages":[],"packages":[]}',
+    '{"packages":[{"name":"alpha","name":"beta","version":"1","source":"local"}]}',
+    '{"packages":[{"name":"alpha","version":"1","source":"local","dependencies":[0],"dependencies":[]}]}',
+    '{"packages":[],"meta":{"name":"alpha","na\\u006de":"beta"}}',
+  ])
+    expect(() => sectionJson(document)).toThrow(
+      /duplicate field "(?:packages|name|dependencies)"/u,
+    );
+  expect(
+    sectionJson(
+      '{"packages":[{"name":"alpha","version":"1","source":"local"}]}',
+    ).packages,
+  ).toHaveLength(1);
 });
 
 it("stops an inflate that exceeds the section ratio", () => {

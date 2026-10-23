@@ -90,6 +90,7 @@ export const readPeImage = (bytes: Buffer): BinaryContainer => {
     return { virtual_address: reader.u32(entry), size: reader.u32(entry + 4) };
   });
   const imageBase = reader.word(optional + (bits === 64 ? 24 : 28), bits);
+  const fileAlignment = reader.u32(optional + 36);
   const headerMapping: FileMapping = {
     address: imageBase,
     offset: 0,
@@ -127,6 +128,7 @@ export const readPeImage = (bytes: Buffer): BinaryContainer => {
         virtualAddress,
         virtualSize,
         rawSize: size,
+        fileAlignment,
       }),
     );
     const address = imageBase + BigInt(virtualAddress);
@@ -185,6 +187,7 @@ const peImageSection = ({
   virtualAddress,
   virtualSize,
   rawSize,
+  fileAlignment,
 }: {
   readonly reader: BinaryReader;
   readonly name: string;
@@ -194,6 +197,7 @@ const peImageSection = ({
   readonly virtualAddress: number;
   readonly virtualSize: number;
   readonly rawSize: number;
+  readonly fileAlignment: number;
 }): ImageSection => {
   const range = declaredFileRange(
     reader.bytes.length,
@@ -212,6 +216,7 @@ const peImageSection = ({
     virtual_address: virtualAddress,
     virtual_size: virtualSize,
     raw_size: rawSize,
+    file_alignment: fileAlignment,
     characteristics,
     ...range,
     read_only: readOnly,

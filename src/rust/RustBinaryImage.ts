@@ -109,6 +109,15 @@ const readDependency = (
     format === "macho" ? "__DATA,.dep-v0" : ".dep-v0",
     section.offset,
     bytes.subarray(section.offset, section.offset + section.size),
+    {
+      peFileAlignment:
+        section.format === "pe" &&
+        section.virtual_size === 0 &&
+        section.file_alignment > 0 &&
+        section.raw_size % section.file_alignment === 0
+          ? section.file_alignment
+          : undefined,
+    },
   );
 
 const rustcCommit = (

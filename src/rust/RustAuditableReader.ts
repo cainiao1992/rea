@@ -1,4 +1,6 @@
-import { deflateSync, inflateSync } from "node:zlib";
+import { nodeCodecResult } from "../compression/NodeCodecResult.js";
+import { inflateSync } from "node:zlib";
+import { visit } from "jsonc-parser";
 import { z } from "zod";
 import {
   cyclicDependencyIndices,
@@ -81,6 +83,7 @@ export const readAuditableSection = (
   sectionName: RustAuditableMetadata["section_name"],
   fileOffset: number,
   bytes: Buffer,
+  options: { readonly peFileAlignment?: number | undefined } = {},
 ): RustAuditableMetadata => {
   if (bytes.length === 0)
     throw new RustAuditableFormatFailure(
@@ -95,16 +98,16 @@ export const readAuditableSection = (
       },
       "Dependency section exceeds the 1 MiB compressed limit",
     );
-  const inflated = inflateSection(bytes);
-  const document = parseDocument(inflated);
+  const inflated = inflateSection(bytes, options.peFileAlignment);
+  const document = parseDocument(inflated.bytes);
   const packages = normalizePackages(document.packages);
   const root = rootIndex(packages);
   return {
     section_name: sectionName,
     file_offset: fileOffset,
-    section_bytes: bytes.length,
-    compressed_bytes: bytes.length,
-    uncompressed_bytes: inflated.length,
+    section_bytes: inflated.compressedBytes,
+    compressed_bytes: inflated.compressedBytes,
+    uncompressed_bytes: inflated.bytes.length,
     format_version: document.format ?? null,
     packages,
     root_package_index: root,
@@ -118,75 +121,42 @@ export const readAuditableSection = (
   };
 };
 
-const inflateSection = (bytes: Buffer): Buffer => {
+const inflateSection = (
+  bytes: Buffer,
+  peFileAlignment: number | undefined,
+): { readonly bytes: Buffer; readonly compressedBytes: number } => {
   const maximum = Math.min(
     RUST_UNCOMPRESSED_BYTES,
     bytes.length * RUST_INFLATE_RATIO,
   );
   try {
-    const inflated = inflateSync(bytes, {
-      maxOutputLength: maximum,
-      ...(rejectsTrailingJunk() ? { rejectGarbageAfterEnd: true } : {}),
-    });
-    if (
-      !rejectsTrailingJunk() &&
-      shortestPrefix(bytes, inflated, maximum) !== bytes.length
-    )
+    const result = nodeCodecResult(
+      inflateSync(bytes, {
+        info: true,
+        maxOutputLength: maximum,
+      }),
+    );
+    const compressedBytes = result.consumedBytes;
+    if (peFileAlignment !== undefined && peFileAlignment > 0) {
+      const padding = bytes.subarray(compressedBytes);
+      const alignedRawSize =
+        Math.ceil(compressedBytes / peFileAlignment) * peFileAlignment;
+      if (bytes.length !== alignedRawSize || padding.some((byte) => byte !== 0))
+        throw new RustAuditableFormatFailure(
+          "malformed",
+          "Dependency section has bytes after the zlib stream",
+        );
+      return { bytes: result.buffer, compressedBytes };
+    }
+    if (compressedBytes !== bytes.length)
       throw new RustAuditableFormatFailure(
         "malformed",
         "Dependency section has bytes after the zlib stream",
       );
-    return inflated;
+    return { bytes: result.buffer, compressedBytes };
   } catch (cause) {
     if (cause instanceof RustAuditableFormatFailure) throw cause;
     throw inflateFailure(cause, maximum);
-  }
-};
-
-let trailingJunkRejected: boolean | undefined;
-
-const rejectsTrailingJunk = (): boolean => {
-  if (trailingJunkRejected !== undefined) return trailingJunkRejected;
-  const trailed = Buffer.concat([
-    deflateSync(Buffer.from("a")),
-    Buffer.from([0]),
-  ]);
-  try {
-    inflateSync(trailed, { rejectGarbageAfterEnd: true });
-    trailingJunkRejected = false;
-  } catch (cause) {
-    trailingJunkRejected =
-      cause instanceof Error &&
-      "code" in cause &&
-      cause.code === "ERR_TRAILING_JUNK_AFTER_STREAM_END";
-  }
-  return trailingJunkRejected;
-};
-
-const shortestPrefix = (
-  input: Buffer,
-  output: Buffer,
-  maximum: number,
-): number => {
-  let low = 0;
-  let high = input.length;
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2);
-    if (prefixMatches(input.subarray(0, mid), output, maximum)) high = mid;
-    else low = mid + 1;
-  }
-  return high;
-};
-
-const prefixMatches = (
-  prefix: Buffer,
-  output: Buffer,
-  maximum: number,
-): boolean => {
-  try {
-    return inflateSync(prefix, { maxOutputLength: maximum }).equals(output);
-  } catch {
-    return false;
   }
 };
 
@@ -222,6 +192,44 @@ const parseDocument = (bytes: Buffer): z.infer<typeof documentSchema> => {
     );
   }
   assertDepth(text);
+  let invalidJson = false;
+  let duplicate: string | undefined;
+  const objectNames: Set<string>[] = [];
+  visit(
+    text,
+    {
+      onObjectBegin: () => {
+        objectNames.push(new Set());
+      },
+      onObjectProperty: (name) => {
+        const names = objectNames.at(-1);
+        if (names === undefined) return;
+        if (names.has(name)) duplicate ??= name;
+        names.add(name);
+      },
+      onObjectEnd: () => {
+        objectNames.pop();
+      },
+      onError: () => {
+        invalidJson = true;
+      },
+    },
+    {
+      allowTrailingComma: false,
+      disallowComments: true,
+    },
+  );
+  if (invalidJson) {
+    throw new RustAuditableFormatFailure(
+      "malformed",
+      "Dependency section JSON is invalid",
+    );
+  }
+  if (duplicate !== undefined)
+    throw new RustAuditableFormatFailure(
+      "malformed",
+      `Dependency JSON contains duplicate field ${JSON.stringify(duplicate)}`,
+    );
   let value: unknown;
   try {
     value = JSON.parse(text);

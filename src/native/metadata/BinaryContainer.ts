@@ -73,6 +73,7 @@ export type ImageSection = {
       readonly virtual_address: number;
       readonly virtual_size: number;
       readonly raw_size: number;
+      readonly file_alignment: number;
       readonly characteristics: number;
     }
   | {

@@ -126,9 +126,15 @@ distinct hashes leave a single commit unknown.
 The selected file is limited to 256 MiB. A dependency section is limited to 1
 MiB compressed. Inflated JSON is limited to the smaller of 8 MiB and 64 times
 the compressed size. The complete report is limited to 8 MiB. Empty sections,
-truncated or trailing zlib bytes, invalid JSON, unknown fields, dependency
+truncated streams, nonpadding bytes after a zlib stream, invalid JSON, duplicate
+object fields, unknown fields, dependency
 indices outside the package list, more than one root package, and compressed
 dependency sections are typed failures. A cycle is reported and is not walked.
+
+For PE images with `VirtualSize` zero, the raw-size fallback can include file
+alignment bytes. REA excludes a zero suffix only when the raw section size is
+the zlib stream length rounded up to the declared `FileAlignment`; nonzero or
+oversized suffixes and truncated streams remain failures.
 
 A missing section returns success with `auditable_metadata: null` and a
 limitation. Absence of `.dep-v0` does not mean the binary has no dependencies.

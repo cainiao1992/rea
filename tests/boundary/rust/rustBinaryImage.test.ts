@@ -118,6 +118,44 @@ it("ignores PE file-alignment padding after the dependency content", () => {
   });
 });
 
+it("recognizes zero-virtual-size PE raw padding without accepting payload junk", () => {
+  const payloadBytes = rustDependencyPayload().length;
+  const entry = 264;
+  const bytes = createRustImage({ format: "pe", includeRustc: false });
+  bytes.writeUInt32LE(0, entry + 8);
+  bytes.writeUInt32LE(512, entry + 16);
+  bytes.writeUInt32LE(512, 188); // Optional-header FileAlignment.
+  expect(readRustBinaryImage(bytes).auditable_metadata).toMatchObject({
+    section_bytes: payloadBytes,
+    compressed_bytes: payloadBytes,
+    packages,
+  });
+
+  const payloadOffset = bytes.readUInt32LE(entry + 20);
+  const nonzeroSuffix = Buffer.from(bytes);
+  nonzeroSuffix[payloadOffset + payloadBytes] = 1;
+  expect(() => readRustBinaryImage(nonzeroSuffix)).toThrow(
+    /bytes after the zlib stream/u,
+  );
+
+  const truncated = Buffer.from(bytes);
+  truncated[payloadOffset + payloadBytes - 1] =
+    truncated[payloadOffset + payloadBytes - 1]! ^ 0xff;
+  expect(() => readRustBinaryImage(truncated)).toThrow(/complete zlib stream/u);
+
+  const nonzeroVirtualSize = Buffer.from(bytes);
+  nonzeroVirtualSize.writeUInt32LE(payloadBytes + 1, entry + 8);
+  expect(() => readRustBinaryImage(nonzeroVirtualSize)).toThrow(
+    /bytes after the zlib stream/u,
+  );
+
+  const unknownAlignment = Buffer.from(bytes);
+  unknownAlignment.writeUInt32LE(0, 188);
+  expect(() => readRustBinaryImage(unknownAlignment)).toThrow(
+    /bytes after the zlib stream/u,
+  );
+});
+
 it("returns null metadata when the dependency section is absent", () => {
   const image = readRustBinaryImage(
     createRustImage({ format: "elf", omitSection: true }),

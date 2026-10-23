@@ -14,7 +14,7 @@ import {
   collectInterfaceBuilderResourceKeys,
 } from "./AppleAssetCatalogAnalysis.js";
 
-describe("Apple asset catalog application workflow", () => {
+describe("Apple asset catalog traversal coverage", () => {
   it.for([false, true])(
     "retains catalog traversal coverage with invalid-byte entries: %s",
     async (invalidName, context) => {
@@ -43,6 +43,24 @@ describe("Apple asset catalog application workflow", () => {
         );
     },
   );
+
+  it("keeps represented symlinks distinct from catalog-target inspection", async () => {
+    const bundle = await createTestTempDirectory("rea-asset-subtree-");
+    await symlink("unexamined", join(bundle, "Resources"));
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      environment: {},
+      runAssetUtil: async () => "[]",
+    });
+    expect(result.inventory_coverage.status).toBe("complete");
+    expect(result.limitations).toContainEqual(
+      expect.stringContaining("catalogs beneath them may remain uninspected"),
+    );
+  });
+});
+
+describe("Apple asset catalog application workflow", () => {
   it("joins only explicit resource-key fields with archive provenance", () => {
     expect(
       collectInterfaceBuilderResourceKeys([
@@ -91,21 +109,6 @@ describe("Apple asset catalog application workflow", () => {
         key: "Toolbar",
       },
     ]);
-  });
-
-  it("keeps represented symlinks distinct from catalog-target inspection", async () => {
-    const bundle = await createTestTempDirectory("rea-asset-subtree-");
-    await symlink("unexamined", join(bundle, "Resources"));
-    const result = await analyzeAppleAssetCatalogs({
-      bundlePath: bundle,
-      targetSha256: "a".repeat(64),
-      environment: {},
-      runAssetUtil: async () => "[]",
-    });
-    expect(result.inventory_coverage.status).toBe("complete");
-    expect(result.limitations).toContainEqual(
-      expect.stringContaining("catalogs beneath them may remain uninspected"),
-    );
   });
 
   it.each([0, 1, 5])(

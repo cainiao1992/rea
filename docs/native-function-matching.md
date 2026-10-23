@@ -25,6 +25,11 @@ existing automatic-name exclusion rule applies and each function retains that
 limitation. Exact names establish name correspondence, not unchanged code or
 original-source identity.
 
+Authentic Evidence selected for the wrong side, role, target, provider, profile
+or document returns an input error naming the selected field or observation
+index. Re-select compatible observations; authentication or contradictory producer
+facts retain their separate integrity failures.
+
 For unmatched candidates, optionally supply `left_observations` and
 `right_observations`. `procedure_info` or existing `analyze_function` Evidence
 gives exact inclusive body ranges; `read_bytes` supplies memory bytes. Observations

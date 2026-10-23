@@ -669,7 +669,8 @@ it("assigns source authentication, role selection, context, and lookup failures 
         right: left,
         left_observations: nativeMatchingDetails("2", "0x10", "c3"),
       },
-      tag: "EvidenceIntegrityError",
+      tag: "AnalysisInputError",
+      path: ["left_observations", 0],
     },
     {
       input: {
@@ -975,3 +976,54 @@ it("retains zero-byte reads with unavailable addresses when no request coordinat
     emptyRead.evidence_id,
   );
 });
+
+it.each(["left_observations", "right_observations"] as const)(
+  "reports authentic mismatched provider/profile/document selections at %s without reauthentication advice",
+  async (field) => {
+    const inventory = nativeMatchingInventory("1", [
+      { address: "0x10", value: "main" },
+    ]);
+    const detail = nativeMatchingDetails("1", "0x10", "c3")[0]!;
+    const variants = [
+      createEvidence(
+        nativeMatchingTarget("1"),
+        { ...nativeMatchingProvider, version: "other" },
+        {
+          operation: detail.operation,
+          parameters: detail.parameters,
+          result: detail.normalized_result,
+        },
+      ),
+      createEvidence(nativeMatchingTarget("1"), nativeMatchingProvider, {
+        operation: detail.operation,
+        parameters: detail.parameters,
+        result: detail.normalized_result,
+        analysisProfile: createAnalysisProfile(nativeMatchingProvider, {
+          loader: "different",
+        }),
+      }),
+      createEvidence(nativeMatchingTarget("1"), nativeMatchingProvider, {
+        operation: detail.operation,
+        parameters: { ...detail.parameters, document: "another-document" },
+        result: detail.normalized_result,
+      }),
+    ];
+    for (const observation of variants) {
+      const result = await matchNativeFunctions({
+        left: inventory,
+        right: inventory,
+        [field]: [detail, observation],
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisInputError", issues: [{ path: [field, 1] }] },
+      });
+    }
+    const restored = await compare({
+      left: inventory,
+      right: inventory,
+      [field]: [detail],
+    });
+    expect(restored.report.summary.matched).toBe(1);
+  },
+);

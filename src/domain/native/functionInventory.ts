@@ -84,23 +84,6 @@ interface Facts {
   readonly bytes: FunctionByteCoverage;
 }
 
-/** Supplementary observations must belong to this exact provider/target/profile/document. */
-const requireContext = (inventory: Evidence, observation: Evidence): void => {
-  if (
-    observation.predicate_type !== "rea.analysis" ||
-    digestCanonicalValue(observation.subject) !==
-      digestCanonicalValue(inventory.subject) ||
-    digestCanonicalValue(observation.provider) !==
-      digestCanonicalValue(inventory.provider) ||
-    digestCanonicalValue(observation.analysis_profile) !==
-      digestCanonicalValue(inventory.analysis_profile) ||
-    (observation.parameters.document ?? null) !==
-      (inventory.parameters.document ?? null)
-  )
-    throw new EvidenceIntegrityError(
-      "Function observation does not belong to its selected inventory context",
-    );
-};
 const addBody = (observation: Evidence, details: Facts["details"]): void => {
   const dossier =
     observation.operation === "analyze_function"
@@ -290,20 +273,12 @@ const functionFact = async (
   };
 };
 
-/** Consume normalized producer facts once; never infer body extents from neighbor entries. */
+/** Consume application-admitted normalized facts; never infer body extents from neighbor entries. */
 export const readFunctionInventory = async (
   inventory: Evidence,
   observations: readonly Evidence[],
   checkpoint: NativeMatchingCheckpoint,
 ): Promise<MatchingFunction[]> => {
-  if (
-    inventory.operation !== "list_procedures" ||
-    inventory.predicate_type !== "rea.analysis" ||
-    inventory.subject === null
-  )
-    throw new EvidenceIntegrityError(
-      "Expected artifact-bound list_procedures Evidence",
-    );
   const rows = sourcePayload(matchingRowsSchema, inventory.normalized_result);
   const facts: Facts = {
     details: new Map(),
@@ -312,7 +287,6 @@ export const readFunctionInventory = async (
   };
   for (const observation of observations) {
     await checkpoint();
-    requireContext(inventory, observation);
     switch (observation.operation) {
       case "list_names":
         await addNames(observation, facts.symbols, checkpoint);
@@ -324,10 +298,6 @@ export const readFunctionInventory = async (
       case "analyze_function":
         addBody(observation, facts.details);
         break;
-      default:
-        throw new EvidenceIntegrityError(
-          "Function matching observations must be list_names, procedure_info, read_bytes or analyze_function Evidence",
-        );
     }
   }
   const functions: MatchingFunction[] = [];

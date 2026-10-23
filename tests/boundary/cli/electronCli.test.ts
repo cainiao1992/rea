@@ -1,3 +1,4 @@
+import { parseEvidence } from "../../../src/domain/evidence.js";
 import { execFile, spawn } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -61,9 +62,11 @@ it(
     });
     browsers.push(browser);
     const environment = { ...process.env };
-    const listed = await runCli(
-      ["list-electron-targets", browser.endpoint, "--json"],
-      environment,
+    const listed = parseEvidence(
+      await runCli(
+        ["list-electron-targets", browser.endpoint, "--json"],
+        environment,
+      ),
     );
     expect(listed).toMatchObject({
       operation: "list_electron_targets",

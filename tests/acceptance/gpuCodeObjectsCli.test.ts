@@ -64,6 +64,84 @@ cliTest(
 );
 
 cliTest(
+  "resolves CUBIN SHN_XINDEX symbols through their ELF extension table",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-cubin-shndx-cli-");
+    const bytes = cubinFixture({ extendedSectionIndex: true });
+    const path = join(root, "extended.cubin");
+    await writeFile(path, bytes);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    expect(report.artifact.sha256).toBe(sha256);
+    expect(report.objects[0]!.sha256).toBe(sha256);
+    expect(report.kernels).toHaveLength(1);
+    expect(report.kernels[0]).toMatchObject({
+      name: "add_one",
+      parameter_count: 2,
+      parameter_bytes: 12,
+      shared_bytes: 1056,
+      sources: {
+        parameters: expect.objectContaining({ section_index: 65537 }),
+        shared: expect.objectContaining({ section_index: 65538 }),
+      },
+    });
+
+    const malformedBytes = Buffer.from(bytes);
+    const sectionTable = Number(malformedBytes.readBigUInt64LE(40));
+    const sectionCount = Number(
+      malformedBytes.readBigUInt64LE(sectionTable + 32),
+    );
+    let indexTable: number | undefined;
+    for (let index = 0; index < sectionCount; index++)
+      if (malformedBytes.readUInt32LE(sectionTable + index * 64 + 4) === 18) {
+        indexTable = index;
+        break;
+      }
+    expect(indexTable).toBeDefined();
+    malformedBytes.writeBigUInt64LE(4n, sectionTable + indexTable! * 64 + 32);
+    const malformedPath = join(root, "short-shndx.cubin");
+    await writeFile(malformedPath, malformedBytes);
+    const malformed = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        malformedPath,
+        "--analysis",
+        "kernels",
+        "--json",
+      ],
+    });
+    expect(malformed.exitCode, malformed.stderr).toBe(0);
+    const malformedEvidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        malformed.json,
+      ),
+    );
+    const malformedReport = gpuCodeObjectsSchema.parse(
+      malformedEvidence.normalized_result,
+    );
+    expect(malformedReport.objects[0]!.inspection).toBe("malformed");
+    expect(malformedReport.coverage.payloads).toBe("partial");
+  },
+);
+
+cliTest(
   "preserves PTX target spelling and percent-prefixed entry names",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-ptx-identifiers-cli-");

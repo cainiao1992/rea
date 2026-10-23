@@ -1,3 +1,4 @@
+import { readMethodDefinitionRow } from "./ManagedMethodDefinitionRows.js";
 import { jsonStringByteLength } from "../domain/jsonStringByteLength.js";
 import { isManagedMemberReferenceInstruction } from "../domain/managed/managedMemberInstructionFacts.js";
 import {
@@ -360,17 +361,21 @@ export const parseMethods = ({
         declared?.fullName === null);
     const produced = methods.length;
     readManagedValue(() => {
-      const cursor = metadataRowCursor(bytes, layout, 6, row);
-      const rva = cursor.readUInt32();
-      const implFlags = cursor.readUInt16();
-      const flags = cursor.readUInt16();
+      const {
+        token,
+        rowOffset,
+        rva,
+        implFlags,
+        flags,
+        nameIndex,
+        signatureIndex,
+      } = readMethodDefinitionRow(bytes, layout, row);
       const name = readMetadataString(
         bytes,
         layout,
-        cursor.readIndex(layout.stringIndexSize),
+        nameIndex,
         layout.strings.size,
       );
-      const token = metadataToken(6, row);
       const member = {
         token,
         name,
@@ -383,10 +388,9 @@ export const parseMethods = ({
       const sig = readMetadataBlob(
         bytes,
         layout,
-        cursor.readIndex(layout.blobIndexSize),
+        signatureIndex,
         layout.blob?.size ?? 0,
       );
-      cursor.readIndex(layout.tableIndexSize(8));
       const decoded = budgetedSignature(
         sig,
         layout,
@@ -415,7 +419,7 @@ export const parseMethods = ({
       if (!read.scanned) unscannedMethods += 1;
       methods.push({
         token,
-        row_offset: cursor.start,
+        row_offset: rowOffset,
         declaring_type_token: declared?.token ?? null,
         declaring_type: declared?.fullName ?? null,
         name,

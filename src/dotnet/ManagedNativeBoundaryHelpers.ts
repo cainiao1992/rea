@@ -1,3 +1,4 @@
+import { readMethodDefinitionRow } from "./ManagedMethodDefinitionRows.js";
 import {
   admitManagedProjection,
   managedDecodeBudget,
@@ -113,22 +114,12 @@ export const parseMethods = (
   const table = layout.table(6);
   for (let row = 1; row <= (table?.rowCount ?? 0); row += 1) {
     readManagedValue(() => {
-      const cursor = metadataRowCursor(bytes, layout, 6, row);
-      const rva = cursor.readUInt32();
-      const implFlags = cursor.readUInt16();
-      const flags = cursor.readUInt16();
-      const name = readMetadataString(
-        bytes,
-        layout,
-        cursor.readIndex(layout.stringIndexSize),
-        heapExtent,
-      );
-      cursor.readIndex(layout.blobIndexSize);
-      cursor.readIndex(layout.tableIndexSize(8));
-      const token = metadataToken(6, row);
+      const { token, rowOffset, rva, implFlags, flags, nameIndex } =
+        readMethodDefinitionRow(bytes, layout, row);
+      const name = readMetadataString(bytes, layout, nameIndex, heapExtent);
       methods.set(token, {
         token,
-        rowOffset: cursor.start,
+        rowOffset,
         kind: "method",
         name,
         flags,

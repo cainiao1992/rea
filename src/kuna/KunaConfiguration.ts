@@ -75,13 +75,25 @@ export interface KunaConfigurationFailure {
   readonly code: "not_configured" | "open_options_invalid" | "unsupported_host";
   readonly reason: string;
   readonly setting: string | null;
+  readonly remediation: string;
 }
 
 const failure = (
   code: KunaConfigurationFailure["code"],
   reason: string,
   setting: string | null = null,
-): Result<never, KunaConfigurationFailure> => err({ code, reason, setting });
+): Result<never, KunaConfigurationFailure> =>
+  err({
+    code,
+    reason,
+    setting,
+    remediation:
+      code === "unsupported_host"
+        ? KUNA_UNSUPPORTED_HOST_REMEDIATION
+        : setting === null || setting === "REA_KUNA_COMMAND"
+          ? KUNA_COMMAND_REMEDIATION
+          : `Correct ${setting} to meet the reported constraint, or unset it to use its default. Restart REA after changing the environment.`,
+  });
 
 const positiveInteger = (value: string): number | undefined =>
   /^[1-9]\d*$/u.test(value) && Number.isSafeInteger(Number(value))

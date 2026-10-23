@@ -120,6 +120,7 @@ export interface KunaReadinessFailure {
     | "version_unresolved";
   readonly reason: string;
   readonly diagnostics: Readonly<Record<string, JsonValue>>;
+  readonly remediation?: string;
 }
 
 export interface KunaInstallationOptions {
@@ -383,11 +384,16 @@ export const inspectKunaInstallation = async (
 ): Promise<Result<KunaInstallation, KunaReadinessFailure>> => {
   const configuration = readKunaConfiguration(environment, options.platform);
   if (!configuration.ok)
-    return failure(configuration.error.code, configuration.error.reason, {
-      configured: configuration.error.code !== "not_configured",
-      ...(configuration.error.setting === null
-        ? {}
-        : { setting: configuration.error.setting }),
+    return err({
+      code: configuration.error.code,
+      reason: configuration.error.reason,
+      remediation: configuration.error.remediation,
+      diagnostics: {
+        configured: configuration.error.code !== "not_configured",
+        ...(configuration.error.setting === null
+          ? {}
+          : { setting: configuration.error.setting }),
+      },
     });
   const { command } = configuration.value;
   assertRegularFileActive(options.signal);

@@ -48,6 +48,15 @@ export const verifyManagedNativeVerificationSource = (
   });
 };
 
+/** Input coverage can retain a residual question even when no item was produced. */
+export const managedNativeVerificationHasUnknowns = (
+  result: Pick<ManagedNativeVerificationResult, "coverage" | "summary">,
+): boolean =>
+  result.coverage.status !== "complete-within-inputs" ||
+  result.summary.unresolved > 0 ||
+  result.summary.contradicted > 0 ||
+  result.summary.native_body_unresolved > 0;
+
 /** Raw domain API retained for CLI and existing callers. */
 export const verifyManagedNativeBoundaries = (
   input: ManagedNativeVerificationInput,

@@ -300,23 +300,21 @@ export const readCompressed = (
       offset,
     );
   if ((first & 0x80) === 0) return { value: first, next: offset + 1 };
-  const second = bytes[offset + 1];
-  if ((first & 0xc0) === 0x80 && second !== undefined)
-    return { value: ((first & 0x3f) << 8) | second, next: offset + 2 };
-  const b1 = bytes[offset + 1];
-  const b2 = bytes[offset + 2];
-  const b3 = bytes[offset + 3];
-  if (
-    (first & 0xe0) === 0xc0 &&
-    b1 !== undefined &&
-    b2 !== undefined &&
-    b3 !== undefined
-  )
-    return {
-      value:
-        (first & 0x1f) * 0x01_00_00_00 + b1 * 0x01_00_00 + b2 * 0x0100 + b3,
-      next: offset + 4,
-    };
+  const width =
+    (first & 0xc0) === 0x80 ? 2 : (first & 0xe0) === 0xc0 ? 4 : null;
+  if (width !== null) {
+    if (offset > bytes.length - width)
+      throw managedFailure(
+        "invalid-blob",
+        "signature",
+        "truncated compressed integer",
+        offset,
+      );
+    let value = first & (width === 2 ? 0x3f : 0x1f);
+    for (let index = 1; index < width; index += 1)
+      value = value * 256 + bytes[offset + index]!;
+    return { value, next: offset + width };
+  }
   throw managedFailure(
     "invalid-blob",
     "signature",

@@ -36,7 +36,6 @@ const verifiedManagedDeclarationSchema = managedNativeImportSchema
     call_convention: true,
   })
   .extend({
-    import_name: z.string().min(1),
     declaration_verification: managedNativeImportSchema.shape.verification,
   })
   .strict();

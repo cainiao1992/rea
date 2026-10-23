@@ -353,6 +353,7 @@ export const parseMethods = ({
       inPage &&
       (selected === null ||
         owner === undefined ||
+        owner === 0 ||
         isSelected(selected, declared) ||
         // A type whose name is unreadable may be one the caller requested.
         declared?.fullName === null);

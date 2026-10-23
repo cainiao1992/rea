@@ -496,6 +496,17 @@ characters. These candidates follow [Microsoft's native library loading rules](h
 These filename rules compare declared and observed identities; they do not
 establish which library the runtime loaded.
 
+An empty declared import name remains unchanged in verification Evidence and
+produces no native-name candidates. With a supplied PE native context and
+`no_mangle: false`, an unspecified charset includes the ANSI `A` candidate;
+`auto` includes the Windows Unicode `W` candidate. Other native formats do not
+inherit these Windows defaults. These suffixes are static inferred candidates;
+exact spelling still suppresses decoration and no runtime binding is proven.
+The mapping follows [Microsoft's charset guidance](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/charset).
+Partial input coverage records a residual question even when no unresolved
+individual boundary was produced. Selected literal inventories likewise remain
+partial when unknown MethodDef ownership can hide a selected body.
+
 Metadata tokens are not native addresses. Native body mapping for C++/CLI,
 ReadyToRun, NativeAOT, and IL2CPP requires separately verified format and provider
 support. The managed static tools do not recover those mappings. The optional

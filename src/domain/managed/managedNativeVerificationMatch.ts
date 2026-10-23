@@ -252,11 +252,21 @@ const candidateNames = (
     PinvokeImport,
     "import_name" | "char_set" | "call_convention" | "no_mangle"
   >,
+  nativeFormat: string | null,
 ): readonly string[] => {
+  if (managed.import_name.length === 0) return [];
   const names = new Set<string>([managed.import_name]);
   if (!managed.no_mangle) {
-    if (managed.char_set === "unicode") names.add(`${managed.import_name}W`);
-    if (managed.char_set === "ansi") names.add(`${managed.import_name}A`);
+    if (
+      managed.char_set === "unicode" ||
+      (nativeFormat === "pe" && managed.char_set === "auto")
+    )
+      names.add(`${managed.import_name}W`);
+    if (
+      managed.char_set === "ansi" ||
+      (nativeFormat === "pe" && managed.char_set === "not-specified")
+    )
+      names.add(`${managed.import_name}A`);
     if (managed.call_convention === "stdcall") {
       names.add(`_${managed.import_name}`);
       names.add(`_${managed.import_name}@0`);
@@ -281,15 +291,33 @@ interface PinvokeCandidateMatch {
   readonly match: PinvokeMatch;
 }
 
+const pinvokeCandidates = (
+  managed: PinvokeImport,
+  symbols: readonly NativeSymbol[],
+  moduleFormatsByEvidenceId: ReadonlyMap<string, string | null>,
+): readonly NativeSymbol[] => {
+  const namesByFormat = new Map<string | null, readonly string[]>();
+  return symbols.filter((symbol) => {
+    const format = moduleFormatsByEvidenceId.get(symbol.evidence_id) ?? null;
+    let names = namesByFormat.get(format);
+    if (names === undefined) {
+      names = candidateNames(managed, format);
+      namesByFormat.set(format, names);
+    }
+    return names.some((name) => sameSymbolName(name, symbol));
+  });
+};
+
 const matchPinvoke = (
   managed: PinvokeImport,
   symbols: readonly NativeSymbol[],
   supportedNativeEvidence: number,
   moduleFormatsByEvidenceId: ReadonlyMap<string, string | null>,
 ): PinvokeCandidateMatch => {
-  const names = candidateNames(managed);
-  const allCandidates = symbols.filter((symbol) =>
-    names.some((name) => sameSymbolName(name, symbol)),
+  const allCandidates = pinvokeCandidates(
+    managed,
+    symbols,
+    moduleFormatsByEvidenceId,
   );
   const [first, ...remaining] = allCandidates;
   if (first === undefined)

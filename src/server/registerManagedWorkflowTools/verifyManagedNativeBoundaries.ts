@@ -48,12 +48,7 @@ export const registerVerifyManagedNativeBoundaries = (
               recordedSources,
               nativeVerificationContract,
             );
-          const summary = execution.summary;
-          const unknown =
-            summary.unresolved > 0 ||
-            summary.contradicted > 0 ||
-            summary.native_body_unresolved > 0;
-          const unknownInput = unknown
+          const unknownInput = execution.hasUnknowns
             ? workflowUnknownInput(execution.evidence.evidence_id, {
                 question:
                   "Which managed/native boundaries remain unresolved or contradicted by the supplied native Evidence?",

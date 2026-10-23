@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+  buildManagedPeFixture,
+  managedPeFixtureTarget,
+} from "../../../../src/dotnet/ManagedPe.fixture.js";
+import { inspectManagedNativeBoundariesBytes } from "../../../../src/dotnet/ManagedNativeBoundaryInspector.js";
 
 import { verifyManagedNativeBoundariesEvidence } from "../../../../src/application/managed/ManagedNativeVerificationService.js";
 import { MANAGED_NATIVE_VERIFICATION_EXAMPLE } from "../../../../src/contracts/managed/managedWorkflowExamples.js";
@@ -6,7 +11,6 @@ import { createEvidence } from "../../../../src/domain/evidence.js";
 import {
   managedNativeVerificationInputSchema,
   managedNativeVerificationResultSchema,
-  pinvokeVerificationSchema,
 } from "../../../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { managedNativeBoundaryInspectionSchema } from "../../../../src/domain/managed/managedArtifact.js";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
@@ -71,13 +75,14 @@ const nativeEvidenceWithExports = (
 const nativeFunctionEvidence = (
   modulePath: string,
   format: "elf" | "mach-o" | "pe" | "file",
+  name = "open_native",
 ) => {
   const native = exampleInput().native_observations[0];
   if (native === undefined) throw new Error("missing native provider");
   const dossier = functionDossierSchema.parse({
     procedure: {
       address: "0x1000",
-      name: "open_native",
+      name,
       classification: {
         external: false,
         thunk: false,
@@ -137,30 +142,56 @@ const inputWithImportScope = (scope: string | null) => {
   };
 };
 
-it("keeps empty import names readable in managed Evidence but invalid in verification output", () => {
-  const input = exampleInput();
-  const parsed = managedNativeBoundaryInspectionSchema.parse(
-    input.managed_boundaries.normalized_result,
-  );
-  const declaration = parsed.pinvoke_imports[0];
-  if (declaration === undefined) throw new Error("missing P/Invoke example");
-
-  const historicalBoundary = managedNativeBoundaryInspectionSchema.parse({
-    ...parsed,
-    pinvoke_imports: [{ ...declaration, import_name: "" }],
-  });
-  expect(historicalBoundary.pinvoke_imports[0]?.import_name).toBe("");
-
-  const verification = verifyManagedNativeBoundaries(input).pinvoke_imports[0];
-  if (verification === undefined)
-    throw new Error("missing verification result");
-  expect(
-    pinvokeVerificationSchema.safeParse({
-      ...verification,
-      managed: { ...verification.managed, import_name: "" },
-    }).success,
-  ).toBe(false);
-});
+it.each([
+  { flags: 0x200, symbol: "ExampleA", format: "pe", status: "inferred" },
+  { flags: 0x202, symbol: "ExampleA", format: "pe", status: "inferred" },
+  { flags: 0x206, symbol: "ExampleW", format: "pe", status: "inferred" },
+  { flags: 0x204, symbol: "ExampleW", format: "pe", status: "inferred" },
+  { flags: 0x205, symbol: "ExampleW", format: "pe", status: "unresolved" },
+  { flags: 0x206, symbol: "Example", format: "pe", status: "verified" },
+  { flags: 0x200, symbol: "ExampleA", format: "elf", status: "unresolved" },
+  { flags: 0x206, symbol: "ExampleW", format: "elf", status: "unresolved" },
+  {
+    flags: 0x200,
+    symbol: "A",
+    format: "pe",
+    status: "unresolved",
+    importName: "",
+  },
+] as const)(
+  "preserves parsed P/Invoke candidate semantics for $flags $symbol $format",
+  ({ flags, symbol, format, status, ...override }) => {
+    const bytes = buildManagedPeFixture({
+      targetFramework: null,
+      pinvoke: {
+        mappingFlags: flags,
+        importName: "importName" in override ? override.importName : "Example",
+        moduleName: "nativehelper.dll",
+      },
+    });
+    const target = managedPeFixtureTarget(bytes);
+    const inspection = inspectManagedNativeBoundariesBytes(bytes, target);
+    const original = exampleInput().managed_boundaries;
+    const managed = createEvidence(target, original.provider, {
+      operation: "inspect_managed_native_boundaries",
+      parameters: {},
+      result: inspection,
+    });
+    const result = verifyManagedNativeBoundaries({
+      managed_boundaries: managed,
+      native_observations: [
+        nativeFunctionEvidence("/fixtures/nativehelper.dll", format, symbol),
+      ],
+    });
+    expect(result.pinvoke_imports[0]).toMatchObject({
+      status,
+      managed: { import_name: inspection.pinvoke_imports[0]?.import_name },
+    });
+    expect(
+      result.pinvoke_imports[0]?.candidates.map(({ name }) => name),
+    ).toEqual(status === "unresolved" ? [] : [symbol]);
+  },
+);
 
 describe("managed/native boundary Evidence identity", () => {
   it("rejects managed boundary Evidence whose subject digest differs from its artifact", () => {

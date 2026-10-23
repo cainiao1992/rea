@@ -21,10 +21,9 @@ import type {
 } from "../application/AnalysisProvider.js";
 import type { AppConfig } from "../config/types.js";
 import type { ConfigurationError } from "../domain/configurationErrors.js";
-import { createHash } from "node:crypto";
+import { idaRegistrationDigest } from "./IdaRegistrationIdentity.js";
 import { isDeepStrictEqual } from "node:util";
 import { analysisProfilesEqual } from "../domain/analysisProfile.js";
-import canonicalize from "canonicalize";
 import type { Result } from "../domain/result.js";
 import {
   readIdaConfiguration,
@@ -345,9 +344,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
             : "database-supervisor",
       database_revision: null,
       cache_policy: "live",
-      registration_digest: createHash("sha256")
-        .update(canonicalize(config.value) ?? "")
-        .digest("hex"),
+      registration_digest: idaRegistrationDigest(config.value),
     });
     if (options?.scope !== undefined)
       this.#registrationByScope.delete(options.scope);

@@ -21,6 +21,12 @@ export const DEFAULT_IDA_REQUEST_TIMEOUT_MS = 300_000;
 export const MAX_IDA_REQUEST_TIMEOUT_MS = 2_147_483_647;
 
 const common = {
+  sensitive: z
+    .strictObject({
+      headers: z.array(z.string().min(1)).default([]),
+      env: z.array(z.string().min(1)).default([]),
+    })
+    .optional(),
   mode: z.enum(["attached", "headless"]).default("attached"),
   protocol: z.literal("native").optional(),
   timeoutMs: z

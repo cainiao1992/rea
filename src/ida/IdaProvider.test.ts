@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 
 import { parseConfig } from "../config/parseConfig.js";
+import {
+  RecordingIdaMcp,
+  createIdaTarget,
+} from "../../tests/fixtures/idaMcp.js";
 import { IdaProvider } from "./IdaProvider.js";
 
 it.each([
@@ -140,3 +144,84 @@ describe("IDA provider target support", () => {
     });
   });
 });
+
+it.each(["http", "stdio"] as const)(
+  "excludes declared %s credentials from profile identity while binding fresh clients to their selected values",
+  async (transport) => {
+    const { root, target } = await createIdaTarget();
+    const path = join(root, "credential-registration.json");
+    const config = parseConfig({ REA_IDA_MCP_CONFIG: path });
+    if (!config.ok) throw config.error;
+    const selected: string[] = [];
+    const provider = new IdaProvider(config.value, {}, (registration) => {
+      selected.push(
+        "headers" in registration
+          ? registration.headers.Authorization!
+          : registration.env.PRIVATE_VALUE!,
+      );
+      return new RecordingIdaMcp(target, "attached");
+    });
+    const profiles: string[] = [];
+    try {
+      for (const token of ["first credential", "second credential"]) {
+        await writeFile(
+          path,
+          JSON.stringify(
+            transport === "http"
+              ? {
+                  url: "http://127.0.0.1:8745/mcp",
+                  headers: { Authorization: token, "X-Input": "retained" },
+                }
+              : {
+                  command: "fixture",
+                  env: { PRIVATE_VALUE: token, IDADIR: "/fixture/ida" },
+                  sensitive: { env: ["PRIVATE_VALUE"] },
+                },
+          ),
+        );
+        const resolved = await provider.resolveAnalysisProfile(target);
+        if (!resolved.ok) throw resolved.error;
+        if (
+          resolved.value.profile === null ||
+          resolved.value.createClient === undefined
+        )
+          throw new Error("Expected a bound profile");
+        profiles.push(resolved.value.profile.digest);
+        const client = resolved.value.createClient(
+          target,
+          resolved.value.profile,
+        );
+        await client.close();
+      }
+      expect(profiles[0]).toBe(profiles[1]);
+      expect(selected).toEqual(["first credential", "second credential"]);
+      await writeFile(
+        path,
+        JSON.stringify(
+          transport === "http"
+            ? {
+                url: "http://127.0.0.1:8745/mcp",
+                headers: {
+                  Authorization: "second credential",
+                  "X-Input": "changed input",
+                },
+              }
+            : {
+                command: "fixture",
+                env: {
+                  PRIVATE_VALUE: "second credential",
+                  IDADIR: "/changed/ida",
+                },
+                sensitive: { env: ["PRIVATE_VALUE"] },
+              },
+        ),
+      );
+      const changed = await provider.resolveAnalysisProfile(target);
+      if (!changed.ok) throw changed.error;
+      expect(changed.value.profile?.digest).not.toBe(profiles[0]);
+    } finally {
+      await provider.closeOwnedResources();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

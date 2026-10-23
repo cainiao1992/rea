@@ -178,3 +178,13 @@ An unusable `workspaceRoot` reports its directory constraint as a configuration
 error before opening an IDA worker. Native JSON metadata resources accept omitted
 media types and normal case/parameter variants of `application/json`; their
 resource URI, JSON structure and recorded target identity remain checked.
+
+The public profile's registration digest excludes HTTP authentication header
+values (`Authorization`, `Proxy-Authorization`, and `Cookie`). Mark any other
+credential fields explicitly with `"sensitive": { "headers": ["X-Api-Key"],
+"env": ["PRIVATE_VALUE"] }` in the registration. Header names match without
+case; environment names match exactly. These values are also redacted from IDA
+diagnostics. Ordinary fields such as `IDADIR` and noncredential headers remain
+part of analysis identity. Credential rotation does not change that public
+identity; each newly resolved client factory still captures its own complete
+transport registration and creates a fresh connection.

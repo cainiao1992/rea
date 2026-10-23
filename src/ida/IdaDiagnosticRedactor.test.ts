@@ -561,3 +561,27 @@ describe("unclassified diagnostic blocks and message ownership", () => {
     ).not.toContain("omitted");
   });
 });
+
+it("redacts explicitly marked registration values without guessing from environment names", () => {
+  const environment = createIdaDiagnosticRedactor({
+    command: "fixture",
+    args: [],
+    env: { PRIVATE_VALUE: "marked-secret", IDADIR: "/caller/ida" },
+    sensitive: { env: ["PRIVATE_VALUE"], headers: [] },
+    mode: "attached",
+    timeoutMs: 1000,
+  });
+  expect(environment.text("marked-secret /caller/ida")).toBe(
+    "[redacted transport credential] /caller/ida",
+  );
+  const headers = createIdaDiagnosticRedactor({
+    url: "http://localhost:8745/mcp",
+    headers: { "X-Custom": "marked-header", "X-Input": "retained" },
+    sensitive: { headers: ["x-custom"], env: [] },
+    mode: "attached",
+    timeoutMs: 1000,
+  });
+  expect(headers.text("marked-header retained")).toBe(
+    "[redacted transport credential] retained",
+  );
+});

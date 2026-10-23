@@ -41,3 +41,17 @@ neither a passing nor a failed package workflow.
 The evaluator preserves Evidence provenance and returns an actionable unknown
 when qualification is unavailable. It does not change the cited records to
 make their authority match a caller's declaration.
+
+## Function reconstruction claims
+
+`verify_reconstruction` evaluates declared claims over retained comparison
+Evidence. An `overall` function claim includes active residual unknowns scoped
+to any of that comparison's dimensions. For example, an open pseudocode
+question keeps the overall claim `unknown` and retains its unknown ID and
+recommended probe; an independent assembly claim can still pass. An unknown
+scoped only to `overall` does not block every individual dimension.
+
+Selection uses each unknown's latest revision, its comparison identity and
+Evidence references. Explicit unknown dependencies remain relevant across
+dimensions. Unknowns for another comparison and resolved heads do not become
+blockers merely because their source Evidence overlaps.

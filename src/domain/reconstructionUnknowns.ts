@@ -23,7 +23,7 @@ export const reconstructionUnknownHeads = (
   return heads;
 };
 
-/** Find active unknowns that affect a comparison or one of its sources. */
+/** Overall claims include every scoped dimension; individual claims keep their scope. */
 export const reconstructionClaimUnknowns = (
   heads: ReadonlyMap<string, ResidualUnknown>,
   comparisonId: string,
@@ -36,6 +36,7 @@ export const reconstructionClaimUnknowns = (
       scope === undefined ||
       (scope.comparison_evidence_id === comparisonId &&
         (dimension === undefined ||
+          dimension === "overall" ||
           scope.dimensions.some(
             (scopedDimension) => scopedDimension === dimension,
           )))

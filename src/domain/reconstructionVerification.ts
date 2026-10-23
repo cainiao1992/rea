@@ -153,15 +153,13 @@ const evaluateClaim = (
     ...authorityLimitations(claim, sources, sides),
     ...callCoverage.blockers,
   ];
-  const relatedUnknowns = reconstructionClaimUnknowns(
+  const relevantUnknowns = reconstructionClaimUnknowns(
     heads,
     comparison.evidence_id,
     allSourceIds,
     claim.dimension,
   );
-  const relevantUnknowns = relatedUnknowns;
   const status = classify(observed, blockers, relevantUnknowns);
-  const displayedUnknowns = relevantUnknowns;
   return reconstructionClaimResultSchema.parse({
     claim_id: claim.claim_id,
     kind: claim.kind,
@@ -172,13 +170,13 @@ const evaluateClaim = (
     left_evidence_ids: sides.left,
     right_evidence_ids: sides.right,
     evidence_links: uniqueSorted([comparison.evidence_id, ...allSourceIds]),
-    unknown_ids: displayedUnknowns.map(({ unknown_id: id }) => id),
+    unknown_ids: relevantUnknowns.map(({ unknown_id: id }) => id),
     limitations: uniqueSorted([
       ...comparison.limitations,
       ...observation.limitations,
       ...blockers,
       ...callCoverage.diagnostics,
-      ...displayedUnknowns.map(
+      ...relevantUnknowns.map(
         ({ question }) => `Residual unknown: ${question}`,
       ),
     ]),

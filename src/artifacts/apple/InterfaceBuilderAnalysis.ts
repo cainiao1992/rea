@@ -8,6 +8,7 @@ import {
   isSourceLessAppKitAnnotationConnector,
   isUIKitRuntimeConnectionClass,
 } from "../../domain/apple/interfaceBuilderKeyedArchive.js";
+import { streamChunkToBuffer } from "../StreamBytes.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import {
@@ -861,9 +862,7 @@ const readEntry = async (
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of stream) {
-    const bytes = Buffer.isBuffer(chunk)
-      ? chunk
-      : Buffer.from(chunk as Uint8Array);
+    const bytes = streamChunkToBuffer(chunk);
     length += bytes.length;
     if (length > maxInputBytes) {
       stream.destroy();

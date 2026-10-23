@@ -4,6 +4,7 @@ import { Cli, Formatter } from "incur";
 import { estimateTokenCount } from "tokenx";
 import { expect, it } from "vitest";
 
+import { parseCliOutputArguments } from "../../../src/cliOutput.js";
 import {
   createCliResultOutput,
   streamCliCommandResults,
@@ -28,7 +29,7 @@ const runFilteredCli = async (
   const args = ["rows", "--format", format, "--filter-output", filter];
   const chunks: Buffer[] = [];
   const output = createCliResultOutput(
-    args,
+    parseCliOutputArguments(args),
     new Writable({
       write(chunk: Buffer, _encoding, callback) {
         chunks.push(chunk);
@@ -75,7 +76,7 @@ it.each(
     ];
     const chunks: Buffer[] = [];
     const output = createCliResultOutput(
-      args,
+      parseCliOutputArguments(args),
       new Writable({
         write(chunk: Buffer, _encoding, callback) {
           chunks.push(chunk);
@@ -128,7 +129,7 @@ it.each(["json", "jsonl"] as const)(
     ];
     const chunks: Buffer[] = [];
     const output = createCliResultOutput(
-      args,
+      parseCliOutputArguments(args),
       new Writable({
         write(chunk: Buffer, _encoding, callback) {
           chunks.push(chunk);
@@ -161,7 +162,7 @@ it.each(["selected", "toString", "constructor"])(
     const before = structuredClone(value);
     const chunks: Buffer[] = [];
     const output = createCliResultOutput(
-      ["--json", "--filter-output", filter],
+      parseCliOutputArguments(["--json", "--filter-output", filter]),
       new Writable({
         write(chunk: Buffer, _encoding, callback) {
           chunks.push(chunk);
@@ -187,7 +188,12 @@ it("finishes JSONL after a bounded large record before a missing selection", asy
   const value = [{ selected: "x".repeat(80 * 1024) }, {}];
   const chunks: Buffer[] = [];
   const output = createCliResultOutput(
-    ["--format", "jsonl", "--filter-output", "selected"],
+    parseCliOutputArguments([
+      "--format",
+      "jsonl",
+      "--filter-output",
+      "selected",
+    ]),
     new Writable({
       highWaterMark: 1,
       write(chunk: Buffer, _encoding, callback) {

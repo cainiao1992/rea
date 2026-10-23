@@ -8,6 +8,7 @@ import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
 
 import { writeJsonOutput } from "../../../src/cli/jsonOutput.js";
+import { parseCliOutputArguments } from "../../../src/cliOutput.js";
 import {
   createCliResultOutput,
   streamCliCommandResults,
@@ -171,7 +172,7 @@ describe("CLI command output wrapping", () => {
       },
     });
     const output = createCliResultOutput(
-      ["--format", "json", "--full-output"],
+      parseCliOutputArguments(["--format", "json", "--full-output"]),
       destination,
     );
     if (output === undefined)
@@ -234,7 +235,10 @@ describe("CLI result output surface", () => {
         "--filter-output",
         "message",
       ];
-      const output = createCliResultOutput(argv, destination);
+      const output = createCliResultOutput(
+        parseCliOutputArguments(argv),
+        destination,
+      );
       if (output === undefined)
         throw new Error("Missing structured output surface");
       const cli = Cli.create("rea-output-test", { sync: false });
@@ -311,7 +315,10 @@ describe("CLI result output surface", () => {
       },
     });
     const argv = ["fixture", "--json", "--full-output"];
-    const output = createCliResultOutput(argv, destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(argv),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing JSON output surface");
     const cli = Cli.create("rea-output-test", { sync: false });
     cli.command("fixture", {
@@ -356,7 +363,10 @@ describe("full-output token windows", () => {
       "--token-limit",
       "3",
     ];
-    const output = createCliResultOutput(argv, destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(argv),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing TOON output surface");
     const cli = Cli.create("rea-output-test", { sync: false });
     registerManagedCommands(cli, silentLogger, async () => ({
@@ -402,7 +412,10 @@ describe("logger classification handoff", () => {
       source: "captured-metadata",
     };
     const argv = ["fixture", "--json", "--full-output"];
-    const output = createCliResultOutput(argv, destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(argv),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing JSON output surface");
     const cli = Cli.create("rea-output-test", { sync: false });
     cli.command("fixture", {
@@ -455,7 +468,10 @@ describe("full-output token counts", () => {
       "--filter-output",
       "message",
     ];
-    const output = createCliResultOutput(argv, destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(argv),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing JSON output surface");
     const cli = Cli.create("rea-output-test", { sync: false });
     registerManagedCommands(cli, silentLogger, async () => failure);
@@ -479,7 +495,12 @@ describe("CLI result output surface", () => {
     ["--json", "--token-limit", "5"],
     ["--json", "--format", "invalid"],
   ])("delegates unsupported output controls %j", (...arguments_) => {
-    expect(createCliResultOutput(arguments_, new Writable())).toBe(undefined);
+    expect(
+      createCliResultOutput(
+        parseCliOutputArguments(arguments_),
+        new Writable(),
+      ),
+    ).toBe(undefined);
   });
 
   it("keeps ownership after a failed write so no second document is emitted", async () => {
@@ -489,7 +510,10 @@ describe("CLI result output surface", () => {
         callback(cause);
       },
     });
-    const output = createCliResultOutput(["--json"], destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(["--json"]),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing JSON output surface");
     await expect(
       output.write(
@@ -541,7 +565,10 @@ describe("CLI result output surface", () => {
     // A terminal destination exercises the indented encoding past the limit.
     Object.defineProperty(destination, "isTTY", { value: true });
     const argv = ["inspect-managed-members", "fixture.dll", "--json"];
-    const output = createCliResultOutput(argv, destination);
+    const output = createCliResultOutput(
+      parseCliOutputArguments(argv),
+      destination,
+    );
     if (output === undefined) throw new Error("Missing JSON output surface");
     streamCliCommandResults(cli, output);
     let exitCode = 0;
@@ -562,7 +589,7 @@ describe("CLI result output surface", () => {
     const chunks: Buffer[] = [];
     const tokenArgv = [...argv, "--token-count", "--full-output"];
     const tokenOutput = createCliResultOutput(
-      tokenArgv,
+      parseCliOutputArguments(tokenArgv),
       new Writable({
         write(chunk: Buffer, _encoding, callback) {
           chunks.push(chunk);
@@ -623,7 +650,12 @@ describe("streamed CLI filtered selections", () => {
         },
       });
       const output = createCliResultOutput(
-        ["--format", format, "--filter-output", filter],
+        parseCliOutputArguments([
+          "--format",
+          format,
+          "--filter-output",
+          filter,
+        ]),
         destination,
       );
       if (output === undefined) throw new Error("Missing JSON output surface");

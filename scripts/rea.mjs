@@ -87,15 +87,16 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
     renderCliOutputArgumentError,
     renderEmptyFilteredCliOutput,
     renderVersionReport,
-    validateCliOutputArguments,
+    parseCliOutputArguments,
   } = await import("../dist/cli-runtime/cliOutput.js");
   guardClosedStdout();
   const cliArgs = normalizeCliArguments(args);
-  const outputArguments = validateCliOutputArguments(cliArgs);
+  const outputOptions = parseCliOutputArguments(cliArgs);
+  const outputArguments = outputOptions.validation;
   // `--version` with an explicit format reports the runtime as a document;
   // plain `--version` stays Incur's bare version string.
   const versionOutput = renderVersionReport(
-    cliArgs,
+    outputOptions,
     {
       packageName: packageJson.name,
       packageVersion: packageJson.version,
@@ -129,7 +130,7 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
       const { createCliResultOutput } =
         await import("../dist/cli-runtime/cliResultOutput.js");
       let wroteOutput = false;
-      const resultOutput = createCliResultOutput(cliArgs, process.stdout);
+      const resultOutput = createCliResultOutput(outputOptions, process.stdout);
       try {
         await createCli(process.env, resultOutput).serve(cliArgs, {
           stdout: (output) => {
@@ -182,7 +183,7 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
         process.exitCode = stdoutClosed ? SIGPIPE_EXIT_STATUS : 1;
       }
       if (!wroteOutput && !resultOutput?.handled)
-        writeStdout(renderEmptyFilteredCliOutput(cliArgs) ?? "");
+        writeStdout(renderEmptyFilteredCliOutput(outputOptions) ?? "");
     }
   } catch (cause) {
     dispatchFailure = cause;

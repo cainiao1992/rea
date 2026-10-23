@@ -59,7 +59,7 @@ const {
   normalizeCliArguments,
   renderCliOutputArgumentError,
   renderEmptyFilteredCliOutput,
-  validateCliOutputArguments,
+  parseCliOutputArguments,
 } = await import("../../../dist/cli-runtime/cliOutput.js");
 
 const writeFrame = (value) =>
@@ -162,7 +162,8 @@ async function runOneShot(args) {
   let explicitExit;
   try {
     const cliArgs = normalizeCliArguments(args);
-    const outputArguments = validateCliOutputArguments(cliArgs);
+    const outputOptions = parseCliOutputArguments(cliArgs);
+    const outputArguments = outputOptions.validation;
     const configurationError = cliConfigurationError(process.env);
     if (configurationError !== undefined && !isDoctorCommand(cliArgs)) {
       process.stderr.write(`${configurationError}\n`);
@@ -172,7 +173,7 @@ async function runOneShot(args) {
       process.exitCode = 1;
     } else {
       let wroteOutput = false;
-      const resultOutput = createCliResultOutput(cliArgs, destination);
+      const resultOutput = createCliResultOutput(outputOptions, destination);
       try {
         await createCli(process.env, resultOutput).serve(cliArgs, {
           stdout: (output) => {
@@ -194,7 +195,7 @@ async function runOneShot(args) {
         process.exitCode = 1;
       }
       if (!wroteOutput && !resultOutput?.handled) {
-        const empty = renderEmptyFilteredCliOutput(cliArgs);
+        const empty = renderEmptyFilteredCliOutput(outputOptions);
         if (empty) process.stdout.write(empty);
       }
     }

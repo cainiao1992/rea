@@ -10,6 +10,7 @@ import { finished } from "node:stream/promises";
 
 import { Cli } from "incur";
 
+import { parseCliOutputArguments } from "../../../dist/cliOutput.js";
 import { createCliResultOutput } from "../../../dist/cli/cliResultOutput.js";
 import { createEvidence } from "../../../dist/domain/evidence.js";
 
@@ -79,7 +80,10 @@ try {
 
   destination = createWriteStream(path, { flags: "wx", mode: 0o600 });
   const argv = [metadata.command, "--format", format, "--full-output"];
-  const output = createCliResultOutput(argv, destination);
+  const output = createCliResultOutput(
+    parseCliOutputArguments(argv),
+    destination,
+  );
   assert.ok(output);
   let unexpectedOutputBytes = 0;
   let exitCode = 0;

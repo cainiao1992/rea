@@ -12,8 +12,7 @@ import {
   renderCliDocument,
   renderEmptyFilteredCliOutput,
   renderVersionReport,
-  validateCliOutputArguments,
-  versionReportFormat,
+  parseCliOutputArguments,
 } from "../../../src/cliOutput.js";
 
 const CLI_INTEGRATION_TIMEOUT_MS = 60_000;
@@ -29,13 +28,13 @@ describe("CLI output argument boundary", () => {
 
   it("rejects token windows that would corrupt structured output", () => {
     for (const format of ["json", "jsonl", "yaml"] as const) {
-      const validation = validateCliOutputArguments([
+      const validation = parseCliOutputArguments([
         "providers",
         "--token-limit",
         "5",
         "--format",
         format,
-      ]);
+      ]).validation;
       expect(validation).toMatchObject({
         ok: false,
         format,
@@ -56,16 +55,17 @@ describe("CLI output argument boundary", () => {
       }
     }
     expect(
-      validateCliOutputArguments([
+      parseCliOutputArguments([
         "providers",
         "--token-limit",
         "5",
         "--format",
         "toon",
-      ]),
+      ]).validation,
     ).toEqual({ ok: true });
     expect(
-      validateCliOutputArguments(["providers", "--token-count", "--json"]),
+      parseCliOutputArguments(["providers", "--token-count", "--json"])
+        .validation,
     ).toEqual({ ok: true });
   });
 });
@@ -129,15 +129,16 @@ describe("CLI output flag value forms", () => {
 
   it("reports a missing value only for a flag the parser did not consume", () => {
     expect(
-      validateCliOutputArguments([
+      parseCliOutputArguments([
         "capabilities",
         "--json",
         "--filter-output",
         "--format",
-      ]),
+      ]).validation,
     ).toEqual({ ok: true });
     expect(
-      validateCliOutputArguments(["capabilities", "--json", "--format"]),
+      parseCliOutputArguments(["capabilities", "--json", "--format"])
+        .validation,
     ).toMatchObject({ ok: false, code: "MISSING_OUTPUT_VALUE" });
   });
 });
@@ -151,12 +152,12 @@ describe("unclosed CLI output filter slices", () => {
     "providers],name[0,1]",
   ])("rejects %s before the filter parser runs", (filter) => {
     expect(
-      validateCliOutputArguments([
+      parseCliOutputArguments([
         "providers",
         "--json",
         "--filter-output",
         filter,
-      ]),
+      ]).validation,
     ).toMatchObject({ ok: false, code: "INVALID_OUTPUT_FILTER" });
   });
 
@@ -173,7 +174,9 @@ describe("unclosed CLI output filter slices", () => {
       ["--format", "invalid", "--filter-output", "providers["],
       ["--token-limit", "invalid", "--filter-output", "providers["],
     ])
-      expect(validateCliOutputArguments(arguments_)).toEqual({ ok: true });
+      expect(parseCliOutputArguments(arguments_).validation).toEqual({
+        ok: true,
+      });
   });
 
   workspaceCliTest(
@@ -356,19 +359,25 @@ describe("CLI output argument boundary", () => {
   it("renders an explicit empty projection for structured filtered output", () => {
     for (const format of ["json", "jsonl", "yaml"])
       expect(
-        renderEmptyFilteredCliOutput([
-          "providers",
-          "--format",
-          format,
-          "--filter-output",
-          "missing",
-        ]),
+        renderEmptyFilteredCliOutput(
+          parseCliOutputArguments([
+            "providers",
+            "--format",
+            format,
+            "--filter-output",
+            "missing",
+          ]),
+        ),
       ).toBe("{}\n");
     expect(
-      renderEmptyFilteredCliOutput(["providers", "--filter-output", "missing"]),
+      renderEmptyFilteredCliOutput(
+        parseCliOutputArguments(["providers", "--filter-output", "missing"]),
+      ),
     ).toBeUndefined();
     expect(
-      renderEmptyFilteredCliOutput(["providers", "--format", "json"]),
+      renderEmptyFilteredCliOutput(
+        parseCliOutputArguments(["providers", "--format", "json"]),
+      ),
     ).toBeUndefined();
   });
 });
@@ -626,7 +635,9 @@ describe("version report requests", () => {
     [["--version", "--format"], undefined],
     [["--json"], undefined],
   ] as const)("reads %j as format %s", (arguments_, expected) => {
-    expect(versionReportFormat(arguments_)).toBe(expected);
+    expect(parseCliOutputArguments(arguments_).versionReportFormat).toBe(
+      expected,
+    );
   });
 });
 
@@ -640,8 +651,16 @@ describe("version report rendering", () => {
   };
 
   it("indents JSON for a terminal and compacts it when piped", () => {
-    const terminal = renderVersionReport(["--version", "--json"], host, true);
-    const piped = renderVersionReport(["--version", "--json"], host, false);
+    const terminal = renderVersionReport(
+      parseCliOutputArguments(["--version", "--json"]),
+      host,
+      true,
+    );
+    const piped = renderVersionReport(
+      parseCliOutputArguments(["--version", "--json"]),
+      host,
+      false,
+    );
 
     expect(terminal?.split("\n").length).toBeGreaterThan(2);
     expect(piped?.trimEnd().split("\n")).toHaveLength(1);
@@ -649,6 +668,8 @@ describe("version report rendering", () => {
   });
 
   it("leaves plain --version to Incur", () => {
-    expect(renderVersionReport(["--version"], host, true)).toBeUndefined();
+    expect(
+      renderVersionReport(parseCliOutputArguments(["--version"]), host, true),
+    ).toBeUndefined();
   });
 });

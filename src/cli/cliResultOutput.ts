@@ -4,10 +4,7 @@ import type { Writable } from "node:stream";
 import { Filter } from "incur";
 import { estimateTokenCount } from "tokenx";
 
-import {
-  parseCliOutputArguments,
-  validateCliOutputArguments,
-} from "../cliOutput.js";
+import type { ParsedCliOutputArguments } from "../cliOutput.js";
 import {
   cliOperationFailureIdentity,
   cliOperationFailurePayload,
@@ -103,12 +100,10 @@ const wrapCommand = (
 
 /** Preserve Incur output controls and stream JSON while framing failures. */
 export const createCliResultOutput = (
-  arguments_: readonly string[],
+  options: ParsedCliOutputArguments,
   destination: Writable,
 ): CliResultOutput | undefined => {
-  const options = parseCliOutputArguments(arguments_);
-  if (options.parseError || !validateCliOutputArguments(arguments_).ok)
-    return undefined;
+  if (options.parseError || !options.validation.ok) return undefined;
   const format = options.format as "json" | "jsonl" | "yaml" | "toon" | "md";
   let handled = false;
   let failed = false;

@@ -323,13 +323,15 @@ export const readElfSymbols = async (
         signal?.throwIfAborted();
       }
       const tag = is64 ? reader.u64(base) : reader.u32(base);
-      const value = is64 ? reader.u64(base + 8) : reader.u32(base + 4);
-      if (tag === null || value === null)
-        return failure("Dynamic entry is not representable");
+      if (tag === null) return failure("Dynamic entry is not representable");
+      // ELF defines d_un as ignored for DT_NULL; validate the complete entry
+      // above, but do not interpret a value that has no meaning.
       if (tag === DT_NULL) {
         terminated = true;
         break;
       }
+      const value = is64 ? reader.u64(base + 8) : reader.u32(base + 4);
+      if (value === null) return failure("Dynamic entry is not representable");
       if (
         ![DT_SYMTAB, DT_STRTAB, DT_STRSZ, DT_SYMENT, 4, 0x6ffffef5].includes(
           tag,

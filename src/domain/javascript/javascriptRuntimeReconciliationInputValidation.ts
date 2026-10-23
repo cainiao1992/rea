@@ -1,8 +1,9 @@
-import { z } from "zod";
+import type { z } from "zod";
 
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import { projectInputIssues } from "../inputIssueProjection.js";
-import { parseEvidence, type Evidence } from "../evidence.js";
+import type { Evidence } from "../evidence.js";
+import { safeParseEvidence } from "../evidenceValidation.js";
 
 const OPERATION = "reconcile_javascript_runtime";
 
@@ -23,13 +24,9 @@ export const authenticateRuntimeEvidence = (
   input: unknown,
   path: readonly (string | number)[],
 ): Evidence => {
-  try {
-    return parseEvidence(input);
-  } catch (cause: unknown) {
-    if (cause instanceof z.ZodError)
-      throw inputErrorAtPath(cause.issues, input, path, cause);
-    throw cause;
-  }
+  const parsed = safeParseEvidence(input);
+  if (parsed.ok) return parsed.value;
+  throw inputErrorAtPath(parsed.error.issues, input, path, parsed.error);
 };
 
 /** Represent one cross-field caller constraint as a standard input issue. */

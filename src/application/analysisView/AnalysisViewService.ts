@@ -3,7 +3,6 @@ import { dispatchQueuedInterrupts } from "../../process/queuedInterrupts.js";
 import { readImmutableEvidenceBundle } from "../EvidenceBundleFiles.js";
 import { INSPECT_ANALYSIS_VIEW_OPERATION } from "../../domain/analysisView/analysisViewErrors.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
-import { z } from "zod";
 
 import { ANALYSIS_VIEW_PROVIDER } from "../InvestigationProviders.js";
 import type { EvidenceLookup } from "../EvidenceInputResolver.js";
@@ -17,11 +16,8 @@ import {
 } from "../../domain/analysisErrorCore.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
-import {
-  createEvidence,
-  parseEvidence,
-  type Evidence,
-} from "../../domain/evidence.js";
+import { safeParseEvidence } from "../../domain/evidenceValidation.js";
+import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import {
   inspectAnalysisViewInputSchema,
   projectAnalysisView,
@@ -335,30 +331,20 @@ const authenticateEvidence = (
   path: readonly (string | number)[],
   input: unknown,
 ): Result<Evidence, AnalysisError> => {
-  try {
-    return ok(parseEvidence(value));
-  } catch (cause: unknown) {
-    if (cause instanceof z.ZodError)
-      return err(
-        analysisInputErrorFromIssues(
-          INSPECT_ANALYSIS_VIEW_OPERATION,
-          cause.issues.map((issue) => ({
-            ...issue,
-            path: [...path, ...issue.path],
-          })),
-          input,
-          { cause },
-        ),
-      );
-    if (cause instanceof TypeError)
-      return err(
-        new EvidenceIntegrityError(
-          cause.message,
-          cause.message.length > 0 ? { userMessage: cause.message } : undefined,
-        ),
-      );
-    throw cause;
-  }
+  const parsed = safeParseEvidence(value);
+  if (parsed.ok) return parsed;
+  const cause = parsed.error;
+  return err(
+    analysisInputErrorFromIssues(
+      INSPECT_ANALYSIS_VIEW_OPERATION,
+      cause.issues.map((issue) => ({
+        ...issue,
+        path: [...path, ...issue.path],
+      })),
+      input,
+      { cause },
+    ),
+  );
 };
 
 const createAnalysisViewEvidence = (

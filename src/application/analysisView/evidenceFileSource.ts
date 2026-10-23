@@ -1,16 +1,13 @@
 import { requireAuthenticationHeadroom } from "../JsonAuthenticationHeadroom.js";
-import { z } from "zod";
 
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
 import { INSPECT_ANALYSIS_VIEW_OPERATION } from "../../domain/analysisView/analysisViewErrors.js";
-import { err, ok, type Result } from "../../domain/result.js";
-import { parseEvidence, type Evidence } from "../../domain/evidence.js";
-import {
-  EvidenceFileError,
-  EvidenceIntegrityError,
-} from "../../domain/evidenceErrors.js";
+import { err, type Result } from "../../domain/result.js";
+import type { Evidence } from "../../domain/evidence.js";
+import { safeParseEvidence } from "../../domain/evidenceValidation.js";
+import { EvidenceFileError } from "../../domain/evidenceErrors.js";
 import { projectInputIssues } from "../../domain/inputIssueProjection.js";
 import { readJsonFile } from "../JsonFiles.js";
 
@@ -51,26 +48,16 @@ export const readEvidenceFileSource = async (
     description: "Insufficient heap headroom to authenticate the Evidence file",
   });
   if (!headroom.ok) return headroom;
-  try {
-    return ok(parseEvidence(loaded.value));
-  } catch (cause: unknown) {
-    if (cause instanceof z.ZodError)
-      return err(
+  const parsed = safeParseEvidence(loaded.value);
+  return parsed.ok
+    ? parsed
+    : err(
         new EvidenceFileError("read", "wrong-kind", {
           path,
-          cause,
-          contentIssues: projectInputIssues(cause.issues, loaded.value),
+          cause: parsed.error,
+          contentIssues: projectInputIssues(parsed.error.issues, loaded.value),
           userMessage:
             "The selected file does not contain valid Evidence. Repair or recreate the file and try again.",
         }),
       );
-    if (cause instanceof TypeError)
-      return err(
-        new EvidenceIntegrityError(cause.message, {
-          cause,
-          userMessage: cause.message,
-        }),
-      );
-    throw cause;
-  }
 };

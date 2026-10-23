@@ -20,7 +20,8 @@ import {
   AnalysisInputError,
   type AnalysisInputIssue,
 } from "../../domain/analysisErrorCore.js";
-import { immutableEvidence, type Evidence } from "../../domain/evidence.js";
+import type { Evidence } from "../../domain/evidence.js";
+import { safeParseImmutableEvidence } from "../../domain/evidenceValidation.js";
 import { parseExactJson } from "../../domain/exactJsonNumber.js";
 import { projectInputIssues } from "../../domain/inputIssueProjection.js";
 import { immutableJsonSnapshotMember } from "../../domain/immutableJson.js";
@@ -136,20 +137,18 @@ export const parseEvidenceFile = (
   role: "manifest" | "evidence" | "state",
   value: unknown,
 ): Result<Evidence, AnalysisError> => {
-  try {
-    for (const key of ["parameters", "raw_result", "normalized_result"])
-      immutableJsonSnapshotMember(value, key);
-    return ok(immutableEvidence(value));
-  } catch (cause: unknown) {
-    if (!(cause instanceof z.ZodError)) throw cause;
-    return err(
-      schemaInputError(
-        operation,
-        { prefix: [role], cause, value },
-        `The ${role} file is not authenticated REA Evidence JSON.`,
-      ),
-    );
-  }
+  for (const key of ["parameters", "raw_result", "normalized_result"])
+    immutableJsonSnapshotMember(value, key);
+  const parsed = safeParseImmutableEvidence(value);
+  return parsed.ok
+    ? parsed
+    : err(
+        schemaInputError(
+          operation,
+          { prefix: [role], cause: parsed.error, value },
+          `The ${role} file is not authenticated REA Evidence JSON.`,
+        ),
+      );
 };
 
 /** A schema refusal of `value`, found at `prefix`; issue paths extend the prefix and the schema failure is retained. */

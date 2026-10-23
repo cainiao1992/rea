@@ -22,10 +22,10 @@ import {
   artifactManifestId,
   occurrenceIdForLocation,
 } from "./artifactIdentity.js";
-import { parseEvidence, type Evidence } from "./evidence.js";
+import type { Evidence } from "./evidence.js";
 import { z } from "zod";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
-import { readEvidence } from "./evidenceValidation.js";
+import { readEvidence, safeParseEvidence } from "./evidenceValidation.js";
 import {
   artifactInspectionResultSchema,
   type ArtifactInspectionResult,
@@ -191,24 +191,23 @@ const parseInspectionInventoryPayload = (
     );
     const sourceEvidence =
       immutableJsonSnapshotMember(sealedStep, "evidence") ?? step.evidence;
-    let parsedEvidence: Evidence;
-    try {
-      parsedEvidence = parseEvidence(sourceEvidence);
-    } catch (cause: unknown) {
-      if (!(cause instanceof z.ZodError)) throw cause;
+    const parsedEvidence = safeParseEvidence(sourceEvidence);
+    if (!parsedEvidence.ok)
       throw Object.assign(
         new z.ZodError(
-          cause.issues.map((issue) => ({
+          parsedEvidence.error.issues.map((issue) => ({
             ...issue,
             path: ["substeps", index, "evidence", ...issue.path],
           })),
         ),
-        { cause },
+        { cause: parsedEvidence.error },
       );
-    }
-    const evidence = canBorrowParsedJsonSnapshot(sourceEvidence, parsedEvidence)
+    const evidence = canBorrowParsedJsonSnapshot(
+      sourceEvidence,
+      parsedEvidence.value,
+    )
       ? sourceEvidence
-      : parsedEvidence;
+      : parsedEvidence.value;
     immutableJsonSnapshotMember(evidence, "normalized_result");
     if (step.evidence_id !== evidence.evidence_id)
       throw new ArtifactInventoryValidationError(

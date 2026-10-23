@@ -13,7 +13,7 @@ import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { UnknownRegistryError } from "../../domain/unknownRegistryError.js";
 import type { Evidence } from "../../domain/evidence.js";
-import { readImmutableEvidence } from "../../domain/evidenceValidation.js";
+import { safeParseImmutableEvidence } from "../../domain/evidenceValidation.js";
 import {
   createResidualUnknown,
   updateResidualUnknown,
@@ -482,12 +482,12 @@ const readLedgerEvidence = (
   input: unknown,
   message: string,
 ): Result<Evidence, EvidenceIntegrityError> => {
-  const checked = readImmutableEvidence(input);
+  const checked = safeParseImmutableEvidence(input);
   return checked.ok
     ? checked
     : err(
         new EvidenceIntegrityError(message, {
-          cause: checked.error.cause,
+          cause: checked.error,
         }),
       );
 };

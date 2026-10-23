@@ -289,12 +289,28 @@ export const parseClientConfiguration = (
 export const effectiveClientServer = (
   parsed: ClientConfigurationDocument,
   name: string,
-): unknown =>
-  Object.hasOwn(parsed.servers, name)
+): unknown => {
+  const native = Object.hasOwn(parsed.servers, name);
+  const value = native
     ? parsed.servers[name]
     : Object.hasOwn(parsed.legacyServers, name)
       ? parsed.legacyServers[name]
       : undefined;
+  if (
+    (parsed.dialect !== "opencode" && parsed.dialect !== "opencode_v2") ||
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  )
+    return value;
+  const { enabled, ...registration } = value as Record<string, unknown>;
+  // OpenCode migrates legacy activation before merging layers. An enabled V1
+  // fragment must override inherited disabled:true; native V2 ignores enabled.
+  return (parsed.dialect === "opencode" || !native) &&
+    typeof enabled === "boolean"
+    ? { ...registration, disabled: !enabled }
+    : registration;
+};
 
 /**
  * Return `parsed.document` with `servers` at its server table. A legacy OpenCode

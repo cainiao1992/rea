@@ -502,6 +502,18 @@ reports this manual step. `rea uninstall` does not remove the account connector.
 
 ## Skill selection and maintenance
 
+OpenCode's selected configuration layers determine the registration dialect.
+If any loaded layer uses native `mcp.servers`, setup writes a native REA entry
+in the selected upper file even when that file is absent or has no MCP table.
+Legacy activation is normalized before layer merging, so an explicit enable
+can override an inherited disable. Lower files and other server entries remain
+unchanged; a legacy server named `servers` that conflicts with the native table
+requires manual repair before setup can write.
+
+When Hermes aliases refer to an anchored REA entry, refreshing or removing REA
+retains the aliases' original resolved values. Setup does not redirect another
+server's alias to REA's new launcher or policy.
+
 With no client selected, the interactive skill choice targets the shared
 `~/.agents/skills` copy. Selecting a client targets its personal destination
 when supported. Use `rea setup --skill-client shared --skill` for the shared

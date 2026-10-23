@@ -7,6 +7,7 @@ import {
   parseDocument,
   Document,
   Schema,
+  visit,
   type ParsedNode,
   type Node,
   type ScalarTag,
@@ -394,6 +395,33 @@ const copyHermesAliasSource = (
   return copied;
 };
 
+/** External aliases keep their original bindings when their source is replaced. */
+const retainHermesAliasConsumers = (
+  document: Document,
+  previous: unknown,
+): void => {
+  if (!isNode(previous)) return;
+  const replaced = new Set<Node>();
+  visit(previous, {
+    Node: (_key, node) => {
+      replaced.add(node);
+    },
+  });
+  visit(document, {
+    Alias: (_key, alias, path) => {
+      const source = alias.resolve(document);
+      if (
+        source === undefined ||
+        !replaced.has(source) ||
+        path.some((parent) => isNode(parent) && replaced.has(parent))
+      )
+        return;
+      const copied = copyHermesAliasSource(alias, document);
+      return isNode(copied) ? copied : undefined;
+    },
+  });
+};
+
 /** Set or delete one value in a Hermes `config.yaml`, keeping the rest as written. */
 export const editHermesConfigurationYaml = (
   text: string,
@@ -425,6 +453,7 @@ export const editHermesConfigurationYaml = (
       document.setIn(parent, document.createNode({}));
     }
   }
+  retainHermesAliasConsumers(document, document.getIn(path, true));
   if (value === undefined) {
     if (!document.deleteIn(path)) return text;
   } else {

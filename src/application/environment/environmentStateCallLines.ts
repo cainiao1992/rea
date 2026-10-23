@@ -2,6 +2,7 @@ import {
   allLines,
   collectionPathOf,
   collectionMatch,
+  segmentsOf,
   type SuppliedSegment,
   type StateListView,
 } from "../../domain/analysisView/environmentStateRules.js";
@@ -27,13 +28,13 @@ export const callSegments = (
   const names = environmentToolArguments(tool).path;
   const params = new Map(tool.params.map((param) => [param.index, param]));
   const segments: SuppliedSegment[] = [];
-  const template = tool.path_template
-    .slice(tool.path_template.indexOf("/") + 1)
-    .split("/");
-  for (const [index, text] of template.entries()) {
+  // Split through segmentsOf, the owner used for the held collection, so an
+  // internal empty segment (a repeated separator such as /api//books) is kept
+  // on both sides and the call still matches its extracted collection.
+  for (const [index, text] of segmentsOf(tool.path_template).entries()) {
     const param = params.get(index);
     if (param === undefined) {
-      if (text !== "") segments.push({ text, supplied: false });
+      segments.push({ text, supplied: false });
       continue;
     }
     const value = args[names.get(param.name) ?? param.name];

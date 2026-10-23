@@ -6,10 +6,10 @@ import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 import { executeManagedNativeBoundaries } from "../../application/managed/ManagedNativeVerificationService.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
-import { managedWorkflowContract } from "./contract.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import type { ManagedWorkflowToolRegistration } from "./types.js";
 
-const nativeVerificationContract = managedWorkflowContract(
+const nativeVerificationContract = toolContract(
   "verify_managed_native_boundaries",
 );
 

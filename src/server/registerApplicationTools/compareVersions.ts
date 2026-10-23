@@ -3,13 +3,13 @@ import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { compareApplicationVersionsEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
-import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-const compareContract = applicationToolContract("compare_application_versions");
+const compareContract = toolContract("compare_application_versions");
 
 /** Register the provider-neutral JavaScript version comparison tool. */
 export const registerCompareApplicationVersionsTool = (

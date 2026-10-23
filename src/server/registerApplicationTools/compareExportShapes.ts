@@ -3,13 +3,13 @@ import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { compareJavaScriptExportShapesEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
-import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-const contract = applicationToolContract("compare_javascript_export_shapes");
+const contract = toolContract("compare_javascript_export_shapes");
 
 /** Register the execution-free exact JavaScript export-shape comparison. */
 export const registerCompareJavaScriptExportShapesTool = (

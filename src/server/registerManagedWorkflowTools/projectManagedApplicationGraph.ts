@@ -8,12 +8,10 @@ import type { Evidence } from "../../domain/evidence.js";
 import { ok } from "../../domain/result.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
-import { managedWorkflowContract } from "./contract.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import type { ManagedWorkflowToolRegistration } from "./types.js";
 
-const graphContract = managedWorkflowContract(
-  "project_managed_application_graph",
-);
+const graphContract = toolContract("project_managed_application_graph");
 
 /** Register the managed application graph projection workflow tool. */
 export const registerProjectManagedApplicationGraph = (

@@ -4,13 +4,13 @@ import { resolveApplicationEvidenceRequest } from "../../application/EvidenceInp
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { traceJavaScriptSemanticsEvidenceValidated } from "../../application/javascript/JavaScriptSemanticTraceService.js";
-import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-const contract = applicationToolContract("trace_javascript_semantics");
+const contract = toolContract("trace_javascript_semantics");
 
 /** Register the bounded JavaScript semantic relation trace tool. */
 export const registerTraceJavaScriptSemanticsTool = (

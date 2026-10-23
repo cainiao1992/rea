@@ -1,10 +1,7 @@
 import type { ByteEntropyService } from "../application/binaryDiagnostics/ByteEntropyService.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
-import {
-  requireAnalysisViewRetention,
-  summarizeRetainedAnalysis,
-} from "../application/analysisView/AnalysisViewService.js";
+import { retainedSummaryDelivery } from "./retainedSummaryDelivery.js";
 import type { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
 import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
@@ -38,6 +35,10 @@ export const registerBinaryDiagnosticsTools = (
     withAdmittedAnalysis,
   );
   const contract = toolContract("inspect_binary_layout");
+  const delivery = retainedSummaryDelivery(new Set([contract.name]), {
+    recordEvidence,
+    evidenceById,
+  });
   server.registerTool(
     contract.name,
     applicationToolRegistrationOptions(contract),
@@ -56,6 +57,7 @@ export const registerBinaryDiagnosticsTools = (
           contract,
         );
       const { detail, ...request } = parsed.data;
+      const parameters = { detail };
       return runAdmittedToolOperation(
         server,
         withAdmittedAnalysis,
@@ -66,21 +68,17 @@ export const registerBinaryDiagnosticsTools = (
             logger,
             contract.name,
             async () => {
-              if (detail === "summary") {
-                const ready = requireAnalysisViewRetention(contract.name, {
-                  recordEvidence,
-                  evidenceById,
-                });
-                if (!ready.ok) return ready;
-              }
+              const ready = delivery.preflight(contract.name, parameters);
+              if (!ready.ok) return ready;
               const inspected = await service.inspect(request, {
                 signal: context.mcpReq.signal,
               });
-              return detail === "summary" && inspected.ok
-                ? summarizeRetainedAnalysis(inspected.value, {
-                    recordEvidence,
-                    evidenceById,
-                  })
+              return inspected.ok
+                ? delivery.projectEvidence(
+                    contract.name,
+                    parameters,
+                    inspected.value,
+                  )
                 : inspected;
             },
           );

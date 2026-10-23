@@ -3,13 +3,13 @@ import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { traceApplicationFeatureEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
-import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-const traceContract = applicationToolContract("trace_application_feature");
+const traceContract = toolContract("trace_application_feature");
 
 /** Register the provider-neutral JavaScript feature trace tool. */
 export const registerTraceFeatureTool = (

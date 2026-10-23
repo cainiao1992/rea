@@ -12,13 +12,13 @@ import { resolveApplicationEvidenceRequest } from "../../application/EvidenceInp
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
 import { compareSourceToBundleEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
-import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
+import { toolContract } from "../../contracts/toolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordApplicationResult } from "./helpers.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
-const contract = applicationToolContract("compare_source_to_bundle");
+const contract = toolContract("compare_source_to_bundle");
 
 /** Register conservative historical-source to bundle comparison. */
 export const registerCompareSourceToBundleTool = (

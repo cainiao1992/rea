@@ -5,6 +5,7 @@ import {
   type RustAuditableMetadata,
   type RustPackage,
 } from "../domain/rust/rustBinary.js";
+import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
 
 /** Selected-file admission limit shared with the stable artifact reader. */
 export const RUST_BINARY_INPUT_BYTES = 256 * 1024 * 1024;
@@ -24,6 +25,7 @@ const packageSchema = z.strictObject({
   source: z.string().min(1),
   kind: z.enum(["runtime", "build"]).optional(),
   dependencies: z.array(z.int().nonnegative()).optional(),
+  features: z.array(z.string().min(1)).optional(),
   root: z.boolean().optional(),
 });
 const documentVersionSchema = z.object({
@@ -259,6 +261,7 @@ const MIN_PACKAGE_OUTPUT_BYTES = JSON.stringify({
   source: "a",
   kind: null,
   dependencies: [],
+  features: null,
   root: true,
 }).length;
 const MIN_EDGE_OUTPUT_BYTES = JSON.stringify({
@@ -289,9 +292,27 @@ const admitGraphExpansion = (value: unknown): void => {
         "Dependency graph exceeds the complete report byte budget before expansion",
       );
   };
+  const currentEdgeBytes = () =>
+    edges * MIN_EDGE_OUTPUT_BYTES + Math.max(0, edges - 1);
   admit();
   for (const pkg of packages) {
     // Shape and index validity remain owned by documentSchema/rootIndex.
+    if (
+      typeof pkg === "object" &&
+      pkg !== null &&
+      "features" in pkg &&
+      Array.isArray(pkg.features) &&
+      pkg.features.every((feature) => typeof feature === "string")
+    ) {
+      const featureBudget =
+        RUST_OUTPUT_BYTES - minimumBytes - currentEdgeBytes() + 4;
+      const featureBytes = jsonValueByteLength(
+        pkg.features as string[],
+        featureBudget,
+      );
+      minimumBytes += featureBytes - 4;
+      admit();
+    }
     if (
       typeof pkg !== "object" ||
       pkg === null ||
@@ -312,6 +333,7 @@ const PACKAGE_FIELDS = new Set([
   "source",
   "kind",
   "dependencies",
+  "features",
   "root",
 ]);
 
@@ -336,6 +358,7 @@ const packageRecord = (
   pkg: unknown,
 ): pkg is {
   readonly dependencies?: readonly unknown[];
+  readonly features?: readonly unknown[];
 } => {
   if (typeof pkg !== "object" || pkg === null || Array.isArray(pkg))
     return false;
@@ -358,13 +381,19 @@ const packageRecord = (
   if (record.root !== undefined && typeof record.root !== "boolean")
     return false;
   const dependencies = record.dependencies;
-  if (dependencies === undefined) return true;
+  if (
+    dependencies !== undefined &&
+    (!Array.isArray(dependencies) ||
+      !dependencies.every(
+        (entry) =>
+          typeof entry === "number" && Number.isInteger(entry) && entry >= 0,
+      ))
+  )
+    return false;
+  const features = record.features;
   return (
-    Array.isArray(dependencies) &&
-    dependencies.every(
-      (entry) =>
-        typeof entry === "number" && Number.isInteger(entry) && entry >= 0,
-    )
+    features === undefined ||
+    (Array.isArray(features) && features.every(nonEmptyString))
   );
 };
 
@@ -406,6 +435,7 @@ const normalizePackages = (
     source: pkg.source,
     kind: pkg.kind ?? null,
     dependencies: pkg.dependencies ?? [],
+    features: pkg.features ?? null,
     root: pkg.root ?? false,
   }));
 

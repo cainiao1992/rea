@@ -123,6 +123,7 @@ cliTest(
             version: "1",
             source: "crates.io",
             dependencies: [2],
+            features: ["default"],
           },
           {
             name: "same",
@@ -153,7 +154,7 @@ cliTest(
       const selection = {
         collection: "packages",
         names: ["same"],
-        fields: ["name", "version", "dependencies"],
+        fields: ["name", "version", "dependencies", "features"],
       };
       const direct = await call("inspect_rust_binary", {
         path,
@@ -169,7 +170,13 @@ cliTest(
         page: {
           collection: "packages",
           rows: [
-            { index: 0, name: "same", version: "1", dependencies: [2] },
+            {
+              index: 0,
+              name: "same",
+              version: "1",
+              dependencies: [2],
+              features: ["default"],
+            },
             { index: 1, name: "same", version: "2", dependencies: [0, 2] },
           ],
         },

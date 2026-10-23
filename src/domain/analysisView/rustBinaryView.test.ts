@@ -27,6 +27,7 @@ const report: RustBinary = {
         kind: null,
         root: true,
         dependencies: [0],
+        features: [],
       },
     ],
     root_package_index: 0,
@@ -76,6 +77,30 @@ it("revalidates mutable and merely frozen Rust imports despite a claimed seal", 
   ).toBe(false);
 });
 
+it("pages retained Rust rows from before feature metadata was added as unknown", () => {
+  const previous = structuredClone(report);
+  const metadata = previous.auditable_metadata;
+  if (metadata === null) throw new Error("Expected Rust metadata");
+  const legacy = {
+    ...previous,
+    auditable_metadata: {
+      ...metadata,
+      packages: metadata.packages.map(({ features: _features, ...pkg }) => pkg),
+    },
+  } as unknown as RustBinary;
+  const result = projectAnalysisView(parent(legacy), {
+    kind: "rust",
+    collection: "packages",
+    fields: ["features"],
+    offset: 0,
+    limit: 10,
+  });
+  if (!result.ok) throw result.error;
+  expect(result.value).toMatchObject({
+    page: { rows: [{ index: 0, features: null }] },
+  });
+});
+
 it("checks exact artifact identity and subject architecture for every Rust view", () => {
   for (const changed of [
     { local_path: "/different" },
@@ -121,6 +146,7 @@ it("bounds inherited warnings and retains cycle counts without walking a cyclic 
 
 it("pages matching original indices and omits dependency vectors unless selected", () => {
   const value = structuredClone(report);
+  expect(value.auditable_metadata?.packages[0]?.features).toEqual([]);
   value.auditable_metadata!.packages.push({
     name: "other",
     version: "1",
@@ -128,6 +154,7 @@ it("pages matching original indices and omits dependency vectors unless selected
     kind: null,
     root: false,
     dependencies: [],
+    features: [],
   });
   const source = parent(value);
   const first = projectAnalysisView(source, {

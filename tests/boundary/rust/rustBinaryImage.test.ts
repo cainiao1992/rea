@@ -19,7 +19,7 @@ const packages = [
     source: "crates.io",
     kind: null,
     dependencies: [],
-    features: [],
+    features: null,
     root: false,
   },
   {
@@ -28,7 +28,7 @@ const packages = [
     source: "local",
     kind: null,
     dependencies: [0],
-    features: [],
+    features: null,
     root: true,
   },
 ];

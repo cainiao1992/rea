@@ -31,6 +31,7 @@ export const RUST_AUDITABLE_FORMAT_VERSIONS = [0, 1, 8] as const;
 
 const index = z.int().nonnegative();
 const rustcHash = z.string().regex(/^[0-9a-f]{40}$/u);
+export const rustPackageFeaturesSchema = z.array(z.string().min(1)).nullable();
 
 /** One embedded package, with omitted kind and root preserved as null and false. */
 export const rustPackageSchema = z.strictObject({
@@ -39,6 +40,7 @@ export const rustPackageSchema = z.strictObject({
   source: z.string().min(1),
   kind: z.enum(["runtime", "build"]).nullable(),
   dependencies: z.array(index),
+  features: rustPackageFeaturesSchema.default(null),
   root: z.boolean(),
 });
 

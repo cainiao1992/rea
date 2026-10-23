@@ -58,6 +58,58 @@ it("preserves package order, omitted kind, and the root index", () => {
   expect(parsed.uncompressed_bytes).toBeGreaterThan(parsed.compressed_bytes);
 });
 
+it("preserves historical cargo-auditable feature lists and rejects bad values", () => {
+  const parsed = section({
+    format: 0,
+    packages: [
+      {
+        name: "feature_dep",
+        version: "1.2.3",
+        source: "crates.io",
+        features: ["default", "serde"],
+      },
+    ],
+  });
+  expect(parsed.packages).toEqual([
+    {
+      name: "feature_dep",
+      version: "1.2.3",
+      source: "crates.io",
+      kind: null,
+      dependencies: [],
+      features: ["default", "serde"],
+      root: false,
+    },
+  ]);
+  const omitted = section({
+    packages: [{ name: "no_features", version: "1", source: "crates.io" }],
+  });
+  const explicitEmpty = section({
+    packages: [
+      {
+        name: "no_features",
+        version: "1",
+        source: "crates.io",
+        features: [],
+      },
+    ],
+  });
+  expect(omitted.packages[0]?.features).toBeNull();
+  expect(explicitEmpty.packages[0]?.features).toEqual([]);
+  expect(() =>
+    section({
+      packages: [
+        {
+          name: "feature_dep",
+          version: "1.2.3",
+          source: "crates.io",
+          features: ["default", 7],
+        },
+      ],
+    }),
+  ).toThrow(RustAuditableFormatFailure);
+});
+
 it("reports dependency cycles and keeps an omitted format version unknown", () => {
   const parsed = section({
     packages: [

@@ -101,6 +101,145 @@ cliTest(
   },
 );
 
+cliTest(
+  "preserves historical cargo-auditable features through CLI and stdio MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-rust-features-legacy-");
+    const { client, call } = await connectLocalToolsMcp();
+    const validCases = [
+      {
+        name: "features",
+        document: {
+          packages: [
+            {
+              name: "legacy_dep",
+              version: "1.2.3",
+              source: "crates.io",
+              features: ["default", "serde"],
+            },
+            {
+              name: "app",
+              version: "0.1.0",
+              source: "local",
+              dependencies: [0],
+              root: true,
+            },
+          ],
+        },
+        features: ["default", "serde"],
+      },
+      {
+        name: "omitted-features-unknown",
+        document: {
+          packages: [
+            {
+              name: "legacy_dep",
+              version: "1.2.3",
+              source: "crates.io",
+            },
+          ],
+        },
+        features: null,
+      },
+      {
+        name: "explicit-empty-features",
+        document: {
+          packages: [
+            {
+              name: "legacy_dep",
+              version: "1.2.3",
+              source: "crates.io",
+              features: [],
+            },
+          ],
+        },
+        features: [],
+      },
+    ];
+    const malformedPath = join(root, "invalid-features.elf");
+    await writeFile(
+      malformedPath,
+      createRustImage({
+        format: "elf",
+        payload: rustDependencyPayload({
+          packages: [
+            {
+              name: "legacy_dep",
+              version: "1.2.3",
+              source: "crates.io",
+              features: ["default", 7],
+            },
+          ],
+        }),
+      }),
+    );
+
+    for (const surface of ["cli", "mcp"] as const) {
+      for (const fixture of validCases) {
+        const path = join(root, `${fixture.name}.elf`);
+        await writeFile(
+          path,
+          createRustImage({
+            format: "elf",
+            payload: rustDependencyPayload(fixture.document),
+          }),
+        );
+        if (surface === "cli") {
+          const response = await cli.run({
+            arguments: ["inspect-rust-binary", path, "--json"],
+          });
+          expect(response.exitCode, response.stderr).toBe(0);
+          const evidence = toolContract(
+            "inspect_rust_binary",
+          ).outputSchema.parse(response.json);
+          expect(
+            rustBinarySchema.parse(evidence.normalized_result)
+              .auditable_metadata?.packages[0]?.features,
+          ).toEqual(fixture.features);
+        } else {
+          const response = await call("inspect_rust_binary", { path });
+          expect(response.isError, JSON.stringify(response)).not.toBe(true);
+          const evidence = toolContract(
+            "inspect_rust_binary",
+          ).outputSchema.parse(response.structuredContent);
+          expect(
+            rustBinarySchema.parse(evidence.normalized_result)
+              .auditable_metadata?.packages[0]?.features,
+          ).toEqual(fixture.features);
+        }
+      }
+
+      if (surface === "cli") {
+        const response = await cli.run({
+          arguments: ["inspect-rust-binary", malformedPath, "--json"],
+        });
+        expect(response.exitCode).toBe(1);
+        expect(response.json).toMatchObject({
+          code: "invalid_request",
+          details: {
+            operation: "inspect_rust_binary",
+            issues: [{ path: ["path"], reason: "invalid_format" }],
+          },
+        });
+      } else {
+        const response = await call("inspect_rust_binary", {
+          path: malformedPath,
+        });
+        expect(response.isError).toBe(true);
+        expect(parseMcpToolError(response).error).toMatchObject({
+          code: "invalid_request",
+          details: {
+            operation: "inspect_rust_binary",
+            issues: [{ path: ["path"], reason: "invalid_format" }],
+          },
+        });
+      }
+    }
+    await client.ping();
+  },
+  30000,
+);
+
 cliTest("returns null metadata when .dep-v0 is absent", async ({ cli }) => {
   const root = await createTestTempDirectory("rea-rust-cli-missing-");
   const path = join(root, "plain");

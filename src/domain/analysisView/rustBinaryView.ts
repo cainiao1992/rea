@@ -229,6 +229,9 @@ export const projectRustBinaryView = (
         ...(fields?.has("dependencies") === true && {
           dependencies: row.dependencies,
         }),
+        ...(fields?.has("features") === true && {
+          features: row.features,
+        }),
       }),
     );
     return ok({

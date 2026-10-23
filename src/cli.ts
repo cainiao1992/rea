@@ -63,6 +63,7 @@ import { registerReverseEngineeringCommands } from "./cli/reverseEngineeringComm
 import { registerCutterCommands } from "./cli/cutterCommands.js";
 import { excludeDeclaredSensitiveArguments } from "./cli/explicitSensitiveArguments.js";
 import { rejectSurplusCliArguments } from "./cli/strictPositionals.js";
+import { presentCliArgumentErrors } from "./cli/argumentErrors.js";
 
 export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
 
@@ -165,6 +166,7 @@ export const createCli = (
   presentOmittableDefaults(cli);
   if (resultOutput !== undefined) streamCliCommandResults(cli, resultOutput);
   const serveStrict = rejectSurplusCliArguments(cli);
+  presentCliArgumentErrors(cli);
   const serveDeclared = excludeDeclaredSensitiveArguments(cli);
   const serve = cli.serve.bind(cli);
   cli.serve = (arguments_ = process.argv.slice(2), options) =>

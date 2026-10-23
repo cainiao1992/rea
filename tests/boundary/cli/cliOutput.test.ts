@@ -457,7 +457,8 @@ describe("compiled CLI output boundary", () => {
         exitCode: 1,
         json: {
           code: "VALIDATION_ERROR",
-          message: expect.stringContaining("expected string"),
+          message:
+            "REA could not read the command arguments. Check the named argument and its expected type, then try again.",
           fieldErrors: [
             {
               path: "path",

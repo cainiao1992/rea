@@ -110,7 +110,9 @@ address-space limit and 30 CPU seconds. The worker command deadline is
 `timeout_ms` (default 30000 ms, integer 1 through 2147483647) on the next call,
 or `--timeout-ms` on `rea inspect-evm-interface`. Omission keeps 30000 ms.
 Those byte, address-space, and CPU ceilings have no runtime override, and
-`timeout_ms` does not raise them. Virtual
+`timeout_ms` does not raise them. An oversized selected carrier returns a
+non-retryable `resource_constraint` with resource `file-size` and its fixed
+input allowance in `reported_limits.maximum_input_bytes`. Virtual
 address space differs from resident memory. The worker retains inherited tighter
 soft/hard limits, reports its configured soft limits inline and leaves hard limits
 unchanged. WASM trap reservations are disabled

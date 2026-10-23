@@ -173,28 +173,36 @@ export const evmInterfaceFailure = (
       );
     if (
       phase === "artifact-read" &&
-      ["limit", "path", "format"].includes(cause.reason)
-    ) {
-      const inputLimited = cause.reason === "limit";
-      const message = inputLimited
-        ? `${cause.message} The input allowance is ${String(EVM_INTERFACE_LIMITS.inputBytes)} bytes. This release has no runtime override. timeout_ms does not raise it.`
-        : cause.message;
+      cause.reason === "limit" &&
+      cause.boundary === "file-size"
+    )
+      return new AnalysisResourceConstraintError(
+        "inspect_evm_interface",
+        "file-size",
+        `${cause.message} The input allowance is ${String(EVM_INTERFACE_LIMITS.inputBytes)} bytes. This release has no runtime override. timeout_ms does not raise it.`,
+        { maximum_input_bytes: EVM_INTERFACE_LIMITS.inputBytes },
+        {
+          cause,
+          ...cleanupOptions,
+          retryable: false,
+          remediationAction: `Select a suitable complete carrier within the ${String(EVM_INTERFACE_LIMITS.inputBytes)}-byte input allowance. This release has no runtime override. timeout_ms does not raise it, and reply or diagnostic allowances do not admit a larger carrier. Do not truncate required bytes; repeating the unchanged request fails the same way.`,
+        },
+      );
+    if (phase === "artifact-read" && ["path", "format"].includes(cause.reason))
       return new AnalysisInputError(
         "inspect_evm_interface",
         {
           cause,
           ...cleanupOptions,
-          ...(inputLimited ? { userMessage: message } : {}),
         },
         [
           {
             path: ["path"],
-            reason: inputLimited ? "out_of_range" : "invalid_format",
-            message,
+            reason: "invalid_format",
+            message: cause.message,
           },
         ],
       );
-    }
   }
   if (phase === "artifact-read" && cause instanceof Error && "code" in cause) {
     if (cause.code === "EACCES" || cause.code === "EPERM")

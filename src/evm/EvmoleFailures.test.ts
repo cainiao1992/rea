@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { evmInterfaceFailure } from "./EvmoleFailures.js";
 import { OwnedCommandFailure } from "../process/OwnedCommand.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import {
   DEFAULT_EVM_TIMEOUT_MS,
@@ -104,6 +105,60 @@ it("says a CPU signal has no runtime override and timeout_ms does not raise it",
   expect(projected.remediation.action).toContain(
     "timeout_ms does not raise it",
   );
+});
+
+it("reports the fixed carrier input allowance as a resource constraint", () => {
+  const source = new ArtifactReaderFailure(
+    "limit",
+    "Selected artifact exceeds 4194304 bytes: /selected.bin",
+    { boundary: "file-size" },
+  );
+  const projected = projectAnalysisError(
+    evmInterfaceFailure(source, "artifact-read", "/selected.bin"),
+  );
+  expect(projected).toMatchObject({
+    code: "resource_constraint",
+    category: "resource_constraint",
+    retryable: false,
+    details: {
+      operation: "inspect_evm_interface",
+      resource: "file-size",
+      reported_limits: { maximum_input_bytes: 4194304 },
+    },
+  });
+  expect(projected.message).toContain("4194304");
+  expect(projected.message).toContain("no runtime override");
+  expect(projected.message).toContain("timeout_ms does not raise it");
+  expect(projected.remediation.action).toContain("4194304");
+  expect(projected.remediation.action).toContain("no runtime override");
+  expect(projected.remediation.action).toContain("Do not truncate");
+  expect(projected.remediation.action).toContain(
+    "repeating the unchanged request fails the same way",
+  );
+  expect(projected.recovery).toBeUndefined();
+});
+
+it.each([
+  {
+    reason: "path" as const,
+    message: "Expected a regular file without a symlink: /selected.bin",
+  },
+  { reason: "format" as const, message: "Unsupported carrier format." },
+])("keeps reader $reason refusals as invalid input", ({ reason, message }) => {
+  const projected = projectAnalysisError(
+    evmInterfaceFailure(
+      new ArtifactReaderFailure(reason, message),
+      "artifact-read",
+      "/selected.bin",
+    ),
+  );
+  expect(projected).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    details: {
+      issues: [{ path: ["path"], reason: "invalid_format", message }],
+    },
+  });
 });
 
 it.each([

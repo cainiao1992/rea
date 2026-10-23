@@ -129,7 +129,7 @@ export class WebModuleTraceService {
     const importerUrl = input.importer_url ?? selected.url;
     const importerAdmission = admitContext(importerUrl, ["importer_url"]);
     if (!importerAdmission.ok) return importerAdmission;
-    const syntax = collectWebModuleImports(data.source);
+    const syntax = collectWebModuleImports(data.source, data.sourceFile.path);
     const literals = syntax.imports
       .filter((reference) => reference.specifier !== null)
       .map((reference) => reference.specifier ?? "");

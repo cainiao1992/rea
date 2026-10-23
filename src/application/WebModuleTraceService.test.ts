@@ -369,3 +369,26 @@ it("retains a completed engine-free trace when artifact loading finishes under c
     },
   });
 });
+
+it("resolves imports from relational JavaScript using the selected source grammar", async () => {
+  const artifacts = webModuleArtifactsFixture(
+    'const order = left < import("./dep.js") > (right);',
+  );
+  const result = await new WebModuleTraceService(
+    { load: async () => ok(artifacts) },
+    webModuleResolverFixture,
+  ).trace(args);
+  if (!result.ok) throw result.error;
+  expect(
+    webModuleTraceResultSchema.parse(result.value.normalized_result),
+  ).toMatchObject({
+    parser: { state: "parsed", diagnostics: [] },
+    imports: [
+      {
+        kind: "dynamic-import",
+        specifier: "./dep.js",
+        resolution: { state: "resolved", url: "https://app.test/dep.js" },
+      },
+    ],
+  });
+});

@@ -13,12 +13,13 @@ import {
 /** Collect module declarations, omitting whole-statement type-only forms. */
 export const collectWebModuleImports = (
   source: string,
+  sourcePath: string,
 ): {
   readonly imports: readonly WebModuleImport[];
   readonly state: "parsed" | "unparseable";
   readonly diagnostics: readonly string[];
 } => {
-  const ast = parseJavaScriptSource(source);
+  const ast = parseJavaScriptSource(source, sourcePath);
   if (ast === null)
     return {
       imports: [],

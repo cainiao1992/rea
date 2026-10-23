@@ -191,9 +191,6 @@ export type TraceApplicationFeatureInput = z.infer<
 export type ApplicationFeatureSeed = z.output<
   typeof applicationFeatureSeedSchema
 >;
-export type ApplicationFeatureSeedInput = z.input<
-  typeof applicationFeatureSeedSchema
->;
 export type ApplicationFeatureTraceResult = z.infer<
   typeof applicationFeatureTraceResultSchema
 >;

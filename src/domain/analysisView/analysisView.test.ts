@@ -1097,7 +1097,10 @@ it.each([63, 64, 65, 10_000])(
     ] as const) {
       const result = projectAnalysisView(duplicatedParent, view);
       if (!result.ok) throw result.error;
-      if (result.value.kind === "summary")
+      if (
+        result.value.kind === "summary" &&
+        result.value.parent_operation === "analyze_javascript_application"
+      )
         expect(result.value.summary.limitation_count).toBe(count);
       if (count <= 65) {
         expect(result.value.limitations).toEqual(messages);

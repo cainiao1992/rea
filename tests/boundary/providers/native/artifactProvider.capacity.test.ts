@@ -34,6 +34,8 @@ it.each([1, 129])(
       sha256: "0".repeat(64),
       kind: "executable",
       format: "pe",
+      executableRole: "application",
+      managed: false,
       architecture: "x86_64",
       availableArchitectures: ["x86_64"],
     });

@@ -8,6 +8,7 @@ export const PYTHON_PYC_CHECK_SOURCE = 0x2;
 
 const uint = z.number().int().min(0).max(0xffffffff);
 const index = z.number().int().nonnegative();
+const signedInt32 = z.number().int().min(-0x80000000).max(0x7fffffff);
 /** Non-negative CPython `int` counts. `0xffffffff` is -1 and is not evidence. */
 const signedCount = z.number().int().min(0).max(0x7fffffff);
 
@@ -137,7 +138,7 @@ const pythonConstSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("code"),
     name: z.string(),
-    firstlineno: uint,
+    firstlineno: signedInt32,
   }),
   z.strictObject({ kind: z.literal("tuple"), length: uint }),
   z.strictObject({ kind: z.literal("list"), length: uint }),
@@ -157,7 +158,7 @@ const pythonCodeFields = {
   name: z.string(),
   qualname: z.string().nullable(),
   filename: z.string(),
-  firstlineno: uint,
+  firstlineno: signedInt32,
   argcount: signedCount,
   posonlyargcount: signedCount.nullable(),
   kwonlyargcount: signedCount,

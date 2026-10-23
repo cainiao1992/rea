@@ -42,8 +42,8 @@ even when that owner reaches it again through the same container. Relationships
 are collected after the marshal graph is complete, so a container that a nested
 code object also references is not summarized while its items are still missing.
 Each object reports name, optional qualname,
-filename,
-argument counts, flags, names, locals (or `localsplusnames` on 3.11+), const
+filename, the signed 32-bit `co_firstlineno` value, argument counts, flags,
+names, locals (or `localsplusnames` on 3.11+), const
 summaries, and bytecode length plus SHA-256.
 
 Bytecode is not decompiled. Const strings may be truncated in the summary while

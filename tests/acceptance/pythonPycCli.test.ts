@@ -2,7 +2,11 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
-import { pythonPycFixture } from "../../src/python/PythonPyc.fixture.js";
+import {
+  marshalCode,
+  pythonPycFixture,
+  pythonPycHeader,
+} from "../../src/python/PythonPyc.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
@@ -21,6 +25,39 @@ cliTest(
     );
     expect(evidence.normalized_result.header.python_version).toBe("3.12");
     expect(evidence.normalized_result.code_objects[1]?.name).toBe("inner");
+  },
+);
+
+cliTest(
+  "preserves negative CPython first line numbers through the public CLI",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-lines-");
+    const path = join(root, "sample.pyc");
+    const nested = marshalCode("py311", {
+      name: "inner",
+      firstlineno: -7,
+    });
+    const bytes = Buffer.concat([
+      pythonPycHeader(3531),
+      marshalCode("py311", {
+        firstlineno: -1,
+        consts: [nested],
+      }),
+    ]);
+    await writeFile(path, bytes);
+    const result = await cli.run({
+      arguments: ["inspect-python-pyc", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+      result.json,
+    );
+    expect(evidence.normalized_result.code_objects[0]?.firstlineno).toBe(-1);
+    expect(evidence.normalized_result.code_objects[0]?.consts).toContainEqual({
+      kind: "code",
+      name: "inner",
+      firstlineno: -7,
+    });
   },
 );
 

@@ -72,6 +72,46 @@ it("reads 3.7, 3.10 and 3.12 layouts including nested code", () => {
   );
 });
 
+it("preserves signed co_firstlineno in code objects and code constants", () => {
+  const nested = marshalCode("py311", {
+    name: "inner",
+    firstlineno: -7,
+  });
+  const bytes = Buffer.concat([
+    pythonPycHeader(3531),
+    marshalCode("py311", {
+      firstlineno: -1,
+      consts: [nested],
+    }),
+  ]);
+  const report = parse(bytes);
+  expect(root(report).firstlineno).toBe(-1);
+  expect(root(report).consts).toContainEqual({
+    kind: "code",
+    name: "inner",
+    firstlineno: -7,
+  });
+  expect(pythonPycSchema.safeParse(report).success).toBe(true);
+  expect(
+    pythonPycSchema.safeParse({
+      ...report,
+      code_objects: [
+        { ...root(report), firstlineno: -0x8000_0001 },
+        ...report.code_objects.slice(1),
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    pythonPycSchema.safeParse({
+      ...report,
+      code_objects: [
+        { ...root(report), firstlineno: 0x8000_0000 },
+        ...report.code_objects.slice(1),
+      ],
+    }).success,
+  ).toBe(false);
+});
+
 it("decodes a hash-based header and a FLAG_REF top-level code object", () => {
   const bytes = pythonPycFixture("py311", {
     flaggedCode: true,

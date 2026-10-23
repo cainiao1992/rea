@@ -457,7 +457,7 @@ class MarshalReader {
       this.layout === "py311"
         ? asString(this.readObject(depth + 1), "co_qualname")
         : null;
-    const firstlineno = this.u32();
+    const firstlineno = this.i32();
     const linetable = asBytes(this.readObject(depth + 1), "co_linetable");
     const exceptiontable =
       this.layout === "py311"

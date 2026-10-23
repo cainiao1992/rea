@@ -212,10 +212,15 @@ const runSetupWorkflow = async (
         options.installHopper ||
         (proposedInstallAction && selectedActionIds.has("install_hopper")),
     };
+    // The offered skill action can carry a client-specific ID (for example
+    // `install_skill:claude_code`); without a selected client it means the
+    // shared CLI skill.
+    const skillActionSelected = selectionActions.plannedActions.some(
+      ({ id, kind }) => kind === "install_skill" && selectedActionIds.has(id),
+    );
     skillSelected =
       options.installSkill === true ||
-      (selectedActionIds.has("install_skill") &&
-        selectedClientIds.length === 0) ||
+      (skillActionSelected && selectedClientIds.length === 0) ||
       (options.installSkill !== false && selectedClientIds.length > 0);
     installSkill = skillSelected && skillNeedsInstall;
     selectedSkillClientIds = selectedClientIds;

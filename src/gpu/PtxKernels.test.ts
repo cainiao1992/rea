@@ -75,6 +75,15 @@ it("preserves pointer names but withholds layout for unknown pointer qualifiers"
   ]);
   expect(row!.coverage).toBe("partial");
 });
+it("does not mistake an unsupported array extent identifier for the parameter name", () => {
+  const [row] = [
+    ...readPtxKernels(".entry k(.param .b32 values[index]) { ret; }", "object"),
+  ];
+  expect(row!.kernel.parameters).toEqual([
+    expect.objectContaining({ name: "values", offset: null, size: null }),
+  ]);
+  expect(row!.coverage).toBe("partial");
+});
 it("excludes call-prototype formals from entry virtual register counts", () => {
   const [row] = [
     ...readPtxKernels(

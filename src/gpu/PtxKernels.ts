@@ -145,7 +145,18 @@ const declaration = (
   size: number | null;
   align: number | null;
 } => {
-  const values = source[0] === ".param" ? source.slice(1) : source;
+  const values = (source[0] === ".param" ? source.slice(1) : source).flatMap(
+    (value) =>
+      value.startsWith(".ptr.")
+        ? [
+            ".ptr",
+            ...value
+              .slice(5)
+              .split(".")
+              .map((part) => `.${part}`),
+          ]
+        : [value],
+  );
   let at = 0;
   const explicit = values[at] === ".align";
   const alignment = explicit ? integer(values[++at]) : null;
@@ -154,24 +165,12 @@ const declaration = (
   if (vector !== 1) at++;
   const scalar = values[at++],
     unit = sizeOf(scalar);
-  const qualifiers = values.slice(at).flatMap((value) =>
-    value.startsWith(".ptr.")
-      ? [
-          ".ptr",
-          ...value
-            .slice(5)
-            .split(".")
-            .map((part) => `.${part}`),
-        ]
-      : [value],
-  );
-  let qualifierAt = 0,
-    pointer = false,
-    pointerLayoutKnown = true;
-  while (qualifiers[qualifierAt]?.startsWith(".")) {
-    const qualifier = qualifiers[qualifierAt++]!;
+  let pointer = false,
+    layoutKnown = unit !== null && (!explicit || alignment !== null);
+  while (values[at]?.startsWith(".")) {
+    const qualifier = values[at++]!;
     if (qualifier === ".ptr") {
-      if (pointer) pointerLayoutKnown = false;
+      if (pointer) layoutKnown = false;
       pointer = true;
     } else if (
       pointer &&
@@ -179,40 +178,42 @@ const declaration = (
     ) {
       // Address-space qualifiers describe the pointed-to object.
     } else if (pointer && qualifier === ".align") {
-      const alignmentToken = qualifiers[qualifierAt];
+      const alignmentToken = values[at];
       if (alignmentToken !== undefined && /^[0-9]+$/u.test(alignmentToken))
-        qualifierAt++;
+        at++;
       const pointeeAlignment = integer(alignmentToken);
       if (
         pointeeAlignment === null ||
         pointeeAlignment <= 0 ||
         !Number.isInteger(Math.log2(pointeeAlignment))
       )
-        pointerLayoutKnown = false;
-    } else pointerLayoutKnown = false;
+        layoutKnown = false;
+    } else layoutKnown = false;
   }
-  const candidate = qualifiers[qualifierAt];
-  const candidateIndex =
-    candidate === undefined ? -1 : values.indexOf(candidate, at);
-  let name =
-    candidate !== undefined && identifier.test(candidate) ? candidate : null;
-  if (!pointerLayoutKnown) name = null;
-  // Unknown qualifiers can carry operands; preserve a unique trailing name but
-  // do not derive a byte layout from an unrecognized declaration.
-  if (!pointerLayoutKnown) {
-    const nameToken = qualifiers
-      .slice(qualifierAt)
-      .reverse()
-      .find((value) => identifier.test(value));
-    name = nameToken ?? null;
+  let nameIndex = values.length - 1;
+  let arrayStart: number | null = null;
+  if (values[nameIndex] === "]") {
+    let depth = 0;
+    for (let index = nameIndex; index >= at; index--) {
+      if (values[index] === "]") depth++;
+      else if (values[index] === "[" && --depth === 0) {
+        arrayStart = index;
+        break;
+      }
+    }
+    if (arrayStart !== null) nameIndex = arrayStart - 1;
+  } else {
+    const opening = values.indexOf("[", at);
+    if (opening >= 0) {
+      arrayStart = opening;
+      nameIndex = opening - 1;
+      layoutKnown = false;
+    }
   }
-  const namePosition =
-    candidateIndex >= 0
-      ? candidateIndex
-      : name === null
-        ? values.length
-        : values.lastIndexOf(name);
-  at = namePosition + 1;
+  const name = identifier.test(values[nameIndex] ?? "")
+    ? values[nameIndex]!
+    : null;
+  if (name === null || nameIndex !== at) layoutKnown = false;
   let size = unit === null ? null : unit * vector;
   const type =
     scalar === undefined
@@ -220,25 +221,27 @@ const declaration = (
       : vector === 1
         ? scalar
         : `.v${vector} ${scalar}`;
-  const align = explicit ? alignment : size;
-  if (values[at] === "[") {
-    const count = integer(values[at + 1]);
-    size =
+  const parameterAlignment = explicit ? alignment : size;
+  const align = parameterAlignment;
+  if (arrayStart !== null) {
+    const count = integer(values[arrayStart + 1]);
+    if (
+      arrayStart !== nameIndex + 1 ||
+      arrayStart + 2 !== values.length - 1 ||
       count === null ||
       size === null ||
-      values[at + 2] !== "]" ||
       !Number.isSafeInteger(count * size)
-        ? null
-        : count * size;
-    at += 3;
+    )
+      layoutKnown = false;
+    else size *= count;
   }
   if (
-    at !== values.length ||
-    !pointerLayoutKnown ||
+    (arrayStart === null && values.length !== nameIndex + 1) ||
     name === null ||
     align === null ||
     align <= 0 ||
-    !Number.isInteger(Math.log2(align))
+    !Number.isInteger(Math.log2(align)) ||
+    !layoutKnown
   )
     return { name, type, size: null, align: null };
   return { name, type, size, align };

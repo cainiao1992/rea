@@ -13,6 +13,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { TextDecoder } from "node:util";
 import { normalizeArtifactPath } from "../../artifacts/ArtifactPaths.js";
 import {
+  AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisInputError,
   AnalysisOutputError,
@@ -89,8 +91,9 @@ const scanRecoveryFile = async (
           before.size !== bytes ||
           [after, current].some((state) => !sameRegularFileState(before, state))
         )
-          throw new AnalysisOutputError(
+          throw new AnalysisArtifactChangedError(
             OPERATION,
+            path,
             `File identity changed while reading: ${path}`,
           );
         return { sha256: hash.digest("hex"), bytes };
@@ -105,6 +108,14 @@ const scanRecoveryFile = async (
     if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
       throw new AnalysisCancelledError(OPERATION, {
         cause: artifactFileCancellationCause(cause),
+      });
+    if (
+      cause instanceof Error &&
+      "code" in cause &&
+      (cause.code === "EACCES" || cause.code === "EPERM")
+    )
+      throw new AnalysisAccessDeniedError(OPERATION, path, cause.code, {
+        cause,
       });
     if (cause instanceof NonRegularFileReadError)
       throw new AnalysisOutputError(
@@ -169,6 +180,8 @@ const snapshotRecoveryInput = async (
   } catch (cause: unknown) {
     if (
       cause instanceof AnalysisCancelledError ||
+      cause instanceof AnalysisAccessDeniedError ||
+      cause instanceof AnalysisArtifactChangedError ||
       cause instanceof ArtifactFileCleanupFailure ||
       cause instanceof ArtifactFileCancelled
     )

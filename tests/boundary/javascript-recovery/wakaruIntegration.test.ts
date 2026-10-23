@@ -80,10 +80,21 @@ describe.skipIf(process.platform !== "linux" || process.arch !== "x64")(
         });
         if (result.ok) throw new Error("expected boundary failure");
         const error = projectAnalysisError(result.error);
-        expect(
-          ["execution_failure", "unreadable_output"],
-          JSON.stringify(error),
-        ).toContain(error.code);
+        if (mode === "source-change" || mode === "engine-change") {
+          expect(error.code).toBe("artifact_changed");
+          expect(error.details).toMatchObject({
+            operation: "recover_javascript_sources",
+            path:
+              mode === "source-change"
+                ? fixture.path
+                : join(fixture.root, "fixture-wakaru"),
+          });
+        } else {
+          expect(
+            ["execution_failure", "unreadable_output"],
+            JSON.stringify(error),
+          ).toContain(error.code);
+        }
         expect(error.details).toBeDefined();
         await expect(access(fixture.output)).rejects.toMatchObject({
           code: "ENOENT",
@@ -495,9 +506,10 @@ describe.skipIf(process.platform !== "linux" || process.arch !== "x64")(
         output_directory: fixture.output,
       });
       if (result.ok) throw new Error("expected per-source validation failure");
-      expect(projectAnalysisError(result.error).code).toMatch(
-        /execution_failure|unreadable_output/u,
-      );
+      const code = projectAnalysisError(result.error).code;
+      if (mode === "secondary-change" || mode === "redistribute")
+        expect(code).toBe("artifact_changed");
+      else expect(code).toMatch(/execution_failure|unreadable_output/u);
       const reason =
         mode === "secondary-foreign"
           ? "does not bind the selected input snapshot"

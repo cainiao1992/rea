@@ -16,6 +16,7 @@ import {
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import { artifactFileCancellationCause } from "../../artifacts/ArtifactFileOperation.js";
 import {
   javascriptRecoveryResultSchema,
   type JavaScriptRecoveryInput,
@@ -166,7 +167,9 @@ export class WakaruProvider implements JavaScriptRecoveryPort {
         failed.cause instanceof ArtifactReaderFailure &&
         failed.cause.reason === "cancelled" &&
         failed.cause.cleanup === undefined
-          ? new AnalysisCancelledError(OPERATION, { cause: failed.cause })
+          ? new AnalysisCancelledError(OPERATION, {
+              cause: artifactFileCancellationCause(failed.cause),
+            })
           : failed.cause;
       const residuals: string[] = [];
       const cleanupFailures: { resource: string; reason: string }[] = [];

@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import {
+  AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
@@ -104,8 +105,10 @@ export const resolveWakaruCommand = async (
     return { command, limiter, ...fingerprint };
   } catch (cause: unknown) {
     if (
-      cause instanceof ArtifactReaderFailure &&
-      (cause.cleanup !== undefined || cause.reason === "cancelled")
+      cause instanceof AnalysisCancelledError ||
+      cause instanceof AnalysisArtifactChangedError ||
+      (cause instanceof ArtifactReaderFailure &&
+        (cause.cleanup !== undefined || cause.reason === "cancelled"))
     )
       throw cause;
     const reason = `Configured Wakaru or util-linux prlimit is unavailable: ${recoveryFailureMessage(cause)}`;
@@ -154,7 +157,9 @@ export const runWakaruCommand = async (context: WakaruCommandContext) => {
     env: { TMPDIR: context.cwd, RAYON_NUM_THREADS: "1", NO_COLOR: "1" },
   }).catch((cause: unknown) => {
     if (context.signal?.aborted === true)
-      throw new AnalysisCancelledError(OPERATION);
+      throw new AnalysisCancelledError(OPERATION, {
+        cause: context.signal.reason,
+      });
     throw new ProviderAdapterError("wakaru", OPERATION, {
       cause,
       diagnostics: {
@@ -226,7 +231,9 @@ export const runWakaruCommand = async (context: WakaruCommandContext) => {
     );
   if (failure !== undefined) throw failure;
   if (context.signal?.aborted === true)
-    throw new AnalysisCancelledError(OPERATION);
+    throw new AnalysisCancelledError(OPERATION, {
+      cause: context.signal.reason,
+    });
   return {
     exit_code: snapshot.exitCode ?? null,
     signal: snapshot.signal ?? null,

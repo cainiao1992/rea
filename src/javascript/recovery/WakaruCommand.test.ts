@@ -92,6 +92,31 @@ it("preserves caller cancellation before acquiring an expired execution budget",
   ).rejects.toMatchObject({ _tag: "AnalysisCancelledError" });
 });
 
+it.each([null, false, { request: "cancel launch" }])(
+  "preserves the opaque reason when cancellation interrupts launcher acquisition (%j)",
+  async (reason) => {
+    const controller = new AbortController();
+    await expect(
+      runWakaruCommand({
+        command: "/selected/wakaru",
+        limiter: "/usr/bin/prlimit",
+        arguments: ["--version"],
+        cwd: "/tmp/unused",
+        environment: {},
+        deadline: performance.now() + 5_000,
+        signal: controller.signal,
+        launcher: async () => {
+          controller.abort(reason);
+          throw new Error("launcher interrupted");
+        },
+      }),
+    ).rejects.toMatchObject({
+      _tag: "AnalysisCancelledError",
+      cause: reason,
+    });
+  },
+);
+
 const commandFixture = (
   emit: (producer: ReturnType<typeof createProducer>) => void,
 ) => {

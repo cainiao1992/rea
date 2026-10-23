@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
 import {
+  AnalysisAccessDeniedError,
   AnalysisInputError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
@@ -112,6 +113,28 @@ it("keeps a failed admission close owned when cancellation is also requested", a
   });
   expect(observed.fileCleanupFailure.cleanupCause).toBe(failure.cleanupCause);
 });
+
+it.each(["EACCES", "EPERM"] as const)(
+  "preserves %s while acquiring a selected recovery input",
+  async (code) => {
+    const root = await createTestTempDirectory("rea-recovery-access-");
+    const selected = join(root, "selected.js");
+    const snapshots = join(root, "snapshots");
+    await mkdir(snapshots);
+    const denied = filesystemError(code);
+    vi.mocked(openRegularFile).mockRejectedValueOnce(denied);
+    const failure = await snapshotRecoveryInputs([selected], snapshots).catch(
+      (cause: unknown) => cause,
+    );
+    expect(failure).toBeInstanceOf(AnalysisAccessDeniedError);
+    expect(failure).toMatchObject({
+      operation: "recover_javascript_sources",
+      path: selected,
+      systemCode: code,
+      cause: denied,
+    });
+  },
+);
 
 it("reports one file selected under two letter cases as an input error", async (context) => {
   const root = await createTestTempDirectory("rea-recovery-case-");

@@ -34,7 +34,9 @@ export class JavaScriptRecoveryService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     if (options?.signal?.aborted === true)
-      return err(new AnalysisCancelledError(OPERATION));
+      return err(
+        new AnalysisCancelledError(OPERATION, { cause: options.signal.reason }),
+      );
     const parsed = javascriptRecoveryInputSchema.safeParse(input);
     if (!parsed.success)
       return err(

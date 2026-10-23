@@ -6,8 +6,8 @@ import {
 import type { SafeOutputTree } from "../../artifacts/SafeOutputTree.js";
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import {
+  AnalysisArtifactChangedError,
   AnalysisCapabilityUnavailableError,
-  AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
 import type { JavaScriptRecoveryInput } from "../../domain/javascript/javascriptRecovery.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
@@ -155,24 +155,37 @@ export const prepareWakaruExecution = async (context: RecoveryWorkspace) => {
       resources,
     );
     if (current.sha256 !== selected.sha256 || current.bytes !== selected.bytes)
-      throw new AnalysisOutputError(
+      throw new AnalysisArtifactChangedError(
         OPERATION,
+        selected.path,
         `Original input changed during recovery: ${selected.path}`,
+        {
+          diagnostics: {
+            expected_sha256: selected.sha256,
+            observed_sha256: current.sha256,
+            expected_bytes: selected.bytes,
+            observed_bytes: current.bytes,
+          },
+        },
       );
   }
-  if (
-    (
-      await fingerprintRecoveryFile(
-        engine.command,
-        RECOVERY_LIMITS.outputBytes,
-        options?.signal,
-        resources,
-      )
-    ).sha256 !== engine.sha256
-  )
-    throw new AnalysisOutputError(
+  const currentEngine = await fingerprintRecoveryFile(
+    engine.command,
+    RECOVERY_LIMITS.outputBytes,
+    options?.signal,
+    resources,
+  );
+  if (currentEngine.sha256 !== engine.sha256)
+    throw new AnalysisArtifactChangedError(
       OPERATION,
+      engine.command,
       "Configured engine bytes changed during recovery",
+      {
+        diagnostics: {
+          expected_sha256: engine.sha256,
+          observed_sha256: currentEngine.sha256,
+        },
+      },
     );
   return createAnalysisExecution(
     result,

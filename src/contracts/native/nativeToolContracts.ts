@@ -17,7 +17,7 @@ import { nativeCommandTimeoutField } from "../../domain/native/nativeDeadlines.j
 const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   inspect_macho: {},
   inspect_signature: {},
-  inspect_plist: { path: "/Applications/Example.app/Contents/Info.plist" },
+  inspect_plist: {},
   list_architectures: {},
   observe_native_ui: { pid: 123, window_id: 456 },
   capture_native_ui_scenario: {
@@ -115,9 +115,13 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "inspect_plist",
-    "Parse Info.plist from the active artifact by default, or pass any local plist path. Returns normalized JSON rather than plutil text. native_command_timeout_ms is each file or plutil command's wall clock (omitted means 60000 ms). The 67108864-byte plist input and decode allowances and the 128-level nesting allowance have no runtime override. The 4096-byte markup probe is a probe window, not a document cap, and has no runtime override.",
+    "Requires an open binary or bundle-resource session; use open_binary or open_bundle_resources first. Parse its Info.plist by default, or select a local plist with path within that session. Supplying path does not open a session. Returns normalized JSON rather than plutil text. native_command_timeout_ms is each file or plutil command's wall clock (omitted means 60000 ms). The 67108864-byte plist input and decode allowances and the 128-level nesting allowance have no runtime override. The 4096-byte markup probe is a probe window, not a document cap, and has no runtime override.",
     z.object({
-      path: localPathStringSchema.optional(),
+      path: localPathStringSchema
+        .optional()
+        .describe(
+          "Optional plist selection for an already open binary or bundle-resource session; this does not open a session.",
+        ),
       native_command_timeout_ms: nativeCommandTimeoutField,
     }),
   ),

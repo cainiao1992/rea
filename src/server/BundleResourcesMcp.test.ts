@@ -100,6 +100,35 @@ it("routes bundle resource MCP calls with null executable identity and retained 
 
   await expectResourceSchemaBranches(client);
 
+  const unbound = await client.callTool({
+    name: "inspect_plist",
+    arguments: { path: plistPath },
+  });
+  expect(unbound.isError).toBe(true);
+  expect(unbound.structuredContent).toMatchObject({
+    error: { code: "target_unavailable", category: "unavailable" },
+  });
+  const unopened = await client.callTool({
+    name: "binary_session",
+    arguments: {},
+  });
+  expect(
+    toolContract("binary_session").outputSchema.parse(
+      unopened.structuredContent,
+    ),
+  ).toMatchObject({
+    result: {
+      open: false,
+      tool_availability: expect.arrayContaining([
+        expect.objectContaining({
+          name: "inspect_plist",
+          available: false,
+          reason: "target_required",
+        }),
+      ]),
+    },
+  });
+
   const opened = await client.callTool({
     name: "open_bundle_resources",
     arguments: { path: bundle },

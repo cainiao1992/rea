@@ -633,6 +633,12 @@ Binary-only operations and binary analysis snapshots do not apply in this
 session. `open_binary` can switch back to executable analysis, and
 `close_binary` retires either session kind.
 
+`inspect_plist` requires an open binary or bundle-resource session. An explicit
+`path` selects a plist in that context and does not create a session;
+`binary_session` reports `target_required` while neither session is open.
+Use `open_bundle_resources` for a bundle whose executable cannot be resolved.
+The CLI `rea inspect-plist <path>` opens its selected artifact for one invocation.
+
 Each provider client receives `binary_session.analysis_run.run_id` before any
 provider startup, including clients whose startup fails. `process_lineage` is
 `not_observed` until a dynamic provider starts, then becomes `snapshots` with

@@ -1,4 +1,6 @@
 import { expect, it } from "vitest";
+import { z } from "zod";
+import { Ajv2020 } from "ajv/dist/2020.js";
 
 import { SESSION_TOOL_CONTRACTS } from "../../contracts/sessionToolContracts.js";
 import {
@@ -11,6 +13,23 @@ import {
 } from "./processScenario.js";
 
 const baseScenario = { executable: "/usr/bin/true" };
+
+it("advertises the same unsupported PTY environment name as runtime admission", () => {
+  const schema = z.toJSONSchema(processScenarioSchema.shape.environment, {
+    io: "input",
+  });
+  const ajv = new Ajv2020({ strict: false });
+  const validate = ajv.compile(schema);
+  expect(validate(Object.fromEntries([["__proto__", "selected"]]))).toBe(false);
+  expect(
+    validate({
+      constructor: "ordinary",
+      prototype: "ordinary",
+      NORMAL_CAPTURE_KEY: "control",
+    }),
+  ).toBe(true);
+  expect(validate({ REA_PROCESS_RUN_ID: "reserved" })).toBe(false);
+});
 
 it("defaults the finalization interval to zero without changing committed identity", () => {
   const scenario = parseProcessScenario(baseScenario);
@@ -237,3 +256,26 @@ it("identifies each event scheduled after the scenario timeout", () => {
     }),
   ]);
 });
+
+it.each(["selected-value", 7])(
+  "rejects a selected __proto__ PTY environment value instead of omitting %j",
+  (value) => {
+    const environment = Object.fromEntries([
+      ["__proto__", value],
+      ["NORMAL_CAPTURE_KEY", "control"],
+    ]);
+    const parsed = processScenarioSchema.safeParse({
+      ...baseScenario,
+      environment,
+    });
+    expect(parsed.success).toBe(false);
+    if (parsed.success)
+      throw new Error("Expected the unsupported PTY name to be rejected");
+    expect(parsed.error.issues).toContainEqual(
+      expect.objectContaining({
+        path: ["environment", "__proto__"],
+        message: expect.stringContaining("PTY backend cannot preserve"),
+      }),
+    );
+  },
+);

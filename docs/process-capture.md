@@ -12,6 +12,11 @@ sandbox. Filesystem observation paths select what REA snapshots; they do not
 restrict what the process can read or write. The inherited environment is not
 recorded, so its influence may remain unknown.
 
+The installed PTY backend cannot preserve an explicit environment name
+`__proto__`. REA rejects that override before launch; use `/usr/bin/env` with
+`__proto__=VALUE` as an argument when that literal variable is required. The
+reserved `REA_PROCESS_RUN_ID` name also remains unavailable to scenario overrides.
+
 ## Host support
 
 Capturing a new scenario currently requires Linux or macOS and a working

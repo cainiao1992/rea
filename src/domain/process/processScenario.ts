@@ -45,12 +45,43 @@ const environmentName = z
         ? `${reservedRunIdEnvironmentName} is reserved by the process adapter`
         : "Environment names cannot contain '=' or NUL",
   });
+const unsupportedPtyEnvironmentName = "__proto__";
+const ptyEnvironmentName = environmentName.regex(
+  environmentNamePattern(unsupportedPtyEnvironmentName),
+  {
+    error:
+      "The installed PTY backend cannot preserve the __proto__ environment name; pass it through /usr/bin/env instead.",
+  },
+);
 const childProcessString = z
   .string()
   .regex(
     /^[^\x00]*$/u,
     "Values passed to operating-system APIs cannot contain NUL",
   );
+const environmentRecordSchema = z.record(
+  ptyEnvironmentName,
+  childProcessString,
+);
+// z.record intentionally skips this key, so validate its presence before parsing.
+const processEnvironmentSchema = z
+  .unknown()
+  .superRefine((value, context) => {
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      Object.hasOwn(value, unsupportedPtyEnvironmentName)
+    )
+      context.addIssue({
+        code: "custom",
+        path: [unsupportedPtyEnvironmentName],
+        message:
+          "The installed PTY backend cannot preserve the __proto__ environment name; pass it through /usr/bin/env instead.",
+      });
+  })
+  .pipe(environmentRecordSchema);
+processEnvironmentSchema._zod.toJSONSchema = () =>
+  z.toJSONSchema(environmentRecordSchema, { io: "input" });
 
 const fitsProcessTerminalCellBudget = (
   columns: number,
@@ -153,7 +184,7 @@ export const processScenarioSchema = z
     executable: childProcessString.min(1),
     arguments: z.array(childProcessString).default([]),
     working_directory: childProcessString.default("."),
-    environment: z.record(environmentName, childProcessString).default({}),
+    environment: processEnvironmentSchema.default({}),
     filesystem_observation_paths: z
       .array(childProcessString.min(1))
       .default([]),

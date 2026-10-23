@@ -1236,7 +1236,7 @@ describe("application workflow CLI input", () => {
       }),
       "--json",
     ]);
-    expect(result).toMatchObject({ code: "invalid_request" });
+    expect(result).toMatchObject({ code: "evidence_integrity_mismatch" });
   });
 });
 

@@ -329,9 +329,17 @@ cliTest(
     });
     const saved = await readEvidenceBundle(bundle);
     if (!saved.ok) throw saved.error;
-    const evidence = saved.value.records[0];
+    const evidence = saved.value.records.find(
+      (record) => record.operation === "inspect_artifact",
+    );
     if (evidence === undefined) throw new Error("Missing complete inspection");
     expect(graphFrom(evidence).occurrences).toHaveLength(3);
+    const inspection = artifactInspectionResultSchema.parse(
+      evidence.normalized_result,
+    );
+    expect(saved.value.records).toContainEqual(
+      inspection.substeps[0]?.evidence,
+    );
     const before = await readFile(bundle);
     expect((await cli.run({ arguments: args })).exitCode).toBe(1);
     expect(await readFile(bundle)).toEqual(before);

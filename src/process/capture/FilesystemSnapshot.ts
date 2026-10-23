@@ -7,6 +7,7 @@ import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
 import type { Stats } from "node:fs";
 import { err, ok, type Result } from "../../domain/result.js";
+import { AnalysisAccessDeniedError } from "../../domain/analysisErrorCore.js";
 import type {
   FileState,
   ProcessFilesystemSnapshot,
@@ -209,6 +210,9 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
       "snapshot handle cleanup failed";
     super(message, {
       cause: primary,
+      ...(options.cause instanceof AnalysisAccessDeniedError
+        ? { cleanupPrimary: options.cause }
+        : {}),
       ...(cancellation
         ? { userCategory: "cancelled" as const, reason: "cancelled" as const }
         : {}),
@@ -457,7 +461,16 @@ export const snapshotRoots = async (
         sha256: null,
         symlink_target: target.value,
       });
-      return true;
+      truncated = true;
+      enumerationReasons.add("symlink_not_followed");
+      enumerationOmissions.push({
+        path: `${rootAlias}:${relativePath}`,
+        reason: "symlink_not_followed",
+        system_code: null,
+      });
+      // A link leaves its descendants unknown, while a physically enumerated
+      // parent still proves absence of unrelated sibling names.
+      return depth > 0;
     }
     if (stats.isFile()) {
       if (remainingBytes < stats.size) {
@@ -605,7 +618,8 @@ export const snapshotRoots = async (
       files_limit: scenario.limits.files,
       depth_limit: scenario.limits.filesystem_depth,
       enumeration_truncated:
-        completeRoots.length !== scenario.filesystem_observation_paths.length,
+        completeRoots.length !== scenario.filesystem_observation_paths.length ||
+        enumerationOmissions.length > 0,
       enumeration_reasons: [...enumerationReasons],
       enumeration_omissions: enumerationOmissions,
       hash_budget_bytes: scenario.limits.file_bytes,
@@ -622,8 +636,24 @@ export const snapshotRoots = async (
       const alias = `root_${String(index)}`;
       const lookup = await lookupPath(root, signal);
       if (lookup.state !== "present") {
-        if (admission === undefined && lookup.system_code !== "ENOENT")
+        if (admission === undefined && lookup.system_code !== "ENOENT") {
+          if (
+            lookup.system_code === "EACCES" ||
+            lookup.system_code === "EPERM"
+          ) {
+            omitEntry(`${alias}:.`, {
+              reason: "entry_unavailable",
+              system_code: lookup.system_code,
+            });
+            throw new AnalysisAccessDeniedError(
+              "capture_process_scenario",
+              root,
+              lookup.system_code,
+              { cause: lookup.cause },
+            );
+          }
           throw lookup.cause;
+        }
         if (lookup.state === "absent") completeRoots.push(alias);
         else
           omitEntry(`${alias}:.`, {

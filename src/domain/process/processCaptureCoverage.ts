@@ -15,6 +15,7 @@ const enumerationOmissionReasonSchema = z.enum([
   "identity_changed",
   "directory_unavailable",
   "entry_unavailable",
+  "symlink_not_followed",
 ]);
 
 /** Filesystem enumeration and whole-file digest coverage for one checkpoint. */

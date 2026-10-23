@@ -331,12 +331,12 @@ describe("reference source ignore policy cleanup ownership", () => {
     await writeFile(path, "ignored/\n");
     await writeFile(foreignPath, "foreign bytes");
     const foreignOwner = new OwnedFileHandle(await open(foreignPath, "r"));
-    const reason = new RegularFileCleanupFailure(
-      foreignPath,
-      foreignOwner,
-      { kind: "completed", value: "foreign value" },
-      new Error("foreign cleanup failure"),
-    );
+    const reason = new RegularFileCleanupFailure({
+      path: foreignPath,
+      owner: foreignOwner,
+      outcome: { kind: "completed", value: "foreign value" },
+      cleanupCause: new Error("foreign cleanup failure"),
+    });
     const controller = new AbortController();
     const probe = await open(path, "r");
     const identity = await probe.stat();

@@ -23,7 +23,8 @@ import {
 import {
   ArtifactFileCleanupFailure,
   artifactFileCancellationCause,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   bindArtifactFileCleanup,
   withArtifactRegularFile,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -412,7 +413,10 @@ export const appleDispatchMetadataFailure = (
         : undefined;
     const previous =
       physical?.outcome.kind === "failed"
-        ? appleDispatchMetadataFailure(artifactFilePrimaryFailure(cause), path)
+        ? appleDispatchMetadataPrimaryFailure(
+            artifactFilePrimaryFacts(cause),
+            path,
+          )
         : physical?.completionCancellation === undefined
           ? undefined
           : new AnalysisCancelledError(OPERATION, {
@@ -431,35 +435,52 @@ export const appleDispatchMetadataFailure = (
     bindArtifactFileCleanup(cause, failure);
     return failure;
   }
-  if (cause instanceof AnalysisError) return cause;
-  if (cause instanceof UnsupportedMachoMetadataFormatError)
-    return new AnalysisCapabilityUnavailableError(
-      IDENTITY.id,
-      OPERATION,
-      cause.message,
-      { cause },
-    );
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
-    return new AnalysisCancelledError(OPERATION, {
-      cause: artifactFileCancellationCause(cause),
-    });
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "unavailable")
-    return new AnalysisCapabilityUnavailableError(
-      IDENTITY.id,
-      OPERATION,
-      cause.message,
-      { cause },
-    );
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
-    return new AnalysisArtifactChangedError(OPERATION, path, cause.message, {
-      cause,
-    });
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "path")
-    return new AnalysisInputError(OPERATION, { cause }, [
-      { path: ["path"], reason: "invalid_value", message: cause.message },
-    ]);
+  return appleDispatchMetadataPrimaryFailure(
+    artifactFilePrimaryFacts(cause),
+    path,
+  );
+};
+
+const appleDispatchMetadataPrimaryFailure = (
+  { cause, origin }: ArtifactFilePrimaryFacts,
+  path: string,
+): AnalysisError => {
+  if (origin === "owned-or-classified") {
+    if (cause instanceof AnalysisError) return cause;
+    if (cause instanceof UnsupportedMachoMetadataFormatError)
+      return new AnalysisCapabilityUnavailableError(
+        IDENTITY.id,
+        OPERATION,
+        cause.message,
+        { cause },
+      );
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+      return new AnalysisCancelledError(OPERATION, {
+        cause: artifactFileCancellationCause(cause),
+      });
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      cause.reason === "unavailable"
+    )
+      return new AnalysisCapabilityUnavailableError(
+        IDENTITY.id,
+        OPERATION,
+        cause.message,
+        { cause },
+      );
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+      return new AnalysisArtifactChangedError(OPERATION, path, cause.message, {
+        cause,
+      });
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "path")
+      return new AnalysisInputError(OPERATION, { cause }, [
+        { path: ["path"], reason: "invalid_value", message: cause.message },
+      ]);
+  }
   const readCause =
-    cause instanceof ArtifactReaderFailure && cause.reason === "io"
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "io"
       ? cause.cause
       : cause;
   if (

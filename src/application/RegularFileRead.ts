@@ -40,15 +40,7 @@ export class RetainedRegularFileCleanupFailure<
   >;
   readonly cleanupLease: AnalysisCleanupLease;
   constructor(failure: RegularFileCleanupFailure<Value>) {
-    super(
-      failure.path,
-      failure.owner,
-      failure.outcome,
-      failure.cleanupCause,
-      failure.retention,
-      failure.completionCancellation,
-      failure.operationFailure,
-    );
+    super(failure);
     this.cleanupLease =
       failure instanceof RetainedRegularFileCleanupFailure
         ? failure.cleanupLease

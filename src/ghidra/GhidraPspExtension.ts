@@ -19,7 +19,7 @@ import { OwnedDirectoryHandle } from "../filesystem/OwnedDirectoryHandle.js";
 import {
   assertArtifactReadActive,
   artifactFileCancellationCause,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   bindArtifactFileCleanup,
   withArtifactRegularFile,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -236,7 +236,7 @@ const ghidraPspInspectionError = (cause: unknown): AnalysisError => {
   if (cause instanceof AnalysisError) return cause;
   const cleanup =
     cause instanceof ArtifactReaderFailure ? cause.cleanup : undefined;
-  const primary = artifactFilePrimaryFailure(cause);
+  const { cause: primary } = artifactFilePrimaryFacts(cause);
   const reason = `PSP_EXTENSION_UNAVAILABLE: ${primary instanceof Error ? primary.message : String(primary)} Use a compatible caller-installed ghidra-allegrex under GHIDRA_INSTALL_DIR/Ghidra/Extensions; REA does not install it.`;
   const error =
     cause instanceof ArtifactReaderFailure && cause.reason === "cancelled"

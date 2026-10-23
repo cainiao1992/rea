@@ -1,5 +1,5 @@
-import { readdir, type FileHandle } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, writeFile, open, type FileHandle } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -7,6 +7,11 @@ import { ArtifactResourceScope } from "../../../../src/artifacts/ArtifactResourc
 import { AnalysisCancelledError } from "../../../../src/domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import { ProviderCleanupError } from "../../../../src/domain/providerCleanupError.js";
+import { OwnedFileHandle } from "../../../../src/filesystem/OwnedFileHandle.js";
+import {
+  RegularFileCleanupFailure,
+  RegularFileCancelled,
+} from "../../../../src/filesystem/OwnedRegularFile.js";
 import { run, session } from "./kunaSessionFixture.js";
 
 const fault = vi.hoisted(() => ({
@@ -21,6 +26,7 @@ const fault = vi.hoisted(() => ({
   hold: undefined as Promise<void> | undefined,
   releaseHold: (): void => undefined,
   afterRead: (): void => undefined,
+  readRejection: undefined as { readonly cause: unknown } | undefined,
   handles: [] as FileHandle[],
   cause: Object.assign(new Error("controlled close refusal"), { code: "EIO" }),
 }));
@@ -42,6 +48,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
               const read = await Reflect.apply(target.read, target, readArgs);
               fault.reads += 1;
               fault.afterRead();
+              if (fault.readRejection !== undefined)
+                throw fault.readRejection.cause;
               return fault.short ? { ...read, bytesRead: 0 } : read;
             };
           if (key === "close")
@@ -73,6 +81,7 @@ afterEach(() => {
   fault.hold = undefined;
   fault.releaseHold = () => undefined;
   fault.afterRead = () => undefined;
+  fault.readRejection = undefined;
   fault.handles = [];
 });
 
@@ -168,6 +177,102 @@ it.each([false, true])(
       await client.close();
       for (const handle of fault.handles)
         if (handle.fd >= 0) await handle.close().catch(() => undefined);
+    }
+  },
+);
+
+it.each(
+  [
+    "undefined",
+    "foreign cleanup",
+    "foreign cancellation",
+    "foreign typed cancellation",
+  ].flatMap((shape) =>
+    [false, true].map((closeFails) => ({ shape, closeFails })),
+  ),
+)(
+  "preserves a physical $shape rejection when local close fails: $closeFails",
+  async ({ shape, closeFails }) => {
+    const { cacheRoot, open: createClient } = await session(
+      "rea-kuna-span-physical-",
+    );
+    const client = createClient();
+    const foreignPath = join(dirname(cacheRoot), "foreign.txt");
+    await writeFile(foreignPath, "foreign bytes");
+    const foreign = new OwnedFileHandle(await open(foreignPath, "r"));
+    try {
+      await run(client, "procedure_assembly", { procedure: "main" });
+      const [key] = await readdir(join(cacheRoot, "projects"));
+      fault.span = join(
+        cacheRoot,
+        "projects",
+        key ?? "",
+        "project",
+        "program.asm",
+      );
+      const raw =
+        shape === "foreign cleanup"
+          ? new RegularFileCleanupFailure({
+              path: foreignPath,
+              owner: foreign,
+              outcome: { kind: "completed", value: "foreign bytes" },
+              cleanupCause: new Error("foreign close failure"),
+            })
+          : shape === "foreign cancellation"
+            ? new RegularFileCancelled(foreignPath, foreign, {
+                outcome: { kind: "completed", value: "foreign bytes" },
+                reason: "foreign cancellation reason",
+              })
+            : shape === "foreign typed cancellation"
+              ? new AnalysisCancelledError("foreign_operation", {
+                  cause: "foreign cancellation reason",
+                  cleanup: {
+                    reason: "foreign cleanup",
+                    resources: [foreignPath],
+                  },
+                })
+              : undefined;
+      fault.readRejection = { cause: raw };
+      fault.fail = closeFails;
+      const controller = new AbortController();
+      fault.afterRead = () => controller.abort("late caller abort");
+      const result = await client.execute(
+        "procedure_assembly",
+        { procedure: "main" },
+        { signal: controller.signal },
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected physical span failure");
+      const primary = closeFails ? result.error.cleanupPrimary : result.error;
+      expect(primary?._tag).toBe("ProviderAdapterError");
+      expect(primary?.cause).toBe(raw);
+      expect(result.error.cleanupIncomplete).toBe(closeFails);
+      expect(result.error.cleanupResources).toEqual(
+        closeFails ? [fault.span] : [],
+      );
+      expect(fault.handles).toHaveLength(1);
+      if (closeFails) expect(fault.handles[0]!.fd).toBeGreaterThanOrEqual(0);
+      else expect(fault.handles[0]!.fd).toBe(-1);
+      expect(foreign.handle.fd).toBeGreaterThanOrEqual(0);
+      fault.fail = false;
+      fault.readRejection = undefined;
+      fault.afterRead = () => undefined;
+      const recovered = await client.execute(
+        "procedure_assembly",
+        { procedure: "main" },
+        {},
+      );
+      expect(recovered.ok).toBe(true);
+      expect(fault.handles[0]!.fd).toBe(-1);
+      expect(foreign.handle.fd).toBeGreaterThanOrEqual(0);
+    } finally {
+      fault.fail = false;
+      fault.readRejection = undefined;
+      fault.afterRead = () => undefined;
+      await client.close();
+      await foreign.close();
+      for (const handle of fault.handles)
+        if (handle.fd >= 0) await handle.close();
     }
   },
 );

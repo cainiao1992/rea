@@ -28,7 +28,8 @@ import { sameRegularFileState } from "../filesystem/RegularFile.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   ArtifactFileCleanupFailure,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   artifactFileCancellationCause,
   bindArtifactFileCleanup,
   assertArtifactReadActive,
@@ -155,8 +156,8 @@ export const nativePlistFailure = (
         : undefined;
     const previous =
       physical?.outcome.kind === "failed"
-        ? nativePlistFailure(
-            artifactFilePrimaryFailure(cause),
+        ? nativePlistPrimaryFailure(
+            artifactFilePrimaryFacts(cause),
             selection,
             capturedOutput,
           )
@@ -198,50 +199,67 @@ export const nativePlistFailure = (
     bindArtifactFileCleanup(cause, failure);
     return failure;
   }
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
-    return new AnalysisCancelledError("inspect_plist", {
-      cause: artifactFileCancellationCause(cause),
-      capturedOutput,
-    });
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "unavailable")
-    return new AnalysisCapabilityUnavailableError(
-      IDENTITY.id,
-      "inspect_plist",
-      cause.message,
-      { cause, capturedOutput },
-    );
-  if (
-    selection !== undefined &&
-    cause instanceof ArtifactReaderFailure &&
-    cause.reason === "integrity"
-  )
-    return new AnalysisArtifactChangedError(
-      "inspect_plist",
-      selection.path,
-      cause.message,
-      { cause, capturedOutput },
-    );
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "limit") {
-    const resource = cause.boundary ?? "memory";
-    return resource === "file-size"
-      ? new AnalysisResourceConstraintError(
-          "inspect_plist",
-          resource,
-          cause.message,
-          { maximum_input_bytes: MAX_NATIVE_PLIST_BYTES },
-          {
-            cause,
-            capturedOutput,
-            ...fixedAllowanceOptions(NATIVE_PLIST_INPUT_ALLOWANCE, "input"),
-          },
-        )
-      : new AnalysisResourceConstraintError(
-          "inspect_plist",
-          resource,
-          cause.message,
-          null,
-          { cause, capturedOutput, retryable: false },
-        );
+  return nativePlistPrimaryFailure(
+    artifactFilePrimaryFacts(cause),
+    selection,
+    capturedOutput,
+  );
+};
+
+const nativePlistPrimaryFailure = (
+  { cause, origin }: ArtifactFilePrimaryFacts,
+  selection: NativePlistSelection | undefined,
+  capturedOutput: AnalysisCapturedOutput | undefined,
+): AnalysisError => {
+  if (origin === "owned-or-classified") {
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+      return new AnalysisCancelledError("inspect_plist", {
+        cause: artifactFileCancellationCause(cause),
+        capturedOutput,
+      });
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      cause.reason === "unavailable"
+    )
+      return new AnalysisCapabilityUnavailableError(
+        IDENTITY.id,
+        "inspect_plist",
+        cause.message,
+        { cause, capturedOutput },
+      );
+    if (
+      selection !== undefined &&
+      cause instanceof ArtifactReaderFailure &&
+      cause.reason === "integrity"
+    )
+      return new AnalysisArtifactChangedError(
+        "inspect_plist",
+        selection.path,
+        cause.message,
+        { cause, capturedOutput },
+      );
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "limit") {
+      const resource = cause.boundary ?? "memory";
+      return resource === "file-size"
+        ? new AnalysisResourceConstraintError(
+            "inspect_plist",
+            resource,
+            cause.message,
+            { maximum_input_bytes: MAX_NATIVE_PLIST_BYTES },
+            {
+              cause,
+              capturedOutput,
+              ...fixedAllowanceOptions(NATIVE_PLIST_INPUT_ALLOWANCE, "input"),
+            },
+          )
+        : new AnalysisResourceConstraintError(
+            "inspect_plist",
+            resource,
+            cause.message,
+            null,
+            { cause, capturedOutput, retryable: false },
+          );
+    }
   }
   if (selection === undefined)
     return new ProviderAdapterError(IDENTITY.id, "inspect_plist", {

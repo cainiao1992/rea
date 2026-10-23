@@ -4,7 +4,7 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   assertArtifactReadActive,
   artifactFileCancellationCause,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   mapArtifactFileFailure,
   bindArtifactFileCleanup,
   withArtifactFileHandle,
@@ -99,12 +99,11 @@ export const ghidraFileFailure = (
     }
     return primary;
   });
-  if (cause instanceof AnalysisError) return cause;
-  const primary = artifactFilePrimaryFailure(cause);
+  const { cause: primary, origin } = artifactFilePrimaryFacts(cause);
   const reason = primary instanceof Error ? primary.message : String(primary);
   const cleanup =
     cause instanceof ArtifactReaderFailure ? cause.cleanup : undefined;
-  if (primary instanceof AnalysisError) {
+  if (origin === "owned-or-classified" && primary instanceof AnalysisError) {
     if (cleanup === undefined) return primary;
     const failure = new ProviderCleanupError(
       "ghidra",

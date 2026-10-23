@@ -1,6 +1,7 @@
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   artifactFileCancellationCause,
   bindArtifactFileCleanup,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -126,7 +127,7 @@ export const apkSignatureFailure = (
   cause: unknown,
   path: string,
 ): AnalysisError => {
-  const primary = primaryFailure(artifactFilePrimaryFailure(cause), path);
+  const primary = primaryFailure(artifactFilePrimaryFacts(cause), path);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(
@@ -141,9 +142,17 @@ export const apkSignatureFailure = (
 };
 
 /** Distinguish cancellation, access, integrity and limits for the primary failure. */
-const primaryFailure = (cause: unknown, path: string): AnalysisError => {
-  if (cause instanceof AnalysisError) return cause;
-  if (cause instanceof ArtifactReaderFailure)
+const primaryFailure = (
+  facts: ArtifactFilePrimaryFacts,
+  path: string,
+): AnalysisError => {
+  const { cause, origin } = facts;
+  if (origin === "owned-or-classified" && cause instanceof AnalysisError)
+    return cause;
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure
+  )
     return artifactReaderFailure(cause, path);
   if (cause instanceof Error && "code" in cause) {
     if (cause.code === "EACCES" || cause.code === "EPERM")

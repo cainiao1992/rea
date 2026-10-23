@@ -51,21 +51,39 @@ export class RegularFileCancelled<Value = unknown> extends Error {
 }
 
 /** A failed close transfers its exact descriptor owner and operation outcome. */
+export interface RegularFileCleanupFacts<Value = unknown> {
+  readonly path: string;
+  readonly owner: OwnedFileHandle;
+  readonly outcome: RegularFileOperationOutcome<Value>;
+  readonly cleanupCause: unknown;
+  readonly retention?:
+    | { readonly kind: "not_requested" }
+    | { readonly kind: "callback_returned" }
+    | { readonly kind: "callback_threw"; readonly cause: unknown }
+    | undefined;
+  readonly completionCancellation?: { readonly reason: unknown } | undefined;
+  readonly operationFailure?: OwnedRegularFileOperationFailure | undefined;
+}
+
 export class RegularFileCleanupFailure<Value = unknown> extends Error {
-  constructor(
-    readonly path: string,
-    readonly owner: OwnedFileHandle,
-    readonly outcome: RegularFileOperationOutcome<Value>,
-    readonly cleanupCause: unknown,
-    readonly retention:
-      | { readonly kind: "not_requested" }
-      | { readonly kind: "callback_returned" }
-      | { readonly kind: "callback_threw"; readonly cause: unknown } = {
-      kind: "not_requested",
-    },
-    readonly completionCancellation?: { readonly reason: unknown },
-    readonly operationFailure?: OwnedRegularFileOperationFailure,
-  ) {
+  readonly path: string;
+  readonly owner: OwnedFileHandle;
+  readonly outcome: RegularFileOperationOutcome<Value>;
+  readonly cleanupCause: unknown;
+  readonly retention: NonNullable<RegularFileCleanupFacts["retention"]>;
+  readonly completionCancellation: { readonly reason: unknown } | undefined;
+  readonly operationFailure: OwnedRegularFileOperationFailure | undefined;
+
+  constructor(facts: RegularFileCleanupFacts<Value>) {
+    const {
+      path,
+      owner,
+      outcome,
+      cleanupCause,
+      retention = { kind: "not_requested" },
+      completionCancellation,
+      operationFailure,
+    } = facts;
     super(`Regular file cleanup failed for ${path}`, {
       cause: new AggregateError(
         [
@@ -77,6 +95,13 @@ export class RegularFileCleanupFailure<Value = unknown> extends Error {
       ),
     });
     this.name = "RegularFileCleanupFailure";
+    this.path = path;
+    this.owner = owner;
+    this.outcome = outcome;
+    this.cleanupCause = cleanupCause;
+    this.retention = retention;
+    this.completionCancellation = completionCancellation;
+    this.operationFailure = operationFailure;
   }
 }
 
@@ -128,13 +153,13 @@ export const withOwnedRegularFile = async <Value>(
   }).catch((cause: unknown) => {
     if (!(cause instanceof RegularFileAdmissionFailure)) throw cause;
     const retention = retainOwner(options.retainFailedClose, cause.owner);
-    throw new RegularFileCleanupFailure(
+    throw new RegularFileCleanupFailure({
       path,
-      cause.owner,
-      { kind: "failed", cause: cause.cause },
-      cause.cleanupCause,
+      owner: cause.owner,
+      outcome: { kind: "failed", cause: cause.cause },
+      cleanupCause: cause.cleanupCause,
       retention,
-    );
+    });
   });
   return withOwnedFileHandle(
     path,
@@ -180,15 +205,15 @@ export const withOwnedFileHandle = async <Value>(
         : undefined;
     // Retain the physical read outcome even if the caller cancelled during
     // close: consumers may need completed observations such as a file digest.
-    throw new RegularFileCleanupFailure(
+    throw new RegularFileCleanupFailure({
       path,
       owner,
-      retainedOutcome,
+      outcome: retainedOutcome,
       cleanupCause,
-      retainOwner(options.retainFailedClose, owner),
+      retention: retainOwner(options.retainFailedClose, owner),
       completionCancellation,
       operationFailure,
-    );
+    });
   }
   if (outcome.kind === "failed") throw outcome.cause;
   if (options.signal?.aborted === true)

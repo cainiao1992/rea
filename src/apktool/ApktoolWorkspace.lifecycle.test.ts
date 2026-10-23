@@ -5,7 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { afterEach, expect, it, vi } from "vitest";
 import {
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   ArtifactFileCleanupFailure,
   ArtifactFileCancelled,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -212,9 +212,12 @@ it.each([false, true])(
         .readText(path, 100, controller.signal)
         .catch((cause: unknown) => cause);
       expect(controller.signal.aborted).toBe(true);
-      expect(artifactFilePrimaryFailure(failure)).toMatchObject({
+      expect(artifactFilePrimaryFacts(failure).cause).toMatchObject({
         _tag: "AnalysisProtocolError",
       });
+      expect(artifactFilePrimaryFacts(failure).origin).toBe(
+        "owned-or-classified",
+      );
       if (denied)
         await expect(workspace.close()).rejects.toBeInstanceOf(
           ArtifactReaderFailure,
@@ -408,15 +411,25 @@ it("classifies source state changes during snapshot copying as artifact changes"
   const workspace = new ApktoolWorkspace(root, commands);
   const input = join(root.path, "source.apk");
   await fs.writeFile(input, "authored-apk");
+  let sourceReads = 0;
   vi.mocked(fs.open).mockImplementation(async (path, flags, mode) => {
     const handle = await actual.open(path, flags, mode);
     if (String(path) === input) {
       const stat = handle.stat.bind(handle);
-      let observations = 0;
+      const read = handle.read.bind(handle);
+      handle.read = (async (
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number,
+      ) => {
+        const result = await read(buffer, offset, length, position);
+        if (result.bytesRead > 0) sourceReads += 1;
+        return result;
+      }) as typeof handle.read;
       handle.stat = (async (...args: Parameters<typeof stat>) => {
         const value = await stat(...args);
-        observations += 1;
-        if (observations > 1) {
+        if (sourceReads > 0) {
           if ("mtimeNs" in value) value.mtimeNs += 1n;
           else value.mtimeMs += 1;
         }
@@ -433,6 +446,7 @@ it("classifies source state changes during snapshot copying as artifact changes"
       operation: "decode_android_resources",
       path: input,
     });
+    expect(sourceReads).toBeGreaterThan(0);
   } finally {
     await workspace.close();
     await commands.close();

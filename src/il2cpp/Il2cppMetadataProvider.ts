@@ -11,7 +11,8 @@ import {
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   artifactFileCompletion,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
@@ -66,13 +67,15 @@ const BINARY_BYTES = 1024 * 1024 * 1024;
 // A 12.9 MB Unity 6000.4 file with 112,232 methods serializes to 7.8 MB.
 const OUTPUT_BYTES = 64 * 1024 * 1024;
 const failureForPrimary = (
-  cause: unknown,
+  facts: ArtifactFilePrimaryFacts,
   path: string,
   field: "path" | "binary_path" = "path",
   maximum = INPUT_BYTES,
   metadataPath = path,
 ): AnalysisError => {
-  if (cause instanceof AnalysisError) return cause;
+  const { cause, origin } = facts;
+  if (origin === "owned-or-classified" && cause instanceof AnalysisError)
+    return cause;
   if (cause instanceof Il2cppBinaryFormatFailure && cause.kind === "capacity")
     return new AnalysisResourceConstraintError(
       OPERATION,
@@ -109,15 +112,26 @@ const failureForPrimary = (
           },
         ]);
   }
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "integrity"
+  )
     return new AnalysisArtifactChangedError(OPERATION, path, cause.message, {
       cause,
     });
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "cancelled"
+  )
     return new AnalysisCancelledError(OPERATION, {
       cause: artifactFileCancellationCause(cause),
     });
-  if (cause instanceof ArtifactReaderFailure) {
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure
+  ) {
     if (cause.reason === "limit")
       return new AnalysisResourceConstraintError(
         OPERATION,
@@ -169,7 +183,7 @@ const failureFor = (
   metadataPath = path,
 ): AnalysisError => {
   const primary = failureForPrimary(
-    artifactFilePrimaryFailure(cause),
+    artifactFilePrimaryFacts(cause),
     path,
     field,
     maximum,

@@ -30,7 +30,7 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   withArtifactRegularFile,
   bindArtifactFileCleanup,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   artifactFileCancellationCause,
   artifactFileCompletion,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -111,9 +111,10 @@ export class ModelArtifactProvider implements ModelArtifactPort {
         ),
       );
     } catch (cause) {
-      const primary = artifactFilePrimaryFailure(cause);
+      const { cause: primary, origin } = artifactFilePrimaryFacts(cause);
       let error: AnalysisError;
-      if (primary instanceof AnalysisError) error = primary;
+      if (origin === "owned-or-classified" && primary instanceof AnalysisError)
+        error = primary;
       else if (primary instanceof ModelFormatFailure) {
         const limit = primary.kind === "capacity" ? primary.limit : undefined;
         error =
@@ -141,6 +142,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
                   constraint: "file_format_rejected",
                 });
       } else if (
+        origin === "owned-or-classified" &&
         primary instanceof ArtifactReaderFailure &&
         primary.reason === "cancelled"
       )
@@ -148,6 +150,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
           cause: artifactFileCancellationCause(primary),
         });
       else if (
+        origin === "owned-or-classified" &&
         primary instanceof ArtifactReaderFailure &&
         primary.reason === "integrity"
       )
@@ -169,6 +172,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
           { cause: primary },
         );
       else if (
+        origin === "owned-or-classified" &&
         primary instanceof ArtifactReaderFailure &&
         primary.reason === "limit"
       )

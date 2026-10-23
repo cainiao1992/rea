@@ -1,7 +1,8 @@
 import { isSelectedRegularFileError } from "../filesystem/RegularFile.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   artifactFileCancellationCause,
   assertArtifactReadActive,
   bindArtifactFileCleanup,
@@ -238,8 +239,13 @@ const rustcLimitation = (
   ];
 };
 
-const failureForPrimary = (cause: unknown, path: string): AnalysisError => {
-  if (cause instanceof AnalysisError) return cause;
+const failureForPrimary = (
+  facts: ArtifactFilePrimaryFacts,
+  path: string,
+): AnalysisError => {
+  const { cause, origin } = facts;
+  if (origin === "owned-or-classified" && cause instanceof AnalysisError)
+    return cause;
   if (cause instanceof RustAuditableResourceFailure)
     return new AnalysisResourceConstraintError(
       OPERATION,
@@ -274,11 +280,11 @@ const failureForPrimary = (cause: unknown, path: string): AnalysisError => {
             message: `Selected artifact ${path}: ${cause.message}`,
           },
         ]);
-  return artifactFailure(cause, path);
+  return artifactFailure(facts, path);
 };
 
 const failureFor = (cause: unknown, path: string): AnalysisError => {
-  const primary = failureForPrimary(artifactFilePrimaryFailure(cause), path);
+  const primary = failureForPrimary(artifactFilePrimaryFacts(cause), path);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(
@@ -292,8 +298,15 @@ const failureFor = (cause: unknown, path: string): AnalysisError => {
   return error;
 };
 
-const artifactFailure = (cause: unknown, path: string): AnalysisError => {
-  if (cause instanceof ArtifactReaderFailure)
+const artifactFailure = (
+  facts: ArtifactFilePrimaryFacts,
+  path: string,
+): AnalysisError => {
+  const { cause, origin } = facts;
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure
+  )
     return artifactReaderFailure(cause, path);
   if (cause instanceof Error && "code" in cause) {
     if (cause.code === "EACCES" || cause.code === "EPERM")

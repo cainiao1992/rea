@@ -291,13 +291,13 @@ const openSnapshotSource = async (
     return await openRegularFile(path, { symlinks: "follow", signal });
   } catch (cause: unknown) {
     if (!(cause instanceof RegularFileAdmissionFailure)) throw cause;
-    throw new RegularFileCleanupFailure(
+    throw new RegularFileCleanupFailure({
       path,
-      cause.owner,
-      { kind: "failed", cause: cause.cause },
-      cause.cleanupCause,
-      retainAdmissionOwner(retention.retainFailedClose, cause.owner),
-    );
+      owner: cause.owner,
+      outcome: { kind: "failed", cause: cause.cause },
+      cleanupCause: cause.cleanupCause,
+      retention: retainAdmissionOwner(retention.retainFailedClose, cause.owner),
+    });
   }
 };
 
@@ -328,15 +328,10 @@ const projectSnapshotFailure = (
     return cause;
   const projected = projectSnapshotFailure(cause.outcome.cause, projectChanged);
   if (projected === cause.outcome.cause) return cause;
-  return new RegularFileCleanupFailure(
-    cause.path,
-    cause.owner,
-    { kind: "failed", cause: projected },
-    cause.cleanupCause,
-    cause.retention,
-    cause.completionCancellation,
-    cause.operationFailure,
-  );
+  return new RegularFileCleanupFailure({
+    ...cause,
+    outcome: { kind: "failed", cause: projected },
+  });
 };
 
 const verifySourceState = async (

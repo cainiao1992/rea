@@ -4,7 +4,7 @@ import {
   artifactFileCompletion,
   mapArtifactFileFailure,
   ArtifactFileCleanupFailure,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   withArtifactRegularFile,
 } from "../artifacts/ArtifactFileOperation.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
@@ -58,7 +58,7 @@ export const readGhidraInstallationProperties = async (
       ),
     );
   } catch (cause: unknown) {
-    const physical = artifactFilePrimaryFailure(cause);
+    const { cause: physical } = artifactFilePrimaryFacts(cause);
     if (
       !(cause instanceof ArtifactFileCleanupFailure) &&
       physical instanceof Error &&

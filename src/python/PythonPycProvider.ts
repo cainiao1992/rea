@@ -1,7 +1,8 @@
 import { isSelectedRegularFileError } from "../filesystem/RegularFile.js";
 import {
   artifactFileCancellationCause,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   bindArtifactFileCleanup,
 } from "../artifacts/ArtifactFileOperation.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
@@ -65,16 +66,29 @@ const parserLimitRecovery = (
   };
 };
 
-const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
-  if (cause instanceof AnalysisError) return cause;
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+const failureForPrimary = (
+  facts: ArtifactFilePrimaryFacts,
+  input: InspectPythonPycInput,
+) => {
+  const { cause, origin } = facts;
+  if (origin === "owned-or-classified" && cause instanceof AnalysisError)
+    return cause;
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "integrity"
+  )
     return new AnalysisArtifactChangedError(
       OPERATION,
       input.path,
       cause.message,
       { cause },
     );
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "cancelled"
+  )
     return new AnalysisCancelledError(OPERATION, {
       cause: artifactFileCancellationCause(cause),
     });
@@ -101,7 +115,10 @@ const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
             message: `Selected pyc ${input.path}: ${cause.message}`,
           },
         ]);
-  if (cause instanceof ArtifactReaderFailure) {
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure
+  ) {
     if (cause.reason === "limit")
       return new AnalysisResourceConstraintError(
         OPERATION,
@@ -146,7 +163,7 @@ const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
 };
 
 const failureFor = (cause: unknown, input: InspectPythonPycInput) => {
-  const primary = failureForPrimary(artifactFilePrimaryFailure(cause), input);
+  const primary = failureForPrimary(artifactFilePrimaryFacts(cause), input);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

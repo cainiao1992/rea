@@ -297,7 +297,7 @@ it.each(["late-close", "retry-close", "retained-close", "opaque-cancellation"])(
       if (mode === 'opaque-cancellation') {
         const path = join(root, 'foreign'); await writeFile(path, 'foreign');
         foreign = new OwnedFileHandle(await open(path, 'r'));
-        controller.abort(new RegularFileCleanupFailure(path, foreign, { kind: 'completed', value: 'opaque' }, new Error('not this inspection owner')));
+        controller.abort(new RegularFileCleanupFailure({ path, owner: foreign, outcome: { kind: 'completed', value: 'opaque' }, cleanupCause: new Error('not this inspection owner') }));
       }
       let entered, release;
       const entering = new Promise(resolve => { entered = resolve; });

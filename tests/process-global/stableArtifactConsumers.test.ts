@@ -1,4 +1,4 @@
-import { writeFile, type FileHandle } from "node:fs/promises";
+import { open, writeFile, type FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -63,7 +63,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 import { RustBinaryProvider } from "../../src/rust/RustBinaryProvider.js";
 import { RustBinaryService } from "../../src/application/rust/RustBinaryService.js";
 import { AnalysisError } from "../../src/domain/analysisErrorBase.js";
-import { parseEvidence } from "../../src/domain/evidence.js";
+import { createEvidence, parseEvidence } from "../../src/domain/evidence.js";
 import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";
 import {
   AnalysisCancelledError,
@@ -74,9 +74,21 @@ import {
 } from "../../src/domain/analysisErrorCore.js";
 import {
   ArtifactFileCleanupFailure,
+  mapArtifactFileFailure,
+  artifactFilePrimaryFacts,
   withArtifactRegularFile,
 } from "../../src/artifacts/ArtifactFileOperation.js";
+import { AnalysisCleanupLease } from "../../src/artifacts/AnalysisCleanupLease.js";
+import { translateArtifactFailure } from "../../src/artifacts/ArtifactOperationFailure.js";
+import { OwnedFileHandle } from "../../src/filesystem/OwnedFileHandle.js";
+import {
+  OwnedRegularFileOperationFailure,
+  RegularFileCleanupFailure,
+  regularFileCancellation,
+} from "../../src/filesystem/OwnedRegularFile.js";
+import { RegularFileOperationCancelled } from "../../src/filesystem/RegularFile.js";
 import { ArtifactResourceScope } from "../../src/artifacts/ArtifactResourceScope.js";
+import { readStableArtifact } from "../../src/artifacts/readStableArtifact.js";
 import { ArtifactReaderFailure } from "../../src/artifacts/ArtifactReader.js";
 import { GoBinaryProvider } from "../../src/go/GoBinaryProvider.js";
 import { PythonPycProvider } from "../../src/python/PythonPycProvider.js";
@@ -697,6 +709,148 @@ it("preserves upstream resource-bound facts through an unconfirmed descriptor cl
   }
 });
 
+it.each([
+  "physical cancellation",
+  "mapped foreign artifact",
+  "foreign nested artifact",
+] as const)(
+  "preserves %s provenance while retrying only the owned descriptor",
+  async (shape) => {
+    const path = await selectedImage();
+    const foreignPath = join(path, "..", "foreign.txt");
+    await writeFile(foreignPath, "foreign owner bytes");
+    const foreign = new OwnedFileHandle(await open(foreignPath, "r"));
+    const foreignLease = AnalysisCleanupLease.forCloseOwner(
+      foreign,
+      foreignPath,
+    );
+    const foreignPartial = createEvidence(
+      undefined,
+      { id: "foreign", name: "foreign owner", version: null },
+      {
+        operation: "inspect_artifact",
+        parameters: {},
+        result: { foreign: true },
+        confidence: "observed",
+      },
+    );
+    const foreignReason = { source: "foreign cancellation" };
+    const foreignFailure = new ArtifactReaderFailure(
+      "cancelled",
+      "foreign artifact failure",
+      {
+        cause: foreignReason,
+        cancellation: { reason: foreignReason },
+        cleanup: { resources: [foreignPath], reason: "foreign cleanup" },
+        cleanupLeases: [foreignLease],
+        partialObservation: foreignPartial,
+      },
+    );
+    const raw =
+      shape === "physical cancellation"
+        ? new RegularFileOperationCancelled(foreignReason)
+        : shape === "foreign nested artifact"
+          ? new ArtifactFileCleanupFailure(
+              new RegularFileCleanupFailure({
+                path: foreignPath,
+                owner: foreign,
+                outcome: { kind: "failed", cause: foreignFailure },
+                cleanupCause: new Error("foreign descriptor close failure"),
+              }),
+              foreignLease,
+            )
+          : foreignFailure;
+    const marker = new OwnedRegularFileOperationFailure(raw);
+    const controller = new AbortController();
+    const lateReason = { source: "late owned-close abort" };
+    fault.onClose = () => controller.abort(lateReason);
+    const scope = new ArtifactResourceScope();
+    try {
+      const failure = await scope
+        .run(() =>
+          withArtifactRegularFile(path, scope, controller.signal, async () => {
+            throw marker;
+          }),
+        )
+        .catch((cause: unknown) => cause);
+      if (!(failure instanceof ArtifactFileCleanupFailure))
+        throw new Error("Expected the actual input descriptor's failed close");
+      expect(artifactFilePrimaryFacts(failure)).toEqual({
+        cause: raw,
+        origin: "opaque-operation",
+      });
+      const projected = mapArtifactFileFailure(failure, (primary) => {
+        expect(primary).toBe(raw);
+        return shape === "mapped foreign artifact"
+          ? new ArtifactReaderFailure(
+              "unavailable",
+              "authored permission classification",
+              { cause: raw },
+            )
+          : primary;
+      });
+      if (!(projected instanceof ArtifactFileCleanupFailure))
+        throw new Error(
+          "Expected the same owned descriptor envelope after projection",
+        );
+      for (const envelope of [failure, projected]) {
+        expect(envelope.reason).toBe(
+          envelope === projected && shape === "mapped foreign artifact"
+            ? "unavailable"
+            : "io",
+        );
+        expect(envelope.cancellation).toBeUndefined();
+        expect(envelope.partialObservation).toBeUndefined();
+        expect(envelope.cleanup?.resources).toEqual([path]);
+        expect(
+          regularFileCancellation(envelope.fileCleanupFailure),
+        ).toBeUndefined();
+      }
+      expect(failure.fileCleanupFailure.outcome).toEqual({
+        kind: "failed",
+        cause: raw,
+      });
+      expect(projected.fileCleanupFailure.operationFailure).toBe(marker);
+      expect(artifactFilePrimaryFacts(projected).cause).toBe(
+        projected.fileCleanupFailure.outcome.kind === "failed"
+          ? projected.fileCleanupFailure.outcome.cause
+          : undefined,
+      );
+      expect(artifactFilePrimaryFacts(projected).origin).toBe(
+        shape === "mapped foreign artifact"
+          ? "owned-or-classified"
+          : "opaque-operation",
+      );
+      expect(marker.operationCause).toBe(raw);
+      expect(projected.cleanupLease).toBe(failure.cleanupLease);
+      expect(projected.cleanupLeases).toEqual([failure.cleanupLease]);
+      const error = translateArtifactFailure("inspect_artifact", projected);
+      expect(error.cleanupResources).toEqual([path]);
+      expect(error.cleanupIncomplete).toBe(true);
+      expect(error.partialObservation).toBeUndefined();
+      expect(controller.signal.reason).toBe(lateReason);
+      expect(fault.handles).toHaveLength(1);
+      expect(fault.handles[0]!.fd).toBeGreaterThanOrEqual(0);
+      await expect(scope.close()).rejects.toThrow();
+      expect(foreign.handle.fd).toBeGreaterThanOrEqual(0);
+      fault.blocked.clear();
+      await scope.close();
+      expect(fault.handles[0]!.fd).toBe(-1);
+      expect(error.cleanupIncomplete).toBe(false);
+      expect(error.cleanupResources).toEqual([]);
+      expect(foreign.handle.fd).toBeGreaterThanOrEqual(0);
+      expect(foreignLease.released).toBe(false);
+      expect(foreignFailure.cleanup?.resources).toEqual([foreignPath]);
+      expect(foreignFailure.partialObservation).toBe(foreignPartial);
+    } finally {
+      fault.onClose = undefined;
+      fault.blocked.clear();
+      await scope.close();
+      await foreign.close();
+    }
+  },
+);
+
 const stableArtifactProviders = [
   ...staticProviders,
   ["ELF notes", () => new ElfNotesProvider()],
@@ -859,11 +1013,12 @@ it.each(
     try {
       const failure = await scope
         .run(() =>
-          withArtifactRegularFile(
+          readStableArtifact(
             path,
-            scope,
+            1024 * 1024,
             timing === "recorded" ? controller.signal : undefined,
-            async () => undefined,
+            undefined,
+            scope,
           ),
         )
         .catch((cause: unknown) => cause);

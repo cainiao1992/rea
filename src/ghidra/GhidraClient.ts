@@ -79,7 +79,7 @@ import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   artifactFileCancellationCause,
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
   bindArtifactFileCleanup,
   withArtifactRegularFile,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -569,8 +569,9 @@ export class GhidraClient {
         cause instanceof ArtifactReaderFailure && cause.reason === "cancelled"
           ? { reason: artifactFileCancellationCause(cause) }
           : undefined;
-      const primary = artifactFilePrimaryFailure(cause);
+      const { cause: primary, origin } = artifactFilePrimaryFacts(cause);
       let failure =
+        origin === "owned-or-classified" &&
         primary instanceof GhidraSessionError
           ? primary
           : this.#failure(

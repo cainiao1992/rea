@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
-import { artifactFilePrimaryFailure } from "../artifacts/ArtifactFileOperation.js";
+import { artifactFilePrimaryFacts } from "../artifacts/ArtifactFileOperation.js";
 import { fileURLToPath } from "node:url";
 import { GHIDRA_BRIDGE_SOURCES } from "./GhidraBridgeSources.js";
 
@@ -894,15 +894,23 @@ const projectPrimarySessionError = (
       ? {}
       : { partialObservation: failure.partialObservation }),
   };
-  const physicalCause = artifactFilePrimaryFailure(failure.cause);
-  if (physicalCause instanceof AnalysisAccessDeniedError)
+  const { cause: physicalCause, origin } = artifactFilePrimaryFacts(
+    failure.cause,
+  );
+  if (
+    origin === "owned-or-classified" &&
+    physicalCause instanceof AnalysisAccessDeniedError
+  )
     return new AnalysisAccessDeniedError(
       operation,
       physicalCause.path,
       physicalCause.systemCode,
       context,
     );
-  if (physicalCause instanceof AnalysisArtifactChangedError)
+  if (
+    origin === "owned-or-classified" &&
+    physicalCause instanceof AnalysisArtifactChangedError
+  )
     return new AnalysisArtifactChangedError(
       operation,
       physicalCause.path,

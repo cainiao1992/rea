@@ -74,17 +74,13 @@ export class ClientConfigurationCleanupRollbackFailure extends RegularFileCleanu
       { readonly status: "failed" }
     >,
   ) {
-    super(
-      failure.path,
-      failure.owner,
-      failure.outcome,
-      new AggregateError(
+    super({
+      ...failure,
+      cleanupCause: new AggregateError(
         [failure.cleanupCause, configurationFailure],
         `Configuration readback cleanup and rollback failed: ${failure.path}`,
       ),
-      failure.retention,
-      failure.completionCancellation,
-    );
+    });
   }
 }
 

@@ -2,7 +2,8 @@ import { isSelectedRegularFileError } from "../../filesystem/RegularFile.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
 import {
-  artifactFilePrimaryFailure,
+  artifactFilePrimaryFacts,
+  type ArtifactFilePrimaryFacts,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../../artifacts/ArtifactFileOperation.js";
@@ -96,10 +97,15 @@ const inputBudgetRemediation = (
       : `Raise max_entries above ${String(input.max_entries)} or select a smaller artifact; the limit is the caller-selected certificate entry budget.`;
 
 const peCertificatesFailurePrimary = (
-  cause: unknown,
+  facts: ArtifactFilePrimaryFacts,
   input: InspectPeCertificatesInput,
 ) => {
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+  const { cause, origin } = facts;
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "integrity"
+  )
     return new AnalysisArtifactChangedError(
       OPERATION,
       input.path,
@@ -108,11 +114,18 @@ const peCertificatesFailurePrimary = (
         cause,
       },
     );
-  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure &&
+    cause.reason === "cancelled"
+  )
     return new AnalysisCancelledError(OPERATION, {
       cause: artifactFileCancellationCause(cause),
     });
-  if (cause instanceof ArtifactReaderFailure) {
+  if (
+    origin === "owned-or-classified" &&
+    cause instanceof ArtifactReaderFailure
+  ) {
     if (cause.reason === "limit")
       return new AnalysisResourceConstraintError(
         OPERATION,
@@ -160,7 +173,9 @@ const peCertificatesFailurePrimary = (
   }
   return new ArtifactOperationError(
     OPERATION,
-    cause instanceof ArtifactReaderFailure ? cause.reason : "io",
+    origin === "owned-or-classified" && cause instanceof ArtifactReaderFailure
+      ? cause.reason
+      : "io",
     undefined,
     cause instanceof Error
       ? cause.message
@@ -174,7 +189,7 @@ const peCertificatesFailure = (
   input: InspectPeCertificatesInput,
 ) => {
   const primary = peCertificatesFailurePrimary(
-    artifactFilePrimaryFailure(cause),
+    artifactFilePrimaryFacts(cause),
     input,
   );
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)

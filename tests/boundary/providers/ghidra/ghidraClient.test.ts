@@ -2,7 +2,7 @@ import { parseConfig } from "../../../../src/config/parseConfig.js";
 import { GhidraProvider } from "../../../../src/ghidra/GhidraProvider.js";
 import { fixtureDosLoadImage } from "../../../../src/ghidra/GhidraLoadImage.fixture.js";
 import { jsonValueSchema } from "../../../../src/domain/jsonValue.js";
-import { artifactFilePrimaryFailure } from "../../../../src/artifacts/ArtifactFileOperation.js";
+import { artifactFilePrimaryFacts } from "../../../../src/artifacts/ArtifactFileOperation.js";
 import { AnalysisCancelledError } from "../../../../src/domain/analysisErrorCore.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -741,7 +741,10 @@ it("keeps a snapshot read failure primary across late cancellation and failed cl
   if (result.ok) throw new Error("Expected read and cleanup failure");
   expect(result.error.kind).toBe("protocol");
   expect(result.error.cancellation).toBeUndefined();
-  expect(artifactFilePrimaryFailure(result.error.cause)).toBe(physical);
+  expect(artifactFilePrimaryFacts(result.error.cause)).toEqual({
+    cause: physical,
+    origin: "owned-or-classified",
+  });
   expect(result.error.partialObservation).toBeUndefined();
   expect(result.error.cleanupFailure?.cleanupIncomplete).toBe(true);
   allowClose = true;

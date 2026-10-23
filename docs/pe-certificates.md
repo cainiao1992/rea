@@ -30,8 +30,9 @@ revision, type, and the payload SHA-256.
 
 Type-2 entries may count their zero alignment padding in `dwLength`. The PE
 entry owner accepts only the exact gap to the next eight-byte boundary after
-the parsed ContentInfo; extra data or nonzero counted padding fails. Entry and
-payload ranges and hashes retain all declared bytes, including counted padding.
+the parsed ContentInfo; extra data or nonzero counted padding fails. Entry
+ranges retain all declared bytes, including counted padding. CMS payload
+ranges and hashes exclude counted padding.
 
 For `WIN_CERTIFICATE` type 2 (PKCS#7 signedData) `pkcs7` contains digest
 algorithm OIDs, embedded X.509 serial/issuer/subject/validity fields, and

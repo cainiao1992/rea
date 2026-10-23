@@ -112,20 +112,26 @@ export const parsePeCertificates = (
       fail("WIN_CERTIFICATE dwLength is shorter than its header.");
     if (at + length > table.length)
       fail("WIN_CERTIFICATE dwLength exceeds the certificate table.");
-    const payload = table.subarray(at + 8, at + length);
+    const entryPayload = table.subarray(at + 8, at + length);
+    let payload = entryPayload;
     let pkcs7: PeCertificates["entries"][number]["pkcs7"] = null;
     if (peCertificateTypeName(certificateType) === "pkcs7") {
       try {
-        const content = readAsn1(payload);
-        // The PE entry owns alignment outside the ASN.1 ContentInfo. Accept
-        // either uncounted padding or the exact counted zero-padding extent.
+        // dwLength may include the zero bytes that align the complete
+        // WIN_CERTIFICATE to eight bytes. Bound CMS to its encoded ASN.1 root;
+        // tolerate only the corresponding alignment bytes, never arbitrary
+        // trailing data.
+        const root = readAsn1(entryPayload);
+        const paddingBytes = entryPayload.length - root.end;
+        const alignedLength = align8(8 + root.end);
         if (
-          content.end !== payload.length &&
-          (payload.length !== align8(8 + content.end) - 8 ||
-            !payload.subarray(content.end).every((byte) => byte === 0))
+          paddingBytes !== 0 &&
+          (8 + entryPayload.length !== alignedLength ||
+            !entryPayload.subarray(root.end).every((byte) => byte === 0))
         )
-          throw new PeCertificateAsn1Failure("ContentInfo has trailing data.");
-        const parsed = parsePkcs7SignedData(content);
+          fail("WIN_CERTIFICATE has invalid PKCS#7 alignment padding.");
+        payload = entryPayload.subarray(0, root.end);
+        const parsed = parsePkcs7SignedData(root);
         teletexStringCompatibilityUsed ||=
           parsed.teletexStringCompatibilityUsed;
         pkcs7 = {

@@ -92,6 +92,14 @@ describe("browser comparison input boundary", () => {
       expect(ajv.validateSchema(advertised.inputSchema)).toBe(true);
       const validate = ajv.compile(advertised.inputSchema);
       const passive = await capturePassivePair(provider, browser);
+      const defaultFilledPassive = structuredClone(passive);
+      const fillDefaults = new Ajv2020({
+        strict: false,
+        validateFormats: false,
+        useDefaults: true,
+      }).compile(advertised.inputSchema);
+      expect(fillDefaults(defaultFilledPassive)).toBe(true);
+      expect(defaultFilledPassive).not.toHaveProperty("normalization");
       const scenario = contract.examples[0]?.input;
       if (scenario === undefined) throw new Error("Missing scenario example");
       const withoutNormalization = Object.fromEntries(
@@ -143,11 +151,13 @@ describe("browser comparison input boundary", () => {
         },
       ];
       for (const { input, advertisedValid, runtimeValid } of [
-        ...[passive, scenario, withoutNormalization].map((input) => ({
-          input,
-          advertisedValid: true,
-          runtimeValid: true,
-        })),
+        ...[passive, defaultFilledPassive, scenario, withoutNormalization].map(
+          (input) => ({
+            input,
+            advertisedValid: true,
+            runtimeValid: true,
+          }),
+        ),
         ...invalid.map((input) => ({
           input,
           advertisedValid: false,

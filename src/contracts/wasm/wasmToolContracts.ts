@@ -14,7 +14,7 @@ import { wasmArtifactSummaryViewResultSchema } from "../../domain/analysisView/a
 /** Delivery selection does not change the provider input or original Evidence. */
 export const wasmArtifactInspectionInputSchema =
   inspectWasmArtifactInputSchema.extend({
-    detail: analysisDetailSchema.unwrap().optional(),
+    detail: analysisDetailSchema,
   });
 /** Optional caller-supplied WABT capability with target-free CLI/MCP parity. */
 export const INSPECT_WASM_ARTIFACT_CONTRACT = {

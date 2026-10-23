@@ -13,7 +13,7 @@ import { evmInterfaceSummaryViewResultSchema } from "../../domain/analysisView/a
 /** Delivery selection leaves the existing provider input and original Evidence unchanged. */
 const evmInterfaceInspectionInputSchema = inspectEvmInterfaceInputSchema.extend(
   {
-    detail: analysisDetailSchema.unwrap().optional(),
+    detail: analysisDetailSchema,
   },
 );
 

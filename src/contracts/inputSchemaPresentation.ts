@@ -246,6 +246,11 @@ const normalizeAdvertisedSchema = (value: unknown): SchemaNormalization => {
     if (node.type === undefined) node.type = "boolean";
     changed = true;
   }
+  if (node.const === "") {
+    delete node.const;
+    if (node.type === undefined) node.type = "string";
+    changed = true;
+  }
   if (
     Array.isArray(node.enum) &&
     node.enum.length > 0 &&
@@ -253,6 +258,18 @@ const normalizeAdvertisedSchema = (value: unknown): SchemaNormalization => {
   ) {
     delete node.enum;
     if (node.type === undefined) node.type = "boolean";
+    changed = true;
+  }
+  if (Array.isArray(node.enum) && node.enum.includes("")) {
+    // Removing only the empty member would reject a canonical-valid input.
+    // Gemini transports turn const into enum and refuse empty enum members.
+    const values = node.enum;
+    delete node.enum;
+    if (
+      node.type === undefined &&
+      values.every((item) => typeof item === "string")
+    )
+      node.type = "string";
     changed = true;
   }
 
@@ -380,6 +397,38 @@ const flattenRootObjectUnion = (
       variants.set(name, known);
     }
   const required = sharedRequiredProperties(branches);
+  // A default lifted out of an input group can make a client send a field
+  // rejected by another strict group. Keep it only when every group owns the
+  // property and supplies the same default.
+  for (const [name, schemas] of variants) {
+    const defaults = branches.map((branch) => {
+      const property = isObject(branch.properties)
+        ? branch.properties[name]
+        : undefined;
+      return isObject(property) ? property.default : undefined;
+    });
+    if (
+      defaults.every(
+        (value) => value !== undefined && isDeepStrictEqual(value, defaults[0]),
+      )
+    )
+      continue;
+    const withoutDefaults: unknown[] = [];
+    for (const schema of schemas) {
+      let withoutDefault = schema;
+      if (isObject(schema) && Object.hasOwn(schema, "default")) {
+        const { default: _default, ...rest } = schema;
+        withoutDefault = rest;
+      }
+      if (
+        !withoutDefaults.some((known) =>
+          isDeepStrictEqual(known, withoutDefault),
+        )
+      )
+        withoutDefaults.push(withoutDefault);
+    }
+    variants.set(name, withoutDefaults);
+  }
   // A coarse property minimum rejects underspecified objects. Partner fields
   // and exact group membership remain enforced by the canonical runtime parser.
   const fewestRequired = Math.min(

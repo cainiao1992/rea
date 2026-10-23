@@ -173,17 +173,18 @@ let schemasChecked = 0;
 let examplesChecked = 0;
 let artifactDigest;
 const schemaValidator = new Ajv2020({ strict: false, validateFormats: false });
-const booleanLiteralPath = (schema, path = "$", seen = new Set()) => {
+const unsupportedLiteralPath = (schema, path = "$", seen = new Set()) => {
   if (!schema || typeof schema !== "object" || seen.has(schema))
     return undefined;
   seen.add(schema);
   for (const [key, child] of Object.entries(schema)) {
     const childPath = `${path}.${key}`;
-    if (key === "const" && typeof child === "boolean") return childPath;
+    if (key === "const" && (typeof child === "boolean" || child === ""))
+      return childPath;
     if (
       key === "enum" &&
       Array.isArray(child) &&
-      child.some((item) => typeof item === "boolean")
+      child.some((item) => typeof item === "boolean" || item === "")
     )
       return childPath;
     const schemaChildrenAtKey =
@@ -201,7 +202,7 @@ const booleanLiteralPath = (schema, path = "$", seen = new Set()) => {
             ? [[childPath, child]]
             : [];
     for (const [nestedPath, nested] of schemaChildrenAtKey) {
-      const found = booleanLiteralPath(nested, nestedPath, seen);
+      const found = unsupportedLiteralPath(nested, nestedPath, seen);
       if (found !== undefined) return found;
     }
   }
@@ -270,11 +271,13 @@ const fixture = await createGeminiModelFixture({
           schemaValidator.validateSchema(tool.parametersJsonSchema),
           `${tool.name}: invalid advertised JSON Schema: ${JSON.stringify(schemaValidator.errors)}`,
         );
-        const booleanLiteral = booleanLiteralPath(tool.parametersJsonSchema);
+        const unsupportedLiteral = unsupportedLiteralPath(
+          tool.parametersJsonSchema,
+        );
         assert.equal(
-          booleanLiteral,
+          unsupportedLiteral,
           undefined,
-          `${tool.name}: Gemini SDK declaration retains a boolean const/enum at ${booleanLiteral}`,
+          `${tool.name}: Gemini SDK declaration retains a boolean or empty-string const/enum at ${unsupportedLiteral}`,
         );
         const name = tool.name.slice(prefix.length);
         const contract = toolContract(name);

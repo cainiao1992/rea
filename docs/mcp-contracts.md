@@ -1118,7 +1118,9 @@ advertised. Every advertised example is a distinct valid canonical input.
 Root object unions are presented as
 one object without root `anyOf`, `oneOf`, or `allOf` for model API compatibility.
 The projection merges properties, retains shared required fields, and
-describes the accepted input groups. Which fields belong together is guidance
+describes the accepted input groups. A property default is advertised only when
+every input group accepts that property with the same default, so default-filling
+clients cannot inject a scenario-only property into a passive comparison. Which fields belong together is guidance
 in that description rather than a `dependentRequired` or `dependencies`
 keyword, because Gemini function declarations reject both and one unknown
 keyword fails the client's whole tool catalog. Canonical runtime validation
@@ -1135,9 +1137,11 @@ masks without a repeating regular expression or temporary byte arrays. The
 server rejects malformed or unconstrained patterns before provider dispatch;
 the advertised strings alone do not express those rules.
 
-Boolean literal constraints in input schemas are relaxed only in this
-advertisement. For example, a boolean `const` is presented as `type: boolean`;
-an affected `not` is omitted, conditional predicates and their branches are
+Boolean and empty-string literal constraints in input schemas are relaxed only
+in this advertisement. Boolean `const` becomes `type: boolean`; empty-string
+`const` or an enum containing an empty string is widened without dropping the
+accepted empty value. Defaults and descriptions remain intact.
+An affected `not` is omitted, conditional predicates and their branches are
 omitted together, pure boolean-literal `oneOf` branches collapse to a boolean,
 and other affected `oneOf` branches are presented as `anyOf` to retain branch
 guidance without making overlapping widened branches reject inputs.
@@ -1289,7 +1293,8 @@ and the identity dimension unknown.
   the complete `normalized_result` from `discover_webmcp_tools`, or null.
 - Scenario: `before_scenario` and `after_scenario` contain complete
   `normalized_result` objects from `capture_browser_scenario`. Optional
-  `normalization` defaults to `{ "rules": [] }`.
+  `normalization` defaults to `{ "rules": [] }` in the canonical scenario parser;
+  this scenario-only default is omitted from the merged advertised input.
 
 The advertised schema includes complete nested capture fields and rejects
 incomplete pairs and structurally malformed captures. Mixed comparison families,

@@ -103,6 +103,7 @@ export const readJsonObjectMembersFile = (
   scans: readonly ReadonlyMap<string, JsonObjectMemberReader>[],
   signal?: AbortSignal,
   resources?: ArtifactResourceScope,
+  operation = "read_evidence_file",
 ): Promise<
   Result<
     void,
@@ -112,14 +113,9 @@ export const readJsonObjectMembersFile = (
   readJsonFileInput(
     path,
     (selected) =>
-      readJsonObjectFile(
-        selected,
-        "read_evidence_file",
-        scans,
-        signal,
-        resources,
-      ),
+      readJsonObjectFile(selected, operation, scans, signal, resources),
     signal,
+    operation,
   );
 
 type JsonFileReadFailure =

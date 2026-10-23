@@ -11,6 +11,7 @@ import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { HopperStartError } from "../../../src/domain/hopperErrors.js";
 import { ProviderAdapterError } from "../../../src/domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
+import { AnalysisCleanupLease } from "../../../src/artifacts/AnalysisCleanupLease.js";
 import { err, ok as resultOk } from "../../../src/domain/result.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
@@ -260,6 +261,41 @@ it("leaves analysis unbound when a command returns before its writer finishes", 
   expect((await session.open(target)).ok).toBe(true);
   expect(session.activeTarget()?.sha256).not.toBe(originalDigest);
   await session.close();
+});
+
+it("reports an external cleanup blocker until its exact owner confirms release", async () => {
+  const [target] = await createBinarySessionTargets();
+  const session = createTestBinarySession(createCacheProvider([]));
+  const failure = new ProviderCleanupError(
+    "external-debugger",
+    ["external-run"],
+    {},
+  );
+  let released = false;
+  const lease = new AnalysisCleanupLease(async () => {
+    released = true;
+  }, ["external-run"]);
+  lease.bindCleanupError(failure);
+  try {
+    expect(await session.status()).toMatchObject({ cleanup_pending: false });
+    await session.withAdmittedExternalMutation(
+      target,
+      undefined,
+      async () => err(failure),
+      (_value, error) => error,
+    );
+    expect(await session.status()).toMatchObject({ cleanup_pending: true });
+    expect(await session.open(target)).toEqual(err(failure));
+    await session.close();
+    expect(released).toBe(false);
+    expect(await session.status()).toMatchObject({ cleanup_pending: true });
+    await lease.release();
+    expect(await session.status()).toMatchObject({ cleanup_pending: false });
+    expect((await session.open(target)).ok).toBe(true);
+  } finally {
+    await lease.release();
+    await session.close();
+  }
 });
 
 it("retires analysis when an external mutation uses a hard link", async () => {

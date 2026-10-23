@@ -1033,6 +1033,7 @@ export class BinarySession
       requestActivitySnapshots: client?.requestActivitySnapshots?.() ?? [],
       providerOperationHealth: client?.operationHealthSnapshot?.() ?? null,
       cleanupPending:
+        this.#externalMutationCleanupFailure?.cleanupIncomplete === true ||
         this.#pendingCleanup !== undefined ||
         this.#pendingBundleResourceCleanup.length > 0 ||
         this.hasPendingFileResources ||

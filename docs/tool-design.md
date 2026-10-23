@@ -151,6 +151,11 @@ providers need not expose identical state machines.
   waits for owned cleanup and retains its failure. Provider closure is distinct
   from caller cancellation. Retained cleanup capabilities block replacement;
   derive readiness from the current startup's completion and live connection.
+- Session `cleanup_pending` includes retained blockers from external mutation
+  owners until those owners confirm release. Closing the analysis session does
+  not release resources owned by an external debugger. Reading a selected
+  analysis snapshot is part of `open_binary`; cancellation keeps that operation
+  and the caller's reason through the shared JSON reader.
 - For cancellable observations, carry cancellation through result consumption
   and awaited cleanup. Before returning success, check the signal after the
   last awaited finalization step.

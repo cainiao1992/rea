@@ -85,7 +85,7 @@ export const ARTIFACT_TOOL_CONTRACTS = [
   ),
   artifact(
     "extract_artifact",
-    "Extract all regular files from a supported active archive or application package into a fresh temporary directory chosen by REA. The result includes its location. DMG extraction is unavailable; use a caller-managed read-only mount on macOS to access its files. Rejects traversal and symlink escapes, never overwrites, and verifies cleanup. Integrity mismatches fail by default; record-and-continue extracts the observed bytes and returns each mismatch as an explicitly untrusted integrity contradiction.",
+    "Extract regular files exposed by a supported active archive reader into a fresh temporary directory chosen by REA. A nested archive exposed as a file is copied as a file; inspect and extract it separately to unpack its contents. The result includes its location. DMG extraction is unavailable; use a caller-managed read-only mount on macOS to access its files. Rejects traversal and symlink escapes, never overwrites, and verifies cleanup. Integrity mismatches fail by default; record-and-continue extracts the observed bytes and returns each mismatch as an explicitly untrusted integrity contradiction.",
     artifactExtractionInputSchema,
   ),
   artifact(

@@ -997,6 +997,10 @@ bytes and returns the `integrity_contradictions` records for the extracted
 files. An active ASAR unpacked entry whose companion file is absent cannot be
 materialized; extraction fails as `unavailable` with that logical path.
 
+Extraction materializes regular files exposed by the active archive reader.
+When that reader exposes a nested archive as a file, extraction copies the
+archive file; inspect and extract that file separately to unpack its contents.
+
 Packaging tools commonly sign or strip `.asar.unpacked` native binaries after
 writing the archive header, so their declared hashes no longer match. Electron
 does not check unpacked companions against those hashes at runtime. Integrity

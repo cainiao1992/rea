@@ -45,15 +45,19 @@ const marshalInteger = (value: number): Buffer => {
 const marshalTuple = (values: readonly Buffer[]): Buffer =>
   Buffer.concat([Buffer.from([0x29, values.length]), ...values]);
 
+const marshalList = (values: readonly Buffer[]): Buffer => {
+  const count = Buffer.alloc(4);
+  count.writeInt32LE(values.length);
+  return Buffer.concat([Buffer.from([0x5b]), count, ...values]);
+};
+
 const pyzWithInternedModuleName = (name: string, body: Buffer): Buffer => {
   const ordinary = pyzArchive({
     magic: PYTHON_313_MAGIC,
     modules: [{ name: "cafe", typeCode: 0, body }],
   });
   const tableOffset = ordinary.readUInt32BE(8);
-  const table = Buffer.concat([
-    Buffer.from([0x5b]),
-    marshalInteger(1),
+  const table = marshalList([
     marshalTuple([
       internedString(name),
       marshalTuple([
@@ -194,7 +198,9 @@ it("decodes an interned Unicode module name from the PYZ table", async () => {
   const module = snapshot.occurrences.find(
     ({ logical_path }) => logical_path === "PYZ.pyz/café.pyc",
   );
-  expect(snapshot.coverage.status).toBe("complete");
+  expect(snapshot.coverage.status, snapshot.limitations.join("\n")).toBe(
+    "complete",
+  );
   expect(module).toMatchObject({
     entry_kind: "file",
     artifact_id: expect.any(String),

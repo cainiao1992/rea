@@ -119,6 +119,9 @@ it("decodes distinct byte keys and distinct nested-container keys", () => {
   expect(inspectSolidityMetadata(bytecode("a2810101810202"))).toMatchObject({
     status: "partial",
   });
+  expect(inspectSolidityMetadata(bytecode("a281800181a002"))).toMatchObject({
+    status: "partial",
+  });
 });
 
 it.each([
@@ -128,6 +131,9 @@ it.each([
   ["floating point", "a16178fa3f800000"],
   ["duplicate key", "a2617801617802"],
   ["duplicate byte key", "a2410101410102"],
+  ["duplicate array key", "a280018002"],
+  ["duplicate map key", "a2a001a002"],
+  ["duplicate map key in another order", "a2a20102030401a20304010202"],
   ["excessive nesting", "a16178" + "81".repeat(65) + "00"],
   ["impossible collection", "a161788a00"],
 ])("keeps exact ranges and unavailable interpretation for %s", (_name, hex) => {
@@ -137,6 +143,18 @@ it.each([
     entries: [],
     compiler_version: null,
   });
+});
+
+it("rejects repeated deeply nested container keys promptly", () => {
+  const key = "81".repeat(62) + "00";
+  const started = performance.now();
+  expect(
+    inspectSolidityMetadata(bytecode("a2" + key + "01" + key + "02")),
+  ).toMatchObject({
+    status: "not-decoded",
+    diagnostic: expect.stringContaining("found repeat map key"),
+  });
+  expect(performance.now() - started).toBeLessThan(1000);
 });
 
 it.each(["", "60006000f3", "000000", "00010001"])(

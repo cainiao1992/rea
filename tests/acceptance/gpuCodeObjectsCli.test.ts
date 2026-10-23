@@ -111,24 +111,104 @@ cliTest(
   },
 );
 
-cliTest("accepts the PTX compute_xx .target synonym verbatim", async ({ cli }) => {
-  const root = await createTestTempDirectory("rea-ptx-target-cli-");
-  const text = `.version 8.8\n.target compute_80\n.address_size 64\n.entry kernel() {\nret;\n}\n`;
-  const path = join(root, "target.ptx");
-  await writeFile(path, text);
-  const response = await cli.run({
-    arguments: ["inspect-gpu-code-objects", path, "--json"],
-  });
-  expect(response.exitCode, response.stderr).toBe(0);
-  const evidence = parseEvidence(
-    toolContract("inspect_gpu_code_objects").outputSchema.parse(response.json),
-  );
-  const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
-  expect(report.objects[0]!.target).toBe("compute_80");
-  expect(report.ptx_artifacts[0]!.sha256).toBe(
-    createHash("sha256").update(text).digest("hex"),
-  );
-});
+cliTest(
+  "accepts the PTX compute_xx .target synonym verbatim",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ptx-target-cli-");
+    const text = `.version 8.8\n.target compute_80\n.address_size 64\n.entry kernel() {\nret;\n}\n`;
+    const path = join(root, "target.ptx");
+    await writeFile(path, text);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.objects[0]!.target).toBe("compute_80");
+    expect(report.ptx_artifacts[0]!.sha256).toBe(
+      createHash("sha256").update(text).digest("hex"),
+    );
+  },
+);
+
+cliTest(
+  "extracts entry parameters declared in PTX 1.3 bodies",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ptx-legacy-cli-");
+    const text = `.version 1.3\n.target sm_80\n.address_size 64\n.entry kernel {\n.param .u32 input;\nret;\n}\n`;
+    const path = join(root, "legacy.ptx");
+    await writeFile(path, text);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.kernels).toEqual([
+      expect.objectContaining({
+        name: "kernel",
+        parameter_count: 1,
+        parameter_bytes: 4,
+        parameters: [
+          expect.objectContaining({
+            ordinal: 0,
+            name: "input",
+            offset: 0,
+            size: 4,
+            type: ".u32",
+          }),
+        ],
+      }),
+    ]);
+    const malformedPath = join(root, "truncated.ptx");
+    await writeFile(
+      malformedPath,
+      `.version 1.3\n.target sm_80\n.entry kernel {\n.param .u32 input\n`,
+    );
+    const malformed = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        malformedPath,
+        "--analysis",
+        "kernels",
+        "--json",
+      ],
+    });
+    expect(malformed.exitCode, malformed.stderr).toBe(0);
+    const malformedEvidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        malformed.json,
+      ),
+    );
+    const malformedReport = gpuCodeObjectsSchema.parse(
+      malformedEvidence.normalized_result,
+    );
+    expect(malformedReport.objects[0]!.inspection).toBe("malformed");
+    expect(malformedReport.coverage.payloads).toBe("partial");
+  },
+);
 
 cliTest(
   "attributes malformed selector JSON to its actual CLI option",

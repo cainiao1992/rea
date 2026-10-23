@@ -71,6 +71,16 @@ const integer = (token: string | undefined): number | null => {
   const value = Number(token);
   return Number.isSafeInteger(value) ? value : null;
 };
+type PtxVersion = { major: number; minor: number };
+const ptxVersion = (token: string | undefined): PtxVersion | null => {
+  const match = /^(\d+)\.(\d+)$/u.exec(token ?? "");
+  if (match === null) return null;
+  const major = Number(match[1]),
+    minor = Number(match[2]);
+  return Number.isSafeInteger(major) && Number.isSafeInteger(minor)
+    ? { major, minor }
+    : null;
+};
 const sizeOf = (type: string | undefined): number | null => {
   const match = /^\.(?:b|u|s|f)(8|16|32|64|128)$/u.exec(type ?? "");
   return match === null ? null : Number(match[1]) / 8;
@@ -196,6 +206,7 @@ export function* readPtxKernels(
   };
   let kernelCount = 0;
   let outerDepth = 0;
+  let version: PtxVersion | null = null;
   for (let step = iterator.next(); !step.done; step = iterator.next()) {
     const token = step.value;
     if (token.value === "{") {
@@ -207,7 +218,13 @@ export function* readPtxKernels(
       outerDepth--;
       continue;
     }
-    if (outerDepth !== 0 || token.value !== ".entry") continue;
+    if (outerDepth !== 0) continue;
+    if (token.value === ".version") {
+      const value = iterator.next();
+      version = value.done ? null : ptxVersion(value.value.value);
+      continue;
+    }
+    if (token.value !== ".entry") continue;
     const name = next();
     if (!identifier.test(name.value))
       rejectGpu("Malformed PTX entry name or parameters");
@@ -217,6 +234,12 @@ export function* readPtxKernels(
     const flush = (): void => {
       if (part.length === 0) return;
       if (part[0] !== ".param") rejectGpu("Unknown PTX parameter declaration");
+      if (parameters.length >= 65536)
+        throw new BinaryResourceFailure(
+          "structure",
+          65536,
+          "PTX parameter declarations exceed the facts budget",
+        );
       const value = declaration(part);
       let offset: number | null = null;
       if (
@@ -246,7 +269,7 @@ export function* readPtxKernels(
       for (t = next(); t.value !== ")"; t = next()) {
         if (t.value === ",") flush();
         else part.push(t.value);
-        if (part.length > 128 || parameters.length > 65536)
+        if (part.length > 128)
           throw new BinaryResourceFailure(
             "structure",
             65536,
@@ -278,6 +301,29 @@ export function* readPtxKernels(
         }
         if (t.value === "}") {
           depth--;
+          continue;
+        }
+        if (
+          t.value === ".param" &&
+          version !== null &&
+          version.major === 1 &&
+          version.minor <= 3
+        ) {
+          const bodyParameter = [t.value];
+          for (t = next(); t.value !== ";"; t = next()) {
+            if (t.value === "}")
+              rejectGpu("Malformed PTX parameter declaration");
+            if (bodyParameter.length >= 128)
+              throw new BinaryResourceFailure(
+                "structure",
+                65536,
+                "PTX parameter declarations exceed the facts budget",
+              );
+            bodyParameter.push(t.value);
+          }
+          part = bodyParameter;
+          flush();
+          end = t.end;
           continue;
         }
         if (t.value !== ".reg" && t.value !== ".shared") continue;
@@ -401,12 +447,13 @@ export const readPtxTarget = (text: string): string | null => {
         break;
       if (token.value === ".version") {
         const value = stream.next();
-        version = !value.done && /^[0-9]+\.[0-9]+$/u.test(value.value.value);
+        version = !value.done && ptxVersion(value.value.value) !== null;
       }
       if (token.value === ".target") {
         const value = stream.next();
         target =
-          !value.done && /^(?:sm|compute)_[0-9]+[a-z]?$/u.test(value.value.value)
+          !value.done &&
+          /^(?:sm|compute)_[0-9]+[a-z]?$/u.test(value.value.value)
             ? value.value.value
             : null;
       }

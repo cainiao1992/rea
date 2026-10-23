@@ -48,6 +48,7 @@ let repositorySkill;
 let report;
 let retainedPackage;
 let retentionMetadata;
+let updateWorkspaceRetained = false;
 
 const runStage = async (name, action) => {
   const started = performance.now();
@@ -115,6 +116,9 @@ try {
       tarball,
       workspace,
       environment: environmentData.environment,
+      retainWorkspace() {
+        updateWorkspaceRetained = true;
+      },
     }),
   );
   mcpStartup = await runStage("MCP startup", () =>
@@ -255,9 +259,14 @@ try {
     });
   }
 } finally {
-  await runStage("workspace cleanup", () =>
-    rm(workspace, { recursive: true, force: true }),
-  );
+  if (updateWorkspaceRetained)
+    process.stderr.write(
+      `Package updater cleanup incomplete; retained ${workspace}\n`,
+    );
+  else
+    await runStage("workspace cleanup", () =>
+      rm(workspace, { recursive: true, force: true }),
+    );
 }
 const verifierLineage = await runStage("verifier lineage", () =>
   completeVerifierRun(verifierRun),

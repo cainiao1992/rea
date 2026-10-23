@@ -1,10 +1,107 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { exec, json } from "./lib/verify-package-core.mjs";
+import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
+
+/** Keep the live updater owner and its workspace when process cleanup is unproven. */
+export class PackageUpdateCleanupFailure extends AggregateError {
+  constructor(primary, cleanupOwner, result, workspace) {
+    const cleanup = new Error(result.reason);
+    super(
+      primary === undefined ? [cleanup] : [primary, cleanup],
+      `Package updater cleanup incomplete; retained ${workspace}`,
+      { cause: primary },
+    );
+    this.cleanupOwner = cleanupOwner;
+    this.workspace = workspace;
+  }
+}
+
+/** Own the helper and installer descendants until output and process cleanup finish. */
+async function runUpdater({
+  harness,
+  environment,
+  signal,
+  workspace,
+  retainWorkspace,
+}) {
+  // Only updater execution needs built process ownership; importing this fixture
+  // does not make unrelated source-only verifier helpers depend on dist.
+  const { ProviderProcessSupervisor, spawnOwnedProviderProcess } =
+    await import("../dist/process/ProviderProcess.js");
+  const { cleanupOwnedProcessGroup } =
+    await import("../dist/process/ProcessOwnership.js");
+  const launch = await spawnOwnedProviderProcess({
+    command: process.execPath,
+    arguments: [harness],
+    expectedCommand: null,
+    hostEnvironment: environment,
+    cwd: workspace,
+    runId: randomUUID(),
+    sweepTokenOwnedProcesses: true,
+    signal,
+  });
+  let collectionFailure;
+  const supervisor = new ProviderProcessSupervisor(
+    {
+      ...launch,
+      ownsProcessLifetime: true,
+      cleanup:
+        launch.cleanup ?? (() => cleanupOwnedProcessGroup(launch.ownership)),
+    },
+    {
+      maxDiagnosticBytes: 16 * 1024 * 1024,
+      onDiagnostic(event) {
+        if (event.type === "output" && event.truncated)
+          collectionFailure ??= new Error(
+            "Package updater exceeded its diagnostic capacity",
+          );
+        if (event.type === "error")
+          collectionFailure ??= new Error(event.message, {
+            cause: event.cause,
+          });
+      },
+    },
+  );
+  let failure;
+  let stdout;
+  try {
+    while (!(await supervisor.waitForOutputClose(50))) {
+      signal.throwIfAborted();
+      if (collectionFailure !== undefined) throw collectionFailure;
+    }
+    signal.throwIfAborted();
+    if (collectionFailure !== undefined) throw collectionFailure;
+    const snapshot = supervisor.snapshot();
+    if (
+      snapshot.diagnosticTruncated ||
+      snapshot.exitCode !== 0 ||
+      snapshot.signal !== null
+    )
+      throw new Error(
+        `Package updater failed: ${snapshot.stdout.text}\n${snapshot.stderr.text}`,
+      );
+    stdout = snapshot.stdout.text;
+  } catch (cause) {
+    failure = { cause };
+  }
+  const stopped = await supervisor.stop();
+  if (stopped.status === "incomplete") {
+    retainWorkspace?.();
+    throw new PackageUpdateCleanupFailure(
+      failure?.cause,
+      supervisor,
+      stopped,
+      workspace,
+    );
+  }
+  if (failure !== undefined) throw failure.cause;
+  return stdout;
+}
 
 /** Exercise the packaged updater with real npm and a local release registry fixture. */
 export async function verifyPackageUpdate({
@@ -13,6 +110,7 @@ export async function verifyPackageUpdate({
   tarball,
   workspace,
   environment,
+  retainWorkspace,
 }) {
   const metadataPath = join(packageRoot, "package.json");
   const metadata = json(await readFile(metadataPath, "utf8"));
@@ -25,9 +123,11 @@ export async function verifyPackageUpdate({
   await mkdir(dirname(codexPath), { recursive: true });
   await writeFile(codexPath, originalConfig);
   let fixtureFailure;
+  const fixture = new AbortController();
   const server = createServer((request, response) => {
     void serveRegistry(request, response).catch((error) => {
       fixtureFailure ??= error;
+      fixture.abort(fixtureFailure);
       if (response.headersSent) {
         response.destroy();
         return;
@@ -75,6 +175,7 @@ export async function verifyPackageUpdate({
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolveListen);
   });
+  let primary;
   try {
     const address = server.address();
     if (typeof address !== "object" || address === null)
@@ -140,12 +241,13 @@ if (result.status === "failed") process.exitCode = 1;
 `,
     );
     const result = json(
-      (
-        await exec(process.execPath, [harness], {
-          env: runtimeEnvironment,
-          maxBuffer: 16 * 1024 * 1024,
-        })
-      ).stdout,
+      await runUpdater({
+        harness,
+        environment: runtimeEnvironment,
+        signal: fixture.signal,
+        workspace,
+        retainWorkspace,
+      }),
     );
     if (
       result.status !== "updated" ||
@@ -185,13 +287,24 @@ if (result.status === "failed") process.exitCode = 1;
       maintenance_read_only: true,
     };
   } catch (error) {
-    throw fixtureFailure ?? error;
+    primary =
+      error instanceof PackageUpdateCleanupFailure
+        ? error
+        : (fixtureFailure ?? error);
+    throw primary;
   } finally {
-    server.closeAllConnections();
-    await new Promise((resolveClose, reject) =>
-      server.close((error) =>
-        error === undefined ? resolveClose() : reject(error),
-      ),
+    await closeVerifierResources(
+      [
+        async () => {
+          server.closeAllConnections();
+          await new Promise((resolveClose, reject) =>
+            server.close((error) =>
+              error === undefined ? resolveClose() : reject(error),
+            ),
+          );
+        },
+      ],
+      primary,
     );
   }
 }

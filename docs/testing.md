@@ -791,6 +791,13 @@ behavior requires the applicable `verify:*` lanes; packaging and installation
 changes also require `npm run verify:package`. The full-gate benchmark measures
 that explicit lane, not the routine iteration requirement.
 
+The package-update registry fixture retains its first proxy/body failure and
+aborts the owned updater command. It joins the helper and installer descendants
+before workspace removal. Incomplete process cleanup retains the exact owner
+and workspace rather than reporting successful removal. The controlled
+`packageUpdateRegistryFailure` regression needs built process modules, uses no
+public registry, and checks both the primary failure and live descendant absence.
+
 ## Real-toolchain verification lanes
 
 Linux Rizin debugger ownership changes require a separate real-provider gate on

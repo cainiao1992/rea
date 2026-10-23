@@ -11,13 +11,14 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 const execFileAsync = promisify(execFile);
 const injectedFailure = "injected upstream body failure";
 
-it("reports the upstream body failure instead of a second header write", async () => {
+it("retains upstream body failure and joins the active updater and installer child", async () => {
   const testRoot = await createTestTempDirectory("rea-update-registry-");
   const packageRoot = join(testRoot, "package");
   const workspace = join(testRoot, "workspace");
   const prefix = join(testRoot, "prefix");
   const tarball = join(testRoot, "release.tgz");
   const application = join(packageRoot, "dist", "application");
+  const descendants = join(workspace, "updater-pids.json");
   await Promise.all([
     mkdir(application, { recursive: true }),
     mkdir(join(packageRoot, "scripts"), { recursive: true }),
@@ -46,13 +47,19 @@ it("reports the upstream body failure instead of a second header write", async (
     writeFile(
       join(application, "Update.js"),
       [
+        'import { spawn } from "node:child_process";',
+        'import { writeFile } from "node:fs/promises";',
         "export async function runUpdate() {",
+        '  const child = spawn(process.execPath, ["--eval", "setInterval(() => {}, 1000)"], { stdio: "ignore" });',
+        '  await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });',
+        `  await writeFile(${JSON.stringify(descendants)}, JSON.stringify([process.pid, child.pid]));`,
         "  const registry = process.env.npm_config_registry;",
         "  const response = await fetch(`${registry}/unlisted`, {",
         "    signal: AbortSignal.timeout(5000),",
         "  });",
         "  const body = await response.text();",
-        "  throw new Error(`registry fixture answered ${response.status}: ${body}`);",
+        "  setInterval(() => {}, 1000);",
+        "  await new Promise(() => {});",
         "}",
         "",
       ].join("\n"),
@@ -86,7 +93,20 @@ try {
 } catch (cause) {
   failure = cause instanceof Error ? cause.message : String(cause);
 }
-process.stdout.write(JSON.stringify({ failure }));
+const { readFile } = await import("node:fs/promises");
+const pids = JSON.parse(await readFile(${JSON.stringify(descendants)}, "utf8"));
+let livePids;
+if (process.platform === "win32") {
+  livePids = pids.filter((pid) => {
+    try { process.kill(pid, 0); return true; }
+    catch (cause) { if (cause.code === "ESRCH") return false; throw cause; }
+  });
+} else {
+  const { systemProcessOwnershipHost } = await import(${JSON.stringify(pathToFileURL(resolve("dist/process/ProcessOwnershipObservation.js")).href)});
+  const { liveProcesses } = await import(${JSON.stringify(pathToFileURL(resolve("dist/process/ProcessOwnershipProcessTree.js")).href)});
+  livePids = liveProcesses(await systemProcessOwnershipHost.listProcesses()).filter(({pid}) => pids.includes(pid)).map(({pid}) => pid);
+}
+process.stdout.write(JSON.stringify({ failure, observedPids: pids.length, livePids }));
 `;
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -94,5 +114,9 @@ process.stdout.write(JSON.stringify({ failure }));
     { env: { ...process.env }, maxBuffer: 1_024 * 1_024, timeout: 30_000 },
   );
 
-  expect(JSON.parse(stdout)).toEqual({ failure: injectedFailure });
+  expect(JSON.parse(stdout)).toEqual({
+    failure: injectedFailure,
+    observedPids: 2,
+    livePids: [],
+  });
 }, 45_000);

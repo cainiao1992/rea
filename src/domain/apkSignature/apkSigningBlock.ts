@@ -38,7 +38,6 @@ export const APK_BLOCK_ID = {
 
 export type ApkSigningBlockError =
   | { readonly kind: "not-a-zip"; readonly detail: string }
-  | { readonly kind: "zip64-unsupported"; readonly detail: string }
   | {
       /** A ZIP whose end-of-central-directory is damaged or inconsistent. */
       readonly kind: "malformed-zip";
@@ -142,7 +141,8 @@ const centralDirectoryOffset = (
     if (offset !== ZIP64_SENTINEL && size !== ZIP64_SENTINEL)
       return ok({ offset, size, entries, end: eocdOffset });
     return err({
-      kind: "zip64-unsupported",
+      kind: "malformed-zip",
+      offset: Math.max(0, locator),
       detail: "missing Zip64 EOCD locator",
     });
   }
@@ -153,7 +153,11 @@ const centralDirectoryOffset = (
     dv.getUint32(recordOffset, true) !== ZIP64_EOCD_SIGNATURE
   )
     return err({
-      kind: "zip64-unsupported",
+      kind: "malformed-zip",
+      offset:
+        recordOffset !== null && recordOffset <= bytes.length
+          ? recordOffset
+          : locator,
       detail: "malformed Zip64 EOCD record",
     });
   const z64Offset = u64(dv, recordOffset + 48);
@@ -162,8 +166,9 @@ const centralDirectoryOffset = (
   const z64Entries = u64(dv, recordOffset + 32);
   if (z64Offset === null || z64Size === null || z64Entries === null)
     return err({
-      kind: "zip64-unsupported",
-      detail: "Zip64 sizes exceed safe range",
+      kind: "malformed-zip",
+      offset: recordOffset,
+      detail: "Zip64 sizes cannot describe the supplied archive extent",
     });
   return ok({
     offset: z64Offset,

@@ -2,7 +2,7 @@ import { parseWabtInterface } from "./WabtInterface.js";
 import { watString, watStringEnd } from "./WabtString.js";
 
 /** Read only module-name metadata from WABT's preserved name-section payload. */
-const moduleNames = (bytes: Uint8Array): string[] => {
+const moduleNames = (bytes: Uint8Array): string[] | null => {
   const names: string[] = [];
   let offset = 0;
   const uint32 = (end: number): number => {
@@ -16,23 +16,27 @@ const moduleNames = (bytes: Uint8Array): string[] => {
     }
     throw new Error("Incomplete WABT name-section metadata.");
   };
-  while (offset < bytes.length) {
-    const type = uint32(bytes.length);
-    const size = uint32(bytes.length);
-    const end = offset + size;
-    if (end > bytes.length)
-      throw new Error("Incomplete WABT name-section metadata.");
-    if (type === 0 && size !== 0) {
-      const length = uint32(end);
-      if (offset + length !== end)
-        throw new Error("Incomplete WABT module-name metadata.");
-      names.push(
-        new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-          bytes.subarray(offset, end),
-        ),
-      );
+  try {
+    while (offset < bytes.length) {
+      const type = uint32(bytes.length);
+      const size = uint32(bytes.length);
+      const end = offset + size;
+      if (end > bytes.length)
+        throw new Error("Incomplete WABT name-section metadata.");
+      if (type === 0 && size !== 0) {
+        const length = uint32(end);
+        if (offset + length !== end)
+          throw new Error("Incomplete WABT module-name metadata.");
+        names.push(
+          new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+            bytes.subarray(offset, end),
+          ),
+        );
+      }
+      offset = end;
     }
-    offset = end;
+  } catch {
+    return null;
   }
   return names;
 };
@@ -46,6 +50,8 @@ export const parseWabtWat = (text: string) => {
   const exports: string[] = [];
   const customSectionNames: string[] = [];
   const debugModuleNames: string[] = [];
+  let debugNameMetadata: "not-present" | "complete" | "uninterpretable" =
+    "not-present";
   let depth = 0;
   let start = 0;
   let commentDepth = 0;
@@ -126,7 +132,14 @@ export const parseWabtWat = (text: string) => {
               form,
               nameString.end + payloadPrefix[0].length,
             );
-            debugModuleNames.push(...moduleNames(payload.bytes));
+            const names = moduleNames(payload.bytes);
+            if (names === null) {
+              debugNameMetadata = "uninterpretable";
+              debugModuleNames.length = 0;
+            } else if (debugNameMetadata !== "uninterpretable") {
+              debugNameMetadata = "complete";
+              debugModuleNames.push(...names);
+            }
           }
         }
       }
@@ -142,6 +155,7 @@ export const parseWabtWat = (text: string) => {
     exports,
     customSectionNames,
     debugModuleNames,
+    debugNameMetadata,
     interface: parseWabtInterface(forms),
   };
 };

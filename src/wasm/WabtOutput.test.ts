@@ -196,8 +196,12 @@ it.each([
 it.each([
   '(module (@custom "name" "\\00\\06\\05name"))',
   '(module (@custom "name" "\\00\\05\\05name"))',
-])("rejects incomplete decoded module-name metadata: %s", (text) => {
-  expect(() => parseWabtWat(text)).toThrow(/metadata/u);
+])("retains an uninterpretable optional name section: %s", (text) => {
+  expect(parseWabtWat(text)).toMatchObject({
+    customSectionNames: ["name"],
+    debugModuleNames: [],
+    debugNameMetadata: "uninterpretable",
+  });
 });
 it("frames custom section names at their NUL-terminated objdump display", async () => {
   const text = await golden();

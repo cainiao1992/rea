@@ -59,6 +59,11 @@ type Launcher = NonNullable<Parameters<typeof runOwnedCommand>[2]>["launcher"];
 const OPERATION = "inspect_wasm_artifact";
 const digest = (text: string) =>
   createHash("sha256").update(text).digest("hex");
+const warningOutput = (text: string): readonly string[] | null => {
+  if (text === "") return [];
+  const lines = text.trimEnd().split("\n");
+  return lines.every((line) => /^\S+: warning: /u.test(line)) ? lines : null;
+};
 /** Run caller-supplied WABT against private copies of exactly selected bytes. */
 export class WabtArtifactProvider implements WasmArtifactPort {
   readonly #resources = new ArtifactResourceScope();
@@ -123,13 +128,17 @@ export class WabtArtifactProvider implements WasmArtifactPort {
           "REA_WABT_BIN_DIRECTORY must be an absolute tool directory.",
         );
       const commands: {
-        tool: string;
+        tool: "wasm-validate" | "wasm-objdump" | "wasm2wat";
         path: string;
         sha256: string;
         version_banner: string;
         arguments: string[];
       }[] = [];
-      for (const tool of ["wasm-validate", "wasm-objdump", "wasm2wat"]) {
+      for (const tool of [
+        "wasm-validate",
+        "wasm-objdump",
+        "wasm2wat",
+      ] as const) {
         const path = await realpath(
           join(
             directory,
@@ -152,7 +161,11 @@ export class WabtArtifactProvider implements WasmArtifactPort {
           arguments:
             tool === "wasm-objdump"
               ? ["-h", "-x", "module.wasm"]
-              : ["--enable-all", "module.wasm"],
+              : [
+                  "--enable-all",
+                  "--ignore-custom-section-errors",
+                  "module.wasm",
+                ],
         });
       }
       const root = await this.createRuntime();
@@ -349,7 +362,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
                 confidence: "observed",
                 locations: [{ kind: "artifact-path", path: input.path }],
                 limitations: [
-                  "WABT rejected these exact selected bytes with --enable-all; no complete inspection or target execution occurred.",
+                  "WABT rejected these exact selected bytes with --enable-all and --ignore-custom-section-errors; no complete inspection or target execution occurred.",
                 ],
               },
             ),
@@ -364,28 +377,51 @@ export class WabtArtifactProvider implements WasmArtifactPort {
               path: ["path"],
               reason: "invalid_format",
               message:
-                "Selected bytes failed WABT validation with --enable-all; inspect retained upstream diagnostics.",
+                "Selected bytes failed WABT validation with --enable-all and --ignore-custom-section-errors; inspect retained upstream diagnostics.",
             },
           ],
         );
+      const customSectionWarnings: {
+        tool: (typeof commands)[number]["tool"];
+        text: string;
+      }[] = [];
+      const optionalLimitations: string[] = [];
+      const retainWarnings = (
+        tool: (typeof commands)[number]["tool"],
+        output: typeof validation,
+      ) => {
+        const warnings = warningOutput(output.stderr.text);
+        if (warnings === null)
+          throw new AnalysisOutputError(
+            OPERATION,
+            "Unexpected WABT diagnostic output.",
+            {
+              capturedOutput: {
+                stdout: output.stdout.text,
+                stderr: output.stderr.text,
+                truncated: false,
+              },
+            },
+          );
+        if (warnings.length > 0)
+          customSectionWarnings.push({ tool, text: output.stderr.text });
+      };
+      retainWarnings("wasm-validate", validation);
       const dump = await execute(objdump, objdump.arguments);
       capturedOutput = {
         stdout: dump.stdout.text,
         stderr: dump.stderr.text,
         truncated: false,
       };
-      if (dump.stderr.text !== "")
-        throw new AnalysisOutputError(
-          OPERATION,
-          "Unexpected WABT section output.",
-        );
+      retainWarnings("wasm-objdump", dump);
       const wat = await execute(decode, decode.arguments);
       capturedOutput = {
         stdout: wat.stdout.text,
         stderr: wat.stderr.text,
         truncated: false,
       };
-      if (!wat.stdout.text.startsWith("(module") || wat.stderr.text !== "")
+      retainWarnings("wasm2wat", wat);
+      if (!wat.stdout.text.startsWith("(module"))
         throw new AnalysisOutputError(
           OPERATION,
           "Unexpected WABT decoding output.",
@@ -395,8 +431,17 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         exports,
         customSectionNames,
         debugModuleNames,
+        debugNameMetadata,
         interface: interfaceFacts,
       } = parseWabtWat(wat.stdout.text);
+      if (debugNameMetadata === "uninterpretable")
+        optionalLimitations.push(
+          "The optional WebAssembly name custom section could not be interpreted; its original custom-section payload remains in decoded WAT, while debug module names are unavailable.",
+        );
+      if (customSectionWarnings.length > 0)
+        optionalLimitations.push(
+          "WABT reported optional custom-section interpretation warnings; exact warning output is retained in custom_section_warnings.",
+        );
       capturedOutput = {
         stdout: dump.stdout.text,
         stderr: dump.stderr.text,
@@ -414,6 +459,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         "JavaScript references are AST-observed static literals only. Candidate matches are associations, not proven data flow, URL-to-file identity or runtime loading. Computed references and aliases are not resolved.",
         "No target execution or implicit fetch. WABT tools are trusted caller-supplied executables; SHA-256 identifies their bytes, not publisher authenticity. No OS memory sandbox is claimed.",
         `Each WABT command has a ${String(commandTimeoutMs)} ms deadline and a fixed 32 MiB combined output budget. The deadline is not a whole-inspection budget. Oversized output fails instead of producing truncated success.`,
+        ...optionalLimitations,
       ];
       const report = wasmArtifactSchema.parse({
         artifact,
@@ -422,6 +468,8 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         imports,
         exports,
         interface: interfaceFacts,
+        debug_name_metadata: debugNameMetadata,
+        custom_section_warnings: customSectionWarnings,
         headers,
         details,
         wat: {

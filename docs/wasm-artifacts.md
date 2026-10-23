@@ -62,14 +62,23 @@ returns `resource_constraint` with resource `file-size` and its fixed byte
 allowance in `reported_limits.maximum_input_bytes`; retrying the unchanged file
 does not raise that allowance. WASM bytes are copied
 into a private workspace as read-only `module.wasm`; its digest is rechecked
-before and after each tool. WABT validates with `--enable-all`,
-reports sections through `wasm-objdump -h -x`, and decodes through
-`wasm2wat --enable-all`. The result retains selected byte SHA-256 and size,
-section payload ranges, full header/detail output (including module-name
-preambles), exact import/export WAT
-forms, decoded WAT and its UTF-8 SHA-256. Producer format drift and invalid or
-truncated modules are failures, with validation diagnostics and partial Evidence
-retaining selected byte identity and tool provenance.
+before and after each tool. WABT validates with
+`wasm-validate --enable-all --ignore-custom-section-errors`, reports sections
+through `wasm-objdump -h -x`, and decodes through
+`wasm2wat --enable-all --ignore-custom-section-errors`. The result retains
+selected byte SHA-256 and size, section payload ranges, full header/detail output
+(including module-name preambles), exact import/export WAT forms, decoded WAT
+and its UTF-8 SHA-256. Producer format drift and invalid or truncated modules
+are failures, with validation diagnostics and partial Evidence retaining
+selected byte identity and tool provenance.
+
+Core validation remains authoritative when an optional custom section cannot
+be interpreted. WABT warning output is preserved in `custom_section_warnings`;
+`debug_name_metadata` reports whether the optional name section was absent,
+fully interpreted, or uninterpretable. Older portable reports retain their
+original strict command profile; missing metadata coverage is `unknown` and
+missing warning history is `null`. The raw custom section remains in the
+decoded WAT. An uninterpretable name section leaves debug module names unknown.
 
 The tool profile preserves upstream release/source identity, resolved executable
 paths, executable digests, exact banners and arguments. Executable digests are

@@ -48,6 +48,18 @@ export const wasmArtifactSchema = z
     interface: wasmInterfaceSchema.exactOptional(),
     imports: z.array(z.string()),
     exports: z.array(z.string()),
+    debug_name_metadata: z
+      .enum(["unknown", "not-present", "complete", "uninterpretable"])
+      .default("unknown"),
+    custom_section_warnings: z
+      .array(
+        z.strictObject({
+          tool: z.enum(["wasm-validate", "wasm-objdump", "wasm2wat"]),
+          text: z.string().min(1),
+        }),
+      )
+      .nullable()
+      .default(null),
     headers: z.string(),
     details: z.string(),
     wat: z.strictObject({
@@ -119,12 +131,18 @@ export const wasmArtifactSchema = z
         path: ["candidates"],
         message: "Selected candidate does not match artifact identity.",
       });
+    const tolerantCustomSections =
+      value.tool_profile.commands[0]?.arguments.includes(
+        "--ignore-custom-section-errors",
+      );
     for (const [index, command] of value.tool_profile.commands.entries()) {
       const expected = ["wasm-validate", "wasm-objdump", "wasm2wat"][index];
       const argumentsExpected =
         command.tool === "wasm-objdump"
           ? ["-h", "-x", "module.wasm"]
-          : ["--enable-all", "module.wasm"];
+          : tolerantCustomSections
+            ? ["--enable-all", "--ignore-custom-section-errors", "module.wasm"]
+            : ["--enable-all", "module.wasm"];
       if (
         command.tool !== expected ||
         command.version_banner.trim() !== "1.0.42" ||

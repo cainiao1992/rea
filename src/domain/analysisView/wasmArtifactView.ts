@@ -50,6 +50,8 @@ export const wasmViewItemSchema = z.union([
 export const wasmSummarySchema = z.strictObject({
   bytes: wasmArtifactSchema.shape.artifact.shape.bytes,
   validation: wasmArtifactSchema.shape.validation,
+  debug_name_metadata: wasmArtifactSchema.shape.debug_name_metadata,
+  custom_section_warnings: wasmArtifactSchema.shape.custom_section_warnings,
   available_counts: z.strictObject({
     sections: z.int().nonnegative(),
     imports: z.int().nonnegative(),
@@ -133,6 +135,8 @@ export const projectWasmArtifactView = (
       summary: {
         bytes: report.artifact.bytes,
         validation: report.validation,
+        debug_name_metadata: report.debug_name_metadata,
+        custom_section_warnings: report.custom_section_warnings,
         available_counts: {
           sections: report.sections.length,
           imports: report.imports.length,

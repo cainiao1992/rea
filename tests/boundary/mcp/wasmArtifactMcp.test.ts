@@ -60,6 +60,10 @@ const assertFirstSummaryDelivery = async (
     code_units: value.wat.text.length,
   });
   expect(summary.summary.wat).not.toHaveProperty("text");
+  expect(summary.summary).toMatchObject({
+    debug_name_metadata: value.debug_name_metadata,
+    custom_section_warnings: value.custom_section_warnings,
+  });
   const retained = harness.session.evidenceById(summary.parent_evidence_id);
   if (retained === undefined) throw new Error("Summary lost original Evidence");
   expect(retained.normalized_result).toEqual(value);
@@ -424,6 +428,13 @@ it("reads an oversized completed WASM result through its reported retained refer
     ...wasmArtifactFixture(),
     imports: ['(import "env" "memory.with punctuation" (memory 1))'],
     exports: ['(export "first" (func 0))', '(export "second" (func 1))'],
+    debug_name_metadata: "uninterpretable" as const,
+    custom_section_warnings: [
+      {
+        tool: "wasm-validate" as const,
+        text: "0000011: warning: invalid sub-section size: extends past end\n",
+      },
+    ],
     wat: {
       text,
       sha256: createHash("sha256").update(text, "utf8").digest("hex"),

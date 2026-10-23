@@ -207,6 +207,77 @@ const createWabtArtifactFixture = async () => {
   return { selectedRoot, path, bytes, dump };
 };
 
+it("keeps core WASM usable when optional name-section metadata is malformed", async () => {
+  const fixture = await createWabtArtifactFixture();
+  const diagnostic =
+    "0000011: warning: invalid sub-section size: extends past end\n";
+  const dump = [
+    "",
+    "module.wasm:\tfile format wasm 0x1",
+    "",
+    "Sections:",
+    "",
+    ' Custom start=0x0000000a end=0x0000004c (size=0x00000042) "name"',
+    "",
+    "Section Details:",
+    "",
+  ].join("\n");
+  const provider = new WabtArtifactProvider(
+    { REA_WABT_BIN_DIRECTORY: fixture.selectedRoot },
+    (input) => {
+      const version = input.arguments[0] === "--version";
+      const isObjdump = input.command.includes("wasm-objdump");
+      const isDecoder = input.command.includes("wasm2wat");
+      const stdout = version
+        ? "1.0.42\n"
+        : isObjdump
+          ? dump
+          : isDecoder
+            ? '(module (@custom "name" "abc"))\n'
+            : "";
+      const stderr = version ? "" : diagnostic;
+      return spawnOwnedProviderProcess({
+        ...input,
+        hostEnvironment: nodeHostEnvironment(input.hostEnvironment),
+        command: process.execPath,
+        arguments: [
+          "-e",
+          `process.stdout.write(${JSON.stringify(stdout)}); process.stderr.write(${JSON.stringify(stderr)});`,
+        ],
+        expectedCommand: null,
+      });
+    },
+  );
+  try {
+    const result = await provider.inspect({
+      path: fixture.path,
+      glue_paths: [],
+      candidate_paths: [],
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value.result).toMatchObject({
+      validation: "valid",
+      debug_name_metadata: "uninterpretable",
+      custom_section_warnings: [
+        { tool: "wasm-validate", text: diagnostic },
+        { tool: "wasm-objdump", text: diagnostic },
+        { tool: "wasm2wat", text: diagnostic },
+      ],
+      sections: [{ kind: "Custom", start: 10, end: 76, description: '"name"' }],
+      limitations: expect.arrayContaining([
+        expect.stringContaining("optional WebAssembly name custom section"),
+      ]),
+    });
+    expect(
+      wasmArtifactSchema.parse(result.value.result).tool_profile.commands[0]
+        ?.arguments,
+    ).toContain("--ignore-custom-section-errors");
+    expect(await readFile(fixture.path)).toEqual(fixture.bytes);
+  } finally {
+    await provider.close();
+  }
+});
+
 const assertModeOutcome = (
   mode: OutcomeMode,
   result: Awaited<ReturnType<WabtArtifactProvider["inspect"]>>,

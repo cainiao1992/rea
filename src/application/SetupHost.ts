@@ -26,7 +26,7 @@ import {
   type LinuxHopperInstallHost,
 } from "./LinuxHopper.js";
 import { installMacHopper, systemMacHopperInstallHost } from "./MacHopper.js";
-import { linuxHopperReleaseCacheDirectory } from "./LinuxHopperPublisher.js";
+import { linuxHopperReleaseCacheDirectory } from "./LinuxHopperCacheDirectory.js";
 import {
   clientEvidencePaths,
   supportedClients,

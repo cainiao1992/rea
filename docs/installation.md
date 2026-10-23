@@ -423,8 +423,13 @@ rea uninstall --purge-data
 ```
 
 Uninstall preserves Hopper, Node.js, Evidence files, captures, unrelated skills
-and other MCP servers. Purging removes only REA's cache and state under
-`~/.rea`. A client configuration that is malformed, unreadable, or at an unsafe
+and other MCP servers. Purging removes REA's legacy cache and state under
+`~/.rea`, the default Kuna cache (`~/Library/Caches/rea/kuna` on macOS or
+`${XDG_CACHE_HOME:-~/.cache}/rea/kuna` on Linux), and Linux Hopper release
+archives under `${XDG_CACHE_HOME:-~/.cache}/rea/hopper-releases`. Other cache
+namespaces remain intact. A caller-selected `REA_KUNA_CACHE_DIR` is retained
+and reported because REA cannot establish ownership of its entire contents.
+A client configuration that is malformed, unreadable, or at an unsafe
 path stops the operation before anything is removed, and a client that fails
 while being updated stops the remaining removals. Uninstall reports each
 candidate `configuration_path` with its outcome. A client with multiple files

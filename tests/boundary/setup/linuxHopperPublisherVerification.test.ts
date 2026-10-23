@@ -1,3 +1,4 @@
+import { linuxHopperReleaseCacheDirectory } from "../../../src/application/LinuxHopperCacheDirectory.js";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
@@ -24,7 +25,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   LinuxHopperPublisher,
-  linuxHopperReleaseCacheDirectory,
   retryLinuxHopperPublisherCleanup,
 } from "../../../src/application/LinuxHopperPublisher.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";

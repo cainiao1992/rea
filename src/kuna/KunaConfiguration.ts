@@ -1,5 +1,6 @@
-import { isAbsolute, join } from "node:path";
+import { isAbsolute } from "node:path";
 
+import { defaultKunaCacheDirectory } from "../config/kunaCacheDirectory.js";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
 import { providerStartupTimeoutSchema } from "../config/providerStartupTimeout.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -87,22 +88,6 @@ const positiveInteger = (value: string): number | undefined =>
     ? Number(value)
     : undefined;
 
-/** Per-user cache directory that REA owns for Kuna on this host. */
-const defaultCacheRoot = (
-  environment: Readonly<NodeJS.ProcessEnv>,
-  platform: NodeJS.Platform,
-): string => {
-  const home = homeDirectoryFromEnvironment(environment, platform);
-  if (platform === "darwin")
-    return join(home, "Library", "Caches", "rea", "kuna");
-  const xdg = environment.XDG_CACHE_HOME;
-  return join(
-    xdg !== undefined && isAbsolute(xdg) ? xdg : join(home, ".cache"),
-    "rea",
-    "kuna",
-  );
-};
-
 /** Parse the Kuna settings without touching the filesystem or the executable. */
 export const readKunaConfiguration = (
   environment: Readonly<NodeJS.ProcessEnv>,
@@ -175,7 +160,13 @@ export const readKunaConfiguration = (
 
   return ok({
     command,
-    cacheRoot: cacheRoot ?? defaultCacheRoot(environment, platform),
+    cacheRoot:
+      cacheRoot ??
+      defaultKunaCacheDirectory(
+        homeDirectoryFromEnvironment(environment, platform),
+        environment,
+        platform,
+      ),
     cacheMaxBytes,
     projectTimeoutMs: timeout?.data ?? DEFAULT_PROJECT_TIMEOUT_MS,
     functionTimeoutMs: functionTimeout?.data ?? DEFAULT_FUNCTION_TIMEOUT_MS,

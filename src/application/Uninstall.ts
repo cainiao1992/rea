@@ -16,7 +16,9 @@ import { err, ok, type Result } from "../domain/result.js";
 import { copyFile, lstat, realpath, rm, rmdir } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { defaultKunaCacheDirectory } from "../config/kunaCacheDirectory.js";
+import { linuxHopperReleaseCacheDirectory } from "./LinuxHopperCacheDirectory.js";
 
 import { ClientConfigurationPublication } from "./ClientConfigurationPublication.js";
 import { z } from "zod";
@@ -347,7 +349,7 @@ export const systemUninstallHost = (
         platform,
         skillWriteBlocker,
       ),
-    purgeData: () => purgeManagedData(join(home, ".rea"), fileSystem),
+    purgeData: () => purgeSelectedData(home, environment, platform, fileSystem),
     close: async () => {
       try {
         await configurationOperations.close();
@@ -753,11 +755,51 @@ const isOwnedRegistration = (value: unknown, client: SetupClient): boolean => {
   );
 };
 
+/** Purge the same default cache namespaces selected by their producers. */
+const purgeSelectedData = async (
+  home: string,
+  environment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform,
+  fileSystem: UninstallFileSystem,
+): Promise<readonly UninstallItem[]> => {
+  const items = [
+    ...(await purgeManagedData(join(home, ".rea"), fileSystem, [
+      "cache",
+      "state",
+    ])),
+  ];
+  const directories: string[] = [];
+  if (platform === "darwin" || platform === "linux") {
+    directories.push(defaultKunaCacheDirectory(home, environment, platform));
+    const custom = environment.REA_KUNA_CACHE_DIR;
+    if (custom !== undefined && custom !== directories[0])
+      items.push(
+        item(
+          "kuna-custom-cache",
+          "retained",
+          `Caller-selected Kuna cache ${custom} was retained because purge does not establish ownership of that entire directory.`,
+        ),
+      );
+  }
+  if (platform === "linux") {
+    const hopper = linuxHopperReleaseCacheDirectory(environment, home);
+    if (hopper.ok) directories.push(hopper.value);
+    else items.push(item("hopper-releases", "failed", hopper.error.message));
+  }
+  for (const directory of directories)
+    items.push(
+      ...(await purgeManagedData(dirname(directory), fileSystem, [
+        basename(directory),
+      ])),
+    );
+  return items;
+};
+
 const purgeManagedData = async (
   root: string,
   fileSystem: UninstallFileSystem,
+  names: readonly string[],
 ): Promise<readonly UninstallItem[]> => {
-  const names = ["cache", "state"];
   try {
     const stats = await fileSystem.stat(root);
     const linked = stats.isSymbolicLink();

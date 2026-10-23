@@ -20,7 +20,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { access, realpath, writeFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { extname, isAbsolute, join } from "node:path";
 import {
   createAnalysisExecution,
   type AnalysisExecution,
@@ -177,7 +177,11 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
       phase = "workspace";
       root = await this.createRuntime();
       this.#resources.retain(root, undefined);
-      const snapshotPath = join(root.path, "recording");
+      // Keep the selected file's suffix as private parser metadata. sigrok's
+      // autodetection receives a filename, not just the copied bytes.
+      const snapshotName =
+        "path" in input ? `recording${extname(input.path)}` : "recording";
+      const snapshotPath = join(root.path, snapshotName);
       const execute = async (
         args: readonly string[],
         // Caller selectors this command loads; their refusals are input errors.
@@ -327,7 +331,7 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
         phase = "producer";
         const args = [
           "--dont-scan",
-          "--input-file=recording",
+          `--input-file=${snapshotName}`,
           `--protocol-decoders=${input.decoders}`,
           "--protocol-decoder-samplenum",
           ...(input.input_format === null

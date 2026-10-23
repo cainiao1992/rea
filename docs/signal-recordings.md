@@ -31,7 +31,10 @@ The corresponding MCP request is:
 
 `decoders` uses sigrok's decoder stack and option/channel syntax. Channel names
 must match the recording; REA does not guess wiring, baud rate or protocol.
-Omitting `input_format` requests sigrok's autodetection. Omitting `annotations`
+Omitting `input_format` requests sigrok's autodetection. REA uses an immutable
+private copy whose filename retains the selected recording's final suffix, so
+filename-based format detection receives that hint without exposing the
+caller's directory to sigrok. Omitting `annotations`
 retains every annotation class. Both omitted selections are recorded as null.
 See the [upstream manual](https://sigrok.org/wiki/Sigrok-cli) for formats,
 decoder stacking and annotation selectors. No arbitrary command flags are accepted.

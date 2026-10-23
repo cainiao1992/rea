@@ -24,6 +24,9 @@ requires an absolute filesystem path and preserves that exact selection:
 
 The inline Evidence result contains the artifact path, SHA-256, and byte length.
 `chunks` lists every IFF chunk name, file range, and payload SHA-256.
+Repeated names retain separate chunk occurrences. Decoded tables and the Code
+header use the last occurrence of each name, matching OTP's loader; the chunk
+inventory still exposes earlier payloads and their source ranges.
 
 When `AtU8` or `Atom` is present, `atoms` is the 1-based name table and
 `module` is atom 1. Both the pre-OTP 28 table and the OTP 28+ compact table
@@ -43,4 +46,6 @@ import, and lambda rows together. Malformed `FOR1`/`BEAM` headers, truncated
 chunks, and `AtU8` names that are not valid UTF-8 fail without partial success.
 
 This workflow does not execute bytecode, inflate `LitT` literals, or decode
-`Attr`/`CInf` external-term payloads.
+`Attr`/`CInf` external-term payloads. Complete coverage describes this static
+chunk and table report; it does not establish that an Erlang runtime can load
+or execute the module.

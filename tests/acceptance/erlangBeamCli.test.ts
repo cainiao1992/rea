@@ -73,6 +73,45 @@ cliTest("reports BEAM exports through the public CLI", async ({ cli }) => {
 });
 
 cliTest(
+  "decodes the last atom table while retaining every chunk occurrence",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-beam-repeated-atoms-");
+    const original = erlangBeamOtp29Fixture();
+    const decoy = oneAtomBeam(0).subarray(12);
+    const repeated = Buffer.concat([
+      original.subarray(0, 12),
+      decoy,
+      original.subarray(12),
+    ]);
+    repeated.writeUInt32BE(repeated.length - 8, 4);
+    const path = join(root, "repeated.beam");
+    await writeFile(path, repeated);
+    const result = await cli.run({
+      arguments: ["inspect-erlang-beam", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = toolContract("inspect_erlang_beam").outputSchema.parse(
+      result.json,
+    ).normalized_result;
+    expect(report.module).toBe("rea_beam_fixture");
+    expect(report.exports).toContainEqual({
+      function_index: 2,
+      function: "hello",
+      arity: 1,
+      label: 2,
+    });
+    const atomChunks = report.chunks.filter(({ name }) => name === "AtU8");
+    expect(atomChunks).toHaveLength(2);
+    expect(atomChunks[0]?.payload.sha256).not.toBe(
+      atomChunks[1]?.payload.sha256,
+    );
+    expect(atomChunks[0]?.payload.location.offset).toBe(20);
+    expect(atomChunks[1]?.payload.location.offset).toBe(20 + decoy.length);
+    expect(report.coverage.status).toBe("complete");
+  },
+);
+
+cliTest(
   "inspects an OTP 29 BEAM with an extended compact atom length and preserves source identity",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-beam-extended-atom-");

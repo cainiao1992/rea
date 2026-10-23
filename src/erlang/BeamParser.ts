@@ -256,7 +256,9 @@ export const parseErlangBeam = (
         sha256: sha256(payload),
       },
     });
-    if (!payloads.has(name)) payloads.set(name, { payload, offset: at });
+    // OTP's loader replaces the selected payload on each matching chunk.
+    // Keep every occurrence above; decode the last occurrence of each name.
+    payloads.set(name, { payload, offset: at });
     at = padded;
   }
   const atomChunk = payloads.get("AtU8") ?? payloads.get("Atom");

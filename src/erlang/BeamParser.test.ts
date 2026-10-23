@@ -79,6 +79,52 @@ it("reads atoms, exports, imports, lambdas and the Code header", () => {
   ]);
 });
 
+it("selects the last table and Code payload for every repeated chunk name", () => {
+  const original = erlangBeamFixture("selected");
+  const decoy = erlangBeamFixture("decoy");
+  const changedFields = new Map([
+    ["Code", 16],
+    ["ExpT", 8],
+    ["ImpT", 12],
+    ["FunT", 8],
+  ]);
+  for (let at = 12; at < decoy.length;) {
+    const name = decoy.toString("latin1", at, at + 4);
+    const size = decoy.readUInt32BE(at + 4);
+    const field = changedFields.get(name);
+    if (field !== undefined) decoy.writeUInt32BE(9, at + 8 + field);
+    at += 8 + size + ((4 - (size % 4)) % 4);
+  }
+  const repeated = Buffer.concat([
+    original.subarray(0, 12),
+    decoy.subarray(12),
+    original.subarray(12),
+  ]);
+  repeated.writeUInt32BE(repeated.length - 8, 4);
+  const report = parse(repeated);
+  const control = parse(original);
+  expect(report.atoms).toEqual(control.atoms);
+  expect(report.exports).toEqual(control.exports);
+  expect(report.imports).toEqual(control.imports);
+  expect(report.lambdas).toEqual(control.lambdas);
+  expect(report.code).toEqual({
+    ...control.code,
+    instructions: {
+      ...control.code!.instructions,
+      offset: control.code!.instructions.offset + decoy.length - 12,
+    },
+  });
+  expect(report.chunks).toHaveLength(control.chunks.length * 2);
+});
+
+it("rejects a malformed selected atom table instead of using an earlier table", () => {
+  const original = erlangBeamFixture();
+  const invalid = singleChunkBeam("AtU8", Buffer.alloc(0));
+  const repeated = Buffer.concat([original, invalid.subarray(12)]);
+  repeated.writeUInt32BE(repeated.length - 8, 4);
+  expect(() => parse(repeated)).toThrow(/truncated/);
+});
+
 // Expected values come from beam_lib:chunks/2 on the same file under OTP 29.
 it("reads a compiler-produced OTP 29 BEAM with the compact atom table", () => {
   const report = parse(erlangBeamOtp29Fixture());

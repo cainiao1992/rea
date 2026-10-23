@@ -43,6 +43,25 @@ describe("agent recovery metadata", () => {
     expect(analysisErrorProjectionSchema.parse(projected)).toEqual(projected);
   });
 
+  it("distinguishes deterministic duplicate identities from stale update revisions", () => {
+    const duplicate = projectAnalysisError(
+      new UnknownRegistryError("already-exists"),
+    );
+    expect(duplicate).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      retryable: false,
+      details: { reason: "already-exists" },
+      remediation: {
+        action: expect.stringContaining("do not repeat record_unknown"),
+      },
+    });
+    expect(analysisErrorProjectionSchema.parse(duplicate)).toEqual(duplicate);
+    expect(
+      projectAnalysisError(new UnknownRegistryError("revision-conflict")),
+    ).toMatchObject({ code: "revision_conflict", retryable: true });
+  });
+
   it("keeps retryability for transient conflicts and provider timeouts", () => {
     expect(
       projectAnalysisError(new UnknownRegistryError("revision-conflict")),

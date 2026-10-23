@@ -97,11 +97,13 @@ export class ToolResultDelivery {
   toCallToolResult(
     result: Result<JsonValue, AnalysisError>,
     contract: ToolContract,
+    recovery: Readonly<Record<string, JsonValue>> = {},
   ): CallToolResult {
     return result.ok
       ? this.successResult(
           contract.kind === "session" ? { result: result.value } : result.value,
           contract,
+          recovery,
         )
       : this.toErrorToolResult(result.error, contract.returnsTargetContent);
   }
@@ -212,15 +214,17 @@ export class ToolResultDelivery {
       };
     const retainedEvidence = recovery.evidence_reference !== undefined;
     const nextStep =
-      recovery.continuation !== undefined
-        ? "Call inspect_analysis_view with the supplied continuation arguments to read retained analysis. Follow coverage.next_offset for subsequent pages; reduce the page limit if needed, or export the complete retained Evidence."
-        : retainedEvidence
-          ? "Export retained evidence to consume the complete analysis, or use complete CLI JSON output."
-          : contract.name === "get_evidence_bundle"
-            ? evidenceBundleSummary(value)
-              ? MCP_TRANSPORT_EVIDENCE_EXPORT
-              : MCP_TRANSPORT_EVIDENCE_DISCOVERY
-            : "Use complete CLI JSON output to consume the analysis.";
+      recovery.committed_unknown !== undefined
+        ? "Export this session with export_evidence_bundle to inspect the committed unknown and its mutation Evidence, or page list_unknowns using the reported identity. Do not repeat the completed mutation."
+        : recovery.continuation !== undefined
+          ? "Call inspect_analysis_view with the supplied continuation arguments to read retained analysis. Follow coverage.next_offset for subsequent pages; reduce the page limit if needed, or export the complete retained Evidence."
+          : retainedEvidence
+            ? "Export retained evidence to consume the complete analysis, or use complete CLI JSON output."
+            : contract.name === "get_evidence_bundle"
+              ? evidenceBundleSummary(value)
+                ? MCP_TRANSPORT_EVIDENCE_EXPORT
+                : MCP_TRANSPORT_EVIDENCE_DISCOVERY
+              : "Use complete CLI JSON output to consume the analysis.";
     const projected = mcpResponseOverflowProjection({
       completed: true,
       constraint: encoded.constraint,

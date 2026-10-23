@@ -1,3 +1,5 @@
+import type { ResidualUnknown } from "../domain/residualUnknown.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
@@ -188,7 +190,11 @@ const registerRecordUnknownTool = ({
     toolRegistrationOptions(recordContract),
     (input) => {
       const result = session.recordUnknown(input);
-      return server.delivery.toCallToolResult(result, recordContract);
+      return server.delivery.toCallToolResult(
+        result,
+        recordContract,
+        result.ok ? committedUnknownReceipt(result.value) : {},
+      );
     },
   );
 };
@@ -203,7 +209,11 @@ const registerUpdateUnknownTool = ({
     toolRegistrationOptions(updateContract),
     (input) => {
       const result = session.updateUnknown(input);
-      return server.delivery.toCallToolResult(result, updateContract);
+      return server.delivery.toCallToolResult(
+        result,
+        updateContract,
+        result.ok ? committedUnknownReceipt(result.value) : {},
+      );
     },
   );
 };
@@ -232,3 +242,17 @@ export const registerUnknownTools = (
   registerUpdateUnknownTool(registration);
   registerVerifyUnknownTool(registration);
 };
+
+const committedUnknownReceipt = (
+  unknown: ResidualUnknown,
+): Readonly<Record<string, JsonValue>> => ({
+  committed_unknown: {
+    unknown_id: unknown.unknown_id,
+    revision: unknown.revision,
+    mutation_evidence_ids: unknown.mutation_evidence_ids,
+  },
+  evidence_reference: {
+    kind: "retained-evidence",
+    evidence_id: unknown.mutation_evidence_ids[0]!,
+  },
+});

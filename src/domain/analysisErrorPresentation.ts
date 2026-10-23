@@ -213,6 +213,11 @@ export const analysisErrorCategory = (
       error.reason === "exists")
   )
     return "invalid_input";
+  if (
+    error instanceof UnknownRegistryError &&
+    error.reason === "already-exists"
+  )
+    return "invalid_input";
   return STATIC_ERROR_CATEGORIES[error._tag] ?? "execution_failure";
 };
 
@@ -296,6 +301,11 @@ export const analysisErrorUserMessage = (error: AnalysisError): string => {
   if (error instanceof EvidenceIntegrityError)
     return "Evidence is invalid or has changed. Recreate or re-import it, then try again.";
   if (error instanceof EvidenceFileError) return evidenceFileMessage(error);
+  if (
+    error instanceof UnknownRegistryError &&
+    error.reason === "already-exists"
+  )
+    return "This residual unknown already exists in the session. Reuse it or call update_unknown with its current expected_revision; do not repeat record_unknown.";
   if (error instanceof UnknownRegistryError && error.reason === "not-found")
     return "The requested residual unknown does not exist in this session. Check the unknown_id and try again.";
   if (error instanceof UnknownRegistryError)

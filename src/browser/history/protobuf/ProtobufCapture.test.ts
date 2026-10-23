@@ -1,3 +1,7 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createTestTempDirectory } from "../../../../tests/fixtures/temporaryDirectory.js";
+import { protobufCaptureDescriptor } from "../../../../tests/fixtures/protobufCapture.js";
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { ArtifactResourceScope } from "../../../artifacts/ArtifactResourceScope.js";
@@ -123,3 +127,95 @@ it("keeps capture coverage partial for a malformed gRPC-web trailer", async () =
   expect(report.protobuf_coverage?.status).toBe("partial");
   expect(report.records[0]?.binary_fields[2]).toEqual(retainedBody);
 });
+
+it.each([
+  "application/protobuf; encoding=json",
+  "application/protobuf; encoding=unknown",
+  "application/protobuf; charset=utf-8",
+  "application/protobuf; version=1",
+])(
+  "keeps illegal reserved MIME profiles undecoded and partial: %s",
+  async (contentType) => {
+    const report = captureWithBody(contentType, Buffer.from([8, 1]));
+    const retained = structuredClone(report.records[0]!.binary_fields);
+    await decode(report);
+    expect(report.records[0]?.protobuf).toBeUndefined();
+    expect(report.protobuf_coverage?.status).toBe("partial");
+    expect(report.records[0]?.limitations).toContainEqual(
+      expect.stringContaining("MIME profile"),
+    );
+    expect(report.records[0]?.binary_fields).toEqual(retained);
+  },
+);
+it.each([
+  "application/protobuf",
+  'application/protobuf; encoding="binary"',
+  'application/protobuf; type="example.Message"',
+])(
+  "admits binary MIME controls and non-encoding parameters: %s",
+  async (contentType) => {
+    const report = captureWithBody(contentType, Buffer.from([8, 1]));
+    await decode(report);
+    expect(report.records[0]?.protobuf?.[0]).toMatchObject({
+      status: "complete",
+      fields: [{ number: 1, value: "1" }],
+    });
+    expect(report.protobuf_coverage?.status).toBe("complete");
+  },
+);
+it.each([
+  {
+    bytes: protobufCaptureDescriptor(),
+    type: "capture.Missing",
+    field: "message_type",
+    reason: "invalid_value",
+    message: "capture.Missing",
+  },
+  {
+    bytes: Buffer.from([0x08, 0x80]),
+    type: "capture.Message",
+    field: "descriptor_set_path",
+    reason: "invalid_format",
+    message: "byte 0",
+  },
+])(
+  "attributes schema admission to $field while preserving selected capture facts",
+  async ({ bytes, type, field, reason, message }) => {
+    const root = await createTestTempDirectory("rea-schema-admission-");
+    const descriptor = join(root, "schema.pb");
+    await writeFile(descriptor, bytes);
+    const report = captureWithBody("application/protobuf", Buffer.from([8, 1]));
+    const retained = structuredClone(report.records);
+    const input = inspectWebNetworkCaptureInputSchema.parse({
+      capture_path: report.artifact.path,
+      format: report.format,
+      record_ordinals: [0],
+      protobuf: {
+        schema: { descriptor_set_path: descriptor, message_type: type },
+      },
+    });
+    const resources = new ArtifactResourceScope();
+    try {
+      const prepared = await prepareCaptureProtobuf(report, input);
+      await expect(
+        decodeCaptureProtobuf(report, input, resources, prepared),
+      ).rejects.toMatchObject({
+        _tag: "AnalysisInputError",
+        issues: [
+          {
+            path: ["protobuf", "schema", field],
+            reason,
+            message: expect.stringContaining(message),
+          },
+        ],
+      });
+      expect(report.records).toEqual(retained);
+      expect(report.protobuf_coverage).toMatchObject({
+        status: "partial",
+        inspected_records: 0,
+      });
+    } finally {
+      await resources.close();
+    }
+  },
+);

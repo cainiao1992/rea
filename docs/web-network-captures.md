@@ -138,6 +138,11 @@ Selecting `record_ordinals` (CLI `--record`) also decodes retained bodies with
 recognized protobuf or gRPC content types. Whole-capture inspection does not
 perform this extra work. The original binary sidecar, SHA-256 and producer
 ordinal remain the source; decoding adds flat body, frame and field facts.
+Automatic binary Protobuf admission validates reserved MIME parameters:
+`encoding` may be `binary`, while `charset` and the reserved `version` must be
+absent. Illegal profiles retain the source body, add a limitation, and leave
+protobuf coverage partial. Ordinary non-encoding parameters remain accepted;
+an explicit framing choice interprets bytes independently of the MIME profile.
 
 Native gRPC admits only data-frame flags 0/1; gRPC-web additionally admits its
 terminal trailer frame. `grpc-web-text` supports independently padded base64
@@ -167,7 +172,12 @@ remain explicit. Map semantics, extensions and required-field validation are
 unsupported. A supplied schema does not establish the sender's actual schema.
 An invalid nested interpretation records `schema_status: "invalid-message"`
 and `schema_error` locally; later outer fields remain available. Valid string
-contents, including a leading U+FEFF, are preserved.
+contents, including a leading U+FEFF, are preserved. Descriptor wire failures
+name `protobuf.schema.descriptor_set_path` with the wire reason and byte offset;
+a missing selected type names `protobuf.schema.message_type`. Duplicate field
+numbers in a message are refused before registry construction, independently of
+declaration order. Resource exhaustion and cancellation keep their own outcomes
+and previously admitted capture Evidence remains available.
 
 ```bash
 # Compile your own schema with your existing protoc, including local imports:

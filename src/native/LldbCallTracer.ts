@@ -514,9 +514,6 @@ export class LldbCallTracer implements NativeCallTracer {
         }),
       ),
     ];
-    const preparation = failure.preparationFailure;
-    if (preparation !== undefined)
-      return withResolverMarkers(lldbPreparationFailure(preparation), markers);
     const error = translateNativeCommandFailure(
       OPERATION,
       failure,
@@ -1161,34 +1158,6 @@ interface RetainedLldbResources {
 
 const errorReason = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
-
-/**
- * Keep command-supervisor markers on a discovery error. A preparation error
- * that already owns the foreign helper binds the supervisors beside it.
- * A completed preparation still reports those supervisors as cleanup.
- */
-const withResolverMarkers = (
-  error: AnalysisError,
-  markers: readonly ProviderCleanupError[],
-): AnalysisError => {
-  if (markers.length === 0) return error;
-  if (error.cleanupIncomplete) return error.bindCleanupDependencies(markers);
-  const cleanup =
-    markers.length === 1
-      ? markers[0]
-      : new ProviderCleanupError(
-          PROVIDER,
-          [...new Set(markers.flatMap((marker) => marker.cleanupResources))],
-          { reason: "LLDB resolver cleanup remains incomplete" },
-          { operation: OPERATION },
-        ).bindCleanupDependencies(markers);
-  if (cleanup === undefined) return error;
-  return analysisErrorWithCleanupFailure(
-    error,
-    cleanup,
-    OPERATION,
-  ).bindCleanupDependencies([error, cleanup]);
-};
 
 /** Preserve compiler facts and a foreign helper marker without inventing an LLDB exit. */
 const lldbPreparationFailure = (

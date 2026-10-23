@@ -22,7 +22,7 @@ const request = {
   }),
 };
 
-const preparation = () => {
+const preparation = (cancellation?: { readonly reason: unknown }) => {
   const marker = new ProviderCleanupError(
     "process-ownership",
     ["owned-helper-root"],
@@ -34,6 +34,7 @@ const preparation = () => {
   const failure = new DarwinProcessOwnershipInspectionError(
     "controlled compiler failure",
     {
+      ...(cancellation === undefined ? {} : { cancellation }),
       cleanupFailure: marker,
       cleanupOwner: { close },
       compilerOutcome: {
@@ -180,11 +181,10 @@ it("retries the tracer-owned resolver supervisor before another trace", async ()
 
 it("keeps resolver preparation cleanup with the foreign helper", async () => {
   const prepared = preparation();
-  const resolver = vi.fn(async () =>
-    err(
-      new NativeCommandFailure("lldb", "io", null, { cause: prepared.failure }),
-    ),
-  );
+  const failure = new NativeCommandFailure("lldb", "io", null, {
+    cause: prepared.failure,
+  });
+  const resolver = vi.fn(async () => err(failure));
   const tracer = new LldbCallTracer({}, undefined, resolver);
   try {
     const result = await tracer.trace(request);
@@ -192,10 +192,12 @@ it("keeps resolver preparation cleanup with the foreign helper", async () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error._tag).toBe("ProviderAdapterError");
+    expect(result.error.cause).toBe(failure);
     expect(result.error.diagnostics).toMatchObject({
       phase: "process-preparation",
       tool: "lldb",
-      reason: "controlled compiler failure",
+      reason: "io",
+      detail: "controlled compiler failure",
       compiler_outcome: { outcome: "exited", code: 1, signal: null },
     });
     expect(result.error.capturedOutput).toMatchObject({
@@ -221,3 +223,33 @@ it("keeps resolver preparation cleanup with the foreign helper", async () => {
     await prepared.close();
   }
 });
+
+it.each([
+  ["timeout", "AnalysisTimeoutError", "provider_timeout"],
+  ["cancelled", "AnalysisCancelledError", "cancelled"],
+] as const)(
+  "preserves resolver preparation %s classification and exact reason",
+  async (reason, tag, code) => {
+    const abortReason = { phase: "resolver preparation" };
+    const prepared = preparation({ reason: abortReason });
+    const failure = new NativeCommandFailure("lldb", reason, null, {
+      cause: prepared.failure,
+    });
+    const tracer = new LldbCallTracer({}, undefined, async () => err(failure));
+    try {
+      const result = await tracer.trace(request);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected preparation failure");
+      expect(result.error._tag).toBe(tag);
+      expect(result.error.cause).toBe(abortReason);
+      expect(result.error.capturedOutput?.stderr).toBe("compiler failed");
+      expect(result.error.cleanupIncomplete).toBe(true);
+      await prepared.close();
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(projectAnalysisError(result.error).code).toBe(code);
+    } finally {
+      await tracer.close();
+      await prepared.close();
+    }
+  },
+);

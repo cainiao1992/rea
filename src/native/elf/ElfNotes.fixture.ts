@@ -1,3 +1,5 @@
+import { deflateSync } from "node:zlib";
+
 const concat = (...parts: Buffer[]): Buffer => Buffer.concat(parts);
 
 const alignTo = (value: number, alignment: number): number =>
@@ -205,6 +207,84 @@ export const elfNoteFixture = (options: ElfNoteImageOptions = {}): Buffer => {
   }
   notes.copy(bytes, noteOff);
   return bytes;
+};
+
+/** ELF note fixture with a zlib-compressed section-name string table. */
+export const compressedElfNoteFixture = (
+  bits: 32 | 64 = 64,
+  little = true,
+  compressionType = 1,
+  sectionName = ".note.gnu.build-id",
+): Buffer => {
+  const image = elfNoteFixture({
+    bits,
+    little,
+    ownership: "section",
+    sectionName,
+  });
+  const wide = bits === 64;
+  const u16 = (offset: number) =>
+    little ? image.readUInt16LE(offset) : image.readUInt16BE(offset);
+  const word = (offset: number) =>
+    wide
+      ? Number(
+          little
+            ? image.readBigUInt64LE(offset)
+            : image.readBigUInt64BE(offset),
+        )
+      : little
+        ? image.readUInt32LE(offset)
+        : image.readUInt32BE(offset);
+  const shoff = word(wide ? 40 : 32);
+  const shentsize = u16(wide ? 58 : 46);
+  const namesIndex = u16(wide ? 62 : 50);
+  const namesHeader = shoff + namesIndex * shentsize;
+  const namesOffset = word(namesHeader + (wide ? 24 : 16));
+  const namesSize = word(namesHeader + (wide ? 32 : 20));
+  const names = image.subarray(namesOffset, namesOffset + namesSize);
+  const compressed = deflateSync(names);
+  const compressionHeaderBytes = wide ? 24 : 12;
+  const replacement = Buffer.alloc(compressionHeaderBytes);
+  if (little) replacement.writeUInt32LE(compressionType, 0);
+  else replacement.writeUInt32BE(compressionType, 0);
+  if (wide) {
+    if (little) {
+      replacement.writeBigUInt64LE(BigInt(names.length), 8);
+      replacement.writeBigUInt64LE(1n, 16);
+    } else {
+      replacement.writeBigUInt64BE(BigInt(names.length), 8);
+      replacement.writeBigUInt64BE(1n, 16);
+    }
+  } else {
+    if (little) {
+      replacement.writeUInt32LE(names.length, 4);
+      replacement.writeUInt32LE(1, 8);
+    } else {
+      replacement.writeUInt32BE(names.length, 4);
+      replacement.writeUInt32BE(1, 8);
+    }
+  }
+  const result = concat(
+    image.subarray(0, namesOffset),
+    replacement,
+    compressed,
+    image.subarray(namesOffset + namesSize),
+  );
+  const writeWord = (offset: number, value: number) => {
+    if (wide) {
+      if (little) result.writeBigUInt64LE(BigInt(value), offset);
+      else result.writeBigUInt64BE(BigInt(value), offset);
+    } else if (little) result.writeUInt32LE(value, offset);
+    else result.writeUInt32BE(value, offset);
+  };
+  const flagsAt = namesHeader + 8;
+  writeWord(flagsAt, word(flagsAt) | 0x800);
+  writeWord(
+    namesHeader + (wide ? 32 : 20),
+    compressionHeaderBytes + compressed.length,
+  );
+  writeWord(namesHeader + (wide ? 48 : 32), 1);
+  return result;
 };
 
 /**

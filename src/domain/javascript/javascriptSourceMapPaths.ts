@@ -54,35 +54,44 @@ export const resolveJavaScriptSourceMapReferences = (
   });
 };
 
-/** Resolve a source declaration using the same pinned format implementation as map consumers. */
+/** Resolve one source declaration with ECMA-426's WHATWG URL parsing rule. */
 export const resolveJavaScriptSourceMapUrl = (
   source: string | null,
   sourceRoot: string | null | undefined,
   mapUrl: string,
+): string | null => {
+  if (source === null) return null;
+  return (
+    URL.parse(sourceMapReference(source, sourceRoot), mapUrl)?.href ?? null
+  );
+};
+
+const sourceMapReference = (
+  source: string,
+  sourceRoot: string | null | undefined,
 ): string => {
-  const resolved = resolveSourceMapUrls([source ?? ""], sourceRoot, mapUrl)[0];
-  if (resolved === undefined)
-    throw new TypeError(
-      "TraceMap did not resolve its single source declaration",
-    );
-  return resolved;
+  if (sourceRoot == null) return source;
+  return `${sourceRoot}${sourceRoot.endsWith("/") ? "" : "/"}${source}`;
 };
 
 const resolveSourceMapUrls = (
   sources: string[],
   sourceRoot: string | null | undefined,
   mapUrl: string,
-): readonly string[] =>
-  new TraceMap(
+): readonly string[] => {
+  // ECMA-426 prefixes each source when sourceRoot is non-null, adding `/`
+  // only when the root does not already end with one. Do this before handing
+  // the references to TraceMap so its URL resolver cannot duplicate a slash.
+  return new TraceMap(
     {
       version: 3,
       names: [],
-      sources,
-      ...(sourceRoot == null ? {} : { sourceRoot }),
+      sources: sources.map((source) => sourceMapReference(source, sourceRoot)),
       mappings: "",
     },
     mapUrl,
   ).resolvedSources;
+};
 
 /** Resolve a source-map URL reference without changing its recorded identity. */
 const resolveJavaScriptSourceMapPath = (

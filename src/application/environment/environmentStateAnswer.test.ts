@@ -243,6 +243,30 @@ describe("loaded later pages", () => {
 });
 
 describe("list answers", () => {
+  it("replays repeated query values instead of applying scalar state-query semantics", () => {
+    const serving = servingFrom([
+      ["GET", "/api/items?tag=a&tag=b", { selected: "b" }],
+      ["GET", "/api/items?tag=a&tag=c", { selected: "c" }],
+    ]);
+    const tool = serving.source.manifest.tools.find(
+      (candidate) => candidate.path_template === "/api/items",
+    );
+    if (tool === undefined) throw new Error("Missing items query tool");
+    const argument = tool.query_parameter_names.find((name) => name === "tag");
+    if (argument === undefined) throw new Error("Missing tag query argument");
+    const result = answerFromState(serving, tool, { [argument]: ["a", "c"] });
+    if (!result.ok) throw result.error;
+    expect(result.value.body).toEqual({ selected: "c" });
+    expect(result.value.replay).toMatchObject({
+      exact_match: true,
+      recorded_query: "?tag=a&tag=c",
+    });
+    expect(result.value.state).toEqual({
+      source: "recording",
+      reason: "query-multiplicity",
+    });
+  });
+
   it("lists every entity of the collection in state order when membership is all", () => {
     const serving = servingOf();
     const args = { uid: "acb4v6" };
@@ -326,7 +350,9 @@ describe("list answers", () => {
       state: { source: "state", listed: 1 },
     });
   });
+});
 
+describe("list answer coverage and bounds", () => {
   it("answers an unfiltered call from a paging-only line of the parent its path arguments name", () => {
     const books = servingFrom([
       ["GET", "/api/orgs/1/books?limit=50", [{ id: 1 }, { id: 2 }]],

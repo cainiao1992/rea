@@ -1,4 +1,5 @@
 import { readCudaTarget } from "./CudaTarget.js";
+import { readAmdGpuNoteTargetKey } from "./AmdGpuTarget.js";
 import type { GpuPayloadTarget } from "./GpuObject.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
@@ -378,13 +379,7 @@ export const readAmdElfMetadata = async (
   const observed = (): AmdElfMetadata => {
     const target = targets.size === 1 ? [...targets][0]! : null;
     // LLVM notes use both the empty and explicit `unknown` environment forms.
-    const targetMatch =
-      target === null
-        ? null
-        : /^amdgcn-amd-amdhsa-(?:-(gfx[a-zA-Z0-9]+(?:(?::[^\s]+)|(?:\+[a-zA-Z0-9_-]+))*)|unknown-(gfx[a-zA-Z0-9]+(?:(?::[^\s]+)|(?:\+[a-zA-Z0-9_-]+))*))$/u.exec(
-            target,
-          );
-    const target_key = targetMatch?.[1] ?? targetMatch?.[2] ?? null;
+    const target_key = target === null ? null : readAmdGpuNoteTargetKey(target);
     return { target, target_key, limitations, notes };
   };
   try {

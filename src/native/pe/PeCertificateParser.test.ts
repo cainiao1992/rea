@@ -94,6 +94,32 @@ it("reads BER indefinite constructed ContentInfo and preserves certificate bytes
   );
 });
 
+it("retains certificate and signer facts for ASCII TeletexString names", () => {
+  const payload = pkcs7SignedDataFixture("Plain Name", "Plain Org");
+  const root = readAsn1(payload);
+  const markTeletexNames = (node: ReturnType<typeof readAsn1>): void => {
+    if (node.tag === 0x0c) payload[node.start] = 0x14;
+    for (const child of node.children) markTeletexNames(child);
+  };
+  markTeletexNames(root);
+
+  const report = parse(peCertificateFixture(false, payload));
+  expect(report.coverage).toMatchObject({
+    status: "complete",
+    certificates: 1,
+  });
+  expect(report.entries[0]?.pkcs7?.certificates[0]).toMatchObject({
+    issuer: { text: "commonName=Plain Name, organizationName=Plain Org" },
+    subject: { text: "commonName=Plain Name, organizationName=Plain Org" },
+  });
+  expect(report.entries[0]?.pkcs7?.signers[0]?.issuer?.text).toBe(
+    "commonName=Plain Name, organizationName=Plain Org",
+  );
+  expect(report.limitations).toContain(
+    "TeletexString values use OpenSSL's ISO-8859-1 compatibility mapping; this is not a full T.61 decoder.",
+  );
+});
+
 it.each([
   ["primitive", 0x04],
   ["constructed", 0x24],
@@ -519,7 +545,6 @@ it("rejects a UTF8String name that is not valid UTF-8", () => {
 });
 
 it.each([
-  ["TeletexString", 0x14, Buffer.from([0xc2, 0x65])],
   ["GeneralString", 0x1b, Buffer.from("name")],
   ["OCTET STRING", 0x04, Buffer.from("name")],
 ] as const)(

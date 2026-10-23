@@ -97,6 +97,7 @@ import {
 } from "./javascriptSemanticCoverage.js";
 import { semanticResourceLimitReason } from "./javascriptSemanticResourceLimits.js";
 import {
+  javaScriptRuntimeContext,
   parseJavaScriptSource,
   type ParsedJavaScriptSource,
 } from "./javascriptSourceParser.js";
@@ -1484,6 +1485,7 @@ const bindAssignment = (
 ): void => {
   if (t.isAssignmentExpression(node)) {
     const left = unwrapJavaScriptExpression(node.left).node;
+    bindMappedArgumentWrite(left, node, state, conditionallySkipped);
     const selectedPattern =
       node.operator === "=" &&
       (t.isObjectPattern(left) || t.isArrayPattern(left));
@@ -1524,6 +1526,7 @@ const bindAssignment = (
     }
   } else if (t.isUpdateExpression(node)) {
     const argument = unwrapJavaScriptExpression(node.argument).node;
+    bindMappedArgumentWrite(argument, node, state, conditionallySkipped);
     if (t.isIdentifier(argument))
       addAssignment(argument, node, scope, state, conditionallySkipped);
   } else if (t.isForOfStatement(node) || t.isForInStatement(node)) {
@@ -1558,6 +1561,151 @@ const bindAssignment = (
           mutable: true,
           referenceOnly: true,
         });
+    }
+  }
+};
+
+type MappedArgumentsOwner = {
+  readonly scope: JavaScriptSemanticScopeState;
+  readonly parameters: ReadonlyMap<number, t.Identifier>;
+  readonly strictness: "sloppy" | "strict" | "unknown";
+};
+
+/** Find an implicit arguments object through stable local aliases. */
+const mappedArgumentsOwner = (
+  expression: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+  seen: Set<string> = new Set(),
+): MappedArgumentsOwner | undefined => {
+  let value = unwrapJavaScriptExpression(expression).node;
+  while (t.isIdentifier(value) && value.name !== "arguments") {
+    const binding = resolveSemanticBindingState(state, value, value.name);
+    if (binding === undefined || seen.has(binding.bindingId)) return undefined;
+    seen.add(binding.bindingId);
+    const initializer = semanticStableInitializer(binding, state);
+    if (initializer === undefined) return undefined;
+    value = unwrapJavaScriptExpression(initializer.node).node;
+  }
+  if (!t.isIdentifier(value)) return undefined;
+
+  if (semanticBindingLookupAt(state, value, "arguments").kind !== "ambient")
+    return undefined;
+  let owner: t.Function | undefined;
+  for (
+    let current: t.Node | undefined = value;
+    current !== undefined;
+    current = state.parentsByNode.get(current)
+  ) {
+    if (t.isFunction(current) && !t.isArrowFunctionExpression(current)) {
+      owner = current;
+      break;
+    }
+  }
+  if (owner === undefined) return undefined;
+  const scope = state.scopeByNode.get(owner);
+  if (scope === undefined) return undefined;
+
+  const parameters = runtimeFunctionParameters(owner);
+  if (
+    parameters.some((parameter) => {
+      const node = t.isTSParameterProperty(parameter)
+        ? parameter.parameter
+        : parameter;
+      return !t.isIdentifier(node);
+    })
+  )
+    return undefined;
+
+  // Duplicate formals map only their last occurrence to the shared binding.
+  const mapped = new Map<number, t.Identifier>();
+  const names = new Set<string>();
+  for (let index = parameters.length - 1; index >= 0; index -= 1) {
+    const parameter = parameters[index];
+    if (parameter === undefined) continue;
+    const node = t.isTSParameterProperty(parameter)
+      ? parameter.parameter
+      : parameter;
+    if (!t.isIdentifier(node) || names.has(node.name)) continue;
+    names.add(node.name);
+    mapped.set(index, node);
+  }
+  if (mapped.size === 0) return undefined;
+
+  return {
+    scope,
+    parameters: mapped,
+    strictness: mappedArgumentsStrictness(owner, state),
+  };
+};
+
+const mappedArgumentsStrictness = (
+  owner: t.Function,
+  state: JavaScriptSemanticAnalysisState,
+): MappedArgumentsOwner["strictness"] => {
+  for (
+    let current: t.Node | undefined = owner;
+    current !== undefined;
+    current = state.parentsByNode.get(current)
+  ) {
+    if (t.isClass(current)) return "strict";
+    if (
+      t.isFunction(current) &&
+      t.isBlockStatement(current.body) &&
+      current.body.directives.some(({ value }) => value.value === "use strict")
+    )
+      return "strict";
+    if (t.isProgram(current)) {
+      if (current.sourceType === "module") return "strict";
+      if (current.directives.some(({ value }) => value.value === "use strict"))
+        return "strict";
+      const runtimeContext = javaScriptRuntimeContext(current);
+      if (runtimeContext === "module") return "strict";
+      if (runtimeContext === "commonjs") return "sloppy";
+      return "unknown";
+    }
+  }
+  return "unknown";
+};
+
+/** A mapped arguments property write is another write to its formal binding. */
+const bindMappedArgumentWrite = (
+  target: t.Node,
+  writeSite: t.Node,
+  state: JavaScriptSemanticAnalysisState,
+  conditionallySkipped: boolean,
+): void => {
+  for (const writeTarget of semanticWriteTargets(target)) {
+    if (
+      !t.isMemberExpression(writeTarget) &&
+      !t.isOptionalMemberExpression(writeTarget)
+    )
+      continue;
+    const root = semanticReferenceRoot(writeTarget);
+    if (root.path.length !== 1) continue;
+    const owner = mappedArgumentsOwner(root.root, state);
+    if (owner === undefined || owner.strictness === "strict") continue;
+    const key = root.path[0];
+    const index =
+      typeof key === "number"
+        ? key
+        : typeof key === "string" && /^(?:0|[1-9][0-9]*)$/u.test(key)
+          ? Number(key)
+          : undefined;
+    const parameters =
+      key === null
+        ? [...owner.parameters.values()]
+        : index !== undefined && owner.parameters.has(index)
+          ? [owner.parameters.get(index)!]
+          : [];
+    for (const parameter of parameters) {
+      addAssignment(
+        parameter,
+        writeTarget,
+        owner.scope,
+        state,
+        conditionallySkipped,
+        writeSite,
+      );
     }
   }
 };

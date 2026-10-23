@@ -24,8 +24,11 @@ requires an absolute filesystem path and preserves that exact selection:
 
 The inline Evidence result contains the artifact path, SHA-256, and byte length.
 `tables` lists each declared note program header or section, including the
-section name when a string table is present. Each `entries[]` item reports owner,
-type, descriptor SHA-256, and a hex preview for descriptors of 64 bytes or less.
+section name when a string table is present. Zlib-compressed section-name
+tables are decompressed within the selected file-size budget. An unsupported
+compression type leaves section names unknown and adds a limitation; note bytes
+remain independently examined. Each `entries[]` item reports owner, type,
+descriptor SHA-256, and a hex preview for descriptors of 64 bytes or less.
 
 For GNU notes, `gnu.build_id_hex`, `gnu.abi_tag`, or `gnu.gold_version` are
 filled when the descriptor matches that type. Other owners keep `gnu` null.
@@ -40,8 +43,10 @@ the image never carried notes in another container or overlay.
 
 The selected file is limited to 64 MiB by default (512 MiB maximum). At most
 32 note entries are examined by default across every table. Retained note
-names, section names, and GNU descriptor text share that file's byte budget,
-and repeated table ranges count again. Each descriptor range is hashed once,
+names, section names, and GNU descriptor text share a scan budget based on
+the source bytes plus any decoded section-name table, capped at
+`max_file_bytes`. The raw source and decoded table must also fit together
+within that ceiling; repeated table ranges count again. Each descriptor range is hashed once,
 and each GNU version's trailing NUL run is scanned once; neither walk may
 exceed that byte ceiling. Malformed ELF headers, truncated header
 tables, declared note tables that extend past the file, and truncated

@@ -74,6 +74,7 @@ export const MAX_DECODED_NAME_BYTES = 65_536;
 
 interface DecodedNameBudget {
   remaining: number;
+  teletexStringCompatibilityUsed: boolean;
 }
 
 const chargeDecodedName = (budget: DecodedNameBudget, bytes: number): void => {
@@ -178,6 +179,11 @@ const decodeDirectoryString = (
     case 0x17:
     case 0x18:
       return decodeUtf8(node.content, budget);
+    case 0x14:
+      chargeDecodedName(budget, node.content.length);
+      budget.teletexStringCompatibilityUsed = true;
+      // OpenSSL also assumes ISO-8859-1 when converting legacy T61String.
+      return node.content.toString("latin1");
     default:
       return fail(
         `Unsupported certificate name encoding (DER tag 0x${node.tag.toString(16).padStart(2, "0")}).`,
@@ -339,7 +345,10 @@ const finishTbsCertificate = (
 /** Decode one X.509 Certificate SEQUENCE at a known file-relative DER node. */
 export const parseCertificate = (
   node: Asn1Node,
-  names: DecodedNameBudget = { remaining: MAX_DECODED_NAME_BYTES },
+  names: DecodedNameBudget = {
+    remaining: MAX_DECODED_NAME_BYTES,
+    teletexStringCompatibilityUsed: false,
+  },
 ): ParsedCertificate => {
   requireDefiniteEncoding(node, "X.509 Certificate");
   const children = sequence(node, "Certificate");
@@ -510,6 +519,7 @@ export interface ParsedSignedData {
   readonly digest_algorithm_oids: readonly string[];
   readonly certificates: readonly ParsedCertificate[];
   readonly signers: readonly ParsedSigner[];
+  readonly teletexStringCompatibilityUsed: boolean;
 }
 
 const parseSignedData = (
@@ -554,6 +564,7 @@ const parseSignedData = (
     digest_algorithm_oids,
     certificates,
     signers,
+    teletexStringCompatibilityUsed: names.teletexStringCompatibilityUsed,
   };
 };
 
@@ -579,5 +590,6 @@ export const parsePkcs7SignedData = (bytes: Buffer): ParsedSignedData => {
     return fail("signedData content has unexpected trailing fields.");
   return parseSignedData(signedData, {
     remaining: MAX_DECODED_NAME_BYTES,
+    teletexStringCompatibilityUsed: false,
   });
 };

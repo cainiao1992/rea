@@ -17,6 +17,7 @@ import { answerWrite } from "./environmentStateWriteAnswer.js";
 export type EnvironmentToolAnswer = (
   tool: EnvironmentManifestTool,
   args: ReplayArguments,
+  observedQuery?: string | null,
 ) => Result<ReplayResult, AnalysisError>;
 
 /** The answer a served environment gives: replay without a state store; with one, a served write applies to the live state and a read answers from it. */
@@ -25,10 +26,19 @@ export const environmentToolAnswer = (
   store: EnvironmentStateStore | undefined,
 ): EnvironmentToolAnswer =>
   store === undefined
-    ? (tool, args) => replayEnvironmentTool(source, tool, args)
-    : (tool, args) => {
+    ? (tool, args, observedQuery) =>
+        replayEnvironmentTool(source, tool, args, observedQuery)
+    : (tool, args, observedQuery) => {
         const plan = store.state.writes.get(tool.name);
         return plan?.served === true
-          ? answerWrite({ source, store }, { tool, plan, args })
-          : answerFromState({ source, store }, tool, args);
+          ? answerWrite(
+              { source, store },
+              {
+                tool,
+                plan,
+                args,
+                ...(observedQuery === undefined ? {} : { observedQuery }),
+              },
+            )
+          : answerFromState({ source, store }, tool, args, observedQuery);
       };

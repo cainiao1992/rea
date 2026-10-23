@@ -142,6 +142,107 @@ it("uses legacy simulator and device platform facts when resolving dylibs", asyn
   );
 });
 
+it("selects the ARMv7s FAT dylib slice before ARMv7 independent of FAT order", async () => {
+  const workspace = await createTestTempDirectory("rea-macho-arm-fat-order-");
+  const armv7 = { type: 12, subtype: 9 };
+  const armv7s = { type: 12, subtype: 11 };
+  const app = machoImage({
+    cpu: armv7s,
+    wide: false,
+    commands: [
+      versionMinCommand(LC.VERSION_MIN_IPHONEOS),
+      dylibCommand(LC.LOAD_DYLIB, "@loader_path/lib.dylib"),
+    ],
+  });
+  const generic = machoImage({
+    cpu: armv7,
+    wide: false,
+    fileType: FILE_TYPE.dylib,
+    commands: [
+      versionMinCommand(LC.VERSION_MIN_IPHONEOS),
+      dylibCommand(LC.LOAD_DYLIB, "@loader_path/generic-child.dylib"),
+    ],
+  });
+  const specialized = machoImage({
+    cpu: armv7s,
+    wide: false,
+    fileType: FILE_TYPE.dylib,
+    commands: [
+      versionMinCommand(LC.VERSION_MIN_IPHONEOS),
+      dylibCommand(LC.LOAD_DYLIB, "@loader_path/specialized-child.dylib"),
+    ],
+  });
+  const child = machoImage({
+    cpu: armv7,
+    wide: false,
+    fileType: FILE_TYPE.dylib,
+    commands: [versionMinCommand(LC.VERSION_MIN_IPHONEOS)],
+  });
+  const traceWithSlices = async (
+    name: string,
+    slices: readonly { cpu: typeof armv7; bytes: Uint8Array }[],
+  ) => {
+    const root = join(workspace, name);
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, "App"), app);
+    await writeFile(join(root, "lib.dylib"), fatImage(slices));
+    await writeFile(join(root, "generic-child.dylib"), child);
+    await writeFile(join(root, "specialized-child.dylib"), child);
+    return traceDylibResolution({
+      rootPath: root,
+      targetPath: join(root, "App"),
+      targetSha256: createHash("sha256").update(app).digest("hex"),
+      enumerateRoots: false,
+      parameters: { roots: ["App"] },
+    });
+  };
+
+  for (const [name, slices] of [
+    [
+      "generic-first",
+      [
+        { cpu: armv7, bytes: generic },
+        { cpu: armv7s, bytes: specialized },
+      ],
+    ],
+    [
+      "specialized-first",
+      [
+        { cpu: armv7s, bytes: specialized },
+        { cpu: armv7, bytes: generic },
+      ],
+    ],
+  ] as const) {
+    const trace = await traceWithSlices(name, slices);
+    expect(
+      trace.images.find(({ path }) => path === "App")?.slices[0],
+    ).toMatchObject({
+      architecture: "arm",
+      cpu_type: armv7s.type,
+      cpu_subtype: armv7s.subtype,
+    });
+    expect(trace.edges.find(({ loader }) => loader === "App")).toMatchObject({
+      resolution: { status: "resolved", image: "lib.dylib" },
+    });
+    expect(
+      trace.edges.find(({ loader }) => loader === "lib.dylib"),
+    ).toMatchObject({
+      install_name: "@loader_path/specialized-child.dylib",
+      resolution: { status: "resolved", image: "specialized-child.dylib" },
+    });
+  }
+
+  const fallback = await traceWithSlices("armv7-fallback", [
+    { cpu: armv7, bytes: generic },
+  ]);
+  expect(
+    fallback.edges.find(({ loader }) => loader === "lib.dylib"),
+  ).toMatchObject({
+    install_name: "@loader_path/generic-child.dylib",
+    resolution: { status: "resolved", image: "generic-child.dylib" },
+  });
+});
+
 it.each([false, true] as const)(
   "applies macOS dyld's implicit platform to a platform-less dylib and traces its required child present=%s",
   async (childPresent) => {

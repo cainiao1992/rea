@@ -87,6 +87,59 @@ export const createTypeNamer = (
     const name = join(parts.reverse(), "+");
     return namespace === "" ? name : join([namespace, name], ".");
   }
+  function* genericDefinitionName(
+    index: number,
+    args: readonly string[],
+  ): Generator<void, string> {
+    if (!Number.isInteger(index) || index < 0 || index >= metadata.types.length)
+      fail(`type definition ${index} is out of range`);
+    const chain: number[] = [];
+    const seen = new Set<number>();
+    for (let at = index; at !== -1;) {
+      if (seen.has(at)) fail(`cyclic declaring type at ${at}`);
+      if (++work % 256 === 0) yield;
+      const type = metadata.types[at];
+      if (type === undefined)
+        return fail(`type definition ${at} is out of range`);
+      seen.add(at);
+      chain.push(at);
+      at = type.declaring_type;
+    }
+
+    let previousArgumentCount = 0;
+    const parts: string[] = [];
+    for (const typeIndex of chain.reverse()) {
+      if (++work % 256 === 0) yield;
+      const type = metadata.types[typeIndex]!;
+      const argumentCount = facts.genericTypeArgumentCounts[typeIndex];
+      if (
+        argumentCount === undefined ||
+        argumentCount < previousArgumentCount ||
+        argumentCount > args.length
+      )
+        return fail(
+          `generic argument count does not match nested type definition ${typeIndex}`,
+        );
+      const componentArguments = args.slice(
+        previousArgumentCount,
+        argumentCount,
+      );
+      previousArgumentCount = argumentCount;
+      const name = type.name.replace(/`\d+$/u, "");
+      parts.push(
+        componentArguments.length === 0
+          ? name
+          : join([name, "<", join(componentArguments, ", "), ">"]),
+      );
+    }
+    if (previousArgumentCount !== args.length)
+      fail(
+        `generic argument count ${args.length} does not match nested type definition ${index}`,
+      );
+    const name = join(parts, "+");
+    const namespace = metadata.types[chain[0]!]!.namespace;
+    return namespace === "" ? name : join([namespace, name], ".");
+  }
   const byAddress = new Map<bigint, string>();
   const active = new Set<bigint>();
   const byrefBit = version >= 29 ? 29 : 30;
@@ -145,10 +198,22 @@ export const createTypeNamer = (
     }
   }
   function* generic(data: bigint, depth: number): Generator<void, string> {
-    const definition =
-      version >= 27
-        ? yield* name(pointer(data, "generic class type"), depth + 1)
-        : yield* definitionName(u32(data, "generic class definition"));
+    let definitionIndex: number;
+    if (version >= 27) {
+      const definitionType = pointer(data, "generic class type");
+      const definitionData = pointer(
+        definitionType,
+        "generic class definition",
+      );
+      const definitionKind =
+        (u32(definitionType + 8n, "generic class type attributes") >>> 16) &
+        0xff;
+      if (definitionKind !== 0x11 && definitionKind !== 0x12)
+        fail("generic class type is not a class or value type definition");
+      definitionIndex = Number(
+        BigInt.asIntN(32, definitionData & 0xffff_ffffn),
+      );
+    } else definitionIndex = u32(data, "generic class definition");
     const instance = pointer(data + 8n, "generic class instance");
     const count = u32(instance, "generic argument count");
     const argv = pointer(instance + 8n, "generic arguments");
@@ -167,7 +232,7 @@ export const createTypeNamer = (
       guard(bytes);
       args.push(argument);
     }
-    return join([definition.replace(/`\d+$/u, ""), "<", join(args, ", "), ">"]);
+    return yield* genericDefinitionName(definitionIndex, args);
   }
   return name;
 };

@@ -260,8 +260,10 @@ The result adds:
   definitions, `T[]` for vectors, `T[*]` for rank-one multidimensional arrays,
   `T[,]` for rank-two arrays and `T*`, generic instances as
   `System.Collections.Generic.List<string>` and generic parameters by their
-  metadata name (`TKey`). A trailing `&` marks a by-reference type. `name` is
-  `null` only for type index `-1`.
+  metadata name (`TKey`). Nested generic arguments stay with the component
+  that declares them, for example `Game.Outer<int>+Inner<string>` or
+  `Game.Outer<int>+Leaf` when the nested type adds no parameters. A trailing
+  `&` marks a by-reference type. `name` is `null` only for type index `-1`.
 
 `binary` also records `types_field` and `types_count`: the address of
 `Il2CppMetadataRegistration.typesCount` and its value. That record is found as

@@ -165,7 +165,10 @@ Each such MCP tool call selects one of the records its manifest tool cites and
 returns that record's recorded response. Selection compares the supplied path
 parameters against the record's path segments at the parameter indexes, then
 the supplied query values against the record's query string, and keeps the
-record with the most matches; ties keep manifest order. The result reports
+record with the most matches; ties keep manifest order. A query argument accepts
+one string or an array of strings for repeated values; the array is matched
+against every occurrence in captured order. The raw recorded query remains the
+replay evidence. The result reports
 where the answer came from:
 
 ```json
@@ -187,9 +190,14 @@ where the answer came from:
 }
 ```
 
-`exact_match` is true when every supplied path parameter and query value
-equals the recorded one; it says nothing about parameters the caller omitted.
-Recorded query parsing runs only when supplied query arguments affect selection.
+`exact_match` is true when every supplied path parameter and query occurrence
+matches the recorded one; it says nothing about parameters the caller omitted.
+Comparison probes retain the raw query spelling and its decoded parameter pairs
+in request order, including the interleaving of repeated values across names.
+Standalone tool calls express repeated values as per-name arrays; when matching
+records differ only in cross-name order, `exact_match` is false because those arguments cannot
+identify that order. Recorded query parsing runs only when supplied query
+arguments affect selection.
 A path value matches a recorded segment as written or after percent-decoding;
 when both kinds of match are available, the record whose segment equals the
 value as written is chosen. `recorded_query` keeps the `?` of an explicit empty
@@ -365,7 +373,8 @@ shape and carries no annotations.
 Path parameters are required strings whose
 description names the segment index, the templating rule and the observed
 values (sampled within the list budget above; the manifest keeps them all);
-query parameter names are optional strings; write methods accept an
+query parameter names accept an optional string or array of strings (for
+repeated values in captured order); write methods accept an
 optional `body` object described by the recorded top-level key types. Each
 input keeps its own argument: a query name equal to a path parameter's name is
 advertised as `query_<name>`, a query name longer than 64 characters as
@@ -428,6 +437,10 @@ Each read tool answers according to its view in the state:
 | `list`     | When the arguments name one of the lines the view checked exactly (its latest recordings before the first related write; every path and query value equal to the recording's, and every recorded query parameter supplied), that recorded envelope with its array rendered from the state: every entity of the collection in state order for `membership: "all"` or a line `all_record_ordinals` names, or the recorded members still held. A call with no query argument answers from such a line of the collection its path arguments name that only pages its list, with `replay.exact_match` false. On a line the view's `query` answers, and for a call whose every query argument has a role there (an argument-less call aside), the answer is the query evaluated over the state: filtered, searched, sorted and paged, with counters at the number listed and `query.totals` at the number matched, and `state.membership: "query"`; such a call answers on a query or whole line of its collection with `replay.exact_match` false. A value an `inert` parameter never recorded, or a parameter without a role, replays its recording. A member lacking a field every recording carried makes the call a tool error rather than a partial list. |
 | `document` | When the arguments name the document's checked line exactly, the state's value for it; a tool error when the state holds none.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `recorded` | The recording, as replay answers it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+A read with repeated query values uses replay, because the state query model
+does not infer repeated-parameter semantics. A repeated-query write is refused
+before it can change state for the same reason.
 
 An item or list view that always spells a clock field otherwise than the
 entity's stored value names that spelling in `clock_formats`, and a value it
@@ -573,7 +586,10 @@ id are unique; `view_fields` is optional and names item or list views of its
 type. Views render their values over the entity's fields, so a view's values
 must not set the type's identity field to a value whose text differs from the
 entity's `id`. Spell a collection as requests spell it, as `data/get` reports it: list
-calls find entities under the checked line's recorded path. Each document
+calls find entities under the checked line's recorded path. State collection
+identity preserves repeated separators inside captured paths: `/api/books`
+and `/api//books` are distinct. A single trailing slash continues to name the
+same collection. Each document
 names a `document` view once, at its initial document's `path`. The `version`,
 and the `state_evidence_id` and `types` that `data/get` reports, must match
 the served state, so a `data/get` result loads back unchanged. A number without

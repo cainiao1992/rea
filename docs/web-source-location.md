@@ -29,9 +29,12 @@ zero-based UTF-16 column. The MCP arguments are:
 }
 ```
 
-The URL supplies the context for resolving `sources` and `sourceRoot`; it is not
-an instruction to fetch. Absolute virtual or file contexts can be selected as
-well. The map/script association is caller-selected: a declaration or local map
+The URL supplies the context for resolving `sources` and `sourceRoot` using the
+ECMA-426 URL parsing rule; it is not an instruction to fetch. Repeated path
+separators remain part of the resolved URL identity. A non-null `sourceRoot`
+prefixes each source, adding `/` only when the root does not already end with
+one. An empty root therefore prefixes `/`; a null or omitted root adds no
+prefix. Absolute virtual or file contexts can be selected as well. The map/script association is caller-selected: a declaration or local map
 does not prove deployment authenticity or execution. Use
 [import tracing](website-module-trace.md) to inspect outgoing native module edges.
 

@@ -867,6 +867,34 @@ describe("loader-relative dylib resolution", () => {
 });
 
 describe("dyld slice compatibility and coverage", () => {
+  it("keeps an unmodeled ARM32 subtype uncertain when matching slices exist", async () => {
+    const trace = await traceDylibLoading(
+      memoryView({
+        [MAIN]: executable({
+          architecture: "arm",
+          cpu_type: 12,
+          cpu_subtype: 42,
+          dependencies: [dependency("@executable_path/libarm.dylib")],
+        }),
+        "Contents/MacOS/libarm.dylib": parsed(
+          slice({ architecture: "arm", cpu_type: 12, cpu_subtype: 42 }),
+          slice({ architecture: "arm", cpu_type: 12, cpu_subtype: 9 }),
+        ),
+      }),
+      { roots: [MAIN] },
+    );
+
+    expect(trace.edges[0]).toMatchObject({
+      candidates: [
+        {
+          outcome: "undetermined",
+          resolved_path: "Contents/MacOS/libarm.dylib",
+        },
+      ],
+      resolution: { status: "undetermined", image: null },
+    });
+  });
+
   it("lets an x86_64h process load generic x86_64 but not arm64e load arm64", async () => {
     const files = {
       [MAIN]: parsed(

@@ -15,6 +15,75 @@ const artifact = { path: "/fixture/lib", sha256: "a".repeat(64), bytes: 1 };
 const parse = (bytes: Buffer) =>
   nativeExportsSchema.parse(parseNativeExports(bytes, artifact));
 
+const peExportNameAcrossSections = (overlapAtRva?: number): Buffer => {
+  const bytes = Buffer.concat([
+    peExportImage({
+      functions: [{ rva: 0x2000 }],
+      names: [{ name: "BoundaryName", index: 0 }],
+    }),
+    Buffer.alloc(overlapAtRva === undefined ? 0x400 : 0x800),
+  ]);
+  const pe = 128;
+  const optional = pe + 24;
+  const section = optional + bytes.readUInt16LE(pe + 20);
+  const second = section + 40;
+  bytes.writeUInt16LE(2, pe + 6);
+  bytes.write(".data", second, "ascii");
+  bytes.writeUInt32LE(0x400, second + 8);
+  bytes.writeUInt32LE(0x1400, second + 12);
+  bytes.writeUInt32LE(0x400, second + 16);
+  bytes.writeUInt32LE(0x800, second + 20);
+  bytes.writeUInt32LE(0x40000040, second + 36);
+  bytes.writeUInt32LE(0x13fc, 0x480);
+  bytes.write("BoundaryName\0", 0x7fc, "latin1");
+  if (overlapAtRva !== undefined) {
+    const third = second + 40;
+    bytes.writeUInt16LE(3, pe + 6);
+    bytes.write(".alias", third, "ascii");
+    bytes.writeUInt32LE(0x100, third + 8);
+    bytes.writeUInt32LE(overlapAtRva, third + 12);
+    bytes.writeUInt32LE(0x100, third + 16);
+    bytes.writeUInt32LE(0xc00, third + 20);
+    bytes.writeUInt32LE(0x40000040, third + 36);
+    bytes.fill(0x41, 0xc00, 0xd00);
+  }
+  return bytes;
+};
+
+describe("PE export name mapping coverage", () => {
+  it("reads a bounded export name across adjacent section mappings", () => {
+    const result = parse(peExportNameAcrossSections());
+    expect(result).toMatchObject({
+      exports: [
+        {
+          name: "BoundaryName",
+          ordinal: 1,
+          address: "0x180002000",
+          forwarder: null,
+        },
+      ],
+      coverage: { status: "complete", examined_entries: 1, exports: 1 },
+      issues: [],
+    });
+  });
+
+  it("ignores conflicting mappings after the export name terminator", () => {
+    const result = parse(peExportNameAcrossSections(0x1409));
+
+    expect(result.exports).toMatchObject([{ name: "BoundaryName" }]);
+    expect(result.issues).toEqual([]);
+    expect(result.coverage.status).toBe("complete");
+  });
+
+  it("rejects conflicting mappings that overlap the export name", () => {
+    const result = parse(peExportNameAcrossSections(0x1404));
+
+    expect(result.exports).toEqual([]);
+    expect(result.issues).toMatchObject([{ code: "name_unreadable" }]);
+    expect(result.coverage.status).toBe("partial");
+  });
+});
+
 describe("PE export directories", () => {
   it.each([32, 64] as const)(
     "reports named, aliased, ordinal-only and forwarded PE%d exports",

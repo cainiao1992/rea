@@ -929,12 +929,15 @@ const preflightResolvedSourceBytes = (
       if (source === null) continue;
       const sourceKey = source;
       let resolved = sourcesForRoot.get(sourceKey);
-      if (resolved === undefined)
-        resolved = resolveJavaScriptSourceMapUrl(
+      if (resolved === undefined) {
+        const candidate = resolveJavaScriptSourceMapUrl(
           source,
           map.sourceRoot,
           mapUrl,
         );
+        if (candidate === null) continue;
+        resolved = candidate;
+      }
       const bytes = Buffer.byteLength(resolved, "utf8");
       if (bytes > SOURCE_MAP_RESPONSE_BYTES - resolvedBytes)
         throw resolvedSourceLimitFailure();

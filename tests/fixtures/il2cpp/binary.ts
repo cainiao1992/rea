@@ -37,6 +37,10 @@ export interface Il2cppBinaryFixtureOptions {
   readonly namePadding?: number;
   /** Text written directly before mscorlib.dll, making it the tail of a longer name. */
   readonly namePrefix?: string;
+  /** TypeDefinitionIndex used by the fixture's generic instance. */
+  readonly genericDefinitionTypeIndex?: number;
+  /** Native type-table indices serialized in its generic argument vector. */
+  readonly genericArgumentTypeIndices?: readonly number[];
 }
 
 /** Every fixture method returns type 0, an array of a generic instance. */
@@ -138,7 +142,7 @@ export const createIl2cppBinaryFixture = (
   const types: readonly [kind: number, data: bigint][] = [
     [0x1d, address(TYPE_RECORDS + 16)],
     [0x15, address(GENERIC_CLASS)],
-    [0x12, 3n],
+    [0x12, BigInt(options.genericDefinitionTypeIndex ?? 3)],
     [0x08, 0n],
   ];
   types.forEach(([kind, data], index) => {
@@ -150,9 +154,15 @@ export const createIl2cppBinaryFixture = (
   // Version 29+ Il2CppGenericClass: definition type, then class_inst.
   bytes.writeBigUInt64LE(address(TYPE_RECORDS + 32), GENERIC_CLASS);
   bytes.writeBigUInt64LE(address(GENERIC_INSTANCE), GENERIC_CLASS + 8);
-  bytes.writeUInt32LE(1, GENERIC_INSTANCE);
+  const genericArguments = options.genericArgumentTypeIndices ?? [3];
+  bytes.writeUInt32LE(genericArguments.length, GENERIC_INSTANCE);
   bytes.writeBigUInt64LE(address(GENERIC_ARGUMENTS), GENERIC_INSTANCE + 8);
-  bytes.writeBigUInt64LE(address(TYPE_RECORDS + 48), GENERIC_ARGUMENTS);
+  genericArguments.forEach((typeIndex, index) =>
+    bytes.writeBigUInt64LE(
+      address(TYPE_RECORDS + typeIndex * 16),
+      GENERIC_ARGUMENTS + index * 8,
+    ),
+  );
   if (options.metadataRegistration !== false) {
     // typesCount and types, then fieldOffsets and typeDefinitionsSizes,
     // whose counts equal the 4 metadata type definitions.

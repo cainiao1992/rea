@@ -526,6 +526,10 @@ function* readTypes(tables: MetadataTables): Generator<
     properties: [] as MetadataOwnerRange[],
     events: [] as MetadataOwnerRange[],
   };
+  const genericContainerCount =
+    tables.linkFacts === undefined
+      ? 0
+      : entriesIn(section("genericContainers"), GENERIC_CONTAINER_RECORD_BYTES);
   for (let index = 0; index < counts.typeDefinitions; index++) {
     if (index % 256 === 0) yield;
     const at = typeDefinitions.offset + index * sizes.typeDefinitions;
@@ -536,6 +540,33 @@ function* readTypes(tables: MetadataTables): Generator<
       12 +
       typeDefinitionTypeIndices * widths.type +
       widths.generic_container;
+    if (tables.linkFacts !== undefined) {
+      const genericContainerIndex = readIndex(
+        bytes,
+        at + 8 + typeDefinitionTypeIndices * widths.type,
+        widths.generic_container,
+      );
+      if (
+        genericContainerIndex < -1 ||
+        genericContainerIndex >= genericContainerCount
+      )
+        throw new Il2cppMetadataFormatFailure(
+          "index-out-of-range",
+          `type ${index} generic container ${genericContainerIndex} is outside the ${genericContainerCount} available rows`,
+        );
+      if (genericContainerIndex !== -1) {
+        const genericContainerAt =
+          section("genericContainers").offset +
+          genericContainerIndex * GENERIC_CONTAINER_RECORD_BYTES;
+        const argumentCount = bytes.readInt32LE(genericContainerAt + 4);
+        if (argumentCount < 0)
+          throw new Il2cppMetadataFormatFailure(
+            "index-out-of-range",
+            `type ${index} generic container ${genericContainerIndex} has negative argument count ${argumentCount}`,
+          );
+        tables.linkFacts.genericTypeArgumentCounts[index] = argumentCount;
+      }
+    }
     const countsAt = starts + 32;
     const type = {
       name: readString(bytes.readInt32LE(at), `type ${index} name`),
@@ -730,6 +761,8 @@ export interface Il2cppMetadataLinkFacts {
   readonly returnTypes: Int32Array;
   readonly fieldTypes: Int32Array;
   readonly parameterTypes: Int32Array;
+  /** Total class generic argument count per TypeDefinition, including enclosing types. */
+  readonly genericTypeArgumentCounts: Int32Array;
   /** Demand-read names from this stable metadata snapshot, by GenericParameterIndex. */
   readonly genericParameterName: (index: number) => string | undefined;
 }
@@ -835,6 +868,9 @@ function* readMetadataCoreSteps(
         returnTypes: new Int32Array(tables.counts.methods),
         fieldTypes: new Int32Array(tables.members.counts.fields),
         parameterTypes: new Int32Array(tables.members.counts.parameters),
+        genericTypeArgumentCounts: new Int32Array(
+          tables.counts.typeDefinitions,
+        ),
         genericParameterName: createGenericParameterReader(tables),
       },
     };

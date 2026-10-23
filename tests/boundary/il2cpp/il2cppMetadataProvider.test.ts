@@ -18,7 +18,10 @@ import {
   createElfFixture,
   createIl2cppBinaryFixture,
 } from "../../fixtures/il2cpp/binary.js";
-import { createIl2cppMetadataFixture } from "../../fixtures/il2cpp/metadata.js";
+import {
+  createIl2cppMetadataFixture,
+  createLinkedIl2cppMetadataFixture,
+} from "../../fixtures/il2cpp/metadata.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 afterEach(() => {
@@ -487,7 +490,7 @@ it("keeps the metadata source observation when the selected binary does not link
   const root = await createTestTempDirectory("rea-il2cpp-binary-failure-");
   const path = join(root, "global-metadata.dat");
   const binaryPath = join(root, "GameAssembly.dll");
-  const fixture = createIl2cppMetadataFixture();
+  const fixture = createLinkedIl2cppMetadataFixture();
   await writeFile(path, fixture.bytes);
   await writeFile(binaryPath, Buffer.from("not a native image"));
   const provider = new Il2cppMetadataProvider();
@@ -515,7 +518,7 @@ it("accepts cancellation between binary linking batches and keeps the metadata s
   const root = await createTestTempDirectory("rea-il2cpp-link-cancel-");
   const path = join(root, "global-metadata.dat");
   const binaryPath = join(root, "libil2cpp.so");
-  const fixture = createIl2cppMetadataFixture();
+  const fixture = createLinkedIl2cppMetadataFixture();
   await writeFile(path, fixture.bytes);
   await writeFile(binaryPath, createElfFixture(createIl2cppBinaryFixture()));
   // Yields taken by the metadata decode alone; later ones belong to linking.
@@ -560,7 +563,7 @@ it("refuses duplicate MethodDef tokens before publishing linked Evidence or Ghid
   const binaryPath = join(root, "GameAssembly.dylib");
   const duplicateSeeds = join(root, "duplicate.tsv");
   const foldedSeeds = join(root, "folded.tsv");
-  const fixture = createIl2cppMetadataFixture({ version: 31 });
+  const fixture = createLinkedIl2cppMetadataFixture({ version: 31 });
   const duplicate = Buffer.from(fixture.bytes);
   const firstTokenAt = fixture.record("methods", 0) + 24;
   const secondTokenAt = fixture.record("methods", 1) + 24;
@@ -616,7 +619,7 @@ it("retains both observed file identities and the selected architecture when nat
   const path = join(root, "global-metadata.dat"),
     binary_path = join(root, "GameAssembly.dylib");
   const bytes = createIl2cppBinaryFixture({ codeRegistration: false });
-  await writeFile(path, createIl2cppMetadataFixture().bytes);
+  await writeFile(path, createLinkedIl2cppMetadataFixture().bytes);
   await writeFile(binary_path, bytes);
   const provider = new Il2cppMetadataProvider();
   try {
@@ -643,7 +646,7 @@ it("names the metadata, not the binary, when linking reads a malformed metadata 
   const root = await createTestTempDirectory("rea-il2cpp-link-metadata-name-");
   const path = join(root, "global-metadata.dat"),
     binaryPath = join(root, "GameAssembly.dylib");
-  const fixture = createIl2cppMetadataFixture({ version: 39 });
+  const fixture = createLinkedIl2cppMetadataFixture({ version: 39 });
   // One generic parameter whose name index points past the string table;
   // only native linking reads it, through a field typed as that parameter.
   const parameterAt = fixture.bytes.length;
@@ -652,10 +655,10 @@ it("names the metadata, not the binary, when linking reads a malformed metadata 
   metadata.writeInt32LE(parameterAt, 8 + 12 * 12);
   metadata.writeInt32LE(13, 8 + 12 * 12 + 4);
   metadata.writeInt32LE(1, 8 + 12 * 12 + 8);
-  metadata.writeUInt8(2, fixture.section("fields").offset + 4);
+  metadata.writeUInt8(3, fixture.section("fields").offset + 4);
   const binary = Buffer.from(createIl2cppBinaryFixture());
-  binary.writeBigUInt64LE(0n, 0x980 + 32);
-  binary.writeUInt32LE(0x13 << 16, 0x980 + 32 + 8);
+  binary.writeBigUInt64LE(0n, 0x980 + 48);
+  binary.writeUInt32LE(0x13 << 16, 0x980 + 48 + 8);
   await writeFile(path, metadata);
   await writeFile(binaryPath, binary);
   const provider = new Il2cppMetadataProvider();

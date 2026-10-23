@@ -84,7 +84,7 @@ export class ElfNotesProvider implements ElfNotesPort {
 }
 
 const NOTE_TEXT_BUDGET =
-  "The ELF note text, hash, and scan budget tied to the admitted image length";
+  "The ELF note text, hash, scan, and decompression budget bounded by max_file_bytes";
 
 const inputBudgetRemediation = (
   boundary: "file-size" | "capacity",

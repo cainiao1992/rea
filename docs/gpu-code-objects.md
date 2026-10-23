@@ -32,6 +32,14 @@ unexamined payloads remain `unexamined`. An exact AMDGPU target is normalized at
 its note owner for comparison with a Clang bundle declaration; raw values remain
 intact. Unresolved feature comparisons stay `unknown`.
 
+HIP bundle recognition accepts both the legacy `amdgcn` triple and LLVM's
+`amdgpu` subarchitecture triples, including declared generic processors such
+as `gfx11-generic` and `gfx9-4-generic`. CUDA's legacy fatbinary compression
+flag is retained as an unsupported codec with its encoded and decoded extents;
+compressed bytes are not treated as PTX text. CCOB v1 has no stored total size,
+so a following legacy bundle is located by the next `CCOB` signature and
+zero-byte alignment padding remains part of the first container extent.
+
 `cuda_target_header` retains the OS ABI, normalized raw `e_flags` and exact
 header location. CUDA OS ABI `0x33` and the observed `0x41` flags layout use
 different architecture fields; they are decoded at one ABI-aware owner.

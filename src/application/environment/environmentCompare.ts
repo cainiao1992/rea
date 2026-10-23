@@ -343,7 +343,7 @@ const compareStep = (
   const problem = check(args);
   if (problem !== undefined)
     return refusedWith(`Invalid arguments: ${problem}`);
-  const answered = run.answer(call.tool, args);
+  const answered = run.answer(call.tool, args, call.observedQuery);
   if (!answered.ok) return refusedWith(answered.error.message);
   if (live === undefined) return undefined;
   const env: Answer = {

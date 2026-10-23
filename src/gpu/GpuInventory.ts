@@ -1,5 +1,6 @@
 import {
   CLANG_BUNDLE_MAGIC,
+  readLegacyCcobTotal,
   readClangBundleDirectory,
   readCcobHeader,
 } from "./ClangOffloadBundle.js";
@@ -544,7 +545,11 @@ export class GpuInventory {
       }
       if (prefix.subarray(0, 4).toString("ascii") !== "CCOB")
         rejectGpu("Unexpected bytes between Clang offload bundles");
-      const header = readCcobHeader(prefix, source.size - base),
+      const legacyTotal =
+        prefix.length >= 6 && prefix.readUInt16LE(4) === 1
+          ? await readLegacyCcobTotal(source, base)
+          : source.size - base;
+      const header = readCcobHeader(prefix, legacyTotal),
         { width, total, decoded, hash, version, method } = header;
       const row = gpuObject(source, {
         offset: base + width,
@@ -569,6 +574,7 @@ export class GpuInventory {
             row.compression,
             decoded,
             this.signal,
+            version === 1,
           );
           if (
             createHash("md5").update(data).digest().readBigUInt64LE(0) !== hash

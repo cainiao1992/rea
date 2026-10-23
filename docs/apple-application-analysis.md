@@ -220,9 +220,16 @@ satisfy a dylib dependency. `platform-mismatch` means a matching-architecture
 dylib was found but its observed platform is incompatible with the process.
 These outcomes reject that candidate; dyld search may continue and resolve a
 later candidate. Candidate outcomes describe individual search paths, while
-`resolution.status` describes the final edge. Slices follow dyld's graded
-architectures, so an `x86_64h` process also loads `x86_64`. The edge's
-`resolution` is one of:
+`resolution.status` describes the final edge. For each selected process-root
+slice, candidate slices are matched by CPU type and dyld's subtype preference
+order, independently of FAT table order. An ARMv7s root slice prefers ARMv7s,
+then ARMv7; other known ARM32 subtypes use their compatibility rows from
+[Apple's dyld source](https://github.com/apple-oss-distributions/dyld/blob/dyld-852.2/src/dyld2.cpp#L2811-L3105).
+An `x86_64h` process also loads generic `x86_64`. Unknown ARM32 subtype policy
+remains undetermined when ARM32 candidate slices exist. This is a static model
+keyed to the selected root slice; it does not observe the target device's host
+CPU or prove which slice the device will execute. The edge's `resolution` is
+one of:
 
 | Status         | Meaning                                                                                                                                                        |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |

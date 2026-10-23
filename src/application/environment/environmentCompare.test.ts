@@ -65,6 +65,32 @@ const compare = (...probes: (readonly TimedCaptureRow[])[]) => {
 };
 
 describe("matchProbeRequest", () => {
+  it("compares a repeated-query probe against the matching recorded response", () => {
+    const recorded = timedCaptureEvidence([
+      ["GET", "/api/items?tag=a&tag=b", { selected: "b" }],
+      ["GET", "/api/items?tag=a&tag=c", { selected: "c" }],
+    ]);
+    const served = environmentStateServeFixture(recorded);
+    const report = compareEnvironment({
+      source: environmentServeSource(served),
+      captureValue: recorded,
+      probes: [
+        {
+          label: "repeated-query",
+          value: timedCaptureEvidence([
+            ["GET", "/api/items?tag=a&tag=c", { selected: "c" }],
+          ]),
+        },
+      ],
+      operation: "environment-compare",
+    });
+    if (!report.ok) throw report.error;
+    expect(report.value.probes[0]?.results[0]).toMatchObject({
+      equal: true,
+      ignored_query: [],
+    });
+  });
+
   it("prefers literal segments, requires format-rule parameters to fit, and maps query and body arguments", () => {
     const item = matchProbeRequest(source.manifest, {
       method: "GET",
@@ -102,6 +128,16 @@ describe("matchProbeRequest", () => {
     expect(item?.tool.path_template).toBe("/api/books/{numeric}");
     // The environment decodes this once, as replay decodes a recorded segment once.
     expect(item?.args).toEqual({ id: "%31" });
+  });
+
+  it("keeps every occurrence of a repeated query value", () => {
+    const item = matchProbeRequest(environmentServeSource().manifest, {
+      method: "GET",
+      path: "/api/search",
+      query: "?query=one&query=two&type=dash-db",
+      body: undefined,
+    });
+    expect(item?.args).toEqual({ query: ["one", "two"], type: "dash-db" });
   });
 });
 

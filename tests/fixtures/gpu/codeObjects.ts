@@ -257,15 +257,26 @@ export const amdFixture = (
   ]);
 };
 export const cudaFixture = (
-  compression: "none" | "zstd" = "none",
+  compression: "none" | "zstd" | "legacy" = "none",
   entries: { kind: number; target: number; bytes: Buffer; flags?: number }[] = [
     { kind: 1, target: 80, bytes: Buffer.from(ptxFixture) },
     { kind: 2, target: 90, bytes: cubinFixture({ architecture: 90 }) },
   ],
 ): Buffer => {
   const records = entries.map(({ kind, target, bytes, flags: entryFlags }) => {
-    const compressed = compression === "zstd",
-      data = compressed ? zstdCompressSync(bytes) : bytes;
+    const compressed = compression !== "none",
+      data =
+        compression === "zstd"
+          ? zstdCompressSync(bytes)
+          : compression === "legacy"
+            ? deflateSync(bytes)
+            : bytes,
+      compressionFlag =
+        compression === "zstd"
+          ? 0x8000n
+          : compression === "legacy"
+            ? 0x1000n
+            : 0n;
     const result = Buffer.alloc(64 + Math.ceil(data.length / 8) * 8);
     result.writeUInt16LE(kind, 0);
     result.writeUInt16LE(0x101, 2);
@@ -274,7 +285,7 @@ export const cudaFixture = (
     result.writeUInt32LE(compressed ? data.length : 0, 16);
     result.writeUInt32LE(target, 28);
     result.writeBigUInt64LE(
-      (compressed ? 0x8011n : 0x11n) | BigInt(entryFlags ?? 0),
+      0x11n | compressionFlag | BigInt(entryFlags ?? 0),
       40,
     );
     result.writeBigUInt64LE(compressed ? BigInt(bytes.length) : 0n, 56);

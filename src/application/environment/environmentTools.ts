@@ -26,7 +26,12 @@ export const REPLAY_CATALOG_INSTRUCTIONS =
 
 /** JSON Schema advertised for one tool argument. */
 export interface EnvironmentToolProperty {
-  readonly type: "string" | "object";
+  readonly type?: "string" | "object" | "array";
+  readonly items?: { readonly type: "string" };
+  readonly oneOf?: readonly (
+    | { readonly type: "string" }
+    | { readonly type: "array"; readonly items: { readonly type: "string" } }
+  )[];
   readonly description: string;
 }
 
@@ -306,6 +311,18 @@ export const environmentToolArguments = (
   };
 };
 
+/** Whether the caller supplied multiple occurrences for a captured query name. */
+export const hasRepeatedQueryArgument = (
+  tool: EnvironmentManifestTool,
+  args: Readonly<Record<string, unknown>>,
+): boolean => {
+  for (const argument of environmentToolArguments(tool).query.values()) {
+    const value = args[argument];
+    if (Array.isArray(value) && value.length > 1) return true;
+  }
+  return false;
+};
+
 /** Lazily render properties so admission precedes retaining a whole schema. */
 function* environmentToolProperties(
   tool: EnvironmentManifestTool,
@@ -324,8 +341,11 @@ function* environmentToolProperties(
     yield [
       argument,
       {
-        type: "string",
-        description: `Query parameter ${describeText(name, "query name")}; optional, matched against the recorded query on replay.`,
+        oneOf: [
+          { type: "string" },
+          { type: "array", items: { type: "string" } },
+        ],
+        description: `Query parameter ${describeText(name, "query name")}; optional. Supply one string for one occurrence or an array to preserve repeated values in captured order; repeated values replay their recorded request.`,
       },
       false,
     ];

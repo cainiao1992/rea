@@ -148,6 +148,18 @@ it("extracts the state the Grafana-shaped capture's reads observed", () => {
   ).toEqual([]);
 });
 
+it("keeps collections with repeated path separators distinct", () => {
+  const state = stateOf(
+    captureOf([
+      ["GET", "/api/books", [{ id: 1, title: "Single separator" }]],
+      ["GET", "/api//books", [{ id: 2, title: "Repeated separator" }]],
+    ]),
+  );
+  expect(state.types.map((type) => type.collection_template)).toEqual(
+    expect.arrayContaining(["/api/books", "/api//books"]),
+  );
+});
+
 it("ends a type's state at the first write under its root, not at unrelated writes", () => {
   const state = stateOf(
     captureOf([

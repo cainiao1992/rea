@@ -9,6 +9,7 @@ import { pagesOnly } from "../../domain/analysisView/environmentStatePaging.js";
 import {
   selectReplayExchange,
   selectsRecordedLine,
+  type ObservedQuery,
   type ReplayArguments,
 } from "./environmentReplay.js";
 import type {
@@ -48,14 +49,18 @@ export const checkedLine = (
   tool: EnvironmentManifestTool,
   checked: readonly number[],
   args: ReplayArguments,
+  observedQuery?: ObservedQuery,
 ): RecordedExchange | undefined => {
   const lines = new Map<number, RecordedExchange>();
   for (const ordinal of checked) {
     const exchange = source.exchanges.get(ordinal);
-    if (exchange !== undefined && selectsRecordedLine(tool, exchange, args))
+    if (
+      exchange !== undefined &&
+      selectsRecordedLine(tool, exchange, args, observedQuery)
+    )
       lines.set(ordinal, exchange);
   }
-  return selectReplayExchange(tool, lines, args)?.exchange;
+  return selectReplayExchange(tool, lines, args, observedQuery)?.exchange;
 };
 
 /** For a list of a whole collection, a call that supplies no query argument answers from a checked line of the collection its path arguments name that only pages it, chosen as replay chooses; a requested page answers from its recording. */
@@ -64,6 +69,7 @@ export const unfilteredLine = (
   tool: EnvironmentManifestTool,
   checked: readonly number[],
   args: ReplayArguments,
+  observedQuery?: ObservedQuery,
 ): RecordedExchange | undefined => {
   const query = environmentToolArguments(tool).query;
   const segments = callSegments(tool, args);
@@ -82,7 +88,7 @@ export const unfilteredLine = (
     )
       lines.set(ordinal, exchange);
   }
-  return selectReplayExchange(tool, lines, args)?.exchange;
+  return selectReplayExchange(tool, lines, args, observedQuery)?.exchange;
 };
 
 /** A call's query arguments by parameter name. */
@@ -105,6 +111,7 @@ export const queryLine = (
   tool: EnvironmentManifestTool,
   view: StateListView,
   args: ReplayArguments,
+  observedQuery?: ObservedQuery,
 ): RecordedExchange | undefined => {
   const query = view.query;
   const segments = callSegments(tool, args);
@@ -125,5 +132,5 @@ export const queryLine = (
     )
       lines.set(ordinal, exchange);
   }
-  return selectReplayExchange(tool, lines, args)?.exchange;
+  return selectReplayExchange(tool, lines, args, observedQuery)?.exchange;
 };

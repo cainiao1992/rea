@@ -4,6 +4,7 @@ import { expect, it } from "vitest";
 import { inspectElfNotesInputSchema } from "../../domain/native/elfNotes.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
+  compressedElfNoteFixture,
   elfNote,
   elfNoteFixture,
   elfNoteTablePastEnd,
@@ -95,6 +96,51 @@ it("reads the same notes from an SHT_NOTE section including its name", () => {
   expect(
     report.entries.some((entry) => entry.type_name === "gnu_build_id"),
   ).toBe(true);
+});
+
+it.each([
+  [32, true],
+  [64, false],
+] as const)(
+  "decompresses a zlib section-name table for ELF%i %s-endian notes",
+  (bits, little) => {
+    const report = parse(compressedElfNoteFixture(bits, little));
+    expect(report.tables).toEqual([
+      expect.objectContaining({ kind: "section", name: ".note.gnu.build-id" }),
+    ]);
+    expect(report.entries[0]?.gnu?.build_id_hex).toBe(
+      "0123456789abcdef0123456789abcdef01234567",
+    );
+  },
+);
+
+it("admits a decoded section name larger than its compressed source", () => {
+  const name = "n".repeat(512);
+  const bytes = compressedElfNoteFixture(64, true, 1, name);
+  expect(bytes.length).toBeLessThan(name.length);
+  const report = parse(bytes);
+  expect(report.tables[0]?.name).toBe(name);
+});
+
+it("keeps note facts but marks section names unavailable for unknown compression", () => {
+  const report = parse(compressedElfNoteFixture(64, true, 2));
+  expect(report.tables[0]?.name).toBeNull();
+  expect(report.entries[0]?.gnu?.build_id_hex).toBe(
+    "0123456789abcdef0123456789abcdef01234567",
+  );
+  expect(report.limitations).toContain(
+    "ELF section names are unavailable because compression type 2 is unsupported.",
+  );
+});
+
+it("bounds compressed section-name expansion with the source bytes", () => {
+  const bytes = compressedElfNoteFixture();
+  const input = inspectElfNotesInputSchema.parse({
+    path: defaults.path,
+    max_file_bytes: bytes.length + 1,
+  });
+  expect(() => parse(bytes, input)).toThrow(ArtifactReaderFailure);
+  expect(() => parse(bytes, input)).toThrow(/memory budget/u);
 });
 
 it("reports independent PT_NOTE and SHT_NOTE declarations of the same bytes", () => {

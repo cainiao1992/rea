@@ -97,6 +97,38 @@ it("matches source-map originals named relative to the map", async () => {
 });
 
 it.each([
+  { root: "../src/", expected: "https://example.test/src/index.js" },
+  { root: "", expected: "https://example.test/index.js" },
+  { root: null, expected: "https://example.test/maps/index.js" },
+])("resolves sourceRoot $root according to ECMA-426", ({ root, expected }) => {
+  expect(
+    resolveJavaScriptSourceMapUrl(
+      "index.js",
+      root,
+      "https://example.test/maps/app.js.map",
+    ),
+  ).toBe(expected);
+});
+
+it.each([
+  {
+    mapPath: "maps/app.js.map",
+    sourceRoot: "../src/",
+    source: "index.js",
+    expected: "src/index.js",
+  },
+  {
+    mapPath: "maps/app.js.map",
+    sourceRoot: "",
+    source: "index.js",
+    expected: "index.js",
+  },
+  {
+    mapPath: "maps/app.js.map",
+    sourceRoot: null,
+    source: "index.js",
+    expected: "maps/index.js",
+  },
   {
     mapPath: "pkg/dist/main.js.map",
     source: "..\\src\\a.js",
@@ -123,6 +155,7 @@ it.each([
     sourceRoot: "../src",
     source: "/vendor/a.js",
     expected: "pkg/src/vendor/a.js",
+    expectedUrlPath: "pkg/src//vendor/a.js",
     decoy: "vendor/a.js",
   },
   {
@@ -182,6 +215,7 @@ it.each([
     source,
     sourceRoot,
     expected,
+    expectedUrlPath,
     decoy: decoyPath = "src/a.js",
   }) => {
     if (sourceRoot !== undefined) {
@@ -190,8 +224,10 @@ it.each([
         sourceRoot,
         `https://example.test/${mapPath}`,
       );
+      if (resolved === null)
+        throw new Error("Expected a valid resolved source URL");
       expect(decodeURIComponent(new URL(resolved).pathname)).toBe(
-        `/${expected}`,
+        `/${expectedUrlPath ?? expected}`,
       );
     }
     const root = await createTestTempDirectory("rea-nested-map-");

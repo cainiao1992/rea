@@ -6,6 +6,22 @@ import {
 } from "./GhidraLoadImage.fixture.js";
 import { nativeLoadImageObservationSchema } from "../domain/native/nativeLoadImage.js";
 import type { NativeLoadImageObservation } from "../domain/native/nativeLoadImage.js";
+import { prepareGhidraDosLoadImage } from "./GhidraLoadImageValues.js";
+
+it("does not interpret an ambiguous Windows-header candidate as a DOS image", () => {
+  const bytes = Buffer.alloc(128);
+  bytes.write("MZ", 0, "ascii");
+  bytes.writeUInt16LE(128, 2);
+  bytes.writeUInt16LE(1, 4);
+  bytes.writeUInt16LE(2, 6);
+  bytes.writeUInt16LE(4, 8);
+  bytes.writeUInt16LE(28, 24);
+  bytes.write("ABCD", 60, "ascii");
+  expect(prepareGhidraDosLoadImage(bytes, bytes.length)).toEqual({
+    ok: false,
+    error: "MZ Windows new-header candidate is unresolved",
+  });
+});
 
 const damage: ReadonlyArray<
   readonly [string, (observation: NativeLoadImageObservation) => void]

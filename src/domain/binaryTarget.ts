@@ -10,7 +10,7 @@ import type {
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
-import { observeMzWindowsHeader, parseDosMzHeader } from "./dosMz.js";
+import { parseMzHeaderEvidence } from "./dosMz.js";
 import {
   decodePeMachine,
   peOptionalHeaderMagic,
@@ -438,11 +438,8 @@ const parseMz = (
   fileSize: number,
   signatureAtOffset?: Buffer,
 ): Result<ExecutableMetadata, string> => {
-  const windowsHeader = observeMzWindowsHeader(
-    bytes,
-    fileSize,
-    signatureAtOffset,
-  );
+  const evidence = parseMzHeaderEvidence(bytes, fileSize, signatureAtOffset);
+  const { windowsHeader } = evidence;
   if (
     windowsHeader.state === "header-needed" ||
     windowsHeader.state === "signature-needed"
@@ -450,6 +447,8 @@ const parseMz = (
     return err(
       "Windows new-header pointer or signature is outside the bounded prefix",
     );
+  if (windowsHeader.state === "candidate")
+    return err("MZ Windows new-header candidate is unresolved");
   if (windowsHeader.state === "declared") {
     const { offset } = windowsHeader;
     if (offset < 64 || offset > bytes.length - 24)
@@ -463,7 +462,7 @@ const parseMz = (
     const codeView = parsePeCodeViewFromBuffer(bytes, offset);
     return parsePeRecord(bytes.subarray(offset), codeView);
   }
-  const parsed = parseDosMzHeader(bytes, fileSize, signatureAtOffset);
+  const parsed = evidence.dos;
   return parsed.ok
     ? ok({
         format: "dos-mz",

@@ -32,7 +32,12 @@ import {
   rawBinarySelectionError,
 } from "../domain/rawBinary.js";
 import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
-import { observeMzWindowsHeader } from "../domain/dosMz.js";
+import {
+  observeMzWindowsHeader,
+  parseMzHeaderEvidence,
+  type DosMzHeader,
+  type MzWindowsHeaderObservation,
+} from "../domain/dosMz.js";
 import {
   createXmlPlistSignatureProbe,
   hasBinaryPlistSignature,
@@ -63,6 +68,7 @@ import {
 } from "../domain/apple/machoContainer.js";
 import type { PeCodeViewRecord } from "../domain/binaryTargetTypes.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 
 const XML_PLIST_PROBE_CHUNK_BYTES = 64 * 1024;
 
@@ -242,9 +248,18 @@ export const parseBinaryTarget = async (
             kind: "archive",
             format: zipRootPackageFormat(path),
           });
+        const reason =
+          typeof detected.error === "string"
+            ? detected.error
+            : detected.error.reason;
+        const diagnostics =
+          typeof detected.error === "string"
+            ? undefined
+            : detected.error.diagnostics;
         return err(
-          new BinaryTargetError(path, detected.error, {
+          new BinaryTargetError(path, reason, {
             constraint: "file_format_rejected",
+            ...(diagnostics === undefined ? {} : { diagnostics }),
           }),
         );
       }
@@ -547,7 +562,7 @@ const readExecutableMetadata = async (
   handle: FileHandle,
   hostArchitecture: NodeJS.Architecture,
   signal?: AbortSignal,
-): Promise<Result<ExecutableMetadata, string>> => {
+): Promise<Result<ExecutableMetadata, ExecutableMetadataFailure>> => {
   throwIfTargetResolutionCancelled(signal);
   const prefix = Buffer.alloc(4096);
   const prefixRead = await handle.read(prefix, 0, prefix.length, 0);
@@ -558,10 +573,10 @@ const readExecutableMetadata = async (
   const fileSize = (await handle.stat()).size;
   throwIfTargetResolutionCancelled(signal);
   if (bytes.length >= 2 && bytes[0] === 0x4d && bytes[1] === 0x5a) {
-    let windowsHeader = observeMzWindowsHeader(bytes, fileSize);
+    let evidence = parseMzHeaderEvidence(bytes, fileSize);
     let signatureBytes: Buffer | undefined;
-    if (windowsHeader.state === "signature-needed") {
-      const { offset } = windowsHeader;
+    if (evidence.windowsHeader.state === "signature-needed") {
+      const { offset } = evidence.windowsHeader;
       const signature = Buffer.alloc(Math.min(4, fileSize - offset));
       const observedSignature = await handle.read(
         signature,
@@ -571,8 +586,9 @@ const readExecutableMetadata = async (
       );
       throwIfTargetResolutionCancelled(signal);
       signatureBytes = signature.subarray(0, observedSignature.bytesRead);
-      windowsHeader = observeMzWindowsHeader(bytes, fileSize, signatureBytes);
+      evidence = parseMzHeaderEvidence(bytes, fileSize, signatureBytes);
     }
+    const { windowsHeader } = evidence;
     if (windowsHeader.state === "declared") {
       if (windowsHeader.offset < 64)
         return err("invalid Windows new-header offset in MZ image");
@@ -599,12 +615,23 @@ const readExecutableMetadata = async (
       const table = Buffer.alloc(tableEnd);
       const observed = await handle.read(table, 0, table.length, 0);
       throwIfTargetResolutionCancelled(signal);
+      evidence = parseMzHeaderEvidence(
+        table.subarray(0, observed.bytesRead),
+        fileSize,
+        signatureBytes,
+      );
+      if (evidence.windowsHeader.state === "candidate")
+        return err(
+          unresolvedMzHeaderFailure(evidence.windowsHeader, evidence.dos),
+        );
       return parseExecutableHeader(
         table.subarray(0, observed.bytesRead),
         hostArchitecture,
         fileSize,
       );
     }
+    if (windowsHeader.state === "candidate")
+      return err(unresolvedMzHeaderFailure(windowsHeader, evidence.dos));
     return parseExecutableHeader(
       bytes,
       hostArchitecture,
@@ -651,6 +678,42 @@ const readExecutableMetadata = async (
         : { limitations: declarations.value.limitations }),
     },
   });
+};
+
+type ExecutableMetadataFailure =
+  | string
+  | {
+      readonly reason: string;
+      readonly diagnostics: Readonly<Record<string, JsonValue>>;
+    };
+
+const unresolvedMzHeaderFailure = (
+  windowsHeader: Extract<MzWindowsHeaderObservation, { state: "candidate" }>,
+  dos: Result<DosMzHeader, string>,
+): Exclude<ExecutableMetadataFailure, string> => {
+  return {
+    reason: "MZ Windows new-header candidate is unresolved",
+    diagnostics: {
+      mz_windows_header: {
+        state: windowsHeader.state,
+        offset: windowsHeader.offset,
+        signature: windowsHeader.signature,
+      },
+      mz_dos: dos.ok
+        ? {
+            state: "valid",
+            header_bytes: dos.value.headerBytes,
+            image_bytes: dos.value.imageBytes,
+            module_bytes: dos.value.moduleBytes,
+            overlay_bytes: dos.value.overlayBytes,
+            relocation_count: dos.value.relocationCount,
+            relocation_table_offset: dos.value.relocationTableOffset,
+            entry_segment: dos.value.entrySegment,
+            entry_offset: dos.value.entryOffset,
+          }
+        : { state: "invalid", reason: dos.error },
+    },
+  };
 };
 
 /** Read the validated FAT table and bounded thin-header identity prefixes. */

@@ -1,8 +1,5 @@
 import { readPeSectionHeader } from "./NativeSectionDirectory.js";
-import {
-  observeMzWindowsHeader,
-  parseDosMzHeader,
-} from "../../domain/dosMz.js";
+import { parseMzHeaderEvidence } from "../../domain/dosMz.js";
 import {
   declaredFileRange,
   BinaryFormatFailure,
@@ -14,9 +11,15 @@ import {
 } from "./BinaryContainer.js";
 
 const peHeaderOffset = (reader: BinaryReader): number => {
-  const windowsHeader = observeMzWindowsHeader(reader.bytes);
+  const evidence = parseMzHeaderEvidence(reader.bytes);
+  const { windowsHeader } = evidence;
+  if (windowsHeader.state === "candidate")
+    throw new BinaryFormatFailure(
+      "unsupported",
+      "MZ Windows new-header candidate is unresolved",
+    );
   if (windowsHeader.state !== "declared") {
-    const dos = parseDosMzHeader(reader.bytes);
+    const dos = evidence.dos;
     if (!dos.ok) throw new BinaryFormatFailure("malformed", dos.error);
     throw new BinaryFormatFailure(
       "unsupported",

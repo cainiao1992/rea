@@ -6,6 +6,20 @@ import {
   setGoPeVirtualSize,
 } from "../../../tests/fixtures/go/image.js";
 
+it("keeps a DOS-valid but unsigned Windows-header candidate unresolved", () => {
+  const bytes = Buffer.alloc(128);
+  bytes.write("MZ", 0, "ascii");
+  bytes.writeUInt16LE(128, 2);
+  bytes.writeUInt16LE(1, 4);
+  bytes.writeUInt16LE(2, 6);
+  bytes.writeUInt16LE(4, 8);
+  bytes.writeUInt16LE(28, 24);
+  bytes.write("ABCD", 60, "ascii");
+  expect(() => readPeImage(bytes)).toThrow(
+    "MZ Windows new-header candidate is unresolved",
+  );
+});
+
 it.each([32, 64] as const)(
   "uses raw-size fallback for PE%d Go build-info and keeps RVA mappings intact",
   (bits) => {

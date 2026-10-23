@@ -19,6 +19,21 @@ import type { ArtifactEntry } from "../ArtifactReader.js";
 
 import { classifyArtifactBytesAtPath } from "../../../tests/fixtures/artifactClassification.js";
 
+it("keeps an ambiguous DOS MZ inventory candidate unknown", () => {
+  const bytes = Buffer.alloc(128);
+  bytes.write("MZ", 0, "ascii");
+  bytes.writeUInt16LE(128, 2);
+  bytes.writeUInt16LE(1, 4);
+  bytes.writeUInt16LE(2, 6);
+  bytes.writeUInt16LE(4, 8);
+  bytes.writeUInt16LE(28, 24);
+  bytes.write("ABCD", 60, "ascii");
+  expect(classifyArtifactBytesAtPath("legacy.exe", bytes)).toEqual({
+    kind: "unknown",
+    format: "unknown",
+  });
+});
+
 const entry = (path: string, kind: ArtifactEntry["kind"]): ArtifactEntry => ({
   path,
   kind,

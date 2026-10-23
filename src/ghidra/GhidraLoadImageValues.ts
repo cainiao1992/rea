@@ -5,7 +5,7 @@ import {
   type NativeLoadImageCheck,
   type NativeLoadImageObservation,
 } from "../domain/native/nativeLoadImage.js";
-import { parseDosMzHeader, type DosMzHeader } from "../domain/dosMz.js";
+import { parseMzHeaderEvidence, type DosMzHeader } from "../domain/dosMz.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { validateDosComLength } from "../domain/dosCom.js";
@@ -57,7 +57,16 @@ export const prepareGhidraDosLoadImage = (
   fileBytes: number,
   signatureAtOffset?: Buffer,
 ): Result<GhidraDosImage, string> => {
-  const parsed = parseDosMzHeader(bytes, fileBytes, signatureAtOffset);
+  const evidence = parseMzHeaderEvidence(bytes, fileBytes, signatureAtOffset);
+  if (evidence.windowsHeader.state === "candidate")
+    return err("MZ Windows new-header candidate is unresolved");
+  if (evidence.windowsHeader.state === "header-needed")
+    return err("MZ Windows new-header pointer is outside the bounded prefix");
+  if (evidence.windowsHeader.state === "signature-needed")
+    return err("MZ Windows new-header signature is outside the bounded prefix");
+  if (evidence.windowsHeader.state === "declared")
+    return err("MZ declares a Windows new header; it is not a DOS-only image");
+  const parsed = evidence.dos;
   if (!parsed.ok) return parsed;
   const header = parsed.value;
   if (header.imageBytes > bytes.length)

@@ -451,6 +451,13 @@ complete observation.
   without one is malformed. An explicit empty string remains a value.
   Binary UID payloads may use nonminimal byte widths. REA normalizes them only
   in a private decoder copy; archive digests still identify the original bytes.
+  Positive binary-plist offset and object-reference table widths are read from
+  the source; nonstandard widths are normalized only in that private copy for
+  the pinned decoder. [Foundation's table checks](https://github.com/swiftlang/swift-corelibs-foundation/blob/swift-6.2.3-RELEASE/Sources/CoreFoundation/CFBinaryPList.c#L759-L789)
+  accept positive widths subject to extent/reference bounds, and its
+  [sized-integer reader](https://github.com/swiftlang/swift-corelibs-foundation/blob/swift-6.2.3-RELEASE/Sources/CoreFoundation/CFBinaryPList.c#L707-L730)
+  handles non-power sizes. Widths over eight bytes follow its unsigned 64-bit
+  accumulator semantics.
   UID values above JavaScript's exact integer range return an unsupported-target
   outcome instead of rounded reference identities.
   UID 0 cannot distinguish conditional nil from ordinary nil. Limits are

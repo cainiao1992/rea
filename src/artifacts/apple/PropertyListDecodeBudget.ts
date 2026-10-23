@@ -45,6 +45,9 @@ export const preflightPropertyListDecode = (
         overlappingWideIntegerOffsets: [],
         reachableNumericOffsets: [],
         uidOffsetsToNormalize: [],
+        containersToNormalize: [],
+        normalizedOffsetSize: 1,
+        normalizedReferenceSize: 1,
       };
   if (expansion.estimatedBytes > maxBytes)
     throw fail("expansion", `plist representation exceeds ${budget}`);
@@ -181,6 +184,16 @@ export interface PlistDecodePreflight {
   readonly reachableNumericOffsets: readonly number[];
   /** Reachable UID records cloned to one of plist@5's supported widths. */
   readonly uidOffsetsToNormalize: readonly { offset: number; width: number }[];
+  /** Validated container headers and references needed for decoder-copy normalization. */
+  readonly containersToNormalize: readonly {
+    readonly offset: number;
+    readonly headerLength: number;
+    readonly references: readonly number[];
+  }[];
+  /** Decoder-supported width selected for the source offset table. */
+  readonly normalizedOffsetSize: number;
+  /** Decoder-supported width selected for array and dictionary references. */
+  readonly normalizedReferenceSize: number;
 }
 
 const PROTOTYPE_KEY = "__proto__";
@@ -234,17 +247,17 @@ export const estimateBinaryPlistExpansion = (
   const trailer = bytes.length - 32;
   const offsetSize = bytes[trailer + 6] ?? 0;
   const referenceSize = bytes[trailer + 7] ?? 0;
-  if (
-    ![1, 2, 4, 8].includes(offsetSize) ||
-    ![1, 2, 4, 8].includes(referenceSize)
-  )
+  if (offsetSize < 1 || referenceSize < 1)
     throw new TypeError("binary plist trailer integer sizes are invalid");
   const readInteger = (offset: number, size: number): number => {
     if (offset < 0 || size < 1 || offset + size > bytes.length) return -1;
-    let value = 0;
+    let value = 0n;
     for (let index = 0; index < size; index += 1)
-      value = value * 256 + (bytes[offset + index] ?? 0);
-    return Number.isSafeInteger(value) ? value : -1;
+      value = BigInt.asUintN(
+        64,
+        (value << 8n) | BigInt(bytes[offset + index] ?? 0),
+      );
+    return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : -1;
   };
   const objectCount = readInteger(trailer + 8, 8);
   const topObject = readInteger(trailer + 16, 8);
@@ -256,9 +269,25 @@ export const estimateBinaryPlistExpansion = (
     topObject < 0 ||
     topObject >= objectCount ||
     offsetTable < 8 ||
+    !Number.isSafeInteger(objectCount * offsetSize) ||
+    !Number.isSafeInteger(offsetTable + objectCount * offsetSize) ||
     offsetTable + objectCount * offsetSize > tableEnd
   )
     throw new TypeError("binary plist trailer or object table is invalid");
+  if (
+    (offsetSize < 8 && offsetTable >= 2 ** (offsetSize * 8)) ||
+    (referenceSize < 8 && objectCount >= 2 ** (referenceSize * 8))
+  )
+    throw new TypeError("binary plist table width cannot address its contents");
+  const normalizedReferenceSize =
+    [1, 2, 4, 8].includes(referenceSize) &&
+    (referenceSize === 8 || objectCount < 2 ** (referenceSize * 8))
+      ? referenceSize
+      : [1, 2, 4, 8].find(
+          (width) => width === 8 || objectCount < 2 ** (width * 8),
+        );
+  if (normalizedReferenceSize === undefined)
+    throw new TypeError("binary plist object reference count is invalid");
   // Reserve source metadata and reachable-offset indexes for scalar projection.
   // Without projection, the traversal retains only structural validation state.
   const objectBytes = numberProjection ? 320 : 16;
@@ -284,6 +313,14 @@ export const estimateBinaryPlistExpansion = (
   const reachableWideIntegerOffsets = new Set<number>();
   const reachableNumericOffsets = new Set<number>();
   const uidWidthsToNormalize = new Map<number, number>();
+  const containersToNormalize = new Map<
+    number,
+    {
+      readonly offset: number;
+      readonly headerLength: number;
+      readonly references: readonly number[];
+    }
+  >();
   const reachableDateOccurrences: number[] = [];
   while (pending.length > 0) {
     const entry = pending.pop();
@@ -412,6 +449,11 @@ export const estimateBinaryPlistExpansion = (
         "expansion",
         `binary plist reference expansion exceeds ${budget}`,
       );
+    const parsedReferences: number[] | undefined =
+      referenceSize !== normalizedReferenceSize &&
+      !containersToNormalize.has(offset)
+        ? []
+        : undefined;
     active.add(entry.object);
     pending.push({
       object: entry.object,
@@ -426,6 +468,7 @@ export const estimateBinaryPlistExpansion = (
       );
       if (reference < 0 || reference >= objectCount)
         throw new TypeError("binary plist reference is invalid");
+      if (parsedReferences !== undefined) parsedReferences[index] = reference;
       pending.push({
         object: reference,
         depth: entry.depth + 1,
@@ -433,25 +476,49 @@ export const estimateBinaryPlistExpansion = (
         dictionaryKey: type === 13 && index < size,
       });
     }
+    if (parsedReferences !== undefined)
+      containersToNormalize.set(offset, {
+        offset,
+        headerLength: cursor - offset,
+        references: parsedReferences,
+      });
     pendingObjectCount += childCount;
   }
   const uidOffsetsToNormalize = [...uidWidthsToNormalize]
     .map(([offset, width]) => ({ offset, width }))
     .sort((left, right) => left.offset - right.offset);
+  const normalizedContainers = [...containersToNormalize.values()].sort(
+    (left, right) => left.offset - right.offset,
+  );
+  const containerCloneLengths = normalizedContainers.map(
+    ({ headerLength, references }) => {
+      const cloneLength =
+        headerLength + references.length * normalizedReferenceSize;
+      if (!Number.isSafeInteger(cloneLength))
+        throw new TypeError("binary plist reference table is too large");
+      return cloneLength;
+    },
+  );
+  const normalizeOffsetWidth = (cloneLengths: readonly number[]) => {
+    const width = binaryPlistCloneOffsetWidth(
+      offsetSize,
+      offsetTable,
+      cloneLengths,
+    );
+    if (width === undefined)
+      throw new TypeError("binary plist object offset exceeds supported width");
+    return width;
+  };
   if (!numberProjection) {
-    const cloneLengths = uidOffsetsToNormalize.map(({ width }) => width + 1);
-    if (cloneLengths.length > 0) {
+    const cloneLengths = [
+      ...uidOffsetsToNormalize.map(({ width }) => width + 1),
+      ...containerCloneLengths,
+    ];
+    const normalizedOffsetSize = normalizeOffsetWidth(cloneLengths);
+    if (cloneLengths.length > 0 || normalizedOffsetSize !== offsetSize) {
       const cloneBytes = cloneLengths.reduce((sum, length) => sum + length, 0);
-      const newOffsetSize = binaryPlistCloneOffsetWidth(
-        offsetSize,
-        offsetTable,
-        cloneLengths,
-      );
-      if (newOffsetSize === undefined)
-        throw new TypeError(
-          "binary plist cloned UID offset exceeds supported width",
-        );
-      estimate += cloneBytes + objectCount * (newOffsetSize - offsetSize);
+      estimate +=
+        cloneBytes + objectCount * (normalizedOffsetSize - offsetSize);
       if (estimate > maxBytes)
         throw fail(
           "expansion",
@@ -468,6 +535,9 @@ export const estimateBinaryPlistExpansion = (
       overlappingWideIntegerOffsets: [],
       reachableNumericOffsets: [],
       uidOffsetsToNormalize,
+      containersToNormalize: normalizedContainers,
+      normalizedOffsetSize,
+      normalizedReferenceSize,
     };
   }
 
@@ -508,20 +578,13 @@ export const estimateBinaryPlistExpansion = (
   ]);
   const cloneLengths = [
     ...uidOffsetsToNormalize.map(({ width }) => width + 1),
+    ...containerCloneLengths,
     ...Array.from(cloneOffsets, () => 9),
   ];
-  if (cloneLengths.length > 0) {
+  const normalizedOffsetSize = normalizeOffsetWidth(cloneLengths);
+  if (cloneLengths.length > 0 || normalizedOffsetSize !== offsetSize) {
     const cloneBytes = cloneLengths.reduce((sum, length) => sum + length, 0);
-    const newOffsetSize = binaryPlistCloneOffsetWidth(
-      offsetSize,
-      offsetTable,
-      cloneLengths,
-    );
-    if (newOffsetSize === undefined)
-      throw new TypeError(
-        "binary plist cloned scalar offset exceeds supported width",
-      );
-    estimate += cloneBytes + objectCount * (newOffsetSize - offsetSize);
+    estimate += cloneBytes + objectCount * (normalizedOffsetSize - offsetSize);
     if (estimate > maxBytes)
       throw fail(
         "expansion",
@@ -550,5 +613,8 @@ export const estimateBinaryPlistExpansion = (
       (left, right) => left - right,
     ),
     uidOffsetsToNormalize,
+    containersToNormalize: normalizedContainers,
+    normalizedOffsetSize,
+    normalizedReferenceSize,
   };
 };

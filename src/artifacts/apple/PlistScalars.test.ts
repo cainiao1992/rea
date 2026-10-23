@@ -88,11 +88,11 @@ const unreachableOverlappingIntegerAndReal = (): Buffer => {
 };
 
 const dateInsideDataWithLargeOffsetTable = (): Buffer => {
-  const bytes = Buffer.alloc(295);
+  const bytes = Buffer.alloc(285);
   bytes.set([0xa2, 1, 2, 0x4a, 0], 8);
   bytes[13] = 0x33;
   bytes.writeDoubleBE(0.1005, 14);
-  return binaryPlistObjectTable(bytes, [8, 11, 13], 260);
+  return binaryPlistObjectTable(bytes, [8, 11, 13], 250);
 };
 
 const scalarCrossingOffsetTable = (marker: number, payload: Buffer): Buffer => {

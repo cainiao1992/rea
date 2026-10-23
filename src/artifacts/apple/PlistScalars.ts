@@ -40,6 +40,13 @@ export interface BinaryPlistScalarDecodePlan {
   readonly reachableNumericOffsets: readonly number[];
   /** Reachable UID records whose encoded width plist@5 cannot read. */
   readonly uidOffsetsToNormalize: readonly { offset: number; width: number }[];
+  readonly containersToNormalize?: readonly {
+    readonly offset: number;
+    readonly headerLength: number;
+    readonly references: readonly number[];
+  }[];
+  readonly normalizedOffsetSize?: number;
+  readonly normalizedReferenceSize?: number;
 }
 
 /** A binary-plist UID cannot be projected to plist@5's numeric UID value exactly. */
@@ -104,23 +111,56 @@ const binaryPlistUidRecord = (
   return record;
 };
 
+const binaryPlistContainerRecord = (
+  bytes: Buffer,
+  container: {
+    readonly offset: number;
+    readonly headerLength: number;
+    readonly references: readonly number[];
+  },
+  targetWidth: number,
+): Buffer => {
+  const record = Buffer.alloc(
+    container.headerLength + container.references.length * targetWidth,
+  );
+  bytes.copy(
+    record,
+    0,
+    container.offset,
+    container.offset + container.headerLength,
+  );
+  for (let index = 0; index < container.references.length; index += 1) {
+    let value = BigInt(container.references[index] ?? 0);
+    for (let byte = targetWidth - 1; byte >= 0; byte -= 1) {
+      record[container.headerLength + index * targetWidth + byte] = Number(
+        value & 0xffn,
+      );
+      value >>= 8n;
+    }
+  }
+  return record;
+};
+
 /** Exact added offset-table representation size, shared with preflight. */
 export const binaryPlistCloneOffsetWidth = (
   currentWidth: number,
   firstCloneOffset: number,
   cloneRecordLengths: readonly number[],
 ): number | undefined => {
-  if (cloneRecordLengths.length === 0) return currentWidth;
-  let lastCloneOffset = firstCloneOffset;
-  for (let index = 0; index + 1 < cloneRecordLengths.length; index += 1)
-    lastCloneOffset += cloneRecordLengths[index] ?? 0;
-  return [currentWidth, 2, 4, 8]
-    .filter((width) => width >= currentWidth)
-    .find((width) =>
-      width === 8
-        ? lastCloneOffset <= Number.MAX_SAFE_INTEGER
-        : lastCloneOffset < 2 ** (width * 8),
-    );
+  const tableOffset =
+    firstCloneOffset +
+    cloneRecordLengths.reduce((sum, length) => sum + length, 0);
+  const widths = [1, 2, 4, 8];
+  if (
+    widths.includes(currentWidth) &&
+    (currentWidth === 8 || tableOffset < 2 ** (currentWidth * 8))
+  )
+    return currentWidth;
+  return widths.find((width) =>
+    width === 8
+      ? tableOffset <= Number.MAX_SAFE_INTEGER
+      : tableOffset < 2 ** (width * 8),
+  );
 };
 
 /** Normalize unsupported binary-plist UID widths for the pinned parser. */
@@ -224,7 +264,7 @@ export const scanBinaryPlistScalars = (
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const trailer = bytes.length - 32;
   const offsetWidth = bytes[trailer + 6] ?? 0;
-  if (![1, 2, 4, 8].includes(offsetWidth)) return result(true);
+  if (offsetWidth < 1) return result(true);
   const countRaw = view.getBigUint64(trailer + 8);
   const tableRaw = view.getBigUint64(trailer + 24);
   const safeMaximum = BigInt(Number.MAX_SAFE_INTEGER);
@@ -236,14 +276,16 @@ export const scanBinaryPlistScalars = (
   if (countRaw > BigInt(capacity)) return result(true);
   const count = Number(countRaw);
   const referenceWidth = bytes[trailer + 7] ?? 0;
-  if (![1, 2, 4, 8].includes(referenceWidth)) return result(true);
+  if (referenceWidth < 1) return result(true);
   const unsigned = (offset: number): number | undefined => {
     if (offset < offsetTable || offset + offsetWidth > trailer)
       return undefined;
-    if (offsetWidth === 1) return view.getUint8(offset);
-    if (offsetWidth === 2) return view.getUint16(offset);
-    if (offsetWidth === 4) return view.getUint32(offset);
-    const value = view.getBigUint64(offset);
+    let value = 0n;
+    for (let index = 0; index < offsetWidth; index += 1)
+      value = BigInt.asUintN(
+        64,
+        (value << 8n) | BigInt(bytes[offset + index] ?? 0),
+      );
     return value > safeMaximum ? undefined : Number(value);
   };
   const objectOffsets: number[] = [];
@@ -378,16 +420,35 @@ export const decodeBinaryPlistScalars = (
       replacement.writeDoubleBE(Number(value), 1);
       replacements.set(offset, replacement);
     }
+  const trailerOffset = bytes.length - 32;
+  const sourceReferenceSize = bytes[trailerOffset + 7] ?? 0;
+  const normalizedReferenceSize =
+    scalarPlan.normalizedReferenceSize ?? sourceReferenceSize;
+  for (const container of scalarPlan.containersToNormalize ?? [])
+    replacements.set(
+      container.offset,
+      binaryPlistContainerRecord(bytes, container, normalizedReferenceSize),
+    );
+  const needsTableNormalization =
+    (scalarPlan.normalizedOffsetSize ?? bytes[trailerOffset + 6] ?? 0) !==
+      (bytes[trailerOffset + 6] ?? 0) ||
+    normalizedReferenceSize !== sourceReferenceSize;
   if (
     reachableWideIntegers.length === 0 &&
     unrepresentableDates.length === 0 &&
-    replacements.size === 0
+    replacements.size === 0 &&
+    !needsTableNormalization
   )
     return bytes;
   const compatible =
-    replacements.size === 0
+    replacements.size === 0 && !needsTableNormalization
       ? Buffer.from(bytes)
-      : cloneBinaryPlistObjects(bytes, replacements);
+      : cloneBinaryPlistObjects(
+          bytes,
+          replacements,
+          scalarPlan.normalizedOffsetSize ?? bytes[trailerOffset + 6] ?? 0,
+          normalizedReferenceSize,
+        );
   for (const { offset, value } of reachableWideIntegers) {
     if (overlappingWideIntegerOffsets.has(offset)) continue;
     // Convert only the decoder's input copy to a double. Exact integer metadata
@@ -407,6 +468,8 @@ export const decodeBinaryPlistScalars = (
 const cloneBinaryPlistObjects = (
   bytes: Buffer,
   replacements: ReadonlyMap<number, Buffer>,
+  normalizedOffsetSize?: number,
+  normalizedReferenceSize?: number,
 ): Buffer => {
   const trailerOffset = bytes.length - 32;
   const offsetSize = bytes[trailerOffset + 6] ?? 0;
@@ -415,7 +478,10 @@ const cloneBinaryPlistObjects = (
   const readOffset = (offset: number): bigint => {
     let value = 0n;
     for (let index = 0; index < offsetSize; index += 1)
-      value = value * 256n + BigInt(bytes[offset + index] ?? 0);
+      value = BigInt.asUintN(
+        64,
+        (value << 8n) | BigInt(bytes[offset + index] ?? 0),
+      );
     return value;
   };
   const offsets = Array.from({ length: objectCount }, (_, index) =>
@@ -423,11 +489,9 @@ const cloneBinaryPlistObjects = (
   );
   const cloneEntries = [...replacements.entries()];
   const replacementLengths = cloneEntries.map(([, record]) => record.length);
-  const newOffsetSize = binaryPlistCloneOffsetWidth(
-    offsetSize,
-    oldTableOffset,
-    replacementLengths,
-  );
+  const newOffsetSize =
+    normalizedOffsetSize ??
+    binaryPlistCloneOffsetWidth(offsetSize, oldTableOffset, replacementLengths);
   if (newOffsetSize === undefined)
     throw new RangeError(
       "binary plist cloned scalar offset exceeds supported width",
@@ -476,6 +540,8 @@ const cloneBinaryPlistObjects = (
   });
   const trailer = Buffer.from(bytes.subarray(trailerOffset));
   trailer[6] = newOffsetSize;
+  if (normalizedReferenceSize !== undefined)
+    trailer[7] = normalizedReferenceSize;
   trailer.writeBigUInt64BE(BigInt(newTableOffset), 24);
   padding.copy(compatible, tableEnd);
   trailer.copy(compatible, tableEnd + padding.length);

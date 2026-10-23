@@ -703,7 +703,8 @@ export const semanticRequireCallAt = (
       return {
         loader: selected?.loader ?? loader,
         arguments: node.arguments,
-        sourceRelative: selected?.sourceRelative ?? loader !== "unknown",
+        sourceRelative:
+          selected?.sourceRelative ?? loader === "commonjs-loader",
         ...(selected?.sourceRelativePath === undefined
           ? {}
           : { sourceRelativePath: selected.sourceRelativePath }),

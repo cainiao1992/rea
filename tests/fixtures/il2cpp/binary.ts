@@ -25,6 +25,8 @@ export interface Il2cppBinaryFixtureOptions {
   readonly chainedFixups?: boolean;
   /** Omit the CodeRegistration module count and array pointer. */
   readonly codeRegistration?: boolean;
+  /** Write a second distinct CodeRegistration module count and array pair. */
+  readonly duplicateCodeRegistration?: boolean;
   /** Write a RIP-relative `lea rax, [module array]`, as an inlined build loads it. */
   readonly codeReference?: boolean;
   /** Omit the MetadataRegistration type table. */
@@ -125,6 +127,10 @@ export const createIl2cppBinaryFixture = (
   if (options.codeRegistration !== false) {
     bytes.writeBigUInt64LE(2n, REGISTRATION);
     bytes.writeBigUInt64LE(address(MODULE_ARRAY), REGISTRATION + 8);
+    if (options.duplicateCodeRegistration === true) {
+      bytes.writeBigUInt64LE(2n, REGISTRATION + 0x80);
+      bytes.writeBigUInt64LE(address(MODULE_ARRAY), REGISTRATION + 0x88);
+    }
   }
   // Il2CppType records: 8-byte data, then attrs:16 and type:8 bits.
   const types: readonly [kind: number, data: bigint][] = [

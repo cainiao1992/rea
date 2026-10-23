@@ -114,6 +114,16 @@ it.each([
   },
 );
 
+it("still rejects distinct CodeRegistration module table fields", () => {
+  expect(
+    failure(
+      createElfFixture(
+        createIl2cppBinaryFixture({ duplicateCodeRegistration: true }),
+      ),
+    ),
+  ).toEqual({ reason: "code-registration-not-found", kind: "malformed" });
+});
+
 it("rejects reused MethodDef tokens within an image but preserves cross-image reuse and folded addresses", () => {
   const duplicateTokens = Uint32Array.from(facts.methodTokens);
   duplicateTokens[1] = duplicateTokens[0]!;

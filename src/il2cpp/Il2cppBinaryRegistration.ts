@@ -209,6 +209,7 @@ export function* findCodeRegistration(
   const expected = new Set(modules.map((module) => module.address));
   const total = BigInt(modules.length);
   const matches: { field: bigint; array: bigint }[] = [];
+  const matchedFields = new Set<bigint>();
   for (const mapping of image.container.mappings) {
     const start = Number((8n - (mapping.address % 8n)) % 8n);
     for (let at = start; at + 16 <= mapping.size; at += 8) {
@@ -225,12 +226,16 @@ export function* findCodeRegistration(
         seen.add(pointer);
       }
       if (seen.size === modules.length) {
+        const field = mapping.address + BigInt(at);
+        // Exact load aliases can visit one virtual registration field twice.
+        if (matchedFields.has(field)) continue;
+        matchedFields.add(field);
         if (matches.length !== 0)
           throw new Il2cppBinaryFormatFailure(
             "code-registration-not-found",
             "multiple CodeRegistration module tables match",
           );
-        matches.push({ field: mapping.address + BigInt(at), array });
+        matches.push({ field, array });
       }
     }
   }

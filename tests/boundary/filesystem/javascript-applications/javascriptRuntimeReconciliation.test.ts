@@ -229,6 +229,40 @@ it("keeps static load states unknown when one scoped capture omits scripts", asy
   );
 });
 
+it("preserves positive script matches without inventing worker absence when workers are unavailable", async () => {
+  const fixture = await applicationFixture();
+  const staticEvidence = await analyzeFixture(fixture);
+  const reconcile = (workersUnavailable: boolean) =>
+    reconcileInput({
+      static_layers: [{ role: "application", analysis: staticEvidence }],
+      runtime_observations: [
+        electronRuntimeEvidence(fixture, SOURCE, {
+          includeWorker: false,
+          workersUnavailable,
+        }),
+      ],
+    });
+  const complete = reconcile(false);
+  const incomplete = reconcile(true);
+  expect(complete.summary.static_not_observed).toBeGreaterThan(0);
+  expect(incomplete.summary.static_not_observed).toBe(0);
+  expect(incomplete.runtime_captures[0]?.scripts_complete_within_scope).toBe(
+    true,
+  );
+  expect(incomplete.static_load_states).toContainEqual(
+    expect.objectContaining({
+      status: "loaded",
+      reason: "runtime-script-correspondence",
+    }),
+  );
+  expect(incomplete.static_load_states).toContainEqual(
+    expect.objectContaining({
+      status: "unknown",
+      reason: "static-or-runtime-coverage-incomplete",
+    }),
+  );
+});
+
 it("reconciles active Electron as a partial target-only runtime capture", async () => {
   const fixture = await applicationFixture();
   const staticEvidence = await analyzeFixture(fixture);

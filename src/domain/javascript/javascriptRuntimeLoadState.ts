@@ -70,7 +70,9 @@ const classifyLayer = (
     options.reconciliationComplete &&
     layer.graph.coverage.status === "complete" &&
     scopedEntities.length > 0 &&
-    scopedEntities.every(({ capture }) => capture.scriptsCompleteWithinScope);
+    scopedEntities.every(
+      ({ capture }) => capture.codeInventoryCompleteWithinScope,
+    );
   const states = nodes.map((node) => {
     const runtimeNodeIds = uniqueSorted(direct.get(node.node_id) ?? []);
     if (runtimeNodeIds.length > 0)

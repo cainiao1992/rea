@@ -67,6 +67,7 @@ export const parseActiveElectronCapture = (
     inspection: normalizeInspection(result),
     captureSha256: digestCanonicalValue(result, "Runtime reconciliation"),
     scriptsCompleteWithinScope: false,
+    codeInventoryCompleteWithinScope: false,
   };
 };
 

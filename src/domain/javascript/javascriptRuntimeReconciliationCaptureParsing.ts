@@ -39,6 +39,7 @@ interface RuntimeCaptureBase {
   readonly evidence: Evidence;
   readonly captureSha256: string;
   readonly scriptsCompleteWithinScope: boolean;
+  readonly codeInventoryCompleteWithinScope: boolean;
 }
 
 interface NormalizedV8Inspection {
@@ -199,6 +200,9 @@ const parseBrowserCapture = (
     inspection,
     captureSha256: digestCanonicalValue(inspection, "Runtime reconciliation"),
     scriptsCompleteWithinScope: scriptsComplete(inspection.completeness),
+    codeInventoryCompleteWithinScope: codeInventoryComplete(
+      inspection.completeness,
+    ),
   };
 };
 
@@ -241,6 +245,9 @@ const parseElectronCapture = (
     inspection,
     captureSha256: digestCanonicalValue(inspection, "Runtime reconciliation"),
     scriptsCompleteWithinScope: scriptsComplete(inspection.completeness),
+    codeInventoryCompleteWithinScope: codeInventoryComplete(
+      inspection.completeness,
+    ),
   };
 };
 
@@ -273,6 +280,7 @@ const parseV8Capture = (
     inspection: normalizeV8Inspection(result),
     captureSha256: digestCanonicalValue(result, "Runtime reconciliation"),
     scriptsCompleteWithinScope: false,
+    codeInventoryCompleteWithinScope: false,
   };
 };
 
@@ -505,3 +513,11 @@ const scriptsComplete = (completeness: {
   !completeness.truncated_sections.includes("scripts") &&
   !completeness.unavailable_sections.includes("scripts") &&
   completeness.dropped_events.scripts === 0;
+
+// Missing worker inventory cannot establish absence of a worker code asset,
+// even when the selected page's own script inventory is complete.
+const codeInventoryComplete = (completeness: BrowserCompleteness): boolean =>
+  scriptsComplete(completeness) &&
+  !completeness.unavailable_sections.includes("workers") &&
+  !completeness.truncated_sections.includes("workers") &&
+  !completeness.attach_limited_sections.includes("workers");

@@ -140,6 +140,11 @@ classification:
   Nodes beneath a mapped artifact prefix also stay unknown when a runtime
   script or worker under that mapping has no artifact path.
 
+Script inventory completeness remains a separate reported fact. Unavailable,
+truncated, or attach-limited worker inventory prevents negative code-presence
+claims even when the selected page's script inventory is complete. Accepted
+positive script correspondences remain loaded.
+
 None of these states proves feature execution, initialization order,
 reachability, or causality. In particular, `not-observed-in-capture` never means
 globally unloaded.

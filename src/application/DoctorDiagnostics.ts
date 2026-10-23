@@ -1,6 +1,6 @@
 import {
   SUPPORTED_NODE_VERSION_PROSE,
-  supportsNodeVersion,
+  supportsJavaScriptRuntime,
 } from "../domain/runtimeVersion.js";
 import { providerStartupTimeoutSchema } from "../config/providerStartupTimeout.js";
 import { hopperLauncherDiscovery } from "./HopperLauncherDiscovery.js";
@@ -94,7 +94,7 @@ export const doctorHealthy = (
   );
 };
 
-/** Bun passes when its reported Node.js compatibility version is supported. */
+/** Runtime support follows the shared rule, which judges Bun by its Node.js compatibility. */
 const nodeCheck = ({ runtime }: DoctorHost): DoctorCheck => {
   const failure = {
     remediation: `Install ${SUPPORTED_NODE_VERSION_PROSE}.`,
@@ -104,7 +104,7 @@ const nodeCheck = ({ runtime }: DoctorHost): DoctorCheck => {
     return {
       ...check(
         "node",
-        supportsNodeVersion(runtime.version),
+        supportsJavaScriptRuntime(runtime),
         runtime.version,
         failure,
       ),
@@ -113,7 +113,7 @@ const nodeCheck = ({ runtime }: DoctorHost): DoctorCheck => {
   return {
     ...check(
       "node",
-      supportsNodeVersion(runtime.nodeCompatibilityVersion),
+      supportsJavaScriptRuntime(runtime),
       `Bun ${runtime.version} (Node.js ${runtime.nodeCompatibilityVersion} compatibility)`,
       failure,
     ),

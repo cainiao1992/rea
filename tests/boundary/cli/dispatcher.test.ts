@@ -1,5 +1,6 @@
 import { copyFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { describe, expect } from "vitest";
 
@@ -7,7 +8,7 @@ import { workspaceCliTest } from "../../support/cli/workspaceCliFixture.js";
 import type { TestWorkspace } from "../../support/workspace/workspaceFixture.js";
 
 const CLI_OUTPUT_RUNTIME =
-  "export const normalizeCliArguments = (args) => args; export const validateCliOutputArguments = () => ({ ok: true }); export const renderCliOutputArgumentError = () => ''; export const renderEmptyFilteredCliOutput = () => undefined;\n";
+  "export const cliConfigurationError = () => undefined; export const normalizeCliArguments = (args) => args; export const validateCliOutputArguments = () => ({ ok: true }); export const renderCliOutputArgumentError = () => ''; export const renderEmptyFilteredCliOutput = () => undefined; export const renderVersionReport = () => undefined;\n";
 
 const installCliRuntime = async (
   workspace: TestWorkspace,
@@ -28,13 +29,74 @@ const installCliRuntime = async (
   ]);
 };
 
+describe("version report dispatch", () => {
+  workspaceCliTest(
+    "reports formatted versions without loading analysis commands and preserves preflight errors",
+    async ({ processes, workspace }) => {
+      const blocked =
+        'throw new Error("analysis command runtime was loaded");\n';
+      await installCliRuntime(workspace, blocked, blocked);
+      await workspace.write(
+        "package.json",
+        JSON.stringify({
+          type: "module",
+          name: "rea-fixture",
+          version: "1.0.0",
+        }),
+      );
+      // Use the built production preflight, while making full CLI imports fail.
+      await workspace.write(
+        "dist/cli-runtime/cliOutput.js",
+        `export * from ${JSON.stringify(pathToFileURL(resolve("dist/cli-runtime/cliOutput.js")).href)};\n`,
+      );
+      const invoke = (arguments_: readonly string[], invalidLogLevel = false) =>
+        processes.run(
+          process.execPath,
+          [workspace.path("scripts/rea.mjs"), ...arguments_],
+          {
+            cwd: workspace.root,
+            env: {
+              ...process.env,
+              REA_LOG_LEVEL: invalidLogLevel ? "invalid-level" : "silent",
+            },
+          },
+        );
+
+      const report = await invoke(["--version", "--json"]);
+      expect(report.exitCode, report.stderr).toBe(0);
+      expect(JSON.parse(report.stdout)).toMatchObject({
+        name: "rea-fixture",
+        version: "1.0.0",
+        runtime: { id: "node", version: process.versions.node },
+      });
+      const invalidOutput = await invoke([
+        "--version",
+        "--json",
+        "--token-limit",
+        "5",
+      ]);
+      expect(invalidOutput.exitCode, invalidOutput.stderr).toBe(1);
+      expect(JSON.parse(invalidOutput.stdout)).toMatchObject({
+        error: { code: "UNSUPPORTED_OUTPUT_COMBINATION" },
+      });
+      const invalidConfiguration = await invoke(["--version", "--json"], true);
+      expect(invalidConfiguration.exitCode).toBe(1);
+      expect(invalidConfiguration.stdout).toBe("");
+      expect(invalidConfiguration.stderr).toContain("REA_LOG_LEVEL");
+      expect(invalidConfiguration.stderr).not.toContain(
+        "analysis command runtime was loaded",
+      );
+    },
+  );
+});
+
 describe("executable dispatcher", () => {
   workspaceCliTest(
     "does not append recovery output after delegated stdout has begun",
     async ({ processes, workspace }) => {
       await installCliRuntime(
         workspace,
-        'export const cliConfigurationError = () => undefined; export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (_args, options) => { options.stdout("first document\\n"); throw new RangeError("Invalid string length"); } });\n',
+        'export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (_args, options) => { options.stdout("first document\\n"); throw new RangeError("Invalid string length"); } });\n',
         'export const createCliResultOutput = () => ({ handled: false, failed: false, recoverFormattingFailure: () => { process.stdout.write("unexpected second document"); return true; } });\n',
       );
       const result = await processes.run(
@@ -67,12 +129,9 @@ describe("executable dispatcher", () => {
         ),
         workspace.write(
           "dist/cli-runtime/cli.js",
-          'export const cliConfigurationError = () => undefined; export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (args) => process.stdout.write(JSON.stringify({ adapter: "cli", args })) });\n',
+          'export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (args) => process.stdout.write(JSON.stringify({ adapter: "cli", args })) });\n',
         ),
-        workspace.write(
-          "dist/cli-runtime/cliOutput.js",
-          "export const normalizeCliArguments = (args) => args; export const validateCliOutputArguments = () => ({ ok: true }); export const renderCliOutputArgumentError = () => ''; export const renderEmptyFilteredCliOutput = () => undefined;\n",
-        ),
+        workspace.write("dist/cli-runtime/cliOutput.js", CLI_OUTPUT_RUNTIME),
         workspace.write(
           "dist/cli-runtime/cliResultOutput.js",
           "export const createCliResultOutput = () => undefined;\n",
@@ -171,7 +230,7 @@ describe("executable dispatcher JavaScript shutdown", () => {
     async ({ processes, workspace }) => {
       await installCliRuntime(
         workspace,
-        'export const cliConfigurationError = () => undefined; export const closeCliJavaScriptResources = () => Promise.reject(new Error("worker still owned")); export const createCli = () => ({ serve: (_args, options) => { options.exit(0); } });\n',
+        'export const closeCliJavaScriptResources = () => Promise.reject(new Error("worker still owned")); export const createCli = () => ({ serve: (_args, options) => { options.exit(0); } });\n',
       );
       const result = await processes.run(
         process.execPath,
@@ -188,7 +247,7 @@ describe("executable dispatcher JavaScript shutdown", () => {
     async ({ processes, workspace }) => {
       await installCliRuntime(
         workspace,
-        'export const cliConfigurationError = () => undefined; export const closeCliJavaScriptResources = () => Promise.reject(new Error("worker still owned")); export const createCli = () => ({ serve: (_args, options) => { process.stdout.emit("error", Object.assign(new Error("broken pipe"), { code: "EPIPE" })); options.exit(0); } });\n',
+        'export const closeCliJavaScriptResources = () => Promise.reject(new Error("worker still owned")); export const createCli = () => ({ serve: (_args, options) => { process.stdout.emit("error", Object.assign(new Error("broken pipe"), { code: "EPIPE" })); options.exit(0); } });\n',
       );
       const result = await processes.run(
         process.execPath,

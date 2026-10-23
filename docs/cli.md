@@ -574,6 +574,52 @@ without response bodies, or without the request bodies its writes need. See
 rea environment-compare manifest.json --evidence capture.json --probe probe.json --json
 ```
 
+## Report version and runtime
+
+`rea --version` prints the package version. Add an output format to get the
+version with the runtime and platform context that a support request needs:
+
+Version reports do not initialize analysis providers. Invalid global settings
+or output options still report their usual errors.
+
+```bash
+rea --version --json
+```
+
+```json
+{
+  "name": "rea-agents",
+  "version": "6.7.0",
+  "runtime": { "id": "node", "version": "24.22.1" },
+  "platform": "linux",
+  "architecture": "x64",
+  "supported_runtime": {
+    "range": "^22.23.4 || ^24.22.1 || >=26.12.1",
+    "satisfied": true
+  }
+}
+```
+
+| Field                                | Meaning                                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `name`, `version`                    | Published package name and version; `version` matches plain `--version`.                                       |
+| `runtime.id`                         | `node` or `bun`.                                                                                               |
+| `runtime.version`                    | Version of that runtime.                                                                                       |
+| `runtime.node_compatibility_version` | Bun only: the Node.js version it reports compatibility with.                                                   |
+| `platform`, `architecture`           | Node.js `process.platform` and `process.arch`, such as `linux` and `x64`.                                      |
+| `supported_runtime.range`            | Supported Node.js range.                                                                                       |
+| `supported_runtime.satisfied`        | Whether this runtime is supported, judged as `rea doctor` judges it; Bun by its Node.js compatibility version. |
+
+The field names are stable. The report contains no paths, environment values,
+user or host names, and it starts no provider and reads no target. `--format`
+selects any CLI output format, such as `--format yaml`. JSON follows the usual
+rule: indented on a terminal, compact when piped or redirected. `--help` still
+takes precedence. With other output controls, `--version` keeps its existing
+behavior: valid controls such as `--filter-output` or `--full-output` print the
+plain version, and invalid combinations report the usual output-flag error,
+such as `UNSUPPORTED_OUTPUT_COMBINATION` for `--json` with `--token-limit`. Use
+`rea doctor` for provider and host readiness.
+
 ## Output and exit status
 
 `rea mcp doctor --json` checks production MCP startup and reports child logs in

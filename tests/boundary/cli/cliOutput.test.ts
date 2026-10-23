@@ -10,7 +10,9 @@ import {
   normalizeCliArguments,
   renderCliOutputArgumentError,
   renderEmptyFilteredCliOutput,
+  renderVersionReport,
   validateCliOutputArguments,
+  versionReportFormat,
 } from "../../../src/cliOutput.js";
 
 const CLI_INTEGRATION_TIMEOUT_MS = 60_000;
@@ -592,4 +594,52 @@ describe("CLI update root alias", () => {
       expect(normalizeCliArguments(expected)).toEqual(expected);
     },
   );
+});
+
+describe("version report requests", () => {
+  it.each([
+    [["--version", "--json"], "json"],
+    [["--json", "--version"], "json"],
+    [["--version", "--format", "yaml"], "yaml"],
+    [normalizeCliArguments(["--version", "--format=toon"]), "toon"],
+    // Without an explicit format, Incur prints the bare version.
+    [["--version"], undefined],
+    // Help keeps precedence over --version.
+    [["--version", "--json", "--help"], undefined],
+    [["-h", "--version", "--json"], undefined],
+    // A command keeps its own --version option.
+    [["providers", "--version", "--json"], undefined],
+    [["--version", "1", "--json"], undefined],
+    // Other output controls keep Incur's handling.
+    [["--version", "--json", "--filter-output", "version"], undefined],
+    [["--version", "--json", "--token-count"], undefined],
+    [["--version", "--format", "xml"], undefined],
+    [["--version", "--format"], undefined],
+    [["--json"], undefined],
+  ] as const)("reads %j as format %s", (arguments_, expected) => {
+    expect(versionReportFormat(arguments_)).toBe(expected);
+  });
+});
+
+describe("version report rendering", () => {
+  const host = {
+    packageName: "rea-agents",
+    packageVersion: "6.7.0",
+    versions: { node: "24.22.1" },
+    platform: "linux",
+    architecture: "x64",
+  };
+
+  it("indents JSON for a terminal and compacts it when piped", () => {
+    const terminal = renderVersionReport(["--version", "--json"], host, true);
+    const piped = renderVersionReport(["--version", "--json"], host, false);
+
+    expect(terminal?.split("\n").length).toBeGreaterThan(2);
+    expect(piped?.trimEnd().split("\n")).toHaveLength(1);
+    expect(JSON.parse(terminal ?? "")).toEqual(JSON.parse(piped ?? ""));
+  });
+
+  it("leaves plain --version to Incur", () => {
+    expect(renderVersionReport(["--version"], host, true)).toBeUndefined();
+  });
 });

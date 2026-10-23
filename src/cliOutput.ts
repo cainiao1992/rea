@@ -1,8 +1,44 @@
+import { Formatter } from "incur";
+
+import { jsonOutputParts } from "./cli/jsonOutput.js";
+import {
+  versionReport,
+  type VersionReportHost,
+} from "./domain/versionReport.js";
+
+// The launcher and compiled CLI drivers share this lightweight entrypoint.
+export { cliConfigurationError } from "./cliConfiguration.js";
+
 const UNSUPPORTED_OUTPUT_COMBINATION_MESSAGE =
   "Token windows cannot preserve structured output. Remove --token-limit/--token-offset and use --filter-output or command pagination.";
 
 type StructuredOutputFormat = "json" | "jsonl" | "yaml";
-const INCUR_OUTPUT_FORMATS = new Set(["toon", "json", "yaml", "md", "jsonl"]);
+/** Output formats Incur renders, in its documented order. */
+export const CLI_OUTPUT_FORMATS = [
+  "toon",
+  "json",
+  "yaml",
+  "md",
+  "jsonl",
+] as const;
+export type CliOutputFormat = (typeof CLI_OUTPUT_FORMATS)[number];
+const INCUR_OUTPUT_FORMATS: ReadonlySet<string> = new Set(CLI_OUTPUT_FORMATS);
+
+const isCliOutputFormat = (value: string): value is CliOutputFormat =>
+  INCUR_OUTPUT_FORMATS.has(value);
+
+/**
+ * Render a document REA writes outside Incur's command pipeline. JSON follows
+ * the CLI contract: indented for a terminal, compact when piped or redirected.
+ */
+export const renderCliDocument = (
+  value: unknown,
+  format: CliOutputFormat,
+  stdoutIsTerminal: boolean,
+): string =>
+  format === "json" || format === "jsonl"
+    ? [...jsonOutputParts(value, format, stdoutIsTerminal)].join("")
+    : `${Formatter.format(value, format)}\n`;
 /** Global output flags that take a value. */
 const VALUED_OUTPUT_FLAGS = new Set([
   "--format",
@@ -145,6 +181,8 @@ export type CliOutputArgumentValidation =
 interface ParsedCliOutputArguments {
   readonly filterOutput: string | undefined;
   readonly format: string;
+  /** Whether `--json` or `--format` selected the format, rather than the default. */
+  readonly formatExplicit: boolean;
   readonly fullOutput: boolean;
   /** First valued output flag that Incur skips because it has no value. */
   readonly missingValue: string | undefined;
@@ -160,6 +198,7 @@ export const parseCliOutputArguments = (
   arguments_: readonly string[],
 ): ParsedCliOutputArguments => {
   let format: string = "toon";
+  let formatExplicit = false;
   let filterOutput: string | undefined;
   let fullOutput = false;
   let missingValue: string | undefined;
@@ -169,6 +208,7 @@ export const parseCliOutputArguments = (
   const parsed = (parseError: boolean): ParsedCliOutputArguments => ({
     filterOutput,
     format,
+    formatExplicit,
     fullOutput,
     missingValue,
     parseError,
@@ -184,6 +224,7 @@ export const parseCliOutputArguments = (
     // normalizeCliArguments has produced. Mirror those effective values.
     if (argument === "--json") {
       format = "json";
+      formatExplicit = true;
       continue;
     }
     if (argument === "--format") {
@@ -194,6 +235,7 @@ export const parseCliOutputArguments = (
         if (cliOutputValueRejection(argument, value) !== undefined)
           return parsed(true);
         format = value;
+        formatExplicit = true;
         index += 1;
       } else missingValue ??= argument;
       continue;
@@ -308,4 +350,51 @@ export const renderCliOutputArgumentError = (
   if (error.format === "yaml")
     return `ok: false\nerror:\n  code: ${error.code}\n  message: ${JSON.stringify(error.message)}\n`;
   return `${JSON.stringify(value)}\n`;
+};
+
+/**
+ * The format of a root `--version` request that selects one explicitly, or
+ * undefined when Incur should answer it. Only `--version`, `--json` and
+ * `--format <format>` may appear, so help keeps precedence, a command keeps
+ * its own `--version` option, and other output controls keep Incur's plain
+ * version. Plain `--version` stays the bare version string.
+ */
+export const versionReportFormat = (
+  arguments_: readonly string[],
+): CliOutputFormat | undefined => {
+  let version = false;
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === "--version") {
+      const next = arguments_[index + 1];
+      // A following value belongs to a command-local `--version` option.
+      if (next !== undefined && !next.startsWith("-")) return undefined;
+      version = true;
+    } else if (argument === "--format") index += 1;
+    else if (argument !== "--json") return undefined;
+  }
+  if (!version) return undefined;
+  const { format, formatExplicit, missingValue, parseError } =
+    parseCliOutputArguments(arguments_);
+  return formatExplicit &&
+    !parseError &&
+    missingValue === undefined &&
+    isCliOutputFormat(format)
+    ? format
+    : undefined;
+};
+
+/**
+ * Render the version report for a formatted root `--version` request, or
+ * return undefined so Incur prints the bare version or handles the request.
+ */
+export const renderVersionReport = (
+  arguments_: readonly string[],
+  host: VersionReportHost,
+  stdoutIsTerminal: boolean,
+): string | undefined => {
+  const format = versionReportFormat(arguments_);
+  return format === undefined
+    ? undefined
+    : renderCliDocument(versionReport(host), format, stdoutIsTerminal);
 };

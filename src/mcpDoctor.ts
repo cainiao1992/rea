@@ -1,13 +1,17 @@
 import { Client, SdkError, SdkErrorCode } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { Formatter, Help, z } from "incur";
+import { Help, z } from "incur";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 import { createCatalogIdentity } from "./catalogIdentity.js";
-import { jsonOutputParts } from "./cli/jsonOutput.js";
-import { missingCliOutputValueMessage } from "./cliOutput.js";
+import {
+  CLI_OUTPUT_FORMATS,
+  type CliOutputFormat,
+  missingCliOutputValueMessage,
+  renderCliDocument,
+} from "./cliOutput.js";
 import {
   compactPresentationForMcpInputSchemaProfile,
   parseMcpInputSchemaProfile,
@@ -26,8 +30,8 @@ import {
   mcpDoctorDeadlineRecovery,
 } from "./mcpStartupPolicy.js";
 
-const OUTPUT_FORMATS = ["toon", "json", "yaml", "md", "jsonl"] as const;
-type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+const OUTPUT_FORMATS = CLI_OUTPUT_FORMATS;
+type OutputFormat = CliOutputFormat;
 
 /**
  * Canonical `rea mcp doctor` options. This schema is the single source of
@@ -338,7 +342,7 @@ export const runProductionMcpDoctorCli = async (
     if (parsed.help)
       return { output: `${renderMcpDoctorHelp()}\n`, exitCode: 0 };
     return {
-      output: renderOutput(
+      output: renderCliDocument(
         { code: parsed.code, message: parsed.message },
         parsed.format,
         input.stdoutIsTerminal,
@@ -363,7 +367,11 @@ export const runProductionMcpDoctorCli = async (
       }
     : result;
   return {
-    output: renderOutput(outputValue, parsed.format, input.stdoutIsTerminal),
+    output: renderCliDocument(
+      outputValue,
+      parsed.format,
+      input.stdoutIsTerminal,
+    ),
     exitCode: result.healthy ? 0 : 1,
   };
 };
@@ -446,15 +454,6 @@ type McpDoctorArguments =
       readonly code: "MISSING_OUTPUT_VALUE" | "VALIDATION_ERROR";
       readonly message: string;
     };
-
-const renderOutput = (
-  value: unknown,
-  format: OutputFormat,
-  stdoutIsTerminal: boolean,
-): string =>
-  format === "json" || format === "jsonl"
-    ? [...jsonOutputParts(value, format, stdoutIsTerminal)].join("")
-    : `${Formatter.format(value, format)}\n`;
 
 const parseOutputArguments = (
   arguments_: readonly string[],

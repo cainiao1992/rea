@@ -7,6 +7,7 @@ import { StringDecoder } from "node:string_decoder";
 
 import { createCatalogIdentity } from "./catalogIdentity.js";
 import { jsonOutputParts } from "./cli/jsonOutput.js";
+import { missingCliOutputValueMessage } from "./cliOutput.js";
 import {
   compactPresentationForMcpInputSchemaProfile,
   parseMcpInputSchemaProfile,
@@ -338,7 +339,7 @@ export const runProductionMcpDoctorCli = async (
       return { output: `${renderMcpDoctorHelp()}\n`, exitCode: 0 };
     return {
       output: renderOutput(
-        { code: "VALIDATION_ERROR", message: parsed.message },
+        { code: parsed.code, message: parsed.message },
         parsed.format,
         input.stdoutIsTerminal,
       ),
@@ -442,6 +443,7 @@ type McpDoctorArguments =
       readonly ok: false;
       readonly help: false;
       readonly format: OutputFormat;
+      readonly code: "MISSING_OUTPUT_VALUE" | "VALIDATION_ERROR";
       readonly message: string;
     };
 
@@ -476,12 +478,21 @@ const parseOutputArguments = (
     if (argument === "--format" || inline !== undefined) {
       const candidate = inline ?? arguments_[index + 1];
       if (inline === undefined) index += 1;
+      if (candidate === undefined || candidate === "")
+        return {
+          ok: false,
+          help: false,
+          format,
+          code: "MISSING_OUTPUT_VALUE",
+          message: missingCliOutputValueMessage("--format"),
+        };
       if (!isOutputFormat(candidate))
         return {
           ok: false,
           help: false,
           format,
-          message: `Invalid output format: ${candidate ?? "missing"}`,
+          code: "VALIDATION_ERROR",
+          message: `Invalid output format: ${candidate}`,
         };
       format = candidate;
       continue;
@@ -495,6 +506,7 @@ const parseOutputArguments = (
       ok: false,
       help: false,
       format,
+      code: "VALIDATION_ERROR",
       message: `Unknown mcp doctor option: ${argument ?? "missing"}`,
     };
   }

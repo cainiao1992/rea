@@ -241,6 +241,10 @@ const hasUnclosedFilterSlice = (expression: string): boolean => {
   return unclosed;
 };
 
+/** Name a valued output flag that was given without a value. */
+export const missingCliOutputValueMessage = (flag: string): string =>
+  `${flag} requires a value, as in ${flag} <value> or ${flag}=<value>.`;
+
 /** Reject output controls that cannot safely produce a complete result. */
 export const validateCliOutputArguments = (
   arguments_: readonly string[],
@@ -273,7 +277,7 @@ export const validateCliOutputArguments = (
       ok: false,
       format: format === "yaml" || format === "jsonl" ? format : "json",
       code: "MISSING_OUTPUT_VALUE",
-      message: `${missingValue} requires a value, as in ${missingValue} <value> or ${missingValue}=<value>.`,
+      message: missingCliOutputValueMessage(missingValue),
     };
   return { ok: true };
 };

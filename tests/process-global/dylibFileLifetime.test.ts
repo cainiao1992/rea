@@ -381,3 +381,16 @@ it("waits for an in-flight final dyld close before completing provider close", a
     await running;
   }
 });
+
+it("keeps post-admission pathname disappearance as an integrity failure through the provider", async () => {
+  const { client } = await fixture();
+  fault.onRead = async () => {
+    fault.onRead = undefined;
+    await rename(fault.path, `${fault.path}.old`);
+  };
+  const result = await client.execute("trace_dylib_resolution", {
+    roots: ["Main"],
+  });
+  expect(result).toMatchObject({ ok: false, error: { reason: "integrity" } });
+  expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+});

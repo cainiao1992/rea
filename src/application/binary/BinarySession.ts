@@ -1423,8 +1423,7 @@ export class BinarySession
     const started = await client.execute("health", {});
     if (started.ok) {
       this.#active = {
-        target: previous.target,
-        profile: previous.profile,
+        ...previous,
         ...run,
         nativeSourceAdmitted: false,
       };

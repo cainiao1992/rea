@@ -428,6 +428,11 @@ cached result. `close_binary` accepts `snapshot_path` and optional
 `overwrite: true` to save before releasing provider resources. A failed save
 leaves the session open so the caller can resolve the output failure.
 
+If a snapshot switch fails after the previous target was retired, restoration
+keeps that target's analysis commitments with the replacement client. This
+includes the native dispatch workflow profile on a profileless route, so its
+existing snapshot and fresh observations retain the same provenance.
+
 The MCP save receipt reports `primitive_entries`, `workflow_entries`, and
 `evidence_records` separately. Zero primitive bindings can still accompany retained workflow
 results and Evidence. These are cached observations, not a saved provider

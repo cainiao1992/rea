@@ -15,6 +15,92 @@ import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 import { nativeObjcClassImportMachO } from "../fixtures/nativeObjcClassImportMachO.js";
 import { objcRecordBudgetMacho } from "../fixtures/objcRecordBudgetMacho.js";
+import { parseMcpToolError } from "../fixtures/mcpToolError.js";
+
+cliTest.skipIf(process.platform !== "darwin")(
+  "restores the exact profileless workflow commitment after a rejected snapshot switch",
+  async () => {
+    const root = await createTestTempDirectory("rea-native-snapshot-restore-");
+    const first = join(root, "first.macho");
+    const second = join(root, "second.macho");
+    const saved = join(root, "before.json");
+    const conflicting = join(root, "conflicting.json");
+    const after = join(root, "after.json");
+    const bytes = machoImage({ cpu: CPU.arm64, commands: [] });
+    await Promise.all([writeFile(first, bytes), writeFile(second, bytes)]);
+    const { call } = await connectLocalToolsMcp({
+      PATH: process.env.PATH ?? "",
+      REA_ANALYSIS_PROVIDER: "auto",
+      HOPPER_LAUNCHER_PATH: "/rea-unconfigured-deep-provider/hopper",
+      GHIDRA_INSTALL_DIR: "/rea-unconfigured-deep-provider/ghidra",
+      JAVA_HOME: "/rea-unconfigured-deep-provider/java",
+      REA_IDA_MCP_CONFIG: "/rea-unconfigured-deep-provider/ida-mcp.json",
+      REA_KUNA_COMMAND: "/rea-unconfigured-deep-provider/kuna",
+      REA_KUNA_CACHE_DIR: "/rea-unconfigured-deep-provider/kuna-cache",
+    });
+    const good = async (name: string, arguments_: Record<string, unknown>) => {
+      const result = await call(name, arguments_);
+      expect(result.isError, JSON.stringify(result)).not.toBe(true);
+      return result;
+    };
+    const unknown = {
+      question: "Does this function reach the network?",
+      domain: "network",
+      supporting_evidence_ids: [],
+      contradicting_evidence_ids: [],
+      required_authority: "shipped-artifact",
+      required_confidence: "observed",
+      required_environment: null,
+      recommended_probes: [
+        { operation: "analyze_function", rationale: "Inspect its callers." },
+      ],
+      relationships: [],
+    };
+    await good("open_binary", { path: second });
+    await good("inspect_native_dispatch_metadata", { max_records: 100 });
+    await good("record_unknown", { ...unknown, severity: "high" });
+    await good("close_binary", { snapshot_path: conflicting, overwrite: true });
+    await good("open_binary", { path: first });
+    const original = parseEvidence(
+      (await good("inspect_native_dispatch_metadata", { max_records: 100 }))
+        .structuredContent,
+    );
+    expect(original.analysis_profile).toEqual(
+      APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
+    );
+    await good("record_unknown", { ...unknown, severity: "medium" });
+    await good("close_binary", { snapshot_path: saved, overwrite: true });
+    await good("open_binary", { path: first, snapshot_path: saved });
+    const rejected = await call("open_binary", {
+      path: second,
+      snapshot_path: conflicting,
+    });
+    expect(parseMcpToolError(rejected)).toMatchObject({
+      error: {
+        code: "evidence_integrity_mismatch",
+        details: { reason: "Conflicting unknown revision" },
+      },
+    });
+    expect((await good("binary_session", {})).structuredContent).toMatchObject({
+      result: { open: true, path: first },
+    });
+    const observed = parseEvidence(
+      (await good("inspect_native_dispatch_metadata", { max_records: 1 }))
+        .structuredContent,
+    );
+    expect(observed.analysis_profile).toEqual(original.analysis_profile);
+    await good("open_binary", { path: first, snapshot_path: saved });
+    await good("close_binary", { snapshot_path: after, overwrite: true });
+    const snapshot = await readAnalysisSnapshot(after);
+    if (!snapshot.ok) throw snapshot.error;
+    expect(snapshot.value.binding.analysis_profile).toEqual(
+      original.analysis_profile,
+    );
+    expect(await readFile(first)).toEqual(Buffer.from(bytes));
+    expect(await readFile(second)).toEqual(Buffer.from(bytes));
+  },
+  30000,
+);
 
 cliTest.skipIf(process.platform !== "darwin")(
   "preserves ambiguous encoded method implementations through the public CLI and MCP",

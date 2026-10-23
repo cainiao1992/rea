@@ -1186,19 +1186,23 @@ unknown endpoint identity or kind facts remain `unknown`. Independent known
 facts that contradict every possible pairing still establish `changed`.
 Source Evidence retains the original addresses, names and unavailable facts.
 
+The `calls` dimension uses the same endpoint identity owner. Within an artifact,
+it compares procedure entry coordinates rather than display names; references
+continue to compare exact source and target coordinates. Across artifacts,
+caller and callee names are comparable only when each name identifies one
+observed procedure entry per dossier. Procedure entries retained in callers,
+callees and reference endpoints all contribute to this ambiguity check.
+Repeated rows at the same entry retain their duplicate counts. An unresolved or
+ambiguous call endpoint keeps the selected `calls` reconstruction claim unknown;
+with resolved call endpoints, distinct entries in the same artifact establish a
+changed call set.
+
 Coordinate identity requires a common executable context: artifact identity,
 selected image or architecture slice, address space, and applicable load mapping.
 Equal coordinates in different slices of one container do not establish equal
 endpoints. The current digest-only selection does not enforce that context and
-can report references unchanged across distinct slices
+can report references and calls unchanged across distinct slices
 ([#6502](https://github.com/morluto/rea/issues/6502)).
-
-The `calls` dimension separately compares direction and procedure names without
-retaining endpoint addresses. Distinct same-named procedures can therefore
-compare unchanged ([#6853](https://github.com/morluto/rea/issues/6853)). Check
-the source dossiers' endpoint identities before using either affected dimension
-as a reconstruction proof; another dimension reporting a change does not repair
-the selected dimension's false equality.
 
 ### Comparison input shapes
 

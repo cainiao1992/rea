@@ -90,6 +90,8 @@ const evidence = (
     readonly incoming?: readonly Reference[];
     readonly procedureAddress?: string;
     readonly procedureName?: string;
+    readonly callers?: readonly ReturnType<typeof procedure>[];
+    readonly callees?: readonly ReturnType<typeof procedure>[];
   } = {},
 ) =>
   createEvidence(
@@ -111,6 +113,8 @@ const evidence = (
         },
         incoming_references: [...(options.incoming ?? [])],
         outgoing_references: [...outgoing],
+        callers: [...(options.callers ?? dossier.callers)],
+        callees: [...(options.callees ?? dossier.callees)],
       }),
       confidence: "derived",
       authority: "shipped-artifact",
@@ -159,12 +163,14 @@ const expectReferences = (
     )
     .toMatchObject({ status });
 
-const verifyReferences = async (
+const verifyDimension = async (
   client: Client,
   comparisonEvidenceId: string,
   status: "pass" | "fail" | "unknown",
+  observedStatus: "unchanged" | "changed" | "unknown",
+  dimension: "references" | "calls" = "references",
 ) => {
-  const claimId = `references-${comparisonEvidenceId}`;
+  const claimId = `${dimension}-${comparisonEvidenceId}`;
   const response = await client.callTool({
     name: "verify_reconstruction",
     arguments: {
@@ -174,9 +180,9 @@ const verifyReferences = async (
           {
             kind: "structural-function",
             claim_id: claimId,
-            title: "Reference facts agree",
+            title: `${dimension} facts agree`,
             comparison_evidence_id: comparisonEvidenceId,
-            dimension: "references",
+            dimension,
           },
         ],
       },
@@ -186,8 +192,6 @@ const verifyReferences = async (
   const verification = reconstructionVerificationResultSchema.parse(
     parseEvidence(response.structuredContent).normalized_result,
   );
-  const observed =
-    status === "pass" ? "unchanged" : status === "fail" ? "changed" : "unknown";
   expect.soft(verification).toMatchObject({
     status,
     summary: {
@@ -201,7 +205,7 @@ const verifyReferences = async (
         expect.objectContaining({
           claim_id: claimId,
           status,
-          observed_status: observed,
+          observed_status: observedStatus,
         }),
       ],
     },
@@ -230,7 +234,12 @@ it("preserves reference identity uncertainty and same-artifact coordinates", asy
   );
   const namedToNull = await compare(client, named, unnamedElsewhere);
   expectReferences(namedToNull, "unknown");
-  await verifyReferences(client, namedToNull.evidence.evidence_id, "unknown");
+  await verifyDimension(
+    client,
+    namedToNull.evidence.evidence_id,
+    "unknown",
+    "unknown",
+  );
   const nullToNamed = await compare(client, unnamedElsewhere, named);
   expectReferences(nullToNamed, "unknown");
 
@@ -344,6 +353,111 @@ it("keeps generated and ambiguous procedure names from proving cross-artifact id
     status: "ambiguous",
   });
   expect.soft(generatedFunctions.result.status).toBe("unknown");
+});
+
+it("preserves call endpoint identity through public comparisons and selected reconstruction claims", async () => {
+  const { client, session } = await createHarness();
+  const observedCalls = (
+    id: string,
+    digest: string,
+    entry: string,
+    targets: readonly string[],
+    includeReferences = true,
+  ) =>
+    evidence(
+      id,
+      digest,
+      includeReferences
+        ? targets.map((target) =>
+            reference(entry, target, "call", { sourceName: "worker" }),
+          )
+        : [],
+      {
+        procedureAddress: entry,
+        procedureName: "worker",
+        callees: targets.map((target) => procedure(target, "helper")),
+      },
+    );
+  const original = observedCalls("original-calls", "1", "0x1000", [
+    "ram:0x2000",
+  ]);
+  const cases = [
+    {
+      left: original,
+      right: original,
+      status: "unchanged",
+      verification: "unknown",
+    },
+    {
+      left: original,
+      right: observedCalls("distinct-helpers", "1", "0x1100", ["ram:0x3000"]),
+      status: "changed",
+      verification: "fail",
+    },
+    {
+      left: original,
+      right: observedCalls("same-helper-coordinate", "1", "0x1000", [
+        "ram:0X002000",
+      ]),
+      status: "unchanged",
+      verification: "pass",
+    },
+    {
+      left: original,
+      right: observedCalls("cross-build-helper", "2", "0x1100", ["ram:0x3000"]),
+      status: "unchanged",
+      verification: "pass",
+    },
+    ...[true, false].map((includeReferences) => ({
+      left: observedCalls(
+        `duplicate-helpers-left-${includeReferences}`,
+        "3",
+        "0x1000",
+        ["0x2000", "0x3000"],
+        includeReferences,
+      ),
+      right: observedCalls(
+        `duplicate-helpers-right-${includeReferences}`,
+        "4",
+        "0x1100",
+        ["0x4000", "0x5000"],
+        includeReferences,
+      ),
+      status: "unknown" as const,
+      verification: "unknown" as const,
+    })),
+  ] as const;
+  for (const test of cases) {
+    const compared = await compare(client, test.left, test.right);
+    expect(
+      compared.result.dimensions.find((value) => value.dimension === "calls"),
+    ).toMatchObject({
+      status: test.status,
+      evidence_links: [test.left.evidence_id, test.right.evidence_id],
+      ...(test.status === "unknown"
+        ? {
+            left_count: 2,
+            right_count: 2,
+            left_digest: null,
+            right_digest: null,
+            limitations: [
+              expect.stringContaining("does not uniquely identify"),
+            ],
+          }
+        : {}),
+    });
+    await verifyDimension(
+      client,
+      compared.evidence.evidence_id,
+      test.verification,
+      test.status,
+      "calls",
+    );
+    for (const source of [test.left, test.right])
+      expect(
+        session.evidenceById(source.evidence_id)?.normalized_result,
+      ).toEqual(source.normalized_result);
+  }
 });
 
 it("normalizes numeric coordinates but preserves address spaces and source sites", async () => {
@@ -461,7 +575,12 @@ it("keeps known reference changes decisive beside unrelated unknown kinds", asyn
   );
   const compared = await compare(client, left, right);
   expectReferences(compared, "changed");
-  await verifyReferences(client, compared.evidence.evidence_id, "fail");
+  await verifyDimension(
+    client,
+    compared.evidence.evidence_id,
+    "fail",
+    "changed",
+  );
 });
 
 it("keeps ambiguous duplicate edge kinds unknown independent of input order", async () => {

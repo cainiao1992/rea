@@ -1,5 +1,9 @@
 import { canonicalJson } from "./comparisonSemantics.js";
 import { compareFunctionReferences } from "./functionReferenceComparison.js";
+import {
+  functionEndpointIdentity,
+  type FunctionEndpointIdentity,
+} from "./functionEndpointIdentity.js";
 import { diffLines } from "diff";
 
 import type { FunctionSnapshot } from "./functionDossierEvidence.js";
@@ -33,6 +37,7 @@ export const compareDimensions = (
   right: FunctionSnapshot,
   context: ComparisonContext,
 ): FunctionDimension[] => {
+  const endpointIdentity = functionEndpointIdentity(left, right);
   return [
     compareIdentity(left, right, context),
     compareText(
@@ -48,8 +53,8 @@ export const compareDimensions = (
       context,
     ),
     compareComments(left, right, context),
-    compareCalls(left, right, context),
-    compareReferences(left, right, context),
+    compareCalls(left, right, context, endpointIdentity),
+    compareReferences(left, right, context, endpointIdentity),
     compareStringsAndNames(left, right, context),
     compareCfg(left, right, context),
   ].map((result) => {
@@ -524,8 +529,9 @@ const compareReferences = (
   left: FunctionSnapshot,
   right: FunctionSnapshot,
   context: ComparisonContext,
+  identity: FunctionEndpointIdentity,
 ): FunctionDimension => {
-  const compared = compareFunctionReferences(left, right);
+  const compared = compareFunctionReferences(left, right, identity);
   if (compared.status === "unknown")
     return unresolvedDimension({
       dimension: "references",
@@ -572,9 +578,10 @@ const compareCalls = (
   left: FunctionSnapshot,
   right: FunctionSnapshot,
   context: ComparisonContext,
+  identity: FunctionEndpointIdentity,
 ): FunctionDimension => {
-  const leftValues = callProjection(left);
-  const rightValues = callProjection(right);
+  const leftValues = callProjection(left, identity);
+  const rightValues = callProjection(right, identity);
   const coverageLimitations = [
     ...left.callCoverageBlockers.map((reason) => `Left: ${reason}`),
     ...right.callCoverageBlockers.map((reason) => `Right: ${reason}`),
@@ -591,14 +598,36 @@ const compareCalls = (
       rightCount: rightValues.length,
       limitations: [...coverageLimitations, ...coverageDiagnostics],
     });
-  if ([...leftValues, ...rightValues].some(({ name }) => isAutoName(name)))
+  const endpoints = [...leftValues, ...rightValues].map(
+    ({ endpoint }) => endpoint,
+  );
+  const unknown = endpoints.filter((endpoint) => endpoint.kind === "unknown");
+  const ambiguous = endpoints.some(
+    (endpoint) => endpoint.kind === "name" && endpoint.ambiguous,
+  );
+  if (unknown.length > 0 || ambiguous)
     return unresolvedDimension({
       dimension: "calls",
       links: context.links,
       leftCount: leftValues.length,
       rightCount: rightValues.length,
       limitations: [
-        "Address-derived callee or caller names cannot be matched safely.",
+        ...(unknown.some((endpoint) => endpoint.reason === "unparsed_address")
+          ? [
+              "Call procedure entry coordinates could not be parsed, so their identity remains unknown.",
+            ]
+          : []),
+        ...(unknown.some((endpoint) => endpoint.reason === "generated_name")
+          ? ["Address-derived callee or caller names cannot be matched safely."]
+          : []),
+        ...(unknown.some((endpoint) => endpoint.reason === "missing_name")
+          ? ["Empty callee or caller names cannot be matched safely."]
+          : []),
+        ...(ambiguous
+          ? [
+              "A callee or caller name does not uniquely identify an observed procedure entry, so matching names do not establish equal call endpoints.",
+            ]
+          : []),
         ...coverageDiagnostics,
       ],
     });
@@ -611,14 +640,17 @@ const compareCalls = (
   );
 };
 
-const callProjection = (snapshot: FunctionSnapshot) => [
-  ...snapshot.dossier.callers.map(({ name }) => ({
+const callProjection = (
+  snapshot: FunctionSnapshot,
+  identity: FunctionEndpointIdentity,
+) => [
+  ...snapshot.dossier.callers.map((procedure) => ({
     direction: "in" as const,
-    name,
+    endpoint: identity.endpoint(procedure, procedure.address),
   })),
-  ...snapshot.dossier.callees.map(({ name }) => ({
+  ...snapshot.dossier.callees.map((procedure) => ({
     direction: "out" as const,
-    name,
+    endpoint: identity.endpoint(procedure, procedure.address),
   })),
 ];
 

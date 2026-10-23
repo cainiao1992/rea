@@ -1,35 +1,26 @@
 import { canonicalJson } from "./comparisonSemantics.js";
 import type { FunctionSnapshot } from "./functionDossierEvidence.js";
-import { isAutoName, sorted } from "./functionComparisonNormalization.js";
+import { sorted } from "./functionComparisonNormalization.js";
 import {
   referenceFactsCompatible,
   type ReferenceCompatibilityRow,
 } from "./functionReferenceCompatibility.js";
-import { nativeAddressInputSchema } from "./native/nativeAddress.js";
+import {
+  functionEndpointKey,
+  type FunctionEndpoint,
+  type FunctionEndpointIdentity,
+} from "./functionEndpointIdentity.js";
 
 type Reference = FunctionSnapshot["dossier"]["outgoing_references"][number];
 type KnownKind = Omit<
   Extract<Reference["kind"], { available: true }>,
   "available" | "provenance"
 >;
-type Endpoint =
-  | { readonly kind: "address"; readonly address: string }
-  | {
-      readonly kind: "name";
-      readonly name: string;
-      readonly ambiguous: boolean;
-    }
-  | {
-      readonly kind: "unknown";
-      readonly reason: "unparsed_address" | "missing_name" | "generated_name";
-      readonly reported_address: string;
-      readonly reported_name: string | null;
-    };
 
 interface ReferenceFact {
   readonly direction: "in" | "out";
-  readonly source: Endpoint;
-  readonly target: Endpoint;
+  readonly source: FunctionEndpoint;
+  readonly target: FunctionEndpoint;
   readonly kind: KnownKind | null;
 }
 
@@ -46,79 +37,9 @@ type ReferenceComparison = {
     }
 );
 
-/** Names observed at different procedure entries do not uniquely identify an overload. */
-const ambiguousProcedureNames = (
-  snapshots: readonly FunctionSnapshot[],
-): Set<string> => {
-  const ambiguous = new Set<string>();
-  for (const snapshot of snapshots) {
-    const entries = new Map<string, string>();
-    const observe = (procedure: Reference["source_procedure"]): void => {
-      if (procedure === null) return;
-      const address = nativeAddressInputSchema.safeParse(procedure.address);
-      if (!address.success) {
-        ambiguous.add(procedure.name);
-        return;
-      }
-      const previous = entries.get(procedure.name);
-      if (previous !== undefined && previous !== address.data)
-        ambiguous.add(procedure.name);
-      entries.set(procedure.name, address.data);
-    };
-    observe(snapshot.dossier.procedure);
-    for (const edge of snapshot.dossier.incoming_references) {
-      observe(edge.source_procedure);
-      observe(edge.target_procedure);
-    }
-    for (const edge of snapshot.dossier.outgoing_references) {
-      observe(edge.source_procedure);
-      observe(edge.target_procedure);
-    }
-  }
-  return ambiguous;
-};
-
-const endpoint = (
-  procedure: Reference["source_procedure"],
-  address: string,
-  sameArtifact: boolean,
-  ambiguousNames: ReadonlySet<string>,
-): Endpoint => {
-  if (sameArtifact) {
-    const parsed = nativeAddressInputSchema.safeParse(address);
-    if (parsed.success) return { kind: "address", address: parsed.data };
-    return {
-      kind: "unknown",
-      reason: "unparsed_address",
-      reported_address: address,
-      reported_name: procedure?.name ?? null,
-    };
-  }
-  if (
-    procedure === null ||
-    procedure.name.length === 0 ||
-    isAutoName(procedure.name)
-  )
-    return {
-      kind: "unknown",
-      reason:
-        procedure !== null && isAutoName(procedure.name)
-          ? "generated_name"
-          : "missing_name",
-      reported_address: address,
-      reported_name: procedure?.name ?? null,
-    };
-  return {
-    kind: "name",
-    name: procedure.name,
-    ambiguous: ambiguousNames.has(procedure.name),
-  };
-};
-
 const project = (
   snapshot: FunctionSnapshot,
-  sameArtifact: boolean,
-  ambiguousNames: ReadonlySet<string>,
+  identity: FunctionEndpointIdentity,
 ): ReferenceFact[] => {
   const facts: ReferenceFact[] = [];
   const collect = (
@@ -137,18 +58,8 @@ const project = (
       }
       facts.push({
         direction,
-        source: endpoint(
-          edge.source_procedure,
-          edge.source_address,
-          sameArtifact,
-          ambiguousNames,
-        ),
-        target: endpoint(
-          edge.target_procedure,
-          edge.target_address,
-          sameArtifact,
-          ambiguousNames,
-        ),
+        source: identity.endpoint(edge.source_procedure, edge.source_address),
+        target: identity.endpoint(edge.target_procedure, edge.target_address),
         kind,
       });
     }
@@ -158,23 +69,13 @@ const project = (
   return facts;
 };
 
-/** Ambiguity blocks equality, but a known label can still contradict another label. */
-const endpointKey = (value: Endpoint): string | null => {
-  if (value.kind === "unknown") return null;
-  return canonicalJson(
-    value.kind === "address"
-      ? { address: value.address }
-      : { name: value.name },
-  );
-};
-
 const constraints = (
   facts: readonly ReferenceFact[],
 ): ReferenceCompatibilityRow[] =>
   facts.map((fact) => ({
     direction: fact.direction,
-    source: endpointKey(fact.source),
-    target: endpointKey(fact.target),
+    source: functionEndpointKey(fact.source),
+    target: functionEndpointKey(fact.target),
     kind: fact.kind === null ? null : canonicalJson(fact.kind),
   }));
 
@@ -182,14 +83,10 @@ const constraints = (
 export const compareFunctionReferences = (
   left: FunctionSnapshot,
   right: FunctionSnapshot,
+  identity: FunctionEndpointIdentity,
 ): ReferenceComparison => {
-  const sameArtifact =
-    left.subject.digest.sha256 === right.subject.digest.sha256;
-  const ambiguousNames = sameArtifact
-    ? new Set<string>()
-    : ambiguousProcedureNames([left, right]);
-  const leftFacts = project(left, sameArtifact, ambiguousNames);
-  const rightFacts = project(right, sameArtifact, ambiguousNames);
+  const leftFacts = project(left, identity);
+  const rightFacts = project(right, identity);
   let unknownIdentity = false;
   let ambiguousIdentity = false;
   let unknownKinds = false;
@@ -205,7 +102,7 @@ export const compareFunctionReferences = (
   const limitations: string[] = [];
   if (unknownIdentity)
     limitations.push(
-      sameArtifact
+      identity.sameArtifact
         ? "Reference endpoint coordinates could not be parsed, so their identity remains unknown."
         : "Unnamed reference endpoints and generated procedure names have no stable identity across different artifacts.",
     );

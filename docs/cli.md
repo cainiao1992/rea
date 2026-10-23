@@ -592,10 +592,17 @@ redirected, which keeps large results smaller for agents and scripts; pipe
 through `jq .` for indented files. Output selection and formatting do not change
 operation status.
 
+`--format md` escapes backslashes and pipes in table headers and cells, and
+renders cell line breaks as `<br>`. These are presentation changes; retained
+Evidence and JSON output keep the original values. Table widths are measured
+iteratively, so an admitted row page is not limited by the JavaScript function
+argument count.
+
 `--filter-output` selects fields from successful command data. Classified failures
 retain their complete typed diagnostic projection even when the selector matches
 a field such as `code` or `message`, or names a missing field. `--full-output`
 controls whether the outer `{ok, error, meta}` envelope is included.
+Selected own JSON members, including `__proto__`, remain ordinary output data.
 
 Sibling array slices that select different fields are combined by original row
 index and emitted in source order, regardless of selector order. Selecting a

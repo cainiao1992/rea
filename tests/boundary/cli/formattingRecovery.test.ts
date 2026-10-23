@@ -120,6 +120,37 @@ describe("CLI formatting stage admission", () => {
 });
 
 describe("CLI formatting recovery outcomes", () => {
+  it("formats a recovered Markdown result through the CLI Markdown owner", async () => {
+    const cause = new RangeError("Invalid string length");
+    const chunks: Buffer[] = [];
+    const output = createCliResultOutput(
+      ["--format", "md"],
+      new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          chunks.push(chunk);
+          callback();
+        },
+      }),
+    );
+    const value = new Proxy(
+      {},
+      {
+        ownKeys: () => {
+          throw cause;
+        },
+      },
+    );
+
+    expect(await output?.write(value, { ...metadata, format: "md" })).toBe(
+      true,
+    );
+    expect(output?.error).toMatchObject({ code: "resource_constraint" });
+    const text = Buffer.concat(chunks).toString("utf8");
+    expect(text).toContain("resource_constraint");
+    expect(text).toContain("original result was not written");
+    expect(output?.failed).toBe(false);
+  });
+
   it("retains ownership if the recovery document cannot be written", async () => {
     const cause = new RangeError("Invalid string length");
     const output = createCliResultOutput(

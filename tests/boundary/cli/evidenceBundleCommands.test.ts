@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { expect } from "vitest";
 
+import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import {
@@ -145,5 +146,77 @@ cliTest(
       });
       expect(result.json).not.toHaveProperty("imported");
     }
+  },
+);
+
+cliTest(
+  "preserves a selected own __proto__ member from complete bundle data",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-evidence-filter-proto-");
+    const path = join(root, "bundle.json");
+    const result = jsonValueSchema.parse(
+      JSON.parse('{"__proto__":{"answer":7},"normal":{"answer":7}}'),
+    );
+    const record = createEvidence(
+      undefined,
+      { id: "fixture", name: "Fixture", version: "1" },
+      { operation: "ordinary-json", parameters: {}, result },
+    );
+    await writeFile(path, JSON.stringify(createEvidenceBundle([record])));
+
+    const output = await cli.run({
+      arguments: [
+        "inspect-evidence-bundle",
+        JSON.stringify({ path, detail: "complete" }),
+        "--json",
+        "--filter-output",
+        "records[0,1].normalized_result.__proto__.answer",
+      ],
+    });
+
+    expect(output.exitCode).toBe(0);
+    const records = (
+      output.json as {
+        records: Array<{ normalized_result: unknown }>;
+      }
+    ).records;
+    const normalizedResult = records[0]?.normalized_result;
+    expect(typeof normalizedResult).toBe("object");
+    expect(normalizedResult).not.toBeNull();
+    expect(Object.hasOwn(normalizedResult as object, "__proto__")).toBe(true);
+    expect((normalizedResult as Record<string, unknown>)["__proto__"]).toEqual({
+      answer: 7,
+    });
+  },
+);
+
+cliTest(
+  "preserves cell text when formatting retained Evidence as Markdown",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-evidence-markdown-cells-");
+    const path = join(root, "bundle.json");
+    const result = { text: "left|right\\tail\nnext" };
+    const record = createEvidence(
+      undefined,
+      { id: "fixture", name: "Fixture", version: "1" },
+      {
+        operation: "ordinary-json",
+        parameters: {},
+        result,
+      },
+    );
+    await writeFile(path, JSON.stringify(createEvidenceBundle([record])));
+    const base = [
+      "inspect-evidence-bundle",
+      JSON.stringify({ path, detail: "complete" }),
+      "--filter-output",
+      "records.0.normalized_result",
+    ];
+    const json = await cli.run({ arguments: [...base, "--json"] });
+    expect(json.exitCode, json.stderr).toBe(0);
+    expect(json.stdout).toContain(JSON.stringify(result.text));
+    const markdown = await cli.run({ arguments: [...base, "--format", "md"] });
+    expect(markdown.exitCode, markdown.stderr).toBe(0);
+    expect(markdown.stdout).toContain("left\\|right\\\\tail<br>next");
   },
 );

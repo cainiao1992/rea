@@ -210,6 +210,35 @@ it("finishes JSONL after a bounded large record before a missing selection", asy
   expect(output.failed).toBe(false);
 });
 
+it("does not invent selected JSON members from the object prototype", async () => {
+  const value = freezeRecursively({ selected: { present: 7 } });
+  const output = await runFilteredCli(value, "json", "selected.__proto__");
+  expect(JSON.parse(output)).toEqual({ selected: {} });
+  expect(value).toEqual({ selected: { present: 7 } });
+});
+
+it("escapes table delimiters and line breaks in Markdown cells", async () => {
+  const value = freezeRecursively({
+    selected: {
+      pipe: "left|right",
+      backslash: "left\\right",
+      lines: "first line\nsecond line",
+    },
+  });
+
+  const output = await runFilteredCli(value, "md", "selected");
+
+  expect(output).toContain("left\\|right");
+  expect(output).toContain("left\\\\right");
+  expect(output).toContain("first line<br>second line");
+  expect(output).not.toContain("left|right");
+  expect(value.selected).toEqual({
+    pipe: "left|right",
+    backslash: "left\\right",
+    lines: "first line\nsecond line",
+  });
+});
+
 const projectionSource = freezeRecursively([
   {
     rows: [

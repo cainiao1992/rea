@@ -1,7 +1,7 @@
 import { constants } from "node:buffer";
 import type { Writable } from "node:stream";
 
-import { Filter, Formatter } from "incur";
+import { Filter } from "incur";
 import { estimateTokenCount } from "tokenx";
 
 import {
@@ -18,6 +18,7 @@ import {
   projectAnalysisError,
   type AnalysisErrorProjection,
 } from "../domain/analysisErrorProjection.js";
+import { formatCliOutput } from "./cliOutputFormatter.js";
 import {
   jsonOutputParts,
   writeJsonOutput,
@@ -164,7 +165,7 @@ export const createCliResultOutput = (
       : error;
     // Recovery must remain actionable even when a token window/count was
     // requested. Do not apply those controls to this small typed failure.
-    const text = Formatter.format(document, format);
+    const text = formatCliOutput(document, format);
     handled = true;
     try {
       await writeOutputText(destination, `${text}\n`);
@@ -247,9 +248,10 @@ export const createCliResultOutput = (
       !options.tokenCount &&
       format !== "json" &&
       format !== "jsonl";
-    // Delegate unfiltered successful non-JSON rendering to Incur. This boundary
-    // owns filtered successes, requested failure projections, and token windows.
+    // Delegate other human formats to Incur. Markdown stays here so admission
+    // and emitted table text use the same safe formatter.
     if (
+      format !== "md" &&
       format !== "json" &&
       format !== "jsonl" &&
       operationFailure === undefined &&
@@ -280,7 +282,7 @@ export const createCliResultOutput = (
         }
       }
       if (characters <= constants.MAX_STRING_LENGTH) {
-        const count = estimateTokenCount(Formatter.format(tokenValue, format));
+        const count = estimateTokenCount(formatCliOutput(tokenValue, format));
         handled = true;
         try {
           await writeOutputText(destination, `${count}\n`);
@@ -334,7 +336,7 @@ export const createCliResultOutput = (
         ? {}
         : filtered;
     if (ownsSuccessfulTokenWindow) {
-      const formatted = Formatter.format(filtered, format);
+      const formatted = formatCliOutput(filtered, format);
       const window = sliceTextByTokenWindow(
         formatted,
         options.tokenOffset ?? 0,
@@ -349,7 +351,7 @@ export const createCliResultOutput = (
         ? `${window.text}\n[truncated: showing tokens ${options.tokenOffset ?? 0}–${window.end} of ${window.total}]`
         : formatted;
       const outputDocument = options.fullOutput
-        ? Formatter.format(
+        ? formatCliOutput(
             window.truncated
               ? {
                   ok: true,
@@ -383,11 +385,20 @@ export const createCliResultOutput = (
     // Once writing starts, a failed destination must not receive a second
     // document from Incur's error formatter.
     const formattedText =
-      (operationFailure !== undefined || ownsFilteredOutput) &&
-      format !== "json" &&
-      format !== "jsonl"
-        ? Formatter.format(document, format)
+      format === "md" ||
+      ((operationFailure !== undefined || ownsFilteredOutput) &&
+        format !== "json" &&
+        format !== "jsonl")
+        ? formatCliOutput(document, format)
         : undefined;
+    if (
+      format === "md" &&
+      formattedText === "" &&
+      !options.fullOutput &&
+      !ownsFilteredOutput &&
+      operationFailure === undefined
+    )
+      return false;
     handled = true;
     try {
       if (formattedText !== undefined) {
@@ -422,7 +433,7 @@ const fullFailureEnvelope = (
 ): Readonly<Record<string, unknown>> => {
   if (tokenLimit === undefined && tokenOffset === undefined)
     return { ok: false, error: failure, meta };
-  const formatted = Formatter.format(failure, format);
+  const formatted = formatCliOutput(failure, format);
   const offset = tokenOffset ?? 0;
   const window = sliceTextByTokenWindow(formatted, offset, tokenLimit);
   if (!window.truncated) return { ok: false, error: failure, meta };
@@ -449,7 +460,12 @@ const applyCliOutputFilter = (value: unknown, paths: FilterPaths): unknown => {
     "key" in paths[0][0]
   ) {
     const key = paths[0][0].key;
-    if (typeof value !== "object" || value === null) return undefined;
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      !Object.hasOwn(value, key)
+    )
+      return undefined;
     const selected = (value as Record<string, unknown>)[key];
     return typeof selected !== "object" || selected === null
       ? selected
@@ -470,31 +486,32 @@ const projectObjectPaths = (value: unknown, paths: FilterPaths): unknown => {
     byKey.set(segment.key, siblings);
   }
 
-  const result: Record<string, unknown> = {};
+  const result = new Map<string, unknown>();
   for (const key of [...byKey.keys()].sort()) {
     const siblings = byKey.get(key)!;
+    if (!Object.hasOwn(value, key)) continue;
     const child = (value as Record<string, unknown>)[key];
     if (child === undefined) continue;
     // Selecting a parent retains its complete original subtree and dominates
     // any narrower selections below it, independent of path order.
     if (siblings.some((path) => path.length === 0)) {
-      result[key] = child;
+      result.set(key, child);
       continue;
     }
     const slicePaths = siblings.filter(
       (path) => path[0] !== undefined && "start" in path[0],
     );
     if (slicePaths.length > 0 && Array.isArray(child)) {
-      result[key] = projectArraySlices(child, slicePaths);
+      result.set(key, projectArraySlices(child, slicePaths));
       continue;
     }
     const objectPaths = siblings.filter(
       (path) => path[0] !== undefined && "key" in path[0],
     );
     if (objectPaths.length > 0 && typeof child === "object" && child !== null)
-      result[key] = projectObjectPaths(child, objectPaths);
+      result.set(key, projectObjectPaths(child, objectPaths));
   }
-  return result;
+  return Object.fromEntries(result);
 };
 
 /** Union sliced rows by their original index, then emit them in source order. */

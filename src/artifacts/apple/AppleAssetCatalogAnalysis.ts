@@ -406,7 +406,7 @@ const assetUtilFailure = (cause: unknown, signal?: AbortSignal): unknown => {
         ...options,
         ...fixedAllowanceOptions(
           "the fixed 64 MiB assetutil capture allowance",
-          "output",
+          "capture",
         ),
       },
     );

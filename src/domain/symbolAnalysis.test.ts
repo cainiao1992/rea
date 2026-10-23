@@ -33,8 +33,10 @@ describe("modern Swift category evidence", () => {
     const result = categorizeSwiftTypes(
       names.map((name, index) => ({ address: String(index), name })),
     );
-    expect(result.categories.structs.count).toBe(0);
-    expect(result.categories.other.count).toBe(2);
+    expect(result.categories).toMatchObject({
+      structs: { count: 0 },
+      other: { count: 2 },
+    });
     expect(result.unclassified.map(({ name }) => name)).toEqual(names);
     const controls = [
       ["_$s1M7WrapperV1vxvg", "structs"],
@@ -44,9 +46,8 @@ describe("modern Swift category evidence", () => {
     ] as const;
     for (const [name, category] of controls)
       expect(
-        categorizeSwiftTypes([{ address: "0x1", name }]).categories[category]
-          .count,
-      ).toBe(1);
+        categorizeSwiftTypes([{ address: "0x1", name }]).categories,
+      ).toMatchObject({ [category]: { count: 1 } });
   });
 
   it("retains unresolved Swift observations under category filters", () => {

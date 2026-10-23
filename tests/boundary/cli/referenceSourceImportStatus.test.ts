@@ -4,15 +4,16 @@ import { join } from "node:path";
 import { describe, expect } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { analysisCliErrorEnvelopeSchema } from "../../../src/contracts/errorSchemas.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
-const unsupportedHostOutput = {
+const unsupportedHostOutput = expect.objectContaining({
   error: "Import failed",
-  category: "unsupported_host",
+  category: "unsupported_provider",
   message: expect.stringContaining(
     "Safe no-follow file opens are unavailable on this host.",
   ),
-};
+});
 
 const permissionChecksUnavailable =
   process.platform === "win32" || process.getuid?.() === 0;
@@ -120,6 +121,12 @@ describe("compiled reference-source import preflight failures", () => {
         } else {
           expect(result.json).toMatchObject(invalidRootOutput);
         }
+        const projection = scenario.fullOutput
+          ? (result.json as { error: unknown }).error
+          : result.json;
+        expect(
+          analysisCliErrorEnvelopeSchema.safeParse(projection).success,
+        ).toBe(true);
         const messagePath = scenario.fullOutput ? "error.message" : "message";
         expect(result.json).toHaveProperty(
           messagePath,

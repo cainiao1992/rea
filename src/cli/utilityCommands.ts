@@ -19,11 +19,10 @@ import {
   nativeUiDeadlineField,
 } from "../domain/native/nativeDeadlines.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
-import { logCliCommand } from "../cliLogging.js";
+import { isCliOperationFailure, logCliCommand } from "../cliLogging.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { swiftSymbolsSchema } from "../contracts/native/nativeToolContracts.js";
 import type { Logger } from "pino";
-import { isReferenceSourceImportCliFailure } from "./referenceSourceImportStatus.js";
 import type { CliInstance } from "./types.js";
 import { registerNativeCallCommands } from "./nativeCallCommands.js";
 
@@ -339,7 +338,7 @@ const registerReferenceSourceCommand = (
               : undefined,
           );
         },
-        isReferenceSourceImportCliFailure,
+        isCliOperationFailure,
       ),
   });
 };

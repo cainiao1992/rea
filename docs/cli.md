@@ -404,6 +404,12 @@ output, not the amount of source examined. A shallow tree or many exclusions can
 still produce a large summary; depth 0 removes the outline but preserves the
 other facts. No fixed output-size or runtime improvement is promised.
 
+Import failures use the shared error contract (`code`, `category`, `message`,
+`retryable`, and `remediation`). When reads completed before failure,
+`details.diagnostics.partial` retains the reader facts, with file bytes as
+arrays of byte values. Unresolved cleanup uses `cleanup_incomplete` and
+retains the source failure and resource paths in `details`.
+
 The import records hashes and metadata for the supplied files, separately
 from observations of the current app. For a directory inside a Git checkout,
 it records the HEAD of the nearest enclosing repository; whether the working

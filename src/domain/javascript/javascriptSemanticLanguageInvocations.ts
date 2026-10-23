@@ -1,9 +1,19 @@
 import * as t from "@babel/types";
 
 /** Operands exposed to user-defined primitive conversion by language operations. */
-export const semanticCoercionOperands = (node: t.Node): readonly t.Node[] => {
+export const semanticCoercionOperands = (
+  node: t.Node,
+  isObject: (operand: t.Node) => boolean = () => false,
+): readonly t.Node[] => {
   if (t.isBinaryExpression(node)) {
-    if (["===", "!==", "instanceof"].includes(node.operator)) return [];
+    if (["===", "!=="].includes(node.operator)) return [];
+    if (node.operator === "instanceof") return [node.left, node.right];
+    if (
+      ["==", "!="].includes(node.operator) &&
+      isObject(node.left) &&
+      isObject(node.right)
+    )
+      return [];
     return node.operator === "in" ? [node.left] : [node.left, node.right];
   }
   if (t.isUnaryExpression(node) && ["+", "-", "~"].includes(node.operator))

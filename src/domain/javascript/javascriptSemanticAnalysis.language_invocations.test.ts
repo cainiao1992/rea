@@ -147,3 +147,87 @@ it("retains shared child effects from selected setters", () => {
   `)?.status,
   ).toBe("unknown");
 });
+
+it("exposes custom instanceof receivers but keeps object equality noncoercing", () => {
+  expect(
+    returned(`
+    const state = { value: 1, [Symbol.hasInstance]() { this.value = 2; return false; } };
+    const result = {} instanceof state;
+    return state.value;
+  `)?.status,
+  ).toBe("unknown");
+  expect(
+    returned(`
+    const state = { value: 1 };
+    const target = { [Symbol.hasInstance](value) { value.value = 2; return false; } };
+    const result = state instanceof target;
+    return state.value;
+  `)?.status,
+  ).toBe("unknown");
+  expect(
+    returned(`
+    const state = { value: 1, [Symbol.toPrimitive]() { this.value = 2; return 0; } };
+    const equal = state == state; const unequal = state != {};
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+});
+
+it("exposes class private storage reached by an invoked getter", () => {
+  expect(
+    returned(`
+    const shared = { value: 1 };
+    class Box { #state = shared; get trigger() { this.#state.value = 2; return 0; } }
+    new Box().trigger;
+    return shared.value;
+  `)?.status,
+  ).toBe("unknown");
+});
+
+it("retains disposal of per-iteration resources through existing loop origins", () => {
+  expect(
+    returned(`
+    const state = { value: 1, [Symbol.dispose]() { this.value = 2; } };
+    for (using owned of [state]) {}
+    return state.value;
+  `)?.status,
+  ).toBe("unknown");
+});
+
+it("does not expose a returned resource as an unchanged object snapshot", () => {
+  const value = returned(`
+    const state = { value: 1, [Symbol.dispose]() { this.value = 2; } };
+    using owned = state;
+    return state;
+  `);
+  expect(
+    value?.status === "object"
+      ? value.properties.find(({ name }) => name === "value")?.value.status
+      : value?.status,
+  ).toBe("unknown");
+});
+
+it("retains earlier iteration disposal uncertainty for reused outer resources", () => {
+  expect(
+    returned(`
+    const state = { value: 1, [Symbol.dispose]() { this.value = 2; } };
+    for (const index of [0, 1]) {
+      using owned = state;
+      const snapshot = state.value;
+      if (index === 1) return snapshot;
+    }
+  `)?.status,
+  ).toBe("unknown");
+});
+
+it("follows superclass getter effects through the selected receiver", () => {
+  expect(
+    returned(`
+    const shared = { value: 1 };
+    class Base { get trigger2() { this.state.value = 2; return 0; } }
+    class Box extends Base { state = shared; get trigger() { return super.trigger2; } }
+    new Box().trigger;
+    return shared.value;
+  `)?.status,
+  ).toBe("unknown");
+});

@@ -233,7 +233,7 @@ class GetterResultWalker {
       }));
   }
 
-  #ownsThis(expression: t.ThisExpression): boolean {
+  #ownsThis(expression: t.ThisExpression | t.Super): boolean {
     let owner = this.query.state.parentsByNode.get(expression);
     while (
       owner !== undefined &&
@@ -269,7 +269,10 @@ class GetterResultWalker {
         });
   }
 
-  #thisValue(current: GetterWork, expression: t.ThisExpression): void {
+  #thisValue(
+    current: GetterWork,
+    expression: t.ThisExpression | t.Super,
+  ): void {
     if (!this.#ownsThis(expression)) return;
     const { getter, owner, receiver = owner } = this.job.invocation;
     if (current.privateRead !== undefined && t.isClass(owner)) {
@@ -362,7 +365,8 @@ class GetterResultWalker {
   #visit(current: GetterWork): void {
     const expression = unwrapJavaScriptExpression(current.node).node;
     if (t.isIdentifier(expression) && this.#alias(current, expression)) return;
-    if (t.isThisExpression(expression)) this.#thisValue(current, expression);
+    if (t.isThisExpression(expression) || t.isSuper(expression))
+      this.#thisValue(current, expression);
     else if (
       t.isMemberExpression(expression) ||
       t.isOptionalMemberExpression(expression)
@@ -400,17 +404,18 @@ export const expandSemanticGetterResult = (
 ): void => new GetterResultWalker(job, query, resolvers).run();
 
 /** Project an effect operand through the same local aliases and `this` owner as getter results. */
-export const semanticGetterReceiverPaths = (
+export const semanticGetterReceiverReferences = (
   getter: t.ObjectMethod | t.ClassMethod,
   operand: t.Node,
   state: JavaScriptSemanticAnalysisState,
-): readonly PropertyPath[] => {
+): readonly Reference[] => {
   const parent = state.parentsByNode.get(getter);
   const owner = t.isClassBody(parent)
     ? state.parentsByNode.get(parent)
     : parent;
   if (!t.isObjectExpression(owner) && !t.isClass(owner)) return [];
   const query = new SemanticGetterQuery(state);
+  let privateReceiver = false;
   const references = query.run(
     () => {
       query.schedule({ getter, owner }, []);
@@ -423,7 +428,12 @@ export const semanticGetterReceiverPaths = (
         {
           objectReferences: (_receiver, path) => [{ node: getter, path }],
           classReferences: (_lookup, path) => [{ node: getter, path }],
-          privateReceiver: () => false,
+          privateReceiver: () => {
+            // Keep private-field initializer identity from the existing
+            // getter owner; private slots are not public property paths.
+            privateReceiver = true;
+            return true;
+          },
           bases: () => [],
           containerReferences: (node, path) =>
             t.isObjectExpression(node)
@@ -433,7 +443,5 @@ export const semanticGetterReceiverPaths = (
         [{ node: operand }],
       ).run(),
   );
-  return references
-    .filter(({ node }) => node === getter)
-    .map(({ path }) => path);
+  return references.filter(({ node }) => node === getter || privateReceiver);
 };

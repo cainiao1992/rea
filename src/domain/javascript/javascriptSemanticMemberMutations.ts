@@ -47,7 +47,7 @@ import {
   type SemanticIterationSource,
   type SemanticPropertyReadSource,
 } from "./javascriptSemanticIterationSources.js";
-import { semanticGetterReceiverPaths } from "./javascriptSemanticGetterResults.js";
+import { semanticGetterReceiverReferences } from "./javascriptSemanticGetterResults.js";
 import { semanticCallableResultExpressions } from "./javascriptSemanticCallableResults.js";
 import { createSemanticReturnedReferences } from "./javascriptSemanticReturnedReferences.js";
 import {
@@ -370,26 +370,35 @@ export function* collectSemanticMemberMutationsSteps(
     );
   };
   const returnedReferences = createSemanticReturnedReferences(state);
-  const getterEffectPaths = (
+  const getterEffects = (
     root: t.Node,
     path: PropertyPath,
     lookup: "prototype" | "own" = "prototype",
-  ): readonly PropertyPath[] => {
+  ): readonly JavaScriptSemanticObjectReference[] => {
     if (!accessorKeyMayExist(path.at(-1), "get")) return [];
-    const pending = [{ path, lookup }];
+    const pending = [{ node: root, path, lookup }];
     const examined = new Set<string>();
-    const effects: PropertyPath[] = [];
+    const effects: JavaScriptSemanticObjectReference[] = [];
     for (let cursor = 0; cursor < pending.length; cursor++) {
-      const { path: selected, lookup: selectedLookup } = pending[cursor]!;
-      const identity = JSON.stringify([selected, selectedLookup]);
+      const {
+        node: selectedRoot,
+        path: selected,
+        lookup: selectedLookup,
+      } = pending[cursor]!;
+      const identity = JSON.stringify([
+        selectedRoot.start,
+        selectedRoot.end,
+        selected,
+        selectedLookup,
+      ]);
       if (examined.has(identity)) continue;
       examined.add(identity);
       if (examined.size > SEMANTIC_ALIAS_SELECTION_LIMIT) {
         state.valueResourceLimits.add("alias-selections");
-        return [[]];
+        return [{ node: root, path: [] }];
       }
       const methods = localAccessorMethods(
-        root,
+        selectedRoot,
         selected,
         "get",
         state,
@@ -398,7 +407,7 @@ export function* collectSemanticMemberMutationsSteps(
       );
       const receiver = selected.slice(0, -1);
       if (methods === undefined) {
-        effects.push(receiver);
+        effects.push({ node: selectedRoot, path: receiver });
         continue;
       }
       for (const method of methods) {
@@ -424,15 +433,23 @@ export function* collectSemanticMemberMutationsSteps(
                   semanticReferenceSourcesInactive(operand.guards, state)))
             )
               continue;
-            for (const suffix of semanticGetterReceiverPaths(
+            for (const reference of semanticGetterReceiverReferences(
               method,
               operand.node,
               state,
             )) {
-              const target = [...receiver, ...suffix];
-              if (operand.kind === "escape") effects.push(target);
+              const receiverReference = reference.node === method;
+              const targetRoot = receiverReference
+                ? selectedRoot
+                : reference.node;
+              const target = receiverReference
+                ? [...receiver, ...reference.path]
+                : reference.path;
+              if (operand.kind === "escape")
+                effects.push({ node: targetRoot, path: target });
               else
                 pending.push({
+                  node: targetRoot,
                   path: [...target, ...operand.path],
                   lookup: operand.lookup,
                 });
@@ -1211,14 +1228,16 @@ export function* collectSemanticMemberMutationsSteps(
           originAt: source.mutation,
           iterationOnly: source.kind === "iteration",
         });
-      for (const operand of semanticCoercionOperands(node))
+      for (const operand of semanticCoercionOperands(node, (operand) => {
+        const value = evaluateSemanticExpression(operand, state, node);
+        return value.status === "object" || value.status === "array";
+      }))
         markEscaped(operand, node);
       if (t.isTemplateLiteral(node) && !t.isTaggedTemplateExpression(parent))
         for (const expression of node.expressions)
           markEscaped(expression, node);
       if (
         t.isVariableDeclarator(node) &&
-        node.init != null &&
         t.isVariableDeclaration(parent) &&
         (parent.kind === "using" || parent.kind === "await using")
       ) {
@@ -1240,27 +1259,27 @@ export function* collectSemanticMemberMutationsSteps(
               "escape",
               exit,
               node.id,
-              node.init,
+              node.init ?? undefined,
             );
-          else markEscaped(node.init, exit);
+          else if (node.init != null) markEscaped(node.init, exit);
         }
       }
       for (const source of semanticPropertyReadSources(node, parent)) {
         if (semanticReferenceSourcesInactive(source, state)) continue;
-        for (const path of getterEffectPaths(
+        for (const effect of getterEffects(
           source.node,
           source.projection,
           source.lookup,
         ))
-          markEscaped(source.node, source.mutation, path);
+          markEscaped(effect.node, source.mutation, effect.path);
       }
       if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
         // The write owner classifies direct and destructuring stores once.
         if (!writeOnlyMembers.has(node))
-          for (const path of getterEffectPaths(node.object, [
+          for (const effect of getterEffects(node.object, [
             semanticStaticPropertyKey(node.property, node.computed),
           ]))
-            markEscaped(node.object, node, path);
+            markEscaped(effect.node, node, effect.path);
       }
       if (writeTarget !== null) markTarget(writeTarget, node);
       else if (

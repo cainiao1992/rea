@@ -164,8 +164,10 @@ export const semanticScopeExitEffect = (scope: t.Node): t.Node => {
   const cached = scopeExitMarkers.get(scope);
   if (cached !== undefined) return cached;
   const marker = t.emptyStatement();
-  marker.start = scope.end;
-  marker.end = scope.end;
+  if (scope.end !== undefined) {
+    marker.start = scope.end;
+    marker.end = scope.end;
+  }
   if (scope.loc != null)
     marker.loc = { ...scope.loc, start: scope.loc.end, end: scope.loc.end };
   scopeExitMarkers.set(scope, marker);
@@ -183,8 +185,18 @@ const withinScopeExit = (
     node !== undefined;
     node = parents.get(node)
   ) {
-    if (node === scope) return true;
-    if (t.isFunction(node)) return false;
+    if (node === scope) {
+      for (
+        let owner = parents.get(scope);
+        owner !== undefined;
+        owner = parents.get(owner)
+      ) {
+        if (t.isLoop(owner)) return false;
+        if (t.isFunction(owner)) break;
+      }
+      return !t.isLoop(scope);
+    }
+    if (t.isFunction(node) || t.isLoop(node)) return false;
   }
   return false;
 };

@@ -52,10 +52,31 @@ const fixture = (little: boolean, count = 2): Buffer => {
   }
   return bytes;
 };
-const resolve = async (bytes: Buffer) => {
+const writeFixture = async (bytes: Buffer) => {
   const directory = await createTestTempDirectory("rea-mips-shared-test-");
   const path = join(directory, "shared.elf");
   await writeFile(path, bytes);
+  return path;
+};
+const inspectSource = async (path: string) => {
+  const handle = await open(path, "r");
+  try {
+    return await readMipsElfMetadata(
+      handle,
+      {
+        elfClass: 32,
+        byteOrder: "little",
+        type: 3,
+        flags: 0x74001005,
+      },
+      () => undefined,
+    );
+  } finally {
+    await handle.close();
+  }
+};
+const resolve = async (bytes: Buffer) => {
+  const path = await writeFixture(bytes);
   const result = await parseBinaryTarget(path);
   assert.ok(result.ok);
   assert.equal(result.value.kind, "executable");
@@ -201,16 +222,23 @@ it("does not treat uncaptured ABI declaration headers as an inspected absence", 
   bytes.writeUInt32LE(bytes.length + 1, 32);
   bytes.writeUInt16LE(40, 46);
   bytes.writeUInt16LE(1, 48);
-  const target = await resolve(bytes);
-  assert.equal(target.mips.abiFlags, null);
-  assert.equal(target.mips.sharedLoad?.status, "unavailable");
+  const path = await writeFixture(bytes);
+  const admitted = await parseBinaryTarget(path);
+  assert.ok(!admitted.ok);
+  assert.match(admitted.error.reason, /truncated ELF section header table/u);
+  // The specialized inspector still retains unknown source facts if used on
+  // damaged evidence; normal target admission refuses its impossible extent.
+  const declarations = await inspectSource(path);
+  assert.ok(declarations.ok);
+  assert.equal(declarations.value.abiFlags, null);
+  assert.equal(declarations.value.sharedLoad?.status, "unavailable");
   assert.match(
-    ghidraMipsUnsupportedReason(target) ?? "",
-    /unavailable headers remain unknown/u,
+    declarations.value.limitations.join(" "),
+    /extends beyond the captured file/u,
   );
 });
 
-const malformed: [string, (bytes: Buffer) => void, RegExp][] = [
+const malformed: [string, (bytes: Buffer) => void, RegExp, boolean?][] = [
   [
     "overlapping load ranges",
     (b) => {
@@ -233,11 +261,13 @@ const malformed: [string, (bytes: Buffer) => void, RegExp][] = [
     "declared dynamic tail outside file",
     (b) => b.writeUInt32LE(b.length, 100),
     /beyond the file/u,
+    true,
   ],
   [
     "unavailable load bytes",
     (b) => b.writeUInt32LE(b.length + 1, 68),
     /PT_LOAD range/u,
+    true,
   ],
   ["missing terminator", (b) => b.writeUInt32LE(1, 280), /DT_NULL/u],
   [
@@ -268,9 +298,22 @@ const malformed: [string, (bytes: Buffer) => void, RegExp][] = [
 ];
 it.each(malformed)(
   "preserves useful partial header facts for %s",
-  async (_name, mutate, reason) => {
+  async (_name, mutate, reason, rejectsExtent) => {
     const bytes = fixture(true);
     mutate(bytes);
+    if (rejectsExtent) {
+      const path = await writeFixture(bytes);
+      const admitted = await parseBinaryTarget(path);
+      assert.ok(!admitted.ok);
+      assert.match(admitted.error.reason, /truncated ELF program \d/u);
+      const declarations = await inspectSource(path);
+      assert.ok(declarations.ok);
+      assert.equal(declarations.value.sharedLoad?.status, "unavailable");
+      if (declarations.value.sharedLoad?.status !== "unavailable")
+        throw new Error("Expected retained unknown relocation coverage");
+      assert.match(declarations.value.sharedLoad.reason, reason);
+      return;
+    }
     const target = await resolve(bytes);
     assert.equal(target.mips.flags, 0x74001005);
     assert.equal(target.mips.abiFlags, null);

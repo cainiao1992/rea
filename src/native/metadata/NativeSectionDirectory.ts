@@ -1,4 +1,4 @@
-import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
+import { readElfTableDeclarations } from "../../domain/elfDeclaredRanges.js";
 import {
   BinaryFormatFailure,
   BinaryReader,
@@ -78,63 +78,26 @@ export function* readElfSectionDirectory(
   const prefix = yield request(fileSize, 0n, 16n);
   const headerSize = prefix[4] === 1 ? 52 : 64;
   const bytes = yield request(fileSize, 0n, BigInt(headerSize));
-  const parsed = readElfFixedHeader(bytes, fileSize);
+  const parsed = yield* readElfTableDeclarations(bytes, fileSize);
   if (!parsed.ok) return reject(parsed.error);
-  const { elfClass: bits, byteOrder, machine } = parsed.value;
+  const { header, programs, sections: sectionTable } = parsed.value;
+  const { elfClass: bits, byteOrder, machine } = header;
   const little = byteOrder === "little";
   const wide = bits === 64;
   const r = new BinaryReader(bytes, little);
-  const program_offset = r.word(wide ? 32 : 28, bits);
-  const sectionOffset = r.word(wide ? 40 : 32, bits);
-  const program_width = r.u16(wide ? 54 : 42);
-  const sectionWidth = r.u16(wide ? 58 : 46);
-  let program_count = r.u16(wide ? 56 : 44);
-  let count = r.u16(wide ? 60 : 48);
-  let namesIndex = r.u16(wide ? 62 : 50);
-  if (
-    (program_count !== 0 && program_offset < BigInt(headerSize)) ||
-    (sectionOffset !== 0n && sectionOffset < BigInt(headerSize))
-  )
-    reject("ELF header table overlaps the native header");
-  if (
-    sectionOffset === 0n &&
-    (count !== 0 || namesIndex !== 0 || program_count === 0xffff)
-  )
-    reject("ELF section table is missing");
-  if (
-    sectionOffset !== 0n &&
-    (count === 0 || namesIndex === 0xffff || program_count === 0xffff)
-  ) {
-    if (sectionWidth < (wide ? 64 : 40))
-      reject("ELF extended section header width is invalid");
-    const first = new BinaryReader(
-      yield request(fileSize, sectionOffset, BigInt(sectionWidth)),
-      little,
-    );
-    if (first.u32(4) !== 0)
-      reject(
-        "ELF initial section for extended numbering must have SHT_NULL type",
-      );
-    if (count === 0) {
-      const declared = first.word(wide ? 32 : 20, bits);
-      if (declared < 0xff00n) reject("ELF extended section count is invalid");
-      count = exact(declared);
-    }
-    if (namesIndex === 0xffff) {
-      namesIndex = first.u32(wide ? 40 : 24);
-      if (namesIndex < 0xff00)
-        reject("ELF extended section name index is below its reserved range");
-    }
-    if (program_count === 0xffff) {
-      program_count = first.u32(wide ? 44 : 28);
-      if (program_count < 0xffff)
-        reject("ELF extended program count is below its reserved range");
-    }
-  }
+  const {
+    offset: program_offset,
+    width: program_width,
+    count: program_count,
+  } = programs;
+  const {
+    offset: sectionOffset,
+    width: sectionWidth,
+    count,
+    namesIndex,
+  } = sectionTable;
   let has_dynamic_segment = false;
   if (program_count !== 0) {
-    if (program_width < (wide ? 56 : 32))
-      reject("ELF program header width is invalid");
     const programs = new BinaryReader(
       yield request(
         fileSize,
@@ -153,8 +116,6 @@ export function* readElfSectionDirectory(
   const sections: NativeSection[] = [];
   let section_names_limitation: string | undefined;
   if (count !== 0) {
-    if (sectionWidth < (wide ? 64 : 40) || namesIndex >= count)
-      reject("ELF section width or name-table index is invalid");
     const table = new BinaryReader(
       yield request(
         fileSize,

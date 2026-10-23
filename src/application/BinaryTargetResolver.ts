@@ -31,6 +31,7 @@ import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { readMipsElfMetadata } from "./MipsElfMetadata.js";
+import { validateElfDeclaredRanges } from "../domain/elfDeclaredRanges.js";
 import {
   resolveAppBundleExecutable,
   type ResolvedAppBundle,
@@ -852,6 +853,12 @@ const readExecutableMetadata = async (
       signatureEvidence,
     );
   }
+  if (bytes.length >= 4 && bytes.toString("hex", 0, 4) === "7f454c46")
+    return readElfMetadata(handle, bytes, {
+      fileSize,
+      hostArchitecture,
+      signal,
+    });
   const thin = await readThinMachoMetadata(handle, bytes, {
     fileSize,
     hostArchitecture,
@@ -881,11 +888,25 @@ const readExecutableMetadata = async (
       if (!framed.ok) return framed;
     }
   }
-  if (
-    !parsed.ok ||
-    parsed.value.architecture !== "mips" ||
-    parsed.value.mips.elfClass !== 32
-  )
+  return parsed;
+};
+
+/** ELF structure and family declarations share one descriptor before provider selection. */
+const readElfMetadata = async (
+  handle: FileHandle,
+  bytes: Buffer,
+  options: {
+    readonly fileSize: number;
+    readonly hostArchitecture: NodeJS.Architecture;
+    readonly signal?: AbortSignal | undefined;
+  },
+): Promise<Result<ExecutableMetadata, ExecutableMetadataFailure>> => {
+  const { fileSize, hostArchitecture, signal } = options;
+  const parsed = parseExecutableHeader(bytes, hostArchitecture, fileSize);
+  if (!parsed.ok || parsed.value.format !== "elf") return parsed;
+  const ranges = await readElfDeclaredRanges(handle, bytes, fileSize, signal);
+  if (!ranges.ok) return ranges;
+  if (parsed.value.architecture !== "mips" || parsed.value.mips.elfClass !== 32)
     return parsed;
   const declarations = await readMipsElfMetadata(
     handle,
@@ -907,6 +928,44 @@ const readExecutableMetadata = async (
         : { limitations: declarations.value.limitations }),
     },
   });
+};
+
+/** Borrow the admitted descriptor; every request is at most one 64 KiB table chunk. */
+const readElfDeclaredRanges = async (
+  handle: FileHandle,
+  prefix: Buffer,
+  fileSize: number,
+  signal?: AbortSignal,
+): Promise<Result<null, string>> => {
+  const ranges = validateElfDeclaredRanges(prefix, fileSize);
+  let next = ranges.next();
+  let window: Buffer | undefined;
+  while (!next.done) {
+    throwIfTargetResolutionCancelled(signal);
+    const { offset, size } = next.value;
+    let bytes: Buffer;
+    if (offset + size <= prefix.length)
+      bytes = prefix.subarray(offset, offset + size);
+    else {
+      window ??= Buffer.allocUnsafe(64 * 1024);
+      bytes = window.subarray(0, size);
+      let length = 0;
+      while (length < size) {
+        const read = await handle.read(
+          bytes,
+          length,
+          size - length,
+          offset + length,
+        );
+        throwIfTargetResolutionCancelled(signal);
+        if (read.bytesRead === 0) break;
+        length += read.bytesRead;
+      }
+      bytes = bytes.subarray(0, length);
+    }
+    next = ranges.next(bytes);
+  }
+  return next.value;
 };
 
 type ExecutableMetadataFailure =

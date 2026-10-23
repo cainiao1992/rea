@@ -968,6 +968,19 @@ dossiers, instructions, recovered data types, measured load mappings, loaded
 memory bytes, and observed file offsets. Independent load-image attestation
 supports DOS MZ, explicitly selected COM, and explicit raw-binary imports;
 PE returns measurements with an unsupported attestation status.
+ELF target opening checks the declared program and section header tables and
+their file-backed ranges before selecting a provider. A declaration beyond EOF
+is refused with its range and the actual file size, including a file cut one
+byte short. This also refuses carved or deliberately damaged copies that retain
+out-of-file declarations; they are not presented as complete smaller programs.
+Files declaring no tables remain valid inputs, subject to the provider's lane.
+Inactive headers, zero-length ranges and `SHT_NOBITS` memory-only sections do
+not require stored payload bytes. Extended counts come from section zero.
+The check streams header records in chunks of at most 64 KiB; it does not decode
+section names, copy payloads or impose the metadata decoder's structural budget.
+Passing it establishes physical range consistency, not complete function
+discovery, loader validity or runtime behavior. Existing ISA/ABI checks remain
+separate, including the bounded recordless MIPS lane.
 Target admission preserves recognized PE/NE/LE/LX signatures separately from
 reader layout support. A Windows header overlapping the first 64 DOS-header
 bytes remains an unsupported layout in this release; it is not reported as an

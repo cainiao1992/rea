@@ -3981,7 +3981,21 @@ describe("Ghidra SIGKILL projection", () => {
       memory_cgroup: cgroup(1, 3_221_225_472),
     });
     expect(projected.code).toBe("execution_failure");
-    expect(projected.message).not.toContain("SIGKILL");
+    expect(projected.message).toContain("SIGKILL");
+    expect(projected.message).toContain("does not establish its cause");
+    expect(projected.message).not.toContain("before REA stopped it");
+    expect(projected.message).not.toContain("oom_kill");
+    expect(projected.details?.diagnostics).toMatchObject({
+      ...killed,
+      stop_requested: true,
+      memory_cgroup: cgroup(1, 3_221_225_472),
+    });
+    expect(projected.remediation.action).toContain(
+      "host or container termination records",
+    );
+    expect(projected.remediation.action).not.toContain(
+      "GHIDRA_HEADLESS_MAXMEM",
+    );
   });
 
   it.each([

@@ -268,6 +268,11 @@ const registerBundleDestinationAdmissionCases = () => {
           files.capturePath,
         );
         if (readDenied.ok) throw new Error("Expected read denial");
+        expect(readDenied.error).toMatchObject({
+          _tag: "AnalysisAccessDeniedError",
+          path: files.manifestPath,
+          cause: { code: "EACCES", path: files.manifestPath },
+        });
         expect(projectAnalysisError(readDenied.error)).toMatchObject({
           code: "access_denied",
           details: { boundary: "filesystem-read" },

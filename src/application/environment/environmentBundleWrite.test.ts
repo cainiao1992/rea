@@ -20,10 +20,7 @@ import {
 } from "../../../tests/fixtures/environmentServe.js";
 import { SafeOutputTree } from "../../artifacts/SafeOutputTree.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
-import {
-  AnalysisAccessDeniedError,
-  AnalysisOutputError,
-} from "../../domain/analysisErrorCore.js";
+import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import {
   exportEnvironmentBundle,
   readEnvironmentExportInputs,
@@ -190,9 +187,14 @@ it.skipIf(process.platform === "win32")(
       expect(result).toMatchObject({
         ok: false,
         error: {
-          _tag: "AnalysisAccessDeniedError",
+          _tag: "AnalysisOutputError",
           operation: "environment-export",
-          diagnostics: { output_directory: directory },
+          diagnostics: {
+            output_directory: directory,
+            path: join(directory, "README.md"),
+            system_code: "EACCES",
+            boundary: "filesystem-write",
+          },
         },
       });
       expect(await readdir(directory)).toEqual([]);
@@ -232,12 +234,15 @@ it.skipIf(process.platform === "win32")(
       });
       if (result.ok) throw new Error("expected a permission refusal");
       expect(result.error).toMatchObject({
-        _tag: "AnalysisAccessDeniedError",
+        _tag: "AnalysisOutputError",
         diagnostics: { output_directory: directory },
       });
-      if (!(result.error instanceof AnalysisAccessDeniedError))
-        throw result.error;
-      expect(result.error.path.startsWith(`${directory}/`)).toBe(true);
+      if (!(result.error instanceof AnalysisOutputError)) throw result.error;
+      expect(result.error.diagnostics).toMatchObject({
+        path: expect.stringContaining(`${directory}/`),
+        system_code: "EACCES",
+        boundary: "filesystem-write",
+      });
       expect(await readdir(directory)).not.toEqual([]);
     } finally {
       writer.mockRestore();

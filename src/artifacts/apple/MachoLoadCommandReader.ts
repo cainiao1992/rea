@@ -8,7 +8,9 @@ import {
   machoLoadCommandAlignment,
   classifyFatContainerIdentity,
   readFatContainerHeader,
+  readFatSliceDeclarations,
   readMachoHeaderPrefixFacts,
+  validateFatSlice,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
 } from "../../domain/apple/machoContainer.js";
@@ -68,6 +70,7 @@ const PLATFORM_WATCHOSSIMULATOR = 9;
 
 const CPU_TYPE_I386 = 7;
 const CPU_TYPE_X86_64 = 0x01000007;
+const CPU_TYPE_ARM64 = 0x0100000c;
 
 /**
  * Legacy `LC_VERSION_MIN_*` commands predate explicit simulator platform
@@ -214,9 +217,11 @@ export const readMachoImage = async (
       }
       if (identity.state === "needs-slice-header")
         return { status: "not-mach-o" };
+      const hiddenSlice = await readAppleHiddenArm64Slice(readAt, size, header);
       return {
         status: "parsed",
         slices: await readFatSlices(readAt, header.slices),
+        ...(hiddenSlice === null ? {} : { hiddenSlices: [hiddenSlice] }),
       };
     }
     if (magic === MH_CIGAM || magic === MH_CIGAM_64)
@@ -232,6 +237,54 @@ export const readMachoImage = async (
       return { status: cause.status, reason: cause.message };
     throw cause;
   }
+};
+
+/**
+ * Apple lipo stores one hidden ARM64 row after the declared 32-bit FAT table.
+ * It remains separate from the raw nfat_arch declarations and is only admitted
+ * from the single table-to-first-slice slot cctools recognizes.
+ */
+const readAppleHiddenArm64Slice = async (
+  readAt: ReadAt,
+  fileSize: number,
+  header: Extract<
+    ReturnType<typeof readFatContainerHeader>,
+    { state: "parsed" }
+  >,
+): Promise<MachoSlice | null> => {
+  if (header.wide) return null;
+  const firstOffset = Math.min(...header.slices.map(({ offset }) => offset));
+  const end = header.tableEnd + 20;
+  if (end > fileSize || end > firstOffset) return null;
+  const bytes = await readAt(header.tableEnd, 20);
+  if (bytes.byteLength < 20)
+    throw new MachoFormatIssue(
+      "malformed",
+      "Hidden ARM64 FAT row is truncated",
+    );
+  const row = readFatSliceDeclarations(bytes, {
+    count: 1,
+    wide: false,
+    littleEndian: header.littleEndian,
+  });
+  if (row.status !== "parsed")
+    throw new MachoFormatIssue("malformed", row.reason);
+  const declaration = { ...row.slices[0]!, index: header.count };
+  if (declaration.cpuType !== CPU_TYPE_ARM64) return null;
+  const rangeIssue = validateFatSlice(declaration, fileSize, end);
+  if (rangeIssue !== null) throw new MachoFormatIssue("malformed", rangeIssue);
+  const slice = await readSlice(readAt, declaration.offset, declaration.size, {
+    fatCpuType: declaration.cpuType,
+    fatCpuSubtype: declaration.cpuSubtype,
+    alignmentExponent: declaration.alignmentExponent,
+  });
+  const identityIssue = validateFatSliceIdentity(declaration, {
+    cpuType: slice.cpu_type,
+    cpuSubtype: slice.cpu_subtype,
+  });
+  if (identityIssue !== null)
+    throw new MachoFormatIssue("malformed", identityIssue);
+  return { ...slice, hidden: true };
 };
 
 const readFatSlices = async (

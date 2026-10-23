@@ -676,6 +676,23 @@ it("selects matching arm64e subtype slices when tracing a mixed FAT image", asyn
   ]);
 });
 
+it("keeps Apple's hidden ARM64 FAT row outside the raw declared slice list", async () => {
+  const armv7 = { type: 12, subtype: 9 };
+  const bytes = Buffer.from(
+    fatImage([
+      { cpu: armv7, bytes: machoImage({ cpu: armv7 }) },
+      { cpu: CPU.arm64, bytes: machoImage({ cpu: CPU.arm64 }) },
+    ]),
+  );
+  bytes.writeUInt32BE(1, 4);
+  const facts = await readMachoImage(readerOf(bytes), bytes.length);
+  expect(facts).toMatchObject({
+    status: "parsed",
+    slices: [{ architecture: "arm" }],
+    hiddenSlices: [{ architecture: "arm64", cpu_type: CPU.arm64.type }],
+  });
+});
+
 describe("Mach-O load command reader: decodes thin-image load commands", () => {
   it("preserves leading U+FEFF in load-command strings", async () => {
     const image = machoImage({

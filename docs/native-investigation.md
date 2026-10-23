@@ -352,6 +352,12 @@ Available CPU type, subtype/capability bits, byte range, and alignment remain
 checked against the source bytes. Inventory records source ranges and hashes, and
 extraction copies those ranges without running the target. This does not
 expand any analysis provider's supported architectures.
+Apple lipo's hidden ARM64 compatibility row is retained separately from the
+raw `nfat_arch` count and admitted only from its extra FAT table slot when its
+in-range Mach-O header matches the row. `list_architectures` preserves the
+per-row `hidden` marker from lipo output. Mach-O image and Electron fuse
+inspection include the row in architecture selection while retaining that
+marker in their reported slices.
 
 `inspect_plist.format` describes the selected source, not plutil's conversion
 format. Sources explicitly identified as XML, binary or JSON retain those
@@ -564,7 +570,8 @@ complete observation.
   So an external superclass resolves from its `_OBJC_CLASS_$_` bind (for
   example `NSObject`). The `pointer_fixups` coverage facet names the mechanism.
   Class properties preserve each encoded attribute as a raw `{name, value}`
-  pair, for example `{ name: "N", value: "" }`, and report atomicity on the
+  pair, including commas inside C++ template arguments in the `T` type, for
+  example `{ name: "N", value: "" }`, and report atomicity on the
   property: `N` means `nonatomic`; a complete typed attribute string without
   `N` means the Objective-C default `atomic`;
   missing or incomplete attribute metadata leaves `atomicity` and any

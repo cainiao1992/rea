@@ -3,6 +3,7 @@ import { machoCpuSubtypeBase } from "../../domain/apple/machoCpuIdentity.js";
 
 const architectureSchema = z.object({
   name: z.string().min(1),
+  hidden: z.boolean(),
   cpu_type: z.string().nullable(),
   cpu_subtype: z.string().nullable(),
   cpu_type_code: z.int().nonnegative().nullable(),
@@ -18,6 +19,9 @@ export type LipoArchitecture = z.infer<typeof architectureSchema>;
 
 interface LipoOutput {
   readonly format: "thin" | "fat";
+  /** `nfat_arch` counts visible rows; Apple may append one hidden ARM64 row. */
+  readonly declaredArchitectureCount: number | null;
+  readonly hiddenArchitectureCount: number | null;
   readonly architectures: LipoArchitecture[];
 }
 
@@ -45,9 +49,12 @@ export const parseLipoOutput = (
   if (thinArchitecture !== undefined)
     return {
       format: "thin",
+      declaredArchitectureCount: null,
+      hiddenArchitectureCount: null,
       architectures: [
         architectureSchema.parse({
           name: thinArchitecture,
+          hidden: false,
           cpu_type: null,
           cpu_subtype: null,
           cpu_type_code: null,
@@ -61,6 +68,8 @@ export const parseLipoOutput = (
       ],
     };
   const architectures: LipoArchitecture[] = [];
+  let declaredArchitectureCount: number | null = null;
+  let hiddenArchitectureCount: number | null = null;
   let current: Record<string, string> | undefined;
   const flush = (): void => {
     if (current === undefined) return;
@@ -70,7 +79,8 @@ export const parseLipoOutput = (
         architectureSchema.parse({
           name: name.includes(" is architecture: ")
             ? (name.split(" is architecture: ").at(-1) ?? name)
-            : name,
+            : name.replace(/ \(hidden\)$/u, ""),
+          hidden: name.endsWith(" (hidden)"),
           cpu_type: current.cputype ?? null,
           cpu_subtype: current.cpusubtype ?? null,
           cpu_type_code: cpuTypeCode(current.cputype),
@@ -89,6 +99,12 @@ export const parseLipoOutput = (
   };
   for (const rawLine of output.split(/\r?\n/u)) {
     const line = rawLine.trim();
+    const count = /^nfat_arch\s+(\d+)(?:\s+\(\+(\d+) hidden\))?$/u.exec(line);
+    if (count?.[1] !== undefined) {
+      declaredArchitectureCount = integer(count[1]);
+      hiddenArchitectureCount = integer(count[2] ?? "0");
+      continue;
+    }
     if (line.startsWith("Non-fat file:")) {
       flush();
       current = { "Non-fat file": line };
@@ -111,7 +127,12 @@ export const parseLipoOutput = (
   flush();
   if (architectures.length === 0)
     throw new TypeError("lipo output contained no architectures");
-  return { format: "fat", architectures };
+  return {
+    format: "fat",
+    declaredArchitectureCount,
+    hiddenArchitectureCount,
+    architectures,
+  };
 };
 
 const integer = (value: string | undefined): number | null => {

@@ -1543,6 +1543,23 @@ describe("Objective-C property attributes", () => {
     expect(parsePropertyAttributes("count", "R").atomicity).toBeNull();
   });
 
+  it("keeps template argument commas inside an Objective-C++ type", () => {
+    expect(
+      parsePropertyAttributes(
+        "position",
+        "T{vector<float, float, float>=},N,V_position",
+      ),
+    ).toMatchObject({
+      type_encoding: "{vector<float, float, float>=}",
+      atomicity: "nonatomic",
+      attributes: [
+        { name: "T", value: "{vector<float, float, float>=}" },
+        { name: "N", value: "" },
+        { name: "V", value: "_position" },
+      ],
+    });
+  });
+
   it("establishes no defaults from an unfinished quoted class name", () => {
     // `,N,R` here lie inside the unterminated quote, so they are not flags.
     expect(parsePropertyAttributes("title", 'T@"NSString,N,R')).toMatchObject({
@@ -1553,6 +1570,16 @@ describe("Objective-C property attributes", () => {
     expect(parsePropertyAttributes("title", 'N,R,T@"NSString')).toMatchObject({
       atomicity: "nonatomic",
       is_readonly: true,
+    });
+  });
+
+  it("keeps defaults unknown when a template argument is unfinished", () => {
+    expect(
+      parsePropertyAttributes("position", "T{vector<float, float,N,R"),
+    ).toMatchObject({
+      type_encoding: "{vector<float, float,N,R",
+      atomicity: null,
+      is_readonly: null,
     });
   });
 });

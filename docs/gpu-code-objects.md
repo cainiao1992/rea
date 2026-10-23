@@ -116,7 +116,12 @@ Kernel representations have different meanings:
   including V2 kernel-parameter sizes, and native section declarations. Global
   register declarations also cover compiler
   versions that leave the older text-section register field empty.
-- AMDGPU reads v3+ MessagePack notes. Argument counts include hidden ABI arguments
+- AMDGPU reads v3+ MessagePack notes. V3 processor identity comes from the
+  `EF_AMDGPU_MACH` field in ELF `e_flags`; known processor values are selectable
+  even when the note omits `amdhsa.target`. This inventory reports the processor
+  only; it does not interpret version-specific feature flags. Unknown processor values remain unknown. A known
+  processor conflict between ELF flags and note metadata leaves the processor
+  unresolved. Argument counts include hidden ABI arguments
   when present; SGPR/VGPR counts and fixed group/private segment sizes retain
   their declared meanings. Legacy YAML metadata remains unsupported.
 

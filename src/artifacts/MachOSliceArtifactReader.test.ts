@@ -154,6 +154,99 @@ describe("Mach-O command cleanup lifecycle", () => {
   });
 });
 
+describe("MachOSliceArtifactReader hidden architectures", () => {
+  it("retains Apple's hidden ARM64 row separately from the declared FAT count", async () => {
+    const root = await createTestTempDirectory("rea-hidden-arm64-slices-");
+    const binary = join(root, "fat");
+    const armv7 = { type: 12, subtype: 9 };
+    const armv7Image = machoImage({ cpu: armv7, wide: false });
+    const arm64Image = machoImage({ cpu: CPU.arm64 });
+    const bytes = Buffer.from(
+      fatImage([
+        { cpu: armv7, bytes: armv7Image },
+        { cpu: CPU.arm64, bytes: arm64Image },
+      ]),
+    );
+    bytes.writeUInt32BE(1, 4);
+    await writeFile(binary, bytes);
+    const stdout = `fat_magic 0xcafebabe\nnfat_arch 1 (+1 hidden)\narchitecture armv7\n cputype 12\n cpusubtype 9\n offset 4096\n size ${String(armv7Image.length)}\n align 2^12 (4096)\narchitecture arm64 (hidden)\n cputype 16777228\n cpusubtype 0\n offset 8192\n size ${String(arm64Image.length)}\n align 2^12 (4096)\n`;
+    const reader = new MachOSliceArtifactReader(
+      binary,
+      {},
+      {
+        run: async () =>
+          ok({
+            tool: "lipo",
+            executable: "/usr/bin/lipo",
+            executableSha256: "1".repeat(64),
+            toolVersion: null,
+            versionReason: "fixture",
+            arguments: [],
+            stdout,
+            stderr: "",
+            stdoutBytes: Buffer.byteLength(stdout),
+            stderrBytes: 0,
+            exitCode: 0,
+            signal: null,
+          }),
+      },
+    );
+    onTestFinished(() => reader.close());
+    const entries = [];
+    for await (const entry of reader.entries()) entries.push(entry);
+    expect(entries.map(({ path }) => path)).toEqual([
+      "slices/armv7",
+      "slices/arm64",
+    ]);
+  });
+
+  it("rejects a lipo hidden ARM64 claim when its physical header disagrees", async () => {
+    const root = await createTestTempDirectory("rea-hidden-arm64-mismatch-");
+    const binary = join(root, "fat");
+    const armv7 = { type: 12, subtype: 9 };
+    const armv7Image = machoImage({ cpu: armv7, wide: false });
+    const arm64Image = machoImage({ cpu: CPU.arm64 });
+    const bytes = Buffer.from(
+      fatImage([
+        { cpu: armv7, bytes: armv7Image },
+        { cpu: CPU.arm64, bytes: arm64Image },
+      ]),
+    );
+    bytes.writeUInt32BE(1, 4);
+    bytes.writeUInt32LE(7, 8196); // Hidden FAT row claims ARM64; thin header says x86.
+    await writeFile(binary, bytes);
+    const stdout = `fat_magic 0xcafebabe\nnfat_arch 1 (+1 hidden)\narchitecture armv7\n cputype 12\n cpusubtype 9\n offset 4096\n size ${String(armv7Image.length)}\n align 2^12 (4096)\narchitecture arm64 (hidden)\n cputype 16777228\n cpusubtype 0\n offset 8192\n size ${String(arm64Image.length)}\n align 2^12 (4096)\n`;
+    const reader = new MachOSliceArtifactReader(
+      binary,
+      {},
+      {
+        run: async () =>
+          ok({
+            tool: "lipo",
+            executable: "/usr/bin/lipo",
+            executableSha256: "1".repeat(64),
+            toolVersion: null,
+            versionReason: "fixture",
+            arguments: [],
+            stdout,
+            stderr: "",
+            stdoutBytes: Buffer.byteLength(stdout),
+            stderrBytes: 0,
+            exitCode: 0,
+            signal: null,
+          }),
+      },
+    );
+    onTestFinished(() => reader.close());
+    const enumerate = async (): Promise<void> => {
+      for await (const _entry of reader.entries()) {
+        /* enumerate */
+      }
+    };
+    await expect(enumerate()).rejects.toMatchObject({ reason: "integrity" });
+  });
+});
+
 describe("MachOSliceArtifactReader", () => {
   it("keeps a borrowed source usable after idle and active cancelled slice reads", async () => {
     const root = await createTestTempDirectory("rea-slices-cancelled-");

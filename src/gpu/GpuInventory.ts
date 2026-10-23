@@ -472,6 +472,7 @@ export class GpuInventory {
         ));
       const inspected = await readAmdElfMetadata(child, native);
       const prepared = inspected.ok ? inspected.value : inspected.error.partial;
+      if (prepared.limitations.length > 0) this.discovery = "partial";
       this.#target(row, {
         value: prepared.target,
         key: prepared.target_key,
@@ -481,10 +482,15 @@ export class GpuInventory {
         this.discovery = "partial";
         if (this.input.analysis === "kernels" && this.#selected(row))
           await this.#elfFacts(child, row, "amdgpu", prepared);
+        else this.#objectLimitations(row, prepared.limitations);
         this.#retainFailure(row, inspected.error.cause);
         return;
       }
+      const payloadSelected =
+        this.input.analysis === "kernels" && this.#selected(row);
       await this.#payload(source, row, prepared);
+      if (!payloadSelected && prepared.limitations.length > 0)
+        this.#objectLimitations(row, prepared.limitations);
     } catch (cause) {
       this.discovery = "partial";
       this.#retainFailure(row, cause);

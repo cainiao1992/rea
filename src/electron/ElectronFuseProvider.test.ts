@@ -34,6 +34,36 @@ const inspect = async (path: string) => {
   return result.value;
 };
 
+it("preserves the hidden ARM64 marker through fuse scanning and reporting", async () => {
+  const root = await createTestTempDirectory(
+    "rea-electron-fuses-hidden-arm64-",
+  );
+  const universal = universalFuseImage();
+  // Model Apple's ARM32/hidden-ARM64 layout: keep both physical FAT rows,
+  // but declare only the visible ARM32 row in nfat_arch.
+  universal.bytes.writeUInt32BE(1, 4);
+  universal.bytes.writeUInt32BE(12, 8);
+  universal.bytes.writeUInt32BE(9, 12);
+  universal.bytes.writeUInt32LE(0xfeedface, universal.left.fileOffset);
+  universal.bytes.writeUInt32LE(12, universal.left.fileOffset + 4);
+  universal.bytes.writeUInt32LE(9, universal.left.fileOffset + 8);
+  const path = join(root, "hidden-arm64");
+  await writeFile(path, universal.bytes);
+
+  const report = await inspect(path);
+  expect(report.slices).toHaveLength(2);
+  expect(report.slices[0]).not.toHaveProperty("hidden");
+  expect(report.slices[1]).toMatchObject({
+    architecture: "arm64",
+    hidden: true,
+    file_offset: universal.right.fileOffset,
+    sentinel_count: 1,
+    sentinels: [
+      { sentinel_offset: universal.right.sentinelOffset, complete: true },
+    ],
+  });
+});
+
 describe("Electron fuse wire reading", () => {
   it("reads thin Mach-O, universal Mach-O, PE, and ELF wires", async () => {
     const root = await createTestTempDirectory("rea-electron-fuses-");
@@ -51,6 +81,7 @@ describe("Electron fuse wire reading", () => {
     await writeFile(join(root, "app.elf"), elf.bytes);
 
     const thinReport = await inspect(join(root, "thin"));
+    expect(thinReport.slices[0]).not.toHaveProperty("hidden");
     expect(thinReport.artifact).toMatchObject({
       format: "mach-o",
       bytes: thin.bytes.length,
@@ -83,6 +114,8 @@ describe("Electron fuse wire reading", () => {
     ]);
 
     const universalReport = await inspect(join(root, "universal"));
+    for (const slice of universalReport.slices)
+      expect(slice).not.toHaveProperty("hidden");
     expect(universalReport.artifact.format).toBe("mach-o-universal");
     expect(universalReport.slices).toMatchObject([
       {

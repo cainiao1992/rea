@@ -251,6 +251,75 @@ it("discovers standalone AMD targets before exact selection", async () => {
   expect(skipped.value.kernels).toEqual([]);
   expect(skipped.value.coverage.payloads).toBe("partial");
 });
+it("derives V3 AMDGPU processor identity from ELF flags when the note omits it", async () => {
+  const bytes = amdFixture(false, undefined, null);
+  // EF_AMDGPU_MACH=0x2c identifies gfx900; high bits include feature flags.
+  bytes.writeUInt32LE(0x12c, 48);
+  const inventory = await inspect(bytes, { analysis: "inventory" });
+  if (!inventory.ok) throw inventory.error;
+  expect(inventory.value.objects[0]).toMatchObject({
+    target: "gfx900",
+    target_consistency: "single-source",
+    inspection: "inventory",
+  });
+  const selected = await inspect(bytes, { targets: ["gfx900"] });
+  if (!selected.ok) throw selected.error;
+  expect(selected.value.kernels).toHaveLength(1);
+  expect(selected.value.kernels[0]).toMatchObject({ parameter_bytes: 12 });
+});
+it("keeps AMDGPU processor identity unknown when ELF flags are unassigned", async () => {
+  const bytes = amdFixture(false, undefined, null);
+  bytes.writeUInt32LE(0x17f, 48);
+  const result = await inspect(bytes, { analysis: "inventory" });
+  if (!result.ok) throw result.error;
+  expect(result.value.objects[0]).toMatchObject({
+    target: null,
+    target_consistency: "unknown",
+    inspection: "inventory",
+  });
+});
+it.each(["gfx900:xnack+", "gfx900+xnack", "gfx900:sramecc-:xnack+"])(
+  "preserves matching AMDGPU note features with ELF processor flags (%s)",
+  async (target) => {
+    const noteTarget = `amdgcn-amd-amdhsa--${target}`;
+    const payload = amdFixture(false, undefined, noteTarget);
+    payload.writeUInt32LE(0x12c, 48);
+    const result = await inspect(
+      hipFixture(payload, `hipv4-amdgcn-amd-amdhsa--${target}`),
+      { targets: [target] },
+    );
+    if (!result.ok) throw result.error;
+    expect(
+      result.value.objects.find(({ kind }) => kind === "amdgpu"),
+    ).toMatchObject({
+      target,
+      payload_target: noteTarget,
+      target_consistency: "consistent",
+      inspection: "complete",
+    });
+    expect(result.value.kernels).toHaveLength(1);
+    expect(result.value.coverage.payloads).toBe("complete");
+  },
+);
+it("does not choose between conflicting AMDGPU note and ELF processor identities", async () => {
+  const bytes = amdFixture(
+    false,
+    undefined,
+    "amdgcn-amd-amdhsa--gfx900:xnack+",
+  );
+  bytes.writeUInt32LE(0x141, 48); // EF_AMDGPU_MACH gfx1100
+  const result = await inspect(bytes);
+  if (!result.ok) throw result.error;
+  expect(result.value.objects[0]).toMatchObject({
+    target: null,
+    target_consistency: "unknown",
+    inspection: "partial",
+  });
+  expect(result.value.objects[0]!.limitations.join(" ")).toContain(
+    "processor flags conflict with target note metadata",
+  );
+  expect(result.value.kernels).toHaveLength(1);
+});
 it.each(["match", "conflict", "feature-unknown"] as const)(
   "compares AMDGPU targets with an explicit unknown environment (%s)",
   async (comparison) => {
@@ -320,10 +389,9 @@ it.each(["gfx11-generic", "gfx9-4-generic"] as const)(
   "preserves and exactly selects the generic AMDGPU processor %s",
   async (processor) => {
     const noteTarget = `amdgcn-amd-amdhsa--${processor}`;
-    const bytes = hipFixture(
-      amdFixture(false, undefined, noteTarget),
-      `hipv4-amdgcn-amd-amdhsa--${processor}`,
-    );
+    const payload = amdFixture(false, undefined, noteTarget);
+    payload.writeUInt32LE(processor === "gfx11-generic" ? 0x54 : 0x5f, 48);
+    const bytes = hipFixture(payload, `hipv4-amdgcn-amd-amdhsa--${processor}`);
     const result = await inspect(bytes, { targets: [processor] });
     if (!result.ok) throw result.error;
     expect(
@@ -363,7 +431,7 @@ it("bounds standalone AMD note discovery before retaining metadata", async () =>
   );
   if (!result.ok) throw result.error;
   expect(result.value.objects[0]).toMatchObject({
-    target: null,
+    target: "gfx900",
     inspection: "capacity",
   });
   expect(result.value.objects[0]!.limitations).toContain(

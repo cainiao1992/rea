@@ -213,7 +213,7 @@ export const cubinFixture = (
 export const amdFixture = (
   hidden = false,
   trailingNote?: Buffer,
-  target = "amdgcn-amd-amdhsa--gfx900",
+  target: string | null = "amdgcn-amd-amdhsa--gfx900",
 ): Buffer => {
   const args = [
     { ".offset": 0, ".size": 8, ".value_kind": "global_buffer" },
@@ -225,7 +225,7 @@ export const amdFixture = (
   ];
   const metadata = Buffer.from(
     encode({
-      "amdhsa.target": target,
+      ...(target === null ? {} : { "amdhsa.target": target }),
       "amdhsa.version": [1, 1],
       "amdhsa.kernels": [
         {

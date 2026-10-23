@@ -21,6 +21,32 @@ architecture x86_64
 `;
 
 describe("lipo architecture facts", () => {
+  it("preserves Apple's declared and hidden ARM64 architecture scopes", () => {
+    const output = parseLipoOutput(`fat_magic 0xcafebabe
+nfat_arch 1 (+1 hidden)
+architecture armv7
+ cputype CPU_TYPE_ARM
+ cpusubtype CPU_SUBTYPE_ARM_V7
+ offset 4096
+ size 28
+ align 2^12 (4096)
+architecture arm64 (hidden)
+ cputype CPU_TYPE_ARM64
+ cpusubtype CPU_SUBTYPE_ARM64_ALL
+ offset 8192
+ size 32
+ align 2^12 (4096)
+`);
+    expect(output).toMatchObject({
+      declaredArchitectureCount: 1,
+      hiddenArchitectureCount: 1,
+      architectures: [
+        { name: "armv7", hidden: false },
+        { name: "arm64", hidden: true, file_offset: 8192, size: 32 },
+      ],
+    });
+  });
+
   it("normalizes symbolic CPU fields and arm64e capability bits", () => {
     const { format, architectures } = parseLipoOutput(`Fat header in: /bin/ls
 fat_magic 0xcafebabe
@@ -189,9 +215,12 @@ describe("lipo FAT operand framing", () => {
 
     expect(parseLipoOutput(output, path)).toEqual({
       format: "thin",
+      declaredArchitectureCount: null,
+      hiddenArchitectureCount: null,
       architectures: [
         {
           name: "arm64",
+          hidden: false,
           cpu_type: null,
           cpu_subtype: null,
           cpu_type_code: null,

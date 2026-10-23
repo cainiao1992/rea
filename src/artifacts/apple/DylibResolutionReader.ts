@@ -7,6 +7,7 @@ import { resolveTreePath } from "../../domain/apple/dyldPaths.js";
 import {
   dylibResolutionInputSchema,
   dylibResolutionResultSchema,
+  machoImageSlices,
   traceDylibLoading,
   type DylibResolutionResult,
   type DylibTreeEntry,
@@ -212,7 +213,9 @@ const executableRoots = async (
         unclassified.push(entry.path);
       else if (
         facts.status === "parsed" &&
-        facts.slices.some(({ file_type: type }) => type === "execute")
+        machoImageSlices(facts).some(
+          ({ file_type: type }) => type === "execute",
+        )
       )
         roots.push(entry.path);
     },

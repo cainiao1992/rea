@@ -115,7 +115,8 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     };
     await this.#verifySource(source);
     const fileSize = source.initial.size;
-    const { architectures } = parseLipoOutput(captured.value.stdout, this.path);
+    const lipo = parseLipoOutput(captured.value.stdout, this.path);
+    const { architectures } = lipo;
     const structural = await readStructuralSlices(source.handle, fileSize);
     await this.#verifySource(source);
     if (structural.status === "malformed")
@@ -135,26 +136,70 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         "unavailable",
         `Mach-O structural slice index is unsupported: ${structural.reason}`,
       );
+    const hiddenArchitectures = architectures.filter(({ hidden }) => hidden);
+    const visibleArchitectures = architectures.filter(({ hidden }) => !hidden);
+    if (
+      lipo.hiddenArchitectureCount !== null &&
+      lipo.hiddenArchitectureCount !== hiddenArchitectures.length
+    )
+      throw new ArtifactReaderFailure(
+        "integrity",
+        "lipo hidden architecture count disagrees with its architecture rows",
+      );
+    if (
+      lipo.declaredArchitectureCount !== null &&
+      lipo.declaredArchitectureCount !== visibleArchitectures.length
+    )
+      throw new ArtifactReaderFailure(
+        "integrity",
+        "lipo declared architecture count disagrees with its visible rows",
+      );
+    if (
+      (hiddenArchitectures.length > 0 ||
+        (lipo.hiddenArchitectureCount ?? 0) > 0) &&
+      structural.status !== "parsed"
+    )
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        "Apple hidden ARM64 slice could not be verified against the FAT table",
+      );
     const slices = structural.status === "parsed" ? structural.slices : null;
+    const hiddenSlices =
+      structural.status === "parsed" ? (structural.hiddenSlices ?? []) : [];
     const matchingSlices = new Map<LipoArchitecture, MachoSlice>();
     if (slices !== null) {
-      if (slices.length !== architectures.length)
+      if (
+        slices.length !== visibleArchitectures.length ||
+        hiddenSlices.length !== hiddenArchitectures.length ||
+        (hiddenArchitectures.length > 0 &&
+          (lipo.declaredArchitectureCount === null ||
+            lipo.hiddenArchitectureCount === null)) ||
+        (lipo.declaredArchitectureCount !== null &&
+          lipo.declaredArchitectureCount !== slices.length) ||
+        (lipo.hiddenArchitectureCount !== null &&
+          lipo.hiddenArchitectureCount !== hiddenSlices.length)
+      )
         throw new ArtifactReaderFailure(
           "integrity",
-          "lipo architecture count disagrees with the Mach-O FAT table",
+          "lipo declared and hidden architecture counts disagree with the Mach-O FAT table",
         );
-      const unmatched = [...slices];
-      for (const reported of architectures) {
-        const match = unmatched.findIndex((observed) =>
-          lipoMatchesSlice(reported, observed, slices.length === 1),
-        );
-        if (match < 0)
-          throw new ArtifactReaderFailure(
-            "integrity",
-            `lipo slice metadata disagrees with the Mach-O FAT table: ${reported.name} (cputype=${reported.cpu_type ?? "unknown"}, cpusubtype=${reported.cpu_subtype ?? "unknown"}, offset=${reported.file_offset ?? "unknown"}, size=${reported.size ?? "unknown"}, alignment=${reported.alignment ?? "unknown"})`,
+      for (const [reportedRows, observedRows] of [
+        [visibleArchitectures, slices],
+        [hiddenArchitectures, hiddenSlices],
+      ] as const) {
+        const unmatched = [...observedRows];
+        for (const reported of reportedRows) {
+          const match = unmatched.findIndex((observed) =>
+            lipoMatchesSlice(reported, observed, observedRows.length === 1),
           );
-        const [observed] = unmatched.splice(match, 1);
-        if (observed !== undefined) matchingSlices.set(reported, observed);
+          if (match < 0)
+            throw new ArtifactReaderFailure(
+              "integrity",
+              `lipo slice metadata disagrees with the Mach-O FAT table: ${reported.name} (cputype=${reported.cpu_type ?? "unknown"}, cpusubtype=${reported.cpu_subtype ?? "unknown"}, offset=${reported.file_offset ?? "unknown"}, size=${reported.size ?? "unknown"}, alignment=${reported.alignment ?? "unknown"})`,
+            );
+          const [observed] = unmatched.splice(match, 1);
+          if (observed !== undefined) matchingSlices.set(reported, observed);
+        }
       }
     }
     for (const architecture of architectures) {

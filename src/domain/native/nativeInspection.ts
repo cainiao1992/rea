@@ -27,6 +27,7 @@ const nativeCommandInvocationSchema = z.object({
 
 const architectureSchema = z.object({
   name: z.string(),
+  hidden: z.boolean().exactOptional(),
   cpu_type: z.string().nullable(),
   cpu_subtype: z.string().nullable(),
   file_offset: z

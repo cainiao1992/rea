@@ -80,7 +80,7 @@ const unwrapCmdCommand = (command: readonly string[]): readonly string[] => {
 };
 
 /** Preserve the package argument from a supported package-runner command. */
-export const clientRegistrationPackageReference = (
+const clientRegistrationPackageReference = (
   command: readonly string[],
 ): string | undefined => {
   const arguments_ = unwrapCmdCommand(command);
@@ -98,20 +98,6 @@ export const clientRegistrationPackageReference = (
   )
     return arguments_[1];
   return undefined;
-};
-
-const isOwnedPackageReference = (packageReference: string): boolean => {
-  if (
-    packageReference === PRODUCT_IDENTITY.packageName ||
-    packageReference === PRODUCT_IDENTITY.packageSpecifier ||
-    packageReference === PRODUCT_IDENTITY.registrationPackageSpecifier
-  )
-    return true;
-  const versionPrefix = `${PRODUCT_IDENTITY.packageName}@`;
-  return (
-    packageReference.startsWith(versionPrefix) &&
-    valid(packageReference.slice(versionPrefix.length)) !== null
-  );
 };
 
 /** Check that one parsed command points to REA's MCP entry point. */
@@ -149,14 +135,58 @@ const directEntrypointIdentity = (
     : "unknown";
 };
 
-/** Classify the command once; uncertainty never grants positive ownership. */
+export interface ClientRegistrationCommandFacts {
+  readonly identity: ClientRegistrationCommandIdentity;
+  readonly package:
+    | {
+        readonly reference: string;
+        readonly exactVersion: string | undefined;
+      }
+    | undefined;
+}
+
+/** Parse package identity once, retaining exact source spelling and version facts. */
+export const inspectClientRegistrationCommand = (
+  command: readonly string[],
+  currentCommandPath: string | undefined,
+): ClientRegistrationCommandFacts => {
+  const reference = clientRegistrationPackageReference(command);
+  if (reference !== undefined) {
+    const prefix = `${PRODUCT_IDENTITY.packageName}@`;
+    const version = reference.startsWith(prefix)
+      ? reference.slice(prefix.length)
+      : undefined;
+    const normalized = version === undefined ? null : valid(version);
+    const owned =
+      reference === PRODUCT_IDENTITY.packageName ||
+      reference === PRODUCT_IDENTITY.packageSpecifier ||
+      reference === PRODUCT_IDENTITY.registrationPackageSpecifier ||
+      normalized !== null;
+    return {
+      identity: owned ? "owned" : "foreign",
+      package: {
+        reference,
+        exactVersion: normalized === version ? version : undefined,
+      },
+    };
+  }
+  return {
+    identity: classifyDirectRegistrationCommand(command, currentCommandPath),
+    package: undefined,
+  };
+};
+
+/** Ownership-only consumers share the same parsed command facts. */
 export const classifyClientRegistrationCommand = (
   command: readonly string[],
   currentCommandPath: string | undefined,
+): ClientRegistrationCommandIdentity =>
+  inspectClientRegistrationCommand(command, currentCommandPath).identity;
+
+const classifyDirectRegistrationCommand = (
+  command: readonly string[],
+  currentCommandPath: string | undefined,
 ): ClientRegistrationCommandIdentity => {
-  const packageReference = clientRegistrationPackageReference(command);
-  if (packageReference !== undefined)
-    return isOwnedPackageReference(packageReference) ? "owned" : "foreign";
   const currentPathAvailable =
     currentCommandPath !== undefined && currentCommandPath.length > 0;
   if (command.length === 3 && command[2] === "mcp") {

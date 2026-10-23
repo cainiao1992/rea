@@ -211,3 +211,8 @@ it("owns a class declaration's self reference separately from its outer variable
     )?.resolution,
   ).toBe("exact");
 });
+
+it("does not initialize a class self name during computed-key evaluation", () => {
+  const ir = analyze(`class Service { [Service()]() {} }`, "fixture.mjs");
+  expect(ir.callSites[0]?.resolution).not.toBe("exact");
+});

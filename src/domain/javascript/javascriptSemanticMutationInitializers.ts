@@ -11,6 +11,7 @@ import {
   semanticStaticPropertyKey,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
+import { semanticScopeId } from "./javascriptSemanticState.js";
 import type {
   JavaScriptSemanticBindingState,
   JavaScriptSemanticAnalysisState,
@@ -746,6 +747,42 @@ export const semanticBindingAtRead = (
     t.isFunctionDeclaration(soleInitializer.node)
   )
     return { status: "ordered", binding, hasDefiniteInitializer: true };
+  if (
+    soleInitializer !== undefined &&
+    t.isClass(soleInitializer.node) &&
+    binding.scopeId === semanticScopeId("class", soleInitializer.node) &&
+    !binding.mutable &&
+    binding.initializers.length === 1 &&
+    binding.referenceInitializers.length === 0 &&
+    !binding.definitions.some(({ kind }) => kind === "assignment")
+  ) {
+    // The class self name is initialized before fields/static blocks run and
+    // before a body method can be invoked, but not during heritage/key evaluation.
+    const owner = soleInitializer.node;
+    let child = read;
+    let memberPart: t.Node | undefined;
+    for (
+      let parent = parents.get(child);
+      parent !== undefined;
+      child = parent, parent = parents.get(parent)
+    ) {
+      if (parents.get(parent) === owner.body) memberPart = child;
+      if (parent === owner.body) {
+        if (
+          t.isClassMethod(child) || t.isClassPrivateMethod(child)
+            ? memberPart === child.body
+            : t.isStaticBlock(child) ||
+              ((t.isClassProperty(child) ||
+                t.isClassPrivateProperty(child) ||
+                t.isClassAccessorProperty(child)) &&
+                memberPart === child.value)
+        )
+          return { status: "ordered", binding, hasDefiniteInitializer: true };
+        break;
+      }
+      if (parent === owner) break;
+    }
+  }
   const initializer = binding.initializers[0];
   const reference = binding.referenceInitializers[0];
   const origin = initializer ?? reference;

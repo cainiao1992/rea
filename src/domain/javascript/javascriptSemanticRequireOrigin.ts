@@ -159,6 +159,8 @@ const requireLoaderValueAt = (
     return semanticBindingHasPriorValueWrite(node, binding, state)
       ? "unknown"
       : "factory-loader";
+  if (binding !== undefined && isSemanticCreateRequireBinding(binding, state))
+    return "create-require";
   if (loader.name !== "require") return "local";
   if (binding === undefined) {
     if (semanticResolutionBlocked(state, loader, "require")) return "unknown";
@@ -195,7 +197,6 @@ const requireLoaderValueAt = (
     !semanticBindingHasPriorValueWrite(node, wrapperBinding, state)
   )
     return commonJsLoaderAt(node, state);
-  if (isSemanticCreateRequireBinding(binding, state)) return "create-require";
   const initializer = semanticStableInitializer(binding, state)?.node;
   if (
     (binding.kind === "function" || binding.kind === "class") &&

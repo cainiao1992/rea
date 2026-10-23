@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
-import { unshadowedReferenceSourceRequireCalls } from "../referenceSourceRequireBindings.js";
+import { referenceSourceRequireCallBases } from "../referenceSourceRequireBindings.js";
 
 it.each(["require", "require.resolve", "require.main"])(
   "distinguishes invoked loading from reference association for %s",
@@ -25,9 +25,7 @@ it.each(["require", "require.resolve", "require.main"])(
     );
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected loader association fixture");
-    expect(
-      unshadowedReferenceSourceRequireCalls(parsed, "entry.cjs").size,
-    ).toBe(1);
+    expect(referenceSourceRequireCallBases(parsed, "entry.cjs").size).toBe(1);
   },
 );
 
@@ -36,6 +34,12 @@ it.each([
   [
     "proven factory",
     `${imported}const require=make(import.meta.url);require('node:path');`,
+    1,
+    "node:path",
+  ],
+  [
+    "renamed proven factory",
+    `${imported}const load=make(import.meta.url);load('node:path');`,
     1,
     "node:path",
   ],
@@ -50,9 +54,9 @@ it.each([
   (_name, source, associated, specifier) => {
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected factory proof fixture");
-    expect(
-      unshadowedReferenceSourceRequireCalls(parsed, "entry.mjs").size,
-    ).toBe(associated);
+    expect(referenceSourceRequireCallBases(parsed, "entry.mjs").size).toBe(
+      associated,
+    );
     const analysis = analyzeJavaScriptStaticSource(source);
     expect(analysis.parse_error_count).toBe(0);
     expect(
@@ -60,6 +64,14 @@ it.each([
     ).toEqual([expect.objectContaining({ kind: "require", specifier })]);
   },
 );
+
+it("associates a renamed createRequire resolve method with search options", () => {
+  const parsed = parseJavaScriptSource(
+    `${imported}const load=make(import.meta.url);load.resolve('node:path',{paths:[]});`,
+  );
+  if (parsed === null) throw new Error("Expected factory proof fixture");
+  expect(referenceSourceRequireCallBases(parsed, "entry.mjs").size).toBe(1);
+});
 
 it.each([
   [

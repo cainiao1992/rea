@@ -527,7 +527,7 @@ export const adbResultSchemas = {
     client,
     serial: z.string().min(1),
     properties: z.array(
-      z.strictObject({ name: z.string().min(1), value: z.string().min(1) }),
+      z.strictObject({ name: z.string().min(1), value: z.string() }),
     ),
     property_count: z.int().nonnegative(),
     emulator_observed: z.boolean().nullable(),

@@ -32,7 +32,7 @@ export const ADB_TOOL_CONTRACTS = [
     name: "inspect_adb_device",
     ...toolContractMetadata("inspect_adb_device"),
     description:
-      "Inspect one device's build identity through a fixed `getprop` whitelist: Android and SDK versions, security patch, fingerprint, product identity, CPU ABIs, and debuggable flag, plus the observed emulator indicator ro.kernel.qemu. Read-only with respect to the device.",
+      "Inspect one device's build identity through a fixed `getprop` whitelist: Android and SDK versions, security patch, fingerprint, product identity, CPU ABIs, and debuggable flag, plus the observed emulator indicator ro.kernel.qemu. Present properties retain empty values; omitted keys were not reported. Read-only with respect to the device.",
     kind: "adb-provider",
     inputSchema: adbInputSchemas.inspect_adb_device,
     outputSchema: evidenceResultOf(adbResultSchemas.inspect_adb_device),

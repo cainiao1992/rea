@@ -18,6 +18,16 @@ const packageDump = (installerLine: string | undefined): string =>
   ].join("\n");
 
 describe("parseDumpsysPackageOutput", () => {
+  it.each(["", "  My Build  ", "  ", "null"])(
+    "preserves the printed version name %j",
+    (versionName) => {
+      const result = parseDumpsysPackageOutput(
+        `  pkg=Package{abcdef com.example}\n  versionName=${versionName}\n`,
+      );
+      expect(result.versionName).toBe(versionName);
+    },
+  );
+
   it("keeps a reported installer package name", () => {
     expect(
       parseDumpsysPackageOutput(

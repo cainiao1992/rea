@@ -169,7 +169,7 @@ export const parseGetpropOutput = (
   }
   const properties = DEVICE_PROPERTY_WHITELIST.flatMap((name) => {
     const value = values.get(name);
-    return value === undefined || value === ""
+    return value === undefined
       ? []
       : [{ name, value } satisfies AdbDeviceProperty];
   });

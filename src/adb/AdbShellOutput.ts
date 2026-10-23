@@ -335,13 +335,16 @@ export const parseDumpsysPackageOutput = (
     const match = DETAIL_LINE.exec(line);
     if (match === null) continue;
     const key = match[1]!;
-    const value = match[2]!.trim();
+    // versionName is an arbitrary manifest string, printed verbatim by AOSP.
+    // Only the fields with their own structured grammar are normalized below.
+    const rawValue = match[2]!;
+    const value = rawValue.trim();
     if (key === "pkg" && parsedPackageAvailable === null) {
       if (value === "null") parsedPackageAvailable = false;
       else if (value.startsWith("Package{") && value.endsWith("}"))
         parsedPackageAvailable = true;
     } else if (key === "versionName" && details.versionName === null)
-      details.versionName = value === "" ? null : value;
+      details.versionName = rawValue;
     else if (key === "versionCode" && details.versionCode === null) {
       const parsed = /^(-?\d+)/u.exec(value);
       if (parsed !== null) details.versionCode = parsed[1]!;

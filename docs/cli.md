@@ -468,7 +468,9 @@ base are proven: this includes the exact
 as `require.resolve?.("./dep.cjs")` use the same loader and mutation facts. The
 nearest inventoried package manifest supplies `.js` module scope; an explicit
 `type: "module"` supplies no CommonJS wrapper, while an unreadable, excluded or
-malformed manifest leaves candidate loader resolution unknown. Other custom bases and search
+malformed manifest, or package scope outside the selected inventory, leaves
+candidate loader resolution unknown. A nearest manifest without a `type` field
+uses the shared parser's JavaScript module-syntax facts. Other custom bases and search
 options remain partial with unknown resolution and the literal requested
 specifier. Overwritten resolver methods retain that uncertainty; they are not
 attributed to Node. `require.main` is a module object, so calling it does not

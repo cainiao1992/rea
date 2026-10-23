@@ -13,6 +13,7 @@ import {
 import {
   referenceSourceRequireCalls,
   type ReferenceSourceRequireCall,
+  type ReferenceSourcePackageType,
 } from "./referenceSourceRequireBindings.js";
 import { isRelativeJavaScriptModuleSpecifier } from "./javascript/javascriptModuleSpecifier.js";
 import {
@@ -261,7 +262,7 @@ export const parseReferenceSourceImports = (
   path: string,
   bytes: Uint8Array,
   language: string | null,
-  packageType?: "module" | "commonjs" | "unknown",
+  packageType?: ReferenceSourcePackageType,
 ): ReferenceSourceImportParseResult => {
   if (language !== null && !PARSEABLE_REFERENCE_SOURCE_LANGUAGES.has(language))
     return { relationships: [], parse_failures: [], limitations: [] };

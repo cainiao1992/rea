@@ -23,6 +23,13 @@ import {
   type ParsedJavaScriptSource,
 } from "./javascript/javascriptSourceParser.js";
 
+/** Package scope observed inside the selected inventory; missing scope stays unknown. */
+export type ReferenceSourcePackageType =
+  | "module"
+  | "commonjs"
+  | "unspecified"
+  | "unknown";
+
 export type ReferenceSourceRequireResolutionBase =
   | "source-file"
   | { readonly kind: "source-relative-file"; readonly path: string }
@@ -37,7 +44,7 @@ export interface ReferenceSourceRequireCall {
 export const referenceSourceRequireCalls = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
-  packageType?: "module" | "commonjs" | "unknown",
+  packageType: ReferenceSourcePackageType = "unknown",
 ): ReadonlyMap<
   t.CallExpression | t.OptionalCallExpression,
   ReferenceSourceRequireCall
@@ -103,7 +110,7 @@ export const referenceSourceRequireCalls = (
                     path: normalizedSourceRelativePath,
                   }
           : fact === "commonjs-loader" && callFact.loader === "commonjs-loader"
-            ? path.endsWith(".js") && packageType === "unknown"
+            ? path.endsWith(".js") && wrapperMode === "unknown"
               ? "unknown"
               : "source-file"
             : "unknown";
@@ -177,7 +184,7 @@ type CommonJsWrapperMode = "present" | "absent" | "unknown";
 const commonJsWrapperMode = (
   path: string,
   program: t.Program,
-  packageType: "module" | "commonjs" | "unknown" | undefined,
+  packageType: ReferenceSourcePackageType,
 ): CommonJsWrapperMode => {
   if (path.endsWith(".cjs")) return "present";
   if (isExplicitModuleSourcePath(path)) return "absent";
@@ -186,6 +193,7 @@ const commonJsWrapperMode = (
     if (packageType === "commonjs") return "present";
     if (packageType === "unknown") return "unknown";
     if (javaScriptRuntimeContext(program) === "module") return "absent";
+    return "present";
   }
   return "unknown";
 };

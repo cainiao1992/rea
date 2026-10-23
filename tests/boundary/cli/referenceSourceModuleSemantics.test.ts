@@ -33,6 +33,8 @@ cliTest(
       "dep.ts": "export interface Marker { id: string }\n",
       "nested/package.json": '{"type":"commonjs","main":"main.js"}\n',
       "nested/main.js": 'require("../dep.cjs");\n',
+      "untyped/package.json": "{}\n",
+      "untyped/main.js": 'require("../dep.cjs");\n',
       "unknown/package.json": "{invalid",
       "unknown/main.js": 'require("../dep.cjs");\n',
       "url.mjs":
@@ -45,7 +47,7 @@ cliTest(
       "oracle.mjs":
         'import { fileURLToPath } from "node:url"; import { createRequire } from "node:module"; const require = createRequire(import.meta.url); console.log(JSON.stringify([fileURLToPath(import.meta.resolve("./dep%20name.mjs?v=1#first")), fileURLToPath(import.meta.resolve("./dep%2520name.mjs")), require.resolve("./dep%20name.mjs"), require.resolve("./dep?literal.cjs")]));\n',
     };
-    for (const directory of ["nested", "unknown"])
+    for (const directory of ["nested", "unknown", "untyped"])
       await mkdir(join(root, directory));
     await Promise.all(
       Object.entries(files).map(([path, source]) =>
@@ -85,7 +87,7 @@ cliTest(
       },
     ]);
     expect(edges("shadowed.cjs")).toEqual([]);
-    for (const from of ["optional.cjs", "nested/main.js"])
+    for (const from of ["optional.cjs", "nested/main.js", "untyped/main.js"])
       expect(edges(from)).toEqual([
         {
           from_path: from,

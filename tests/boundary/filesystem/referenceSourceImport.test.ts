@@ -798,8 +798,9 @@ describe("reference source rooted module specifiers", () => {
     await Promise.all([
       writeFile(
         join(root, "main.js"),
-        'import ".hidden.js"; import "..pkg.js"; import "./.hidden.js"; require(".hidden.js");\n',
+        'import ".hidden.js"; import "..pkg.js"; import "./.hidden.js";\n',
       ),
+      writeFile(join(root, "common.cjs"), 'require(".hidden.js");\n'),
       writeFile(join(root, ".hidden.js"), "export {};\n"),
       writeFile(join(root, "..pkg.js"), "export {};\n"),
     ]);

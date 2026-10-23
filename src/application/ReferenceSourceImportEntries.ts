@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../domain/result.js";
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
+import type { ReferenceSourcePackageType } from "../domain/referenceSourceRequireBindings.js";
 import { decodeJavaScriptModuleUrlPath } from "../domain/javascript/javascriptModuleSpecifier.js";
 import { logicalPathEscapesRoot } from "../domain/artifactIdentity.js";
 import {
@@ -102,10 +103,9 @@ type PackageMain =
   | { readonly state: "none" }
   | { readonly state: "unknown" };
 
-type PackageType = "module" | "commonjs" | "unknown" | undefined;
 interface PackageMetadata {
   readonly main: PackageMain;
-  readonly type: PackageType;
+  readonly type: ReferenceSourcePackageType;
 }
 const UNKNOWN_PACKAGE: PackageMetadata = {
   main: { state: "unknown" },
@@ -158,7 +158,7 @@ const readPackageMetadata = (
         ? Reflect.get(manifest, "main")
         : undefined;
       packages.set(directory, {
-        type: type === "module" || type === "commonjs" ? type : undefined,
+        type: type === "module" || type === "commonjs" ? type : "unspecified",
         main:
           typeof main === "string" && main !== ""
             ? { state: "declared", main }
@@ -401,21 +401,18 @@ type ReadFile = Extract<ReferenceSourceEntry, { status: "read"; kind: "file" }>;
 const packageTypeForFile = (
   path: string,
   context: SpecifierContext,
-): "module" | "commonjs" | "unknown" | undefined => {
+): ReferenceSourcePackageType => {
   let directory = posix.dirname(path);
   while (true) {
     const manifest = packageMainForDirectory(directory, context);
     if (manifest !== undefined)
-      return (
-        context.packages.get(manifest.directory)?.type ??
-        (manifest.main.state === "unknown" ? "unknown" : undefined)
-      );
+      return context.packages.get(manifest.directory)?.type ?? "unknown";
     if (
       directory === "." ||
       directory === "/" ||
       posix.basename(directory) === "node_modules"
     )
-      return undefined;
+      return "unknown";
     directory = posix.dirname(directory);
   }
 };

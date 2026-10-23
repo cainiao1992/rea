@@ -128,6 +128,9 @@ bounds simultaneous input buffering and private snapshot/worker counts.
 
 The database and WAL together are limited to 256 MiB. SQLite values/records,
 SQL statements and the complete worker JSON reply each have a 16 MiB limit.
+Schema identity lookup keys remain internal: the reply allowance counts emitted
+names and escaping, independently of whether SQLite stores them in UTF-8,
+UTF-16le, or UTF-16be. Actual row byte/hex expansion still counts toward the reply.
 The owned worker has a 256 MiB JavaScript heap limit and defaults to a 30,000 ms
 deadline. Select optional MCP `worker_timeout_ms`, or CLI
 `--worker-timeout-ms <milliseconds>`, to change the budget for that call. Values

@@ -217,26 +217,30 @@ it.each(["UTF-8", "UTF-16le", "UTF-16be"])(
   },
 );
 
-it("counts schema names once when enforcing the complete reply budget", async () => {
-  const names = Array.from(
-    { length: 48 },
-    (_, index) => `${index}_${"x".repeat(128 * 1024)}`,
-  );
-  const path = await createDatabase(
-    names.map((name) => `CREATE TABLE "${name}" (value TEXT);`).join("\n"),
-  );
-  const result = inspectSqliteDatabaseSnapshot(path, {
-    path,
-    schema_scope: "database",
-  });
-  expect(result.schema.tables).toHaveLength(names.length);
-  expect(result.schema.tables.map((table) => table.name)).toEqual(
-    expect.arrayContaining(names),
-  );
-  expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(
-    16 * 1024 * 1024,
-  );
-});
+it.each(["UTF-8", "UTF-16le", "UTF-16be"])(
+  "counts emitted %s schema names rather than internal hex keys against the reply budget",
+  async (encoding) => {
+    const names = Array.from(
+      { length: 34 },
+      (_, index) => `${index}_${"x".repeat(128 * 1024)}`,
+    );
+    const path = await createDatabase(
+      `PRAGMA encoding='${encoding}';` +
+        names.map((name) => `CREATE TABLE "${name}" (value TEXT);`).join("\n"),
+    );
+    const result = inspectSqliteDatabaseSnapshot(path, {
+      path,
+      schema_scope: "database",
+    });
+    expect(result.schema.tables).toHaveLength(names.length);
+    expect(result.schema.tables.map((table) => table.name)).toEqual(
+      expect.arrayContaining(names),
+    );
+    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(
+      16 * 1024 * 1024,
+    );
+  },
+);
 
 it("keeps unrelated catalog names outside the selected-table reply budget", async () => {
   const path = await createDatabase(

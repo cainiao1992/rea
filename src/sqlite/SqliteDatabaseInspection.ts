@@ -333,7 +333,9 @@ const readSchema = (
     const value = tableRow.parse(raw);
     const nameKey = sqliteNameBytesKey(value.name);
     if (selectedName === undefined) {
-      metadataBudget.retain(nameKey);
+      // Bound retained catalog identities by their emitted spelling. The hex
+      // lookup key is internal storage, not part of the JSON reply.
+      metadataBudget.retain(value.display_name);
       metadata.set(nameKey, value);
     } else if (nameKey === selectedKey) {
       metadata.set(nameKey, value);

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import { elf } from "../../../src/domain/binaryTarget.fixture.js";
+import { expectBinaryTargetError } from "../../fixtures/binaryTargetAdmission.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const image = (bits: 32 | 64, little: boolean) => {
@@ -85,8 +86,9 @@ for (const bits of [32, 64] as const) {
             reason: expect.stringContaining(`truncated ELF ${declaration}`),
           },
         });
-        if (result.ok) throw new Error("Expected a declared range refusal");
-        expect(result.error.reason).toContain(`${length}-byte file`);
+        expect(expectBinaryTargetError(result).reason).toContain(
+          `${length}-byte file`,
+        );
       }
     });
 
@@ -117,8 +119,9 @@ for (const bits of [32, 64] as const) {
       fixture.word(fixture.program + (bits === 64 ? 8 : 4), maximum);
       const result = await admit(fixture.bytes);
       expect(result).toMatchObject({ ok: false });
-      if (result.ok) throw new Error("Expected an out-of-file range");
-      expect(result.error.reason).toContain(`${maximum}..${maximum + 16n}`);
+      expect(expectBinaryTargetError(result).reason).toContain(
+        `${maximum}..${maximum + 16n}`,
+      );
     });
   }
 }
@@ -153,7 +156,8 @@ it.each(["sections", "programs", "section names"] as const)(
     expect((await admit(bytes)).ok).toBe(true);
     const truncated = await admit(bytes.subarray(0, bytes.length - 1));
     expect(truncated).toMatchObject({ ok: false });
-    if (truncated.ok) throw new Error("Expected an extended table refusal");
-    expect(truncated.error.reason).toContain("truncated ELF");
+    expect(expectBinaryTargetError(truncated).reason).toContain(
+      "truncated ELF",
+    );
   },
 );

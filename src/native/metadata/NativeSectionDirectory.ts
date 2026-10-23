@@ -220,7 +220,7 @@ export function* readElfSectionDirectory(
   }
   return {
     format: "elf",
-    elf_os_abi: parsed.value.osAbi,
+    elf_os_abi: header.osAbi,
     bits,
     little,
     machine,

@@ -6,6 +6,7 @@ import { it } from "vitest";
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import { readMipsElfMetadata } from "../../../src/application/MipsElfMetadata.js";
 import { AnalysisCancelledError } from "../../../src/domain/analysisErrorCore.js";
+import { expectBinaryTargetError } from "../../fixtures/binaryTargetAdmission.js";
 import {
   ghidraMipsProfileParameters,
   ghidraMipsUnsupportedReason,
@@ -224,8 +225,10 @@ it("does not treat uncaptured ABI declaration headers as an inspected absence", 
   bytes.writeUInt16LE(1, 48);
   const path = await writeFixture(bytes);
   const admitted = await parseBinaryTarget(path);
-  assert.ok(!admitted.ok);
-  assert.match(admitted.error.reason, /truncated ELF section header table/u);
+  assert.match(
+    expectBinaryTargetError(admitted).reason,
+    /truncated ELF section header table/u,
+  );
   // The specialized inspector still retains unknown source facts if used on
   // damaged evidence; normal target admission refuses its impossible extent.
   const declarations = await inspectSource(path);
@@ -304,8 +307,10 @@ it.each(malformed)(
     if (rejectsExtent) {
       const path = await writeFixture(bytes);
       const admitted = await parseBinaryTarget(path);
-      assert.ok(!admitted.ok);
-      assert.match(admitted.error.reason, /truncated ELF program \d/u);
+      assert.match(
+        expectBinaryTargetError(admitted).reason,
+        /truncated ELF program \d/u,
+      );
       const declarations = await inspectSource(path);
       assert.ok(declarations.ok);
       assert.equal(declarations.value.sharedLoad?.status, "unavailable");

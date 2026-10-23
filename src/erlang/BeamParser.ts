@@ -223,11 +223,6 @@ export const parseErlangBeam = (
   if (bytes.subarray(8, 12).toString("latin1") !== "BEAM")
     fail("Expected a BEAM form type.");
   const formEnd = 8 + formSize;
-  if (
-    formEnd < bytes.length &&
-    bytes.subarray(formEnd).some((byte) => byte !== 0)
-  )
-    fail("BEAM form does not consume the selected file.");
   const chunks: ErlangBeam["chunks"] = [];
   const payloads = new Map<string, { payload: Buffer; offset: number }>();
   let at = 12;

@@ -189,6 +189,49 @@ cliTest(
 );
 
 cliTest(
+  "inspects the declared BEAM form while retaining trailing bytes in artifact identity",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-beam-trailer-");
+    const controlPath = join(root, "control.beam");
+    const trailingPath = join(root, "trailing.beam");
+    const formBytes = erlangBeamOtp29Fixture();
+    const trailer = Buffer.from("note");
+    await writeFile(controlPath, formBytes);
+    await writeFile(trailingPath, Buffer.concat([formBytes, trailer]));
+
+    const inspect = async (path: string) => {
+      const result = await cli.run({
+        arguments: ["inspect-erlang-beam", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      return toolContract("inspect_erlang_beam").outputSchema.parse(
+        result.json,
+      );
+    };
+    const control = await inspect(controlPath);
+    const trailing = await inspect(trailingPath);
+    expect(trailing.normalized_result.form).toEqual(
+      control.normalized_result.form,
+    );
+    expect(trailing.normalized_result.chunks).toEqual(
+      control.normalized_result.chunks,
+    );
+    expect(trailing.normalized_result.exports).toEqual(
+      control.normalized_result.exports,
+    );
+    expect(trailing.normalized_result.artifact.bytes).toBe(
+      formBytes.length + trailer.length,
+    );
+    expect(trailing.normalized_result.artifact.sha256).not.toBe(
+      control.normalized_result.artifact.sha256,
+    );
+    expect(trailing.normalized_result.form.location.bytes).toBe(
+      formBytes.length,
+    );
+  },
+);
+
+cliTest(
   "rejects a BEAM chunk whose required alignment bytes are truncated",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-beam-padding-short-");

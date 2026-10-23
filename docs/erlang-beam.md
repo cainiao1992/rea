@@ -27,6 +27,9 @@ The inline Evidence result contains the artifact path, SHA-256, and byte length.
 Repeated names retain separate chunk occurrences. Decoded tables and the Code
 header use the last occurrence of each name, matching OTP's loader; the chunk
 inventory still exposes earlier payloads and their source ranges.
+The BEAM form size bounds the parsed chunks. Bytes after the declared form are
+ignored by the parser but remain part of the selected artifact's byte length
+and SHA-256.
 
 When `AtU8` or `Atom` is present, `atoms` is the 1-based name table and
 `module` is atom 1. Both the pre-OTP 28 table and the OTP 28+ compact table

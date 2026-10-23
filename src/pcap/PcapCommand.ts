@@ -181,14 +181,16 @@ export const runPcapCommand = async (options: {
             },
           }
         : {}),
-      ...(cause instanceof OwnedCommandFailure && cause.cleanupFailure !== null
-        ? {
-            cleanup: {
-              reason: cause.cleanupFailure,
-              resources: cause.resources,
-            },
-          }
-        : {}),
+      ...(cleanup !== undefined
+        ? { cleanup }
+        : cause instanceof OwnedCommandFailure && cause.cleanupFailure !== null
+          ? {
+              cleanup: {
+                reason: cause.cleanupFailure,
+                resources: cause.resources,
+              },
+            }
+          : {}),
     };
     if (cause instanceof OwnedCommandFailure && cause.reason === "cancelled")
       throw new AnalysisCancelledError(operation, {

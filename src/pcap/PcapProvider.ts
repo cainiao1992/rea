@@ -347,6 +347,7 @@ export class PcapProvider {
       assertValidPcapCommandText(operation, stage, output);
     } catch (cause) {
       if (
+        !commandReturned &&
         retainedCommand !== undefined &&
         cause instanceof AnalysisError &&
         cause.cleanupIncomplete

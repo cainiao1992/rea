@@ -230,6 +230,12 @@ it.each([0, 7])(
       expect(result.error.diagnostics).toMatchObject({
         reason: "injected tool-probe cleanup failure",
       });
+    else {
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCapabilityUnavailableError",
+        capturedOutput: { exit_code: 7 },
+      });
+    }
     expect(projectAnalysisError(result.error).code).toBe("cleanup_incomplete");
     const retry = await provider.execute({
       operation: "inspect_pcap_client",

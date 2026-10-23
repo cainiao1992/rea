@@ -420,7 +420,9 @@ it("retains exact caller cancellation after a real ZIP member opens and leaves a
     expect(translateArtifactFailure("extract_artifact", failure).cause).toBe(
       reason,
     );
-    await expect(reader.open(entry, controller.signal)).rejects.toMatchObject({
+    await expect(
+      Promise.resolve().then(() => reader.open(entry, controller.signal)),
+    ).rejects.toMatchObject({
       reason: "cancelled",
       cancellation: { reason },
     });

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     | {
         initialize: ReturnType<typeof vi.fn>;
         settle: ReturnType<typeof vi.fn>;
+        limitations: ReturnType<typeof vi.fn>;
         close: ReturnType<typeof vi.fn>;
         limitations: ReturnType<typeof vi.fn>;
       }
@@ -27,9 +28,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./CdpTargetSession.js", () => ({
-  openCdpEndpoint: async () => ({
-    discovery: { targets: [{ id: "target" }] },
-    connection: {
+  openCdpEndpoint: async (
+    _endpoint: unknown,
+    operation: Parameters<
+      import("./CdpTargetSessionOwner.js").CdpTargetSessionOwner["register"]
+    >[1],
+    _signal: unknown,
+    _limits: unknown,
+    owner: import("./CdpTargetSessionOwner.js").CdpTargetSessionOwner,
+  ) => {
+    const connection = {
       send: mocks.policySend,
       onEvent: (listener: typeof mocks.policyEvent) => {
         mocks.policyEvent = listener;
@@ -37,8 +45,13 @@ vi.mock("./CdpTargetSession.js", () => ({
       },
       close: mocks.policyTransportClose,
       beginCleanupGrace: mocks.policyBeginCleanupGrace,
-    },
-  }),
+    } as unknown as import("./CdpConnection.js").CdpConnection;
+    owner.register(connection, operation, "target");
+    return {
+      discovery: { targets: [{ id: "target" }] },
+      connection,
+    };
+  },
   attachCdpTargetSession: async (connection: unknown) => ({
     connection,
     sessionId: "policy-session",
@@ -206,6 +219,7 @@ const fixture = () => {
   mocks.storage = {
     initialize: vi.fn(async () => undefined),
     settle: vi.fn(async () => undefined),
+    limitations: vi.fn(() => []),
     close: vi.fn(async (stopLoading = false) => ({
       loadingStopped: stopLoading,
     })),
@@ -1040,7 +1054,7 @@ it("retries transport close without detaching an already released policy session
   const failure = new Error("transport close rejected");
   mocks.policyTransportClose.mockRejectedValueOnce(failure);
   await expect(session.close()).rejects.toMatchObject({
-    cause: failure,
+    cause: { cause: failure },
     cleanupIncomplete: true,
   });
   await expect(session.close()).resolves.toBe("disconnected-external");

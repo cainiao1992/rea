@@ -22,6 +22,7 @@ const emptyManagedMembers = (
   mvid: string,
 ): ManagedMemberInspection => ({
   signature_resolution: null,
+  assembly: null,
   artifact: {
     path: `/examples/${sha256.slice(0, 8)}.dll`,
     sha256,

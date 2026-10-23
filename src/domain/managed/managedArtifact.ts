@@ -184,6 +184,12 @@ const managedExceptionRegionSchema = z.object({
     ),
   /** Resolved from this artifact's own metadata; raw token remains build-local. */
   class_type: z.string().nullable().default(null),
+  class_type_name_sha256: digestSchema
+    .nullable()
+    .default(null)
+    .describe(
+      "Nested nominal TypeDef/TypeRef name digest; assembly scope is compared separately and local tokens are not cross-artifact identities",
+    ),
   class_type_identity_resolved: z
     .boolean()
     .nullable()
@@ -491,6 +497,7 @@ export const managedMemberInspectionSchema = z.object({
     ),
   artifact: managedArtifactReferenceSchema,
   module: moduleIdentitySchema.nullable(),
+  assembly: assemblyIdentitySchema.nullable().default(null),
   metadata: managedMetadataSummarySchema,
   identity_scope: managedTokenIdentityScopeSchema,
   types: z.array(managedTypeSchema),

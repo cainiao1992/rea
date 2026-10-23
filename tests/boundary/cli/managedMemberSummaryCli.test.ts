@@ -193,6 +193,7 @@ cliTest(
     });
     expect(summary.summary.coverage).toEqual(report.coverage);
     expect(summary.summary.identity_scope).toEqual(report.identity_scope);
+    expect(summary.summary.assembly).toEqual(report.assembly);
     expect(summary.summary).not.toHaveProperty("member_refs");
     expect(summary.summary).not.toHaveProperty("methods");
 

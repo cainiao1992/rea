@@ -273,6 +273,8 @@ export const compareManagedMembers = (
     signatureResolutionExamined:
       hasSignatureResolution(left.result) &&
       hasSignatureResolution(right.result),
+    leftAssembly: left.result.assembly,
+    rightAssembly: right.result.assembly,
     leftCallEdgesByCaller: callEdgesByCaller(left.result),
     rightCallEdgesByCaller: callEdgesByCaller(right.result),
     leftFieldAccessesByCaller: fieldAccessesByCaller(left.result),

@@ -327,6 +327,13 @@ export const inspectManagedMembersBytes = (
           return {
             ...region,
             class_type: classType,
+            class_type_name_sha256:
+              region.class_token !== null &&
+              (tokenTable === 1 || tokenTable === 2)
+                ? (signatureTypeName(
+                    tokenRow * 4 + Number(tokenTable === 1),
+                  )?.toString("hex") ?? null)
+                : null,
             class_type_identity_resolved: identityResolved,
           };
         }),
@@ -369,6 +376,7 @@ export const inspectManagedMembersBytes = (
             ...envelope.metadata,
             status: issues.length === 0 ? "complete" : "partial",
           },
+          assembly: inventory.assembly,
           types,
           signature_resolution: "type-names-v1",
           nesting_read: parsedTypes.nesting.complete,

@@ -41,6 +41,8 @@ interface ComparisonItemContext {
   readonly rightSelection: ReadonlySet<string> | null;
   /** Whether matching keyed signatures by resolved digests, not raw bytes. */
   readonly signatureResolutionExamined: boolean;
+  readonly leftAssembly: ManagedMemberInspection["assembly"];
+  readonly rightAssembly: ManagedMemberInspection["assembly"];
   readonly leftCallEdgesByCaller: CallEdgesByCaller;
   readonly rightCallEdgesByCaller: CallEdgesByCaller;
   readonly leftFieldAccessesByCaller: FieldAccessesByCaller;
@@ -78,6 +80,8 @@ const methodDimensions = (
   rightCallEdgesByCaller: CallEdgesByCaller,
   leftFieldAccessesByCaller: FieldAccessesByCaller,
   rightFieldAccessesByCaller: FieldAccessesByCaller,
+  leftAssembly: ManagedMemberInspection["assembly"],
+  rightAssembly: ManagedMemberInspection["assembly"],
 ): {
   readonly dimensions: MethodItem["dimensions"];
   readonly bodyUnknown: boolean;
@@ -153,6 +157,8 @@ const methodDimensions = (
     ? compareExceptionTargets(
         left.body.exception_regions,
         right.body.exception_regions,
+        leftAssembly,
+        rightAssembly,
       )
     : { changed: false, unknown: false };
   if (callTargets.changed) dimensions.push("call-target");
@@ -215,6 +221,8 @@ const exceptionShape = (regions: Method["body"]["exception_regions"]): string =>
 const compareExceptionTargets = (
   left: Method["body"]["exception_regions"],
   right: Method["body"]["exception_regions"],
+  leftAssembly: ManagedMemberInspection["assembly"],
+  rightAssembly: ManagedMemberInspection["assembly"],
 ): { readonly changed: boolean; readonly unknown: boolean } => {
   let changed = false;
   let unknown = false;
@@ -226,17 +234,52 @@ const compareExceptionTargets = (
       continue;
     }
     if (leftRegion.flags !== 0) continue;
-    if (leftRegion.class_type === null || rightRegion.class_type === null)
+    const leftName = leftRegion.class_type_name_sha256;
+    const rightName = rightRegion.class_type_name_sha256;
+    if (leftName !== null && rightName !== null && leftName !== rightName) {
+      changed = true;
+      if (
+        leftRegion.class_type_identity_resolved !== true ||
+        rightRegion.class_type_identity_resolved !== true
+      )
+        unknown = true;
+      continue;
+    }
+    if (leftName === null || rightName === null) {
+      if (
+        leftRegion.class_type !== null &&
+        rightRegion.class_type !== null &&
+        leftRegion.class_type !== rightRegion.class_type
+      )
+        changed = true;
       unknown = true;
-    else if (leftRegion.class_type !== rightRegion.class_type) changed = true;
+      continue;
+    }
     if (
       leftRegion.class_type_identity_resolved !== true ||
-      rightRegion.class_type_identity_resolved !== true
-    )
+      rightRegion.class_type_identity_resolved !== true ||
+      leftAssembly === null ||
+      rightAssembly === null
+    ) {
       unknown = true;
+      continue;
+    }
+    if (!sameAssemblyIdentity(leftAssembly, rightAssembly)) changed = true;
   }
   return { changed, unknown };
 };
+
+const sameAssemblyIdentity = (
+  left: NonNullable<ManagedMemberInspection["assembly"]>,
+  right: NonNullable<ManagedMemberInspection["assembly"]>,
+): boolean =>
+  left.name.toLowerCase() === right.name.toLowerCase() &&
+  left.version === right.version &&
+  left.culture?.toLowerCase() === right.culture?.toLowerCase() &&
+  (left.flags & 0x0f00) === (right.flags & 0x0f00) &&
+  left.public_key.kind === right.public_key.kind &&
+  left.public_key.sha256 === right.public_key.sha256 &&
+  left.public_key.token === right.public_key.token;
 
 const compareFieldTargets = (
   left: Method,
@@ -669,6 +712,8 @@ export const buildMethodItems = (
       context.rightCallEdgesByCaller,
       context.leftFieldAccessesByCaller,
       context.rightFieldAccessesByCaller,
+      context.leftAssembly,
+      context.rightAssembly,
     );
     const dimensions = [
       ...observedDimensions,

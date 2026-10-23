@@ -398,14 +398,16 @@ name from `call_edges` and `field_accesses`. Target tokens remain build-local
 and are not compared across artifacts. Missing or unaligned edges and missing
 target names leave that facet unknown; equal names do not establish overload
 identity or runtime dispatch. `exception-shape` compares clause flags and
-ranges, while `exception-target` records changes to observed catch type names.
-When those names differ but scoped identity is unavailable, the change remains
-visible alongside `availability` and an identity limitation.
+ranges. `exception-target` compares the nested nominal catch-type name digest;
+for resolved TypeDefs it also compares the enclosing assembly identity. A
+different known name or assembly scope establishes a change. Equal TypeRef
+names remain unknown because their resolution scope is not resolved here.
 Exception tokens remain in the source facts but are not cross-build identity;
 an unresolved catch type leaves that facet unknown. The method body retains the
-resolved `class_type` name and whether its local token identity could be
-resolved. TypeRef names omit resolution-scope identity, so equal TypeRef names
-leave the comparison unknown even when each local scope is valid.
+display `class_type`, nested `class_type_name_sha256`, and whether its local
+token identifies a TypeDef. A TypeDef digest alone does not prove identity
+without matching assembly identity. Missing assembly identity and equal TypeRef
+names leave the comparison unknown.
 
 Tokens are always remapped through observed structure. A caller cannot carry
 `0x06001234` into a new MVID and assume it names the same method.
@@ -461,6 +463,16 @@ only when both identities are available and their format-specific comparison
 establishes a difference. ELF module names retain case, PE module names compare
 case-insensitively, and a case-only match for Mach-O or an unknown format stays
 unresolved because the available Evidence does not establish case behavior.
+For PE imports, `.dll`, `.exe`, a trailing period, and absolute paths suppress
+appending `.dll`; other names may also be tried with `.dll`. Unix loaders use
+the platform suffix (`.so` or `.dylib`) and `lib` prefix variations. A suffix
+already present at the end of the name or before a period still gets an
+appended-suffix variation, so Linux can match `nativedep.so.6` with
+`libnativedep.so.6`. The `lib` prefix is omitted when the name contains `/`, and
+absolute paths are used as supplied. POSIX paths keep backslashes as literal
+characters. These candidates follow [Microsoft's native library loading rules](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/native-library-loading).
+These filename rules compare declared and observed identities; they do not
+establish which library the runtime loaded.
 
 Metadata tokens are not native addresses. Native body mapping for C++/CLI,
 ReadyToRun, NativeAOT, and IL2CPP requires separately verified format and provider

@@ -68,6 +68,7 @@ export const managedMemberSummarySchema = z.strictObject({
   nesting_read: member.nesting_read,
   artifact: member.artifact,
   module: member.module,
+  assembly: member.assembly,
   metadata: member.metadata,
   identity_scope: member.identity_scope,
   selection: member.selection.unwrap(),

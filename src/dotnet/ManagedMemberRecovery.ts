@@ -38,6 +38,7 @@ export const prepareManagedMemberRecovery = (
     ...inventory,
     metadata: { ...inventory.metadata, status: "partial" },
     signature_resolution: null,
+    assembly: null,
     exported_types: null,
     fields: [],
     methods: [],

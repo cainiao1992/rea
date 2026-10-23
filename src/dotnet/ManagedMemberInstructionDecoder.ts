@@ -653,6 +653,7 @@ const readExceptionClauses = (
       class_token:
         flags === 0 ? `0x${extra.toString(16).padStart(8, "0")}` : null,
       class_type: null,
+      class_type_name_sha256: null,
       class_type_identity_resolved: null,
       filter_offset: flags === 1 ? extra : null,
     });

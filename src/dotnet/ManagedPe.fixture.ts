@@ -28,6 +28,8 @@ interface ManagedPeFixtureOptions {
   readonly methodSignature?: Buffer;
   readonly moduleRowCount?: number;
   readonly assemblyRowCount?: number;
+  readonly assemblyName?: string;
+  readonly assemblyFlags?: number;
   readonly memberRefParentRaw?: number;
   readonly memberRefRowCount?: number;
   readonly memberRefName?: string;
@@ -326,6 +328,7 @@ const assemblyRow = (
   name: number,
   stringSize: MetadataIndexSize,
   blobSize: MetadataIndexSize,
+  flags = 0,
 ): Buffer =>
   Buffer.concat([
     u32(0x0000_8004),
@@ -333,7 +336,7 @@ const assemblyRow = (
     u16(2),
     u16(3),
     u16(4),
-    u32(0),
+    u32(flags),
     metadataIndex(0, blobSize),
     metadataIndex(name, stringSize),
     metadataIndex(0, stringSize),
@@ -940,7 +943,12 @@ const fixtureMetadataRows = ({
     [
       32,
       repeatedRows(options.assemblyRowCount ?? 1, () =>
-        assemblyRow(indexes.assemblyName, heapSizes.strings, heapSizes.blobs),
+        assemblyRow(
+          indexes.assemblyName,
+          heapSizes.strings,
+          heapSizes.blobs,
+          options.assemblyFlags,
+        ),
       ),
     ],
     [
@@ -1003,7 +1011,7 @@ const buildManagedFixtureMetadata = (
   const strings = new StringHeap();
   const blobs = new BlobHeap();
   const moduleName = strings.add("Fixture.dll");
-  const assemblyName = strings.add("Fixture.Managed");
+  const assemblyName = strings.add(options.assemblyName ?? "Fixture.Managed");
   const attributeName = strings.add("TargetFrameworkAttribute");
   const attributeNamespace = strings.add("System.Runtime.Versioning");
   const constructorName = strings.add(options.memberRefName ?? ".ctor");

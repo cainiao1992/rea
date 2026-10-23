@@ -130,6 +130,73 @@ export const scanCanonicalArtifactInventoryInScope = async (
     };
   } catch (cause: unknown) {
     outcome = { kind: "failed", cause };
+    // A mount refusal does not erase the independently classified, hashed
+    // carrier. Retain only that root, with explicitly unexamined children.
+    if (
+      rootFormat === "dmg" &&
+      cause instanceof ArtifactReaderFailure &&
+      cause.reason === "unavailable" &&
+      cause.partialObservation === undefined &&
+      options.signal?.aborted !== true
+    ) {
+      let retained: ArtifactInventorySnapshot | undefined;
+      let rootFailure: unknown;
+      try {
+        retained = await buildInventorySnapshot({
+          path,
+          metadata,
+          rootFormat,
+          rootDigest,
+          rootSource,
+          resourceScope: options.resourceScope,
+          reader,
+          signal: options.signal,
+          nodes: new Map(),
+          occurrences: [],
+          pendingContradictions: [],
+          caseCollisionLimitation: undefined,
+          unknownParentOccurrences: new Set(),
+          traversal: {
+            status: "unknown",
+            limitations: [
+              `DMG child traversal was unavailable: ${cause.message}`,
+            ],
+          },
+        });
+      } catch (failure: unknown) {
+        rootFailure = failure;
+      }
+      outcome = {
+        kind: "failed",
+        cause: new ArtifactReaderFailure(
+          cause.reason,
+          rootFailure === undefined
+            ? cause.message
+            : `${cause.message}; root observations could not be revalidated: ${rootFailure instanceof Error ? rootFailure.message : String(rootFailure)}`,
+          {
+            cause:
+              rootFailure === undefined
+                ? cause
+                : new AggregateError(
+                    [cause, rootFailure],
+                    "DMG traversal and root revalidation failed",
+                    { cause },
+                  ),
+            cleanup: cause.cleanup,
+            cleanupLeases: cause.cleanupLeases,
+            ...(retained === undefined
+              ? {}
+              : {
+                  partialObservation: {
+                    kind: "artifact-inventory",
+                    inventory: retained,
+                  },
+                }),
+          },
+          cause.details,
+        ),
+      };
+    }
   }
   const cleanupFailure = await cleanupInventoryOwners({
     path,

@@ -413,27 +413,30 @@ export class NativeDmgArtifactReader implements ArtifactReader {
     );
     const mountRoot = await realpath(await mkdtemp(join(tmpdir(), "rea-dmg-")));
     this.#mountRoot = mountRoot;
+    const arguments_ = [
+      "attach",
+      "-readonly",
+      "-nobrowse",
+      "-plist",
+      "-mountroot",
+      mountRoot,
+      this.path,
+    ];
     try {
       this.#attachMayHaveMounted = true;
-      const attached = await runChecked(
-        this.host,
-        [
-          "attach",
-          "-readonly",
-          "-nobrowse",
-          "-plist",
-          "-mountroot",
-          mountRoot,
-          this.path,
-        ],
-        signal,
-        { timeoutMs: HDIUTIL_COMMAND_TIMEOUT_MS },
-      );
+      const attached = await runChecked(this.host, arguments_, signal, {
+        timeoutMs: HDIUTIL_COMMAND_TIMEOUT_MS,
+      });
+      this.#provenance.push(command(arguments_, ["read", "mount"]));
       this.#attachOutputReturned = true;
       let parsed: NativeDmgAttachOutput;
       try {
         parsed = parseNativeDmgAttachOutput(attached.stdout);
       } catch (cause: unknown) {
+        if (cause instanceof NativeDmgCommandFailure)
+          this.#provenance.push(
+            command(arguments_, ["read", "mount"], cause.exitCode),
+          );
         throw new ArtifactReaderFailure(
           "format",
           "hdiutil returned a malformed attachment plist",
@@ -454,20 +457,6 @@ export class NativeDmgArtifactReader implements ArtifactReader {
             ? `DMG attachment ownership is uncertain: ${this.#ownershipUncertainty ?? "no unique mount under the owned root"}`
             : "hdiutil did not mount a new image beneath the owned root",
         );
-      this.#provenance.push(
-        command(
-          [
-            "attach",
-            "-readonly",
-            "-nobrowse",
-            "-plist",
-            "-mountroot",
-            mountRoot,
-            this.path,
-          ],
-          ["read", "mount"],
-        ),
-      );
       this.#directory = new DirectoryArtifactReader(mountRoot);
     } catch (cause: unknown) {
       if (cause instanceof NativeDmgCommandFailure && cause.stdout !== "") {

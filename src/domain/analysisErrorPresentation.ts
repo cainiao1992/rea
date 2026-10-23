@@ -491,7 +491,7 @@ const artifactMessage = ({
   if (reason === "unavailable" && details?.unpacked === true)
     return `ASAR unpacked companion bytes are unavailable for ${details.logicalPath}. Select the archive in place with its .unpacked directory beside it, then retry.`;
   if (reason === "unavailable")
-    return "Artifact processing is unavailable for the current target or host. Check artifact support and required tools.";
+    return "Artifact processing is unavailable. Review the reported availability reason and resolve that condition before retrying.";
   if (
     reason === "integrity" &&
     details !== undefined &&

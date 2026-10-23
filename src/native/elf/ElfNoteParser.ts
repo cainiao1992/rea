@@ -19,6 +19,7 @@ import { decodeElfSectionNameTable } from "../metadata/ElfSectionNameTable.js";
 const PT_NOTE = 4;
 const SHT_NOTE = 7;
 const SHT_STRTAB = 3;
+const SHF_COMPRESSED = 0x800n;
 const HEX_DESCRIPTOR_LIMIT = 64;
 
 interface TextBudget {
@@ -111,13 +112,17 @@ class ElfReader {
       : this.bytes.readUInt32BE(offset);
   }
 
-  word(offset: number): number {
+  wordBits(offset: number): bigint {
     const width = this.bits === 64 ? 8 : 4;
     this.require(offset, width);
-    if (this.bits === 32) return this.u32(offset);
-    const value = this.little
+    if (this.bits === 32) return BigInt(this.u32(offset));
+    return this.little
       ? this.bytes.readBigUInt64LE(offset)
       : this.bytes.readBigUInt64BE(offset);
+  }
+
+  word(offset: number): number {
+    const value = this.wordBits(offset);
     if (value > BigInt(Number.MAX_SAFE_INTEGER))
       fail("ELF offset or size exceeds a safe integer.");
     return Number(value);
@@ -353,10 +358,10 @@ export const parseElfNotes = (
     const strOff = reader.word(namesHeader + (wide ? 24 : 16));
     const strSize = reader.word(namesHeader + (wide ? 32 : 20));
     const rawNames = reader.slice(strOff, strSize);
-    const flags = reader.word(namesHeader + 8);
+    const flags = reader.wordBits(namesHeader + 8);
     const decoded = decodeElfSectionNameTable(
       rawNames,
-      BigInt(flags),
+      flags,
       header.elfClass,
       reader.little,
       input.max_file_bytes - bytes.length,
@@ -418,6 +423,12 @@ export const parseElfNotes = (
       const nameOffset = reader.u32(at);
       const fileOffset = reader.word(at + (wide ? 24 : 16));
       const fileSize = reader.word(at + (wide ? 32 : 20));
+      reader.require(fileOffset, fileSize);
+      if ((reader.wordBits(at + 8) & SHF_COMPRESSED) !== 0n)
+        throw new BinaryFormatFailure(
+          "unsupported",
+          "Compressed ELF note sections are unsupported; descriptor file offsets require uncompressed note storage.",
+        );
       const alignment = noteAlignment(reader.word(at + (wide ? 48 : 32)));
       tables.push({
         kind: "section",

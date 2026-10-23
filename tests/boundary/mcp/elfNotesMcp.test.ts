@@ -7,6 +7,7 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import {
   elfExtendedSectionCountFixture,
+  compressedElfNoteSectionFixture,
   elfNoteFixture,
 } from "../../../src/native/elf/ElfNotes.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -71,6 +72,33 @@ mcpTest("requires an absolute path for inspect_elf_notes", async ({ mcp }) => {
     await session.close();
   }
 });
+
+mcpTest(
+  "reports compressed note storage as unsupported without mutation",
+  async ({ mcp }) => {
+    const { client, session } = await connect(mcp);
+    try {
+      const root = await createTestTempDirectory("rea-elf-notes-storage-mcp-");
+      const path = join(root, "debug-notes.o");
+      const bytes = compressedElfNoteSectionFixture();
+      await writeFile(path, bytes);
+      const response = await client.callTool({
+        name: "inspect_elf_notes",
+        arguments: { path },
+      });
+      expect(response.isError).toBe(true);
+      expect(parseMcpToolError(response).error).toMatchObject({
+        code: "unsupported_target",
+        message: expect.stringContaining(
+          "Compressed ELF note sections are unsupported",
+        ),
+      });
+      expect(await readFile(path)).toEqual(bytes);
+    } finally {
+      await session.close();
+    }
+  },
+);
 
 mcpTest(
   "reports valid extended numbering as unsupported without mutation",

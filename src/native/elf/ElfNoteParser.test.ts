@@ -6,6 +6,7 @@ import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { BinaryFormatFailure } from "../metadata/BinaryContainer.js";
 import {
   compressedElfNoteFixture,
+  compressedElfNoteSectionFixture,
   elfNote,
   elfNoteFixture,
   elfNoteTablePastEnd,
@@ -101,6 +102,50 @@ it("reads the same notes from an SHT_NOTE section including its name", () => {
   expect(
     report.entries.some((entry) => entry.type_name === "gnu_build_id"),
   ).toBe(true);
+});
+
+it.each([
+  [32, true],
+  [32, false],
+  [64, true],
+  [64, false],
+] as const)(
+  "refuses compressed ELF%i %s-endian note storage without parsing its compression header",
+  (bits, little) => {
+    expect(() => parse(compressedElfNoteSectionFixture(bits, little))).toThrow(
+      expect.objectContaining({
+        kind: "unsupported",
+        message: expect.stringContaining(
+          "Compressed ELF note sections are unsupported",
+        ),
+      }),
+    );
+  },
+);
+
+it("does not allocate the declared decoded note size, but still validates stored ranges", () => {
+  const bytes = compressedElfNoteSectionFixture();
+  const noteSection = 64 + 64;
+  const storedOffset = Number(bytes.readBigUInt64LE(noteSection + 24));
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, storedOffset + 8);
+  expect(() => parse(bytes)).toThrow(
+    expect.objectContaining({ kind: "unsupported" }),
+  );
+  bytes.writeBigUInt64LE(0n, noteSection + 32);
+  expect(() => parse(bytes)).toThrow(
+    expect.objectContaining({ kind: "unsupported" }),
+  );
+  bytes.writeBigUInt64LE(BigInt(bytes.length), noteSection + 32);
+  expect(() => parse(bytes)).toThrow(ArtifactReaderFailure);
+});
+
+it("preserves unknown ELF64 section flag bits without treating them as file sizes", () => {
+  const bytes = elfNoteFixture({ ownership: "section" });
+  bytes.writeBigUInt64LE(0x8000000000000000n, 64 + 64 + 8);
+  bytes.writeBigUInt64LE(0x8000000000000000n, 64 + 2 * 64 + 8);
+  expect(parse(bytes).entries[0]?.gnu?.build_id_hex).toBe(
+    "0123456789abcdef0123456789abcdef01234567",
+  );
 });
 
 it.each([

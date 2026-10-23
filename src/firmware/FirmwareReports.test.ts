@@ -1133,3 +1133,81 @@ describe("firmware producer boundaries", () => {
       ).toThrow();
   });
 });
+
+describe("selected firmware byte coverage", () => {
+  const known = (id: string, start: number, end: number) => ({
+    __typename__: "ChunkReport",
+    id,
+    start_offset: start,
+    end_offset: end,
+    size: end - start,
+    handler_name: "gzip",
+    is_encrypted: false,
+    extraction_reports: [],
+  });
+  it.each([
+    { name: "empty chunk inventory", spans: [], gaps: [[0, 20]] },
+    {
+      name: "internal and trailing holes",
+      spans: [
+        [2, 5],
+        [7, 10],
+      ],
+      gaps: [
+        [0, 2],
+        [5, 2],
+        [10, 10],
+      ],
+    },
+    {
+      name: "overlapping unordered coverage",
+      spans: [
+        [8, 20],
+        [0, 10],
+        [2, 4],
+      ],
+      gaps: [],
+    },
+    {
+      name: "adjacent coverage",
+      spans: [
+        [10, 20],
+        [0, 10],
+      ],
+      gaps: [],
+    },
+  ] as const)(
+    "derives $name from byte intervals without invented chunk identities",
+    ({ spans, gaps }) => {
+      const record = root();
+      const reports = record.reports.filter(
+        (report) => report.__typename__ !== "UnknownChunkReport",
+      );
+      const normalized = normalizeUnblobReport(
+        [
+          {
+            ...record,
+            reports: [
+              ...reports,
+              ...spans.map(([start, end], index) =>
+                known(String(index), start, end),
+              ),
+            ],
+          },
+        ],
+        context,
+      );
+      expect(normalized.coverage).toBe(
+        gaps.length > 0 ? "partial" : "complete",
+      );
+      expect(normalized.unclassified_ranges).toEqual(
+        gaps.map(([offset, length]) => ({
+          input_path: "$input",
+          range: { offset, length },
+          root_file_range: { offset: 64 + offset, length },
+        })),
+      );
+      expect(normalized.chunks).toHaveLength(spans.length);
+    },
+  );
+});

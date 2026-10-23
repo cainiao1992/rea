@@ -546,10 +546,33 @@ export const normalizeUnblobReport = (
       "extract_firmware",
       "Report contains tasks disconnected from the selected input",
     );
+  // A producer can emit no UnknownChunkReport for an opaque file. Compute
+  // examined byte coverage from reported intervals rather than from empty errors.
+  const unclassifiedRanges: {
+    input_path: string;
+    range: { offset: number; length: number };
+    root_file_range: { offset: number; length: number };
+  }[] = [];
+  let coveredEnd = 0;
+  const gap = (offset: number, length: number) =>
+    unclassifiedRanges.push({
+      input_path: "$input",
+      range: { offset, length },
+      root_file_range: { offset: context.offset + offset, length },
+    });
+  for (const chunk of chunks
+    .filter((chunk) => chunk.input_path === "$input")
+    .sort((left, right) => left.range.offset - right.range.offset)) {
+    if (chunk.range.offset > coveredEnd)
+      gap(coveredEnd, chunk.range.offset - coveredEnd);
+    coveredEnd = Math.max(coveredEnd, chunk.range.offset + chunk.range.length);
+  }
+  if (coveredEnd < context.length) gap(coveredEnd, context.length - coveredEnd);
   return {
     files,
     sizes,
     chunks,
+    unclassified_ranges: unclassifiedRanges,
     derivations,
     depth_limited_paths: depths.sort(),
     failed_extraction_stages: failedExtractionStages.sort((left, right) =>
@@ -595,6 +618,7 @@ export const normalizeUnblobReport = (
             : 0,
       ),
     coverage:
+      unclassifiedRanges.length > 0 ||
       depths.length > 0 ||
       diagnostics.length > 0 ||
       chunks.some((c) => c.handler === null || c.encrypted === true)

@@ -134,7 +134,12 @@ export const resolveFirmwareCommand = async (
       `Resource limiter is not an executable regular file: ${limiter}: ${cause instanceof Error ? cause.message : String(cause)}; provide util-linux prlimit`,
     );
   }
-  return { command, limiter, sha256 };
+  return {
+    command,
+    limiter,
+    sha256,
+    fileSizeCeiling: await files.fileSizeCeiling(signal),
+  };
 };
 
 /** Execute one bounded provider command and verify its owned descendants have stopped. */
@@ -143,6 +148,8 @@ export const runFirmwareCommand = async (context: {
   operation: string;
   command: string;
   limiter: string;
+  /** Observed inherited soft/hard file policy; never raised by metadata headroom. */
+  fileSizeCeiling: number;
   args: readonly string[];
   cwd: string;
   environment: Readonly<Record<string, string | undefined>>;
@@ -154,6 +161,21 @@ export const runFirmwareCommand = async (context: {
   retainCleanup(supervisor: ProviderProcessSupervisor): void;
 }) => {
   const { engine, operation, signal } = context;
+  // RLIMIT_FSIZE covers every producer file, including mandatory reports/logs.
+  // Aggregate extracted payload remains governed by outputBudget inventory.
+  const fileSizeBytes = Math.min(
+    context.fileSizeCeiling,
+    Math.max(
+      context.outputBudget?.bytes ?? 0,
+      FIRMWARE_LIMITS.reportBytes,
+      FIRMWARE_LIMITS.diagnosticBytes,
+    ),
+  );
+  const fileSizeAdjustable =
+    context.outputBudget !== undefined &&
+    context.fileSizeCeiling > context.outputBudget.bytes &&
+    context.outputBudget.bytes >=
+      Math.max(FIRMWARE_LIMITS.reportBytes, FIRMWARE_LIMITS.diagnosticBytes);
   const checkInterruption = () => {
     const failure = firmwarePhaseInterruption(
       operation,
@@ -170,8 +192,7 @@ export const runFirmwareCommand = async (context: {
       ...prlimitArgumentVector(
         {
           address_space_bytes: FIRMWARE_LIMITS.addressSpaceBytes,
-          file_bytes:
-            context.outputBudget?.bytes ?? FIRMWARE_LIMITS.reportBytes,
+          file_bytes: fileSizeBytes,
           cpu_seconds: FIRMWARE_LIMITS.cpuSeconds,
         },
         context.command,
@@ -295,9 +316,6 @@ export const runFirmwareCommand = async (context: {
       snapshot.exitCode === 1
     )
   ) {
-    const fileSizeBytes =
-      context.outputBudget?.bytes ?? FIRMWARE_LIMITS.reportBytes;
-    const fileSizeAdjustable = context.outputBudget !== undefined;
     const signalLimit = firmwareSignalLimitError(
       operation,
       snapshot.signal,

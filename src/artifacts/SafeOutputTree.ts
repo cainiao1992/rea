@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
+  access,
+  lstat,
   chmod,
   mkdir,
   open,
@@ -96,27 +98,8 @@ export class SafeOutputTree {
     platform: NodeJS.Platform = process.platform,
     options: { readonly acceptExistingEmpty?: boolean } = {},
   ): Promise<SafeOutputTree> {
-    if (!isAbsolute(outputRoot))
-      throw new SafeOutputTreeDestinationRefusal(
-        "Extraction output root must be absolute",
-      );
-    // Path syntax follows the host; `platform` selects only the name policy.
-    const requested = absoluteCallerPath(outputRoot);
-    const name = basename(requested);
-    if (name === "." || name === "..")
-      throw new SafeOutputTreeDestinationRefusal(
-        "Invalid extraction output root",
-      );
-    const parent = await realpath(dirname(requested)).catch(
-      (cause: unknown) => {
-        throw new ArtifactReaderFailure(
-          "unavailable",
-          "Extraction output parent is unavailable",
-          { cause },
-        );
-      },
-    );
-    const canonicalOutput = join(parent, name);
+    const { requested, canonicalOutput } =
+      await this.#resolveDestination(outputRoot);
     let created = true;
     await mkdir(canonicalOutput, { mode: 0o700 }).catch((cause: unknown) => {
       if (!isAlreadyExists(cause)) throw cause;
@@ -159,6 +142,78 @@ export class SafeOutputTree {
     } catch (cause: unknown) {
       throw new SafeOutputTreeCreationFailure(cause, tree);
     }
+  }
+
+  /** Read-only early admission; create() still rechecks and acquires exclusively. */
+  static async checkDestination(outputRoot: string): Promise<void> {
+    const { canonicalOutput } = await this.#resolveDestination(outputRoot);
+    const existing = await lstat(canonicalOutput).catch((cause: unknown) => {
+      if (cause instanceof Error && "code" in cause && cause.code === "ENOENT")
+        return undefined;
+      if (
+        cause instanceof Error &&
+        "code" in cause &&
+        ["ENOTDIR", "EACCES", "EPERM"].includes(String(cause.code))
+      )
+        throw new SafeOutputTreeDestinationRefusal(
+          "Extraction output path is unavailable",
+          { cause },
+        );
+      throw cause;
+    });
+    if (existing !== undefined)
+      throw new SafeOutputTreeDestinationRefusal(
+        "Extraction output root already exists",
+      );
+    await access(
+      dirname(canonicalOutput),
+      constants.W_OK | constants.X_OK,
+    ).catch((cause: unknown) => {
+      if (
+        cause instanceof Error &&
+        "code" in cause &&
+        ["EACCES", "EPERM", "ENOENT", "ENOTDIR"].includes(String(cause.code))
+      )
+        throw new SafeOutputTreeDestinationRefusal(
+          "Extraction output parent is not writable",
+          { cause },
+        );
+      throw cause;
+    });
+  }
+
+  static async #resolveDestination(outputRoot: string) {
+    if (!isAbsolute(outputRoot))
+      throw new SafeOutputTreeDestinationRefusal(
+        "Extraction output root must be absolute",
+      );
+    // Path syntax follows the host; `platform` selects only the name policy.
+    const requested = absoluteCallerPath(outputRoot);
+    const name = basename(requested);
+    if (name === "." || name === "..")
+      throw new SafeOutputTreeDestinationRefusal(
+        "Invalid extraction output root",
+      );
+    const parent = await realpath(dirname(requested)).catch(
+      (cause: unknown) => {
+        if (
+          cause instanceof Error &&
+          "code" in cause &&
+          ["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(String(cause.code))
+        )
+          throw new SafeOutputTreeDestinationRefusal(
+            "Extraction output parent is unavailable",
+            { cause },
+          );
+        throw new ArtifactReaderFailure(
+          "unavailable",
+          "Extraction output parent is unavailable",
+          { cause },
+        );
+      },
+    );
+    const canonicalOutput = join(parent, name);
+    return { requested, canonicalOutput };
   }
 
   get outputRoot(): string {

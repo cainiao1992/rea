@@ -1,4 +1,4 @@
-import { join, isAbsolute } from "node:path";
+import { join } from "node:path";
 import type { FirmwareAnalysisPort } from "../application/firmware/FirmwareAnalysisPort.js";
 import {
   createAnalysisExecution,
@@ -15,7 +15,6 @@ import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import {
   AnalysisCancelledError,
-  AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
@@ -24,7 +23,8 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { err, ok } from "../domain/result.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
-import type { SafeOutputTree } from "../artifacts/SafeOutputTree.js";
+import { SafeOutputTree } from "../artifacts/SafeOutputTree.js";
+import { outputDirectoryAdmissionRefusal } from "../artifacts/SafeOutputTreeAdmission.js";
 import { publishFirmwareExtraction } from "./FirmwarePublication.js";
 import {
   BINWALK_PROVIDER_IDENTITY,
@@ -346,6 +346,16 @@ export class FirmwareProvider implements FirmwareAnalysisPort {
         throw new AnalysisCancelledError(request.operation, {
           cause: signal.reason,
         });
+      if (request.operation === "extract_firmware")
+        await SafeOutputTree.checkDestination(
+          request.input.output_directory,
+        ).catch((cause: unknown) => {
+          throw outputDirectoryAdmissionRefusal(
+            request.operation,
+            "output_directory",
+            cause,
+          );
+        });
       const command = await resolveFirmwareCommand(
         this.environment,
         engineName,
@@ -442,14 +452,6 @@ export class FirmwareProvider implements FirmwareAnalysisPort {
         });
         raw = { report, execution: processRun, version_execution: versionRun };
       } else {
-        if (!isAbsolute(request.input.output_directory))
-          throw new AnalysisInputError(request.operation, undefined, [
-            {
-              path: ["output_directory"],
-              reason: "invalid_format",
-              message: "Extraction output directory must be absolute",
-            },
-          ]);
         const outputRoot = join(root.path, "extracted");
         const processRun = await run(
           [

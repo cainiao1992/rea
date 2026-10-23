@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { z } from "zod";
 import { SafeOutputTree } from "../artifacts/SafeOutputTree.js";
+import { outputDirectoryAdmissionRefusal } from "../artifacts/SafeOutputTreeAdmission.js";
 import { SafeOutputTreeCreationFailure } from "../artifacts/SafeOutputTreeCreationFailure.js";
 import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -26,6 +27,8 @@ const GAP_CONTINUATIONS: Record<ExtractionGap["kind"], string> = {
     "REA installs nothing. Add the named dependency to your own environment and rerun extract_firmware on the same immutable input with a fresh output_directory to re-evaluate the affected region; otherwise it stays unextracted.",
   "unknown-chunk-handler":
     "If Binwalk is configured with REA_BINWALK_COMMAND, run inspect_firmware_regions on the same input for signature hypotheses. Without configured Binwalk that inspection is unavailable. Alternatively, select a materially narrower range with extract_firmware and a fresh output_directory; the region is not decoded content.",
+  "unclassified-range":
+    "The producer reported no chunk covering these bytes. Their format and extraction status remain unknown. If Binwalk is configured, inspect_firmware_regions can supply signature hypotheses; otherwise retain this range as unexamined.",
   "encrypted-chunk":
     "No static extraction continues past encryption; treat the region as unexamined rather than empty or corrupt.",
   "extractor-failure":
@@ -156,10 +159,15 @@ export const publishFirmwareExtraction = async (context: {
           "extract_firmware",
           `Extracted bytes disagree with provider report: ${entry.relativePath}`,
         );
-      await context.files.publish(entry, sha256, tree, context.signal);
+      const written = await context.files.publish(
+        entry,
+        sha256,
+        tree,
+        context.signal,
+      );
       files.push({
         relative_path: entry.relativePath,
-        path: join(tree.outputRoot, entry.relativePath),
+        path: join(tree.outputRoot, written.relativePath),
         size: entry.size,
         sha256,
         reported_sha256: reported?.sha256 ?? null,
@@ -213,13 +221,20 @@ export const publishFirmwareExtraction = async (context: {
         : new AnalysisCleanupLease(async () => {
             await ownedTree.rollback();
           });
-    const primary = firmwareFailure(cause, {
-      engine: "unblob",
-      operation: "extract_firmware",
-      deadline: context.deadline,
-      treeCleanupLease: treeLease,
-      publication: progress(),
-    });
+    const primary = firmwareFailure(
+      outputDirectoryAdmissionRefusal(
+        "extract_firmware",
+        "output_directory",
+        cause,
+      ),
+      {
+        engine: "unblob",
+        operation: "extract_firmware",
+        deadline: context.deadline,
+        treeCleanupLease: treeLease,
+        publication: progress(),
+      },
+    );
     try {
       await treeLease?.release();
     } catch (cleanupCause: unknown) {
@@ -434,6 +449,14 @@ const extractionGaps = (
   };
   const gaps: ExtractionGap[] = [
     ...dependencyGaps,
+    ...normalized.unclassified_ranges.map((unclassified): ExtractionGap => ({
+      ...emptyGap,
+      ...unclassified,
+      kind: "unclassified-range",
+      continuation_id: unclassified.input_path.startsWith("$output/")
+        ? nestedContinuationId(unclassified.input_path)
+        : continuation(GAP_CONTINUATIONS["unclassified-range"]),
+    })),
     ...normalized.failed_extraction_stages
       .filter(({ kind }) => kind === "extractor-failure")
       .map(({ input_path, provider_id, handler }): ExtractionGap => ({

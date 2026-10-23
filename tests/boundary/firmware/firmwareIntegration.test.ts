@@ -787,12 +787,16 @@ it("preserves existing output and rejects invalid intervals before invoking extr
   const previous = fixture.launches.length;
   const invalid = await fixture.service.execute("extract_firmware", {
     path: fixture.path,
-    output_directory: fixture.output,
+    output_directory: `${fixture.output}-invalid-range`,
     range: { offset: 100, length: 1 },
   });
   expect(invalid).toMatchObject({
     ok: false,
     error: { _tag: "AnalysisInputError" },
+  });
+  if (invalid.ok) throw new Error("Expected out-of-file-range rejection");
+  expect(projectAnalysisError(invalid.error)).toMatchObject({
+    details: { issues: [{ path: ["range"], reason: "out_of_range" }] },
   });
   expect(fixture.launches).toHaveLength(previous);
   await assertFirmwareCleanup(fixture.launches);

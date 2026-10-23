@@ -117,6 +117,7 @@ export const extractionGap = z.strictObject({
   kind: z.enum([
     "missing-extractor-dependency",
     "unknown-chunk-handler",
+    "unclassified-range",
     "encrypted-chunk",
     "depth-limited",
     "extractor-failure",
@@ -171,6 +172,8 @@ export const firmwareResultSchemas = {
     coverage: z.enum(["complete", "partial"]),
     files: z.array(
       z.strictObject({
+        // Producer-relative identity retains source spelling; `path` identifies
+        // the actual published file after destination name normalization.
         relative_path: z.string(),
         path: z.string(),
         size: bytes,

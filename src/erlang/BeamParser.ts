@@ -83,7 +83,6 @@ const compactUnsigned = (
   at: number,
 ): { value: bigint; next: number } => {
   let cursor = at;
-  let longByteCounts = 0;
   let value: bigint;
   for (;;) {
     if (cursor >= payload.length) fail("BEAM atom table is truncated.");
@@ -102,23 +101,13 @@ const compactUnsigned = (
     }
     const byteCountCode = first >> 5;
     cursor += 1;
-    if (byteCountCode === 7) {
-      // OTP encodes lengths of nine or more bytes as a compact `u` byte
-      // count followed by that many bytes. Keep this iterative so nested
-      // size prefixes cannot exhaust the JavaScript call stack.
-      longByteCounts += 1;
-      continue;
-    }
+    // OTP's size-of-size form always produces at least a 9-byte integer.
+    // unpack_varint rejects any value wider than SWord, even with leading
+    // zeroes, so no unsigned atom length can be represented by this form.
+    if (byteCountCode === 7) fail("BEAM atom length encoding overflows.");
     value = readCompactUnsignedBytes(payload, cursor, byteCountCode + 2);
     cursor += byteCountCode + 2;
     break;
-  }
-  while (longByteCounts > 0) {
-    if (value >= 2_147_483_638n) fail("BEAM atom length encoding overflows.");
-    const byteCount = Number(value) + 9;
-    value = readCompactUnsignedBytes(payload, cursor, byteCount);
-    cursor += byteCount;
-    longByteCounts -= 1;
   }
   return { value, next: cursor };
 };
@@ -130,9 +119,7 @@ const readCompactUnsignedBytes = (
 ): bigint => {
   if (byteCount > payload.length - at) fail("BEAM atom table is truncated.");
   // OTP's unpack_varint only accepts values that fit a signed machine word.
-  // REA's supported Node runtimes are 64-bit, so longer inputs overflow even
-  // when their leading bytes are zero.
-  if (byteCount > 8) fail("BEAM atom length encoding overflows.");
+  // For REA's supported 64-bit runtime target, that is at most eight bytes.
   const maxValue = 9_223_372_036_854_775_807n;
   let value = 0n;
   for (let index = 0; index < byteCount; index += 1) {

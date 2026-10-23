@@ -83,6 +83,51 @@ exit 1
   expect(await readFile(workspace.path("calls"), "utf8")).toBe("\nshell\n");
 });
 
+it.skipIf(process.platform === "win32")(
+  "reports the file placed inside a push destination directory and preserves executable staging",
+  async () => {
+    const workspace = await createTestWorkspace("rea-adb-directory-push-cli-");
+    onTestFinished(() => removeTestWorkspace(workspace.root));
+    const source = await workspace.write("payload.bin", "#!/bin/sh\n");
+    await chmod(source, 0o755);
+    const digest = createHash("sha256").update("#!/bin/sh\n").digest("hex");
+    const adb = await workspace.write(
+      "adb",
+      `#!/bin/sh
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "$1" = version ]; then printf 'Android Debug Bridge version 1.0.41\\nVersion 34.0.5-cli\\n'; exit 0; fi
+if [ "$1" = -s ] && [ "$3" = shell ] && [ "$4" = test ]; then
+  if [ "$5" = -d ] && [ "$6" = /data/local/tmp/drop/ ]; then exit 0; fi
+  if [ "$5" = -e ]; then exit 1; fi
+fi
+if [ "$1" = -s ] && [ "$3" = push ]; then ls -ld "$4" | cut -c1-10 > "$root/staged-mode"; printf '%s' "$5" > "$root/push-target"; exit 0; fi
+if [ "$1" = -s ] && [ "$4" = sha256sum ]; then printf '%s  %s\\n' '${digest}' "$5"; exit 0; fi
+exit 1
+`,
+    );
+    await chmod(adb, 0o755);
+    const output = await serve(
+      ["push-adb-file", "device", source, "/data/local/tmp/drop/", "--json"],
+      { REA_ADB_PATH: adb },
+    );
+    expect(output.exitCode).toBe(0);
+    const evidence = JSON.parse(output.stdout) as {
+      parameters: { device_path: string };
+      normalized_result: { device_path: string };
+    };
+    expect(evidence.parameters.device_path).toBe("/data/local/tmp/drop/");
+    expect(evidence.normalized_result.device_path).toBe(
+      "/data/local/tmp/drop/payload.bin",
+    );
+    expect(await readFile(workspace.path("staged-mode"), "utf8")).toBe(
+      "-r-x--x--x\n",
+    );
+    expect(await readFile(workspace.path("push-target"), "utf8")).toBe(
+      "/data/local/tmp/drop/",
+    );
+  },
+);
+
 it.each([
   [
     ["inspect-adb-client", "--json"],

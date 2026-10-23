@@ -131,7 +131,9 @@ export const snapshotAdbInput = async (
         "the file changed while its private snapshot was copied",
       );
     await destination.handle.sync();
-    await destination.handle.chmod(0o400);
+    // Keep the private snapshot non-writable while preserving executable intent
+    // for adb push (which transmits the staged file's mode).
+    await destination.handle.chmod(0o400 | (initial.mode & 0o111));
     snapshot = {
       path: destinationPath,
       bytes: position,

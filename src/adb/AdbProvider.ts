@@ -83,6 +83,7 @@ import {
   runAdb,
   runAdbCapture,
   packageChangeRefusal,
+  probeAdbPathDirectory,
   probeAdbPathExistence,
   type AdbRunLimits,
 } from "./AdbCommand.js";
@@ -2424,10 +2425,22 @@ export class AdbProvider {
           operation,
           signal,
         );
-        const existsProbe = await probeAdbPathExistence(
+        const directoryProbe = await probeAdbPathDirectory(
           operation,
           input.serial,
           input.device_path,
+          selection.binary,
+          { timeoutMs: SETTINGS_TIMEOUT_MS, maxOutputBytes: 1024 },
+          signal,
+        );
+        if (!directoryProbe.ok) return directoryProbe;
+        const devicePath = directoryProbe.value
+          ? `${input.device_path}${input.device_path.endsWith("/") ? "" : "/"}${basename(localPath)}`
+          : input.device_path;
+        const existsProbe = await probeAdbPathExistence(
+          operation,
+          input.serial,
+          devicePath,
           selection.binary,
           { timeoutMs: SETTINGS_TIMEOUT_MS, maxOutputBytes: 1024 },
           signal,
@@ -2438,7 +2451,7 @@ export class AdbProvider {
           return err(
             new AnalysisOutputError(
               operation,
-              `The device path already exists and overwrite was not requested: ${input.device_path}`,
+              `The device path already exists and overwrite was not requested: ${devicePath}`,
             ),
           );
         const pushed = await runAdb(
@@ -2468,7 +2481,7 @@ export class AdbProvider {
               client,
               serial: input.serial,
               local_path: localPath,
-              device_path: input.device_path,
+              device_path: devicePath,
               bytes: digest.bytes,
               sha256: digest.sha256,
               device_sha256: deviceDigest.device_sha256,
@@ -2488,9 +2501,9 @@ export class AdbProvider {
           );
         const deviceDigest = await runAdb(
           operation,
-          { device: input.serial, path: input.device_path },
+          { device: input.serial, path: devicePath },
           selection.binary,
-          adbArguments(input.serial, ["shell", "sha256sum", input.device_path]),
+          adbArguments(input.serial, ["shell", "sha256sum", devicePath]),
           { timeoutMs: SHELL_TIMEOUT_MS, maxOutputBytes: 1024 },
           signal,
         );
@@ -2547,7 +2560,7 @@ export class AdbProvider {
           return err(
             new AnalysisArtifactChangedError(
               operation,
-              input.device_path,
+              devicePath,
               `The device-reported digest does not match the staged local file: ${localPath}`,
               {
                 partialObservation: createEvidence(

@@ -291,11 +291,36 @@ export const probeAdbPathExistence = async (
   limits: AdbRunLimits,
   signal: AbortSignal | undefined,
 ): Promise<Result<boolean, AnalysisError>> => {
+  return probeAdbPath(operation, serial, path, binary, limits, signal, "-e");
+};
+
+/** Only the clean true/false result of test -d establishes directory status. */
+export const probeAdbPathDirectory = async (
+  operation: string,
+  serial: string,
+  path: string,
+  binary: string,
+  limits: AdbRunLimits,
+  signal: AbortSignal | undefined,
+): Promise<Result<boolean, AnalysisError>> =>
+  probeAdbPath(operation, serial, path, binary, limits, signal, "-d");
+
+const probeAdbPath = async (
+  operation: string,
+  serial: string,
+  path: string,
+  binary: string,
+  limits: AdbRunLimits,
+  signal: AbortSignal | undefined,
+  predicate: "-d" | "-e",
+): Promise<Result<boolean, AnalysisError>> => {
+  const fact =
+    predicate === "-d" ? "destination_directory" : "destination_existence";
   const probed = await runAdbCapture(
     operation,
     { device: serial, path },
     binary,
-    adbArguments(serial, ["shell", "test", "-e", path]),
+    adbArguments(serial, ["shell", "test", predicate, path]),
     { ...limits, volatileOutput: true },
     signal,
   );
@@ -304,9 +329,9 @@ export const probeAdbPathExistence = async (
       return ok(true);
     return err(
       new AnalysisProtocolError(
-        "The ADB path existence probe returned unexpected output; destination existence is unknown",
+        `The ADB path ${predicate === "-d" ? "directory" : "existence"} probe returned unexpected output; destination status is unknown`,
         {
-          diagnostics: { destination_existence: "unknown" },
+          diagnostics: { [fact]: "unknown" },
           capturedOutput: {
             stdout: probed.value.stdout.toString("utf8"),
             stderr: probed.value.stderr.toString("utf8"),
@@ -336,7 +361,7 @@ export const probeAdbPathExistence = async (
   return err(
     new AnalysisProtocolError(error.message, {
       cause: error.cause,
-      diagnostics: { destination_existence: "unknown" },
+      diagnostics: { [fact]: "unknown" },
       capturedOutput: adbCommandCapturedOutput(failure),
     }),
   );

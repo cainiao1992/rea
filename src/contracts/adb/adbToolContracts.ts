@@ -127,7 +127,7 @@ export const ADB_TOOL_CONTRACTS = [
     name: "push_adb_file",
     ...toolContractMetadata("push_adb_file"),
     description:
-      "Push one local file to an absolute device path. A device-mutating tool: checks for an existing device file before transfer and refuses it unless overwrite is explicitly requested; this check is not an atomic create and another process can create the path before adb writes. When the device provides sha256sum, the transfer is verified by comparing it with the local digest.",
+      "Push one local file to an absolute device path. If the destination is an existing directory, adb places the file inside it under the local basename and the result reports that file path. A device-mutating tool: checks for an existing destination file before transfer and refuses it unless overwrite is explicitly requested; this check is not atomic and another process can create the path before adb writes. The private staged copy remains non-writable and preserves source executable bits. When the device provides sha256sum, the transfer is verified by comparing it with the local digest.",
     kind: "adb-provider",
     inputSchema: adbInputSchemas.push_adb_file,
     outputSchema: evidenceResultOf(adbResultSchemas.push_adb_file),

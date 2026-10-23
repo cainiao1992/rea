@@ -1186,6 +1186,65 @@ exit 1`,
   });
 });
 
+it("preserves executable bits on the private snapshot consumed by adb push", async () => {
+  const { binary, root } = await writeAdbStub(
+    (stubRoot) => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$1" = "-s" ] && [ "$4" = "test" ]; then exit 1; fi
+if [ "$1" = "-s" ] && [ "$3" = "push" ]; then ls -ld "$4" | cut -c1-10 > "${join(stubRoot, "staged-mode")}"; exit 0; fi
+if [ "$1" = "-s" ] && [ "$4" = "sha256sum" ]; then exit 1; fi
+exit 1`,
+  );
+  const localFile = join(root, "executable");
+  await writeFile(localFile, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await chmod(localFile, 0o755);
+  const result = await providerOver(binary).execute({
+    operation: "push_adb_file",
+    input: {
+      serial: "emulator-5554",
+      local_path: localFile,
+      device_path: "/data/local/tmp/executable",
+      overwrite: false,
+    },
+  });
+  expect(result.ok).toBe(true);
+  expect(await readFile(join(root, "staged-mode"), "utf8")).toBe(
+    "-r-x--x--x\n",
+  );
+});
+
+it("reports and verifies the effective file path when adb targets a directory", async () => {
+  const { binary, root } = await writeAdbStub(
+    (stubRoot) => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$1" = "-s" ] && [ "$4" = "test" ]; then
+  if [ "$5" = "-d" ] && [ "$6" = "/data/local/tmp/drop/" ]; then exit 0; fi
+  if [ "$5" = "-e" ] && [ "$6" = "/data/local/tmp/drop/payload.bin" ]; then exit 1; fi
+fi
+if [ "$1" = "-s" ] && [ "$3" = "push" ]; then printf '%s' "$5" > "${join(stubRoot, "pushed-destination")}"; exit 0; fi
+if [ "$1" = "-s" ] && [ "$4" = "sha256sum" ]; then printf '%s  %s\\n' '${PUSHED_DIGEST}' "$5"; exit 0; fi
+exit 1`,
+  );
+  const localFile = join(root, "payload.bin");
+  await writeFile(localFile, "push-payload");
+  const result = await providerOver(binary).execute({
+    operation: "push_adb_file",
+    input: {
+      serial: "emulator-5554",
+      local_path: localFile,
+      device_path: "/data/local/tmp/drop/",
+      overwrite: false,
+    },
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  expect(await readFile(join(root, "pushed-destination"), "utf8")).toBe(
+    "/data/local/tmp/drop/",
+  );
+  expect(result.value.result).toMatchObject({
+    device_path: "/data/local/tmp/drop/payload.bin",
+    overwritten: false,
+    device_sha256: PUSHED_DIGEST,
+  });
+});
+
 it("retains failed snapshot cleanup with completed push Evidence until close retries", async () => {
   const { binary, root } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi

@@ -1,5 +1,6 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { Ajv2020 } from "ajv/dist/2020.js";
+import { createHash } from "node:crypto";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -11,6 +12,77 @@ import { parseEvidence } from "../../../src/domain/evidence.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+
+it.skipIf(process.platform === "win32")(
+  "preserves caller destination and reports the effective pushed file path through MCP",
+  async () => {
+    const directory = await createTestTempDirectory("rea-adb-push-mcp-");
+    const localPath = join(directory, "payload.bin");
+    const adbPath = join(directory, "adb");
+    const stagedMode = join(directory, "staged-mode");
+    const destination = "/data/local/tmp/drop/";
+    const effectivePath = `${destination}payload.bin`;
+    const digest = createHash("sha256").update("push-payload").digest("hex");
+    await writeFile(localPath, "push-payload", { mode: 0o755 });
+    await chmod(localPath, 0o755);
+    await writeFile(
+      adbPath,
+      `#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+if (args[0] === "version") { process.stdout.write("Android Debug Bridge version 1.0.41\\nVersion 34.0.5-stub\\n"); }
+else if (args[0] === "-s" && args[2] === "shell" && args[3] === "test") {
+  if (args[4] === "-d" && args[5] === ${JSON.stringify(destination)}) process.exitCode = 0;
+  else process.exitCode = 1;
+} else if (args[0] === "-s" && args[2] === "push") {
+  fs.writeFileSync(${JSON.stringify(stagedMode)}, (fs.statSync(args[3]).mode & 0o7777).toString(8) + "\\n");
+} else if (args[0] === "-s" && args[2] === "shell" && args[3] === "sha256sum") {
+  process.stdout.write(${JSON.stringify(`${digest}  ${effectivePath}\n`)});
+}
+`,
+    );
+    await chmod(adbPath, 0o755);
+    const server = createServer(
+      {
+        kind: "session",
+        session: createTestBinarySession(() => {
+          throw new Error("ADB push must not open a deep-analysis provider");
+        }),
+      },
+      {
+        adbDeviceAnalysis: new AdbProvider({
+          environment: { REA_ADB_PATH: adbPath },
+        }),
+      },
+    );
+    onTestFinished(() => server.close());
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "adb-push-boundary", version: "0.0.0" });
+    onTestFinished(() => client.close());
+    await client.connect(clientTransport);
+    const response = await client.callTool({
+      name: "push_adb_file",
+      arguments: {
+        serial: "emulator-5554",
+        local_path: localPath,
+        device_path: destination,
+      },
+    });
+    expect(response.isError).not.toBe(true);
+    const evidence = toolContract("push_adb_file").outputSchema.parse(
+      parseEvidence(JSON.parse(responseText(response))),
+    );
+    expect(evidence.parameters).toMatchObject({ device_path: destination });
+    expect(evidence.normalized_result).toMatchObject({
+      device_path: effectivePath,
+      overwritten: false,
+      device_sha256: digest,
+    });
+    expect(await readFile(stagedMode, "utf8")).toBe("511\n");
+  },
+);
 
 const responseText = (response: { readonly content: readonly unknown[] }) =>
   response.content

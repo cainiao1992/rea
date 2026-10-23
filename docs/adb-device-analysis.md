@@ -103,6 +103,11 @@ existing analysis families directly, for example
 | `start_adb_activity`    | **mutates device** | Starts an intent (`am start -a` with optional URI, component, and up to 16 typed extras); preserves the activity manager's verdict                                                                                                    |
 | `stop_adb_app`          | **mutates device** | Force-stops every process of a package, ending a dynamic-analysis run                                                                                                                                                                 |
 
+When `push_adb_file` receives an existing directory, adb places the local file
+inside it under the local basename; Evidence reports that effective file path
+while retaining the caller's directory path in the input parameters. The
+private read-only staging copy preserves the source file's executable bits.
+
 For `inspect_adb_window`, `focus_contexts` retains each display header, its exact
 display ID when recognized, and every focus declaration with its original line.
 Declarations without a display header are explicitly `unscoped`. A missing

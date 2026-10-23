@@ -139,7 +139,7 @@ describe("CLI advertised input schemas", () => {
       ["inspect-wasm-artifact", "glue_paths"],
       ["inspect-wasm-artifact", "candidate_paths"],
       ["recover-javascript-sources", "additionalPath"],
-    ]) {
+    ] as const) {
       const schema = await advertisedSchema(cli, command);
       const validate = ajv.compile(schema.options ?? {});
       for (const count of [16, 17]) {

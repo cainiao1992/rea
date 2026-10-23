@@ -9,7 +9,10 @@ import { jsonObjectSchema } from "../../../src/domain/jsonValue.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { expectBinaryTargetError } from "../../fixtures/binaryTargetAdmission.js";
 import type { MipsElfMetadata } from "../../../src/domain/binaryTargetTypes.js";
-import { readMipsElfMetadata } from "../../../src/application/MipsElfMetadata.js";
+import {
+  readMipsElfMetadata,
+  type MipsElfInspection,
+} from "../../../src/application/MipsElfMetadata.js";
 import { ok } from "../../../src/domain/result.js";
 import {
   ghidraMipsProfileParameters,
@@ -190,6 +193,19 @@ const target = (mips: MipsElfMetadata) => ({
   availableArchitectures: ["mips"] as const,
   mips: { gnuAttributes: null, ...mips },
 });
+const inspectedTarget = (
+  header: MipsElfMetadata,
+  observed: MipsElfInspection,
+) =>
+  target({
+    ...header,
+    abiFlags: observed.abiFlags,
+    gnuAttributes: observed.gnuAttributes,
+    limitations: observed.limitations,
+    ...(observed.sharedLoad === undefined
+      ? {}
+      : { sharedLoad: observed.sharedLoad }),
+  });
 
 for (const little of [true, false]) {
   it(`reads a remote ABI record through both ELF tables (${little ? "LE" : "BE"})`, async () => {
@@ -248,7 +264,7 @@ for (const little of [true, false]) {
       const declarations = await inspectDeclarations(bytes, little);
       assert.ok(declarations.ok);
       assert.equal(declarations.value.abiFlags?.fpAbi, 5);
-      const partial = target({ ...metadata(little), ...declarations.value });
+      const partial = inspectedTarget(metadata(little), declarations.value);
       assert.match(
         ghidraMipsUnsupportedReason(partial) ?? "",
         /ABI declaration inspection is incomplete/u,
@@ -276,7 +292,7 @@ it("refuses uncaptured section declarations while retaining unknown ABI evidence
   assert.equal(declarations.value.abiFlags, null);
   assert.match(
     ghidraMipsUnsupportedReason(
-      target({ ...metadata(), ...declarations.value }),
+      inspectedTarget(metadata(), declarations.value),
     ) ?? "",
     /ABI declaration inspection is incomplete.*unavailable headers remain unknown/u,
   );

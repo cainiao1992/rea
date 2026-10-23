@@ -221,7 +221,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
             waitUntil: "load",
             timeout: 0,
           }),
-        undefined,
+        scenario.command_timeout_ms,
         options.signal,
       );
       await withPlaywrightExecutionBoundary(

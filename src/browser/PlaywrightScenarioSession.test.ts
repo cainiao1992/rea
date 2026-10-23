@@ -1453,3 +1453,34 @@ it("retains late opening failure cleanup after cancellation until the exact prof
     await provider.close();
   }
 });
+
+it.each(["launch", "connect"] as const)(
+  "bounds never-settling initial navigation and awaits %s cleanup",
+  async (mode) => {
+    vi.useFakeTimers();
+    const { cleanup, page, storage } = fixture();
+    const request = browserScenarioSchema.parse({
+      ...(mode === "launch" ? scenario : connectedScenario("allow")),
+      command_timeout_ms: 250,
+    });
+    page.goto.mockImplementation(() => new Promise<never>(() => {}));
+    try {
+      const opening = PlaywrightScenarioSession.open(request, {}, {}).catch(
+        (cause: unknown) => cause,
+      );
+      await vi.advanceTimersByTimeAsync(250);
+      const failure = await opening;
+      expect(failure).toMatchObject({
+        _tag: "AnalysisTimeoutError",
+        operation: "capture_browser_scenario",
+        timeoutMs: 250,
+      });
+      expect(cleanup.close).toHaveBeenCalledOnce();
+      expect(storage?.close).toHaveBeenCalledWith(true);
+      expect(page.goto).toHaveBeenCalledOnce();
+    } finally {
+      await cleanup.cleanupLease.release();
+      vi.useRealTimers();
+    }
+  },
+);

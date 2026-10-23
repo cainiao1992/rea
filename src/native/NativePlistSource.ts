@@ -1,3 +1,4 @@
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
@@ -52,7 +53,7 @@ export const resolveNativePlistSelection = async (
 ): Promise<Result<NativePlistSelection, AnalysisError>> => {
   try {
     if (requested !== undefined && isAbsolute(requested))
-      return ok({ path: resolve(requested), origin: "selected" });
+      return ok({ path: absoluteCallerPath(requested), origin: "selected" });
     if (
       requested === undefined &&
       target.kind === "artifact" &&
@@ -65,7 +66,10 @@ export const resolveNativePlistSelection = async (
       ? source
       : (macOSBundleRoot(target.path) ?? dirname(target.path));
     if (requested !== undefined)
-      return ok({ path: resolve(root, requested), origin: "selected" });
+      return ok({
+        path: absoluteCallerPath(requested, { cwd: root }),
+        origin: "selected",
+      });
     return ok({
       path: target.bundleInfoPlist ?? resolve(root, "Contents/Info.plist"),
       origin: "default",

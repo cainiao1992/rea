@@ -73,6 +73,11 @@ cliTest.skipIf(process.platform !== "linux").for([false, true])(
       { evidence: mcpEvidence, result: mcpExtraction },
     ]) {
       expect(
+        result.limitations.some((limitation) =>
+          limitation.includes("nested archive contents remain"),
+        ),
+      ).toBe(false);
+      expect(
         result.artifacts.map(({ relative_path }) => relative_path),
       ).toEqual([...files.keys()]);
       for (const [path, bytes] of files)
@@ -157,6 +162,11 @@ cliTest.for([false, true])(
       { evidence: cliEvidence, result: cliExtraction },
       { evidence: mcpEvidence, result: mcpExtraction },
     ]) {
+      expect(
+        result.limitations.some((limitation) =>
+          limitation.includes("nested archive contents remain"),
+        ),
+      ).toBe(false);
       expect(
         result.artifacts.map(({ relative_path }) => relative_path),
       ).toEqual(files.map(([path]) => path));

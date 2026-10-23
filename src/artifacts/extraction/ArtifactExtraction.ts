@@ -461,8 +461,8 @@ const createExtractionResult = (
         ),
       ),
       traversal.status === "complete"
-        ? "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file."
-        : "All inventoried regular files exposed by the active reader were materialized; source traversal coverage is unknown, so the output is not established as a complete source copy. Nested archive contents remain represented by their containing file.",
+        ? "All regular files exposed by the active artifact reader were materialized."
+        : "All inventoried regular files exposed by the active reader were materialized; source traversal coverage is unknown, so the output is not established as a complete source copy.",
       "Publication verifies the selected inventoried regular files; it does not establish complete content decoding.",
       ...(integrityContradictions.length === 0
         ? []

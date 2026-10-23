@@ -148,6 +148,8 @@ export const artifactOccurrenceSchema = z.object({
   encrypted: z.boolean(),
   hash_status: z.enum(["verified", "mismatched", "not-hashed", "unavailable"]),
   source_location: artifactByteRangeSchema.nullable(),
+  /** Original path within this occurrence's reader when normalization changed its spelling. */
+  source_path: z.string().min(1).exactOptional(),
   declared_integrity: artifactIntegrityClaimSchema.exactOptional(),
   format_metadata: artifactFormatMetadataSchema.exactOptional(),
   limitations: z.array(z.string()),

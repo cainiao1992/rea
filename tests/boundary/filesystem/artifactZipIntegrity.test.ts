@@ -185,6 +185,29 @@ it
   },
 );
 
+it("retains original ZIP names when logical paths use NFC or omit current-directory prefixes", async () => {
+  const root = await createTestTempDirectory("rea-zip-source-spelling-");
+  const path = join(root, "spelling.zip");
+  const decomposed = "cafe\u0301.txt";
+  await writeOrderedZip(path, [decomposed, "./prefixed.txt", "unchanged.txt"]);
+  const inventory = await inventoryArtifact(path);
+  const byPath = new Map(
+    inventory.occurrences.map((occurrence) => [
+      occurrence.logical_path,
+      occurrence,
+    ]),
+  );
+  expect(byPath.get("café.txt")).toMatchObject({
+    source_path: decomposed,
+    hash_status: "verified",
+  });
+  expect(byPath.get("prefixed.txt")).toMatchObject({
+    source_path: "./prefixed.txt",
+    hash_status: "verified",
+  });
+  expect(byPath.get("unchanged.txt")).not.toHaveProperty("source_path");
+});
+
 it("preserves valid Info-ZIP Unicode Path overrides", async () => {
   const root = await createTestTempDirectory("rea-zip-unicode-path-");
   const path = join(root, "unicode-path.zip");

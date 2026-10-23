@@ -13,6 +13,7 @@ import {
   artifactEdgeId,
   artifactIdForContent,
   occurrenceIdForLocation,
+  logicalPathNfc,
 } from "../../domain/artifactIdentity.js";
 import type { ArtifactEntry } from "../ArtifactReader.js";
 import type {
@@ -49,6 +50,7 @@ export interface MutableOccurrence {
   encrypted: boolean;
   hash_status: ArtifactOccurrence["hash_status"];
   source_location: ArtifactOccurrence["source_location"];
+  source_path?: string;
   declared_integrity?: NonNullable<ArtifactOccurrence["declared_integrity"]>;
   format_metadata?: NonNullable<ArtifactOccurrence["format_metadata"]>;
   limitations: string[];
@@ -103,6 +105,10 @@ export const createOccurrence = (
     artifact_id: null,
     parent_occurrence_id: parent,
     logical_path: path,
+    ...(entry.sourcePath !== undefined ||
+    entry.path !== logicalPathNfc(entry.path)
+      ? { source_path: entry.sourcePath ?? entry.path }
+      : {}),
     entry_kind: entry.kind,
     artifact_kind: role.kind,
     artifact_format: role.format,

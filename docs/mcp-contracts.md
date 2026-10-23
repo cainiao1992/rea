@@ -1030,6 +1030,12 @@ bytes and returns the `integrity_contradictions` records for the extracted
 files. An active ASAR unpacked entry whose companion file is absent cannot be
 materialized; extraction fails as `unavailable` with that logical path.
 
+Occurrences use normalized logical paths for identity and lookup. Optional
+`source_path` retains the original path within the owning reader when Unicode
+NFC or reader admission changes its spelling; it is source evidence, not an
+output destination. POSIX letter-colon names such as `a:b` remain valid logical
+names; Windows extraction refuses names its filesystem cannot materialize.
+
 Extraction materializes regular files exposed by the active archive reader.
 Its temporary parent follows the filesystem semantics of `TMPDIR`, including
 POSIX symlinks followed by `..`. A destination inside a directory source is

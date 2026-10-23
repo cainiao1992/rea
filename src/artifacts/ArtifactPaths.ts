@@ -4,7 +4,7 @@ import { logicalPathNfc } from "../domain/artifactIdentity.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { ArtifactReaderFailure, type ArtifactEntry } from "./ArtifactReader.js";
 
-const DRIVE_PREFIX = /^[A-Za-z]:/u;
+const ABSOLUTE_DRIVE_PATH = /^[A-Za-z]:[\\/]/u;
 
 // Bound diagnostic JSON expansion to 768 characters before formatting. This is
 // a presentation budget, never a limit on accepted paths or retained facts.
@@ -49,7 +49,11 @@ export class DestinationCaseCollisionFailure extends ArtifactReaderFailure {
 
 /** Normalize slash-separated logical names; backslashes are literal components. */
 export const normalizeArtifactPath = (input: string): string => {
-  if (input.includes("\0") || input.startsWith("/") || DRIVE_PREFIX.test(input))
+  if (
+    input.includes("\0") ||
+    input.startsWith("/") ||
+    ABSOLUTE_DRIVE_PATH.test(input)
+  )
     throw new ArtifactReaderFailure(
       "path",
       `Artifact path is absolute or unsafe: ${pathDiagnostic(input)}`,

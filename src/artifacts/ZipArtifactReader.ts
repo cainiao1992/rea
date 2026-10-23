@@ -297,6 +297,7 @@ const projectZipEntry = (
   if (kind === "directory" && (path === "" || path === ".")) return undefined;
   return {
     path,
+    ...(path === sourcePath ? {} : { sourcePath }),
     kind,
     declaredSize: kind === "directory" ? null : entry.uncompressedSize,
     compressedSize: kind === "directory" ? null : entry.compressedSize,

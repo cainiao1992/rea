@@ -18,7 +18,7 @@ it.each(["drive", "escaped", "normalization", "prefix", "collision"])(
     const name = "x".repeat(1024 * 1024);
     const registry = new ArtifactPathRegistry();
     const fail = () => {
-      if (kind === "drive") normalizeArtifactPath("C:" + name);
+      if (kind === "drive") normalizeArtifactPath("C:/" + name);
       else if (kind === "escaped")
         normalizeArtifactPath("\0".repeat(name.length));
       else if (kind === "normalization")
@@ -38,6 +38,13 @@ it.each(["drive", "escaped", "normalization", "prefix", "collision"])(
     })();
     expect(failure).toMatchObject({ reason: "path" });
     expect((failure as Error).message.length).toBeLessThan(1024);
+  },
+);
+
+it.each(["a:b", "C:cache/file.txt", "a:"])(
+  "preserves a literal POSIX colon name %s",
+  (path) => {
+    expect(normalizeArtifactPath(path)).toBe(path);
   },
 );
 

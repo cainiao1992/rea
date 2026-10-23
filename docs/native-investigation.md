@@ -183,6 +183,14 @@ remains valid. This tool
 has no dedicated CLI command; the existing `decompile` command remains the
 single-procedure CLI operation.
 
+Each batch schedules one provider read at a time, but has no shared input-count
+or aggregate retained-output allowance. It retains every requested row and full
+pseudocode body through Evidence construction. The MCP response budget checks
+complete delivery afterward; it does not bound provider work or retained batch
+state. Select small explicit batches when using this workflow. A general batch
+admission/output policy, including completed per-item facts when capacity is
+exhausted, remains unresolved.
+
 Type inspection selects one exact database pathname or typed data address.
 Struct/union fields, enums, pointers, arrays, typedefs, size, alignment, packing
 and bitfields retain database authority. Child types use exact IDs for further

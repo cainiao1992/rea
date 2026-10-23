@@ -106,7 +106,7 @@ const permitsCapabilityFallback = (
   !error.cleanupIncomplete;
 
 /**
- * Composes direct provider operations into bounded reverse-engineering tools.
+ * Composes direct provider operations into reverse-engineering tools.
  * Direct callers use `execute`; adapters that own validation use
  * `executeValidated` so an MCP input is parsed exactly once.
  */

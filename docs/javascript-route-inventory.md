@@ -74,6 +74,12 @@ supported by structural or navigation candidates across the supplied sources.
 This limits framework filesystem noise, while leaving unsupported candidates
 unknown. The parser shares the existing AST traversal and lexical index.
 
+Literal fragments of computed expressions, module references, and page-shaped
+paths owned by Next interpretation do not also become generic route constants.
+Selected getter results retain the shared semantic owner's allocation identity;
+finite selections can claim their query data, while widened or cyclic selections
+keep an unknown in the interpretation that requested them.
+
 Next page conversion receives an explicit source context. For local source files,
 the shared JSON owner first establishes a declared `next` dependency in the
 nearest owning package. Inventoried directories then select that package's `app`

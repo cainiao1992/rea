@@ -550,17 +550,21 @@ export class JavaScriptRouteScan {
           ? { kind: "source-reference" }
           : { kind: "source-literal", runtime: "unknown" },
       );
+      const computed =
+        (t.isBinaryExpression(expressionParent) &&
+          expressionParent.operator === "+") ||
+        (t.isTemplateLiteral(expressionParent) &&
+          expressionParent.expressions.length > 0);
       if (next !== undefined && this.#queue(node, value))
         this.#nextPaths.push({
           value,
           node,
-          computed:
-            (t.isBinaryExpression(expressionParent) &&
-              expressionParent.operator === "+") ||
-            (t.isTemplateLiteral(expressionParent) &&
-              expressionParent.expressions.length > 0),
+          computed,
         });
       if (
+        !computed &&
+        !reference &&
+        next === undefined &&
         !this.#propertyValues.has(node) &&
         routePath(value) !== undefined &&
         this.#queue(node, value)
@@ -1164,17 +1168,29 @@ export class JavaScriptRouteScan {
         visited: new WeakMap(),
       };
       pending.push({ kind: "finish", lookup: work, key, values });
-      for (const reference of this.#selectedReferences(work.receiver, work.key))
+      for (const reference of this.#selectedReferences(
+        work.receiver,
+        work.key,
+      )) {
+        if (reference.widenedGetterResult === true)
+          this.#unknown(
+            mechanism,
+            node,
+            "An incomplete getter selection, including cyclic expansion, cannot establish its complete data sources.",
+          );
         if (
           !this.#retainSelection(
             pending,
-            reference.node,
+            // The reference owner identifies the allocation directly; a
+            // declaration identifier here is not a read before initialization.
+            reference.ownerInitializer ?? reference.node,
             reference.path,
             0,
             returned,
           )
         )
           return;
+      }
     }
   }
 

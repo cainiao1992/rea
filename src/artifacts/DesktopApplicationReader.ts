@@ -7,10 +7,7 @@ import {
   type DirectoryArtifactEntry,
 } from "./DirectoryArtifactReader.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
-import {
-  ArtifactFileCancelled,
-  ArtifactFileCleanupFailure,
-} from "./ArtifactFileOperation.js";
+import { artifactFileCompletion } from "./ArtifactFileOperation.js";
 import {
   ArtifactResourceScope,
   type ArtifactResourceOwner,
@@ -330,10 +327,7 @@ const scanDirectory = async (
         row.read_status = "unavailable";
         row.issues.push(cause.message);
         partial = true;
-        const completedRead =
-          cause instanceof ArtifactFileCancelled ||
-          (cause instanceof ArtifactFileCleanupFailure &&
-            cause.fileCleanupFailure.outcome.kind === "completed");
+        const completedRead = artifactFileCompletion(cause) !== undefined;
         if (completedRead)
           row.read_status = probeIssueCount === 0 ? "examined" : "partial";
         if (

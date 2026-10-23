@@ -11,7 +11,7 @@ import {
   AnalysisCleanupLeaseGroup,
 } from "../artifacts/AnalysisCleanupLease.js";
 import {
-  ArtifactFileCancelled,
+  artifactFileCompletion,
   ArtifactFileCleanupFailure,
   artifactFileCancellationCause,
   withArtifactFileHandle,
@@ -393,7 +393,8 @@ export class WebBundleAnalysisWorker {
       completed = facts;
       result = ok(facts);
     } catch (cause) {
-      const snapshot = this.#completedSnapshot(cause);
+      const completion = artifactFileCompletion(cause);
+      const snapshot = stableSnapshotValue(completion?.value);
       if (snapshot !== undefined && resultDescriptor !== undefined) {
         try {
           completed = this.#validateCompletedResult(
@@ -406,7 +407,7 @@ export class WebBundleAnalysisWorker {
           // The physical read completed, but only validated facts are retained.
         }
       }
-      const cancellationCause = this.#completedReadCancellation(cause);
+      const cancellationCause = completion?.cancellation;
       const interrupted =
         deadline?.interruption === "timeout"
           ? scriptTimeout(timeoutMs, cause)
@@ -428,8 +429,7 @@ export class WebBundleAnalysisWorker {
       if (observedFailure !== undefined && interrupted !== undefined)
         observedFailure.retainSecondaryFailure(interrupted);
       const failure =
-        cause instanceof ArtifactFileCleanupFailure &&
-        cause.fileCleanupFailure.outcome.kind === "completed"
+        cause instanceof ArtifactFileCleanupFailure && completion !== undefined
           ? this.#cleanupFailure(cause, interrupted)
           : interrupted !== undefined && observedFailure !== undefined
             ? observedFailure
@@ -784,30 +784,6 @@ export class WebBundleAnalysisWorker {
   ): Promise<"frame" | "failure" | "closed" | "interrupted"> {
     if (this.#frames.length > 0) return "frame";
     return this.#frameSignal.waitForOutputClose(supervisor, deadline.signal);
-  }
-
-  #completedSnapshot(cause: unknown): StableArtifactSnapshot | undefined {
-    if (cause instanceof ArtifactFileCancelled)
-      return stableSnapshotValue(cause.fileCancellation.outcome.value);
-    if (
-      cause instanceof ArtifactFileCleanupFailure &&
-      cause.fileCleanupFailure.outcome.kind === "completed"
-    )
-      return stableSnapshotValue(cause.fileCleanupFailure.outcome.value);
-    return undefined;
-  }
-
-  #completedReadCancellation(
-    cause: unknown,
-  ): { readonly reason: unknown } | undefined {
-    if (cause instanceof ArtifactFileCancelled)
-      return { reason: artifactFileCancellationCause(cause) };
-    if (
-      cause instanceof ArtifactFileCleanupFailure &&
-      cause.fileCleanupFailure.outcome.kind === "completed"
-    )
-      return cause.fileCleanupFailure.completionCancellation;
-    return undefined;
   }
 
   #validateCompletedResult(

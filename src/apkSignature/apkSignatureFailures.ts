@@ -1,6 +1,7 @@
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
-  ArtifactFileCleanupFailure,
+  artifactFilePrimaryFailure,
+  artifactFileCancellationCause,
   bindArtifactFileCleanup,
 } from "../artifacts/ArtifactFileOperation.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
@@ -124,15 +125,8 @@ export const apkOutputBudgetError = (projectedBytes: number): AnalysisError =>
 export const apkSignatureFailure = (
   cause: unknown,
   path: string,
-  signal?: AbortSignal,
 ): AnalysisError => {
-  const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? primaryFailure(cause.fileCleanupFailure.outcome.cause, path)
-      : cause instanceof ArtifactFileCleanupFailure && signal?.aborted
-        ? new AnalysisCancelledError(OPERATION, { cause: signal.reason })
-        : primaryFailure(cause, path);
+  const primary = primaryFailure(artifactFilePrimaryFailure(cause), path);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(
@@ -187,7 +181,9 @@ const artifactReaderFailure = (
         cause,
       });
     case "cancelled":
-      return new AnalysisCancelledError(OPERATION, { cause: cause.cause });
+      return new AnalysisCancelledError(OPERATION, {
+        cause: artifactFileCancellationCause(cause),
+      });
     case "limit":
       return new AnalysisResourceConstraintError(
         OPERATION,

@@ -29,7 +29,7 @@ import {
   withArtifactFileHandle,
   bindArtifactFileCleanup,
   ArtifactFileCleanupFailure,
-  ArtifactFileCancelled,
+  artifactFileCompletion,
   assertArtifactReadActive,
   artifactFileCancellationCause,
 } from "../../artifacts/ArtifactFileOperation.js";
@@ -294,6 +294,7 @@ export class ByteEntropyService {
         options?.signal,
       );
     } catch (cause) {
+      const completion = artifactFileCompletion(cause);
       if (cause instanceof ArtifactFileCleanupFailure) {
         const outcome = cause.fileCleanupFailure.outcome;
         const cleanup = new AnalysisOutputError(
@@ -302,9 +303,9 @@ export class ByteEntropyService {
           {
             cause,
             cleanup: cause.cleanup,
-            ...(outcome.kind === "completed"
-              ? { partialObservation: completedObservation(outcome.value) }
-              : {}),
+            ...(completion === undefined
+              ? {}
+              : { partialObservation: completedObservation(completion.value) }),
           },
         );
         bindArtifactFileCleanup(cause, cleanup);
@@ -320,8 +321,8 @@ export class ByteEntropyService {
           bindArtifactFileCleanup(cause, cancelled);
           return err(cancelled);
         }
-        const cancellation = cause.fileCleanupFailure.completionCancellation;
-        if (cancellation !== undefined && outcome.kind === "completed") {
+        const cancellation = completion?.cancellation;
+        if (cancellation !== undefined) {
           const cancelled = new AnalysisCancelledError(OPERATION, {
             cause: cancellation.reason,
             partialObservation: cleanup.partialObservation,
@@ -346,14 +347,9 @@ export class ByteEntropyService {
         if (cause.reason === "cancelled") {
           const cancelled = new AnalysisCancelledError(OPERATION, {
             cause: artifactFileCancellationCause(cause),
-            ...(cause instanceof ArtifactFileCancelled &&
-            cause.fileCancellation.outcome.kind === "completed"
-              ? {
-                  partialObservation: completedObservation(
-                    cause.fileCancellation.outcome.value,
-                  ),
-                }
-              : {}),
+            ...(completion === undefined
+              ? {}
+              : { partialObservation: completedObservation(completion.value) }),
           });
           bindArtifactFileCleanup(cause, cancelled);
           return err(cancelled);

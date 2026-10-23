@@ -1,6 +1,5 @@
 import {
   bindArtifactFileCleanup,
-  ArtifactFileCleanupFailure,
   artifactFileCancellationCause,
 } from "../artifacts/ArtifactFileOperation.js";
 import { randomUUID } from "node:crypto";
@@ -219,17 +218,11 @@ export const executeSqliteDatabaseWorker = async (request: {
     };
     if (
       cause instanceof ArtifactReaderFailure &&
-      (cause.reason === "cancelled" ||
-        (cause instanceof ArtifactFileCleanupFailure &&
-          cause.fileCleanupFailure.outcome.kind === "completed" &&
-          request.signal?.aborted))
+      cause.reason === "cancelled"
     ) {
       const error = new AnalysisCancelledError(operation, {
         ...options,
-        cause:
-          cause.reason === "cancelled"
-            ? artifactFileCancellationCause(cause)
-            : request.signal?.reason,
+        cause: artifactFileCancellationCause(cause),
       });
       bindArtifactFileCleanup(cause, error);
       throw error;

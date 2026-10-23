@@ -10,9 +10,8 @@ import {
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
-  ArtifactFileCleanupFailure,
   artifactFilePrimaryFailure,
-  ArtifactFileCancelled,
+  artifactFileCompletion,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
   assertArtifactReadActive,
@@ -593,16 +592,11 @@ export class Il2cppMetadataProvider implements Il2cppMetadataPort {
       observe(sourceArtifact(path, snapshot));
       return snapshot;
     } catch (cause) {
-      const outcome =
-        cause instanceof ArtifactFileCleanupFailure
-          ? (cause as ArtifactFileCleanupFailure<StableArtifactSnapshot>)
-              .fileCleanupFailure.outcome
-          : cause instanceof ArtifactFileCancelled
-            ? (cause as ArtifactFileCancelled<StableArtifactSnapshot>)
-                .fileCancellation.outcome
-            : undefined;
-      if (outcome?.kind === "completed")
-        observe(sourceArtifact(path, outcome.value));
+      const completion = artifactFileCompletion(cause);
+      if (completion !== undefined)
+        observe(
+          sourceArtifact(path, completion.value as StableArtifactSnapshot),
+        );
       throw cause;
     }
   }

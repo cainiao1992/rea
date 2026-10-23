@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
 import {
-  ArtifactFileCancelled,
+  artifactFileCompletion,
   ArtifactFileCleanupFailure,
   artifactFilePrimaryFailure,
   withArtifactRegularFile,
@@ -64,13 +64,7 @@ export const readGhidraInstallationProperties = async (
       (physical.code === "ENOENT" || physical.code === "ENOTDIR")
     )
       return undefined;
-    const completed =
-      cause instanceof ArtifactFileCancelled
-        ? cause.fileCancellation.outcome.value
-        : cause instanceof ArtifactFileCleanupFailure &&
-            cause.fileCleanupFailure.outcome.kind === "completed"
-          ? cause.fileCleanupFailure.outcome.value
-          : undefined;
+    const completed = artifactFileCompletion(cause)?.value;
     const diagnostics = {
       path,
       stage: "installation_properties",

@@ -8,6 +8,9 @@ import { vi } from "vitest";
 const fault = vi.hoisted(() => ({
   path: "",
   failClose: "never" as "never" | "once" | "always",
+  abortAtClose: undefined as
+    | { controller: AbortController; reason: unknown }
+    | undefined,
   abortAtStat: undefined as
     | { controller: AbortController; reason: unknown }
     | undefined,
@@ -40,6 +43,9 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       handle.close = async () => {
         if (fault.failClose !== "never") {
           if (fault.failClose === "once") fault.failClose = "never";
+          const abort = fault.abortAtClose;
+          fault.abortAtClose = undefined;
+          abort?.controller.abort(abort.reason);
           throw new Error("controlled descriptor close failure");
         }
         return close();
@@ -50,6 +56,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 import { ApkSignatureProvider } from "../../src/apkSignature/ApkSignatureProvider.js";
+import { ArtifactResourceScope } from "../../src/artifacts/ArtifactResourceScope.js";
 import { createCli } from "../../src/cli.js";
 import { CLI_COMMANDS } from "../../src/cliCommandNames.js";
 import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";
@@ -74,6 +81,7 @@ beforeAll(async () => {
 afterEach(() => {
   fault.path = "";
   fault.failClose = "never";
+  fault.abortAtClose = undefined;
   fault.abortAtStat = undefined;
   fault.pauseAtStat = undefined;
   process.exitCode = exitCode;
@@ -167,6 +175,77 @@ it("reports a completed read whose close failed, and a closed scope, as executio
   expect(closed.ok).toBe(false);
   if (!closed.ok)
     expect(projectAnalysisError(closed.error).code).toBe("execution_failure");
+});
+
+it("keeps a post-capture abort from reclassifying a completed close failure", async () => {
+  const provider = new ApkSignatureProvider();
+  const controller = new AbortController();
+  const reason = { requested: "abort after close failure was captured" };
+  const retain = ArtifactResourceScope.prototype.retain;
+  const retainSpy = vi
+    .spyOn(ArtifactResourceScope.prototype, "retain")
+    .mockImplementation(function (this: ArtifactResourceScope, owner) {
+      retain.call(this, owner);
+      if (owner.kind === "lease" && owner.resource === path)
+        controller.abort(reason);
+    });
+  fault.path = path;
+  fault.failClose = "once";
+  try {
+    const result = await provider.inspect(
+      { path },
+      { signal: controller.signal },
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ cleanupIncomplete: true });
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: {
+        resources: [path],
+        diagnostics: { primary_error: { code: "execution_failure" } },
+      },
+    });
+
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+  } finally {
+    retainSpy.mockRestore();
+    await provider.close();
+  }
+});
+
+it("preserves cancellation observed during a completed read's failed close", async () => {
+  const provider = new ApkSignatureProvider();
+  const controller = new AbortController();
+  const reason = { requested: "abort during descriptor close" };
+  fault.path = path;
+  fault.failClose = "once";
+  fault.abortAtClose = { controller, reason };
+  try {
+    const result = await provider.inspect(
+      { path },
+      { signal: controller.signal },
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ cleanupIncomplete: true });
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: {
+        resources: [path],
+        diagnostics: { primary_error: { code: "cancelled" } },
+      },
+    });
+    expect(result.error.cleanupPrimary?.cause).toBe(reason);
+
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+  } finally {
+    await provider.close();
+  }
 });
 
 it("projects a provider close that still fails through the public CLI", async () => {

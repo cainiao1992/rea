@@ -1,3 +1,4 @@
+import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
 import { expect, it } from "vitest";
 import { OwnedCommandFailure } from "../../../src/process/OwnedCommand.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
@@ -103,4 +104,24 @@ it("says diagnostic capture has no runtime override", () => {
   expect(projected.remediation.action).toContain(
     "worker_timeout_ms does not raise it",
   );
+});
+
+it("does not infer cancellation from a later signal when cleanup carries no cancellation fact", () => {
+  const controller = new AbortController();
+  const cause = new ArtifactReaderFailure("io", "cleanup remains owned", {
+    cleanup: { reason: "close failed", resources: ["/owned/reply.json"] },
+  });
+  controller.abort(new Error("later caller cancellation"));
+  const failure = sqliteDatabaseFailure(
+    cause,
+    "/selected.db",
+    "worker",
+    controller.signal,
+  );
+  expect(failure.cleanupIncomplete).toBe(true);
+  expect(failure.cleanupPrimary).toBeUndefined();
+  expect(projectAnalysisError(failure)).toMatchObject({
+    code: "cleanup_incomplete",
+    details: { resources: ["/owned/reply.json"] },
+  });
 });

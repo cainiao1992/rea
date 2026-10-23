@@ -31,8 +31,7 @@ import {
   bindArtifactFileCleanup,
   artifactFilePrimaryFailure,
   artifactFileCancellationCause,
-  ArtifactFileCancelled,
-  ArtifactFileCleanupFailure,
+  artifactFileCompletion,
 } from "../artifacts/ArtifactFileOperation.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import {
@@ -146,10 +145,6 @@ export class GpuCodeObjectsProvider implements GpuCodeObjectsPort {
         error = new AnalysisCancelledError(OPERATION, {
           cause: artifactFileCancellationCause(primary),
         });
-      else if (primary instanceof ArtifactFileCancelled)
-        error = new AnalysisCancelledError(OPERATION, {
-          cause: primary.fileCancellation.reason,
-        });
       else if (
         primary instanceof ArtifactReaderFailure &&
         primary.reason === "integrity"
@@ -209,16 +204,10 @@ export class GpuCodeObjectsProvider implements GpuCodeObjectsPort {
         );
         error = analysisErrorWithCleanupFailure(error, cleanup, OPERATION);
       }
-      const completed =
-        cause instanceof ArtifactFileCleanupFailure &&
-        cause.fileCleanupFailure.outcome.kind === "completed"
-          ? cause.fileCleanupFailure.outcome.value
-          : cause instanceof ArtifactFileCancelled
-            ? cause.fileCancellation.outcome.value
-            : undefined;
+      const completed = artifactFileCompletion(cause);
       if (completed !== undefined) {
         // The descriptor owner retains observations even when its final close fails.
-        const report = gpuCodeObjectsSchema.safeParse(completed);
+        const report = gpuCodeObjectsSchema.safeParse(completed.value);
         if (report.success)
           error.retainPartialObservation(
             createGpuCodeObjectsEvidence(report.data, this.identity, input),

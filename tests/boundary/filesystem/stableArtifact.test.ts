@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { expect, it, onTestFinished } from "vitest";
 import { readStableArtifact } from "../../../src/artifacts/readStableArtifact.js";
 import {
+  artifactFileCompletion,
   ArtifactFileCleanupFailure,
   ArtifactFileCancelled,
   withArtifactFileHandle,
@@ -136,12 +137,13 @@ it.each(["scoped", "transferred"])(
       throw new Error("Missing descriptor owner");
     expect(failure.fileCleanupFailure.owner.handle).toBe(file.handle);
     expect(failure.fileCleanupFailure.cleanupCause).toBe(file.closeFailure);
-    expect(failure.fileCleanupFailure.outcome).toEqual({
+    expect(artifactFileCompletion(failure)).toEqual({
       kind: "completed",
       value: {
         bytes: file.bytes,
         sha256: createHash("sha256").update(file.bytes).digest("hex"),
       },
+      cancellation: undefined,
     });
     expect(file.handle.fd).toBeGreaterThanOrEqual(0);
     expect(failure.cleanup?.resources).toEqual([file.path]);
@@ -175,6 +177,7 @@ it.each([new Error("primary read failure"), undefined, null])(
       cause: primary,
     });
     expect(failure.fileCleanupFailure.cleanupCause).toBe(file.closeFailure);
+    expect(artifactFileCompletion(failure)).toBeUndefined();
     file.release();
     await scope.close();
     expect(file.handle.fd).toBe(-1);
@@ -198,7 +201,11 @@ it("retains physical read facts and the caller's reason when cancellation arrive
   if (!(failure instanceof ArtifactFileCancelled))
     throw new Error("Missing late cancellation");
   expect(failure.cause).toBe(reason);
-  expect(failure.fileCancellation.outcome.value.bytes).toEqual(file.bytes);
+  expect(artifactFileCompletion(failure)).toMatchObject({
+    kind: "completed",
+    value: { bytes: file.bytes },
+    cancellation: { reason },
+  });
   expect(file.handle.fd).toBe(-1);
 });
 
@@ -218,9 +225,10 @@ it("retains a completed read and failed cleanup when cancellation arrives during
   ).catch((cause: unknown) => cause);
   if (!(failure instanceof ArtifactFileCleanupFailure))
     throw new Error("Missing cleanup ownership");
-  expect(failure.fileCleanupFailure.outcome).toMatchObject({
+  expect(artifactFileCompletion(failure)).toMatchObject({
     kind: "completed",
     value: { bytes: file.bytes },
+    cancellation: { reason },
   });
   expect(controller.signal.reason).toBe(reason);
   file.handle.close = file.nativeClose;
@@ -283,10 +291,36 @@ it("does not turn a retention callback abort into completed-file cancellation", 
       kind: "completed",
       value: file.bytes,
     });
-    expect(failure.fileCleanupFailure.completionCancellation).toBeUndefined();
+    expect(artifactFileCompletion(failure)?.cancellation).toBeUndefined();
     expect(failure.reason).not.toBe("cancelled");
     file.release();
     await failure.cleanupLease.release();
+    expect(file.handle.fd).toBe(-1);
+  } finally {
+    file.release();
+    await scope.close();
+  }
+});
+
+it("keeps a completed void operation distinct from a failed operation and arbitrary error payloads", async () => {
+  const file = await heldDescriptor();
+  const scope = new ArtifactResourceScope();
+  try {
+    const failure: unknown = await withArtifactFileHandle(
+      file.path,
+      file.handle,
+      scope,
+      undefined,
+      async () => undefined,
+    ).catch((cause: unknown) => cause);
+    expect(artifactFileCompletion(failure)).toEqual({
+      kind: "completed",
+      value: undefined,
+      cancellation: undefined,
+    });
+    expect(artifactFileCompletion({ cause: failure })).toBeUndefined();
+    file.release();
+    await scope.close();
     expect(file.handle.fd).toBe(-1);
   } finally {
     file.release();

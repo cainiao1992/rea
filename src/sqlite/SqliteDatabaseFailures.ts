@@ -120,10 +120,7 @@ export const sqliteDatabaseFailure = (
           undefined,
           workerTimeoutMs,
         );
-      else if (signal?.aborted)
-        previous = new AnalysisCancelledError(operation, {
-          cause: signal.reason,
-        });
+
       const error = createSqliteCleanupError(
         cause.cleanup.resources,
         {

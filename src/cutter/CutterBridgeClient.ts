@@ -5,6 +5,7 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   withArtifactRegularFile,
   ArtifactFileCleanupFailure,
+  artifactFileCompletion,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
   assertArtifactReadActive,
@@ -1224,14 +1225,13 @@ const discoveryFailure = (
       cause instanceof ArtifactFileCleanupFailure
         ? cause.fileCleanupFailure.outcome
         : undefined;
+    const cancellation = artifactFileCompletion(cause)?.cancellation;
     const primary =
       outcome?.kind === "failed"
         ? discoveryFailure(outcome.cause, operation)
-        : outcome?.kind === "completed" &&
-            cause instanceof ArtifactFileCleanupFailure &&
-            cause.fileCleanupFailure.completionCancellation !== undefined
+        : cancellation !== undefined
           ? new AnalysisCancelledError(operation, {
-              cause: cause.fileCleanupFailure.completionCancellation.reason,
+              cause: cancellation.reason,
             })
           : undefined;
     if (primary === undefined && outcome?.kind !== "failed") return cleanup;

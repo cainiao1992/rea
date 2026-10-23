@@ -142,6 +142,32 @@ export class ArtifactFileCancelled<
   }
 }
 
+/** Completion facts recorded by the file owner, independent of later caller state. */
+export const artifactFileCompletion = (
+  cause: unknown,
+):
+  | {
+      readonly kind: "completed";
+      readonly value: unknown;
+      readonly cancellation: { readonly reason: unknown } | undefined;
+    }
+  | undefined => {
+  if (cause instanceof ArtifactFileCancelled)
+    return {
+      ...cause.fileCancellation.outcome,
+      cancellation: { reason: cause.fileCancellation.reason },
+    };
+  if (
+    cause instanceof ArtifactFileCleanupFailure &&
+    cause.fileCleanupFailure.outcome.kind === "completed"
+  )
+    return {
+      ...cause.fileCleanupFailure.outcome,
+      cancellation: cause.fileCleanupFailure.completionCancellation,
+    };
+  return undefined;
+};
+
 /** Bind a translated failure to its exact descriptor leases, including failed retries. */
 export const bindArtifactFileCleanup = (
   cause: unknown,

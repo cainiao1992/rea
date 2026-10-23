@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
@@ -15,6 +16,70 @@ const marshalUtf8 = (bytes: Buffer): Buffer => {
   length.writeUInt32LE(bytes.length);
   return Buffer.concat([Buffer.from([0x75]), length, bytes]);
 };
+
+cliTest(
+  "uses magic-specific cache tables for synthetic pyc bytecode equality",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-inline-cache-");
+    const cases = [
+      { magic: 3495, opcode: 166, cacheUnits: 1 },
+      { magic: 3500, opcode: 25, cacheUnits: 4 },
+      { magic: 3524, opcode: 25, cacheUnits: 1 },
+      { magic: 3531, opcode: 106, cacheUnits: 9 },
+      { magic: 3550, opcode: 25, cacheUnits: 1 },
+      { magic: 3553, opcode: 25, cacheUnits: 1 },
+      { magic: 3564, opcode: 58, cacheUnits: 1 },
+      { magic: 3571, opcode: 81, cacheUnits: 9 },
+    ];
+    for (const { magic, opcode, cacheUnits } of cases) {
+      const cache = Buffer.alloc(cacheUnits * 2);
+      const bytecode = (arg: number, cachePayload: Buffer) =>
+        Buffer.concat([
+          Buffer.from([opcode, arg]),
+          cachePayload,
+          Buffer.from([83, 0]),
+        ]);
+      const changedCache = Buffer.from(cache);
+      changedCache[0] = 1;
+      const frozenSet = Buffer.concat([
+        Buffer.from([0x3e, 4, 0, 0, 0]),
+        ...[
+          bytecode(0, cache),
+          bytecode(0, changedCache),
+          bytecode(1, cache),
+          Buffer.concat([bytecode(0, cache), Buffer.from([0, 0])]),
+        ].map((code) => marshalCode("py311", { bytecode: code })),
+      ]);
+      const pyc = Buffer.concat([
+        pythonPycHeader(magic),
+        marshalCode("py311", { consts: [frozenSet] }),
+      ]);
+      const path = join(root, `inline-caches-${magic}.pyc`);
+      await writeFile(path, pyc);
+
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(
+        result.exitCode,
+        `${result.stderr}\n${JSON.stringify(result.json)}`,
+      ).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result.code_objects[0]?.consts).toEqual([
+        expect.objectContaining({ kind: "frozenset", length: 3 }),
+      ]);
+      expect(evidence.normalized_result.code_objects[1]?.bytecode).toEqual({
+        bytes: bytecode(0, cache).length,
+        sha256: createHash("sha256").update(bytecode(0, cache)).digest("hex"),
+      });
+      expect(evidence.normalized_result.artifact.sha256).toBe(
+        createHash("sha256").update(pyc).digest("hex"),
+      );
+    }
+  },
+);
 
 cliTest(
   "keeps distinct Python code names distinct when JavaScript display strings collide",

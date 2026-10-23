@@ -16,6 +16,7 @@ import {
   PythonPycFormatFailure,
   PythonPycResourceFailure,
 } from "./PythonPyc.errors.js";
+import { pythonPycBytecodeIdentity } from "./PythonPycBytecodeEquality.js";
 
 const FLAG_REF = 0x80;
 const TYPE_NULL = 0x30;
@@ -154,6 +155,7 @@ type CodeEquality = {
   /** The co_consts tuple itself, which may be a reference to an unfinished tuple. */
   readonly constsTuple: MarshalValue;
   readonly effectiveFlags: number;
+  readonly bytecode: Buffer;
   readonly name: Buffer;
   readonly nameTables: readonly (readonly Buffer[])[];
   readonly linetable: string;
@@ -234,6 +236,7 @@ export const parsePythonPyc = (
   const reader = new MarshalReader(
     marshal,
     mapped.code_layout,
+    magic,
     input,
     mapped.negative_code_fields === "rejected",
   );
@@ -328,6 +331,7 @@ class MarshalReader {
   constructor(
     readonly bytes: Buffer,
     readonly layout: PythonPycCodeLayout,
+    readonly magic: number,
     readonly input: InspectPythonPycInput,
     readonly rejectNegativeCodeFields: boolean,
   ) {}
@@ -558,6 +562,7 @@ class MarshalReader {
       consts,
       constsTuple,
       effectiveFlags,
+      bytecode,
       name: codeName.raw,
       nameTables:
         localsplusnames !== null
@@ -1148,7 +1153,7 @@ class MarshalReader {
           ":",
         );
       case "str":
-        return this.#stringKey(value.raw);
+        return this.#marshalStringKey(value.raw);
       case "bytes": {
         this.#reserveKey(value.value.length * 2 + 8);
         const prefix = mode === "hash" ? "b" : "y";
@@ -1227,7 +1232,11 @@ class MarshalReader {
       node.nlocals === null ? "" : String(node.nlocals),
       String(material.effectiveFlags),
       String(node.firstlineno),
-      `${node.bytecode.bytes}:${node.bytecode.sha256}`,
+      pythonPycBytecodeIdentity(
+        material.bytecode,
+        this.magic,
+        node.bytecode.sha256,
+      ),
       this.#constKeyItems(material.consts),
       ...material.nameTables.map((items) => this.#nameTableKey(items)),
       // CPython started including line and exception tables in code equality
@@ -1307,10 +1316,6 @@ class MarshalReader {
   }
 
   /** Python string identity is the marshal bytes, not the JavaScript string. */
-  #stringKey(raw: Buffer): string {
-    return this.#marshalStringKey(raw);
-  }
-
   #marshalStringKey(raw: Buffer): string {
     this.#reserveKey(this.#marshalStringKeyLength(raw.length));
     return `s${raw.length}:${raw.toString("hex")}`;

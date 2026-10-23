@@ -49,12 +49,16 @@ filename, the signed 32-bit `co_firstlineno` value, argument counts, flags,
 names, locals (or `localsplusnames` on 3.11+), const
 summaries, and bytecode length plus SHA-256.
 
-Code-object equality used by sets and dictionaries follows the selected layout:
+Code-object equality used by sets and dictionaries follows the selected CPython format:
 3.7–3.10 derive `CO_NOFREE` from the free/cell tables for equality, while
 3.11+ compare raw flags; raw `co_flags` remain in reported facts. The older
-layouts ignore line tables, while 3.11+ include line and exception tables. The
-artifact SHA-256 identifies the exact selected `.pyc` bytes independently of
-this decoded object graph. Reference slots follow each tag's CPython behavior:
+layouts ignore line tables, while 3.11+ include line and exception tables and
+skip inline-cache code units according to the cache table for the exact magic.
+Reported bytecode length and SHA-256 still describe the original code bytes.
+This does not emulate CPython's deoptimization of specialized or instrumented
+opcode bytes in handcrafted pyc files.
+The artifact SHA-256 identifies the exact selected `.pyc` bytes independently
+of this decoded object graph. Reference slots follow each tag's CPython behavior:
 singleton values and `TYPE_REF` do not reserve new slots even when their tag
 has `FLAG_REF` set.
 

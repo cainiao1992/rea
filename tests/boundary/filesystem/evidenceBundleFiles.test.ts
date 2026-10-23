@@ -23,7 +23,7 @@ import {
   deliverAnalysisEvidence,
 } from "../../../src/application/EvidenceBundleCommands.js";
 import { EvidenceLedger } from "../../../src/application/investigation/EvidenceLedger.js";
-import { RegularFileCleanupFailure } from "../../../src/filesystem/OwnedRegularFile.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../../../src/filesystem/OwnedStagedOutput.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
@@ -210,27 +210,38 @@ it("preserves the failed-close owner when import is also cancelled", async () =>
   const cancellationReason = new JsonInputPhysicalReadFailure(
     new Error("opaque cancellation reason"),
   );
+  let owner: OwnedFileHandle | undefined;
+  const resources = new ArtifactResourceScope();
   const close = vi
     .spyOn(OwnedFileHandle.prototype, "close")
-    .mockImplementationOnce(async () => {
+    .mockImplementation(async function (this: OwnedFileHandle) {
+      owner = this;
       controller.abort(cancellationReason);
       throw cleanupCause;
     });
-  let failure: unknown;
   try {
-    try {
-      await readImmutableEvidenceBundle(path, controller.signal);
-    } catch (cause: unknown) {
-      failure = cause;
-    }
-    expect(failure).toBeInstanceOf(RegularFileCleanupFailure);
-    if (!(failure instanceof RegularFileCleanupFailure))
-      throw new Error("Expected the retained file handle owner");
-    expect(failure.cleanupCause).toBe(cleanupCause);
+    const result = await readImmutableEvidenceBundle(
+      path,
+      controller.signal,
+      resources,
+    );
+    if (result.ok) throw new Error("Expected failed finalization");
+    expect(result.error).toMatchObject({
+      _tag: "EvidenceFileError",
+      cleanupIncomplete: true,
+      cleanupPrimary: {
+        _tag: "AnalysisCancelledError",
+        cause: cancellationReason,
+      },
+    });
+    expect(owner?.handle.fd).toBeGreaterThanOrEqual(0);
+    close.mockRestore();
+    await resources.close();
+    expect(owner?.handle.fd).toBe(-1);
+    expect(result.error.cleanupIncomplete).toBe(false);
   } finally {
     close.mockRestore();
-    if (failure instanceof RegularFileCleanupFailure)
-      await failure.owner.close();
+    await resources.close();
   }
   expect(await readEvidenceBundle(path)).toMatchObject({ ok: true });
 });

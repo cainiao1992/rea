@@ -795,7 +795,10 @@ it
     const output = { stdout: "", stderr: "upstream warning", truncated: false };
     expect(projectAnalysisError(result.error)).toMatchObject({
       category:
-        scenario === "late-cancellation" ? "cancelled" : "execution_failure",
+        scenario === "late-cancellation" ||
+        scenario === "cancelled-cleanup-failure"
+          ? "cancelled"
+          : "execution_failure",
       details:
         scenario === "late-cancellation"
           ? { captured_output: output }

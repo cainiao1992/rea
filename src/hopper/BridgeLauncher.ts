@@ -194,6 +194,7 @@ export interface HopperApplicationLauncherDependencies {
  */
 export class HopperApplicationLauncher implements BridgeLauncher {
   readonly #preparedImageResources = new ArtifactResourceScope();
+  readonly #probeResources = new ArtifactResourceScope();
 
   constructor(
     readonly options: HopperApplicationLauncherOptions,
@@ -208,6 +209,22 @@ export class HopperApplicationLauncher implements BridgeLauncher {
       const observation = ArtifactReaderFailure.cleanupObservation(
         cause,
         this.#preparedImageResources.cleanupResources,
+      );
+      const failure = new ProviderCleanupError(
+        "hopper",
+        observation.resources,
+        { reason: observation.reason },
+        { cause },
+      );
+      bindRetainedArtifactCleanup(failure, cause);
+      failures.push(failure);
+    }
+    try {
+      await this.#probeResources.retryCleanup();
+    } catch (cause: unknown) {
+      const observation = ArtifactReaderFailure.cleanupObservation(
+        cause,
+        this.#probeResources.cleanupResources,
       );
       const failure = new ProviderCleanupError(
         "hopper",
@@ -564,16 +581,41 @@ export class HopperApplicationLauncher implements BridgeLauncher {
       environment: this.options.environment,
       ...(signal === undefined ? {} : { signal }),
     });
-    if (signal?.aborted === true)
-      return { ok: false, error: hopperCancelledBySignal(signal) };
-    return selection.ok
-      ? { ok: true, strategy: selection.strategy }
-      : {
-          ok: false,
-          error: new HopperProcessError(selection.exitCode, {
-            diagnostic: selection.diagnostic,
-          }),
-        };
+    const pending = selection.ok ? undefined : selection.cleanup;
+    if (pending !== undefined)
+      this.#probeResources.retain({
+        kind: "lease",
+        resource: "hopper-private-display-probe",
+        lease: pending.lease,
+      });
+    const cleanup =
+      pending === undefined
+        ? undefined
+        : {
+            reason: pending.reason,
+            resources: [
+              ...(pending.lease.cleanupResources ?? [
+                "hopper-private-display-probe",
+              ]),
+            ],
+          };
+    const error =
+      signal?.aborted === true
+        ? new HopperCancelledError(signal.reason, { cleanup })
+        : selection.ok
+          ? undefined
+          : new HopperProcessError(selection.exitCode, {
+              diagnostic: selection.diagnostic,
+              cleanup,
+            });
+    if (error === undefined)
+      return {
+        ok: true,
+        strategy: selection.ok ? selection.strategy : undefined,
+      };
+    if (pending !== undefined)
+      new AnalysisCleanupLeaseGroup(error, [pending.lease]);
+    return { ok: false, error };
   }
 }
 

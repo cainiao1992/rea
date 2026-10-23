@@ -82,7 +82,7 @@ const processResult = (
   exitCode: value.status === "ready" ? 0 : failureExit(value.failure_code),
   stderr: `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}${JSON.stringify(value)}\n`,
   stderrBytes: 0,
-  cleanupIncomplete: false,
+  cleanup: { status: "released" },
   ...overrides,
 });
 
@@ -335,7 +335,7 @@ describe("private display probe output settlement", () => {
         exitCode: 0,
         stderr: "firstlast",
         stderrBytes: Buffer.byteLength("firstlast"),
-        cleanupIncomplete: false,
+        cleanup: { status: "released" },
       });
     },
   );

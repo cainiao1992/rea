@@ -520,7 +520,10 @@ export interface SystemDoctorHostOptions {
     resources: RetainedResourceScope,
     signal: AbortSignal,
   ) => ReturnType<ProviderRequestBudgetResolver>;
-  readonly linuxDemoRuntimeCheck?: () => Promise<DoctorCheck>;
+  readonly linuxDemoRuntimeCheck?: (
+    resourceScope: RetainedResourceScope,
+    signal: AbortSignal,
+  ) => Promise<DoctorCheck>;
 }
 
 /** Create diagnostics backed by the current process and host commands. */
@@ -633,8 +636,10 @@ export const systemDoctorHost = (
         hostExecFileOutput,
         commandEnvironment,
       ),
-    linuxDemoRuntimeCheck:
-      options.linuxDemoRuntimeCheck ?? uncomposedLinuxDemoRuntimeCheck,
+    linuxDemoRuntimeCheck: () =>
+      options.linuxDemoRuntimeCheck === undefined
+        ? uncomposedLinuxDemoRuntimeCheck()
+        : options.linuxDemoRuntimeCheck(resourceScope, inspectionSignal),
     inspectLinuxHopper: (path) => inspectLinuxHopperLauncher(path, environment),
     async brewHopperPath() {
       return probeHomebrew(async (command) => {

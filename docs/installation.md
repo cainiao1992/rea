@@ -927,6 +927,11 @@ When Hopper cannot start in CI, run
 `rea doctor --provider hopper --json` in the failing runner.
 Structured failures distinguish private-display dependencies, an unsupported
 demo dialog or build, process-ownership conflicts, and an early lifecycle exit.
+If a private-display probe times out or is cancelled and its process cleanup
+fails, REA retains that exact probe owner and reports `cleanup_incomplete`.
+Session close retries the probe before releasing its cleanup marker; doctor
+uses its own retained resource scope for the same retry. A probe timeout whose
+process has already been released remains an ordinary startup diagnostic.
 Apply the reported remediation rather than exposing the runner's desktop,
 copying license secrets into logs, or killing unrelated Hopper processes.
 

@@ -65,6 +65,10 @@ export interface PointerFixups {
   readonly legacyBindStreams: number;
   /** Bytes in rebase streams that could not be completely decoded. */
   readonly unreadRebaseBytes: number;
+  /** Unresolved legacy writes intersecting a scalar span, including incomplete
+   * legacy applicability. Chained pointer values still require decode().
+   */
+  hasUnresolvedLegacyBytes(address: bigint, size: number): boolean;
   /** Decode the pointer stored at `address` whose raw 64-bit value is `raw`. */
   decode(address: bigint, raw: bigint): PointerResolution;
 }
@@ -508,6 +512,8 @@ const chainedFixups = (
     legacyRebaseStreams: rebases.examined,
     legacyBindStreams: binds.examined,
     unreadRebaseBytes: rebases.unreadBytes,
+    hasUnresolvedLegacyBytes: (address, size) =>
+      hasUnresolvedLegacyBytes(segments, rebases, binds, address, size),
     decode(address, raw) {
       const rawPointer = (): PointerResolution =>
         applicabilityComplete
@@ -805,13 +811,13 @@ const readRebaseStream = (
   }
 };
 
-const resolveLegacyRebase = (
+/** Read loader-owned membership without interpreting a stored pointer word. */
+const legacyRebaseState = (
   segments: readonly Segment[],
   membership: Uint8Array | null,
   address: bigint,
-  raw: bigint,
-): PointerResolution | undefined => {
-  if (membership === null) return undefined;
+): number | Extract<PointerResolution, { readonly kind: "unsupported" }> => {
+  if (membership === null) return 0;
   let fileOffset: number | undefined;
   for (const segment of segments) {
     const relative = address - segment.address;
@@ -830,10 +836,20 @@ const resolveLegacyRebase = (
       };
     fileOffset = Number(mapped);
   }
-  if (fileOffset === undefined) return undefined;
+  if (fileOffset === undefined) return 0;
   const at = Math.floor(fileOffset / 4);
   const shift = (fileOffset % 4) * 2;
-  const state = ((membership[at] ?? 0) >> shift) & 3;
+  return ((membership[at] ?? 0) >> shift) & 3;
+};
+
+const resolveLegacyRebase = (
+  segments: readonly Segment[],
+  membership: Uint8Array | null,
+  address: bigint,
+  raw: bigint,
+): PointerResolution | undefined => {
+  const state = legacyRebaseState(segments, membership, address);
+  if (typeof state !== "number") return state;
   if (state === 0) return undefined;
   if (state === REBASE_POINTER) return { kind: "rebase", target: raw };
   return {
@@ -1153,6 +1169,41 @@ const parseLegacyBinds = (
   };
 };
 
+/** Query retained legacy facts; never expand bind runs or read scalar padding. */
+const hasUnresolvedLegacyBytes = (
+  segments: readonly Segment[],
+  rebases: RebaseFacts,
+  binds: BindFacts,
+  address: bigint,
+  size: number,
+): boolean => {
+  if (size <= 0) return false;
+  if (!rebases.complete || !binds.complete) return true;
+  const first = address - 7n;
+  const end = address + BigInt(size);
+  for (const run of binds.runs) {
+    // An eight-byte bind overlaps [address,end) exactly when its start is
+    // in [address-7,end). Find the first such member without expanding it.
+    const index =
+      first <= run.start
+        ? 0n
+        : (first - run.start + run.stride - 1n) / run.stride;
+    if (index < run.count && run.start + index * run.stride < end) return true;
+  }
+  if (rebases.membership !== null)
+    for (let slot = first; slot < end; slot++) {
+      const state = legacyRebaseState(segments, rebases.membership, slot);
+      // Text rebases own four bytes; conflicting kinds may include a pointer.
+      if (
+        typeof state !== "number" ||
+        state === REBASE_CONFLICT ||
+        (state === REBASE_NON_POINTER && slot + 4n > address)
+      )
+        return true;
+    }
+  return false;
+};
+
 /** Build pointer decoding for one slice from its fixup load commands. */
 export const parsePointerFixups = (
   bytes: Buffer,
@@ -1187,6 +1238,7 @@ export const parsePointerFixups = (
       legacyRebaseStreams: 0,
       legacyBindStreams: 0,
       unreadRebaseBytes: 0,
+      hasUnresolvedLegacyBytes: () => false,
       decode: (_address, raw) => rawPointer(raw),
     };
   const failures = [...rebases.failures, ...binds.failures];
@@ -1201,6 +1253,8 @@ export const parsePointerFixups = (
     legacyRebaseStreams: rebases.examined,
     legacyBindStreams: binds.examined,
     unreadRebaseBytes: rebases.unreadBytes,
+    hasUnresolvedLegacyBytes: (address, size) =>
+      hasUnresolvedLegacyBytes(segments, rebases, binds, address, size),
     decode(address, raw) {
       const match = resolveLegacyBind(binds.runs, address);
       const rebase = resolveLegacyRebase(

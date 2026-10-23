@@ -187,6 +187,7 @@ it("marks only opcode-selected pointer slots rebased, including target zero", ()
     kind: "rebase",
     target: BASE + 0x200n,
   });
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x100n, 4)).toBe(false);
   expect(fixups.decode(BASE + 0x118n, 0n)).toEqual({
     kind: "rebase",
     target: 0n,
@@ -252,6 +253,7 @@ it("retains known prefix rebases and leaves unmatched locations unknown on an in
   expect(fixups.issues).toMatchObject([
     { code: "rebase_stream_decode_failed" },
   ]);
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x108n, 4)).toBe(true);
 });
 
 it("does not treat 32-bit text rebases as 64-bit metadata pointers", () => {
@@ -263,6 +265,10 @@ it("does not treat 32-bit text rebases as 64-bit metadata pointers", () => {
     kind: "unsupported",
     reason: "Legacy non-pointer rebase is not a 64-bit metadata pointer",
   });
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x100n, 4)).toBe(true);
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x103n, 4)).toBe(true);
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x104n, 4)).toBe(false);
+  expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x108n, 4)).toBe(false);
   expect(fixups.decode(BASE + 0x108n, BASE + 0x300n)).toMatchObject({
     kind: "raw",
     target: BASE + 0x300n,
@@ -438,6 +444,7 @@ describe("incomplete legacy bind applicability", () => {
     expect(fixups.issues).toMatchObject([
       { code: "bind_stream_decode_failed" },
     ]);
+    expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x1008n, 4)).toBe(true);
   });
 
   it("retains a positive bind prefix while leaving unmatched slots unknown", () => {
@@ -1285,6 +1292,10 @@ describe("legacy pointer fixup streams", () => {
       kind: "raw",
       target: 0x99n,
     });
+    expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x4014n, 4)).toBe(true);
+    expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x4018n, 4)).toBe(false);
+    expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x401cn, 4)).toBe(false);
+    expect(fixups.hasUnresolvedLegacyBytes(BASE + 0x401cn, 8)).toBe(true);
   });
 
   it("wraps a negative DO_BIND_ADD_ADDR_ULEB step and keeps decoding", () => {

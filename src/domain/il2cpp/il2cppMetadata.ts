@@ -207,7 +207,7 @@ export const il2cppMethodAddressSchema = z.strictObject({
 /** Index into the binary Il2CppType table and its C#-like display name. */
 export const il2cppTypeReferenceSchema = z.strictObject({
   type: optionalIndex,
-  /** Null for type index -1, and for every row of a version 27 report. */
+  /** Null for type index -1, unresolved native type-table slots, and version 27. */
   name: z.string().nullable(),
 });
 

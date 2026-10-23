@@ -26,6 +26,19 @@ directly to `compare_functions`, and `inspect_artifact` Evidence to
 `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
 
+Saved records from the pre-6.6 identity projection that omitted
+`relationship_coverage: null` from its digest remain incompatible, even when
+the serialized field is present. REA recognizes that exact previous commitment
+for its diagnostic and keeps rejecting it; the original ID and file are not
+rewritten. Recreate the observation with the current release. Re-exporting the
+old bundle cannot update its identity. A nonmatching digest that does not
+verify under that previous rule remains an ordinary integrity mismatch.
+
+Application comparison, export-shape comparison and feature tracing preserve
+the same Evidence authentication failures: an admitted source that fails
+authentication is `evidence_integrity_mismatch`, while an authenticated source with an unsupported
+workflow role or invalid selector is `invalid_request`.
+
 Ghidra inventories and function replies use `raw_result: null` when their facts
 are already preserved in `normalized_result`, limitations, locations and
 relationship coverage. Distinct overview details, measured load-image
@@ -239,6 +252,16 @@ Evidence ID. Distinct results retain independent questions and source links;
 repeating the same result does not create another unknown. Workflow Evidence
 keeps the original residual question text. Explicit `record_unknown` requests
 keep caller-selected identity and reject duplicate creation.
+Duplicate creation is a nonretryable `invalid_request`; use the existing head
+or update it with its current `expected_revision`. A stale update remains a
+retryable `revision_conflict`.
+
+When `record_unknown` or `update_unknown` commits but its complete reply exceeds
+the response budget, `details.reported_limits.committed_unknown` identifies the
+exact unknown ID, committed revision and mutation Evidence IDs. Its retained
+Evidence reference remains available on the same connection. Export the bundle
+or page `list_unknowns` to recover the result; do not repeat the committed
+mutation. A delivery failure does not undo that revision.
 
 For a portable exported bundle, the CLI shares this projection:
 `rea inspect-evidence-bundle '{"path":"/tmp/evidence.json","detail":"summary","filters":{"operation":"analyze_function"}}' --format json`.
@@ -417,6 +440,13 @@ graph checks. Exhausting a page from a partial source does not establish that
 unreturned paths are absent. Views carry their own Evidence IDs and preserve
 links to the original parent; complete producer output and historical inline
 Evidence input parsing retain their existing shapes.
+
+An `inspect_artifact` bundle published by the CLI includes its atomic substep
+Evidence as addressable records alongside the inspection parent. MCP retains
+the same source closure. After importing that bundle, select either the parent
+or an atomic inventory by its retained Evidence ID without reopening the target.
+Unsupported view families report an input issue at `view`; an invalid source
+reports its issue at `source`.
 
 Completed `inspect_wasm_artifact` Evidence supports a summary and
 `view: {kind: "wasm", facet: "exports", offset: 0, limit: 64}`. Other facets

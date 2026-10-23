@@ -44,6 +44,9 @@ they do not claim a destination directory. Their `relative_offset` and
 `compressed_size` preserve any payload declared by older producers, while
 `declared_size` is zero because no bytecode is materialized for a namespace.
 Every declared span must end before the PYZ table of contents.
+Malformed CArchive TOC rows identify their zero-based table index and byte offset
+within the TOC, including truncated headers, invalid names, compression flags,
+and type codes. The failure retains its original format reason.
 PYZ `compression_flag` is derived from storage: nonempty payloads are compressed,
 including legacy namespaces; an empty namespace has no compressed payload.
 

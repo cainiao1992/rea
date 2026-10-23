@@ -26,6 +26,45 @@ import {
   type ArtifactEntry,
 } from "../ArtifactReader.js";
 
+it.each([0, 1, 2])(
+  "identifies malformed CArchive compression at table index %i",
+  async (index) => {
+    const original = cArchiveExecutable({
+      layout: "2.1",
+      pythonVersion: 309,
+      members: ["a", "b", "c"].map((name) => ({
+        name,
+        typeCode: "x",
+        payload: Buffer.from(name),
+        compress: false,
+      })),
+    });
+    const toc = 64 + original.readUInt32BE(original.length - 88 + 12);
+    let record = toc;
+    for (let row = 0; row < index; row++)
+      record += original.readUInt32BE(record);
+    await withPyInstallerReader(original, async (reader) => {
+      const entries = [];
+      for await (const entry of reader.entries()) entries.push(entry);
+      expect(entries).toHaveLength(3);
+    });
+    const malformed = Buffer.from(original);
+    malformed[record + 16] = 2;
+    await expect(
+      withPyInstallerReader(malformed, async (reader) => {
+        for await (const _entry of reader.entries()) {
+          /* force TOC admission */
+        }
+      }),
+    ).rejects.toMatchObject({
+      reason: "format",
+      message: expect.stringContaining(
+        `table index ${index} at TOC offset ${record - toc}`,
+      ),
+    });
+  },
+);
+
 it.each([
   ["empty", Buffer.alloc(0)],
   ["short", Buffer.from("630000", "hex")],

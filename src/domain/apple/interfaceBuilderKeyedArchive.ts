@@ -275,8 +275,10 @@ const keyedArchiveTable = (objectTable: readonly unknown[]) => {
     if (typeof value !== "object" || value === null) return value;
     const output: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value)) {
-      if (key === "$class") output.className = classNameOf(value);
-      else output[key] = resolve(child);
+      // `$class` describes the archived object's type. Keep that derived fact
+      // outside its serialized fields so an authored `className` key remains
+      // ordinary application data.
+      if (key !== "$class") output[key] = resolve(child);
     }
     return output;
   };
@@ -372,7 +374,14 @@ const keyedArchiveTable = (objectTable: readonly unknown[]) => {
           : [[facts.name, { superclasses: facts.rawSuperclasses }]];
       }),
     );
-  return { resolve, hierarchy, hasClassSuperclass, classChainOf, classTable };
+  return {
+    resolve,
+    hierarchy,
+    classNameOf,
+    hasClassSuperclass,
+    classChainOf,
+    classTable,
+  };
 };
 
 /** Project class and connection objects from an NSKeyedArchiver object table. */
@@ -385,6 +394,7 @@ const parseKeyedArchive = (
   const {
     resolve,
     hierarchy: toHierarchy,
+    classNameOf,
     hasClassSuperclass,
     classChainOf,
     classTable,
@@ -397,15 +407,13 @@ const parseKeyedArchive = (
   for (const [index, raw] of objectTable.entries()) {
     if (index === 0) continue;
     const resolved = record(resolve(raw));
-    const className = firstString(resolved.className);
+    const className = classNameOf(raw);
     // An archived object names its class with its own `$class` reference;
     // when that reference cannot be resolved the object is still observed,
     // with an unknown class. Scalars and class descriptors are not objects.
     if (className === null && !Object.hasOwn(record(raw), "$class")) continue;
     objectCount += 1;
-    const fields = Object.fromEntries(
-      Object.entries(resolved).filter(([key]) => key !== "className"),
-    );
+    const fields = { ...resolved };
     // Keep the unresolvable class reference itself, e.g. a dangling UID.
     if (className === null) fields.$class = record(raw).$class;
     const authoredId = firstString(fields.objectID, fields["object-id"]);

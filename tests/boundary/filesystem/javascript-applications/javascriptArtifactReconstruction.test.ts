@@ -1,5 +1,5 @@
 import {
-  primitiveCandidateExpansionSource,
+  primitiveCandidateExpansionExpression,
   primitiveByteExpansionSource,
 } from "../../../fixtures/javascriptPrimitiveExpansion.js";
 import { createHash } from "node:crypto";
@@ -743,7 +743,10 @@ const rejectInvalidTransfer = async (
 
 it("reports semantic value resource limits in application graph coverage", async () => {
   const root = await createTestTempDirectory("rea-javascript-semantic-limit-");
-  await writeFile(join(root, "app.js"), primitiveCandidateExpansionSource());
+  await writeFile(
+    join(root, "app.js"),
+    `const answer = { nested: ${primitiveCandidateExpansionExpression()} };`,
+  );
   await writeFile(join(root, "growth.js"), primitiveByteExpansionSource());
   const snapshot = await scanCanonicalArtifactInventory(root, {});
   const reader = createJavaScriptArtifactReader(root, "directory");

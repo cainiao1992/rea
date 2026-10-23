@@ -390,8 +390,12 @@ const addUnavailableArtifactEntries = (
             ...(file.inventory_occurrence_id === undefined
               ? {}
               : { inventory_occurrence_id: file.inventory_occurrence_id }),
-            hash_status: file.hash_status,
-            artifact_kind: file.artifact_kind,
+            ...(file.hash_status === undefined
+              ? {}
+              : { hash_status: file.hash_status }),
+            ...(file.artifact_kind === undefined
+              ? {}
+              : { artifact_kind: file.artifact_kind }),
             ...(file.kind === undefined ? {} : { kind: file.kind }),
             content_available: false,
           },
@@ -414,7 +418,9 @@ const addUnavailableArtifactEntries = (
       properties: {
         path: file.path,
         content_available: false,
-        hash_status: file.hash_status,
+        ...(file.hash_status === undefined
+          ? {}
+          : { hash_status: file.hash_status }),
       },
       evidence: artifactObservationEvidence({
         sha256: file.container_sha256,

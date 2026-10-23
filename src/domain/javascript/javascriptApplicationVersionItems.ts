@@ -7,6 +7,7 @@ import type {
   ApplicationNode,
 } from "./javascriptApplicationGraphSchemas.js";
 import type { JavaScriptApplicationGraph } from "./javascriptApplicationGraph.js";
+import { javaScriptFileOccurrenceSchema } from "./javascriptArtifactFiles.js";
 import { applicationEndpointCorrespondence } from "./javascriptApplicationEndpointCorrespondence.js";
 import type { ApplicationVersionComparisonItem } from "./javascriptApplicationVersionComparisonSchemas.js";
 import type {
@@ -506,12 +507,32 @@ const properties = (node: ApplicationNode) =>
   node.observations
     .map(({ label, properties: values, source_map_reference }) => ({
       label,
-      properties: values,
+      properties: comparisonPropertyValues(values),
       source_map_reference,
     }))
     .sort((left, right) =>
       compareUnicodeCodePoints(canonicalJson(left), canonicalJson(right)),
     );
+
+const comparisonPropertyValues = (
+  values: ApplicationNode["observations"][number]["properties"],
+) => {
+  const occurrence = javaScriptFileOccurrenceSchema.safeParse(
+    values.file_occurrence,
+  );
+  if (!occurrence.success) return values;
+  // A containing artifact's digest locates this occurrence in one version;
+  // sibling changes do not establish a change to this file's own facts.
+  // Keep the occurrence's path and content digest comparable, and retain the
+  // complete provenance record on the original observation.
+  return {
+    ...values,
+    file_occurrence: {
+      path: occurrence.data.path,
+      sha256: occurrence.data.sha256,
+    },
+  };
+};
 
 const indexRelationships = (
   graph: JavaScriptApplicationGraph,

@@ -80,6 +80,9 @@ const contextFor = (
       graph_sha256: SHA256,
     },
     nodes: [{ artifact_id: `art_${SHA256}`, sha256: SHA256, size: 1 }],
+    // These fixtures model complete directory traversal; source-analysis gaps
+    // remain on the individual files and do not imply missing inventory paths.
+    coverage: { scope: "root", status: "complete" },
   } as unknown as ArtifactInventorySnapshot;
   const fileSet = {
     files: [file],
@@ -155,6 +158,47 @@ describe("skipped JavaScript parse reporting", () => {
     addJavaScriptArtifactFiles(context);
     expect(fileObservation(context).parse_status).toBe(javascript.parse_status);
   });
+});
+
+it("preserves omitted inventory facts on an unavailable artifact", () => {
+  const file = skippedFile();
+  const base = contextFor(file, analysisFor([]));
+  const context: JavaScriptArtifactGraphContext = {
+    ...base,
+    fileSet: {
+      ...base.fileSet,
+      files: [],
+      unavailable_relevant_files: [
+        {
+          path: file.path,
+          container_sha256: file.container_sha256,
+          sha256: null,
+          bytes: null,
+          inventory_artifact_id: null,
+        },
+      ],
+    },
+  };
+  addJavaScriptArtifactFiles(context);
+  const entry = context.accumulator
+    .nodes()
+    .find(
+      ({ identity }) =>
+        identity.strategy === "canonical-path" && identity.path === file.path,
+    );
+  expect(entry?.observations[0]?.properties).toEqual({
+    path: file.path,
+    entry_sha256: null,
+    bytes: null,
+    inventory_artifact_id: null,
+    content_available: false,
+  });
+  expect(
+    context.accumulator
+      .edges()
+      .find(({ target_node_id }) => target_node_id === entry?.node_id)
+      ?.properties,
+  ).toEqual({ path: file.path, content_available: false });
 });
 
 it.each([false, true])(

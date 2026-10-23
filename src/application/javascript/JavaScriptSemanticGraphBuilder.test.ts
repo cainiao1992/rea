@@ -1,4 +1,7 @@
-import { primitiveByteExpansionSource } from "../../../tests/fixtures/javascriptPrimitiveExpansion.js";
+import {
+  primitiveByteExpansionSource,
+  primitiveCandidateExpansionExpression,
+} from "../../../tests/fixtures/javascriptPrimitiveExpansion.js";
 import { graphForJavaScript as graphFor } from "../../../tests/fixtures/javascriptSemanticGraph.js";
 import * as t from "@babel/types";
 import { expect, it } from "vitest";
@@ -250,8 +253,7 @@ it("keeps dynamic calls explicit and returns complete deterministic results", ()
 });
 
 it("preserves primitive candidate budget unknowns in semantic graph coverage", () => {
-  const term = '(true ? "a" : "b")';
-  const source = `const answer = ${Array.from({ length: 20 }, () => term).join(" + ")};`;
+  const source = `const answer = ${primitiveCandidateExpansionExpression()};`;
   const ir = analyzeJavaScriptSemantics(source);
   const graph = graphFor(source, ir);
 
@@ -287,8 +289,7 @@ it("preserves derived string-byte limit reasons in semantic graph unknowns", () 
 });
 
 it("retains resource-limit reasons at nested object property slots", () => {
-  const term = '(true ? "a" : "b")';
-  const source = `const answer = { nested: { value: ${Array.from({ length: 20 }, () => term).join(" + ")} } };`;
+  const source = `const answer = { nested: { value: ${primitiveCandidateExpansionExpression()} } };`;
   const ir = analyzeJavaScriptSemantics(source);
   const graph = graphFor(source, ir);
 

@@ -1,11 +1,6 @@
-/** Source whose concatenated alternatives exceed primitive candidate storage. */
-export const primitiveCandidateExpansionSource = (): string => {
-  const expression = Array.from(
-    { length: 20 },
-    () => '(true ? "a" : "b")',
-  ).join(" + ");
-  return `const answer = { nested: ${expression} };`;
-};
+/** Expression whose unresolved alternatives exceed primitive candidate storage. */
+export const primitiveCandidateExpansionExpression = (): string =>
+  Array.from({ length: 20 }, () => '(choice ? "a" : "b")').join(" + ");
 
 /** Source whose repeated doubling exceeds derived primitive string storage. */
 export const primitiveByteExpansionSource = (): string => {

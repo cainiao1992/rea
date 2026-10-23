@@ -1,5 +1,5 @@
 import {
-  primitiveCandidateExpansionSource,
+  primitiveCandidateExpansionExpression,
   primitiveByteExpansionSource,
 } from "../../fixtures/javascriptPrimitiveExpansion.js";
 import { createHash } from "node:crypto";
@@ -135,7 +135,10 @@ it("keeps an ASAR-named file without an ASAR header opaque during JavaScript rec
 
 it("retains semantic resource limits alongside recorded integrity contradictions", async () => {
   const { archive } = await createStrippedAsarAddon([
-    { path: "app.js", contents: primitiveCandidateExpansionSource() },
+    {
+      path: "app.js",
+      contents: `const answer = { nested: ${primitiveCandidateExpansionExpression()} };`,
+    },
     { path: "growth.js", contents: primitiveByteExpansionSource() },
   ]);
   const analyzed = await analyzeJavaScriptApplication({

@@ -114,6 +114,39 @@ it("reads a compiler-produced OTP 29 BEAM with the compact atom table", () => {
   });
 });
 
+it("accepts extended compact atom lengths and rejects truncated or overflowing values", () => {
+  const compactAtom = (length: Buffer, name: Buffer): Buffer =>
+    singleChunkBeam(
+      "AtU8",
+      Buffer.concat([Buffer.from([0xff, 0xff, 0xff, 0xff]), length, name]),
+    );
+  const name = Buffer.from("0123456789abcdef", "ascii");
+  const extended = parse(compactAtom(Buffer.from([0x18, 0x00, 0x10]), name));
+  expect(extended.module).toBe(name.toString("ascii"));
+  expect(() => parse(compactAtom(Buffer.from([0x18, 0x00]), name))).toThrow(
+    /BEAM atom table is truncated/,
+  );
+  expect(() => parse(compactAtom(Buffer.from([0x19]), name))).toThrow(
+    /BEAM atom length is not a u tag/,
+  );
+  expect(() =>
+    parse(
+      compactAtom(
+        Buffer.from([0xd8, 0x80, 0, 0, 0, 0, 0, 0, 0]),
+        Buffer.alloc(0),
+      ),
+    ),
+  ).toThrow(/BEAM atom length encoding overflows/);
+  expect(() =>
+    parse(
+      compactAtom(
+        Buffer.from([0xf8, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        Buffer.alloc(0),
+      ),
+    ),
+  ).toThrow(/BEAM atom length encoding overflows/);
+});
+
 it("fails a truncated FOR1 container without partial success", () => {
   expect(() => parse(Buffer.from("FOR1"))).toThrow(ArtifactReaderFailure);
 });

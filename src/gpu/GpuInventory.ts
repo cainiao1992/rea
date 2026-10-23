@@ -52,6 +52,7 @@ import {
   readPtxKernels,
   readPtxTarget,
 } from "./PtxKernels.js";
+import { parseAmdGpuTargetId } from "./AmdGpuTarget.js";
 
 /** File declarations only. Every child range stays in its named parent coordinate space. */
 export class GpuInventory {
@@ -428,12 +429,16 @@ export class GpuInventory {
           state = base === inner ? "base-only" : "conflict";
       } else if (ptxTargetIdentity(outer) === ptxTargetIdentity(payload.key))
         state = "consistent";
-      else if (
-        row.kind === "amdgpu" &&
-        outer.split(":")[0] === payload.key.split(":")[0]
-      )
-        state = "unknown";
-      else state = "conflict";
+      else if (row.kind === "amdgpu") {
+        const outerTarget = parseAmdGpuTargetId(outer);
+        const payloadTarget = parseAmdGpuTargetId(payload.key);
+        state =
+          outerTarget !== null &&
+          payloadTarget !== null &&
+          outerTarget.processor === payloadTarget.processor
+            ? "unknown"
+            : "conflict";
+      } else state = "conflict";
     }
     this.#retain({
       payload_target: payload.value,

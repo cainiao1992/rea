@@ -392,7 +392,7 @@ export const readAmdElfMetadata = async (
     const processorConflict =
       processor !== null &&
       noteIdentity !== null &&
-      processor !== noteIdentity.processor.toLowerCase();
+      processor !== noteIdentity.processor;
     const conflict = noteConflict || processorConflict;
     const limitation = noteConflict
       ? "AMDGPU notes declare conflicting processor targets; processor identity is unknown"

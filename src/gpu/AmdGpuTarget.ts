@@ -1,12 +1,12 @@
 const processor = String.raw`gfx[0-9a-z]+(?:-[0-9a-z]+)*`;
 const targetFeaturesSource = String.raw`(?:(?::[a-z0-9_-]+[+-])|(?:\+[a-z0-9_-]+))*`;
 const targetIdSource = `${processor}${targetFeaturesSource}`;
-const targetId = new RegExp(`^${targetIdSource}$`, "iu");
+const targetId = new RegExp(`^(${processor})${targetFeaturesSource}$`, "iu");
 const targetTripleSource = String.raw`(?:amdgcn|amdgpu(?:[0-9]+(?:\.[0-9a-f]+)?)?)-amd-amdhsa`;
 const bundleTriple = new RegExp(`^(?:hip|hipv4)-${targetTripleSource}-`, "iu");
 const bundleTarget = new RegExp(`(?:--|-)(${targetIdSource})$`, "iu");
 const noteTarget = new RegExp(
-  `^${targetTripleSource}(?:--|-unknown-)((${processor})${targetFeaturesSource})$`,
+  `^${targetTripleSource}(?:--|-unknown-)(${targetIdSource})$`,
   "iu",
 );
 
@@ -78,9 +78,15 @@ const ELF_PROCESSORS: Readonly<Record<number, string>> = {
   0xeb: "gfx1250-strict",
 };
 
-/** Target IDs retain the processor spelling and any declared feature modifiers. */
-export const parseAmdGpuTargetId = (value: string): string | null =>
-  targetId.test(value) ? value : null;
+/** Retain exact target spelling separately from its canonical processor identity. */
+export const parseAmdGpuTargetId = (
+  value: string,
+): { readonly key: string; readonly processor: string } | null => {
+  const match = targetId.exec(value);
+  return match?.[1] === undefined
+    ? null
+    : { key: value, processor: match[1].toLowerCase() };
+};
 
 /** Clang HIP bundle IDs carry an AMD triple followed by an optional target ID. */
 export const isAmdGpuBundleId = (name: string): boolean =>
@@ -89,17 +95,17 @@ export const isAmdGpuBundleId = (name: string): boolean =>
 export const readAmdGpuBundleTarget = (name: string): string | null => {
   if (!isAmdGpuBundleId(name)) return null;
   const target = bundleTarget.exec(name)?.[1];
-  return target === undefined ? null : parseAmdGpuTargetId(target);
+  return target === undefined
+    ? null
+    : (parseAmdGpuTargetId(target)?.key ?? null);
 };
 
 /** Preserve the full target ID separately from its processor identity. */
 export const readAmdGpuNoteTarget = (
   target: string,
 ): { readonly key: string; readonly processor: string } | null => {
-  const match = noteTarget.exec(target);
-  return match?.[1] === undefined || match[2] === undefined
-    ? null
-    : { key: match[1], processor: match[2] };
+  const value = noteTarget.exec(target)?.[1];
+  return value === undefined ? null : parseAmdGpuTargetId(value);
 };
 
 /** Decode the processor field from AMDGPU ELF e_flags (EF_AMDGPU_MACH). */

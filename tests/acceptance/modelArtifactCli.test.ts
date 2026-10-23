@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { writeFile, unlink } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
@@ -15,7 +15,12 @@ import { createEvidence, parseEvidence } from "../../src/domain/evidence.js";
 import { readEvidenceBundle } from "../../src/application/EvidenceBundleFiles.js";
 import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../fixtures/mcpToolError.js";
-import { ggufFixture, safetensorsFixture } from "../fixtures/model/model.js";
+import {
+  ggufFixture,
+  ggufKLayouts,
+  ggufShiftedTypeLayouts,
+  safetensorsFixture,
+} from "../fixtures/model/model.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
@@ -65,6 +70,363 @@ cliTest(
         ],
       );
       expect(report.artifact.sha256).toBeNull();
+    }
+  },
+);
+
+cliTest(
+  "preserves unresolved Q8_1 layout through CLI, MCP summaries and retained tensor/type pages",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-model-q8-layout-");
+    const { call } = await connectLocalToolsMcp();
+    for (const blockBytes of [36, 40]) {
+      const path = join(root, `blocks-${String(blockBytes)}.gguf`);
+      const base = ggufFixture();
+      // Released layouts share GGUF v3/type 9/quantization version 2.
+      // Trailing alignment space is not a storage-layout declaration.
+      const fixture = ggufFixture({
+        metadata: [
+          { key: "general.quantization_version", type: 4, value: base.u32(2) },
+        ],
+        tensors: [
+          { name: "control", type: 0, shape: [4n], offset: 0n, bytes: 16 },
+          {
+            name: "weight",
+            type: 9,
+            shape: [320n],
+            offset: 32n,
+            bytes: 10 * blockBytes,
+          },
+        ],
+      });
+      const bytes = Buffer.concat([fixture.bytes, Buffer.alloc(16)]);
+      await writeFile(path, bytes);
+      const cliResult = await cli.run({
+        arguments: [
+          "inspect-model-artifact",
+          path,
+          "--detail",
+          "complete",
+          "--hash",
+          "full",
+          "--json",
+        ],
+      });
+      expect(cliResult.exitCode, cliResult.stderr).toBe(0);
+      const report = modelArtifactSchema.parse(
+        parseEvidence(cliResult.json).normalized_result,
+      );
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      expect(report.artifact).toMatchObject({ path, sha256 });
+      expect(report.tensors[0]).toMatchObject({
+        byte_length: 16,
+        storage_validation: "consistent",
+      });
+      const weight = {
+        index: 1,
+        name: "weight",
+        type: "Q8_1",
+        type_id: 9,
+        shape: ["320"],
+        file_offset: fixture.dataOffset + 32,
+        byte_length: null,
+        byte_length_state: "unknown",
+        storage_validation: "unknown",
+      };
+      expect(report.tensors[1]).toMatchObject(weight);
+      expect(report.totals).toMatchObject({
+        parameter_count: "324",
+        tensor_bytes: null,
+        by_type: [
+          { type: "F32", bytes: 16 },
+          { type: "Q8_1", bytes: null },
+        ],
+      });
+      const coverage = { storage_sizes: "partial", tensor_ranges: "partial" };
+      expect(report.coverage).toMatchObject(coverage);
+      const limitation = expect.stringContaining(
+        "Q8_1 has released 40-byte and 36-byte layouts",
+      );
+      expect(report.limitations).toContainEqual(limitation);
+
+      const response = await call("inspect_model_artifact", {
+        path,
+        hash: "full",
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      const summary = modelArtifactSummaryViewResultSchema.parse(
+        parseEvidence(response.structuredContent).normalized_result,
+      );
+      expect(summary.summary).toMatchObject({
+        artifact: { path, sha256 },
+        totals: { parameter_count: "324", tensor_bytes: null },
+        coverage,
+      });
+      expect(summary.summary.limitations).toContainEqual(limitation);
+      expect(await readFile(path)).toEqual(bytes);
+      await unlink(path);
+
+      const source = {
+        kind: "retained-evidence",
+        evidence_id: summary.parent_evidence_id,
+      };
+      const tensorResponse = await call("inspect_analysis_view", {
+        source,
+        view: {
+          kind: "model-artifact",
+          collection: "tensors",
+          types: ["Q8_1"],
+          storage_validation: ["unknown"],
+          fields: Object.keys(weight).filter((field) => field !== "index"),
+        },
+      });
+      expect(tensorResponse.isError, JSON.stringify(tensorResponse)).not.toBe(
+        true,
+      );
+      const tensorView = analysisViewResultSchema.parse(
+        parseEvidence(tensorResponse.structuredContent).normalized_result,
+      );
+      if (tensorView.kind !== "model-artifact")
+        throw new Error("Incorrect tensor view");
+      expect(tensorView.items).toEqual([weight]);
+      expect(tensorView.source).toMatchObject({ path, sha256 });
+      expect(tensorView.source_coverage).toMatchObject(coverage);
+      expect(tensorView.limitations).toContainEqual(limitation);
+
+      const typeResponse = await call("inspect_analysis_view", {
+        source,
+        view: {
+          kind: "model-artifact",
+          collection: "types",
+          types: ["Q8_1"],
+          fields: ["type", "parameter_count", "bytes"],
+        },
+      });
+      expect(typeResponse.isError, JSON.stringify(typeResponse)).not.toBe(true);
+      const typeView = analysisViewResultSchema.parse(
+        parseEvidence(typeResponse.structuredContent).normalized_result,
+      );
+      if (typeView.kind !== "model-artifact")
+        throw new Error("Incorrect type view");
+      expect(typeView.items).toEqual([
+        { index: 1, type: "Q8_1", parameter_count: "320", bytes: null },
+      ]);
+      expect(typeView.source_coverage).toMatchObject(coverage);
+    }
+  },
+);
+
+const assertRetainedLayoutViews = async (
+  call: Awaited<ReturnType<typeof connectLocalToolsMcp>>["call"],
+  parentEvidenceId: string,
+  report: ModelArtifact,
+  sha256: string,
+): Promise<void> => {
+  const { path } = report.artifact;
+  const { header, tensor_ranges, storage_sizes } = report.coverage;
+  const coverage = { header, tensor_ranges, storage_sizes };
+  const source = {
+    kind: "retained-evidence",
+    evidence_id: parentEvidenceId,
+  };
+  const types = ["Q2_K", "AMBIGUOUS_16", "AMBIGUOUS_24", "AMBIGUOUS_25"];
+  const tensorResponse = await call("inspect_analysis_view", {
+    source,
+    view: {
+      kind: "model-artifact",
+      collection: "tensors",
+      types,
+      storage_validation: ["unknown"],
+      fields: [
+        "type",
+        "type_id",
+        "shape",
+        "file_offset",
+        "byte_length",
+        "storage_validation",
+      ],
+    },
+  });
+  expect(tensorResponse.isError, JSON.stringify(tensorResponse)).not.toBe(true);
+  const tensorView = analysisViewResultSchema.parse(
+    parseEvidence(tensorResponse.structuredContent).normalized_result,
+  );
+  if (tensorView.kind !== "model-artifact")
+    throw new Error("Incorrect tensor view");
+  expect(tensorView.items).toEqual(
+    report.tensors
+      .filter((tensor) => types.includes(tensor.type))
+      .map(
+        ({
+          index,
+          type,
+          type_id,
+          shape,
+          file_offset,
+          byte_length,
+          storage_validation,
+        }) => ({
+          index,
+          type,
+          type_id,
+          shape,
+          file_offset,
+          byte_length,
+          storage_validation,
+        }),
+      ),
+  );
+  expect(tensorView.source).toMatchObject({ path, sha256 });
+  expect(tensorView.source_coverage).toMatchObject(coverage);
+  const typeResponse = await call("inspect_analysis_view", {
+    source,
+    view: {
+      kind: "model-artifact",
+      collection: "types",
+      types,
+      fields: ["type", "bytes"],
+    },
+  });
+  expect(typeResponse.isError, JSON.stringify(typeResponse)).not.toBe(true);
+  const typeView = analysisViewResultSchema.parse(
+    parseEvidence(typeResponse.structuredContent).normalized_result,
+  );
+  if (typeView.kind !== "model-artifact")
+    throw new Error("Incorrect type view");
+  expect(typeView.items).toEqual(
+    report.totals.by_type.flatMap((row, index) =>
+      types.includes(row.type) ? [{ index, type: row.type, bytes: null }] : [],
+    ),
+  );
+  expect(typeView.source_coverage).toMatchObject(coverage);
+};
+
+cliTest(
+  "preserves released K and shifted integer/IQ uncertainty through CLI and retained MCP views",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-model-historical-layouts-");
+    const { call } = await connectLocalToolsMcp();
+    for (const layout of ["legacy", "modern"] as const) {
+      const path = join(root, `${layout}.gguf`);
+      const base = ggufFixture();
+      // Authored bodies follow released source sizes; historical producers are
+      // not executed. Both files carry the same version and global file type.
+      const declarations = [
+        { name: "control", type: 0, shape: [4n], bytes: 16, label: "F32" },
+        {
+          name: "stable-integer",
+          type: 26,
+          shape: [3n],
+          bytes: 12,
+          label: "I32",
+        },
+        ...ggufKLayouts.flatMap(({ id, name, bytes64, bytes256 }) =>
+          (layout === "legacy" ? [64, 256] : [256]).map((elements) => ({
+            name: `${name}-${String(elements)}`,
+            type: id,
+            shape: [BigInt(elements)],
+            bytes: layout === "legacy" ? (elements / 64) * bytes64 : bytes256,
+            label: name,
+          })),
+        ),
+        ...ggufShiftedTypeLayouts.map(
+          ({ id, integerBytes, modernBytes256 }) => ({
+            name: `shifted-${String(id)}`,
+            type: id,
+            shape: [256n],
+            bytes: layout === "legacy" ? 256 * integerBytes : modernBytes256,
+            label: `AMBIGUOUS_${String(id)}`,
+          }),
+        ),
+      ];
+      let nextOffset = 0n;
+      const tensors = declarations.map((declaration) => {
+        const tensor = { ...declaration, offset: nextOffset };
+        nextOffset += BigInt(Math.ceil(declaration.bytes / 32) * 32);
+        return tensor;
+      });
+      const fixture = ggufFixture({
+        metadata: [
+          { key: "general.quantization_version", type: 4, value: base.u32(2) },
+          { key: "general.file_type", type: 4, value: base.u32(15) },
+        ],
+        tensors,
+      });
+      await writeFile(path, fixture.bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-model-artifact",
+          path,
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const report = modelArtifactSchema.parse(
+        parseEvidence(response.json).normalized_result,
+      );
+      expect(report.tensors.slice(0, 2)).toMatchObject([
+        { type: "F32", byte_length: 16, storage_validation: "consistent" },
+        {
+          type: "I32",
+          type_id: 26,
+          byte_length: 12,
+          storage_validation: "consistent",
+        },
+      ]);
+      const unresolved = tensors.slice(2).map((tensor, index) => ({
+        index: index + 2,
+        type: tensor.label,
+        type_id: tensor.type,
+        shape: tensor.shape.map(String),
+        file_offset: fixture.dataOffset + Number(tensor.offset),
+        byte_length: null,
+        storage_validation: "unknown",
+      }));
+      expect(report.tensors.slice(2)).toMatchObject(unresolved);
+      const coverage = {
+        header: "complete",
+        tensor_ranges: "partial",
+        storage_sizes: "partial",
+      };
+      expect(report.coverage).toMatchObject(coverage);
+      expect(report.totals.tensor_bytes).toBeNull();
+      for (const { id, modernName } of ggufShiftedTypeLayouts) {
+        expect(report.limitations).toContainEqual(
+          expect.stringMatching(
+            new RegExp(`type ID ${String(id)} has released .*${modernName}`),
+          ),
+        );
+      }
+
+      const mcpResponse = await call("inspect_model_artifact", {
+        path,
+        hash: "full",
+      });
+      expect(mcpResponse.isError, JSON.stringify(mcpResponse)).not.toBe(true);
+      const summary = modelArtifactSummaryViewResultSchema.parse(
+        parseEvidence(mcpResponse.structuredContent).normalized_result,
+      );
+      const sha256 = createHash("sha256").update(fixture.bytes).digest("hex");
+      expect(summary.summary).toMatchObject({
+        artifact: { path, sha256 },
+        totals: { tensor_bytes: null },
+        coverage,
+      });
+      for (const limitation of report.limitations.filter(
+        (reason) =>
+          reason.includes("have released") || reason.includes("has released"),
+      ))
+        expect(summary.summary.limitations).toContain(limitation);
+      expect(await readFile(path)).toEqual(fixture.bytes);
+      await unlink(path);
+      await assertRetainedLayoutViews(
+        call,
+        summary.parent_evidence_id,
+        report,
+        sha256,
+      );
     }
   },
 );

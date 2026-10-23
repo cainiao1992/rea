@@ -209,6 +209,7 @@ export const readSafetensorsHeader = async (
   tensor_data_offset: number;
   metadata: ModelMetadata[];
   tensors: ModelTensor[];
+  limitations: string[];
 }> => {
   const budget = new ModelReportBudget();
   // Lengths such as 640 (80 02 ...) also begin like a pickle PROTO opcode.
@@ -275,6 +276,7 @@ export const readSafetensorsHeader = async (
     }
   }
   const tensors: ModelTensor[] = [];
+  const unknownTypes = new Set<string>();
   const tensor_data_offset = 8 + size;
   const names = Object.keys(root)
     .filter((name) => name !== "__metadata__")
@@ -312,6 +314,7 @@ export const readSafetensorsHeader = async (
         );
     }
     const bits = safetensorsBits(type);
+    if (bits === undefined) unknownTypes.add(type);
     if (bits !== undefined) {
       const expected = parameters * BigInt(bits);
       if (expected % 8n !== 0n || expected / 8n !== BigInt(end - start))
@@ -359,5 +362,11 @@ export const readSafetensorsHeader = async (
     tensor_data_offset,
     metadata,
     tensors,
+    limitations:
+      unknownTypes.size === 0
+        ? []
+        : [
+            `Unknown tensor types prevent storage-size validation: ${[...unknownTypes].join(", ")}`,
+          ],
   };
 };

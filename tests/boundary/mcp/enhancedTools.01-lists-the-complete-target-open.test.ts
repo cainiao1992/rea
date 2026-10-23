@@ -14,6 +14,7 @@ import { createAnalysisExecution } from "../../../src/application/AnalysisProvid
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { err } from "../../../src/domain/result.js";
 import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysisErrorCore.js";
+import { nativeDispatchMetadataResultSchema } from "../../../src/domain/native/objcSwiftMetadata.js";
 
 const targetObservation = (value: unknown) =>
   resultOk(
@@ -481,3 +482,54 @@ it("retains unlocated provider symbols through the advertised native dispatch MC
     },
   });
 });
+
+it.each([
+  { addresses: ["0x2000", "0x3000"], candidates: 2, numeric: null },
+  { addresses: ["ram:0x2000", "rom:0x2000"], candidates: 2, numeric: null },
+  { addresses: ["0x2000", "0X002000"], candidates: 1, numeric: 8192 },
+  {
+    addresses: ["overlay%2f1:0x2000", "overlay%2F1:0X002000"],
+    candidates: 1,
+    numeric: null,
+  },
+])(
+  "retains implementation identity and source spelling through MCP: $addresses",
+  async ({ addresses, candidates, numeric }) => {
+    const ordinary = fixturePort();
+    const client = await connect({
+      execute: (operation, parameters, options) =>
+        operation === "list_names"
+          ? Promise.resolve(
+              targetObservation(
+                addresses.map((address) => ({
+                  address,
+                  value: "-[Fixture buildTapped:]",
+                })),
+              ),
+            )
+          : ordinary.execute(operation, parameters, options),
+    });
+    const response = await client.callTool({
+      name: "inspect_native_dispatch_metadata",
+      arguments: {},
+    });
+    expect(
+      response.isError,
+      JSON.stringify(response.structuredContent),
+    ).not.toBe(true);
+    const result = nativeDispatchMetadataResultSchema.parse(
+      jsonResult(response),
+    ).result;
+    expect(result.objc_dispatch_implementations).toHaveLength(candidates);
+    expect(result.objc_classes[0]?.methods).toMatchObject([
+      { selector: "buildTapped:", address: numeric },
+    ]);
+    expect(
+      result.objc_dispatch_implementations
+        .flatMap(({ evidence }) =>
+          evidence.map(({ location }) => location.address),
+        )
+        .sort(),
+    ).toEqual([...addresses].sort());
+  },
+);

@@ -14,6 +14,64 @@ import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 import { nativeObjcClassImportMachO } from "../fixtures/nativeObjcClassImportMachO.js";
+import { objcRecordBudgetMacho } from "../fixtures/objcRecordBudgetMacho.js";
+
+cliTest.skipIf(process.platform !== "darwin")(
+  "preserves ambiguous encoded method implementations through the public CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-objc-method-candidates-");
+    const target = join(root, "methods.macho");
+    const bytes = objcRecordBudgetMacho("class", [0x700, 0x720]);
+    await writeFile(target, bytes);
+    const environment = {
+      PATH: process.env.PATH ?? "",
+      REA_ANALYSIS_PROVIDER: "auto",
+      HOPPER_LAUNCHER_PATH: "/rea-unconfigured-deep-provider/hopper",
+      GHIDRA_INSTALL_DIR: "/rea-unconfigured-deep-provider/ghidra",
+      JAVA_HOME: "/rea-unconfigured-deep-provider/java",
+      REA_IDA_MCP_CONFIG: "/rea-unconfigured-deep-provider/ida-mcp.json",
+      REA_KUNA_COMMAND: "/rea-unconfigured-deep-provider/kuna",
+      REA_KUNA_CACHE_DIR: "/rea-unconfigured-deep-provider/kuna-cache",
+      REA_LOG_LEVEL: "silent",
+    };
+    const result = await cli.run({
+      arguments: ["inspect-native-dispatch-metadata", target, "--json"],
+      environment,
+    });
+    expect(
+      result.exitCode,
+      `${result.stderr}\n${JSON.stringify(result.json)}`,
+    ).toBe(0);
+    const cliEvidence = toolContract(
+      "inspect_native_dispatch_metadata",
+    ).outputSchema.parse(result.json);
+    const { client, call } = await connectLocalToolsMcp(environment);
+    const opened = await call("open_binary", { path: target });
+    expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
+    const inspected = await call("inspect_native_dispatch_metadata", {});
+    expect(inspected.isError, JSON.stringify(inspected)).not.toBe(true);
+    const mcpEvidence = parseEvidence(inspected.structuredContent);
+    for (const evidence of [cliEvidence, mcpEvidence]) {
+      expect(evidence.normalized_result).toMatchObject({
+        result: {
+          objc_classes: [
+            {
+              name: "FixtureClass",
+              methods: [{ selector: "classMethod", address: null }],
+            },
+          ],
+          objc_dispatch_implementations: [
+            { selector: "classMethod", implementation_address: "0x100000700" },
+            { selector: "classMethod", implementation_address: "0x100000720" },
+          ],
+        },
+      });
+    }
+    expect(await readFile(target)).toEqual(bytes);
+    await client.ping();
+  },
+  30000,
+);
 
 cliTest.skipIf(process.platform !== "darwin")(
   "retains and reopens profileless native dispatch workflow snapshots through CLI and stdio MCP",

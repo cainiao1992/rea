@@ -2,6 +2,106 @@ import { describe, expect, it } from "vitest";
 
 import { inspectNativeDispatchMetadata } from "./objcSwiftMetadata.js";
 
+describe("symbol-only Objective-C implementation identity", () => {
+  it.each([
+    { source: "0X00002000", canonical: "0x2000", numeric: 8192 },
+    {
+      source: "0x1fffffffffffff",
+      canonical: "0x1fffffffffffff",
+      numeric: Number.MAX_SAFE_INTEGER,
+    },
+    {
+      source: "0x20000000000000",
+      canonical: "0x20000000000000",
+      numeric: null,
+    },
+    { source: "ram:0x2000", canonical: "ram:0x2000", numeric: null },
+    { source: "rom:0x2000", canonical: "rom:0x2000", numeric: null },
+  ])(
+    "preserves $source without inventing a numeric method identity",
+    ({ source, canonical, numeric }) => {
+      const result = inspectNativeDispatchMetadata([
+        { address: source, name: "-[StoreController buildTapped:]" },
+      ]);
+      expect(result.objc_classes[0]?.methods[0]?.address).toBe(numeric);
+      expect(result.objc_dispatch_implementations[0]).toMatchObject({
+        implementation_address: canonical,
+        location: { address: canonical },
+        evidence: [{ location: { address: source } }],
+      });
+    },
+  );
+
+  it("retains unparseable symbol coordinates as reported evidence, without claiming a location", () => {
+    const source = "invalid::0x2000";
+    const result = inspectNativeDispatchMetadata([
+      { address: source, name: "-[StoreController buildTapped:]" },
+      { address: source, name: "$s5Store7launchyyF" },
+    ]);
+    expect(result.objc_dispatch_implementations[0]).toMatchObject({
+      implementation_address: null,
+      location: { address: null },
+      evidence: [{ location: { address: null }, reported_address: source }],
+    });
+    expect(result.swift_symbols[0]).toMatchObject({
+      address: null,
+      evidence: [{ location: { address: null }, reported_address: source }],
+    });
+  });
+
+  it("merges equivalent method coordinates and retains every source spelling", () => {
+    const addresses = ["0x2000", "0X002000"];
+    for (const ordered of [addresses, [...addresses].reverse()]) {
+      const result = inspectNativeDispatchMetadata(
+        ordered.map((address) => ({
+          address,
+          name: "-[StoreController buildTapped:]",
+        })),
+      );
+      expect(result.objc_dispatch_implementations).toHaveLength(1);
+      expect(result.objc_dispatch_implementations[0]).toMatchObject({
+        implementation_address: "0x2000",
+        location: { address: "0x2000" },
+      });
+      expect(
+        result.objc_dispatch_implementations[0]?.evidence.map(
+          ({ location }) => location.address,
+        ),
+      ).toEqual(ordered);
+      expect(result.objc_classes[0]?.methods).toMatchObject([
+        { selector: "buildTapped:", address: 8192 },
+      ]);
+    }
+  });
+
+  it.each([
+    ["0x2000", "0x3000"],
+    ["ram:0x2000", "rom:0x2000"],
+    ["", "0x2000"],
+    ["unresolved", "unresolved"],
+  ])(
+    "retains distinct or unknown implementation identities: %j and %j",
+    (left, right) => {
+      const result = inspectNativeDispatchMetadata(
+        [left, right].map((address) => ({
+          address,
+          name: "-[StoreController buildTapped:]",
+        })),
+      );
+      expect(result.objc_dispatch_implementations).toHaveLength(2);
+      expect(result.objc_classes[0]?.methods).toEqual([
+        {
+          selector: "buildTapped:",
+          method_type: "instance",
+          address: null,
+          is_required: null,
+          is_optional: null,
+        },
+      ]);
+    },
+  );
+});
+
 describe("ObjC/Swift metadata", () => {
   it("bounds symbol projections and labels symbol-only metadata as partial", () => {
     const result = inspectNativeDispatchMetadata(

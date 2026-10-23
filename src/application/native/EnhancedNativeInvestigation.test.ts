@@ -358,6 +358,74 @@ describe("native UI action trace", () => {
   });
 });
 
+describe("native dispatch candidate identity", () => {
+  it.each([
+    ["0x1000", "0x3000"],
+    ["ram:0x1000", "rom:0x1000"],
+  ])(
+    "keeps same-selector implementation alternatives unresolved: %j and %j",
+    async (left, right) => {
+      for (const addresses of [
+        [left, right],
+        [right, left],
+      ]) {
+        const result = await new EnhancedTools(
+          testAnalysis({
+            list_names: () =>
+              execution(
+                "list_names",
+                addresses.map((address) => ({
+                  ...methodInventoryEntry,
+                  address,
+                })),
+              ),
+          }),
+        ).execute("trace_native_ui_action", { action: "buildTapped:" });
+        if (!result.ok) throw result.error;
+        const trace = nativeInvestigationTraceSchema.parse(result.value);
+        const dispatch = trace.unresolved.find(
+          ({ relation }) => relation === "objc_dispatch",
+        );
+        expect(dispatch).toMatchObject({
+          to: null,
+          resolution: "unresolved",
+          reason: "selector_has_multiple_candidate_implementations",
+        });
+        expect(
+          dispatch?.evidence.map(({ location }) => location.address),
+        ).toEqual(expect.arrayContaining(addresses));
+      }
+    },
+  );
+
+  it("uses one canonical function node for equivalent coordinate spellings", async () => {
+    const addresses = ["0x1000", "0X001000"];
+    for (const ordered of [addresses, [...addresses].reverse()]) {
+      const result = await new EnhancedTools(
+        testAnalysis({
+          list_names: () =>
+            execution(
+              "list_names",
+              ordered.map((address) => ({ ...methodInventoryEntry, address })),
+            ),
+        }),
+      ).execute("trace_native_ui_action", { action: "buildTapped:" });
+      if (!result.ok) throw result.error;
+      const trace = nativeInvestigationTraceSchema.parse(result.value);
+      const dispatch = trace.edges.find(
+        ({ relation }) => relation === "objc_dispatch",
+      );
+      expect(dispatch).toMatchObject({
+        to: "native:function:0x1000",
+        resolution: "inferred",
+      });
+      expect(
+        dispatch?.evidence.map(({ location }) => location.address),
+      ).toEqual(expect.arrayContaining(addresses));
+    }
+  });
+});
+
 describe("native UI action selector origin", () => {
   it("marks provider-reported function addresses as derived and the action seed as caller-supplied", async () => {
     const inner = testAnalysis({

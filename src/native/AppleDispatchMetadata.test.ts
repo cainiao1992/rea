@@ -120,6 +120,25 @@ const fixture = (
 };
 const provenance = { path: "/fixture/app", sha256: "a".repeat(64) };
 
+it("retains duplicate encoded method candidates without choosing one class-method address", () => {
+  const bytes = objcRecordBudgetMacho("class", [0x700, 0x720]);
+  const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+  expect(
+    result.objc_dispatch_implementations.map(
+      ({ implementation_address }) => implementation_address,
+    ),
+  ).toEqual(["0x100000700", "0x100000720"]);
+  expect(result.objc_classes[0]?.methods).toEqual([
+    {
+      selector: "classMethod",
+      method_type: "instance",
+      address: null,
+      is_required: null,
+      is_optional: null,
+    },
+  ]);
+});
+
 const swiftExternalSwiftBindingImage = (
   boundField: "protocol" | "type" | "objc-class" = "protocol",
 ) => {

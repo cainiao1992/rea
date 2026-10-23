@@ -231,6 +231,27 @@ describe("executable dispatcher", () => {
 });
 
 describe("executable dispatcher JavaScript shutdown", () => {
+  workspaceCliTest.for([false, true])(
+    "handles a thrown pipe error while preserving mixed cleanup failure: %s",
+    async (cleanupFails, { processes, workspace }) => {
+      await installCliRuntime(
+        workspace,
+        `export const closeCliJavaScriptResources = async () => { ${cleanupFails ? 'throw new Error("worker still owned");' : ""} }; export const createCli = () => ({ serve: () => { throw Object.assign(new Error("broken pipe"), { code: "EPIPE" }); } });\n`,
+      );
+      const result = await processes.run(
+        process.execPath,
+        [workspace.path("scripts/rea.mjs"), "fixture"],
+        { cwd: workspace.root },
+      );
+      expect(result.exitCode).toBe(cleanupFails ? 1 : 141);
+      expect(result.stdout).toBe("");
+      if (cleanupFails) {
+        expect(result.stderr).toContain("broken pipe");
+        expect(result.stderr).toContain("worker still owned");
+      } else expect(result.stderr).toBe("");
+    },
+  );
+
   workspaceCliTest.for([
     "success",
     "cleanup-failure",

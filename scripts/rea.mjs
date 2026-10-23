@@ -205,6 +205,10 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
         );
     }
   } catch (cause) {
+    if (cause?.code === "EPIPE") {
+      stdoutClosed = true;
+      process.exitCode = SIGPIPE_EXIT_STATUS;
+    }
     dispatchFailure = cause;
   } finally {
     // Serve and output rendering can throw after a worker is parked. Stop it
@@ -224,7 +228,12 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
       }
     }
   }
-  if (!exiting && dispatchFailure !== undefined) throw dispatchFailure;
+  if (
+    !exiting &&
+    dispatchFailure !== undefined &&
+    !(stdoutClosed && dispatchFailure?.code === "EPIPE")
+  )
+    throw dispatchFailure;
 }
 
 /** True when the first positional command is `doctor`, after global output flags. */

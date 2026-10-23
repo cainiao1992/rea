@@ -208,7 +208,9 @@ it.each([
 it.each(["inner", "outer"] as const)(
   "waits for both nested cleanup owners when %s resolves first",
   (first) => {
-    const primary = new AnalysisInputError("inspect");
+    const primary = new AnalysisInputError("inspect", undefined, [
+      { path: ["path"], reason: "missing_argument" },
+    ]);
     const innerCleanup = new ProviderCleanupError("fixture", ["input"], {});
     const outerCleanup = new ProviderCleanupError("fixture", ["workspace"], {});
     const inner = analysisErrorWithCleanupFailure(
@@ -224,7 +226,11 @@ it.each(["inner", "outer"] as const)(
     expect(projectAnalysisError(outer)).toMatchObject({
       code: "cleanup_incomplete",
       category: "invalid_input",
-      details: { operation: "inspect", execution_failure: "invalid_request" },
+      details: {
+        operation: "inspect",
+        issues: primary.issues,
+        execution_failure: "invalid_request",
+      },
     });
     released.resolveCleanup();
     expect(outer.cleanupIncomplete).toBe(true);
@@ -328,7 +334,9 @@ it("retains an owner's finalization report independently of pending primary sema
   class ReportedCleanup extends ProviderCleanupError {
     override readonly cleanupReport = report;
   }
-  const primary = new AnalysisInputError("inspect");
+  const primary = new AnalysisInputError("inspect", undefined, [
+    { path: ["path"], reason: "missing_argument" },
+  ]);
   const finalized = new ReportedCleanup(
     "fixture",
     ["input"],
@@ -345,7 +353,11 @@ it("retains an owner's finalization report independently of pending primary sema
   const assertReport = (error: typeof outer) => {
     expect(projectAnalysisError(error)).toMatchObject({
       category: "invalid_input",
-      details: { operation: "inspect", cleanup_report: report },
+      details: {
+        operation: "inspect",
+        issues: primary.issues,
+        cleanup_report: report,
+      },
     });
   };
   assertReport(finalized);

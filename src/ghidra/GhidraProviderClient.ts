@@ -1025,7 +1025,7 @@ const projectPrimarySessionError = (
       ? "Ghidra's output for this operation is incomplete. No OutOfMemoryError was confirmed; a memory cause cannot be ruled out."
       : undefined;
   if (memoryFailure !== undefined) return memoryFailure;
-  const killed = projectExternalSigkill(operation, failure, context, {
+  const killed = projectSigkill(operation, failure, context, {
     restart: exitedProviderMessage(operation, failure, health),
     uncertainty,
   });
@@ -1049,18 +1049,6 @@ const projectPrimarySessionError = (
           }),
     });
   }
-  if (
-    (failure.kind === "start" ||
-      failure.kind === "process" ||
-      failure.kind === "protocol") &&
-    failure.diagnostics.exit_signal === "SIGKILL"
-  )
-    return new ProviderAdapterError("ghidra", operation, {
-      ...context,
-      userMessage: `Ghidra process diagnostics report termination by SIGKILL. The signal alone does not establish its cause or an out-of-memory failure.${uncertainty === undefined ? "" : ` ${uncertainty}`}`,
-      remediationAction:
-        "Review the retained process output and host or container termination records before choosing a resource-specific remedy. Export useful Evidence, close the binary and resolve any cleanup failure, then call open_binary for the same target to start a new Ghidra session. Session-only annotations are not retained.",
-    });
   const exited = exitedProviderMessage(operation, failure, health);
   if (exited !== undefined)
     return new ProviderAdapterError("ghidra", operation, {
@@ -1196,13 +1184,13 @@ const GHIDRA_PROCESS_TREE_MEMORY_ACTION =
   "A memory limit covers Ghidra's native decompiler processes as well as its Java heap, and their number follows the available CPUs, so a larger GHIDRA_HEADLESS_MAXMEM does not help. Raise the container or host memory limit, or allow fewer CPUs with a longer REA_GHIDRA_STARTUP_TIMEOUT_MS.";
 
 /**
- * A SIGKILL observed before the process supervisor began stopping Ghidra did
- * not come from REA. Kernel and container OOM killers send it without any
- * OutOfMemoryError text, so a rise in the oom_kill count of REA's cgroup is
- * the memory evidence when available. That count covers every process in the
- * cgroup and its child groups, not only REA's process tree.
+ * Own SIGKILL interpretation for startup and running-provider failures.
+ * The signal alone leaves its cause unknown. For process/protocol failures
+ * observed before REA requested a stop, a rising cgroup oom_kill count supplies
+ * separate memory evidence. That count covers the cgroup and its child groups,
+ * not only REA's process tree.
  */
-const projectExternalSigkill = (
+const projectSigkill = (
   operation: AnalysisOperation,
   failure: GhidraSessionError,
   context: {
@@ -1215,9 +1203,10 @@ const projectExternalSigkill = (
   },
 ): AnalysisError | undefined => {
   if (
-    (failure.kind !== "process" && failure.kind !== "protocol") ||
-    failure.diagnostics.exit_signal !== "SIGKILL" ||
-    failure.diagnostics.stop_requested !== false
+    (failure.kind !== "start" &&
+      failure.kind !== "process" &&
+      failure.kind !== "protocol") ||
+    failure.diagnostics.exit_signal !== "SIGKILL"
   )
     return undefined;
   const retry = guidance.restart ?? "Then retry.";
@@ -1225,6 +1214,8 @@ const projectExternalSigkill = (
     failure.diagnostics.memory_cgroup,
   );
   if (
+    (failure.kind === "process" || failure.kind === "protocol") &&
+    failure.diagnostics.stop_requested === false &&
     cgroup.success &&
     cgroup.data.oom_kill_after > cgroup.data.oom_kill_before
   ) {
@@ -1246,8 +1237,9 @@ const projectExternalSigkill = (
   }
   return new ProviderAdapterError("ghidra", operation, {
     ...context,
-    userMessage: `Ghidra was killed by SIGKILL before REA stopped it. REA could not confirm the sender; a kernel or container out of memory killer is a common one and leaves no Java OutOfMemoryError in the output.${guidance.uncertainty === undefined ? "" : ` ${guidance.uncertainty}`}`,
-    remediationAction: `Check the host or container for an out-of-memory kill, for example in the kernel log or as OOMKilled in docker inspect. ${GHIDRA_PROCESS_TREE_MEMORY_ACTION} ${retry}`,
+    userMessage: `Ghidra process diagnostics report termination by SIGKILL. The signal alone does not establish its cause or an out-of-memory failure.${guidance.uncertainty === undefined ? "" : ` ${guidance.uncertainty}`}`,
+    remediationAction:
+      "Review the retained process output and host or container termination records before choosing a resource-specific remedy. Export useful Evidence, close the binary and resolve any cleanup failure, then call open_binary for the same target to start a new Ghidra session. Session-only annotations are not retained.",
   });
 };
 

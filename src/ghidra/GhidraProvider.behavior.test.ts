@@ -3819,7 +3819,7 @@ const failureOutput = (stdout = "", stderr = "") => ({
   }),
 });
 const projectFailure = async (
-  kind: "cancelled" | "process" | "protocol" | "remote" | "timeout",
+  kind: "cancelled" | "process" | "protocol" | "remote" | "start" | "timeout",
   diagnostics: Readonly<Record<string, JsonValue>>,
 ) => {
   const ghidra = provider(installationHost(), () => ({
@@ -4161,6 +4161,19 @@ describe("Ghidra SIGKILL projection", () => {
     },
   );
 
+  it("keeps start-failure SIGKILL cause unknown despite a cgroup OOM delta", async () => {
+    const diagnostics = { ...killed, memory_cgroup: cgroup(1, 3_221_225_472) };
+    const projected = await projectFailure("start", diagnostics);
+    expect(projected.code).toBe("execution_failure");
+    expect(projected.message).toContain("SIGKILL");
+    expect(projected.message).toContain("does not establish its cause");
+    expect(projected.details?.diagnostics).toMatchObject(diagnostics);
+    expect(projected.remediation.action).toContain(
+      "host or container termination records",
+    );
+  });
+
+
   it.each([
     ["without cgroup evidence", {}],
     [
@@ -4175,9 +4188,18 @@ describe("Ghidra SIGKILL projection", () => {
     });
     expect(projected.code).toBe("execution_failure");
     expect(projected.message).toContain("SIGKILL");
-    expect(projected.message).toContain("out of memory");
+    expect(projected.message).toContain("does not establish its cause");
     expect(projected.message).not.toContain("rea doctor");
-    expect(projected.remediation.action).toContain("decompiler");
+    expect(projected.remediation.action).toContain(
+      "host or container termination records",
+    );
+    expect(projected.remediation.action).not.toContain(
+      "GHIDRA_HEADLESS_MAXMEM",
+    );
+    expect(projected.details?.diagnostics).toMatchObject({
+      ...killed,
+      ...extra,
+    });
   });
 
   it("keeps an observed OOME primary over the kill", async () => {

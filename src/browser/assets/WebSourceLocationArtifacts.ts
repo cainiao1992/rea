@@ -8,7 +8,7 @@ import {
   type WebSourceLocationInput,
 } from "../../domain/webSourceLocation.js";
 import { err, ok } from "../../domain/result.js";
-import { closeWebArtifactResources } from "../WebArtifactCleanup.js";
+import { WebArtifactCleanup } from "../WebArtifactCleanup.js";
 import { LocalWebScriptArtifacts } from "./LocalWebScriptArtifacts.js";
 import { decodeWebArtifact, webArtifactReadError } from "./WebArtifactReads.js";
 
@@ -16,6 +16,7 @@ import { decodeWebArtifact, webArtifactReadError } from "./WebArtifactReads.js";
 export class LocalWebSourceLocationArtifacts implements WebSourceLocationArtifactPort {
   readonly scripts: WebScriptArtifactPort;
   readonly #resources: ArtifactResourceScope;
+  readonly #cleanup: WebArtifactCleanup;
 
   constructor(
     scripts?: WebScriptArtifactPort,
@@ -27,14 +28,15 @@ export class LocalWebSourceLocationArtifacts implements WebSourceLocationArtifac
     this.scripts =
       scripts ??
       new LocalWebScriptArtifacts("trace_web_source_location", resources);
+    this.#cleanup = new WebArtifactCleanup(
+      "web-source-location-artifacts",
+      resources,
+      this.scripts,
+    );
   }
 
   async close(): Promise<void> {
-    return closeWebArtifactResources(
-      "web-source-location-artifacts",
-      this.#resources,
-      this.scripts,
-    );
+    return this.#cleanup.close();
   }
 
   /** Preserve actual map identity separately from the selected deployment URL. */

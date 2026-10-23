@@ -7,7 +7,7 @@ import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { jsonObjectSchema } from "../../domain/jsonValue.js";
 import { err, ok } from "../../domain/result.js";
-import { closeWebArtifactResources } from "../WebArtifactCleanup.js";
+import { WebArtifactCleanup } from "../WebArtifactCleanup.js";
 import type { WebModuleTraceInput } from "../../domain/webModuleTrace.js";
 import { LocalWebScriptArtifacts } from "../assets/LocalWebScriptArtifacts.js";
 import {
@@ -19,6 +19,7 @@ import {
 export class LocalWebModuleArtifacts implements WebModuleArtifactPort {
   readonly scripts: WebScriptArtifactPort;
   readonly #resources: ArtifactResourceScope;
+  readonly #cleanup: WebArtifactCleanup;
 
   constructor(
     scripts?: WebScriptArtifactPort,
@@ -30,14 +31,15 @@ export class LocalWebModuleArtifacts implements WebModuleArtifactPort {
     this.scripts =
       scripts ??
       new LocalWebScriptArtifacts("trace_web_module_imports", resources);
+    this.#cleanup = new WebArtifactCleanup(
+      "web-module-artifacts",
+      resources,
+      this.scripts,
+    );
   }
 
   async close(): Promise<void> {
-    return closeWebArtifactResources(
-      "web-module-artifacts",
-      this.#resources,
-      this.scripts,
-    );
+    return this.#cleanup.close();
   }
 
   /** Read selected source and optional map without website requests. */

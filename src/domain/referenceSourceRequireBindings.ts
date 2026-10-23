@@ -19,6 +19,7 @@ import {
 } from "./javascript/javascriptSemanticTraversal.js";
 import {
   isExplicitModuleSourcePath,
+  javaScriptRuntimeContext,
   type ParsedJavaScriptSource,
 } from "./javascript/javascriptSourceParser.js";
 
@@ -36,10 +37,14 @@ export interface ReferenceSourceRequireCall {
 export const referenceSourceRequireCalls = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
-): ReadonlyMap<t.CallExpression, ReferenceSourceRequireCall> => {
+  packageType?: "module" | "commonjs" | "unknown",
+): ReadonlyMap<
+  t.CallExpression | t.OptionalCallExpression,
+  ReferenceSourceRequireCall
+> => {
   // Unmarked paths depend on package scope or compiler options. Preserve their
   // candidate CommonJS edges; explicit module paths have no wrapper loader.
-  const wrapperMode = commonJsWrapperMode(path);
+  const wrapperMode = commonJsWrapperMode(path, file.program, packageType);
   const index = completeSemanticSteps(
     indexJavaScriptBindingsWithReceiversSteps(
       file.program,
@@ -48,14 +53,15 @@ export const referenceSourceRequireCalls = (
   );
   const factoryBindings: ReadonlySet<string> = new Set();
   const candidates: {
-    readonly call: t.CallExpression;
+    readonly call: t.CallExpression | t.OptionalCallExpression;
     readonly identifier: t.Identifier;
     readonly arguments: JavaScriptRequireCallFact["arguments"];
     readonly resolutionBase: ReferenceSourceRequireResolutionBase;
   }[] = [];
   traverseJavaScriptAst(file.program, {
     enter: (node) => {
-      if (!t.isCallExpression(node)) return;
+      if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))
+        return;
       const identifier = callReceiverIdentifier(node.callee);
       if (identifier === undefined) return;
       let fact = semanticRequireLoaderAt(node, index.bindings, factoryBindings);
@@ -97,7 +103,9 @@ export const referenceSourceRequireCalls = (
                     path: normalizedSourceRelativePath,
                   }
           : fact === "commonjs-loader" && callFact.loader === "commonjs-loader"
-            ? "source-file"
+            ? path.endsWith(".js") && packageType === "unknown"
+              ? "unknown"
+              : "source-file"
             : "unknown";
       const searchBase = requireResolveSearchBase(
         node,
@@ -136,7 +144,7 @@ export const referenceSourceRequireCalls = (
 
 /** `require.resolve` options replace the default search paths unless exact current-directory paths are supplied. */
 const requireResolveSearchBase = (
-  call: t.CallExpression,
+  call: t.CallExpression | t.OptionalCallExpression,
   callArguments: JavaScriptRequireCallFact["arguments"],
   bindings: JavaScriptSemanticAnalysisState,
   loaderBase: ReferenceSourceRequireResolutionBase,
@@ -164,7 +172,9 @@ const requireResolveSearchBase = (
     : "unknown";
 };
 
-const isRequireResolveCall = (call: t.CallExpression): boolean => {
+const isRequireResolveCall = (
+  call: t.CallExpression | t.OptionalCallExpression,
+): boolean => {
   const callee = call.callee;
   if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
     return false;
@@ -175,24 +185,32 @@ const isRequireResolveCall = (call: t.CallExpression): boolean => {
 
 type CommonJsWrapperMode = "present" | "absent" | "unknown";
 
-const commonJsWrapperMode = (path: string): CommonJsWrapperMode =>
-  path.endsWith(".cjs")
-    ? "present"
-    : path.endsWith(".mjs")
-      ? "absent"
-      : isExplicitModuleSourcePath(path)
-        ? "absent"
-        : "unknown";
+const commonJsWrapperMode = (
+  path: string,
+  program: t.Program,
+  packageType: "module" | "commonjs" | "unknown" | undefined,
+): CommonJsWrapperMode => {
+  if (path.endsWith(".cjs")) return "present";
+  if (isExplicitModuleSourcePath(path)) return "absent";
+  if (path.endsWith(".js")) {
+    if (packageType === "module") return "absent";
+    if (packageType === "commonjs") return "present";
+    if (packageType === "unknown") return "unknown";
+    if (javaScriptRuntimeContext(program) === "module") return "absent";
+  }
+  return "unknown";
+};
 
 const hasPriorMemberMutation = (
   index: JavaScriptReceiverIndex,
-  site: t.CallExpression,
+  site: t.CallExpression | t.OptionalCallExpression,
   identifier: t.Identifier,
 ): boolean => {
   const callee = site.callee;
-  const property = t.isMemberExpression(callee)
-    ? semanticStaticPropertyKey(callee.property, callee.computed)
-    : undefined;
+  const property =
+    t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)
+      ? semanticStaticPropertyKey(callee.property, callee.computed)
+      : undefined;
   if (property === undefined || property === null) return true;
   const facts = index.effectsForReferenceAt(site, identifier, [property]);
   return (

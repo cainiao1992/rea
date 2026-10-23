@@ -456,11 +456,19 @@ does not infer module targets from replacement characters. Exact dynamic-import
 strings, expression-free templates and runtime-transparent TypeScript wrappers
 retain their targets; computed imports remain unknown. TypeScript import-equals
 dependencies remain `requires` relationships whether or not they are exported.
+Historical dependencies also include TypeScript import types (`import("./dep").T`
+and `typeof import("./dep")`) and declarations inside ambient module bodies;
+these source relationships do not assert runtime loading. Language labels retain
+the conventional case-sensitive `.C` (C++) and `.M` (Objective-C++) suffixes.
 
 REA derives historical CommonJS paths only when the selected loader and its
 base are proven: this includes the exact
 `createRequire(new URL("./file.cjs", import.meta.url))` form and
-`require.resolve` with `{ paths: [__dirname] }`. Other custom bases and search
+`require.resolve` with `{ paths: [__dirname] }`. Exact optional-call forms such
+as `require.resolve?.("./dep.cjs")` use the same loader and mutation facts. The
+nearest inventoried package manifest supplies `.js` module scope; an explicit
+`type: "module"` supplies no CommonJS wrapper, while an unreadable, excluded or
+malformed manifest leaves candidate loader resolution unknown. Other custom bases and search
 options remain partial with unknown resolution and the literal requested
 specifier. Overwritten resolver methods retain that uncertainty; they are not
 attributed to Node. `require.main` is a module object, so calling it does not
@@ -469,6 +477,14 @@ Node's [`require.resolve`](https://nodejs.org/docs/v24.22.1/api/modules.html#req
 performs lookup without loading the target. An excluded `package.json`
 also leaves package-directory selection unknown rather than treating the
 manifest as absent and applying an `index` fallback.
+
+Import requests use URL pathname semantics: query and fragment remain request
+identity, percent escapes decode exactly once for inventory lookup, and encoded
+separators or malformed escapes retain an unresolved relationship and diagnostic.
+URL-bearing relationships retain the authored `source_specifier` separately from
+the inventoried `to` path; distinct query/fragment requests remain distinct even
+when they name the same file. CommonJS requests retain literal filename semantics
+for percent signs, query marks and fragments.
 
 Historical-source import requires safe no-follow file opens on Linux or
 macOS. Native Windows returns `unsupported_host`; use Linux REA inside WSL

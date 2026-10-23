@@ -28,7 +28,10 @@ import {
   typescriptEmittedSourceCandidates,
   type TypeScriptEmittedSourceCandidate,
 } from "../TypeScriptEmittedSourceCandidates.js";
-import { isRelativeJavaScriptModuleSpecifier } from "../../domain/javascript/javascriptModuleSpecifier.js";
+import {
+  isRelativeJavaScriptModuleSpecifier,
+  decodeJavaScriptModuleUrlPath,
+} from "../../domain/javascript/javascriptModuleSpecifier.js";
 import { selectPackageSubpathPattern } from "../../domain/javascript/javascriptPackageSubpathPatterns.js";
 import type { JavaScriptModuleResolutionMode } from "../../domain/javascript/javascriptModuleResolutionMode.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
@@ -752,24 +755,10 @@ const contextualCandidate = (
 const decodeModuleUrlPath = (
   declared: string,
 ): string | CandidateResolution => {
-  if (/%(?:2f|5c)/iu.test(declared))
-    return unresolvedCandidate("rejected", [
-      "ES module URL paths cannot contain percent-encoded slash or backslash bytes.",
-    ]);
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(declared);
-  } catch (cause: unknown) {
-    void cause;
-    return unresolvedCandidate("rejected", [
-      "The module URL path contains malformed percent encoding.",
-    ]);
-  }
-  return decoded.includes("\0")
-    ? unresolvedCandidate("rejected", [
-        "The decoded module URL path contains NUL.",
-      ])
-    : decoded;
+  const decoded = decodeJavaScriptModuleUrlPath(declared);
+  return decoded.ok
+    ? decoded.value
+    : unresolvedCandidate("rejected", [decoded.error]);
 };
 
 const relativeCandidate = (sourcePath: string, declared: string): string =>

@@ -119,6 +119,7 @@ const sourceEntrySchema = z.union([
 const sourceRelationshipSchema = z.strictObject({
   from_path: relativePathSchema,
   to: z.string().min(1),
+  source_specifier: z.string().min(1).exactOptional(),
   kind: z.enum(["imports", "requires", "references", "declares-module"]),
   resolution: z.enum(["internal", "external", "unresolved", "unknown"]),
   parse_state: z.enum(["parsed", "partial", "unknown"]),
@@ -275,7 +276,7 @@ export const historicalSourceParseFailureKey = (
 export const historicalSourceRelationshipKey = (
   relationship: HistoricalSourceGraphInput["relationships"][number],
 ): string =>
-  `${relationship.from_path}\u0000${relationship.to}\u0000${relationship.kind}\u0000${relationship.resolution}\u0000${relationship.parse_state}`;
+  `${relationship.from_path}\u0000${relationship.to}\u0000${relationship.kind}\u0000${relationship.resolution}\u0000${relationship.parse_state}${relationship.source_specifier === undefined ? "" : `\u0000${relationship.source_specifier}`}`;
 
 const checkSortedUnique = (
   values: readonly string[],

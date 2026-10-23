@@ -171,8 +171,14 @@ the same source byte limit and explicit truncation reporting.
 ## Interpret the result
 
 - Package inspection retains decoded manifest XML, summary declarations,
-  permissions and class/resource counts. Summary fields are extracted by the
-  upstream engine and should be checked against the retained XML when needed.
+  permissions and class/resource counts. REA's bridge selects the exact root
+  `AndroidManifest.xml` resource by original archive name and manifest type,
+  independently of asset order. One namespace-aware JDK XML parse supplies
+  summary attributes and direct permission/SDK declarations; namespace prefixes
+  and XML entity spelling do not change their values. Raw decoded XML is retained
+  exactly and only its displayed text is subject to the existing source byte cap.
+  Summaries use the complete selected XML before that cap. Document types are
+  unsupported; parsing does not load external DTDs, schemas, or XInclude files.
   Signature verification is explicitly `not_performed`.
 - Class search filters the engine's cached top-level names before transferring
   pages, then follows contiguous inventory positions without rescanning earlier

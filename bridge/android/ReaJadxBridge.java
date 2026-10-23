@@ -10,6 +10,7 @@ import jadx.api.plugins.input.insns.Opcode;
 import jadx.core.dex.info.MethodInfo;
 import jadx.core.dex.nodes.*;
 import java.io.PrintStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +24,10 @@ import kotlin.coroutines.intrinsics.IntrinsicsKt;
 import kotlinx.coroutines.BuildersKt;
 import kotlinx.io.CoreKt;
 import kotlinx.io.JvmCoreKt;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
 
 /** REA-owned metadata boundary for the unmodified jadx-headless-mcp 0.7.1 JAR. */
 class ReaJadxBridge {
@@ -30,10 +35,13 @@ class ReaJadxBridge {
   private final SessionHolder holder;
   private JadxSession indexedSession;
   private Map<String, List<ClassSnapshot>> classes = Map.of();
+  private JadxSession manifestSession;
+  private ManifestSnapshot manifestSnapshot;
 
   private record MethodSnapshot(String name, String rawName, String shortId, List<String> bodyAbsenceMarkers,
       Map<String, Object> summary) {}
   private record ClassSnapshot(JavaClass node, List<MethodSnapshot> methods, Map<String, Object> summary) {}
+  private record ManifestSnapshot(String text, Map<String, Object> summary) {}
 
   private static final class InputFailure extends IllegalArgumentException {
     final String field;
@@ -93,6 +101,7 @@ class ReaJadxBridge {
         args.has("threads") ? integer(args, "threads", 1) : null,
         args.has("code_cache_size") ? integer(args, "code_cache_size", 64) : null,
         optionalString(args, "resources"));
+    clearManifest();
     return loadCall(next -> holder.load(path, options, next), continuation);
   }
 
@@ -151,6 +160,77 @@ class ReaJadxBridge {
     JadxSession current = holder.current();
     if (current == null) throw new IllegalArgumentException("No APK loaded");
     return current;
+  }
+
+  private void clearManifest() {
+    manifestSession = null;
+    manifestSnapshot = null;
+  }
+
+  /** Original archive identity, never a deobfuscated basename or name suffix. */
+  private ManifestSnapshot manifest(JadxSession current) {
+    if (manifestSession != current || manifestSnapshot == null) {
+      ResourceFile selected = null;
+      for (ResourceFile resource : current.getResources()) {
+        if (resource.getType() != ResourceType.MANIFEST
+            || !resource.getOriginalName().equals("AndroidManifest.xml")) continue;
+        if (selected != null)
+          throw new IllegalArgumentException("Root AndroidManifest.xml resource identity is ambiguous");
+        selected = resource;
+      }
+      if (selected == null) throw new IllegalArgumentException("Root AndroidManifest.xml not found");
+      var content = selected.loadContent();
+      if (content == null || content.getDataType() != jadx.core.xmlgen.ResContainer.DataType.TEXT)
+        throw new IllegalArgumentException("Root AndroidManifest.xml did not decode as text");
+      String xml = content.getText().getCodeStr();
+      ManifestSnapshot snapshot = new ManifestSnapshot(xml, manifestSummary(xml));
+      manifestSnapshot = snapshot;
+      manifestSession = current;
+    }
+    return manifestSnapshot;
+  }
+
+  /** One parsed XML owner supplies namespace-aware values alongside the exact decoded text. */
+  static Map<String, Object> manifestSummary(String xml) {
+    Element root;
+    try {
+      // Match REA's existing JDK XML setup: document types are unsupported.
+      // Parse an in-memory string; XInclude and external DTD/schema I/O stay disabled.
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newDefaultNSInstance();
+      factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      factory.setXIncludeAware(false);
+      factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
+      factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+      root = factory.newDocumentBuilder().parse(new InputSource(new StringReader(xml)))
+          .getDocumentElement();
+    } catch (javax.xml.parsers.ParserConfigurationException | org.xml.sax.SAXException
+        | java.io.IOException failure) {
+      throw new IllegalArgumentException("Root AndroidManifest.xml is not supported well-formed XML", failure);
+    }
+    if (!root.getTagName().equals("manifest") || root.getNamespaceURI() != null)
+      throw new IllegalArgumentException("AndroidManifest.xml root must be an unnamespaced <manifest>");
+    String android = "http://schemas.android.com/apk/res/android";
+    String minSdk = "";
+    String targetSdk = "";
+    List<String> permissions = new ArrayList<>();
+    for (Node child = root.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (!(child instanceof Element element) || element.getNamespaceURI() != null) continue;
+      if (element.getTagName().equals("uses-sdk")) {
+        minSdk = element.getAttributeNS(android, "minSdkVersion");
+        targetSdk = element.getAttributeNS(android, "targetSdkVersion");
+      } else if (element.getTagName().equals("uses-permission")) {
+        String permission = element.getAttributeNS(android, "name");
+        if (!permission.isEmpty()) permissions.add(permission);
+      }
+    }
+    Map<String, Object> summary = new LinkedHashMap<>();
+    summary.put("package", root.getAttribute("package"));
+    summary.put("version_name", root.getAttributeNS(android, "versionName"));
+    summary.put("version_code", root.getAttributeNS(android, "versionCode"));
+    summary.put("min_sdk", minSdk);
+    summary.put("target_sdk", targetSdk);
+    summary.put("permissions", List.copyOf(permissions));
+    return Collections.unmodifiableMap(summary);
   }
 
   private ClassSnapshot selected(JsonObject args) {
@@ -333,6 +413,9 @@ class ReaJadxBridge {
         "java_version", System.getProperty("java.version"),
         "metadata_scope", "parsed_members"));
     JadxSession current = session();
+    if (name.equals("get_app_info")) return json(manifest(current).summary());
+    if (name.equals("get_android_manifest"))
+      return text(TextUtilKt.truncateToBytes(manifest(current).text(), current.getMaxSourceBytes()), false);
     if (name.equals("list_classes")) {
       List<String> names = current.getClassFqns();
       String query = args.has("query") ? string(args, "query") : "";
@@ -420,6 +503,17 @@ class ReaJadxBridge {
     return json(result);
   }
 
+  private static void registerBridgeTool(Server server, ReaJadxBridge bridge, String name,
+      ToolSchema schema, String description) {
+    Tool tool = new Tool(name, schema, description, null, null, null, null, null, null);
+    server.addTool(tool, (connection, request, continuation) -> {
+      try { return bridge.handle(name, request.getArguments()); }
+      catch (InputFailure error) { return text(JSON.toJson(Map.of(
+          "kind", "invalid-input", "field", error.field, "message", error.getMessage())), true); }
+      catch (IllegalArgumentException error) { return text(error.getMessage(), true); }
+    });
+  }
+
   public static void main(String[] args) throws Exception {
     PrintStream protocolOut = System.out;
     System.setOut(System.err);
@@ -428,10 +522,9 @@ class ReaJadxBridge {
     SessionHolder holder = new SessionHolder(defaults);
     ServerCapabilities capabilities = new ServerCapabilities(
         new ServerCapabilities.Tools(null), null, null, null, null, null, null, Map.of());
-    Server server = new Server(new Implementation("rea-jadx-bridge", "4", null, null, null),
+    Server server = new Server(new Implementation("rea-jadx-bridge", "5", null, null, null),
         new ServerOptions(capabilities), "", ignored -> Unit.INSTANCE);
     SessionToolsKt.registerSessionTools(server, holder);
-    ManifestToolsKt.registerManifestTools(server, holder);
     ClassToolsKt.registerClassTools(server, holder);
     MethodToolsKt.registerMethodTools(server, holder);
     XrefToolsKt.registerXrefTools(server, holder);
@@ -440,7 +533,7 @@ class ReaJadxBridge {
     server.removeTool("load_apk");
     server.addTool(loadTool, (connection, request, continuation) ->
         bridge.load(request.getArguments(), defaults, continuation));
-    Set<String> consumed = Set.of("load_apk", "get_app_info", "get_android_manifest",
+    Set<String> consumed = Set.of("load_apk",
         "list_classes", "get_class_summary", "get_method_body",
         "get_xrefs_to_class", "get_xrefs_to_method");
     for (String name : new ArrayList<>(server.getTools().keySet()))
@@ -449,6 +542,13 @@ class ReaJadxBridge {
         new ToolSchema(null, new kotlinx.serialization.json.JsonObject(Map.of()), List.of(), null),
         "Observed worker JVM and metadata scope", null, null, null, null, null, null);
     server.addTool(diagnostics, (connection, request, continuation) -> bridge.handle("rea_jvm_status", request.getArguments()));
+    for (String name : List.of("get_app_info", "get_android_manifest")) {
+      String description = name.equals("get_app_info")
+          ? "Namespace-aware summary of the exact root AndroidManifest.xml resource."
+          : "Exact decoded root AndroidManifest.xml text, bounded by the session source byte limit.";
+      registerBridgeTool(server, bridge, name,
+          new ToolSchema(null, new kotlinx.serialization.json.JsonObject(Map.of()), List.of(), null), description);
+    }
     for (String name : List.of("list_classes", "get_class_summary",
         "get_method_body", "get_xrefs_to_class", "get_xrefs_to_method")) {
       Tool tool = server.getTools().get(name).getTool();
@@ -470,14 +570,9 @@ class ReaJadxBridge {
         case "get_method_body" -> "Source for an exact class and stable same-name overload index; static initializers use smali to preserve folded field initialization.";
         default -> "Complete static using-node inventory for an exact class or selected method overload; one node may contain multiple invoke instructions, and source lines are unresolved.";
       };
-      Tool narrowed = new Tool(name, new ToolSchema(null, new kotlinx.serialization.json.JsonObject(properties),
-          tool.getInputSchema().getRequired(), null), description, null, null, null, null, null, null);
-      server.addTool(narrowed, (connection, request, continuation) -> {
-        try { return bridge.handle(name, request.getArguments()); }
-        catch (InputFailure error) { return text(JSON.toJson(Map.of(
-            "kind", "invalid-input", "field", error.field, "message", error.getMessage())), true); }
-        catch (IllegalArgumentException error) { return text(error.getMessage(), true); }
-      });
+      registerBridgeTool(server, bridge, name,
+          new ToolSchema(null, new kotlinx.serialization.json.JsonObject(properties),
+              tool.getInputSchema().getRequired(), null), description);
     }
     CountDownLatch done = new CountDownLatch(1);
     server.onClose(() -> { done.countDown(); return Unit.INSTANCE; });
@@ -503,6 +598,7 @@ class ReaJadxBridge {
           BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
               (scope, continuation) -> server.close(continuation));
         } finally {
+          bridge.clearManifest();
           BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
               (scope, continuation) -> holder.unload(continuation));
         }

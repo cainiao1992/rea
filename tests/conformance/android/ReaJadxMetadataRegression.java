@@ -22,6 +22,11 @@ public class ReaJadxMetadataRegression {
 
   private static JsonObject call(Method handle, Object bridge, String operation, JsonObject arguments)
       throws Exception {
+    return JsonParser.parseString(callText(handle, bridge, operation, arguments)).getAsJsonObject();
+  }
+
+  private static String callText(Method handle, Object bridge, String operation, JsonObject arguments)
+      throws Exception {
     var input = (kotlinx.serialization.json.JsonObject)
         kotlinx.serialization.json.Json.Default.parseToJsonElement(arguments.toString());
     CallToolResult response;
@@ -33,7 +38,118 @@ public class ReaJadxMetadataRegression {
     require(!Boolean.TRUE.equals(response.isError()), operation + " returned an error");
     require(response.getContent().size() == 1 && response.getContent().get(0) instanceof TextContent,
         "Unsupported response envelope");
-    return JsonParser.parseString(((TextContent) response.getContent().get(0)).getText()).getAsJsonObject();
+    return ((TextContent) response.getContent().get(0)).getText();
+  }
+
+  private static void verifyManifestSummary() {
+    for (String prefix : List.of("android", "a")) {
+      for (String encoded : List.of("one &amp; beta", "one &amp;amp; beta")) {
+        String xml = "<manifest xmlns:" + prefix + "=\"http://schemas.android.com/apk/res/android\""
+            + " xmlns:other=\"urn:unrelated\" package=\"org.example.root\" "
+            + prefix + ":versionName=\"" + encoded + "\" " + prefix + ":versionCode=\"7\""
+            + " other:versionName=\"decoy\"><uses-sdk " + prefix + ":minSdkVersion=\"23\" "
+            + prefix + ":targetSdkVersion=\"35\"/><uses-permission " + prefix
+            + ":name=\"org.example.MARKER\"/><application><uses-permission " + prefix
+            + ":name=\"nested.decoy\"/></application></manifest>";
+        Map<String, Object> summary = ReaJadxBridge.manifestSummary(xml);
+        require(summary.get("package").equals("org.example.root"), "Wrong manifest package");
+        require(summary.get("version_name").equals(
+            encoded.equals("one &amp; beta") ? "one & beta" : "one &amp; beta"),
+            "Version name lost XML entity identity: " + summary);
+        require(summary.get("version_code").equals("7") && summary.get("min_sdk").equals("23")
+            && summary.get("target_sdk").equals("35"), "Namespace prefix changed summary values");
+        require(summary.get("permissions").equals(List.of("org.example.MARKER")),
+            "Permission summary included a nested or unrelated declaration");
+      }
+    }
+    for (String xml : List.of("<other/>", "<manifest><application></manifest>",
+        "<!DOCTYPE manifest SYSTEM 'file:///rea-unread-external.dtd'><manifest/>")) {
+      boolean refused = false;
+      try { ReaJadxBridge.manifestSummary(xml); }
+      catch (IllegalArgumentException expected) { refused = true; }
+      require(refused, "Malformed or externally described XML was accepted");
+    }
+  }
+
+  private static void verifyRootManifests(SessionHolder holder, SessionConfig config,
+      Constructor<?> constructor, Method handle, Path output) throws Exception {
+    verifyManifestSummary();
+    Object bridge = constructor.newInstance(holder);
+    for (boolean assetFirst : List.of(true, false)) {
+      String pkg = assetFirst ? "org.example.first" : "org.example.second";
+      String root = "<manifest xmlns:a=\"http://schemas.android.com/apk/res/android\" package=\""
+          + pkg + "\" a:versionName=\"one &amp; beta\" a:versionCode=\"7\"/>";
+      String asset = "<manifest package=\"org.example.asset\"/>";
+      Path apk = output.resolve(assetFirst ? "manifest-asset-first.apk" : "manifest-root-first.apk");
+      try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(apk))) {
+        for (String path : assetFirst
+            ? List.of("assets/AndroidManifest.xml", "AndroidManifest.xml")
+            : List.of("AndroidManifest.xml", "assets/AndroidManifest.xml")) {
+          zip.putNextEntry(new ZipEntry(path));
+          zip.write((path.equals("AndroidManifest.xml") ? root : asset).getBytes(StandardCharsets.UTF_8));
+          zip.closeEntry();
+        }
+      }
+      BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+          (scope, continuation) -> holder.unload(continuation));
+      BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+          (scope, continuation) -> holder.load(apk.toString(), config, continuation));
+      JsonObject summary = call(handle, bridge, "get_app_info", new JsonObject());
+      require(summary.get("package").getAsString().equals(pkg), "Asset or previous session supplied package facts");
+      require(summary.get("version_name").getAsString().equals("one & beta"), "Wrong root version value");
+      String raw = holder.current().getResources().stream()
+          .filter(resource -> resource.getOriginalName().equals("AndroidManifest.xml"))
+          .findFirst().orElseThrow().loadContent().getText().getCodeStr();
+      require(callText(handle, bridge, "get_android_manifest", new JsonObject()).equals(raw),
+          "Bridge altered the decoded root resource text");
+    }
+    Path large = output.resolve("manifest-bounded-text.apk");
+    String largeXml = "<manifest xmlns:a=\"http://schemas.android.com/apk/res/android\""
+        + " package=\"org.example.large\">" + " ".repeat(config.getMaxSourceBytes() + 32)
+        + "<uses-sdk a:minSdkVersion=\"23\" a:targetSdkVersion=\"35\"/></manifest>";
+    try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(large))) {
+      zip.putNextEntry(new ZipEntry("AndroidManifest.xml"));
+      zip.write(largeXml.getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.unload(continuation));
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.load(large.toString(), config, continuation));
+    JsonObject largeSummary = call(handle, bridge, "get_app_info", new JsonObject());
+    require(largeSummary.get("target_sdk").getAsString().equals("35"),
+        "Summary was derived from truncated manifest text");
+    String largeRaw = holder.current().getResources().stream()
+        .filter(resource -> resource.getOriginalName().equals("AndroidManifest.xml"))
+        .findFirst().orElseThrow().loadContent().getText().getCodeStr();
+    require(largeRaw.getBytes(StandardCharsets.UTF_8).length > config.getMaxSourceBytes(),
+        "Decoded manifest did not exceed the source byte limit");
+    int targetAt = largeRaw.indexOf("targetSdkVersion");
+    require(targetAt >= 0 && largeRaw.substring(0, targetAt).getBytes(StandardCharsets.UTF_8).length
+        > config.getMaxSourceBytes(), "SDK declaration was not beyond the displayed text cap");
+    require(callText(handle, bridge, "get_android_manifest", new JsonObject())
+        .equals(TextUtilKt.truncateToBytes(largeRaw, config.getMaxSourceBytes())),
+        "Manifest text did not retain the existing source byte limit");
+    Path missing = output.resolve("manifest-asset-only.apk");
+    try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(missing))) {
+      zip.putNextEntry(new ZipEntry("assets/AndroidManifest.xml"));
+      zip.write("<manifest package=\"org.example.asset\"/>".getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.unload(continuation));
+    BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+        (scope, continuation) -> holder.load(missing.toString(), config, continuation));
+    var input = (kotlinx.serialization.json.JsonObject)
+        kotlinx.serialization.json.Json.Default.parseToJsonElement("{}");
+    boolean refused = false;
+    try { handle.invoke(bridge, "get_app_info", input); }
+    catch (InvocationTargetException failure) {
+      refused = failure.getCause() instanceof IllegalArgumentException
+          && failure.getCause().getMessage().contains("Root AndroidManifest.xml not found");
+    }
+    require(refused, "Missing root reused an asset or previous-session manifest");
+    System.out.println("MANIFEST_REGRESSION_PASS root=true namespaces=true entities=true reload=true missing=true bounded=true");
   }
 
   private static JsonObject arguments(String className) {
@@ -500,6 +616,7 @@ public class ReaJadxMetadataRegression {
       verifyInitializers(holder, config, constructor, handle, initializerFixture(args[1], args[2]));
       verifyDirectInvokes(holder, config, constructor, handle,
           Path.of(args[3]), Path.of(args[2]));
+      verifyRootManifests(holder, config, constructor, handle, Path.of(args[2]));
     } finally {
       BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
           (scope, continuation) -> holder.unload(continuation));

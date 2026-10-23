@@ -19,6 +19,7 @@ const packages = [
     source: "crates.io",
     kind: null,
     dependencies: [],
+    features: [],
     root: false,
   },
   {
@@ -27,6 +28,7 @@ const packages = [
     source: "local",
     kind: null,
     dependencies: [0],
+    features: [],
     root: true,
   },
 ];
@@ -84,6 +86,20 @@ it("preserves the arm64_32 Mach-O CPU family when dependency metadata is absent"
     bits: 64,
     auditable_metadata: null,
     rustc_commit: null,
+  });
+});
+
+it("uses the shared ELF classifier for Rust image architecture", () => {
+  const bytes = createRustImage({
+    format: "elf",
+    omitSection: true,
+    includeRustc: true,
+  });
+  bytes.writeUInt16LE(164, 18); // ELF EM_HEXAGON.
+  expect(readRustBinaryImage(bytes)).toMatchObject({
+    format: "elf",
+    architecture: "hexagon",
+    auditable_metadata: null,
   });
 });
 

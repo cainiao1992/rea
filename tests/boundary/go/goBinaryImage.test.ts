@@ -17,6 +17,16 @@ import {
   GO_MODULE_TEXT,
 } from "../../fixtures/go/image.js";
 
+it("uses the shared ELF classifier for Go image architecture", () => {
+  const fixture = createGoBinaryFixture({ omitBuildInfo: true });
+  fixture.bytes.writeUInt16LE(164, 18); // ELF EM_HEXAGON.
+  expect(readGoBinaryImage(fixture.bytes)).toMatchObject({
+    format: "elf",
+    architecture: "hexagon",
+    build_info: null,
+  });
+});
+
 it("preserves exact Mach-O protection masks for Go fallback selection", () => {
   const { bytes } = createGoBinaryFixture({
     format: "macho",

@@ -8,6 +8,7 @@ import {
   type LoadRegion,
   type ZeroFillMapping,
 } from "./BinaryContainer.js";
+import { elfArchitecture } from "../../domain/elfFixedHeader.js";
 import { readNativeDirectoryFromBuffer } from "./NativeSectionDirectory.js";
 
 /** Read ELF sections and file-backed program mappings without interpreting language metadata. */
@@ -105,17 +106,27 @@ export const readElfImage = (bytes: Buffer): BinaryContainer => {
 
 /** Map ELF machine identifiers to stable architecture names. */
 export const architectureForElfMachine = (machine: number): string => {
-  const names = new Map([
-    [3, "386"],
-    [8, "mips"],
-    [20, "ppc"],
-    [21, "ppc64"],
-    [22, "s390"],
-    [40, "arm"],
-    [62, "amd64"],
-    [183, "arm64"],
-    [243, "riscv"],
-    [258, "loongarch"],
-  ]);
-  return names.get(machine) ?? `elf-machine-${machine}`;
+  const architecture = elfArchitecture(machine);
+  if (architecture !== undefined) {
+    switch (architecture) {
+      case "x86":
+        return "386";
+      case "x86_64":
+        return "amd64";
+      case "powerpc":
+        return "ppc";
+      default:
+        return architecture;
+    }
+  }
+  switch (machine) {
+    case 21:
+      return "ppc64";
+    case 22:
+      return "s390";
+    case 258:
+      return "loongarch";
+    default:
+      return `elf-machine-${machine}`;
+  }
 };

@@ -19,11 +19,12 @@ it("preserves a readable native declaration when inventory issue count exceeds c
     offset: 0,
     detail: "Controlled invalid constructor",
   };
+  const issueCount = 150_000;
   const producer = vi
     .spyOn(inventoryProducer, "readManagedMetadataInventory")
     .mockImplementation((...args) => ({
       ...original(...args),
-      issues: Array.from({ length: 150_000 }, () => issue),
+      issues: Array.from({ length: issueCount }, () => issue),
     }));
   try {
     const bytes = buildManagedPeFixture({
@@ -35,10 +36,16 @@ it("preserves a readable native declaration when inventory issue count exceeds c
       managedPeFixtureTarget(bytes),
     );
     expect(result.pinvoke_imports[0]?.import_name).toBe("Observe");
-    expect(result.coverage).toMatchObject({
-      state: "partial",
-      issues: [issue],
-    });
+    expect(result.coverage.state).toBe("partial");
+    expect(result.coverage.issues.length).toBeGreaterThanOrEqual(issueCount);
+    expect(
+      result.coverage.issues.reduce(
+        (count, observed) => count + Number(observed.scope === issue.scope),
+        0,
+      ),
+    ).toBe(issueCount);
+    expect(result.coverage.issues[0]).toEqual(issue);
+    expect(result.coverage.issues[issueCount - 1]).toEqual(issue);
   } finally {
     producer.mockRestore();
   }

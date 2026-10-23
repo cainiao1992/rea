@@ -1217,7 +1217,7 @@ const projectExternalSigkill = (
   if (
     (failure.kind !== "process" && failure.kind !== "protocol") ||
     failure.diagnostics.exit_signal !== "SIGKILL" ||
-    failure.diagnostics.stop_requested === true
+    failure.diagnostics.stop_requested !== false
   )
     return undefined;
   const retry = guidance.restart ?? "Then retry.";

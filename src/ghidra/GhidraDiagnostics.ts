@@ -87,9 +87,7 @@ export const createGhidraDiagnostics = (
       : {
           exit_code: options.snapshot.exitCode ?? null,
           exit_signal: options.snapshot.signal ?? null,
-          ...(options.snapshot.stopRequested === true
-            ? { stop_requested: true }
-            : {}),
+          stop_requested: options.snapshot.stopRequested === true,
           diagnostic_truncated: options.snapshot.diagnosticTruncated === true,
           output_incomplete: options.snapshot.outputIncomplete === true,
           stdout: ghidraDiagnosticStream(

@@ -22,6 +22,7 @@ it("does not reuse historical operation-scoped failure output without a current 
 
   expect(diagnostics.stdout).toEqual({ text: "historical OOME" });
   expect(diagnostics).not.toHaveProperty("failure_output");
+  expect(diagnostics).not.toHaveProperty("stop_requested");
 });
 
 it.each([false, true])(
@@ -71,7 +72,7 @@ it.each([false, true])(
 );
 
 it.each([
-  [undefined, undefined],
+  [undefined, false],
   [true, true],
 ] as const)(
   "carries the supervisor's stop request into exit diagnostics (%s)",

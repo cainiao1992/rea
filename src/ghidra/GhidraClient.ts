@@ -1331,7 +1331,7 @@ export class GhidraClient {
       ...failure.diagnostics,
       exit_code: snapshot.exitCode ?? null,
       exit_signal: snapshot.signal ?? null,
-      ...(snapshot.stopRequested === true ? { stop_requested: true } : {}),
+      stop_requested: snapshot.stopRequested === true,
       diagnostic_truncated: snapshot.diagnosticTruncated === true || incomplete,
       output_incomplete: snapshot.outputIncomplete === true || drainIncomplete,
       stdout: ghidraDiagnosticStream(snapshot.stdout, token),
@@ -1355,7 +1355,7 @@ export class GhidraClient {
     if (
       before === undefined ||
       failure.diagnostics.exit_signal !== "SIGKILL" ||
-      failure.diagnostics.stop_requested === true
+      failure.diagnostics.stop_requested !== false
     )
       return failure;
     const after = await this.#readMemoryCgroup();

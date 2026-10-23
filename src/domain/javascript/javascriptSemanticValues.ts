@@ -4,6 +4,7 @@ import {
   semanticOpaqueBindingReadMayHaveChanged,
 } from "./javascriptSemanticOpaqueEffects.js";
 import * as t from "@babel/types";
+import { logicalRightOperand } from "./javascriptSymbolicControlFlow.js";
 
 import {
   SemanticDependencyProofs,
@@ -695,16 +696,12 @@ const evaluateExpressionValue = (
     return evaluateBinding(atRead, nestedContext(context), atRead === binding);
   }
   if (t.isTemplateLiteral(node)) return evaluateTemplate(node, context);
-  if (t.isConditionalExpression(node))
-    return mergeValues([
-      evaluateExpression(node.consequent, nestedContext(context)),
-      evaluateExpression(node.alternate, nestedContext(context)),
-    ]);
-  if (t.isLogicalExpression(node))
-    return mergeValues([
-      evaluateExpression(node.left, nestedContext(context)),
-      evaluateExpression(node.right, nestedContext(context)),
-    ]);
+  if (t.isConditionalExpression(node) || t.isLogicalExpression(node))
+    return mergeValues(
+      semanticSelectedBranches(node, context).map((branch) =>
+        evaluateExpression(branch, nestedContext(context)),
+      ),
+    );
   if (t.isObjectExpression(node)) return evaluateObject(node, context);
   if (t.isArrayExpression(node)) return evaluateArray(node, context);
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node))
@@ -754,6 +751,45 @@ const evaluateTemplate = (
   return primitiveSet(candidates);
 };
 
+/** Value and provenance selection consume the same established branch facts. */
+const semanticSelectedBranches = (
+  node: t.ConditionalExpression | t.LogicalExpression,
+  context: EvaluationContext,
+): readonly t.Node[] => {
+  if (t.isConditionalExpression(node)) {
+    const test = evaluateExpression(node.test, nestedContext(context));
+    const choice = semanticCondition(test, Boolean);
+    return choice === undefined
+      ? [node.consequent, node.alternate]
+      : [choice ? node.consequent : node.alternate];
+  }
+  const left = evaluateExpression(node.left, nestedContext(context));
+  const choice = logicalRightOperand(
+    node.operator,
+    semanticCondition(left, Boolean),
+    semanticCondition(left, (value) => value === null, false),
+  );
+  return choice === undefined
+    ? [node.left, node.right]
+    : [choice ? node.right : node.left];
+};
+
+/** All retained alternatives must agree before discarding a branch. */
+const semanticCondition = (
+  value: JavaScriptSemanticValue,
+  select: (value: string | number | boolean | null) => boolean,
+  objectResult = true,
+): boolean | undefined => {
+  if (value.status === "object" || value.status === "array")
+    return objectResult;
+  const choices = primitiveCandidates(value)?.map(select);
+  return choices !== undefined &&
+    choices.length > 0 &&
+    choices.every((choice) => choice === choices[0])
+    ? choices[0]
+    : undefined;
+};
+
 const evaluateObject = (
   node: t.ObjectExpression,
   context: EvaluationContext,
@@ -774,9 +810,32 @@ const evaluateObject = (
   };
   for (const property of node.properties) {
     if (t.isSpreadElement(property)) {
-      unknownProperties = true;
-      omittedProperties = null;
-      invalidateEarlierProperties();
+      const copied = evaluateCapturedExpression(
+        property.argument,
+        nestedContext(context),
+      );
+      if (copied.status === "object" || copied.status === "array") {
+        const unknown =
+          copied.status === "object"
+            ? copied.unknownProperties
+            : copied.unknownItems;
+        if (unknown) {
+          unknownProperties = true;
+          omittedProperties = null;
+          invalidateEarlierProperties();
+        }
+        for (const field of copied.status === "object"
+          ? copied.properties
+          : copied.items)
+          propertiesByName.set(field.name, field);
+      } else if (
+        copied.status !== "literal" ||
+        typeof copied.value === "string"
+      ) {
+        unknownProperties = true;
+        omittedProperties = null;
+        invalidateEarlierProperties();
+      }
       continue;
     }
     const name = semanticStaticPropertyKey(property.key, property.computed);
@@ -1224,12 +1283,9 @@ const provenanceForExpression = (
         );
   }
   if (t.isConditionalExpression(node) || t.isLogicalExpression(node)) {
-    const left = t.isConditionalExpression(node) ? node.consequent : node.left;
-    const right = t.isConditionalExpression(node) ? node.alternate : node.right;
-    const candidates = [
-      provenanceForExpression(left, nestedContext(context)),
-      provenanceForExpression(right, nestedContext(context)),
-    ];
+    const candidates = semanticSelectedBranches(node, context).map((branch) =>
+      provenanceForExpression(branch, nestedContext(context)),
+    );
     const origins = uniqueSemanticOrigins(
       candidates.flatMap((candidate) => candidate.origins),
     );

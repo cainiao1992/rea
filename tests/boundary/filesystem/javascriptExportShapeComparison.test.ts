@@ -1183,6 +1183,57 @@ describe("JavaScript export return-shape projection", () => {
   });
 });
 
+it("preserves export lifetime and selected value facts through retained comparison Evidence", async () => {
+  const graphs = await analyzeSources(
+    {
+      left: `
+      exports.deleted = function(){ return {type:"result",value:1}; }; delete exports.deleted;
+      exports.intact = function(){ return {type:"result",value:1}; };
+      exports.precise = function(){ const source={stable:7}; return {type:"result",...source,value:true ? 1 : 2}; };
+    `,
+      right: `
+      exports.deleted = function(){ return {type:"result",value:2}; }; delete exports.deleted;
+      exports.intact = function(){ return {type:"result",value:2}; };
+      exports.precise = function(){ return {type:"result",stable:7,value:1}; };
+    `,
+    },
+    "main.cjs",
+  );
+  const deleted = compare(...graphs, {
+    modulePath: "main.cjs",
+    leftExportName: "deleted",
+    rightExportName: "deleted",
+  });
+  expect(deleted.left.status).toBe("missing");
+  expect(deleted.right.status).toBe("missing");
+  expect(deleted.changes.every(({ status }) => status === "unknown")).toBe(
+    true,
+  );
+  const intact = compare(...graphs, {
+    modulePath: "main.cjs",
+    leftExportName: "intact",
+    rightExportName: "intact",
+  });
+  expect(intact.changes).toEqual([
+    expect.objectContaining({ path: "/value", status: "changed" }),
+  ]);
+  const precise = compare(...graphs, {
+    modulePath: "main.cjs",
+    leftExportName: "precise",
+    rightExportName: "precise",
+  });
+  expect(precise.changes).toEqual([]);
+  const missingCounterpart = compare(...graphs, {
+    modulePath: "main.cjs",
+    leftExportName: "deleted",
+    rightExportName: "intact",
+  });
+  expect(missingCounterpart.changes[0]?.right).toMatchObject({
+    availability: "unknown",
+    reason: expect.stringContaining("counterpart"),
+  });
+});
+
 type GraphSource = Awaited<ReturnType<typeof analyzeGraph>>;
 
 const compare = (

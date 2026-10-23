@@ -391,12 +391,18 @@ equivalence.
 name on each authenticated graph. Missing or duplicate exact selectors return
 candidate inventory and an unknown result; the tool never chooses a fuzzy
 match. An export is linked to a callable only through exact lexical/module
-relationships recovered by the AST analysis.
+relationships recovered by the AST analysis. A later named CommonJS deletion
+invalidates the earlier publication at the receiver owner. Conditional or
+dynamic deletions retain uncertainty. Unresolved invocation spreads remain
+unknown source sequences and cannot publish a phantom array index.
 
 Direct return expressions, including expression-bodied arrows, are evaluated
 through an execution-free value lattice. Literal object fields and direct
 return sites are represented in the result. Calls, dynamic spreads, computed
-keys, and parser recovery remain partial or unknown.
+keys, and parser recovery remain partial or unknown. Known conditional and
+logical tests select only the established branch; uncertain tests retain
+alternatives. Object copies preserve known own data fields at copy time while
+unknown sources retain incomplete coverage.
 Declaration initializers and later assignments share the binding-at-read owner;
 a declaration-only `var` read before its initializer does not inherit the future
 value. Earlier `break`/`continue` paths can leave a var initializer unexecuted.
@@ -468,7 +474,8 @@ computed keys, arithmetic and untagged template interpolation. `using` and
 scalar reads retain their capture timing. Repeated loop iterations can expose
 a previous disposal and therefore retain uncertainty. Private getter fields
 retain their parsed initializer references; `super` reads use the selected
-receiver. Custom `instanceof` hooks expose their receiver and argument.
+receiver conservatively, including superclass reads whose lookup and receiver
+authority differ. Custom `instanceof` hooks expose their receiver and argument.
 These are source-derived effects,
 not execution results or proofs of accessor purity. Reflectively installed
 descriptors remain opaque; their setup calls retain ordinary argument/receiver

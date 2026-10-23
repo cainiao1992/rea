@@ -465,7 +465,10 @@ const selectionAvailability = (
   side: "left" | "right",
 ): ValueAvailability => ({
   availability: "unknown",
-  reason: `${capitalize(side)} export selection is ${selection.status}.`,
+  reason:
+    selection.status === "selected"
+      ? `${capitalize(side)} export is selected; the counterpart selection is unavailable for comparison.`
+      : `${capitalize(side)} export selection is ${selection.status}.`,
 });
 
 const emptyShapeAvailability = (

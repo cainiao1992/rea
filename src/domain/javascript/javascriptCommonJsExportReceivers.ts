@@ -238,7 +238,7 @@ const commonJsAssignedExports = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ):
-  | { readonly receiver: t.Node; readonly sources: readonly t.Node[] }
+  | { readonly receiver: t.Node; readonly sources: readonly (t.Node | null)[] }
   | undefined => {
   if (!t.isCallExpression(node)) return undefined;
   const invocation = commonJsExportInvocation(node, state);
@@ -260,12 +260,10 @@ const commonJsAssignedExports = (
     return undefined;
   return {
     receiver,
-    sources: sources.flatMap((source) =>
-      t.isSpreadElement(source)
-        ? [source.argument]
-        : t.isExpression(source)
-          ? [source]
-          : [],
+    sources: sources.map((source) =>
+      // The invocation owner expands only proven argument positions. An
+      // unresolved spread is a sequence of sources, not one array source.
+      t.isExpression(source) ? source : null,
     ),
   };
 };
@@ -294,6 +292,10 @@ export const commonJsRuntimeExportValues = (
     const overwritten = new Set<string>();
     for (let index = assigned.sources.length - 1; index >= 0; index--) {
       const value = assigned.sources[index]!;
+      if (value === null) {
+        exported.push({ exportedName: "*", value: null });
+        continue;
+      }
       const fields = copiedOwnFields(value, state);
       if (fields.complete) {
         for (const name of fields.definite)
@@ -364,6 +366,10 @@ export function* indexCommonJsExportReceiversSteps(
   const fresh = new WeakSet<t.Node>([initial]);
   const values = new WeakMap<t.Node, Identity>();
   const captures = new Map<CommonJsExportSite, Identity>();
+  const deletions = new Map<
+    Identity,
+    Map<string, { readonly node: t.Node; readonly mode: Execution }>
+  >();
   const execution: Execution[] = [];
   const publicCallWrites = new WeakSet<t.Node>();
   // Consume the shared write owner's resolved aliases, intrinsic invocation
@@ -503,6 +509,29 @@ export function* indexCommonJsExportReceiversSteps(
         t.isUpdateExpression(node) ||
         t.isUnaryExpression(node, { operator: "delete" })
       ) {
+        if (t.isUnaryExpression(node, { operator: "delete" })) {
+          const name = commonJsExportName(node.argument, state);
+          if (
+            name !== undefined &&
+            name !== "default" &&
+            (t.isMemberExpression(node.argument) ||
+              t.isOptionalMemberExpression(node.argument))
+          ) {
+            const receiver = isUnshadowedGlobal(
+              node.argument.object,
+              state,
+              "exports",
+            )
+              ? exportsIdentity
+              : publicIdentity;
+            const fields = deletions.get(receiver) ?? new Map();
+            fields.set(name, {
+              node,
+              mode: name === "*" && mode === "ordered" ? "conditional" : mode,
+            });
+            deletions.set(receiver, fields);
+          }
+        }
         write(node.argument, null, mode);
       } else if (isUnshadowedGlobal(node, state, "exports")) {
         values.set(node, exportsIdentity);
@@ -525,6 +554,27 @@ export function* indexCommonJsExportReceiversSteps(
   });
   const effects = new Map<CommonJsExportSite, CommonJsExportReceiverEffect>();
   for (const [node, receiver] of captures) {
+    const removed = commonJsRuntimeExportValues(node, state).flatMap(
+      ({ exportedName }) => {
+        const fields = deletions.get(receiver);
+        return [fields?.get(exportedName), fields?.get("*")].filter(
+          (deletion) =>
+            deletion !== undefined &&
+            (deletion.mode === "deferred" ||
+              (deletion.node.start ?? -1) > (node.start ?? -1)),
+        );
+      },
+    );
+    if (removed.length > 0) {
+      effects.set(
+        node,
+        removed.some((deletion) => deletion?.mode !== "ordered") ||
+          receiver === null
+          ? "uncertain"
+          : "detached",
+      );
+      continue;
+    }
     effects.set(
       node,
       deferredReplacement || receiver === null || publicIdentity === null

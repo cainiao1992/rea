@@ -235,14 +235,19 @@ const executableRoots = async (
       },
     }),
     MAGIC_READ_CONCURRENCY,
-    (entry) =>
-      entry.kind === "file" ? files.startsWithMachoMagic(entry) : undefined,
-    async (entry, macho) => {
+    (entry) => {
+      // The ordered-read owner skips consume() when read() returns undefined.
+      // Discovery facts for skipped entries belong at this selection boundary.
       if (entry.kind === "symlink") {
         status = "unknown";
         symlinks += 1;
         firstSymlink ??= entry.path;
       }
+      return entry.kind === "file"
+        ? files.startsWithMachoMagic(entry)
+        : undefined;
+    },
+    async (entry, macho) => {
       if (!macho) return;
       const facts = await view.image(entry.path);
       if (facts.status === "malformed" || facts.status === "unsupported")

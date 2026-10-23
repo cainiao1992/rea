@@ -1,3 +1,4 @@
+import { jsonObjectSchema } from "../../domain/jsonValue.js";
 import { createEvidence } from "../../domain/evidence.js";
 import {
   readRuntimeReconciliationInput,
@@ -72,7 +73,7 @@ export const JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE = {
 };
 
 /** Historical source inventory compared with inline application Evidence. */
-export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
+export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = jsonObjectSchema.parse({
   reference: createHistoricalSourceGraph({
     schema: "HistoricalSourceGraph",
     authority: "historical-reference",
@@ -111,4 +112,4 @@ export const SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE = {
     limitations: [],
   }),
   application: JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE,
-};
+});

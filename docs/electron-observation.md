@@ -233,7 +233,9 @@ initialization, the hook leaves listener callbacks unwrapped and records a
 callback and receiver; callback execution remains unobserved. This comparison
 assumes Node's EventEmitter prototype has not itself been globally decorated
 before hook initialization. The provider loads the hook before the application
-and excludes `NODE_OPTIONS` from the child environment.
+and excludes `NODE_OPTIONS` from the child environment. It preserves selected
+`DISPLAY`, `XAUTHORITY` and `WAYLAND_DISPLAY` values, including the caller-selected
+X11 authorization-file path.
 
 An opaque later listener or unsupported emitter state can prevent proof of
 removal order. The hook then delegates removal

@@ -384,6 +384,7 @@ export const safeElectronEnvironment = (
       "TMPDIR",
       "USER",
       "DISPLAY",
+      "XAUTHORITY",
       "WAYLAND_DISPLAY",
       ...(platform === "win32"
         ? [

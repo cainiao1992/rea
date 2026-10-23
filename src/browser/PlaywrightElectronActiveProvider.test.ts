@@ -28,11 +28,15 @@ afterEach(() => {
 
 it("passes the selected environment and ownership token to Electron launch", async () => {
   vi.stubEnv("LANG", "ambient-language");
+  vi.stubEnv("XAUTHORITY", "/ambient/.Xauthority");
   let launchedEnvironment: unknown;
   const provider = new PlaywrightElectronActiveProvider(
     {
       LANG: "selected-language",
       PATH: "/selected/bin",
+      DISPLAY: ":selected-display",
+      XAUTHORITY: "/selected/display-authorization",
+      WAYLAND_DISPLAY: "selected-wayland",
       REA_PRIVATE_VALUE: "not-a-launch-setting",
     },
     async (options) => {
@@ -52,6 +56,9 @@ it("passes the selected environment and ownership token to Electron launch", asy
   expect(launchedEnvironment).toEqual({
     LANG: "selected-language",
     PATH: "/selected/bin",
+    DISPLAY: ":selected-display",
+    XAUTHORITY: "/selected/display-authorization",
+    WAYLAND_DISPLAY: "selected-wayland",
     REA_PROCESS_RUN_ID: expect.any(String),
   });
 });

@@ -640,13 +640,18 @@ it("reports zero-byte SAZ HTTP members as null instead of rejecting the archive"
     (await cli(path)).normalized_result,
   );
   expect(capture.total_records).toBe(2);
+  expect(capture.limitations).toContainEqual(
+    expect.stringMatching(
+      /\babsent\b[^.]*\bzero-byte\b[^.]*\bHTTP members\b[^.]*\bnull\b/iu,
+    ),
+  );
   expect(capture.records[0]?.reported).toMatchObject({
-    request: { method: "GET" },
+    request: { method: "GET", body: "" },
     response: null,
   });
   expect(capture.records[1]?.reported).toMatchObject({
     request: null,
-    response: { status: "204" },
+    response: { status: "204", body: "" },
     websocket: { member: "raw/2_w.txt" },
   });
   expect(capture.records[0]?.location).toEqual({

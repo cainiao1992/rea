@@ -351,6 +351,21 @@ it("keeps hidden or permission-denied live PIDs unavailable", async () => {
   }
 });
 
+it("preserves native identity with unavailable teardown relations", async () => {
+  const host = createSystemProcessOwnershipHost("linux", {});
+  filesystem.readFile.mockResolvedValueOnce(procStat(987654, 0, -1, 42, 4));
+  const identities = await host.processIdentities?.([entry]);
+  expect(identities?.get(42)).toMatchObject({
+    state: "readable",
+    identity: "linux-starttime:987654",
+    lifecycle: { state: "observed", lifecycle: "exiting" },
+    relation: {
+      state: "unavailable",
+      reason: "proc_stat_relation_unavailable",
+    },
+  });
+});
+
 it("keeps permission, parser, and unexpected failures unavailable", async () => {
   const host = createSystemProcessOwnershipHost("linux", {});
   const signalProbe = vi.spyOn(process, "kill");

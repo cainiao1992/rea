@@ -1055,11 +1055,17 @@ export const createSystemProcessOwnershipHost = (
                         state: "observed" as const,
                         lifecycle: facts.lifecycle,
                       },
-                relation: {
-                  state: "observed" as const,
-                  parentPid: facts.parentPid,
-                  processGroupId: facts.processGroupId,
-                },
+                relation:
+                  facts.processGroupId < 0
+                    ? {
+                        state: "unavailable" as const,
+                        reason: "proc_stat_relation_unavailable",
+                      }
+                    : {
+                        state: "observed" as const,
+                        parentPid: facts.parentPid,
+                        processGroupId: facts.processGroupId,
+                      },
               });
 
               if (!credentialPids?.has(pid))

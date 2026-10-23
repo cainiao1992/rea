@@ -272,7 +272,7 @@ const waitFor = async (condition: () => boolean): Promise<void> => {
   }
 };
 
-it("rejects a mismatched stat PID and zero process-group/session IDs at sampling admission", async () => {
+it("rejects a mismatched stat PID at sampling admission", async () => {
   setUpFixture();
   fixture.statMutations.set(100, { read: 1, pid: 200 });
   const wrongPid = await readLinuxProcessStat(
@@ -280,19 +280,29 @@ it("rejects a mismatched stat PID and zero process-group/session IDs at sampling
     new AbortController().signal,
   );
   expect(wrongPid.value).toBeUndefined();
-
-  setUpFixture();
-  fixture.statMutations.set(100, {
-    read: 1,
-    processGroupId: 0,
-    sessionId: 0,
+  expect(wrongPid.diagnostics).toMatchObject({
+    count: 1,
+    first: "/proc/100/stat: malformed process identity",
   });
-  const zeroGroups = await readLinuxProcessStat(
-    100,
-    new AbortController().signal,
-  );
-  expect(zeroGroups.value).toBeUndefined();
 });
+
+it.each([0, -1])(
+  "does not classify native unavailable relations (%s) as malformed identity",
+  async (relation) => {
+    setUpFixture();
+    fixture.statMutations.set(100, {
+      read: 1,
+      processGroupId: relation,
+      sessionId: relation,
+    });
+    const observed = await readLinuxProcessStat(
+      100,
+      new AbortController().signal,
+    );
+    expect(observed.value).toBeUndefined();
+    expect(observed.diagnostics).toMatchObject({ count: 0, first: null });
+  },
+);
 
 const flushImmediateProcPass = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -575,6 +585,31 @@ it.each([
     await flushImmediateProcPass();
     await stop();
     expect(samples).toEqual([]);
+  },
+);
+
+it.each([0, -1])(
+  "keeps completed samples without false failures when root relations disappear (%s)",
+  async (relation) => {
+    setUpFixture();
+    fixture.children.set("100:100", "");
+    // Reads 1/2 establish PTY readiness; 3/4 bracket the retained root sample.
+    // The next pass sees a valid kernel record whose relations are unavailable.
+    fixture.statMutations.set(100, {
+      read: 5,
+      processGroupId: relation,
+      sessionId: relation,
+    });
+    const { samples, stop } = start();
+    await waitFor(() => (fixture.statReads.get(100) ?? 0) >= 5);
+    await flushImmediateProcPass();
+    const result = await stop();
+    expect(samples.map(({ pid }) => pid)).toEqual([100]);
+    expect(result.coverage).toMatchObject({
+      sampling_failures: 0,
+      first_sampling_failure: null,
+    });
+    expect(result.partial).toBe(false);
   },
 );
 

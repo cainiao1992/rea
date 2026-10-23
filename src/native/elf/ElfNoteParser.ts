@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
+import {
+  elfNoteAlignment as noteAlignment,
+  elfNoteLayout,
+} from "../../domain/native/elfNoteLayout.js";
 import type {
   ElfNotes,
   InspectElfNotesInput,
@@ -48,11 +52,6 @@ const chargeText = (
 
 const sha256 = (bytes: Buffer): string =>
   createHash("sha256").update(bytes).digest("hex");
-
-const alignTo = (value: number, alignment: number): number => {
-  if (alignment <= 1) return value;
-  return Math.ceil(value / alignment) * alignment;
-};
 
 const GNU_OS_NAMES: Readonly<Record<number, string>> = {
   0: "linux",
@@ -140,11 +139,6 @@ class ElfReader {
   }
 }
 
-/** Note name/descriptor padding follows the containing table's p_align or
- *  sh_addralign: 8 stays 8; 0, 1, 4, and other values pad as 4, matching
- *  readelf/binutils. */
-const noteAlignment = (declared: number): number => (declared === 8 ? 8 : 4);
-
 interface ParsedNote {
   readonly location: { offset: number; bytes: number };
   readonly namesz: number;
@@ -187,8 +181,11 @@ const parseNoteStream = (
     // namesz/descsz disagrees with binutils when alignment is 8 because the
     // 12-byte note header is not 8-aligned (GNU property namesz=4 then starts
     // its descriptor at 16, not 20).
-    const descRel = alignTo(12 + namesz, alignment);
-    const nextRel = alignTo(descRel + descsz, alignment);
+    const { descriptor: descRel, next: nextRel } = elfNoteLayout(
+      namesz,
+      descsz,
+      alignment,
+    );
     const next = at + nextRel;
     if (next > size) fail("ELF note entry exceeds its table.");
     if (next <= at) fail("ELF note alignment did not advance.");

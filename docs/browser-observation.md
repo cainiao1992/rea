@@ -337,6 +337,8 @@ the `rel`, `anchor`, and `type` parameters use their first occurrence, and
 quoted-pair escapes are decoded as specified by [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4).
 The context fields are optional when reading older saved captures. Commas
 inside URI targets or quoted parameters remain part of those values.
+Well-known-resource hints require an exact supported pathname; path case is
+preserved because a case variant may identify a different HTTP resource.
 COOP and COEP projections retain the exact declared token after validating the
 complete Structured Field Item, including parameters such as `report-to`.
 These are declarations, not an assessment of the document's effective policy;
@@ -346,6 +348,7 @@ REA retains local observation data and removes only URL userinfo credentials, ex
 
 - URL observations preserve the complete local URL, including query values, fragments, duplicate parameters, and their order. Only username/password userinfo is removed; malformed original URL strings remain available with `origin: null`.
 - DOM snapshots retain node types, node names, value lengths, and attribute names, but not text or attribute values.
+- Supported DOM URL attributes are projected separately as resolved destinations. Empty `action` on HTML or XHTML forms and empty `formaction` on HTML or XHTML submit controls resolve to the document URL; other relative URL attributes resolve against the captured document base.
 - Accessibility structure and roles are retained by default, while names and descriptions require `include_accessibility_text: true`.
 - Network observations retain method, status, MIME type, size, type, initiator stack location, and complete URLs with userinfo credentials removed. Redirects reported by CDP are attached as ordered `redirects` on the one request ID, with the prior request URL, CDP response URL, method/type, response status/MIME/encoded length, request timestamp, and the next `requestWillBeSent` event timestamp. CDP delivers `redirectResponse` with that next request event, so the latter is an event boundary rather than an exact response timestamp. Redirect response headers and bodies are discarded; hops outside the selected origins are discarded with the request chain. Headers are discarded after an allowlisted projection of length/encoding, structured CSP/Link/policy fields, and untrusted agent hints. Cookies and authorization headers are never retained.
 - Request/response bodies are not requested or parsed by default. When selected, only allowed-origin JSON media types are read, converted immediately to complete value-free typed paths, types and observation counts, and discarded. Each path segment is either `{ "kind": "property", "name": "raw property name" }` or `{ "kind": "array-element" }`; array-element types include primitives and nested arrays. Literal `*` properties remain distinct from array elements. `Network.getResponseBody` is never sent unless JSON body shape capture is selected. A JSON-typed request body that CDP reports through `hasPostData` but omits from `postData`, or that cannot be parsed as JSON, makes `json_body_shapes` unavailable. That request's `body_shapes.status` is `partial`, not `included`, when only its response shape was captured. Comparison uses body shapes only when both captures selected them, and compares request/response shapes only where both observations provide those facts. Unavailable or truncated selected coverage makes equivalence unknown; observed differences still report changed.
@@ -500,6 +503,10 @@ Current fetches emit a string or null; historical observations may omit
 An observed URL must fit before its response body is read. If it cannot fit,
 remaining map results are explicitly unknown; failed cancellation retains its
 cleanup context and resource constraint.
+Indexed maps whose decoded mappings cross the next section's starting position
+are invalid under [ECMA-426](https://tc39.es/ecma426/2024/), rather than complete
+maps with clipped mapping rows. Fetch collection and source tracing share this
+validation.
 
 ## Non-goals and threat model
 

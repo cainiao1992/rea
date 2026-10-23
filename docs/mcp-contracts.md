@@ -1221,6 +1221,14 @@ invoking the handler. Domain validation additionally checks
 relationships such as event sequence references and retained counts; JSON
 Schema does not express those cross-field invariants.
 
+Comparison also preserves the capture's coverage. A partial HTTP inventory can
+establish an observed difference against a complete peer, but an omitted request
+does not establish removal. Partial WebSocket streams do not establish frame
+alignment. WebMCP frame IDs and tool keys are local to a capture; semantic owner
+facts and known counts determine correspondence. Retained script digests can
+establish source changes. See [browser comparison semantics](browser-observation.md)
+for value uncertainty and storage-fingerprint recapture requirements.
+
 ## Generated catalog
 
 Custom clients upgrading from 6.1 should follow the

@@ -147,7 +147,7 @@ cliTest(
           [...codes].sort(),
         );
         expect(result.evidence_ids, label).toEqual(
-          expect.arrayContaining(evidenceIds),
+          expect.arrayContaining([...evidenceIds]),
         );
       }
     }

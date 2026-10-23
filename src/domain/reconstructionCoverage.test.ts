@@ -630,7 +630,9 @@ describe("effective reconstruction boundary", () => {
       expect(result.reasons.map(({ code }) => code).sort()).toEqual(
         [...codes].sort(),
       );
-      expect(result.evidence_ids).toEqual(expect.arrayContaining(evidenceIds));
+      expect(result.evidence_ids).toEqual(
+        expect.arrayContaining([...evidenceIds]),
+      );
       expect(result.recommended_probes).toHaveLength(codes.length);
     });
 });

@@ -693,7 +693,9 @@ runtime, supported host, output contract, and conformance results.
 Target platform is not host support. The canonical parser must inspect
 Windows-produced PE/CLI bytes on REA's supported Linux and macOS hosts with the
 same result. Pinned Windows oracle jobs may provide additional conformance, but
-they do not claim that the REA application itself supports Windows. Native
+do not establish that the REA managed analysis workflow has been verified on a
+Windows host. The [experimental Windows Ghidra boundary](windows-ghidra-p0.md)
+has its own host and provider verification scope. Native
 ReadyToRun, C++/CLI, NativeAOT, or IL2CPP coverage is additionally constrained
 by the selected Hopper/Ghidra host and format matrix.
 

@@ -300,6 +300,14 @@ change hashed event IDs and longer event/listener labels; query the preserved
 name or select IDs from the parent graph. Previously stored graphs keep their
 original IDs and remain valid trace inputs.
 
+Empty string event names remain exact identities and can be selected with an
+event seed whose `name` is `""`. A property seed selects the named slots and
+retained accesses whose producer established that no slot was resolved. Those
+accesses keep their source locations and unknowns; a missing retained relation
+does not prove that an access is slotless. New access nodes record
+`property_slot_resolution` independently of whether capacity permitted retaining
+the resolved slot node or its relations.
+
 ## Version comparison
 
 REA pairs entities only when a tier produces one unique candidate on each side.

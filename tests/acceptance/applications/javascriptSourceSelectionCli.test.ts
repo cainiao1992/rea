@@ -6,6 +6,7 @@ import { expect } from "vitest";
 
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { JAVASCRIPT_SEMANTIC_RELATION_FAMILIES } from "../../../src/domain/javascript/javascriptSemanticGraphSchemas.js";
 import { writeJavaScriptSourceSelectionFixture } from "../../fixtures/javascriptSourceSelection.js";
 import {
   asarHeaderBytes,
@@ -102,6 +103,24 @@ cliTest.for([
     );
     expect(full.source_selection).toBeUndefined();
     expect(full.statistics.invalid_utf8_files).toBe(1);
+    const unavailableModule = full.semantic_graph.nodes.find(
+      ({ kind, identity }) =>
+        kind === "module" && identity.module_path === "invalid.mjs",
+    );
+    expect(unavailableModule).toBeDefined();
+    expect(
+      full.semantic_graph.unknowns.filter(
+        ({ node_id, detail }) =>
+          node_id === unavailableModule?.node_id &&
+          detail.includes("not valid UTF-8"),
+      ),
+    ).toHaveLength(JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.length);
+    expect(full.semantic_graph.coverage).toMatchObject({
+      status: "partial",
+      truncated: false,
+      omitted_nodes: null,
+      omitted_relations: null,
+    });
     expect(full.statistics.parse_failures).toBeGreaterThan(0);
     expect([
       result.root_artifact_sha256,

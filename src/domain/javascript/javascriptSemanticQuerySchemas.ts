@@ -49,7 +49,7 @@ export const javaScriptSemanticQuerySeedSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("event"),
-    name: z.string().min(1),
+    name: z.string(),
   }),
   z.strictObject({
     kind: z.literal("boundary-field"),

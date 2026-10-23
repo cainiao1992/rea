@@ -158,6 +158,14 @@ module produced it. In particular:
   zero omissions;
 - complete coverage cannot be truncated or omit items.
 
+Semantic graph validation enforces the same truncation coupling. Unknown
+omission extents remain `null`; positive omitted unknown occurrences can explain
+truncation even when omitted node and relation counts are both zero. Ordinary
+source unavailability, including invalid UTF-8, can make coverage partial without
+resource truncation. JavaScript summary `limitation_count` counts the full,
+deduplicated union of parent, application and semantic caveats, including messages
+whose delivery is omitted by the view's byte budget.
+
 Unavailable values are represented explicitly rather than as missing fields,
 so absence of evidence cannot silently become evidence of absence.
 

@@ -485,7 +485,7 @@ it("projects JavaScript summary and preserves selected module observations", () 
   if (summary.value.kind !== "summary") throw new Error("expected summary");
   expect(summary.value.summary).toMatchObject({
     format: "directory",
-    limitation_count: 0,
+    limitation_count: summary.value.limitations.length,
   });
   expect(JSON.stringify(summary.value)).not.toMatch(/"graph"/);
   expect(summary.value.summary).not.toHaveProperty("semantic_graph");
@@ -1056,7 +1056,10 @@ it("retains semantic coverage and limitations in a summary", () => {
   );
   if (!result.ok) throw result.error;
   expect(result.value).toMatchObject({
-    summary: { coverage: { semantic: { status: "partial", truncated: true } } },
+    summary: {
+      limitation_count: 1,
+      coverage: { semantic: { status: "partial", truncated: true } },
+    },
     limitations: ["Some semantic nodes could not be retained."],
     unknowns: expect.arrayContaining([
       "semantic_graph.coverage.status is partial",
@@ -1094,6 +1097,8 @@ it.each([63, 64, 65, 10_000])(
     ] as const) {
       const result = projectAnalysisView(duplicatedParent, view);
       if (!result.ok) throw result.error;
+      if (result.value.kind === "summary")
+        expect(result.value.summary.limitation_count).toBe(count);
       if (count <= 65) {
         expect(result.value.limitations).toEqual(messages);
         expect(result.value.unknowns).toEqual(

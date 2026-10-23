@@ -240,6 +240,7 @@ const graphCoverage = (context: JavaScriptArtifactGraphContext) => {
       javascript !== null && javascript.parse_status === "partial",
   );
   const unknownGap =
+    context.snapshot.coverage.status !== "complete" ||
     (context.fileSet.source_selection?.unselected_files ?? 0) > 0 ||
     context.fileSet.unavailable_relevant_files.length > 0 ||
     context.analysis.files.some(
@@ -331,11 +332,12 @@ const graphLimitations = (
   );
   return [
     ...context.analysis.limitations,
-    ...(context.fileSet.source_selection === undefined
+    ...((context.fileSet.source_selection?.unselected_files ?? 0) === 0
       ? []
       : [
-          `Caller-selected source analysis leaves ${String(context.fileSet.source_selection.unselected_files)} inventoried files outside analysis scope. Inventory identity covers the complete artifact; relationships through unselected sources remain unknown.`,
+          `Caller-selected source analysis leaves ${String(context.fileSet.source_selection?.unselected_files)} inventoried files outside analysis scope. Inventory identity covers the complete artifact; relationships through unselected sources remain unknown.`,
         ]),
+    ...context.snapshot.limitations,
     ...context.snapshot.integrity_contradictions.map(
       ({ logical_path: path }) =>
         `Artifact integrity metadata contradicts observed bytes at ${path}; the observed bytes are untrusted.`,

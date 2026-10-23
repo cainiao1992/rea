@@ -37,6 +37,68 @@ import {
 import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
 
 const SHA = "a".repeat(64);
+
+it.each(["unknown", "unavailable", "partial"] as const)(
+  "rejects contradictory truncated %s graph coverage",
+  (status) => {
+    const input = semanticFixtureInput();
+    expect(() =>
+      createJavaScriptSemanticGraph({
+        ...input,
+        coverage: {
+          ...input.coverage,
+          status,
+          truncated: true,
+          limits: [{ name: "nodes", value: 1, unit: "items" }],
+        },
+      }),
+    ).toThrow(/Truncated semantic graph coverage/u);
+  },
+);
+
+it("accepts truncated partial coverage with unknown omission extents", () => {
+  const input = semanticFixtureInput();
+  expect(
+    createJavaScriptSemanticGraph({
+      ...input,
+      coverage: {
+        ...input.coverage,
+        status: "partial",
+        truncated: true,
+        omitted_nodes: null,
+        omitted_relations: null,
+        limits: [{ name: "nodes", value: 1, unit: "items" }],
+      },
+    }).coverage,
+  ).toMatchObject({ status: "partial", truncated: true });
+});
+
+it("accepts omitted unknown occurrences as the reason for semantic truncation", () => {
+  const input = semanticFixtureInput();
+  const family = input.coverage.families[0]!.family;
+  const graph = createJavaScriptSemanticGraph({
+    ...input,
+    coverage: {
+      ...input.coverage,
+      status: "partial",
+      truncated: true,
+      omitted_unknown_occurrences: [
+        { family, reason: "resource-limit", occurrences: 1 },
+      ],
+      limits: [{ name: "unknowns", value: 1, unit: "items" }],
+      families: input.coverage.families.map((coverage) =>
+        coverage.family === family
+          ? { ...coverage, status: "partial" }
+          : coverage,
+      ),
+    },
+  });
+  expect(graph.coverage).toMatchObject({
+    truncated: true,
+    omitted_nodes: 0,
+    omitted_relations: 0,
+  });
+});
 const node = (
   kind: (typeof JAVASCRIPT_SEMANTIC_NODE_KINDS)[number],
   role: string,

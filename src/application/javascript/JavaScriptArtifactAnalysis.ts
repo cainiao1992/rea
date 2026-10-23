@@ -25,6 +25,7 @@ import type {
   JavaScriptArtifactFile,
   JavaScriptArtifactFileSet,
 } from "../../domain/javascript/javascriptArtifactFiles.js";
+import { javaScriptArtifactTextExclusion } from "../../domain/javascript/javascriptArtifactFiles.js";
 import type {
   AnalyzedJavaScriptArtifactFile,
   JavaScriptArtifactAnalysisFailure,
@@ -159,7 +160,7 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
     let analysisStarted = false;
     try {
       await setImmediate();
-      if (classifyOutsideAnalysisScope(file, state, projection)) {
+      if (classifyUnavailableSource(file, state, projection)) {
         if (signal?.aborted === true) {
           interruption = new AnalysisCancelledError(
             "analyze_javascript_application",
@@ -320,7 +321,7 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
     >();
     for (const file of fileSet.files) {
       if (analyzedPaths.has(file.path)) continue;
-      if (classifyOutsideAnalysisScope(file, state, projection)) continue;
+      if (classifyUnavailableSource(file, state, projection)) continue;
       const scope = javascriptArtifactAnalysisScopes[file.kind];
       let unavailable = scope === null ? undefined : failures.get(scope);
       if (scope !== null && unavailable === undefined) {
@@ -404,7 +405,7 @@ function* analyzeArtifactFileSteps<
   context: ArtifactAnalysisContext<SemanticIr>,
 ): Generator<void, void> {
   const { state } = context;
-  if (classifyOutsideAnalysisScope(file, state)) return;
+  if (classifyUnavailableSource(file, state)) return;
   addStructuredObservations(file, state);
   if (file.kind === "html" && file.text.included) {
     const html = parseHtmlScripts(file.path, file.text.value);
@@ -460,22 +461,17 @@ function* analyzeArtifactFileSteps<
   if (analysis.parse_status === "failed") state.parseFailures += 1;
 }
 
-const classifyOutsideAnalysisScope = <
+const classifyUnavailableSource = <
   SemanticIr extends JavaScriptModuleSemanticIr,
 >(
   file: JavaScriptArtifactFile,
   state: MutableArtifactAnalysis<SemanticIr>,
   projection?: JavaScriptSemanticGraphProjection,
 ): boolean => {
-  if (file.text.included || file.text.reason !== "outside-analysis-scope")
-    return false;
+  const reason = javaScriptArtifactTextExclusion(file);
+  if (reason === null) return false;
   state.files.push({ file, javascript: null, semantic: null });
-  projection?.recordUnavailableFile(
-    file,
-    "Source was not analyzed because it is outside the caller-selected source_paths.",
-    null,
-    "incomplete-module",
-  );
+  projection?.recordUnavailableFile(file, reason, null, "incomplete-module");
   return true;
 };
 

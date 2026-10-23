@@ -295,7 +295,16 @@ export class RizinDebugSessionManager {
     >
   > {
     if (this.#closingAll)
-      return err(new AnalysisInputError("start_rizin_debug_session"));
+      return err(
+        new AnalysisInputError("start_rizin_debug_session", undefined, [
+          {
+            path: ["inferior_tty"],
+            reason: "missing_argument",
+            message:
+              "Select a persistent readable and writable Linux terminal for inferior output.",
+          },
+        ]),
+      );
     const occupied = this.#sessions.size + this.#sessionReservations;
     if (occupied >= MAX_SESSIONS)
       return err(
@@ -376,7 +385,17 @@ export class RizinDebugSessionManager {
       }
     } catch (cause) {
       return err(
-        new AnalysisInputError("start_rizin_debug_session", { cause }),
+        new AnalysisInputError(
+          "start_rizin_debug_session",
+          { cause, diagnostics: { inferior_tty: input.inferior_tty } },
+          [
+            {
+              path: ["inferior_tty"],
+              reason: "invalid_value",
+              message: `Cannot use selected terminal ${input.inferior_tty}: ${cause instanceof Error ? cause.message : String(cause)}`,
+            },
+          ],
+        ),
       );
     }
     // TTY identity validation is asynchronous. Cancellation may arrive while

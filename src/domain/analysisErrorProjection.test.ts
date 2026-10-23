@@ -1091,3 +1091,44 @@ it.each([false, true])(
     );
   },
 );
+
+it("retains Hopper startup diagnostics beside generic and secondary context", () => {
+  const diagnostic = {
+    component: "hopper_private_display",
+    operation: "launch",
+    reason: "fixture_denial",
+    socket_directory: "/tmp/.X11-unix",
+    socket_directory_mode: null,
+    mount_read_only: null,
+    effective_socket_directory_mode: null,
+    effective_mount_read_only: null,
+    wsl: false,
+    strategy: "unavailable",
+    fallback_reason: null,
+    xvfb_stderr_bytes: 0,
+    status: "error",
+    failure_code: "private_display_unavailable",
+  } as const;
+  expect(
+    projectAnalysisError(new HopperProcessError(null, { diagnostic })).details
+      ?.diagnostics,
+  ).toEqual(diagnostic);
+  const generic = { caller_context: "retained" };
+  expect(
+    projectAnalysisError(
+      new HopperProcessError(null, { diagnostic, diagnostics: generic }),
+    ),
+  ).toMatchObject({
+    code: "provider_unavailable",
+    details: { diagnostics: generic, provider_diagnostics: diagnostic },
+  });
+  const secondary = new HopperProcessError(null, {
+    diagnostic,
+  }).retainSecondaryFailure(new HopperProcessError(null), {
+    retirement_error: "retained",
+  });
+  expect(projectAnalysisError(secondary).details).toMatchObject({
+    provider_diagnostics: diagnostic,
+    diagnostics: { retirement_error: "retained" },
+  });
+});

@@ -348,3 +348,40 @@ it("keeps failed Mach-O preflight cleanup attached to the supplied profile owner
   await owner.close();
   expect(resolved.error.cleanupIncomplete).toBe(false);
 });
+
+it("preserves launcher fingerprint filesystem failures instead of an absent profile", async () => {
+  const failure = Object.assign(
+    new Error("EACCES: fixture launcher read denied"),
+    { code: "EACCES" },
+  );
+  const stream = new PassThrough();
+  vi.mocked(createReadStream).mockReturnValueOnce(
+    stream as unknown as ReturnType<typeof createReadStream>,
+  );
+  const resolving = resolveHopperAnalysisProfile(
+    {
+      path: "/fixture/input",
+      sha256: "a".repeat(64),
+      kind: "executable",
+      format: "elf",
+      architecture: "x86_64",
+      availableArchitectures: ["x86_64"],
+    },
+    {
+      launcherPath: "/fixture/hopper",
+      loaderArgsOverride: [],
+      provider: { id: "hopper", name: "Hopper", version: null },
+      resourceScope: inspectionResources.owner,
+    },
+  );
+  stream.destroy(failure);
+  const result = await resolving;
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ProviderAdapterError",
+      cause: failure,
+      diagnostics: { launcher_path: "/fixture/hopper", system_code: "EACCES" },
+    },
+  });
+});

@@ -83,7 +83,14 @@ const projectError = (
     ...(composed === error || composed.cleanupReport === undefined
       ? {}
       : { cleanup_report: jsonValueSchema.parse(composed.cleanupReport) }),
-    ...(diagnostics === undefined ? {} : { diagnostics }),
+    ...(diagnostics === undefined
+      ? {}
+      : {
+          diagnostics,
+          ...(primaryDetails?.diagnostics === undefined
+            ? {}
+            : { provider_diagnostics: primaryDetails.diagnostics }),
+        }),
     ...(composed === error || composed.diagnostics === undefined
       ? {}
       : { cleanup_history: composed.diagnostics }),

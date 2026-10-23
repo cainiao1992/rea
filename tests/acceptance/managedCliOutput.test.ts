@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -47,6 +48,85 @@ cliTest(
               }),
             }),
           ],
+        },
+      });
+    }
+  },
+);
+
+cliTest(
+  "managed CLI inspects malformed MethodSpecs used by isolated non-call instructions",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-managed-methodspec-operands-",
+    );
+    for (const [opcode, name, operandKind] of [
+      [0x71, "ldobj", "type"],
+      [0x7e, "ldsfld", "field"],
+      [0xd0, "ldtoken", "method"],
+    ] as const) {
+      const path = join(root, `${name}.dll`);
+      // Each body has one token operand; no call can trigger MethodSpec
+      // inspection on behalf of the non-call instruction under observation.
+      const il = Buffer.from([opcode, 1, 0, 0, 0x2b, 0x2a]);
+      await writeFile(
+        path,
+        buildManagedPeFixture({
+          memberRefName: "NotAMethod",
+          memberRefSignature: Buffer.from([0x06, 0x0e]),
+          methodSpecMethods: [(1 << 1) | 1],
+          ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+        }),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-managed-members", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.json).toMatchObject({
+        operation: "inspect_managed_members",
+        subject: { local_path: path },
+        normalized_result: {
+          methods: [
+            expect.objectContaining({
+              body: expect.objectContaining({
+                status: "present",
+                il_sha256: createHash("sha256").update(il).digest("hex"),
+                normalized_il_sha256: expect.any(String),
+                anchors: [
+                  expect.objectContaining({
+                    opcode: name,
+                    operand_kind: operandKind,
+                    operand: "0x2b000001",
+                  }),
+                  expect.objectContaining({ opcode: "ret", operand: null }),
+                ],
+                issue: null,
+              }),
+            }),
+          ],
+          call_edges: [],
+          field_accesses:
+            name === "ldsfld"
+              ? [
+                  expect.objectContaining({
+                    opcode: "ldsfld",
+                    field_token: "0x2b000001",
+                    field_name: null,
+                    field_declaring_type: null,
+                  }),
+                ]
+              : [],
+          coverage: {
+            state: "partial",
+            issues: expect.arrayContaining([
+              expect.objectContaining({
+                code: "invalid-row",
+                scope: "metadata.MethodSpec:0x2b000001",
+                detail:
+                  "MethodSpec method does not have a decodable method signature",
+              }),
+            ]),
+          },
         },
       });
     }

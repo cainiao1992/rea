@@ -27,6 +27,7 @@ import {
   decodeMetadataCodedIndex,
   metadataCodedIndexCoordinate,
   type MetadataCodedIndexCoordinate,
+  type MetadataTokenFact,
   metadataToken,
   readMetadataString,
   sha256Bytes,
@@ -91,19 +92,19 @@ export interface MemberCore {
 
 export const memberTargetIdentity = (
   name: string,
-  declaringToken: string | null,
+  declaringType: Pick<MetadataTokenFact, "table" | "row"> | null,
   signature: ManagedSignature,
   typeName: DeclarationTypeName,
 ): string | null => {
   if (
-    declaringToken === null ||
+    declaringType === null ||
     signature.resolved_sha256 === null ||
     signature.parse_status !== "decoded"
   )
     return null;
-  const table = Number.parseInt(declaringToken.slice(2, 4), 16);
+  const { table, row } = declaringType;
   if (table !== 1 && table !== 2) return null;
-  const owner = typeName(table, Number.parseInt(declaringToken.slice(4), 16));
+  const owner = typeName(table, row);
   return owner === null
     ? null
     : createHash("sha256")
@@ -119,6 +120,21 @@ export interface ParsedInstruction {
   readonly opcode: string;
   readonly operandKind: ManagedInstructionAnchor["operand_kind"];
   readonly operand: string | null;
+  readonly reference: MetadataTokenFact | null;
+}
+
+export type ParsedTokenInstruction = ParsedInstruction & {
+  readonly reference: MetadataTokenFact;
+};
+
+export const isParsedTokenInstruction = (
+  instruction: ParsedInstruction,
+): instruction is ParsedTokenInstruction => instruction.reference !== null;
+
+export interface DecodedMethod {
+  readonly method: ManagedMethod;
+  readonly tokenInstructions: readonly ParsedTokenInstruction[];
+  readonly catchTokens: ReadonlyMap<number, MetadataTokenFact>;
 }
 
 const rowRange = (

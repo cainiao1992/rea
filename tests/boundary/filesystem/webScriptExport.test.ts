@@ -312,6 +312,11 @@ describe("captured script publication failures and cleanup", () => {
     );
     const result = await exportWebScripts(input, resources);
     if (result.ok) throw new Error("Expected exclusive output failure");
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisInputError",
+      operation: "export_web_scripts",
+      issues: [{ path: ["output_directory"], reason: "invalid_value" }],
+    });
     expect(result.error.userMessage).toContain("already exists");
     expect(await readFile(marker, "utf8")).toBe("keep");
   });

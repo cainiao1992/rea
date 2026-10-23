@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -15,6 +15,7 @@ import { ToolResultDelivery } from "../../../src/server/toolResult.js";
 import { readWithoutFifoWriter } from "../../fixtures/fifoInput.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { scriptScenarioFixture } from "../../fixtures/webScriptCapture.js";
 
 it.skipIf(process.platform === "win32")(
   "returns a capture_path invalid_request for a named pipe without waiting or publishing output",
@@ -80,3 +81,58 @@ it.skipIf(process.platform === "win32")(
     });
   },
 );
+
+it("refuses an existing output directory as invalid output_directory input", async () => {
+  const root = await createTestTempDirectory("rea-script-export-existing-mcp-");
+  const capturePath = join(root, "capture.json");
+  await writeFile(capturePath, JSON.stringify(scriptScenarioFixture()));
+  const outputDirectory = join(root, "retained");
+  await mkdir(outputDirectory);
+  await writeFile(join(outputDirectory, "marker.txt"), "keep");
+  const server = new EvidenceMcpServer(
+    { name: "script-export-existing", version: "1" },
+    {},
+    undefined,
+    new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE),
+  );
+  const artifactResources = new ArtifactResourceScope();
+  registerWebScriptTool(server, {
+    logger: silentLogger,
+    recordEvidence: undefined,
+    artifactResources,
+  });
+  const client = new Client({ name: "script-export-existing", version: "1" });
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+    await artifactResources.close();
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  const result = await client.callTool({
+    name: "export_web_scripts",
+    arguments: { capture_path: capturePath, output_directory: outputDirectory },
+  });
+  expect(parseMcpToolError(result).error).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    recovery: {
+      kind: "inspect_input_contract",
+      operation: "export_web_scripts",
+    },
+    details: {
+      operation: "export_web_scripts",
+      issues: [
+        {
+          path: ["output_directory"],
+          reason: "invalid_value",
+          message: "Extraction output root already exists",
+        },
+      ],
+    },
+  });
+  expect(await readdir(outputDirectory)).toEqual(["marker.txt"]);
+});

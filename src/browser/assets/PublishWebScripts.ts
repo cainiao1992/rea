@@ -6,6 +6,7 @@ import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { DestinationCaseCollisionFailure } from "../../artifacts/ArtifactPaths.js";
 import { SafeOutputTree } from "../../artifacts/SafeOutputTree.js";
+import { outputDirectoryAdmissionRefusal } from "../../artifacts/SafeOutputTreeAdmission.js";
 import { SafeOutputTreeCreationFailure } from "../../artifacts/SafeOutputTreeCreationFailure.js";
 import { PLAYWRIGHT_RESPONSE_BODY_PROVENANCE_LIMITATION } from "../../domain/browserNetworkEvidence.js";
 import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
@@ -175,7 +176,13 @@ export const publishWebScripts = async (
 
         if (tree.published && result !== undefined) return result;
       }
-      throw cancellation ?? cause;
+      if (cancellation !== undefined) throw cancellation;
+      // Only a destination refusal can blame the selected output directory.
+      throw outputDirectoryAdmissionRefusal(
+        OPERATION,
+        "output_directory",
+        cause,
+      );
     }
   });
 

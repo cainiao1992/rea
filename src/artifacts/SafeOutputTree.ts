@@ -20,6 +20,7 @@ import {
 } from "./ArtifactPaths.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
+import { SafeOutputTreeDestinationRefusal } from "./SafeOutputTreeAdmission.js";
 import { SafeOutputTreeCreationFailure } from "./SafeOutputTreeCreationFailure.js";
 import { hashOutputFile } from "./SafeOutputTreeReadback.js";
 import { removeOwnedTree } from "./SafeOutputTreeCleanup.js";
@@ -95,15 +96,16 @@ export class SafeOutputTree {
     options: { readonly acceptExistingEmpty?: boolean } = {},
   ): Promise<SafeOutputTree> {
     if (!isAbsolute(outputRoot))
-      throw new ArtifactReaderFailure(
-        "path",
+      throw new SafeOutputTreeDestinationRefusal(
         "Extraction output root must be absolute",
       );
     // Path syntax follows the host; `platform` selects only the name policy.
     const requested = absoluteCallerPath(outputRoot);
     const name = basename(requested);
     if (name === "." || name === "..")
-      throw new ArtifactReaderFailure("path", "Invalid extraction output root");
+      throw new SafeOutputTreeDestinationRefusal(
+        "Invalid extraction output root",
+      );
     const parent = await realpath(dirname(requested)).catch(
       (cause: unknown) => {
         throw new ArtifactReaderFailure(
@@ -121,8 +123,7 @@ export class SafeOutputTree {
         created = false;
         return;
       }
-      throw new ArtifactReaderFailure(
-        "path",
+      throw new SafeOutputTreeDestinationRefusal(
         "Extraction output root already exists",
         { cause },
       );
@@ -130,11 +131,24 @@ export class SafeOutputTree {
     const tree = new SafeOutputTree(canonicalOutput, platform, requested);
     tree.#createdRoot = created;
     try {
-      const rootIdentity = await readDirectoryIdentity(canonicalOutput);
+      const rootIdentity = await readDirectoryIdentity(canonicalOutput).catch(
+        (cause: unknown) => {
+          // An accepted existing root that is not a directory refuses the
+          // selection itself; a root this call created was replaced by a host race.
+          if (
+            !created &&
+            cause instanceof ArtifactReaderFailure &&
+            cause.reason === "path"
+          )
+            throw new SafeOutputTreeDestinationRefusal(cause.message, {
+              cause,
+            });
+          throw cause;
+        },
+      );
       tree.#rootIdentity = rootIdentity;
       if (!created && (await readdir(canonicalOutput)).length > 0)
-        throw new ArtifactReaderFailure(
-          "path",
+        throw new SafeOutputTreeDestinationRefusal(
           "Output directory is not empty",
         );
       if (created)

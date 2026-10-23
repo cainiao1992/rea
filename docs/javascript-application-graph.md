@@ -76,6 +76,11 @@ identities even when their displayed values match. Partial identities also retai
 the source site: matching expression text at different sites does not establish
 the same runtime target. This records observed source syntax; it does not
 establish that the call ran or contacted that endpoint.
+Version comparison can align equal unresolved source sites and syntax across
+artifact changes, while target identity remains unknown. Equal unresolved text
+at different sites and partial versus exact values cannot establish a pair.
+Unresolved targets qualify endpoint absence only within the same endpoint kind;
+known metadata differences on an established pair remain visible.
 Graph coverage describes the analyzed artifact scope and resource limits, not
 runtime execution. A partial target alone does not imply omitted source.
 

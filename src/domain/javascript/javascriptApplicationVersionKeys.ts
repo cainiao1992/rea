@@ -5,6 +5,7 @@ import {
 } from "../unicodeCodePointOrder.js";
 import type { ApplicationNode } from "./javascriptApplicationGraphSchemas.js";
 import type { JsonValue } from "../jsonValue.js";
+import { applicationEndpointCorrespondence } from "./javascriptApplicationEndpointCorrespondence.js";
 
 /** One deterministic one-to-one match between two graph versions. */
 type ApplicationVersionPairMatch =
@@ -253,11 +254,8 @@ const semanticValue = (
   node: ApplicationNode,
   properties: Readonly<Record<string, JsonValue>>,
 ): string | null => {
-  if (node.kind === "endpoint") {
-    const kind = nonEmptyString(properties.endpoint_kind);
-    const value = exactString(properties.value);
-    return kind === null || value === null ? null : `${kind}\0${value}`;
-  }
+  if (node.kind === "endpoint")
+    return applicationEndpointCorrespondence(node).semanticKey;
   if (node.kind === "storage")
     return joined(
       properties.storage_kind,

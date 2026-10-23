@@ -557,7 +557,7 @@ export class IdaOperationRunner {
       }
     }
     const querySet = new Set(queries);
-    if (this.protocol === "native" && querySet.size > 0) {
+    if (this.protocol !== "legacy" && querySet.size > 0) {
       const rows = modernLookupBatchSchema.parse(
         await this.call("lookup_funcs", { queries: [...querySet] }),
       );
@@ -568,7 +568,7 @@ export class IdaOperationRunner {
         rows.some((row) => !querySet.has(row.query))
       )
         throw new AnalysisProtocolError(
-          "Native IDA returned an inconsistent callee lookup batch.",
+          "IDA returned an inconsistent callee lookup batch.",
         );
       for (const query of querySet) {
         const resolved = identity(

@@ -184,9 +184,7 @@ const extractImports = (
             resolution: "unknown",
           });
       } else if (isImportExpression(node) || isTSImportType(node)) {
-        const specifier = exactStringModuleName(
-          isTSImportType(node) ? node.argument : node.source,
-        );
+        const specifier = exactStringModuleName(node.source);
         appendRelationship(relationships, limitations, {
           fromPath: from_path,
           to: specifier ?? "<dynamic-import>",

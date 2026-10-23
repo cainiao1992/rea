@@ -1,4 +1,3 @@
-import { MIMEType } from "node:util";
 import { isAbsolute } from "node:path";
 import { CaptureFormatError } from "../CaptureFormatError.js";
 import {
@@ -24,6 +23,7 @@ import {
   type WebNetworkCaptureRecord,
 } from "../../../domain/webNetworkCapture.js";
 import type { JsonValue } from "../../../domain/jsonValue.js";
+import { err, ok, type Result } from "../../../domain/result.js";
 import { ProtobufBudget } from "./ProtobufWire.js";
 import type { ProtobufSchema } from "./ProtobufSchema.js";
 import {
@@ -94,39 +94,91 @@ const excludeBody = (
   record.redactions.push({ pointer, reason });
 };
 
-/** Admit reserved binary-Protobuf parameters before selecting wire framing. */
-const protobufMediaType = (value: string | undefined) => {
-  if (value === undefined)
-    return { framing: undefined, issue: undefined, key: undefined };
-  let mime: MIMEType;
-  try {
-    mime = new MIMEType(value);
-  } catch {
-    return {
-      framing: undefined,
-      issue:
-        "Selected body has an invalid MIME declaration; automatic protobuf applicability is unknown.",
-      key: undefined,
-    };
+type ProtobufMimeAdmission = Result<
+  {
+    readonly framing: ProtobufDecoding["framing"] | undefined;
+    readonly key: string | undefined;
+  },
+  {
+    readonly _tag: "InvalidProtobufMime";
+    readonly issue: string;
+    readonly declaredFraming: ProtobufDecoding["framing"] | undefined;
   }
-  const framing = Object.hasOwn(PROTOBUF_FRAMING, mime.essence)
-    ? PROTOBUF_FRAMING[mime.essence as keyof typeof PROTOBUF_FRAMING]
-    : undefined;
-  const encoding = mime.params.get("encoding");
-  const charset = mime.params.get("charset");
-  const version = mime.params.get("version");
-  const invalid =
+>;
+const mediaType =
+  /^[\t ]*([!#$%&'*+.^_`|~0-9A-Za-z-]+)\/([!#$%&'*+.^_`|~0-9A-Za-z-]+)/;
+// RFC 9110 token / quoted-string, including quoted-pair and obs-text.
+const mimeParameter =
+  /([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([!#$%&'*+.^_`|~0-9A-Za-z-]+|"(?:[\t \x21\x23-\x5b\x5d-\x7e\x80-\xff]|\\[\t \x21-\x7e\x80-\xff])*")/y;
+
+/** Strict admission keeps malformed/duplicate parameters visible instead of repairing them. */
+const protobufMediaType = (
+  value: string | undefined,
+): ProtobufMimeAdmission => {
+  if (value === undefined) return ok({ framing: undefined, key: undefined });
+  const type = mediaType.exec(value);
+  const essence =
+    type === null
+      ? undefined
+      : `${type[1]!.toLowerCase()}/${type[2]!.toLowerCase()}`;
+  const framing =
+    essence !== undefined && Object.hasOwn(PROTOBUF_FRAMING, essence)
+      ? PROTOBUF_FRAMING[essence as keyof typeof PROTOBUF_FRAMING]
+      : undefined;
+  const invalid = (reason: string): ProtobufMimeAdmission =>
+    err({
+      _tag: "InvalidProtobufMime",
+      issue: `Selected body has an invalid MIME declaration (${reason}); automatic protobuf applicability is unknown.`,
+      declaredFraming: framing,
+    });
+  if (type === null) return invalid("malformed media type");
+  const parameters = new Map<string, string>();
+  let at = type[0].length;
+  while (at < value.length) {
+    while (value[at] === " " || value[at] === "\t") at++;
+    if (at === value.length) break;
+    if (value[at++] !== ";") return invalid("malformed media-type parameters");
+    while (value[at] === " " || value[at] === "\t") at++;
+    // RFC 9110 permits empty parameter slots.
+    if (at === value.length || value[at] === ";") continue;
+    mimeParameter.lastIndex = at;
+    const match = mimeParameter.exec(value);
+    if (match === null) return invalid("malformed media-type parameters");
+    at = mimeParameter.lastIndex;
+    const name = match[1]!.toLowerCase();
+    if (!["encoding", "charset", "version"].includes(name)) continue;
+    const raw = match[2]!;
+    const decoded = raw.startsWith('"')
+      ? raw.slice(1, -1).replace(/\\([\s\S])/g, "$1")
+      : raw;
+    if (parameters.has(name) && parameters.get(name) !== decoded)
+      return invalid(`conflicting ${name} parameters`);
+    parameters.set(name, decoded);
+  }
+  const encoding = parameters.get("encoding");
+  const charset = parameters.get("charset");
+  const version = parameters.get("version");
+  if (
     framing === "raw" &&
-    ((encoding !== null && encoding !== "binary") ||
-      charset !== null ||
-      version !== null);
-  return {
-    framing: invalid ? undefined : framing,
-    issue: invalid
-      ? "Selected binary Protobuf MIME profile has an illegal encoding, charset or reserved version parameter; retained bytes were not automatically interpreted. Select explicit framing to interpret the bytes independently of that declaration."
-      : undefined,
-    key: JSON.stringify([mime.essence, encoding, charset, version]),
-  };
+    ((encoding !== undefined && encoding !== "binary") ||
+      charset !== undefined ||
+      version !== undefined)
+  )
+    return err({
+      _tag: "InvalidProtobufMime",
+      issue:
+        "Selected binary Protobuf MIME profile has an illegal encoding, charset or reserved version parameter; retained bytes were not automatically interpreted. Select explicit framing to interpret the bytes independently of that declaration.",
+      declaredFraming: framing,
+    });
+  return ok({
+    framing,
+    key: JSON.stringify([
+      essence,
+      framing === "raw" ? (encoding ?? "binary") : (encoding ?? null),
+      charset ?? null,
+      version ?? null,
+    ]),
+  });
 };
 
 /** Format-aware owner of body metadata; callers never reinterpret producer JSON. */
@@ -155,6 +207,8 @@ const bodyMetadata = (
   const message = object(object(record.reported)?.[side]);
   if (message === undefined) return undefined;
   const headers = new Map<string, string | undefined>();
+  let headerProfile = protobufMediaType(undefined);
+  let headerDeclaredFraming: ProtobufDecoding["framing"] | undefined;
   let headerNamesKnown = Array.isArray(message.headers);
   if (Array.isArray(message.headers)) {
     for (const [index, item] of message.headers.entries()) {
@@ -180,17 +234,38 @@ const bodyMetadata = (
         const key = name.toLowerCase();
         const knownValue = typeof value === "string" ? value : undefined;
         const previous = headers.get(key);
-        // Repeated declarations agree only when known and equal; media types by essence.
+        if (key === "content-type") {
+          const nextProfile = protobufMediaType(knownValue);
+          const nextDeclaredFraming = nextProfile.ok
+            ? nextProfile.value.framing
+            : nextProfile.error.declaredFraming;
+          const agrees =
+            previous !== undefined &&
+            knownValue !== undefined &&
+            headerProfile.ok &&
+            nextProfile.ok &&
+            headerProfile.value.key === nextProfile.value.key;
+          const first = !headers.has(key);
+          headerDeclaredFraming =
+            first || headerDeclaredFraming === nextDeclaredFraming
+              ? nextDeclaredFraming
+              : undefined;
+          headers.set(key, first ? knownValue : agrees ? previous : undefined);
+          headerProfile = first
+            ? nextProfile
+            : agrees
+              ? headerProfile
+              : protobufMediaType(undefined);
+          continue;
+        }
+        // Other repeated declarations agree only when known and equal.
         headers.set(
           key,
           !headers.has(key)
             ? knownValue
             : previous !== undefined &&
                 knownValue !== undefined &&
-                (key === "content-type"
-                  ? protobufMediaType(previous).key ===
-                    protobufMediaType(knownValue).key
-                  : previous === knownValue)
+                previous === knownValue
               ? previous
               : undefined,
         );
@@ -209,12 +284,19 @@ const bodyMetadata = (
     const mimeType = object(
       message[side === "request" ? "postData" : "content"],
     )?.mimeType;
-    const contentType = typeof mimeType === "string" ? mimeType : header;
+    const contentType = typeof mimeType === "string" ? mimeType : undefined;
     const profile = protobufMediaType(contentType);
+    // An independent header still identifies transport sanitization, not the
+    // excluded producer MIME field's automatic interpretation.
     return {
       contentType,
-      automaticFraming: profile.framing,
-      mimeProfileIssue: profile.issue,
+      mimeProfile: profile,
+      declaredFraming:
+        contentType === undefined
+          ? headerDeclaredFraming
+          : profile.ok
+            ? profile.value.framing
+            : profile.error.declaredFraming,
       contentTypeKnown: contentType !== undefined,
       httpIdentityKnown: true,
       httpCodingKnown: true,
@@ -222,11 +304,10 @@ const bodyMetadata = (
   }
   if (pointer !== `/${side}/body` && pointer !== `/${side}/content`)
     return undefined;
-  const profile = protobufMediaType(header);
   return {
     contentType: header,
-    automaticFraming: profile.framing,
-    mimeProfileIssue: profile.issue,
+    mimeProfile: headerProfile,
+    declaredFraming: headerDeclaredFraming,
     contentTypeKnown:
       header !== undefined ||
       (headerNamesKnown && !headers.has("content-type")),
@@ -314,26 +395,25 @@ export const prepareCaptureProtobuf = async (
         incomplete = true;
         continue;
       }
-      const { contentType, automaticFraming: automatic } = metadata;
+      const { contentType, mimeProfile, declaredFraming } = metadata;
+      const automatic = mimeProfile.ok ? mimeProfile.value.framing : undefined;
       const automaticSelected =
         options?.framing === undefined || options.framing === "auto";
-      if (automaticSelected && metadata.mimeProfileIssue !== undefined) {
+      if (!mimeProfile.ok) {
+        if (automaticSelected) incomplete = true;
+        record.limitations.push(mimeProfile.error.issue);
+      }
+      if (automaticSelected && !metadata.contentTypeKnown && field.bytes > 0) {
         incomplete = true;
-        record.limitations.push(metadata.mimeProfileIssue);
-        continue;
+        record.limitations.push(
+          "Selected body's MIME metadata is excluded, conflicting or unavailable, so automatic protobuf framing applicability is unknown; its retained bytes were not interpreted. Select explicit framing to decode them.",
+        );
       }
       const framing =
         options?.framing === undefined || options.framing === "auto"
-          ? automatic
+          ? (automatic ?? declaredFraming)
           : options.framing;
       if (framing === undefined) {
-        // An empty body has no protobuf content under any framing.
-        if (!metadata.contentTypeKnown && field.bytes > 0) {
-          incomplete = true;
-          record.limitations.push(
-            "Selected body's MIME metadata is excluded, conflicting or unavailable, so automatic protobuf framing applicability is unknown; its retained bytes were not interpreted. Select explicit framing to decode them.",
-          );
-        }
         continue;
       }
       if (
@@ -374,9 +454,9 @@ export const prepareCaptureProtobuf = async (
       // Caller overrides do not turn off exclusions for the transport declared by the source.
       const declared =
         prepared.excluded === undefined &&
-        automatic !== undefined &&
-        automatic !== framing
-          ? await prepareProtobufBody(body, automatic, exclusions, signal)
+        declaredFraming !== undefined &&
+        declaredFraming !== framing
+          ? await prepareProtobufBody(body, declaredFraming, exclusions, signal)
           : prepared;
       const excluded = prepared.excluded ?? declared.excluded;
       if (excluded !== undefined) {
@@ -407,6 +487,8 @@ export const prepareCaptureProtobuf = async (
         );
         continue;
       }
+      if (automaticSelected && (!mimeProfile.ok || !metadata.contentTypeKnown))
+        continue;
       bodies.push({ field, body, contentType, framing, prepared });
     }
   }

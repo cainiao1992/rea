@@ -56,11 +56,15 @@ const captureWithBody = (
   ],
 });
 
-const decode = async (capture: WebNetworkCapture) => {
+const decode = async (
+  capture: WebNetworkCapture,
+  framing: "auto" | "raw" = "auto",
+) => {
   const input = inspectWebNetworkCaptureInputSchema.parse({
     capture_path: capture.artifact.path,
     format: capture.format,
     record_ordinals: [0],
+    protobuf: { framing },
   });
   const resources = new ArtifactResourceScope();
   try {
@@ -127,6 +131,138 @@ it("keeps capture coverage partial for a malformed gRPC-web trailer", async () =
   expect(report.protobuf_coverage?.status).toBe("partial");
   expect(report.records[0]?.binary_fields[2]).toEqual(retainedBody);
 });
+
+it.each([false, true])(
+  "admits equivalent default binary profiles in repeated byte headers (reverse=%s)",
+  async (reverse) => {
+    const types = [
+      "Application/Protobuf;type=left",
+      'application/protobuf;ENCODING="binary";type="right;=value"',
+    ];
+    if (reverse) types.reverse();
+    const report = captureWithBody(types[0]!, Buffer.from([8, 1]));
+    const record = report.records[0]!;
+    record.reported = {
+      response: {
+        headers: [
+          [null, null],
+          [null, null],
+        ],
+        content: null,
+      },
+    };
+    record.binary_fields.push(
+      binary("/response/headers/1/0", Buffer.from("Content-Type")),
+      binary("/response/headers/1/1", Buffer.from(types[1]!)),
+    );
+    const retained = structuredClone(record.binary_fields);
+    await decode(report);
+    expect(report.protobuf_coverage?.status).toBe("complete");
+    expect(record.protobuf?.[0]).toMatchObject({
+      content_type: types[0],
+      framing: "raw",
+      fields: [{ number: 1, value: "1" }],
+    });
+    expect(record.binary_fields).toEqual(retained);
+  },
+);
+
+it.each([false, true])(
+  "keeps incompatible repeated MIME headers unknown (reverse=%s)",
+  async (reverse) => {
+    const types = [
+      "application/protobuf",
+      "application/protobuf;encoding=json",
+    ];
+    if (reverse) types.reverse();
+    const report = captureWithBody(types[0]!, Buffer.from([8, 1]));
+    const record = report.records[0]!;
+    record.reported = {
+      response: {
+        headers: [
+          [null, null],
+          [null, null],
+        ],
+        content: null,
+      },
+    };
+    record.binary_fields.push(
+      binary("/response/headers/1/0", Buffer.from("Content-Type")),
+      binary("/response/headers/1/1", Buffer.from(types[1]!)),
+    );
+    const retained = structuredClone(record.binary_fields);
+    await decode(report);
+    expect(report.protobuf_coverage?.status).toBe("partial");
+    expect(record.protobuf).toBeUndefined();
+    expect(record.limitations).toContainEqual(
+      expect.stringContaining(
+        "MIME metadata is excluded, conflicting or unavailable",
+      ),
+    );
+    expect(record.binary_fields).toEqual(retained);
+  },
+);
+
+it.each(["auto", "raw"] as const)(
+  "preserves declared gRPC credential exclusions after MIME refusal with %s framing",
+  async (framing) => {
+    const invalid = 'application/grpc-web;note="unterminated';
+    const valid = "application/grpc-web";
+    for (const types of [
+      [invalid],
+      [invalid, invalid],
+      [valid, invalid],
+      [invalid, valid],
+    ]) {
+      const report = captureWithBody(
+        types[0]!,
+        grpcWebTrailerFrame(
+          Buffer.from("authorization: Bearer fixture-only\r\n"),
+        ),
+      );
+      const record = report.records[0]!;
+      if (types.length === 2) {
+        record.reported = {
+          response: {
+            headers: [
+              [null, null],
+              [null, null],
+            ],
+            content: null,
+          },
+        };
+        record.binary_fields.push(
+          binary("/response/headers/1/0", Buffer.from("Content-Type")),
+          binary("/response/headers/1/1", Buffer.from(types[1]!)),
+        );
+      }
+      const headers = structuredClone(
+        record.binary_fields.filter(({ pointer }) =>
+          pointer.includes("/headers/"),
+        ),
+      );
+      await decode(report, framing);
+      expect(report.protobuf_coverage?.status, types.join(" / ")).toBe(
+        "partial",
+      );
+      expect(record.protobuf).toBeUndefined();
+      expect(record.binary_fields[2]).toMatchObject({
+        state: "redacted",
+        content_base64: null,
+        sha256: null,
+      });
+      expect(record.redactions).toContainEqual({
+        pointer: "/response/content",
+        reason: "transport-credential",
+      });
+      expect(
+        record.binary_fields.filter(({ pointer }) =>
+          pointer.includes("/headers/"),
+        ),
+      ).toEqual(headers);
+    }
+  },
+);
 
 it.each([
   "application/protobuf; encoding=json",

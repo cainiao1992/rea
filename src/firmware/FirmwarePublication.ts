@@ -178,7 +178,12 @@ export const publishFirmwareExtraction = async (context: {
         unpublished.length > 0 ? "partial" : context.normalized.coverage,
       files,
       unpublished_entries: unpublished,
-      chunks: context.normalized.chunks,
+      chunks: context.normalized.chunks.map(
+        ({ extraction_failure_kinds, ...chunk }) => ({
+          ...chunk,
+          extraction_failed: extraction_failure_kinds.length > 0,
+        }),
+      ),
       derivations: context.normalized.derivations,
       depth_limited_paths: context.normalized.depth_limited_paths,
       diagnostics: context.normalized.diagnostics,
@@ -390,13 +395,6 @@ const extractionGaps = (
           ? nestedContinuationId(chunk.input_path)
           : continuation(GAP_CONTINUATIONS[kind]),
     }));
-  // Chunks whose failure a dependency row already covers stay out of the
-  // generic extractor-failure emission.
-  const dependencyChunkKeys = new Set(
-    normalized.chunk_missing_dependencies.map(({ input_path, provider_id }) =>
-      JSON.stringify([input_path, provider_id]),
-    ),
-  );
   // A depth ceiling can only be re-rooted through a published child that a
   // fresh firmware input could actually accept; the index is only needed
   // when a depth row will actually consult it.
@@ -451,17 +449,8 @@ const extractionGaps = (
       })),
     ...chunkGaps("unknown-chunk-handler", (chunk) => chunk.handler === null),
     ...chunkGaps("encrypted-chunk", (chunk) => chunk.encrypted === true),
-    ...chunkGaps(
-      "extractor-failure",
-      (chunk) =>
-        chunk.extraction_failed === true &&
-        chunk.handler !== null &&
-        chunk.encrypted !== true &&
-        // The chunk's own dependency row already carries its recovery; a
-        // task-wide dependency names no region and replaces nothing.
-        !dependencyChunkKeys.has(
-          JSON.stringify([chunk.input_path, chunk.provider_id]),
-        ),
+    ...chunkGaps("extractor-failure", (chunk) =>
+      chunk.extraction_failure_kinds.includes("extractor-failure"),
     ),
     ...normalized.depth_limited_paths.map((input_path): ExtractionGap => ({
       kind: "depth-limited",

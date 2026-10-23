@@ -376,13 +376,96 @@ describe("firmware producer chunk failures", () => {
     expect(normalized.chunks).toHaveLength(1);
     expect(normalized.chunks[0]).toMatchObject({
       handler: "zip",
-      extraction_failed: true,
+      extraction_failure_kinds: ["extractor-failure"],
     });
     expect(normalized.coverage).toBe("partial");
   });
 });
 
 describe("firmware producer error severity", () => {
+  it.each(["chunk", "multi-file"] as const)(
+    "retains independent failure kinds at one %s owner",
+    (owner) => {
+      const record = root();
+      const extraction_reports = [
+        {
+          __typename__: "ExtractorDependencyNotFoundReport",
+          severity: "ERROR",
+          dependencies: ["sasquatch"],
+        },
+        {
+          __typename__: "UnknownError",
+          severity: "ERROR",
+          exception: "independent failure",
+        },
+      ];
+      const observation =
+        owner === "chunk"
+          ? {
+              __typename__: "ChunkReport",
+              id: "stage-id",
+              handler_name: "gzip",
+              start_offset: 0,
+              end_offset: 20,
+              size: 20,
+              is_encrypted: false,
+              extraction_reports,
+            }
+          : {
+              __typename__: "MultiFileReport",
+              id: "stage-id",
+              handler_name: "gzip",
+              name: "rootfs",
+              paths: [],
+              extraction_reports,
+            };
+      const normalized = normalizeUnblobReport(
+        [
+          {
+            ...record,
+            reports: [
+              ...record.reports.filter(
+                (item) => item.__typename__ !== "UnknownChunkReport",
+              ),
+              observation,
+            ],
+          },
+        ],
+        context,
+      );
+      if (owner === "chunk") {
+        expect(normalized.chunks[0]?.extraction_failure_kinds).toEqual([
+          "missing-extractor-dependency",
+          "extractor-failure",
+        ]);
+        expect(normalized.chunk_missing_dependencies).toEqual([
+          {
+            input_path: "$input",
+            provider_id: "stage-id",
+            dependencies: ["sasquatch"],
+          },
+        ]);
+      } else {
+        expect(normalized.failed_extraction_stages).toEqual([
+          {
+            input_path: "$input",
+            provider_id: "stage-id",
+            handler: "gzip",
+            dependencies: ["sasquatch"],
+            kind: "missing-extractor-dependency",
+          },
+          {
+            input_path: "$input",
+            provider_id: "stage-id",
+            handler: "gzip",
+            dependencies: [],
+            kind: "extractor-failure",
+          },
+        ]);
+      }
+    },
+  );
+
   const outcomes = [
     {
       name: "task exception",
@@ -470,7 +553,9 @@ describe("firmware producer error severity", () => {
           report: owner === "multi-file" ? observation : report,
         });
         if (owner === "chunk") {
-          expect(normalized.chunks[0]?.extraction_failed).toBe(failed);
+          expect(normalized.chunks[0]?.extraction_failure_kinds).toEqual(
+            failed ? ["extractor-failure"] : [],
+          );
           expect(normalized.failed_extraction_stages).toEqual([]);
         } else {
           expect(normalized.failed_extraction_stages).toEqual(

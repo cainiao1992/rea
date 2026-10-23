@@ -108,7 +108,7 @@ const chunk = z.strictObject({
   handler: z.string().nullable(),
   encrypted: z.boolean().nullable(),
   root_file_range: range.nullable(),
-  /** The producer reported extraction problems for this chunk. */
+  /** The producer reported an extraction error or missing dependency for this chunk. */
   extraction_failed: z.boolean(),
 });
 /** One unextracted region or failing task/stage, with a supported continuation

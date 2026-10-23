@@ -65,8 +65,21 @@ const missingDependency = z.object({
 // The declared severity owns failure; a diagnostic's presence or class name
 // alone does not establish that extraction failed.
 const extractionError = z.object({ severity: z.literal("ERROR") });
-const hasExtractionError = (reports: readonly unknown[]): boolean =>
-  reports.some((item) => extractionError.safeParse(item).success);
+type ExtractionFailureKind =
+  | "missing-extractor-dependency"
+  | "extractor-failure";
+const extractionFailureKinds = (
+  reports: readonly unknown[],
+): ExtractionFailureKind[] => {
+  const kinds = new Set<ExtractionFailureKind>();
+  for (const item of reports) {
+    if (missingDependency.safeParse(item).success)
+      kinds.add("missing-extractor-dependency");
+    else if (extractionError.safeParse(item).success)
+      kinds.add("extractor-failure");
+  }
+  return [...kinds];
+};
 const region = z.object({
   id: z.string(),
   start_offset: integer,
@@ -240,7 +253,7 @@ export const normalizeUnblobReport = (
     handler: string | null;
     encrypted: boolean | null;
     root_file_range: { offset: number; length: number } | null;
-    extraction_failed: boolean;
+    extraction_failure_kinds: ExtractionFailureKind[];
   }[] = [];
   const seen = new Set<string>();
   const taskFailures = new Set<string>();
@@ -365,8 +378,7 @@ export const normalizeUnblobReport = (
         );
       noteMissingDependencies(path, [item]);
       if (
-        hasExtractionError([item]) &&
-        !missingDependency.safeParse(item).success &&
+        extractionFailureKinds([item]).includes("extractor-failure") &&
         !taskFailures.has(path)
       ) {
         taskFailures.add(path);
@@ -402,8 +414,9 @@ export const normalizeUnblobReport = (
                 })
                 .parse(item)
             : null;
-        const extractionFailed =
-          detail !== null && hasExtractionError(detail.extraction_reports);
+        const failures = extractionFailureKinds(
+          detail?.extraction_reports ?? [],
+        );
         if (detail !== null)
           for (const problem of detail.extraction_reports) {
             diagnostics.push(
@@ -426,7 +439,7 @@ export const normalizeUnblobReport = (
           range: { offset: parsed.start_offset, length: parsed.size },
           handler: detail?.handler_name ?? null,
           encrypted: detail?.is_encrypted ?? null,
-          extraction_failed: extractionFailed,
+          extraction_failure_kinds: failures,
           root_file_range:
             path === "$input"
               ? {
@@ -453,28 +466,26 @@ export const normalizeUnblobReport = (
           // The report owns its failure and dependencies. A produced subtask
           // is a derivation, not a new owner for the parent's report.
           const dependencies = dependencyNames(parsed.extraction_reports);
-          if (
-            dependencies === null &&
-            !hasExtractionError(parsed.extraction_reports)
-          )
-            continue;
-          const rows =
-            dependencies === null
-              ? [{ dependencies: [] as readonly string[] }]
-              : dependencyRows(dependencies);
+          const rows = [
+            ...(dependencies === null
+              ? []
+              : dependencyRows(dependencies).map((row) => ({
+                  ...row,
+                  kind: "missing-extractor-dependency" as const,
+                }))),
+            ...(extractionFailureKinds(parsed.extraction_reports).includes(
+              "extractor-failure",
+            )
+              ? [{ dependencies: [], kind: "extractor-failure" as const }]
+              : []),
+          ];
           for (const row of rows)
             failedExtractionStages.push({
               input_path: path,
               provider_id: parsed.id,
               handler: parsed.handler_name,
-              dependencies:
-                dependencies === null
-                  ? []
-                  : uniqueSorted([...row.dependencies]),
-              kind:
-                dependencies === null
-                  ? "extractor-failure"
-                  : "missing-extractor-dependency",
+              dependencies: row.dependencies,
+              kind: row.kind,
             });
         }
       }

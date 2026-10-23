@@ -567,6 +567,35 @@ it.each(["task-error", "task-warning"])(
   },
 );
 
+it("retains independent failures beside dependencies at each extraction owner", async () => {
+  const fixture = await firmwareFixture("mixed-failures");
+  const result = await fixture.service.execute("extract_firmware", {
+    path: fixture.path,
+    output_directory: fixture.output,
+  });
+  if (!result.ok) throw result.error;
+  const normalized = firmwareResultSchemas.extract_firmware.parse(
+    result.value.normalized_result,
+  );
+  const gaps = gapsWithContinuations(normalized);
+  expect(gaps).toHaveLength(4);
+  for (const provider_id of ["gzip-id", "mixed-id"]) {
+    const owned = gaps.filter((gap) => gap.provider_id === provider_id);
+    expect(owned.map((gap) => gap.kind).sort()).toEqual([
+      "extractor-failure",
+      "missing-extractor-dependency",
+    ]);
+    for (const gap of owned) {
+      expect(gap.input_path).toBe("$input");
+      expect(gap.range).toEqual(
+        provider_id === "mixed-id" ? null : normalized.chunks[0]?.range,
+      );
+    }
+  }
+  expect(normalized.chunks[0]?.extraction_failed).toBe(true);
+  await assertFirmwareCleanup(fixture.launches);
+});
+
 it("carries the owning multi-file stage on a task-level dependency gap", async () => {
   const fixture = await firmwareFixture("multi-file-dependency");
   const result = await fixture.service.execute("extract_firmware", {

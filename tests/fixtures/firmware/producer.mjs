@@ -359,6 +359,31 @@ if (args.includes("--version")) {
         subtasks: [childTask],
       },
     ];
+    if (mode === "mixed-failures") {
+      const reports = [
+        {
+          __typename__: "ExtractorDependencyNotFoundReport",
+          severity: "ERROR",
+          dependencies: ["sasquatch"],
+        },
+        {
+          __typename__: "UnknownError",
+          severity: "ERROR",
+          exception: "independent extraction failure",
+        },
+      ];
+      records[1].reports.find(
+        (report) => report.__typename__ === "ChunkReport",
+      ).extraction_reports = reports;
+      records[1].reports.push({
+        __typename__: "MultiFileReport",
+        id: "mixed-id",
+        handler_name: "tar",
+        name: "rootfs.tar",
+        paths: [],
+        extraction_reports: reports,
+      });
+    }
     if (mode === "many-unknown") {
       records[1].reports = [
         ...records[1].reports,

@@ -250,7 +250,9 @@ it.each([
         pythonVersion: 309,
         members: [
           {
-            name: "C:" + "x".repeat(length),
+            // ELF carrier names use POSIX semantics: C:relative is a literal
+            // name, while C:/absolute is refused by the logical-path owner.
+            name: "C:/" + "x".repeat(length),
             typeCode: "x",
             payload: Buffer.from("x"),
             compress: false,

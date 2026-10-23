@@ -136,3 +136,24 @@ describe("IDA workspace ownership before input preparation", () => {
     },
   );
 });
+
+it("attributes an unusable workspace parent to workspaceRoot without opening a worker", async () => {
+  const { root, target } = await createIdaTarget();
+  roots.push(root);
+  const { client, producer } = clientFor(join(root, "missing-parent"), target);
+  const result = await client.execute("health", {});
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      _tag: "ConfigurationError",
+      settings: [
+        {
+          setting: "workspaceRoot",
+          constraint: expect.stringContaining("ENOENT"),
+        },
+      ],
+    },
+  });
+  expect(producer.calls.some(({ name }) => name === "idb_open")).toBe(false);
+  expect((await client.close()).ok).toBe(true);
+});

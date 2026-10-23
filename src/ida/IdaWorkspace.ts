@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { basename, join, normalize } from "node:path";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { AnalysisProtocolError } from "../domain/analysisErrorCore.js";
+import { ConfigurationError } from "../domain/configurationErrors.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 
 /** Read a file digest with bounded memory rather than retaining binary bytes. */
@@ -51,10 +53,28 @@ export class IdaWorkspace {
   ): Promise<IdaWorkspace> {
     // Upstream reports canonical paths (macOS /var -> /private/var), so the
     // private input path must already be canonical for identity checks.
-    const runtime = await PrivateRuntimeRoot.create({
-      parent: await resolveIdaWorkspaceParent(root),
-      prefix: "rea-ida-",
-    });
+    let runtime: PrivateRuntimeRoot;
+    try {
+      runtime = await PrivateRuntimeRoot.create({
+        parent: await resolveIdaWorkspaceParent(root),
+        prefix: "rea-ida-",
+      });
+    } catch (cause: unknown) {
+      if (cause instanceof AnalysisError) throw cause;
+      throw new ConfigurationError(
+        "IDA workspaceRoot is not a usable private workspace parent.",
+        {
+          cause,
+          settings: [
+            {
+              setting: "workspaceRoot",
+              constraint: `Select an existing writable and searchable directory: ${cause instanceof Error ? cause.message : String(cause)}`,
+            },
+          ],
+          diagnostics: { workspace_root: root },
+        },
+      );
+    }
     const inputPath = join(runtime.path, basename(target.path));
     return new IdaWorkspace(runtime, inputPath, target);
   }

@@ -3,6 +3,7 @@ import {
   IDA_DIAGNOSTIC_SOURCE_BYTES,
 } from "./IdaDiagnosticRedactor.js";
 import { IdaDiagnosticResourceError } from "./IdaDiagnosticWriter.js";
+import { MIMEType } from "node:util";
 import { ChildProcess } from "node:child_process";
 import { Socket } from "node:net";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
@@ -489,20 +490,7 @@ export const createIdaMcpConnection = (
         .catch((cause: unknown) =>
           transportFailure(cause, "ida_mcp_read_resource"),
         );
-      const resource = z
-        .object({
-          contents: z
-            .array(
-              z.object({
-                uri: z.literal(uri),
-                mimeType: z.literal("application/json"),
-                text: z.string(),
-              }),
-            )
-            .length(1),
-        })
-        .parse(response);
-      return parseIdaJsonText(resource.contents[0]?.text ?? "");
+      return decodeIdaJsonResource(uri, response);
     },
     serverInfo: () => jsonValueSchema.parse(client.getServerVersion() ?? null),
     close: () => client.close().catch(transportFailure),
@@ -516,4 +504,34 @@ export const createIdaMcpConnection = (
         if (stream instanceof Socket) stream.unref();
     },
   };
+};
+
+/** Resource metadata follows the SDK's optional media type; content/identity stay strict. */
+export const decodeIdaJsonResource = (
+  uri: string,
+  response: unknown,
+): JsonValue => {
+  const resource = z
+    .object({
+      contents: z
+        .array(
+          z.object({
+            uri: z.literal(uri),
+            mimeType: z
+              .string()
+              .refine((value) => {
+                try {
+                  return new MIMEType(value).essence === "application/json";
+                } catch {
+                  return false;
+                }
+              }, "Expected a JSON resource media type")
+              .optional(),
+            text: z.string(),
+          }),
+        )
+        .length(1),
+    })
+    .parse(response);
+  return parseIdaJsonText(resource.contents[0]!.text);
 };

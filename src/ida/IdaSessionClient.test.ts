@@ -1921,3 +1921,31 @@ it("retains transport diagnostics on a cancellation regardless of stderr", async
   });
   await client.close();
 });
+
+it.each([false, null] as const)(
+  "keeps valid headless readiness %s distinct from malformed output",
+  async (ready) => {
+    const { producer, client } = await fixture("headless");
+    producer.overrideCall = (name) =>
+      name === "server_health"
+        ? {
+            status: "ok",
+            input_path: producer.inputPath,
+            idb_path: `${producer.inputPath}.i64`,
+            module: "target.elf",
+            imagebase: "0x1000",
+            auto_analysis_ready: ready,
+          }
+        : undefined;
+    const result = await client.execute("health", {});
+    if (result.ok) throw new Error("Expected an unready worker refusal");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "capability_unavailable",
+      retryable: ready === false,
+      details: { diagnostics: { auto_analysis_ready: ready } },
+    });
+    producer.overrideCall = undefined;
+    expect((await client.execute("health", {})).ok).toBe(true);
+    await expectCleanClose(producer, client);
+  },
+);

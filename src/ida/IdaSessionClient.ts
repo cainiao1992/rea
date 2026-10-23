@@ -736,8 +736,20 @@ export class IdaSessionClient implements AnalysisClient {
           "IDA headless input identity changed after target admission.",
         );
       if (metadata.auto_analysis_ready !== true)
-        throw new AnalysisProtocolError(
-          "IDA auto-analysis is incomplete or readiness is unknown; retry after analysis completes.",
+        throw new AnalysisCapabilityUnavailableError(
+          "ida",
+          "server_health",
+          metadata.auto_analysis_ready === false
+            ? "IDA auto-analysis is incomplete."
+            : "IDA auto-analysis readiness is unknown.",
+          {
+            retryable: metadata.auto_analysis_ready === false,
+            remediationAction:
+              metadata.auto_analysis_ready === false
+                ? "Wait for IDA auto-analysis to complete, then retry the request."
+                : "Inspect the upstream IDA worker's analysis readiness before retrying; unknown readiness does not establish active analysis.",
+            diagnostics: { auto_analysis_ready: metadata.auto_analysis_ready },
+          },
         );
       identity = JSON.stringify([
         this.#database,

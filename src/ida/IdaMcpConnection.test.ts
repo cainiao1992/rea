@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createIdaMcpConnection,
   decodeIdaToolResult,
+  decodeIdaJsonResource,
 } from "./IdaMcpConnection.js";
 import { createIdaDiagnosticRedactor } from "./IdaDiagnosticRedactor.js";
 import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
@@ -509,4 +510,34 @@ it("owns unclassified truncated-output hints separately from their context", () 
     '{"error":"[redacted transport credential]","path":"/caller/output"}',
   );
   expect(inspectRetainedError(failure)).not.toContain(String.raw`q\"uote`);
+});
+
+it.each([
+  undefined,
+  "application/json",
+  "Application/JSON",
+  "application/json; charset=utf-8",
+])("accepts SDK JSON metadata resources with media type %s", (mimeType) => {
+  expect(
+    decodeIdaJsonResource("ida://idb/metadata", {
+      contents: [
+        {
+          uri: "ida://idb/metadata",
+          ...(mimeType === undefined ? {} : { mimeType }),
+          text: '{"sha256":"recorded"}',
+        },
+      ],
+    }),
+  ).toEqual({ sha256: "recorded" });
+});
+it("keeps JSON resource identity, media type and JSON parsing strict", () => {
+  const resource = (uri: string, mimeType: string, text: string) => ({
+    contents: [{ uri, mimeType, text }],
+  });
+  for (const reply of [
+    resource("wrong://resource", "application/json", "{}"),
+    resource("ida://idb/metadata", "text/plain", "{}"),
+    resource("ida://idb/metadata", "application/json", "not JSON"),
+  ])
+    expect(() => decodeIdaJsonResource("ida://idb/metadata", reply)).toThrow();
 });

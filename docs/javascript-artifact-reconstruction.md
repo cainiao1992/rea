@@ -220,6 +220,12 @@ to find the record. CLI failure output contains the complete partial Evidence.
 Owned analyzer cleanup is verified before private files are released; uncertain
 cleanup retains ownership for retry and is reported separately.
 
+Private worker storage failures retain the source identity, worker phase and
+reported I/O message as execution failures; they are distinct from malformed
+worker output. A per-source temporary-file cleanup failure preserves static and
+module facts together with any parent application-projection limit. Cleanup
+failure does not authorize expanding relationships that parent admission declined.
+
 ## What is reconstructed
 
 The projector reuses the content-addressed artifact inventory and safe artifact

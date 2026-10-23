@@ -539,7 +539,7 @@ export class JavaScriptAnalysisWorker {
         this.#runtime.retainForCleanup();
         const error = this.#cleanupError(message(cause));
         this.#runtime.bindCleanupFailure(error);
-        return err({
+        result = err({
           javascript,
           module,
           projection,
@@ -1037,6 +1037,19 @@ export class JavaScriptAnalysisWorker {
     response: Extract<JavaScriptWorkerMessage, { kind: "failure" }>,
     phase: string,
   ): AnalysisError {
+    if (response.reason === "io")
+      return new ProviderAdapterError(PROVIDER, OPERATION, {
+        capturedOutput: this.#captured(),
+        userMessage: `Owned JavaScript worker storage failed for ${path} during ${phase}. Retained observations and cleanup status are reported separately.`,
+        remediationAction:
+          "Check the availability and permissions of REA's private temporary storage, correct the reported I/O failure, and retry. Changing the selected source is not required by this storage failure.",
+        diagnostics: {
+          source_path: path,
+          phase,
+          worker_failure_reason: response.reason,
+          message: response.message,
+        },
+      });
     if (response.reason === "resource") {
       const reported = response.limits;
       const limits = { ...this.#limits(), ...reported };

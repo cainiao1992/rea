@@ -415,6 +415,22 @@ describe("compact tool availability", () => {
 });
 
 describe("partial navigation availability", () => {
+  it("requires a target before diagnosing navigation provider modes", () => {
+    expect(entry("get_navigation_context", status())).toMatchObject({
+      available: false,
+      reason: "target_required",
+      default_mode_available: false,
+      modes: [
+        { name: "current_selection", available: false },
+        { name: "explicit_document", available: false },
+      ],
+    });
+    expect(
+      TOOL_CONTRACTS.find((tool) => tool.name === "get_navigation_context"),
+    ).toMatchObject({
+      requiresActiveTarget: true,
+    });
+  });
   it("allows explicit documents when the provider has no current-document getter", () => {
     const capabilities = [
       "current_document",

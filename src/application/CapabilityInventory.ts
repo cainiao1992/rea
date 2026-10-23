@@ -383,12 +383,14 @@ const availabilityFor = (context: AvailabilityContext): Availability => {
     context.name === "inspect_web_event_listeners"
   )
     return { reason: "available", remediation: null };
-  if (context.name === "get_navigation_context")
-    return availabilityForModes(
+  if (context.name === "get_navigation_context") {
+    const modes = availabilityForModes(
       NAVIGATION_CONTEXT_MODES,
       "current_selection",
       context.descriptors,
     );
+    return { ...modes, ...targetAvailability(context) };
+  }
   const javascriptApplication = javascriptApplicationAvailability(context);
   if (javascriptApplication !== null) return javascriptApplication;
   const failure = optionalProviderFailureFor(context);

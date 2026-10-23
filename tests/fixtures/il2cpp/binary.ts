@@ -31,6 +31,8 @@ export interface Il2cppBinaryFixtureOptions {
   readonly codeReference?: boolean;
   /** Omit the MetadataRegistration type table. */
   readonly metadataRegistration?: boolean;
+  /** Write a second distinct MetadataRegistration candidate. */
+  readonly duplicateMetadataRegistration?: boolean;
   /** Byte written before each image name instead of NUL (MSVC pads with 0xFF). */
   readonly namePadding?: number;
   /** Text written directly before mscorlib.dll, making it the tail of a longer name. */
@@ -162,6 +164,15 @@ export const createIl2cppBinaryFixture = (
     word(11, address(TYPE_POINTERS));
     word(12, 4n);
     word(13, address(TYPE_POINTERS));
+    if (options.duplicateMetadataRegistration === true) {
+      const duplicate = METADATA_REGISTRATION + 0x80;
+      bytes.writeBigUInt64LE(BigInt(types.length), duplicate + 6 * 8);
+      bytes.writeBigUInt64LE(address(TYPE_POINTERS), duplicate + 7 * 8);
+      bytes.writeBigUInt64LE(4n, duplicate + 10 * 8);
+      bytes.writeBigUInt64LE(address(TYPE_POINTERS), duplicate + 11 * 8);
+      bytes.writeBigUInt64LE(4n, duplicate + 12 * 8);
+      bytes.writeBigUInt64LE(address(TYPE_POINTERS), duplicate + 13 * 8);
+    }
   }
   return bytes;
 };

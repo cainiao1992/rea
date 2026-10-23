@@ -331,6 +331,7 @@ export function* findMetadataRegistration(
   }
 > {
   const matches: { field: bigint; count: number; types: bigint }[] = [];
+  const matchedFields = new Set<bigint>();
   const low = (offset: number) => image.bytes.readUInt32LE(offset);
   const word = (offset: number) => image.bytes.readBigUInt64LE(offset);
   for (const mapping of image.container.mappings) {
@@ -350,13 +351,17 @@ export function* findMetadataRegistration(
         !isMapped(image, types, count * 8)
       )
         continue;
+      const field = mapping.address + BigInt(at + 48);
+      // Exact load aliases can visit one virtual registration field twice.
+      if (matchedFields.has(field)) continue;
+      matchedFields.add(field);
       if (matches.length !== 0)
         throw new Il2cppBinaryFormatFailure(
           "metadata-registration-not-found",
           "multiple MetadataRegistration candidates match",
         );
       matches.push({
-        field: mapping.address + BigInt(at + 48),
+        field,
         count,
         types,
       });

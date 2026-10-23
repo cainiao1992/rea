@@ -23,6 +23,8 @@ import {
 const sha256 = (bytes: Buffer): string =>
   createHash("sha256").update(bytes).digest("hex");
 
+const PYTHON_313_MAGIC = Buffer.from("f30d0d0a", "hex");
+
 const derived = (payload: Buffer): Buffer =>
   Buffer.concat([reconstructedPycHeader(PYTHON_39_MAGIC), payload]);
 
@@ -30,7 +32,7 @@ const internedString = (value: string): Buffer => {
   const bytes = Buffer.from(value, "utf8");
   const length = Buffer.alloc(4);
   length.writeInt32LE(bytes.length);
-  return Buffer.concat([Buffer.from([0x74]), length, bytes]);
+  return Buffer.concat([Buffer.from([0xf4]), length, bytes]);
 };
 
 const marshalInteger = (value: number): Buffer => {
@@ -45,7 +47,7 @@ const marshalTuple = (values: readonly Buffer[]): Buffer =>
 
 const pyzWithInternedModuleName = (name: string, body: Buffer): Buffer => {
   const ordinary = pyzArchive({
-    magic: PYTHON_39_MAGIC,
+    magic: PYTHON_313_MAGIC,
     modules: [{ name: "cafe", typeCode: 0, body }],
   });
   const tableOffset = ordinary.readUInt32BE(8);

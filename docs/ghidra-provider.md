@@ -24,6 +24,12 @@ undefined. Installation `application.properties` has a fixed 1 MiB read allowanc
 with no runtime override. The failure retains that allowance and directs recovery
 at the selected installation metadata.
 
+Retained process diagnostics can report termination by `SIGKILL`; the signal alone
+cannot establish an OOM kill. REA gives neutral recovery guidance and preserves the
+signal. Confirm resource causes from process output or host/container records;
+operation-scoped JVM `OutOfMemoryError` observations retain their separate resource
+classification. Automatic kernel or cgroup OOM attribution is not implemented.
+
 Provider selection and profile identity follow
 [MCP contracts](mcp-contracts.md#identity-and-discovery). One deep
 provider stays bound to the target; runtime failure never selects another

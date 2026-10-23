@@ -3690,6 +3690,37 @@ const issueOutput = [
 ].join("\n");
 
 describe("Ghidra OOME error projection", () => {
+  it("preserves observed SIGKILL without guessing its cause or installation recovery", async () => {
+    const projected = await projectFailure("process", {
+      exit_code: null,
+      exit_signal: "SIGKILL",
+      failure_output: failureOutput(),
+    });
+    expect(projected.code).toBe("execution_failure");
+    expect(projected.message).toContain("SIGKILL");
+    expect(projected.message).toContain("does not establish its cause");
+    expect(projected.remediation.action).toContain(
+      "host or container termination records",
+    );
+    expect(projected.remediation.action).not.toContain("rea doctor");
+    expect(projected.remediation.action).not.toContain(
+      "GHIDRA_HEADLESS_MAXMEM",
+    );
+  });
+
+  it("keeps operation-scoped JVM memory evidence stronger than an exit signal", async () => {
+    const projected = await projectFailure("process", {
+      exit_signal: "SIGKILL",
+      failure_output: failureOutput(
+        "",
+        "java.lang.OutOfMemoryError: Java heap space",
+      ),
+    });
+    expect(projected.code).toBe("resource_constraint");
+    expect(projected.message).toContain("Java heap space");
+    expect(projected.remediation.action).toContain("GHIDRA_HEADLESS_MAXMEM");
+  });
+
   it("recognizes the headless analyzer's real detail-before-class output", async () => {
     const projected = await projectFailure("process", {
       stdout: output(issueOutput),

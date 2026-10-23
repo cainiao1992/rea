@@ -4199,3 +4199,41 @@ it("commits native coordinates independently of analyzer choices and preserves r
   });
   expect(functionCoordinateContextsEqual(rawProfile, shifted)).toBe(false);
 });
+
+it("session-observation failure clears only its resolved cleanup dependency after close retry", async () => {
+  const retained = new ProviderCleanupError("ghidra", ["owned-session"], {
+    reason: "fixture first close refused",
+  });
+  let closes = 0;
+  let calls = 0;
+  const ghidra = configuredProvider(
+    { REA_GHIDRA_DISABLED_ANALYZERS: "Decompiler Switch Analysis" },
+    () => ({
+      start: async () => ok(sessionInfo()),
+      callTool: async () => {
+        calls++;
+        return ok(null);
+      },
+      close: async () => {
+        closes++;
+        if (closes === 1) return err(retained);
+        retained.resolveCleanup();
+        return ok(null);
+      },
+    }),
+  );
+  const client = await createElfClient(ghidra);
+  const failed = await client.execute("list_procedures", {});
+  if (failed.ok) throw new Error("Missing analyzer observation accepted");
+  expect(projectAnalysisError(failed.error)).toMatchObject({
+    code: "cleanup_incomplete",
+  });
+  expect(calls).toBe(0);
+  expect(await client.close()).toEqual({ ok: true, value: null });
+  expect(closes).toBe(2);
+  expect(failed.error.cleanupIncomplete).toBe(false);
+  expect(projectAnalysisError(failed.error)).toMatchObject({
+    code: "execution_failure",
+  });
+  await ghidra.closeOwnedResources();
+});

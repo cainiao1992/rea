@@ -494,7 +494,7 @@ export const createGhidraProviderClient = (input: {
           extensionFailure,
           closed.error,
           operation,
-        );
+        ).bindCleanupDependencies([extensionFailure, closed.error]);
   };
   const startSession = async (
     operation: AnalysisOperation,

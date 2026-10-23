@@ -10,6 +10,14 @@ import {
   type BinaryContainer,
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
+import {
+  parsePointerFixups,
+  type PointerFixups,
+} from "../native/AppleMachoFixups.js";
+import {
+  parseMachoLayout,
+  UnsupportedMachoMetadataFormatError,
+} from "../native/AppleMachoSelection.js";
 import { applyElfRelativeRelocationsSteps } from "./ElfRelocations.js";
 import { Il2cppBinaryFormatFailure } from "./Il2cppBinaryFormat.js";
 const MACHO_CPU = new Map([
@@ -68,6 +76,8 @@ export interface NativeImage {
   readonly imageBase: bigint;
   readonly unresolvedPointerSlots: ReadonlyMap<bigint, number>;
   readonly zeroFillPointers: ReadonlyMap<bigint, bigint>;
+  /** Mach-O loader fixups, used when interpreting method pointer slots. */
+  readonly machoPointerFixups?: PointerFixups;
 }
 
 export function* openImageSteps(
@@ -131,6 +141,30 @@ export function* openImageSteps(
       "unsupported-pointer-encoding",
       "Mach-O chained fixups are not decoded",
     );
+  let machoPointerFixups: PointerFixups | undefined;
+  if (container.format === "macho") {
+    try {
+      const layout = parseMachoLayout(image, container.architecture);
+      machoPointerFixups = parsePointerFixups(
+        image,
+        layout.fixups,
+        layout.segments,
+        layout.baseAddress,
+      );
+    } catch (cause) {
+      if (cause instanceof UnsupportedMachoMetadataFormatError)
+        throw new Il2cppBinaryFormatFailure(
+          "unsupported-container",
+          cause.message,
+        );
+      if (cause instanceof RangeError || cause instanceof TypeError)
+        throw new Il2cppBinaryFormatFailure(
+          "malformed-container",
+          cause.message,
+        );
+      throw cause;
+    }
+  }
   if (container.format === "pe" && container.image_base === undefined)
     throw new Il2cppBinaryFormatFailure(
       "malformed-container",
@@ -153,6 +187,7 @@ export function* openImageSteps(
     imageBase,
     unresolvedPointerSlots: relocated?.unresolved ?? new Map<bigint, number>(),
     zeroFillPointers: relocated?.zeroFillPointers ?? new Map<bigint, bigint>(),
+    ...(machoPointerFixups === undefined ? {} : { machoPointerFixups }),
   };
 }
 
@@ -307,10 +342,25 @@ export const readSlot = (
   address: bigint,
 ): bigint | "unknown" | null => {
   if (hasUnresolvedPointer(image, address)) return "unknown";
-  const virtual = image.zeroFillPointers.get(address);
-  if (virtual !== undefined) return virtual;
   try {
-    return isZeroFilled(image, address, 8) ? 0n : readPointer(image, address);
+    const virtual = image.zeroFillPointers.get(address);
+    let raw: bigint | null;
+    if (virtual !== undefined) raw = virtual;
+    else if (isZeroFilled(image, address, 8)) raw = 0n;
+    else raw = readPointer(image, address);
+    if (raw === null) return null;
+    if (image.machoPointerFixups !== undefined) {
+      const resolution = image.machoPointerFixups.decode(address, raw);
+      if (resolution.kind === "bind" || resolution.kind === "unknown")
+        return "unknown";
+      if (resolution.kind === "unsupported")
+        throw new Il2cppBinaryFormatFailure(
+          "unsupported-pointer-encoding",
+          resolution.reason,
+        );
+      return resolution.target;
+    }
+    return raw;
   } catch (cause) {
     if (cause instanceof BinaryFormatFailure)
       throw new Il2cppBinaryFormatFailure("malformed-container", cause.message);

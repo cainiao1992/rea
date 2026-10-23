@@ -2,6 +2,7 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
   artifactFilePrimaryFailure,
+  artifactSelectedPathErrno,
   bindArtifactFileCleanup,
   artifactFileCancellationCause,
 } from "../artifacts/ArtifactFileOperation.js";
@@ -163,16 +164,13 @@ const beamFailurePrimary = (cause: unknown, input: InspectErlangBeamInput) => {
       return new AnalysisAccessDeniedError(OPERATION, input.path, cause.code, {
         cause,
       });
-    if (
-      ["ENOENT", "ENOTDIR", "ELOOP", "ENAMETOOLONG"].includes(
-        String(cause.code),
-      )
-    )
+    const pathErrno = artifactSelectedPathErrno(cause);
+    if (pathErrno !== undefined)
       return new AnalysisInputError(OPERATION, { cause }, [
         {
           path: ["path"],
           reason: "invalid_value",
-          message: `Selected BEAM file could not be read (${String(cause.code)}): ${input.path}.`,
+          message: `Selected BEAM file could not be read (${pathErrno}): ${input.path}.`,
         },
       ]);
   }

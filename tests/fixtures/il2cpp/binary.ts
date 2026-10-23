@@ -187,6 +187,27 @@ export const createIl2cppBinaryFixture = (
   return bytes;
 };
 
+/** Add one classic dyld bind for a method slot, retaining its chosen raw word. */
+export const createIl2cppDyldBindFixture = (raw: bigint): Buffer => {
+  const bytes = Buffer.from(createIl2cppBinaryFixture());
+  const command = 104;
+  const streamOffset = 0xf00;
+  const stream = Buffer.concat([
+    Buffer.from([0x3e, 0x40]),
+    Buffer.from("_FixtureMethod\0", "utf8"),
+    Buffer.from([0x51, 0x70, 0x80, 0x06, 0x90, 0x00]),
+  ]);
+  bytes.writeUInt32LE(2, 16);
+  bytes.writeUInt32LE(120, 20);
+  bytes.writeUInt32LE(0x80000022, command);
+  bytes.writeUInt32LE(48, command + 4);
+  bytes.writeUInt32LE(streamOffset, command + 16);
+  bytes.writeUInt32LE(stream.length, command + 20);
+  stream.copy(bytes, streamOffset);
+  bytes.writeBigUInt64LE(raw, 0x300);
+  return bytes;
+};
+
 /** Wrap thin Mach-O slices in a 32-bit universal header, page aligned. */
 export const createUniversalFixture = (
   slices: readonly { readonly cpu: number; readonly bytes: Buffer }[],

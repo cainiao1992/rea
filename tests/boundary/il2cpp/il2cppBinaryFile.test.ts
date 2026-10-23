@@ -8,6 +8,7 @@ import { readIl2cppMetadataForLinking } from "../../../src/il2cpp/Il2cppMetadata
 import {
   createElfFixture,
   createIl2cppBinaryFixture,
+  createIl2cppDyldBindFixture,
   createUniversalFixture,
   createSplitPointerPeFixture,
   FIXTURE_BINARY_BASE,
@@ -575,6 +576,22 @@ it("reports a symbol-relocated method slot as unknown rather than no-body", () =
   const linked = link(bytes);
   expect(linked.method_addresses[1]).toEqual(expectedAddress("unknown"));
   expect(linked.method_addresses[0]).toEqual(expectedAddresses[0]);
+});
+
+it.each([0n, FIXTURE_BINARY_BASE + 0x210n])(
+  "keeps a dyld-bound method slot unknown regardless of its raw word %s",
+  (raw) => {
+    const linked = link(createIl2cppDyldBindFixture(raw));
+    expect(linked.method_addresses[1]).toEqual(expectedAddress("unknown"));
+    expect(linked.method_addresses[0]).toEqual(expectedAddresses[0]);
+    expect(linked.method_addresses[4]).toEqual(expectedAddress("no-body"));
+  },
+);
+
+it("keeps unbound Mach-O method words classified from their values", () => {
+  const linked = link(createIl2cppBinaryFixture());
+  expect(linked.method_addresses[1]).toEqual(expectedAddresses[1]);
+  expect(linked.method_addresses[4]).toEqual(expectedAddress("no-body"));
 });
 
 it.each([

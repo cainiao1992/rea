@@ -28,6 +28,7 @@ export interface RustBinaryImage {
   readonly byte_order: RustBinary["byte_order"];
   readonly auditable_metadata: RustAuditableMetadata | null;
   readonly rustc_commit: RustBinary["rustc_commit"];
+  readonly section_names_limitation?: string;
 }
 
 /** Read dependency metadata from container sections without executing the image. */
@@ -44,6 +45,9 @@ export const readRustBinaryImage = (bytes: Buffer): RustBinaryImage => {
         ? null
         : readDependency(bytes, container.format, dependency),
     rustc_commit: rustcCommit(bytes, container),
+    ...(container.section_names_limitation === undefined
+      ? {}
+      : { section_names_limitation: container.section_names_limitation }),
   };
 };
 

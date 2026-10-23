@@ -41,6 +41,8 @@ export interface GoBinaryImage {
   readonly bits: 32 | 64;
   readonly byte_order: "little" | "big";
   readonly build_info: GoBuildInfo | null;
+  /** Native section-name coverage, retained for discovery limitations. */
+  readonly section_names_limitation?: string;
 }
 
 /** Inspect bounded executable bytes using native mappings, without loading or executing code. */
@@ -50,6 +52,7 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
   let selected: { search: FileMapping; header: number } | null = null;
   const searched = new Set<string>();
   let remainingSearchBytes = MAX_HEADER_SEARCH_BYTES;
+  const sectionNamesLimitation = container.section_names_limitation;
   for (const search of goBuildInfoSearch(bytes, container)) {
     // Identical file spans and alignment inspect the same candidate bytes.
     // Partially overlapping spans still consume a cumulative work budget.
@@ -70,7 +73,16 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
     }
   }
   if (selected === null)
-    return { format, architecture, bits, byte_order, build_info: null };
+    return {
+      format,
+      architecture,
+      bits,
+      byte_order,
+      build_info: null,
+      ...(sectionNamesLimitation === undefined
+        ? {}
+        : { section_names_limitation: sectionNamesLimitation }),
+    };
   const { search, header } = selected;
   const verifyMapping = (size: number): void => {
     const address = search.address + BigInt(header - search.offset);
@@ -175,6 +187,9 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
       version_location: version.location,
       module_location: module.location,
     },
+    ...(sectionNamesLimitation === undefined
+      ? {}
+      : { section_names_limitation: sectionNamesLimitation }),
   };
 };
 

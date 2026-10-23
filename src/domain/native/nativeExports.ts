@@ -64,6 +64,10 @@ const elfExportSchema = z.strictObject({
     z.strictObject({
       index: z.number().int().min(2).max(0x7fff),
       name: z.string().min(1).nullable(),
+      /** Exact non-ASCII version-name bytes; ELF strings do not declare encoding. */
+      name_bytes_base64: z.string().nullable().default(null),
+      /** Null means older Evidence did not retain version-name encoding facts. */
+      name_utf8_decodable: z.boolean().nullable().default(null),
       hidden: z.boolean(),
     }),
   ]),

@@ -706,6 +706,50 @@ it("iterates mixed plain/CCOB bundles without counting flat records as nesting",
   expect(result.value.kernels).toHaveLength(20);
   expect(result.value.coverage.discovery).toBe("complete");
 });
+it("does not recognize a CCOB signature after its first byte is corrupted", async () => {
+  const bytes = ccobFixture(3, "zlib");
+  bytes[0] = bytes[0]! | 0x80;
+  const result = await inspect(bytes);
+  expect(result).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisUnsupportedTargetError" },
+  });
+});
+it("requires the PTX version directive before any module content", async () => {
+  const result = await inspect(Buffer.from(`unexpected-prefix ${ptxFixture}`));
+  expect(result).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisUnsupportedTargetError" },
+  });
+});
+it("retains an embedded CCOB with a corrupted signature as unsupported", async () => {
+  const bytes = ccobFixture(3, "zlib");
+  bytes[0] = bytes[0]! | 0x80;
+  const result = await inspect(
+    elfFixture(62, [{ name: ".hip_fatbin", bytes }]),
+  );
+  if (!result.ok) throw result.error;
+  expect(result.value.coverage.discovery).toBe("partial");
+  expect(result.value.kernels).toEqual([]);
+  expect(result.value.objects).toContainEqual(
+    expect.objectContaining({
+      kind: "native-section",
+      inspection: "unsupported",
+      limitations: expect.arrayContaining([
+        "No supported CUDA/HIP container or PTX declarations were identified",
+      ]),
+    }),
+  );
+});
+it("does not dispatch a high-bit-corrupted DOS signature to the PE parser", async () => {
+  const bytes = peGpuFixture(Buffer.from(ptxFixture));
+  bytes[0] = bytes[0]! | 0x80;
+  const result = await inspect(bytes);
+  expect(result).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisUnsupportedTargetError" },
+  });
+});
 it("uses each legacy CCOB v1 stream boundary across alignment padding", async () => {
   const first = ccobFixture(1, "zlib"),
     second = ccobFixture(2, "zlib"),

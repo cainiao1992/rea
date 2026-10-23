@@ -319,7 +319,12 @@ it("records a portable export inventory through MCP without a binary target", as
   const root = await createTestTempDirectory("rea-native-exports-mcp-");
   const path = join(root, "libfixture.so");
   const bytes = elfExportImage({
-    symbols: [{ name: "exported_fn" }, { name: "hidden_fn", visibility: 2 }],
+    symbols: [
+      { name: "exported_fn" },
+      { name: "hidden_fn", visibility: 2 },
+      { name: "versioned_fn", version: 2 },
+    ],
+    versionDefinitions: ["libfixture.so", "libcafÃ©.so"],
   });
   await writeFile(path, bytes);
   const session = createTestBinarySession(() => {
@@ -347,6 +352,22 @@ it("records a portable export inventory through MCP without a binary target", as
   const response = await client.callTool({
     name: "inspect_native_exports",
     arguments: { path },
+  });
+  expect(
+    parseEvidence(response.structuredContent).normalized_result,
+  ).toMatchObject({
+    format: "elf",
+    exports: [
+      { name: "exported_fn", version: null },
+      {
+        name: "versioned_fn",
+        version: {
+          name: "libcafé.so",
+          name_bytes_base64: "bGliY2Fmw6kuc28=",
+          name_utf8_decodable: true,
+        },
+      },
+    ],
   });
   assertRecordedMcpEvidence(
     response,

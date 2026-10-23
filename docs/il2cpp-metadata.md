@@ -248,7 +248,9 @@ The result adds:
   `rva` (address minus `image_base`), both hexadecimal strings. `state` is
   `code` when the module slot holds an unambiguously mapped executable address, `no-body` when an observed slot is zero,
   as for abstract, extern and most generic methods, and `unknown` when no type
-  range in any image holds the method or a symbol relocation leaves its slot unresolved.
+  range in any image holds the method, a symbol relocation leaves its slot
+  unresolved, or dyld will bind a Mach-O slot. The raw word in a dyld-bound
+  slot is not treated as the resolved address.
   `address` and `rva` are `null` unless `state` is `code`. The summary counts
   each state in `counts.method_address_states`. Ghidra seeds are written only
   for `code` rows.

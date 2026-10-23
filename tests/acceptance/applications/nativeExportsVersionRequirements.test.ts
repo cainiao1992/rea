@@ -42,3 +42,44 @@ cliTest(
   },
   30_000,
 );
+
+cliTest(
+  "preserves UTF-8 GNU version names and their exact bytes",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-elf-version-utf8-");
+    const path = join(root, "versioned.so");
+    await writeFile(
+      path,
+      elfExportImage({
+        symbols: [{ name: "plain", version: 2 }],
+        versionDefinitions: ["libfixture.so", "libcafÃ©.so"],
+      }),
+    );
+
+    const result = await cli.run({
+      arguments: ["inspect-native-exports", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = contract.outputSchema.parse(result.json);
+    expect(nativeExportsSchema.parse(evidence.normalized_result)).toMatchObject(
+      {
+        format: "elf",
+        coverage: { status: "complete", exports: 1 },
+        issues: [],
+        exports: [
+          {
+            name: "plain",
+            version: {
+              index: 2,
+              name: "libcafé.so",
+              name_bytes_base64: "bGliY2Fmw6kuc28=",
+              name_utf8_decodable: true,
+              hidden: false,
+            },
+          },
+        ],
+      },
+    );
+  },
+  30_000,
+);

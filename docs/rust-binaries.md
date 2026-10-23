@@ -82,6 +82,12 @@ runtime dependency coverage. A missing section remains unknown rather than an
 empty dependency set. Retained views describe the captured artifact digest;
 they do not assert that the current file or running application is unchanged.
 
+ELF section names are resolved through the section-header string table.
+Zlib-compressed name tables are decoded within the native structural budget.
+If a name table uses unsupported compression, the result reports that
+limitation and leaves `.dep-v0` presence unknown rather than reporting the
+section absent.
+
 The inline Evidence result contains the artifact path, SHA-256, byte length,
 container format, architecture, word size, and byte order. When a `.dep-v0`
 section is present, `auditable_metadata` contains:

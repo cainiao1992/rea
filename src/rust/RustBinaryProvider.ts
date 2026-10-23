@@ -101,7 +101,12 @@ export class RustBinaryProvider implements RustBinaryPort {
           selected.fileOffset,
         );
         const report = {
-          ...image,
+          format: image.format,
+          architecture: image.architecture,
+          bits: image.bits,
+          byte_order: image.byte_order,
+          auditable_metadata: image.auditable_metadata,
+          rustc_commit: image.rustc_commit,
           artifact: {
             path: input.path,
             sha256: snapshot.sha256,
@@ -172,9 +177,19 @@ const limitationsFor = (
   "Embedded dependency metadata is file content. It does not authenticate package names, versions, sources, or the compiler that produced the binary.",
   "Only the .dep-v0 dependency section and read-only compiler path strings are inspected. Functions, types, and runtime behavior are not recovered.",
   "Resource guards bound the selected file to 256 MiB, a dependency section to 1 MiB, inflated JSON to the smaller of 8 MiB and 64 times the section size, and the complete report to 8 MiB. Package and dependency counts are admitted against that output budget before schema cloning, graph objects, or reverse-edge allocation.",
-  ...(image.auditable_metadata === null
+  ...(image.section_names_limitation === undefined
+    ? []
+    : [image.section_names_limitation]),
+  ...(image.auditable_metadata === null &&
+  image.section_names_limitation === undefined
     ? [
         "No .dep-v0 section was found. Absence of .dep-v0 does not mean the binary has no dependencies.",
+      ]
+    : []),
+  ...(image.auditable_metadata === null &&
+  image.section_names_limitation !== undefined
+    ? [
+        "The presence of .dep-v0 could not be determined because ELF section names are unavailable.",
       ]
     : []),
   ...unknownFormatLimitation(image.auditable_metadata?.format_version),

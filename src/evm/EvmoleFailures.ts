@@ -1,6 +1,9 @@
 import type { EvmWorkerLimits } from "./EvmWorkerLimits.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
-import { artifactFileCancellationCause } from "../artifacts/ArtifactFileOperation.js";
+import {
+  artifactFileCancellationCause,
+  artifactSelectedPathErrno,
+} from "../artifacts/ArtifactFileOperation.js";
 import {
   AnalysisError,
   type AnalysisCapturedOutput,
@@ -212,7 +215,8 @@ export const evmInterfaceFailure = (
         cause.code,
         { cause, ...cleanupOptions },
       );
-    if (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+    const pathErrno = artifactSelectedPathErrno(cause);
+    if (pathErrno !== undefined)
       return new AnalysisInputError(
         "inspect_evm_interface",
         { cause, ...cleanupOptions },
@@ -220,7 +224,7 @@ export const evmInterfaceFailure = (
           {
             path: ["path"],
             reason: "invalid_value",
-            message: `Selected bytecode carrier could not be read (${String(cause.code)}): ${path}.`,
+            message: `Selected bytecode carrier could not be read (${pathErrno}): ${path}.`,
           },
         ],
       );

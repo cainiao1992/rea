@@ -8,6 +8,7 @@ import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import { machoImageWithUnknownCommand } from "../../src/artifacts/apple/MachoImage.fixture.js";
 import {
+  compressRustElfSectionNames,
   createRustImage,
   createRustImageWithGoSection,
   RUSTC_HASH,
@@ -257,6 +258,57 @@ cliTest("returns null metadata when .dep-v0 is absent", async ({ cli }) => {
     "does not mean the binary has no dependencies",
   );
 });
+
+cliTest(
+  "reads compressed ELF names and keeps unsupported compression unknown",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-rust-elf-compressed-names-",
+    );
+    for (const fixture of [
+      { name: "zlib", type: 1, supported: true },
+      { name: "unknown", type: 2, supported: false },
+    ]) {
+      const path = join(root, `${fixture.name}.elf`);
+      await writeFile(
+        path,
+        compressRustElfSectionNames(
+          createRustImage({ format: "elf" }),
+          fixture.type,
+        ),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-rust-binary", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_rust_binary").outputSchema.parse(
+        result.json,
+      );
+      const report = rustBinarySchema.parse(evidence.normalized_result);
+      if (fixture.supported) {
+        expect(report.auditable_metadata).toMatchObject({
+          section_name: ".dep-v0",
+          packages: [
+            { name: "itoa", version: "1.0.18" },
+            { name: "sample", version: "0.1.0", root: true },
+          ],
+          dependency_edges: [{ from_index: 1, to_index: 0 }],
+        });
+      } else {
+        expect(report.auditable_metadata).toBeNull();
+        expect(report.limitations.join("\n")).toContain(
+          "ELF section names are unavailable because compression type 2 is unsupported",
+        );
+        expect(report.limitations.join("\n")).toContain(
+          "The presence of .dep-v0 could not be determined",
+        );
+        expect(report.limitations.join("\n")).not.toContain(
+          "No .dep-v0 section was found",
+        );
+      }
+    }
+  },
+);
 
 cliTest(
   "keeps arm64_32 in Rust CLI Evidence when dependency metadata is absent",

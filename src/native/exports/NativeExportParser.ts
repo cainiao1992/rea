@@ -6,11 +6,7 @@ import {
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
 import { isUtf8 } from "node:buffer";
-import {
-  readElfString,
-  readElfStringBytes,
-  readElfSymbol,
-} from "../metadata/ElfSymbol.js";
+import { readElfStringBytes, readElfSymbol } from "../metadata/ElfSymbol.js";
 import {
   readNativeDirectoryFromBuffer,
   type NativeSection,
@@ -334,14 +330,31 @@ const versionSectionData = (
 };
 
 /** Version names by index, read from `.gnu.version_d` and `.gnu.version_r`. */
+type DecodedElfString = {
+  readonly name: string;
+  readonly name_bytes_base64: string | null;
+  readonly name_utf8_decodable: boolean;
+};
+
+const decodeElfString = (bytes: Buffer): DecodedElfString => {
+  const utf8 = isUtf8(bytes);
+  return {
+    name: bytes.toString(utf8 ? "utf8" : "latin1"),
+    name_bytes_base64: bytes.some((byte) => byte >= 0x80)
+      ? bytes.toString("base64")
+      : null,
+    name_utf8_decodable: utf8,
+  };
+};
+
 const readVersionNames = (
   reader: BinaryReader,
   sections: readonly NativeSection[],
   issues: NativeExportIssue[],
-): Map<number, string | null> => {
-  const namesByIndex = new Map<number, string | null>();
-  const addName = (index: number, name: string): void => {
-    namesByIndex.set(index, name || null);
+): Map<number, DecodedElfString | null> => {
+  const namesByIndex = new Map<number, DecodedElfString | null>();
+  const addName = (index: number, name: Buffer): void => {
+    namesByIndex.set(index, name.length === 0 ? null : decodeElfString(name));
   };
   const verneed = sections.find(({ type }) => type === SHT_GNU_VERNEED);
   if (verneed !== undefined) {
@@ -379,7 +392,10 @@ const readVersionNames = (
           const versionIndex = reader.u16(auxAt + 6) & 0x7fff;
           const auxiliaryNext = reader.u32(auxAt + 12);
           try {
-            addName(versionIndex, readElfString(names, reader.u32(auxAt + 8)));
+            addName(
+              versionIndex,
+              readElfStringBytes(names, reader.u32(auxAt + 8)),
+            );
           } catch (cause) {
             issues.push({
               code: "version_unresolved",
@@ -441,7 +457,7 @@ const readVersionNames = (
             "Version definition name entry leaves its section",
           );
         let auxiliary = offset + aux;
-        const versionName = readElfString(
+        const versionName = readElfStringBytes(
           names,
           reader.u32(table.offset + auxiliary),
         );
@@ -600,8 +616,8 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       const versionIndex = raw & 0x7fff;
       if (versionIndex === 0) continue;
       if (versionIndex >= 2) {
-        const name = versionNames.get(versionIndex) ?? null;
-        if (name === null && !unresolvedVersions.has(versionIndex)) {
+        const decodedName = versionNames.get(versionIndex) ?? null;
+        if (decodedName === null && !unresolvedVersions.has(versionIndex)) {
           unresolvedVersions.add(versionIndex);
           issues.push({
             code: "version_unresolved",
@@ -611,18 +627,22 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
         }
         version = {
           index: versionIndex,
-          name,
+          name: decodedName?.name ?? null,
+          name_bytes_base64: decodedName?.name_bytes_base64 ?? null,
+          name_utf8_decodable: decodedName?.name_utf8_decodable ?? null,
           hidden: (raw & 0x8000) !== 0,
         };
       }
     }
     let name: string;
-    let rawName: Buffer;
     let nameUtf8Decodable: boolean;
+    let rawNameBase64: string | null;
     try {
-      rawName = readElfStringBytes(names, symbol.name_offset);
-      nameUtf8Decodable = isUtf8(rawName);
-      name = rawName.toString(nameUtf8Decodable ? "utf8" : "latin1");
+      const rawName = readElfStringBytes(names, symbol.name_offset);
+      const decodedName = decodeElfString(rawName);
+      nameUtf8Decodable = decodedName.name_utf8_decodable;
+      name = decodedName.name;
+      rawNameBase64 = decodedName.name_bytes_base64;
     } catch (cause) {
       issues.push({
         code: "name_unreadable",
@@ -639,13 +659,11 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       });
       continue;
     }
-    const rawNameBase64 = rawName.some((byte) => byte >= 0x80)
-      ? rawName.toString("base64")
-      : null;
     retain(
       name,
       typeof version === "object" ? (version?.name ?? null) : null,
       rawNameBase64,
+      typeof version === "object" ? (version?.name_bytes_base64 ?? null) : null,
     );
     exports.push({
       name,

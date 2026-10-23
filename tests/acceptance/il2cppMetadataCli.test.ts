@@ -33,6 +33,7 @@ import {
 import {
   createElfFixture,
   createIl2cppBinaryFixture,
+  createIl2cppDyldBindFixture,
   createUniversalFixture,
   FIXTURE_BINARY_BASE,
   FIXTURE_METHOD_ADDRESSES,
@@ -847,6 +848,52 @@ cliTest(
     expect(projected.items).toEqual(
       expected.slice(2).map((row, offset) => ({ index: offset + 2, ...row })),
     );
+    await client.ping();
+  },
+  30000,
+);
+
+cliTest(
+  "keeps a dyld-bound method slot unresolved through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-il2cpp-dyld-bind-");
+    const path = join(root, "global-metadata.dat");
+    const binaryPath = join(root, "GameAssembly.dylib");
+    await writeFile(path, createLinkedIl2cppMetadataFixture().bytes);
+    await writeFile(binaryPath, createIl2cppDyldBindFixture(0n));
+
+    const result = await runFileCli(cli, {
+      arguments: [
+        "inspect-il2cpp-metadata",
+        path,
+        "--binary",
+        binaryPath,
+        "--json",
+      ],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = parseCliMetadata(result.json);
+    expect(report.method_addresses[1]).toEqual({
+      state: "unknown",
+      address: null,
+      rva: null,
+    });
+    expect(report.method_addresses[4]).toEqual({
+      state: "no-body",
+      address: null,
+      rva: null,
+    });
+
+    const { client, call } = await connectLocalToolsMcp();
+    const response = await call("inspect_il2cpp_metadata", {
+      path,
+      binary_path: binaryPath,
+      detail: "complete",
+    });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    expect(
+      parseCliMetadata(response.structuredContent).method_addresses,
+    ).toEqual(report.method_addresses);
     await client.ping();
   },
   30000,

@@ -137,6 +137,10 @@ chunks. Its offsets refer to **base64-decoded body bytes**; other offsets refer
 to retained body bytes. Every field has a body-scoped `field_id` derived from
 its byte offset, a `frame_index`, and a `parent_field_id` for schema-driven
 nested messages or groups. Repeated field numbers remain separate occurrences.
+Trailer blocks are parsed as HTTP field bytes. Valid UTF-8 values are retained;
+when a field contains opaque non-UTF-8 bytes, that field is omitted and the
+trailer frame is partial, while other valid trailer fields remain available.
+The retained body and frame byte range preserve the original opaque value.
 
 Without a schema, varints and fixed-width values retain exact unsigned decimal
 representations. Length-delimited UTF-8, nested-message and packed readings

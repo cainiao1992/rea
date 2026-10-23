@@ -90,6 +90,32 @@ export class ArtifactFileCleanupFailure<
   }
 }
 
+/** Errnos raised while the caller-selected artifact path is being resolved. */
+export type ArtifactSelectedPathErrno =
+  | "ENOENT"
+  | "ENOTDIR"
+  | "ELOOP"
+  | "ENAMETOOLONG";
+
+/** Return only known path-resolution errnos; permissions and I/O remain distinct. */
+export const artifactSelectedPathErrno = (
+  cause: unknown,
+): ArtifactSelectedPathErrno | undefined => {
+  if (!(cause instanceof Error) || !("code" in cause)) return undefined;
+  switch (String(cause.code)) {
+    case "ENOENT":
+      return "ENOENT";
+    case "ENOTDIR":
+      return "ENOTDIR";
+    case "ELOOP":
+      return "ELOOP";
+    case "ENAMETOOLONG":
+      return "ENAMETOOLONG";
+    default:
+      return undefined;
+  }
+};
+
 /** Normalize the physical primary failure without replacing its exact cleanup owner. */
 export const mapArtifactFileFailure = (
   cause: unknown,

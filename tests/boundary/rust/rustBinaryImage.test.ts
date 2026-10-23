@@ -4,6 +4,7 @@ import {
   createRustImage,
   createRustImageWithGoSection,
   createRustHashOverflowImage,
+  compressRustElfSectionNames,
   RUSTC_HASH,
   rustDependencyPayload,
 } from "../../fixtures/rust/image.js";
@@ -122,6 +123,43 @@ it("returns null metadata when the dependency section is absent", () => {
     createRustImage({ format: "elf", omitSection: true }),
   );
   expect(image.auditable_metadata).toBeNull();
+  expect(image.rustc_commit?.hashes).toEqual([
+    { hash: RUSTC_HASH, file_offset: 2048 },
+  ]);
+});
+
+it("reads dependency metadata through a compressed ELF section-name table", () => {
+  const image = readRustBinaryImage(
+    compressRustElfSectionNames(createRustImage({ format: "elf" })),
+  );
+  expect(image.auditable_metadata).toMatchObject({
+    section_name: ".dep-v0",
+    file_offset: 1024,
+    packages,
+    dependency_edges: [{ from_index: 1, to_index: 0 }],
+  });
+});
+
+it("keeps dependency presence unknown for unsupported ELF name compression", () => {
+  const image = readRustBinaryImage(
+    compressRustElfSectionNames(createRustImage({ format: "elf" }), 2),
+  );
+  expect(image.auditable_metadata).toBeNull();
+  expect(image.section_names_limitation).toMatch(
+    /compression type 2 is unsupported/u,
+  );
+  expect(image.rustc_commit?.hashes).toEqual([
+    { hash: RUSTC_HASH, file_offset: 2048 },
+  ]);
+});
+
+it("keeps dependency presence unknown when its ELF name offset is unreadable", () => {
+  const bytes = createRustImage({ format: "elf" });
+  bytes.writeUInt32LE(0xffff, 384);
+
+  const image = readRustBinaryImage(bytes);
+  expect(image.auditable_metadata).toBeNull();
+  expect(image.section_names_limitation).toMatch(/outside its string table/u);
   expect(image.rustc_commit?.hashes).toEqual([
     { hash: RUSTC_HASH, file_offset: 2048 },
   ]);

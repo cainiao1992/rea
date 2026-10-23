@@ -15,6 +15,7 @@ import {
 import { gpuObject } from "./GpuObject.js";
 import { isAmdGpuBundleId, readAmdGpuBundleTarget } from "./AmdGpuTarget.js";
 export const CLANG_BUNDLE_MAGIC = Buffer.from("__CLANG_OFFLOAD_BUNDLE__");
+export const CCOB_MAGIC = Buffer.from("CCOB");
 export const readClangBundleDirectory = async (
   source: GpuSource,
   base: number,
@@ -85,6 +86,8 @@ export const readClangBundleDirectory = async (
 };
 export const readCcobHeader = (bytes: Buffer, remaining: number) => {
   if (bytes.length < 20) rejectGpu("CCOB header is truncated");
+  if (!bytes.subarray(0, CCOB_MAGIC.length).equals(CCOB_MAGIC))
+    rejectGpu("Invalid CCOB magic");
   const version = bytes.readUInt16LE(4),
     method = bytes.readUInt16LE(6);
   let width: number, total: number, decoded: number, hash: bigint;

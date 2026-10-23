@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
@@ -562,6 +562,41 @@ it.runIf(!unsupportedHost)(
     ).toMatchObject({ ok: false, error: { _tag: "AnalysisCancelledError" } });
   },
 );
+it.runIf(!unsupportedHost)(
+  "classifies selected carrier path-resolution errnos as invalid input",
+  async () => {
+    const { root } = await fixture();
+    const loop = join(root, "loop");
+    await symlink("loop", loop);
+    const cases = [
+      { code: "ELOOP", path: join(loop, "carrier.bin") },
+      { code: "ENAMETOOLONG", path: join(root, "x".repeat(256)) },
+    ] as const;
+    const service = new EvmInterfaceService(new EvmoleInterfaceProvider({}));
+    try {
+      for (const { code, path } of cases) {
+        const result = await service.inspect({ path, encoding: "raw" });
+        if (result.ok) throw new Error(`Expected ${code} path failure`);
+        expect(result.error._tag).toBe("AnalysisInputError");
+        expect(projectAnalysisError(result.error)).toMatchObject({
+          code: "invalid_request",
+          details: {
+            issues: [
+              {
+                path: ["path"],
+                reason: "invalid_value",
+                message: expect.stringContaining(code),
+              },
+            ],
+          },
+        });
+      }
+    } finally {
+      await service.close();
+    }
+  },
+);
+
 it.runIf(unsupportedHost)(
   "reports unverified host coverage before acquiring a provider",
   async () => {

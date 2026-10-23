@@ -50,7 +50,6 @@ export interface LoadRegion {
 
 /** Parsed section facts; consumer metadata validity is separate from native structure. */
 export type ImageSection = {
-  readonly name: string;
   readonly offset: number;
   readonly size: number;
   readonly file_backed: boolean;
@@ -59,6 +58,8 @@ export type ImageSection = {
 } & (
   | {
       readonly format: "elf";
+      /** Null when the ELF name table is unavailable or this name is unreadable. */
+      readonly name: string | null;
       readonly type: number;
       readonly address: bigint;
       readonly declared_range: {
@@ -68,6 +69,7 @@ export type ImageSection = {
     }
   | {
       readonly format: "pe";
+      readonly name: string;
       readonly virtual_address: number;
       readonly virtual_size: number;
       readonly raw_size: number;
@@ -75,6 +77,7 @@ export type ImageSection = {
     }
   | {
       readonly format: "macho";
+      readonly name: string;
       readonly section_name: string;
       readonly type: number;
       readonly address: bigint;
@@ -107,6 +110,8 @@ export interface BinaryContainer {
   }[];
   /** Mach-O load-command observation, when available. */
   readonly macho_chained_fixups?: boolean;
+  /** Section-name lookup was incomplete; absence by name is not established. */
+  readonly section_names_limitation?: string;
   readonly mappings: readonly FileMapping[];
   readonly load_regions?: readonly LoadRegion[];
   /** File-backed ranges the native loader marks executable. */

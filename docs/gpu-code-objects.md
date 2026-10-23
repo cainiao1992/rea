@@ -36,9 +36,11 @@ HIP bundle recognition accepts both the legacy `amdgcn` triple and LLVM's
 `amdgpu` subarchitecture triples, including declared generic processors such
 as `gfx11-generic` and `gfx9-4-generic`. CUDA's legacy fatbinary compression
 flag is retained as an unsupported codec with its encoded and decoded extents;
-compressed bytes are not treated as PTX text. CCOB v1 has no stored total size,
-so a following legacy bundle is located by the next `CCOB` signature and
-zero-byte alignment padding remains part of the first container extent.
+compressed bytes are not treated as PTX text. CCOB is recognized by the exact
+four signature bytes `CCOB`; high-bit-corrupted bytes are not decoded as ASCII
+and accepted as a bundle. CCOB v1 has no stored total size, so a following
+legacy bundle is located by the next `CCOB` signature and zero-byte alignment
+padding remains part of the first container extent.
 
 `cuda_target_header` retains the OS ABI, normalized raw `e_flags` and exact
 header location. CUDA OS ABI `0x33` and the observed `0x41` flags layout use
@@ -191,3 +193,5 @@ failures preserve earlier successfully parsed declarations and the original
 failure reason. Standalone PTX recognition tries a small header first, then
 continues within the existing 16 MiB text budget when leading comments or
 whitespace obscure its directives; admitted full-file probe bytes are reused.
+After those comments and whitespace, `.version` must be the first PTX module
+token; later PTX-looking text does not identify an arbitrary binary as PTX.

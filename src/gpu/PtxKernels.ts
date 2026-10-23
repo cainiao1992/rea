@@ -535,8 +535,7 @@ export const ptxTargetIdentity = (target: string): string =>
 /** Resolve all module-scope targets through the highest numbered architecture. */
 export const readPtxTarget = (text: string): PtxTargetFacts => {
   const stream = tokens(text);
-  let version = false,
-    depth = 0,
+  let depth = 0,
     target: string | null = null,
     targetIdentity: string | null = null,
     targetArchitecture = -1,
@@ -544,6 +543,15 @@ export const readPtxTarget = (text: string): PtxTargetFacts => {
     unsupported = false,
     malformed = false;
   try {
+    const first = stream.next();
+    if (first.done || first.value.value !== ".version")
+      return { recognized: false, target: null, limitation: null };
+    const declaredVersion = stream.next();
+    if (
+      declaredVersion.done ||
+      ptxVersion(declaredVersion.value.value) === null
+    )
+      return { recognized: false, target: null, limitation: null };
     for (const token of stream) {
       if (token.value === "{") {
         depth++;
@@ -554,12 +562,7 @@ export const readPtxTarget = (text: string): PtxTargetFacts => {
         continue;
       }
       if (depth !== 0) continue;
-      if (token.value === ".version") {
-        const value = stream.next();
-        version = !value.done && ptxVersion(value.value.value) !== null;
-        continue;
-      }
-      if (token.value !== ".target" || !version) continue;
+      if (token.value !== ".target") continue;
       const value = stream.next();
       if (value.done) {
         unsupported = true;
@@ -593,7 +596,7 @@ export const readPtxTarget = (text: string): PtxTargetFacts => {
     if (!(cause instanceof BinaryFormatFailure)) throw cause;
     malformed = true;
   }
-  const recognized = version && target !== null;
+  const recognized = target !== null;
   const limitation = !recognized
     ? null
     : unsupported

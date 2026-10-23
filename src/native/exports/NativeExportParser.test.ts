@@ -279,13 +279,25 @@ describe("ELF dynamic symbol exports", () => {
         name: "versioned_fn",
         type: "function",
         binding: "global",
-        version: { index: 2, name: "VER_1", hidden: false },
+        version: {
+          index: 2,
+          name: "VER_1",
+          name_bytes_base64: null,
+          name_utf8_decodable: true,
+          hidden: false,
+        },
       },
       {
         name: "old_fn",
         type: "function",
         binding: "global",
-        version: { index: 3, name: "VER_0", hidden: true },
+        version: {
+          index: 3,
+          name: "VER_0",
+          name_bytes_base64: null,
+          name_utf8_decodable: true,
+          hidden: true,
+        },
       },
       { name: "weak_obj", type: "object", binding: "weak", version: null },
       { name: "ifunc_sym", type: "ifunc", binding: "global", version: null },
@@ -315,7 +327,9 @@ describe("ELF dynamic symbol exports", () => {
       exports: [{ name: "be_fn", value: "0x10000", size: "8" }],
     });
   });
+});
 
+describe("ELF export version and name coverage", () => {
   it("marks versions unknown when the version table does not fit", () => {
     const result = parse(
       elfExportImage({
@@ -346,8 +360,20 @@ describe("ELF dynamic symbol exports", () => {
     expect(
       result.format === "elf" && result.exports.map(({ version }) => version),
     ).toEqual([
-      { index: 7, name: null, hidden: false },
-      { index: 7, name: null, hidden: false },
+      {
+        index: 7,
+        name: null,
+        name_bytes_base64: null,
+        name_utf8_decodable: null,
+        hidden: false,
+      },
+      {
+        index: 7,
+        name: null,
+        name_bytes_base64: null,
+        name_utf8_decodable: null,
+        hidden: false,
+      },
     ]);
     expect(result.issues).toHaveLength(1);
   });
@@ -494,7 +520,13 @@ describe("ELF version requirements", () => {
     expect(result.exports).toMatchObject([
       {
         name: "defined_version",
-        version: { index: 2, name: null, hidden: false },
+        version: {
+          index: 2,
+          name: null,
+          name_bytes_base64: null,
+          name_utf8_decodable: null,
+          hidden: false,
+        },
       },
     ]);
     expect(result.coverage.status).toBe("partial");
@@ -572,7 +604,15 @@ describe("export inventory review regressions", () => {
 
     expect(
       result.format === "elf" && result.exports.map(({ version }) => version),
-    ).toEqual([{ index: 2, name: null, hidden: false }]);
+    ).toEqual([
+      {
+        index: 2,
+        name: null,
+        name_bytes_base64: null,
+        name_utf8_decodable: null,
+        hidden: false,
+      },
+    ]);
     expect(result.issues).toMatchObject([{ code: "version_unresolved" }]);
     expect(result.coverage.status).toBe("partial");
   });
@@ -607,6 +647,65 @@ describe("ELF symbol-name text", () => {
       name: "ÿ",
       name_bytes_base64: "/w==",
       name_utf8_decodable: false,
+    });
+  });
+
+  it.each([
+    {
+      source: "definition",
+      result: () =>
+        parse(
+          elfExportImage({
+            symbols: [{ name: "defined", version: 2 }],
+            versionDefinitions: ["libfixture.so", "libcafÃ©.so"],
+          }),
+        ),
+      versionIndex: 2,
+    },
+    {
+      source: "requirement",
+      result: () =>
+        parse(
+          elfExportImage({
+            symbols: [{ name: "required", version: 3 }],
+            versionRequirements: [{ index: 3, name: "libcafÃ©.so" }],
+          }),
+        ),
+      versionIndex: 3,
+    },
+  ])(
+    "decodes UTF-8 version names from the $source table",
+    ({ result, versionIndex }) => {
+      const parsed = result();
+      expect(parsed.format).toBe("elf");
+      if (parsed.format !== "elf") throw new TypeError("expected ELF result");
+      expect(parsed.exports[0]?.version).toEqual({
+        index: versionIndex,
+        name: "libcafé.so",
+        name_bytes_base64: "bGliY2Fmw6kuc28=",
+        name_utf8_decodable: true,
+        hidden: false,
+      });
+      expect(parsed.issues).toEqual([]);
+      expect(parsed.coverage.status).toBe("complete");
+    },
+  );
+
+  it("retains invalid UTF-8 version-name bytes with a byte-preserving display", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [{ name: "defined", version: 2 }],
+        versionDefinitions: ["libfixture.so", "\u00ff"],
+      }),
+    );
+    expect(result.format).toBe("elf");
+    if (result.format !== "elf") throw new TypeError("expected ELF result");
+    expect(result.exports[0]?.version).toEqual({
+      index: 2,
+      name: "ÿ",
+      name_bytes_base64: "/w==",
+      name_utf8_decodable: false,
+      hidden: false,
     });
   });
 });

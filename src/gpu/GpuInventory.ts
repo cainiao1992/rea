@@ -1,4 +1,5 @@
 import {
+  CCOB_MAGIC,
   CLANG_BUNDLE_MAGIC,
   readLegacyCcobTotal,
   readClangBundleDirectory,
@@ -146,13 +147,13 @@ export class GpuInventory {
       await this.#hip(source, depth);
       return "hip-bundle";
     }
-    if (prefix.subarray(0, 4).toString("ascii") === "CCOB") {
+    if (prefix.subarray(0, CCOB_MAGIC.length).equals(CCOB_MAGIC)) {
       await this.#hip(source, depth);
       return "hip-bundle";
     }
     if (
       prefix.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) ||
-      prefix.subarray(0, 2).toString("ascii") === "MZ"
+      (prefix[0] === 0x4d && prefix[1] === 0x5a)
     ) {
       const elf = prefix[0] === 0x7f;
       const directory = await readGpuNativeDirectory(
@@ -543,7 +544,7 @@ export class GpuInventory {
         base = await nextGpuContainerOffset(source, directory.end);
         continue;
       }
-      if (prefix.subarray(0, 4).toString("ascii") !== "CCOB")
+      if (!prefix.subarray(0, CCOB_MAGIC.length).equals(CCOB_MAGIC))
         rejectGpu("Unexpected bytes between Clang offload bundles");
       const legacyTotal =
         prefix.length >= 6 && prefix.readUInt16LE(4) === 1

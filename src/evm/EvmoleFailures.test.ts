@@ -1,3 +1,6 @@
+import { readFile, symlink } from "node:fs/promises";
+import { join } from "node:path";
+import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 import { expect, it } from "vitest";
 import { evmInterfaceFailure } from "./EvmoleFailures.js";
 import { OwnedCommandFailure } from "../process/OwnedCommand.js";
@@ -187,3 +190,40 @@ it.each([
     expect(result.cleanupResources).toEqual(["exact-owner"]);
   }
 });
+
+it.skipIf(process.platform === "win32")(
+  "maps real selected-path failures before the EVM worker starts",
+  async () => {
+    const root = await createTestTempDirectory("rea-evm-path-mapping-");
+    await symlink("loop", join(root, "loop"));
+    for (const [code, path] of [
+      ["ELOOP", join(root, "loop", "carrier.bin")],
+      ["ENAMETOOLONG", join(root, "x".repeat(256))],
+    ] as const) {
+      let source: unknown;
+      try {
+        await readFile(path);
+        throw new Error("Expected selected-path read failure");
+      } catch (cause) {
+        source = cause;
+      }
+      const failure = evmInterfaceFailure(source, "artifact-read", path);
+      expect(failure.cause).toBe(source);
+      expect(projectAnalysisError(failure)).toMatchObject({
+        code: "invalid_request",
+        details: {
+          issues: [
+            {
+              path: ["path"],
+              reason: "invalid_value",
+              message: expect.stringContaining(code),
+            },
+          ],
+        },
+      });
+      expect(evmInterfaceFailure(source, "worker", path)._tag).toBe(
+        "ProviderAdapterError",
+      );
+    }
+  },
+);

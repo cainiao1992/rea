@@ -70,6 +70,23 @@ it("reads a Mach-O __DATA,.dep-v0 section", () => {
   });
 });
 
+it("preserves the arm64_32 Mach-O CPU family when dependency metadata is absent", () => {
+  const bytes = createRustImage({
+    format: "macho",
+    omitSection: true,
+    includeRustc: false,
+  });
+  bytes.writeUInt32LE(0x0200000c, 4);
+
+  expect(readRustBinaryImage(bytes)).toMatchObject({
+    format: "macho",
+    architecture: "arm64_32",
+    bits: 64,
+    auditable_metadata: null,
+    rustc_commit: null,
+  });
+});
+
 it("ignores PE file-alignment padding after the dependency content", () => {
   const bytes = createRustImage({ format: "pe", includeRustc: false });
   const payloadBytes = rustDependencyPayload().length;

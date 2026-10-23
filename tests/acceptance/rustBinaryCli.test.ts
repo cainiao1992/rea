@@ -120,6 +120,39 @@ cliTest("returns null metadata when .dep-v0 is absent", async ({ cli }) => {
 });
 
 cliTest(
+  "keeps arm64_32 in Rust CLI Evidence when dependency metadata is absent",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-rust-arm64-32-");
+    const path = join(root, "watchos-object");
+    const bytes = createRustImage({
+      format: "macho",
+      omitSection: true,
+      includeRustc: false,
+    });
+    bytes.writeUInt32LE(0x0200000c, 4);
+    await writeFile(path, bytes);
+
+    const result = await cli.run({
+      arguments: ["inspect-rust-binary", path, "--json"],
+    });
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = toolContract("inspect_rust_binary").outputSchema.parse(
+      result.json,
+    );
+    expect(evidence.subject).toMatchObject({
+      format: "mach-o",
+      architecture: "arm64_32",
+    });
+    expect(rustBinarySchema.parse(evidence.normalized_result)).toMatchObject({
+      architecture: "arm64_32",
+      bits: 64,
+      auditable_metadata: null,
+    });
+  },
+);
+
+cliTest(
   "preserves an unknown cargo-auditable revision and reports its fallback",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-rust-cli-unknown-format-");

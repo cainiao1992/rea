@@ -156,6 +156,7 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
     [0x01000007, "amd64"],
     [12, "arm"],
     [0x0100000c, "arm64"],
+    [0x0200000c, "arm64_32"],
     [18, "ppc"],
     [0x01000012, "ppc64"],
   ]);

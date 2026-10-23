@@ -1,7 +1,5 @@
-import {
-  createAnalysisExecutionEvidence,
-  type ExecutionOptions,
-} from "../AnalysisProvider.js";
+import type { ExecutionOptions } from "../AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../../domain/analysisObservation.js";
 import type { WasmArtifactPort } from "./WasmArtifactPort.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {

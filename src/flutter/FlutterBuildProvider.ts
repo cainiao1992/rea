@@ -12,9 +12,9 @@ import type {
 } from "../application/AnalysisProvider.js";
 import {
   createAnalysisExecution,
-  createAnalysisExecutionEvidence,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
 import {
   MAX_FLUTTER_LIBRARY_PATH_BYTES,
   type FlutterRequest,

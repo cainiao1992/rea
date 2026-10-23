@@ -47,7 +47,7 @@ import type {
   AnalysisExecution,
   ProviderIdentity,
 } from "./AnalysisProvider.js";
-import { createAnalysisExecutionEvidence } from "./AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
 import {
   REA_WORKFLOW_PROVIDER,
   workflowAnalysisProfile,

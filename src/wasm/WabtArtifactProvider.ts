@@ -30,6 +30,7 @@ import {
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { createEvidence } from "../domain/evidence.js";
+import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import {
   wasmArtifactSchema,
@@ -478,17 +479,11 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         result.ok &&
         (options?.signal?.aborted || cleanup.kind === "failed")
       ) {
-        partialObservation = createEvidence(
-          result.value.subject ?? undefined,
-          result.value.provider,
-          {
-            operation: OPERATION,
-            parameters: input,
-            result: result.value.result,
-            confidence: "observed",
-            locations: result.value.locations,
-            limitations: result.value.limitations,
-          },
+        partialObservation = createAnalysisExecutionEvidence(
+          OPERATION,
+          input,
+          result.value,
+          "observed",
         );
       }
       if (result.ok && options?.signal?.aborted) {

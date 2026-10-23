@@ -227,11 +227,7 @@ export const rebindEvidenceSubjectTargetPath = (
 type EvidenceAuthority = z.infer<typeof evidenceAuthoritySchema>;
 type ExecutionEnvironment = z.infer<typeof executionEnvironmentSchema>;
 
-export interface EvidenceProvider {
-  readonly id: string;
-  readonly name: string;
-  readonly version: string | null;
-}
+export type EvidenceProvider = Readonly<z.output<typeof providerSchema>>;
 
 export interface EvidenceObservation {
   readonly predicateType?: string;

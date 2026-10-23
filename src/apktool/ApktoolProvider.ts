@@ -27,9 +27,9 @@ import type {
 import { providerConfigurationRefusal } from "../domain/providerConfigurationRefusal.js";
 import {
   createAnalysisExecution,
-  createAnalysisExecutionEvidence,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
 import {
   apktoolResultSchemas,
   DEFAULT_APKTOOL_DECODE_TIMEOUT_MS,

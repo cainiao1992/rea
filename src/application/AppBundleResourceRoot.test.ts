@@ -4,10 +4,8 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import {
-  createAnalysisExecution,
-  createAnalysisExecutionEvidence,
-} from "./AnalysisProvider.js";
+import { createAnalysisExecution } from "./AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
 import { resolveAppBundleResourceRoot } from "./AppBundleExecutable.js";
 import { bindExecutionTarget } from "./binary/BinarySessionExecution.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";

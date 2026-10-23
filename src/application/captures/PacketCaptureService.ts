@@ -3,11 +3,11 @@ import {
   packetFieldsCatalogSchema,
   type InspectPacketFieldsInput,
 } from "../../domain/captures/packetFields.js";
-import {
-  createAnalysisExecutionEvidence,
-  type AnalysisExecution,
-  type ExecutionOptions,
+import type {
+  AnalysisExecution,
+  ExecutionOptions,
 } from "../AnalysisProvider.js";
+import { createAnalysisExecutionEvidence } from "../../domain/analysisObservation.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,

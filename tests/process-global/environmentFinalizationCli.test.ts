@@ -16,6 +16,12 @@ const control = vi.hoisted(() => ({
   cleanupFailure: undefined as AnalysisError | undefined,
 }));
 
+// Read asynchronous mock observations through their declared owner contracts;
+// assignments inside imported callbacks are not visible to local control flow.
+const observedEnvironment = (): ServedEnvironment | undefined => control.served;
+const observedCleanupFailure = (): AnalysisError | undefined =>
+  control.cleanupFailure;
+
 vi.mock(
   "../../src/server/http/serveStreamableHttp.js",
   async (importOriginal) => {
@@ -125,7 +131,7 @@ it.each([
     );
     try {
       await started;
-      const served = control.served;
+      const served = observedEnvironment();
       if (served === undefined) throw new Error("Environment was not admitted");
       if (ending === "signal") {
         const listeners = process
@@ -201,17 +207,19 @@ it.each([
                 },
               },
         );
-        expect(control.cleanupFailure?.cleanupIncomplete).toBe(true);
-        expect(control.cleanupFailure?.cleanupResources).toEqual([served.url]);
+        expect(observedCleanupFailure()?.cleanupIncomplete).toBe(true);
+        expect(observedCleanupFailure()?.cleanupResources).toEqual([
+          served.url,
+        ]);
         await served.close();
         expect(control.closeCalls).toBe(2);
-        expect(control.cleanupFailure?.cleanupIncomplete).toBe(false);
-        expect(control.cleanupFailure?.cleanupResources).toEqual([]);
+        expect(observedCleanupFailure()?.cleanupIncomplete).toBe(false);
+        expect(observedCleanupFailure()?.cleanupResources).toEqual([]);
       }
       expect(process.listeners("SIGINT")).toEqual([...originalListeners]);
     } finally {
       control.failClose = false;
-      await control.served?.close();
+      await observedEnvironment()?.close();
       control.ready = undefined;
       control.served = undefined;
       process.exitCode = originalExitCode;

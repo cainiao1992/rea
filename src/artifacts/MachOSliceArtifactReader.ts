@@ -9,7 +9,7 @@ import {
   type NativeCommandRunner,
 } from "../native/CommandRunner.js";
 import {
-  parseLipoOutput,
+  parseLipoOutputResult,
   type LipoArchitecture,
 } from "../native/parsers/lipo.js";
 import type { MachoSlice } from "../domain/apple/dylibResolution.js";
@@ -115,7 +115,14 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     };
     await this.#verifySource(source);
     const fileSize = source.initial.size;
-    const lipo = parseLipoOutput(captured.value.stdout, this.path);
+    const parsed = parseLipoOutputResult(captured.value.stdout, this.path);
+    if (!parsed.ok)
+      throw new ArtifactReaderFailure(
+        "format",
+        `lipo did not produce readable architecture records: ${parsed.error.message}`,
+        { cause: parsed.error },
+      );
+    const lipo = parsed.value;
     const { architectures } = lipo;
     const structural = await readStructuralSlices(source.handle, fileSize);
     await this.#verifySource(source);

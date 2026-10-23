@@ -248,6 +248,49 @@ describe("MachOSliceArtifactReader hidden architectures", () => {
 });
 
 describe("MachOSliceArtifactReader", () => {
+  it("classifies malformed successful lipo output at the reader boundary", async () => {
+    const root = await createTestTempDirectory("rea-slices-malformed-lipo-");
+    const binary = join(root, "fat");
+    await writeFile(
+      binary,
+      fatImage([
+        { cpu: CPU.x86_64, bytes: machoImage({ cpu: CPU.x86_64 }) },
+        { cpu: CPU.arm64, bytes: machoImage({ cpu: CPU.arm64 }) },
+      ]),
+    );
+    const reader = new MachOSliceArtifactReader(
+      binary,
+      {},
+      {
+        run: async () =>
+          ok({
+            tool: "lipo",
+            executable: "/usr/bin/lipo",
+            executableSha256: "1".repeat(64),
+            toolVersion: null,
+            versionReason: "fixture",
+            arguments: ["-detailed_info", binary],
+            stdout: "Fat header in: fixture\n",
+            stderr: "",
+            stdoutBytes: 23,
+            stderrBytes: 0,
+            exitCode: 0,
+            signal: null,
+          }),
+      },
+    );
+    onTestFinished(() => reader.close());
+
+    await expect(
+      reader.entries()[Symbol.asyncIterator]().next(),
+    ).rejects.toMatchObject({
+      reason: "format",
+      message:
+        "lipo did not produce readable architecture records: lipo output contained no architectures",
+      cause: new TypeError("lipo output contained no architectures"),
+    });
+  });
+
   it("keeps a borrowed source usable after idle and active cancelled slice reads", async () => {
     const root = await createTestTempDirectory("rea-slices-cancelled-");
     const binary = join(root, "fat");

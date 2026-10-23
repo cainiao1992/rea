@@ -187,6 +187,37 @@ it("requires an explicit slice of a universal Mach-O and reads only that slice",
   expect(failure(thin, "arm64").reason).toBe("slice-not-found");
 });
 
+it.each(["thin", "universal"] as const)(
+  "links a %s x86-64 Mach-O while retaining the reader's amd64 spelling",
+  (format) => {
+    const thin = createIl2cppBinaryFixture();
+    thin.writeUInt32LE(0x01000007, 4);
+    thin.writeUInt32LE(3, 8);
+    const bytes =
+      format === "thin"
+        ? thin
+        : createUniversalFixture([
+            { cpu: 0x0100000c, bytes: createIl2cppBinaryFixture() },
+            { cpu: 0x01000007, bytes: thin },
+          ]);
+    // Match the selected FAT declaration to CPU_SUBTYPE_X86_64_ALL in its header.
+    if (format === "universal") bytes.writeUInt32BE(3, 8 + 20 + 4);
+    const original = Buffer.from(bytes);
+    const linked = link(bytes, format === "thin" ? undefined : "amd64");
+    expect(linked).toMatchObject({
+      format: "macho",
+      architecture: "amd64",
+      code_gen_modules_field: FIXTURE_BINARY_BASE + 0x600n,
+      code_gen_modules_array: FIXTURE_BINARY_BASE + 0x500n,
+    });
+    expect(linked.method_addresses).toEqual(expectedAddresses);
+    expect(linked.return_types).toEqual(
+      link(createIl2cppBinaryFixture()).return_types,
+    );
+    expect(bytes).toEqual(original);
+  },
+);
+
 it.each<
   [string, Il2cppBinaryFixtureOptions, string, "unsupported" | "malformed"]
 >([

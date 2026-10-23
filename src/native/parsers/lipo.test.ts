@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseLipoOutput } from "./lipo.js";
+import { parseLipoCapture, parseLipoOutput } from "./lipo.js";
 
 const fatRecords = `fat_magic 0xcafebabe
 nfat_arch 2
@@ -19,6 +19,39 @@ architecture x86_64
     size 32
     align 2^12 (4096)
 `;
+
+it("retains native command capture when shared lipo parsing rejects records", () => {
+  const capture = {
+    tool: "lipo",
+    executable: "/usr/bin/lipo",
+    executableSha256: "1".repeat(64),
+    toolVersion: null,
+    versionReason: null,
+    arguments: ["-detailed_info", "/fixture/fat"],
+    stdout: "Fat header in: /fixture/fat\n",
+    stderr: "lipo emitted no slice rows",
+    stdoutBytes: 28,
+    stderrBytes: 26,
+    exitCode: 0,
+    signal: null,
+  };
+  const parsed = parseLipoCapture(capture, "inspect_macho", "/fixture/fat");
+  expect(parsed).toMatchObject({
+    ok: false,
+    error: {
+      operation: "inspect_macho",
+      cause: new TypeError("lipo output contained no architectures"),
+      capturedOutput: {
+        stdout: capture.stdout,
+        stderr: capture.stderr,
+        stdout_bytes: capture.stdoutBytes,
+        stderr_bytes: capture.stderrBytes,
+        exit_code: 0,
+        signal: null,
+      },
+    },
+  });
+});
 
 describe("lipo architecture facts", () => {
   it("preserves Apple's declared and hidden ARM64 architecture scopes", () => {

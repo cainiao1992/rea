@@ -147,8 +147,10 @@ in [CLI and Evidence](cli.md#run-a-command). Compact delivery requires
 preserves every decoded row for subsequent queries without the original file.
 
 `--binary PATH` links method addresses and `--architecture arm64|amd64` selects
-exactly one slice of a universal Mach-O. Multiple slices with the same
-architecture label are refused as `ambiguous-slice-selection`, including
+exactly one slice of a universal Mach-O. The report retains the native reader's
+`amd64` spelling for x86-64; loader CPU checks use the corresponding `x86_64`
+identity. Multiple slices with the same architecture label are refused as
+`ambiguous-slice-selection`, including
 distinct ARM subtypes that both map to `arm64`. On macOS, use `lipo -info`
 to enumerate exact subtypes, then extract the intended subtype into a separate
 file, for example `lipo universal -thin arm64e -output thin-arm64e`. Inspect

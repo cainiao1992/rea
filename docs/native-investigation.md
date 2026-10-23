@@ -433,6 +433,8 @@ Available CPU type, subtype/capability bits, byte range, and alignment remain
 checked against the source bytes. Inventory records source ranges and hashes, and
 extraction copies those ranges without running the target. This does not
 expand any analysis provider's supported architectures.
+Malformed successful `lipo` output reports a format failure with its parse
+diagnostic.
 Apple lipo's hidden ARM64 compatibility row is retained separately from the
 raw `nfat_arch` count and admitted only from its extra FAT table slot when its
 in-range Mach-O header matches the row. `list_architectures` preserves the

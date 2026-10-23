@@ -138,36 +138,46 @@ export const parseLipoOutput = (
   };
 };
 
-/** The producing parser owns malformed tool-output classification for every adapter. */
+/** Classify expected lipo parse failures once for all command adapters. */
+export const parseLipoOutputResult = (
+  output: string,
+  operandPath?: string,
+): Result<LipoOutput, TypeError | z.ZodError> => {
+  try {
+    return ok(parseLipoOutput(output, operandPath));
+  } catch (cause: unknown) {
+    if (!(cause instanceof TypeError) && !(cause instanceof z.ZodError))
+      throw cause;
+    return err(cause);
+  }
+};
+
+/** Translate classified parse failure into native command output failure. */
 export const parseLipoCapture = (
   capture: NativeCommandCapture,
   operation: "inspect_macho" | "list_architectures",
   operandPath: string,
 ): Result<LipoOutput, AnalysisOutputError> => {
-  try {
-    return ok(parseLipoOutput(capture.stdout, operandPath));
-  } catch (cause) {
-    if (!(cause instanceof TypeError) && !(cause instanceof z.ZodError))
-      throw cause;
-    return err(
-      new AnalysisOutputError(
-        operation,
-        "lipo did not produce readable architecture records",
-        {
-          cause,
-          capturedOutput: {
-            stdout: capture.stdout,
-            stderr: capture.stderr,
-            truncated: false,
-            stdout_bytes: capture.stdoutBytes,
-            stderr_bytes: capture.stderrBytes,
-            exit_code: capture.exitCode,
-            signal: capture.signal,
-          },
+  const parsed = parseLipoOutputResult(capture.stdout, operandPath);
+  if (parsed.ok) return parsed;
+  return err(
+    new AnalysisOutputError(
+      operation,
+      "lipo did not produce readable architecture records",
+      {
+        cause: parsed.error,
+        capturedOutput: {
+          stdout: capture.stdout,
+          stderr: capture.stderr,
+          truncated: false,
+          stdout_bytes: capture.stdoutBytes,
+          stderr_bytes: capture.stderrBytes,
+          exit_code: capture.exitCode,
+          signal: capture.signal,
         },
-      ),
-    );
-  }
+      },
+    ),
+  );
 };
 
 const integer = (value: string | undefined): number | null => {

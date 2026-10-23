@@ -81,6 +81,18 @@ export const createRustImage = (options: {
   return bytes;
 };
 
+/** Read-only ELF data stays independent of its section-name spelling or availability. */
+export const rustElfSectionNameFixture = (
+  name: "named" | "empty" | "unavailable",
+): Buffer => {
+  const bytes = createRustImage({ format: "elf", omitSection: true });
+  // This fixture's read-only PROGBITS header is at 384. Its PT_LOAD is writable,
+  // so compiler-path recovery must use the section rather than segment fallback.
+  if (name === "empty") bytes.writeUInt32LE(0, 384);
+  if (name === "unavailable") bytes.writeUInt16LE(0, 62);
+  return bytes;
+};
+
 interface RustImageWrite {
   readonly bytes: Buffer;
   readonly little: (offset: number, value: number, width: 16 | 32 | 64) => void;

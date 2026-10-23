@@ -138,7 +138,7 @@ const configureClientDocument = async (
     return { status: "failed", reason: "readback" };
   const policy = await readClientPolicyBlock(
     client,
-    undefined,
+    existing,
     await clientConfigurationDesired(
       client,
       environment,
@@ -498,7 +498,7 @@ const inspectClientDocument = async (
     };
   const policy = await readClientPolicyBlock(
     client,
-    undefined,
+    existing,
     await clientConfigurationDesired(
       client,
       providerEnvironment,

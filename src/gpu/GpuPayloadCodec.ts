@@ -1,3 +1,4 @@
+import { nodeCodecResult } from "../compression/NodeCodecResult.js";
 import { constants, inflate, zstdDecompress } from "node:zlib";
 import { promisify } from "node:util";
 import { assertArtifactReadActive } from "../artifacts/ArtifactFileOperation.js";
@@ -31,22 +32,7 @@ export const decodeGpuPayload = async (
     );
   }
   assertArtifactReadActive(signal);
-  if (
-    typeof result !== "object" ||
-    result === null ||
-    !("buffer" in result) ||
-    !Buffer.isBuffer(result.buffer) ||
-    !("engine" in result) ||
-    typeof result.engine !== "object" ||
-    result.engine === null ||
-    !("bytesWritten" in result.engine) ||
-    typeof result.engine.bytesWritten !== "number"
-  )
-    throw new Error(
-      "Built-in GPU decoder omitted its buffer or consumed-input accounting",
-    );
-  const decoded = result.buffer;
-  const consumed = result.engine.bytesWritten;
+  const { buffer: decoded, consumedBytes: consumed } = nodeCodecResult(result);
   if (
     consumed !== bytes.length &&
     (!allowZeroPadding ||

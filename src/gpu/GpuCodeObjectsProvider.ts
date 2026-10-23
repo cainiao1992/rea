@@ -46,7 +46,10 @@ import {
 } from "./GpuSource.js";
 import { GpuInventory } from "./GpuInventory.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
-import { sameRegularFileState } from "../filesystem/RegularFile.js";
+import {
+  isSelectedRegularFileError,
+  sameRegularFileState,
+} from "../filesystem/RegularFile.js";
 
 export const GPU_CODE_OBJECTS_PROVIDER_IDENTITY = {
   id: "gpu-code-objects",
@@ -166,6 +169,8 @@ export class GpuCodeObjectsProvider implements GpuCodeObjectsPort {
           primary.code,
           { cause: primary },
         );
+      else if (isSelectedRegularFileError(primary))
+        error = new BinaryTargetError(input.path, primary.message, { cause });
       else if (
         primary instanceof ArtifactReaderFailure &&
         primary.reason === "limit"
@@ -181,8 +186,7 @@ export class GpuCodeObjectsProvider implements GpuCodeObjectsPort {
             remediationAction: `${primary.message} The GPU object allowance is ${String(GPU_OBJECT_BYTES)} bytes. This release has no runtime override. Additional host memory does not raise it. Repeating the unchanged request fails the same way.`,
           },
         );
-      else if (primary instanceof Error && "code" in primary)
-        error = new BinaryTargetError(input.path, primary.message, { cause });
+      // Other coded I/O failures remain host failures (for example, EMFILE).
       else
         error = new ProviderAdapterError(this.identity.id, OPERATION, {
           cause,

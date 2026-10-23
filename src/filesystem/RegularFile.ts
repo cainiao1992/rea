@@ -63,6 +63,27 @@ export class RegularFileChangedError extends Error {
   }
 }
 
+const SELECTED_REGULAR_FILE_ERROR_CODES = new Set([
+  "ENOENT",
+  "ENOTDIR",
+  "ELOOP",
+  "ENAMETOOLONG",
+  "EISDIR",
+  "ENOTFILE",
+  "ESTALE",
+]);
+
+/** Whether an errno identifies the selected path or file itself. */
+export const isSelectedRegularFileError = (
+  cause: unknown,
+): cause is Error & { readonly code: string } => {
+  if (!(cause instanceof Error)) return false;
+  const code: unknown = Reflect.get(cause, "code");
+  return (
+    typeof code === "string" && SELECTED_REGULAR_FILE_ERROR_CODES.has(code)
+  );
+};
+
 /** One admitted file descriptor and the metadata that identified its contents. */
 export interface StableRegularFileDescriptor {
   readonly handle: FileHandle;

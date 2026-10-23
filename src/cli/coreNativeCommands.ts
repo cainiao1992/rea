@@ -1,5 +1,6 @@
 import { nativeDispatchMetadataInputSchema } from "../domain/native/objcSwiftMetadata.js";
 import { z } from "incur";
+import { resolveCliAnalysisSelector } from "./analysisSelector.js";
 
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
@@ -359,9 +360,15 @@ const registerNativeApiCommand = (
     description: "Reconstruct one native function API boundary with evidence",
     args: z.object({
       path: z.string().describe("App or program path"),
-      address: z.string().describe("Procedure name or address"),
+      address: z.string().optional().describe("Procedure name or address"),
     }),
     options: z.object({
+      procedure: z
+        .string()
+        .optional()
+        .describe(
+          "Procedure selector; use this option for symbols beginning with a dash",
+        ),
       snapshot: snapshotSelectionOption,
       ...nativeOpenOptionFields,
     }),
@@ -370,7 +377,14 @@ const registerNativeApiCommand = (
         runDirectAnalysis(
           args.path,
           "inspect_native_api",
-          { procedure: args.address },
+          {
+            procedure: resolveCliAnalysisSelector(
+              args.address,
+              options.procedure,
+              "procedure",
+              "inspect_native_api",
+            ),
+          },
           directAnalysisOptionsFromCli(logger, options),
         ),
       ),

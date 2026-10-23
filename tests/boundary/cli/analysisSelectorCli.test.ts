@@ -4,6 +4,7 @@ import { cliTest } from "../../support/cli/cliFixture.js";
 
 const selectors = [
   ["function", "procedure", "analyze_function"],
+  ["inspect-native-api", "procedure", "inspect_native_api"],
   ["instructions", "procedure", "read_function_instructions"],
   ["decompile", "procedure", "procedure_pseudo_code"],
   ["xrefs", "address", "xrefs"],
@@ -92,3 +93,20 @@ describe("CLI analysis selector boundaries", () => {
     },
   );
 });
+
+cliTest(
+  "accepts an Objective-C instance method through inspect-native-api's named selector",
+  async ({ cli }) => {
+    const result = await cli.run({
+      arguments: [
+        "inspect-native-api",
+        "does-not-exist",
+        "--procedure=-[Widget run]",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.json).toMatchObject({ code: "target_unavailable" });
+  },
+);

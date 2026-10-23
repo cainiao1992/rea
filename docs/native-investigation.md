@@ -732,6 +732,17 @@ capture or automatic permission prompts. Executable bytes and process launch
 time guard against a different target or PID reuse. AX selection requires one
 unique geometry match; ambiguity fails closed.
 
+Accessibility node values preserve strings, finite numbers and booleans as their
+original JSON scalar types. Values that JSON cannot represent faithfully,
+including unsafe integers, negative zero and non-finite numbers, remain null
+with a path-specific gap and incomplete capture coverage. Null alone does not
+establish that an accessibility value was successfully read or absent.
+
+An initial PID or window selection refusal is `invalid_request` on `pid` or
+`window_id` and leaves provider availability intact. Identity or window loss
+after the initial capture remains an observation failure with collected facts.
+Permission and other helper failures retain their specific remediation text.
+
 `capture_native_ui_scenario` takes AX child-index paths for press, increment/
 decrement scrolling and text-value entry, or bounded waits. No global event
 injection is used. Unsupported AX actions fail explicitly. The result preserves

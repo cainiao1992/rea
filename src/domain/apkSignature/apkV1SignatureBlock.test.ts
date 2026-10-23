@@ -306,3 +306,25 @@ it("matches supported issuer strings across encodings and RDN attribute order, p
     ),
   ).toBeNull();
 });
+
+it("keeps exact issuer identity when its comparison key cannot be interpreted", () => {
+  const unsupported = tlv(
+    0x30,
+    tlv(
+      0x31,
+      tlv(
+        0x30,
+        tlv(0x06, Buffer.alloc(65, 1)),
+        tlv(0x0c, Buffer.from("opaque")),
+      ),
+    ),
+  );
+  const certificate = withIssuer(LEAF_CERTIFICATE, unsupported);
+  const block = decoded(
+    signedDataBlock({
+      certificates: [certificate],
+      signerInfos: [signerInfo({ names: certificate })],
+    }),
+  );
+  expect(block.signerInfos[0]?.certificateIndex).toBe(0);
+});

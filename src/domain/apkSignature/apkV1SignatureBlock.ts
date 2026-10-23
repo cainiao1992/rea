@@ -191,46 +191,52 @@ const equalBytes = (a: Uint8Array, b: Uint8Array): boolean =>
  * exact encoded identity is still available independently of normalization.
  */
 const directoryNameKey = (name: Asn1BerNode): string | null => {
-  const attributes = new Set([
-    "2.5.4.3",
-    "2.5.4.6",
-    "2.5.4.7",
-    "2.5.4.8",
-    "2.5.4.10",
-    "2.5.4.11",
-  ]);
-  const rdns: string[][] = [];
-  for (const rdn of name.children) {
-    if (rdn.tag !== TAG.set || rdn.children.length === 0) return null;
-    const values: string[] = [];
-    for (const attribute of rdn.children) {
-      if (attribute.tag !== TAG.sequence || attribute.children.length !== 2)
-        return null;
-      const [id, value] = attribute.children;
-      if (
-        id?.tag !== TAG.oid ||
-        value === undefined ||
-        ![0x0c, 0x13].includes(value.tag)
-      )
-        return null;
-      const oid = oidText(id.content);
-      if (
-        !attributes.has(oid) ||
-        value.content.some((byte) => byte < 0x20 || byte > 0x7e)
-      )
-        return null;
-      const text = Buffer.from(value.content)
-        .toString("ascii")
-        .trim()
-        .replace(/ +/gu, " ")
-        .toLowerCase();
-      if (value.tag === 0x13 && !/^[a-z0-9 '()+,./:=?-]*$/iu.test(text))
-        return null;
-      values.push(JSON.stringify([oid, text]));
+  try {
+    const attributes = new Set([
+      "2.5.4.3",
+      "2.5.4.6",
+      "2.5.4.7",
+      "2.5.4.8",
+      "2.5.4.10",
+      "2.5.4.11",
+    ]);
+    const rdns: string[][] = [];
+    for (const rdn of name.children) {
+      if (rdn.tag !== TAG.set || rdn.children.length === 0) return null;
+      const values: string[] = [];
+      for (const attribute of rdn.children) {
+        if (attribute.tag !== TAG.sequence || attribute.children.length !== 2)
+          return null;
+        const [id, value] = attribute.children;
+        if (
+          id?.tag !== TAG.oid ||
+          value === undefined ||
+          ![0x0c, 0x13].includes(value.tag)
+        )
+          return null;
+        const oid = oidText(id.content);
+        if (
+          !attributes.has(oid) ||
+          value.content.some((byte) => byte < 0x20 || byte > 0x7e)
+        )
+          return null;
+        const text = Buffer.from(value.content)
+          .toString("ascii")
+          .trim()
+          .replace(/ +/gu, " ")
+          .toLowerCase();
+        if (value.tag === 0x13 && !/^[a-z0-9 '()+,./:=?-]*$/iu.test(text))
+          return null;
+        values.push(JSON.stringify([oid, text]));
+      }
+      rdns.push(values.sort());
     }
-    rdns.push(values.sort());
+    return JSON.stringify(rdns);
+  } catch (cause) {
+    if (cause instanceof BlockFailure && cause.error.kind === "malformed-pkcs7")
+      return null;
+    throw cause;
   }
-  return JSON.stringify(rdns);
 };
 
 /** The X.509 facts a SignerInfo can name: issuer Name DER, serial and SKI. */

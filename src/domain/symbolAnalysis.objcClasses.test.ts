@@ -224,3 +224,18 @@ it("keeps regular self-scope and weak rebinding records separate", () => {
     ],
   });
 });
+
+it("excludes pointer and string labels that only contain a class marker", () => {
+  const result = discoverObjcClasses(
+    [
+      { address: "0x1", name: "PTR__OBJC_CLASS_$_NSAlert_100028668" },
+      { address: "0x2", name: "s__OBJC_CLASS_$_NSAlert_10002ed0d" },
+      { address: "0x3", name: "AppKit::_OBJC_CLASS_$_NSAlert" },
+    ],
+    "",
+  );
+  expect(result).toMatchObject({
+    count: 1,
+    classes: [{ address: "0x3", name: "AppKit::_OBJC_CLASS_$_NSAlert" }],
+  });
+});

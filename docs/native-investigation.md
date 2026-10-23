@@ -506,6 +506,12 @@ complete observation.
   comments do not change that handling. XML key names combine their text and
   CDATA segments without trimming or expanding literal CDATA entities. Other
   values and the original archive digest are preserved.
+  Symbol fallback accepts complete Objective-C class/metaclass symbol leaves,
+  including qualified names. Pointer/string labels that merely contain a class
+  marker do not establish classes. Provider namespace method labels are not
+  interpreted as Objective-C declarations; class definition versus import origin
+  remains unsupported coverage rather than an inferred classification.
+
 - `decode_interface_builder` / `rea decode-interface-builder <app>` reads
   compiled storyboard and nib resources into objects, outlets, actions,
   connections and controller/class names. A full app graph is often several

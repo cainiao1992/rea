@@ -1,3 +1,4 @@
+import { objcClassSymbol } from "../objcClassSymbol.js";
 import { z } from "zod";
 import {
   BINARY_ARCHITECTURES,
@@ -500,10 +501,8 @@ export const inspectNativeDispatchMetadata = (
     const parsedAddress = nativeAddressInputSchema.safeParse(entry.address);
     const address = parsedAddress.success ? parsedAddress.data : null;
     const sourceAddress = parsedAddress.success ? entry.address : null;
-    const classMatch = /(?:OBJC_CLASS_|OBJC_METACLASS_)\$_([^\s]+)/u.exec(
-      entry.name,
-    );
-    if (classMatch?.[1] !== undefined) classNames.add(classMatch[1]);
+    const classSymbol = objcClassSymbol(entry.name);
+    if (classSymbol !== undefined) classNames.add(classSymbol.name);
 
     const methodMatch = /^([+-])\[([^\s\]]+)\s+([^\]]+)\]$/u.exec(entry.name);
     if (methodMatch?.[1] !== undefined && methodMatch[2] && methodMatch[3]) {
@@ -605,9 +604,17 @@ export const inspectNativeDispatchMetadata = (
             ? "record_limit_reached_and_only_symbolized_methods_are_resolved"
             : decodedImplementations.length > 0
               ? "only_symbolized_methods_are_resolved"
-              : "provider_name_inventory_has_no_objc_method_symbols",
+              : "provider_name_inventory_has_no_supported_objc_method_symbols",
         examined: examinedNames.length,
         decoded: decodedImplementations.length,
+      },
+      {
+        facet: "objc_class_definitions",
+        status: "unsupported",
+        reason:
+          "symbol_inventory_does_not_establish_class_definitions_import_origins_or_namespace_declarations",
+        examined: examinedNames.length,
+        decoded: 0,
       },
       {
         facet: "objc_ivar_layouts",

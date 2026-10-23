@@ -214,3 +214,34 @@ describe("ObjC/Swift metadata", () => {
     );
   });
 });
+
+it("derives classes only from complete class symbol leaves", () => {
+  const result = inspectNativeDispatchMetadata(
+    [
+      "PTR__OBJC_CLASS_$_NSAlert_100028668",
+      "s__OBJC_CLASS_$_NSAlert_10002ed0d",
+      "s__OBJC_CLASS_$_NSAppleEventManage_10002ed23",
+      "_OBJC_CLASS_$_Local",
+      "/System/Library/Frameworks/AppKit::_OBJC_CLASS_$_NSAlert",
+      "_OBJC_METACLASS_$_Local",
+      "OwnController::viewDidLoad",
+    ].map((name, index) => ({ address: `0x${String(index + 1)}`, name })),
+  );
+  expect(result.objc_classes.map(({ name }) => name)).toEqual([
+    "Local",
+    "NSAlert",
+  ]);
+  expect(result.coverage).toContainEqual(
+    expect.objectContaining({
+      facet: "objc_class_definitions",
+      status: "unsupported",
+      reason: expect.stringContaining("namespace_declarations"),
+    }),
+  );
+  expect(result.coverage).toContainEqual(
+    expect.objectContaining({
+      facet: "objc_dispatch_implementations",
+      reason: "provider_name_inventory_has_no_supported_objc_method_symbols",
+    }),
+  );
+});

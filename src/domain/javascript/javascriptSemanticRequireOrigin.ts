@@ -1460,17 +1460,9 @@ export const semanticGlobalProcessPathOrigin = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptModuleOrigin | undefined => {
-  const members: string[] = [];
-  let current = unwrapJavaScriptExpression(node).node;
-  while (
-    t.isMemberExpression(current) ||
-    t.isOptionalMemberExpression(current)
-  ) {
-    const key = semanticStaticPropertyKey(current.property, current.computed);
-    if (key === null) return undefined;
-    members.unshift(key);
-    current = unwrapJavaScriptExpression(current.object).node;
-  }
+  const chain = semanticMemberChain(node);
+  if (chain === undefined) return undefined;
+  const { root: current, members } = chain;
   if (
     !t.isIdentifier(current) ||
     !["globalThis", "global", "window", "self"].includes(current.name) ||

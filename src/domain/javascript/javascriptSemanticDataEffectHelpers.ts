@@ -34,6 +34,7 @@ import {
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 import {
   readExactJavaScriptLiteral,
+  semanticMemberChain,
   semanticStaticPropertyKey,
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
@@ -319,20 +320,14 @@ const semanticBoundMemberPath = (
       readonly path: string[];
     }
   | undefined => {
-  const path: string[] = [];
-  let current = unwrapJavaScriptExpression(node).node;
-  while (
-    t.isMemberExpression(current) ||
-    t.isOptionalMemberExpression(current)
-  ) {
-    const key = semanticStaticPropertyKey(current.property, current.computed);
-    if (key === null || !t.isNode(current.object)) return undefined;
-    path.unshift(key);
-    current = unwrapJavaScriptExpression(current.object).node;
-  }
-  if (!t.isIdentifier(current)) return undefined;
-  const binding = resolveSemanticBindingState(state, current, current.name);
-  return binding === undefined ? undefined : { binding, path };
+  const chain = semanticMemberChain(node);
+  if (chain === undefined || !t.isIdentifier(chain.root)) return undefined;
+  const binding = resolveSemanticBindingState(
+    state,
+    chain.root,
+    chain.root.name,
+  );
+  return binding === undefined ? undefined : { binding, path: chain.members };
 };
 
 type BuiltinBindingMemo = Map<t.Node, Map<string, readonly string[] | null>>;

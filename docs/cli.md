@@ -759,6 +759,10 @@ such as `UNSUPPORTED_OUTPUT_COMBINATION` for `--json` with `--token-limit`. Use
 
 ## Output and exit status
 
+Commands reject surplus positional arguments before execution, including commands
+that accept no positionals. Use `rea <command> --help` for the declared argument
+shape; a final variadic argument continues to accept multiple values.
+
 `rea mcp doctor --json` checks production MCP startup and reports child logs in
 `diagnostics`. It drains stderr while retaining at most its first 64 KiB of raw
 bytes as text, omitting a final UTF-8 code point if it crosses that byte limit.

@@ -1,4 +1,3 @@
-import type { Evidence } from "../domain/evidence.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
@@ -33,7 +32,7 @@ export const withSessionCleanup = async <Value>(
 
 /** Project typed one-shot outcomes only after execution and cleanup settle. */
 export const directAnalysisCleanupFailure = (
-  result: Result<Evidence, AnalysisError>,
+  result: Result<JsonValue, AnalysisError>,
   error: AnalysisError,
 ): JsonValue => {
   const cleanup = projectAnalysisError(error);

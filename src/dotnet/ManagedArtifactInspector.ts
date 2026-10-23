@@ -189,9 +189,57 @@ const runtimeFamilyFor = (
   const hasUnity = inventory.referenceNames.some(
     (name) => name === "UnityEngine" || name.startsWith("UnityEngine."),
   );
+  const hasFrameworkTarget = frameworks.some((value) =>
+    value.startsWith(".NETFramework,"),
+  );
+  const hasModernTarget = frameworks.some((value) =>
+    value.startsWith(".NETCoreApp,"),
+  );
+  const hasStandardTarget = frameworks.some((value) =>
+    value.startsWith(".NETStandard,"),
+  );
+  if (cli.readyToRunSignature)
+    evidence.push({
+      code: "ready-to-run-signature-observed",
+      detail: "The managed native header has the ReadyToRun signature.",
+      file_offset: layout.rvaToOffset(
+        cli.managedNativeHeader.rva,
+        4,
+        "cli.managed-native-header",
+      ),
+    });
+  if (hasUnity)
+    evidence.push({
+      code: "unity-reference-observed",
+      detail:
+        "The admitted AssemblyRef table contains a UnityEngine reference.",
+      file_offset: metadata.table(35)?.offset ?? null,
+    });
+  if (hasFrameworkTarget)
+    evidence.push({
+      code: "target-framework-observed",
+      detail:
+        "An assembly-level TargetFrameworkAttribute names .NET Framework.",
+      file_offset: metadata.table(12)?.offset ?? null,
+    });
+  if (hasModernTarget)
+    evidence.push({
+      code: "target-framework-observed",
+      detail: "An assembly-level TargetFrameworkAttribute names modern .NET.",
+      file_offset: metadata.table(12)?.offset ?? null,
+    });
+  if (hasStandardTarget)
+    evidence.push({
+      code: "target-framework-observed",
+      detail:
+        "An assembly-level TargetFrameworkAttribute names .NET Standard, an API specification that does not identify a runtime family.",
+      file_offset: metadata.table(12)?.offset ?? null,
+    });
   let runtimeFamily: ManagedArtifactInspection["classification"]["runtime_family"] =
     "unknown";
-  if (runtimeFamilyFromCliHeader(cli) === "mixed-clr-native") {
+  if (cli.readyToRunSignature) {
+    runtimeFamily = "modern-dotnet";
+  } else if (runtimeFamilyFromCliHeader(cli) === "mixed-clr-native") {
     runtimeFamily = "mixed-clr-native";
     evidence.push({
       code: "cli-il-only-clear",
@@ -201,47 +249,10 @@ const runtimeFamilyFor = (
     });
   } else if (hasUnity) {
     runtimeFamily = "unity-mono";
-    evidence.push({
-      code: "unity-reference-observed",
-      detail:
-        "The admitted AssemblyRef table contains a UnityEngine reference.",
-      file_offset: metadata.table(35)?.offset ?? null,
-    });
-  } else if (frameworks.some((value) => value.startsWith(".NETFramework,"))) {
+  } else if (hasFrameworkTarget) {
     runtimeFamily = "dotnet-framework";
-    evidence.push({
-      code: "target-framework-observed",
-      detail:
-        "An assembly-level TargetFrameworkAttribute names .NET Framework.",
-      file_offset: metadata.table(12)?.offset ?? null,
-    });
-  } else if (
-    frameworks.some((value) => value.startsWith(".NETCoreApp,")) ||
-    cli.readyToRunSignature
-  ) {
+  } else if (hasModernTarget) {
     runtimeFamily = "modern-dotnet";
-    evidence.push({
-      code: cli.readyToRunSignature
-        ? "ready-to-run-signature-observed"
-        : "target-framework-observed",
-      detail: cli.readyToRunSignature
-        ? "The managed native header has the ReadyToRun signature."
-        : "An assembly-level TargetFrameworkAttribute names modern .NET.",
-      file_offset: cli.readyToRunSignature
-        ? layout.rvaToOffset(
-            cli.managedNativeHeader.rva,
-            4,
-            "cli.managed-native-header",
-          )
-        : (metadata.table(12)?.offset ?? null),
-    });
-  } else if (frameworks.some((value) => value.startsWith(".NETStandard,"))) {
-    evidence.push({
-      code: "target-framework-observed",
-      detail:
-        "An assembly-level TargetFrameworkAttribute names .NET Standard, an API specification that does not identify a runtime family.",
-      file_offset: metadata.table(12)?.offset ?? null,
-    });
   }
   return { runtime_family: runtimeFamily, evidence };
 };

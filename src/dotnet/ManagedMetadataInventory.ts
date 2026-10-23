@@ -13,6 +13,8 @@ import {
   readCustomAttribute,
   readModule,
   readResource,
+  managedMetadataTypeNames,
+  type ManagedMetadataTypeNameLookup,
 } from "./ManagedMetadataInventoryRows.js";
 import { metadataToken } from "./ManagedMetadataHeaps.js";
 import type { TypeMemberListFacts } from "./ManagedTypeMemberLists.js";
@@ -166,6 +168,7 @@ const readAttributes = (
   layout: ManagedMetadataLayout,
   issues: ManagedParseIssue[],
   memberLists: TypeMemberListFacts,
+  typeNames: ManagedMetadataTypeNameLookup,
 ): {
   readonly attributes: readonly CustomAttribute[];
   readonly targetFrameworks: readonly string[];
@@ -180,6 +183,7 @@ const readAttributes = (
           heapExtent(layout),
           issues,
           memberLists,
+          typeNames,
         ),
       issues,
     ),
@@ -207,6 +211,7 @@ export const readManagedMetadataInventory = (
     ManagedMetadataInventory,
     "module" | "issues"
   > = readManagedModuleIdentity(bytes, layout),
+  typeNames?: ManagedMetadataTypeNameLookup,
 ): ManagedMetadataInventory => {
   const issues: ManagedParseIssue[] = [...memberLists.issues];
   issues.push(...identity.issues);
@@ -228,6 +233,7 @@ export const readManagedMetadataInventory = (
     layout,
     issues,
     memberLists,
+    typeNames ?? managedMetadataTypeNames(bytes, layout, issues),
   );
   return {
     module,

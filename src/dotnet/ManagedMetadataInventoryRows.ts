@@ -1,4 +1,8 @@
 import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
+import { managedTypeReferences } from "./ManagedTypeReferences.js";
+import { MAX_TYPE_NESTING_DEPTH } from "./ManagedTypeNameDigests.js";
+import { readManagedTypeNesting } from "./ManagedTypeNesting.js";
+import type { ManagedTypeNesting } from "./ManagedTypeNesting.js";
 import { memberDeclaringTypeRowLookup } from "./ManagedMemberOwnership.js";
 import type { TypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 
@@ -20,7 +24,9 @@ import {
   readMetadataString,
 } from "./ManagedMetadataHeaps.js";
 import { managedFailure, readManagedValue } from "./ManagedReaderFailure.js";
+import type { ManagedTypeReferenceLookup } from "./ManagedTypeReferences.js";
 import type { ManagedResourceDirectory } from "./ManagedMetadataInventory.js";
+import type { ManagedType } from "./ManagedMemberInspectorCore.js";
 
 type ModuleIdentity = NonNullable<ManagedArtifactInspection["module"]>;
 type AssemblyIdentity = NonNullable<ManagedArtifactInspection["assembly"]>;
@@ -229,48 +235,161 @@ export const readAssemblyReference = (
   };
 };
 
-interface ReadTypeNameContext {
-  readonly bytes: Buffer;
-  readonly layout: ManagedMetadataLayout;
-  readonly table: 1 | 2;
-  readonly row: number;
-  readonly heapExtent: number;
-}
+export type ManagedMetadataTypeNameLookup = (
+  table: 1 | 2,
+  row: number,
+) => string | null;
 
-const readTypeName = ({
-  bytes,
-  layout,
-  table,
-  row,
-  heapExtent,
-}: ReadTypeNameContext): string | null => {
-  const descriptor = layout.table(table);
-  if (descriptor === undefined || row < 1 || row > descriptor.rowCount)
-    return null;
-  const cursor = metadataRowCursor(bytes, layout, table, row);
-  if (table === 1) cursor.readIndex(layout.codedIndexSize("ResolutionScope"));
-  else cursor.readUInt32();
-  const name = readMetadataString(
-    bytes,
-    layout,
-    cursor.readIndex(layout.stringIndexSize),
-    heapExtent,
-  );
-  const namespace = readMetadataString(
-    bytes,
-    layout,
-    cursor.readIndex(layout.stringIndexSize),
-    heapExtent,
-  );
-  return namespace.length === 0 ? name : `${namespace}.${name}`;
+/** Resolve the display name from the same validated nesting facts used by member parsing. */
+export const managedMetadataTypeNames = (
+  bytes: Buffer,
+  layout: ManagedMetadataLayout,
+  issues: ManagedParseIssue[],
+  parsedTypes?: {
+    readonly types: readonly ManagedType[];
+    readonly nesting: ManagedTypeNesting;
+  },
+  parsedReferences?: ManagedTypeReferenceLookup,
+): ManagedMetadataTypeNameLookup => {
+  const nesting =
+    parsedTypes?.nesting ?? readManagedTypeNesting(bytes, layout, issues);
+  const references =
+    parsedReferences ?? managedTypeReferences(bytes, layout, issues);
+  const definitions = new Map<number, ManagedType>();
+  if (parsedTypes !== undefined) {
+    managedDecodeBudget(layout).reserve(parsedTypes.types.length * 128, null);
+    for (const type of parsedTypes.types)
+      definitions.set(Number.parseInt(type.token.slice(4), 16), type);
+  }
+  const cache = new Map<
+    string,
+    {
+      readonly fullName: string;
+      readonly depth: number;
+      readonly utf8Bytes: number;
+    } | null
+  >();
+  const depthLimit = Symbol("type-name-depth-limit");
+  const resolve = (
+    table: 1 | 2,
+    row: number,
+    active: ReadonlySet<string> = new Set(),
+  ):
+    | {
+        readonly fullName: string;
+        readonly depth: number;
+        readonly utf8Bytes: number;
+      }
+    | null
+    | typeof depthLimit => {
+    const key = `${String(table)}:${String(row)}`;
+    if (cache.has(key)) return cache.get(key) ?? null;
+    const descriptor = layout.table(table);
+    if (descriptor === undefined || row < 1 || row > descriptor.rowCount)
+      return null;
+    if (active.has(key)) {
+      cache.set(key, null);
+      return null;
+    }
+    if (active.size >= MAX_TYPE_NESTING_DEPTH) return depthLimit;
+    managedDecodeBudget(layout).reserve(128, null);
+    let name: string;
+    let namespace: string;
+    let parentRow: number | null;
+    if (table === 1) {
+      const reference = references(row);
+      if (reference === null || !reference.scopeValid) {
+        cache.set(key, null);
+        return null;
+      }
+      ({ name, namespace, enclosingRow: parentRow } = reference);
+    } else {
+      if (!nesting.complete) {
+        cache.set(key, null);
+        return null;
+      }
+      const parsed = definitions.get(row);
+      if (parsedTypes !== undefined && parsed === undefined) {
+        cache.set(key, null);
+        return null;
+      }
+      let flags: number;
+      if (parsed !== undefined) {
+        name = parsed.name;
+        namespace = parsed.namespace;
+        flags = parsed.flags;
+      } else {
+        const cursor = metadataRowCursor(bytes, layout, table, row);
+        flags = cursor.readUInt32();
+        name = readMetadataString(
+          bytes,
+          layout,
+          cursor.readIndex(layout.stringIndexSize),
+          layout.strings.size,
+        );
+        namespace = readMetadataString(
+          bytes,
+          layout,
+          cursor.readIndex(layout.stringIndexSize),
+          layout.strings.size,
+        );
+      }
+      parentRow = nesting.enclosing.get(row) ?? null;
+      const isNested = (flags & 0x7) >= 2;
+      if (isNested !== (parentRow !== null)) {
+        cache.set(key, null);
+        return null;
+      }
+    }
+    let fullName: string | null;
+    let depth = 1;
+    let utf8Bytes = 0;
+    const nameBytes = Buffer.byteLength(name, "utf8");
+    if (parentRow === null) {
+      if (namespace.length === 0) {
+        fullName = name;
+        utf8Bytes = nameBytes;
+      } else {
+        utf8Bytes = Buffer.byteLength(namespace, "utf8") + 1 + nameBytes;
+        managedDecodeBudget(layout).reserveString(
+          utf8Bytes,
+          metadataRowOffset(layout, table, row),
+        );
+        fullName = `${namespace}.${name}`;
+      }
+    } else {
+      const parents = new Set(active);
+      parents.add(key);
+      const parent = resolve(table, parentRow, parents);
+      if (parent === depthLimit) return depthLimit;
+      if (parent === null) fullName = null;
+      else {
+        depth = parent.depth + 1;
+        utf8Bytes = parent.utf8Bytes + 1 + nameBytes;
+        managedDecodeBudget(layout).reserveString(
+          utf8Bytes,
+          metadataRowOffset(layout, table, row),
+        );
+        fullName = `${parent.fullName}+${name}`;
+      }
+    }
+    if (depth > MAX_TYPE_NESTING_DEPTH) fullName = null;
+    const named = fullName === null ? null : { fullName, depth, utf8Bytes };
+    cache.set(key, named);
+    return named;
+  };
+  return (table, row) => {
+    const named = resolve(table, row);
+    return named === null || named === depthLimit ? null : named.fullName;
+  };
 };
 
 const declaringTypeForMethod = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   methodRow: number,
-  heapExtent: number,
   memberLists: TypeMemberListFacts,
+  typeName: ManagedMetadataTypeNameLookup,
 ): string | null => {
   const owner = memberDeclaringTypeRowLookup(
     bytes,
@@ -279,21 +398,21 @@ const declaringTypeForMethod = (
     memberLists,
   )(methodRow);
   if (owner === 0) return null;
-  return readTypeName({ bytes, layout, table: 2, row: owner, heapExtent });
+  return typeName(2, owner);
 };
 
 const attributeTypeName = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   rawType: number,
-  heapExtent: number,
   memberLists: TypeMemberListFacts,
+  typeName: ManagedMetadataTypeNameLookup,
 ): string | null => {
   const tag = rawType & 7;
   const row = Math.floor(rawType / 8);
   if (row === 0) return null;
   if (tag === 2)
-    return declaringTypeForMethod(bytes, layout, row, heapExtent, memberLists);
+    return declaringTypeForMethod(bytes, layout, row, memberLists, typeName);
   if (tag !== 3) return null;
   const memberRefs = layout.table(10);
   if (memberRefs === undefined || row > memberRefs.rowCount) return null;
@@ -301,29 +420,15 @@ const attributeTypeName = (
   const parent = cursor.readIndex(layout.codedIndexSize("MemberRefParent"));
   const parentTag = parent & 7;
   const parentRow = Math.floor(parent / 8);
-  if (parentTag === 0)
-    return readTypeName({
-      bytes,
-      layout,
-      table: 2,
-      row: parentRow,
-      heapExtent,
-    });
-  if (parentTag === 1)
-    return readTypeName({
-      bytes,
-      layout,
-      table: 1,
-      row: parentRow,
-      heapExtent,
-    });
+  if (parentTag === 0) return typeName(2, parentRow);
+  if (parentTag === 1) return typeName(1, parentRow);
   if (parentTag === 3)
     return declaringTypeForMethod(
       bytes,
       layout,
       parentRow,
-      heapExtent,
       memberLists,
+      typeName,
     );
   return null;
 };
@@ -389,6 +494,7 @@ export const readCustomAttribute = (
   heapExtent: number,
   issues: ManagedParseIssue[],
   memberLists: TypeMemberListFacts,
+  typeNames: ManagedMetadataTypeNameLookup,
 ): CustomAttribute => {
   const cursor = metadataRowCursor(bytes, layout, 12, row);
   const parentRaw = cursor.readIndex(
@@ -451,8 +557,7 @@ export const readCustomAttribute = (
   if (constructor !== null)
     typeName =
       readManagedValue(
-        () =>
-          attributeTypeName(bytes, layout, typeRaw, heapExtent, memberLists),
+        () => attributeTypeName(bytes, layout, typeRaw, memberLists, typeNames),
         issues,
       ) ?? null;
   return {

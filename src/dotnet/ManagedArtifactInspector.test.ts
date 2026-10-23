@@ -479,6 +479,100 @@ describe("managed artifact coded indexes", () => {
 });
 
 describe("managed artifact reference inventory", () => {
+  it("qualifies local custom-attribute names with their enclosing types", () => {
+    const bytes = buildManagedPeFixture({
+      additionalEmptyTypes: 1,
+      customAttributeTypeRaw: (1 << 3) | 2,
+      nestedTypes: [[2, 1]],
+      typeName: "InnerAttribute",
+      typeNamespace: "",
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.attributes[0]?.type_name).toBe("Empty0+InnerAttribute");
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  });
+
+  it("qualifies referenced custom-attribute names from TypeRef scopes", () => {
+    const bytes = buildManagedPeFixture({
+      customAttributeTypeRaw: (1 << 3) | 3,
+      memberRefParentRaw: (3 << 3) | 1,
+      typeReferences: [
+        { namespace: "Fixture", name: "Outer" },
+        { namespace: "", name: "InnerAttribute", enclosingRow: 2 },
+      ],
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.attributes[0]?.type_name).toBe(
+      "Fixture.Outer+InnerAttribute",
+    );
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  });
+
+  it.each([
+    {
+      label: "duplicate NestedClass rows",
+      additionalEmptyTypes: 1,
+      nestedTypes: [
+        [2, 1],
+        [2, 1],
+      ] as const,
+      coverage: "partial",
+    },
+    {
+      label: "a cyclic NestedClass chain",
+      additionalEmptyTypes: 2,
+      nestedTypes: [
+        [2, 3],
+        [3, 2],
+      ] as const,
+      coverage: "complete",
+    },
+  ])("leaves a nested attribute name unknown for $label", (fixture) => {
+    const bytes = buildManagedPeFixture({
+      additionalEmptyTypes: fixture.additionalEmptyTypes,
+      customAttributeTypeRaw: (1 << 3) | 2,
+      nestedTypes: fixture.nestedTypes,
+      typeName: "InnerAttribute",
+      typeNamespace: "",
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.attributes[0]?.type_name).toBeNull();
+    expect(result.coverage.state).toBe(fixture.coverage);
+  });
+
+  it("leaves a custom-attribute name unknown when nesting exceeds its cap", () => {
+    const nestedTypes: (readonly [number, number])[] = Array.from(
+      { length: 64 },
+      (_, index) => [65 - index, 64 - index],
+    );
+    const bytes = buildManagedPeFixture({
+      additionalEmptyTypes: 64,
+      customAttributeTypeRaw: (1 << 3) | 2,
+      nestedTypes,
+      typeName: "InnerAttribute",
+      typeNamespace: "",
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.attributes[0]?.type_name).toBeNull();
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  });
+
   it("returns all references inline while classifying from the full inventory", () => {
     const bytes = buildManagedPeFixture({
       references: ["System.Runtime", "UnityEngine.CoreModule"],
@@ -548,6 +642,39 @@ describe("managed fixture data layout", () => {
 });
 
 describe("managed implementation classification", () => {
+  it.each([
+    {
+      hint: "Unity AssemblyRef",
+      options: { references: ["UnityEngine.CoreModule"] },
+      evidence: "unity-reference-observed",
+    },
+    {
+      hint: ".NET Framework target",
+      options: { targetFramework: ".NETFramework,Version=v4.8" },
+      evidence: "target-framework-observed",
+    },
+  ])(
+    "keeps ReadyToRun classification and evidence with a $hint",
+    ({ options, evidence }) => {
+      const bytes = buildManagedPeFixture({ readyToRun: true, ...options });
+      const result = inspectManagedArtifactBytes(
+        bytes,
+        managedPeFixtureTarget(bytes),
+      );
+
+      expect(result.classification).toMatchObject({
+        runtime_family: "modern-dotnet",
+        implementation: "cil-and-ready-to-run",
+      });
+      expect(result.classification.evidence).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "ready-to-run-signature-observed" }),
+          expect.objectContaining({ code: evidence }),
+        ]),
+      );
+    },
+  );
+
   it("classifies crossgen2 ReadyToRun output without ILONLY as modern .NET", () => {
     // crossgen2 writes IL_LIBRARY | STRONGNAMESIGNED and clears ILONLY.
     const bytes = buildManagedPeFixture({ readyToRun: true, cliFlags: 0xc });

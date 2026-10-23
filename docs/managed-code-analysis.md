@@ -182,6 +182,9 @@ declares API compatibility across multiple .NET implementations. REA preserves
 that target in `target_frameworks` and leaves `runtime_family` as `unknown`
 unless independent markers identify a runtime family, such as a ReadyToRun
 signature.
+When ReadyToRun is observed, `runtime_family` remains `modern-dotnet` even if
+Unity or target-framework hints are also present; the separate hint evidence
+is retained in the classification evidence list.
 
 ### Resource admission
 
@@ -541,6 +544,10 @@ ambiguous pointers leave affected owners unknown with partial coverage while
 preserving readable member and attribute facts.
 The retained inverse indexes are admitted against the existing representation
 budget before allocation.
+
+Custom-attribute `type_name` uses `Outer+Nested` when its local TypeDef or
+TypeRef enclosing chain is readable. It remains `null` when the constructor's
+type or required enclosing facts cannot be resolved.
 
 `exported_types` reports ExportedType rows as declared. Facade assemblies such
 as .NET `System.Runtime.dll` provide their types this way: `forwarder: true`

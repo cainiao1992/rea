@@ -18,6 +18,7 @@ import {
   readManagedMetadataInventory,
   readManagedModuleIdentity,
 } from "./ManagedMetadataInventory.js";
+import { managedMetadataTypeNames } from "./ManagedMetadataInventoryRows.js";
 import { managedPeInspectionEnvelope } from "./ManagedPeInspectionEnvelope.js";
 import { readManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import {
@@ -262,6 +263,13 @@ export const inspectManagedMembersBytes = (
       readManagedResourceDirectory(pe, issues),
       memberLists,
       identity,
+      managedMetadataTypeNames(
+        bytes,
+        layout,
+        issues,
+        parsedTypes,
+        typeReferences,
+      ),
     );
     appendManagedParseIssues(issues, inventory.issues);
     const exportedTypes = parseExportedTypes(bytes, layout);

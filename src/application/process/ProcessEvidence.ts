@@ -4,7 +4,6 @@ import { posix, win32 } from "node:path";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import {
   createEvidence,
-  type Evidence,
   type EvidenceProvider,
 } from "../../domain/evidence.js";
 import {
@@ -18,6 +17,7 @@ import {
 } from "../../domain/process/processCaptureParsing.js";
 import { safeParseEvidence } from "../../domain/evidenceValidation.js";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
+import type { ParsedProcessCaptureEvidence } from "../../domain/process/processComparisonEvidence.js";
 import { err, ok, type Result } from "../../domain/result.js";
 
 const PROCESS_CAPTURE_EVIDENCE = {
@@ -45,10 +45,7 @@ export type ProcessCaptureEvidenceFailure =
 /** Authenticate capture Evidence before admitting its workflow, provider and payload. */
 export const parseProcessCaptureEvidence = (
   input: unknown,
-): Result<
-  { readonly record: Evidence; readonly capture: ProcessCapture },
-  ProcessCaptureEvidenceFailure
-> => {
+): Result<ParsedProcessCaptureEvidence, ProcessCaptureEvidenceFailure> => {
   const parsedEvidence = safeParseEvidence(input);
   if (!parsedEvidence.ok)
     return err({ kind: "invalid-evidence", cause: parsedEvidence.error });

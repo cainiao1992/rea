@@ -7,16 +7,14 @@ import {
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import type { AnalysisErrorProjection } from "../../domain/analysisErrorProjection.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
-import { createEvidence } from "../../domain/evidence.js";
 import { describeValidationFailure } from "../../domain/validationFailure.js";
-import { jsonValueSchema } from "../../domain/jsonValue.js";
 import {
   analysisInputErrorFromIssues,
   projectInputIssues,
 } from "../../domain/inputIssueProjection.js";
 import { processTraceSpecificationSchema } from "../../domain/process/processTraceSpecification.js";
 import { processScenarioSchema } from "../../domain/process/processScenario.js";
-import { compareProcessCaptures } from "../../domain/process/processComparison.js";
+import { compareProcessCaptureEvidence } from "../../domain/process/processComparisonEvidence.js";
 import { createProgressReporter } from "../ProgressReporter.js";
 import { captureProcessScenario } from "../../process/capture/ProcessHarness.js";
 import { ProcessCaptureResourceScope } from "../../process/capture/ProcessCaptureLifecycle.js";
@@ -134,31 +132,11 @@ export const compareProcessEvidenceFiles = async (
         : parseTraceSpecification(
             await readJson(traceSpecPath, "compare_process_captures", signal),
           );
-    const comparison =
-      traceSpecification === undefined
-        ? compareProcessCaptures(left.capture, right.capture)
-        : compareProcessCaptures(left.capture, right.capture, {
-            traceSpecification,
-          });
-    return createEvidence(undefined, PROCESS_PROVIDER, {
-      predicateType: "rea.process-comparison",
-      operation: "compare_process_captures",
-      parameters: {
-        left_evidence_id: left.record.evidence_id,
-        right_evidence_id: right.record.evidence_id,
-        left_normalization: left.capture.normalization,
-        right_normalization: right.capture.normalization,
-        ...(traceSpecification === undefined
-          ? {}
-          : { trace_spec: jsonValueSchema.parse(traceSpecification) }),
-      },
-      result: jsonValueSchema.parse(comparison),
-      confidence: "derived",
-      authority: "analyst-inference",
-      limitations: comparison.limitations,
-      locations: [...left.record.locations, ...right.record.locations],
-      evidenceLinks: [left.record.evidence_id, right.record.evidence_id],
-    });
+    return compareProcessCaptureEvidence(
+      left,
+      right,
+      traceSpecification === undefined ? {} : { traceSpecification },
+    ).evidence;
   } catch (cause: unknown) {
     if (cause instanceof RegularFileCleanupFailure) throw cause;
     return projectProcessCliError(cause, "compare_process_captures");

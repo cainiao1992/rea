@@ -11,6 +11,7 @@ import { FUNCTION_COMPARISON_EXAMPLE } from "../../../src/contracts/functionComp
 import {
   FUNCTION_COMPARISON_EVIDENCE,
   INVESTIGATION_EXAMPLES,
+  PROCESS_COMPARISON_EVIDENCE,
 } from "../../../src/contracts/investigationExamples.js";
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { findChangedBehavior } from "../../../src/domain/changedBehavior.js";
@@ -167,6 +168,16 @@ it("feeds the exact public CLI/MCP process comparison into all three MCP consume
   );
   expect(cliComparison).toEqual(comparison);
   await expectConsumerResults(client, comparison);
+});
+
+it("advertises the same process comparison Evidence that its example inputs produce", async () => {
+  const { client } = await connectedComparison();
+  const response = await client.callTool({
+    name: "compare_process_captures",
+    arguments: INVESTIGATION_EXAMPLES.compare_process_captures.input,
+  });
+  expect(response.isError, JSON.stringify(response)).not.toBe(true);
+  expect(inlineEvidence(response)).toEqual(PROCESS_COMPARISON_EVIDENCE);
 });
 
 type IdentityChange = Partial<

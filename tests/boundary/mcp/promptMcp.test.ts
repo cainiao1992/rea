@@ -10,6 +10,7 @@ import {
 import {
   STDIO_DEFAULT_MAX_BUFFER_SIZE,
   type McpServer,
+  type JSONRPCMessage,
 } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -60,6 +61,71 @@ afterEach(async () => {
 });
 
 describe("guided prompts over MCP", () => {
+  it("classifies malformed discovery parameters separately from handler failures", async () => {
+    const session = fixtureSession();
+    const server = createServer({ kind: "session", session });
+    const [peer, transport] = InMemoryTransport.createLinkedPair();
+    resources.push(server, peer, session);
+    await server.connect(transport);
+    await peer.start();
+    let id = 0;
+    const request = (method: string, params: Record<string, unknown>) =>
+      new Promise<JSONRPCMessage>((resolve, reject) => {
+        id += 1;
+        const requestId = id;
+        peer.onmessage = (message) => {
+          if ("id" in message && message.id === requestId) resolve(message);
+        };
+        void peer
+          .send({ jsonrpc: "2.0", id: requestId, method, params })
+          .catch(reject);
+      });
+    await request("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "raw-parameter-test", version: "1" },
+    });
+    await peer.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    for (const [method, params] of [
+      [
+        "prompts/get",
+        { name: "investigate_feature", arguments: { feature: 5 } },
+      ],
+      ["prompts/get", { name: "investigate_feature", arguments: null }],
+      ["prompts/list", { cursor: 5 }],
+      [
+        "completion/complete",
+        {
+          ref: { type: "ref/tool", name: "binary_session" },
+          argument: { name: "foo", value: "" },
+        },
+      ],
+      ["tools/list", { cursor: 5 }],
+    ] as const) {
+      expect(await request(method, params)).toMatchObject({
+        error: { code: -32602, message: expect.stringContaining("params") },
+      });
+    }
+    expect(
+      await request("prompts/get", {
+        name: "investigate_feature",
+        arguments: { feature: "offline search" },
+      }),
+    ).toHaveProperty("result.messages");
+    expect(await request("prompts/list", {})).toHaveProperty("result.prompts");
+    expect(
+      await request("completion/complete", {
+        ref: { type: "ref/prompt", name: "investigate_feature" },
+        argument: { name: "provider", value: "" },
+      }),
+    ).toHaveProperty("result.completion");
+    server.server.setRequestHandler("prompts/list", async () => {
+      throw new Error("injected internal failure");
+    });
+    expect(await request("prompts/list", {})).toMatchObject({
+      error: { code: -32603, message: "injected internal failure" },
+    });
+  });
   it("lists and renders all workflows without changing the tool inventory", async () => {
     const session = fixtureSession();
     const client = await connect(createServer({ kind: "session", session }));

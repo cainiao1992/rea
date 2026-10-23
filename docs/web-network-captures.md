@@ -465,7 +465,9 @@ api-surface grouping, then keeps the groups on the primary origin, the origin
 with the most JSON-like records (`application/json`, `application/*+json`,
 `text/plain`, `text/markdown`), whose path starts with `/api/` or `/apis/` or
 whose content types are JSON-like, and the write groups answered with no body
-(a bodiless `204 DELETE`). Every other group is listed under
+(a bodiless `204 DELETE`). Empty retained response text establishes a bodiless
+write only when its encoding is understood and unredacted; an opaque or hidden
+encoding leaves the body unknown. Every other group is listed under
 `excluded` with reason `other-origin`, `ui-page-or-asset` or `non-json`, and
 retained records without a usable request line are counted in a limitation.
 

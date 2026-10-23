@@ -70,3 +70,15 @@ export const readRecordedResponseBody = (
     return { bodyText: encoded, bodyEncoding: "base64", ...flags };
   }
 };
+
+/** Prove decoded emptiness with a bounded prefix, preserving encoding and cut uncertainty. */
+export const recordedResponseBodyIsEmpty = (
+  record: WebNetworkCaptureRecord,
+): boolean => {
+  const body = readRecordedResponseBody(record, 0);
+  return (
+    body.bodyText === "" &&
+    body.bodyEncoding === undefined &&
+    body.bodyCut !== true
+  );
+};

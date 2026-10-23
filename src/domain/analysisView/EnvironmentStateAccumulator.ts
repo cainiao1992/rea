@@ -30,6 +30,7 @@ import {
 import {
   base64PrefixChars,
   readRecordedResponseBody,
+  recordedResponseBodyIsEmpty,
   type RecordedResponseBody,
 } from "./recordedResponseBody.js";
 import {
@@ -296,13 +297,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     const entry = this.#entries.get(ordinal);
     if (entry === undefined) return false;
     if (entry.facts.status === 204) return true;
-    // Emptiness needs only a tiny decoded prefix; never decode a whole body outside the state budget.
-    const body = readRecordedResponseBody(entry.record, 0);
-    return (
-      body.bodyText === "" &&
-      body.bodyEncoding === undefined &&
-      body.bodyCut !== true
-    );
+    return recordedResponseBodyIsEmpty(entry.record);
   }
 
   /** Project the init state of the manifest's primary origin; records keep timeline order. */

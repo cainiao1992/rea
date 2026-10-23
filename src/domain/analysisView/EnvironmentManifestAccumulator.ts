@@ -11,6 +11,7 @@ import {
   type WebNetworkCaptureRecord,
 } from "../webNetworkCapture.js";
 import { completeWithinViewCoverage } from "./analysisViewCoverage.js";
+import { recordedResponseBodyIsEmpty } from "./recordedResponseBody.js";
 import type { UnsignedAnalysisView } from "./analysisView.js";
 import { WebNetworkProjectionAccumulator } from "./WebNetworkProjectionAccumulator.js";
 import {
@@ -105,14 +106,14 @@ const responseTextSchema = z.object({
   }),
 });
 /** Whether a record's response had no body: a 204 or 205, an empty text, or a recorded size of zero; a missing text alone may be a body not kept. */
-const emptyResponse = (reported: unknown): boolean => {
-  const parsed = responseTextSchema.safeParse(reported);
+const emptyResponse = (record: WebNetworkCaptureRecord): boolean => {
+  const parsed = responseTextSchema.safeParse(record.reported);
   if (!parsed.success) return false;
   const { status, content } = parsed.data.response;
   return (
     status === 204 ||
     status === 205 ||
-    content?.text === "" ||
+    recordedResponseBodyIsEmpty(record) ||
     ((content?.text === undefined || content.text === null) &&
       content?.size === 0)
   );
@@ -292,7 +293,7 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
         route,
         queryNames,
         { key, group },
-        { shape: bodyShape.value, empty: emptyResponse(record.reported) },
+        { shape: bodyShape.value, empty: emptyResponse(record) },
       );
     } finally {
       this.releaseTemporary();

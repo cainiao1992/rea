@@ -29,6 +29,16 @@ the selected object as a host process, or requests runtime library resolution. T
 uses isolated mode and an owned cache. Exact upstream profiles are recorded in
 [upstream provenance](https://github.com/morluto/rea/blob/main/third_party/pwntools/README.md).
 
+The adapter skips pwntools kernel configuration and version discovery: those
+memory-content scans supply none of this report's fields. Ordinary `IKCFG_ST`
+data is not interpreted as a kernel-config request, and virtual zero-filled
+LOAD tails are reported from their headers without materializing them for that
+scan. GOT/PLT inference and the advertised static mitigation indicators still
+use the pinned upstream implementations. Header-table file ranges are checked
+before dependency seeks. Structural inventory and the convenience-map engine
+still parse the snapshot separately; eliminating that remaining duplication
+requires preserving the upstream GOT/PLT and mitigation facts.
+
 ## Interpreting results
 
 - Artifact path, SHA-256 and size identify original selected bytes. All parsing

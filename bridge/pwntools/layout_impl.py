@@ -132,6 +132,11 @@ def inspect_elf(path, cache):
         try:
             headers = ELFFile(io.BytesIO(content))
             section_count = headers.num_sections()
+            if section_count:
+                location(headers.header.e_shoff, section_count * headers.header.e_shentsize, len(content))
+            segment_count = headers.num_segments()
+            if segment_count:
+                location(headers.header.e_phoff, segment_count * headers.header.e_phentsize, len(content))
             if headers.header.e_shstrndx == 0xffff and section_count == 0:
                 raise LayoutFailure("format", "ELF extended section-name index requires a declared section-zero header.")
             raw_name_index = headers.header.e_shstrndx
@@ -147,9 +152,21 @@ def inspect_elf(path, cache):
                 if names_header.sh_type != "SHT_STRTAB":
                     raise LayoutFailure("format", f"ELF section-name table {section_name_index} is not SHT_STRTAB.")
                 location(names_header.sh_offset, names_header.sh_size, len(content))
-        except ELFError as error:
+        except (ELFError, ValueError, OverflowError, AssertionError, IndexError) as error:
             raise LayoutFailure("format", str(error)) from error
         class LayoutELF(ELF):
+            def search(self, needle, writable=False, executable=False):
+                # This adapter exposes structural facts, GOT/PLT and mitigation
+                # indicators, not kernel config/version discovery. Upstream's
+                # constructor searches virtual memory for those unrelated
+                # heuristics, materializing NOBITS tails and interpreting
+                # ordinary IKCFG_ST data as a compressed kernel config.
+                return iter(())
+
+            def _populate_kernel_version(self):
+                # Kernel banner decoding is outside this report too.
+                return None
+
             def _get_section_name(self, header):
                 # SHN_UNDEF declares no names; upstream would otherwise read
                 # strings at the inactive section-zero offset.
@@ -294,6 +311,7 @@ def inspect_elf(path, cache):
                     "Relocatable relocation targets with SHN_UNDEF or inactive SHT_NULL headers retain their reported section index/offset as unknown; they do not establish an associated target section.",
                     "GOT/PLT are derived upstream convenience maps; PLT inference can emulate selected instructions in Unicorn. They do not establish target runtime behavior; aliases may collapse and warnings may indicate incomplete coverage. Their completeness is unknown.",
                     "Mitigations are upstream static heuristics, not runtime protection. ET_DYN does not prove an executable; absent canary symbols do not prove every function unprotected.",
+                    "Kernel configuration/version discovery is not performed; these memory-content scans do not supply the reported structural, linkage or mitigation facts.",
                     "This profile inspects ELF EXEC/DYN/REL layout only. It does not analyze recorded cores, resolve loaded libraries, launch the target as a host process or start a debugger.",
                     "Symbol/relocation inventories reflect original section tables. A sectionless image can still report dynamic dependency names; missing tables do not prove absence of dynamic symbols or relocations.",
                     *(["Absent section-name table: section-dependent RELRO/canary heuristics may be incomplete; protection coverage is unknown."] if all_sections and section_name_index == 0 else []),
@@ -302,7 +320,7 @@ def inspect_elf(path, cache):
             }
         except LayoutFailure:
             raise
-        except (ELFError, ValueError, AssertionError, IndexError) as error:
+        except (ELFError, ValueError, OverflowError, AssertionError, IndexError) as error:
             raise LayoutFailure("format", "Selected ELF failed unchanged upstream structural parsing: " + str(error)) from error
 
 

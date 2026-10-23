@@ -129,8 +129,10 @@ native-addon, process, and IPC timeline events. IPC channels and argument-shape
 metadata retain their observed lengths; payload values are never retained.
 Renderer crash/restart and deep-link actions are synthetic
 scenario controls; their attempted and observed outcomes remain in the
-timeline. The active hook blocks and records external shell/navigation,
-permission, download, popup, updater, and OS-integration effects. The timeline
+timeline. The active hook blocks and records the shell methods listed below
+and selected navigation, permission, download, popup, updater, and
+OS-integration APIs. These method patches do not contain direct filesystem,
+network, native-addon, or other unpatched target effects. The timeline
 is explicitly partial when attachment starts after application activity. The
 startup, including the initial state snapshot, has a 60-second deadline.
 Actions wait until completion or request cancellation; a click whose target
@@ -139,11 +141,14 @@ window, remains pending until cancelled. After cancellation, the final state
 read has 5 seconds before REA keeps the initial snapshot instead; the
 cancellation keeps the caller's reason and records that expiry in its
 diagnostics.
-Blocked synchronous shell APIs keep their return contracts:
+The shell policy is owned by `blockedShellResults` in
+`scripts/electron-active-hook-boundaries.cjs`. Its synchronous blocks are:
 `showItemInFolder` returns `undefined` and `writeShortcutLink` returns `false`.
 Their `shell-attempt` events record the blocked phase and argument shapes;
 neither result means the requested host operation occurred. The existing
-`openExternal` and `openPath` blocks continue to reject their promises.
+`openExternal`, `openPath`, and `trashItem` blocks reject their promises.
+The `trashItem` block prevents that call from reaching the OS trash operation;
+it does not intercept other ways the application can remove files.
 CLI SIGINT/SIGTERM requests cancellation and awaits owned-process cleanup.
 Window IDs, URLs, and cached titles come from one main-process Electron snapshot,
 so a crashed renderer does not require a successful renderer-side title query.

@@ -66,7 +66,8 @@ export class SafeOutputTree {
   readonly #nestedDirectories = new Map<string, DirectoryIdentity>();
   readonly #unknownDirectories = new Set<string>();
   readonly #ownedFiles = new Map<string, FileIdentity>();
-  readonly #openFiles = new Map<string, OwnedFileHandle>();
+  /** Exclusive files awaiting identity admission; admitted identity and handles have separate owners. */
+  readonly #pendingFiles = new Map<string, OwnedFileHandle>();
   readonly #openHandles = new Set<OwnedFileHandle>();
   #published = false;
   #createdRoot = true;
@@ -211,13 +212,14 @@ export class SafeOutputTree {
         );
       });
       const ownedHandle = this.#trackHandle(handle);
-      this.#openFiles.set(destination, ownedHandle);
+      this.#pendingFiles.set(destination, ownedHandle);
       const fileIdentity = await readFileIdentity(
         ownedHandle.handle,
         destination,
       );
       await assertFilePathIdentity(destination, fileIdentity);
       this.#ownedFiles.set(destination, fileIdentity);
+      this.#pendingFiles.delete(destination);
       if (this.platform !== "win32") {
         await ownedHandle.handle.chmod(0o600);
         if (((await ownedHandle.handle.stat()).mode & 0o777) !== 0o600)
@@ -255,7 +257,7 @@ export class SafeOutputTree {
       await this.#assertLineage(lineage);
       await assertFilePathIdentity(destination, fileIdentity);
       await ownedHandle.handle.sync();
-      await this.#closeFileHandle(destination, ownedHandle);
+      await this.#closeHandle(ownedHandle);
       const readbackHandle = this.#trackHandle(
         await open(destination, constants.O_RDONLY | constants.O_NOFOLLOW),
       );
@@ -284,7 +286,7 @@ export class SafeOutputTree {
     }
   }
 
-  /** Sync the owned output tree and prevent further writes through this instance. */
+  /** Sync files' containing directories from children to root, then publish the root in its parent. */
   async commit(signal?: AbortSignal): Promise<void> {
     this.#assertWritable();
     abortIfNeeded(signal);
@@ -302,7 +304,7 @@ export class SafeOutputTree {
         constants.O_RDONLY | constants.O_DIRECTORY,
       ),
     );
-    let output: OwnedFileHandle | undefined;
+    const handles: OwnedFileHandle[] = [parent];
     let sync:
       | { readonly kind: "synced" }
       | {
@@ -310,18 +312,21 @@ export class SafeOutputTree {
           readonly cause: unknown;
         } = { kind: "synced" };
     try {
-      output = this.#trackHandle(
-        await open(
-          this.#outputRoot,
-          constants.O_RDONLY | constants.O_DIRECTORY,
-        ),
-      );
-      await assertHandleIdentity(
-        output.handle,
-        this.#requireRootIdentity(),
-        this.#outputRoot,
-      );
-      await output.handle.sync();
+      // A directory's entries become durable before its parent publishes the
+      // child directory name. Keep only one nested descriptor open at a time.
+      const directories = [...this.#nestedDirectories].reverse();
+      directories.push([this.#outputRoot, this.#requireRootIdentity()]);
+      for (const [path, identity] of directories) {
+        abortIfNeeded(signal);
+        const directory = this.#trackHandle(
+          await open(path, constants.O_RDONLY | constants.O_DIRECTORY),
+        );
+        handles.push(directory);
+        await assertHandleIdentity(directory.handle, identity, path);
+        await directory.handle.sync();
+        await this.#closeHandle(directory);
+        handles.pop();
+      }
       await parent.handle.sync();
       await this.#assertExactEntries();
       abortIfNeeded(signal);
@@ -330,9 +335,7 @@ export class SafeOutputTree {
       sync = { kind: "failed", cause };
     }
     const closeResults = await Promise.allSettled(
-      [parent, output]
-        .filter(isDefined)
-        .map((handle) => this.#closeHandle(handle)),
+      handles.map((handle) => this.#closeHandle(handle)),
     );
     const closeFailures = closeResults
       .filter(isRejected)
@@ -609,24 +612,18 @@ export class SafeOutputTree {
       throw new AggregateError(failures, "Output tree handles remain open");
   }
 
-  async #closeFileHandle(path: string, owner: OwnedFileHandle): Promise<void> {
-    await this.#closeHandle(owner);
-    this.#openFiles.delete(path);
-  }
-
   async #admitPendingFiles(): Promise<void> {
-    for (const [path, owner] of this.#openFiles) {
+    for (const [path, owner] of this.#pendingFiles) {
       let identity = this.#ownedFiles.get(path);
       if (identity === undefined) {
         identity = await readFileIdentity(owner.handle, path);
         await assertFilePathIdentity(path, identity);
         this.#ownedFiles.set(path, identity);
       }
+      this.#pendingFiles.delete(path);
     }
   }
 }
-
-const isDefined = <T>(value: T | undefined): value is T => value !== undefined;
 
 const isRejected = (
   result: PromiseSettledResult<void>,

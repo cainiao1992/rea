@@ -116,6 +116,13 @@ artifact can execute successfully.
 
 ## Own the lifecycle
 
+`SafeOutputTree` publishes only after file readback, nested-directory fsync
+from children to parents, and root-parent fsync on hosts that support directory
+syncing. Windows skips directory fsync. Failed writes retain a separate pending
+identity admission only until identity is captured; rollback retries retain
+unremoved file/directory identities and open handles independently, so confirmed
+unlink progress cannot be re-admitted through a closed descriptor.
+
 For tools that acquire resources, identify the owner and the observations that
 establish each transition. Include temporary files and one-shot commands, as
 well as persistent engine sessions. Use the existing provider contracts;

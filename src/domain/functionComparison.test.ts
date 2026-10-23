@@ -630,6 +630,65 @@ describe("function comparison ordering controls", () => {
 });
 
 describe("function comparison CFG address normalization", () => {
+  it.each([
+    { start: "ram:0x1000", end: "rom:0x1004", successors: [] },
+    { start: "ram:0x1000", end: "ram:0x1004", successors: ["rom:0x1000"] },
+    { start: "ram:0x1000", end: "ram:0x1004", successors: ["0x1000"] },
+    { start: "ram::0x1000", end: "ram::0x1004", successors: [] },
+  ])("keeps incompatible CFG coordinates unknown: %j", (block) => {
+    const value = functionDossierSchema.parse({
+      ...dossier("return 0;", "0x1000"),
+      basic_blocks: [block],
+    });
+    const source = functionSnapshotFixture(observe("a", value));
+    expect(
+      compareFunctions(source, source).dimensions.find(
+        ({ dimension }) => dimension === "cfg",
+      ),
+    ).toMatchObject({ status: "unknown" });
+  });
+
+  it("keeps disconnected blocks in different spaces unknown", () => {
+    const value = functionDossierSchema.parse({
+      ...dossier("return 0;", "0x1000"),
+      basic_blocks: [
+        { start: "ram:0x1000", end: "ram:0x1004", successors: [] },
+        { start: "rom:0x2000", end: "rom:0x2004", successors: [] },
+      ],
+    });
+    const source = functionSnapshotFixture(observe("a", value));
+    expect(
+      compareFunctions(source, source).dimensions.find(
+        ({ dimension }) => dimension === "cfg",
+      ),
+    ).toMatchObject({ status: "unknown" });
+  });
+
+  it.each(["rom:0x1004", "RAM:0x1004", "0x1004", "ram:0x0fff"])(
+    "keeps non-relative comment and reference sites unknown: %s",
+    (site) => {
+      const value = functionDossierSchema.parse({
+        ...dossier("return 0;", "0x1000"),
+        procedure: {
+          ...procedure("ram:0x1000", "main"),
+          signature: null,
+          locals: [],
+        },
+        comments: [{ address: site, kind: "comment", text: "marker" }],
+        referenced_strings: [
+          { address: "rom:0x9000", source_address: site, value: "marker" },
+        ],
+      });
+      const source = functionSnapshotFixture(observe("a", value));
+      for (const dimension of ["comments", "strings_names"])
+        expect(
+          compareFunctions(source, source).dimensions.find(
+            (item) => item.dimension === dimension,
+          ),
+        ).toMatchObject({ status: "unknown" });
+    },
+  );
+
   it("matches CFG successors by numeric address", () => {
     const make = (base: "0x1000" | "0x2000") =>
       functionDossierSchema.parse({

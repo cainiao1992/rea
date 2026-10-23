@@ -1,5 +1,6 @@
 import { canonicalJson } from "./comparisonSemantics.js";
 import { compareUnicodeCodePoints } from "./unicodeCodePointOrder.js";
+import { nativeAddressCoordinateInputSchema } from "./native/nativeAddress.js";
 
 import type { FunctionSnapshot } from "./functionDossierEvidence.js";
 import type { FunctionComparisonResult } from "./functionComparisonSchemas.js";
@@ -42,11 +43,20 @@ export const normalizeCfg = (
     start: bigint;
     end: bigint;
   }[] = [];
+  let space: string | null | undefined;
   for (const block of blocks) {
     const start = parseAddress(block.start);
     const end = parseAddress(block.end);
-    if (start === null || end === null || end <= start) return null;
-    parsed.push({ block, start, end });
+    if (
+      start === null ||
+      end === null ||
+      start.space !== end.space ||
+      (space !== undefined && start.space !== space) ||
+      end.offset <= start.offset
+    )
+      return null;
+    space = start.space;
+    parsed.push({ block, start: start.offset, end: end.offset });
   }
   const ordered = parsed.sort((left, right) =>
     left.start < right.start ? -1 : left.start > right.start ? 1 : 0,
@@ -59,8 +69,8 @@ export const normalizeCfg = (
     const successors: number[] = [];
     for (const address of block.successors) {
       const parsedAddress = parseAddress(address);
-      if (parsedAddress === null) return null;
-      const index = indices.get(parsedAddress);
+      if (parsedAddress === null || parsedAddress.space !== space) return null;
+      const index = indices.get(parsedAddress.offset);
       if (index === undefined) return null;
       successors.push(index);
     }
@@ -205,13 +215,18 @@ export const sorted = <T>(values: readonly T[]): readonly T[] =>
 export const isAutoName = (name: string): boolean =>
   /^(?:sub_[0-9a-f]+|fcn\.[0-9a-f]+|FUN_[0-9a-f]+)$/iu.test(name);
 
-const parseAddress = (value: string): bigint | null =>
-  /^0x[0-9a-f]+$/iu.test(value) ? BigInt(value) : null;
+const parseAddress = (value: string) => {
+  const parsed = nativeAddressCoordinateInputSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+};
 
 const relativeAddress = (value: string, base: string): string | null => {
   const parsed = parseAddress(value);
   const parsedBase = parseAddress(base);
-  return parsed === null || parsedBase === null || parsed < parsedBase
+  return parsed === null ||
+    parsedBase === null ||
+    parsed.space !== parsedBase.space ||
+    parsed.offset < parsedBase.offset
     ? null
-    : String(parsed - parsedBase);
+    : String(parsed.offset - parsedBase.offset);
 };

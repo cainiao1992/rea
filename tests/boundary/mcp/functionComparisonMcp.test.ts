@@ -17,6 +17,96 @@ import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import { reconstructionVerificationResultSchema } from "../../../src/domain/reconstructionVerificationSchemas.js";
+import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
+
+it.each([
+  { leftSpace: "ram", rightSpace: "ram" },
+  { leftSpace: "overlay%2f1", rightSpace: "overlay%2F1" },
+  { leftSpace: "ram", rightSpace: "rom" },
+])(
+  "compares qualified function coordinates and retains their source spelling: $leftSpace",
+  async ({ leftSpace, rightSpace }) => {
+    const session = createTestBinarySession(() => {
+      throw new Error(
+        "Retained function comparison must not launch a provider",
+      );
+    });
+    const harness = await createApplicationMcpHarness({ session });
+    onTestFinished(harness.close);
+    const source = (side: "1" | "2", space: string) => {
+      const example = FUNCTION_COMPARISON_EXAMPLE.left;
+      const value = functionDossierSchema.parse(example.normalized_result);
+      const entry = `${space}:0x${side}000`;
+      const site = `${space}:0X0${side}004`;
+      value.procedure.address = entry;
+      value.basic_blocks = [
+        { start: entry, end: site, successors: [site] },
+        {
+          start: `${space}:0x${side}004`,
+          end: `${space}:0x${side}008`,
+          successors: [],
+        },
+      ];
+      value.comments = [{ address: site, kind: "comment", text: "marker" }];
+      value.referenced_strings = [
+        { address: "rom:0x9000", source_address: site, value: "marker" },
+      ];
+      value.referenced_names = [
+        { address: "rom:0xa000", source_address: site, value: "helper" },
+      ];
+      value.swift_string_literals = [
+        {
+          source_address: site,
+          value: "swift marker",
+          representation: "small",
+          address: null,
+          registers: ["x0", "x1"],
+          words: ["0x0", "0xe"],
+        },
+      ];
+      return createEvidence(
+        {
+          path: `/fixture/function-${side}`,
+          sha256: side.repeat(64),
+          format: "elf",
+        },
+        example.provider,
+        {
+          operation: "analyze_function",
+          parameters: { procedure: entry },
+          result: jsonValueSchema.parse(value),
+          confidence: "derived",
+          relationshipCoverage: { status: "complete" },
+        },
+      );
+    };
+    const left = source("1", leftSpace);
+    const right = source("2", rightSpace);
+    const response = await harness.client.callTool({
+      name: "compare_functions",
+      arguments: { left, right },
+    });
+    expect(
+      response.isError,
+      JSON.stringify(response.structuredContent),
+    ).not.toBe(true);
+    const comparison = parseEvidence(response.structuredContent);
+    expect(comparison.normalized_result).toMatchObject({
+      dimensions: expect.arrayContaining(
+        ["cfg", "comments", "strings_names"].map((dimension) =>
+          expect.objectContaining({ dimension, status: "unchanged" }),
+        ),
+      ),
+    });
+    const retained = session.exportEvidenceBundle();
+    for (const original of [left, right])
+      expect(
+        retained.records.find(
+          ({ evidence_id }) => evidence_id === original.evidence_id,
+        ),
+      ).toEqual(original);
+  },
+);
 
 it.each([
   { comparisonStatus: "unchanged", verificationStatus: "pass" },

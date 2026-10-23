@@ -76,7 +76,7 @@ export interface NativeImage {
   readonly imageBase: bigint;
   readonly unresolvedPointerSlots: ReadonlyMap<bigint, number>;
   readonly zeroFillPointers: ReadonlyMap<bigint, bigint>;
-  /** Mach-O loader fixups, used when interpreting method pointer slots. */
+  /** Mach-O loader fixups, owned by every pointer interpretation. */
   readonly machoPointerFixups?: PointerFixups;
 }
 
@@ -191,10 +191,7 @@ export function* openImageSteps(
   };
 }
 
-export const readPointer = (
-  image: NativeImage,
-  address: bigint,
-): bigint | null => {
+const readRawPointer = (image: NativeImage, address: bigint): bigint | null => {
   if (hasUnresolvedPointer(image, address)) return null;
   const virtual = image.zeroFillPointers.get(address);
   if (virtual !== undefined) return virtual;
@@ -347,7 +344,7 @@ export const readSlot = (
     let raw: bigint | null;
     if (virtual !== undefined) raw = virtual;
     else if (isZeroFilled(image, address, 8)) raw = 0n;
-    else raw = readPointer(image, address);
+    else raw = readRawPointer(image, address);
     if (raw === null) return null;
     if (image.machoPointerFixups !== undefined) {
       const resolution = image.machoPointerFixups.decode(address, raw);
@@ -366,4 +363,13 @@ export const readSlot = (
       throw new Il2cppBinaryFormatFailure("malformed-container", cause.message);
     throw cause;
   }
+};
+
+/** Resolve a pointer through the same loader interpretation as method slots. */
+export const readPointer = (
+  image: NativeImage,
+  address: bigint,
+): bigint | null => {
+  const slot = readSlot(image, address);
+  return typeof slot === "bigint" ? slot : null;
 };

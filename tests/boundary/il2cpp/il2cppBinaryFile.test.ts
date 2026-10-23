@@ -670,3 +670,40 @@ it("reads type attributes without requiring file-backed alignment padding", () =
     Array.from({ length: 5 }, () => "int"),
   );
 });
+
+it("ignores CodeRegistration count alignment padding", () => {
+  const bytes = createIl2cppBinaryFixture();
+  bytes.fill(0xff, 0x604, 0x608);
+  expect(link(bytes).method_addresses).toEqual(expectedAddresses);
+});
+
+it.each([0, 8, 16])(
+  "finds registration with %s file-backed trailing zero bytes",
+  (tail) => {
+    const original = createIl2cppBinaryFixture();
+    const bytes = Buffer.alloc(0x1000 + tail);
+    original.copy(bytes);
+    original.copy(bytes, 0xf90, 0x800, 0x880);
+    bytes.fill(0, 0x800, 0x880);
+    bytes.writeBigUInt64LE(0x2000n, 64);
+    bytes.writeBigUInt64LE(BigInt(bytes.length), 80);
+    const linked = link(bytes);
+    expect(linked.types_field).toBe(FIXTURE_BINARY_BASE + 0xfc0n);
+    expect(linked.method_addresses).toEqual(expectedAddresses);
+    expect(linked.return_types).toEqual(link(original).return_types);
+  },
+);
+
+it.each([0n, FIXTURE_BINARY_BASE + 0x980n, FIXTURE_BINARY_BASE + 0x9b0n])(
+  "refuses dyld-bound type placeholders regardless of raw word %s",
+  (raw) => {
+    const bytes = createIl2cppDyldBindFixture(0n);
+    bytes.writeBigUInt64LE(raw, 0x900);
+    bytes.writeUInt32LE(7, 88);
+    bytes.writeUInt32LE(7, 92);
+    const offset = 0xf00 + 2 + Buffer.byteLength("_FixtureMethod\0") + 2;
+    bytes[offset] = 0x80;
+    bytes[offset + 1] = 0x12; // ULEB128 0x900: type-table slot, not method slot.
+    expect(failure(bytes).reason).toBe("invalid-type");
+  },
+);

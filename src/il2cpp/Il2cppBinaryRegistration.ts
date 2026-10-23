@@ -207,7 +207,7 @@ export function* findCodeRegistration(
   modules: readonly Il2cppCodeGenModule[],
 ): Generator<void, { readonly field: bigint | null; readonly array: bigint }> {
   const expected = new Set(modules.map((module) => module.address));
-  const total = BigInt(modules.length);
+  const total = modules.length;
   const matches: { field: bigint; array: bigint }[] = [];
   const matchedFields = new Set<bigint>();
   for (const mapping of image.container.mappings) {
@@ -215,8 +215,9 @@ export function* findCodeRegistration(
     for (let at = start; at + 16 <= mapping.size; at += 8) {
       if ((at & 0xffff) < 8) yield;
       const offset = mapping.offset + at;
-      if (image.bytes.readBigUInt64LE(offset) !== total) continue;
-      const array = image.bytes.readBigUInt64LE(offset + 8);
+      if (image.bytes.readUInt32LE(offset) !== total) continue;
+      const array = readPointer(image, mapping.address + BigInt(at + 8));
+      if (array === null) continue;
       if (!isMapped(image, array, modules.length * 8)) continue;
       const seen = new Set<bigint>();
       for (let slot = 0; slot < modules.length; slot++) {
@@ -333,21 +334,27 @@ export function* findMetadataRegistration(
   const matches: { field: bigint; count: number; types: bigint }[] = [];
   const matchedFields = new Set<bigint>();
   const low = (offset: number) => image.bytes.readUInt32LE(offset);
-  const word = (offset: number) => image.bytes.readBigUInt64LE(offset);
   for (const mapping of image.container.mappings) {
     const start = Number((8n - (mapping.address % 8n)) % 8n);
-    for (let at = start; at + 128 <= mapping.size; at += 8) {
+    for (let at = start; at + 112 <= mapping.size; at += 8) {
       if ((at & 0xffff) < 8) yield;
       const base = mapping.offset + at;
       if (low(base + 80) !== typeDefinitions) continue;
       if (low(base + 96) !== typeDefinitions) continue;
       const count = low(base + 48);
-      const types = word(base + 56);
+      const address = mapping.address + BigInt(at);
+      if (!hasPointerArrayCoverage(image, address, 16)) continue;
+      const types = readPointer(image, address + 56n);
+      const fieldOffsets = readPointer(image, address + 88n);
+      const typeSizes = readPointer(image, address + 104n);
       if (
         count === 0 ||
         count > 0x7fffffff ||
-        !isMapped(image, word(base + 88), 8) ||
-        !isMapped(image, word(base + 104), 8) ||
+        types === null ||
+        fieldOffsets === null ||
+        typeSizes === null ||
+        !isMapped(image, fieldOffsets, 8) ||
+        !isMapped(image, typeSizes, 8) ||
         !isMapped(image, types, count * 8)
       )
         continue;

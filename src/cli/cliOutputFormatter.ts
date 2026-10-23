@@ -77,10 +77,18 @@ const renderTable = (
   return lines.join("\n");
 };
 
+/** Keep nested JSON facts inside their owning table cell. */
+const markdownCell = (value: unknown): string =>
+  value !== null && typeof value === "object"
+    ? JSON.stringify(value)
+    : value === undefined
+      ? ""
+      : String(value);
+
 const formatKeyValueTable = (value: Record<string, unknown>): string =>
   renderTable(
     ["Key", "Value"],
-    Object.entries(value).map(([key, child]) => [key, String(child)]),
+    Object.entries(value).map(([key, child]) => [key, markdownCell(child)]),
   );
 
 const formatObjectTable = (
@@ -96,7 +104,7 @@ const formatObjectTable = (
       }
   return renderTable(
     headers,
-    items.map((item) => headers.map((key) => String(item[key] ?? ""))),
+    items.map((item) => headers.map((key) => markdownCell(item[key]))),
   );
 };
 
@@ -114,7 +122,7 @@ const formatMarkdown = (
       const table = formatObjectTable(value);
       return path.length === 0 ? table : `## ${path.join(".")}\n\n${table}`;
     }
-    return formatMarkdown(String(value), path);
+    return formatMarkdown(markdownCell(value), path);
   }
 
   const object = value as Record<string, unknown>;
@@ -144,7 +152,7 @@ const formatMarkdown = (
           ? `${heading}${formatKeyValueTable(nested)}`
           : formatMarkdown(nested, childPath);
       }
-      return `${heading}${String(child)}`;
+      return `${heading}${markdownCell(child)}`;
     })
     .join("\n\n");
 };

@@ -796,7 +796,9 @@ operation status.
 
 `--format md` escapes backslashes and pipes in table headers and cells, and
 renders cell line breaks as `<br>`. These are presentation changes; retained
-Evidence and JSON output keep the original values. Table widths are measured
+Evidence and JSON output keep the original values. Nested objects and arrays
+use JSON inside their owning Markdown cells, retaining the field names and
+values instead of replacing them with an object label. Table widths are measured
 iteratively, so an admitted row page is not limited by the JavaScript function
 argument count.
 

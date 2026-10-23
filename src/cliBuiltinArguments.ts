@@ -1,19 +1,19 @@
 /** Global output flags that take a value. */
-const VALUED_OUTPUT_FLAGS = new Set([
+export const VALUED_OUTPUT_FLAGS: ReadonlySet<string> = new Set([
   "--format",
   "--filter-output",
   "--token-limit",
   "--token-offset",
 ]);
 
-const ROOT_UPDATE_OUTPUT_FLAGS = new Set([
+export const OUTPUT_SWITCHES: ReadonlySet<string> = new Set([
   "--json",
   "--full-output",
   "--token-count",
 ]);
 
 /** Valueless flags Incur removes from every position before command parsing. */
-const INCUR_BUILTIN_FLAGS = new Set([
+export const INCUR_BUILTIN_FLAGS: ReadonlySet<string> = new Set([
   "--full-output",
   "--llms",
   "--llms-full",
@@ -94,7 +94,7 @@ export const normalizeCliArguments = (
       normalized.push(flag, argument.slice(separator + 1));
     else {
       if (argument === "--update") updates.add(normalized.length);
-      else if (!ROOT_UPDATE_OUTPUT_FLAGS.has(argument)) rootUpdate = false;
+      else if (!OUTPUT_SWITCHES.has(argument)) rootUpdate = false;
       normalized.push(argument);
     }
   }
@@ -151,3 +151,12 @@ export const declaredSensitiveValues = (
   values.delete("");
   return [...values];
 };
+/** Shell completion is a transport protocol; its words are not CLI invocations. */
+export const CLI_COMPLETION_SHELLS = [
+  "bash",
+  "zsh",
+  "fish",
+  "nushell",
+] as const;
+export const cliCompletionShell = (environment: Readonly<NodeJS.ProcessEnv>) =>
+  CLI_COMPLETION_SHELLS.find((shell) => shell === environment.COMPLETE);

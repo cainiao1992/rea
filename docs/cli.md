@@ -146,8 +146,11 @@ into the current shell:
 eval "$(rea completions bash)"
 ```
 
-The current Bash hook requires support for `complete -o nosort`; macOS's
-system Bash 3.2 cannot load it. Use a newer Bash for this hook.
+The Bash hook supports macOS system Bash 3.2. It uses optional completion
+features when the shell provides them and falls back to portable registration.
+Completion includes standard global options and the active command's options;
+`rea mcp ` offers only `add` and `doctor`. Output-option values remain data when
+resolving the command scope.
 
 For future interactive non-login Bash sessions, add the command to
 `~/.bashrc`. Interactive login Bash sessions read the first available file in

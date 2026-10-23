@@ -17,8 +17,13 @@ const builtinArgumentRuntime = "dist/cli-runtime/cliBuiltinArguments.js";
 const builtinArguments = (await compiledRuntimeExists([builtinArgumentRuntime]))
   ? await import("../dist/cli-runtime/cliBuiltinArguments.js")
   : undefined;
-const doctorArguments = builtinArguments?.productionMcpDoctorArguments(args);
-const isMcpEntry = args[0] === "--mcp" || args[0] === "mcp";
+const isShellCompletion =
+  builtinArguments?.cliCompletionShell?.(process.env) !== undefined;
+const doctorArguments = isShellCompletion
+  ? undefined
+  : builtinArguments?.productionMcpDoctorArguments(args);
+const isMcpEntry =
+  !isShellCompletion && (args[0] === "--mcp" || args[0] === "mcp");
 const isMcpMode = isMcpEntry && args.length === 1;
 const isMcpDoctorMode = doctorArguments !== undefined;
 // Only flags may follow the entry: `mcp add --http` stays Incur's `mcp add`,
@@ -96,8 +101,11 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
     parseCliOutputArguments,
   } = await import("../dist/cli-runtime/cliOutput.js");
   guardClosedStdout();
-  const cliArgs = normalizeCliArguments(args);
-  const outputOptions = parseCliOutputArguments(cliArgs);
+  const cliArgs = isShellCompletion ? args : normalizeCliArguments(args);
+  // Completion words are transport data, including partial output flags.
+  const outputOptions = parseCliOutputArguments(
+    isShellCompletion ? [] : cliArgs,
+  );
   const outputArguments = outputOptions.validation;
   // `--version` with an explicit format reports the runtime as a document;
   // plain `--version` stays Incur's bare version string.

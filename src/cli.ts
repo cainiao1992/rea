@@ -64,6 +64,7 @@ import { registerCutterCommands } from "./cli/cutterCommands.js";
 import { excludeDeclaredSensitiveArguments } from "./cli/explicitSensitiveArguments.js";
 import { rejectSurplusCliArguments } from "./cli/strictPositionals.js";
 import { presentCliArgumentErrors } from "./cli/argumentErrors.js";
+import { createCliCompletions } from "./cli/completions.js";
 
 export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
 
@@ -169,11 +170,14 @@ export const createCli = (
   presentCliArgumentErrors(cli);
   const serveDeclared = excludeDeclaredSensitiveArguments(cli);
   const serve = cli.serve.bind(cli);
+  const complete = createCliCompletions(cli, environment);
   cli.serve = (arguments_ = process.argv.slice(2), options) =>
-    serveStrict(
-      normalizeCliArguments(arguments_),
-      options ?? {},
-      (tokens, selected) => serveDeclared(tokens, selected, serve),
-    );
+    complete(arguments_, options ?? {})
+      ? Promise.resolve()
+      : serveStrict(
+          normalizeCliArguments(arguments_),
+          options ?? {},
+          (tokens, selected) => serveDeclared(tokens, selected, serve),
+        );
   return cli;
 };

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 
@@ -37,13 +37,19 @@ cliTest.skipIf(process.platform === "win32")(
 );
 
 cliTest.skipIf(process.platform !== "darwin").for([true, false])(
-  "doctor checks the IDA workspace parent without creating entries (usable=%s)",
+  "doctor checks the filesystem-selected IDA parent without creating entries (usable=%s)",
   async (usable, { cli }) => {
     const root = await createTestTempDirectory("rea-ida-doctor-parent-");
-    const parent = join(root, "parent");
-    await mkdir(parent);
-    // Keep the caller's spelling while every traversed component exists.
-    const workspaceRoot = usable ? `${parent}/./` : join(parent, "absent");
+    const physical = join(root, "physical");
+    const parent = join(physical, "workspace");
+    const lexical = join(root, "workspace");
+    await mkdir(join(physical, "inner"), { recursive: true });
+    if (usable) {
+      await mkdir(parent);
+      await writeFile(lexical, "lexical parent is a file");
+    } else await mkdir(lexical);
+    await symlink("physical/inner", join(root, "link"));
+    const workspaceRoot = `${root}/link/../workspace`;
     const registration = join(root, "registration.json");
     await writeFile(
       registration,
@@ -53,6 +59,8 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
         workspaceRoot,
       }),
     );
+    const registrationBytes = await readFile(registration);
+    const before = await readdir(physical);
     const result = await cli.run({
       arguments: ["doctor", "--provider", "ida", "--json"],
       environment: { HOME: root, REA_IDA_MCP_CONFIG: registration },
@@ -74,7 +82,12 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
         }),
       ]),
     });
-    expect(await readdir(parent)).toEqual([]);
+    expect(await readFile(registration)).toEqual(registrationBytes);
+    expect(await readdir(physical)).toEqual(before);
+    if (usable) {
+      expect(await readdir(parent)).toEqual([]);
+      expect(await readFile(lexical, "utf8")).toBe("lexical parent is a file");
+    } else expect(await readdir(lexical)).toEqual([]);
   },
 );
 

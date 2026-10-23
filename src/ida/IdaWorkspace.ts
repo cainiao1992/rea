@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { open, realpath } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, normalize } from "node:path";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
@@ -22,9 +22,15 @@ export const sameIdaHostPath = (left: string, right: string): boolean =>
     ? normalize(left).toLowerCase() === normalize(right).toLowerCase()
     : normalize(left) === normalize(right);
 
-/** Resolve the exact existing parent used by both readiness and allocation. */
-export const resolveIdaWorkspaceParent = (root = tmpdir()): Promise<string> =>
-  realpath(root);
+/** Admit the selected lookup before canonicalizing it for readiness and allocation.
+ * Native realpath can collapse file/.. without rejecting the non-directory.
+ */
+export const resolveIdaWorkspaceParent = async (
+  root = tmpdir(),
+): Promise<string> => {
+  await stat(root);
+  return realpath(root);
+};
 
 /** Private input copy isolates upstream database and sidecar writes from the original. */
 export class IdaWorkspace {

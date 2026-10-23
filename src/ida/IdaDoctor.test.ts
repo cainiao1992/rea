@@ -44,6 +44,38 @@ it.each([true, false])(
   },
 );
 
+it.skipIf(process.platform === "win32")(
+  "rejects a non-directory intermediate component before canonicalizing readiness",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "rea-ida-workspace-lookup-"));
+    roots.push(root);
+    const path = join(root, "registration.json");
+    const workspace = join(root, "workspace");
+    await mkdir(workspace);
+    await writeFile(join(root, "file"), "not a directory");
+    const selected = `${root}/file/../workspace`;
+    await writeFile(
+      path,
+      JSON.stringify({
+        command: "provider-must-not-launch",
+        mode: "headless",
+        workspaceRoot: selected,
+      }),
+    );
+    const before = await readdir(root);
+    const inspection = await inspectIdaRegistration(path, resourceScope);
+    expect(inspection.available).toBe(false);
+    const check = inspection.checks.find(
+      ({ name }) => name === "private_workspace",
+    );
+    expect(check).toMatchObject({ ok: false, code: "invalid_configuration" });
+    expect(check?.detail).toContain(selected);
+    expect(check?.detail).toContain("ENOTDIR");
+    expect(await readdir(root)).toEqual(before);
+    expect(await readdir(workspace)).toEqual([]);
+  },
+);
+
 it("marks an unusable system temporary parent unavailable when workspaceRoot is omitted", async () => {
   if (process.platform === "win32") return;
   const root = await mkdtemp(join(tmpdir(), "rea-ida-default-parent-"));

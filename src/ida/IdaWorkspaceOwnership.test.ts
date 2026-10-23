@@ -1,5 +1,13 @@
 import { requirePermissionDenial } from "../../tests/fixtures/permissionDenial.js";
-import { chmod, mkdir, readdir, realpath, rm, symlink } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -37,6 +45,36 @@ const clientFor = (root: string, target: BinaryTarget) => {
 };
 
 describe("IDA workspace ownership before input preparation", () => {
+  it.skipIf(process.platform === "win32").each([
+    ["missing", "ENOENT"],
+    ["file", "ENOTDIR"],
+  ] as const)(
+    "retains the native %s-component failure as the workspace configuration cause",
+    async (component, code) => {
+      const { root, target } = await createIdaTarget();
+      roots.push(root);
+      const lexical = join(root, "workspace");
+      await mkdir(lexical);
+      if (component === "file")
+        await writeFile(join(root, component), "not a directory");
+      const selected = `${root}/${component}/../workspace`;
+      await expect(
+        IdaWorkspace.allocate(target, selected),
+      ).rejects.toMatchObject({
+        _tag: "ConfigurationError",
+        cause: { code, path: selected },
+        settings: [
+          {
+            setting: "workspaceRoot",
+            constraint: expect.stringContaining(code),
+          },
+        ],
+        diagnostics: { workspace_root: selected },
+      });
+      expect(await readdir(lexical)).toEqual([]);
+    },
+  );
+
   it.skipIf(process.platform === "win32")(
     "allocates in the physical parent selected through a symlink and ..",
     async () => {

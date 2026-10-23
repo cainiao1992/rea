@@ -11,6 +11,7 @@ import { reconcileJavaScriptRuntimeEvidence } from "../../../../src/application/
 import { createEvidence } from "../../../../src/domain/evidence.js";
 import { mappedRuntimePaths } from "../../../../src/domain/javascript/javascriptRuntimeStaticCandidates.js";
 import { projectRuntimeCaptures } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationRuntime.js";
+import { parseRuntimeCaptures } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationCaptureParsing.js";
 import { electronPageInspectionSchema } from "../../../../src/domain/javascript/electronObservation.js";
 import {
   readRuntimeReconciliationInput,
@@ -261,6 +262,63 @@ it("preserves positive script matches without inventing worker absence when work
       reason: "static-or-runtime-coverage-incomplete",
     }),
   );
+});
+
+it("preserves unknown Electron frame provenance without linking it to an authorized frame", async () => {
+  const root = await applicationFixture();
+  const recorded = electronRuntimeEvidence(root, SOURCE);
+  const inspection = electronPageInspectionSchema.parse(
+    recorded.normalized_result,
+  );
+  const evidence = createEvidence(undefined, recorded.provider, {
+    predicateType: recorded.predicate_type,
+    operation: recorded.operation,
+    parameters: recorded.parameters,
+    confidence: recorded.confidence,
+    authority: recorded.authority,
+    result: {
+      ...inspection,
+      completeness: {
+        ...inspection.completeness,
+        status: "attach_limited",
+        conditions: ["attach_limited"],
+        attach_limited_sections: ["scripts"],
+      },
+      scripts: {
+        ...inspection.scripts,
+        items: inspection.scripts.items.map((script) => ({
+          ...script,
+          frame_scope: "unknown",
+          has_source_url: true,
+          reported_url: "file:///reported-label.js",
+        })),
+      },
+    },
+  });
+  const captures = parseRuntimeCaptures([evidence]);
+  expect(captures[0]?.scriptsCompleteWithinScope).toBe(false);
+  const projected = projectRuntimeCaptures(captures);
+  const script = projected.entities.find(({ kind }) => kind === "script");
+  expect(script?.frameKey).toBeNull();
+  expect(script?.node.properties).toMatchObject({
+    frame_scope: "unknown",
+    reported_frame_id: inspection.scripts.items[0]?.frame_id,
+    has_source_url: true,
+    reported_url: "file:///reported-label.js",
+  });
+  const frameIds = new Set(
+    projected.entities
+      .filter(({ kind }) => kind === "frame")
+      .map(({ node }) => node.node_id),
+  );
+  expect(
+    projected.edges.some(
+      (edge) =>
+        edge.relation === "contains" &&
+        frameIds.has(edge.source_node_id) &&
+        edge.target_node_id === script?.node.node_id,
+    ),
+  ).toBe(false);
 });
 
 it("reconciles active Electron as a partial target-only runtime capture", async () => {

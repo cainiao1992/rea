@@ -4,9 +4,9 @@ import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import { sanitizeBrowserUrl } from "../../domain/browserObservation.js";
 import { jsonObjectSchema } from "../../domain/jsonValue.js";
-import {
-  type WebRuntimeSource,
-  type webRuntimeLocationSchema,
+import type {
+  WebRuntimeSource,
+  webRuntimeLocationSchema,
 } from "../../domain/webRuntime.js";
 import type { CdpEvent } from "../CdpConnection.js";
 import type { CdpRuntimeSession } from "./CdpRuntimeSession.js";

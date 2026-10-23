@@ -506,10 +506,12 @@ const assertRuntimeParameters = (
 };
 
 const scriptsComplete = (completeness: {
+  readonly attach_limited_sections: readonly string[];
   readonly truncated_sections: readonly string[];
   readonly unavailable_sections: readonly string[];
   readonly dropped_events: { readonly scripts: number };
 }): boolean =>
+  !completeness.attach_limited_sections.includes("scripts") &&
   !completeness.truncated_sections.includes("scripts") &&
   !completeness.unavailable_sections.includes("scripts") &&
   completeness.dropped_events.scripts === 0;

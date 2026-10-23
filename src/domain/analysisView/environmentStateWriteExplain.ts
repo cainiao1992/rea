@@ -431,7 +431,8 @@ export const compareValues = (
   const [a, b] = [integerOf(left), integerOf(right)];
   if (a !== undefined && b !== undefined) return a - b;
   const [c, d] = [readClock(left), readClock(right)];
-  if (c !== undefined && d !== undefined) return c.ms - d.ms;
+  if (c !== undefined && d !== undefined)
+    return c.ms - d.ms || c.subMillisecond - d.subMillisecond;
   return typeof left === "string" && typeof right === "string"
     ? compare(left, right)
     : undefined;

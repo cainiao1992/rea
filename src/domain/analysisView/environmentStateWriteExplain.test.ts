@@ -553,6 +553,7 @@ it.each<[JsonValue | undefined, JsonValue | undefined, number | undefined]>([
   ["10", 9, 1],
   ["7", 7, 0],
   ["2026-03-04T05:00:00Z", "2026-03-04T06:30:00+02:00", 1],
+  ["2026-03-04T05:00:00.123000001Z", "2026-03-04T05:00:00.123000002Z", -1],
   [Date.UTC(2026, 2, 4, 6) / 1000, "2026-03-04T05:00:00Z", 1],
   ["apple", "banana", -1],
   ["Zebra", "apple", -1],
@@ -581,6 +582,26 @@ it("offers each strictly ordered field in its direction, then last and first", (
   const fallback = [{ rule: "last" }, { rule: "first" }];
   expect(insertCandidates([{ id: 1 }], ["id"])).toEqual(fallback);
   expect(insertCandidates([], ["id"])).toEqual(fallback);
+});
+
+it("uses retained submillisecond precision to recognize and place sorted timestamps", () => {
+  const members = [
+    { at: "2026-03-04T05:00:00.123000002Z" },
+    { at: "2026-03-04T05:00:00.123000003Z" },
+  ];
+  const rule: InsertRule = {
+    rule: "sorted",
+    field: "at",
+    direction: "ascending",
+  };
+  expect(insertCandidates(members, ["at"])).toEqual([
+    rule,
+    { rule: "last" },
+    { rule: "first" },
+  ]);
+  expect(
+    insertIndex(rule, members, { at: "2026-03-04T05:00:00.123000001Z" }),
+  ).toBe(0);
 });
 
 const ASCENDING = [{ n: 1 }, { n: 3 }, { n: 5 }];

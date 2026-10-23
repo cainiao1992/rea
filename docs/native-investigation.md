@@ -982,3 +982,10 @@ semantics. This query never executes or modifies target bytes.
 Exact-name xref lookup reports distinct candidate addresses as an input ambiguity;
 inventory order cannot select one silently. Duplicate rows at one address remain
 a singular match, and a missing name remains an unresolved observation.
+
+Hopper procedure names must identify a procedure entry. A non-entry symbol returns
+an input diagnostic with its coordinate and containing procedure; an explicit
+numeric address still selects its containing procedure. Use
+`resolve_containing_procedure` to request containment directly. IDA and Hopper
+reject reserved `file-offset:` selectors before name lookup; source-file offset
+selection belongs to the Ghidra import mapping.

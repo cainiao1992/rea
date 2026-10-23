@@ -337,11 +337,14 @@ def _bookmark_name(document, address):
     return _bookmark_api(document, "getBookmarkName")(address)
 
 
-def _address(document, value=None):
-    """Keep explicit hexadecimal coordinates distinct from symbol names."""
+def _address_selection(document, value=None):
+    """Own the coordinate and whether it was selected by symbol or address."""
     if value is None:
-        return document.getCurrentAddress()
+        return document.getCurrentAddress(), "cursor"
     _api_text(value, "Address")
+    if value.startswith("file-offset:"):
+        raise InvalidRequestError("Hopper does not support file-offset: selectors; select Ghidra for source-file coordinates or use a Hopper analysis address")
+    source = "address"
     if value.lower().startswith("0x"):
         try:
             address = int(value, 16)
@@ -352,6 +355,8 @@ def _address(document, value=None):
         # Prefer an observed symbol, retaining bare-hex compatibility only
         # when Hopper has no symbol with the supplied name.
         address = document.getAddressForName(value)
+        if address not in BAD_ADDRESSES:
+            source = "symbol"
         if address in BAD_ADDRESSES:
             try:
                 address = int(value, 16)
@@ -359,7 +364,11 @@ def _address(document, value=None):
                 raise InvalidRequestError("Unknown Hopper address or name: %s" % value) from error
     if not 0 <= address < 0xFFFFFFFFFFFFFFFF:
         raise InvalidRequestError("Address is outside Hopper's usable unsigned 64-bit range: %s" % value)
-    return address
+    return address, source
+
+
+def _address(document, value=None):
+    return _address_selection(document, value)[0]
 
 
 def _segment(document, address):
@@ -370,10 +379,15 @@ def _segment(document, address):
 
 
 def _procedure(document, value=None):
-    address = document.getCurrentAddress() if value is None else _address(document, value)
+    address, source = _address_selection(document, value)
     result = _segment(document, address).getProcedureAtAddress(address)
     if result is None:
         raise InvalidRequestError("No procedure exists at the requested address")
+    if source == "symbol" and address != result.getEntryPoint():
+        raise InvalidRequestError(
+            "Symbol %s at %s is inside procedure %s at %s; select its entry name/address or use resolve_containing_procedure for explicit containment"
+            % (value, _hex(address), _procedure_name(result), _hex(result.getEntryPoint()))
+        )
     return result
 
 

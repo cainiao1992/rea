@@ -16,6 +16,7 @@ import {
 } from "../artifacts/ArtifactFileOperation.js";
 import {
   AnalysisInputError,
+  AnalysisArtifactChangedError,
   AnalysisProtocolError,
 } from "../domain/analysisErrorCore.js";
 import { sameRegularFileState } from "../filesystem/RegularFile.js";
@@ -87,11 +88,11 @@ export class ApktoolWorkspace {
                   );
                 copied += value.length;
                 if (copied > initial.size)
-                  throw new AnalysisInputError(operation, {
-                    cause: new Error(
-                      `The selected APK changed while being copied: ${path}`,
-                    ),
-                  });
+                  throw new AnalysisArtifactChangedError(
+                    operation,
+                    path,
+                    "APK size exceeded the observed size during snapshot copying",
+                  );
                 hash.update(value);
                 let offset = 0;
                 while (offset < value.length) {
@@ -113,11 +114,11 @@ export class ApktoolWorkspace {
                 copied !== initial.size ||
                 !sameRegularFileState(initial, final)
               )
-                throw new AnalysisInputError(operation, {
-                  cause: new Error(
-                    `The selected APK changed while being copied: ${path}`,
-                  ),
-                });
+                throw new AnalysisArtifactChangedError(
+                  operation,
+                  path,
+                  "APK size or file state changed during snapshot copying",
+                );
               this.#snapshot = {
                 path,
                 bytes: copied,

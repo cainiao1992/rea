@@ -178,3 +178,8 @@ exact facts/Evidence parity and bounded task costs are recorded in the
 [shared-decode and table-only checkpoint](https://github.com/morluto/rea/blob/42e1a17d6e6c0487f17be0bae248553c4caba7f7/experiments/analysis-efficiency/apktool-string-tables.md).
 This qualifies selected resource facts, not application execution or independent
 binary resource-decoder completeness.
+
+If the selected APK changes while its private snapshot is copied, acquisition
+returns `artifact_changed`; request-schema correction cannot recover a stable
+snapshot. Launcher spawn permission denial is distinct from a missing launcher,
+and configuration diagnostics retain the selected command and system error.

@@ -399,3 +399,42 @@ it("reports raw retained-prefix bytes when UTF-8 decoding removes a BOM", async 
     await commands.close();
   }
 });
+
+it("classifies source state changes during snapshot copying as artifact changes", async () => {
+  const root = await PrivateRuntimeRoot.create({
+    prefix: "rea-apktool-changed-test-",
+  });
+  const commands = new ApktoolCommandCleanup();
+  const workspace = new ApktoolWorkspace(root, commands);
+  const input = join(root.path, "source.apk");
+  await fs.writeFile(input, "authored-apk");
+  vi.mocked(fs.open).mockImplementation(async (path, flags, mode) => {
+    const handle = await actual.open(path, flags, mode);
+    if (String(path) === input) {
+      const stat = handle.stat.bind(handle);
+      let observations = 0;
+      handle.stat = (async (...args: Parameters<typeof stat>) => {
+        const value = await stat(...args);
+        observations += 1;
+        if (observations > 1) {
+          if ("mtimeNs" in value) value.mtimeNs += 1n;
+          else value.mtimeMs += 1;
+        }
+        return value;
+      }) as typeof handle.stat;
+    }
+    return handle;
+  });
+  try {
+    await expect(
+      workspace.snapshotInput(input, "decode_android_resources"),
+    ).rejects.toMatchObject({
+      _tag: "AnalysisArtifactChangedError",
+      operation: "decode_android_resources",
+      path: input,
+    });
+  } finally {
+    await workspace.close();
+    await commands.close();
+  }
+});

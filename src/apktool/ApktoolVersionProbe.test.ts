@@ -191,3 +191,41 @@ it.each(["linux", "win32"] as const)(
     ).toBe(platform === "win32");
   },
 );
+
+it.each([
+  ["EACCES", "command_not_executable"],
+  ["ENOENT", "command_missing"],
+])("distinguishes launcher spawn %s", async (code, expected) => {
+  vi.mocked(runOwnedCommand).mockRejectedValueOnce(
+    Object.assign(new Error(code), { code }),
+  );
+  await expect(
+    inspectApktoolClient(selection, commands, {
+      environment: {},
+      platform: "linux",
+    }),
+  ).rejects.toMatchObject({
+    code: expected,
+    diagnostics: {
+      filesystem_error: code,
+      selected_command: selection.command,
+    },
+  });
+});
+
+it("reports version capture overflow as a resource constraint with the selected launcher", async () => {
+  vi.mocked(runOwnedCommand).mockRejectedValueOnce(
+    new OwnedCommandFailure("output-limit", "too much output"),
+  );
+  const failure = await inspectApktoolClient(selection, commands, {
+    environment: {},
+    platform: "linux",
+  }).catch((cause: unknown) => cause);
+  expect(projectAnalysisError(failure as AnalysisTimeoutError)).toMatchObject({
+    code: "resource_constraint",
+    details: {
+      operation: "inspect_apktool_client",
+      diagnostics: { selected_command: selection.command },
+    },
+  });
+});

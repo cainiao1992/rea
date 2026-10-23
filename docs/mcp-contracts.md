@@ -44,12 +44,18 @@ root deltas. Missing graph members yield `truncated`; unknown traversal coverage
 or unavailable occurrence hashes retain uncertainty. Integrity mismatches remain
 contradictions. Static artifact equality does not establish unchanged runtime
 behavior.
+Source-map relation deltas include the content identity of the mapped source,
+so an unchanged map file is reported when its target source bytes change.
 
 Exhausted traversals with deliberately omitted filesystem entries retain
 `unknown` coverage and identify each omitted path/type in `limitations`; FIFO,
 socket and device entries are not opened. Case-distinct archive members remain
 separate observations. Their case-insensitive materialization diagnostic does
 not reduce traversal coverage when both spellings were read.
+PyInstaller inventory also preserves distinct table rows that share a logical
+path, including decoded children beneath a colliding file/directory path.
+Inventory coverage describes observed archive facts; extraction still refuses
+destinations where those paths cannot coexist.
 
 Current inventory Evidence requires scoped `coverage` with a `complete` or
 `unknown` status. Consumers use this producer-owned fact and reject records

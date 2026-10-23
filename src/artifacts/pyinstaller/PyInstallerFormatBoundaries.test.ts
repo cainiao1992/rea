@@ -198,7 +198,7 @@ it.each([true, false])(
   },
 );
 
-it.each(["duplicate", "size", "offset", "overlap"])(
+it.each(["size", "offset", "overlap"])(
   "bounds %s diagnostics for large nondeclaration names",
   async (mode) => {
     const name = "member".repeat(200_000);
@@ -213,12 +213,7 @@ it.each(["duplicate", "size", "offset", "overlap"])(
       layout: "2.1",
       pythonVersion: 309,
       members:
-        mode === "duplicate" || mode === "overlap"
-          ? [
-              first,
-              { ...first, name: mode === "duplicate" ? name : name + "-b" },
-            ]
-          : [first],
+        mode === "overlap" ? [first, { ...first, name: name + "-b" }] : [first],
     });
     const toc = 64 + bytes.readUInt32BE(bytes.length - 88 + 12);
     if (mode === "offset")
@@ -239,7 +234,7 @@ it.each(["duplicate", "size", "offset", "overlap"])(
       expect(failure.reason).toBe(mode === "offset" ? "format" : "integrity");
       expect(failure.message.length).toBeLessThan(128);
       expect(failure.message).toContain(
-        `table index ${mode === "duplicate" || mode === "overlap" ? 1 : 0}`,
+        `table index ${mode === "overlap" ? 1 : 0}`,
       );
     });
   },

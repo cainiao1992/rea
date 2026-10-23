@@ -123,6 +123,11 @@ const materializeArtifactInventoryInScope = async (
   const regularPaths = new Set(
     selectedOccurrences.map(({ logical_path: path }) => path),
   );
+  const directoryPaths = new Set(
+    snapshot.occurrences
+      .filter(({ entry_kind }) => entry_kind === "directory")
+      .map(({ logical_path }) => logical_path),
+  );
   const activeOccurrences = selectedOccurrences.filter(({ logical_path }) => {
     // Nested members remain represented by their containing regular file;
     // only entries exposed by the active reader are materialized.
@@ -133,7 +138,7 @@ const materializeArtifactInventoryInScope = async (
       slash = path.lastIndexOf("/")
     ) {
       path = path.slice(0, slash);
-      if (regularPaths.has(path)) return false;
+      if (regularPaths.has(path) && !directoryPaths.has(path)) return false;
     }
     return true;
   });

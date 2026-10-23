@@ -320,7 +320,6 @@ const validateCArchiveMembers = (
   entries: readonly CArchiveEntry[],
   tocOffset: number,
 ): Result<null, PyInstallerFailure> => {
-  const names = new Set<string>();
   for (const entry of entries) {
     if (isCArchiveDeclaration(entry)) {
       if (
@@ -334,15 +333,6 @@ const validateCArchiveMembers = (
             `CArchive declaration at table index ${String(entry.index)} has local payload or compression`,
           ),
         );
-    } else {
-      if (names.has(entry.name))
-        return err(
-          pyInstallerFailure(
-            "integrity",
-            `Duplicate CArchive member name at table index ${String(entry.index)}`,
-          ),
-        );
-      names.add(entry.name);
     }
     if (
       entry.compressionFlag === 0 &&

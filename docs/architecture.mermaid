@@ -38,7 +38,11 @@ graph TD
         IDA["src/ida/<br/>Upstream MCP contract adaptation<br/>live GUI binding or owned headless database"]
         KUNA["src/kuna/<br/>BYO Kuna deep analysis candidate<br/>discovery reads metadata; version probe on target open"]
         IDA_MCP["External ida-pro-mcp<br/>GUI proxy or database supervisor<br/>upstream installation and engine lifecycle"]
+        
+        KUNA["src/kuna/<br/>BYO Kuna decompiler, a deep analysis candidate<br/>discovery reads metadata only; version probe when a target opens"]
         AUX["src/artifacts/ + src/native/<br/>artifact inventory, bounded directory triage and extraction<br/>format readers and native capabilities"]
+
+        
         BROWSER["src/browser/<br/>CDP / Playwright capture<br/>captured scripts and native module resolution<br/>execution/: coverage, listener and source attribution"]
         JS_CODEC["src/javascript/sourceMaps/<br/>pinned upstream map codec<br/>owned heap-limited Node process, complete point evidence"]
         INSPECTOR["src/inspector/<br/>passive V8 Inspector discovery and capture<br/>script and target locations"]
@@ -50,12 +54,19 @@ graph TD
         FIRMWARE["src/firmware/<br/>Binwalk / Unblob adapters<br/>owned processes, report normalization, private extraction"]
         ANDROID["src/android/<br/>Static APK adapter<br/>owned SDK stdio, pinned headless JADX, normalization"]
         REFERENCE["src/reference/<br/>Filesystem reference-source reader<br/>bounded traversal, validation, errors"]
+
+        ANDROID_TOOLS["src/adb/ + src/apktool/ + src/jeb/<br/>BYO device, resource-decoding and JEB adapters<br/>owned adb and Apktool processes; JEB engine client over MCP"]
+        CAPTURE_TOOLS["src/captures/ + src/pcap/ + src/signals/ + src/sqlite/<br/>BYO tshark, pcap, sigrok and SQLite child inspection<br/>selected captures, recordings and databases; owned processes"]
+        NATIVE_READERS["src/go/ + src/rust/ + src/il2cpp/ + src/flutter/ + src/gpu/<br/>Bundled in-process binary metadata readers<br/>Go build info, Rust dependencies, IL2CPP, Dart build ID, GPU code objects<br/>src/compression/: shared codec-result helper for rust and gpu"]
+        FORMAT_READERS["src/model/ + src/python/ + src/erlang/ + src/electron/<br/>Bundled in-process format readers<br/>GGUF and safetensors headers, Python .pyc, Erlang BEAM, Electron fuses"]
+        RUNTIME["src/frida/ + src/cutter/<br/>Frida instrumentation sessions and live Cutter bridge client"]
     end
 
     subgraph "Provider Process Foundation"
         PROCESS["src/process/<br/>owned process groups, private roots<br/>deadlines, bounded file reads and diagnostics, cleanup"]
         WINDOWS["src/windows/<br/>Windows host boundary adapters<br/>package loader, opaque handles, owned jobs and private runtimes"]
         WINDOWS_NATIVE["native/windows/src/<br/>Node-API implementation<br/>NTFS admission, protected DACLs and atomic Job Object assignment"]
+        FILESYSTEM["src/filesystem/<br/>owned file and directory handles<br/>stable reads, staged output, caller paths"]
     end
 
     subgraph "Contracts Layer"
@@ -181,3 +192,23 @@ graph TD
     APP -->|EVM interface port| EVM
     EVM --> PROCESS
     EVM --> DOMAIN
+    COMPOSITION --> KUNA
+    KUNA --> PROCESS
+    KUNA --> FILESYSTEM
+    KUNA --> DOMAIN
+    COMPOSITION --> ANDROID_TOOLS
+    ANDROID_TOOLS --> PROCESS
+    ANDROID_TOOLS --> DOMAIN
+    COMPOSITION --> CAPTURE_TOOLS
+    CAPTURE_TOOLS --> PROCESS
+    CAPTURE_TOOLS --> DOMAIN
+    COMPOSITION --> NATIVE_READERS
+    NATIVE_READERS --> DOMAIN
+    COMPOSITION --> FORMAT_READERS
+    FORMAT_READERS --> DOMAIN
+    SERVER --> RUNTIME
+    CLI --> RUNTIME
+    RUNTIME --> DOMAIN
+    PROCESS --> FILESYSTEM
+    AUX --> FILESYSTEM
+    APP --> FILESYSTEM

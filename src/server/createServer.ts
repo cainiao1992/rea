@@ -934,6 +934,7 @@ const registerConfiguredAnalysisTools = (
     nativeExports,
     toolLogger,
     recordEvidence,
+    evidenceById,
     withAdmittedAnalysis,
   );
   registerElfNotesTool(

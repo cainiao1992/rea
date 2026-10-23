@@ -30,6 +30,51 @@ import {
 } from "../../fixtures/binaryDiagnostics/layout.js";
 import { elfExportImage } from "../../fixtures/binaryDiagnostics/nativeExports.js";
 import { parseNativeExports } from "../../../src/native/exports/NativeExportParser.js";
+import { createNativeExportsService } from "../../../src/composition/binaryDiagnostics.js";
+import { registerNativeExportsTool } from "../../../src/server/registerNativeExportsTool.js";
+
+it("refuses a native exports summary before file admission when retention is unavailable", async () => {
+  const service = createNativeExportsService();
+  const server = new EvidenceMcpServer(
+    { name: "exports-preflight", version: "1" },
+    {},
+    undefined,
+    createToolResultDelivery(undefined),
+  );
+  registerNativeExportsTool(server, service, silentLogger);
+  const client = new Client({ name: "exports-preflight-client", version: "1" });
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+    await service.close();
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  const schemas = await advertisedMcpToolSchemas(
+    client,
+    "inspect_native_exports",
+  );
+  expect(
+    schemas.ajv.validate(schemas.inputSchema, {
+      path: "/absent/native-library.so",
+      detail: "summary",
+    }),
+  ).toBe(true);
+  const refused = await client.callTool({
+    name: "inspect_native_exports",
+    arguments: { path: "/absent/native-library.so", detail: "summary" },
+  });
+  expect(parseMcpToolError(refused).error).toMatchObject({
+    code: "capability_unavailable",
+  });
+  const complete = await client.callTool({
+    name: "inspect_native_exports",
+    arguments: { path: "/absent/native-library.so" },
+  });
+  expect(parseMcpToolError(complete).error.code).toBe("invalid_request");
+});
 
 it.each([false, true])(
   "preserves a completed byte report through MCP cleanup failure and retry (retained=%s)",

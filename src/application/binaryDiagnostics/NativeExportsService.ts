@@ -46,8 +46,7 @@ export class NativeExportsService {
     if (
       !report.success ||
       report.data.artifact.path !== input.data.path ||
-      report.data.artifact.bytes > input.data.max_file_bytes ||
-      report.data.coverage.exports !== report.data.exports.length
+      report.data.artifact.bytes > input.data.max_file_bytes
     )
       return err(
         new AnalysisOutputError(

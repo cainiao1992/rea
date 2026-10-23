@@ -3,16 +3,8 @@ import {
   supportsNodeVersion,
 } from "../domain/runtimeVersion.js";
 import { providerStartupTimeoutSchema } from "../config/providerStartupTimeout.js";
-import {
-  LINUX_HOPPER_SETUP_HOSTS,
-  linuxHopperLauncherCandidates,
-  systemLinuxHopperLauncherCandidates,
-  supportsReaHost,
-} from "./LinuxHopper.js";
-import {
-  MAC_HOPPER_SYSTEM_LAUNCHER,
-  macHopperCanonicalLauncherCandidates,
-} from "./MacHopperPaths.js";
+import { hopperLauncherDiscovery } from "./HopperLauncherDiscovery.js";
+import { LINUX_HOPPER_SETUP_HOSTS, supportsReaHost } from "./LinuxHopper.js";
 import type {
   DoctorCheck,
   DoctorHost,
@@ -154,26 +146,14 @@ const hostCheck = async (host: DoctorHost): Promise<DoctorCheck> => {
 };
 
 const findHopper = async (host: DoctorHost): Promise<string | undefined> => {
-  const candidates =
-    host.configuredHopperPath === undefined
-      ? [
-          ...(host.platform === "darwin"
-            ? macHopperCanonicalLauncherCandidates(host.homeDirectory)
-            : [MAC_HOPPER_SYSTEM_LAUNCHER]),
-          ...(host.platform === "linux"
-            ? linuxHopperLauncherCandidates(host.homeDirectory)
-            : [...systemLinuxHopperLauncherCandidates]),
-          ...(host.platform === "darwin"
-            ? []
-            : macHopperCanonicalLauncherCandidates(host.homeDirectory).slice(
-                1,
-              )),
-          ...(await host.manualHopperPaths()),
-        ]
-      : [host.configuredHopperPath];
-  const hopperPath = await firstExecutable(host, candidates);
-  if (hopperPath !== undefined || host.configuredHopperPath !== undefined)
-    return hopperPath;
+  if (host.configuredHopperPath !== undefined)
+    return firstExecutable(host, [host.configuredHopperPath]);
+  const discovery = hopperLauncherDiscovery(host.platform, host.homeDirectory);
+  const fixed = await firstExecutable(host, discovery.candidates);
+  if (fixed !== undefined || !discovery.probesMacApplicationBundles)
+    return fixed;
+  const renamed = await firstExecutable(host, await host.manualHopperPaths());
+  if (renamed !== undefined) return renamed;
   const brewCandidate = await host.brewHopperPath();
   return firstExecutable(
     host,

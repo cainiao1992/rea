@@ -1,11 +1,16 @@
+import { mkdir } from "node:fs/promises";
+import { join, posix } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { defaultHopperLauncherPath } from "../config/parseConfig.js";
 import { SUPPORTED_NODE_VERSION_PROSE } from "../domain/runtimeVersion.js";
 import type { ClientRegistrationStatus } from "./ClientRegistrationStatus.js";
 import { createDoctorHostFixture as host } from "./Doctor.fixture.js";
 import { runDoctor, systemDoctorHost, type DoctorHost } from "./Doctor.js";
 import { err } from "../domain/result.js";
 import { HopperReleaseError } from "./HopperReleaseFeed.js";
+import { MAC_HOPPER_SYSTEM_LAUNCHER } from "./MacHopperPaths.js";
+import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 
 describe("doctor Hopper startup timeout", () => {
   const timeoutHost = (
@@ -1042,18 +1047,87 @@ describe("doctor installed Hopper discovery", () => {
     );
     expect(result.hopperPath).toBe(path);
   });
+});
 
-  it("detects a manually installed Hopper application", async () => {
-    const path = "/Applications/Hopper v6.app/Contents/MacOS/hopper";
-    const result = await runDoctor(
-      undefined,
-      host({
-        executable: (candidate) => Promise.resolve(candidate === path),
-        manualHopperPaths: () => Promise.resolve([path]),
-      }),
-    );
-    expect(result.hopperPath).toBe(path);
+describe("doctor Hopper discovery matches runtime selection", () => {
+  // Model launchers with runtime's POSIX joins; filesystem work stays native.
+  const launchers = (home: string) => ({
+    macSystem: MAC_HOPPER_SYSTEM_LAUNCHER,
+    renamed: posix.join(
+      home,
+      "Applications/Hopper 5.app/Contents/MacOS/hopper",
+    ),
+    linuxSystem: "/opt/hopper-v4/bin/hopper",
   });
+  type Launcher = keyof ReturnType<typeof launchers>;
+
+  it.each<[NodeJS.Platform, readonly Launcher[], Launcher | undefined]>([
+    ["darwin", ["linuxSystem"], undefined],
+    ["darwin", ["linuxSystem", "renamed"], "renamed"],
+    ["darwin", ["linuxSystem", "macSystem"], "macSystem"],
+    ["darwin", ["renamed", "macSystem"], "macSystem"],
+    ["linux", ["macSystem", "renamed"], undefined],
+    ["linux", ["macSystem", "linuxSystem"], "linuxSystem"],
+    ["win32", ["macSystem", "linuxSystem", "renamed"], undefined],
+  ])(
+    "on %s with %j executable, selects %s",
+    async (platform, executable, expected) => {
+      // Runtime enumerates renamed bundles from disk; doctor reads its host scan.
+      const home = await createTestTempDirectory("rea-doctor-hopper-");
+      await mkdir(join(home, "Applications/Hopper 5.app"), { recursive: true });
+      const paths = launchers(home);
+      const executables = new Set(executable.map((name) => paths[name]));
+      const probed: string[] = [];
+      let renamedScans = 0;
+      let brewProbes = 0;
+      const result = await runDoctor(
+        undefined,
+        host({
+          platform,
+          homeDirectory: home,
+          executable: (path) => {
+            probed.push(path);
+            return Promise.resolve(executables.has(path));
+          },
+          manualHopperPaths: () => {
+            renamedScans += 1;
+            return Promise.resolve([paths.renamed]);
+          },
+          brewHopperPath: () => {
+            brewProbes += 1;
+            return Promise.resolve(undefined);
+          },
+        }),
+      );
+      const runtime = defaultHopperLauncherPath(platform, home, (path) =>
+        executables.has(path),
+      );
+
+      expect(result.hopperPath).toBe(
+        expected === undefined ? undefined : paths[expected],
+      );
+      // Hopper has no automatic launcher on other platforms; runtime's fixed
+      // fallback there is never probed.
+      if (platform === "win32") expect(probed).toEqual([]);
+      else
+        expect(result.hopperPath).toBe(
+          executables.has(runtime) ? runtime : undefined,
+        );
+      expect(renamedScans).toBe(
+        platform === "darwin" && expected !== "macSystem" ? 1 : 0,
+      );
+      expect(brewProbes).toBe(
+        platform === "darwin" && expected === undefined ? 1 : 0,
+      );
+      if (expected === undefined)
+        expect(
+          result.checks.find(({ name }) => name === "hopper"),
+        ).toMatchObject({
+          ok: false,
+          classification: "missing_analysis_engine",
+        });
+    },
+  );
 });
 
 describe("doctor target admission on Linux", () => {

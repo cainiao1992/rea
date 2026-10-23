@@ -463,7 +463,7 @@ export const linuxHopperLauncherPath = (home: string): string =>
 export const REA_MANAGED_LINUX_HOPPER_LAUNCHER = "/opt/hopper/bin/Hopper";
 
 /** Other system-wide Hopper paths used by package installations. */
-export const systemLinuxHopperLauncherCandidates: readonly string[] = [
+const systemLinuxHopperLauncherCandidates: readonly string[] = [
   "/opt/hopper-v4/bin/hopper",
   "/usr/bin/hopper",
 ];

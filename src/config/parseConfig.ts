@@ -8,14 +8,8 @@ import { DEFAULT_BRIDGE_MAX_REQUEST } from "./bridgeMaxRequestBytes.js";
 import { DEFAULT_REGEX_MATCHING_DEADLINE } from "./regexMatchingDeadline.js";
 import { DEFAULT_REGEX_WORKER_HEAP_REQUEST } from "./regexWorkerHeapRequest.js";
 import type { AppConfig } from "./types.js";
-import {
-  linuxHopperLauncherCandidates,
-  REA_MANAGED_LINUX_HOPPER_LAUNCHER,
-} from "../application/LinuxHopper.js";
-import {
-  MAC_HOPPER_SYSTEM_LAUNCHER,
-  macHopperLauncherCandidates,
-} from "../application/MacHopperPaths.js";
+import { hopperLauncherDiscovery } from "../application/HopperLauncherDiscovery.js";
+import { localMacHopperRenamedLauncherCandidates } from "../application/MacHopperPaths.js";
 const executableAvailable = (path: string): boolean => {
   try {
     accessSync(path, constants.X_OK);
@@ -30,16 +24,15 @@ export const defaultHopperLauncherPath = (
   homeDirectory: string,
   executable: (path: string) => boolean = executableAvailable,
 ): string => {
-  if (platform === "darwin") {
-    for (const candidate of macHopperLauncherCandidates(homeDirectory))
+  const discovery = hopperLauncherDiscovery(platform, homeDirectory);
+  for (const candidate of discovery.candidates)
+    if (executable(candidate)) return candidate;
+  if (discovery.probesMacApplicationBundles)
+    for (const candidate of localMacHopperRenamedLauncherCandidates(
+      homeDirectory,
+    ))
       if (executable(candidate)) return candidate;
-    return MAC_HOPPER_SYSTEM_LAUNCHER;
-  }
-  if (platform !== "linux") return MAC_HOPPER_SYSTEM_LAUNCHER;
-  return (
-    linuxHopperLauncherCandidates(homeDirectory).find(executable) ??
-    REA_MANAGED_LINUX_HOPPER_LAUNCHER
-  );
+  return discovery.fallback;
 };
 
 /**

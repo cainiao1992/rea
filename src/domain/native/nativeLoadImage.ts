@@ -2,11 +2,11 @@ import { z } from "zod";
 import { nativeMetadataRecoverySummarySchema } from "./nativeMetadataRecovery.js";
 import { jsonValueSchema } from "../jsonValue.js";
 import { binaryArchitectureSchema } from "../rawBinary.js";
+import { nativeAddressObservationSchema } from "./nativeAddress.js";
 
 const integer = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const hexBytes = z.string().regex(/^(?:[a-f0-9]{2})*$/u);
-const address = z.string().min(1);
 
 /** Measured provider image, without exporting the complete executable bytes. */
 export const nativeLoadImageObservationSchema = z.strictObject({
@@ -14,7 +14,7 @@ export const nativeLoadImageObservationSchema = z.strictObject({
   executable_format: z.string().min(1),
   language_id: z.string().min(1),
   compiler_spec_id: z.string().min(1),
-  image_base: address,
+  image_base: nativeAddressObservationSchema,
   default_address_space: z.string().min(1),
   source_files: z.array(
     z.strictObject({
@@ -27,8 +27,8 @@ export const nativeLoadImageObservationSchema = z.strictObject({
   mappings: z.array(
     z.strictObject({
       block: z.string(),
-      start: address,
-      end: address,
+      start: nativeAddressObservationSchema,
+      end: nativeAddressObservationSchema,
       address_space: z.string().min(1),
       initialized: z.boolean(),
       loaded: z.boolean(),
@@ -41,7 +41,7 @@ export const nativeLoadImageObservationSchema = z.strictObject({
   ),
   relocations: z.array(
     z.strictObject({
-      address,
+      address: nativeAddressObservationSchema,
       segment: integer.max(0xffff).nullable(),
       offset: integer.max(0xffff).nullable(),
       status: z.string().min(1),
@@ -53,10 +53,10 @@ export const nativeLoadImageObservationSchema = z.strictObject({
       memory_bytes_hex: hexBytes.nullable(),
     }),
   ),
-  entry_points: z.array(address),
+  entry_points: z.array(nativeAddressObservationSchema),
   entry_context: z.array(
     z.strictObject({
-      address,
+      address: nativeAddressObservationSchema,
       registers: z.array(
         z.strictObject({
           name: z.string().min(1),
@@ -77,7 +77,7 @@ export const nativeLoadImageCheckSchema = z.strictObject({
   expected: jsonValueSchema,
   observed: jsonValueSchema,
   file_offset: integer.nullable(),
-  address: address.nullable(),
+  address: nativeAddressObservationSchema.nullable(),
 });
 
 /** Read-only native image verification; verified applies only to declared coverage. */
@@ -99,7 +99,7 @@ export const nativeLoadImageSchema = z.union([
     entry: z.strictObject({
       relative_segment: integer.max(0xffff),
       offset: integer.max(0xffff),
-      linear_address: address,
+      linear_address: nativeAddressObservationSchema,
     }),
     observations: nativeLoadImageObservationSchema,
     checks: z.array(nativeLoadImageCheckSchema),
@@ -112,10 +112,10 @@ export const nativeLoadImageSchema = z.union([
     architecture: binaryArchitectureSchema,
     language_id: z.string().min(1),
     compiler_spec_id: z.string().min(1),
-    base_address: address,
+    base_address: nativeAddressObservationSchema,
     file_bytes: integer.min(1),
     entry: z.strictObject({
-      address: address,
+      address: nativeAddressObservationSchema,
       file_offset: z.literal(0),
     }),
     observations: nativeLoadImageObservationSchema,

@@ -1478,10 +1478,13 @@ describe("Ghidra measured raw load-image projection", () => {
     "mapping-mismatch",
     "changed-snapshot",
     "cancelled",
+    "malformed-coordinate",
   ] as const)(
     "streams raw snapshot identity and preserves %s outcomes",
     async (state) => {
       const fixture = fixtureRawBinaryLoadImage();
+      if (state === "malformed-coordinate")
+        fixture.observation.image_base = "not-an-address";
       if (state === "mapping-mismatch") {
         const mapping = fixture.observation.mappings[0];
         if (mapping === undefined)
@@ -1542,7 +1545,9 @@ describe("Ghidra measured raw load-image projection", () => {
           {},
           { signal: controller.signal },
         );
-        expect(signals).toEqual([controller.signal]);
+        expect(signals).toEqual(
+          state === "malformed-coordinate" ? [] : [controller.signal],
+        );
         if (state === "verified" || state === "mapping-mismatch") {
           if (!result.ok) throw result.error;
           expect(result.value.result).toMatchObject({
@@ -1567,7 +1572,9 @@ describe("Ghidra measured raw load-image projection", () => {
               _tag:
                 state === "cancelled"
                   ? "AnalysisCancelledError"
-                  : "ProviderAdapterError",
+                  : state === "malformed-coordinate"
+                    ? "AnalysisOutputError"
+                    : "ProviderAdapterError",
             },
           });
         }

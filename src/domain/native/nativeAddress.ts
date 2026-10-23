@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/** Observed hexadecimal coordinate; preserve padding and encoded space spelling. */
+export const nativeAddressObservationSchema = z
+  .string()
+  .regex(/^(?:(?:[A-Za-z0-9._~\x2d]|%[0-9A-F]{2})+:)?0x[0-9a-f]+$/u);
+
 /** Canonical hexadecimal coordinate, retaining its optional address space. */
 export const nativeAddressSchema = z
   .string()

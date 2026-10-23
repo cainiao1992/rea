@@ -76,6 +76,35 @@ it("links methods to code through module tokens, not metadata order", () => {
   );
 });
 
+it("rejects reused MethodDef tokens within an image but preserves cross-image reuse and folded addresses", () => {
+  const duplicateTokens = Uint32Array.from(facts.methodTokens);
+  duplicateTokens[1] = duplicateTokens[0]!;
+  expect(() =>
+    linkIl2cppBinary(createIl2cppBinaryFixture(), metadata, {
+      ...facts,
+      methodTokens: duplicateTokens,
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      reason: "invalid-method-token",
+      kind: "malformed",
+    }),
+  );
+
+  // The fixture deliberately reuses MethodDef row ids in its second image.
+  expect(link(createIl2cppBinaryFixture()).method_addresses).toEqual(
+    expectedAddresses,
+  );
+
+  // Distinct rows may still point at the same native address after folding.
+  const folded = createIl2cppBinaryFixture();
+  folded.writeBigUInt64LE(folded.readBigUInt64LE(0x308), 0x300);
+  const linkedFolded = link(folded);
+  expect(linkedFolded.method_addresses[0]?.address).toBe(
+    linkedFolded.method_addresses[1]?.address,
+  );
+});
+
 it("requires an explicit slice of a universal Mach-O and reads only that slice", () => {
   const thin = createIl2cppBinaryFixture();
   const universal = createUniversalFixture([

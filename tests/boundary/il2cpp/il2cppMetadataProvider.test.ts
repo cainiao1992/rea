@@ -1,15 +1,19 @@
 import { setImmediate } from "node:timers/promises";
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
+  AnalysisInputError,
   AnalysisResourceConstraintError,
 } from "../../../src/domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { Il2cppMetadataProvider } from "../../../src/il2cpp/Il2cppMetadataProvider.js";
+import { Il2cppGhidraSeedWriter } from "../../../src/il2cpp/Il2cppGhidraSeedWriter.js";
+import { Il2cppMetadataService } from "../../../src/application/il2cpp/Il2cppMetadataService.js";
+import { il2cppMetadataSchema } from "../../../src/domain/il2cpp/il2cppMetadata.js";
 import {
   createElfFixture,
   createIl2cppBinaryFixture,
@@ -545,6 +549,65 @@ it("accepts cancellation between binary linking batches and keeps the metadata s
     });
   } finally {
     await provider.close();
+  }
+});
+
+it("refuses duplicate MethodDef tokens before publishing linked Evidence or Ghidra seeds", async () => {
+  const root = await createTestTempDirectory(
+    "rea-il2cpp-duplicate-method-token-",
+  );
+  const path = join(root, "global-metadata.dat");
+  const binaryPath = join(root, "GameAssembly.dylib");
+  const duplicateSeeds = join(root, "duplicate.tsv");
+  const foldedSeeds = join(root, "folded.tsv");
+  const fixture = createIl2cppMetadataFixture({ version: 31 });
+  const duplicate = Buffer.from(fixture.bytes);
+  const firstTokenAt = fixture.record("methods", 0) + 24;
+  const secondTokenAt = fixture.record("methods", 1) + 24;
+  duplicate.writeUInt32LE(duplicate.readUInt32LE(firstTokenAt), secondTokenAt);
+  await writeFile(path, duplicate);
+  await writeFile(binaryPath, createIl2cppBinaryFixture());
+
+  const service = new Il2cppMetadataService(
+    new Il2cppMetadataProvider(),
+    new Il2cppGhidraSeedWriter(),
+  );
+  try {
+    const refused = await service.inspectWithGhidraSeeds(
+      { path, binary_path: binaryPath, detail: "complete" },
+      { path: duplicateSeeds },
+    );
+    expect(refused.ok).toBe(false);
+    if (refused.ok)
+      throw new Error("Duplicate MethodDef identity was accepted");
+    if (!(refused.error instanceof AnalysisInputError))
+      throw new Error("Duplicate MethodDef identity was not an input refusal");
+    expect(refused.error.issues[0]?.message).toContain("invalid-method-token");
+    expect(refused.error.issues[0]?.message).toContain("share MethodDef token");
+    expect(refused.error.partialObservation).toMatchObject({
+      normalized_result: { artifact: { path } },
+    });
+    await expect(readFile(duplicateSeeds)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const foldedBinary = createIl2cppBinaryFixture();
+    foldedBinary.writeBigUInt64LE(foldedBinary.readBigUInt64LE(0x308), 0x300);
+    await writeFile(path, fixture.bytes);
+    await writeFile(binaryPath, foldedBinary);
+    const accepted = await service.inspectWithGhidraSeeds(
+      { path, binary_path: binaryPath, detail: "complete" },
+      { path: foldedSeeds },
+    );
+    expect(accepted.ok).toBe(true);
+    if (!accepted.ok) throw accepted.error;
+    const result = il2cppMetadataSchema.parse(accepted.value.normalized_result);
+    expect(result.method_addresses[0]?.address).toBe(
+      result.method_addresses[1]?.address,
+    );
+    expect(await readFile(foldedSeeds, "utf8")).toContain("# folded");
+  } finally {
+    await service.close();
   }
 });
 

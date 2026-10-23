@@ -206,7 +206,11 @@ image, the single record whose name pointer reaches that image's name string and
 whose count equals the image's method count. It then requires exactly one
 `codeGenModulesCount`/`codeGenModules` pair that lists exactly those records. No
 symbols are needed, so stripped builds work. A method's token row id selects its
-slot in the module's method pointer array.
+slot in the module's method pointer array. Within one image, each method must
+claim a distinct MethodDef token row; duplicate rows are refused before any
+linked method table or seed output is published. Row ids may repeat across
+different images, and distinct rows may still resolve to the same address when
+the binary uses identical-code folding.
 
 Module records establish names through their declared NUL-terminated string pointers. NUL/0xFF padding, spaces, Unicode and suffix-shared storage are supported. A pointer to a longer string does not match just its suffix; a pointer directly into a shared suffix may name it. Exact reversed UTF-8 matching avoids rescanning the file for every name and retains duplicate-name owners until module records resolve them. A contributor investigated a Linux
 `GameAssembly.so` from Unity 2023.2.13f1 whose static registration was not located. When no static pair is resolved on x86-64, the reader searches executable ranges for bytes consistent with RIP-relative LEA/MOV references to module-array candidates. Exactly one referenced array candidate must remain. `code_gen_modules_field` is then `null`, and Evidence is **inferred**: instruction boundaries, the absence of a static registration elsewhere, and runtime use were not verified. The module records and slots themselves remain file observations. Static-table associations are **derived**. Otherwise the result is `code-registration-not-found`.
@@ -269,21 +273,21 @@ Il2CppType byref flag in different bits, so a rendered name could gain or lose
 
 The builds checked are listed after the module search rules above.
 
-| Reason                            | Category    | Meaning                                                                                           |
-| --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------- |
-| `unsupported-container`           | unsupported | Not a 64-bit little-endian Mach-O, PE or ELF image (ELF: AArch64 or x86-64 with dynamic section). |
-| `slice-selection-required`        | unsupported | A universal Mach-O was given without `binary_architecture`.                                       |
-| `slice-not-found`                 | unsupported | The requested slice is absent, or a thin binary was given an architecture.                        |
-| `unsupported-pointer-encoding`    | unsupported | Mach-O chained fixups or Android packed (APS2) ELF relocations; pointers not decoded.             |
-| `malformed-container`             | input error | The container headers are damaged.                                                                |
-| `code-gen-modules-not-found`      | input error | An image has no module record; often a binary from a different build.                             |
-| `ambiguous-code-gen-module`       | input error | More than one module record matches an image.                                                     |
-| `code-registration-not-found`     | input error | No unique module table or executable-byte array candidate was resolved.                           |
-| `invalid-method-token`            | input error | A method token is not a method row inside its module's pointer count.                             |
-| `invalid-method-pointer`          | input error | A slot is unavailable or its nonzero address lacks unambiguous executable file coverage.          |
-| `metadata-registration-not-found` | input error | No single MetadataRegistration matches the type-definition count.                                 |
-| `invalid-type`                    | input error | A type index or `Il2CppType` record is out of range, unmapped or malformed.                       |
-| `unsupported-type-kind`           | unsupported | A valid type kind has no implemented rendering.                                                   |
+| Reason                            | Category    | Meaning                                                                                             |
+| --------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
+| `unsupported-container`           | unsupported | Not a 64-bit little-endian Mach-O, PE or ELF image (ELF: AArch64 or x86-64 with dynamic section).   |
+| `slice-selection-required`        | unsupported | A universal Mach-O was given without `binary_architecture`.                                         |
+| `slice-not-found`                 | unsupported | The requested slice is absent, or a thin binary was given an architecture.                          |
+| `unsupported-pointer-encoding`    | unsupported | Mach-O chained fixups or Android packed (APS2) ELF relocations; pointers not decoded.               |
+| `malformed-container`             | input error | The container headers are damaged.                                                                  |
+| `code-gen-modules-not-found`      | input error | An image has no module record; often a binary from a different build.                               |
+| `ambiguous-code-gen-module`       | input error | More than one module record matches an image.                                                       |
+| `code-registration-not-found`     | input error | No unique module table or executable-byte array candidate was resolved.                             |
+| `invalid-method-token`            | input error | A token is outside its module's method-pointer rows, or a MethodDef row is reused within one image. |
+| `invalid-method-pointer`          | input error | A slot is unavailable or its nonzero address lacks unambiguous executable file coverage.            |
+| `metadata-registration-not-found` | input error | No single MetadataRegistration matches the type-definition count.                                   |
+| `invalid-type`                    | input error | A type index or `Il2CppType` record is out of range, unmapped or malformed.                         |
+| `unsupported-type-kind`           | unsupported | A valid type kind has no implemented rendering.                                                     |
 
 Format and selection failures name `binary_path`; capacity refusals remain typed resource errors. Failed linking preserves the metadata source identity, validated counts, selected binary path/architecture and its SHA-256 when observed, plus prior producer observations. It never publishes an incomplete native table as complete. The binary input is bounded to1GiB.
 

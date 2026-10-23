@@ -536,7 +536,15 @@ export class NativeDmgArtifactReader implements ArtifactReader {
     const info = await runChecked(this.host, ["info", "-plist"], undefined, {
       timeoutMs: HDIUTIL_COMMAND_TIMEOUT_MS,
     });
-    return parseNativeDmgInfo(info.stdout);
+    try {
+      return parseNativeDmgInfo(info.stdout);
+    } catch (cause: unknown) {
+      throw new ArtifactReaderFailure(
+        "format",
+        "hdiutil info -plist returned malformed image inventory",
+        { cause },
+      );
+    }
   }
 
   async #resolveAttachOwnership(): Promise<"owned" | "none" | "unknown"> {

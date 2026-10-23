@@ -16,8 +16,8 @@ import {
 } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,
-  metadataCodedToken,
-  metadataCodedTokenInvalidReason,
+  decodeMetadataCodedIndex,
+  type ManagedCodedIndex,
   metadataToken,
   readMetadataBlob,
   readMetadataGuid,
@@ -404,29 +404,28 @@ const declaringTypeForMethod = (
 const attributeTypeName = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  rawType: number,
+  constructor: Extract<ManagedCodedIndex, { readonly kind: "valid" }>,
   memberLists: TypeMemberListFacts,
   typeName: ManagedMetadataTypeNameLookup,
 ): string | null => {
-  const tag = rawType & 7;
-  const row = Math.floor(rawType / 8);
-  if (row === 0) return null;
-  if (tag === 2)
+  const { table, row } = constructor;
+  if (table === 6)
     return declaringTypeForMethod(bytes, layout, row, memberLists, typeName);
-  if (tag !== 3) return null;
-  const memberRefs = layout.table(10);
-  if (memberRefs === undefined || row > memberRefs.rowCount) return null;
   const cursor = metadataRowCursor(bytes, layout, 10, row);
-  const parent = cursor.readIndex(layout.codedIndexSize("MemberRefParent"));
-  const parentTag = parent & 7;
-  const parentRow = Math.floor(parent / 8);
-  if (parentTag === 0) return typeName(2, parentRow);
-  if (parentTag === 1) return typeName(1, parentRow);
-  if (parentTag === 3)
+  const parent = decodeMetadataCodedIndex(
+    cursor.readIndex(layout.codedIndexSize("MemberRefParent")),
+    3,
+    [2, 1, 26, 6, 27],
+    layout.rowCounts,
+  );
+  if (parent.kind === "null") return null;
+  if (parent.table === 2 || parent.table === 1)
+    return typeName(parent.table, parent.row);
+  if (parent.table === 6)
     return declaringTypeForMethod(
       bytes,
       layout,
-      parentRow,
+      parent.row,
       memberLists,
       typeName,
     );
@@ -510,59 +509,48 @@ export const readCustomAttribute = (
     cursor.readIndex(layout.blobIndexSize),
     heapExtent,
   );
-  const parent = metadataCodedToken(
+  const parent = decodeMetadataCodedIndex(
     parentRaw,
     5,
     HAS_CUSTOM_ATTRIBUTE_TABLES,
     layout.rowCounts,
   );
-  if (parent === null) {
-    const parentReason = metadataCodedTokenInvalidReason(
-      parentRaw,
-      5,
-      HAS_CUSTOM_ATTRIBUTE_TABLES,
-      layout.rowCounts,
-    );
+  if (parent.kind !== "valid") {
     throw managedFailure(
       "invalid-row",
       `metadata.CustomAttribute:${metadataToken(12, row)}`,
-      `CustomAttribute parent coded index 0x${parentRaw.toString(16)} is invalid${parentReason === null ? " because the required parent is null" : `: ${parentReason}`}`,
+      `CustomAttribute parent coded index 0x${parentRaw.toString(16)} is invalid${parent.kind === "null" ? " because the required parent is null" : `: ${parent.reason}`}`,
       cursor.start,
     );
   }
-  const constructor = metadataCodedToken(
+  const constructor = decodeMetadataCodedIndex(
     typeRaw,
     3,
     CUSTOM_ATTRIBUTE_TYPE_TABLES,
     layout.rowCounts,
   );
-  if (constructor === null) {
-    const typeReason = metadataCodedTokenInvalidReason(
-      typeRaw,
-      3,
-      CUSTOM_ATTRIBUTE_TYPE_TABLES,
-      layout.rowCounts,
-    );
+  if (constructor.kind !== "valid") {
     issues.push({
       code: "invalid-row",
       scope: `metadata.CustomAttribute:${metadataToken(12, row)}`,
       offset: typeOffset,
       detail:
-        typeReason === null
+        constructor.kind === "null"
           ? "CustomAttribute constructor coded index 0x0 is null, but Type must reference a MethodDef or MemberRef row"
-          : `CustomAttribute constructor coded index 0x${typeRaw.toString(16)} is invalid: ${typeReason}`,
+          : `CustomAttribute constructor coded index 0x${typeRaw.toString(16)} is invalid: ${constructor.reason}`,
     });
   }
   let typeName: string | null = null;
-  if (constructor !== null)
+  if (constructor.kind === "valid")
     typeName =
       readManagedValue(
-        () => attributeTypeName(bytes, layout, typeRaw, memberLists, typeNames),
+        () =>
+          attributeTypeName(bytes, layout, constructor, memberLists, typeNames),
         issues,
       ) ?? null;
   return {
-    parent_token: parent,
-    constructor_token: constructor,
+    parent_token: parent.token,
+    constructor_token: constructor.kind === "valid" ? constructor.token : null,
     type_name: typeName,
     value_length: value.length,
     value_sha256: managedDecodeBudget(layout).digest(value, "sha256"),
@@ -603,28 +591,22 @@ export const readResource = ({
   const implementationRaw = cursor.readIndex(
     layout.codedIndexSize("Implementation"),
   );
-  const implementationToken = metadataCodedToken(
+  const implementation = decodeMetadataCodedIndex(
     implementationRaw,
     2,
     [38, 35, 39],
     layout.rowCounts,
   );
-  const implementationReason = metadataCodedTokenInvalidReason(
-    implementationRaw,
-    2,
-    [38, 35, 39],
-    layout.rowCounts,
-  );
-  if (implementationReason !== null)
+  if (implementation.kind === "invalid")
     issues.push({
       code: "invalid-row",
       scope: `metadata.ManifestResource:${metadataToken(40, row)}`,
       offset: implementationOffset,
-      detail: `ManifestResource implementation coded index 0x${implementationRaw.toString(16)} is invalid: ${implementationReason}`,
+      detail: `ManifestResource implementation coded index 0x${implementationRaw.toString(16)} is invalid: ${implementation.reason}`,
     });
   let dataLength: number | null = null;
   let dataSha256: string | null = null;
-  if (implementationRaw === 0) {
+  if (implementation.kind === "null") {
     if (directory === null || declaredOffset > directory.size - 4) {
       issues.push({
         code: "invalid-resource",
@@ -655,8 +637,9 @@ export const readResource = ({
     flags,
     visibility:
       (flags & 7) === 1 ? "public" : (flags & 7) === 2 ? "private" : "unknown",
-    implementation_token: implementationToken,
-    embedded: implementationRaw === 0,
+    implementation_token:
+      implementation.kind === "valid" ? implementation.token : null,
+    embedded: implementation.kind === "null",
     declared_offset: declaredOffset,
     data_length: dataLength,
     data_sha256: dataSha256,

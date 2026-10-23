@@ -23,8 +23,7 @@ import type {
 } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,
-  metadataCodedToken,
-  metadataCodedTokenInvalidReason,
+  decodeMetadataCodedIndex,
   metadataToken,
   readMetadataString,
   sha256Bytes,
@@ -242,18 +241,18 @@ export const parseTypes = (
       definition.methodStart,
       definition.methodEnd,
     );
-    const extendsReason = metadataCodedTokenInvalidReason(
+    const extendsIndex = decodeMetadataCodedIndex(
       extendsRaw,
       2,
       [2, 1, 27],
       layout.rowCounts,
     );
-    if (extendsReason !== null)
+    if (extendsIndex.kind === "invalid")
       issues.push({
         code: "invalid-row",
         scope: `metadata.TypeDef:${token}`,
         offset: extendsOffset,
-        detail: `TypeDef Extends coded index 0x${extendsRaw.toString(16)} is invalid: ${extendsReason}`,
+        detail: `TypeDef Extends coded index 0x${extendsRaw.toString(16)} is invalid: ${extendsIndex.reason}`,
       });
     const enclosingRow = nesting.enclosing.get(row);
     items.push({
@@ -263,12 +262,7 @@ export const parseTypes = (
       name,
       full_name: definition.fullName,
       flags,
-      extends_token: metadataCodedToken(
-        extendsRaw,
-        2,
-        [2, 1, 27],
-        layout.rowCounts,
-      ),
+      extends_token: extendsIndex.kind === "valid" ? extendsIndex.token : null,
       enclosing_type_token:
         enclosingRow === undefined ? null : metadataToken(2, enclosingRow),
       name_sha256: null,
@@ -530,20 +524,17 @@ const readTypeOperand = (
 ): ReturnType<typeof readCompressed> => {
   const token = readCompressed(blob, offset);
   if (layout !== undefined) {
-    const reason =
-      token.value === 0
-        ? "type operand is null"
-        : metadataCodedTokenInvalidReason(
-            token.value,
-            2,
-            tables,
-            layout.rowCounts,
-          );
-    if (reason !== null)
+    const decoded = decodeMetadataCodedIndex(
+      token.value,
+      2,
+      tables,
+      layout.rowCounts,
+    );
+    if (decoded.kind !== "valid")
       throw managedFailure(
         "invalid-row",
         "signature",
-        `TypeDefOrRefOrSpec operand 0x${token.value.toString(16)} is invalid: ${reason}`,
+        `TypeDefOrRefOrSpec operand 0x${token.value.toString(16)} is invalid: ${decoded.kind === "null" ? "type operand is null" : decoded.reason}`,
         offset,
       );
   }

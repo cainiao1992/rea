@@ -17,6 +17,8 @@ import { edges } from "./ManagedMemberRows.js";
 import { parseUserStrings } from "./ManagedUserStrings.js";
 import { signature, type ManagedMethod } from "./ManagedMemberInspectorCore.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import { managedTypeReferences } from "./ManagedTypeReferences.js";
+import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import { managedMemberInspectionSchema } from "../domain/managed/managedArtifact.js";
 import { comparisonLimitations } from "../domain/managed/managedMemberComparisonCoverage.js";
 import { buildManagedPeFixture as buildMultiMethodManagedPeFixture } from "../../scripts/fixtures/managed/pe.mjs";
@@ -637,6 +639,38 @@ describe("managed edge target declaring types", () => {
 });
 
 describe("managed TypeRef resolution scopes", () => {
+  it.each([0, 9])(
+    "retains invalid enclosing TypeRef row %s without granting scope validity",
+    (enclosingRow) => {
+      const bytes = buildManagedPeFixture({
+        typeRefScopeRaw: enclosingRow * 4 + 3,
+      });
+      const pe = readManagedPeLayout(bytes);
+      if (pe.cli === null) throw new Error("fixture has no CLI header");
+      const { rva, size } = pe.cli.metadata;
+      const layout = readManagedMetadataLayout(
+        bytes,
+        pe.rvaToOffset(rva, size, "metadata"),
+        size,
+      );
+      const issues: ManagedParseIssue[] = [];
+      const reference = managedTypeReferences(bytes, layout, issues)(1);
+
+      expect(reference).toMatchObject({ enclosingRow, scopeValid: false });
+      expect(issues).toMatchObject([
+        {
+          code: "invalid-row",
+          scope: "metadata.TypeRef:0x01000001",
+          detail: expect.stringContaining(
+            enclosingRow === 0
+              ? "coded index selects row zero in table 1"
+              : "coded index selects row 9 in table 1, which has 1 rows",
+          ),
+        },
+      ]);
+    },
+  );
+
   it.each([
     // AssemblyRef 9 does not exist.
     ["an invalid", (9 << 2) | 2, "is invalid"],

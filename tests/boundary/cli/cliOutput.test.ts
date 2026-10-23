@@ -79,6 +79,73 @@ describe("CLI output argument boundary", () => {
   });
 });
 
+describe("CLI output value admission", () => {
+  it.each(["--token-limit", "--token-offset"])(
+    "rejects invalid %s values before dispatch and preserves later JSON selection",
+    (flag) => {
+      for (const value of [
+        "-1",
+        "0.5",
+        "NaN",
+        "Infinity",
+        "9007199254740992",
+      ]) {
+        const validation = parseCliOutputArguments([
+          "providers",
+          flag,
+          value,
+          "--json",
+        ]).validation;
+        expect(validation).toMatchObject({
+          ok: false,
+          format: "json",
+          code: "INVALID_OUTPUT_VALUE",
+        });
+        if (!validation.ok)
+          expect(
+            JSON.parse(renderCliOutputArgumentError(validation)),
+          ).toMatchObject({
+            ok: false,
+            error: { code: "INVALID_OUTPUT_VALUE" },
+          });
+      }
+      for (const value of ["0", "1", "9007199254740991"])
+        expect(
+          parseCliOutputArguments(["providers", flag, value]).validation,
+        ).toEqual({ ok: true });
+    },
+  );
+
+  it("retains valid output selections on either side of a malformed value", () => {
+    for (const arguments_ of [
+      ["--json", "--format", "invalid"],
+      ["--format", "invalid", "--json"],
+      ["--token-limit", "invalid", "--json"],
+    ])
+      expect(parseCliOutputArguments(arguments_).validation).toMatchObject({
+        ok: false,
+        format: "json",
+        code: "INVALID_OUTPUT_VALUE",
+      });
+    expect(
+      parseCliOutputArguments(["--format", "jsonl", "--format", "invalid"])
+        .validation,
+    ).toMatchObject({
+      ok: false,
+      format: "jsonl",
+      code: "INVALID_OUTPUT_VALUE",
+    });
+    expect(
+      parseCliOutputArguments(["--format", "yaml", "--token-offset", "-1"])
+        .validation,
+    ).toMatchObject({
+      ok: false,
+      format: "yaml",
+      code: "INVALID_OUTPUT_VALUE",
+    });
+  });
+});
+
 describe("CLI output flag value forms", () => {
   it.each(["--filter-output", "--format", "--token-limit", "--token-offset"])(
     "preserves a flag-shaped spaced value owned by %s",
@@ -180,8 +247,6 @@ describe("unclosed CLI output filter slices", () => {
       ],
       ["--filter-output", "capabilities[-1,].provider.id"],
       ["--filter-output", "capabilities[[0,1]"],
-      ["--format", "invalid", "--filter-output", "providers["],
-      ["--token-limit", "invalid", "--filter-output", "providers["],
     ])
       expect(parseCliOutputArguments(arguments_).validation).toEqual({
         ok: true,
@@ -356,7 +421,10 @@ describe("CLI output valued-flag parsing", () => {
       ]) {
         const result = await cli.run({ arguments: arguments_ });
         expect(result.exitCode).toBe(1);
-        expect(result.stdout).not.toContain("UNSUPPORTED_OUTPUT_COMBINATION");
+        expect(result.json).toMatchObject({
+          ok: false,
+          error: { code: "INVALID_OUTPUT_VALUE" },
+        });
         expect(result.stdout).not.toContain("[truncated:");
       }
     },

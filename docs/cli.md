@@ -453,7 +453,6 @@ MCP `compare_bundles.record_pairs`. Pair IDs must exist on their named sides and
 be one-to-one. Without pairs, one-sided membership remains unknown; REA does
 not infer correspondence from position or display names.
 
-
 Exports preserve an existing destination unless `--overwrite` is explicit.
 
 Atomic Evidence output stages on the selected destination's filesystem. If the
@@ -789,7 +788,10 @@ truncation alone does not change the diagnostic health or exit status.
 The default terminal format is TOON. Use `--json` when saving results for a
 JSON consumer. Valued output flags (`--format`, `--filter-output`,
 `--token-limit`, `--token-offset`) accept `--flag value` or `--flag=value`; a
-missing value fails with `MISSING_OUTPUT_VALUE` before the command runs. `--json` is indented on a terminal and compact when piped or
+missing value fails with `MISSING_OUTPUT_VALUE` before the command runs.
+Malformed format values and token windows fail with `INVALID_OUTPUT_VALUE` in the
+selected structured format. Token limits and offsets must be nonnegative safe
+integers; zero selects an empty window. These checks run before command execution. `--json` is indented on a terminal and compact when piped or
 redirected, which keeps large results smaller for agents and scripts; pipe
 through `jq .` for indented files. Output selection and formatting do not change
 operation status.

@@ -240,8 +240,14 @@ export const createCliResultOutput = (
     finishSdkOutput(exitCode) {
       return (sdkCompletion ??= (async () => {
         const parts = sdkParts.splice(0);
-        if (parts.length === 0) return;
         try {
+          if (parts.length === 0) {
+            // SDK writes outside the JSONL buffer still share this destination.
+            // A write callback runs after earlier queued writes have completed,
+            // so the launcher's explicit exit cannot discard a pending pipe tail.
+            await writeOutputText(destination, "");
+            return;
+          }
           if (exitCode === 0) {
             for (const part of parts) await writeOutputText(destination, part);
           } else {

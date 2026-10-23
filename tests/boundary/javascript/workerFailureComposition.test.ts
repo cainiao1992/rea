@@ -45,6 +45,7 @@ vi.mock("node:fs/promises", async (original) => {
   };
 });
 
+import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
 import { JavaScriptAnalysisWorker } from "../../../src/javascript/analysis/JavaScriptAnalysisWorker.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
@@ -152,11 +153,10 @@ it.each([false, true])(
         _tag: "AnalysisResourceConstraintError",
         reason: expect.stringContaining("Expanded application relationships"),
       });
-      if (!result.ok)
-        expect(result.error.error).toMatchObject({
-          _tag: "ProviderCleanupError",
-          cleanupIncomplete: true,
-        });
+      if (!result.ok) {
+        expect(result.error.error).toBeInstanceOf(ProviderCleanupError);
+        expect(result.error.error.cleanupIncomplete).toBe(true);
+      }
       expect(faults.removals).toBe(removalFailure ? 1 : 0);
     } finally {
       faults.sourceRemoval = false;

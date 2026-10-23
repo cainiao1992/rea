@@ -2,7 +2,7 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import pino from "pino";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { createServer } from "../../../src/server/createServer.js";
@@ -11,6 +11,25 @@ import {
   createTestBinarySession,
 } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+
+// Observe each application boundary deterministically; transport rate limiting
+// is covered by reporter tests and must not select the cancellation site.
+vi.mock("../../../src/application/ProgressReporter.js", async (original) => {
+  const actual =
+    await original<
+      typeof import("../../../src/application/ProgressReporter.js")
+    >();
+  return {
+    ...actual,
+    createProgressReporter: (
+      ...args: Parameters<typeof actual.createProgressReporter>
+    ) =>
+      actual.createProgressReporter(args[0], {
+        ...args[1],
+        minimumIntervalMs: 0,
+      }),
+  };
+});
 
 it.each([
   { phase: "parse_javascript_source", message: "second.js", parsedFiles: 1 },

@@ -100,3 +100,19 @@ it("requires an intact Electron instance for renderer roles", () => {
   );
   expect(replaced.role_paths).toEqual([]);
 });
+
+it("keeps a reused renderer receiver uncertain after its native method call", () => {
+  const analysis = analyzeJavaScriptStaticSource(`
+    import {BrowserWindow} from 'electron';
+    const win = new BrowserWindow();
+    win.loadFile("first.html");
+    win.loadFile("later.html");
+    new BrowserWindow().loadFile("independent.html");
+  `);
+  // Proven constructor/method identity does not establish that invoking native
+  // code leaves this receiver unchanged: callbacks and hooks remain unknown.
+  expect(analysis.role_paths.map(({ path }) => path)).toEqual([
+    "first.html",
+    "independent.html",
+  ]);
+});

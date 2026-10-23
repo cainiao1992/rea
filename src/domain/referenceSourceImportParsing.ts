@@ -72,6 +72,16 @@ const safeModuleName = (node: Node | null | undefined): string | undefined => {
   return undefined;
 };
 
+const exactStringModuleName = (
+  node: Node | null | undefined,
+): string | undefined => {
+  if (node === null || node === undefined) return undefined;
+  const literal = readExactJavaScriptLiteral(node);
+  return literal.found && typeof literal.value === "string"
+    ? literal.value
+    : undefined;
+};
+
 const resolveSpecifier = (
   specifier: string,
 ): ReferenceSourceImportResolution => {
@@ -248,7 +258,7 @@ const extractRequireAndDynamicImports = (
 
   for (const call of expressions) {
     if (isImportExpression(call)) {
-      const specifier = safeModuleName(call.source);
+      const specifier = exactStringModuleName(call.source);
       appendRelationship(relationships, limitations, {
         fromPath: from_path,
         to: specifier ?? "<dynamic-import>",

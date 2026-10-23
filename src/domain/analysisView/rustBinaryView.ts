@@ -1,8 +1,8 @@
+import { binaryMetadataArchitecture } from "../binaryMetadataArchitecture.js";
 import { metadataReportSubjectFormat } from "../apple/machoTargetSelection.js";
 import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import {
-  rustArchitectureForSubject,
   rustBinarySchema,
   rustAuditableMetadataSchema,
   rustcCommitSchema,
@@ -159,7 +159,7 @@ export const projectRustBinaryView = (
     subject.digest.sha256 !== report.artifact.sha256 ||
     subject.format !== metadataReportSubjectFormat(report) ||
     subject.architecture !==
-      (rustArchitectureForSubject(report.architecture) ?? null)
+      (binaryMetadataArchitecture(report.architecture) ?? null)
   )
     return err(
       analysisViewInputError([

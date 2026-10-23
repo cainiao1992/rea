@@ -1,3 +1,4 @@
+import { binaryMetadataArchitecture } from "../../domain/binaryMetadataArchitecture.js";
 import { metadataReportSubjectFormat } from "../../domain/apple/machoTargetSelection.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import type { GoBinaryPort } from "./GoBinaryPort.js";
@@ -8,7 +9,6 @@ import {
 } from "../../domain/analysisErrorCore.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import {
-  goArchitectureForSubject,
   goBinarySchema,
   inspectGoBinaryInputSchema,
 } from "../../domain/go/goBinary.js";
@@ -68,7 +68,7 @@ export class GoBinaryService {
         ),
       );
     const value = report.data;
-    const architecture = goArchitectureForSubject(value.architecture);
+    const architecture = binaryMetadataArchitecture(value.architecture);
     const completed = completeProviderEvidence(
       createEvidence(
         {

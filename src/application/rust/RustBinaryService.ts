@@ -1,3 +1,4 @@
+import { binaryMetadataArchitecture } from "../../domain/binaryMetadataArchitecture.js";
 import { metadataReportSubjectFormat } from "../../domain/apple/machoTargetSelection.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import type { RustBinaryPort } from "./RustBinaryPort.js";
@@ -8,7 +9,6 @@ import {
 } from "../../domain/analysisErrorCore.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import {
-  rustArchitectureForSubject,
   rustBinarySchema,
   type InspectRustBinaryInput,
 } from "../../domain/rust/rustBinary.js";
@@ -87,7 +87,7 @@ const evidenceFor = (
   parameters: InspectRustBinaryInput,
   value: ReturnType<typeof rustBinarySchema.parse>,
 ): Evidence => {
-  const architecture = rustArchitectureForSubject(value.architecture);
+  const architecture = binaryMetadataArchitecture(value.architecture);
   const section = value.auditable_metadata;
   return createEvidence(
     {

@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { AnalysisInputError } from "../../../src/domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisInputError,
+} from "../../../src/domain/analysisErrorCore.js";
+import { stopOwnedDebuggerProcess } from "../../../src/process/ownedDebuggerSession.js";
 import { rizinTestInferiorTty } from "./RizinTestInferiorTty.js";
 import {
   createRizinCoverageHarness,
@@ -288,5 +292,86 @@ it.skipIf(process.platform === "win32")(
     expect(second.ok).toBe(false);
     if (!second.ok) expect(second.error).toBeInstanceOf(AnalysisInputError);
     expect(writes.some((text) => text.includes("second\n"))).toBe(false);
+  },
+);
+
+it
+  .skipIf(process.platform === "win32")
+  .each([null, { selected: "opaque reason" }])(
+  "preserves exact caller cancellation through incomplete cleanup: %j",
+  async (reason) => {
+    const controller = new AbortController();
+    const injected = createInjectedProcess({
+      onWrite: (_text, control) => {
+        control.output("partial\0");
+        controller.abort(reason);
+      },
+    });
+    let retained = true;
+    const { manager, started } = await startInjected(injected.spawnProcess, {
+      stopProcess: async () =>
+        retained
+          ? { status: "incomplete", reason: "owned stop pending" }
+          : { status: "stopped" },
+    });
+    if (!started.ok) throw started.error;
+    const result = await manager.execute(
+      started.value.session_id,
+      "wait",
+      controller.signal,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(reason);
+    expect(result.error.capturedOutput?.stdout).toContain("partial");
+    expect(result.error.partialObservation).toBeDefined();
+    expect(result.error.cleanupIncomplete).toBe(true);
+    retained = false;
+    expect((await manager.close(started.value.session_id)).ok).toBe(true);
+    expect(result.error.cleanupIncomplete).toBe(false);
+  },
+);
+
+it.skipIf(process.platform === "win32").each([false, true])(
+  "recovers output-limit cleanup only after a fresh marker and inferior readback (retry=%s)",
+  async (retry) => {
+    let synchronizationAllowed = !retry;
+    const writes: string[] = [];
+    const injected = createInjectedProcess({
+      onWrite: (text, control) => {
+        writes.push(text);
+        const marker = /!echo (.+)\n/u.exec(text)?.[1];
+        if (marker === undefined) return;
+        if (text.startsWith("noisy\n"))
+          control.output(`too much output\0${marker}\0`);
+        else if (text.startsWith("!echo __REA_CLEANUP_SYNC_")) {
+          if (synchronizationAllowed)
+            control.output(`stale frame\0${marker}\0`);
+        } else if (text.startsWith("olj\n")) control.output(`[]\0${marker}\0`);
+        else throw new Error(`Unexpected cleanup command: ${text}`);
+      },
+    });
+    const { manager, started } = await startInjected(injected.spawnProcess, {
+      stopProcess: stopOwnedDebuggerProcess,
+      maxCommandOutputBytes: 8,
+    });
+    if (!started.ok) throw started.error;
+    const result = await manager.execute(started.value.session_id, "noisy");
+    expect(result.ok).toBe(!retry);
+    expect(writes.some((text) => text.startsWith("olj\n"))).toBe(!retry);
+    if (retry) {
+      if (result.ok) throw new Error("Expected retained cleanup");
+      expect(result.error.cleanupIncomplete).toBe(true);
+      expect(manager.status(started.value.session_id)).toBeDefined();
+      expect(
+        (await manager.execute(started.value.session_id, "later")).ok,
+      ).toBe(false);
+      synchronizationAllowed = true;
+      expect((await manager.close(started.value.session_id)).ok).toBe(true);
+      expect(result.error.cleanupIncomplete).toBe(false);
+    }
+    expect(writes.some((text) => text.startsWith("olj\n"))).toBe(true);
+    expect(manager.status(started.value.session_id)).toBeUndefined();
   },
 );

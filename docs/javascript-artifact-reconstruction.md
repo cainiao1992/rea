@@ -249,7 +249,8 @@ utility-process runtime paths retain the runtime filename selected by the caller
 Selected bounded text is then parsed as inert data to recover:
 
 - `package.json` metadata and declared main or renderer entrypoints;
-- Electron preload paths and renderer files visible in static syntax;
+- Electron preload paths owned by proven BrowserWindow options and renderer
+  files loaded through proven BrowserWindow instances;
 - local HTML script entrypoints;
 - Webpack and Rspack chunk registrations and module factories represented as
   AST literals, plus esbuild `__commonJS` module tables; recovered esbuild
@@ -365,6 +366,18 @@ bound, the fingerprint is unavailable and its status is `truncated`; a bounded
 prefix is never presented as a complete stable fingerprint.
 
 ## Authority and unknowns
+
+API identity is a derivation: a familiar method or property name does not
+establish a browser or Electron API. The shared lexical, ambient-write, and
+member-mutation owners must establish the receiver before static API facts become
+roles or storage observations. Path `join`, `resolve`, and `fileURLToPath` use
+proven Node imports; source-relative URL conversion additionally requires an
+unmodified global URL constructor and `import.meta.url`. Other calls preserve
+their expressions. A property named `preload` outside a proven BrowserWindow
+configuration does not establish a script entrypoint. Renderer recovery currently
+covers direct BrowserWindow instances, stable local aliases, and their
+`webContents`; other receiver-producing APIs remain unmodeled. Complete AST
+traversal does not imply complete API-model coverage.
 
 Artifact bytes and AST syntax are observations. Entrypoint resolution, imports,
 loads, calls, and persistence relationships are static inferences and explicitly

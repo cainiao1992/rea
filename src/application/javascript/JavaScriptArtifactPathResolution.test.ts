@@ -2937,7 +2937,7 @@ describe("contextual JavaScript module identity", () => {
         new BrowserWindow({ webPreferences: {
           preload: new URL("./remote-base.js", location.href)
         }});
-        window.loadURL("file:///renderer/index.html");
+        new BrowserWindow().loadURL("file:///renderer/index.html");
       `,
     );
 

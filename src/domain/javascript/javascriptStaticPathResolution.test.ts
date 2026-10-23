@@ -417,9 +417,14 @@ const assertPathProjection = (
 ) => {
   const node = parsePathExpression(expression);
   // This syntax matrix supplies identity explicitly; full-source cases prove it.
-  const nodePathResolve = (
+  const pathIntrinsics = (
     callee: import("@babel/types").Node,
-    fact?: "source-directory",
+    fact?:
+      | "resolve"
+      | "join"
+      | "file-url-to-path"
+      | "source-url"
+      | "source-directory",
   ) => {
     if (fact === "source-directory") {
       const name = calleeName(
@@ -429,36 +434,27 @@ const assertPathProjection = (
         name === "__dirname" || name === "dirname" || name.endsWith(".dirname")
       );
     }
+    if (fact === "source-url") return true;
     const name = calleeName(callee);
-    return name.endsWith(".resolve") && !name.includes("win32");
+    if (fact === "file-url-to-path") return name.endsWith("fileURLToPath");
+    return name.endsWith(`.${fact ?? "resolve"}`) && !name.includes("win32");
   };
-  expect(staticPath(node, nodePathResolve)).toBe(path);
-  expect(staticPathResolutionContext(node, nodePathResolve)).toBe(context);
-  const {
-    analysis,
-    property,
-    genericPrefix,
-    windowPrefix,
-    windowExpression,
-    utilityExpression,
-  } = analyzePathConsumers(expression);
+  expect(staticPath(node, pathIntrinsics)).toBe(path);
+  expect(staticPathResolutionContext(node, pathIntrinsics)).toBe(context);
+  const { analysis, windowExpression, utilityExpression } =
+    analyzePathConsumers(expression);
   expect(analysis.parse_status).toBe("complete");
   expect(analysis.parse_error_count).toBe(0);
-  expect(analysis.role_paths).toEqual(
-    (
-      [
-        [1, genericPrefix.length],
-        [2, windowPrefix.length],
-      ] as const
-    ).map(([line, column]) => ({
+  expect(analysis.role_paths).toEqual([
+    {
       role: "preload",
       path,
       resolution_context: context,
-      mechanism: "property:preload",
+      mechanism: "BrowserWindow:webPreferences.preload",
       module_key: null,
-      location: lineRange(line, column, column + property.length),
-    })),
-  );
+      location: lineRange(2, 0, windowExpression.length),
+    },
+  ]);
   expect(analysis.electron.browser_windows).toEqual([
     {
       options_status: "object-literal",

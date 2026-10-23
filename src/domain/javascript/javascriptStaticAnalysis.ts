@@ -14,10 +14,11 @@ import {
   traverseJavaScriptAstSteps,
 } from "./javascriptSemanticTraversal.js";
 
+import { isElectronRendererLoad } from "./electronStaticRenderer.js";
 import { inspectElectronStaticNode } from "./electronStaticAnalysis.js";
 import { hasPossibleCommonJsDelegateWrite } from "./javascriptSemanticRequireOrigin.js";
 import { semanticResourceLimitReason } from "./javascriptSemanticResourceLimits.js";
-import { createStaticNodePathResolveQuery } from "./javascriptStaticPathIntrinsics.js";
+import { createStaticPathIntrinsicQuery } from "./javascriptStaticPathIntrinsics.js";
 import { createSemanticExpressionShapeResolver } from "./javascriptSemanticExpressionShapes.js";
 import { finishElectronBrowserWindowsSteps } from "./electronStaticAnalysisBrowser.js";
 import {
@@ -34,7 +35,6 @@ import {
   finishModuleRequireCalls,
   finishSqliteStorageCalls,
   inspectCall,
-  inspectRoleProperty,
   inspectRpcNode,
   finishRpcScanSteps,
   indexVitePreloadDependencyTable,
@@ -103,12 +103,15 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
     bindings,
   );
   const findings: JavaScriptFindingContext = {
-    nodePathResolve: createStaticNodePathResolveQuery(index),
+    pathIntrinsics: createStaticPathIntrinsicQuery(index),
+    rendererLoad: (callee, site) =>
+      isElectronRendererLoad(callee, site, findings, index),
     source,
     accumulator,
     vitePreloadDependencyTable: indexVitePreloadDependencyTable(file.program),
     openReceiverFacts: receivers.openReceivers,
     electronBindings: electronIdentity.bindings,
+    electronExportIntact: electronIdentity.intactExport,
     electronInvocationPath: electronIdentity.invocationPath,
     electronAppPathChangePossible: electronIdentity.mayChangeAppPath,
     rpcScan: createJavaScriptRpcScan(source, receivers.rpcClientRoots, index),
@@ -330,8 +333,5 @@ const inspectNode = (
       kind: "dynamic-import",
       specifier: stringValue(node.source),
     });
-  if (t.isObjectProperty(node)) {
-    inspectRoleProperty(node, findings);
-  }
   inspectRpcNode(node, findings);
 };

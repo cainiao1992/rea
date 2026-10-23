@@ -17,9 +17,6 @@ import {
   range,
   rangeForOffsets,
   sourceSlice,
-  staticPath,
-  staticPathResolutionContext,
-  storageKind,
   stringValue,
 } from "./javascriptStaticAnalysisHelpers.js";
 import {
@@ -147,11 +144,10 @@ export const inspectCall = (
       specifier: moduleUrlSpecifier(node, bindings),
     });
   inspectEndpointCall(node, name, first, context, bindings);
-  inspectStorageCall(node, name, first, context);
-  if (first === "audio" || first === "video")
-    noteMediaElementPreloads(node, accumulator);
+  inspectStorageCall(node, name, first, context, bindings);
   if (
     (name === "loadFile" || name.endsWith(".loadFile")) &&
+    context.rendererLoad?.(node.callee, node) === true &&
     first !== undefined
   )
     addLocatedFinding(context, {
@@ -167,7 +163,11 @@ export const inspectCall = (
         location: range(node),
       },
     });
-  if ((name === "loadURL" || name.endsWith(".loadURL")) && first !== undefined)
+  if (
+    (name === "loadURL" || name.endsWith(".loadURL")) &&
+    context.rendererLoad?.(node.callee, node) === true &&
+    first !== undefined
+  )
     addLocatedFinding(context, {
       collection: accumulator.roles,
       key: `role\0renderer\0${first}`,
@@ -244,23 +244,6 @@ const workerConstructorKind = (
       : origin.importedPath.length === 1 && origin.importedPath[0] === "Worker")
     ? "node"
     : undefined;
-};
-
-// Element factories such as jsx("audio", props) and createElement("video",
-// props) carry the HTML media `preload` hint ("none", "metadata", "auto"),
-// which never names an Electron preload script.
-const noteMediaElementPreloads = (
-  node: JavaScriptCallLike,
-  accumulator: AnalysisAccumulator,
-): void => {
-  const props = node.arguments[1];
-  if (!t.isObjectExpression(props)) return;
-  for (const property of props.properties)
-    if (
-      t.isObjectProperty(property) &&
-      semanticStaticPropertyName(property.key, property.computed) === "preload"
-    )
-      accumulator.mediaElementPreloads.add(property);
 };
 
 const requireCallSpecifier = (
@@ -824,37 +807,12 @@ export function* finishRpcScanSteps(
   }
 }
 
-export const inspectRoleProperty = (
-  node: t.ObjectProperty,
-  context: FindingContext,
-): void => {
-  if (semanticStaticPropertyName(node.key, node.computed) !== "preload") return;
-  if (context.accumulator.mediaElementPreloads.has(node)) return;
-  const path = staticPath(node.value, context.nodePathResolve);
-  if (path === undefined) return;
-  addLocatedFinding(context, {
-    collection: context.accumulator.roles,
-    key: `role\0preload\0${path}`,
-    node,
-    value: {
-      role: "preload",
-      path,
-      resolution_context: staticPathResolutionContext(
-        node.value,
-        context.nodePathResolve,
-      ),
-      mechanism: "property:preload",
-      module_key: null,
-      location: range(node),
-    },
-  });
-};
-
 const inspectStorageCall = (
   node: JavaScriptCallLike,
   name: string,
   first: string | undefined,
   context: FindingContext,
+  bindings: JavaScriptSemanticAnalysisState,
 ): void => {
   if (name === "Database" || name.endsWith(".Database")) {
     context.accumulator.pendingSqliteCalls.push({ node, name });
@@ -870,7 +828,7 @@ const inspectStorageCall = (
         ? "indexed-db"
         : receiverFact === "cache-storage"
           ? "cache-storage"
-          : storageKind(name);
+          : browserStorageKind(node.callee, bindings);
   if (storage === undefined) return;
   addLocatedFinding(context, {
     collection: context.accumulator.storage,
@@ -884,6 +842,35 @@ const inspectStorageCall = (
       location: range(node),
     },
   });
+};
+
+const browserStorageKind = (
+  callee: t.Node,
+  bindings: JavaScriptSemanticAnalysisState,
+):
+  | "local-storage"
+  | "session-storage"
+  | "indexed-db"
+  | "cache-storage"
+  | undefined => {
+  callee = unwrapJavaScriptExpression(callee).node;
+  if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
+    return undefined;
+  const method = semanticStaticPropertyKey(callee.property, callee.computed);
+  if (method === null) return undefined;
+  if (["getItem", "setItem", "removeItem", "clear", "key"].includes(method)) {
+    if (isUnmodifiedGlobalReference(callee, bindings, ["localStorage", method]))
+      return "local-storage";
+    if (
+      isUnmodifiedGlobalReference(callee, bindings, ["sessionStorage", method])
+    )
+      return "session-storage";
+  }
+  if (isUnmodifiedGlobalReference(callee, bindings, ["indexedDB", "open"]))
+    return "indexed-db";
+  if (isUnmodifiedGlobalReference(callee, bindings, ["caches", "open"]))
+    return "cache-storage";
+  return undefined;
 };
 
 /** Constructor spelling selects a candidate; source provenance owns certainty. */

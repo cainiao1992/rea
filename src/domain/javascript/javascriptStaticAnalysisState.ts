@@ -80,8 +80,6 @@ export interface JavaScriptAnalysisAccumulator {
   readonly moduleRangeIndex: JavaScriptModuleRangeIndex;
   /** Binding identities proven as third-parameter loaders of recovered factories. */
   readonly factoryRequireBindingIds: Set<string>;
-  /** `preload` attributes of audio and video elements, which are not scripts. */
-  readonly mediaElementPreloads: WeakSet<t.Node>;
   readonly seen: Set<string>;
   visitedNodes: number;
   unknownFindings: number;
@@ -89,8 +87,10 @@ export interface JavaScriptAnalysisAccumulator {
 
 /** Shared source and accumulator for helper inspections. */
 export interface JavaScriptFindingContext {
-  /** Node path.resolve identity established by shared callee and mutation owners. */
-  readonly nodePathResolve?: JavaScriptStaticPathIntrinsicQuery;
+  /** Native path/URL identities established by shared lexical and mutation owners. */
+  readonly pathIntrinsics?: JavaScriptStaticPathIntrinsicQuery;
+  readonly electronExportIntact?: (path: readonly string[]) => boolean;
+  readonly rendererLoad?: (callee: t.Node, site: t.Node) => boolean;
   readonly rpcScan: JavaScriptRpcScan;
   /** Shared bounded argv/nullish argument shapes for optional-slot signatures. */
   readonly expressionShapes: JavaScriptExpressionShapeResolver;
@@ -159,7 +159,6 @@ export const createJavaScriptAnalysisAccumulator = (
   nativeAddonBindings: [],
   moduleRangeIndex: new JavaScriptModuleRangeIndex(sourceLength),
   factoryRequireBindingIds: new Set(),
-  mediaElementPreloads: new WeakSet(),
   seen: new Set(),
   visitedNodes: 0,
   unknownFindings: 0,

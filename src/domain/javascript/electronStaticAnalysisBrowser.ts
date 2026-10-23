@@ -135,7 +135,7 @@ const inspectBrowserWindow = (
     context.source,
     lookup.status,
     resolvedPreferences,
-    context.nodePathResolve,
+    context.pathIntrinsics,
   );
   context.accumulator.unknownFindings += collected.unknown;
   const finding: ElectronBrowserWindowFinding = {
@@ -154,6 +154,23 @@ const inspectBrowserWindow = (
     module_key: null,
     location: range(node),
   };
+  if (
+    finding.preload_path !== null &&
+    finding.preload_resolution_context !== null
+  )
+    addLocatedFinding(context, {
+      collection: context.accumulator.roles,
+      key: `role\0preload\0${finding.preload_path}`,
+      node,
+      value: {
+        role: "preload",
+        path: finding.preload_path,
+        resolution_context: finding.preload_resolution_context,
+        mechanism: "BrowserWindow:webPreferences.preload",
+        module_key: null,
+        location: range(node),
+      },
+    });
   addLocatedFinding(context, {
     collection: context.accumulator.browserWindows,
     key: "electron-window\0BrowserWindow",
@@ -166,7 +183,7 @@ const collectWindowOptions = (
   source: string,
   lookupStatus: "explicit" | "missing" | "dynamic",
   preferences: t.Node | undefined,
-  nodePathResolve?: JavaScriptStaticPathIntrinsicQuery,
+  pathIntrinsics?: JavaScriptStaticPathIntrinsicQuery,
 ): {
   readonly status: ElectronBrowserWindowFinding["web_preferences_status"];
   readonly preferences: readonly ElectronWebPreference[];
@@ -180,13 +197,13 @@ const collectWindowOptions = (
       preload: { preload_path: null, preload_resolution_context: null },
       unknown: lookupStatus === "missing" ? 0 : 1,
     };
-  return collectWebPreferences(source, preferences, nodePathResolve);
+  return collectWebPreferences(source, preferences, pathIntrinsics);
 };
 
 const collectWebPreferences = (
   source: string,
   object: t.ObjectExpression,
-  nodePathResolve?: JavaScriptStaticPathIntrinsicQuery,
+  pathIntrinsics?: JavaScriptStaticPathIntrinsicQuery,
 ): {
   readonly status: "object-literal";
   readonly preferences: readonly ElectronWebPreference[];
@@ -198,7 +215,7 @@ const collectWebPreferences = (
   const effectivePreload = staticObjectProperty(object, "preload");
   const preloadPath =
     effectivePreload.status === "explicit"
-      ? staticPath(effectivePreload.property.value, nodePathResolve)
+      ? staticPath(effectivePreload.property.value, pathIntrinsics)
       : undefined;
   const preload: ElectronBrowserWindowPreload =
     effectivePreload.status === "explicit" && preloadPath !== undefined
@@ -206,7 +223,7 @@ const collectWebPreferences = (
           preload_path: preloadPath,
           preload_resolution_context: staticPathResolutionContext(
             effectivePreload.property.value,
-            nodePathResolve,
+            pathIntrinsics,
           ),
         }
       : { preload_path: null, preload_resolution_context: null };
@@ -238,7 +255,7 @@ const collectWebPreferences = (
     }
     const path =
       name === "preload"
-        ? staticPath(property.value, nodePathResolve)
+        ? staticPath(property.value, pathIntrinsics)
         : undefined;
     const value: ElectronStaticValue =
       path === undefined
@@ -316,7 +333,7 @@ const inspectUtilityProcess = (
   const modulePath =
     moduleNode === undefined
       ? undefined
-      : staticPath(moduleNode, context.nodePathResolve);
+      : staticPath(moduleNode, context.pathIntrinsics);
   // Electron treats a non-array object in the argv slot as the options.
   const shapes = context.expressionShapes;
   const options = optionsAfterOptionalArgv(node.arguments, shapes);
@@ -333,7 +350,7 @@ const inspectUtilityProcess = (
   const serviceName =
     declaredName === undefined
       ? undefined
-      : staticPath(declaredName, context.nodePathResolve);
+      : staticPath(declaredName, context.pathIntrinsics);
   if (
     serviceNameProperty.status === "dynamic" ||
     (declaredName !== undefined && serviceName === undefined)
@@ -351,7 +368,7 @@ const inspectUtilityProcess = (
           module_path: modulePath,
           module_resolution_context: staticPathResolutionContext(
             moduleNode,
-            context.nodePathResolve,
+            context.pathIntrinsics,
           ),
           module_expression: null,
         };

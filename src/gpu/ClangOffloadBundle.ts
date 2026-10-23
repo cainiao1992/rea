@@ -7,7 +7,6 @@ import {
 import { assertArtifactReadActive } from "../artifacts/ArtifactFileOperation.js";
 import {
   gpuCount,
-  GPU_OBJECT_BYTES,
   GPU_REPORT_BYTES,
   rejectGpu,
   type GpuSource,
@@ -118,30 +117,22 @@ export const readCcobHeader = (bytes: Buffer, remaining: number) => {
   return { version, method, width, total, decoded, hash };
 };
 
-/** Legacy v1 has no size field; LLVM finds the next CCOB magic as its boundary. */
-export const readLegacyCcobTotal = async (
-  source: GpuSource,
-  base: number,
-): Promise<number> => {
-  const searchEnd = Math.min(source.size, base + GPU_OBJECT_BYTES);
-  let position = base + 20;
-  let tail: Buffer = Buffer.alloc(0);
-  while (position < searchEnd) {
-    const bytes = await source.read(
-      position,
-      Math.min(64 * 1024, searchEnd - position),
-    );
-    const haystack = tail.length === 0 ? bytes : Buffer.concat([tail, bytes]);
-    const index = haystack.indexOf("CCOB");
-    if (index >= 0) return position - tail.length + index - base;
-    tail = haystack.subarray(Math.max(0, haystack.length - 3));
-    position += bytes.length;
+/** Recovery candidates after a failed legacy codec stream, never normal boundaries. */
+export const ccobRecoveryOffset = (bytes: Buffer): number | undefined => {
+  for (
+    let at = bytes.indexOf(CCOB_MAGIC);
+    at >= 0;
+    at = bytes.indexOf(CCOB_MAGIC, at + 4)
+  ) {
+    try {
+      const header = readCcobHeader(
+        bytes.subarray(at, at + 32),
+        bytes.length - at,
+      );
+      if (header.method <= 1) return at;
+    } catch (cause) {
+      if (!(cause instanceof BinaryFormatFailure)) throw cause;
+    }
   }
-  if (searchEnd < source.size)
-    throw new BinaryResourceFailure(
-      "structure",
-      GPU_OBJECT_BYTES,
-      "Legacy CCOB v1 extent exceeds the 128 MiB decoding budget",
-    );
-  return source.size - base;
+  return undefined;
 };

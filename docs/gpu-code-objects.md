@@ -40,9 +40,16 @@ retaining their raw triple spelling. CUDA's legacy fatbinary compression flag is
 retained as an unsupported codec with its encoded and decoded extents;
 compressed bytes are not treated as PTX text. CCOB is recognized by the exact
 four signature bytes `CCOB`; high-bit-corrupted bytes are not decoded as ASCII
-and accepted as a bundle. CCOB v1 has no stored total size, so a following
-legacy bundle is located by the next `CCOB` signature and zero-byte alignment
-padding remains part of the first container extent.
+and accepted as a bundle. CCOB v1 has no stored total size: its zlib stream or
+Zstandard frame supplies the encoded payload extent. Literal `CCOB` bytes inside
+that stream are ordinary payload bytes. Zero-byte alignment padding between
+wrappers is skipped outside the preceding payload range; v2/v3 use their declared
+wrapper sizes.
+
+A HIP bundle target identifies the toolchain target independently of payload
+representation. Recognized LLVM bitcode remains unsupported for kernel metadata
+inspection; its identity, location and available digest are retained with partial
+payload coverage. Corrupt recognized ELF payloads remain malformed.
 
 `cuda_target_header` retains the OS ABI, normalized raw `e_flags` and exact
 header location. CUDA OS ABI `0x33` and the observed `0x41` flags layout use

@@ -5,7 +5,7 @@ import { cliTest } from "../../support/cli/cliFixture.js";
 import { analyzeJavaScriptDirectory } from "../../support/cli/javascriptApplication.js";
 import { writeFixtureFiles } from "../../support/javascriptApplicationFixture.js";
 
-cliTest.each(["CLI", "stdio MCP"] as const)(
+cliTest.for(["CLI", "stdio MCP"] as const)(
   "uses shared loader and export ownership for native bindings through %s",
   async (surface, { cli }) => {
     const root = await createTestTempDirectory("rea-native-binding-ownership-");

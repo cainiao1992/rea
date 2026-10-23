@@ -10,7 +10,7 @@ import {
 } from "../../support/cli/javascriptApplication.js";
 import { writeFixtureFiles } from "../../support/javascriptApplicationFixture.js";
 
-cliTest.each(["CLI", "stdio MCP"] as const)(
+cliTest.for(["CLI", "stdio MCP"] as const)(
   "preserves module classification and explicit source identities through %s",
   async (surface, { cli }) => {
     const root = await createTestTempDirectory("rea-module-owner-semantics-");

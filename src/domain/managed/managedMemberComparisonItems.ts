@@ -11,6 +11,10 @@ import { signatureIdentity } from "./managedMemberSignatureIdentity.js";
 
 type Method = ManagedMemberInspection["methods"][number];
 type Field = ManagedMemberInspection["fields"][number];
+type CallEdgesByCaller = ReadonlyMap<
+  string,
+  readonly ManagedMemberInspection["call_edges"][number][]
+>;
 type MethodItem = ManagedMemberComparisonResult["methods"][number];
 type FieldItem = ManagedMemberComparisonResult["fields"][number];
 type UnmatchedComparison = Extract<
@@ -32,6 +36,8 @@ interface ComparisonItemContext {
   readonly rightSelection: ReadonlySet<string> | null;
   /** Whether matching keyed signatures by resolved digests, not raw bytes. */
   readonly signatureResolutionExamined: boolean;
+  readonly leftCallEdgesByCaller: CallEdgesByCaller;
+  readonly rightCallEdgesByCaller: CallEdgesByCaller;
 }
 
 /** Whether an inventory observed every member of this member's declaring type. */
@@ -61,9 +67,12 @@ interface UndecodedOneSidedNames {
 const methodDimensions = (
   left: Method,
   right: Method,
+  leftCallEdgesByCaller: CallEdgesByCaller,
+  rightCallEdgesByCaller: CallEdgesByCaller,
 ): {
   readonly dimensions: MethodItem["dimensions"];
   readonly bodyUnknown: boolean;
+  readonly callTargetUnknown: boolean;
 } => {
   const dimensions: MethodItem["dimensions"] = [];
   const headerFields = ["max_stack", "init_locals"] as const;
@@ -98,9 +107,26 @@ const methodDimensions = (
     (right.body.status === "absent" && leftBodyComplete)
   )
     dimensions.push("availability");
-  if (bothAbsent) return { dimensions, bodyUnknown: false };
+  if (bothAbsent)
+    return { dimensions, bodyUnknown: false, callTargetUnknown: false };
+  const sameCallShape =
+    callShape(left.body.anchors) === callShape(right.body.anchors);
+  const callTargets = sameCallShape
+    ? compareCallTargets(
+        left,
+        right,
+        leftCallEdgesByCaller.get(left.token) ?? [],
+        rightCallEdgesByCaller.get(right.token) ?? [],
+      )
+    : { changed: false, unknown: false };
+  if (callTargets.changed) dimensions.push("call-target");
   if (!leftBodyComplete || !rightBodyComplete)
-    return { dimensions, bodyUnknown: true };
+    return {
+      dimensions,
+      bodyUnknown: true,
+      callTargetUnknown: callTargets.unknown,
+    };
+  if (!sameCallShape) dimensions.push("call-shape");
   // The decoded fingerprint omits switch targets and is not exact CIL identity.
   if (
     left.body.il_sha256 !== right.body.il_sha256 ||
@@ -112,8 +138,6 @@ const methodDimensions = (
     canonicalize(right.body.opcode_counts)
   )
     dimensions.push("opcode-shape");
-  if (callShape(left.body.anchors) !== callShape(right.body.anchors))
-    dimensions.push("call-shape");
   if (fieldShape(left.body.anchors) !== fieldShape(right.body.anchors))
     dimensions.push("field-shape");
   if (
@@ -123,10 +147,57 @@ const methodDimensions = (
     dimensions.push("exception-shape");
   return {
     dimensions,
+    callTargetUnknown: callTargets.unknown,
     bodyUnknown: headerFields.some(
       (field) => left.body[field] === null || right.body[field] === null,
     ),
   };
+};
+
+const compareCallTargets = (
+  left: Method,
+  right: Method,
+  leftEdges: readonly ManagedMemberInspection["call_edges"][number][],
+  rightEdges: readonly ManagedMemberInspection["call_edges"][number][],
+): { readonly changed: boolean; readonly unknown: boolean } => {
+  const callAnchors = (method: Method) =>
+    method.body.anchors.filter(
+      ({ opcode, operand_kind }) =>
+        opcode !== "ldtoken" && operand_kind === "method",
+    );
+  const leftAnchors = callAnchors(left);
+  const rightAnchors = callAnchors(right);
+  if (leftAnchors.length !== rightAnchors.length)
+    return { changed: false, unknown: true };
+  if (
+    leftEdges.length !== leftAnchors.length ||
+    rightEdges.length !== rightAnchors.length ||
+    leftEdges.some(
+      (edge, index) => edge.opcode !== leftAnchors[index]?.opcode,
+    ) ||
+    rightEdges.some(
+      (edge, index) => edge.opcode !== rightAnchors[index]?.opcode,
+    )
+  )
+    return { changed: false, unknown: true };
+
+  let changed = false;
+  let unknown = false;
+  for (let index = 0; index < leftEdges.length; index++) {
+    const leftEdge = leftEdges[index];
+    const rightEdge = rightEdges[index];
+    if (leftEdge === undefined || rightEdge === undefined) {
+      unknown = true;
+      continue;
+    }
+    for (const field of ["target_name", "target_declaring_type"] as const) {
+      const leftValue = leftEdge[field];
+      const rightValue = rightEdge[field];
+      if (leftValue === null || rightValue === null) unknown = true;
+      else if (leftValue !== rightValue) changed = true;
+    }
+  }
+  return { changed, unknown };
 };
 
 const callShape = (anchors: Method["body"]["anchors"]): string =>
@@ -445,13 +516,21 @@ export const buildMethodItems = (
       pair.right.item,
       context.signatureResolutionExamined,
     );
-    const { dimensions: observedDimensions, bodyUnknown } = methodDimensions(
+    const {
+      dimensions: observedDimensions,
+      bodyUnknown,
+      callTargetUnknown,
+    } = methodDimensions(
       pair.left.item,
       pair.right.item,
+      context.leftCallEdgesByCaller,
+      context.rightCallEdgesByCaller,
     );
-    const dimensions = bodyUnknown
-      ? [...observedDimensions, "body-coverage" as const]
-      : observedDimensions;
+    const dimensions = [
+      ...observedDimensions,
+      ...(bodyUnknown ? (["body-coverage"] as const) : []),
+      ...(callTargetUnknown ? (["availability"] as const) : []),
+    ];
     const observedChange = observedDimensions.length > 0;
     items.push({
       item_id: `mmc_method_${digestCanonicalValue(
@@ -464,7 +543,7 @@ export const buildMethodItems = (
       )}`,
       status: observedChange
         ? "changed"
-        : bodyUnknown || signatureLimitations.length > 0
+        : bodyUnknown || callTargetUnknown || signatureLimitations.length > 0
           ? "unknown"
           : "unchanged",
       left: methodIdentity(pair.left.item),
@@ -483,6 +562,11 @@ export const buildMethodItems = (
         ...(bodyUnknown
           ? [
               "Method body facets are unknown because at least one side has unavailable or partial body data.",
+            ]
+          : []),
+        ...(callTargetUnknown
+          ? [
+              "One or more call targets are unavailable because the observed method edges do not cover aligned call instructions or lack a target name or declaring type.",
             ]
           : []),
       ],

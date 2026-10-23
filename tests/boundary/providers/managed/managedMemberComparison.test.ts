@@ -333,27 +333,9 @@ describe("managed member comparison of nested types", () => {
     // from TypeDef 4 on the left into TypeDef 5 on the right.
     expect(pairs(compare(original, swapped))).toEqual({
       methods: [
-        [
-          "0x06000001",
-          "0x06000002",
-          "unchanged",
-          "exact-il-signature",
-          "exact",
-        ],
-        [
-          "0x06000002",
-          "0x06000001",
-          "unchanged",
-          "exact-il-signature",
-          "exact",
-        ],
-        [
-          "0x06000003",
-          "0x06000003",
-          "unchanged",
-          "exact-il-signature",
-          "exact",
-        ],
+        ["0x06000001", "0x06000002", "unknown", "exact-il-signature", "exact"],
+        ["0x06000002", "0x06000001", "unknown", "exact-il-signature", "exact"],
+        ["0x06000003", "0x06000003", "unknown", "exact-il-signature", "exact"],
       ],
       fields: [
         ["0x04000001", "0x04000002", "unchanged", "field-signature", "exact"],
@@ -382,7 +364,10 @@ describe("managed member comparison of nested types", () => {
     ]);
     expect(
       comparison.methods.slice(0, 2).map(({ dimensions }) => dimensions),
-    ).toEqual([["cil"], ["cil"]]);
+    ).toEqual([
+      ["cil", "availability"],
+      ["cil", "availability"],
+    ]);
     expect(comparison.summary).toMatchObject({ changed: 2 });
   });
 
@@ -437,9 +422,9 @@ describe("managed nested type names", () => {
 
     // Joined names would make both sides' Fixture.A+Inner one ambiguous group.
     expect(pairs(spelled).methods).toEqual([
-      ["0x06000001", "0x06000001", "unchanged", "exact-il-signature", "exact"],
-      ["0x06000003", "0x06000003", "unchanged", "exact-il-signature", "exact"],
-      ["0x06000002", "0x06000002", "unchanged", "exact-il-signature", "exact"],
+      ["0x06000001", "0x06000001", "unknown", "exact-il-signature", "exact"],
+      ["0x06000003", "0x06000003", "unknown", "exact-il-signature", "exact"],
+      ["0x06000002", "0x06000002", "unknown", "exact-il-signature", "exact"],
     ]);
   });
 
@@ -548,6 +533,87 @@ describe("managed member comparison subject identity", () => {
     expect(parsedWithoutSubject.value.result.artifact.sha256).toBe(
       target.sha256,
     );
+  });
+});
+
+describe("managed call-target comparison", () => {
+  it("keeps changed call targets visible when another target fact is unavailable", () => {
+    const il = Buffer.from([0x28, 1, 0, 0, 0x0a, 0x28, 1, 0, 0, 0x0a, 0x2a]);
+    const observe = (
+      name: string,
+      path: string,
+      alterEdges?: (
+        edges: Inspection["call_edges"],
+      ) => Inspection["call_edges"],
+    ) => {
+      const bytes = buildManagedPeFixture({
+        targetFramework: null,
+        memberRefName: name,
+        ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+      });
+      const target = managedPeFixtureTarget(bytes, path);
+      const inspection = inspectManagedMembersBytes(bytes, target);
+      return createEvidence(
+        target,
+        {
+          id: "call-target-fixture",
+          name: "Call target fixture",
+          version: "1",
+        },
+        {
+          operation: "inspect_managed_members",
+          parameters: {},
+          result: jsonValueSchema.parse({
+            ...inspection,
+            call_edges:
+              alterEdges?.(inspection.call_edges) ?? inspection.call_edges,
+          }),
+          confidence: "observed",
+          authority: "shipped-artifact",
+        },
+      );
+    };
+    const left = observe("Clear", "/fixture/left.dll");
+    const rightWithOneUnknownTarget = observe(
+      "WriteLine",
+      "/fixture/right.dll",
+      (edges) =>
+        edges.map((edge, index) =>
+          index === 1
+            ? { ...edge, target_name: null, target_declaring_type: null }
+            : edge,
+        ),
+    );
+    const result = executeManagedMemberComparison(
+      compareManagedMembersInputSchema.parse({
+        left,
+        right: rightWithOneUnknownTarget,
+      }),
+    );
+    if (!result.ok) throw result.error;
+    const report = managedMemberComparisonResultSchema.parse(
+      result.value.evidence.normalized_result,
+    );
+    expect(report.methods[0]).toMatchObject({
+      status: "changed",
+      dimensions: expect.arrayContaining(["call-target", "availability"]),
+      limitations: [expect.stringContaining("call targets are unavailable")],
+    });
+
+    const unavailableEdges = observe(
+      "Clear",
+      "/fixture/no-edges.dll",
+      () => [],
+    );
+    const unknown = executeManagedMemberComparison(
+      compareManagedMembersInputSchema.parse({ left, right: unavailableEdges }),
+    );
+    if (!unknown.ok) throw unknown.error;
+    expect(
+      managedMemberComparisonResultSchema.parse(
+        unknown.value.evidence.normalized_result,
+      ).methods[0],
+    ).toMatchObject({ status: "unknown", dimensions: ["availability"] });
   });
 });
 

@@ -386,6 +386,13 @@ constants, and bounded shape context. It reports all candidates at the winning
 score and remains ambiguous when the evidence does not distinguish them. The
 digest does not itself remap metadata tokens.
 
+Matched methods also compare aligned call sites. `call-shape` reports opcode and
+operand-kind differences; `call-target` reports differences in the observed
+target declaring-type or method name from `call_edges`. Target tokens remain
+build-local and are not compared across artifacts. Missing or unaligned call
+edges and missing target names leave that facet unknown; equal names do not
+establish overload identity or runtime dispatch.
+
 Tokens are always remapped through observed structure. A caller cannot carry
 `0x06001234` into a new MVID and assume it names the same method.
 

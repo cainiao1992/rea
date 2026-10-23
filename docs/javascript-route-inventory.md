@@ -61,6 +61,10 @@ The shared parser handles literal router calls, nested route objects, typed
 `_$` trees with explicitly inferred property-name fallbacks, Next App Router
 page paths, and navigation targets. It follows stable lexical bindings and
 keeps unresolved parents, mutations, spreads, and dynamic fields explicit.
+Index-route flags use the same value-at-read boundary as path fields: erased
+type wrappers and initialized stable boolean aliases preserve `true`/`false`;
+uninitialized or unresolved flags retain an interpretation unknown instead of
+silently disappearing.
 A selected route-builder root owns its configuration even when mutation prevents
 trusting its value. Ordinary wrapper keys do not become route ancestors. Missing
 outer ancestors of unbound typed subtrees remain unknown rather than invented.

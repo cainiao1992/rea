@@ -30,6 +30,38 @@ const analyze = (source: string, budget?: number) => {
   return complete(scan.finishSteps());
 };
 
+it.each(["true", "(true as const)", "INDEX"])(
+  "retains an index route with flag %s",
+  (flag) => {
+    const facts = analyze(
+      `const INDEX=true;createBrowserRouter([{index:${flag},Component:Home}]);`,
+    );
+    expect(facts.candidates.map(({ path }) => path)).toEqual(["/"]);
+    expect(facts.unresolved).toEqual([]);
+  },
+);
+
+it.each([
+  "createBrowserRouter([{index:INDEX,Component:Home}]);const INDEX=true;",
+  "const INDEX=runtime;createBrowserRouter([{index:INDEX,Component:Home}]);",
+])("retains unknown index flags without inventing a route: %s", (source) => {
+  const facts = analyze(source);
+  expect(facts.candidates).toEqual([]);
+  expect(facts.unresolved).toEqual([
+    expect.objectContaining({
+      reason: expect.stringContaining("index-route flag"),
+    }),
+  ]);
+});
+
+it("keeps a known false index flag absent", () => {
+  const facts = analyze(
+    "const INDEX=false;createBrowserRouter([{index:INDEX,Component:Home}]);",
+  );
+  expect(facts.candidates).toEqual([]);
+  expect(facts.unresolved).toEqual([]);
+});
+
 it("joins router children and preserves each segment's source", () => {
   const facts = analyze(
     `createBrowserRouter([{path:'/reports',children:[{path:':id?',children:[{path:'settings'}]}]}]);`,

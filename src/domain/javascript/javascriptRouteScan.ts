@@ -982,8 +982,16 @@ export class JavaScriptRouteScan {
       if (!t.isIdentifier(node)) return node;
       if (seen.has(node) || !this.#queue(node)) return;
       seen.add(node);
+      const binding = index.bindingForReferenceAt(node);
+      if (binding === undefined) return;
+      const read = semanticBindingAtRead(
+        binding,
+        node,
+        index.bindings.parentsByNode,
+      );
+      if (!read.hasDefiniteInitializer) return;
       const initializer = semanticStableInitializer(
-        index.bindingForReferenceAt(node),
+        read.binding,
         index.bindings,
       );
       if (
@@ -1379,7 +1387,11 @@ export class JavaScriptRouteScan {
         fields.unknownKeys ||
         [...fields.dynamicNames].some(
           (key) =>
-            typed || key === "path" || key === "route" || key === "children",
+            typed ||
+            key === "path" ||
+            key === "route" ||
+            key === "children" ||
+            key === "index",
         );
       if (uncertain) {
         this.#unknown(
@@ -1433,8 +1445,16 @@ export class JavaScriptRouteScan {
         };
         emit = true;
       } else if (!typed) {
-        const value = own.get("index")?.value;
+        const flag = own.get("index")?.value;
+        const value =
+          flag === undefined ? undefined : this.#resolve(flag, site, index);
         emit = t.isBooleanLiteral(value) && value.value;
+        if (flag !== undefined && !t.isBooleanLiteral(value))
+          this.#unknown(
+            mechanism,
+            flag,
+            "The index-route flag is not a known boolean at this use.",
+          );
       }
       if (emit && link !== undefined) {
         const segments: JavaScriptRouteSegment[] = [];

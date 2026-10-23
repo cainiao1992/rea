@@ -298,9 +298,11 @@ RPC client syntax also contributes network endpoint candidates, in both
   initializer and no binding assignments; shadowed locals do not inherit client
   identity. `subscribe` additionally requires a tRPC observer
   argument (`onData`, `onError`, `onStarted`, `onStopped`, `onComplete`, or
-  `onConnectionStateChange`). `this` roots, browser globals, and any path
-  containing an RTK Query `endpoints` segment are never procedures; cache-key
-  helpers such as `queryKey` issue no request and are excluded.
+  `onConnectionStateChange`). `this` roots and unshadowed browser globals are
+  excluded. A lexical client can be named `history`, and its router segments can
+  use browser-global spellings. RTK Query `endpoints` chains are excluded only
+  when the root has no recognized tRPC client binding. Cache-key helpers such as
+  `queryKey` issue no request and are excluded.
 - `trpc:link:<link>` records the literal `url` option of `httpLink`,
   `httpBatchLink`, `httpBatchStreamLink`, and `httpSubscriptionLink` when the
   link's callee name survives bundling, including `(0, module.httpBatchLink)`

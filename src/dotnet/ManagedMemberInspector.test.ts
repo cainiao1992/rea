@@ -281,7 +281,7 @@ it.each([
       bytes,
       layout,
       row.readIndex(layout.blobIndexSize),
-      layout.blob.size,
+      layout.blob?.size ?? 0,
     );
     const blobOffset = blob.byteOffset - bytes.byteOffset;
     const result = inspectManagedMembersBytes(
@@ -2104,6 +2104,42 @@ it("decodes typed references in parameter and return positions", () => {
   ).toMatchObject({
     parse_status: "decoded",
     field_type: "fnptr[default has-this](typedbyref)->void",
+  });
+});
+
+it("decodes VARARG optional parameters in method and function-pointer signatures", () => {
+  expect(
+    signature(Buffer.from([0x05, 0x02, 0x01, 0x08, 0x41, 0x0e])),
+  ).toMatchObject({
+    kind: "method",
+    parse_status: "decoded",
+    parameter_count: 2,
+    parameter_types: ["i4", "string"],
+  });
+  expect(
+    signature(Buffer.from([0x06, 0x1b, 0x05, 0x02, 0x01, 0x08, 0x41, 0x0e])),
+  ).toMatchObject({
+    kind: "field",
+    parse_status: "decoded",
+    field_type: "fnptr[vararg](i4,string)->void",
+  });
+});
+
+it.each([
+  [
+    "sentinel in a DEFAULT signature",
+    [0x00, 0x01, 0x01, 0x41, 0x08],
+    "unsupported",
+  ],
+  [
+    "duplicate VARARG sentinels",
+    [0x05, 0x02, 0x01, 0x41, 0x41, 0x08],
+    "malformed",
+  ],
+])("does not accept %s as a valid method signature", (_name, bytes, status) => {
+  expect(signature(Buffer.from(bytes))).toMatchObject({
+    kind: "unknown",
+    parse_status: status,
   });
 });
 

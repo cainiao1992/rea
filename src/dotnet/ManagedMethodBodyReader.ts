@@ -205,7 +205,7 @@ export const methodBody = (
             bytes,
             context.metadataLayout,
             cursor.readIndex(context.metadataLayout.blobIndexSize),
-            context.metadataLayout.blob.size,
+            context.metadataLayout.blob?.size ?? 0,
           );
           const signatureIssue = validateLocalSignature(
             context.metadataLayout,

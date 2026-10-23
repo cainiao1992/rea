@@ -270,10 +270,17 @@ export const inspectManagedMembersBytes = (
       signatureTypeName,
       selected,
     });
+    const resolveTypeName = typeNameLookup(
+      bytes,
+      layout,
+      ranges,
+      issues,
+      typeReferences,
+    );
     const memberRefs = parseMemberRefs(
       bytes,
       layout,
-      typeNameLookup(bytes, layout, ranges, issues, typeReferences),
+      resolveTypeName,
       signatureTypeName,
     );
     appendManagedParseIssues(issues, memberRefs.issues);
@@ -297,6 +304,36 @@ export const inspectManagedMembersBytes = (
       methodLimit,
     });
     appendManagedParseIssues(issues, fields.issues, methods.issues);
+    const resolvedMethods = methods.methods.map((method) => ({
+      ...method,
+      body: {
+        ...method.body,
+        exception_regions: method.body.exception_regions.map((region) => {
+          const classType = resolveTypeName(region.class_token);
+          const tokenTable =
+            region.class_token === null
+              ? null
+              : Number.parseInt(region.class_token.slice(2, 4), 16);
+          const tokenRow =
+            region.class_token === null
+              ? 0
+              : Number.parseInt(region.class_token.slice(4), 16);
+          const typeDefOrRefTag =
+            tokenTable === 2 ? 0 : tokenTable === 1 ? 1 : null;
+          const identityResolved =
+            region.class_token === null
+              ? null
+              : classType !== null && typeDefOrRefTag !== null
+                ? signatureTypeName(tokenRow * 4 + typeDefOrRefTag) !== null
+                : false;
+          return {
+            ...region,
+            class_type: classType,
+            class_type_identity_resolved: identityResolved,
+          };
+        }),
+      },
+    }));
     // #US literals sit beside the member inventory and carry their own
     // coverage, so their issues never make member facts partial.
     const userStrings = readUserStrings
@@ -315,13 +352,13 @@ export const inspectManagedMembersBytes = (
       [...fields.fields, ...memberRefs.refs, ...methods.methods].some(
         (member) => member.signature.parse_status !== "decoded",
       ) ||
-      methods.methods.some(
+      resolvedMethods.some(
         (method) =>
           method.body.status === "partial" ||
           method.body.status === "malformed",
       );
     const related = edges(
-      methods.methods,
+      resolvedMethods,
       targets.members,
       managedDecodeBudget(layout),
     );
@@ -339,7 +376,7 @@ export const inspectManagedMembersBytes = (
           nesting_read: parsedTypes.nesting.complete,
           exported_types: exportedTypes.exportedTypes,
           fields: fields.fields,
-          methods: methods.methods,
+          methods: resolvedMethods,
           member_refs: memberRefs.refs,
           call_edges: related.callEdges,
           field_accesses: related.fieldAccesses,
@@ -358,7 +395,7 @@ export const inspectManagedMembersBytes = (
             "CIL instruction anchors are decoded from file-backed method bodies only; no target assembly is loaded or executed.",
             "Exported types are reported from ExportedType rows as declared; forwarded types are not resolved in their implementing assemblies.",
             "User strings are the #US literals loaded by ldstr in the inspected method bodies, with their own coverage; instruction anchors and normalized CIL digests keep their build-local tokens.",
-            "Member signatures decode ECMA-335 primitive, class, valuetype, generic instantiation, generic variable, pointer, byref, single-dimension and general array, function pointer, custom modifier, and typed reference forms; class and valuetype operands keep their encoded TypeDefOrRefOrSpec values, and unsupported forms such as vararg sentinels retain raw signature hashes.",
+            "Member signatures decode ECMA-335 primitive, class, valuetype, generic instantiation, generic variable, pointer, byref, single-dimension and general array, function pointer including VARARG sentinels, custom modifier, and typed reference forms; class and valuetype operands keep their encoded TypeDefOrRefOrSpec values.",
             ...selectionLimitations,
           ],
         },

@@ -51,6 +51,11 @@ This keeps the complete source in the session and returns a distinct linked
 evidence, metadata status, module/MVID, assembly, frameworks, returned-row counts,
 coverage/issues and limitations. No assembly is loaded or executed.
 
+ECMA-335 permits empty metadata streams to be omitted. An absent `#Blob`
+stream therefore does not prevent module or assembly identity from being read
+when all blob indexes are zero; a nonzero reference to that missing heap is
+reported as a missing-stream issue.
+
 Use `normalized_result.parent_evidence_id` to page original rows:
 
 ```json
@@ -386,12 +391,19 @@ constants, and bounded shape context. It reports all candidates at the winning
 score and remains ambiguous when the evidence does not distinguish them. The
 digest does not itself remap metadata tokens.
 
-Matched methods also compare aligned call sites. `call-shape` reports opcode and
-operand-kind differences; `call-target` reports differences in the observed
-target declaring-type or method name from `call_edges`. Target tokens remain
-build-local and are not compared across artifacts. Missing or unaligned call
-edges and missing target names leave that facet unknown; equal names do not
-establish overload identity or runtime dispatch.
+Matched methods also compare aligned references. `call-shape` and
+`field-shape` report opcode and operand-kind differences; `call-target` and
+`field-target` report differences in the observed target declaring type or
+name from `call_edges` and `field_accesses`. Target tokens remain build-local
+and are not compared across artifacts. Missing or unaligned edges and missing
+target names leave that facet unknown; equal names do not establish overload
+identity or runtime dispatch. `exception-shape` compares clause flags and
+ranges, while `exception-target` compares each resolved catch type name.
+Exception tokens remain in the source facts but are not cross-build identity;
+an unresolved catch type leaves that facet unknown. The method body retains the
+resolved `class_type` name and whether its local token identity could be
+resolved; equal TypeRef names with invalid or unresolved scopes leave the
+comparison unknown.
 
 Tokens are always remapped through observed structure. A caller cannot carry
 `0x06001234` into a new MVID and assume it names the same method.

@@ -76,7 +76,7 @@ const readRows = <Item>(
 };
 
 const heapExtent = (layout: ManagedMetadataLayout): number =>
-  Math.max(layout.strings.size, layout.blob.size);
+  Math.max(layout.strings.size, layout.blob?.size ?? 0);
 
 const validateIdentityTableCounts = (
   layout: ManagedMetadataLayout,

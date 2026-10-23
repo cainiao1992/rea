@@ -367,7 +367,10 @@ const decodeFixedString = (
   if (length === undefined) return null;
   const start = 2 + length.prefix;
   if (start > blob.length - length.length) return null;
-  managedDecodeBudget(layout).reserveString(length.length, layout.blob.offset);
+  managedDecodeBudget(layout).reserveString(
+    length.length,
+    layout.blob?.offset ?? layout.rootOffset,
+  );
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       blob.subarray(start, start + length.length),
@@ -489,7 +492,7 @@ export const readResource = ({
     bytes,
     layout,
     cursor.readIndex(layout.stringIndexSize),
-    Math.max(layout.strings.size, layout.blob.size),
+    Math.max(layout.strings.size, layout.blob?.size ?? 0),
   );
   const implementationOffset = cursor.offset;
   const implementationRaw = cursor.readIndex(

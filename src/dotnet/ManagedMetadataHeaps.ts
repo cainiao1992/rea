@@ -167,14 +167,29 @@ export const readMetadataBlob = (
   heapExtent: number,
 ): Buffer => {
   if (index === 0) return Buffer.alloc(0);
-  if (index < 0 || index >= layout.blob.size)
+  if (index < 0)
+    throw managedFailure(
+      "invalid-heap-index",
+      "metadata.#Blob",
+      "Blob heap index is negative",
+      null,
+    );
+  const heap = layout.blob;
+  if (heap === null)
+    throw managedFailure(
+      "missing-stream",
+      "metadata.#Blob",
+      `Blob index ${String(index)} references an absent #Blob stream`,
+      null,
+    );
+  if (index >= heap.size)
     throw managedFailure(
       "invalid-heap-index",
       "metadata.#Blob",
       "Blob heap index is outside #Blob",
-      layout.blob.offset + Math.max(index, 0),
+      heap.offset + Math.max(index, 0),
     );
-  const start = layout.blob.offset + index;
+  const start = heap.offset + index;
   const decoded = compressedLength(bytes, start, "metadata.#Blob", "blob");
   if (decoded.length > heapExtent)
     throw managedFailure(
@@ -184,7 +199,7 @@ export const readMetadataBlob = (
       start,
     );
   const content = start + decoded.prefix;
-  if (content > layout.blob.offset + layout.blob.size - decoded.length)
+  if (content > heap.offset + heap.size - decoded.length)
     throw managedFailure(
       "invalid-blob",
       "metadata.#Blob",

@@ -101,7 +101,7 @@ export const parseFields = (
         bytes,
         layout,
         cursor.readIndex(layout.blobIndexSize),
-        layout.blob.size,
+        layout.blob?.size ?? 0,
       );
       fields.push({
         token,
@@ -224,7 +224,7 @@ export const parseMemberRefs = (
         bytes,
         layout,
         cursor.readIndex(layout.blobIndexSize),
-        layout.blob.size,
+        layout.blob?.size ?? 0,
       );
       const token = metadataToken(10, row);
       const parentReason = metadataCodedTokenInvalidReason(
@@ -362,7 +362,7 @@ export const parseMethods = ({
         bytes,
         layout,
         cursor.readIndex(layout.blobIndexSize),
-        layout.blob.size,
+        layout.blob?.size ?? 0,
       );
       cursor.readIndex(layout.tableIndexSize(8));
       const decoded = budgetedSignature(
@@ -515,7 +515,10 @@ const budgetedSignature = (
   scope: string,
 ): ReturnType<typeof metadataSignature> => {
   const budget = managedDecodeBudget(layout);
-  budget.admitTransient(bytes.length * 256, layout.blob.offset);
+  budget.admitTransient(
+    bytes.length * 256,
+    layout.blob?.offset ?? layout.rootOffset,
+  );
   try {
     return admitManagedProjection(
       metadataSignature(bytes, {

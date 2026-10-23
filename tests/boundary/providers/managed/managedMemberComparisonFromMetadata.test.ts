@@ -144,6 +144,116 @@ describe("managed reference instruction comparison", () => {
 });
 
 describe("managed member structural matching", () => {
+  it("compares observed field targets for aligned field instructions", () => {
+    const il = Buffer.from([0x7b, 1, 0, 0, 4, 0x26, 0x2a]);
+    const bytes = buildManagedPeFixture({
+      ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+    });
+    const base = inspect(bytes, "/tmp/field-target-base.dll");
+    const counterpart = inspect(bytes, "/tmp/field-target-counterpart.dll");
+    const changedTarget = {
+      ...counterpart,
+      result: managedMemberInspectionSchema.parse({
+        ...counterpart.result,
+        field_accesses: counterpart.result.field_accesses.map((access) => ({
+          ...access,
+          field_name: "differentField",
+        })),
+      }),
+    };
+
+    const comparison = compareManagedMembers(base, changedTarget);
+    expect(comparison.methods[0]).toMatchObject({
+      status: "changed",
+      dimensions: expect.arrayContaining(["field-target"]),
+    });
+
+    const unavailableTarget = {
+      ...counterpart,
+      result: managedMemberInspectionSchema.parse({
+        ...counterpart.result,
+        field_accesses: counterpart.result.field_accesses.map((access) => ({
+          ...access,
+          field_name: null,
+          field_declaring_type: null,
+        })),
+      }),
+    };
+    expect(
+      compareManagedMembers(base, unavailableTarget).methods[0],
+    ).toMatchObject({
+      status: "unknown",
+      dimensions: expect.arrayContaining(["availability"]),
+    });
+  });
+
+  it("compares resolved catch names without comparing build-local tokens", () => {
+    const bytes = buildManagedPeFixture({ ilBody: Buffer.from([0x06, 0x2a]) });
+    const base = inspect(bytes, "/tmp/catch-target-base.dll");
+    const counterpart = inspect(bytes, "/tmp/catch-target-counterpart.dll");
+    const withCatch = (
+      source: typeof base,
+      token: string,
+      classType: string | null,
+      identityResolved = true,
+    ) => ({
+      ...source,
+      result: managedMemberInspectionSchema.parse({
+        ...source.result,
+        methods: source.result.methods.map((method) => ({
+          ...method,
+          body: {
+            ...method.body,
+            exception_regions: [
+              {
+                flags: 0,
+                try_offset: 0,
+                try_length: 1,
+                handler_offset: 1,
+                handler_length: 1,
+                class_token: token,
+                class_type: classType,
+                class_type_identity_resolved: identityResolved,
+                filter_offset: null,
+              },
+            ],
+          },
+        })),
+      }),
+    });
+    const sameType = compareManagedMembers(
+      withCatch(base, "0x02000001", "Fixture.Error"),
+      withCatch(counterpart, "0x02000002", "Fixture.Error"),
+    );
+    expect(sameType.methods[0]).toMatchObject({ status: "unchanged" });
+    expect(sameType.methods[0]?.dimensions).not.toContain("exception-shape");
+    expect(sameType.methods[0]?.dimensions).not.toContain("exception-target");
+
+    const changedType = compareManagedMembers(
+      withCatch(base, "0x02000001", "Fixture.Error"),
+      withCatch(counterpart, "0x02000001", "Fixture.OtherError"),
+    );
+    expect(changedType.methods[0]).toMatchObject({
+      status: "changed",
+      dimensions: expect.arrayContaining(["exception-target"]),
+    });
+
+    const differentNamesWithUnresolvedScope = compareManagedMembers(
+      withCatch(base, "0x01000001", "Fixture.Error", false),
+      withCatch(counterpart, "0x01000002", "Fixture.OtherError", false),
+    );
+    expect(differentNamesWithUnresolvedScope.methods[0]).toMatchObject({
+      status: "changed",
+      dimensions: expect.arrayContaining(["exception-target"]),
+    });
+
+    const unresolved = compareManagedMembers(
+      withCatch(base, "0x02000001", "Fixture.Error"),
+      withCatch(counterpart, "0x01000002", "Fixture.Error", false),
+    );
+    expect(unresolved.methods[0]).toMatchObject({ status: "unknown" });
+  });
+
   it("keeps unequal constants from becoming a structural remap", () => {
     const observe = (
       typeName: string,

@@ -345,6 +345,8 @@ type TypeContinuation =
       // Function pointer items are a RetType then Params; generic
       // arguments are Types.
       readonly signatureItems: boolean;
+      vararg?: boolean;
+      sentinelSeen?: boolean;
       readonly render: (items: readonly string[]) => string;
     };
 
@@ -546,6 +548,36 @@ const readTypeSignature = (
     const kind = blob[cursor];
     if (kind === undefined)
       return malformedSignature("truncated type signature", cursor);
+    if (kind === 0x41) {
+      const signature = stack.at(-1);
+      if (signature?.kind !== "list" || !signature.signatureItems)
+        throw managedFailure(
+          "unsupported-signature",
+          "signature",
+          "unsupported element type 0x41",
+          cursor,
+        );
+      if (!signature.vararg)
+        throw managedFailure(
+          "unsupported-signature",
+          "signature",
+          "unsupported element type 0x41",
+          cursor,
+        );
+      if (signature.sentinelSeen || signature.remaining === 0)
+        return malformedSignature(
+          "VARARG function pointer has an invalid sentinel position",
+          cursor,
+        );
+      signature.sentinelSeen = true;
+      cursor += 1;
+      if (blob[cursor] === undefined || blob[cursor] === 0x41)
+        return malformedSignature(
+          "VARARG function pointer has adjacent sentinels",
+          cursor,
+        );
+      continue;
+    }
     const positions = POSITION_ELEMENTS.get(kind);
     if (
       positions !== undefined &&
@@ -658,6 +690,8 @@ const readTypeSignature = (
         remaining: header.parameterCount + 1,
         items: [],
         signatureItems: true,
+        vararg: (header.first & 0x0f) === 5,
+        sentinelSeen: false,
         render: ([returnType, ...parameters]) =>
           `fnptr[${head}](${parameters.join(",")})->${returnType ?? ""}`,
       });
@@ -871,7 +905,19 @@ const decodeSignature = (
     });
     let offset = returnType.next;
     const parameters: string[] = [];
+    let sentinelSeen = false;
     for (let index = 0; index < header.parameterCount; index += 1) {
+      if (blob[offset] === 0x41 && (first & 0x0f) === 5) {
+        if (sentinelSeen)
+          malformedSignature(
+            "VARARG signature has an invalid sentinel position",
+            offset,
+          );
+        sentinelSeen = true;
+        offset += 1;
+        if (blob[offset] === undefined || blob[offset] === 0x41)
+          malformedSignature("VARARG signature has adjacent sentinels", offset);
+      }
       const parameter = readTypeSignature(blob, offset, "parameter", {
         operands,
         ...(layout === undefined ? {} : { layout }),
@@ -927,7 +973,10 @@ export const methodGenericArity = (
   blob: Buffer,
 ): number | null => {
   const budget = managedDecodeBudget(layout);
-  budget.admitTransient(blob.length * 256, layout.blob.offset);
+  budget.admitTransient(
+    blob.length * 256,
+    layout.blob?.offset ?? layout.rootOffset,
+  );
   try {
     return signatureGenericArity(decodeSignature(blob));
   } finally {

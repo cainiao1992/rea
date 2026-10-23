@@ -100,7 +100,7 @@ const readMethodSpec = (
     members.set(token, { ...target, token });
   const types = specSignature(
     layout,
-    readMetadataBlob(bytes, layout, instantiation, layout.blob.size),
+    readMetadataBlob(bytes, layout, instantiation, layout.blob?.size ?? 0),
     { form: "instantiation", scope, offset: cursor.start },
   );
   if (generic === null) return;
@@ -149,6 +149,6 @@ const methodSignatureBlob = (
     bytes,
     layout,
     cursor.readIndex(layout.blobIndexSize),
-    layout.blob.size,
+    layout.blob?.size ?? 0,
   );
 };

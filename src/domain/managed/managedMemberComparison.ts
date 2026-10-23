@@ -134,7 +134,9 @@ const methodComparisonItemSchema = comparisonItemSchema(
         "call-shape",
         "call-target",
         "field-shape",
+        "field-target",
         "exception-shape",
+        "exception-target",
         "availability",
         "body-coverage",
       ]),
@@ -236,6 +238,25 @@ const callEdgesByCaller = (
   return edges;
 };
 
+const fieldAccessesByCaller = (
+  result: ManagedMemberInspection,
+): ReadonlyMap<
+  string,
+  readonly ManagedMemberInspection["field_accesses"][number][]
+> => {
+  const accesses = new Map<
+    string,
+    ManagedMemberInspection["field_accesses"][number][]
+  >();
+  for (const access of result.field_accesses) {
+    const callerAccesses = accesses.get(access.method_token);
+    if (callerAccesses === undefined)
+      accesses.set(access.method_token, [access]);
+    else callerAccesses.push(access);
+  }
+  return accesses;
+};
+
 /** Compare managed members with constrained exact and structural identities. */
 export const compareManagedMembers = (
   left: ManagedMemberComparisonSide,
@@ -254,6 +275,8 @@ export const compareManagedMembers = (
       hasSignatureResolution(right.result),
     leftCallEdgesByCaller: callEdgesByCaller(left.result),
     rightCallEdgesByCaller: callEdgesByCaller(right.result),
+    leftFieldAccessesByCaller: fieldAccessesByCaller(left.result),
+    rightFieldAccessesByCaller: fieldAccessesByCaller(right.result),
   };
   const methodItems = buildMethodItems(methodMatches, itemContext);
   const fieldItems = buildFieldItems(fieldMatches, itemContext);

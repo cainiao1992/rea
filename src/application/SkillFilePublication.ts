@@ -3,6 +3,7 @@ import { link, lstat, mkdtemp, open, realpath, rename } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
+import { fileHandleMatchesBytes } from "../filesystem/fileHandleMatchesBytes.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../filesystem/OwnedStagedOutput.js";
 import {
@@ -163,7 +164,7 @@ export class SkillFilePublication {
     )
       throw new RegularFileChangedError(this.path);
     await this.#assertNamed(before);
-    if (!(await this.#matches(this.bytes)))
+    if (!(await fileHandleMatchesBytes(this.owner.handle, this.bytes)))
       throw new RegularFileChangedError(this.path);
     if (!sameRegularFileState(before, await this.owner.handle.stat()))
       throw new RegularFileChangedError(this.path);
@@ -203,7 +204,7 @@ export class SkillFilePublication {
     await this.owner.handle.chmod(original.mode);
     await this.owner.handle.sync();
     await this.#assertNamed(await this.owner.handle.stat());
-    if (!(await this.#matches(original.bytes)))
+    if (!(await fileHandleMatchesBytes(this.owner.handle, original.bytes)))
       throw new RegularFileChangedError(this.path);
     this.#restored = true;
   }
@@ -220,28 +221,6 @@ export class SkillFilePublication {
       !sameRegularFileState(expected, named)
     )
       throw new RegularFileChangedError(this.path);
-  }
-
-  async #matches(expected: Buffer): Promise<boolean> {
-    if ((await this.owner.handle.stat()).size !== expected.length) return false;
-    const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, expected.length));
-    for (let position = 0; position < expected.length;) {
-      const { bytesRead } = await this.owner.handle.read(
-        chunk,
-        0,
-        Math.min(chunk.length, expected.length - position),
-        position,
-      );
-      if (
-        bytesRead === 0 ||
-        !chunk
-          .subarray(0, bytesRead)
-          .equals(expected.subarray(position, position + bytesRead))
-      )
-        return false;
-      position += bytesRead;
-    }
-    return true;
   }
 
   async #assertSelected(): Promise<void> {

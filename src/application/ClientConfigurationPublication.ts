@@ -1,16 +1,9 @@
 import { constants, type Stats } from "node:fs";
-import {
-  link,
-  lstat,
-  mkdtemp,
-  open,
-  realpath,
-  rename,
-  type FileHandle,
-} from "node:fs/promises";
+import { link, lstat, mkdtemp, open, realpath, rename } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
+import { fileHandleMatchesBytes } from "../filesystem/fileHandleMatchesBytes.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../filesystem/OwnedStagedOutput.js";
 import {
@@ -160,7 +153,10 @@ export class ClientConfigurationPublication {
       !before.isFile() ||
       named.isSymbolicLink() ||
       !sameRegularFileState(before, named) ||
-      !(await this.#hasPublishedBytes(handle)) ||
+      !(await fileHandleMatchesBytes(
+        handle,
+        Buffer.from(this.contents, "utf8"),
+      )) ||
       !sameRegularFileState(before, await handle.stat()) ||
       !sameRegularFileState(before, await lstat(this.path))
     )
@@ -184,29 +180,6 @@ export class ClientConfigurationPublication {
     await handle.truncate(bytes.length);
     if (!sameRegularFileState(await handle.stat(), await lstat(this.path)))
       throw new RegularFileChangedError(this.path);
-  }
-
-  async #hasPublishedBytes(handle: FileHandle): Promise<boolean> {
-    const expected = Buffer.from(this.contents, "utf8");
-    if ((await handle.stat()).size !== expected.length) return false;
-    const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, expected.length));
-    for (let position = 0; position < expected.length;) {
-      const { bytesRead } = await handle.read(
-        chunk,
-        0,
-        Math.min(chunk.length, expected.length - position),
-        position,
-      );
-      if (
-        bytesRead === 0 ||
-        !chunk
-          .subarray(0, bytesRead)
-          .equals(expected.subarray(position, position + bytesRead))
-      )
-        return false;
-      position += bytesRead;
-    }
-    return true;
   }
 }
 

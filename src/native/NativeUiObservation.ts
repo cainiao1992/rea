@@ -52,7 +52,6 @@ const responseSchema = z.discriminatedUnion("ok", [
 ]);
 const initialSelectionFields = new Map<string, "pid" | "window_id">([
   ["pid-not-application", "pid"],
-  ["application-executable-unavailable", "pid"],
   ["target-mismatch", "pid"],
   ["window-mismatch", "window_id"],
   ["ambiguous-window", "window_id"],

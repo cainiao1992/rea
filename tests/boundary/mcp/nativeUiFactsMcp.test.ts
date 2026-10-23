@@ -137,7 +137,6 @@ it("keeps native UI availability after initial selection errors and preserves la
   const { client, replies, snapshot } = await connectNativeUi();
   for (const [code, field] of [
     ["pid-not-application", "pid"],
-    ["application-executable-unavailable", "pid"],
     ["target-mismatch", "pid"],
     ["window-mismatch", "window_id"],
   ] as const)
@@ -215,6 +214,27 @@ it("keeps native UI availability after initial selection errors and preserves la
     error: {
       code: "capability_unavailable",
       message: "Grant Accessibility to the REA host in System Settings",
+    },
+  });
+  await client.ping();
+});
+
+it.each([
+  "application-executable-unavailable",
+  "executable-path-unavailable",
+])("preserves unknown executable identity from %s", async (code) => {
+  const { client, replies } = await connectNativeUi();
+  const message = `Fixture ${code} diagnostic`;
+  replies.push({ ok: false, code, message });
+  const response = await client.callTool({
+    name: "observe_native_ui",
+    arguments: scope,
+  });
+  expect(parseMcpToolError(response)).toMatchObject({
+    error: {
+      code: "capability_unavailable",
+      message,
+      details: { reason: `${code}: ${message}` },
     },
   });
   await client.ping();

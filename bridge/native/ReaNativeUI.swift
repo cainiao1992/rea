@@ -49,7 +49,7 @@ func observe(_ request: Request) async throws -> [String: Any] {
   guard let url = app.executableURL else {
     try fail("application-executable-unavailable", "The selected application does not expose an executable URL; select a PID with an identifiable application executable")
   }
-  guard let canonicalPointer = realpath(url.path, nil) else { try fail("target-mismatch", "Running executable path cannot be resolved") }
+  guard let canonicalPointer = realpath(url.path, nil) else { try fail("executable-path-unavailable", "Running executable path cannot be resolved") }
   defer { free(canonicalPointer) }
   let canonicalExecutable = String(cString: canonicalPointer)
   guard canonicalExecutable == request.executable else {

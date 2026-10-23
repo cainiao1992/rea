@@ -738,8 +738,10 @@ including unsafe integers, negative zero and non-finite numbers, remain null
 with a path-specific gap and incomplete capture coverage. Null alone does not
 establish that an accessibility value was successfully read or absent.
 
-An initial PID or window selection refusal is `invalid_request` on `pid` or
-`window_id` and leaves provider availability intact. Identity or window loss
+An initial PID or window mismatch is `invalid_request` on `pid` or
+`window_id` and leaves provider availability intact. An unavailable executable
+URL or unresolved executable path leaves identity unknown and reports
+`capability_unavailable`. Identity or window loss
 after the initial capture remains an observation failure with collected facts.
 Permission and other helper failures retain their specific remediation text.
 

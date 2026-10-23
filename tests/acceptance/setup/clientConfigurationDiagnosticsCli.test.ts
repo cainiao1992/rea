@@ -96,7 +96,7 @@ const cases = [
     client: "dsh",
     path: ".dsh/cordis.patch.yml",
     text: "- insert: [\n",
-    diagnostic: "Configuration is not valid YAML",
+    diagnostic: "Invalid or unsupported Cordis YAML",
     syntax: "YAML",
   },
 ] as const;

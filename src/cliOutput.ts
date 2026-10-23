@@ -1,4 +1,4 @@
-import { Formatter } from "incur";
+import { formatCliOutput } from "./cli/cliOutputFormatter.js";
 
 import { jsonOutputParts } from "./cli/jsonOutput.js";
 import {
@@ -38,7 +38,7 @@ export const renderCliDocument = (
 ): string =>
   format === "json" || format === "jsonl"
     ? [...jsonOutputParts(value, format, stdoutIsTerminal)].join("")
-    : `${Formatter.format(value, format)}\n`;
+    : `${formatCliOutput(value, format)}\n`;
 /** Global output flags that take a value. */
 const VALUED_OUTPUT_FLAGS = new Set([
   "--format",

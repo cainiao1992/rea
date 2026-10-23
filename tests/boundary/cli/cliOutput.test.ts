@@ -9,6 +9,7 @@ import { workspaceCliTest } from "../../support/cli/workspaceCliFixture.js";
 import {
   normalizeCliArguments,
   renderCliOutputArgumentError,
+  renderCliDocument,
   renderEmptyFilteredCliOutput,
   renderVersionReport,
   validateCliOutputArguments,
@@ -18,6 +19,14 @@ import {
 const CLI_INTEGRATION_TIMEOUT_MS = 60_000;
 
 describe("CLI output argument boundary", () => {
+  it("uses the shared Markdown table formatter for standalone reports", () => {
+    const value = { text: "left|right\\path\nnext" };
+    expect(renderCliDocument(value, "md", false)).toContain(
+      "left\\|right\\\\path<br>next",
+    );
+    expect(JSON.parse(renderCliDocument(value, "json", false))).toEqual(value);
+  });
+
   it("rejects token windows that would corrupt structured output", () => {
     for (const format of ["json", "jsonl", "yaml"] as const) {
       const validation = validateCliOutputArguments([

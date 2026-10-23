@@ -1,5 +1,5 @@
-import { realpathSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { accessSync, constants, realpathSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { normalizeEntrypointPath } from "../process/CurrentEntrypointPath.js";
 import { valid } from "semver";
 
@@ -147,6 +147,29 @@ const directEntrypointIdentity = (
     entrypointIdentity(scriptPath, current) === nativeIdentity
     ? nativeIdentity
     : "unknown";
+};
+
+/** Prefer an executable PATH alias that proves the same selected REA file. */
+export const registrationEntrypointPath = (
+  entrypoint: string,
+  environment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform,
+): string => {
+  // A Windows command shim is a different program; file identity cannot prove
+  // its script target. Keep that platform's existing Node/script registration.
+  if (platform === "win32") return entrypoint;
+  for (const directory of (environment.PATH ?? "").split(":")) {
+    if (!isAbsolute(directory)) continue;
+    const candidate = join(directory, PRODUCT_IDENTITY.cliBinary);
+    if (directEntrypointIdentity(candidate, entrypoint) !== "owned") continue;
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // An unexecutable alias cannot launch the selected program.
+    }
+  }
+  return entrypoint;
 };
 
 /** Preserve caller spelling only when both direct launchers prove the same file. */

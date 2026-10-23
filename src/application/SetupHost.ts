@@ -11,6 +11,7 @@ import { ConfigurationError } from "../domain/configurationErrors.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 import {
   invokingPackageRunner,
+  registrationEntrypointPath,
   packageRunnerRegistrationCommand,
   type PackageRunner,
 } from "./ClientRegistrationIdentity.js";
@@ -69,13 +70,17 @@ export const setupRegistrationCommand = (
   platform: NodeJS.Platform,
   packageRunner: PackageRunner | undefined,
   entrypointPath: string | undefined,
+  environment: Readonly<NodeJS.ProcessEnv> = {},
 ): readonly string[] => {
   if (packageRunner !== undefined)
     return packageRunnerRegistrationCommand(packageRunner, platform);
   if (entrypointPath === undefined || entrypointPath.length === 0) return [];
   return platform === "win32"
     ? [process.execPath, entrypointPath, "mcp"]
-    : [entrypointPath, "mcp"];
+    : [
+        registrationEntrypointPath(entrypointPath, environment, platform),
+        "mcp",
+      ];
 };
 
 /**
@@ -91,6 +96,7 @@ const setupRegistration = (
     platform,
     invokingPackageRunner(environment, platform),
     CURRENT_ENTRYPOINT_PATH,
+    environment,
   );
   const registrationCommandBlocker =
     registrationCommand.length === 0

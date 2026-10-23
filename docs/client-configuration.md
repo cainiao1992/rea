@@ -543,3 +543,11 @@ preservation failures identify that operation rather than implying that the
 configuration bytes or parent directory are unwritable. Setup preserves the
 original and reports its recovery backup; review local ownership and group
 membership before retrying.
+
+For an installed POSIX CLI, setup prefers an executable absolute `rea` alias
+from its selected `PATH` when filesystem identity proves that it names the
+running REA entrypoint. This keeps package-manager aliases intact instead of
+persisting an internal versioned script path. Unresolved aliases and wrappers
+that are different files do not establish that proof; setup retains its selected
+entrypoint. A manager-specific upgrade remains subject to that manager's alias
+policy.

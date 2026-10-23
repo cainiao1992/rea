@@ -156,7 +156,17 @@ it("closes optional providers when MCP server startup throws", async () => {
       }),
     });
 
-    expect(transport).toEqual({ ok: false });
+    expect(transport).toMatchObject({
+      ok: false,
+      cancelled: false,
+      handle: { close: expect.any(Function) },
+      closeAndroid: expect.any(Function),
+      closeOptionalProviders: expect.any(Function),
+    });
+    // Failed admission still returns partial owners for idempotent retries.
+    await transport.handle.close();
+    await transport.closeOptionalProviders();
+    await transport.closeAndroid();
     expect(browserClose).toHaveBeenCalledTimes(1);
     expect(scenarioClose).toHaveBeenCalledTimes(1);
     expect(electronClose).toHaveBeenCalledTimes(1);

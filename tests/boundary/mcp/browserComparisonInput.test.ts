@@ -215,9 +215,11 @@ describe("browser comparison input boundary", () => {
       const parsedScenario =
         browserCaptureComparisonInputSchema.parse(withoutNormalization);
       expect(parsedScenario).toHaveProperty("normalization", { rules: [] });
+      // The public example explicitly marks events missing and equality
+      // ineligible; normalization defaults cannot restore uncaptured evidence.
       expect(compareBrowserCaptures(parsedScenario)).toMatchObject({
         comparison_kind: "browser_scenario",
-        overall_status: "unchanged",
+        overall_status: "unknown",
       });
     } finally {
       await Promise.allSettled([

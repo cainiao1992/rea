@@ -223,6 +223,26 @@ it(
     );
     expect(knownDifference).toMatchObject({
       normalized_result: {
+        dimensions: { network: { status: "unknown", total_changes: 0 } },
+      },
+    });
+    // A closed imported request inventory supplies the missing directional
+    // proof; two attachment-limited samples cannot pair repeated requests.
+    const closed = redirectCapture(inspection, browser.allowedOrigin, 302);
+    if (!isRecord(closed.inspection.completeness))
+      throw new Error("Missing capture completeness");
+    const limited = closed.inspection.completeness.attach_limited_sections;
+    if (!Array.isArray(limited)) throw new Error("Missing attachment coverage");
+    closed.inspection.completeness.attach_limited_sections = limited.filter(
+      (section) => section !== "network_requests",
+    );
+    expect(
+      await compareCapturesCli(
+        closed,
+        redirectCapture(inspection, browser.allowedOrigin, 307),
+      ),
+    ).toMatchObject({
+      normalized_result: {
         dimensions: { network: { status: "changed", total_changes: 1 } },
       },
     });

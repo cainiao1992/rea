@@ -1108,7 +1108,9 @@ it.each(
       expect(result.value.scripts.items).toContainEqual(
         expect.objectContaining({
           cdp_hash: id,
-          frame_id: parent === "valid" ? id : null,
+          frame_id: id,
+          frame_scope: parent === "valid" ? "authorized" : "unknown",
+          frame_claims: { execution_context_frame_id: id },
         }),
       );
     if (parent !== "valid") {
@@ -1239,7 +1241,8 @@ it.each(
     expect(result.value.scripts.items).toContainEqual(
       expect.objectContaining({
         cdp_hash: "local",
-        frame_id: phase === "invalidated" ? null : "local",
+        frame_id: "local",
+        frame_scope: phase === "invalidated" ? "unknown" : "authorized",
       }),
     );
     expect(result.value.completeness.policy_filtered_sections).toContain(
@@ -1476,17 +1479,23 @@ it.each([
         expect.objectContaining({ cdp_hash: "before", frame_id: "child" }),
         expect.objectContaining({
           cdp_hash: "after-replay",
-          frame_id: expectedOwner ? "child" : null,
+          frame_id: "child",
+          frame_scope: expectedOwner ? "authorized" : "unknown",
         }),
         expect.objectContaining({
           cdp_hash: "descendant",
-          frame_id: expectedOwner ? "grandchild" : null,
+          frame_id: "grandchild",
+          frame_scope: expectedOwner ? "authorized" : "unknown",
         }),
       ]),
     );
     if (kind === "post-detach")
       expect(result.value.scripts.items).toContainEqual(
-        expect.objectContaining({ cdp_hash: "after-detach", frame_id: null }),
+        expect.objectContaining({
+          cdp_hash: "after-detach",
+          frame_id: "child",
+          frame_scope: "unknown",
+        }),
       );
     expect(
       result.value.completeness.attach_limited_sections.includes("scripts"),

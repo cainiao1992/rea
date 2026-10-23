@@ -194,9 +194,11 @@ it.each([
   expect(
     result.value.completeness.policy_filtered_sections.includes("webmcp_tools"),
   ).toBe(rawUrl !== "allowed");
-  expect(result.value.completeness.attach_limited_sections).not.toContain(
-    "webmcp_tools",
-  );
+  // The initial allowed child may have unreported pre-attach registrations.
+  // A literal #about:blank fragment does not make that coverage complete.
+  expect(
+    result.value.completeness.attach_limited_sections.includes("webmcp_tools"),
+  ).toBe(rawUrl === "allowed");
   if (rawUrl === "allowed")
     expect(result.value.tools.items[0]?.frame_url).toBe(
       browser.allowedOrigin + "/child#about:blank",

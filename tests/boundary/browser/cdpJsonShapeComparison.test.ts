@@ -155,6 +155,12 @@ describe.each<BodySource>(["request", "response", "base64 response"])(
         before + " ".repeat(length - Buffer.byteLength(before)),
         after + " ".repeat(length - Buffer.byteLength(after)),
       );
+      expect(
+        (await compareCaptures(...captures)).dimensions.network,
+      ).toMatchObject({
+        status: "unknown",
+        total_changes: 0,
+      });
       const result = await compareCaptures(
         completeNormalizedCapture(captures[0]),
         completeNormalizedCapture(captures[1]),
@@ -181,6 +187,12 @@ describe.each<BodySource>(["request", "response", "base64 response"])(
           Buffer.byteLength(beforeBody) - Buffer.byteLength(changedBody),
         );
       const [before, after] = comparableCaptures(source, beforeBody, afterBody);
+      expect(
+        (await compareCaptures(before, after)).dimensions.network,
+      ).toMatchObject({
+        status: "unknown",
+        total_changes: 0,
+      });
       const result = await compareCaptures(
         completeNormalizedCapture(before),
         completeNormalizedCapture(after),

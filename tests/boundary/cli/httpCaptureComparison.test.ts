@@ -42,18 +42,27 @@ it("CLI compares incomplete HTTP responses without inventing changes", async () 
     expect(finished.network.requests).toMatchObject([
       { status: 200, mime_type: "application/json", encoded_data_length: 100 },
     ]);
-    const paths = [pending, finished, changed].map((_, index) =>
+    // Passive attachment cannot establish the complete same-URL request
+    // inventory. Closed imported captures can, and retain the positive oracle.
+    const closed = structuredClone(pending);
+    closed.completeness.attach_limited_sections =
+      closed.completeness.attach_limited_sections.filter(
+        (section) => section !== "network_requests",
+      );
+    const captures = [pending, finished, changed, closed];
+    const paths = captures.map((_, index) =>
       join(root, `capture-${String(index)}.json`),
     );
     await Promise.all(
-      [pending, finished, changed].map((inspection, index) =>
+      captures.map((inspection, index) =>
         writeFile(paths[index]!, JSON.stringify({ inspection })),
       ),
     );
     for (const [left, right, status, count] of [
       [0, 1, "unknown", 0],
       [1, 0, "unknown", 0],
-      [0, 2, "changed", 1],
+      [0, 2, "unknown", 0],
+      [3, 2, "changed", 1],
     ] as const) {
       const compared = await runCliJson([
         "compare-web-captures",

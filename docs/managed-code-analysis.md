@@ -398,7 +398,9 @@ name from `call_edges` and `field_accesses`. Target tokens remain build-local
 and are not compared across artifacts. Missing or unaligned edges and missing
 target names leave that facet unknown; equal names do not establish overload
 identity or runtime dispatch. `exception-shape` compares clause flags and
-ranges, while `exception-target` compares each resolved catch type name.
+ranges, while `exception-target` records changes to observed catch type names.
+When those names differ but scoped identity is unavailable, the change remains
+visible alongside `availability` and an identity limitation.
 Exception tokens remain in the source facts but are not cross-build identity;
 an unresolved catch type leaves that facet unknown. The method body retains the
 resolved `class_type` name and whether its local token identity could be

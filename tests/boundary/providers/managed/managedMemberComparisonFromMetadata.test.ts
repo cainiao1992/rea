@@ -246,7 +246,7 @@ describe("managed exception target comparison", () => {
     );
     expect(differentNamesWithUnresolvedScope.methods[0]).toMatchObject({
       status: "changed",
-      dimensions: expect.arrayContaining(["exception-target"]),
+      dimensions: expect.arrayContaining(["exception-target", "availability"]),
     });
 
     const unresolved = compareManagedMembers(

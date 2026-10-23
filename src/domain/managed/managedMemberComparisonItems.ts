@@ -229,7 +229,7 @@ const compareExceptionTargets = (
     if (leftRegion.class_type === null || rightRegion.class_type === null)
       unknown = true;
     else if (leftRegion.class_type !== rightRegion.class_type) changed = true;
-    else if (
+    if (
       leftRegion.class_type_identity_resolved !== true ||
       rightRegion.class_type_identity_resolved !== true
     )

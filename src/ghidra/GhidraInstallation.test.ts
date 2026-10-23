@@ -1775,6 +1775,69 @@ it.each([
 );
 
 it.each([
+  "PATH succeeds",
+  "keg succeeds",
+  "both fail",
+  "explicit home",
+] as const)(
+  "discovers a keg-only JDK after a failed PATH launcher: %s",
+  async (scenario) => {
+    const commands: string[] = [];
+    const keg =
+      "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home/bin/java";
+    const selectedHome =
+      scenario === "explicit home" ? "/selected-jdk" : undefined;
+    const inspection = await inspectGhidraInstallation(
+      {
+        resourceOwner: inspectionResources.owner,
+        environment: { PATH: "/usr/bin" },
+        installDir: INSTALL,
+        platform: "darwin",
+        architecture: "arm64",
+        ...(selectedHome === undefined ? {} : { javaHome: selectedHome }),
+      },
+      host({
+        executable: (candidate) =>
+          candidate === "/usr/bin/java" ||
+          candidate === keg ||
+          host().executable(candidate),
+        probeJava: (command) => {
+          commands.push(command);
+          return scenario === "PATH succeeds" ||
+            (scenario === "keg succeeds" && command === keg)
+            ? javaProbeOk({ ...JAVA, osArch: "aarch64", osName: "Mac OS X" })
+            : missingJavaProbe;
+        },
+      }),
+    );
+    expect(commands).toEqual(
+      scenario === "explicit home"
+        ? ["/selected-jdk/bin/java"]
+        : scenario === "PATH succeeds"
+          ? ["java"]
+          : ["java", keg],
+    );
+    expect(inspection.status).toBe(
+      scenario === "PATH succeeds" || scenario === "keg succeeds"
+        ? "available"
+        : "unavailable",
+    );
+    if (scenario === "keg succeeds" || scenario === "both fail") {
+      expect(ghidraInstallationDiagnostics(inspection)).toMatchObject({
+        java_discovery_failures: expect.arrayContaining([
+          {
+            command: "java",
+            code: "runtime_missing",
+            detail: expect.any(String),
+          },
+        ]),
+      });
+    }
+    if (scenario === "both fail") expect(inspection.javaCommand).toBe("java");
+  },
+);
+
+it.each([
   ["darwin", undefined, "/selected-bin/java", "java"],
   ["darwin", "/selected-jdk", undefined, "/selected-jdk/bin/java"],
   ["linux", undefined, undefined, "java"],

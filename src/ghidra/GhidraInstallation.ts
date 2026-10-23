@@ -201,6 +201,10 @@ interface GhidraInstallationObservation {
   readonly configurationDirectoryName: string | null;
   readonly nativeDecompilerPath: string | null;
   readonly nativeDecompilerHeaderFailure?: AnalysisError;
+  readonly javaDiscoveryFailures?: readonly {
+    readonly command: string;
+    readonly failure: GhidraJavaProbeFailure;
+  }[];
   readonly javaCommand: string;
   readonly javaProbeFailure?: GhidraJavaProbeFailure;
   /** Observed java.vm.name; omitted when the probe cannot establish VM identity. */
@@ -305,6 +309,10 @@ interface GhidraInstallationCoordinates {
     AnalysisError
   >;
   readonly properties: GhidraApplicationProperties | undefined;
+  readonly javaDiscoveryFailures?: readonly {
+    readonly command: string;
+    readonly failure: GhidraJavaProbeFailure;
+  }[];
   readonly javaCommand: string;
   readonly java: GhidraJavaObservation | undefined;
   readonly javaProbeFailure: GhidraJavaProbeFailure | undefined;
@@ -361,6 +369,9 @@ export const inspectGhidraInstallation = async (
           nativeDecompilerHeaderFailure:
             coordinates.nativeDecompilerHeader.error,
         }),
+    ...(coordinates.javaDiscoveryFailures === undefined
+      ? {}
+      : { javaDiscoveryFailures: coordinates.javaDiscoveryFailures }),
     javaCommand: coordinates.javaCommand,
     ...(coordinates.javaProbeFailure === undefined
       ? {}
@@ -502,7 +513,19 @@ const installationCoordinates = async (
       nativeDecompilerHeader.error.cleanupIncomplete)
   )
     throw nativeDecompilerHeader.error;
-  const javaCommand = (() => {
+  const homebrewJavaCandidates = () =>
+    (architecture === "arm64"
+      ? ["/opt/homebrew", "/usr/local"]
+      : ["/usr/local", "/opt/homebrew"]
+    )
+      .map((prefix) =>
+        path.join(
+          prefix,
+          "opt/openjdk/libexec/openjdk.jdk/Contents/Home/bin/java",
+        ),
+      )
+      .filter((candidate) => host.executable(candidate));
+  let javaCommand = (() => {
     if (options.javaHome !== undefined)
       return path.join(
         options.javaHome,
@@ -518,26 +541,12 @@ const installationCoordinates = async (
         host.executable(path.join(directory, "java")),
     );
     if (javaOnPath) return "java";
-    // Prefer the Homebrew prefix matching the process architecture.
-    const prefixes =
-      architecture === "arm64"
-        ? ["/opt/homebrew", "/usr/local"]
-        : ["/usr/local", "/opt/homebrew"];
-    return (
-      prefixes
-        .map((prefix) =>
-          path.join(
-            prefix,
-            "opt/openjdk/libexec/openjdk.jdk/Contents/Home/bin/java",
-          ),
-        )
-        .find((candidate) => host.executable(candidate)) ?? "java"
-    );
+    return homebrewJavaCandidates()[0] ?? "java";
   })();
   // Java is a prerequisite of a selected installation. Without one, or with a
   // relative JAVA_HOME, configuration validation refuses Ghidra before Java can
   // matter, so callers such as setup and doctor must not execute a host JVM.
-  const javaProbe =
+  let javaProbe =
     installDir !== null &&
     (options.javaHome === undefined || path.isAbsolute(options.javaHome))
       ? await host.probeJava(
@@ -559,6 +568,55 @@ const installationCoordinates = async (
     javaProbe.error instanceof AnalysisError
   )
     throw javaProbe.error;
+  const javaDiscoveryFailures: {
+    command: string;
+    failure: GhidraJavaProbeFailure;
+  }[] = [];
+  if (
+    platform === "darwin" &&
+    options.javaHome === undefined &&
+    javaCommand === "java" &&
+    javaProbe !== undefined &&
+    !javaProbe.ok &&
+    !(javaProbe.error instanceof AnalysisError) &&
+    javaProbe.error.code !== "version_unresolved" &&
+    javaProbe.error.cancellation === undefined &&
+    !options.signal?.aborted
+  ) {
+    javaDiscoveryFailures.push({
+      command: javaCommand,
+      failure: javaProbe.error,
+    });
+    for (const candidate of homebrewJavaCandidates()) {
+      const fallback = await host.probeJava(
+        candidate,
+        ghidraJavaEnvironment(undefined, options.environment, platform),
+        {
+          resourceOwner: options.resourceOwner,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        },
+      );
+      if (!fallback.ok && fallback.error instanceof AnalysisError)
+        throw fallback.error;
+      if (fallback.ok) {
+        javaCommand = candidate;
+        javaProbe = fallback;
+        break;
+      }
+      javaDiscoveryFailures.push({
+        command: candidate,
+        failure: fallback.error,
+      });
+      if (
+        fallback.error.cancellation !== undefined ||
+        options.signal?.aborted
+      ) {
+        javaCommand = candidate;
+        javaProbe = fallback;
+        break;
+      }
+    }
+  }
   return {
     installDir,
     applicationPropertiesPath,
@@ -569,6 +627,7 @@ const installationCoordinates = async (
       properties === undefined
         ? undefined
         : ghidraApplicationProperties(properties),
+    ...(javaDiscoveryFailures.length === 0 ? {} : { javaDiscoveryFailures }),
     javaCommand,
     java: javaProbe?.ok === true ? javaProbe.value : undefined,
     javaProbeFailure:
@@ -708,6 +767,26 @@ export const ghidraInstallationDiagnostics = (
             ? {}
             : { output: { ...inspection.javaProbeFailure.output } }),
         },
+      }),
+  ...(inspection.javaDiscoveryFailures === undefined
+    ? {}
+    : {
+        java_discovery_failures: inspection.javaDiscoveryFailures.map(
+          ({ command, failure }) => ({
+            command,
+            code: failure.code,
+            detail: failure.detail,
+            ...(failure.output === undefined
+              ? {}
+              : { output: { ...failure.output } }),
+            ...(failure.properties === undefined
+              ? {}
+              : { properties: { ...failure.properties } }),
+            ...(failure.cancellation === undefined
+              ? {}
+              : { cancellation_observed: true }),
+          }),
+        ),
       }),
   java_home: inspection.javaHome,
   java_version: inspection.javaVersion,

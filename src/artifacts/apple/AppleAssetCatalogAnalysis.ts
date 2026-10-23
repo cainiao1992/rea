@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import {
   ArtifactReaderFailure,
   sameArtifactSourceIdentity,
@@ -137,18 +138,16 @@ const collectAssetCatalogs = async (input: {
     records: ReturnType<typeof parseAppleAssetCatalogRecords>;
   }[] = [];
   const uninspected: string[] = [];
-  let status: ArtifactReaderTraversal["status"] = "complete";
-  const limitations: string[] = [];
+  const traversal = new ArtifactTraversalObservation();
   let symlinks = 0;
   let firstSymlink: string | undefined;
   let totalMetadataBytes = 0;
   try {
     for await (const entry of reader.entries(input.signal, {
-      onCoverage: (coverage) => {
-        if (coverage.status !== "complete") status = coverage.status;
-        limitations.push(...coverage.limitations);
-      },
-      onOmission: ({ path, kind }) => {
+      onCoverage: traversal.onCoverage,
+      onOmission: (omission) => {
+        traversal.onOmission(omission);
+        const { path, kind } = omission;
         if (path.split("/").at(-1) === "Assets.car")
           uninspected.push(`${path} (${kind})`);
       },
@@ -187,9 +186,14 @@ const collectAssetCatalogs = async (input: {
     await reader.close();
   }
   if (symlinks > 0)
-    limitations.push(
-      `Asset catalog discovery did not follow ${symlinks} symlink(s); catalogs beneath them may remain uninspected. First path: ${JSON.stringify(firstSymlink)}.`,
-    );
+    traversal.onCoverage({
+      // Source entries are represented even when their link targets were not
+      // inspected. Keep that inventory scope separate from catalog discovery.
+      status: "complete",
+      limitations: [
+        `Asset catalog discovery did not follow ${symlinks} symlink(s); catalogs beneath them may remain uninspected. First path: ${JSON.stringify(firstSymlink)}.`,
+      ],
+    });
   // Without any readable catalog, unmatched resource keys would overstate an
   // absence that a skipped catalog entry may contradict.
   if (catalogs.length === 0 && uninspected.length > 0)
@@ -197,7 +201,7 @@ const collectAssetCatalogs = async (input: {
       "path",
       `Asset catalog entries are not regular files and were not inspected: ${uninspected.join(", ")}`,
     );
-  return { catalogs, uninspected, traversal: { status, limitations } };
+  return { catalogs, uninspected, traversal: traversal.snapshot() };
 };
 
 const inspectAssetCatalogEntry = async (input: {

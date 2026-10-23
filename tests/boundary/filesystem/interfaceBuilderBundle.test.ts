@@ -7,9 +7,9 @@ import { buildBinary } from "plist";
 import { describe, expect, it, vi } from "vitest";
 
 import { analyzeInterfaceBuilderBundle } from "../../../src/artifacts/apple/InterfaceBuilderAnalysis.js";
+import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
 import { InterfaceBuilderDecodeBudget } from "../../../src/artifacts/apple/InterfaceBuilderDecodeBudget.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
-import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
 import { encodeNibArchiveFixture } from "../../../src/artifacts/apple/NibArchive.fixture.js";
 import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { xcodeIbtoolAvailable } from "../../fixtures/ibtool.js";
@@ -189,6 +189,132 @@ const encodeNibArchiveWithSharedDataValue = (input: {
   header.writeUInt32LE(classesOffset, 46);
   return Buffer.concat([header, objects, keys, values, classes]);
 };
+
+describe("compiled Interface Builder traversal coverage", () => {
+  it.skipIf(process.platform === "win32")(
+    "shares the 64-path omission budget between regular-document capacity and symlink source notices",
+    async () => {
+      const bundle = await createTestTempDirectory(
+        "rea-ib-mixed-omission-bound-",
+      );
+      const bytes = encodeNibArchiveFixture({
+        classes: ["NSView"],
+        objects: [{ classIndex: 0, values: {} }],
+      });
+      await writeFile(join(bundle, "payload.data"), bytes);
+      // One regular document is decoded; the other 61 regular documents and
+      // all 65 symlinks are omitted. Exactly three symlink samples still fit.
+      for (let index = 0; index < 62; index += 1)
+        await writeFile(
+          join(bundle, `${String(index).padStart(3, "0")}.nib`),
+          bytes,
+        );
+      for (let index = 0; index < 65; index += 1)
+        await symlink(
+          "payload.data",
+          join(bundle, `link-${String(index).padStart(3, "0")}.nib`),
+        );
+      const result = await analyzeInterfaceBuilderBundle({
+        bundlePath: bundle,
+        targetSha256: "a".repeat(64),
+        limits: { max_documents: 1 },
+      });
+      expect(result.documents).toHaveLength(1);
+      expect(result.graph.coverage).toContainEqual(
+        expect.objectContaining({
+          facet: "archive_decode",
+          status: "partial",
+          reason: "document_limit_reached",
+          examined: 1,
+          omitted: 126,
+        }),
+      );
+      const reasons = result.limitations.filter((value) =>
+        value.includes(": omitted because "),
+      );
+      const sourceNotices = result.limitations.filter((value) =>
+        value.endsWith(": Symlink target was not followed or disclosed."),
+      );
+      expect(reasons).toHaveLength(64);
+      expect(sourceNotices).toEqual(
+        [0, 1, 2].map(
+          (index) =>
+            `link-${String(index).padStart(3, "0")}.nib: Symlink target was not followed or disclosed.`,
+        ),
+      );
+      const reportedPaths = new Set(
+        [...reasons, ...sourceNotices].map((value) =>
+          value.slice(0, value.indexOf(":")),
+        ),
+      );
+      expect(reportedPaths.size).toBe(64);
+      expect(
+        result.limitations.some((value) => value.startsWith("link-003.nib:")),
+      ).toBe(false);
+      expect(result.limitations).toContain(
+        "62 additional omitted archive path(s) and their reasons were not retained; reporting is bounded to 64 paths.",
+      );
+    },
+  );
+
+  it("preserves unknown traversal after a later complete callback without inventing archive omissions", async () => {
+    const bundle = await createTestTempDirectory("rea-ib-traversal-callback-");
+    const bytes = encodeNibArchiveFixture({
+      classes: ["NSView"],
+      objects: [{ classIndex: 0, values: { title: "Retained view" } }],
+    });
+    await writeFile(join(bundle, "Main.nib"), bytes);
+    const reason = "Controlled producer traversal uncertainty";
+    const entries = DirectoryArtifactReader.prototype.entries;
+    const spy = vi
+      .spyOn(DirectoryArtifactReader.prototype, "entries")
+      .mockImplementation(async function* (
+        this: DirectoryArtifactReader,
+        signal,
+        options,
+      ) {
+        yield* entries.call(this, signal, options);
+        if (typeof options === "function") return;
+        options?.onCoverage?.({
+          status: "unknown",
+          examinedEntries: 1,
+          limitations: [reason],
+        });
+        options?.onCoverage?.({
+          status: "complete",
+          examinedEntries: 1,
+          limitations: [],
+        });
+      });
+    try {
+      const result = await analyzeInterfaceBuilderBundle({
+        bundlePath: bundle,
+        targetSha256: "a".repeat(64),
+      });
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]).toMatchObject({ relative_path: "Main.nib" });
+      expect(result.graph.nodes).toContainEqual(
+        expect.objectContaining({
+          kind: "view",
+          attributes: expect.objectContaining({ class_name: "NSView" }),
+        }),
+      );
+      expect(result.graph.coverage).toContainEqual(
+        expect.objectContaining({
+          facet: "archive_decode",
+          status: "partial",
+          reason: "source_traversal_unknown",
+          examined: 1,
+          omitted: 0,
+        }),
+      );
+      expect(result.graph.truncated).toBe(true);
+      expect(result.limitations).toContain(reason);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
 
 describe("compiled Interface Builder bundle reader", () => {
   it("reads nib plist archives and reports provenance", async () => {
@@ -438,7 +564,7 @@ describe("keyed archive hierarchy coverage", () => {
       ]),
     );
     const rootId = analysis.graph.nodes.find(
-      ({ attributes }) => attributes.interface_builder_object_id === "root",
+      ({ attributes }) => attributes.interface_builder_object_id === "1",
     )?.id;
     const childNames = analysis.graph.edges
       .filter(
@@ -448,7 +574,7 @@ describe("keyed archive hierarchy coverage", () => {
           id.includes(":hierarchy:"),
       )
       .map(({ to }) => (to === null ? null : archiveIdsByNodeId.get(to)));
-    expect(childNames).toEqual(["first", "second"]);
+    expect(childNames).toEqual(["3", "5"]);
   });
 
   it.skipIf(process.platform !== "darwin")(
@@ -592,7 +718,7 @@ describe("bounded Interface Builder archive decoding", () => {
           ? null
           : kind === "invalid-byte-name" || kind === "subtree-symlink"
             ? "source_traversal_unknown"
-            : "archive_not_regular_file",
+            : "archive_symlink_not_followed",
       examined: 0,
       omitted: kind === "nib-symlink" || kind === "storyboard-symlink" ? 1 : 0,
     });

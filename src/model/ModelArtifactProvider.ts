@@ -46,7 +46,6 @@ import {
   modelCapacityRemediation,
   modelCapacityReportedLimits,
 } from "./ModelFormat.js";
-import { safetensorsBits } from "./ModelTensorTypes.js";
 import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
@@ -305,6 +304,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
               partial.coverage.tensors = "partial";
             },
             onTensorDeclaration: (row) => partial.tensor_declarations.push(row),
+            onLimitation: (message) => partial.limitations.push(message),
           })
         : await readSafetensorsHeader(reader, first);
     const intervals = parsed.tensors
@@ -324,6 +324,9 @@ export class ModelArtifactProvider implements ModelArtifactPort {
     partial.declared_tensor_count = parsed.tensors.length;
     partial.tensor_declarations = [];
     partial.tensors = parsed.tensors;
+    partial.limitations = [
+      ...new Set([...partial.limitations, ...parsed.limitations]),
+    ];
     partial.coverage = {
       header: "complete",
       metadata: "complete",
@@ -384,18 +387,6 @@ export class ModelArtifactProvider implements ModelArtifactPort {
           : group.bytes + row.byte_length;
       groups.set(row.type, group);
     }
-    const unknownTypes = [
-      ...new Set(
-        parsed.tensors
-          .filter(
-            (row) =>
-              row.byte_length === null ||
-              (format === "safetensors" &&
-                safetensorsBits(row.type) === undefined),
-          )
-          .map((row) => row.type),
-      ),
-    ];
     const report = {
       artifact: {
         path: input.path,
@@ -444,11 +435,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
               "Metadata arrays retain at most eight elements per array; remaining values are omitted, with exact declared counts and source byte ranges.",
             ]
           : []),
-        ...(unknownTypes.length
-          ? [
-              `Unknown tensor types prevent storage-size validation: ${unknownTypes.join(", ")}`,
-            ]
-          : []),
+        ...parsed.limitations,
       ],
     };
     if (jsonValueByteLength(report, MODEL_REPORT_BYTES) > MODEL_REPORT_BYTES)

@@ -9,6 +9,7 @@ import {
   isUIKitRuntimeConnectionClass,
 } from "../../domain/apple/interfaceBuilderKeyedArchive.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import {
   projectPlistValue,
   binaryDatePrecisionOverlapLimitation,
@@ -62,6 +63,13 @@ import {
 const MAX_AGGREGATE_INPUT_BYTES = 32 * 1024 * 1024;
 const MAX_AGGREGATE_DECODE_BYTES = 256 * 1024 * 1024;
 const MAX_REPORTED_OMITTED_ARCHIVES = 64;
+
+interface OmittedArchive {
+  readonly path: string;
+  readonly reason: string;
+  readonly limitations: readonly string[];
+}
+
 /** Decode compiled Interface Builder archives from a local app bundle. */
 export const analyzeInterfaceBuilderBundle = async (input: {
   readonly bundlePath: string;
@@ -74,7 +82,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
   const reader = new DirectoryArtifactReader(input.bundlePath);
   const documents: InterfaceBuilderDocumentInput[] = [];
   const invalid: string[] = [];
-  const omittedArchives: Array<{ path: string; reason: string }> = [];
+  const omittedArchives: OmittedArchive[] = [];
   let unreportedOmittedArchives = 0;
   const incompleteHierarchies = new Map<string, number>();
   const unresolvedConnections = new Map<string, number>();
@@ -87,16 +95,17 @@ export const analyzeInterfaceBuilderBundle = async (input: {
   let omitted = 0;
   let attempted = 0;
   let aggregateInputBytes = 0;
-  let traversal: ArtifactReaderTraversal = {
-    status: "complete",
-    limitations: [],
-  };
+  const traversal = new ArtifactTraversalObservation();
   const decodeBudget = new InterfaceBuilderDecodeBudget(
     MAX_AGGREGATE_DECODE_BYTES,
   );
-  const recordOmittedArchive = (path: string, reason: string): void => {
+  const recordOmittedArchive = (
+    path: string,
+    reason: string,
+    limitations: readonly string[] = [],
+  ): void => {
     if (omittedArchives.length < MAX_REPORTED_OMITTED_ARCHIVES)
-      omittedArchives.push({ path, reason });
+      omittedArchives.push({ path, reason, limitations });
     else unreportedOmittedArchives += 1;
   };
   try {
@@ -104,11 +113,17 @@ export const analyzeInterfaceBuilderBundle = async (input: {
       reader,
       input.signal,
       limits.max_documents,
+      traversal,
     );
     omitted = selection.omitted;
-    traversal = selection.traversal;
-    for (const { path, reason } of selection.omittedSamples)
-      recordOmittedArchive(path, reason);
+    for (const entry of selection.omittedSamples)
+      recordOmittedArchive(entry.path, "max_documents");
+    for (const entry of selection.symlinkSamples)
+      recordOmittedArchive(
+        entry.path,
+        "symlink_not_followed",
+        entry.limitations,
+      );
     unreportedOmittedArchives += selection.unreportedOmitted;
     for (const entry of selection.selected) {
       // Plist representation reserved for this document before decoding.
@@ -276,7 +291,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
     unreportedOmittedArchives,
     attempted,
     omitted,
-    traversal,
+    traversal: traversal.snapshot(),
   });
 };
 
@@ -285,47 +300,30 @@ const selectInterfaceBuilderCandidates = async (
   reader: DirectoryArtifactReader,
   signal: AbortSignal | undefined,
   maximumDocuments: number,
+  traversal: ArtifactTraversalObservation,
 ): Promise<{
   readonly selected: readonly ArtifactEntry[];
-  readonly omittedSamples: readonly { path: string; reason: string }[];
+  readonly omittedSamples: readonly ArtifactEntry[];
+  readonly symlinkSamples: readonly ArtifactEntry[];
   readonly omitted: number;
   readonly unreportedOmitted: number;
-  readonly traversal: ArtifactReaderTraversal;
 }> => {
   const capacity = maximumDocuments + MAX_REPORTED_OMITTED_ARCHIVES;
   const candidates: ArtifactEntry[] = [];
-  const omittedSamples: Array<{ path: string; reason: string }> = [];
-  const traversalLimitations: string[] = [];
-  let traversalStatus: ArtifactReaderTraversal["status"] = "complete";
-  let nonRegular = 0;
+  const symlinkSamples: ArtifactEntry[] = [];
+  let symlinks = 0;
   let unclassifiedSymlinks = 0;
   let firstUnclassifiedSymlink: string | undefined;
   let total = 0;
-  const omit = (path: string, reason: string) => {
-    nonRegular += 1;
-    if (omittedSamples.length < MAX_REPORTED_OMITTED_ARCHIVES)
-      omittedSamples.push({ path, reason });
-  };
-  for await (const entry of reader.entries(signal, {
-    onCoverage: (coverage) => {
-      if (coverage.status !== "complete") traversalStatus = coverage.status;
-      traversalLimitations.push(...coverage.limitations);
-    },
-    onOmission: ({ path, kind }) => {
-      if (isInterfaceBuilderArchive(path)) omit(path, `non_regular_${kind}`);
-    },
-  })) {
-    // A directory-shaped nib is a container for objects.nib; its children
-    // are visited normally. Symlinks cannot establish their own or subtree
-    // archive coverage without following them.
+  for await (const entry of reader.entries(signal, traversal)) {
     if (entry.kind === "symlink") {
       if (
         isInterfaceBuilderArchive(entry.path) ||
         entry.path.toLowerCase().endsWith(".storyboardc")
-      )
-        omit(entry.path, "non_regular_symlink");
-      else {
-        traversalStatus = "unknown";
+      ) {
+        symlinks += 1;
+        retainCandidate(symlinkSamples, entry, MAX_REPORTED_OMITTED_ARCHIVES);
+      } else {
         unclassifiedSymlinks += 1;
         firstUnclassifiedSymlink ??= entry.path;
       }
@@ -337,20 +335,22 @@ const selectInterfaceBuilderCandidates = async (
     retainCandidate(candidates, entry, capacity);
   }
   if (unclassifiedSymlinks > 0)
-    traversalLimitations.push(
-      `Interface Builder discovery did not follow ${unclassifiedSymlinks} symlink(s); whether they contain archives is unknown. First path: ${JSON.stringify(firstUnclassifiedSymlink)}.`,
-    );
-  const omitted = Math.max(0, total - maximumDocuments) + nonRegular;
-  for (const entry of candidates.slice(maximumDocuments, capacity)) {
-    if (omittedSamples.length === MAX_REPORTED_OMITTED_ARCHIVES) break;
-    omittedSamples.push({ path: entry.path, reason: "max_documents" });
-  }
+    traversal.onCoverage({
+      status: "unknown",
+      limitations: [
+        `Interface Builder discovery did not follow ${unclassifiedSymlinks} symlink(s); whether they contain archives is unknown. First path: ${JSON.stringify(firstUnclassifiedSymlink)}.`,
+      ],
+    });
+  const omittedSamples = candidates.slice(maximumDocuments, capacity);
   return {
     selected: candidates.slice(0, maximumDocuments),
     omittedSamples,
-    omitted,
-    unreportedOmitted: omitted - omittedSamples.length,
-    traversal: { status: traversalStatus, limitations: traversalLimitations },
+    symlinkSamples,
+    omitted: Math.max(0, total - maximumDocuments) + symlinks,
+    unreportedOmitted:
+      Math.max(0, total - maximumDocuments - omittedSamples.length) +
+      symlinks -
+      symlinkSamples.length,
   };
 };
 
@@ -388,7 +388,7 @@ const finalizeHierarchyCoverage = (
     nonFiniteReals: ReadonlyMap<string, number>;
     negativeZeroReals: ReadonlyMap<string, number>;
     invalid: readonly string[];
-    omittedArchives: readonly { path: string; reason: string }[];
+    omittedArchives: readonly OmittedArchive[];
     unreportedOmittedArchives: number;
     attempted: number;
     omitted: number;
@@ -412,7 +412,7 @@ const finalizeHierarchyCoverage = (
     invalid.length > 0 ||
     prototypeKeyOmissions.size > 0 ||
     counts.omitted > 0 ||
-    counts.traversal.status !== "complete";
+    counts.traversal.status === "unknown";
   return {
     ...result,
     documents: result.documents.map((document) => ({
@@ -446,29 +446,25 @@ const finalizeHierarchyCoverage = (
           status: archiveDecodePartial
             ? ("partial" as const)
             : ("complete" as const),
-          reason:
-            counts.traversal.status !== "complete"
-              ? "source_traversal_unknown"
-              : omittedArchives.some(({ reason }) =>
-                    reason.startsWith("non_regular_"),
+          reason: omittedArchives.some(
+            ({ reason }) => reason === "aggregate_decode_budget_exhausted",
+          )
+            ? "aggregate_decode_budget_exhausted"
+            : omittedArchives.some(({ reason }) => reason === "max_documents")
+              ? "document_limit_reached"
+              : omittedArchives.some(
+                    ({ reason }) => reason === "symlink_not_followed",
                   )
-                ? "archive_not_regular_file"
-                : omittedArchives.some(
-                      ({ reason }) =>
-                        reason === "aggregate_decode_budget_exhausted",
-                    )
-                  ? "aggregate_decode_budget_exhausted"
-                  : omittedArchives.some(
-                        ({ reason }) => reason === "max_documents",
-                      )
-                    ? "document_limit_reached"
-                    : omittedArchives.length > 0
-                      ? "archive_decode_budget_exhausted"
-                      : invalid.length > 0
-                        ? "one_or_more_archives_invalid"
-                        : prototypeKeyOmissions.size > 0
-                          ? "dictionary_entries_omitted"
-                          : null,
+                ? "archive_symlink_not_followed"
+                : omittedArchives.length > 0
+                  ? "archive_decode_budget_exhausted"
+                  : invalid.length > 0
+                    ? "one_or_more_archives_invalid"
+                    : prototypeKeyOmissions.size > 0
+                      ? "dictionary_entries_omitted"
+                      : counts.traversal.status === "unknown"
+                        ? "source_traversal_unknown"
+                        : null,
           examined: counts.attempted,
           omitted: counts.omitted,
         },
@@ -516,10 +512,10 @@ const finalizeHierarchyCoverage = (
       ...[...negativeZeroReals].map(
         ([path, count]) => `${path}: ${negativeZeroRealLimitation(count)}`,
       ),
-      ...omittedArchives.map(
-        ({ path, reason }) =>
-          `${path}: omitted because ${reason.replaceAll("_", " ")}.`,
-      ),
+      ...omittedArchives.flatMap(({ path, reason, limitations }) => [
+        `${path}: omitted because ${reason.replaceAll("_", " ")}.`,
+        ...limitations.map((limitation) => `${path}: ${limitation}`),
+      ]),
       ...(unreportedOmittedArchives === 0
         ? []
         : [

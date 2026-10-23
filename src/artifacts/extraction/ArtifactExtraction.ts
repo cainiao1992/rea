@@ -18,6 +18,7 @@ import {
   type ArtifactReader,
   type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { SafeOutputTree } from "../SafeOutputTree.js";
@@ -261,11 +262,17 @@ const materializeSelection = async ({
       if (cause instanceof SafeOutputTreeCreationFailure) output = cause.tree;
       throw cause;
     }
-    const traversal = await writeSelectedEntries({
+    const traversal = new ArtifactTraversalObservation();
+    traversal.onCoverage({
+      status: inventory.coverage.status,
+      limitations: inventory.limitations,
+    });
+    await writeSelectedEntries({
       reader,
       output,
       byPath,
       extracted,
+      traversal,
       signal,
     });
     localReaderOwner = undefined;
@@ -282,7 +289,7 @@ const materializeSelection = async ({
       inventory,
       selected,
       extracted,
-      traversal,
+      traversal.snapshot(),
       reader.provenance(),
     );
     await output.commit(signal);
@@ -314,29 +321,18 @@ const writeSelectedEntries = async ({
   output,
   byPath,
   extracted,
+  traversal,
   signal,
 }: {
   readonly reader: ArtifactReader;
   readonly output: SafeOutputTree;
   readonly byPath: Map<string, SelectedOccurrence>;
   readonly extracted: ExtractedOccurrence[];
+  readonly traversal: ArtifactTraversalObservation;
   readonly signal: AbortSignal | undefined;
-}): Promise<ArtifactReaderTraversal> => {
+}): Promise<void> => {
   const registry = new ArtifactPathRegistry();
-  let status: ArtifactReaderTraversal["status"] = "complete";
-  const limitations: string[] = [];
-  for await (const entry of reader.entries(signal, {
-    onCoverage: (coverage) => {
-      if (coverage.status !== "complete") status = coverage.status;
-      limitations.push(...coverage.limitations);
-    },
-    onOmission: ({ path, kind }) => {
-      status = "unknown";
-      limitations.push(
-        `Materialization traversal omitted ${kind} at ${JSON.stringify(path)}.`,
-      );
-    },
-  })) {
+  for await (const entry of reader.entries(signal, traversal)) {
     const path = normalizeArtifactPath(entry.path);
     registry.add(path, entry.kind);
     // Logical declarations may share a query path with a real file. They do
@@ -374,7 +370,6 @@ const writeSelectedEntries = async ({
       "integrity",
       `Inventoried regular artifact entries were not materialized: ${[...byPath.keys()].sort(compareUnicodeCodePoints).join(", ")}`,
     );
-  return { status, limitations };
 };
 
 const releaseExtractionOwners = async (
@@ -438,24 +433,20 @@ const createExtractionResult = (
     provenance: [...inventory.provenance, ...materializationProvenance],
     coverage: {
       ...inventory.coverage,
-      status:
-        inventory.coverage.status === "complete" &&
-        traversal.status === "complete"
-          ? "complete"
-          : "unknown",
+      status: traversal.status,
     },
     integrity_contradictions: integrityContradictions,
     limitations: [
-      ...inventory.limitations,
-      ...traversal.limitations.filter(
-        (limitation) => !inventory.limitations.includes(limitation),
-      ),
+      ...traversal.limitations,
       ...selected.flatMap(({ occurrence }) =>
         occurrence.limitations.map(
           (limitation) => `${occurrence.logical_path}: ${limitation}`,
         ),
       ),
-      "All selected inventoried regular files exposed by the active reader were materialized; nested archive contents remain represented by their containing file. Publication does not establish complete source traversal or content decoding.",
+      traversal.status === "complete"
+        ? "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file."
+        : "All inventoried regular files exposed by the active reader were materialized; source traversal coverage is unknown, so the output is not established as a complete source copy. Nested archive contents remain represented by their containing file.",
+      "Publication verifies the selected inventoried regular files; it does not establish complete content decoding.",
       ...(integrityContradictions.length === 0
         ? []
         : [

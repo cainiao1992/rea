@@ -1012,6 +1012,12 @@ materialized; extraction fails as `unavailable` with that logical path.
 Extraction materializes regular files exposed by the active archive reader.
 When that reader exposes a nested archive as a file, extraction copies the
 archive file; inspect and extract that file separately to unpack its contents.
+Extraction retains inventory and materialization traversal limitations in its
+result and outer Evidence. If either traversal has unknown coverage, the
+observed regular files can still be copied, but the result does not establish
+a complete source copy. For example, a POSIX filename that is not valid UTF-8
+remains omitted with its raw-name explanation; it is not replacement-decoded
+into an output filename.
 
 Packaging tools commonly sign or strip `.asar.unpacked` native binaries after
 writing the archive header, so their declared hashes no longer match. Electron

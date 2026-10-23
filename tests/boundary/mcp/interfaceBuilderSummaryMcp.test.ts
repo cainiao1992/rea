@@ -97,7 +97,7 @@ mcpTest(
       expect.objectContaining({
         facet: "archive_decode",
         status: "partial",
-        reason: "archive_not_regular_file",
+        reason: "archive_symlink_not_followed",
         examined: 2,
         omitted: 1,
       }),

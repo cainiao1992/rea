@@ -648,6 +648,12 @@ const traceProcess = async (
   return edges;
 };
 
+/** Observed completeness of deriving executable roots from a directory walk. */
+export interface DylibRootEnumeration {
+  readonly status: "complete" | "unknown";
+  readonly limitations: readonly string[];
+}
+
 const projectTraceResult = (input: {
   readonly images: ReadonlyMap<string, MachoImageFacts>;
   readonly roots: DylibTrace["roots"];
@@ -657,6 +663,7 @@ const projectTraceResult = (input: {
   readonly environmentRoots: ReadonlySet<string>;
   readonly unknownPlatformCandidates: ReadonlySet<string>;
   readonly implicitMacOSPlatformCandidates: ReadonlySet<string>;
+  readonly rootEnumeration: DylibRootEnumeration | undefined;
 }): DylibTrace => {
   const reported = [...input.images.entries()]
     .filter(([, facts]) => facts.status !== "not-mach-o")
@@ -686,7 +693,8 @@ const projectTraceResult = (input: {
         unparsed.length === 0 &&
         input.withoutArchitecture.length === 0 &&
         input.environmentRoots.size === 0 &&
-        input.unknownPlatformCandidates.size === 0
+        input.unknownPlatformCandidates.size === 0 &&
+        input.rootEnumeration?.status !== "unknown"
           ? "complete"
           : "partial",
       unparsed_images: unparsed,
@@ -694,6 +702,7 @@ const projectTraceResult = (input: {
     },
     limitations: [
       ...DYLIB_RESOLUTION_LIMITATIONS,
+      ...(input.rootEnumeration?.limitations ?? []),
       ...(input.environmentRoots.size === 0
         ? []
         : [
@@ -720,6 +729,7 @@ export const traceDylibLoading = async (
     readonly roots: readonly string[];
     /** Mach-O files whose root role could not be classified because they did not parse. */
     readonly unclassified?: readonly string[];
+    readonly rootEnumeration?: DylibRootEnumeration;
     readonly architecture?: string;
     readonly signal?: AbortSignal;
   },
@@ -796,6 +806,7 @@ export const traceDylibLoading = async (
     environmentRoots,
     unknownPlatformCandidates,
     implicitMacOSPlatformCandidates,
+    rootEnumeration: request.rootEnumeration,
   });
 };
 

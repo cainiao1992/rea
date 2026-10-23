@@ -154,9 +154,16 @@ server; older servers keep the complete request after schema discovery.
 - **Selected ABI.** AOT inspection applies the library budget to the selected
   ABI after selection; an oversized unselected library does not block it.
   Undefined dynamic-symbol imports are not treated as snapshot exports.
+  A retained section directory without `SHT_DYNSYM` uses the same bounded
+  `PT_DYNAMIC` symbol description as a section-stripped image. Malformed
+  present symbol-table sections remain failures.
   Section-stripped images require a bounded symbol count from `DT_HASH` or
   `DT_GNU_HASH`; layouts without either are refused. Symbol names and their
-  terminators must fit their linked string table.
+  terminators must fit their linked string table. Only dynamic entries used for
+  symbol discovery are interpreted as numeric bounds. ABI-ignored payloads,
+  including [`DT_BIND_NOW`](https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section),
+  do not change discovery; their stored bytes still contribute to the selected
+  artifact's digest.
 - REA performs **no hash-to-SDK lookup**: mapping the snapshot hash to a
   Dart SDK release requires an external dataset and is deliberately out of
   scope for this family.

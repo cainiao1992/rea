@@ -19,6 +19,7 @@ import {
   ArtifactReaderFailure,
   type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { consumeWithOrderedReads } from "../OrderedReads.js";
 import {
@@ -156,6 +157,7 @@ export const traceDylibResolution = async (options: {
       const trace = await traceDylibLoading(view, {
         roots,
         unclassified,
+        ...(traversal === undefined ? {} : { rootEnumeration: traversal }),
         ...(parsed.data.architecture === undefined
           ? {}
           : { architecture: parsed.data.architecture }),
@@ -179,12 +181,6 @@ export const traceDylibResolution = async (options: {
       assertArtifactReadActive(options.signal);
       return dylibResolutionResultSchema.parse({
         ...trace,
-        coverage: {
-          ...trace.coverage,
-          status:
-            traversal?.status === "unknown" ? "partial" : trace.coverage.status,
-        },
-        limitations: [...trace.limitations, ...(traversal?.limitations ?? [])],
         root_path: options.rootPath,
         target_sha256: options.targetSha256,
         images: trace.images.map((image) => ({
@@ -215,31 +211,18 @@ const executableRoots = async (
 }> => {
   const roots: string[] = [];
   const unclassified: string[] = [];
-  let status: ArtifactReaderTraversal["status"] = "complete";
-  const limitations: string[] = [];
+  const traversal = new ArtifactTraversalObservation();
   let symlinks = 0;
   let firstSymlink: string | undefined;
   // Bundles hold tens of thousands of files and few Mach-O images, so the
   // magic reads overlap the walk while results are classified in walk order.
   await consumeWithOrderedReads(
-    new DirectoryArtifactReader(root).entries(signal, {
-      onCoverage: (coverage) => {
-        if (coverage.status !== "complete") status = coverage.status;
-        limitations.push(...coverage.limitations);
-      },
-      onOmission: ({ path, kind }) => {
-        status = "unknown";
-        limitations.push(
-          `Executable-root traversal omitted ${kind} at ${JSON.stringify(path)}; its root role is unknown.`,
-        );
-      },
-    }),
+    new DirectoryArtifactReader(root).entries(signal, traversal),
     MAGIC_READ_CONCURRENCY,
     (entry) => {
       // The ordered-read owner skips consume() when read() returns undefined.
       // Discovery facts for skipped entries belong at this selection boundary.
       if (entry.kind === "symlink") {
-        status = "unknown";
         symlinks += 1;
         firstSymlink ??= entry.path;
       }
@@ -262,13 +245,16 @@ const executableRoots = async (
     },
   );
   if (symlinks > 0)
-    limitations.push(
-      `Executable-root discovery did not follow ${symlinks} symlink(s); their root roles and possible descendants are unknown. First path: ${JSON.stringify(firstSymlink)}.`,
-    );
+    traversal.onCoverage({
+      status: "unknown",
+      limitations: [
+        `Executable-root discovery did not follow ${symlinks} symlink(s); their root roles and possible descendants are unknown. First path: ${JSON.stringify(firstSymlink)}.`,
+      ],
+    });
   return {
     roots: roots.sort(compare),
     unclassified: unclassified.sort(compare),
-    traversal: { status, limitations },
+    traversal: traversal.snapshot(),
   };
 };
 

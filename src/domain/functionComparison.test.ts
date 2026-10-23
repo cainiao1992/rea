@@ -537,12 +537,14 @@ describe("function collection collation ties", () => {
 });
 
 describe("function comparison ordering controls", () => {
-  const composed = procedure("0x2000", "caf\u00e9");
-  const decomposed = procedure("0x3000", "cafe\u0301");
-
   it("preserves duplicate Unicode collections and nullable endpoints", () => {
     const controlled = (base: "0x1000" | "0x2000", reverse: boolean) => {
       const endpoint = base === "0x1000" ? "0x1010" : "0x2010";
+      const composed = procedure(endpoint, "caf\u00e9");
+      const decomposed = procedure(
+        base === "0x1000" ? "0x1020" : "0x2020",
+        "cafe\u0301",
+      );
       const edges = [
         {
           source_address: base,
@@ -635,14 +637,10 @@ describe("function comparison ordering controls", () => {
       functionSnapshotFixture(makeEvidence("e", rightWithoutNativeApi)),
     );
 
-    for (const dimension of ["strings_names"] as const)
+    for (const dimension of ["calls", "strings_names"] as const)
       expect(
         comparison.dimensions.find((item) => item.dimension === dimension),
       ).toMatchObject({ status: "unchanged" });
-    // Reference and call facets report the same name at different entries.
-    expect(
-      comparison.dimensions.find((item) => item.dimension === "calls"),
-    ).toMatchObject({ status: "unknown" });
     // Unnamed endpoints in different artifacts have no stable identity.
     expect(
       comparison.dimensions.find((item) => item.dimension === "references"),
@@ -1416,6 +1414,128 @@ it.each([
     }
   },
 );
+
+describe("function call endpoint identity", () => {
+  const calling = (
+    direction: "callers" | "callees",
+    entries: readonly ReturnType<typeof procedure>[],
+  ) =>
+    functionDossierSchema.parse({
+      ...dossier("return helper();", "0x1000"),
+      [direction]: entries,
+    });
+  const calls = (
+    left: ReturnType<typeof dossier>,
+    right: ReturnType<typeof dossier>,
+    sameArtifact: boolean,
+  ) =>
+    compareFunctions(
+      functionSnapshotFixture(observe("a", left)),
+      functionSnapshotFixture(observe(sameArtifact ? "a" : "b", right)),
+    ).dimensions.find(({ dimension }) => dimension === "calls");
+
+  it.each(["callers", "callees"] as const)(
+    "uses known procedure entries rather than %s labels within an artifact",
+    (direction) => {
+      const left = calling(direction, [procedure("ram:0x1010", "helper")]);
+      expect(
+        calls(
+          left,
+          calling(direction, [procedure("ram:0x1020", "helper")]),
+          true,
+        ),
+      ).toMatchObject({ status: "changed" });
+      expect(
+        calls(
+          left,
+          calling(direction, [procedure("ram:0X001010", "renamed")]),
+          true,
+        ),
+      ).toMatchObject({ status: "unchanged" });
+      expect(
+        calls(
+          left,
+          calling(direction, [procedure("rom:0x1010", "helper")]),
+          true,
+        ),
+      ).toMatchObject({ status: "changed" });
+      expect(
+        calls(
+          left,
+          calling(direction, [procedure("unparsed", "helper")]),
+          true,
+        ),
+      ).toMatchObject({
+        status: "unknown",
+        limitations: [expect.stringContaining("could not be parsed")],
+      });
+    },
+  );
+
+  it.each(["callers", "callees"] as const)(
+    "keeps repeated cross-artifact %s labels ambiguous without reference edges",
+    (direction) => {
+      const left = calling(direction, [
+        procedure("0x1010", "helper"),
+        procedure("0x1020", "helper"),
+      ]);
+      const right = calling(direction, [
+        procedure("0x2010", "helper"),
+        procedure("0x2020", "helper"),
+      ]);
+      expect(calls(left, right, false)).toMatchObject({
+        status: "unknown",
+        left_count: 2,
+        right_count: 2,
+        left_digest: null,
+        right_digest: null,
+        limitations: [
+          expect.stringContaining("unique comparable procedure entry"),
+        ],
+      });
+    },
+  );
+
+  it("retains duplicate counts when a name resolves to one entry per artifact", () => {
+    const left = calling("callees", [
+      procedure("0x1010", "helper"),
+      procedure("0X001010", "helper"),
+    ]);
+    const right = calling("callees", [
+      procedure("0x2010", "helper"),
+      procedure("0x2010", "helper"),
+    ]);
+    expect(calls(left, right, false)).toMatchObject({
+      status: "unchanged",
+      left_count: 2,
+      right_count: 2,
+    });
+    expect(
+      calls(left, calling("callees", [procedure("0x2010", "helper")]), false),
+    ).toMatchObject({ status: "changed" });
+  });
+
+  it("shares procedure-name ambiguity across call and reference observations", () => {
+    const observed = (base: "0x1000" | "0x2000") =>
+      functionDossierSchema.parse({
+        ...dossierWithReference(base, "call"),
+        callees: [procedure(base === "0x1000" ? "0x1020" : "0x2020", "helper")],
+      });
+    const result = compareFunctions(
+      functionSnapshotFixture(observe("a", observed("0x1000"))),
+      functionSnapshotFixture(observe("b", observed("0x2000"))),
+    );
+    for (const dimension of ["calls", "references"])
+      expect(
+        result.dimensions.find((value) => value.dimension === dimension),
+      ).toMatchObject({
+        status: "unknown",
+        limitations: [
+          expect.stringContaining("unique comparable procedure entry"),
+        ],
+      });
+  });
+});
 
 describe("function comparison unnamed reference endpoints", () => {
   it("distinguishes unnamed reference targets by address within one artifact", () => {

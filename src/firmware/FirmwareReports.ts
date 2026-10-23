@@ -61,6 +61,12 @@ const missingDependency = z.object({
   __typename__: z.literal("ExtractorDependencyNotFoundReport"),
   dependencies: z.array(z.string()),
 });
+// Unblob reports resolved extraction problems and warnings alongside errors.
+// The declared severity owns failure; a diagnostic's presence or class name
+// alone does not establish that extraction failed.
+const extractionError = z.object({ severity: z.literal("ERROR") });
+const hasExtractionError = (reports: readonly unknown[]): boolean =>
+  reports.some((item) => extractionError.safeParse(item).success);
 const region = z.object({
   id: z.string(),
   start_offset: integer,
@@ -359,7 +365,8 @@ export const normalizeUnblobReport = (
         );
       noteMissingDependencies(path, [item]);
       if (
-        item.__typename__ === "ExtractorExecutionErrorReport" &&
+        hasExtractionError([item]) &&
+        !missingDependency.safeParse(item).success &&
         !taskFailures.has(path)
       ) {
         taskFailures.add(path);
@@ -396,7 +403,7 @@ export const normalizeUnblobReport = (
                 .parse(item)
             : null;
         const extractionFailed =
-          detail !== null && detail.extraction_reports.length > 0;
+          detail !== null && hasExtractionError(detail.extraction_reports);
         if (detail !== null)
           for (const problem of detail.extraction_reports) {
             diagnostics.push(
@@ -446,6 +453,11 @@ export const normalizeUnblobReport = (
           // The report owns its failure and dependencies. A produced subtask
           // is a derivation, not a new owner for the parent's report.
           const dependencies = dependencyNames(parsed.extraction_reports);
+          if (
+            dependencies === null &&
+            !hasExtractionError(parsed.extraction_reports)
+          )
+            continue;
           const rows =
             dependencies === null
               ? [{ dependencies: [] as readonly string[] }]

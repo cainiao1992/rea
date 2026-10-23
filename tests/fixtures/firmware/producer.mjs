@@ -325,9 +325,9 @@ if (args.includes("--version")) {
                           dependencies: ["sasquatch"],
                         }
                       : {
-                          __typename__: "ExtractorExecutionErrorReport",
+                          __typename__: "UnknownError",
                           severity: "ERROR",
-                          handler: "tar",
+                          exception: "inert multi-file extraction failure",
                         },
                   ],
                 },
@@ -381,6 +381,23 @@ if (args.includes("--version")) {
         },
       ];
     }
+    if (mode === "task-error" || mode === "task-warning")
+      records[1].reports.push(
+        mode === "task-error"
+          ? {
+              __typename__: "UnknownError",
+              severity: "ERROR",
+              exception: "inert task exception",
+            }
+          : {
+              __typename__: "ExtractCommandFailedReport",
+              severity: "WARNING",
+              command: "fixture",
+              stdout: "",
+              stderr: "",
+              exit_code: 1,
+            },
+      );
     if (
       mode !== "depth-reentry" &&
       mode !== "depth-orphan" &&
@@ -393,7 +410,11 @@ if (args.includes("--version")) {
           ? "["
           : JSON.stringify(records),
       );
-    if (mode === "dependency" || mode === "multi-file-dependency")
+    if (
+      mode === "dependency" ||
+      mode === "multi-file-dependency" ||
+      mode === "task-error"
+    )
       process.exitCode = 1;
     if (
       mode === "workspace-cleanup-failure" ||

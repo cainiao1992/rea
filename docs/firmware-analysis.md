@@ -139,6 +139,11 @@ build's source revision, so that field remains unknown.
   share recovery prose without losing any region identity. Instructions use
   already configured capabilities where one exists. Every extraction rerun
   requires a fresh absent `output_directory`, preserving the prior evidence.
+  Unblob's declared `ERROR` severity establishes an extraction failure,
+  including standalone `UnknownError` task exceptions. Warnings and resolved
+  extraction problems remain diagnostics with partial coverage; they do not
+  establish failed extractor stages. Standalone errors do not acquire a nearby
+  chunk's handler or byte range.
   Nested unknown chunks use `inspect_firmware_regions` on the actual published
   child rather than repeating the same extraction with unchanged handlers.
   Inspection requires separately configured Binwalk (`REA_BINWALK_COMMAND`);

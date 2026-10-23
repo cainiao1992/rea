@@ -524,6 +524,49 @@ it("reports a failed multi-file stage as an extractor-failure gap", async () => 
   );
 });
 
+it.each(["task-error", "task-warning"])(
+  "preserves standalone diagnostic recovery without inventing stage ownership: %s",
+  async (mode) => {
+    const fixture = await firmwareFixture(mode);
+    const result = await fixture.service.execute("extract_firmware", {
+      path: fixture.path,
+      output_directory: fixture.output,
+    });
+    if (!result.ok) throw result.error;
+    const normalized = firmwareResultSchemas.extract_firmware.parse(
+      result.value.normalized_result,
+    );
+    const failures = gapsWithContinuations(normalized).filter(
+      (gap) => gap.kind === "extractor-failure",
+    );
+    expect(normalized.diagnostics).toContainEqual(
+      expect.objectContaining({
+        input_path: "$input",
+        report: expect.objectContaining({
+          __typename__:
+            mode === "task-error"
+              ? "UnknownError"
+              : "ExtractCommandFailedReport",
+        }),
+      }),
+    );
+    if (mode === "task-error") {
+      expect(failures).toEqual([
+        expect.objectContaining({
+          input_path: "$input",
+          handler: null,
+          provider_id: null,
+          range: null,
+          root_file_range: null,
+          dependencies: [],
+          continuation: expect.stringContaining("diagnostics"),
+        }),
+      ]);
+    } else expect(failures).toEqual([]);
+    await assertFirmwareCleanup(fixture.launches);
+  },
+);
+
 it("carries the owning multi-file stage on a task-level dependency gap", async () => {
   const fixture = await firmwareFixture("multi-file-dependency");
   const result = await fixture.service.execute("extract_firmware", {

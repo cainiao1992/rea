@@ -382,6 +382,116 @@ describe("firmware producer chunk failures", () => {
   });
 });
 
+describe("firmware producer error severity", () => {
+  const outcomes = [
+    {
+      name: "task exception",
+      report: {
+        __typename__: "UnknownError",
+        severity: "ERROR",
+        exception: "inert fixture",
+      },
+      failed: true,
+    },
+    {
+      name: "future declared error",
+      report: { __typename__: "FutureProducerError", severity: "ERROR" },
+      failed: true,
+    },
+    {
+      name: "command warning",
+      report: {
+        __typename__: "ExtractCommandFailedReport",
+        severity: "WARNING",
+        command: "fixture",
+        stdout: "",
+        stderr: "",
+        exit_code: 1,
+      },
+      failed: false,
+    },
+    {
+      name: "resolved extraction problem",
+      report: {
+        __typename__: "ExtractionProblem",
+        problem: "duplicate path",
+        resolution: "kept first entry",
+        path: "config",
+      },
+      failed: false,
+    },
+  ];
+
+  it.each(["task", "chunk", "multi-file"] as const)(
+    "preserves diagnostic outcomes at the %s owner",
+    (owner) => {
+      for (const { report, failed } of outcomes) {
+        const record = root();
+        const observation =
+          owner === "task"
+            ? report
+            : owner === "chunk"
+              ? {
+                  __typename__: "ChunkReport",
+                  id: "stage-id",
+                  handler_name: "gzip",
+                  start_offset: 0,
+                  end_offset: 20,
+                  size: 20,
+                  is_encrypted: false,
+                  extraction_reports: [report],
+                }
+              : {
+                  __typename__: "MultiFileReport",
+                  id: "stage-id",
+                  handler_name: "gzip",
+                  name: "rootfs",
+                  paths: [],
+                  extraction_reports: [report],
+                };
+        const normalized = normalizeUnblobReport(
+          [
+            {
+              ...record,
+              reports: [
+                ...record.reports.filter(
+                  (item) => item.__typename__ !== "UnknownChunkReport",
+                ),
+                observation,
+              ],
+            },
+          ],
+          context,
+        );
+        expect(normalized.coverage).toBe("partial");
+        expect(normalized.diagnostics).toHaveLength(1);
+        expect(normalized.diagnostics[0]).toMatchObject({
+          input_path: "$input",
+          report: owner === "multi-file" ? observation : report,
+        });
+        if (owner === "chunk") {
+          expect(normalized.chunks[0]?.extraction_failed).toBe(failed);
+          expect(normalized.failed_extraction_stages).toEqual([]);
+        } else {
+          expect(normalized.failed_extraction_stages).toEqual(
+            failed
+              ? [
+                  {
+                    input_path: "$input",
+                    provider_id: owner === "task" ? null : "stage-id",
+                    handler: owner === "task" ? null : "gzip",
+                    dependencies: [],
+                    kind: "extractor-failure",
+                  },
+                ]
+              : [],
+          );
+        }
+      }
+    },
+  );
+});
+
 describe("firmware task dependency failures", () => {
   it.each([{ dependencies: [] }, { dependencies: ["", ""] }])(
     "retains unnamed dependency failures ($dependencies)",
@@ -686,9 +796,9 @@ describe("failed multi-file extraction stages", () => {
       is_multi_file: true,
     };
     const stageFailure = {
-      __typename__: "ExtractorExecutionErrorReport",
+      __typename__: "UnknownError",
       severity: "ERROR",
-      handler: "multipart-firmware",
+      exception: "inert multi-file extraction failure",
     };
     const normalized = normalizeUnblobReport(
       [

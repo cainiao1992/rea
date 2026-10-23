@@ -326,7 +326,7 @@ export class EnhancedTools {
           bindings: [],
           coverage: {
             status: "unknown",
-            reason: `Native class-import binding evidence is unavailable (${bindingsExecution.error._tag}).`,
+            reason: bindingsExecution.error.reason,
           },
         }),
       );

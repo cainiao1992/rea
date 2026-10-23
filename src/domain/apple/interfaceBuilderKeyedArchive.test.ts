@@ -330,3 +330,25 @@ it("counts a dangling named root without substituting a valid generic root", () 
   expect(parsed.hierarchy).toEqual([]);
   expect(parsed.omittedHierarchyReferences).toBe(1);
 });
+
+it("distinguishes an unrecognized plist from an explicitly empty Interface Builder document", () => {
+  expect(() =>
+    parseInterfaceBuilderRecords({ CFBundleIdentifier: "sample" }),
+  ).toThrow(/not a recognized/);
+  expect(
+    parseInterfaceBuilderRecords({ "com.apple.ibtool.document.objects": {} }),
+  ).toMatchObject({ objects: [], connections: [], objectCount: 0 });
+});
+
+it.each([
+  ["NSImageView", "view"],
+  ["UIImageView", "view"],
+  ["NSColorWell", "control"],
+  ["NSImage", "resource"],
+])("keeps %s UI identity separate from resource names", (className, kind) => {
+  expect(
+    parseInterfaceBuilderRecords({
+      "com.apple.ibtool.document.objects": { item: { class: className } },
+    }).objects[0]?.kind,
+  ).toBe(kind);
+});

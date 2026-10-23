@@ -65,6 +65,22 @@ export const interfaceBuilderConnectionFieldNames = (className: string) =>
     ? { source: "UISource", destination: "UIDestination", label: "UILabel" }
     : { source: "NSSource", destination: "NSDestination", label: "NSLabel" };
 
+/** A decoded plist is not an Interface Builder document merely because it is named .nib. */
+export const requireInterfaceBuilderArchive = (value: unknown): void => {
+  const root = record(value);
+  if (root.$archiver === "NSKeyedArchiver" && Array.isArray(root.$objects))
+    return;
+  if (
+    ["objects", "connections", "hierarchy", "classes"].some((facet) =>
+      Object.hasOwn(root, `com.apple.ibtool.document.${facet}`),
+    )
+  )
+    return;
+  throw new TypeError(
+    "Property list is not a recognized Interface Builder archive",
+  );
+};
+
 /** Parse ibtool dictionaries or compiled keyed archives into typed records. */
 export const parseInterfaceBuilderRecords = (
   value: unknown,
@@ -79,6 +95,7 @@ export const parseInterfaceBuilderRecords = (
   readonly unresolvedConnections: number;
   readonly omittedHierarchyReferences: number;
 } => {
+  requireInterfaceBuilderArchive(value);
   const root = record(value);
   const keyed = parseKeyedArchive(root);
   if (keyed !== null) return keyed;
@@ -560,12 +577,6 @@ const classifyObject = (
     value === "uiproxyobject"
   )
     return "placeholder";
-  if (
-    value.includes("image") ||
-    value.includes("color") ||
-    value.includes("font")
-  )
-    return "resource";
   if (value.includes("external")) return "external_object";
   if (value.includes("viewcontroller") || value.includes("windowcontroller"))
     return "view_controller";
@@ -574,7 +585,8 @@ const classifyObject = (
     value.includes("control") ||
     value.includes("textfield") ||
     value.includes("slider") ||
-    value.includes("menuitem")
+    value.includes("menuitem") ||
+    value.includes("colorwell")
   )
     return "control";
   if (
@@ -583,6 +595,12 @@ const classifyObject = (
     value.includes("cell")
   )
     return "view";
+  if (
+    value.includes("image") ||
+    value.includes("color") ||
+    value.includes("font")
+  )
+    return "resource";
   return "other";
 };
 

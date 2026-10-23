@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { categorizeSwiftTypes } from "./symbolAnalysis.js";
+import {
+  categorizeSwiftTypes,
+  discoverObjcProtocols,
+} from "./symbolAnalysis.js";
 
 describe("modern Swift category evidence", () => {
   it.each([
@@ -216,4 +219,16 @@ describe("Swift alias ambiguity", () => {
       });
     },
   );
+});
+
+it("does not recognize embedded Swift runtime markers in Objective-C selectors", () => {
+  const names = [
+    "-[Example check_TtC4main3Foo]",
+    "-[Example check_TtP4main3Bar_]",
+  ].map((name) => ({ name, address: "0x1" }));
+  expect(categorizeSwiftTypes(names)).toMatchObject({
+    total: 0,
+    unclassified: [],
+  });
+  expect(discoverObjcProtocols(names)).toEqual({ count: 0, protocols: [] });
 });

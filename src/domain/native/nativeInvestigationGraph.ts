@@ -306,27 +306,44 @@ export const joinInterfaceBuilderDispatch = (
     if (typeof selector !== "string" || selector.length === 0) continue;
     const selectorNodeId = selectorNodesByAction.get(action.id);
     if (selectorNodeId === undefined) continue;
+    examined += 1;
     const destinationEdge = edges.find(
       (edge) =>
         edge.resolution === "observed" &&
         edge.relation === "target_action" &&
         edge.from === action.id &&
-        ["view_controller", "placeholder", "external_object"].includes(
-          nodes.get(edge.to)?.kind ?? "",
-        ),
+        edge.to !== selectorNodeId &&
+        nodes.has(edge.to),
     );
     if (
       destinationEdge === undefined ||
       destinationEdge.resolution !== "observed"
-    )
+    ) {
+      const edgeId = `dispatch:${selectorNodeId}:${action.id}:receiver`;
+      if (!existingEdgeIds.has(edgeId)) {
+        existingEdgeIds.add(edgeId);
+        edges.push({
+          id: edgeId,
+          from: selectorNodeId,
+          to: null,
+          relation: "objc_dispatch",
+          resolution: "unresolved",
+          reason: "authored_action_receiver_unresolved",
+          evidence: action.evidence,
+          limitations: [
+            "The authored action has no resolved receiver; a selector match alone cannot establish its implementation.",
+          ],
+        });
+      }
       continue;
+    }
     const owner = nodes.get(destinationEdge.to);
-    examined += 1;
     const declaredClass = owner?.attributes.class_name;
     const className =
       typeof declaredClass === "string" &&
       declaredClass.length > 0 &&
-      owner?.kind === "view_controller"
+      owner?.kind !== "placeholder" &&
+      owner?.kind !== "external_object"
         ? declaredClass
         : null;
     const candidates = metadata.objc_dispatch_implementations.filter(

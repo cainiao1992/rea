@@ -285,7 +285,10 @@ describe("Objective-C class import identity composition", () => {
       ok: true,
       value: {
         count: 2,
-        identity_coverage: { status: "unknown" },
+        identity_coverage: {
+          status: "unknown",
+          reason: "No static Mach-O reader",
+        },
       },
     });
   });

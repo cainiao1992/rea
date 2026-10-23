@@ -4,6 +4,7 @@ import { parseBinary } from "plist";
 import { appleResourceKeyFields } from "../../domain/apple/appleAssetCatalog.js";
 import {
   interfaceBuilderConnectionFieldNames,
+  requireInterfaceBuilderArchive,
   isInterfaceBuilderConnectionClass,
   isSourceLessAppKitAnnotationConnector,
   isUIKitRuntimeConnectionClass,
@@ -212,6 +213,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
               unknownScalarCount: 0,
               numberLiterals: undefined,
             };
+        requireInterfaceBuilderArchive(raw);
         if (nib !== null && nib.omitted > 0)
           incompleteHierarchies.set(entry.path, nib.omitted);
         if (nib !== null && nib.unresolvedConnections > 0)

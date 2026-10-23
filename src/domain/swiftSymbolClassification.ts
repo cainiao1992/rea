@@ -25,7 +25,7 @@ export const classifySwiftSymbol = (
 ): { readonly category: SwiftTypeCategory | null } | undefined => {
   const prefix = /^_?(?:\$[sS]|_T0)/u.exec(name);
   if (prefix === null) {
-    if (!name.includes("_Tt")) return undefined;
+    if (!name.startsWith("_Tt")) return undefined;
     return {
       category:
         LEGACY_CATEGORIES.find(([prefix]) => name.startsWith(prefix))?.[1] ??

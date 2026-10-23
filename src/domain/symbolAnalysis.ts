@@ -97,9 +97,7 @@ export const discoverObjcProtocols = (
     names.filter(
       ({ name }) =>
         name.includes(OBJC_PROTOCOL_MARKER) ||
-        name.includes("_TtP") ||
-        (name.endsWith("Mp") &&
-          classifySwiftSymbol(name)?.category === "protocols"),
+        classifySwiftSymbol(name)?.category === "protocols",
     ),
   );
   return {

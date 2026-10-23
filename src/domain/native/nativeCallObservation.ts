@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { jsonObjectSchema } from "../jsonValue.js";
 import { localPathStringSchema } from "../localPath.js";
 
 const hexSchema = z.string().regex(/^0x[0-9a-f]+$/u);
@@ -58,6 +59,37 @@ export const nativeCallBreakpointSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const environmentNameSchema = z
+  .string()
+  .min(1)
+  .regex(/^[^=\x00]+$/u, "Environment names cannot contain '=' or NUL");
+const environmentValueSchema = z
+  .string()
+  .regex(/^[^\x00]*$/u, "Environment values cannot contain NUL");
+const environmentRecordProjection = z.record(
+  environmentNameSchema,
+  environmentValueSchema,
+);
+
+// z.record skips __proto__. Own the JSON map before validating entries so every
+// selected environment name survives input parsing, readback and partial Evidence.
+const nativeCallEnvironmentSchema = jsonObjectSchema
+  .superRefine((value, context) => {
+    for (const [name, entry] of Object.entries(value)) {
+      for (const parsed of [
+        environmentNameSchema.safeParse(name),
+        environmentValueSchema.safeParse(entry),
+      ]) {
+        if (!parsed.success)
+          for (const issue of parsed.error.issues)
+            context.addIssue({ ...issue, path: [name, ...issue.path] });
+      }
+    }
+  })
+  .transform((value) => value as Record<string, string>);
+nativeCallEnvironmentSchema._zod.toJSONSchema = () =>
+  z.toJSONSchema(environmentRecordProjection, { io: "input" });
+
 /**
  * Launch the active Mach-O as an owned process under LLDB and observe calls.
  * Duration and event bounds keep runtime observation finite.
@@ -65,14 +97,7 @@ export const nativeCallBreakpointSchema = z.discriminatedUnion("kind", [
 export const nativeCallObservationInputSchema = z.strictObject({
   breakpoints: z.array(nativeCallBreakpointSchema).min(1),
   arguments: z.array(nativeString).default([]),
-  environment: z
-    .record(
-      z
-        .string()
-        .min(1)
-        .regex(/^[^=\x00]+$/u, "Environment names cannot contain '=' or NUL"),
-      z.string().regex(/^[^\x00]*$/u, "Environment values cannot contain NUL"),
-    )
+  environment: nativeCallEnvironmentSchema
     .default({})
     .describe("Overrides on top of the environment REA runs with."),
   working_directory: localPathStringSchema.optional(),
@@ -152,7 +177,7 @@ export const nativeCallObservationResultSchema = z.strictObject({
     sha256: z.string().regex(/^[0-9a-f]{64}$/u),
     architecture: z.string(),
     arguments: z.array(z.string()),
-    environment: z.record(z.string(), z.string()),
+    environment: nativeCallEnvironmentSchema,
     working_directory: z.string().nullable(),
     launch_identity: z.strictObject({
       /** A pathname hash does not verify the bytes mapped into the process. */

@@ -730,7 +730,7 @@ cancellation Evidence, even if the target has already exited.
   while excess bytes are drained and counted without growing capture files).
   Each stream reports `complete`; when draining could not finish, its byte
   count is an observed lower bound and truncation is explicit;
-- caller-selected arguments, working directory, and environment overrides;
+- caller-selected arguments, working directory, and environment overrides, including literal JSON environment names such as `__proto__`;
 - `selected_file_sha256` and LLDB module identity observations. These checks do
   not pin the executable against concurrent mutation; `loaded_image_sha256`
   remains unknown;

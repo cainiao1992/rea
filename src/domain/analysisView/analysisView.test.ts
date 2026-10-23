@@ -287,6 +287,28 @@ it("reports the malformed native dossier field", () => {
   });
 });
 
+it.each(["inspect_binary_layout", "inspect_byte_entropy"] as const)(
+  "retains owning field correction paths for empty %s parents",
+  (operation) => {
+    expect(
+      projectAnalysisView(
+        { ...layoutParent(), operation, normalizedResult: {} },
+        { kind: "summary" },
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ["source", "normalized_result", "artifact"],
+            reason: "missing_argument",
+          }),
+        ]),
+      },
+    });
+  },
+);
+
 it("native pseudocode pages do not split surrogate pairs", () => {
   const original = functionDossierSchema.parse(ghidraFunctionDossier());
   const parent = nativeParent({ ...original, pseudocode: "ab😀cd" });

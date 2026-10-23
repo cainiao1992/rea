@@ -1191,35 +1191,18 @@ export const projectAnalysisView = (
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "inspect_byte_entropy") {
-    const report = byteEntropySchema.safeParse(parent.normalizedResult);
-    if (!report.success)
-      return err(
-        analysisViewInputError([
-          {
-            path: ["source"],
-            reason: "invalid_value",
-            message:
-              "Parent Evidence result does not match inspect_byte_entropy.",
-          },
-        ]),
-      );
-    const projected = projectByteEntropyView(parent, report.data, view);
+    const report = parseAnalysisViewResult(byteEntropySchema, parent);
+    if (!report.ok) return report;
+    const projected = projectByteEntropyView(parent, report.value, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "inspect_binary_layout") {
-    const layout = safeParseOwnedBinaryLayout(parent.normalizedResult);
-    if (!layout.success)
-      return err(
-        analysisViewInputError([
-          {
-            path: ["source"],
-            reason: "invalid_value",
-            message:
-              "Parent Evidence result does not match inspect_binary_layout.",
-          },
-        ]),
-      );
-    const projected = projectBinaryLayoutView(parent, layout.data, view);
+    const layout = parseAnalysisViewResult(
+      { safeParse: safeParseOwnedBinaryLayout },
+      parent,
+    );
+    if (!layout.ok) return layout;
+    const projected = projectBinaryLayoutView(parent, layout.value, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "analyze_javascript_application") {

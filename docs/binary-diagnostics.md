@@ -100,6 +100,10 @@ one section or symbol, or a stable page without re-running the decoder. CLI
 one-shot invocations pass portable inline Evidence JSON; an MCP session uses
 the retained `evidence_id`. Page `limit` is required and bounded by the
 measured MCP stdio budget documented on the tool contract.
+Malformed authenticated layout input remains rejected with the owning schema's
+safe field diagnostics under `source.normalized_result`, including the field
+path and type or value reason. Evidence authentication and decoder validation
+remain separate boundaries.
 
 Over MCP, `inspect_binary_layout` with `"detail": "summary"` retains the
 complete layout Evidence in the session and returns only its summary view.

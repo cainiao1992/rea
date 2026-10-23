@@ -107,6 +107,16 @@ export const parseSigrokSelectorRejection = (
       inputFormatRefusal,
       INPUT_FORMAT_RECOVERY,
     );
+  for (const assignment of selection.input_format?.split(":").slice(1) ?? []) {
+    const key = assignment.split("=", 1)[0] ?? "";
+    const refusal = `Unknown keyword: ${key}.`;
+    if (key !== "" && lines.has(refusal))
+      return rejectedSelector(
+        "input_format",
+        refusal,
+        "Use a supported option for the selected sigrok input format, or omit that option.",
+      );
+  }
   // sigrok-cli stacks decoders with "," and appends options with ":".
   for (const entry of selection.decoders.split(",")) {
     const refusal = unknownDecoderRefusal(lines, entry.split(":")[0] ?? "");

@@ -144,6 +144,8 @@ export const observeCdpSession = async (
       message: "Browser observation window ended",
       terminal: true,
     });
+    // Terminal progress is awaited and may admit more protocol events.
+    capture.assertRequestOwnershipWithinLimit();
     if (capture.scopeExcluded) endReason = "target_left_scope";
     return {
       browser: context.discovery.version,

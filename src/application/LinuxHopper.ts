@@ -593,10 +593,7 @@ export const systemLinuxHopperInstallHost = (
       }
     },
     cleanup: (path) => rm(path, { recursive: true, force: true }),
-    close: async () => {
-      await publisher.close();
-      await retryLinuxHopperPublisherCleanup();
-    },
+    close: () => closePublisherAndRetainedScopes(publisher),
   };
 };
 
@@ -619,8 +616,7 @@ export const inspectLinuxHopperLauncher = async (
   const publisher = systemLinuxHopperPublisher(environment);
   const result = await publisher.inspectLauncher(path, signal);
   try {
-    await publisher.close();
-    await retryLinuxHopperPublisherCleanup();
+    await closePublisherAndRetainedScopes(publisher);
     return result;
   } catch (cause: unknown) {
     return err(
@@ -636,6 +632,19 @@ export const inspectLinuxHopperLauncher = async (
       ),
     );
   }
+};
+
+/** The publisher retains a failed close before throwing; retry every retained owner. */
+const closePublisherAndRetainedScopes = async (
+  publisher: LinuxHopperPublisher,
+): Promise<void> => {
+  try {
+    await publisher.close();
+  } catch {
+    // The following producer-owned drain includes this scope and earlier ones.
+    // Its result reports the resources still unresolved after every attempt.
+  }
+  await retryLinuxHopperPublisherCleanup();
 };
 
 /** Interpret ldd output conservatively so a present but broken launcher is unhealthy. */

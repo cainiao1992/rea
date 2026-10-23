@@ -2417,8 +2417,15 @@ const withTwin = (
         ...inspected.result.field_accesses,
         ...rows.flatMap((row) =>
           source.result.field_accesses
-            .filter((edge) => edge.caller_token === method.token)
-            .map((edge) => ({ ...edge, ...caller(row) })),
+            .filter((edge) => edge.method_token === method.token)
+            .map((edge) => {
+              const identity = caller(row);
+              return {
+                ...edge,
+                method_token: identity.caller_token,
+                method: identity.caller,
+              };
+            }),
         ),
       ],
     },

@@ -586,6 +586,7 @@ describe("full-output token counts", () => {
         category: "unavailable",
         message: "Missing target",
         retryable: false,
+        remediation: { action: "Select an available target." },
       },
       { command: "fixture", duration: "0ms", format: "toon" },
     );
@@ -728,8 +729,13 @@ describe("CLI result output surface", () => {
         },
         details: {
           reported_limits: {
+            // Token counting uses the compact pipe encoding, unlike the
+            // terminal digest above. Count leaves, separators and framing.
             formatted_characters:
-              expectedCharacters +
+              count * encodedLeaf.length +
+              (count - 1) +
+              '{"methods":[]}'.length +
+              1 +
               JSON.stringify({ ok: true, data: null, meta: report.meta })
                 .length -
               4,

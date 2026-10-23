@@ -300,7 +300,10 @@ it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
           .split("\n")
           .map((line) => JSON.parse(line)),
       ).toEqual(expected);
-    else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
+    else if (format === "md") {
+      expect(outputs[0]).toContain(`| ${JSON.stringify(expected[0]!.rows)} |`);
+      expect(outputs[0]).not.toContain("[object Object]");
+    } else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
     expect(projectionSource[0]?.rows[0]?.retained).toEqual([0, 10]);
   },
 );
@@ -324,6 +327,7 @@ it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
           .split("\n")
           .map((line) => JSON.parse(line)),
       ).toEqual([1, null, null]);
+    else if (format === "md") expect(output).toBe("[1,null,null]\n");
     else expect(output).toBe(`${Formatter.format(selected, format)}\n`);
     expect(value).toEqual([{ selected: 1 }, {}, { selected: null }]);
   },
@@ -356,7 +360,10 @@ it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
           .split("\n")
           .map((line) => JSON.parse(line)),
       ).toEqual(expected);
-    else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
+    else if (format === "md") {
+      expect(outputs[0]).toContain(`| ${JSON.stringify(expected[0]!.rows)} |`);
+      expect(outputs[0]).not.toContain("[object Object]");
+    } else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
     expect(projectionSource).toEqual(before);
   },
 );

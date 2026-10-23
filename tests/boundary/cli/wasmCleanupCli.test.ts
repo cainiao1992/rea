@@ -108,7 +108,7 @@ it.runIf(canDenyCleanup)(
       expect(primaryAndCleanupFail).toMatchObject({
         code: "cleanup_incomplete",
         details: {
-          execution_failure: "execution_failure",
+          execution_failure: "invalid_request",
           diagnostics: {
             primary_error: { code: "cleanup_incomplete" },
             cleanup_error: { code: "cleanup_incomplete" },

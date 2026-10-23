@@ -95,7 +95,7 @@ it("retains late cancellation and completed Evidence when close also fails", asy
   );
   expect(result).toMatchObject({
     code: "cleanup_incomplete",
-    category: "execution_failure",
+    category: "cancelled",
     details: {
       partial_observation: evidence,
       diagnostics: {

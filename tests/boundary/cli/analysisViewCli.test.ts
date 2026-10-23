@@ -315,7 +315,7 @@ cliTest(
     const unsupportedRequest = join(root, "unsupported-view.json");
     const unsupportedInput = {
       source: { kind: "inline", evidence: parent },
-      view: { kind: "page", collection: "sections" },
+      view: { kind: "page", collection: "sections", offset: 0, limit: 20 },
     };
     await writeFile(unsupportedRequest, JSON.stringify(unsupportedInput));
     const unsupported = await cli.run({

@@ -1,6 +1,6 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it, vi } from "vitest";
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 
 const fault = vi.hoisted(() => ({
   method: "",
@@ -31,8 +31,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     },
   };
 });
-import { createServer } from "../../../src/server/createServer.js";
-import { createTestBinarySession } from "../../fixtures/binarySession.js";
+import { createServer } from "../../src/server/createServer.js";
+import { createTestBinarySession } from "../fixtures/binarySession.js";
 
 it.each([
   { method: "lstat", code: "EACCES" },

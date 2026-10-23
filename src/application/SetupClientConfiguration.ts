@@ -592,9 +592,11 @@ const inspectClientDocument = async (
       return { status: "invalid", remediation: fallback.error.detail };
     }
   } catch (cause: unknown) {
-    if (cause instanceof RegularFileCleanupFailure) throw cause;
-    if (cause instanceof ConfigurationError)
-      return { status: "invalid", remediation: cause.message };
+    if (
+      cause instanceof RegularFileCleanupFailure ||
+      cause instanceof ConfigurationError
+    )
+      throw cause;
     // Malformed configuration is reported with the invalid remediation.
     void cause;
     return {

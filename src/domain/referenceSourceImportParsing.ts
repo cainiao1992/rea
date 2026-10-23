@@ -11,17 +11,15 @@ import {
   parseRecoveredJavaScript,
   parserPluginsForPath,
 } from "./javascript/javascriptSourceParser.js";
-import { unshadowedReferenceSourceRequireCalls } from "./referenceSourceRequireBindings.js";
+import { referenceSourceRequireCallBases } from "./referenceSourceRequireBindings.js";
 import { isRelativeJavaScriptModuleSpecifier } from "./javascript/javascriptModuleSpecifier.js";
 import {
   isCallExpression,
   isExportAllDeclaration,
   isExportNamedDeclaration,
-  isIdentifier,
   isImport,
   isImportDeclaration,
   isImportExpression,
-  isMemberExpression,
   isStringLiteral,
   isTSExternalModuleReference,
   isTSImportEqualsDeclaration,
@@ -233,31 +231,12 @@ const extractImportDeclarations = (
   }
 };
 
-const isRequireCallee = (callee: Node | null | undefined): boolean => {
-  if (isIdentifier(callee) && callee.name === "require") return true;
-  if (
-    isMemberExpression(callee) &&
-    isIdentifier(callee.object) &&
-    callee.object.name === "require" &&
-    ((!callee.computed && isIdentifier(callee.property)) ||
-      isStringLiteral(callee.property))
-  ) {
-    const propertyName = isIdentifier(callee.property)
-      ? callee.property.name
-      : isStringLiteral(callee.property)
-        ? callee.property.value
-        : undefined;
-    return propertyName === "resolve" || propertyName === "main";
-  }
-  return false;
-};
-
 const extractRequireAndDynamicImports = (
   body: readonly Node[],
   from_path: string,
   relationships: ReferenceSourceImportRelationship[],
   limitations: string[],
-  unshadowedRequireCalls: ReadonlySet<CallExpression>,
+  requireCallBases: ReadonlyMap<CallExpression, "source-file" | "unknown">,
 ): void => {
   // Single traversal owner: iterative, VISITOR_KEYS-gated, no recursion over
   // loc/comment objects. Survives deeply nested generated member chains that
@@ -287,15 +266,20 @@ const extractRequireAndDynamicImports = (
     // The shared exact-literal reader owns argument exactness: it unwraps
     // runtime-transparent TS wrappers (`as const`, `!`, `satisfies`) and
     // admits quoted and expression-free template spellings alike.
-    if (isRequireCallee(call.callee) && unshadowedRequireCalls.has(call)) {
+    const resolutionBase = requireCallBases.get(call);
+    if (resolutionBase !== undefined) {
       const result = moduleSpecifierFromExpression(first);
       if (result !== undefined) {
+        const uncertainResolution = resolutionBase === "unknown";
         appendRelationship(relationships, limitations, {
           fromPath: from_path,
           to: result.specifier,
           kind: "requires",
-          parseState: result.parseState,
-          resolutionStrategy: "runtime-require",
+          parseState: uncertainResolution ? "partial" : result.parseState,
+          ...(uncertainResolution ? { resolution: "unknown" } : {}),
+          ...(uncertainResolution
+            ? {}
+            : { resolutionStrategy: "runtime-require" as const }),
         });
       }
       continue;
@@ -413,7 +397,7 @@ export const parseReferenceSourceImports = (
     path,
     relationships,
     limitations,
-    unshadowedReferenceSourceRequireCalls(ast, path),
+    referenceSourceRequireCallBases(ast, path),
   );
 
   return {

@@ -107,12 +107,18 @@ type PackageMain =
  */
 const readPackageMains = (
   read: ReferenceSourceRead,
+  exclusions: HistoricalSourceGraphInput["exclusions"],
 ): {
   readonly mains: ReadonlyMap<string, PackageMain>;
   readonly pathLookup: ReferenceSourcePathLookup;
 } => {
   const mains = new Map<string, PackageMain>();
   const manifestPaths: string[] = [];
+  for (const exclusion of exclusions) {
+    if (posix.basename(exclusion.path) !== "package.json") continue;
+    manifestPaths.push(exclusion.path);
+    mains.set(posix.dirname(exclusion.path), { state: "unknown" });
+  }
   for (const entry of read.entries) {
     if (posix.basename(entry.path) !== "package.json") continue;
     manifestPaths.push(entry.path);
@@ -412,6 +418,7 @@ const appendReadEntry = (
 export const parseReferenceSourceEntries = (
   read: ReferenceSourceRead,
   filePaths: ReadonlySet<string>,
+  exclusions: HistoricalSourceGraphInput["exclusions"],
   signal?: AbortSignal,
 ): ParsedReferenceSourceEntries => {
   const output: ParsedReferenceSourceEntries = {
@@ -424,7 +431,7 @@ export const parseReferenceSourceEntries = (
     output.limitations.push(
       `Reference root enumeration is incomplete: ${read.rootFailure.message}`,
     );
-  const packageMainInventory = readPackageMains(read);
+  const packageMainInventory = readPackageMains(read, exclusions);
   const context: SpecifierContext = {
     lookupPath: createReferenceSourcePathLookup(filePaths),
     packageMains: packageMainInventory.mains,

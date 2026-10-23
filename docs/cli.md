@@ -410,6 +410,13 @@ strings, expression-free templates and runtime-transparent TypeScript wrappers
 retain their targets; computed imports remain unknown. TypeScript import-equals
 dependencies remain `requires` relationships whether or not they are exported.
 
+CommonJS `require` relationships retain the requested specifier. REA resolves
+them against the source file only when Node's default source-relative loader is
+proven; non-default `createRequire` bases and unsupported
+`require.resolve` search options remain partial with unknown resolution. An
+excluded `package.json` also leaves package-directory selection unknown rather
+than treating the manifest as absent and applying an `index` fallback.
+
 Historical-source import requires safe no-follow file opens on Linux or
 macOS. Native Windows returns `unsupported_host`; use Linux REA inside WSL
 or another supported host. See

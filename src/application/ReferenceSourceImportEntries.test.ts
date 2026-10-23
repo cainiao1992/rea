@@ -22,7 +22,7 @@ it("projects an unsupported non-regular entry as unknown kind instead of file", 
     bytesRead: 0,
     limitations: [],
   };
-  const parsed = parseReferenceSourceEntries(read, new Set());
+  const parsed = parseReferenceSourceEntries(read, new Set(), []);
   expect(parsed.entries).toContainEqual({
     path: "src/pipe",
     kind: "unknown",
@@ -49,7 +49,7 @@ it("keeps a failed regular file as file kind", () => {
     bytesRead: 0,
     limitations: [],
   };
-  const parsed = parseReferenceSourceEntries(read, new Set());
+  const parsed = parseReferenceSourceEntries(read, new Set(), []);
   expect(parsed.entries).toContainEqual({
     path: "src/broken.ts",
     kind: "file",
@@ -88,6 +88,7 @@ it("keeps source entries when a module has an empty specifier", () => {
   const parsed = parseReferenceSourceEntries(
     read,
     new Set(files.map(([path]) => path)),
+    [],
   );
 
   expect(parsed.entries.map(({ path }) => path)).toEqual([
@@ -136,6 +137,7 @@ it("retains Kotlin source identity and language across the inventory projection"
   const parsed = parseReferenceSourceEntries(
     read,
     new Set(files.map(([path]) => path)),
+    [],
   );
   for (const [path, content, classifications, language] of files)
     expect(parsed.entries).toContainEqual({
@@ -193,6 +195,7 @@ it("resolves runtime require package mains without an index and before typed ind
   const parsed = parseReferenceSourceEntries(
     read,
     new Set(files.map(([path]) => path)),
+    [],
   );
 
   expect(parsed.relationships).toContainEqual({
@@ -281,6 +284,7 @@ it("matches package manifests by exact or unique canonical directory identity", 
   const parsed = parseReferenceSourceEntries(
     read,
     new Set(files.map(([path]) => path)),
+    [],
   );
 
   expect(parsed.relationships.map(({ to }) => to)).toEqual([
@@ -319,6 +323,7 @@ it("resolves extensionless imports and requires to .mts and .cts files and direc
   const parsed = parseReferenceSourceEntries(
     read,
     new Set(files.map(([path]) => path)),
+    [],
   );
   expect(parsed.relationships).toEqual(
     expect.arrayContaining([

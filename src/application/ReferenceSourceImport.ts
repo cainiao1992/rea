@@ -210,7 +210,7 @@ export const importReferenceSource = async (
   );
 
   const { entries, relationships, parseFailures, limitations } =
-    parseReferenceSourceEntries(read, filePaths, options.signal);
+    parseReferenceSourceEntries(read, filePaths, exclusions, options.signal);
 
   if (isAborted(options.signal)) return err(cancelled(read));
 

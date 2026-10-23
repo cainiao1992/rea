@@ -1,11 +1,16 @@
 import * as t from "@babel/types";
 
 import { semanticStaticPropertyKey } from "./javascript/javascriptAstValues.js";
+import { isUnmodifiedGlobalReference } from "./javascript/javascriptSemanticAmbientWrites.js";
 import {
   indexJavaScriptBindingsWithReceiversSteps,
   type JavaScriptReceiverIndex,
 } from "./javascript/javascriptSemanticAnalysis.js";
-import { semanticRequireLoaderAt } from "./javascript/javascriptSemanticRequireOrigin.js";
+import type { JavaScriptSemanticAnalysisState } from "./javascript/javascriptSemanticState.js";
+import {
+  semanticRequireCallAt,
+  semanticRequireLoaderAt,
+} from "./javascript/javascriptSemanticRequireOrigin.js";
 import {
   completeSemanticSteps,
   traverseJavaScriptAst,
@@ -15,11 +20,13 @@ import {
   type ParsedJavaScriptSource,
 } from "./javascript/javascriptSourceParser.js";
 
-/** Recover source dependencies using the shared loader and mutation owners. */
-export const unshadowedReferenceSourceRequireCalls = (
+export type ReferenceSourceRequireResolutionBase = "source-file" | "unknown";
+
+/** Identify exact calls through a source-owned Node loader and their resolver base. */
+export const referenceSourceRequireCallBases = (
   file: Pick<ParsedJavaScriptSource, "program">,
   path: string,
-): ReadonlySet<t.CallExpression> => {
+): ReadonlyMap<t.CallExpression, ReferenceSourceRequireResolutionBase> => {
   // Unmarked paths depend on package scope or compiler options. Preserve their
   // candidate CommonJS edges; explicit module paths have no wrapper loader.
   const wrapperMode = commonJsWrapperMode(path);
@@ -33,6 +40,7 @@ export const unshadowedReferenceSourceRequireCalls = (
   const candidates: {
     readonly call: t.CallExpression;
     readonly identifier: t.Identifier;
+    readonly resolutionBase: ReferenceSourceRequireResolutionBase;
   }[] = [];
   traverseJavaScriptAst(file.program, {
     enter: (node) => {
@@ -47,22 +55,81 @@ export const unshadowedReferenceSourceRequireCalls = (
         fact = semanticRequireLoaderAt(node, index.bindings, factoryBindings);
       }
       if (
-        fact === "create-require" ||
-        (fact === "commonjs-loader" && wrapperMode !== "absent")
+        fact !== "create-require" &&
+        (fact !== "commonjs-loader" || wrapperMode === "absent")
       )
-        candidates.push({ call: node, identifier });
+        return;
+      const callFact = semanticRequireCallAt(
+        node,
+        index.bindings,
+        factoryBindings,
+      );
+      const base =
+        fact === "create-require"
+          ? callFact?.sourceRelative === true
+            ? "source-file"
+            : "unknown"
+          : "source-file";
+      candidates.push({
+        call: node,
+        identifier,
+        resolutionBase:
+          base === "source-file" &&
+          isDefaultRequireResolveSearch(node, index.bindings)
+            ? "source-file"
+            : "unknown",
+      });
     },
   });
   if (candidates.some(({ call }) => !t.isIdentifier(call.callee)))
     completeSemanticSteps(index.indexMemberMutationFactsSteps());
-  return new Set(
+  return new Map(
     candidates
       .filter(
         ({ call, identifier }) =>
           t.isIdentifier(call.callee) ||
           !hasPriorMemberMutation(index, call, identifier),
       )
-      .map(({ call }) => call),
+      .map(({ call, resolutionBase }) => [call, resolutionBase] as const),
+  );
+};
+
+/** `require.resolve` options replace the default search paths unless exact current-directory paths are supplied. */
+const isDefaultRequireResolveSearch = (
+  call: t.CallExpression,
+  bindings: JavaScriptSemanticAnalysisState,
+): boolean => {
+  if (!isRequireResolveCall(call) || call.arguments.length < 2) return true;
+  if (call.arguments.length !== 2) return false;
+  const options = t.isExpression(call.arguments[1])
+    ? call.arguments[1]
+    : undefined;
+  if (options === undefined) return false;
+  if (!t.isObjectExpression(options)) return false;
+  if (options.properties.length === 0) return true;
+  if (options.properties.length !== 1) return false;
+  const property = options.properties[0];
+  if (!t.isObjectProperty(property)) return false;
+  if (semanticStaticPropertyKey(property.key, property.computed) !== "paths")
+    return false;
+  const value = t.isExpression(property.value) ? property.value : undefined;
+  if (!t.isArrayExpression(value) || value.elements.length !== 1) return false;
+  const directory = value.elements[0];
+  return (
+    t.isIdentifier(directory, { name: "__dirname" }) &&
+    isUnmodifiedGlobalReference(directory, bindings, "__dirname")
+  );
+};
+
+const isRequireResolveCall = (call: t.CallExpression): boolean => {
+  const callee = call.callee;
+  if (
+    !t.isMemberExpression(callee) ||
+    !t.isIdentifier(callee.object, { name: "require" })
+  )
+    return false;
+  return (
+    semanticStaticPropertyKey(callee.property, callee.computed) === "resolve"
   );
 };
 

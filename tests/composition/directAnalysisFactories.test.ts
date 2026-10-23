@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { parseConfig } from "../../src/config/parseConfig.js";
 import { ok as resultOk } from "../../src/domain/result.js";
 import { describe, expect, it } from "vitest";
@@ -279,4 +280,46 @@ it("preserves a managed execution profile in direct analysis Evidence", async ()
     {},
   );
   expect(evidence).toMatchObject({ analysis_profile: profile });
+});
+
+it("direct analysis snapshot target mismatch retains actionable snapshot recovery", async () => {
+  const [path, other] = await createBinarySessionTargets();
+  const profile = createAnalysisProfile(
+    { id: "fixture", name: "Fixture analysis provider", version: "1" },
+    { fixture: true },
+  );
+  const factories = recordingFactories(undefined, profile);
+  const snapshotPath = join(dirname(path), "snapshot.json");
+  expect(
+    await runDirectAnalysis(
+      factories.dependencies,
+      path,
+      "read_bytes",
+      {},
+      { snapshotPath },
+    ),
+  ).not.toHaveProperty("code");
+  const mismatch = await runDirectAnalysis(
+    factories.dependencies,
+    other,
+    "read_bytes",
+    {},
+    { snapshotPath },
+  );
+  expect(mismatch).toMatchObject({
+    code: "evidence_integrity_mismatch",
+    remediation: {
+      action:
+        "Run analysis without this snapshot, then save a fresh snapshot using the intended artifact, provider, and analysis profile.",
+    },
+  });
+  expect(
+    await runDirectAnalysis(
+      factories.dependencies,
+      path,
+      "read_bytes",
+      {},
+      { snapshotPath },
+    ),
+  ).not.toHaveProperty("code");
 });

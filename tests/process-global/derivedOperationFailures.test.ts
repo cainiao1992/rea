@@ -49,6 +49,12 @@ import { applicationFeatureTraceResultSchema } from "../../src/domain/javascript
 import { ownedApplicationVersionComparisonResultSchema } from "../../src/domain/javascript/javascriptApplicationVersionComparisonSchemas.js";
 import { javaScriptExportShapeComparisonResultSchema } from "../../src/domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import { sourceToBundleComparisonResultSchema } from "../../src/domain/javascript/sourceToBundleComparisonSchemas.js";
+import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
+import { javascriptRuntimeReconciliationResultSchema } from "../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
+import { browserCompletenessSchema } from "../../src/domain/browserCompleteness.js";
+import { createElectronActiveEvidence } from "../../src/application/javascript/ElectronActiveEvidence.js";
+import { electronActiveObservationInputSchema } from "../../src/domain/javascript/electronActiveObservation.js";
+import { createElectronActiveObservationFixtureResult } from "../../src/domain/javascript/electronActiveObservation.fixture.js";
 
 import { nativeFunctionMatchingSchema } from "../../src/domain/native/functionMatching.js";
 import { FunctionByteCoverage } from "../../src/domain/native/functionByteCoverage.js";
@@ -206,6 +212,151 @@ const withSdk = async <Value>(
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
 };
+
+const activeRuntimeFixture = () => {
+  const root = join(process.cwd(), "active-runtime-fixture");
+  const applicationPath = join(root, "main.js");
+  const result = createElectronActiveObservationFixtureResult(applicationPath);
+  const evidence = createElectronActiveEvidence(
+    {
+      ...electronActiveObservationInputSchema.parse({
+        executable_path: process.execPath,
+        application_path: applicationPath,
+        application_root: root,
+      }),
+      application_root: root,
+    },
+    result,
+    {
+      id: "rea-playwright-electron-active",
+      name: "REA Playwright active Electron observation provider",
+      version: "1",
+    },
+  );
+  return { evidence, result };
+};
+
+describe("runtime reconciliation failure ownership through the public SDK", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s from generated reconciliation output",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const failure = createFailure();
+        vi.spyOn(
+          javascriptRuntimeReconciliationResultSchema,
+          "parse",
+        ).mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "reconcile_javascript_runtime",
+          arguments: JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle()).toMatchObject({
+          records: [],
+          unknowns: [],
+        });
+      });
+    },
+  );
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s while interpreting an authenticated active capture",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const { evidence: runtime } = activeRuntimeFixture();
+        const failure = createFailure();
+        vi.spyOn(browserCompletenessSchema, "parse").mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "reconcile_javascript_runtime",
+          arguments: {
+            static_layers:
+              JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE.static_layers,
+            runtime_observations: [runtime],
+          },
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle()).toMatchObject({
+          records: [],
+          unknowns: [],
+        });
+      });
+    },
+  );
+
+  it.each([
+    {
+      field: "payload",
+      path: ["normalized_result", "application", "application_path"],
+      reason: "invalid_type",
+    },
+    {
+      field: "parameters",
+      path: ["parameters", "application_root"],
+      reason: "invalid_type",
+    },
+    {
+      field: "scope",
+      path: ["normalized_result", "application", "application_path"],
+      reason: "invalid_value",
+    },
+  ])(
+    "keeps an invalid active $field at its caller path",
+    async ({ field, path, reason }) => {
+      await withSdk(async ({ client, session }) => {
+        const { evidence, result } = activeRuntimeFixture();
+        const runtime = createEvidence(undefined, evidence.provider, {
+          operation: evidence.operation,
+          predicateType: evidence.predicate_type,
+          authority: evidence.authority,
+          confidence: evidence.confidence,
+          parameters:
+            field === "parameters"
+              ? { ...evidence.parameters, application_root: 3 }
+              : evidence.parameters,
+          result:
+            field === "parameters"
+              ? result
+              : {
+                  ...result,
+                  application: {
+                    ...result.application,
+                    application_path:
+                      field === "payload"
+                        ? 3
+                        : join(process.cwd(), "another-application", "main.js"),
+                  },
+                },
+        });
+        const response = await client.callTool({
+          name: "reconcile_javascript_runtime",
+          arguments: {
+            static_layers:
+              JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE.static_layers,
+            runtime_observations: [runtime],
+          },
+        });
+        expect(response.isError).toBe(true);
+        expect(parseMcpToolError(response).error).toMatchObject({
+          code: "invalid_request",
+          details: {
+            operation: "reconcile_javascript_runtime",
+            issues: [{ path: ["runtime_observations", 0, ...path], reason }],
+          },
+        });
+        expect(session.exportEvidenceBundle()).toMatchObject({
+          records: [],
+          unknowns: [],
+        });
+      });
+    },
+  );
+});
 
 describe("derived operation failures through the public SDK", () => {
   afterEach(() => vi.restoreAllMocks());

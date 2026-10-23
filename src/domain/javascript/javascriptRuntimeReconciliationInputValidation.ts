@@ -1,33 +1,47 @@
 import { z } from "zod";
-import type { Evidence } from "../evidence.js";
 
-/** Prefix caller paths on a nested Zod validation boundary. */
-export const parseAtPath = <Value>(
-  parse: (input: unknown) => Value,
+import { AnalysisInputError } from "../analysisErrorCore.js";
+import { projectInputIssues } from "../inputIssueProjection.js";
+import { parseEvidence, type Evidence } from "../evidence.js";
+
+const OPERATION = "reconcile_javascript_runtime";
+
+/** Parse one caller-owned source value and prefix failures with its request path. */
+export const parseInputAtPath = <Schema extends z.ZodType>(
+  schema: Schema,
   input: unknown,
   path: readonly (string | number)[],
-): Value => {
+): z.output<Schema> => {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success)
+    throw inputErrorAtPath(parsed.error.issues, input, path, parsed.error);
+  return parsed.data;
+};
+
+/** Authenticate Evidence while preserving the reconciliation input contract. */
+export const authenticateRuntimeEvidence = (
+  input: unknown,
+  path: readonly (string | number)[],
+): Evidence => {
   try {
-    return parse(input);
+    return parseEvidence(input);
   } catch (cause: unknown) {
     if (cause instanceof z.ZodError)
-      throw new z.ZodError(
-        cause.issues.map((issue) => ({
-          ...issue,
-          path: [...path, ...issue.path],
-        })),
-      );
+      throw inputErrorAtPath(cause.issues, input, path, cause);
     throw cause;
   }
 };
 
-/** Represent one semantic caller constraint as a standard validation issue. */
+/** Represent one cross-field caller constraint as a standard input issue. */
 export const invalidInput = (
   path: readonly (string | number)[],
   message: string,
-): z.ZodError => new z.ZodError([{ code: "custom", path: [...path], message }]);
+): AnalysisInputError =>
+  new AnalysisInputError(OPERATION, undefined, [
+    { path: [...path], reason: "invalid_value", message },
+  ]);
 
-/** Verify an authenticated Evidence record against one runtime workflow. */
+/** Verify authenticated Evidence against one supported producer contract. */
 export const assertEvidenceIdentity = (
   evidence: Evidence,
   expected: {
@@ -55,3 +69,18 @@ export const assertEvidenceIdentity = (
       `Evidence does not match the supported ${expected.operation} contract`,
     );
 };
+
+const inputErrorAtPath = (
+  issues: readonly z.core.$ZodIssue[],
+  input: unknown,
+  path: readonly (string | number)[],
+  cause: unknown,
+): AnalysisInputError =>
+  new AnalysisInputError(
+    OPERATION,
+    { cause },
+    projectInputIssues(issues, input).map((issue) => ({
+      ...issue,
+      path: [...path, ...issue.path],
+    })),
+  );

@@ -4,8 +4,9 @@ import { digestCanonicalValue } from "../canonicalDigest.js";
 import { isPathWithinRoot } from "../localPath.js";
 import { z } from "zod";
 import {
+  assertEvidenceIdentity,
   invalidInput,
-  parseAtPath,
+  parseInputAtPath,
 } from "./javascriptRuntimeReconciliationInputValidation.js";
 
 import { classifyBrowserCompleteness } from "../browserCompleteness.js";
@@ -19,24 +20,35 @@ import type { ParsedRuntimeCapture } from "./javascriptRuntimeReconciliationCapt
 /** Parse active Electron Evidence as a bounded, target-only runtime capture. */
 export const parseActiveElectronCapture = (
   evidence: Evidence,
+  path: readonly (string | number)[],
 ): ParsedRuntimeCapture => {
-  assertIdentity(evidence);
-  const result = parseAtPath(
-    (value) => electronActiveObservationResultSchema.parse(value),
-    evidence.normalized_result,
-    ["normalized_result"],
+  assertEvidenceIdentity(
+    evidence,
+    {
+      operation: "capture_electron_scenario",
+      predicate: "rea.electron-active-scenario",
+      providerId: "rea-playwright-electron-active",
+      providerName: "REA Playwright active Electron observation provider",
+      providerVersion: "1",
+      authority: "controlled-replay",
+      confidence: "observed",
+    },
+    path,
   );
-  const parameters = parseAtPath(
-    (value) =>
-      z
-        .object({
-          application_path: absolutePathSchema,
-          application_root: absolutePathSchema,
-        })
-        .passthrough()
-        .parse(value),
+  const result = parseInputAtPath(
+    electronActiveObservationResultSchema,
+    evidence.normalized_result,
+    [...path, "normalized_result"],
+  );
+  const parameters = parseInputAtPath(
+    z
+      .object({
+        application_path: absolutePathSchema,
+        application_root: absolutePathSchema,
+      })
+      .passthrough(),
     evidence.parameters,
-    ["parameters"],
+    [...path, "parameters"],
   );
   if (
     result.application.application_path !== parameters.application_path ||
@@ -46,7 +58,7 @@ export const parseActiveElectronCapture = (
     )
   )
     throw invalidInput(
-      ["normalized_result", "application", "application_path"],
+      [...path, "normalized_result", "application", "application_path"],
       "Active Electron Evidence application path disagrees with its configured root",
     );
   return {
@@ -60,22 +72,6 @@ export const parseActiveElectronCapture = (
 
 const absolutePathSchema = z.string().min(1).refine(isAbsolute);
 
-const assertIdentity = (evidence: Evidence): void => {
-  if (
-    evidence.operation !== "capture_electron_scenario" ||
-    evidence.predicate_type !== "rea.electron-active-scenario" ||
-    evidence.provider.id !== "rea-playwright-electron-active" ||
-    evidence.provider.name !==
-      "REA Playwright active Electron observation provider" ||
-    evidence.provider.version !== "1" ||
-    evidence.authority !== "controlled-replay" ||
-    evidence.confidence !== "observed"
-  )
-    throw invalidInput(
-      [],
-      "Evidence does not match the supported capture_electron_scenario contract",
-    );
-};
 const normalizeInspection = (
   result: ElectronActiveObservationResult,
 ): Extract<

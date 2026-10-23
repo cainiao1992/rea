@@ -14,6 +14,8 @@ import type { JavaScriptRuntimeReconciliationResult } from "./javascriptRuntimeR
 import type { ReconcileJavaScriptRuntimeInput } from "./javascriptRuntimeReconciliationSchemas.js";
 import { projectRuntimeCaptures } from "./javascriptRuntimeReconciliationRuntime.js";
 import { collectStaticRuntimeCandidates } from "./javascriptRuntimeStaticCandidates.js";
+import { AnalysisInputError } from "../analysisErrorCore.js";
+import { err, ok, type Result } from "../result.js";
 
 /** Verified caller input and the static and runtime facts parsed from it. */
 export interface ParsedRuntimeReconciliationInput {
@@ -23,15 +25,22 @@ export interface ParsedRuntimeReconciliationInput {
 }
 
 /** Parse caller Evidence once into the owner consumed by reconciliation. */
-export const parseRuntimeReconciliationInput = (
+export const readRuntimeReconciliationInput = (
   input: ReconcileJavaScriptRuntimeInput,
-): ParsedRuntimeReconciliationInput => ({
-  input,
-  layers: parseStaticLayers(input.static_layers, ["static_layers"]),
-  captures: parseRuntimeCaptures(input.runtime_observations, [
-    "runtime_observations",
-  ]),
-});
+): Result<ParsedRuntimeReconciliationInput, AnalysisInputError> => {
+  try {
+    return ok({
+      input,
+      layers: parseStaticLayers(input.static_layers, ["static_layers"]),
+      captures: parseRuntimeCaptures(input.runtime_observations, [
+        "runtime_observations",
+      ]),
+    });
+  } catch (cause: unknown) {
+    if (cause instanceof AnalysisInputError) return err(cause);
+    throw cause;
+  }
+};
 
 /** Reconcile static JAG layers with authorized passive CDP Evidence. */
 export const reconcileJavaScriptRuntime = (

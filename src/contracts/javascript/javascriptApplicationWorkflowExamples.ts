@@ -1,6 +1,6 @@
 import { createEvidence } from "../../domain/evidence.js";
 import {
-  parseRuntimeReconciliationInput,
+  readRuntimeReconciliationInput,
   reconcileJavaScriptRuntime,
 } from "../../domain/javascript/javascriptRuntimeReconciliation.js";
 import {
@@ -10,13 +10,17 @@ import {
 import { createHistoricalSourceGraph } from "../../domain/referenceSourceGraph.js";
 import { reconcileJavaScriptRuntimeInputSchema } from "../../domain/javascript/javascriptRuntimeReconciliationSchemas.js";
 
-const reconciliation = reconcileJavaScriptRuntime(
-  parseRuntimeReconciliationInput(
-    reconcileJavaScriptRuntimeInputSchema.parse(
-      JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
-    ),
+const reconciliationInput = readRuntimeReconciliationInput(
+  reconcileJavaScriptRuntimeInputSchema.parse(
+    JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE,
   ),
 );
+if (!reconciliationInput.ok)
+  throw new Error(
+    "The JavaScript runtime reconciliation contract example is invalid",
+    { cause: reconciliationInput.error },
+  );
+const reconciliation = reconcileJavaScriptRuntime(reconciliationInput.value);
 const reconciliationEvidence = createEvidence(
   undefined,
   {

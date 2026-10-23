@@ -26,12 +26,13 @@ import {
 } from "./javascriptRuntimeObservation.js";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
-import { parseEvidence, type Evidence } from "../evidence.js";
+import type { Evidence } from "../evidence.js";
 import { parseActiveElectronCapture } from "./javascriptRuntimeReconciliationActive.js";
 import {
   assertEvidenceIdentity,
+  authenticateRuntimeEvidence,
   invalidInput,
-  parseAtPath,
+  parseInputAtPath,
 } from "./javascriptRuntimeReconciliationInputValidation.js";
 
 interface RuntimeCaptureBase {
@@ -142,7 +143,7 @@ const parseRuntimeCapture = (
   input: Evidence,
   evidencePath: readonly (string | number)[],
 ): ParsedRuntimeCapture => {
-  const evidence = parseAtPath(parseEvidence, input, evidencePath);
+  const evidence = authenticateRuntimeEvidence(input, evidencePath);
   if (evidence.operation === "inspect_web_page")
     return parseBrowserCapture(evidence, evidencePath);
   if (evidence.operation === "inspect_electron_page")
@@ -150,11 +151,7 @@ const parseRuntimeCapture = (
   if (evidence.operation === "observe_javascript_runtime")
     return parseV8Capture(evidence, evidencePath);
   if (evidence.operation === "capture_electron_scenario") {
-    return parseAtPath(
-      () => parseActiveElectronCapture(evidence),
-      evidence,
-      evidencePath,
-    );
+    return parseActiveElectronCapture(evidence, evidencePath);
   }
   throw invalidInput(
     evidencePath,
@@ -179,8 +176,8 @@ const parseBrowserCapture = (
     },
     path,
   );
-  const inspection = parseAtPath(
-    (value) => webPageInspectionSchema.parse(value),
+  const inspection = parseInputAtPath(
+    webPageInspectionSchema,
     evidence.normalized_result,
     [...path, "normalized_result"],
   );
@@ -222,8 +219,8 @@ const parseElectronCapture = (
     },
     path,
   );
-  const inspection = parseAtPath(
-    (value) => electronPageInspectionSchema.parse(value),
+  const inspection = parseInputAtPath(
+    electronPageInspectionSchema,
     evidence.normalized_result,
     [...path, "normalized_result"],
   );
@@ -264,8 +261,8 @@ const parseV8Capture = (
     },
     path,
   );
-  const result = parseAtPath(
-    (value) => javascriptRuntimeObservationSchema.parse(value),
+  const result = parseInputAtPath(
+    javascriptRuntimeObservationSchema,
     evidence.normalized_result,
     [...path, "normalized_result"],
   );
@@ -284,16 +281,14 @@ const assertV8RuntimeParameters = (
   result: JavaScriptRuntimeObservation,
   path: readonly (string | number)[],
 ): void => {
-  const parameters = parseAtPath(
-    (value) =>
-      z
-        .object({
-          inspector_endpoint: browserEndpointSchema,
-          target_id: z.string().trim().min(1),
-          runtime_kind: javascriptRuntimeKindSchema.optional(),
-        })
-        .passthrough()
-        .parse(value),
+  const parameters = parseInputAtPath(
+    z
+      .object({
+        inspector_endpoint: browserEndpointSchema,
+        target_id: z.string().trim().min(1),
+        runtime_kind: javascriptRuntimeKindSchema.optional(),
+      })
+      .passthrough(),
     evidence.parameters,
     [...path, "parameters"],
   );
@@ -450,16 +445,14 @@ const assertRuntimeParameters = (
     include_script_sources: z.boolean(),
   };
   if (expected.kind === "browser") {
-    const parameters = parseAtPath(
-      (value) =>
-        z
-          .object({
-            ...common,
-            cdp_endpoint: recordedBrowserObservationEndpointSchema,
-            allowed_origins: browserAllowedOriginsSchema,
-          })
-          .passthrough()
-          .parse(value),
+    const parameters = parseInputAtPath(
+      z
+        .object({
+          ...common,
+          cdp_endpoint: recordedBrowserObservationEndpointSchema,
+          allowed_origins: browserAllowedOriginsSchema,
+        })
+        .passthrough(),
       evidence.parameters,
       [...path, "parameters"],
     );
@@ -480,12 +473,8 @@ const assertRuntimeParameters = (
       );
     return;
   }
-  const parameters = parseAtPath(
-    (value) =>
-      z
-        .object({ ...common, cdp_endpoint: browserEndpointSchema })
-        .passthrough()
-        .parse(value),
+  const parameters = parseInputAtPath(
+    z.object({ ...common, cdp_endpoint: browserEndpointSchema }).passthrough(),
     evidence.parameters,
     [...path, "parameters"],
   );

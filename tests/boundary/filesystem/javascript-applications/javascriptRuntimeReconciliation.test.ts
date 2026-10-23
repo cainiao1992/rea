@@ -13,7 +13,7 @@ import { mappedRuntimePaths } from "../../../../src/domain/javascript/javascript
 import { projectRuntimeCaptures } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationRuntime.js";
 import { electronPageInspectionSchema } from "../../../../src/domain/javascript/electronObservation.js";
 import {
-  parseRuntimeReconciliationInput,
+  readRuntimeReconciliationInput,
   reconcileJavaScriptRuntime,
 } from "../../../../src/domain/javascript/javascriptRuntimeReconciliation.js";
 import { reconcileJavaScriptRuntimeInputSchema } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
@@ -28,12 +28,16 @@ import {
   electronRuntimeEvidence,
 } from "../../../fixtures/javascriptRuntimeReconciliation.js";
 
-const reconcileInput = (input: unknown) =>
-  reconcileJavaScriptRuntime(
-    parseRuntimeReconciliationInput(
-      reconcileJavaScriptRuntimeInputSchema.parse(input),
-    ),
+const readInput = (input: unknown) => {
+  const result = readRuntimeReconciliationInput(
+    reconcileJavaScriptRuntimeInputSchema.parse(input),
   );
+  if (!result.ok) throw result.error;
+  return result.value;
+};
+
+const reconcileInput = (input: unknown) =>
+  reconcileJavaScriptRuntime(readInput(input));
 
 it("preserves source-capture input paths for runtime Evidence", async () => {
   const root = await applicationFixture();
@@ -504,7 +508,7 @@ it.skipIf(process.platform === "win32")(
       "export const marker = 42;\n",
     );
     const analysis = await analyzeFixture(root);
-    const parsed = parseRuntimeReconciliationInput(
+    const parsed = readInput(
       reconcileJavaScriptRuntimeInputSchema.parse({
         static_layers: [
           {

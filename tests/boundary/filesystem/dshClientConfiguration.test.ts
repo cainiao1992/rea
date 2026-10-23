@@ -1800,6 +1800,7 @@ describe("DeepSeek Harness runtime environment validation", () => {
       ),
     ).resolves.toMatchObject({
       status: "invalid",
+      remediation: expect.stringContaining("REA_GHIDRA_LANGUAGE_ID"),
     });
     expect(
       await inspectClientConfiguration(

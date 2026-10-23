@@ -11,7 +11,6 @@ import { lstat } from "node:fs/promises";
 import { err, ok, type Result } from "../domain/result.js";
 import { isAbsolute } from "node:path";
 
-import { z } from "zod";
 import { valid } from "semver";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
@@ -40,6 +39,11 @@ import { dshDocument } from "./DshCordisPatch.js";
 import { clientRegistrationEnvironmentDetailsWithBudget } from "./ClientRegistrationEnvironment.js";
 import type { ProviderRequestBudgetResolver } from "./ClientRegistrationEnvironment.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+
+import {
+  parseClientRegistration,
+  type ClientRegistration,
+} from "./ClientRegistration.js";
 
 interface ClientRegistrationStatusBase {
   readonly client: string;
@@ -80,29 +84,6 @@ export type UnhealthyClientRegistrationStatus = Exclude<
   ClientRegistrationStatus,
   { readonly state: "aligned" }
 >;
-
-const tomlTimeoutSchema = z.union([
-  z.number().positive(),
-  z.bigint().positive(),
-]);
-
-const registrationSchema = z
-  .object({
-    command: z.string().min(1),
-    args: z.array(z.string()).default([]),
-    // TOML keeps integers beyond the safe Number range exact as bigint.
-    startup_timeout_sec: tomlTimeoutSchema.optional(),
-    tool_timeout_sec: tomlTimeoutSchema.optional(),
-    startupTimeoutMs: z.number().positive().optional(),
-    toolTimeoutMs: z.number().positive().optional(),
-    type: z.string().optional(),
-    transport: z.string().optional(),
-    serverName: z.string().optional(),
-    tools: z.array(z.string()).optional(),
-    disabled: z.boolean().optional(),
-    enabled: z.boolean().optional(),
-  })
-  .passthrough();
 
 interface ClientRegistrationReadOptions {
   readonly platform?: NodeJS.Platform;
@@ -259,7 +240,18 @@ export const readClientRegistrationInspections = async (
               format: "zcode_fallback",
             }
           : client;
-      const registration = parseRegistration(raw, effectiveClient);
+      const parsedRegistration = parseClientRegistration(raw, effectiveClient);
+      if (!parsedRegistration.ok) {
+        record({
+          client: client.name,
+          config_path: configPath,
+          command: [],
+          state: "invalid",
+          remediation: `${parsedRegistration.error.message}: ${parsedRegistration.error.settings.map(({ setting, constraint }) => `${setting}: ${constraint}`).join("; ")}`,
+        });
+        continue;
+      }
+      const registration = parsedRegistration.value;
       const registrationEnvironment =
         client.name === "kimi" || client.name === "codex"
           ? await clientRegistrationEnvironmentDetailsWithBudget(
@@ -362,7 +354,7 @@ const ignoresDisabledKey = new Set(["codex", "kimi"]);
 const ignoresEnabledKey = new Set(["devin"]);
 
 const registrationActivation = (
-  registration: z.output<typeof registrationSchema>,
+  registration: ClientRegistration,
   client: SetupClient,
   parsed: ClientConfigurationDocument,
 ): "enabled" | "disabled" =>
@@ -385,7 +377,7 @@ const registrationAligned = ({
   platform,
   kimiInputSchemaProfileSelected,
 }: {
-  readonly registration: z.output<typeof registrationSchema>;
+  readonly registration: ClientRegistration;
   readonly client: SetupClient;
   readonly currentCommandPath: string | undefined;
   readonly platform: NodeJS.Platform;
@@ -417,30 +409,12 @@ const registrationAligned = ({
   )
     return "stale";
   if (client.name === "kimi" && !kimiInputSchemaProfileSelected) return "stale";
-  if (
-    (client.format === "kimi" ||
-      client.format === "omp" ||
-      client.format === "pi") &&
-    registration.type !== undefined &&
-    registration.type !== "stdio"
-  )
-    return "stale";
-  if (client.format === "vscode" && registration.type !== "stdio")
-    return "stale";
   // A Harness registration only connects as the rea stdio server; another
   // server name or transport leaves the session without REA tools.
   if (
     client.format === "dsh" &&
     (registration.serverName !== "rea" || registration.transport !== "stdio")
   )
-    return "stale";
-  if (
-    client.format === "copilot_cli" &&
-    (registration.type !== "stdio" ||
-      JSON.stringify(registration.tools) !== JSON.stringify(["*"]))
-  )
-    return "stale";
-  if (client.format === "commandcode" && registration.transport !== "stdio")
     return "stale";
   if (
     (["npx", "bunx"] as const).some((runner) => {
@@ -457,56 +431,6 @@ const registrationAligned = ({
   // The identity owner already established an exact direct launcher match.
   // A bare command still depends on the client's PATH, so cannot prove alignment.
   return isAbsolute(command[0] ?? "") ? "aligned" : "stale";
-};
-
-const parseRegistration = (
-  value: unknown,
-  client: SetupClient,
-): z.output<typeof registrationSchema> => {
-  if (client.format === "dsh")
-    return registrationSchema
-      .pick({ command: true, args: true, serverName: true, transport: true })
-      .strip()
-      .parse(value);
-  if (client.format === "opencode") {
-    const entry = z
-      .object({
-        type: z.literal("local"),
-        command: z.array(z.string()).min(1),
-        environment: z.record(z.string(), z.string()).optional(),
-      })
-      .passthrough()
-      .parse(value);
-    const [command = "", ...args] = entry.command;
-    return registrationSchema.parse({
-      ...entry,
-      command,
-      args,
-    });
-  }
-  const registration = registrationSchema.parse(value);
-  if (
-    client.format === "kimi" &&
-    registration.transport !== undefined &&
-    registration.transport !== "stdio"
-  )
-    throw new TypeError("Expected an stdio registration");
-  if (
-    (client.format === "vscode" || client.format === "copilot_cli") &&
-    registration.type !== "stdio"
-  )
-    throw new TypeError("Expected an stdio registration");
-  if (client.format === "commandcode" && registration.transport !== "stdio")
-    throw new TypeError("Expected an stdio registration");
-  if (
-    (client.format === "kimi" ||
-      client.format === "omp" ||
-      client.format === "pi") &&
-    registration.type !== undefined &&
-    registration.type !== "stdio"
-  )
-    throw new TypeError("Expected an stdio registration");
-  return registration;
 };
 
 /** A client that rewrites its file from memory must be quit before setup. */
@@ -553,7 +477,7 @@ const configuredStatus = (
 
 const timeoutAdvisory = (
   client: SetupClient,
-  registration: z.output<typeof registrationSchema>,
+  registration: ClientRegistration,
   timeoutInputs: McpToolTimeoutInputs,
 ): string | undefined => {
   const toolTimeout =

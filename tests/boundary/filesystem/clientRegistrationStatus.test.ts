@@ -482,7 +482,7 @@ describe("Node-wrapped registration policy", () => {
     ]);
   });
 
-  it.each([{ tools: ["binary_session"] }, { tools: ["*"] }])(
+  it.each([{ tools: ["binary_session"] }, { tools: ["*"] }, { tools: [] }])(
     "checks Copilot tool selection $tools independently of launcher",
     async ({ tools }) => {
       const home = await createTestTempDirectory("rea-node-copilot-");
@@ -507,7 +507,7 @@ describe("Node-wrapped registration policy", () => {
       expect(statuses).toEqual([
         expect.objectContaining({
           client: "copilot_cli",
-          state: tools.includes("*") ? "aligned" : "stale",
+          state: "aligned",
         }),
       ]);
     },

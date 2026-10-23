@@ -14,6 +14,12 @@ preserving your REA client entry. See the
 
 ## GitHub Copilot CLI
 
+Setup preserves an existing `tools` selection in the REA registration, including
+an empty list. New registrations default to `["*"]`. A restricted selection is
+aligned configuration; doctor does not widen it to expose every REA tool. See
+[Copilot's MCP configuration](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers)
+for tool-selection settings.
+
 For GitHub Copilot CLI 1.0.95, `gpt-4.1` model metadata can block ordinary
 chat with REA's full input-schema profile before sending a model request
 (`compaction_static_context_blocked`; [#1554](https://github.com/morluto/rea/issues/1554)).
@@ -250,17 +256,29 @@ standalone CLI check.
 
 REA manages its launcher and selected provider settings in the client
 registration. Codex's server and per-tool approval policies are user choices.
-Current limitation: doctor rejects nested `[mcp_servers.rea.tools.<name>]`
-approval tables as an invalid registration
-([#3862](https://github.com/morluto/rea/issues/3862)), and setup refresh rebuilds
-the REA entry without those tables or `default_tools_approval_mode`
-([#3863](https://github.com/morluto/rea/issues/3863)). Preserving unrelated server
-entries, valid environment overrides, and positive timeouts does not establish
-preservation of these policy fields. Do not rerun setup solely to clear this
-diagnostic. If a refresh is needed, back up the configuration and restore the
-policy fields from that backup or the reported recovery snapshot before
-restarting Codex. The per-tool table can still cause the doctor diagnostic
-after restoration.
+Setup patches REA's connection fields in the selected file and retains other
+server settings, including `default_tools_approval_mode`, nested
+`[mcp_servers.rea.tools.<name>]` tables, tool allow/deny lists, and unrecognized
+client settings. Doctor accepts Codex's per-tool policy tables. Known malformed
+policy values block setup before it writes the configuration or a backup, and
+the diagnostic identifies the setting to repair. See the
+[Codex configuration reference](https://developers.openai.com/codex/config-reference/)
+for the supported policy values.
+
+| Settings                                  | Setup ownership                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| Launcher, transport and activation        | Refreshes the REA stdio connection and enables it.                    |
+| Explicit server environment               | Preserves configured overrides and merges selected provider settings. |
+| Codex positive timeouts and client policy | Retains caller choices; adds missing recommended REA timeouts.        |
+| Unrelated or future server settings       | Retains their parsed values.                                          |
+
+Dry-run applies the same policy validation and writes no files. A successful
+refresh keeps an exact recovery snapshot of the original configuration;
+repeating setup with the same settings performs no write. Uninstall removes
+the owned REA entry, including its policy, while retaining other servers and
+the recovery snapshot. A green registration check establishes known
+configuration alignment; it does not prove that a particular client or fork
+successfully exposes every REA tool.
 
 Codex treats an unset or empty `CODEX_HOME` as `~/.codex`. Its MCP server
 registration supports `startup_timeout_sec` for connection initialization and

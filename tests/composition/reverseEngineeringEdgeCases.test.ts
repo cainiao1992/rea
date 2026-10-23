@@ -1051,3 +1051,31 @@ it.each([
     }
   },
 );
+
+it.each(["objdump", "rizin"] as const)(
+  "preserves successful %s output-loss facts independently of process completion",
+  async (provider) => {
+    const { directory, path } = await createArtifact();
+    const service = new ReverseEngineeringService({
+      runOwned: async () => providerSnapshot({ diagnosticTruncated: true }),
+    });
+    try {
+      const result =
+        provider === "objdump"
+          ? await service.inspectWithObjdump({ path, operation: "symbols" })
+          : await service.executeRizinCommand({ path, command: "iI" });
+      if (!result.ok) throw result.error;
+      expect(result.value.normalized_result).toMatchObject({
+        exit_code: 0,
+        output_truncated: true,
+        completion_status: "complete",
+      });
+      expect(result.value.limitations).toContain(
+        "Captured provider output is partial because bytes were omitted; process completion is reported separately.",
+      );
+    } finally {
+      await service.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

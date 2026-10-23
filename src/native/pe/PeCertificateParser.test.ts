@@ -72,6 +72,47 @@ it("reads PE32 and PE32+ PKCS#7 certificate tables", () => {
   }
 });
 
+it.each([false, true])(
+  "preserves PE certificate bytes when dwLength counts alignment padding (PE32+ = %s)",
+  (plus) => {
+    // Choose a fixture with nonzero alignment padding so the control distinguishes
+    // an ASN.1 terminator from the end of the WIN_CERTIFICATE payload.
+    const payload = ["Padding", "Paddingx"]
+      .map((name) => pkcs7SignedDataFixture(name))
+      .find((value) => (value.length + 8) % 8 !== 0)!;
+    const bytes = peCertificateFixture(plus, payload);
+    const control = parse(bytes);
+    const entry = control.entries[0]!;
+    const aligned = Math.ceil(entry.length / 8) * 8;
+    expect(aligned).toBeGreaterThan(entry.length);
+    bytes.writeUInt32LE(aligned, entry.location.offset);
+    const report = peCertificatesSchema.parse(parse(bytes));
+    expect(report.entries[0]?.pkcs7).toEqual(entry.pkcs7);
+    expect(report.entries[0]?.length).toBe(aligned);
+    expect(report.entries[0]?.payload.sha256).toBe(
+      createHash("sha256")
+        .update(
+          bytes.subarray(
+            entry.payload.location.offset,
+            entry.location.offset + aligned,
+          ),
+        )
+        .digest("hex"),
+    );
+    bytes[entry.location.offset + aligned - 1] = 1;
+    expect(() => parse(bytes)).toThrow(/ContentInfo has trailing data/);
+  },
+);
+
+it("refuses surplus zero bytes beyond the PE entry alignment gap", () => {
+  const payload = pkcs7SignedDataFixture();
+  expect(() =>
+    parse(
+      peCertificateFixture(false, Buffer.concat([payload, Buffer.alloc(8)])),
+    ),
+  ).toThrow(/ContentInfo has trailing data/);
+});
+
 it("reads BER indefinite constructed ContentInfo and preserves certificate bytes", () => {
   const payload = pkcs7SignedDataIndefiniteEnvelopeFixture();
   const root = readAsn1(payload);

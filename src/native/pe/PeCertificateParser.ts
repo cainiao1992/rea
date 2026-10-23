@@ -9,6 +9,7 @@ import {
   oidName,
   parsePkcs7SignedData,
   PeCertificateAsn1Failure,
+  readAsn1,
 } from "./PeCertificateAsn1.js";
 import { readPeHeaders } from "./PeResourceLayout.js";
 
@@ -115,7 +116,16 @@ export const parsePeCertificates = (
     let pkcs7: PeCertificates["entries"][number]["pkcs7"] = null;
     if (peCertificateTypeName(certificateType) === "pkcs7") {
       try {
-        const parsed = parsePkcs7SignedData(payload);
+        const content = readAsn1(payload);
+        // The PE entry owns alignment outside the ASN.1 ContentInfo. Accept
+        // either uncounted padding or the exact counted zero-padding extent.
+        if (
+          content.end !== payload.length &&
+          (payload.length !== align8(8 + content.end) - 8 ||
+            !payload.subarray(content.end).every((byte) => byte === 0))
+        )
+          throw new PeCertificateAsn1Failure("ContentInfo has trailing data.");
+        const parsed = parsePkcs7SignedData(content);
         teletexStringCompatibilityUsed ||=
           parsed.teletexStringCompatibilityUsed;
         pkcs7 = {

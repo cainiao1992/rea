@@ -148,8 +148,12 @@ it("keeps scenario identity without finalization while versioning corrected port
   ).toBe("b50005d26269bd1db4a49c79e05bca67c3a18d837b45cd1c8ff591c01eb7623a");
   const comparison = processComparisonContract(scenario);
   expect(comparison.port_normalization_version).toBe("contextual-endpoints-v3");
-  const { pid_normalization_version: pidVersion, ...rootOnlyComparison } =
-    comparison;
+  const {
+    pid_normalization_version: pidVersion,
+    terminal_observation_version: terminalVersion,
+    ...rootOnlyComparison
+  } = comparison;
+  expect(terminalVersion).toBe("deferred-rendered-journal-v1");
   expect(pidVersion).toBe("sampled-identifiers-v2");
   expect(
     digestProcessCommitment({

@@ -311,6 +311,15 @@ that derived observation. A corrected raw-text projection that exceeds
 `limits.output_bytes` returns a typed capacity failure with collected facts in
 partial observations. No additional raw-screen copy or replay is retained.
 
+Before failure cleanup renders retained observations, REA cancels scheduled
+interactions, waits for sampling to stop, and stops the owned process group.
+The terminal finalizer then freezes PTY input, retains normalized and rendered
+facts, and releases the renderer. Cleanup retry reuses those completed facts.
+All new captures commit
+`terminal_observation_version: "deferred-rendered-journal-v1"`, including when
+PID and port normalization are disabled. Historical Evidence remains readable;
+recapture both sides with the same observation version before comparison.
+
 When path normalization is enabled, aliases apply to selected path identities
 at clear text delimiters. A selected executable path does not alias a longer
 sibling filename such as `tool-helper`; selected parent directories still

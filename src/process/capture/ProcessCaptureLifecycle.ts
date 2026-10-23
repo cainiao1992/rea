@@ -1131,7 +1131,7 @@ const releaseCapturedProcessGroup = async (
 export interface ProcessCaptureResourceCleanupOptions {
   readonly timers: ReadonlySet<ProcessTimer>;
   readonly terminal: Pick<IPty, "pid"> | undefined;
-  readonly renderer: TerminalRenderer | undefined;
+  readonly renderer: Pick<TerminalRenderer, "dispose"> | undefined;
   readonly runId: string;
   readonly temporaryRoot: string;
   readonly captureBaseline?: ProcessOwnershipBaseline;
@@ -1207,8 +1207,8 @@ class ProcessCaptureResourceOwner {
 
   async close(): Promise<ProcessCaptureCleanupReport> {
     for (const timer of this.options.timers) timer.cancel();
-    await this.#releaseRenderer();
     await this.#releaseOwnedProcessGroup();
+    await this.#releaseRenderer();
     await this.#releaseTemporaryRoot();
     return this.report;
   }
@@ -1448,7 +1448,9 @@ export const captureTerminalFrames = (options: {
   let observedFrames = 0;
   let normalizedOmittedFrames = 0;
   let firstIdentifiers: readonly number[] | undefined;
-  options.terminal.onData((data) => {
+  let sealed = false;
+  const subscription = options.terminal.onData((data) => {
+    if (sealed) return;
     options.onOutput();
     const bytes = Buffer.byteLength(data);
     observedBytes += bytes;
@@ -1480,6 +1482,10 @@ export const captureTerminalFrames = (options: {
     options.recordEvent("frames", sequence);
   });
   return () => {
+    if (!sealed) {
+      sealed = true;
+      subscription.dispose();
+    }
     const identifiers = options.identifiers();
     if (
       options.scenario.normalization.pids &&

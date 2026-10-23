@@ -163,6 +163,7 @@ export const processComparisonContract = (
     : {}),
   limits: scenario.limits,
   normalization: scenario.normalization,
+  terminal_observation_version: "deferred-rendered-journal-v1",
   ...(scenario.normalization.pids
     ? { pid_normalization_version: "sampled-identifiers-v2" }
     : {}),

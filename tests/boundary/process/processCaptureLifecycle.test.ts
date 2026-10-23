@@ -552,7 +552,18 @@ itWithCaptureCapability(
         file.path.endsWith(":escape"),
       );
       expect(escaped?.symlink_target).toBe("/etc/passwd");
-      expect(processSourceTruncated(capture, "filesystem")).toBe(false);
+      expect(processSourceTruncated(capture, "filesystem")).toBe(true);
+      for (const coverage of [
+        capture.truncation_details.filesystem_before,
+        capture.truncation_details.filesystem_after,
+      ]) {
+        expect(coverage.enumeration_reasons).toContain("symlink_not_followed");
+        expect(coverage.enumeration_omissions).toContainEqual({
+          path: escaped?.path,
+          reason: "symlink_not_followed",
+          system_code: null,
+        });
+      }
       expect(JSON.stringify(capture.files_after)).not.toContain(root);
       expect(
         capture.files_after.some((file) => file.path.includes("passwd")),

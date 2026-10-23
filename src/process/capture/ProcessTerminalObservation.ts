@@ -22,17 +22,46 @@ const terminalFailure = (cause: unknown): AnalysisError =>
         { cause },
       );
 
+/** Keep a primary capture failure while retaining the finalizer's typed diagnostic. */
+export const retainTerminalObservationFailure = (
+  primary: unknown,
+  failure: AnalysisError,
+): AnalysisError => {
+  if (primary === undefined) return failure;
+  const error =
+    primary instanceof AnalysisError
+      ? primary
+      : new ProcessCaptureError("process capture failed", { cause: primary });
+  if (error !== failure)
+    error.retainSecondaryFailure(failure, {
+      terminal_observation_error: projectAnalysisError(failure),
+    });
+  return error;
+};
+
 /** Finalize retained chunks once after sampling, for both completion and error cleanup. */
 export const createProcessTerminalFinalizer = (
-  renderer: Pick<TerminalRenderer, "frames">,
+  renderer: Pick<TerminalRenderer, "frames" | "dispose">,
   retention: () => TerminalCaptureRetention,
   observations: ProcessCaptureObservationBuffer,
-): (() => Promise<Result<ProcessTerminalObservation, AnalysisError>>) => {
+): {
+  readonly complete: () => Promise<
+    Result<ProcessTerminalObservation, AnalysisError>
+  >;
+  readonly dispose: () => Promise<void>;
+} => {
   let completed:
     | Promise<Result<ProcessTerminalObservation, AnalysisError>>
     | undefined;
-  return () =>
+  const complete = () =>
     (completed ??= observeTerminal(renderer, retention, observations));
+  return {
+    complete,
+    dispose: async () => {
+      await complete();
+      await renderer.dispose();
+    },
+  };
 };
 
 const observeTerminal = async (

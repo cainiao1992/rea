@@ -992,6 +992,9 @@ try {
   );
   const memoryHeavyPath = join(root.path, "memory-zero-tail");
   await writeFile(memoryHeavyPath, memoryHeavy);
+  // Compare resource-limited parsing against the same mutated bytes. Upstream
+  // convenience PLT emulation is incomplete and can change with virtual layout.
+  const memoryReference = await inspect("cli", memoryHeavyPath);
   const memoryEnvironment = limitedEnvironment("--as=100663296");
   const memoryClient = new Client({
     name: "memory-layout-verifier",
@@ -1021,7 +1024,10 @@ try {
       assert.deepEqual(value.sections, protectedReport.sections);
       assert.deepEqual(value.symbols, protectedReport.symbols);
       assert.deepEqual(value.relocations, protectedReport.relocations);
-      assert.deepEqual(value.linkage, protectedReport.linkage);
+      assert.deepEqual(value, memoryReference);
+      const { plt: _originalPlt, ...originalLinkage } = protectedReport.linkage;
+      const { plt: _mutatedPlt, ...mutatedLinkage } = value.linkage;
+      assert.deepEqual(mutatedLinkage, originalLinkage);
       assert.deepEqual(value.mitigations, protectedReport.mitigations);
       assert.equal(
         value.artifact.sha256,

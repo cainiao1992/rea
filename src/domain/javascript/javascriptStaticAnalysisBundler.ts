@@ -256,7 +256,13 @@ const recoverBundlerModule = (
   if (key.startsWith("[computed@") || key.startsWith("[unknown@"))
     accumulator.unknownFindings += 1;
   const fingerprint = fingerprintJavaScriptAst(factory);
-  const exportsValue = collectJavaScriptExports(factory, bindings);
+  const exportsParameter =
+    runtimeFunctionParameters(factory)[runtime === "esbuild-commonjs" ? 0 : 1];
+  const exportsValue = collectJavaScriptExports(
+    factory,
+    bindings,
+    t.isIdentifier(exportsParameter) ? exportsParameter : undefined,
+  );
   const requireName = factoryRequireName(factory);
   const requireParameter = runtimeFunctionParameters(factory)[2];
   const requireBindingId = t.isIdentifier(requireParameter)

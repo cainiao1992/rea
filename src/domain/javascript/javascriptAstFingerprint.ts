@@ -5,10 +5,7 @@ import * as t from "@babel/types";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
-import {
-  runtimeFunctionParameters,
-  semanticStaticPropertyKey,
-} from "./javascriptAstValues.js";
+import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import { stringValue } from "./javascriptStaticAnalysisHelpers.js";
 import {
   resolveSemanticBindingState,
@@ -36,15 +33,18 @@ export const fingerprintJavaScriptAst = (node: t.Node): string => {
 export const collectJavaScriptExports = (
   node: t.Node,
   bindings?: JavaScriptSemanticAnalysisState,
+  exportsParameter?: t.Identifier,
 ): StaticExports => {
   const exports = new Set<string>();
-  const parameter = t.isFunction(node)
-    ? runtimeFunctionParameters(node)[1]
-    : undefined;
   const factoryExports =
-    bindings !== undefined && t.isFunction(node) && t.isIdentifier(parameter)
-      ? resolveSemanticBindingState(bindings, parameter, parameter.name)
-          ?.bindingId
+    bindings !== undefined &&
+    t.isFunction(node) &&
+    exportsParameter !== undefined
+      ? resolveSemanticBindingState(
+          bindings,
+          exportsParameter,
+          exportsParameter.name,
+        )?.bindingId
       : undefined;
   const isExportsAlias = (reference: t.Node | null): boolean => {
     if (!t.isIdentifier(reference)) return false;

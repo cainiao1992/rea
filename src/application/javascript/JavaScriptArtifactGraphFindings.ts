@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { posix } from "node:path";
 
 import { compactStringIdentityKey } from "../../domain/compactStringIdentity.js";
 import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
@@ -306,6 +307,7 @@ const addReference = (
       kind: input.value.kind,
       specifier: input.value.specifier,
       expression: input.value.expression,
+      resolution_base_path: input.value.resolution_base_path ?? null,
       resolution_mode:
         input.value.kind === "static-import" ||
         input.value.kind === "dynamic-import" ||
@@ -634,6 +636,12 @@ const resolveReference = (
   if (specifier === null) return null;
   const isWorker =
     reference.kind === "worker" || reference.kind === "service-worker";
+  const resolutionSourcePath =
+    reference.kind === "require" && reference.resolution_base_path !== undefined
+      ? posix.normalize(
+          posix.join(posix.dirname(sourcePath), reference.resolution_base_path),
+        )
+      : sourcePath;
   const chunk = isWorker
     ? null
     : resolveBundlerChunkReference(context, sourcePath, reference);
@@ -668,7 +676,7 @@ const resolveReference = (
       })
     : resolveArtifactPathByContext({
         declaredPath: specifier,
-        sourcePath,
+        sourcePath: resolutionSourcePath,
         context: "module-specifier",
         files: context.filesByPath,
         jsonDocuments: context.analysis.jsonDocuments,
@@ -679,7 +687,7 @@ const resolveReference = (
         "dynamic-import" === reference.kind
           ? {
               moduleKind: moduleResolutionModeForJavaScriptReference(
-                sourcePath,
+                resolutionSourcePath,
                 reference.kind,
               ),
             }

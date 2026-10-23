@@ -252,7 +252,8 @@ Selected bounded text is then parsed as inert data to recover:
 - Electron preload paths and renderer files visible in static syntax;
 - local HTML script entrypoints;
 - Webpack and Rspack chunk registrations and module factories represented as
-  AST literals;
+  AST literals, plus esbuild `__commonJS` module tables; recovered esbuild
+  CommonJS exports use its factory's `exports`-then-`module` parameter order;
 - static imports, dynamic imports, CommonJS `require` calls, workers, and
   service workers (only `new Worker(new URL(path, import.meta.url))` resolves
   relative to the calling module; string worker and service-worker paths use
@@ -760,6 +761,14 @@ in `/` are invalid. Imports arrays skip invalid parent-relative, absolute, and
 URL targets before selecting a later package-local file; an unsupported bare
 package or recursive alias keeps its unresolved outcome rather than selecting
 a later fallback.
+
+For a proven `createRequire(new URL(relativeFile, import.meta.url))` call,
+relative `require()` edges use the selected filename's directory and retain the
+source-relative `resolution_base_path` on the graph edge. This follows Node's
+`createRequire(filename)` contract; the path is a loader-resolution fact and
+does not change the source file or call-site Evidence identity. If the filename
+cannot be proven, REA keeps the require target unresolved rather than silently
+resolving it from the caller's directory.
 
 ESM relative module paths, legacy package subpaths without exports, and selected
 package exports targets use URL suffix handling and one percent-decoding pass.

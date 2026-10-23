@@ -67,7 +67,14 @@ The adapter uses the locked upstream
 without modifying its code. It validates map/VLQ structure before allocation,
 normalizes nested indexed offsets before upstream flattening, checks section
 boundaries and indexes, and retains raw declaration identity. It supports regular
-maps and inline indexed sections. External section URLs return an actionable
+maps and inline indexed sections. Numeric `version: 3` is required on the root
+and every embedded map, including indexed ancestors. Invalid embedded headers
+report their section path and cannot produce descendant mapping facts. This
+uses the rejection option for version errors allowed by
+[ECMA-426](https://tc39.es/ecma426/#sec-decodeindexsourcemap).
+Equal section starts are allowed when earlier sections contribute no mappings;
+actual decoded mappings must stay before the next section boundary.
+External section URLs return an actionable
 unsupported-profile error. This is a defined decoder profile, not a claim to
 implement every current source-map extension.
 

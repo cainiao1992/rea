@@ -91,6 +91,9 @@ export const inspectCall = (
       node,
       kind: "require",
       specifier: requireCall.specifier,
+      ...(requireCall.resolutionBasePath === undefined
+        ? {}
+        : { resolutionBasePath: requireCall.resolutionBasePath }),
     });
   const chunkLoad = chunkLoadSpecifier(node, bindings, context);
   if (chunkLoad !== null)
@@ -265,7 +268,10 @@ const requireCallSpecifier = (
   bindings: JavaScriptSemanticAnalysisState,
   context: FindingContext,
   resolveMemberChanged = false,
-): { readonly specifier: string | undefined } | null => {
+): {
+  readonly specifier: string | undefined;
+  readonly resolutionBasePath?: string;
+} | null => {
   const call = semanticRequireCallAt(
     node,
     bindings,
@@ -280,7 +286,12 @@ const requireCallSpecifier = (
     context.accumulator.unknownFindings += 1;
     return { specifier: undefined };
   }
-  return { specifier: argumentValue(call.arguments?.[0]) };
+  return {
+    specifier: argumentValue(call.arguments?.[0]),
+    ...(call.sourceRelativePath === undefined
+      ? {}
+      : { resolutionBasePath: call.sourceRelativePath }),
+  };
 };
 
 /** Examine member-loader receivers only after shared alias mutation facts settle. */
@@ -311,6 +322,9 @@ export const finishModuleRequireCalls = (
         node,
         kind: "require",
         specifier: call.specifier,
+        ...(call.resolutionBasePath === undefined
+          ? {}
+          : { resolutionBasePath: call.resolutionBasePath }),
       });
   }
   context.accumulator.pendingModuleRequireCalls.length = 0;
@@ -933,11 +947,14 @@ export const addReference = (
       : { specifier, expression: null };
   addLocatedFinding(context, {
     collection: context.accumulator.references,
-    key: `reference\0${input.kind}\0${reference.specifier ?? reference.expression}`,
+    key: `reference\0${input.kind}\0${reference.specifier ?? reference.expression}\0${input.resolutionBasePath ?? ""}`,
     node: input.node,
     value: {
       kind: input.kind,
       ...reference,
+      ...(input.resolutionBasePath === undefined
+        ? {}
+        : { resolution_base_path: input.resolutionBasePath }),
       module_key: null,
       location: range(input.node),
     },

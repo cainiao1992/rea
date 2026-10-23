@@ -206,6 +206,16 @@ export const reconstructJavaScriptArtifact = async (
             abortIfNeeded(signal);
           },
           signal,
+          async (file, phase) => {
+            abortIfNeeded(signal);
+            await progress?.report({
+              phase: `javascript_worker_${phase}`,
+              completed: 0,
+              total: 1,
+              message: `JavaScript worker ${phase}: ${file.path}`,
+            });
+            abortIfNeeded(signal);
+          },
         );
       } finally {
         try {

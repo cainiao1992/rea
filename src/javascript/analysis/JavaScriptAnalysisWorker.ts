@@ -257,6 +257,7 @@ export class JavaScriptAnalysisWorker {
     file: JavaScriptArtifactFile,
     capacity: JavaScriptSemanticProjectionCapacity,
     signal?: AbortSignal,
+    onPhase?: (phase: string) => Promise<void>,
   ): Promise<
     Result<JavaScriptAnalyzedSource, JavaScriptSourceAnalysisFailure>
   > {
@@ -343,6 +344,7 @@ export class JavaScriptAnalysisWorker {
           );
         if (response.kind === "phase") {
           this.#phase = response.phase;
+          await onPhase?.(response.phase);
           continue;
         }
         if (response.kind === "static") {
@@ -361,6 +363,9 @@ export class JavaScriptAnalysisWorker {
                 ...this.#limits(),
                 parent_result_budget_bytes: this.#resultBudgetBytes,
                 parent_result_budget_exhausted: true,
+              },
+              {
+                remediationAction: JAVASCRIPT_PARENT_RESULT_BUDGET_REMEDIATION,
               },
             );
           offeredResultBudget =

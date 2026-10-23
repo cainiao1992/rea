@@ -55,8 +55,23 @@ it("reuses one real owned analyzer while retaining distinct source identities an
       "export function next() { return { observed: 8 }; }",
     );
     for (const [index, file] of [first, second].entries()) {
-      const result = await worker.analyze(file, { nodes: 100, unknowns: 100 });
+      const phases: string[] = [];
+      const result = await worker.analyze(
+        file,
+        { nodes: 100, unknowns: 100 },
+        undefined,
+        async (phase) => {
+          phases.push(phase);
+        },
+      );
       if (!result.ok) throw result.error.error;
+      expect(phases).toEqual([
+        "parse",
+        "static",
+        "semantic",
+        "projection",
+        "transfer",
+      ]);
       expect(result.value.javascript.parse_status).toBe("complete");
       expect(
         result.value.module?.callables[0]?.returnSites[0]?.value,

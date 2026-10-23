@@ -145,6 +145,7 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
     total: number,
   ) => Promise<void>,
   signal?: AbortSignal,
+  onPhase?: (file: JavaScriptArtifactFile, phase: string) => Promise<void>,
 ): Promise<{
   readonly analysis: JavaScriptModuleArtifactAnalysis;
   readonly interruption: AnalysisError | null;
@@ -189,6 +190,7 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
         file,
         projection.remainingFileCapacity(),
         signal,
+        onPhase === undefined ? undefined : (phase) => onPhase(file, phase),
       );
       const facts = result.ok ? result.value : result.error;
       const applicationProjectionFailure = facts.applicationProjectionFailure;

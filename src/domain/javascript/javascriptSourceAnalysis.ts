@@ -36,6 +36,7 @@ export interface JavaScriptSourceAnalysisPort {
     file: JavaScriptArtifactFile,
     capacity: JavaScriptSemanticProjectionCapacity,
     signal?: AbortSignal,
+    onPhase?: (phase: string) => Promise<void>,
   ): Promise<Result<JavaScriptAnalyzedSource, JavaScriptSourceAnalysisFailure>>;
   close(): Promise<void>;
 }

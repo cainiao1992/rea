@@ -8,7 +8,7 @@ import {
   type ReconstructionClosureResult,
 } from "../domain/reconstructionCoverage.js";
 import { err, type Result } from "../domain/result.js";
-import { requestInputError } from "./workflowInputError.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 
 const OPERATION = "evaluate_reconstruction_coverage";
 const requestEnvelopeSchema =
@@ -23,7 +23,11 @@ export const evaluateReconstructionCoverage = (
 ): Result<ReconstructionClosureResult, AnalysisError> => {
   const parsed = requestEnvelopeSchema.safeParse(rawInput);
   if (!parsed.success)
-    return err(requestInputError(OPERATION, parsed.error, rawInput));
+    return err(
+      analysisInputErrorFromIssues(OPERATION, parsed.error.issues, rawInput, {
+        cause: parsed.error,
+      }),
+    );
   const coverage = readReconstructionCoverageData(parsed.data.coverage, [
     "coverage",
   ]);

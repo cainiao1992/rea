@@ -1,6 +1,7 @@
 import { Cli, z } from "incur";
 
-import { browserContext, browserCliError } from "../cliBrowserContext.js";
+import { browserCliError } from "./browserCliError.js";
+import { createBrowserObservationProvider } from "../composition/browserObservation.js";
 import {
   browserScopeOptions,
   selectedCommandTimeout,
@@ -71,7 +72,7 @@ const registerWebMcp = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, "discover-webmcp-tools", async () => {
-          const context = browserContext();
+          const provider = createBrowserObservationProvider();
           const input = {
             cdp_endpoint: args.endpoint,
             allowed_origins: options.allowedOrigins,
@@ -86,14 +87,13 @@ const registerWebMcp = (
               projectInputIssues(parsed.error.issues, input),
             );
           return await finishAnalysisCommand(
-            () =>
-              discoverWebMcpTools(context.provider, parsed.data, { signal }),
+            () => discoverWebMcpTools(provider, parsed.data, { signal }),
             {
               close: async () => {
-                await context.provider.close?.();
+                await provider.close?.();
               },
             },
-            context.provider.identity().id,
+            provider.identity().id,
             "discover_webmcp_tools",
             signal,
           );
@@ -184,7 +184,7 @@ const registerScreenshot = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, "capture-web-screenshot", async () => {
-          const context = browserContext();
+          const provider = createBrowserObservationProvider();
           const input = {
             cdp_endpoint: args.endpoint,
             allowed_origins: options.allowedOrigins,
@@ -198,14 +198,13 @@ const registerScreenshot = (
               projectInputIssues(parsed.error.issues, input),
             );
           return await finishAnalysisCommand(
-            () =>
-              captureWebScreenshot(context.provider, parsed.data, { signal }),
+            () => captureWebScreenshot(provider, parsed.data, { signal }),
             {
               close: async () => {
-                await context.provider.close?.();
+                await provider.close?.();
               },
             },
-            context.provider.identity().id,
+            provider.identity().id,
             "capture_web_screenshot",
             signal,
           );

@@ -10,7 +10,7 @@ import {
 } from "../../domain/managed/managedReconstruction.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { MANAGED_WORKFLOW_PROVIDER } from "../../domain/investigationProviders.js";
-import { requestInputError } from "../workflowInputError.js";
+import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 
 const OPERATION = "import_managed_reconstruction" as const;
 
@@ -20,7 +20,11 @@ export const resolveManagedReconstructionEvidenceInput = (
 ): Result<ResolvedManagedReconstructionImport, AnalysisError> => {
   const parsed = managedReconstructionImportRequestSchema.safeParse(rawInput);
   if (!parsed.success)
-    return err(requestInputError(OPERATION, parsed.error, rawInput));
+    return err(
+      analysisInputErrorFromIssues(OPERATION, parsed.error.issues, rawInput, {
+        cause: parsed.error,
+      }),
+    );
   return resolveManagedReconstructionImport(parsed.data);
 };
 

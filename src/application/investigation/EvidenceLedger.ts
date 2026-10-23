@@ -25,7 +25,7 @@ import {
 import { err, ok, type Result } from "../../domain/result.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import type { UnknownPage, UnknownQuery } from "./InvestigationRecordPort.js";
-import { requestInputError } from "../workflowInputError.js";
+import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 
 type EvidenceLedgerFailure = EvidenceIntegrityError;
 type RecordResult = Result<"added" | "duplicate", EvidenceLedgerFailure>;
@@ -224,7 +224,11 @@ export class EvidenceLedger {
       );
     } catch (cause: unknown) {
       if (!(cause instanceof z.ZodError)) throw cause;
-      return err(requestInputError("record_unknown", cause, input));
+      return err(
+        analysisInputErrorFromIssues("record_unknown", cause.issues, input, {
+          cause,
+        }),
+      );
     }
     if (this.#unknownHeads.has(unknown.unknown_id))
       return err(new UnknownRegistryError("already-exists"));
@@ -306,7 +310,11 @@ export class EvidenceLedger {
       );
     } catch (cause: unknown) {
       if (!(cause instanceof z.ZodError)) throw cause;
-      return err(requestInputError("update_unknown", cause, input));
+      return err(
+        analysisInputErrorFromIssues("update_unknown", cause.issues, input, {
+          cause,
+        }),
+      );
     }
     const authenticated = readLedgerEvidence(
       mutationEvidence,

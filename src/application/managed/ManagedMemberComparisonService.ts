@@ -25,7 +25,7 @@ import {
   MANAGED_STATIC_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
 } from "../../domain/investigationProviders.js";
-import { requestInputError } from "../workflowInputError.js";
+import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 
 const managedMemberComparisonRequestSchema = z.strictObject({
   left: z.unknown(),
@@ -45,7 +45,11 @@ export const executeManagedMemberComparison = (
   const operation = "compare_managed_members";
   const request = managedMemberComparisonRequestSchema.safeParse(input);
   if (!request.success)
-    return err(requestInputError(operation, request.error, input));
+    return err(
+      analysisInputErrorFromIssues(operation, request.error.issues, input, {
+        cause: request.error,
+      }),
+    );
   const left = readManagedMemberEvidence(request.data.left, "left");
   if (!left.ok) return left;
   const right = readManagedMemberEvidence(request.data.right, "right");

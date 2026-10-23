@@ -13,7 +13,7 @@ import {
   type ReconstructionObligationManifest,
 } from "../domain/reconstructionObligationLedgerSchemas.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { requestInputError } from "./workflowInputError.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 
 const OPERATION = "build_reconstruction_obligation_ledger";
 const requestSchema = reconstructionObligationLedgerInputSchema.extend({
@@ -38,7 +38,11 @@ export const resolveReconstructionObligationLedgerRequest = (
 ): Result<ResolvedReconstructionObligationRequest, AnalysisError> => {
   const frame = requestSchema.safeParse(input);
   if (!frame.success)
-    return err(requestInputError(OPERATION, frame.error, input));
+    return err(
+      analysisInputErrorFromIssues(OPERATION, frame.error.issues, input, {
+        cause: frame.error,
+      }),
+    );
   const bundle = readEvidenceBundle(frame.data.evidence_bundle);
   if (!bundle.ok) return bundle;
   const records = new Map(

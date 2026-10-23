@@ -532,10 +532,7 @@ describe("keyed archive hierarchy coverage", () => {
       }),
     );
     expect(
-      analysis.graph.edges.filter(
-        ({ relation, id }) =>
-          relation === "contains" && id.includes(":hierarchy:"),
-      ),
+      analysis.graph.edges.filter(({ relation }) => relation === "contains"),
     ).toHaveLength(40);
   });
 
@@ -568,10 +565,7 @@ describe("keyed archive hierarchy coverage", () => {
     )?.id;
     const childNames = analysis.graph.edges
       .filter(
-        ({ from, relation, id }) =>
-          from === rootId &&
-          relation === "contains" &&
-          id.includes(":hierarchy:"),
+        ({ from, relation }) => from === rootId && relation === "contains",
       )
       .map(({ to }) => (to === null ? null : archiveIdsByNodeId.get(to)));
     expect(childNames).toEqual(["3", "5"]);
@@ -609,10 +603,7 @@ describe("keyed archive hierarchy coverage", () => {
         ),
       ).toMatchObject({ status: "complete", examined: 41, omitted: 0 });
       expect(
-        analysis.graph.edges.filter(
-          ({ relation, id }) =>
-            relation === "contains" && id.includes(":hierarchy:"),
-        ),
+        analysis.graph.edges.filter(({ relation }) => relation === "contains"),
       ).toHaveLength(41);
     },
     120_000,

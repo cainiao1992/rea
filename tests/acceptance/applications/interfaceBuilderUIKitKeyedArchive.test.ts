@@ -144,7 +144,7 @@ cliTest.for(["xml", "binary"] as const)(
         { $class: uid(7), "NS.objects": [uid(1)] },
         { $classname: "NSArray", $classes: ["NSArray", "NSObject"] },
         "2",
-        "shared",
+        "shared:hierarchy:authored",
       ],
       $top: { UINibTopLevelObjectsKey: uid(6) },
     };
@@ -170,58 +170,56 @@ cliTest.for(["xml", "binary"] as const)(
     const report = interfaceBuilderAnalysisSchema.parse(
       evidence.normalized_result,
     );
-    const nodes = new Map(report.graph.nodes.map((node) => [node.id, node]));
-    expect(
-      report.graph.edges
-        .filter(({ id }) => id.includes(":hierarchy:"))
-        .map(({ from, to, resolution }) => ({
-          from:
-            nodes.get(from)?.attributes.interface_builder_object_id ??
-            "document",
-          to:
-            to === null
-              ? null
-              : nodes.get(to)?.attributes.interface_builder_object_id,
-          resolution,
-        })),
-    ).toEqual([
-      { from: "document", to: "1", resolution: "observed" },
-      { from: "1", to: "2", resolution: "observed" },
-    ]);
-    expect(
-      report.graph.nodes.find(
-        ({ attributes }) => attributes.interface_builder_object_id === "1",
-      ),
-    ).toMatchObject({
+    const root = report.graph.nodes.find(
+      ({ attributes }) => attributes.interface_builder_object_id === "1",
+    );
+    expect(root).toMatchObject({
       attributes: {
         id: "2",
         archiveUID: 2,
         objectID: "2",
-        "object-id": "shared",
+        "object-id": "shared:hierarchy:authored",
         title: "Root",
       },
     });
-    const root = report.graph.nodes.find(
-      ({ attributes }) => attributes.interface_builder_object_id === "1",
-    );
     const child = report.graph.nodes.find(
       ({ attributes }) => attributes.interface_builder_object_id === "2",
     );
     expect(child).toMatchObject({
       name: "Child",
-      attributes: { objectID: "2", "object-id": "shared" },
+      attributes: { objectID: "2", "object-id": "shared:hierarchy:authored" },
     });
     const outlet = report.graph.nodes.find(({ kind }) => kind === "outlet");
     expect(outlet).toMatchObject({
       id: 'ib:"Contents/Resources/Main.nib":outlet:["archive:3"]',
     });
-    expect(report.graph.edges).toContainEqual(
-      expect.objectContaining({
-        from: child?.id,
-        to: outlet?.id,
-        relation: "contains",
-        resolution: "observed",
-      }),
+    const document = report.graph.nodes.find(({ kind }) => kind === "scene");
+    expect(document).toMatchObject({ name: "Contents/Resources/Main.nib" });
+    const containment = report.graph.edges.filter(
+      ({ relation }) => relation === "contains",
+    );
+    expect(containment).toHaveLength(3);
+    expect(containment).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: document?.id,
+          to: root?.id,
+          relation: "contains",
+          resolution: "observed",
+        }),
+        expect.objectContaining({
+          from: root?.id,
+          to: child?.id,
+          relation: "contains",
+          resolution: "observed",
+        }),
+        expect.objectContaining({
+          from: child?.id,
+          to: outlet?.id,
+          relation: "contains",
+          resolution: "observed",
+        }),
+      ]),
     );
     expect(report.graph.edges).toContainEqual(
       expect.objectContaining({

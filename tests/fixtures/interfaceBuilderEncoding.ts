@@ -111,10 +111,8 @@ const expectNativeViewHierarchy = (result: Analysis, oracle: Oracle) => {
     return node.id;
   };
   const children = result.graph.edges.filter(
-    ({ id, from, relation }) =>
-      from === nodeId(oracle.rootUID) &&
-      relation === "contains" &&
-      id.includes(":hierarchy:"),
+    ({ from, relation }) =>
+      from === nodeId(oracle.rootUID) && relation === "contains",
   );
   expect(children.map(({ to }) => to)).toEqual(oracle.childUIDs.map(nodeId));
   expect(children).toHaveLength(2);

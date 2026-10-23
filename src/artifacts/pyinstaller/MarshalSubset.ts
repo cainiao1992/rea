@@ -74,7 +74,8 @@ const readObject = (
     return storeScalar(cursor, flag, readShortAscii(cursor));
   if (type === 0x61 || type === 0x41)
     return storeScalar(cursor, flag, readCountedAscii(cursor));
-  if (type === 0x75) return storeScalar(cursor, flag, readUtf8(cursor));
+  if (type === 0x74 || type === 0x75)
+    return storeScalar(cursor, flag, readUtf8(cursor));
   if (type === 0x73) return storeScalar(cursor, flag, readByteString(cursor));
   if (type === 0x28) return readSequence(cursor, flag, readInt32(cursor));
   if (type === 0x29) return readSequence(cursor, flag, readByte(cursor));

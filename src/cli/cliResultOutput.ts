@@ -116,11 +116,7 @@ export const createCliResultOutput = (
   destination: Writable,
 ): CliResultOutput | undefined => {
   let options = initialOptions;
-  if (
-    (options.parseError && options.format !== "jsonl") ||
-    !options.validation.ok
-  )
-    return undefined;
+  if (!options.validation.ok) return undefined;
   let format = options.format as "json" | "jsonl" | "yaml" | "toon" | "md";
   let handled = false;
   let failed = false;

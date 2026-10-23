@@ -65,6 +65,8 @@ describe("SDK output completion", () => {
         parseCliOutputArguments(["--format", format]),
         destination,
       );
+      if (output === undefined)
+        throw new Error("Expected valid output controls");
       expect(output.captureSdkOutput(document)).toBe(false);
       destination.write(document);
       expect(complete).toBe(false);

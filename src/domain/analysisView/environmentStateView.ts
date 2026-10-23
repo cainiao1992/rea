@@ -8,6 +8,7 @@ import type {
   UnsignedAnalysisView,
 } from "./analysisView.js";
 import { EnvironmentStateAccumulator } from "./EnvironmentStateAccumulator.js";
+import { isClockZone } from "./environmentStateWriteValues.js";
 import {
   groupCaptureRecords,
   templateRulesSchema,
@@ -95,7 +96,7 @@ const clockFormatSchema = z.discriminatedUnion("kind", [
     kind: z.literal("iso"),
     separator: z.enum(["T", " "]),
     fraction: z.number().int().nonnegative().max(9),
-    zone: z.string(),
+    zone: z.string().refine(isClockZone),
   }),
   z.strictObject({ kind: z.literal("epoch"), unit: z.enum(["s", "ms"]) }),
 ]);

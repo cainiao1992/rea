@@ -1224,3 +1224,17 @@ it("refuses a view clock spelling wider than nine fraction digits", () => {
     false,
   );
 });
+
+it.each(["+00:60", "+24:00", "+99:99"])(
+  "refuses a view clock spelling with invalid zone %s",
+  (zone) => {
+    const item = stateOf().views.find((view) => view.shape === "item")!;
+    const view = {
+      ...item,
+      clock_formats: {
+        created: { kind: "iso", separator: "T", fraction: 0, zone },
+      },
+    };
+    expect(environmentStateFields.views.safeParse([view]).success).toBe(false);
+  },
+);

@@ -23,12 +23,26 @@ const ISO_INSTANT =
 const MINUTE_MS = 60_000;
 
 /** Minutes east of UTC that a zone suffix names; none and `Z` are UTC. */
-const zoneMinutes = (zone: string): number => {
+const zoneMinutes = (zone: string): number | undefined => {
   if (zone === "" || zone === "Z") return 0;
+  if (!/^[+-]\d{2}:?\d{2}$/u.test(zone)) return undefined;
   const digits = zone.slice(1).replace(":", "");
-  const minutes =
-    Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4) || "0");
+  const hours = Number(digits.slice(0, 2));
+  const remainder = Number(digits.slice(2, 4));
+  if (hours > 23 || remainder > 59) return undefined;
+  const minutes = hours * 60 + remainder;
   return zone.startsWith("-") ? -minutes : minutes;
+};
+
+/** Whether a stored ISO clock format has a supported RFC 3339 offset suffix. */
+export const isClockZone = (zone: string): boolean =>
+  zoneMinutes(zone) !== undefined;
+
+const zoneMinutesForFormat = (zone: string): number => {
+  const minutes = zoneMinutes(zone);
+  if (minutes === undefined)
+    throw new TypeError(`Invalid clock zone in a derived format: ${zone}`);
+  return minutes;
 };
 
 /** The instant of an ISO-8601 date-time and how it is spelled, or undefined when it is not one. */
@@ -40,6 +54,8 @@ const readIsoClock = (value: string): ClockReading | undefined => {
     .map((part) => (part === "T" || part === " " ? part : Number(part)));
   const fraction = match[8] ?? "";
   const zone = match[9] ?? "";
+  const offsetMinutes = zoneMinutes(zone);
+  if (offsetMinutes === undefined) return undefined;
   const local = Date.UTC(
     year as number,
     (month as number) - 1,
@@ -60,7 +76,7 @@ const readIsoClock = (value: string): ClockReading | undefined => {
   )
     return undefined;
   return {
-    ms: local - zoneMinutes(zone) * MINUTE_MS,
+    ms: local - offsetMinutes * MINUTE_MS,
     subMillisecond: Number(fraction.padEnd(9, "0").slice(3)),
     format: {
       kind: "iso",
@@ -109,7 +125,7 @@ const isoText = (
 export const formatClock = (ms: number, format: ClockFormat): JsonValue => {
   if (format.kind === "epoch")
     return format.unit === "s" ? Math.floor(ms / 1000) : ms;
-  const at = new Date(ms + zoneMinutes(format.zone) * MINUTE_MS);
+  const at = new Date(ms + zoneMinutesForFormat(format.zone) * MINUTE_MS);
   const digits = `${pad(at.getUTCMilliseconds(), 3)}${"0".repeat(9)}`.slice(
     0,
     format.fraction,
@@ -138,7 +154,9 @@ export const respellClock = (
           0,
           clock.format.fraction,
         );
-  const at = new Date(clock.ms - millis + zoneMinutes(format.zone) * MINUTE_MS);
+  const at = new Date(
+    clock.ms - millis + zoneMinutesForFormat(format.zone) * MINUTE_MS,
+  );
   return isoText(
     at,
     format.separator,

@@ -41,6 +41,27 @@ const failure = (bytes: Buffer, architecture?: string) => {
   }
   throw new Error("expected a link failure");
 };
+const addElfLoadAlias = (
+  bytes: Buffer,
+  fileOffset: number,
+  address: bigint,
+  size: number,
+) => {
+  const withAlias = Buffer.from(bytes);
+  const count = withAlias.readUInt16LE(56);
+  const at = 64 + count * 56;
+  withAlias.writeUInt16LE(count + 1, 56);
+  withAlias.writeUInt32LE(1, at);
+  withAlias.writeUInt32LE(7, at + 4);
+  withAlias.writeBigUInt64LE(BigInt(fileOffset), at + 8);
+  withAlias.writeBigUInt64LE(address, at + 16);
+  withAlias.writeBigUInt64LE(address, at + 24);
+  const mappingSize = size === 0 ? withAlias.length : size;
+  withAlias.writeBigUInt64LE(BigInt(mappingSize), at + 32);
+  withAlias.writeBigUInt64LE(BigInt(mappingSize), at + 40);
+  withAlias.writeBigUInt64LE(0x1000n, at + 48);
+  return withAlias;
+};
 
 it("links methods to code through module tokens, not metadata order", () => {
   const linked = link(createIl2cppBinaryFixture());
@@ -75,6 +96,23 @@ it("links methods to code through module tokens, not metadata order", () => {
     })),
   );
 });
+
+it.each([
+  ["an identical range", 0, FIXTURE_BINARY_BASE, 0],
+  ["a containing subrange", 0x400, FIXTURE_BINARY_BASE + 0x400n, 0x80],
+] as const)(
+  "counts one registration through %s only once",
+  (_, offset, address, size) => {
+    const bytes = addElfLoadAlias(
+      createElfFixture(createIl2cppBinaryFixture()),
+      offset,
+      address,
+      size,
+    );
+
+    expect(link(bytes).method_addresses).toEqual(expectedAddresses);
+  },
+);
 
 it("rejects reused MethodDef tokens within an image but preserves cross-image reuse and folded addresses", () => {
   const duplicateTokens = Uint32Array.from(facts.methodTokens);

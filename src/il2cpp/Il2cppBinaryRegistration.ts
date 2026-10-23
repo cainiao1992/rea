@@ -1,3 +1,7 @@
+import {
+  BinaryFormatFailure,
+  mappedFileOffset,
+} from "../native/metadata/BinaryContainer.js";
 import { Il2cppBinaryFormatFailure } from "./Il2cppBinaryFormat.js";
 import {
   isMapped,
@@ -131,6 +135,28 @@ export function* findModules(
       const target = image.bytes.readBigUInt64LE(offset);
       const indices = names.get(target);
       if (indices === undefined) continue;
+      const address = mapping.address + BigInt(at);
+      let recordOffset: number;
+      try {
+        recordOffset = mappedFileOffset(
+          image.container.mappings,
+          address,
+          24,
+          image.container.zero_fills,
+        );
+      } catch (cause) {
+        if (cause instanceof BinaryFormatFailure)
+          throw new Il2cppBinaryFormatFailure(
+            "malformed-container",
+            cause.message,
+          );
+        throw cause;
+      }
+      if (recordOffset !== offset)
+        throw new Il2cppBinaryFormatFailure(
+          "malformed-container",
+          "code generation module record disagrees with its load mapping",
+        );
       let work = 0;
       for (const index of indices) {
         if (++work % 256 === 0) yield;
@@ -139,6 +165,7 @@ export function* findModules(
         const pointers = image.bytes.readBigUInt64LE(offset + 16);
         if (!hasPointerArrayCoverage(image, pointers, count)) continue;
         const list = candidates.get(index) ?? [];
+        if (list.some((candidate) => candidate.address === address)) continue;
         if (list.length !== 0)
           throw new Il2cppBinaryFormatFailure(
             "ambiguous-code-gen-module",
@@ -146,7 +173,7 @@ export function* findModules(
           );
         list.push({
           image: index,
-          address: mapping.address + BigInt(at),
+          address,
           method_pointer_count: count,
           method_pointers: pointers,
         });

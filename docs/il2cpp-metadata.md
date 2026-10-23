@@ -212,6 +212,11 @@ linked method table or seed output is published. Row ids may repeat across
 different images, and distinct rows may still resolve to the same address when
 the binary uses identical-code folding.
 
+For ELF, a repeated load mapping that resolves a complete module record to the
+same virtual address and file bytes contributes one record. Distinct virtual
+record addresses remain distinct candidates, and conflicting file mappings
+remain malformed.
+
 Module records establish names through their declared NUL-terminated string pointers. NUL/0xFF padding, spaces, Unicode and suffix-shared storage are supported. A pointer to a longer string does not match just its suffix; a pointer directly into a shared suffix may name it. Exact reversed UTF-8 matching avoids rescanning the file for every name and retains duplicate-name owners until module records resolve them. A contributor investigated a Linux
 `GameAssembly.so` from Unity 2023.2.13f1 whose static registration was not located. When no static pair is resolved on x86-64, the reader searches executable ranges for bytes consistent with RIP-relative LEA/MOV references to module-array candidates. Exactly one referenced array candidate must remain. `code_gen_modules_field` is then `null`, and Evidence is **inferred**: instruction boundaries, the absence of a static registration elsewhere, and runtime use were not verified. The module records and slots themselves remain file observations. Static-table associations are **derived**. Otherwise the result is `code-registration-not-found`.
 

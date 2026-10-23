@@ -226,6 +226,11 @@ local storage seeds even when they share an origin. The pre-script mechanism
 uses CDP debugger instrumentation. The observer resumes only pauses whose top
 frame belongs to its private seed script; page breakpoints and `debugger`
 statements remain under the attached debugger client's control.
+If Chromium leaves the private isolated world's origin empty, REA looks up
+that exact frame's reported security origin before selecting a seed. It does
+not infer the origin from a frame URL or serialized storage key. Unresolved
+frame identity or security origin fails initialization rather than silently
+running with an unknown initial state.
 
 The result is Evidence with an initial state followed by one record per
 declared action. Each step reports action status, elapsed time, sanitized URLs,

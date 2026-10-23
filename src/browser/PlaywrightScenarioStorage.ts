@@ -21,6 +21,20 @@ const storageKeyResponse = z.object({ storageKey: z.string() });
 const targetInfoResponse = z.object({
   targetInfo: z.object({ targetId: z.string() }),
 });
+interface StorageFrameTree {
+  readonly frame: {
+    readonly id: string;
+    readonly securityOrigin?: string | undefined;
+  };
+  readonly childFrames?: StorageFrameTree[] | undefined;
+}
+const storageFrameTree: z.ZodType<StorageFrameTree> = z.lazy(() =>
+  z.object({
+    frame: z.object({ id: z.string(), securityOrigin: z.string().optional() }),
+    childFrames: z.array(storageFrameTree).optional(),
+  }),
+);
+const frameTreeResponse = z.object({ frameTree: storageFrameTree });
 type StorageEventMethod =
   | "Runtime.executionContextCreated"
   | "Runtime.executionContextDestroyed"
@@ -456,18 +470,25 @@ export class PlaywrightScenarioStorage {
     const contextId = target.scripts.get(frame.location.scriptId);
     const context =
       contextId === undefined ? undefined : target.contexts.get(contextId);
-    const seed =
-      context === undefined ? undefined : this.#seeds.get(context.origin);
-    if (
-      this.#closed ||
-      seed === undefined ||
-      context?.auxData?.frameId === undefined
-    )
-      return;
+    if (this.#closed) return;
+    const frameId = context?.auxData?.frameId;
+    if (context === undefined || frameId === undefined)
+      throw new Error(
+        "The private storage seed frame has no execution context or frame identity.",
+      );
+    // Some Chrome builds leave an isolated world's origin empty. The frame's
+    // security origin is authoritative; neither its URL nor its opaque storage
+    // key establishes the document principal (for example, inherited origins).
+    const origin =
+      context.origin === ""
+        ? await this.frameOrigin(target, frameId)
+        : context.origin;
+    const seed = this.#seeds.get(origin);
+    if (seed === undefined) return;
 
     const storageKey = storageKeyResponse.parse(
       await this.sendObserved(target, "Storage.getStorageKey", {
-        frameId: context.auxData.frameId,
+        frameId,
       }),
     ).storageKey;
     const sessionKey = JSON.stringify([target.topLevelTargetId, storageKey]);
@@ -500,6 +521,28 @@ export class PlaywrightScenarioStorage {
       );
     if (local.length > 0) this.#initializedLocal.add(storageKey);
     if (session.length > 0) this.#initializedSession.add(sessionKey);
+  }
+
+  private async frameOrigin(
+    target: StorageTarget,
+    frameId: string,
+  ): Promise<string> {
+    const { frameTree } = frameTreeResponse.parse(
+      await this.sendObserved(target, "Page.getFrameTree"),
+    );
+    const pending = [frameTree];
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      if (current.frame.id === frameId) {
+        const origin = current.frame.securityOrigin;
+        if (origin !== undefined && origin !== "") return origin;
+        break;
+      }
+      pending.push(...(current.childFrames ?? []));
+    }
+    throw new Error(
+      "The browser did not establish the private storage seed frame's security origin.",
+    );
   }
 
   private async seed(

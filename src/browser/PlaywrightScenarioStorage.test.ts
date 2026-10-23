@@ -9,6 +9,9 @@ import { PlaywrightScenarioStorage } from "./PlaywrightScenarioStorage.js";
 class FakeCdp extends EventEmitter {
   readonly calls: { readonly method: string; readonly params?: unknown }[] = [];
   storageKey = "https://storage.example.test";
+  frameTree: unknown = {
+    frame: { id: "root-frame", securityOrigin: "https://storage.example.test" },
+  };
   failDetachCount = 0;
   holdDetach = false;
   resolveDetach: (() => void) | undefined;
@@ -55,6 +58,7 @@ class FakeCdp extends EventEmitter {
       return { identifier: "script" };
     if (method === "Storage.getStorageKey")
       return { storageKey: this.storageKey };
+    if (method === "Page.getFrameTree") return { frameTree: this.frameTree };
     if (method === "Debugger.evaluateOnCallFrame") return {};
     return {};
   }
@@ -163,7 +167,10 @@ const createInitializedStorage = async (
   return owner;
 };
 
-const emitSeedPause = (cdp: FakeCdp): void => {
+const emitSeedPause = (
+  cdp: FakeCdp,
+  origin = "https://storage.example.test",
+): void => {
   const addScript = cdp.calls.find(
     ({ method }) => method === "Page.addScriptToEvaluateOnNewDocument",
   );
@@ -174,7 +181,7 @@ const emitSeedPause = (cdp: FakeCdp): void => {
   cdp.emit("Runtime.executionContextCreated", {
     context: {
       id: 4,
-      origin: "https://storage.example.test",
+      origin,
       name: sourceUrl,
       auxData: { frameId: "root-frame" },
     },
@@ -239,6 +246,84 @@ it("seeds a browser storage area once before the document script resumes", async
   ).toBeLessThan(
     cdp.calls.findIndex(({ method }) => method === "Debugger.resume"),
   );
+  await owner?.close();
+});
+
+it("seeds an empty isolated-world origin using the exact frame security origin", async () => {
+  const cdp = new FakeCdp();
+  cdp.frameTree = {
+    frame: { id: "other-frame", securityOrigin: "https://other.example.test" },
+    childFrames: [
+      {
+        frame: {
+          id: "root-frame",
+          url: "about:blank",
+          securityOrigin: "https://storage.example.test",
+        },
+      },
+    ],
+  };
+  const { page, contextApi } = fixture(cdp);
+  const owner = await createInitializedStorage(contextApi, page);
+  emitSeedPause(cdp, "");
+  await owner?.settle();
+  expect(
+    cdp.calls.filter(({ method }) => method === "Debugger.evaluateOnCallFrame"),
+  ).toHaveLength(1);
+  expect(
+    cdp.calls.findIndex(({ method }) => method === "Page.getFrameTree"),
+  ).toBeLessThan(
+    cdp.calls.findIndex(
+      ({ method }) => method === "Debugger.evaluateOnCallFrame",
+    ),
+  );
+  await owner?.close();
+});
+
+it.each([
+  {
+    frame: {
+      id: "other-frame",
+      securityOrigin: "https://storage.example.test",
+    },
+  },
+  { frame: { id: "root-frame", url: "https://storage.example.test/" } },
+  { frame: { id: "root-frame", securityOrigin: "" } },
+])(
+  "refuses unknown seed applicability instead of inferring origin from a URL",
+  async (frameTree) => {
+    const cdp = new FakeCdp();
+    cdp.frameTree = frameTree;
+    const { page, contextApi } = fixture(cdp);
+    const owner = await createInitializedStorage(contextApi, page);
+    emitSeedPause(cdp, "");
+    await expect(owner?.settle()).rejects.toMatchObject({
+      reason: "protocol_error",
+    });
+    expect(
+      cdp.calls.filter(
+        ({ method }) => method === "Debugger.evaluateOnCallFrame",
+      ),
+    ).toHaveLength(0);
+    expect(
+      cdp.calls.filter(({ method }) => method === "Debugger.resume"),
+    ).toHaveLength(1);
+    await owner?.close();
+  },
+);
+
+it("leaves a known unseeded frame origin unchanged", async () => {
+  const cdp = new FakeCdp();
+  const { page, contextApi } = fixture(cdp);
+  const owner = await createInitializedStorage(contextApi, page);
+  emitSeedPause(cdp, "https://unseeded.example.test");
+  await owner?.settle();
+  expect(cdp.calls.some(({ method }) => method === "Page.getFrameTree")).toBe(
+    false,
+  );
+  expect(
+    cdp.calls.some(({ method }) => method === "Debugger.evaluateOnCallFrame"),
+  ).toBe(false);
   await owner?.close();
 });
 

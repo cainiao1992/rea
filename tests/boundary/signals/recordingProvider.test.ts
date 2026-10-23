@@ -58,8 +58,8 @@ else if (${JSON.stringify(mode)} === 'line-budget') process.stdout.write('ID: ua
 else if (${JSON.stringify(mode)} === 'overflow') process.stdout.write('x'.repeat(5 * 1024 * 1024));
 else if (${JSON.stringify(mode)} === 'wait') { console.log('ready'); setInterval(() => {}, 1000); }
 else if (${JSON.stringify(mode)} === 'many') process.stdout.write(Array.from({length:90},(_,i)=>'line '+(i+1)+'\\r\\n').join(''));
-else if (process.argv.includes('--list-supported')) { console.log('Supported hardware drivers:\\n  ignored Device\\nSupported protocol decoders:\\n  uart                 Universal Asynchronous Receiver/Transmitter\\n  i2c                  Inter-Integrated Circuit\\n'); console.error('catalog warning'); }
-else if (process.argv.includes('--show')) console.log('ID: uart\\nOptions:\\n- baudrate: Baud rate (default 115200)\\n- parity: Parity');
+else if (process.argv.includes('--list-supported')) { console.log(${JSON.stringify(mode)} === 'unicode-search' ? 'Supported protocol decoders:\\n  uart                 Universal Asynchronous Receiver/Transmitter\\n  sigma                ΟΣ\\n' : 'Supported hardware drivers:\\n  ignored Device\\nSupported protocol decoders:\\n  uart                 Universal Asynchronous Receiver/Transmitter\\n  i2c                  Inter-Integrated Circuit\\n'); console.error('catalog warning'); }
+else if (process.argv.includes('--show')) console.log(${JSON.stringify(mode)} === 'unicode-search' ? 'ID: uart\\nOptions:\\n- label: ΟΣ' : 'ID: uart\\nOptions:\\n- baudrate: Baud rate (default 115200)\\n- parity: Parity');
 else if (${JSON.stringify(mode)} === 'csv-autodetect') { if (!process.argv.includes(${JSON.stringify(`--input-file=${snapshotName}`)}) || readFileSync(snapshotName, 'utf8') !== 'CLK,MOSI\\n0,0\\n1,0\\n') throw Error('CSV suffix or copy bytes lost'); console.log('10-20 spi-1: 1'); }
 else if (${JSON.stringify(mode)} === 'long-basename') { if (!process.argv.includes('--input-format=vcd') || readFileSync(snapshotName, 'utf8') !== 'recording bytes') throw Error('long source basename or explicit format was lost'); console.log('10-20 uart-1: 42'); }
 else { if(readFileSync(snapshotName, 'utf8') !== 'recording bytes') throw Error('wrong copy'); console.log('10-20 uart-1: 42'); console.error('producer warning'); }
@@ -1036,6 +1036,33 @@ it("discovers decoders without reading a recording and retains installation prov
   expect(
     (await readdir(f.directory)).filter((name) => name.startsWith("decoder-")),
   ).toEqual([]);
+});
+
+it("matches decoder ID/name independently and uses Unicode simple case folding", async () => {
+  const f = await fixture("unicode-search");
+  for (const [query, expected] of [
+    ["uart U", []],
+    ["art Uni", []],
+    [
+      "uart",
+      [{ id: "uart", name: "Universal Asynchronous Receiver/Transmitter" }],
+    ],
+    ["Σ", [{ id: "sigma", name: "ΟΣ" }]],
+  ] as const) {
+    const result = await f.service.inspectDecoders({ query, limit: null });
+    if (!result.ok) throw result.error;
+    const report = signalDecodersSchema.parse(result.value.normalized_result);
+    expect(report.decoders).toEqual(expected);
+    expect(report.output_window.matching).toBe(expected.length);
+  }
+  const help = await f.service.inspectDecoders({
+    decoder: "uart",
+    query: "Σ",
+  });
+  if (!help.ok) throw help.error;
+  expect(
+    signalDecodersSchema.parse(help.value.normalized_result).help_lines,
+  ).toEqual([{ line_number: 3, text: "- label: ΟΣ" }]);
 });
 
 it("attributes discovery admission failures to discovery while sharing the decoding slot", async () => {

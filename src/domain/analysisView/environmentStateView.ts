@@ -36,7 +36,7 @@ const queryParameterSchema = z.discriminatedUnion("role", [
     fields: z
       .array(z.string())
       .describe(
-        "Entities with a string field containing a plain substring value, ignoring case; an empty value matches every entity. Syntax-like operators replay instead.",
+        "Entities with a string field containing a plain substring value, ignoring case using Unicode simple case folding; an empty value matches every entity. Syntax-like operators replay instead.",
       ),
   }),
   z

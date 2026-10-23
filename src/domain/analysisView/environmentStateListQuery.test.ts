@@ -65,6 +65,26 @@ const ids = (query: string, parameters: Parameters<typeof evaluateQuery>[0]) =>
   );
 
 describe("explaining a recorded line", () => {
+  it("evaluates and learns a Unicode case-folded recorded search", () => {
+    const row = entity({ id: "greek", name: "ΟΣ" });
+    const values = singleQueryValues("?q=Σ")!;
+    const recorded: QueryLine = {
+      ordinal: 1,
+      values,
+      listed: ["greek"],
+      choices: lineChoices(values, [row.fields]),
+      entities: [row],
+    };
+    const parameters = { q: { role: "search" as const, fields: ["name"] } };
+
+    expect(evaluateQuery(parameters, values, [row])?.page).toEqual([row]);
+    expect(explainLine(recorded)).toEqual(parameters);
+    expect(learnQuery([recorded])).toEqual({
+      parameters,
+      record_ordinals: [1],
+    });
+  });
+
   it("finds a filter on the field every listed item holds, scalar or in an array", () => {
     expect(explainLine(line("?shelf=a", [1, 3]))).toEqual({
       shelf: { role: "filter", field: "shelf" },

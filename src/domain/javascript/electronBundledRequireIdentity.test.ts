@@ -247,6 +247,38 @@ describe("Webpack externals with a tampered runtime", () => {
 
 describe("Webpack externals with a tampered loader or module object", () => {
   it.each([
+    ["invoked", "n.i(runtimeChunks);"],
+    ["read through an alias", "const install=n.i;install(runtimeChunks);"],
+    ["read through a dynamic key", "n[runtimeMember](runtimeChunks);"],
+    ["exposed with its namespace", "publish(n);"],
+    [
+      "reachable through a helper receiver",
+      "n.run=function(){this.i(runtimeChunks)};n.run();",
+    ],
+  ])(
+    "keeps an unknown chunk installation unresolved when %s",
+    (_name, invoke) => {
+      expectUnresolved(
+        bootstrap(
+          EXTERNAL,
+          CONSUMER,
+          `n.m=m;n.i=e=>{for(var k in e)n.m[k]=e[k]};${invoke}n(100);`,
+        ),
+      );
+    },
+  );
+
+  it("does not treat a called assignment value as an unused installer", () => {
+    expectUnresolved(
+      bootstrap(
+        EXTERNAL,
+        CONSUMER,
+        "n.m=m;(n.i=e=>{for(var k in e)n.m[k]=e[k]})(runtimeChunks);n(100);",
+      ),
+    );
+  });
+
+  it.each([
     [
       "cached exports rewritten through the runtime exposure",
       bootstrap(

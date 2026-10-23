@@ -380,7 +380,12 @@ parameter does not change the recovered names. Global property-definition
 intrinsics require lexical and visible-write proof. Computed writes through a
 standalone loader's exposed module/cache table use the shared value owner; an
 unknown key invalidates the original-slot proof rather than implying a fresh
-chunk installation. Export names describe recognized declarations, not a proof
+chunk installation. A function stored on a standalone loader member does not
+write the table merely by being defined: the bootstrap owner excludes its
+deferred writes only when that member is unread and the loader namespace stays
+confined. Calls, member aliases, dynamic member reads, namespace escapes, or
+receiver-based access retain uncertainty about those writes. Export names
+describe recognized declarations, not a proof
 of final runtime property lifetime or arbitrary helper behavior.
 
 Each recovered bundle module retains the exact factory-source digest. A complete

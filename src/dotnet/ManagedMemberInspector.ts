@@ -28,7 +28,7 @@ import {
 } from "./ManagedReaderFailure.js";
 import {
   parseTypes,
-  typeRanges,
+  readTypeDefinitions,
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import { edgeTargets } from "./ManagedMethodSpecs.js";
@@ -190,7 +190,7 @@ export const inspectManagedMembersBytes = (
     const { layout, memberLists } = readMemberLayout(bytes, pe);
     const identity = readManagedModuleIdentity(bytes, layout);
     appendManagedParseIssues(issues, identity.issues);
-    const ranges = typeRanges(bytes, layout, issues, memberLists);
+    const ranges = readTypeDefinitions(bytes, layout, issues, memberLists);
     const {
       tokens: selected,
       selection,

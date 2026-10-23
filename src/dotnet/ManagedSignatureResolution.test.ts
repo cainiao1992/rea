@@ -10,7 +10,7 @@ import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import {
   parseTypes,
   signature,
-  typeRanges,
+  readTypeDefinitions,
 } from "./ManagedMemberInspectorCore.js";
 import {
   metadataRowOffset,
@@ -169,7 +169,12 @@ describe("resolved member signature digests", () => {
     const parsedTypes = parseTypes(
       bytes,
       layout,
-      typeRanges(bytes, layout, issues, readTypeMemberListFacts(bytes, layout)),
+      readTypeDefinitions(
+        bytes,
+        layout,
+        issues,
+        readTypeMemberListFacts(bytes, layout),
+      ),
     );
     const resolve = managedTypeNameDigests(
       layout,

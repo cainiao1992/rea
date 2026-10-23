@@ -1,0 +1,100 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  environmentStateServeFixture,
+  environmentServeSource,
+} from "../../../tests/fixtures/environmentServe.js";
+import {
+  timedCaptureEvidence,
+  type TimedCaptureRow,
+} from "../../../tests/fixtures/analysisView.js";
+import { compareEnvironment } from "./environmentCompare.js";
+
+const compareRows = (
+  recorded: readonly TimedCaptureRow[],
+  probe: readonly TimedCaptureRow[],
+) => {
+  const capture = timedCaptureEvidence(recorded);
+  const fixture = environmentStateServeFixture(capture);
+  const report = compareEnvironment({
+    source: environmentServeSource(fixture),
+    captureValue: capture,
+    probes: [{ label: "probe", value: timedCaptureEvidence(probe) }],
+    operation: "environment-compare",
+  });
+  if (!report.ok) throw report.error;
+  return report.value.probes[0]!;
+};
+
+describe("environment comparison identifier semantics", () => {
+  it("does not normalize measurements after learning an unrelated numeric ID", () => {
+    const probe = compareRows(
+      [
+        ["GET", "/api/items", [{ id: 1, name: "A" }]],
+        ["GET", "/api/stats", { size: 1, workers: 1, price: 1 }],
+      ],
+      [
+        ["GET", "/api/items", [{ id: 101, name: "A" }]],
+        ["GET", "/api/stats", { size: 101, workers: 101, price: 101 }],
+      ],
+    );
+    expect(probe.results.map((step) => step.equal)).toEqual([true, false]);
+    expect(
+      probe.results[1]?.differences.map((difference) => difference.pointer),
+    ).toEqual(["/size", "/workers", "/price"]);
+    expect(probe.normalised.ids).toBe(1);
+  });
+
+  it("does not collapse distinct references when one field is equal", () => {
+    const cases: readonly [
+      { owner_id: number; reviewer_id: number },
+      { owner_id: number; reviewer_id: number },
+    ][] = [
+      [
+        { owner_id: 1, reviewer_id: 1 },
+        { owner_id: 1, reviewer_id: 2 },
+      ],
+      [
+        { owner_id: 1, reviewer_id: 1 },
+        { owner_id: 2, reviewer_id: 1 },
+      ],
+      [
+        { owner_id: 2, reviewer_id: 1 },
+        { owner_id: 1, reviewer_id: 1 },
+      ],
+    ];
+    for (const [recorded, live] of cases) {
+      const probe = compareRows(
+        [["GET", "/api/review", recorded]],
+        [["GET", "/api/review", live]],
+      );
+      expect(probe.results[0]?.equal).toBe(false);
+      expect(probe.results[0]?.differences).not.toHaveLength(0);
+      expect(probe.id_conflicts).toBeGreaterThan(0);
+    }
+    const identical = compareRows(
+      [["GET", "/api/review", { owner_id: 1, reviewer_id: 1 }]],
+      [["GET", "/api/review", { owner_id: 1, reviewer_id: 1 }]],
+    );
+    expect(identical.results[0]?.equal).toBe(true);
+    expect(identical.normalised.ids).toBe(0);
+  });
+
+  it("maps keyed identities in the collection that owns them", () => {
+    const book = (id: number) => ({ id, name: "Book", slug: "book" });
+    const things = (id: number) => ({ [String(id)]: { id, name: "Thing" } });
+    const probe = compareRows(
+      [
+        ["GET", "/api/books", [book(1)]],
+        ["GET", "/api/books/1", book(1)],
+        ["GET", "/api/things", things(102)],
+      ],
+      [
+        ["GET", "/api/books", [book(101)]],
+        ["GET", "/api/things", things(101)],
+      ],
+    );
+    expect(probe.results.map((step) => step.equal)).toEqual([true, true]);
+    expect(probe.results.flatMap((step) => step.differences)).toEqual([]);
+  });
+});

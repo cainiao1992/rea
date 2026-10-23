@@ -121,6 +121,25 @@ describe("compareAnswers", () => {
     ]);
   });
 
+  it("normalizes known string references but leaves ordinary numeric and string values literal", () => {
+    const map = new IdMap();
+    map.learn(101, 1);
+    learnIds({ ref: "live-ref" }, { ref: "env-ref" }, map, {
+      heldIds: new Set(["env-ref"]),
+    });
+    expect(
+      compare(
+        { ref: "live-ref", price: 101, label: "live-ref" },
+        { ref: "env-ref", price: 1, label: "env-ref" },
+        map,
+      ).differences.map((difference) => difference.pointer),
+    ).toEqual(["/price", "/label"]);
+    map.learn("live-key", "env-key");
+    expect(
+      compare({ ids: ["live-key"] }, { ids: ["env-key"] }, map).differences,
+    ).toEqual([]);
+  });
+
   it("still compares an object keyed by ids under the environment's keys when some ids are the same on both sides", () => {
     const map = new IdMap();
     map.learn("101", "2");

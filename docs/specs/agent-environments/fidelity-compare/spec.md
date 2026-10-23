@@ -44,8 +44,11 @@ credentials and resets it between sequences.
     `guid` of the answer's own entities (at the read view's entity or list location, a write's response location, or
     else the root) also maps within the collection the call names, since two collections can reuse a live id for
     different entities. An equal pair is kept in that collection, so another collection's mapping of the same live id
-    does not replace it. A collection's map is a bijection: the first pairing of either side wins. Outside identifier
-    fields, a string maps when the environment's state holds it as an id, and the keys of two objects keyed by ids map
+    does not replace it. Global mappings are one-to-one and first-pair-wins; equal global pairs also reserve both ids.
+    If an equal pair conflicts with another pairing, its contested live or environment id is not used to normalize
+    either pair, in either observation order. Only non-identity, unconflicted mappings count as mapped ids. Outside
+    identifier fields, a string maps only at a field where learning found it held as an id in environment state. The
+    keys of two objects keyed by ids map
     when their values pair (keys that partly overlap only when they are digits, UUIDs or their entries' identities, and
     every value pairs);
   - ids are learned only from an answer the environment gave this call, from its state or from a recording of exactly
@@ -65,7 +68,8 @@ credentials and resets it between sequences.
 - Answers compare after normalisation: empty response text and JSON `null` equal no body (a JSON empty string stays one);
   decoded JSON values compare structurally, plain text compares as text, and retained base64 bodies compare as bytes
   (including against UTF-8 text with the same bytes), without treating a base64 spelling as text. Mapped ids compare
-  equal, in scalar sets as well, an entity's own identity within the call's collection and any other id by the
+  equal in identifier fields, in `ids`/`uuids`/`guids` scalar lists, and for an entity's own identity within the call's
+  collection; other numeric fields stay literal. Any other id compares by the
   probe's mapping, and an entity's own identity both sides hold verbatim differs when its collection's mapping gives it
   another environment value (a reference keeps raw equality, as the probe's mapping cannot tell which collection it
   names); an object's members compare under the environment's mapped keys only when it is keyed by learned ids as

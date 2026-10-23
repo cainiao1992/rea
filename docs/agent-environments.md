@@ -758,6 +758,12 @@ or `page`. Each call is checked against the served tool's input schema first, as
 time-named fields), and two different values each side generated on its own compare equal: both UUIDs, or one length of
 eight or more with the same character classes and a digit. The report counts each kind of normalised value.
 
+Comparison keeps response representations distinct: JSON values compare structurally, text compares as text, and a
+retained base64 body compares by bytes (including with UTF-8 text carrying those same bytes), never by its base64
+spelling. ID mappings apply at identifier fields, `ids`/`uuids`/`guids` lists, an entity's own identity within its
+collection, and a string field learning confirmed as a state-held ID. ID mappings leave other numeric and string values unchanged. A
+global conflict involving an equal pair is not used to normalize either pair; the report counts it as an ID conflict.
+
 A step agrees when the statuses and the normalised bodies are equal. The report gives agreement overall, per probe and
 per tool, `agreement_ignoring_order` for steps that differ only in item order, and each step's differences, at most 20,
 with a JSON pointer and both values cut short:

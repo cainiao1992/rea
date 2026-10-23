@@ -7,6 +7,7 @@ import {
 import type { JsonValue } from "../../domain/jsonValue.js";
 import type { ReplayedBody } from "./environmentSource.js";
 import {
+  ID_FIELD,
   IDENTITY_FIELD,
   keyedByLearnedIds,
   pairElements,
@@ -52,6 +53,7 @@ export interface Normalised {
 export const STEP_DIFFERENCE_LIMIT = 20;
 const VALUE_CHARS = 120;
 const TIME_FIELD = /(at|time|date|timestamp|created|updated|modified)$/iu;
+const ID_LIST_FIELD = /^(ids|uuids|guids)$/u;
 
 const isObject = (value: JsonValue | undefined): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -169,10 +171,18 @@ class Differ {
       (typeof live === "string" || typeof live === "number") &&
       (typeof env === "string" || typeof env === "number")
     ) {
-      const mapped = this.map.env(
-        live,
-        this.#inCollection(pointer, at) ? this.entity.scope : undefined,
-      );
+      const mapsAsId =
+        (key !== undefined && ID_FIELD.test(key)) ||
+        this.#inCollection(pointer, at) ||
+        (typeof live === "string" &&
+          key !== undefined &&
+          this.map.isStateReference(live, key));
+      const mapped = mapsAsId
+        ? this.map.env(
+            live,
+            this.#inCollection(pointer, at) ? this.entity.scope : undefined,
+          )
+        : undefined;
       if (mapped !== undefined && String(mapped) === String(env)) {
         this.normalised.ids += 1;
         return;
@@ -237,8 +247,17 @@ class Differ {
       item === null || typeof item !== "object";
     if (live.length !== env.length || !live.every(scalar) || !env.every(scalar))
       return false;
-    // Live ids compare in the environment's terms, as scalar values do.
-    const mapped = live.map((item) => translateValue(item, this.map));
+    // Only identifier lists or known string identifiers are translated; numeric measurements stay literal.
+    const field = pointer.slice(pointer.lastIndexOf("/") + 1);
+    const mapped = live.map((item) => {
+      if (
+        (typeof item === "string" && this.map.isStateReference(item, field)) ||
+        ((typeof item === "number" || typeof item === "string") &&
+          ID_LIST_FIELD.test(field))
+      )
+        return translateValue(item, this.map);
+      return item;
+    });
     const key = (items: JsonValue[]): string =>
       JSON.stringify(items.map((item) => JSON.stringify(item)).sort());
     if (key(mapped) !== key(env)) return false;
@@ -260,7 +279,9 @@ class Differ {
     // An object keyed by ids compares each member under the environment's key; any other compares field by field.
     const keyed = keyedByLearnedIds(live, env, this.map);
     const envKey = (key: string): string => {
-      const mapped = keyed ? this.map.env(key) : undefined;
+      const mapped = keyed
+        ? this.map.env(key, self ? this.entity.scope : undefined)
+        : undefined;
       return mapped !== undefined && Object.hasOwn(env, String(mapped))
         ? String(mapped)
         : key;
@@ -277,7 +298,11 @@ class Differ {
         });
       else {
         matched.add(other);
-        this.value(value, env[other]!, child, { key, own: self });
+        this.value(value, env[other]!, child, {
+          key,
+          own: self,
+          keyed: self && keyed,
+        });
       }
     }
     for (const [key, value] of Object.entries(env))
@@ -294,12 +319,21 @@ class Differ {
     live: JsonValue,
     env: JsonValue,
     pointer: string,
-    at: { readonly key?: string; readonly own?: boolean } = {},
+    at: {
+      readonly key?: string;
+      readonly own?: boolean;
+      readonly keyed?: boolean;
+    } = {},
   ): void {
     if (Array.isArray(live) && Array.isArray(env))
       this.array(live, env, pointer);
     else if (isObject(live) && isObject(env))
-      this.object(live, env, pointer, at.own === true && at.key === undefined);
+      this.object(
+        live,
+        env,
+        pointer,
+        at.own === true && (at.key === undefined || at.keyed === true),
+      );
     else if (
       Array.isArray(live) ||
       Array.isArray(env) ||

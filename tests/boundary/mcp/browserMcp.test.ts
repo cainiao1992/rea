@@ -608,3 +608,37 @@ const artifactOf = (value: unknown): unknown => {
     throw new TypeError("Missing screenshot artifact");
   return normalized.artifact;
 };
+
+it.each([24, 32, "crc"])(
+  "rejects corrupt captured PNG through MCP: %s",
+  async (kind) => {
+    const bytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv4sAAAAASUVORK5CYII=",
+      "base64",
+    );
+    if (kind === "crc") bytes[29] = (bytes[29] ?? 0) ^ 1;
+    const data = (
+      typeof kind === "number" ? bytes.subarray(0, kind) : bytes
+    ).toString("base64");
+    const browser = await startFakeCdpBrowser({
+      commandResult: ({ method }) =>
+        method === "Page.captureScreenshot" ? { data } : undefined,
+    });
+    browsers.push(browser);
+    const { client } = await connectBrowser();
+    const result = await client.callTool({
+      name: "capture_web_screenshot",
+      arguments: {
+        cdp_endpoint: browser.endpoint,
+        allowed_origins: [browser.allowedOrigin],
+        target_id: "allowed-page",
+      },
+    });
+    expect(parseMcpToolError(result)).toMatchObject({
+      error: {
+        code: "unreadable_output",
+        details: { reason: "protocol_error" },
+      },
+    });
+  },
+);

@@ -16,7 +16,7 @@ export const registerPythonPycCommands = (
 ): void => {
   cli.command(CLI_COMMANDS.inspectPythonPyc, {
     description:
-      "Inspect a CPython 3.7–3.13 pyc header and marshal code objects without executing bytecode",
+      "Inspect a supported CPython 3.7–3.13 pyc header and marshal code objects without executing bytecode",
     args: z.object({
       path: z.string().describe("Local CPython .pyc file"),
     }),

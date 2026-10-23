@@ -188,14 +188,19 @@ export const parsePythonPyc = (
 ): PythonPyc => {
   if (bytes.length !== artifact.bytes)
     malformed("Selected artifact length disagrees with the retained bytes.");
-  if (bytes.length < PYTHON_PYC_HEADER_BYTES)
-    malformed(
-      "Selected file is shorter than a 16-byte CPython 3.7+ pyc header.",
-    );
+  if (bytes.length < 4) malformed("Selected file is shorter than a pyc magic.");
   if (bytes[2] !== 0x0d || bytes[3] !== 0x0a)
     malformed("Pyc magic is not a little-endian integer followed by CR LF.");
   const magic = bytes.readUInt16LE(0);
   const mapped = pythonPycMagicEntry(magic);
+  if (mapped !== null && mapped.header_bytes !== PYTHON_PYC_HEADER_BYTES)
+    return unsupported(
+      `Pyc magic ${magic} uses an unsupported ${mapped.header_bytes}-byte CPython header.`,
+    );
+  if (bytes.length < PYTHON_PYC_HEADER_BYTES)
+    malformed(
+      "Selected file is shorter than a 16-byte CPython 3.7+ pyc header.",
+    );
   if (mapped === null)
     return unsupported(
       `Pyc magic ${magic} is outside the pinned CPython 3.7–3.13 table.`,
@@ -214,7 +219,12 @@ export const parsePythonPyc = (
     source_size: hashBased ? null : bytes.readUInt32LE(12),
   };
   const marshal = bytes.subarray(PYTHON_PYC_HEADER_BYTES);
-  const reader = new MarshalReader(marshal, mapped.code_layout, input);
+  const reader = new MarshalReader(
+    marshal,
+    mapped.code_layout,
+    input,
+    mapped.python_version !== "3.7",
+  );
   const root = reader.readObject(0);
   if (reader.offset !== marshal.length)
     malformed("Marshal stream has trailing bytes after the top-level object.");
@@ -297,6 +307,7 @@ class MarshalReader {
     readonly bytes: Buffer,
     readonly layout: PythonPycCodeLayout,
     readonly input: InspectPythonPycInput,
+    readonly rejectNegativeCodeFlags: boolean,
   ) {}
 
   readObject(depth: number): MarshalValue {
@@ -400,16 +411,20 @@ class MarshalReader {
   }
 
   code(depth: number): CodeNode {
-    const argcount = this.signedCount("co_argcount");
+    const argcount = this.nonNegativeInt32("co_argcount");
     const posonlyargcount =
-      this.layout === "py37" ? null : this.signedCount("co_posonlyargcount");
+      this.layout === "py37"
+        ? null
+        : this.nonNegativeInt32("co_posonlyargcount");
     if (posonlyargcount !== null && argcount < posonlyargcount)
       malformed("co_argcount is smaller than co_posonlyargcount.");
-    const kwonlyargcount = this.signedCount("co_kwonlyargcount");
+    const kwonlyargcount = this.nonNegativeInt32("co_kwonlyargcount");
     const nlocals =
-      this.layout === "py311" ? null : this.signedCount("co_nlocals");
-    const stacksize = this.signedCount("co_stacksize");
-    const flags = this.u32();
+      this.layout === "py311" ? null : this.nonNegativeInt32("co_nlocals");
+    const stacksize = this.nonNegativeInt32("co_stacksize");
+    const flags = this.i32();
+    if (this.rejectNegativeCodeFlags && flags < 0)
+      malformed("co_flags is negative.");
     const bytecode = asBytes(this.readObject(depth + 1), "co_code");
     // 3.11+ `_PyCode_Validate` rejects a length that is not a whole code unit.
     // 3.7–3.10 constructors do not, so an odd `co_code` stays readable there.
@@ -1406,8 +1421,8 @@ class MarshalReader {
     return value;
   }
 
-  /** CPython `r_long` count. Negative values are rejected before Evidence. */
-  signedCount(field: string): number {
+  /** CPython `r_long` int fields must not be negative in a code object. */
+  nonNegativeInt32(field: string): number {
     const value = this.i32();
     if (value < 0) malformed(`${field} is negative.`);
     return value;

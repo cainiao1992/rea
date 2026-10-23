@@ -139,6 +139,21 @@ it("fails unknown magics and truncated marshal without partial success", () => {
   );
 });
 
+it("classifies the 12-byte 3.7 alpha header as unsupported", () => {
+  for (const magic of [3390, 3391]) {
+    const header = Buffer.alloc(12);
+    header.writeUInt16LE(magic);
+    header[2] = 0x0d;
+    header[3] = 0x0a;
+    expect(() => parse(Buffer.concat([header, marshalCode("py37")]))).toThrow(
+      expect.objectContaining({
+        kind: "unsupported",
+        message: expect.stringContaining("unsupported 12-byte CPython header"),
+      }),
+    );
+  }
+});
+
 const u32 = (value: number): Buffer => {
   const bytes = Buffer.alloc(4);
   bytes.writeUInt32LE(value);
@@ -1405,6 +1420,12 @@ it("rejects code CPython treats as corrupt instead of complete coverage", () => 
   expect(() => parse(file("py37", 3394, { argcount: 1 }))).toThrow(
     /co_varnames is too small/,
   );
+  expect(() => parse(file("py311", 3531, { flags: 0x80000000 }))).toThrow(
+    /co_flags is negative/,
+  );
+  expect(() => parse(file("py37", 3401, { flags: 0x80000000 }))).toThrow(
+    /co_flags is negative/,
+  );
 
   const valid = parse(
     file("py311", 3531, {
@@ -1418,6 +1439,14 @@ it("rejects code CPython treats as corrupt instead of complete coverage", () => 
   );
   expect(root(valid).argcount).toBe(1);
   expect(valid.coverage.status).toBe("complete");
+  const unknownPositiveFlags = parse(
+    file("py311", 3531, { flags: 0x40000000 }),
+  );
+  expect(root(unknownPositiveFlags).flags).toBe(0x40000000);
+  expect(unknownPositiveFlags.coverage.status).toBe("complete");
+  const negativePy37Flags = parse(file("py37", 3394, { flags: 0x80000000 }));
+  expect(root(negativePy37Flags).flags).toBe(-0x80000000);
+  expect(pythonPycSchema.safeParse(negativePy37Flags).success).toBe(true);
   const py37 = parse(
     file("py37", 3394, {
       argcount: 1,

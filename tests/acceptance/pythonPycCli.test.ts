@@ -29,6 +29,137 @@ cliTest(
 );
 
 cliTest(
+  "classifies unsupported 3.7 alpha headers without labeling their marshal data malformed",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-alpha-header-");
+    const marshal = Buffer.from(
+      "e3000000000000000000000000010000004000000073040000006400530029014ea900720100000072010000007201000000fa066d6f642e7079da083c6d6f64756c653e010000007300000000",
+      "hex",
+    );
+    expect(marshal).toHaveLength(77);
+    for (const magic of [3390, 3391]) {
+      const path = join(root, `${magic}.pyc`);
+      const header = Buffer.alloc(12);
+      header.writeUInt16LE(magic);
+      header[2] = 0x0d;
+      header[3] = 0x0a;
+      await writeFile(path, Buffer.concat([header, marshal]));
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.json).toMatchObject({
+        code: "unsupported_target",
+        category: "unsupported_target",
+      });
+      expect(JSON.stringify(result.json)).toContain(
+        "unsupported 12-byte CPython header",
+      );
+      expect(result.json).not.toHaveProperty("normalized_result");
+    }
+
+    for (const magic of [3392, 3394]) {
+      const path = join(root, `${magic}.pyc`);
+      await writeFile(path, Buffer.concat([pythonPycHeader(magic), marshal]));
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result.header.magic).toBe(magic);
+      expect(evidence.normalized_result.code_objects[0]?.bytecode.bytes).toBe(
+        4,
+      );
+    }
+  },
+);
+
+cliTest(
+  "rejects constructor-invalid signed code flags and preserves unknown positive flags",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-flags-");
+    for (const { name, magic, layout, flags, expected, valid } of [
+      {
+        name: "zero",
+        magic: 3531,
+        layout: "py311",
+        flags: 0,
+        expected: 0,
+        valid: true,
+      },
+      {
+        name: "unknown-positive",
+        magic: 3531,
+        layout: "py311",
+        flags: 0x40000000,
+        expected: 0x40000000,
+        valid: true,
+      },
+      {
+        name: "negative-py311",
+        magic: 3531,
+        layout: "py311",
+        flags: 0x80000000,
+        expected: -0x80000000,
+        valid: false,
+      },
+      {
+        name: "negative-plus-one-py311",
+        magic: 3531,
+        layout: "py311",
+        flags: 0x80000001,
+        expected: -0x7fffffff,
+        valid: false,
+      },
+      {
+        name: "negative-py37",
+        magic: 3394,
+        layout: "py37",
+        flags: 0x80000000,
+        expected: -0x80000000,
+        valid: true,
+      },
+    ] as const) {
+      const path = join(root, `${name}.pyc`);
+      await writeFile(
+        path,
+        Buffer.concat([pythonPycHeader(magic), marshalCode(layout, { flags })]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      if (valid) {
+        expect(result.exitCode, result.stderr).toBe(0);
+        const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+          result.json,
+        );
+        expect(evidence.normalized_result.code_objects[0]?.flags).toBe(
+          expected,
+        );
+      } else {
+        expect(result.exitCode).toBe(1);
+        expect(result.json).toMatchObject({
+          code: "invalid_request",
+          category: "invalid_input",
+          details: {
+            operation: "inspect_python_pyc",
+            issues: [
+              {
+                reason: "invalid_format",
+                message: expect.stringContaining("co_flags is negative"),
+              },
+            ],
+          },
+        });
+        expect(result.json).not.toHaveProperty("normalized_result");
+      }
+    }
+  },
+);
+
+cliTest(
   "preserves negative CPython first line numbers through the public CLI",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-python-pyc-lines-");

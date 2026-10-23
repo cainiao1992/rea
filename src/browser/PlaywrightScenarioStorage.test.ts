@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { expect, it } from "vitest";
 
 import { browserScenarioSchema } from "../domain/browserScenario.js";
-import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
+import { resolveScenarioSecrets } from "../../tests/fixtures/browserScenarioSecrets.js";
 import { PlaywrightScenarioStorage } from "./PlaywrightScenarioStorage.js";
 
 class FakeCdp extends EventEmitter {
@@ -160,7 +160,7 @@ const createInitializedStorage = async (
   const owner = await PlaywrightScenarioStorage.create(
     { context: context as never, page: page as never },
     input,
-    BrowserScenarioSecrets.resolve(input, {})!,
+    resolveScenarioSecrets(input, {}),
     options,
   );
   await owner?.initialize(page as never, context as never);
@@ -427,7 +427,7 @@ it("reports an unconfirmed stop when root initialization is still pending", asyn
   const owner = await PlaywrightScenarioStorage.create(
     { context: contextApi as never, page: page as never },
     input,
-    BrowserScenarioSecrets.resolve(input, {})!,
+    resolveScenarioSecrets(input, {}),
   );
   expect(owner).toBeDefined();
   const initialization = owner?.initialize(page as never, contextApi as never);
@@ -471,7 +471,7 @@ it("does not create storage instrumentation when there are no storage seeds", as
     await PlaywrightScenarioStorage.create(
       { context: contextApi as never, page: page as never },
       empty,
-      BrowserScenarioSecrets.resolve(empty, {})!,
+      resolveScenarioSecrets(empty, {}),
     ),
   ).toBeUndefined();
   expect(cdp.calls).toEqual([]);
@@ -486,7 +486,7 @@ it("detaches after setup cancellation even while script installation is pending"
   const owner = await PlaywrightScenarioStorage.create(
     { context: contextApi as never, page: page as never },
     input,
-    BrowserScenarioSecrets.resolve(input, {})!,
+    resolveScenarioSecrets(input, {}),
     { signal: controller.signal },
   );
   expect(owner).toBeDefined();

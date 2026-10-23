@@ -26,7 +26,7 @@ Navigation can run destination code before a newly discovered worker is rejected
 that rejection does not roll back browser effects. REA removes its owned
 future-document scripts, restores live frame methods, then disconnects.
 Add secret declarations, storage seeds, and additional artifact or event
-capture only when needed. Action, secret, and storage counts are not capped.
+capture only when needed. Missing environment-backed secrets fail as input errors before browser acquisition, naming the declaration and required variable. An explicitly set empty string is a resolved value. Action, secret, and storage counts are not capped.
 Duration, action, and navigation timeouts remain separate from CDP command
 deadlines. `command_timeout_ms` (default 20000; omit it to keep that default
 and leave it out of Evidence) bounds launch startup, the connect-over-CDP

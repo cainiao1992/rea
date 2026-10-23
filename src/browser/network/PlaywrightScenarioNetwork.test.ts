@@ -7,7 +7,7 @@ import {
   type BrowserScenarioEvent,
 } from "../../domain/browserScenarioCaptureValues.js";
 import type { BrowserNetworkContentSelection } from "../../domain/browserNetworkEvidence.js";
-import { BrowserScenarioSecrets } from "../BrowserScenarioSecrets.js";
+import { resolveScenarioSecrets } from "../../../tests/fixtures/browserScenarioSecrets.js";
 import {
   PlaywrightScenarioNetwork,
   type ScenarioNetworkRequest,
@@ -112,10 +112,9 @@ const harness = (
     ],
     capture: { limits: limitsInput },
   });
-  const secrets = BrowserScenarioSecrets.resolve(scenario, {
+  const secrets = resolveScenarioSecrets(scenario, {
     FIXTURE_SECRET: secretValue,
   });
-  if (secrets === undefined) throw new Error("Fixture secret was not resolved");
   const events: BrowserScenarioEvent[] = [];
   const omittedEventCounts = new Map<string, number>();
   const collector = new PlaywrightScenarioNetwork({

@@ -147,9 +147,9 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     },
   ): Promise<PlaywrightScenarioSession> {
     throwIfScenarioCancelled(options.signal);
-    const secrets = BrowserScenarioSecrets.resolve(scenario, environment);
-    if (secrets === undefined)
-      throw new BrowserObservationError(OPERATION, "secret_unavailable");
+    const resolved = BrowserScenarioSecrets.resolve(scenario, environment);
+    if (!resolved.ok) throw resolved.error;
+    const secrets = resolved.value;
     const startedAt = performance.now();
     const openingCleanup = new Set<AnalysisCleanupLease>();
     const opening = openPlaywrightScenarioBrowser(scenario, environment, {

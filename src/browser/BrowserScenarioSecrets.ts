@@ -1,3 +1,5 @@
+import { AnalysisInputError } from "../domain/analysisErrorCore.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { createHash } from "node:crypto";
 
 import type { BrowserScenario } from "../domain/browserScenario.js";
@@ -256,18 +258,36 @@ export class BrowserScenarioSecrets {
   static resolve(
     scenario: BrowserScenario,
     environment: Readonly<Record<string, string | undefined>>,
-  ): BrowserScenarioSecrets | undefined {
+  ): Result<BrowserScenarioSecrets, AnalysisInputError> {
     const values = new Map<string, string>();
-    for (const declaration of scenario.secrets) {
+    for (const [index, declaration] of scenario.secrets.entries()) {
       const value = environment[declaration.environment_variable];
       if (
         !Object.hasOwn(environment, declaration.environment_variable) ||
         typeof value !== "string"
       )
-        return undefined;
+        return err(
+          new AnalysisInputError(
+            "capture_browser_scenario",
+            {
+              userMessage: `Set environment variable ${declaration.environment_variable} for browser scenario secret ${declaration.secret_id} in the environment that starts REA, then retry.`,
+            },
+            [
+              {
+                path: ["secrets", index, "environment_variable"],
+                reason: "missing_argument",
+                message: `Environment variable ${declaration.environment_variable} is not set for declared secret ${declaration.secret_id}.`,
+                expected: {
+                  secret_id: declaration.secret_id,
+                  environment_variable: declaration.environment_variable,
+                },
+              },
+            ],
+          ),
+        );
       values.set(declaration.secret_id, value);
     }
-    return new BrowserScenarioSecrets(values);
+    return ok(new BrowserScenarioSecrets(values));
   }
 
   value(source: BrowserScenarioValue): string {

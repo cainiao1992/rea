@@ -3,7 +3,7 @@ import type { Page } from "playwright-core";
 import { expect, it } from "vitest";
 
 import { browserScenarioSchema } from "../domain/browserScenario.js";
-import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
+import { resolveScenarioSecrets } from "../../tests/fixtures/browserScenarioSecrets.js";
 import { PlaywrightScenarioEvents } from "./PlaywrightScenarioEvents.js";
 
 it("omits a request without a frame in a shared context", () => {
@@ -15,8 +15,7 @@ it("omits a request without a frame in a shared context", () => {
     actions: [{ step_id: "wait", action: "wait_for_timeout", duration_ms: 1 }],
     capture: { events: ["network"] },
   });
-  const secrets = BrowserScenarioSecrets.resolve(scenario, {});
-  if (secrets === undefined) throw new Error("Expected resolved secrets");
+  const secrets = resolveScenarioSecrets(scenario, {});
   const events = new PlaywrightScenarioEvents({
     page,
     context: context as never,
@@ -50,8 +49,7 @@ it("detaches root and popup listeners when a scenario finishes", async () => {
     actions: [{ step_id: "wait", action: "wait_for_timeout", duration_ms: 1 }],
     capture: { events: ["console", "popups"] },
   });
-  const secrets = BrowserScenarioSecrets.resolve(scenario, {});
-  if (secrets === undefined) throw new Error("Expected resolved secrets");
+  const secrets = resolveScenarioSecrets(scenario, {});
   const events = new PlaywrightScenarioEvents({
     page,
     context: context as never,
@@ -87,8 +85,7 @@ it("detaches worker and websocket listeners when a scenario finishes", async () 
     actions: [{ step_id: "wait", action: "wait_for_timeout", duration_ms: 1 }],
     capture: { events: ["websockets", "workers"] },
   });
-  const secrets = BrowserScenarioSecrets.resolve(scenario, {});
-  if (secrets === undefined) throw new Error("Expected resolved secrets");
+  const secrets = resolveScenarioSecrets(scenario, {});
   const events = new PlaywrightScenarioEvents({
     page,
     context: context as never,
@@ -116,8 +113,7 @@ it("detaches owned-context popup discovery when a scenario finishes", async () =
     actions: [{ step_id: "wait", action: "wait_for_timeout", duration_ms: 1 }],
     capture: { events: ["console"] },
   });
-  const secrets = BrowserScenarioSecrets.resolve(scenario, {});
-  if (secrets === undefined) throw new Error("Expected resolved secrets");
+  const secrets = resolveScenarioSecrets(scenario, {});
   const events = new PlaywrightScenarioEvents({
     page,
     context: context as never,

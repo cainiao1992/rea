@@ -1559,3 +1559,67 @@ it.each([false, true])(
     }
   },
 );
+
+it.each(["absent", "undefined", "inherited", "empty"] as const)(
+  "resolves declared environment secrets before browser acquisition: %s",
+  async (state) => {
+    const { page } = fixture();
+    Object.assign(page, { waitForTimeout: async () => undefined });
+    const environment: Record<string, string | undefined> = {
+      AVAILABLE_SECRET: "already-supplied-private-value",
+    };
+    if (state === "inherited")
+      Object.setPrototypeOf(environment, {
+        REQUIRED_SECRET: "inherited-value",
+      });
+    if (state === "undefined") environment.REQUIRED_SECRET = undefined;
+    if (state === "empty") environment.REQUIRED_SECRET = "";
+    const input = browserScenarioSchema.parse({
+      ...scenario,
+      secrets: [
+        { secret_id: "available", environment_variable: "AVAILABLE_SECRET" },
+        { secret_id: "required", environment_variable: "REQUIRED_SECRET" },
+      ],
+    });
+    const provider = new PlaywrightBrowserScenarioProvider(
+      (scenario, options) =>
+        PlaywrightScenarioSession.open(scenario, environment, options),
+    );
+    try {
+      const result = await provider.captureScenario(input, {});
+      if (state === "empty") {
+        if (!result.ok) throw result.error;
+        expect(mocks.openBrowser).toHaveBeenCalledOnce();
+      } else {
+        if (result.ok) throw new Error("Expected unresolved environment input");
+        const projected = projectAnalysisError(result.error);
+        expect(projected).toMatchObject({
+          code: "invalid_request",
+          category: "invalid_input",
+          details: {
+            issues: [
+              {
+                path: ["secrets", 1, "environment_variable"],
+                reason: "missing_argument",
+                expected: {
+                  secret_id: "required",
+                  environment_variable: "REQUIRED_SECRET",
+                },
+              },
+            ],
+          },
+        });
+        expect(projected.message).toContain(
+          "Set environment variable REQUIRED_SECRET",
+        );
+        expect(JSON.stringify(projected)).not.toContain(
+          environment.AVAILABLE_SECRET,
+        );
+        expect(result.error.cleanupIncomplete).toBe(false);
+        expect(mocks.openBrowser).not.toHaveBeenCalled();
+      }
+    } finally {
+      await provider.close();
+    }
+  },
+);

@@ -53,6 +53,7 @@ export const createGoBinaryFixture = (
   options: {
     format?: "elf" | "pe" | "macho";
     bits?: 32 | 64;
+    pointerSize?: 4 | 8;
     byteOrder?: "little" | "big";
     encoding?: "inline" | "pointer";
     sectionless?: boolean;
@@ -69,6 +70,7 @@ export const createGoBinaryFixture = (
 } => {
   const format = options.format ?? "elf";
   const bits = options.bits ?? 64;
+  const pointerSize = options.pointerSize ?? bits / 8;
   const little = (options.byteOrder ?? "little") === "little";
   const encoding = options.encoding ?? "inline";
   const bytes = Buffer.alloc(4096);
@@ -81,6 +83,10 @@ export const createGoBinaryFixture = (
     view.setUint32(offset, value, little);
   const word = (offset: number, value: number) => {
     if (bits === 64) view.setBigUint64(offset, BigInt(value), little);
+    else u32(offset, value);
+  };
+  const pointerWord = (offset: number, value: number) => {
+    if (pointerSize === 8) view.setBigUint64(offset, BigInt(value), little);
     else u32(offset, value);
   };
   writeFixtureContainer(format, options.sectionless ?? false, {
@@ -111,15 +117,15 @@ export const createGoBinaryFixture = (
     moduleLength.copy(bytes, versionOffset + version.length);
     moduleBytes.copy(bytes, moduleOffset);
   } else {
-    const width = bits / 8;
-    word(headerOffset + 16, base + 1536);
-    word(headerOffset + 16 + width, base + 1536 + width * 2);
+    const width = pointerSize;
+    pointerWord(headerOffset + 16, base + 1536);
+    pointerWord(headerOffset + 16 + width, base + 1536 + width * 2);
     versionOffset = 2048;
     moduleOffset = 2304;
-    word(1536, base + versionOffset);
-    word(1536 + width, version.length);
-    word(1536 + width * 2, base + moduleOffset);
-    word(1536 + width * 3, moduleBytes.length);
+    pointerWord(1536, base + versionOffset);
+    pointerWord(1536 + width, version.length);
+    pointerWord(1536 + width * 2, base + moduleOffset);
+    pointerWord(1536 + width * 3, moduleBytes.length);
     version.copy(bytes, versionOffset);
     moduleBytes.copy(bytes, moduleOffset);
   }
@@ -128,7 +134,7 @@ export const createGoBinaryFixture = (
       bytes,
       headerOffset,
     );
-    bytes[headerOffset + 14] = bits / 8;
+    bytes[headerOffset + 14] = pointerSize;
     bytes[headerOffset + 15] =
       (little ? 0 : 1) | (encoding === "inline" ? 2 : 0);
   }
@@ -272,6 +278,10 @@ export const createGoBinaryDiagnosticFixtures = () => {
     );
     return { name: `high-bit-${signature.toLowerCase()}`, bytes };
   });
+  const unresolvedWindowsCandidates = [
+    { name: "damaged-pe", bytes: damagedPe },
+    ...highBitSignatures,
+  ];
   const absentDirectories = createGoBinaryFixture({ format: "pe" }).bytes;
   absentDirectories.writeUInt32LE(1, 152 + 108);
   const shortOptionalHeaders = [0, 1].map((size) => {
@@ -287,9 +297,12 @@ export const createGoBinaryDiagnosticFixtures = () => {
       code: "unsupported_target" as const,
       details: { operation: "inspect_go_binary" },
     })),
+    ...unresolvedWindowsCandidates.map((fixture) => ({
+      ...fixture,
+      code: "unsupported_target" as const,
+      details: { operation: "inspect_go_binary" },
+    })),
     ...[
-      { name: "damaged-pe", bytes: damagedPe },
-      ...highBitSignatures,
       { name: "absent-directories", bytes: absentDirectories },
       ...shortOptionalHeaders,
     ].map((fixture) => ({

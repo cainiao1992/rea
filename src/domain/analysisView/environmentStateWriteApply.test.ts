@@ -376,7 +376,15 @@ it("takes an update's unique and renewed values from the generator, whether or n
 
 it("renews no child rows on an entity that holds none", () => {
   const { asked, result } = update({ title: "New Title" }, RENEWING_PLAN);
-  expect(result.ok && result.value).not.toHaveProperty("steps");
+  expect(result).toEqual(
+    ok({
+      ...BEFORE,
+      ...ADVANCED,
+      title: "New Title",
+      slug: "new-title",
+      versionId: "ref-9",
+    }),
+  );
   expect(asked.map((rule) => rule.rule)).toEqual(["clock", "unique"]);
 });
 

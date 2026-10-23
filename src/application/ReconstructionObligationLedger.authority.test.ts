@@ -14,13 +14,33 @@ import type { ReviewedReconstructionObligation } from "../domain/reconstructionO
 
 const registerOriginalProcessAuthorityCases = (): void => {
   it.each([
-    { kind: "controlled capture", defect: null, qualifies: true },
-    { kind: "static authority", defect: "authority", qualifies: false },
-    { kind: "foreign provider", defect: "provider", qualifies: false },
-    { kind: "malformed capture", defect: "payload", qualifies: false },
+    {
+      kind: "controlled capture",
+      defect: null,
+      state: "observed",
+      qualifies: true,
+    },
+    {
+      kind: "static authority",
+      defect: "authority",
+      state: "candidate",
+      qualifies: false,
+    },
+    {
+      kind: "foreign provider",
+      defect: "provider",
+      state: "reviewed",
+      qualifies: false,
+    },
+    {
+      kind: "malformed capture",
+      defect: "payload",
+      state: "reviewed",
+      qualifies: false,
+    },
   ] as const)(
     "qualifies original process authority for $kind",
-    ({ defect, qualifies }) => {
+    ({ defect, state, qualifies }) => {
       const capture = processEvidence();
       const original = createEvidence(
         undefined,
@@ -78,9 +98,14 @@ const registerOriginalProcessAuthorityCases = (): void => {
       );
       expect(diagnostics.has("static-only")).toBe(!qualifies);
       expect(diagnostics.has("weak-original-case-authority")).toBe(!qualifies);
-      expect(obligation?.authority_references[0]?.state === "observed").toBe(
-        qualifies,
-      );
+      expect(obligation?.authority_references).toEqual([
+        {
+          evidence_id: original.evidence_id,
+          authority: original.authority,
+          state,
+          location: `/evidence/${original.evidence_id}`,
+        },
+      ]);
     },
   );
 };

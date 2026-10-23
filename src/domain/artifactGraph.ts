@@ -146,6 +146,8 @@ export const artifactOccurrenceSchema = z.object({
   compressed_size: z.int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
   executable: z.boolean(),
   encrypted: z.boolean(),
+  /** Positive ASAR companion declaration; older inventories may not record it. */
+  unpacked: z.literal(true).exactOptional(),
   hash_status: z.enum(["verified", "mismatched", "not-hashed", "unavailable"]),
   source_location: artifactByteRangeSchema.nullable(),
   /** Original path within this occurrence's reader when normalization changed its spelling. */

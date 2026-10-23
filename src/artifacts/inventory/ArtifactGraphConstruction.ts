@@ -48,6 +48,7 @@ export interface MutableOccurrence {
   compressed_size: number | null;
   executable: boolean;
   encrypted: boolean;
+  unpacked?: true;
   hash_status: ArtifactOccurrence["hash_status"];
   source_location: ArtifactOccurrence["source_location"];
   source_path?: string;
@@ -116,6 +117,7 @@ export const createOccurrence = (
     compressed_size: entry.compressedSize,
     executable: entry.executable,
     encrypted: entry.encrypted,
+    ...(entry.unpacked ? { unpacked: true as const } : {}),
     hash_status: entry.encrypted ? "unavailable" : "not-hashed",
     source_location:
       entry.encrypted ||

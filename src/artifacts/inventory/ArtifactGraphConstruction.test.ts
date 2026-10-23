@@ -73,6 +73,19 @@ const entry = (path: string, kind: ArtifactEntry["kind"]): ArtifactEntry => ({
   adapterKey: path,
 });
 
+it.each([false, true])(
+  "preserves only a declared ASAR companion fact (unpacked=%s)",
+  (unpacked) => {
+    const occurrence = createOccurrence(
+      { ...entry("main.js", "file"), unpacked },
+      "main.js",
+      null,
+    );
+    if (unpacked) expect(occurrence.unpacked).toBe(true);
+    else expect(occurrence).not.toHaveProperty("unpacked");
+  },
+);
+
 describe("occurrence parent ownership", () => {
   it("selects the nearest unique nested parent", () => {
     const outer = createOccurrence(entry("a", "directory"), "a", null);

@@ -191,7 +191,9 @@ An unpacked entry whose companion bytes were not supplied remains
 `unavailable`. REA continues analyzing embedded JavaScript and records the
 missing native/resource bytes as unknown. The occurrence keeps
 `hash_status: unavailable`; no content-addressed child artifact is created for
-those missing bytes. See [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
+those missing bytes. New inventories preserve an ASAR companion declaration as
+`unpacked: true`; an omitted flag in an older inventory does not establish that
+unavailable bytes belonged to a companion. See [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
 for the tool-result contract.
 
 HTML whose bytes are not valid UTF-8 retains its file observation and an unknown

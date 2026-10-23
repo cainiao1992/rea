@@ -187,12 +187,14 @@ const materializeArtifactInventoryInScope = async (
         "unavailable",
         `Inventoried source bytes are unavailable for ${occurrence.logical_path}`,
         undefined,
-        {
-          logicalPath: occurrence.logical_path,
-          declaredSha256: null,
-          calculatedSha256: null,
-          unpacked: occurrence.unpacked,
-        },
+        occurrence.unpacked === true
+          ? {
+              logicalPath: occurrence.logical_path,
+              declaredSha256: null,
+              calculatedSha256: null,
+              unpacked: true,
+            }
+          : undefined,
       );
     if (
       (occurrence.entry_kind !== "file" && occurrence.entry_kind !== "slice") ||

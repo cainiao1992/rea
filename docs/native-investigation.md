@@ -454,6 +454,10 @@ complete observation.
   undecodable filenames and skipped symlinks, as partial coverage. Known
   executable roots remain available; unexamined names and symlink targets
   cannot establish an empty root set or the absence of other roots.
+  Embedded `UINib` archive data remains retained and undecoded; affected
+  object, connection, class and hierarchy coverage is partial. Recognized
+  `UIStoryboardShowSegueTemplate` source records similarly qualify connection
+  coverage until their navigation semantics are decoded.
 - `inspect_asset_catalog` / `rea inspect-asset-catalog <app>` reads compiled
   `Assets.car` metadata through macOS `assetutil --info`. Catalog digests, raw
   rendition fields, pagination and exact UI resource-name matches are returned.

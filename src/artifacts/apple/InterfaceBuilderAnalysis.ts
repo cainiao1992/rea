@@ -88,6 +88,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
   const omittedArchives: OmittedArchive[] = [];
   let unreportedOmittedArchives = 0;
   const incompleteHierarchies = new Map<string, number>();
+  const unexaminedSources = new Map<string, readonly NibUnexaminedSource[]>();
   const unresolvedConnections = new Map<string, number>();
   const prototypeKeyOmissions = new Map<string, number | null>();
   const unknownDates = new Map<string, number>();
@@ -217,6 +218,8 @@ export const analyzeInterfaceBuilderBundle = async (input: {
               numberLiterals: undefined,
             };
         requireInterfaceBuilderArchive(raw);
+        if (nib !== null && nib.unexaminedSources.length > 0)
+          unexaminedSources.set(entry.path, nib.unexaminedSources);
         if (nib !== null && nib.omitted > 0)
           incompleteHierarchies.set(entry.path, nib.omitted);
         if (nib !== null && nib.unresolvedConnections > 0)
@@ -283,6 +286,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
     limits,
   });
   return finalizeHierarchyCoverage(result, {
+    unexaminedSources,
     incompleteHierarchies,
     unresolvedConnections,
     prototypeKeyOmissions,
@@ -384,6 +388,7 @@ const retainCandidate = (
 const finalizeHierarchyCoverage = (
   result: ReturnType<typeof buildInterfaceBuilderAnalysis>,
   counts: {
+    unexaminedSources: ReadonlyMap<string, readonly NibUnexaminedSource[]>;
     incompleteHierarchies: ReadonlyMap<string, number>;
     unresolvedConnections: ReadonlyMap<string, number>;
     prototypeKeyOmissions: ReadonlyMap<string, number | null>;
@@ -401,6 +406,7 @@ const finalizeHierarchyCoverage = (
   },
 ) => {
   const {
+    unexaminedSources,
     incompleteHierarchies,
     unresolvedConnections,
     prototypeKeyOmissions,
@@ -415,6 +421,7 @@ const finalizeHierarchyCoverage = (
   } = counts;
   const archiveDecodePartial =
     invalid.length > 0 ||
+    unexaminedSources.size > 0 ||
     prototypeKeyOmissions.size > 0 ||
     counts.omitted > 0 ||
     counts.traversal.status === "unknown";
@@ -422,6 +429,11 @@ const finalizeHierarchyCoverage = (
     ...result,
     documents: result.documents.map((document) => ({
       ...document,
+      hierarchy_complete:
+        document.hierarchy_complete &&
+        !(unexaminedSources.get(document.relative_path) ?? []).some((source) =>
+          source.facets.includes("hierarchy"),
+        ),
       connection_count:
         document.connection_count +
         (unresolvedConnections.get(document.relative_path) ?? 0),
@@ -433,6 +445,18 @@ const finalizeHierarchyCoverage = (
           const omittedConnection = unresolvedConnections.get(
             facet.facet.replace(/^connections:/u, ""),
           );
+          const [kind, ...pathParts] = facet.facet.split(":");
+          const source = (
+            unexaminedSources.get(pathParts.join(":")) ?? []
+          ).find((source) =>
+            source.facets.some((affected) => affected === kind),
+          );
+          if (source !== undefined)
+            return {
+              ...facet,
+              status: "partial" as const,
+              reason: facet.reason ?? source.reason,
+            };
           return facet.facet.startsWith("connections:") &&
             omittedConnection !== undefined
             ? {
@@ -467,9 +491,11 @@ const finalizeHierarchyCoverage = (
                     ? "one_or_more_archives_invalid"
                     : prototypeKeyOmissions.size > 0
                       ? "dictionary_entries_omitted"
-                      : counts.traversal.status === "unknown"
-                        ? "source_traversal_unknown"
-                        : null,
+                      : unexaminedSources.size > 0
+                        ? "serialized_archive_content_unexamined"
+                        : counts.traversal.status === "unknown"
+                          ? "source_traversal_unknown"
+                          : null,
           examined: counts.attempted,
           omitted: counts.omitted,
         },
@@ -483,6 +509,9 @@ const finalizeHierarchyCoverage = (
     limitations: [
       ...result.limitations,
       ...counts.traversal.limitations,
+      ...[...unexaminedSources].flatMap(([path, sources]) =>
+        sources.map((source) => `${path}: ${source.description}`),
+      ),
       "Compiled Interface Builder archives are private serialized object graphs. The decoder reports only recognized keyed-archive objects and connections; unrecognized object classes and fields remain unknown.",
       ...(incompleteHierarchies.size === 0
         ? []
@@ -530,12 +559,44 @@ const finalizeHierarchyCoverage = (
   };
 };
 
+interface NibUnexaminedSource {
+  readonly reason: string;
+  readonly facets: readonly (
+    | "objects"
+    | "connections"
+    | "hierarchy"
+    | "classes"
+  )[];
+  readonly description: string;
+}
+
 /** Project decoded NIB records into the same bounded graph input as ibtool. */
 const projectNibArchive = (
   archive: NibArchiveDocument,
   budget: InterfaceBuilderDecodeBudget,
   maxHierarchyNodes: number,
 ) => {
+  const unexaminedSources: NibUnexaminedSource[] = [];
+  for (const object of archive.objects) {
+    const name = object.class_name.replace(/\0+$/u, "");
+    if (
+      name === "UINib" &&
+      ["UINib.archiveData", "archiveData"].some((key) =>
+        Object.hasOwn(object.values, key),
+      )
+    )
+      unexaminedSources.push({
+        reason: "embedded_nib_archive_not_decoded",
+        facets: ["objects", "connections", "hierarchy", "classes"],
+        description: `UINib object ${object.id} retains embedded archive data whose objects, connections, classes and hierarchy are not decoded.`,
+      });
+    if (name === "UIStoryboardShowSegueTemplate")
+      unexaminedSources.push({
+        reason: "storyboard_segue_template_not_decoded",
+        facets: ["connections"],
+        description: `Storyboard segue template object ${object.id} is retained as source data; its connection is not decoded.`,
+      });
+  }
   const byId = new Map(archive.objects.map((object) => [object.id, object]));
   const normalizedClassNames = new Map<string, string>();
   const normalizeClassName = (value: string): string => {
@@ -836,6 +897,7 @@ const projectNibArchive = (
   );
   return {
     omitted: viewHierarchy.omitted + hierarchyOmitted + merged.omitted,
+    unexaminedSources,
     unresolvedConnections,
     nonFiniteRealCount,
     negativeZeroRealCount,

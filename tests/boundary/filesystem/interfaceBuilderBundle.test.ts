@@ -2184,3 +2184,51 @@ it("preserves authored binary UID-shaped dictionaries through UI archive decodin
     actual: { archiveUID: 2, className: "NSView" },
   });
 });
+
+it.each(["embedded", "segue", "neither"] as const)(
+  "reports recognized unexamined nib source coverage: %s",
+  async (source) => {
+    const bundle = await createTestTempDirectory("rea-ui-unexamined-sources-");
+    await writeFile(
+      join(bundle, "Main.nib"),
+      encodeNibArchiveFixture({
+        classes: ["UINib", "UIStoryboardShowSegueTemplate", "NSView"],
+        objects: [
+          { classIndex: 2, values: {} },
+          ...(source === "embedded"
+            ? [{ classIndex: 0, values: { "UINib.archiveData": { ref: 0 } } }]
+            : []),
+          ...(source === "segue" ? [{ classIndex: 1, values: {} }] : []),
+        ],
+      }),
+    );
+    const result = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+    });
+    for (const kind of ["objects", "classes"])
+      expect(
+        result.graph.coverage.find(({ facet }) => facet === `${kind}:Main.nib`)
+          ?.status,
+      ).toBe(source === "embedded" ? "partial" : "complete");
+    expect(
+      result.graph.coverage.find(
+        ({ facet }) => facet === "connections:Main.nib",
+      )?.status,
+    ).toBe(source === "neither" ? "complete" : "partial");
+    expect(
+      result.graph.coverage.find(({ facet }) => facet === "archive_decode")
+        ?.status,
+    ).toBe(source === "neither" ? "complete" : "partial");
+    if (source !== "neither") {
+      expect(result.graph.truncated).toBe(true);
+      expect(result.limitations).toContainEqual(
+        expect.stringContaining(
+          source === "embedded"
+            ? "embedded archive data"
+            : "segue template object",
+        ),
+      );
+    }
+  },
+);

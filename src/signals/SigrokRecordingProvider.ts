@@ -242,8 +242,10 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
           );
         phase = previousPhase;
         resourcePath = "path" in input ? input.path : command;
+        // Some selected-channel refusals are diagnostics, not process failures:
+        // sigrok can emit fallback annotations and still exit successfully.
         const rejection =
-          output.exitCode === 0 || selection === undefined
+          selection === undefined
             ? undefined
             : parseSigrokSelectorRejection(output.stderr.text, selection);
         if (rejection !== undefined)

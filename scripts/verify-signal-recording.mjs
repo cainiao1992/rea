@@ -40,7 +40,12 @@ const environment = {
 };
 const client = new Client({ name: "signal-recording-verifier", version: "1" });
 // Real sigrok refusals of an unknown decoder ID must name the caller's field.
-const assertRejectedSelector = (response, operation, field) => {
+const assertRejectedSelector = (
+  response,
+  operation,
+  field,
+  expectedExitCode = 1,
+) => {
   assert.equal(response.isError, true);
   const text = response.content.find((item) => item.type === "text")?.text;
   const { error } = JSON.parse(text ?? "{}");
@@ -50,7 +55,8 @@ const assertRejectedSelector = (response, operation, field) => {
     error.details.issues.map((issue) => issue.path),
     [[field]],
   );
-  assert.equal(error.details.captured_output.exit_code, 1);
+  assert.equal(error.details.captured_output.exit_code, expectedExitCode);
+  return error;
 };
 const transport = new StdioClientTransport({
   command: process.execPath,
@@ -174,6 +180,26 @@ try {
     assert.equal(await readFile(path, "utf8"), source);
     cases++;
   }
+  const missingChannel = await client.callTool({
+    name: advertised.name,
+    arguments: {
+      path,
+      decoders: "uart:rx=REA_NO_SUCH_CHANNEL:baudrate=9600",
+      input_format: "vcd",
+    },
+  });
+  const channelError = assertRejectedSelector(
+    missingChannel,
+    advertised.name,
+    "decoders",
+    0,
+  );
+  assert.match(
+    channelError.details.captured_output.stderr,
+    /cli: No channel with name "REA_NO_SUCH_CHANNEL" found\./u,
+  );
+  assert.match(channelError.details.captured_output.stdout, /uart-1:/u);
+  cases++;
   const pagedLines = lines.slice(0, 7);
   let pagedTick = 1000;
   for (const byte of Array.from({ length: 120 }, (_, i) => i)) {

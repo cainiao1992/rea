@@ -31,6 +31,10 @@ The corresponding MCP request is:
 
 `decoders` uses sigrok's decoder stack and option/channel syntax. Channel names
 must match the recording; REA does not guess wiring, baud rate or protocol.
+When sigrok reports that a selected channel name is missing, REA returns
+`invalid_request` for `decoders` even if sigrok continues with fallback
+annotations and exits successfully. The diagnostic and any partial stdout remain
+in `captured_output`; unrelated producer warnings do not change request status.
 Omitting `input_format` requests sigrok's autodetection. REA uses an immutable
 private copy whose filename retains the selected recording's final suffix, so
 filename-based format detection receives that hint without exposing the
@@ -95,7 +99,8 @@ REA_SIGROK_COMMAND=/absolute/path/to/sigrok-cli node scripts/verify-signal-recor
 
 The verifier synthesizes a 9600-baud 8N1 UART VCD carrying `REA`, then checks
 actual CLI/MCP parity, advertised schemas, stored Evidence, source hashes,
-annotation filtering/autodetection, invalid decoder/input failures and cleanup.
+annotation filtering/autodetection, invalid decoder/input failures, missing
+channel rejection with retained partial output, and cleanup.
 An optional positional REA entrypoint verifies an installed package.
 The real-tool lane requires Linux, sigrok-cli 0.7.2 and libsigrokdecode. A separate
 kernel-limit regression checks the inherited soft/hard limits and verifies an

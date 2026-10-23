@@ -45,6 +45,8 @@ else if (${JSON.stringify(mode)} === 'nonzero') { console.error('invalid decoder
 else if (${JSON.stringify(mode)} === 'unknown-decoder') { console.error("srd: ModuleNotFoundError: Failed to load decoder nosuchdecoder: import by name failed: No module named 'nosuchdecoder'\\nFailed to load protocol decoder nosuchdecoder."); process.exitCode = 1; }
 else if (${JSON.stringify(mode)} === 'broken-decoder') { console.error("srd: ModuleNotFoundError: Failed to load decoder uart: import by name failed: No module named 'serial'\\nFailed to load protocol decoder uart."); process.exitCode = 1; }
 else if (${JSON.stringify(mode)} === 'unknown-annotation') { console.error("Annotation 'nosuchclass' not found for protocol decoder 'uart'."); process.exitCode = 1; }
+else if (${JSON.stringify(mode)} === 'unknown-channel') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: No channel with name "NONEXISTENT" found.'); }
+else if (${JSON.stringify(mode)} === 'other-channel-warning') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: No channel with name "OTHER" found.'); }
 else if (${JSON.stringify(mode)} === 'malformed-copy') { chmodSync(${JSON.stringify(snapshotName)}, 0o600); writeFileSync(${JSON.stringify(snapshotName)}, 'changed'); }
 else if (${JSON.stringify(mode)} === 'oversized-copy') { chmodSync(${JSON.stringify(snapshotName)}, 0o600); truncateSync(${JSON.stringify(snapshotName)}, 32 * 1024 * 1024 + 1); }
 else if (${JSON.stringify(mode)} === 'line-budget') process.stdout.write('ID: uart' + '\\n'.repeat(65536));
@@ -333,6 +335,79 @@ it.each([
     ).toEqual([]);
   },
 );
+
+it("projects sigrok's zero-exit missing-channel refusal through CLI and MCP with partial output", async () => {
+  const f = await fixture("unknown-channel");
+  const refusal = 'No channel with name "NONEXISTENT" found.';
+  const message = `sigrok-cli rejected the decoders selector: ${refusal}`;
+
+  const harness = await createApplicationMcpHarness({
+    serverOptions: { environment: {}, signalRecording: f.service },
+  });
+  onTestFinished(harness.close);
+  const { error } = parseMcpToolError(
+    await harness.client.callTool({
+      name: "decode_signal_recording",
+      arguments: {
+        path: f.path,
+        decoders: "uart:rx=NONEXISTENT:baudrate=9600",
+      },
+    }),
+  );
+  expect(error).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    message: expect.stringContaining(message),
+    details: {
+      issues: [{ path: ["decoders"], reason: "invalid_value" }],
+      captured_output: {
+        exit_code: 0,
+        stdout: "1000-1105 uart-1: Start bit\n",
+        stderr: expect.stringContaining(refusal),
+      },
+    },
+  });
+
+  const cli = Cli.create("signal-channel-refusal-test", { sync: false });
+  registerSignalCommands(cli, silentLogger, {}, f.service);
+  let stdout = "";
+  await cli.serve(
+    [
+      "decode-signal-recording",
+      f.path,
+      "--decoders",
+      "uart:rx=NONEXISTENT:baudrate=9600",
+      "--format",
+      "json",
+    ],
+    {
+      stdout: (text) => {
+        stdout += text;
+      },
+      exit: () => {},
+    },
+  );
+  expect(JSON.parse(stdout)).toMatchObject({
+    code: "invalid_request",
+    details: {
+      issues: [{ path: ["decoders"], reason: "invalid_value" }],
+      captured_output: {
+        exit_code: 0,
+        stdout: "1000-1105 uart-1: Start bit\n",
+        stderr: expect.stringContaining(refusal),
+      },
+    },
+  });
+});
+
+it("does not match channel refusals by substring", async () => {
+  const f = await fixture("other-channel-warning");
+  const result = await f.service.decode({
+    path: f.path,
+    decoders: "uart:rx=RX:baudrate=9600",
+  });
+  expect(result.ok).toBe(true);
+});
 
 it("reports an unknown decoder ID as the rejected field of each MCP operation", async () => {
   const f = await fixture("unknown-decoder");

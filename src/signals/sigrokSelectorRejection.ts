@@ -25,6 +25,8 @@ const DECODE_RECOVERY =
   "Use inspect_signal_decoders to list installed decoder IDs, or pass a decoder ID to show its options and annotation classes.";
 const HELP_RECOVERY =
   "Omit decoder to list installed decoder IDs, optionally filtered by query, then request help for one of those IDs.";
+const CHANNEL_RECOVERY =
+  "Choose a channel present in the recording; inspect_signal_decoders shows the selected decoder's channel IDs.";
 
 /**
  * sigrok-cli loads selected decoders before decoding or showing help, so an
@@ -44,6 +46,30 @@ const unknownDecoderRefusal = (
     )
     ? producerMessage
     : undefined;
+};
+
+/**
+ * The sigrok-cli 0.7.2 channel mapper reports a missing target as a plain
+ * stderr line, even though it continues with the other channel mappings. It
+ * does not include the decoder channel key, so compare the reported target
+ * with exact values from the caller's assignments rather than searching the
+ * selector text for a substring.
+ */
+const missingSelectedChannelRefusal = (
+  lines: ReadonlySet<string>,
+  decoders: string,
+): string | undefined => {
+  const selectedValues = new Set<string>();
+  for (const decoder of decoders.split(","))
+    for (const assignment of decoder.split(":").slice(1)) {
+      const separator = assignment.indexOf("=");
+      if (separator > 0) selectedValues.add(assignment.slice(separator + 1));
+    }
+  for (const channel of selectedValues) {
+    const producerMessage = `No channel with name "${channel}" found.`;
+    if (lines.has(`cli: ${producerMessage}`)) return producerMessage;
+  }
+  return undefined;
 };
 
 /**
@@ -70,6 +96,12 @@ export const parseSigrokSelectorRejection = (
     if (refusal !== undefined)
       return rejectedSelector("decoders", refusal, DECODE_RECOVERY);
   }
+  const missingChannel = missingSelectedChannelRefusal(
+    lines,
+    selection.decoders,
+  );
+  if (missingChannel !== undefined)
+    return rejectedSelector("decoders", missingChannel, CHANNEL_RECOVERY);
   // Annotation selections are "decoder=class:class,decoder".
   for (const entry of selection.annotations?.split(",") ?? []) {
     const [decoder = "", classes, ...rest] = entry.split("=");

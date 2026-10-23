@@ -140,7 +140,15 @@ export const semanticRequireLoaderAt = (
     )
       ? callee.object
       : callee;
-  return requireLoaderValueAt(loader, node, state, factoryBindingIds);
+  const selected = selectedRequireSourcesAt(
+    loader,
+    node,
+    state,
+    factoryBindingIds,
+  )?.loader;
+  return selected !== undefined && selected !== "unknown"
+    ? selected
+    : requireLoaderValueAt(loader, node, state, factoryBindingIds);
 };
 
 /** Classify Node's wrapper and exact factory bindings by their lexical owner. */
@@ -547,6 +555,38 @@ const selectedRequireSourcesAt = (
         },
       );
     } else if (t.isCallExpression(node)) {
+      const callee = unwrapJavaScriptExpression(node.callee).node;
+      if (
+        target === "loader" &&
+        current.path.length === 0 &&
+        t.isFunction(callee)
+      ) {
+        if (callee.async || callee.generator) {
+          // A direct async/generator invocation returns a wrapper, not its contents.
+          local = true;
+          continue;
+        }
+        const returned = returnedLoaderReferences(state, "direct-call")(
+          node.callee,
+          node,
+        );
+        // The shared result owner is a may-reference graph. A block may also
+        // fall through or throw; only an expression arrow supplies its whole result.
+        unknown ||=
+          returned.unresolvedInvocation === true ||
+          !t.isArrowFunctionExpression(callee) ||
+          t.isBlockStatement(callee.body);
+        pending.push(
+          ...inheritLoaderSourceContext(
+            current,
+            returned.references.map((reference) => ({
+              node: reference.node,
+              path: reference.projection,
+            })),
+          ),
+        );
+        continue;
+      }
       if (target === "factory") {
         const origin = semanticRequireOrigin(node, state)?.origin;
         if (
@@ -874,6 +914,24 @@ const moduleReturnedReferences = new WeakMap<
   >
 >();
 
+/** Reuse one result-reference owner for loader values and module receivers. */
+const returnedLoaderReferences = (
+  state: JavaScriptSemanticAnalysisState,
+  mode: "direct-call" | "awaited-call",
+): ReturnType<typeof createSemanticReturnedReferences> => {
+  let factories = moduleReturnedReferences.get(state);
+  if (factories === undefined) {
+    factories = new Map();
+    moduleReturnedReferences.set(state, factories);
+  }
+  let returned = factories.get(mode);
+  if (returned === undefined) {
+    returned = createSemanticReturnedReferences(state, mode);
+    factories.set(mode, returned);
+  }
+  return returned;
+};
+
 type ModuleObjectSource = {
   readonly node: t.Node;
   readonly path: SemanticAliasSelectionPath;
@@ -1127,20 +1185,10 @@ const hasCommonJsModuleSource = (
       t.isOptionalCallExpression(value) ||
       t.isNewExpression(value)
     ) {
-      let factories = moduleReturnedReferences.get(state);
-      if (factories === undefined) {
-        factories = new Map();
-        moduleReturnedReferences.set(state, factories);
-      }
       const mode = awaitDepths.includes(path.length)
         ? "awaited-call"
         : "direct-call";
-      let returned = factories.get(mode);
-      if (returned === undefined) {
-        returned = createSemanticReturnedReferences(state, mode);
-        factories.set(mode, returned);
-      }
-      const returnedResult = returned(
+      const returnedResult = returnedLoaderReferences(state, mode)(
         value.callee,
         t.isNewExpression(value) ? undefined : value,
       );

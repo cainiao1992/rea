@@ -459,31 +459,20 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     byte_order: directory.little ? ("little" as const) : ("big" as const),
   };
   const { sections } = directory;
-  if (sections.length === 0)
+  const dynsym = sections.find(({ type }) => type === SHT_DYNSYM);
+  if (dynsym === undefined)
     return {
       ...result,
       exports: [],
       coverage: {
         status: "unsupported",
         reason:
-          "The ELF has no section headers; enumerating dynamic symbols from the dynamic segment is not implemented",
+          "No SHT_DYNSYM section is available; enumerating dynamic symbols from the dynamic segment is not implemented",
         examined_entries: 0,
         exports: 0,
       },
       issues: [],
       limitations: ELF_LIMITATIONS,
-    };
-  const dynsym = sections.find(({ type }) => type === SHT_DYNSYM);
-  if (dynsym === undefined)
-    return {
-      ...result,
-      exports: [],
-      coverage: coverage([], 0, 0),
-      issues: [],
-      limitations: [
-        "The ELF has no dynamic symbol table, so it exports no dynamic symbols.",
-        ...ELF_LIMITATIONS,
-      ],
     };
   const width = directory.bits === 64 ? 24 : 16;
   const strings = sections[dynsym.link];

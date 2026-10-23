@@ -377,10 +377,10 @@ unambiguous. Gaps, zero-fill and conflicting mappings remain unreadable names.
 Unresolved symbol versions keep their rows: the version name is null when no
 definition or requirement names the index, and `version` is
 `"unknown"` when the version table cannot be read; coverage is likewise
-`partial`. A dynamic symbol table without its null entry is malformed. An ELF
-without section headers is `unsupported`:
-enumerating dynamic symbols from the dynamic segment is not
-implemented. Mach-O exports are reported by `inspect_macho`.
+`partial`. A dynamic symbol table without its null entry is malformed. An ELF without an available `SHT_DYNSYM` section is `unsupported`,
+including files with no section headers or only an inactive null section.
+Missing section declarations do not establish that the loader has no exports;
+enumerating dynamic symbols from the dynamic segment is not implemented. Mach-O exports are reported by `inspect_macho`.
 
 `max_file_bytes` defaults to 256 MiB (maximum 512 MiB; CLI `--max-file-bytes`).
 Export directories in PE headers are read like those in sections. An export or

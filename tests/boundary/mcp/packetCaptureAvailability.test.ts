@@ -18,6 +18,7 @@ const linux = process.platform === "linux";
 
 const packetCaptureAvailability = async (
   environment: Readonly<Record<string, string | undefined>>,
+  name = "inspect_packet_capture",
 ): Promise<Record<string, unknown> | undefined> => {
   const session = createTestBinarySession(() => {
     throw new Error("binary analysis must not start during status discovery");
@@ -44,7 +45,7 @@ const packetCaptureAvailability = async (
       .object({ result: sessionProvider })
       .parse(response.structuredContent).result;
     return expandToolAvailability(parsed.tool_availability).find(
-      ({ name }) => name === "inspect_packet_capture",
+      (tool) => tool.name === name,
     );
   } finally {
     await Promise.allSettled([client.close(), server.close(), session.close()]);
@@ -105,4 +106,21 @@ it("reports packet tools unavailable when no absolute PATH entry holds TShark", 
     available: false,
     reason: linux ? "provider_missing" : "unsupported_host",
   });
+});
+
+it("advertises pcap capture host support separately from the always available client probe", async () => {
+  expect(
+    await packetCaptureAvailability({}, "inspect_pcap_client"),
+  ).toMatchObject({ available: true, reason: "available" });
+  expect(
+    await packetCaptureAvailability({}, "inspect_pcap_capture"),
+  ).toMatchObject(
+    process.platform === "linux" || process.platform === "win32"
+      ? { available: true, reason: "available" }
+      : {
+          available: false,
+          reason: "unsupported_host",
+          remediation: expect.stringContaining("native memory bound"),
+        },
+  );
 });

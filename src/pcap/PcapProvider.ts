@@ -8,6 +8,7 @@ import {
 } from "../application/AnalysisProvider.js";
 import {
   pcapResultSchemas,
+  pcapCaptureHostSupported,
   type PcapRequest,
   type PcapOperation,
 } from "../domain/pcap/pcapAnalysis.js";
@@ -505,7 +506,7 @@ export class PcapProvider {
   ): Promise<ProviderAvailability> {
     try {
       const { client } = await this.client("inspect_pcap_client", signal);
-      if (process.platform !== "linux" && process.platform !== "win32")
+      if (!pcapCaptureHostSupported(process.platform))
         return {
           status: "unavailable",
           code: "unsupported_host",

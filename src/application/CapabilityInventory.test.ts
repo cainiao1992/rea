@@ -1,3 +1,4 @@
+import { pcapCaptureHostSupported } from "../domain/pcap/pcapAnalysis.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -815,3 +816,30 @@ describe("host-restricted integrations", () => {
     },
   );
 });
+
+it.each(["darwin", "linux", "win32"])(
+  "distinguishes pcap capture host support from its target-free client probe on %s",
+  (platform) => {
+    const tools = buildCapabilityInventory(
+      { open: false, capabilities: [] },
+      {
+        processCaptureEnabled: true,
+        hostUnsupported: { pcapCapture: !pcapCaptureHostSupported(platform) },
+      },
+    );
+    expect(
+      tools.find(({ name }) => name === "inspect_pcap_client"),
+    ).toMatchObject({ available: true, reason: "available" });
+    expect(
+      tools.find(({ name }) => name === "inspect_pcap_capture"),
+    ).toMatchObject(
+      platform === "darwin"
+        ? {
+            available: false,
+            reason: "unsupported_host",
+            remediation: expect.stringContaining("native memory bound"),
+          }
+        : { available: true, reason: "available" },
+    );
+  },
+);

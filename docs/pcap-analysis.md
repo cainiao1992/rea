@@ -30,6 +30,8 @@ Evidence. Capture
 inspection requires Linux with util-linux prlimit or Windows with owned Job
 Objects. macOS capture inspection returns a capability gap because the new
 native memory boundary is unverified; its version probes remain available.
+`binary_session` advertises those operations separately: unsupported capture
+hosts do not disable the client probe or remove either tool from the catalog.
 A selected tool directory or unreadable tool is a configuration capability
 refusal naming its selected path, before any capture bytes are opened.
 Tools and installed libraries/plugins are caller-trusted. An empty private

@@ -1,3 +1,4 @@
+import { PCAP_CAPTURE_UNSUPPORTED_HOST_REASON } from "../domain/pcap/pcapAnalysis.js";
 import { DEFAULT_CALL_RELATIONSHIP_DIRECTION } from "../contracts/enhancedInputs.js";
 import { FIRMWARE_TOOL_REQUIREMENTS } from "../contracts/firmware/firmwareToolRequirements.js";
 import { CALL_RELATIONSHIP_TRAVERSALS } from "./CallRelationshipTraversal.js";
@@ -56,6 +57,7 @@ type ProviderDescriptor = ProviderCapability;
 /** Optional integrations whose verified hosts exclude some platforms. */
 export const HOST_RESTRICTED_FEATURES = [
   "packetCapture",
+  "pcapCapture",
   "signalRecording",
   "evmInterface",
   "binaryLayout",
@@ -602,6 +604,13 @@ const workflowAvailabilityFor = ({
       remediation: "Run process capture on a supported Linux or macOS host.",
     };
   if (kind === "application") return { reason: "available", remediation: null };
+  if (name === "inspect_pcap_capture")
+    return hostRestrictedAvailability(
+      policy,
+      "pcapCapture",
+      true,
+      PCAP_CAPTURE_UNSUPPORTED_HOST_REASON,
+    );
   if (kind === "pcap-provider" || kind === "flutter-provider")
     return { reason: "available", remediation: null };
   const electron = electronProviderAvailability(name, kind, policy);

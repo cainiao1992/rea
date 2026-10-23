@@ -1,3 +1,7 @@
+import {
+  pcapCaptureHostSupported,
+  PCAP_CAPTURE_UNSUPPORTED_HOST_REASON,
+} from "../domain/pcap/pcapAnalysis.js";
 import { access, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
 import { isAbsolute } from "node:path";
@@ -32,9 +36,8 @@ export const preparePcapNativeBound = async (
       ],
     };
   }
-  if (process.platform !== "linux") {
-    const reason =
-      "Packet summaries require an enforceable native memory bound: Linux with util-linux prlimit, or Windows with owned Job Objects. This host's capture boundary remains unsupported.";
+  if (!pcapCaptureHostSupported(process.platform)) {
+    const reason = PCAP_CAPTURE_UNSUPPORTED_HOST_REASON;
     throw new AnalysisCapabilityUnavailableError(
       "pcap",
       "inspect_pcap_capture",

@@ -2,11 +2,14 @@ import { expect, it } from "vitest";
 import { AnalysisCleanupLease } from "../../artifacts/AnalysisCleanupLease.js";
 import { analysisErrorProjectionSchema } from "../../contracts/errorSchemas.js";
 import { AnalysisAccessDeniedError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisError,
+  primaryAnalysisError,
+} from "../../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import { emptyProcessCapture } from "../../domain/process/processCapture.fixture.js";
 import { parseProcessScenario } from "../../domain/process/processScenario.js";
 import { ProcessCaptureSnapshotFailure } from "./FilesystemSnapshot.js";
-import { ProcessCaptureError } from "./ProcessCaptureError.js";
 import { prepareProcessCapture } from "./ProcessCaptureLifecycle.js";
 
 it.each(["EACCES", "EPERM"] as const)(
@@ -73,13 +76,18 @@ it.each(["EACCES", "EPERM"] as const)(
         },
       },
     ).catch((cause: unknown) => cause);
-    if (!(failure instanceof ProcessCaptureError))
-      throw new Error("Expected retained snapshot finalization failure");
+    if (!(failure instanceof AnalysisError))
+      throw new Error("Expected a canonical retained admission failure", {
+        cause: failure,
+      });
+    expect(primaryAnalysisError(failure)).toBe(primary);
     expect(primary.cause).toBe(native);
     expect(allocations).toBe(1);
     expect(cleanedRoots).toEqual([temporaryRoot]);
     expect(closes).toBe(0);
-    expect(projectAnalysisError(failure)).toMatchObject({
+    expect(
+      analysisErrorProjectionSchema.parse(projectAnalysisError(failure)),
+    ).toMatchObject({
       code: "cleanup_incomplete",
       details: {
         resources: ["fixture:earlier-snapshot-descriptor"],

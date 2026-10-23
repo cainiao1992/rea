@@ -14,6 +14,7 @@ import {
   parseArtifactInventoryEvidence,
   type InventorySet,
 } from "./artifactInventoryEvidence.js";
+import { pyInstallerEntryDeclaration } from "./artifactFormatMetadata.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 import { canonicalJson } from "./comparisonSemantics.js";
 
@@ -363,12 +364,82 @@ const classifyPath = (input: ClassifyPathInput): ArtifactChange | null => {
   const base = buildArtifactChangeBase(input);
   const integrity = classifyIntegrity(input, base);
   if (integrity !== null) return integrity;
+  const declaration = classifyPyInstallerDeclaration(input, base);
+  if (declaration.handled) return declaration.change;
   const availability = classifyAvailability(input, base);
   if (availability !== null) return availability;
   const dimensions = changedDimensions(input);
+  if (pyInstallerMetadataUnknown(input)) {
+    if (dimensions.length === 0)
+      return {
+        ...base,
+        classification: "unknown",
+        dimensions: ["availability"],
+      };
+    dimensions.push("availability");
+  }
   return dimensions.length === 0
     ? null
     : { ...base, classification: "changed", dimensions };
+};
+
+const pyInstallerMetadataUnknown = (input: ClassifyPathInput): boolean =>
+  (isPyInstallerEntry(input.leftOccurrence) &&
+    !isPyInstallerEntry(input.rightOccurrence)) ||
+  (isPyInstallerEntry(input.rightOccurrence) &&
+    !isPyInstallerEntry(input.leftOccurrence));
+
+const isPyInstallerEntry = (
+  occurrence: ArtifactOccurrence | undefined,
+): occurrence is ArtifactOccurrence & {
+  readonly format_metadata: Extract<
+    NonNullable<ArtifactOccurrence["format_metadata"]>,
+    { readonly kind: "pyinstaller-entry" }
+  >;
+} => occurrence?.format_metadata?.kind === "pyinstaller-entry";
+
+const classifyPyInstallerDeclaration = (
+  input: ClassifyPathInput,
+  base: ReturnType<typeof buildArtifactChangeBase>,
+): { readonly handled: boolean; readonly change: ArtifactChange | null } => {
+  const leftIsDeclaration = input.leftOccurrence?.entry_kind === "metadata";
+  const rightIsDeclaration = input.rightOccurrence?.entry_kind === "metadata";
+  if (!leftIsDeclaration && !rightIsDeclaration)
+    return { handled: false, change: null };
+  // Metadata is not inherently a PyInstaller declaration. Only apply this
+  // format-specific comparison when a producer explicitly identified one.
+  if (
+    !isPyInstallerEntry(input.leftOccurrence) &&
+    !isPyInstallerEntry(input.rightOccurrence)
+  )
+    return { handled: false, change: null };
+  if (!leftIsDeclaration || !rightIsDeclaration)
+    return { handled: false, change: null };
+  if (
+    !isPyInstallerEntry(input.leftOccurrence) ||
+    !isPyInstallerEntry(input.rightOccurrence)
+  )
+    return {
+      handled: true,
+      change: {
+        ...base,
+        classification: "unknown",
+        dimensions: ["availability"],
+      },
+    };
+  const changed =
+    canonicalJson(
+      pyInstallerEntryDeclaration(input.leftOccurrence.format_metadata),
+    ) !==
+    canonicalJson(
+      pyInstallerEntryDeclaration(input.rightOccurrence.format_metadata),
+    );
+  return {
+    handled: true,
+    change: changed
+      ? { ...base, classification: "changed", dimensions: ["metadata"] }
+      : null,
+  };
 };
 
 const changedDimensions = (input: {
@@ -430,7 +501,15 @@ const metadataChanged = (
   input.leftOccurrence?.encrypted !== input.rightOccurrence?.encrypted ||
   JSON.stringify(left.limitations) !== JSON.stringify(right.limitations) ||
   JSON.stringify(input.leftOccurrence?.limitations) !==
-    JSON.stringify(input.rightOccurrence?.limitations);
+    JSON.stringify(input.rightOccurrence?.limitations) ||
+  (isPyInstallerEntry(input.leftOccurrence) &&
+    isPyInstallerEntry(input.rightOccurrence) &&
+    canonicalJson(
+      pyInstallerEntryDeclaration(input.leftOccurrence.format_metadata),
+    ) !==
+      canonicalJson(
+        pyInstallerEntryDeclaration(input.rightOccurrence.format_metadata),
+      ));
 
 const nodeFor = (
   occurrence: ArtifactOccurrence | undefined,

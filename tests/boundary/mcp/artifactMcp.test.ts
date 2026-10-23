@@ -3,6 +3,13 @@ import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
+import {
+  artifactEdgeId,
+  artifactGraphDigest,
+  artifactManifestId,
+  occurrenceIdForLocation,
+} from "../../../src/domain/artifactIdentity.js";
+import { artifactInspectionResultSchema } from "../../../src/domain/artifactInspection.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -24,6 +31,8 @@ import { ArtifactProvider } from "../../../src/artifacts/ArtifactProvider.js";
 import { ARTIFACT_COMPARISON_EXAMPLE } from "../../../src/contracts/artifactComparisonExample.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
+import { cArchiveExecutable } from "../../../src/artifacts/pyinstaller/CArchive.fixture.js";
+import { compareUnicodeCodePoints } from "../../../src/domain/unicodeCodePointOrder.js";
 
 const integrityMessage = (unpacked: boolean): string =>
   `${
@@ -659,6 +668,354 @@ it("compares summary Evidence through retained complete inspection parents", asy
 });
 
 const toolEvidence = (value: unknown) => parseEvidence(value);
+
+const pyInstallerComparisonArchive = (
+  typeCode: "m" | "s",
+  includeSymlink: boolean,
+  includePrefix = false,
+) =>
+  cArchiveExecutable({
+    layout: "2.1",
+    pythonVersion: 309,
+    members: [
+      ...(includePrefix
+        ? [
+            {
+              name: "prefix.bin",
+              typeCode: "x" as const,
+              payload: Buffer.from("prefix bytes"),
+              compress: false,
+            },
+          ]
+        : []),
+      {
+        name: "helper",
+        typeCode,
+        payload: Buffer.from("same helper bytes"),
+        compress: false,
+      },
+      {
+        name: "pyi-contents-directory _internal",
+        typeCode: "o",
+        payload: Buffer.alloc(0),
+        compress: false,
+      },
+      {
+        name: "shared-app:assets/data.bin",
+        typeCode: "d",
+        payload: Buffer.alloc(0),
+        compress: false,
+      },
+      ...(includeSymlink
+        ? [
+            {
+              name: "unavailable-link",
+              typeCode: "n" as const,
+              payload: Buffer.from("target"),
+              compress: false,
+            },
+          ]
+        : []),
+    ],
+  });
+
+const inspectArtifactInventoryThroughMcp = async (
+  client: Client,
+  path: string,
+) => {
+  const opened = await client.callTool({
+    name: "open_binary",
+    arguments: { path },
+  });
+  expect(opened.isError).not.toBe(true);
+  const reply = await client.callTool({
+    name: "inspect_artifact",
+    arguments: {},
+  });
+  expect(reply.isError).not.toBe(true);
+  const inspection = artifactInspectionResultSchema.parse(
+    toolEvidence(reply.structuredContent).normalized_result,
+  );
+  const inventory = inspection.substeps.find(
+    ({ operation }) => operation === "inventory_artifact",
+  )?.evidence;
+  if (inventory === undefined) throw new Error("missing inventory Evidence");
+  return parseEvidence(inventory);
+};
+
+const compareArtifactEvidenceThroughMcp = (
+  client: Client,
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+) => client.callTool({ name: "compare_artifacts", arguments: { left, right } });
+
+const withForeignMetadataAndNestedZipMember = (
+  evidence: ReturnType<typeof parseEvidence>,
+) => {
+  const inventory = artifactInventoryResultSchema.parse(
+    evidence.normalized_result,
+  );
+  const helper = inventory.occurrences.find(
+    ({ logical_path }) => logical_path === "helper",
+  );
+  if (helper === undefined) throw new Error("missing helper occurrence");
+  const { format_metadata: _formatMetadata, ...helperWithoutMetadata } = helper;
+  const foreignMetadataId = occurrenceIdForLocation({
+    rootArtifactId: inventory.manifest.root_artifact_id,
+    logicalPath: "foreign-meta",
+    entryKind: "metadata",
+  });
+  const foreignMetadata = {
+    ...helperWithoutMetadata,
+    occurrence_id: foreignMetadataId,
+    logical_path: "foreign-meta",
+    entry_kind: "metadata" as const,
+    artifact_format: "zip" as const,
+  };
+  const nestedZipMember = {
+    ...helperWithoutMetadata,
+    occurrence_id: occurrenceIdForLocation({
+      rootArtifactId: inventory.manifest.root_artifact_id,
+      logicalPath: "helper/member.txt",
+      entryKind: "file",
+    }),
+    parent_occurrence_id: helper.occurrence_id,
+    logical_path: "helper/member.txt",
+    artifact_format: "zip" as const,
+  };
+  const occurrences = inventory.occurrences
+    .concat(foreignMetadata, nestedZipMember)
+    .sort((left, right) =>
+      compareUnicodeCodePoints(left.logical_path, right.logical_path),
+    );
+  const edges = inventory.edges
+    .map((edge) => {
+      const occurrence = occurrences.find(
+        ({ occurrence_id }) => occurrence_id === edge.occurrence_id,
+      );
+      return occurrence === undefined
+        ? edge
+        : { ...edge, edge_id: artifactEdgeId(edge, occurrence) };
+    })
+    .sort((left, right) =>
+      compareUnicodeCodePoints(left.edge_id, right.edge_id),
+    );
+  const graphSha256 = artifactGraphDigest({
+    nodes: inventory.nodes,
+    occurrences,
+    edges,
+    contradictions: inventory.integrity_contradictions,
+  });
+  const manifestId = artifactManifestId(
+    inventory.manifest.root_artifact_id,
+    graphSha256,
+  );
+  const subject = evidence.subject;
+  if (subject === null) throw new Error("missing inventory subject");
+  return createEvidence(
+    {
+      path: subject.local_path,
+      sha256: subject.digest.sha256,
+      format: subject.format,
+    },
+    evidence.provider,
+    {
+      operation: "inventory_artifact",
+      parameters: evidence.parameters,
+      confidence: evidence.confidence,
+      authority: evidence.authority,
+      result: jsonValueSchema.parse({
+        ...inventory,
+        occurrences,
+        edges,
+        manifest: {
+          ...inventory.manifest,
+          occurrence_count: occurrences.length,
+          edge_count: edges.length,
+          graph_sha256: graphSha256,
+          manifest_id: manifestId,
+        },
+      }),
+    },
+  );
+};
+
+it("does not apply PyInstaller declaration unknowns to foreign metadata or nested ZIP members", async () => {
+  const root = await createTestTempDirectory("rea-pyinstaller-scope-mcp-");
+  const archive = join(root, "sample");
+  await writeFile(archive, pyInstallerComparisonArchive("m", false));
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
+  const server = createServer({ kind: "session", session });
+  const client = new Client({ name: "pyinstaller-scope-test", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const observed = await inspectArtifactInventoryThroughMcp(client, archive);
+    const foreign = withForeignMetadataAndNestedZipMember(observed);
+    const response = await compareArtifactEvidenceThroughMcp(
+      client,
+      foreign,
+      foreign,
+    );
+    expect(response.isError).not.toBe(true);
+    expect(
+      toolEvidence(response.structuredContent).normalized_result,
+    ).toMatchObject({
+      status: "unchanged",
+      summary: { unknown: 0 },
+      changes: [],
+    });
+  } finally {
+    await Promise.allSettled([client.close(), server.close(), session.close()]);
+  }
+});
+
+it("compares PyInstaller declaration facts without inventing payload identity", async () => {
+  const root = await createTestTempDirectory("rea-pyinstaller-compare-mcp-");
+  const leftPath = join(root, "module");
+  const rightPath = join(root, "script");
+  const declarationsPath = join(root, "declarations");
+  const modulePath = join(root, "module-clean");
+  const shiftedPath = join(root, "module-shifted");
+  await Promise.all([
+    writeFile(leftPath, pyInstallerComparisonArchive("m", true)),
+    writeFile(rightPath, pyInstallerComparisonArchive("s", true)),
+    writeFile(declarationsPath, pyInstallerComparisonArchive("s", false)),
+    writeFile(modulePath, pyInstallerComparisonArchive("m", false)),
+    writeFile(shiftedPath, pyInstallerComparisonArchive("m", false, true)),
+  ]);
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
+  const server = createServer({ kind: "session", session });
+  const client = new Client({ name: "pyinstaller-compare-test", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const left = await inspectArtifactInventoryThroughMcp(client, leftPath);
+    const right = await inspectArtifactInventoryThroughMcp(client, rightPath);
+    const clean = await inspectArtifactInventoryThroughMcp(
+      client,
+      declarationsPath,
+    );
+    const module = await inspectArtifactInventoryThroughMcp(client, modulePath);
+    const shifted = await inspectArtifactInventoryThroughMcp(
+      client,
+      shiftedPath,
+    );
+    const leftInventory = artifactInventoryResultSchema.parse(
+      left.normalized_result,
+    );
+    const rightInventory = artifactInventoryResultSchema.parse(
+      right.normalized_result,
+    );
+    const leftHelper = leftInventory.occurrences.find(
+      ({ logical_path }) => logical_path === "helper",
+    );
+    const rightHelper = rightInventory.occurrences.find(
+      ({ logical_path }) => logical_path === "helper",
+    );
+    expect(leftHelper?.artifact_id).toBe(rightHelper?.artifact_id);
+    expect(leftHelper?.format_metadata).toMatchObject({ type_code: "m" });
+    expect(rightHelper?.format_metadata).toMatchObject({ type_code: "s" });
+    expect(
+      leftInventory.occurrences.filter(
+        ({ entry_kind }) => entry_kind === "metadata",
+      ),
+    ).toHaveLength(2);
+
+    const changed = await compareArtifactEvidenceThroughMcp(
+      client,
+      left,
+      right,
+    );
+    expect(changed.isError).not.toBe(true);
+    const changedResult = toolEvidence(
+      changed.structuredContent,
+    ).normalized_result;
+    expect(changedResult).toMatchObject({
+      status: "unknown",
+      summary: { changed: 2, unchanged: 2, unknown: 1 },
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          logical_path: ".",
+          classification: "changed",
+          dimensions: expect.arrayContaining(["content"]),
+        }),
+        expect.objectContaining({
+          logical_path: "helper",
+          classification: "changed",
+          dimensions: ["metadata"],
+          left_occurrence_id: leftHelper?.occurrence_id,
+          right_occurrence_id: rightHelper?.occurrence_id,
+        }),
+        expect.objectContaining({
+          logical_path: "unavailable-link",
+          classification: "unknown",
+          dimensions: ["availability"],
+        }),
+      ]),
+    });
+    expect(
+      z
+        .object({ changes: z.array(z.object({ logical_path: z.string() })) })
+        .parse(changedResult)
+        .changes.map(({ logical_path }) => logical_path),
+    ).not.toContain("__pyinstaller__/runtime-options/1");
+    expect(
+      z
+        .object({ changes: z.array(z.object({ logical_path: z.string() })) })
+        .parse(changedResult)
+        .changes.map(({ logical_path }) => logical_path),
+    ).not.toContain("__pyinstaller__/dependencies/2");
+
+    const declarationsOnly = await client.callTool({
+      name: "compare_artifacts",
+      arguments: { left: clean, right: clean },
+    });
+    expect(declarationsOnly.isError).not.toBe(true);
+    expect(
+      toolEvidence(declarationsOnly.structuredContent).normalized_result,
+    ).toMatchObject({
+      status: "unchanged",
+      summary: { unchanged: 4, unknown: 0 },
+      changes: [],
+    });
+
+    const layoutOnly = await client.callTool({
+      name: "compare_artifacts",
+      arguments: { left: module, right: shifted },
+    });
+    expect(layoutOnly.isError).not.toBe(true);
+    const layoutChanges = z
+      .object({ changes: z.array(z.object({ logical_path: z.string() })) })
+      .parse(toolEvidence(layoutOnly.structuredContent).normalized_result)
+      .changes.map(({ logical_path }) => logical_path);
+    expect(layoutChanges).toContain("prefix.bin");
+    expect(layoutChanges).not.toContain("helper");
+
+    const unavailableControl = await client.callTool({
+      name: "compare_artifacts",
+      arguments: { left, right: left },
+    });
+    expect(unavailableControl.isError).not.toBe(true);
+    expect(
+      toolEvidence(unavailableControl.structuredContent).normalized_result,
+    ).toMatchObject({
+      status: "unknown",
+      changes: [
+        expect.objectContaining({
+          logical_path: "unavailable-link",
+          classification: "unknown",
+        }),
+      ],
+    });
+  } finally {
+    await Promise.allSettled([client.close(), server.close(), session.close()]);
+  }
+});
 
 it("discovers artifact target prerequisites and preserves typed MCP refusals", async () => {
   const root = await createTestTempDirectory("rea-artifact-availability-mcp-");

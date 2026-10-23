@@ -88,6 +88,17 @@ export const pyInstallerEntryMetadataSchema = z.strictObject({
 export type PyInstallerEntryMetadata = z.infer<
   typeof pyInstallerEntryMetadataSchema
 >;
+
+/** Declaration identity that is stable across archive layout changes. */
+export const pyInstallerEntryDeclaration = (
+  metadata: PyInstallerEntryMetadata,
+) => ({
+  container: metadata.container,
+  container_name: metadata.container_name,
+  source_name: metadata.source_name,
+  type_code: metadata.type_code,
+});
+
 export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   godotPckMetadataSchema,
   godotPckEntryMetadataSchema,

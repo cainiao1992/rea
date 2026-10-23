@@ -123,10 +123,13 @@ export const artifactInventorySummarySchema = z.strictObject({
   limitation_count: z.number().int().nonnegative(),
 });
 
-const inputError = (message: string): AnalysisInputError =>
+const inputError = (
+  field: "source" | "view",
+  message: string,
+): AnalysisInputError =>
   new AnalysisInputError("inspect_analysis_view", undefined, [
     {
-      path: ["source"],
+      path: [field],
       reason: "invalid_value",
       message,
     },
@@ -221,7 +224,7 @@ const sourceFailure = (
   if (cause instanceof z.ZodError)
     return err(analysisViewResultInputError(input, cause));
   if (!(cause instanceof ArtifactInventoryValidationError)) throw cause;
-  return err(inputError(cause.message));
+  return err(inputError("source", cause.message));
 };
 
 /** Project exact source records; exhausted pages cover available records, not runtime behavior. */
@@ -233,12 +236,16 @@ export const projectArtifactInventoryView = (
   if (operation !== "inventory_artifact" && operation !== "inspect_artifact")
     return err(
       inputError(
+        "source",
         "Inventory views require inventory_artifact or inspect_artifact Evidence.",
       ),
     );
   if (view.kind !== "summary" && view.kind !== "inventory")
     return err(
-      inputError("Artifact Evidence supports summary and inventory views."),
+      inputError(
+        "view",
+        "Artifact Evidence supports summary and inventory views.",
+      ),
     );
   const parsed = parseSource(parent);
   if (!parsed.ok) return parsed;

@@ -1,3 +1,4 @@
+import { readArtifactInspectionSources } from "../domain/artifactInspection.js";
 import { dispatchQueuedInterrupts } from "../process/queuedInterrupts.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { requireAuthenticationHeadroom } from "./JsonAuthenticationHeadroom.js";
@@ -84,7 +85,16 @@ export const deliverAnalysisEvidence = async (
   });
   if (!headroom.ok)
     return err(headroom.error.retainPartialObservation(evidence));
-  const bundle = createImmutableEvidenceBundle([evidence]);
+  const sourceEvidence =
+    evidence.operation === "inspect_artifact"
+      ? readArtifactInspectionSources(evidence.normalized_result)
+      : ok([]);
+  if (!sourceEvidence.ok)
+    return err(sourceEvidence.error.retainPartialObservation(evidence));
+  const bundle = createImmutableEvidenceBundle([
+    ...sourceEvidence.value,
+    evidence,
+  ]);
   const delivered =
     detail === "summary"
       ? inspectAnalysisViewValidated(

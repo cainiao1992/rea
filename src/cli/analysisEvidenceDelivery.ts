@@ -1,3 +1,4 @@
+import { readArtifactInspectionSources } from "../domain/artifactInspection.js";
 import type { AnalysisViewRequest } from "../domain/analysisView/analysisView.js";
 import { z } from "incur";
 import { parseEvidence, type Evidence } from "../domain/evidence.js";
@@ -97,6 +98,9 @@ export const deliverCliAnalysisEvidence = async (
     detail,
     evidenceOutput,
     ...(input.view === undefined ? {} : { view: input.view }),
+    ...(input.sourceEvidence === undefined
+      ? {}
+      : { sourceEvidence: input.sourceEvidence }),
   });
 };
 
@@ -127,13 +131,22 @@ export const publishCliAnalysisEvidence = async (
     return projectAnalysisError(
       delivered.error.retainPartialObservation(complete),
     );
+  const inspectionSources =
+    complete.operation === "inspect_artifact"
+      ? readArtifactInspectionSources(complete.normalized_result)
+      : ok([]);
+  if (!inspectionSources.ok)
+    return projectAnalysisError(
+      inspectionSources.error.retainPartialObservation(complete),
+    );
   const published = await publishEvidenceDelivery({
     bundle: createEvidenceBundle([
       ...new Map(
-        [...(input.sourceEvidence ?? []), complete].map((record) => [
-          record.evidence_id,
-          record,
-        ]),
+        [
+          ...(input.sourceEvidence ?? []),
+          ...inspectionSources.value,
+          complete,
+        ].map((record) => [record.evidence_id, record]),
       ).values(),
     ]),
     complete,

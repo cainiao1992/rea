@@ -1,13 +1,9 @@
-import {
-  canBorrowParsedJsonSnapshot,
-  immutableJsonSnapshotMember,
-} from "../domain/immutableJson.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import { ARTIFACT_TOOL_CONTRACTS } from "../contracts/artifactToolContracts.js";
 import { createArtifactExtractionDestination } from "../application/artifacts/ArtifactExtractionDestination.js";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
-import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
+import { readArtifactInspectionSources } from "../domain/artifactInspection.js";
 import {
   retainedSummaryDelivery,
   withoutDeliveryDetail,
@@ -40,16 +36,9 @@ export const registerArtifactTools = (
     parametersForEvidence: decodeWithoutDelivery,
     sourceEvidence: (operation, result) => {
       if (operation !== "inspect_artifact") return [];
-      const parsed = artifactInspectionResultSchema.parse(result);
-      const inspection = canBorrowParsedJsonSnapshot(result, parsed)
-        ? result
-        : parsed;
-      const substeps = immutableJsonSnapshotMember(inspection, "substeps");
-      return inspection.substeps.map((step, index) => {
-        const ownedStep = immutableJsonSnapshotMember(substeps, String(index));
-        immutableJsonSnapshotMember(ownedStep, "evidence");
-        return step.evidence;
-      });
+      const parsed = readArtifactInspectionSources(result);
+      if (!parsed.ok) throw parsed.error;
+      return parsed.value;
     },
   });
 };

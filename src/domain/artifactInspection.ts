@@ -1,3 +1,10 @@
+import { readEvidencePayload } from "./evidenceValidation.js";
+import type { EvidenceIntegrityError } from "./evidenceErrors.js";
+import { ok, type Result } from "./result.js";
+import {
+  canBorrowParsedJsonSnapshot,
+  immutableJsonSnapshotMember,
+} from "./immutableJson.js";
 import {
   artifactIntegrityPairOf,
   artifactSha256PairSchema,
@@ -436,4 +443,23 @@ const inspectionCoverage = (
   if (Object.values(omissions).some((count) => count > 0)) return "truncated";
   if (inventory.coverage.status !== "complete") return "partial";
   return "complete-within-substeps";
+};
+
+/** Own the atomic source closure published or retained with an inspection. */
+export const readArtifactInspectionSources = (
+  result: unknown,
+): Result<readonly Evidence[], EvidenceIntegrityError> => {
+  const parsed = readEvidencePayload(artifactInspectionResultSchema, result);
+  if (!parsed.ok) return parsed;
+  const inspection = canBorrowParsedJsonSnapshot(result, parsed.value)
+    ? result
+    : parsed.value;
+  const substeps = immutableJsonSnapshotMember(inspection, "substeps");
+  return ok(
+    inspection.substeps.map((step, index) => {
+      const ownedStep = immutableJsonSnapshotMember(substeps, String(index));
+      immutableJsonSnapshotMember(ownedStep, "evidence");
+      return step.evidence;
+    }),
+  );
 };

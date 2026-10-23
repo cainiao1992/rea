@@ -38,7 +38,10 @@ import { artifactInspectionResultSchema } from "../../../src/domain/artifactInsp
 import type { JsonValue } from "../../../src/domain/jsonValue.js";
 import { z } from "zod";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
-import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
+import {
+  createEvidenceBundle,
+  parseEvidenceBundle,
+} from "../../../src/domain/evidenceBundle.js";
 import { inspectEvidenceBundle } from "../../../src/application/investigation/InspectEvidenceBundle.js";
 
 cliTest(
@@ -264,11 +267,72 @@ cliTest(
     const writer = new ZipWriter(new Uint8ArrayWriter());
     await writer.add("main.js", new TextReader("console.log('portable');\n"));
     await writeFile(archive, await writer.close());
+    const bundlePath = join(root, "inspection-bundle.json");
     const inspected = await cli.run({
-      arguments: ["inspect-artifact", archive, "--json"],
+      arguments: [
+        "inspect-artifact",
+        archive,
+        "--detail",
+        "summary",
+        "--evidence_output",
+        bundlePath,
+        "--json",
+      ],
     });
     expect(inspected.exitCode).toBe(0);
-    const parent = parseEvidence(inspected.json);
+    const savedBundle = parseEvidenceBundle(
+      JSON.parse(await readFile(bundlePath, "utf8")),
+    );
+    const parent = savedBundle.records.find(
+      (record) => record.operation === "inspect_artifact",
+    )!;
+    const atomicId = artifactInspectionResultSchema.parse(
+      parent.normalized_result,
+    ).substeps[0]!.evidence_id;
+    expect(savedBundle.records.map((record) => record.evidence_id)).toContain(
+      atomicId,
+    );
+    const call = await cli.sharedMcpCall?.();
+    if (call === undefined) throw new Error("Expected shared MCP session");
+    expect(
+      (await call("import_evidence_bundle", { path: bundlePath })).isError,
+    ).not.toBe(true);
+    const atomicView = await call("inspect_analysis_view", {
+      source: { kind: "retained-evidence", evidence_id: atomicId },
+      view: {
+        kind: "inventory",
+        collection: "occurrences",
+        logical_paths: ["main.js"],
+      },
+    });
+    expect(atomicView.isError).not.toBe(true);
+    expect(
+      parseEvidence(atomicView.structuredContent).normalized_result,
+    ).toMatchObject({
+      parent_evidence_id: atomicId,
+      items: [expect.objectContaining({ logical_path: "main.js" })],
+    });
+    const unsupportedRequest = join(root, "unsupported-view.json");
+    const unsupportedInput = {
+      source: { kind: "inline", evidence: parent },
+      view: { kind: "page", collection: "sections" },
+    };
+    await writeFile(unsupportedRequest, JSON.stringify(unsupportedInput));
+    const unsupported = await cli.run({
+      arguments: ["inspect-analysis-view", unsupportedRequest, "--json"],
+    });
+    expect(unsupported.exitCode).toBe(1);
+    expect(unsupported.json).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          {
+            path: ["view"],
+            message: "Artifact Evidence supports summary and inventory views.",
+          },
+        ],
+      },
+    });
     await unlink(archive);
     const request = join(root, "view.json");
     await writeFile(

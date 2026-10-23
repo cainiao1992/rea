@@ -220,7 +220,8 @@ const registerElectronTargetList = (
     run: ({ args }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, "list-electron-targets", async () => {
-          const context = await electronObservationContext(environment);
+          const provider =
+            await createCliElectronObservationProvider(environment);
           const input = {
             cdp_endpoint: args.endpoint,
           };
@@ -234,14 +235,13 @@ const registerElectronTargetList = (
           const { listElectronTargets } =
             await import("../application/javascript/ElectronObservationService.js");
           return await finishAnalysisCommand(
-            () =>
-              listElectronTargets(context.provider, parsed.data, { signal }),
+            () => listElectronTargets(provider, parsed.data, { signal }),
             {
               close: async () => {
-                await context.provider.close?.();
+                await provider.close?.();
               },
             },
-            "rea-cdp-electron",
+            provider.identity().id,
             "list_electron_targets",
             signal,
           );
@@ -265,7 +265,8 @@ const registerElectronPageInspection = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, "inspect-electron-page", async () => {
-          const context = await electronObservationContext(environment);
+          const provider =
+            await createCliElectronObservationProvider(environment);
           const input = {
             cdp_endpoint: args.endpoint,
             target_id: args.targetId,
@@ -283,14 +284,13 @@ const registerElectronPageInspection = (
           const { inspectElectronPage } =
             await import("../application/javascript/ElectronObservationService.js");
           return await finishAnalysisCommand(
-            () =>
-              inspectElectronPage(context.provider, parsed.data, { signal }),
+            () => inspectElectronPage(provider, parsed.data, { signal }),
             {
               close: async () => {
-                await context.provider.close?.();
+                await provider.close?.();
               },
             },
-            "rea-cdp-electron",
+            provider.identity().id,
             "inspect_electron_page",
             signal,
           );
@@ -367,12 +367,12 @@ const registerJavaScriptApplicationCommand = (
   });
 };
 
-const electronObservationContext = async (
+const createCliElectronObservationProvider = async (
   environment: Readonly<Record<string, string | undefined>>,
 ) => {
   const { createElectronObservationProvider } =
     await import("../composition/electronObservation.js");
-  return { provider: createElectronObservationProvider(environment) };
+  return createElectronObservationProvider(environment);
 };
 
 const inputError = (

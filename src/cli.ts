@@ -52,7 +52,7 @@ import { registerJavaScriptRecoveryCommands } from "./cli/javascriptRecoveryComm
 import { registerAdvancedBrowserCommands } from "./cli/browserAdvancedCommands.js";
 import { registerBrowserScenarioCommands } from "./cliBrowserScenarioCommands.js";
 import { registerElectronCommands } from "./cli/electronCommands.js";
-import { registerJavaScriptRuntimeObservationCommands } from "./cliJavaScriptRuntimeCommands.js";
+import { registerJavaScriptRuntimeObservationCommands } from "./cli/javascriptRuntimeCommands.js";
 import { registerApplicationCommands } from "./cli/applicationCommands.js";
 import { presentOmittableDefaults } from "./cli/omittableDefaults.js";
 import type { CliInstance } from "./cli/types.js";

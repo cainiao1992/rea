@@ -3,21 +3,21 @@ import { Cli, z } from "incur";
 import {
   listJavaScriptRuntimeTargets,
   observeJavaScriptRuntime,
-} from "./application/javascript/JavaScriptRuntimeObservationService.js";
-import { createJavaScriptRuntimeObservationProvider } from "./composition/javascriptRuntimeObservation.js";
-import { CLI_COMMANDS } from "./cliCommandNames.js";
-import { logCliCommand } from "./cliLogging.js";
+} from "../application/javascript/JavaScriptRuntimeObservationService.js";
+import { createJavaScriptRuntimeObservationProvider } from "../composition/javascriptRuntimeObservation.js";
+import { CLI_COMMANDS } from "../cliCommandNames.js";
+import { logCliCommand } from "../cliLogging.js";
 import {
   javascriptRuntimeKindSchema,
   listJavaScriptRuntimeTargetsInputSchema,
   observeJavaScriptRuntimeInputSchema,
-} from "./domain/javascript/javascriptRuntimeObservation.js";
-import { analysisInputErrorFromIssues } from "./domain/inputIssueProjection.js";
-import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
-import { finishAnalysisCommand } from "./cli/finishAnalysisCommand.js";
-import type { JsonValue } from "./domain/jsonValue.js";
+} from "../domain/javascript/javascriptRuntimeObservation.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import type { Logger } from "pino";
-import { withCommandCancellation } from "./cli/commandCancellation.js";
+import { withCommandCancellation } from "./commandCancellation.js";
 
 const observeOptionsSchema = z.object({
   runtimeKind: javascriptRuntimeKindSchema
@@ -50,7 +50,8 @@ export const registerJavaScriptRuntimeObservationCommands = (
           logger,
           CLI_COMMANDS.listJavaScriptRuntimeTargets,
           async () => {
-            const context = runtimeContext(environment);
+            const provider =
+              createJavaScriptRuntimeObservationProvider(environment);
             const input = {
               inspector_endpoint: args.endpoint,
             };
@@ -66,11 +67,11 @@ export const registerJavaScriptRuntimeObservationCommands = (
               );
             return await finishAnalysisCommand(
               () =>
-                listJavaScriptRuntimeTargets(context.provider, parsed.data, {
+                listJavaScriptRuntimeTargets(provider, parsed.data, {
                   signal,
                 }),
-              { close: () => context.provider.close?.() ?? Promise.resolve() },
-              context.provider.identity().id,
+              { close: () => provider.close?.() ?? Promise.resolve() },
+              provider.identity().id,
               "list_javascript_runtime_targets",
               signal,
               "V8 Inspector resources",
@@ -95,7 +96,8 @@ export const registerJavaScriptRuntimeObservationCommands = (
           logger,
           CLI_COMMANDS.observeJavaScriptRuntime,
           async () => {
-            const context = runtimeContext(environment);
+            const provider =
+              createJavaScriptRuntimeObservationProvider(environment);
             const input = {
               inspector_endpoint: args.endpoint,
               target_id: args.targetId,
@@ -113,11 +115,11 @@ export const registerJavaScriptRuntimeObservationCommands = (
               );
             return await finishAnalysisCommand(
               () =>
-                observeJavaScriptRuntime(context.provider, parsed.data, {
+                observeJavaScriptRuntime(provider, parsed.data, {
                   signal,
                 }),
-              { close: () => context.provider.close?.() ?? Promise.resolve() },
-              context.provider.identity().id,
+              { close: () => provider.close?.() ?? Promise.resolve() },
+              provider.identity().id,
               "observe_javascript_runtime",
               signal,
               "V8 Inspector resources",
@@ -127,12 +129,6 @@ export const registerJavaScriptRuntimeObservationCommands = (
       ),
   });
 };
-
-const runtimeContext = (
-  environment: Readonly<Record<string, string | undefined>>,
-) => ({
-  provider: createJavaScriptRuntimeObservationProvider(environment),
-});
 
 const cliError = (
   error: Parameters<typeof projectAnalysisError>[0],

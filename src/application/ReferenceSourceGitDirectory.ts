@@ -41,20 +41,20 @@ export const locateReferenceSourceGitDirectory = async (
     // Derived joins and the Git library normalize paths lexically. Admit the
     // physical directory first, while the source pointer stays in its file.
     const gitDirectory = await realpath(selectedGitDirectory);
-    let commonDirectory = gitDirectory;
+    let common: string | undefined;
     try {
-      const common = (await readText(join(gitDirectory, "commondir"))).replace(
+      common = (await readText(join(gitDirectory, "commondir"))).replace(
         /\r?\n$/u,
         "",
-      );
-      if (common.length === 0)
-        throw new Error("Invalid Git common-directory pointer");
-      commonDirectory = await realpath(
-        absoluteCallerPath(common, { cwd: gitDirectory }),
       );
     } catch (cause: unknown) {
       if (!hasCode(cause, "ENOENT")) throw cause;
     }
+    if (common === "") throw new Error("Invalid Git common-directory pointer");
+    const commonDirectory =
+      common === undefined
+        ? gitDirectory
+        : await realpath(absoluteCallerPath(common, { cwd: gitDirectory }));
     return { repository, gitDirectory, commonDirectory };
   }
 };

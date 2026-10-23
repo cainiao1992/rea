@@ -155,3 +155,20 @@ it.skipIf(process.platform === "win32")(
     expect(graph.vcs).toMatchObject({ kind: "git", head: intendedHead });
   },
 );
+
+it("keeps a present but unresolved Git common-directory pointer from selecting private decoy configuration", async () => {
+  const root = await createTestTempDirectory("rea-reference-common-missing-");
+  await mkdir(join(root, ".git"));
+  await writeFile(join(root, ".git", "HEAD"), `${"1".repeat(40)}\n`);
+  await writeFile(join(root, ".git", "config"), "[core]\nignorecase = true\n");
+  await writeFile(join(root, ".git", "commondir"), "../missing-common\n");
+  const result = await importReferenceSource({
+    root,
+    caller: "ignore-policy-test",
+    policy: { secretPatterns: [] },
+  });
+  expect(result).toMatchObject({
+    ok: false,
+    error: { code: "io", message: expect.stringContaining("missing-common") },
+  });
+});

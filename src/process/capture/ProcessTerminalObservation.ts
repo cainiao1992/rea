@@ -48,16 +48,18 @@ const observeTerminal = async (
   }
   let rendered: Result<readonly RenderedTerminalFrame[], AnalysisError>;
   try {
-    rendered = ok(await renderer.frames());
+    const frames = await renderer.frames();
+    rendered = ok(frames);
     observations.rendered_frames = {
       state: "available",
-      value: rendered.value,
+      value: frames,
     };
   } catch (cause) {
-    rendered = err(terminalFailure(cause));
+    const failure = terminalFailure(cause);
+    rendered = err(failure);
     observations.rendered_frames = {
       state: "unavailable",
-      reason: `Rendered terminal frame collection failed: ${rendered.error.message}`,
+      reason: `Rendered terminal frame collection failed: ${failure.message}`,
     };
   }
   if (!retention.ok) {

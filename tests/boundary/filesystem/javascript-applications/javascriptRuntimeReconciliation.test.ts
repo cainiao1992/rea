@@ -299,24 +299,38 @@ it("preserves unknown Electron frame provenance without linking it to an authori
   expect(captures[0]?.scriptsCompleteWithinScope).toBe(false);
   const projected = projectRuntimeCaptures(captures);
   const script = projected.entities.find(({ kind }) => kind === "script");
-  expect(script?.frameKey).toBeNull();
-  expect(script?.node.properties).toMatchObject({
-    frame_scope: "unknown",
-    reported_frame_id: inspection.scripts.items[0]?.frame_id,
-    has_source_url: true,
-    reported_url: "file:///reported-label.js",
-  });
+  const target = projected.entities.find(({ kind }) => kind === "target");
+  if (script === undefined || target === undefined)
+    throw new Error("Expected the observed script and selected target");
+  expect(script.frameKey).toBeNull();
+  expect(script.node.observations).toEqual([
+    expect.objectContaining({
+      properties: expect.objectContaining({
+        frame_scope: "unknown",
+        reported_frame_id: inspection.scripts.items[0]?.frame_id,
+        has_source_url: true,
+        reported_url: "file:///reported-label.js",
+      }),
+    }),
+  ]);
+  expect(projected.edges).toContainEqual(
+    expect.objectContaining({
+      source_node_id: target.node.node_id,
+      target_node_id: script.node.node_id,
+      relation: "loads",
+    }),
+  );
   const frameIds = new Set(
     projected.entities
       .filter(({ kind }) => kind === "frame")
       .map(({ node }) => node.node_id),
   );
+  expect(frameIds.size).toBeGreaterThan(0);
   expect(
     projected.edges.some(
       (edge) =>
-        edge.relation === "contains" &&
         frameIds.has(edge.source_node_id) &&
-        edge.target_node_id === script?.node.node_id,
+        edge.target_node_id === script.node.node_id,
     ),
   ).toBe(false);
 });

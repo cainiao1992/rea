@@ -358,6 +358,13 @@ Mach-O fixtures check each case against source-owned return values.
 
 ## Static inspection
 
+Thin Mach-O admission and each admitted FAT slice walk declared load-command headers, checking
+width-specific alignment, command sizes and exact `ncmds`/`sizeofcmds` agreement
+before opening a provider. Headers beyond the initial probe use another
+4096-byte window; admission skips command payloads. Native image readers use
+the same framing owner and perform their own payload checks. This validation
+does not add a global command-table byte cap.
+
 Native target admission checks Mach-O slice headers before assigning FAT
 identity. A shared `CAFEBABE` prefix whose declarations do not identify Mach-O
 images receives the generic unsupported-format refusal, including JVM class

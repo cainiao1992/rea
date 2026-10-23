@@ -79,7 +79,15 @@ import {
   type FatSliceHeaderEvidence,
   type MachoHeaderPrefixFacts,
 } from "../domain/apple/machoContainer.js";
-import type { PeCodeViewRecord } from "../domain/binaryTargetTypes.js";
+import {
+  MachoLoadCommandCursor,
+  readMachoLoadCommandTableHeader,
+  type MachoLoadCommandTableHeader,
+} from "../domain/apple/machoLoadCommands.js";
+import type {
+  PeCodeViewRecord,
+  UniversalMachOSlice,
+} from "../domain/binaryTargetTypes.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
@@ -844,6 +852,12 @@ const readExecutableMetadata = async (
       signatureEvidence,
     );
   }
+  const thin = await readThinMachoMetadata(handle, bytes, {
+    fileSize,
+    hostArchitecture,
+    signal,
+  });
+  if (thin !== null) return thin;
   const fatEvidence = await readFatSliceHeaderEvidence(
     handle,
     bytes,
@@ -857,6 +871,16 @@ const readExecutableMetadata = async (
     undefined,
     fatEvidence,
   );
+  if (
+    parsed.ok &&
+    parsed.value.format === "mach-o-universal" &&
+    fatEvidence !== undefined
+  ) {
+    for (const slice of fatEvidence.header.slices) {
+      const framed = await readMachoSliceCommandFrames(handle, slice, signal);
+      if (!framed.ok) return framed;
+    }
+  }
   if (
     !parsed.ok ||
     parsed.value.architecture !== "mips" ||
@@ -919,6 +943,95 @@ const unresolvedMzHeaderFailure = (
         : { state: "invalid", reason: dos.error },
     },
   };
+};
+
+/** Establish a complete thin-command framing proof before provider admission. */
+const readThinMachoMetadata = async (
+  handle: FileHandle,
+  prefix: Buffer,
+  input: {
+    readonly fileSize: number;
+    readonly hostArchitecture: NodeJS.Architecture;
+    readonly signal?: AbortSignal | undefined;
+  },
+): Promise<Result<ExecutableMetadata, string> | null> => {
+  const table = readMachoLoadCommandTableHeader(prefix, input.fileSize);
+  if (!table.ok) return table;
+  if (table.value === null) return null;
+  const parsed = parseExecutableHeader(
+    prefix.subarray(0, table.value.headerSize),
+    input.hostArchitecture,
+    input.fileSize,
+  );
+  if (!parsed.ok) return parsed;
+  const framed = await readMachoCommandFrames(handle, table.value, {
+    prefix,
+    fileSize: input.fileSize,
+    signal: input.signal,
+  });
+  return framed.ok ? parsed : framed;
+};
+
+/** Walk thin command headers through one probe window, skipping payload bytes. */
+const readMachoCommandFrames = async (
+  handle: FileHandle,
+  table: MachoLoadCommandTableHeader,
+  input: {
+    readonly prefix: Buffer;
+    readonly fileSize: number;
+    readonly fileOffset?: number | undefined;
+    readonly signal?: AbortSignal | undefined;
+  },
+): Promise<Result<null, string>> => {
+  const commands = new MachoLoadCommandCursor(table);
+  let window = input.prefix;
+  let windowOffset = 0;
+  while (commands.nextOffset !== null) {
+    const offset = table.headerSize + commands.nextOffset;
+    if (
+      offset + 8 <= input.fileSize &&
+      (offset < windowOffset || offset + 8 > windowOffset + window.length)
+    ) {
+      window = Buffer.alloc(Math.min(4096, input.fileSize - offset));
+      windowOffset = offset;
+      const observed = await handle.read(
+        window,
+        0,
+        window.length,
+        (input.fileOffset ?? 0) + offset,
+      );
+      throwIfTargetResolutionCancelled(input.signal);
+      window = window.subarray(0, observed.bytesRead);
+    }
+    const relative = offset - windowOffset;
+    const frame = commands.read(
+      relative >= 0 ? window.subarray(relative, relative + 8) : Buffer.alloc(0),
+    );
+    if (!frame.ok) return frame;
+  }
+  return commands.finish();
+};
+
+/** Validate declared FAT slices after the canonical table/identity admission succeeds. */
+const readMachoSliceCommandFrames = async (
+  handle: FileHandle,
+  slice: UniversalMachOSlice,
+  signal?: AbortSignal,
+): Promise<Result<null, string>> => {
+  const prefix = Buffer.alloc(Math.min(4096, slice.size));
+  const observed = await handle.read(prefix, 0, prefix.length, slice.offset);
+  throwIfTargetResolutionCancelled(signal);
+  const bytes = prefix.subarray(0, observed.bytesRead);
+  const table = readMachoLoadCommandTableHeader(bytes, slice.size);
+  if (!table.ok) return table;
+  if (table.value === null)
+    return err("FAT slice does not identify a thin Mach-O image");
+  return readMachoCommandFrames(handle, table.value, {
+    prefix: bytes,
+    fileSize: slice.size,
+    fileOffset: slice.offset,
+    signal,
+  });
 };
 
 /** Read the validated FAT table and bounded thin-header identity prefixes. */

@@ -1,3 +1,4 @@
+import { MachoLoadCommandCursor } from "../domain/apple/machoLoadCommands.js";
 import { createHash } from "node:crypto";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
@@ -7,7 +8,6 @@ import {
 } from "./MachoArchitectureSelection.js";
 import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
-  machoLoadCommandAlignment,
   readFatSliceDeclarations,
   validateFatSlice,
   type FatSliceDeclaration,
@@ -229,24 +229,26 @@ export const parseMachoLayout = (
     chained: null,
     baseAddress: undefined,
   };
-  let cursor = slice + 32;
-  for (let index = 0; index < commands; index++) {
-    if (cursor + 8 > commandEnd) throw new RangeError("Truncated load command");
+  const framing = new MachoLoadCommandCursor({
+    wide: true,
+    littleEndian: true,
+    commandCount: commands,
+    commandBytes: commandEnd - slice - 32,
+  });
+  while (framing.nextOffset !== null) {
+    const cursor = slice + 32 + framing.nextOffset;
+    const frame = framing.read(bytes.subarray(cursor, cursor + 8));
+    if (!frame.ok) throw new RangeError(frame.error);
     const command = {
       cursor,
-      kind: bytes.readUInt32LE(cursor),
-      size: bytes.readUInt32LE(cursor + 4),
+      kind: frame.value.command,
+      size: frame.value.size,
     };
-    if (
-      command.size < 8 ||
-      command.size % machoLoadCommandAlignment(true) !== 0 ||
-      cursor + command.size > commandEnd
-    )
-      throw new RangeError("Invalid load command size");
     if (command.kind === 0x19) collectSegment(bytes, command, state);
     else collectFixupCommand(bytes, command, state);
-    cursor += command.size;
   }
+  const complete = framing.finish();
+  if (!complete.ok) throw new RangeError(complete.error);
   const { segments, sections, chained, binds, rebases, dylibs } = state;
   const offset = (address: bigint, size = 1): number => {
     const matches = segments.filter(

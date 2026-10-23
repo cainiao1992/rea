@@ -42,7 +42,7 @@ describe("native Mach-O slice selection", () => {
         Buffer.from(machoImageWithUnknownCommand(true, 12)),
         "arm64",
       ),
-    ).toThrow(/Invalid load command size/u);
+    ).toThrow(/invalid cmdsize/u);
   });
 
   it("accepts an aligned load command", () => {

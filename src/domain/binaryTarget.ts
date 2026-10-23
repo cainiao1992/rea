@@ -27,6 +27,10 @@ import {
   validateFatSliceIdentity,
   type FatSliceHeaderEvidence,
 } from "./apple/machoContainer.js";
+import {
+  MachoLoadCommandCursor,
+  readMachoLoadCommandTableHeader,
+} from "./apple/machoLoadCommands.js";
 
 /** Format and architecture facts recovered from an executable header. */
 export type ExecutableMetadata =
@@ -123,7 +127,7 @@ export const parseExecutableHeader = (
   if (bytes.length < 8) return err("truncated or unsupported binary header");
   const magic = bytes.readUInt32BE(0);
   if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic))
-    return parseThinMachO(bytes, magic, fileSize);
+    return parseThinMachO(bytes, fileSize);
   const fatHeader =
     fatEvidence?.header ?? readFatContainerHeader(bytes, fileSize);
   if (fatHeader.state !== "not-fat")
@@ -136,36 +140,35 @@ const CPU_TYPE_ARM64_32 = 0x0200000c;
 
 const parseThinMachO = (
   bytes: Buffer,
-  magic: number,
   fileSize: number,
 ): Result<ExecutableMetadata, string> => {
-  const is64 = magic === 0xfeedfacf || magic === 0xcffaedfe;
-  const headerSize = is64 ? 32 : 28;
-  if (bytes.length < headerSize)
-    return err(
-      `truncated Mach-O header: a ${is64 ? 64 : 32}-bit header needs ${headerSize} bytes; the file has ${fileSize}`,
-    );
+  const table = readMachoLoadCommandTableHeader(bytes, fileSize);
+  if (!table.ok) return table;
+  if (table.value === null) return err("unsupported binary format");
   const identity = readMachoHeaderPrefixFacts(bytes.subarray(0, 12)).identity;
   if (identity === null) return err("unsupported Mach-O architecture");
-  const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
-  const read = (offset: number): number =>
-    little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
   const architecture =
     identity.cpuType === CPU_TYPE_ARM64_32
       ? "arm64_32"
       : machArchitecture(identity.cpuType);
   if (architecture === undefined) return err("unsupported Mach-O architecture");
-  const commandBytes = read(20);
-  if (headerSize + commandBytes > fileSize)
-    return err(
-      `truncated Mach-O load commands: the header declares ${commandBytes} bytes after its ${headerSize}-byte header; the file has ${fileSize}`,
-    );
-  if (architecture === "arm64_32")
-    return ok({
-      format: "mach-o",
-      architecture,
-      availableArchitectures: [architecture],
-    });
+  const commands = new MachoLoadCommandCursor(table.value);
+  while (commands.nextOffset !== null) {
+    const offset = table.value.headerSize + commands.nextOffset;
+    // Header-only callers may retain a prefix. File-backed admission walks
+    // every remaining command header through its bounded reader.
+    if (
+      offset + 8 > bytes.length &&
+      commands.nextOffset + 8 <= table.value.commandBytes
+    )
+      break;
+    const frame = commands.read(bytes.subarray(offset, offset + 8));
+    if (!frame.ok) return frame;
+  }
+  if (commands.nextOffset === null) {
+    const complete = commands.finish();
+    if (!complete.ok) return complete;
+  }
   return ok({
     format: "mach-o",
     architecture,

@@ -2,6 +2,7 @@ import { types } from "node:util";
 import { z } from "zod";
 
 import type { JsonValue } from "../jsonValue.js";
+import { copyPlistUidIdentity } from "./plistUid.js";
 import { UnknownPlistScalar } from "./unknownPlistScalar.js";
 
 /**
@@ -140,7 +141,9 @@ export const projectPlistValue = (
           );
         entries.push([key, project(descriptor.value, depth + 1)]);
       }
-      return Object.fromEntries(entries);
+      const result = Object.fromEntries(entries);
+      copyPlistUidIdentity(item, result);
+      return result;
     }
     return z.union([z.string(), z.number(), z.boolean(), z.null()]).parse(item);
   };

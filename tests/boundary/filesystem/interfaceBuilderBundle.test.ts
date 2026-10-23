@@ -1,3 +1,4 @@
+import { binaryKeyedArchiveUidShapes } from "../../fixtures/keyedArchiveUidShapes.js";
 import { execFile } from "node:child_process";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -2163,5 +2164,23 @@ it("reports a plain plist named nib as undecoded while retaining a valid empty a
     status: "partial",
     examined: 2,
     reason: "one_or_more_archives_invalid",
+  });
+});
+
+it("preserves authored binary UID-shaped dictionaries through UI archive decoding", async () => {
+  const bundle = await createTestTempDirectory("rea-ui-uid-shapes-");
+  await writeFile(join(bundle, "Main.nib"), binaryKeyedArchiveUidShapes());
+  const result = await analyzeInterfaceBuilderBundle({
+    bundlePath: bundle,
+    targetSha256: "a".repeat(64),
+  });
+  const source = result.graph.nodes.find(
+    (node) => node.attributes.ordinary !== undefined,
+  );
+  expect(source).toBeDefined();
+  expect(source?.attributes).toMatchObject({
+    ordinary: { UID: 2 },
+    xmlConvention: { CF$UID: 2 },
+    actual: { archiveUID: 2, className: "NSView" },
   });
 });

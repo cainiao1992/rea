@@ -1,3 +1,4 @@
+import { markBinaryPlistDictionary } from "../../domain/apple/plistUid.js";
 import {
   createPlistNumberCollector,
   type PlistNumberLiterals,
@@ -32,7 +33,15 @@ const containsSortedOffset = (
   return false;
 };
 
+/** A bounded linked value path retained by the existing binary reference walk. */
+export interface BinaryPlistUidPath {
+  readonly parent: BinaryPlistUidPath | null;
+  readonly key: string | number;
+}
+
 export interface BinaryPlistScalarDecodePlan {
+  /** Present only when an archive reader requested serialized UID identity. */
+  readonly binaryUidPaths?: readonly (BinaryPlistUidPath | null)[];
   readonly reachableDateOffsets: readonly number[];
   readonly overlappingDateOffsets: readonly number[];
   readonly reachableWideIntegerOffsets: readonly number[];
@@ -380,6 +389,49 @@ export const scanBinaryPlistScalars = (
     }
   }
   return result(incomplete);
+};
+
+/** Restore UID identity from validated source locations, never from dictionary shape. */
+export const retainBinaryPlistUidIdentity = (
+  value: unknown,
+  plan: BinaryPlistScalarDecodePlan,
+): unknown => {
+  if (plan.binaryUidPaths === undefined) return value;
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const item = pending.pop();
+    if (Array.isArray(item)) {
+      for (const child of item) pending.push(child);
+    } else if (
+      item !== null &&
+      typeof item === "object" &&
+      !(item instanceof Date) &&
+      !(item instanceof Uint8Array)
+    ) {
+      markBinaryPlistDictionary(item);
+      for (const child of Object.values(item)) pending.push(child);
+    }
+  }
+  for (let path of plan.binaryUidPaths) {
+    const keys: (string | number)[] = [];
+    while (path !== null) {
+      keys.push(path.key);
+      path = path.parent;
+    }
+    let item: unknown = value;
+    for (let index = keys.length - 1; index >= 0; index -= 1) {
+      if (item === null || typeof item !== "object") {
+        item = undefined;
+        break;
+      }
+      item = Object.getOwnPropertyDescriptor(item, keys[index]!)?.value;
+    }
+    if (item !== null && typeof item === "object") {
+      const uid = Object.getOwnPropertyDescriptor(item, "UID")?.value;
+      if (typeof uid === "number") markBinaryPlistDictionary(item, uid);
+    }
+  }
+  return value;
 };
 
 /** Preserve source scalars through plist@5's lossy Number and Date parser. */

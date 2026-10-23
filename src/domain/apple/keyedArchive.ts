@@ -3,6 +3,7 @@ import { bundleResourceBoundResultSchema } from "./bundleResourceRoot.js";
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import { jsonValueSchema, type JsonValue } from "../jsonValue.js";
 import { localPathStringSchema } from "../localPath.js";
+import { plistUidValue } from "./plistUid.js";
 import { projectPlistValue } from "./plistValue.js";
 
 /**
@@ -85,20 +86,13 @@ const record = (
   !wrappedScalars.has(value)
     ? value
     : undefined;
-/**
- * A UID decodes as a one-key `UID` (binary) or `CF$UID` (XML) dictionary with
- * a numeric value. Any other value means an ordinary dictionary, such as a
- * `$top` that holds a root encoded under the key `UID`.
- */
+/** Only producer-marked binary UIDs or the XML UID convention form references. */
 const uid = (
   value: JsonValue | undefined,
   wrappedScalars: WeakSet<object>,
 ): number | undefined => {
   const object = record(value, wrappedScalars);
-  if (object === undefined || Object.keys(object).length !== 1)
-    return undefined;
-  const marker = Object.hasOwn(object, "UID") ? object.UID : object["CF$UID"];
-  return typeof marker === "number" ? marker : undefined;
+  return object === undefined ? undefined : plistUidValue(object);
 };
 
 const archiverMismatch = (

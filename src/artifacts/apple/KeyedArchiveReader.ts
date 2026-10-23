@@ -17,6 +17,7 @@ import {
 import { createPlistNumberProjection } from "../../domain/apple/plistNumbers.js";
 import {
   decodeBinaryPlistScalars,
+  retainBinaryPlistUidIdentity,
   scanBinaryPlistScalars,
   UnsupportedBinaryPlistUidError,
 } from "./PlistScalars.js";
@@ -77,6 +78,7 @@ export const decodeKeyedArchiveBytes = (
             : new RangeError(message),
         bounds: "decoder",
         numberProjection: true,
+        uidProjection: true,
       })
     : undefined;
   const binaryScalarMetadata = binary
@@ -85,12 +87,15 @@ export const decodeKeyedArchiveBytes = (
   const parsed =
     binaryExpansion !== undefined
       ? {
-          value: parseBinary(
-            decodeBinaryPlistScalars(
-              bytes,
-              binaryScalarMetadata!,
-              binaryExpansion!,
+          value: retainBinaryPlistUidIdentity(
+            parseBinary(
+              decodeBinaryPlistScalars(
+                bytes,
+                binaryScalarMetadata!,
+                binaryExpansion!,
+              ),
             ),
+            binaryExpansion,
           ),
           numberLiterals: binaryScalarMetadata!.literals,
           omittedPrototypeKeys: binaryExpansion.binaryPrototypeKeyObserved

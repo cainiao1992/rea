@@ -52,6 +52,7 @@ import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js"
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 import {
   decodeBinaryPlistScalars,
+  retainBinaryPlistUidIdentity,
   scanBinaryPlistScalars,
   UnsupportedBinaryPlistUidError,
   type BinaryPlistScalarDecodePlan,
@@ -184,6 +185,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
             xmlText,
             {
               numberProjection: true,
+              uidProjection: true,
               budget: "the aggregate Interface Builder decode budget",
               fail: interfaceBuilderDecodeBudgetFailure,
             },
@@ -925,8 +927,11 @@ const decodePlist = (
     : undefined;
   const { value, omittedPrototypeKeys, numberLiterals } = binary
     ? {
-        value: parseBinary(
-          decodeBinaryPlistScalars(bytes, binaryScalarMetadata!, scalarPlan),
+        value: retainBinaryPlistUidIdentity(
+          parseBinary(
+            decodeBinaryPlistScalars(bytes, binaryScalarMetadata!, scalarPlan),
+          ),
+          scalarPlan,
         ),
         omittedPrototypeKeys: binaryPrototypeKeyObserved ? null : 0,
         numberLiterals: binaryScalarMetadata!.literals,

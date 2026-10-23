@@ -5,6 +5,7 @@ import {
   binaryDateRequiresExactSeconds,
   binaryPlistObjectEnd,
   binaryPlistUidNormalizationWidth,
+  type BinaryPlistUidPath,
 } from "./PlistScalars.js";
 
 /** Preflight the representation created by the pinned plist decoder. */
@@ -14,17 +15,19 @@ export const preflightPropertyListDecode = (
   xmlText?: string,
   options: Pick<
     BinaryPlistExpansionOptions,
-    "numberProjection" | "budget" | "fail"
+    "numberProjection" | "uidProjection" | "budget" | "fail"
   > = {},
 ): PlistDecodePreflight => {
   const {
     numberProjection = false,
+    uidProjection = false,
     budget = "the property list decode budget",
     fail = propertyListDecodeBudgetFailure,
   } = options;
   const expansion = hasBinaryPlistSignature(bytes)
     ? estimateBinaryPlistExpansion(bytes, maxBytes, {
         numberProjection,
+        uidProjection,
         budget,
         fail,
       })
@@ -154,6 +157,8 @@ const propertyListDecodeBudgetFailure = (
 export interface BinaryPlistExpansionOptions {
   /** Include original number metadata and exact-integer attribute projection. */
   readonly numberProjection?: boolean;
+  /** Retain typed UID locations for Foundation archive interpretation. */
+  readonly uidProjection?: boolean;
   /** Budget named in failure messages. */
   readonly budget?: string;
   /** Error for budget, depth, and reference-cycle failures. */
@@ -168,6 +173,7 @@ export interface BinaryPlistExpansionOptions {
 
 /** Preflight size and binary-key observations; XML keys are inspected by decode. */
 export interface PlistDecodePreflight {
+  readonly binaryUidPaths?: readonly (BinaryPlistUidPath | null)[];
   readonly estimatedBytes: number;
   readonly binaryPrototypeKeyObserved: boolean;
   /** Number of expanded references to precision-unknown overlapping dates. */
@@ -240,6 +246,7 @@ export const estimateBinaryPlistExpansion = (
     fail = propertyListDecodeBudgetFailure,
     bounds = "strict",
     numberProjection = false,
+    uidProjection = false,
   }: BinaryPlistExpansionOptions = {},
 ): PlistDecodePreflight => {
   if (bytes.length < 40)
@@ -290,8 +297,8 @@ export const estimateBinaryPlistExpansion = (
     throw new TypeError("binary plist object reference count is invalid");
   // Reserve source metadata and reachable-offset indexes for scalar projection.
   // Without projection, the traversal retains only structural validation state.
-  const objectBytes = numberProjection ? 320 : 16;
-  const expandedNodeBytes = numberProjection ? 224 : 96;
+  const objectBytes = numberProjection || uidProjection ? 320 : 16;
+  const expandedNodeBytes = numberProjection || uidProjection ? 224 : 96;
   // Scalar projection may require a same-sized parser-compatible input copy
   // for wide integers and sub-millisecond dates. Reserve before allocation.
   let estimate =
@@ -306,7 +313,50 @@ export const estimateBinaryPlistExpansion = (
     depth: number;
     exit: boolean;
     dictionaryKey: boolean;
-  }> = [{ object: topObject, depth: 0, exit: false, dictionaryKey: false }];
+    path?: BinaryPlistUidPath | null;
+  }> = [
+    {
+      object: topObject,
+      depth: 0,
+      exit: false,
+      dictionaryKey: false,
+      ...(uidProjection ? { path: null } : {}),
+    },
+  ];
+  const binaryUidPaths: (BinaryPlistUidPath | null)[] = [];
+  const dictionaryKeys = new Map<number, string>();
+  const readDictionaryKey = (object: number): string => {
+    const prior = dictionaryKeys.get(object);
+    if (prior !== undefined) return prior;
+    const offset = readInteger(offsetTable + object * offsetSize, offsetSize);
+    if (offset < 8 || offset >= objectsEnd)
+      throw new TypeError("binary plist object offset is invalid");
+    const marker = bytes[offset] ?? 0;
+    const type = marker >> 4;
+    if (type !== 5 && type !== 6)
+      throw new TypeError("binary plist dictionary key is not a string");
+    let size = marker & 0x0f;
+    let cursor = offset + 1;
+    if (size === 15) {
+      const extended = bytes[cursor] ?? 0;
+      if (extended >> 4 !== 1 || (extended & 15) > 3)
+        throw new TypeError("binary plist extended object size is invalid");
+      const width = 1 << (extended & 15);
+      size = readInteger(cursor + 1, width);
+      cursor += 1 + width;
+    }
+    if (size < 0 || cursor + size * (type === 6 ? 2 : 1) > objectsEnd)
+      throw new TypeError("binary plist scalar object is truncated");
+    let key = "";
+    for (let index = 0; index < size; index += 1)
+      key += String.fromCharCode(
+        type === 5
+          ? bytes[cursor + index]!
+          : bytes.readUInt16BE(cursor + index * 2),
+      );
+    dictionaryKeys.set(object, key);
+    return key;
+  };
   let pendingObjectCount = 1;
   const reachableObjectOffsets = new Set<number>();
   const reachableDateOffsets = new Set<number>();
@@ -371,6 +421,7 @@ export const estimateBinaryPlistExpansion = (
       const uidWidth = (marker & 0x0f) + 1;
       if (offset + 1 + uidWidth > objectsEnd)
         throw new TypeError("binary plist UID object is truncated");
+      if (entry.path !== undefined) binaryUidPaths.push(entry.path);
       const normalizedWidth = binaryPlistUidNormalizationWidth(bytes, offset);
       if (normalizedWidth !== undefined)
         uidWidthsToNormalize.set(offset, normalizedWidth);
@@ -454,6 +505,23 @@ export const estimateBinaryPlistExpansion = (
       !containersToNormalize.has(offset)
         ? []
         : undefined;
+    // A duplicate dictionary key exposes only its final value in plist@5.
+    // Keep provenance for that value while still validating every source ref.
+    const valueKeys = new Map<number, string>();
+    if (entry.path !== undefined && type === 13) {
+      const lastKeyIndexes = new Map<string, number>();
+      for (let index = 0; index < size; index += 1) {
+        const reference = readInteger(
+          cursor + index * referenceSize,
+          referenceSize,
+        );
+        if (reference < 0 || reference >= objectCount)
+          throw new TypeError("binary plist reference is invalid");
+        lastKeyIndexes.set(readDictionaryKey(reference), index);
+      }
+      for (const [key, index] of lastKeyIndexes)
+        if (key !== PROTOTYPE_KEY) valueKeys.set(size + index, key);
+    }
     active.add(entry.object);
     pending.push({
       object: entry.object,
@@ -474,6 +542,14 @@ export const estimateBinaryPlistExpansion = (
         depth: entry.depth + 1,
         exit: false,
         dictionaryKey: type === 13 && index < size,
+        ...(entry.path === undefined || (type === 13 && !valueKeys.has(index))
+          ? {}
+          : {
+              path: {
+                parent: entry.path,
+                key: type === 13 ? valueKeys.get(index)! : index,
+              },
+            }),
       });
     }
     if (parsedReferences !== undefined)
@@ -527,6 +603,7 @@ export const estimateBinaryPlistExpansion = (
     }
     return {
       estimatedBytes: estimate,
+      ...(uidProjection ? { binaryUidPaths } : {}),
       binaryPrototypeKeyObserved,
       datePrecisionOverlapCount: 0,
       reachableDateOffsets: [],
@@ -597,6 +674,7 @@ export const estimateBinaryPlistExpansion = (
   ).length;
   return {
     estimatedBytes: estimate,
+    ...(uidProjection ? { binaryUidPaths } : {}),
     binaryPrototypeKeyObserved,
     datePrecisionOverlapCount,
     reachableDateOffsets: [...reachableDateOffsets].sort(

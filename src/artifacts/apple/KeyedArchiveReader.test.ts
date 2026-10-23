@@ -1,3 +1,4 @@
+import { binaryKeyedArchiveUidShapes } from "../../../tests/fixtures/keyedArchiveUidShapes.js";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -813,4 +814,26 @@ describe("XML plist nesting preflight", () => {
       decodeKeyedArchiveBytes(deeplyNestedArchive(127), selection),
     ).toThrow(new RangeError(plistNestingLimitMessage()));
   });
+});
+
+it("distinguishes binary UID records from authored UID-shaped dictionaries", () => {
+  const graph = decodeKeyedArchiveBytes(binaryKeyedArchiveUidShapes(), {
+    offset: 0,
+    limit: 10,
+  });
+  expect(graph.objects[1]?.value).toMatchObject({
+    ordinary: { UID: 2 },
+    xmlConvention: { CF$UID: 2 },
+    actual: { UID: 2 },
+  });
+  expect(
+    graph.references
+      .filter(({ source }) => source === 1)
+      .map(({ path, target }) => ({ path, target })),
+  ).toEqual([
+    { path: ["$class"], target: 3 },
+    { path: ["actual"], target: 2 },
+    { path: ["shared", 0], target: 2 },
+    { path: ["shared", 1], target: 2 },
+  ]);
 });

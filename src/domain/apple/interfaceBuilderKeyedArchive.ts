@@ -1,3 +1,4 @@
+import { plistUidValue } from "./plistUid.js";
 import { z } from "zod";
 
 import { jsonValueSchema } from "../jsonValue.js";
@@ -196,19 +197,10 @@ export const parseInterfaceBuilderRecords = (
   };
 };
 
-/**
- * A UID decodes as a one-key `UID` (binary) or `CF$UID` (XML) dictionary with
- * an integer value. Any other dictionary is ordinary archive data.
- */
+/** Archive references retain their binary marker identity through plist projection. */
 const archiveUid = (value: unknown): number | undefined => {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    return undefined;
-  if (Object.keys(value).length !== 1) return undefined;
-  const item = record(value);
-  const marker = Object.hasOwn(item, "UID") ? item.UID : item["CF$UID"];
-  return typeof marker === "number" && Number.isInteger(marker)
-    ? marker
-    : undefined;
+  const uid = plistUidValue(value);
+  return uid !== undefined && Number.isInteger(uid) ? uid : undefined;
 };
 
 const HIERARCHY_KEY =

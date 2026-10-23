@@ -29,6 +29,7 @@ import { OwnedStagedOutput } from "../../../src/filesystem/OwnedStagedOutput.js"
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { writeTextParts } from "../../../src/application/JsonFiles.js";
+import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../../../src/application/Utf8JsonInput.js";
 import { failFileReadAfterAbort } from "../../support/failFileReadAfterAbort.js";
 import { holdFirstFileRead } from "../../support/holdFirstFileRead.js";
 import { JsonInputPhysicalReadFailure } from "../../../src/application/JsonInputFile.js";
@@ -47,6 +48,40 @@ const bundle = (result = true) =>
       { operation: "health", parameters: {}, result },
     ),
   ]);
+
+it.each([0, 9 * 1024 * 1024])(
+  "preserves the format owner's BOM recovery with %i bytes of padding",
+  async (padding) => {
+    const root = await createTestTempDirectory("rea-bundle-bom-");
+    const path = join(root, "bundle.json");
+    await writeFile(
+      path,
+      `\uFEFF${" ".repeat(padding)}${JSON.stringify(bundle())}`,
+    );
+    const result = await readEvidenceBundle(path);
+    if (result.ok) throw new Error("Expected strict JSON BOM rejection");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "evidence_integrity_mismatch",
+      message: JSON_BYTE_ORDER_MARK_MESSAGE,
+      remediation: { action: JSON_BYTE_ORDER_MARK_MESSAGE },
+      details: {
+        path,
+        reason: "invalid-json",
+        content_issues: [
+          { reason: "invalid_format", message: JSON_BYTE_ORDER_MARK_MESSAGE },
+        ],
+      },
+    });
+    // Ordinary malformed JSON keeps its distinct parser diagnostic and the
+    // existing general recovery; consumers do not infer BOMs from text.
+    await writeFile(path, `${" ".repeat(padding)}{`);
+    const malformed = await readEvidenceBundle(path);
+    if (malformed.ok) throw new Error("Expected malformed JSON rejection");
+    expect(projectAnalysisError(malformed.error).message).toContain(
+      "Repair or recreate",
+    );
+  },
+);
 
 it.each([
   ["immutable", readImmutableEvidenceBundle],

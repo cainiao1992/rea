@@ -14,6 +14,7 @@ import {
 } from "../../../src/domain/residualUnknown.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
+import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../../../src/application/Utf8JsonInput.js";
 
 const revisionBundle = () => {
   const records = ["open", "investigate"].map((operation) =>
@@ -54,6 +55,29 @@ const revisionBundle = () => {
   );
   return createEvidenceBundle(records, [initial, revised]);
 };
+
+cliTest(
+  "explains a bundle BOM with the format owner's recovery",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-bundle-bom-cli-");
+    const path = join(root, "bundle.json");
+    await writeFile(path, `\uFEFF${JSON.stringify(revisionBundle())}`);
+    const result = await cli.run({
+      arguments: [
+        "inspect-evidence-bundle",
+        JSON.stringify({ path }),
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "evidence_integrity_mismatch",
+      message: JSON_BYTE_ORDER_MARK_MESSAGE,
+      remediation: { action: JSON_BYTE_ORDER_MARK_MESSAGE },
+    });
+  },
+);
 
 cliTest.for([
   "export_evidence_bundle",

@@ -193,6 +193,8 @@ const decodedJsonFileResult = <Value>(
           decoded.error.issues[0]?.message ?? decoded.error.message,
         ),
       path,
+      userMessage: decoded.error.userMessage,
+      contentIssues: decoded.error.issues,
     }),
   );
 };

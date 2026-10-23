@@ -245,6 +245,11 @@ filtering and paging; an item missing from that page is not proved absent from
 the target. Structured completeness and absence fields must agree with the
 stated limitations.
 
+File-error wrappers retain the format owner's specific diagnostic and recovery
+text. Strict JSON file input, for example, keeps the byte-order-mark explanation
+and UTF-8 recovery through CLI/MCP projection rather than replacing it with
+generic invalid-file advice. Consumers do not classify parser message text.
+
 Update canonical contracts, output schemas, examples, generated artifacts, and
 relevant docs together. Verify converted advertised schemas and success,
 malformed, unavailable, cancellation, and partial outcomes through affected

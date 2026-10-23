@@ -1,3 +1,9 @@
+import { readManagedPeLayout } from "../../../../src/dotnet/ManagedPeReader.js";
+import {
+  metadataRowOffset,
+  readManagedMetadataLayout,
+} from "../../../../src/dotnet/ManagedMetadataLayout.js";
+import { buildManagedNestedTypeFixture } from "../../../../src/dotnet/ManagedPe.fixture.js";
 import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
@@ -14,6 +20,59 @@ import {
 } from "../../../../src/dotnet/ManagedPe.fixture.js";
 
 import { buildManagedPeFixture as buildMultiMethodFixture } from "../../../../scripts/fixtures/managed/pe.mjs";
+
+it("selects namespace-bearing nested declarations from parsed type facts and compares the observed scope", () => {
+  const bytes = buildManagedNestedTypeFixture();
+  const pe = readManagedPeLayout(bytes);
+  if (pe.cli === null) throw new Error("Missing fixture CLI");
+  const layout = readManagedMetadataLayout(
+    bytes,
+    pe.rvaToOffset(pe.cli.metadata.rva, pe.cli.metadata.size, "fixture"),
+    pe.cli.metadata.size,
+  );
+  const column = 4 + layout.stringIndexSize;
+  const namespace = bytes.readUInt16LE(
+    metadataRowOffset(layout, 2, 2) + column,
+  );
+  bytes.writeUInt16LE(namespace, metadataRowOffset(layout, 2, 4) + column);
+  const selected = inspect(bytes, "/fixture/nested-selection.dll", ["Inner"]);
+  expect(selected.result.selection?.unmatched_type_names).toEqual([]);
+  expect(selected.result.types.map(({ token }) => token)).toEqual([
+    "0x02000004",
+    "0x02000005",
+  ]);
+  expect(selected.result.methods).toHaveLength(2);
+  expect(selected.result.fields).toHaveLength(2);
+  const comparison = compareManagedMembers(selected, selected);
+  expect(
+    comparison.methods.every(({ match }) => match.status === "matched"),
+  ).toBe(true);
+  expect(comparison.summary).toMatchObject({ added: 0, removed: 0 });
+  expect(
+    inspect(bytes, "/fixture/nested-qualified.dll", [
+      "Fixture.Inner",
+    ]).result.types.map(({ token }) => token),
+  ).toEqual(["0x02000004"]);
+  const topLevel = buildManagedNestedTypeFixture({ topLevelTypes: true });
+  const topPe = readManagedPeLayout(topLevel);
+  if (topPe.cli === null) throw new Error("Missing top-level fixture CLI");
+  const topLayout = readManagedMetadataLayout(
+    topLevel,
+    topPe.rvaToOffset(
+      topPe.cli.metadata.rva,
+      topPe.cli.metadata.size,
+      "fixture",
+    ),
+    topPe.cli.metadata.size,
+  );
+  topLevel.writeUInt16LE(
+    topLevel.readUInt16LE(metadataRowOffset(topLayout, 2, 2) + column),
+    metadataRowOffset(topLayout, 2, 4) + column,
+  );
+  expect(
+    inspect(topLevel, "/fixture/top-level.dll", ["Inner"]).result.types,
+  ).toEqual([]);
+});
 
 describe("managed comparison method row coverage", () => {
   it("keeps paged omissions unknown while preserving full and equal-page controls", () => {

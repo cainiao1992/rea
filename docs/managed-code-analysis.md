@@ -229,9 +229,12 @@ rea inspect-managed-members /absolute/path/Assembly.dll --type Example.Parser
 MCP uses `inspect_managed_members` with
 `{"path":"/absolute/path/Assembly.dll","type_names":["Example.Parser"]}`.
 Repeat `--type` or supply multiple unique `type_names` for several types.
-Names match the reported `full_name` exactly. Top-level names are namespace
-qualified; nested types currently report bare names, which can select several
-types with that name. Each type's `enclosing_type_token` records its enclosing
+Names match the reported `full_name` exactly. Top-level names require that
+namespace-qualified spelling. Nested declarations also accept their bare
+`name`, including when their own namespace is nonempty; this can select several
+types with that name. Selection uses the parsed TypeDef facts and comparison
+uses the returned declaring types, rather than reconstructing scope from the
+caller's spelling. Each type's `enclosing_type_token` records its enclosing
 TypeDef. `nesting_read` distinguishes complete source rows (true), incomplete
 current rows (false), and historical Evidence (null). A null enclosing token
 alone does not establish that a type is top-level.

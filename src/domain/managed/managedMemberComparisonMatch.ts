@@ -1,4 +1,7 @@
-import { hasCompleteMethodRows } from "./managedMemberComparisonCoverage.js";
+import {
+  hasCompleteMethodRows,
+  selectedDeclaringTypes,
+} from "./managedMemberComparisonCoverage.js";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import {
   managedMemberInspectionSchema,
@@ -490,12 +493,15 @@ const groupBy = <Item>(
 };
 
 /** Whether a side's inventory observed members of this declaring type. */
-const observedBy =
-  (side: ManagedMemberComparisonSide) =>
-  ({ declaring_type }: { readonly declaring_type: string | null }): boolean =>
-    side.result.selection === null ||
-    (declaring_type !== null &&
-      side.result.selection.type_names.includes(declaring_type));
+const observedBy = (side: ManagedMemberComparisonSide) => {
+  const types = selectedDeclaringTypes(side.result);
+  return ({
+    declaring_type,
+  }: {
+    readonly declaring_type: string | null;
+  }): boolean =>
+    types === null || (declaring_type !== null && types.has(declaring_type));
+};
 
 /**
  * Pair only members whose declaring type both sides observed. A member outside

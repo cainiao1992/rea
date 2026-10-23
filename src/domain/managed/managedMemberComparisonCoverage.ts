@@ -50,6 +50,14 @@ const sameMethodRows = (
     left.method_rows.count === right.method_rows.count &&
     left.method_rows.total === right.method_rows.total);
 
+/** Returned type facts, rather than request spelling, own the observed scope. */
+export const selectedDeclaringTypes = (
+  result: ManagedMemberInspection,
+): ReadonlySet<string> | null =>
+  result.selection === null
+    ? null
+    : new Set(result.types.map(({ full_name }) => full_name));
+
 /** Whether both observations inspected the same declaring types. */
 const sameSelection = (
   left: ManagedMemberInspection,

@@ -392,7 +392,7 @@ export const createCliResultOutput = (
         typeof tokenValue !== "function" &&
         typeof tokenValue !== "symbol"
       ) {
-        if (format === "json" || format === "jsonl") {
+        if (format === "json") {
           for (const part of jsonOutputParts(
             tokenValue,
             format,
@@ -403,7 +403,7 @@ export const createCliResultOutput = (
       }
       if (characters <= constants.MAX_STRING_LENGTH) {
         let formatted: string;
-        if (format === "json" || format === "jsonl") {
+        if (format === "json") {
           // Reuse the writer's exact representation after its capacity admission.
           // tokenx requires one string; retain only this bounded formatted value.
           formatted = "";

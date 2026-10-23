@@ -15,9 +15,9 @@ instead of guessing.
 
 The provider requires a separately supplied headless JADX MCP JAR 0.7.1 and
 Java 17 or newer. `REA_JADX_MCP_JAR` selects the absolute JAR path; `JAVA_HOME`
-can select Java. REA setup does not install or configure that JAR, and doctor
-provider scopes cover Hopper/Ghidra rather than JADX. Use existing tools and
-report missing prerequisites for the Android task specifically.
+can select Java. REA setup does not install or configure that JAR. Use
+`rea doctor --provider jadx --json` to check configuration and obtain prerequisite
+remediation. Readiness does not establish successful analysis of a particular APK.
 
 Linux and macOS use the POSIX owned-process boundary. Windows x64 requires the
 matching bundled native controls and uses an owned Job Object with bidirectional

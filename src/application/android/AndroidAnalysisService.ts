@@ -1,3 +1,4 @@
+import { projectInputIssues } from "../../domain/inputIssueProjection.js";
 import type { EvidenceWriter } from "../investigation/InvestigationRecordPort.js";
 import { summarizeRetainedAndroidSearch } from "./AndroidSearchEvidenceSummary.js";
 import type { AndroidAnalysisPort } from "./AndroidAnalysisPort.js";
@@ -36,7 +37,18 @@ export class AndroidAnalysisService {
       );
     const request = androidRequestSchema.safeParse({ operation, input });
     if (!request.success)
-      return err(new AnalysisInputError(operation, { cause: request.error }));
+      return err(
+        new AnalysisInputError(
+          operation,
+          { cause: request.error },
+          projectInputIssues(request.error.issues, { operation, input }).map(
+            (issue) =>
+              issue.path[0] === "input"
+                ? { ...issue, path: issue.path.slice(1) }
+                : issue,
+          ),
+        ),
+      );
     const target = await parseBinaryTarget(
       request.data.input.path,
       options?.signal === undefined ? {} : { signal: options.signal },

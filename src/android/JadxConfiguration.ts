@@ -595,7 +595,9 @@ const resolveJava = async (
       Object.entries(environment).find(
         ([key]) => key.toLowerCase() === "path",
       )?.[1] ?? "";
-    for (const directory of [process.cwd(), ...path.split(delimiter)]) {
+    for (const directory of path
+      .split(delimiter)
+      .filter((entry) => entry !== "")) {
       throwIfJadxInterrupted(signal);
       // Windows PATH commonly quotes individual entries containing spaces.
       const selected =

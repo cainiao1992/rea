@@ -2693,7 +2693,7 @@ export class AdbProvider {
             new AnalysisUnsupportedTargetError(
               operation,
               input.serial,
-              verdict.reason ?? "the device refused the installation",
+              verdict.reason,
             ),
           );
         return ok(
@@ -2767,7 +2767,7 @@ export class AdbProvider {
         new AnalysisUnsupportedTargetError(
           operation,
           input.serial,
-          verdict.reason ?? "the device refused the removal",
+          verdict.reason,
         ),
       );
     return ok(

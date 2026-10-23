@@ -418,10 +418,9 @@ export const packageChangeFailureReason = (output: string): string | null =>
  */
 export const parsePackageChangeOutput = (
   stdout: string,
-): {
-  readonly status: "success" | "failure" | "unknown";
-  readonly reason: string | null;
-} => {
+):
+  | { readonly status: "success" | "unknown"; readonly reason: null }
+  | { readonly status: "failure"; readonly reason: string } => {
   const text = stdout.trim();
   const failure = packageChangeFailureReason(text);
   if (failure !== null) return { status: "failure", reason: failure };

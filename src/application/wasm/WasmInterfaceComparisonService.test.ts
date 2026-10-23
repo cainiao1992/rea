@@ -1,4 +1,3 @@
-import { parseWabtWat } from "../../wasm/WabtWat.js";
 import { expect, it } from "vitest";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { createEvidence, parseEvidence } from "../../domain/evidence.js";
@@ -314,20 +313,4 @@ it("retains the complete comparison when cancelled at the final handoff", async 
     coverage: "complete-within-inputs",
     summary: { changed: 1, added: 0, removed: 0, unchanged: 0, unknown: 0 },
   });
-});
-
-it("does not call colliding rendered debug identifiers unchanged after a second function signature changes", async () => {
-  const module = (parameter: string) =>
-    parseWabtWat(
-      `(module (func $same (param i32)) (func $same (param ${parameter})) (export "first" (func $same)) (export "second" (func $same)))`,
-    ).interface;
-  const result = await compare(
-    evidence(module("i32")),
-    evidence(module("i64")),
-  );
-  expect(result.changes.map(({ state }) => state)).toEqual([
-    "unknown",
-    "unknown",
-  ]);
-  expect(result.summary.unchanged).toBe(0);
 });

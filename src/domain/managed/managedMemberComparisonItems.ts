@@ -726,7 +726,7 @@ export const buildMethodItems = (
           : []),
         ...(exceptionTargetUnknown
           ? [
-              "One or more catch types are unavailable because the class token could not be resolved in its own metadata.",
+              "One or more catch type identities are unavailable because local tokens or TypeRef resolution scopes do not establish cross-build identity.",
             ]
           : []),
       ],

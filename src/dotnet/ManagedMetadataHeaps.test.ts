@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  readManagedMetadataLayout,
   readMetadataBlob,
   readMetadataString,
   readMetadataUserString,
 } from "./ManagedMetadataHeaps.js";
-import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
+import {
+  readManagedMetadataLayout,
+  type ManagedMetadataLayout,
+} from "./ManagedMetadataLayout.js";
 
 describe("managed metadata heaps", () => {
   it("admits a metadata root that omits its empty #Blob stream", () => {

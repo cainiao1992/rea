@@ -420,7 +420,6 @@ describe("managed member comparison", () => {
       typeName: "A",
       typeNamespace: "X",
       methodName: "b",
-      fieldName: "c",
     });
     const left = inspect(leftBytes, "/tmp/left.dll");
     const right = inspect(rightBytes, "/tmp/right.dll");

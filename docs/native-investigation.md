@@ -765,6 +765,16 @@ missing LLDB. `duration_ms` controls the later target observation window.
 rea observe-native-calls /Applications/Example.app '{"breakpoints":[{"kind":"objc-method","class_name":"NSURLSession","selector":"dataTaskWithRequest:completionHandler:"},{"kind":"function","name":"open","module":"libsystem_kernel.dylib"}],"duration_ms":5000,"backtrace_frames":4}' --json
 ```
 
+Function names select LLDB runtime symbols. On Darwin, a C function reported as
+`_main` by `inspect_macho` or `nm` can resolve as `main` in LLDB. REA preserves the
+exact selected name; it does not remove underscores or translate static names.
+Use `{"kind":"function","name":"main","module":"Example"}` to limit that
+runtime symbol to the executable image named `Example`, then inspect the reported
+locations and image paths. Omitting `module` deliberately matches every loaded
+image, including system libraries. A match outside the executable is valid for
+that request and does not by itself make coverage partial. This C naming example
+does not establish a translation rule for Swift, C++ or other mangled symbols.
+
 Each event is an observation: thread, image, symbol, load and file address,
 the raw integer argument registers, optional caller frames and, for an
 Objective-C method, the selector read from `_cmd` and the receiver's dynamic

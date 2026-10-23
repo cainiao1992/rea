@@ -250,6 +250,10 @@ run, use `observe_native_calls` with explicit breakpoints and a bounded
 `duration_ms`/`max_events`. It launches a new process under LLDB, so the target
 runs and may change files or use the network. Hardened-runtime targets need the
 `get-task-allow` entitlement.
+Function breakpoints use exact LLDB runtime names: a Darwin C `_main` static symbol
+may be `main` at runtime. REA does not translate names. Set `module` to the image
+file name when selecting that image only; otherwise loaded system images also
+match. Inspect retained locations and module paths before attributing a call.
 
 Use `binary_session` with no arguments to check the open target, selected
 provider, and alignment. Its default `result.tool_availability` carries a

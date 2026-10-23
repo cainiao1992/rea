@@ -19,7 +19,7 @@ const functionBreakpoint = {
   name: nativeString
     .min(1)
     .describe(
-      "Exact symbol name, such as `open`, a C++ or mangled Swift symbol, or `-[NSString length]`.",
+      "Exact LLDB runtime symbol name, such as `open`, a C++ or mangled Swift symbol, or `-[NSString length]`. Darwin C symbol-table `_main` may be exposed by LLDB as `main`; REA preserves the selected name without translating it.",
     ),
 };
 

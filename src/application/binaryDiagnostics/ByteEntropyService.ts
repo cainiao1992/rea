@@ -202,8 +202,13 @@ export class ByteEntropyService {
               "path",
               "File size exceeds exact numeric offset representation.",
             );
+          if (input.offset > size)
+            throw invalid(
+              "offset",
+              "Selected byte window starts beyond the end of the file.",
+            );
           const length = input.length ?? size - input.offset;
-          if (input.offset > size || length > size - input.offset)
+          if (length > size - input.offset)
             throw invalid(
               "length",
               "Selected byte window extends beyond the end of the file.",

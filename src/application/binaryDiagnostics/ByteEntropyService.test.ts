@@ -69,6 +69,22 @@ it("rejects missing files, non-files and windows beyond EOF, but accepts empty w
   ).toContainEqual(expect.stringContaining("reports a size of 0"));
 });
 
+it.each([
+  [{ offset: 2048 }, "offset"],
+  [{ offset: 2048, length: 0 }, "offset"],
+  [{ offset: 512, length: 1024 }, "length"],
+])("names the selector that puts %o past EOF", async (window, field) => {
+  const root = await createTestTempDirectory("rea-entropy-window-");
+  const path = join(root, "bytes");
+  await writeFile(path, Buffer.alloc(1024));
+  const result = await new ByteEntropyService().inspect({ path, ...window });
+  if (result.ok) throw new Error("Expected an out-of-file window to fail");
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "invalid_request",
+    details: { issues: [{ path: [field], reason: "invalid_value" }] },
+  });
+});
+
 it.skipIf(process.platform !== "linux")(
   "marks a generated /proc file that reports size 0 as not shown empty",
   async () => {

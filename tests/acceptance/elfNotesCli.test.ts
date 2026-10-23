@@ -1,9 +1,10 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import {
   compressedElfNoteFixture,
+  elfExtendedSectionCountFixture,
   elfNoteFixture,
 } from "../../src/native/elf/ElfNotes.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
@@ -83,3 +84,22 @@ cliTest("reports a truncated ELF as invalid input", async ({ cli }) => {
     details: { operation: "inspect_elf_notes" },
   });
 });
+
+cliTest(
+  "reports valid extended numbering as unsupported without mutation",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-elf-notes-extended-cli-");
+    const path = join(root, "extended-count.elf");
+    await writeFile(path, elfExtendedSectionCountFixture());
+    const before = await readFile(path);
+    const result = await cli.run({
+      arguments: ["inspect-elf-notes", path, "--json"],
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "unsupported_target",
+      message: expect.stringContaining("ELF extended numbering is unsupported"),
+    });
+    expect(await readFile(path)).toEqual(before);
+  },
+);

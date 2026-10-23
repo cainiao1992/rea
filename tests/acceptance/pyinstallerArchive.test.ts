@@ -216,6 +216,50 @@ it("lists CArchive members and the Python version through inspect-artifact", asy
   });
 });
 
+it("classifies a PyInstaller PE carrier when its signature straddles the probe prefix", async () => {
+  const directory = await createTestTempDirectory("rea-pyinstaller-far-pe-");
+  const path = join(directory, "hello.exe");
+  await writeFile(
+    path,
+    cArchiveExecutable({
+      carrier: "pe",
+      peHeaderOffset: 8_190,
+      layout: "2.1",
+      pythonVersion: 314,
+      pythonLibrary: "libpython3.14.dylib",
+      members: [
+        {
+          name: "healthy.txt",
+          typeCode: "x",
+          payload: Buffer.from("healthy sibling"),
+          compress: false,
+        },
+      ],
+    }),
+  );
+  const result = await execute(process.execPath, [
+    cli,
+    "inspect-artifact",
+    path,
+    "--json",
+  ]);
+  const inspection = artifactInspectionResultSchema.parse(
+    parseEvidence(JSON.parse(result.stdout)).normalized_result,
+  );
+  expect(inspection.subject.root_format).toBe("pyinstaller");
+  const inventory = inspection.substeps[0]?.evidence.normalized_result;
+  expect(inventory?.manifest.root_format).toBe("pyinstaller");
+  expect(inventory?.coverage.status).toBe("complete");
+  expect(
+    inventory?.occurrences.find(
+      ({ logical_path }) => logical_path === "healthy.txt",
+    ),
+  ).toMatchObject({
+    hash_status: "verified",
+    format_metadata: { source_name: "healthy.txt" },
+  });
+});
+
 it("extracts CArchive members through extract-artifact", async () => {
   const path = await onefile();
   const result = await execute(process.execPath, [

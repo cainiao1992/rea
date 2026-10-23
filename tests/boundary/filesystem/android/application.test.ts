@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -173,6 +174,59 @@ describe("Android application projection", () => {
       "Runtime families are inferred from inventory formats and paths; filename suffixes do not establish valid DEX or JVM class bytes.",
     );
   });
+});
+
+it("projects APK v1 metadata candidates at any META-INF depth", async () => {
+  const root = await createTestTempDirectory("rea-android-v1-metadata-");
+  const path = join(root, "NestedSigning.apk");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  const names = [
+    "META-INF/CERT.SF",
+    "META-INF/CERT.EC",
+    "META-INF/keys/CERT.SF",
+    "META-INF/keys/CERT.EC",
+    "META-INF/keys/readme.txt",
+    "META-INF/keys/MANIFEST.MF",
+    "assets/not-signing.SF",
+    "meta-inf/lower.SF",
+  ];
+  for (const entry of names)
+    await writer.add(entry, new TextReader(`content:${entry}`));
+  await writeFile(path, await writer.close());
+
+  const inventory = parseEvidence(
+    await runProviderAnalysis(path, "inventory_artifact", {}),
+  );
+  const projection = androidApplicationProjectionResultSchema.parse(
+    requireSuccessfulProjection(
+      projectAndroidApplicationEvidence({ inventory_evidence: [inventory] }),
+    ).normalized_result,
+  );
+
+  expect(projection.components.signing.map(({ path }) => path).sort()).toEqual([
+    "META-INF/CERT.EC",
+    "META-INF/CERT.SF",
+    "META-INF/keys/CERT.EC",
+    "META-INF/keys/CERT.SF",
+  ]);
+  for (const name of [
+    "META-INF/CERT.SF",
+    "META-INF/CERT.EC",
+    "META-INF/keys/CERT.SF",
+    "META-INF/keys/CERT.EC",
+  ]) {
+    const component = projection.components.signing.find(
+      ({ path }) => path === name,
+    );
+    expect(component).toMatchObject({
+      path: name,
+      artifact_id: expect.stringMatching(/^art_/u),
+      sha256: createHash("sha256").update(`content:${name}`).digest("hex"),
+    });
+  }
+  expect(projection.limitations).toContain(
+    "Manifest, resource, signing, and bytecode semantics require a dedicated Android provider; this projection reports exact inventory paths and hashes only.",
+  );
 });
 
 describe("APK family without a root manifest", () => {

@@ -31,6 +31,12 @@ import { abortIfNeeded, hashReadable } from "./ArtifactHash.js";
 import { readArtifactFileChunks } from "./readArtifactFileChunks.js";
 import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
 import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
+import { parseMzHeaderEvidence } from "../domain/dosMz.js";
+import {
+  readFatContainerHeader,
+  readMachoHeaderPrefixFacts,
+} from "../domain/apple/machoContainer.js";
+import { ARTIFACT_CLASSIFICATION_PREFIX_BYTES } from "./ArtifactClassificationProbe.js";
 import { PyInstallerPyzStore } from "./pyinstaller/PyInstallerPyzStore.js";
 import { pyInstallerMemberStream } from "./pyinstaller/PyInstallerMemberStream.js";
 import {
@@ -47,10 +53,12 @@ import {
   sealMember,
   type PyInstallerMember,
   type PyzImage,
+  type CarrierPathDialect,
 } from "./pyinstaller/CArchiveMembers.js";
 import { readPyzArchive } from "./pyinstaller/PyzArchive.js";
 import type { PyInstallerFailure } from "./pyinstaller/PyInstallerFailure.js";
 import { pyInstallerFileAdmissionFailure } from "./pyinstaller/PyInstallerFileAdmission.js";
+import { readPyInstallerBytes } from "./pyinstaller/PyInstallerBytes.js";
 
 const MAX_PARSED_FACT_BYTES = 32 * 1024 * 1024;
 const MAX_RETAINED_ENTRY_BYTES = 64 * 1024 * 1024;
@@ -58,6 +66,45 @@ const RECORD_OWNERSHIP_RESERVATION = 256;
 // Conservative allowance for registry/case trie nodes, maps and traversal state.
 // Repeated prefixes are charged again rather than underestimating retained work.
 const PATH_COMPONENT_RESERVATION = 1024;
+
+const carrierPathDialect = async (
+  handle: FileHandle,
+  fileSize: number,
+  signal?: AbortSignal,
+): Promise<CarrierPathDialect> => {
+  const prefixRead = await readPyInstallerBytes(handle, {
+    position: 0,
+    length: Math.min(fileSize, ARTIFACT_CLASSIFICATION_PREFIX_BYTES),
+    label: "carrier header",
+    signal,
+  });
+  if (!prefixRead.ok) return "unknown";
+  const prefix = prefixRead.value;
+  let windowsHeader = parseMzHeaderEvidence(prefix, fileSize).windowsHeader;
+  if (windowsHeader.state === "signature-needed") {
+    const signatureRead = await readPyInstallerBytes(handle, {
+      position: windowsHeader.offset,
+      length: 4,
+      label: "PE signature",
+      signal,
+    });
+    if (!signatureRead.ok) return "unknown";
+    windowsHeader = parseMzHeaderEvidence(prefix, fileSize, {
+      offset: windowsHeader.offset,
+      bytes: signatureRead.value,
+    }).windowsHeader;
+  }
+  if (windowsHeader.state === "declared")
+    return windowsHeader.signature === "PE" ? "windows" : "unknown";
+  if (prefix.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])))
+    return "posix";
+  const thinMachO = readMachoHeaderPrefixFacts(prefix);
+  if (thinMachO.identity !== null) return "posix";
+  if (readFatContainerHeader(prefix, fileSize).state === "parsed")
+    return "posix";
+  // A missing carrier proof does not establish POSIX separator semantics.
+  return "unknown";
+};
 
 interface LoadedArchive {
   readonly members: readonly PyInstallerMember[];
@@ -301,6 +348,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     const handle = await this.#openHandle(signal);
     await this.#verifySource();
     const size = (await handle.stat()).size;
+    const pathDialect = await carrierPathDialect(handle, size, signal);
     const cookie = await this.#cookie(handle, size, signal);
     this.#budget = artifactExpansionBudgetBytes(cookie.packageLength);
     const toc = await this.#toc(handle, cookie, signal);
@@ -320,6 +368,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
       images,
       magic,
       encrypted,
+      pathDialect,
       signal,
     );
     for (const member of members)
@@ -478,6 +527,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     images: ReadonlyMap<CArchiveEntry, PyzImage>,
     magic: Buffer | undefined,
     encrypted: boolean,
+    pathDialect: CarrierPathDialect,
     signal: AbortSignal | undefined,
   ): Promise<PyInstallerMember[]> {
     const members: PyInstallerMember[] = [];
@@ -503,10 +553,20 @@ export class PyInstallerArtifactReader implements ArtifactReader {
       abortIfNeeded(signal);
       const image = entry.typeCode === "z" ? images.get(entry) : undefined;
       if (image === undefined) {
-        append(projectStoredMember(entry, cookie.archiveStart, magic));
+        append(
+          projectStoredMember(entry, cookie.archiveStart, magic, pathDialect),
+        );
         continue;
       }
-      append(projectPyzContainer(entry, cookie.archiveStart, image, encrypted));
+      append(
+        projectPyzContainer(
+          entry,
+          cookie.archiveStart,
+          image,
+          encrypted,
+          pathDialect,
+        ),
+      );
       if (image.archive.kind !== "entries") continue;
       for (const item of image.archive.entries) {
         if (members.length % 256 === 0) await setImmediate();
@@ -517,6 +577,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
             item,
             encrypted,
             image.archive.pythonMagic,
+            pathDialect,
             item.namespace || encrypted
               ? undefined
               : {

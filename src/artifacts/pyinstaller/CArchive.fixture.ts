@@ -1,4 +1,5 @@
 import { deflateSync } from "node:zlib";
+import { pe } from "../../domain/binaryTarget.fixture.js";
 
 import { PYINSTALLER_COOKIE_MAGIC } from "./CArchiveLayout.js";
 
@@ -28,8 +29,10 @@ export interface CArchiveFixtureMember {
   readonly declaredUncompressedSize?: number;
 }
 
-/** Build a tiny ELF with an appended CArchive, optionally followed by a trailer. */
+/** Build a tiny native carrier with an appended CArchive and optional trailer. */
 export const cArchiveExecutable = (input: {
+  readonly carrier?: "elf" | "pe";
+  readonly peHeaderOffset?: number;
   readonly layout: "2.0" | "2.1";
   readonly pythonVersion: number;
   readonly pythonLibrary?: string;
@@ -70,7 +73,9 @@ export const cArchiveExecutable = (input: {
     tocLength: toc.length,
   });
   return Buffer.concat([
-    ELF_PREFIX,
+    input.carrier === "pe"
+      ? pe(0x8664, input.peHeaderOffset ?? 64)
+      : ELF_PREFIX,
     ...payloads,
     toc,
     cookie,

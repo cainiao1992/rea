@@ -5,7 +5,11 @@ import {
   type NativeLoadImageCheck,
   type NativeLoadImageObservation,
 } from "../domain/native/nativeLoadImage.js";
-import { parseMzHeaderEvidence, type DosMzHeader } from "../domain/dosMz.js";
+import {
+  parseMzHeaderEvidence,
+  type DosMzHeader,
+  type MzWindowsHeaderSignatureEvidence,
+} from "../domain/dosMz.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { validateDosComLength } from "../domain/dosCom.js";
@@ -55,7 +59,7 @@ export type GhidraDosImage = {
 export const prepareGhidraDosLoadImage = (
   bytes: Buffer,
   fileBytes: number,
-  signatureAtOffset?: Buffer,
+  signatureAtOffset?: MzWindowsHeaderSignatureEvidence,
 ): Result<GhidraDosImage, string> => {
   const evidence = parseMzHeaderEvidence(bytes, fileBytes, signatureAtOffset);
   if (evidence.windowsHeader.state === "candidate")

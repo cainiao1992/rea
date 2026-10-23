@@ -10,7 +10,10 @@ import type {
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
-import { parseMzHeaderEvidence } from "./dosMz.js";
+import {
+  parseMzHeaderEvidence,
+  type MzWindowsHeaderSignatureEvidence,
+} from "./dosMz.js";
 import {
   decodePeMachine,
   peOptionalHeaderMagic,
@@ -106,7 +109,7 @@ export const parseExecutableHeader = (
   bytes: Buffer,
   hostArchitecture: NodeJS.Architecture,
   fileSize = bytes.length,
-  mzWindowsHeaderSignature?: Buffer,
+  mzWindowsHeaderSignature?: MzWindowsHeaderSignatureEvidence,
   fatEvidence?: FatSliceHeaderEvidence,
 ): Result<ExecutableMetadata, string> => {
   if (
@@ -436,7 +439,7 @@ const parseElf = (
 const parseMz = (
   bytes: Buffer,
   fileSize: number,
-  signatureAtOffset?: Buffer,
+  signatureAtOffset?: MzWindowsHeaderSignatureEvidence,
 ): Result<ExecutableMetadata, string> => {
   const evidence = parseMzHeaderEvidence(bytes, fileSize, signatureAtOffset);
   const { windowsHeader } = evidence;

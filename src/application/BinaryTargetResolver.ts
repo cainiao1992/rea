@@ -574,7 +574,9 @@ const readExecutableMetadata = async (
   throwIfTargetResolutionCancelled(signal);
   if (bytes.length >= 2 && bytes[0] === 0x4d && bytes[1] === 0x5a) {
     let evidence = parseMzHeaderEvidence(bytes, fileSize);
-    let signatureBytes: Buffer | undefined;
+    let signatureEvidence:
+      | { readonly offset: number; readonly bytes: Buffer }
+      | undefined;
     if (evidence.windowsHeader.state === "signature-needed") {
       const { offset } = evidence.windowsHeader;
       const signature = Buffer.alloc(Math.min(4, fileSize - offset));
@@ -585,8 +587,11 @@ const readExecutableMetadata = async (
         offset,
       );
       throwIfTargetResolutionCancelled(signal);
-      signatureBytes = signature.subarray(0, observedSignature.bytesRead);
-      evidence = parseMzHeaderEvidence(bytes, fileSize, signatureBytes);
+      signatureEvidence = {
+        offset,
+        bytes: signature.subarray(0, observedSignature.bytesRead),
+      };
+      evidence = parseMzHeaderEvidence(bytes, fileSize, signatureEvidence);
     }
     const { windowsHeader } = evidence;
     if (windowsHeader.state === "declared") {
@@ -618,7 +623,7 @@ const readExecutableMetadata = async (
       evidence = parseMzHeaderEvidence(
         table.subarray(0, observed.bytesRead),
         fileSize,
-        signatureBytes,
+        signatureEvidence,
       );
       if (evidence.windowsHeader.state === "candidate")
         return err(
@@ -628,6 +633,7 @@ const readExecutableMetadata = async (
         table.subarray(0, observed.bytesRead),
         hostArchitecture,
         fileSize,
+        signatureEvidence,
       );
     }
     if (windowsHeader.state === "candidate")
@@ -636,7 +642,7 @@ const readExecutableMetadata = async (
       bytes,
       hostArchitecture,
       fileSize,
-      signatureBytes,
+      signatureEvidence,
     );
   }
   const fatEvidence = await readFatSliceHeaderEvidence(
@@ -797,11 +803,10 @@ const readPeMetadata = async (
   throwIfTargetResolutionCancelled(signal);
   if (fileHeaderRead.bytesRead !== fileHeader.length)
     return err("invalid or truncated PE header");
-  const windowsHeader = observeMzWindowsHeader(
-    mzPrefix,
-    fileSize,
-    fileHeader.subarray(0, 4),
-  );
+  const windowsHeader = observeMzWindowsHeader(mzPrefix, fileSize, {
+    offset,
+    bytes: fileHeader.subarray(0, 4),
+  });
   if (windowsHeader.state !== "declared")
     return err("invalid Windows new-header signature in MZ image");
   if (["NE", "LE", "LX"].includes(windowsHeader.signature))

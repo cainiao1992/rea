@@ -189,12 +189,12 @@ export const materializeDirectoryNodes = (
 };
 
 export const createRootNode = (input: {
-  readonly digest: {
-    readonly sha256: string;
-    readonly bytes: number;
-    readonly prefix: Buffer;
-    readonly fatSliceHeaders?: ArtifactClassificationEvidence["fatSliceHeaders"];
-  } | null;
+  readonly digest:
+    | ({
+        readonly sha256: string;
+        readonly bytes: number;
+      } & ArtifactClassificationEvidence)
+    | null;
   readonly occurrences: readonly MutableOccurrence[];
 }): ArtifactNode =>
   createArtifactNode({
@@ -218,11 +218,7 @@ export const createRootNode = (input: {
     format:
       input.digest === null
         ? "directory"
-        : classifyArtifactBytes(
-            input.digest.prefix,
-            input.digest.bytes,
-            input.digest.fatSliceHeaders,
-          ),
+        : classifyArtifactBytes(input.digest, input.digest.bytes),
     contentState: "materialized",
   });
 
@@ -510,28 +506,31 @@ export const classifyArtifactContent = (
 ): {
   readonly kind: ArtifactOccurrence["artifact_kind"];
   readonly format: ArtifactOccurrence["artifact_format"];
+  readonly contentFormat: ArtifactNode["format"];
 } => {
-  const { prefix, asarHeader, fatSliceHeaders } = evidence;
-  const format = classifyArtifactBytes(prefix, fileSize, fatSliceHeaders);
+  const { prefix, asarHeader } = evidence;
+  const contentFormat = classifyArtifactBytes(evidence, fileSize);
   const byPath = classifyArtifactPath(path);
+  let role: ReturnType<typeof classifyArtifactPath>;
   if (
-    format === "plist" &&
+    contentFormat === "plist" &&
     !hasBinaryPlistSignature(prefix) &&
     (["javascript", "source-map", "entitlements"].includes(byPath.kind) ||
       path.toLowerCase().endsWith(".asar"))
   )
-    return byPath;
-  if (
-    format === "file" &&
+    role = byPath;
+  else if (
+    contentFormat === "file" &&
     path.toLowerCase().endsWith(".asar") &&
     asarHeader.state !== "rejected"
   ) {
     if (asarHeader.state === "limit")
       throw asarHeaderAdmissionFailure(asarHeader.admission);
     if (asarHeader.state === "matched")
-      return { kind: "container", format: "asar" };
-  }
-  return artifactRoleForFormat(path, format);
+      role = { kind: "container", format: "asar" };
+    else role = artifactRoleForFormat(path, contentFormat);
+  } else role = artifactRoleForFormat(path, contentFormat);
+  return { ...role, contentFormat };
 };
 
 const artifactRoleForFormat = (
@@ -558,15 +557,15 @@ const artifactRoleForFormat = (
 
 /** Classify storage bytes independently of path names, roles, and permissions. */
 export const classifyArtifactBytes = (
-  prefix: Buffer,
-  fileSize = prefix.length,
-  fatSliceHeaders?: ArtifactClassificationEvidence["fatSliceHeaders"],
+  evidence: ArtifactClassificationEvidence,
+  fileSize = evidence.prefix.length,
 ): ArtifactNode["format"] => {
+  const { prefix, mzWindowsHeaderSignature } = evidence;
   if (hasZipSignature(prefix)) return "zip";
   if (hasGodotPckHeader(prefix)) return "godot-pck";
   if (hasBinaryPlistSignature(prefix)) return "plist";
   if (hasXmlPlistSignature(prefix)) return "plist";
-  const fatFormat = classifyFatArtifact(prefix, fileSize, fatSliceHeaders);
+  const fatFormat = classifyFatArtifact(evidence, fileSize);
   if (fatFormat !== null) return fatFormat;
   if (prefix.length >= 4) {
     const magic = prefix.readUInt32BE(0);
@@ -582,8 +581,12 @@ export const classifyArtifactBytes = (
       prefix.length < Math.min(fileSize, 64)
     )
       return "unknown";
-    const evidence = parseMzHeaderEvidence(prefix, fileSize);
-    const { windowsHeader } = evidence;
+    const mzEvidence = parseMzHeaderEvidence(
+      prefix,
+      fileSize,
+      mzWindowsHeaderSignature,
+    );
+    const { windowsHeader } = mzEvidence;
     if (windowsHeader.state === "signature-needed") return "unknown";
     if (windowsHeader.state === "candidate") return "unknown";
     if (windowsHeader.state === "declared") {
@@ -591,22 +594,24 @@ export const classifyArtifactBytes = (
       if (
         windowsHeader.signature === "PE" &&
         windowsOffset >= 64 &&
-        windowsOffset <= prefix.length - 4
+        (windowsOffset <= prefix.length - 4 ||
+          (mzWindowsHeaderSignature?.offset === windowsOffset &&
+            mzWindowsHeaderSignature.bytes.length >= 4))
       )
         return "pe";
       return "unknown";
     }
-    if (evidence.dos.ok) return "dos-mz";
+    if (mzEvidence.dos.ok) return "dos-mz";
     return "unknown";
   }
   return "file";
 };
 
 const classifyFatArtifact = (
-  prefix: Buffer,
+  evidence: ArtifactClassificationEvidence,
   fileSize: number,
-  fatSliceHeaders?: ArtifactClassificationEvidence["fatSliceHeaders"],
 ): ArtifactNode["format"] | null => {
+  const { prefix, fatSliceHeaders } = evidence;
   const fatHeader =
     fatSliceHeaders?.header ?? readFatContainerHeader(prefix, fileSize);
   if (fatHeader.state === "needs-data" || fatHeader.state === "malformed")

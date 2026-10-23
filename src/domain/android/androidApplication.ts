@@ -24,6 +24,7 @@ import {
 } from "../mobileApplicationGraphProjection.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import { err, ok, type Result } from "../result.js";
+import { isV1SignatureMetadataName } from "../apkSignature/apkV1MetadataName.js";
 
 /** Deterministic, execution-free Android application inventory projection. */
 export const androidApplicationProjectionResultSchema = z.strictObject({
@@ -173,9 +174,7 @@ const classify = (all: readonly Component[]) => ({
       format === "elf" || /(?:^|\/)lib\/[^/]+\/[^/]+\.so$/iu.test(path),
   ),
   javascript: all.filter(({ format }) => format === "javascript-bundle"),
-  signing: all.filter(({ path }) =>
-    /^META-INF\/[^/]+\.(?:MF|RSA|DSA|EC|SF)$/iu.test(path),
-  ),
+  signing: all.filter(({ path }) => isV1SignatureMetadataName(path)),
 });
 
 const runtimeFamilies = (

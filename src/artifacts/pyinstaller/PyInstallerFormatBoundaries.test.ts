@@ -127,6 +127,7 @@ it.each([true, false])(
     };
     await withPyInstallerReader(
       cArchiveExecutable({
+        carrier: "pe",
         layout: "2.1",
         pythonVersion: 309,
         members: [

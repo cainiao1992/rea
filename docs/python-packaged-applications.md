@@ -12,8 +12,11 @@ The root occurrence's `format_metadata` records the CArchive layout (2.0 or
 2.1), archive and cookie offsets, table extent, entry count, raw Python version,
 normalized major/minor when known, library name and encryption marker. Member
 metadata retains the original name, table index, type, compression flag,
-relative offset and known directory record extent. Logical paths use archive
-path rules; the source name retains its spelling, including backslashes.
+relative offset and known directory record extent. Logical paths follow the
+carrier's path dialect: backslashes separate components for PE carriers, while
+they remain literal filename characters for POSIX carriers. The source name
+always retains its stored spelling. If the carrier dialect is unconfirmed, REA
+preserves backslashes verbatim instead of inferring POSIX semantics.
 `relative_offset` is relative to the CArchive start for CArchive rows, or to
 the decoded PYZ image for PYZ rows. A CArchive directory record starts at
 `archive_start + toc_offset + directory_record_offset`; its size is

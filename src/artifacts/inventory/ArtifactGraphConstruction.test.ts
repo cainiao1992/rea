@@ -15,9 +15,34 @@ import {
 } from "./ArtifactGraphConstruction.js";
 import { createArtifactClassificationProbe } from "../ArtifactClassificationProbe.js";
 import { artifactIdForContent } from "../../domain/artifactIdentity.js";
+import { pe } from "../../domain/binaryTarget.fixture.js";
 import type { ArtifactEntry } from "../ArtifactReader.js";
 
 import { classifyArtifactBytesAtPath } from "../../../tests/fixtures/artifactClassification.js";
+
+it("joins only observed PE signature bytes across stream chunks", () => {
+  const bytes = pe(0x8664, 8190);
+  const probe = createArtifactClassificationProbe();
+  probe.write(bytes.subarray(0, 8191));
+  probe.write(bytes.subarray(8191, 8192));
+  const partial = probe.finish(bytes.length);
+  expect(partial.mzWindowsHeaderSignature).toEqual({
+    offset: 8190,
+    bytes: Buffer.from("PE"),
+  });
+  expect(
+    classifyArtifactContent("native.exe", partial, bytes.length).format,
+  ).toBe("unknown");
+  probe.write(bytes.subarray(8192));
+  const complete = probe.finish(bytes.length);
+  expect(complete.mzWindowsHeaderSignature).toEqual({
+    offset: 8190,
+    bytes: Buffer.from([0x50, 0x45, 0, 0]),
+  });
+  expect(
+    classifyArtifactContent("native.exe", complete, bytes.length).format,
+  ).toBe("pe");
+});
 
 it("keeps an ambiguous DOS MZ inventory candidate unknown", () => {
   const bytes = Buffer.alloc(128);
@@ -355,6 +380,18 @@ describe("bounded FAT inventory classification", () => {
       },
     ] as const;
     for (const testCase of cases) expectStreamedFatClassification(testCase);
+  });
+});
+
+it("keeps byte content format separate from path-specific package role", () => {
+  const probe = createArtifactClassificationProbe();
+  probe.write(Buffer.from("PK\x03\x04", "binary"));
+  expect(
+    classifyArtifactContent("application.apk", probe.finish(4), 4),
+  ).toEqual({
+    kind: "container",
+    format: "apk",
+    contentFormat: "zip",
   });
 });
 

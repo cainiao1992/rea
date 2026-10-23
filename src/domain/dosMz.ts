@@ -39,6 +39,12 @@ export type MzWindowsHeaderObservation =
       readonly signature: "PE" | "NE" | "LE" | "LX";
     };
 
+/** Exact signature bytes observed at the DOS header's declared offset. */
+export interface MzWindowsHeaderSignatureEvidence {
+  readonly offset: number;
+  readonly bytes: Buffer;
+}
+
 /**
  * Observe the Windows new-header pointer without mistaking short DOS module
  * bytes for e_lfanew. A nonzero pointer in a complete DOS header is only a
@@ -51,7 +57,7 @@ export type MzWindowsHeaderObservation =
 export const observeMzWindowsHeader = (
   bytes: Buffer,
   fileSize = bytes.length,
-  signatureAtOffset?: Buffer,
+  signatureEvidence?: MzWindowsHeaderSignatureEvidence,
 ): MzWindowsHeaderObservation => {
   if (bytes.length < 64)
     return fileSize >= 64 ? { state: "header-needed" } : { state: "absent" };
@@ -71,7 +77,10 @@ export const observeMzWindowsHeader = (
     offset < bytes.length
       ? bytes.subarray(offset, Math.min(offset + 4, bytes.length))
       : undefined;
-  const available = signatureAtOffset ?? inlineSignature;
+  const available =
+    signatureEvidence?.offset === offset
+      ? signatureEvidence.bytes
+      : inlineSignature;
   const signature = windowsHeaderSignature(available);
   if (signature !== "other" && signature !== "unobserved")
     return { state: "declared", offset, signature };
@@ -85,7 +94,7 @@ export const observeMzWindowsHeader = (
         available.toString("latin1", 0, 2) === "PE" &&
         available.length < 4 &&
         remaining >= 4);
-    if (needsMore && signatureAtOffset === undefined)
+    if (needsMore && signatureEvidence?.offset !== offset)
       return { state: "signature-needed", offset };
     return { state: "candidate", offset, signature };
   }
@@ -177,10 +186,10 @@ export interface MzHeaderEvidence {
 export const parseMzHeaderEvidence = (
   bytes: Buffer,
   fileSize = bytes.length,
-  signatureAtOffset?: Buffer,
+  signatureEvidence?: MzWindowsHeaderSignatureEvidence,
 ): MzHeaderEvidence => ({
   dos: parseDosMzHeader(bytes, fileSize),
-  windowsHeader: observeMzWindowsHeader(bytes, fileSize, signatureAtOffset),
+  windowsHeader: observeMzWindowsHeader(bytes, fileSize, signatureEvidence),
 });
 
 const validateRelocations = (

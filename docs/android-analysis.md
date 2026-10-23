@@ -256,6 +256,10 @@ such as
 `libreactnativejni.so`, `libreactnative.so`, `libhermes.so`,
 `libhermes_executor.so`, `libflutter.so`, and `libunity.so`; unrelated names
 such as `libcommunity.so` and `libreactivity.so` do not identify those families.
+The signing list retains the `META-INF/MANIFEST.MF`, `.SF`, `.RSA`, `.DSA`, and
+`.EC` paths selected by Android's v1 verifier, including nested paths. These are
+inventory metadata candidates, not proof that a v1 signature verifies or that
+the APK is signed; use `inspect-apk-signature` for signature analysis.
 The bridge basis is inferred from the native path and repeated for each managed
 component, so it does not identify a specific JNI binding. Bridge hypotheses form a DEX/JVM-class by native-library
 Cartesian product. The projection computes the product and exact serialized

@@ -38,12 +38,16 @@ missing or unknown selected channel target, REA returns `invalid_request` for
 successfully. The diagnostic and any partial stdout remain in `captured_output`;
 unrelated producer warnings do not change request status.
 Omitting `input_format` requests sigrok's autodetection. REA uses an immutable
-private copy whose filename retains the selected recording's final suffix, so
-filename-based format detection receives that hint without exposing the
+private copy whose filename retains the selected recording's final suffix,
+including a dotfile basename such as `.csv`. Filename-based format detection
+receives that hint without exposing the
 caller's directory to sigrok. Omitting `annotations`
 retains every annotation class. Both omitted selections are recorded as null.
-See the [upstream manual](https://sigrok.org/wiki/Sigrok-cli) for formats,
-decoder stacking and annotation selectors. No arbitrary command flags are accepted.
+If sigrok reports an explicitly selected input format as unknown, REA returns
+`invalid_request` for `input_format`, retains the producer diagnostic, and
+advises correcting the format or omitting it for autodetection. See the
+[upstream manual](https://sigrok.org/wiki/Sigrok-cli) for formats, decoder
+stacking and annotation selectors. No arbitrary command flags are accepted.
 
 Output defaults to 50 literal LF-separated lines. Use `line_offset` and
 `line_limit` for later pages, or MCP `line_limit: null` / CLI `--all_lines`

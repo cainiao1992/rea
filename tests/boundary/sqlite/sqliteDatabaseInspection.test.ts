@@ -282,6 +282,37 @@ it("keeps unrelated catalog names outside the selected-table reply budget", asyn
     ).toThrowError(expect.objectContaining({ reason: "output-limit" }));
 });
 
+it.each(["inventory", "selected_table", "database"] as const)(
+  "reads sqlite_schema rows using PRAGMA row-source facts in %s scope",
+  async (schema_scope) => {
+    const path = await createDatabase(
+      "CREATE TABLE records(id INTEGER); INSERT INTO records VALUES (1);",
+    );
+    const result = inspectSqliteDatabaseSnapshot(path, {
+      path,
+      table: "sqlite_schema",
+      columns: ["name", "type"],
+      schema_scope,
+    });
+
+    expect(result.rows).toMatchObject({
+      table: "sqlite_schema",
+      columns: ["name", "type"],
+      values: [
+        [
+          { type: "text", value: "records" },
+          { type: "text", value: "table" },
+        ],
+      ],
+    });
+    expect(result.schema.tables).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sqlite_schema" }),
+      ]),
+    );
+  },
+);
+
 it("rejects malformed schema bytes instead of returning replacement text", async () => {
   const path = await createDatabase(
     "CREATE TABLE records(value TEXT /*schema-marker*/)",

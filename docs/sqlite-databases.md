@@ -54,6 +54,13 @@ reported. If a virtual table cannot be resolved, possible backing tables have
 ordinary tables remain selectable. Schema inventory does not execute views,
 triggers or arbitrary SQL.
 
+The exact table name `sqlite_schema` is also a supported read-only row source.
+SQLite's [`table_list`](https://www.sqlite.org/pragma.html#pragma_table_list)
+and `table_xinfo` pragmas establish its row-source type and columns. The
+[schema catalog](https://www.sqlite.org/schematab.html) has no self-entry for
+`sqlite_schema`, so REA does not invent a declaration, SQL statement or root
+page for it in `schema.tables`.
+
 Rows are optional. `table` selects one exact ordinary-table name. `columns`
 (CLI repeated `--column`) selects exact visible column names in the requested
 order; omission selects all visible columns, including generated columns.

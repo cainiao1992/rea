@@ -16,6 +16,7 @@ import {
   AnalysisCancelledError,
   AnalysisInputError,
   AnalysisResourceConstraintError,
+  AnalysisUnsupportedTargetError,
 } from "../../domain/analysisErrorCore.js";
 import { fixedAllowanceOptions } from "../../domain/fixedAllowanceRemediation.js";
 import {
@@ -26,7 +27,11 @@ import {
 import { err, ok } from "../../domain/result.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { ELF_NOTES_PROVIDER } from "../../application/InvestigationProviders.js";
-import { parseElfNotes } from "./ElfNoteParser.js";
+import { BinaryFormatFailure } from "../metadata/BinaryContainer.js";
+import {
+  ElfNoteSectionNameBudgetFailure,
+  parseElfNotes,
+} from "./ElfNoteParser.js";
 
 const OPERATION = "inspect_elf_notes";
 
@@ -84,7 +89,7 @@ export class ElfNotesProvider implements ElfNotesPort {
 }
 
 const NOTE_TEXT_BUDGET =
-  "The ELF note text, hash, scan, and decompression budget bounded by max_file_bytes";
+  "The ELF note text, hash, and scan budget fixed by the admitted image length plus decoded section names";
 
 const inputBudgetRemediation = (
   boundary: "file-size" | "capacity",
@@ -98,10 +103,47 @@ const inputBudgetRemediation = (
       ? `The image exceeds the ${String(MAX_INSPECT_ELF_NOTE_ENTRIES)}-entry note-table ceiling this operation accepts; select a smaller artifact.`
       : `Raise max_entries above ${String(input.max_entries)} or select a smaller artifact; the limit is the caller-selected note entry budget.`;
 
+const sectionNameBudgetRemediation = (
+  cause: ElfNoteSectionNameBudgetFailure,
+): string =>
+  cause.minimumMaxFileBytes <= BigInt(MAX_INSPECT_ELF_NOTE_FILE_BYTES)
+    ? `Raise max_file_bytes to at least ${String(cause.minimumMaxFileBytes)} bytes to admit the source and decoded ELF section names.`
+    : `The source and decoded ELF section names require ${String(cause.minimumMaxFileBytes)} bytes, above this operation's ${String(MAX_INSPECT_ELF_NOTE_FILE_BYTES)}-byte maximum; select an image with a smaller section-name table.`;
+
 const elfNotesFailurePrimary = (
   cause: unknown,
   input: InspectElfNotesInput,
 ) => {
+  if (cause instanceof ElfNoteSectionNameBudgetFailure)
+    return new AnalysisResourceConstraintError(
+      OPERATION,
+      "memory",
+      cause.message,
+      {
+        max_file_bytes: cause.selectedMaxFileBytes,
+        minimum_required_bytes: cause.minimumMaxFileBytes.toString(),
+      },
+      {
+        cause,
+        retryable: false,
+        remediationAction: sectionNameBudgetRemediation(cause),
+      },
+    );
+  if (cause instanceof BinaryFormatFailure)
+    return cause.kind === "unsupported"
+      ? new AnalysisUnsupportedTargetError(
+          OPERATION,
+          input.path,
+          cause.message,
+          { cause },
+        )
+      : new AnalysisInputError(OPERATION, { cause }, [
+          {
+            path: ["path"],
+            reason: "invalid_format",
+            message: cause.message,
+          },
+        ]);
   if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
     return new AnalysisArtifactChangedError(
       OPERATION,
@@ -119,7 +161,7 @@ const elfNotesFailurePrimary = (
     if (cause.reason === "limit") {
       // Caller-selected read and entry budgets name the bound to raise.
       // The note text, hash, and scan ceiling equals the admitted image
-      // length, so host memory cannot raise it.
+      // length plus decoded section names, so host memory cannot raise it.
       const noteTextBudget = cause.boundary === "memory";
       return new AnalysisResourceConstraintError(
         OPERATION,

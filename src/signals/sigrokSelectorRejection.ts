@@ -8,11 +8,14 @@ export type SigrokSelectorRejection = AnalysisInputIssue & {
 
 /** Caller selectors that a sigrok command loads, keyed by their input field. */
 export type SigrokSelection =
-  | Pick<DecodeSignalRecordingInput, "decoders" | "annotations">
+  | Pick<
+      DecodeSignalRecordingInput,
+      "decoders" | "annotations" | "input_format"
+    >
   | Pick<InspectSignalDecodersInput, "decoder">;
 
 const rejectedSelector = (
-  field: "decoder" | "decoders" | "annotations",
+  field: "decoder" | "decoders" | "annotations" | "input_format",
   producerMessage: string,
   recovery: string,
 ): SigrokSelectorRejection => ({
@@ -27,6 +30,8 @@ const HELP_RECOVERY =
   "Omit decoder to list installed decoder IDs, optionally filtered by query, then request help for one of those IDs.";
 const CHANNEL_RECOVERY =
   "Set each decoder channel target to a channel present in the recording; inspect_signal_decoders shows the selected decoder's channel IDs.";
+const INPUT_FORMAT_RECOVERY =
+  "Use a supported sigrok input format name, or omit input_format to let sigrok-cli autodetect the recording.";
 
 /**
  * sigrok-cli loads selected decoders before decoding or showing help, so an
@@ -94,6 +99,14 @@ export const parseSigrokSelectorRejection = (
       ? undefined
       : rejectedSelector("decoder", refusal, HELP_RECOVERY);
   }
+  const inputFormat = selection.input_format?.split(":")[0] ?? "";
+  const inputFormatRefusal = `Error: unknown input module '${inputFormat}'.`;
+  if (inputFormat !== "" && lines.has(`cli: ${inputFormatRefusal}`))
+    return rejectedSelector(
+      "input_format",
+      inputFormatRefusal,
+      INPUT_FORMAT_RECOVERY,
+    );
   // sigrok-cli stacks decoders with "," and appends options with ":".
   for (const entry of selection.decoders.split(",")) {
     const refusal = unknownDecoderRefusal(lines, entry.split(":")[0] ?? "");

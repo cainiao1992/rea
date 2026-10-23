@@ -891,3 +891,65 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
     expect(await readFile(path)).toEqual(before);
   },
 );
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "reads sqlite_schema rows through CLI and MCP in every schema scope",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-sqlite-schema-table-");
+    const path = join(root, "selected.db");
+    const writer = new DatabaseSync(path);
+    try {
+      writer.exec("CREATE TABLE records(id INTEGER)");
+    } finally {
+      writer.close();
+    }
+    const original = await readFile(path);
+    const { call } = await connectLocalToolsMcp();
+    for (const schema_scope of [
+      "inventory",
+      "selected_table",
+      "database",
+    ] as const) {
+      const result = await cli.run({
+        arguments: [
+          "inspect-sqlite-database",
+          path,
+          "--table",
+          "sqlite_schema",
+          "--column",
+          "name",
+          "--column",
+          "type",
+          "--schema-scope",
+          schema_scope,
+          "--json",
+        ],
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.json).toMatchObject({
+        normalized_result: {
+          schema: { scope: schema_scope },
+          rows: {
+            table: "sqlite_schema",
+            columns: ["name", "type"],
+            values: [
+              [
+                { type: "text", value: "records" },
+                { type: "text", value: "table" },
+              ],
+            ],
+          },
+        },
+      });
+      const response = await call("inspect_sqlite_database", {
+        path,
+        table: "sqlite_schema",
+        columns: ["name", "type"],
+        schema_scope,
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      expect(response.structuredContent).toEqual(result.json);
+    }
+    expect(await readFile(path)).toEqual(original);
+  },
+);

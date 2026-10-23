@@ -344,13 +344,17 @@ const digestArtifactEntry = async (
   }
   const classified =
     entry.kind === "slice"
-      ? ({ kind: "universal-slice", format: "mach-o" } as const)
+      ? {
+          kind: "universal-slice" as const,
+          format: "mach-o" as const,
+          contentFormat: classifyArtifactBytes(digest, digest.bytes),
+        }
       : classifyArtifactContent(logicalPath, digest, digest.bytes);
   return {
     node: createArtifactNode({
       sha256: digest.sha256,
       size: digest.bytes,
-      format: classifyArtifactBytes(digest.prefix, digest.bytes),
+      format: classified.contentFormat,
       contentState: "embedded",
     }),
     mismatched,

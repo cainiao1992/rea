@@ -3,6 +3,7 @@ import { z } from "zod";
 import { jsonParts } from "../domain/jsonSerialization.js";
 import {
   SQLITE_ROW_LIMIT_DEFAULT,
+  sqliteSchemaHasObjectDeclaration,
   sqliteSchemaScope,
   type InspectSqliteDatabaseInput,
   type SqliteDatabase,
@@ -312,6 +313,25 @@ const readSchema = (
     selectedName === undefined || selected === undefined
       ? undefined
       : shadowParentOf(selectedName, selected);
+  // sqlite_schema is a queryable ordinary table in PRAGMA inventory, but has
+  // no self-row in its stored declaration table. Keep these row-source facts
+  // separate from schema.tables rather than manufacturing a declaration.
+  const selectedRowSource =
+    input.table === undefined ? undefined : metadata.get(input.table);
+  if (
+    input.table !== undefined &&
+    !sqliteSchemaHasObjectDeclaration(input.table) &&
+    selectedRowSource?.type === "table"
+  )
+    selectedTable = {
+      name: selectedRowSource.name,
+      kind: selectedRowSource.type,
+      columns: readColumns(db, selectedRowSource.name, {
+        budget: new OutputBudget(),
+        encoding,
+        selectedColumns: input.columns,
+      }),
+    };
   // NOCASE folds only ASCII letters, as SQLite does when it resolves the
   // table named by an index or trigger. Fold only for an ordinary table whose
   // rows can be selected; a selection refused later keeps the exact filter,

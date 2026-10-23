@@ -20,7 +20,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { access, realpath, writeFile } from "node:fs/promises";
-import { extname, isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import {
   createAnalysisExecution,
   type AnalysisExecution,
@@ -177,10 +177,9 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
       phase = "workspace";
       root = await this.createRuntime();
       this.#resources.retain(root, undefined);
-      // Keep the selected file's suffix as private parser metadata. sigrok's
-      // autodetection receives a filename, not just the copied bytes.
-      const snapshotName =
-        "path" in input ? `recording${extname(input.path)}` : "recording";
+      // The private root is fresh; reuse the basename so its parser-relevant
+      // suffix is preserved without growing a valid source name.
+      const snapshotName = "path" in input ? basename(input.path) : "recording";
       const snapshotPath = join(root.path, snapshotName);
       const execute = async (
         args: readonly string[],

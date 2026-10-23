@@ -264,11 +264,10 @@ describe("MZ Windows header observations", () => {
       offset,
     });
     expect(
-      observeMzWindowsHeader(
-        prefix,
-        offset + 512,
-        Buffer.from("PE\0\0", "binary"),
-      ),
+      observeMzWindowsHeader(prefix, offset + 512, {
+        offset,
+        bytes: Buffer.from("PE\0\0", "binary"),
+      }),
     ).toEqual({ state: "declared", offset, signature: "PE" });
   });
 

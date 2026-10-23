@@ -1,3 +1,4 @@
+import { EvidenceIntegrityError } from "../../../src/domain/evidenceErrors.js";
 import { resolveSourceToBundleReference } from "../../../src/application/javascript/SourceToBundleReference.js";
 import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -711,7 +712,9 @@ it("rejects static application Evidence whose subject path disagrees with its re
 
   const parsed = parseApplicationGraphEvidence(inconsistent);
   expect(parsed.ok).toBe(false);
-  if (!parsed.ok)
+  if (!parsed.ok) {
+    expect(parsed.error).not.toBeInstanceOf(EvidenceIntegrityError);
+    if (parsed.error instanceof EvidenceIntegrityError) throw parsed.error;
     expect(parsed.error.issues).toContainEqual(
       expect.objectContaining({
         path: ["subject"],
@@ -719,6 +722,7 @@ it("rejects static application Evidence whose subject path disagrees with its re
         message: expect.stringContaining("subject must match"),
       }),
     );
+  }
 });
 
 const compareTrees = async (previous: string, current: string) => {

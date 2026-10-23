@@ -1,3 +1,5 @@
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { PRE_66_NULL_COVERAGE_EVIDENCE } from "../../../src/domain/evidenceLegacy.fixture.js";
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -218,5 +220,48 @@ cliTest(
     const markdown = await cli.run({ arguments: [...base, "--format", "md"] });
     expect(markdown.exitCode, markdown.stderr).toBe(0);
     expect(markdown.stdout).toContain("left\\|right\\\\tail<br>next");
+  },
+);
+
+cliTest(
+  "diagnoses an obsolete explicit-null Evidence commitment without claiming the file was modified",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-legacy-coverage-identity-");
+    const path = join(root, "legacy.json");
+    const record = PRE_66_NULL_COVERAGE_EVIDENCE;
+    const bundle = {
+      artifacts: [],
+      providers: [record.provider],
+      environments: [],
+      scenarios: [],
+      captures: [],
+      unknowns: [],
+      records: [record],
+    };
+    await writeFile(path, JSON.stringify(bundle));
+    const imported = await cli.run({
+      arguments: ["evidence-import", path, "--json"],
+    });
+    expect(imported.exitCode).toBe(1);
+    expect(imported.json).toMatchObject({
+      code: "evidence_integrity_mismatch",
+      retryable: false,
+      message: expect.stringContaining(
+        "earlier relationship_coverage identity commitment",
+      ),
+    });
+    const call = await cli.sharedMcpCall?.();
+    if (call === undefined) throw new Error("Expected shared MCP session");
+    const response = await call("import_evidence_bundle", { path });
+    expect(response.isError).toBe(true);
+    expect(parseMcpToolError(response)).toMatchObject({
+      error: {
+        code: "evidence_integrity_mismatch",
+        retryable: false,
+        message: expect.stringContaining(
+          "earlier relationship_coverage identity commitment",
+        ),
+      },
+    });
   },
 );

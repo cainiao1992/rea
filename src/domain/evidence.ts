@@ -184,7 +184,9 @@ const authenticatedEvidenceSchema = evidenceSchema.superRefine(
       context.addIssue({
         code: "custom",
         path: ["evidence_id"],
-        message: "Evidence semantic identifier does not match its record",
+        message: usesPre66NullCoverageIdentity(withoutId, evidenceId)
+          ? "Evidence uses an earlier relationship_coverage identity commitment: explicit null was omitted from that digest. Recreate this observation with the current REA release; re-exporting the old bundle cannot update its identity."
+          : "Evidence semantic identifier does not match its record",
       });
   },
 );
@@ -249,7 +251,9 @@ export interface EvidenceObservation {
 
 type EvidenceWithoutId = Omit<EvidenceSchemaValue, "evidence_id">;
 
-const semanticProjection = (evidence: EvidenceWithoutId): JsonValue => ({
+const semanticProjection = (
+  evidence: EvidenceWithoutId,
+): Record<string, JsonValue> => ({
   subject:
     evidence.subject === null
       ? null
@@ -277,6 +281,20 @@ const semanticProjection = (evidence: EvidenceWithoutId): JsonValue => ({
 /** Hash semantic content, including raw results and excluding display-subject fields. */
 const computeEvidenceId = (evidence: EvidenceWithoutId): string =>
   `ev_${digestCanonicalValue(semanticProjection(evidence), "Evidence")}`;
+
+/** Recognize an obsolete commitment for diagnosis only; never admit or rewrite it. */
+const usesPre66NullCoverageIdentity = (
+  evidence: EvidenceWithoutId,
+  evidenceId: string,
+): boolean => {
+  if (evidence.relationship_coverage !== null) return false;
+  const legacyProjection = semanticProjection(evidence);
+  delete legacyProjection.relationship_coverage;
+  return (
+    evidenceId ===
+    `ev_${digestCanonicalValue(legacyProjection, "Historical Evidence identity")}`
+  );
+};
 
 /** Parse evidence and reject a syntactically valid but tampered semantic ID. */
 export const parseEvidence = (input: unknown): Evidence => {

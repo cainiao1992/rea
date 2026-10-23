@@ -1,3 +1,4 @@
+import { PRE_66_NULL_COVERAGE_EVIDENCE } from "./evidenceLegacy.fixture.js";
 import { fc, it } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 
@@ -624,4 +625,22 @@ it("borrows a previously sealed envelope only after authenticating all semantic 
     normalized_result: { fact: 2 },
   });
   expect(() => immutableEvidence(changed)).toThrow();
+});
+
+it("diagnoses a previous explicit-null coverage commitment without admitting or rewriting its ID", () => {
+  const historical = structuredClone(PRE_66_NULL_COVERAGE_EVIDENCE);
+  expect(() => parseEvidence(historical)).toThrow(
+    /earlier relationship_coverage identity commitment/u,
+  );
+  expect(historical).toEqual(PRE_66_NULL_COVERAGE_EVIDENCE);
+  const corrupted = { ...historical, normalized_result: { observed: false } };
+  expect(() => parseEvidence(corrupted)).toThrow(
+    /semantic identifier does not match/u,
+  );
+  const current = createEvidence(undefined, historical.provider, {
+    operation: "inspect",
+    parameters: {},
+    result: { observed: true },
+  });
+  expect(parseEvidence(current)).toEqual(current);
 });

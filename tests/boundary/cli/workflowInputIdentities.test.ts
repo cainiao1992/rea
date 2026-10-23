@@ -209,35 +209,68 @@ const checkNativeObservationIdentities = async ({
 const checkMalformedEvidenceBeforeIdentities = async ({
   cli,
   root,
+  call,
   application,
 }: WorkflowContext) => {
   const malformed = {
     ...application,
     provider: { ...application.provider, name: 3 },
   };
-  for (const [command, input, path] of [
+  const tampered = { ...application, confidence: "observed" };
+  for (const [name, command, input, reason] of [
     [
+      "compare_application_versions",
       "compare-application-versions",
       { left: application, right: malformed },
-      ["right", "provider", "name"],
+      "provider.name",
     ],
     [
+      "compare_javascript_export_shapes",
       "compare-javascript-export-shapes",
       { left: application, right: malformed, ...selectors },
-      ["right", "provider", "name"],
+      "provider.name",
     ],
     [
+      "compare_javascript_export_shapes",
+      "compare-javascript-export-shapes",
+      { left: application, right: tampered, ...selectors },
+      "semantic identifier",
+    ],
+    [
+      "trace_application_feature",
       "trace-application-feature",
       { application, seed, native_observations: [malformed, application] },
-      ["native_observations", 0, "provider", "name"],
+      "provider.name",
+    ],
+    [
+      "compare_application_versions",
+      "compare-application-versions",
+      { left: application, right: tampered },
+      "semantic identifier",
+    ],
+    [
+      "trace_application_feature",
+      "trace-application-feature",
+      { application: tampered, seed },
+      "semantic identifier",
     ],
   ] as const) {
     const rejected = await runJson(cli, root, command, input);
     expect(rejected.exitCode).toBe(1);
     expect(rejected.json).toMatchObject({
-      code: "invalid_request",
-      details: { issues: [{ path, reason: "invalid_type" }] },
+      code: "evidence_integrity_mismatch",
+      retryable: false,
+      details: { reason: expect.stringContaining(reason) },
     });
+    if (reason === "semantic identifier") {
+      const mcp = await call(name, input);
+      expect(mcp.isError).toBe(true);
+      expect(parseMcpToolError(mcp).error).toMatchObject({
+        code: "evidence_integrity_mismatch",
+        retryable: false,
+        details: { reason: expect.stringContaining(reason) },
+      });
+    }
   }
   const missingLeft = {
     kind: "retained-evidence",

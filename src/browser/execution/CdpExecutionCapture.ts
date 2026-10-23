@@ -8,6 +8,7 @@ import {
 import type {
   ObserveWebExecutionInput,
   WebExecution,
+  WebExecutionObservation,
 } from "../../domain/webExecution.js";
 import { CdpExecutionCollection } from "./CdpExecutionCollection.js";
 import { preciseCoverageSchema } from "./CdpRuntimeProtocol.js";
@@ -18,7 +19,7 @@ import type { CdpRuntimeSources } from "./CdpRuntimeSources.js";
 export const captureWebExecution = async (
   input: ObserveWebExecutionInput,
   sources: CdpRuntimeSources,
-): Promise<WebExecution> => {
+): Promise<WebExecutionObservation> => {
   const session = sources.session;
   const collection = new CdpExecutionCollection(sources);
   const { window, requests } = collection;
@@ -150,7 +151,7 @@ export const captureWebExecution = async (
         disables_optimized_execution: true,
         takes_one_resetting_sample: sample !== undefined,
         executes_selected_code: false,
-        cleanup: "confirmed",
+        cleanup: "unconfirmed",
         page_ownership: "external",
       },
       limitations: [

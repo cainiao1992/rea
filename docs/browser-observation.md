@@ -387,7 +387,12 @@ events retain their paired prior-hop response context when the timestamped
 next-request event falls inside the window. The pre-arm timeline buffer is bounded
 by original CDP message bytes. If clock sampling completes after that budget is
 exhausted, the operation returns `payload_limit` instead of a partial window.
-Cancellation and clock-request failures retain their own outcomes.
+Cancellation and clock-request failures retain their own outcomes. Session
+`load_failed` rows require a previously observed main-frame `Document` request;
+subresources, child-frame requests and failures without admitted request ownership
+are excluded. Redirects reuse their request identity, and completed/failed requests
+release it. Active request identity metadata uses the existing 8 MiB retained-event
+allowance; exhaustion fails the observation explicitly instead of guessing scope.
 
 ## Data minimization
 

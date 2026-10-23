@@ -34,7 +34,7 @@ Same-document navigation such as `history.pushState()` remains valid when the fr
 
 Target detachment ends the window with `session_detached`, even when the browser's root connection stays open. An `Inspector.targetCrashed` event ends it with `target_terminated`. A lost transport records `transport_disconnected` in browser observation; execution capture returns the typed transport failure. These outcomes retain the selected target and the observed lifecycle fact.
 
-When an ended session cannot acknowledge cleanup, the operation returns a failure with the failed commands and original typed producer reason. A coverage-stop failure also retains the observed window's end reason in its diagnostics; cleanup remains unconfirmed until the owning session can resolve it.
+When an ended session cannot acknowledge cleanup, the operation returns a failure with the failed commands and original typed producer reason. Completed capture facts retained with that failure report cleanup as `unconfirmed`; only the session cleanup owner can mark a successful result `confirmed`. Such retained Evidence preserves coverage, sources, target and listener facts without becoming a successful operation. A caller cancellation remains primary when an incomplete retained snapshot cannot be promoted to completed Evidence. A coverage-stop failure also retains the observed window's end reason in its diagnostics; cleanup remains unconfirmed until the owning session can resolve it.
 
 Child frames, workers, service workers, WebAssembly, chronological execution order and framework-specific causal interpretation are outside this operation. Script ownership comes from frame/context metadata, never URL equality. Repeated URLs and synthetic names therefore retain separate identities.
 

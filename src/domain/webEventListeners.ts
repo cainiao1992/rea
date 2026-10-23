@@ -18,7 +18,7 @@ export type InspectWebEventListenersInput = z.infer<
 >;
 
 /** A listener declaration and its source location do not establish that it ran. */
-export const webEventListenersSchema = z.object({
+export const webEventListenersObservationSchema = z.object({
   browser: browserVersionSchema,
   target: webRuntimeTargetSchema,
   inspected_at: z.iso.datetime(),
@@ -38,7 +38,15 @@ export const webEventListenersSchema = z.object({
     }),
   ),
   sources: z.array(webRuntimeSourceSchema),
-  cleanup: z.literal("confirmed"),
+  cleanup: z.enum(["confirmed", "unconfirmed"]),
   limitations: z.array(z.string()),
 });
+/** Successful operations require the cleanup owner's acknowledgement. */
+export const webEventListenersSchema =
+  webEventListenersObservationSchema.extend({
+    cleanup: z.literal("confirmed"),
+  });
+export type WebEventListenersObservation = z.infer<
+  typeof webEventListenersObservationSchema
+>;
 export type WebEventListeners = z.infer<typeof webEventListenersSchema>;

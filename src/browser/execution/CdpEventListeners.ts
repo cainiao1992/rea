@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
   InspectWebEventListenersInput,
-  WebEventListeners,
+  WebEventListenersObservation,
 } from "../../domain/webEventListeners.js";
 import type { CdpRuntimeSources } from "./CdpRuntimeSources.js";
 import { runtimeListenersSchema } from "./CdpRuntimeProtocol.js";
@@ -13,7 +13,7 @@ export const captureWebEventListeners = async (
   input: InspectWebEventListenersInput,
   sources: CdpRuntimeSources,
   group: string,
-): Promise<WebEventListeners> => {
+): Promise<WebEventListenersObservation> => {
   const session = sources.session;
   session.beginCompletion();
   const unsubscribe = session.transport.connection.onEvent((event) =>
@@ -92,7 +92,7 @@ export const captureWebEventListeners = async (
         execution: "unknown",
       })),
       sources: retained,
-      cleanup: "confirmed",
+      cleanup: "unconfirmed",
       limitations: [
         ...(session.discovery.limitations ?? []),
         "Inspects listeners registered directly on the first native CSS match in the selected main document. Delegated ancestor listeners, descendants, closed shadow roots and framework registries are not enumerated.",

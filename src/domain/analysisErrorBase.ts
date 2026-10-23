@@ -246,8 +246,8 @@ import type {
 } from "./native/recordedCrash.js";
 import type { WebPageInspection } from "./browserObservationSchemas.js";
 import type { WebBundleAnalysis } from "./webBundleAnalysis.js";
-import type { WebExecution } from "./webExecution.js";
-import type { WebEventListeners } from "./webEventListeners.js";
+import type { WebExecutionObservation } from "./webExecution.js";
+import type { WebEventListenersObservation } from "./webEventListeners.js";
 
 import type { NativeLoadImagePartialObservation } from "./native/nativeLoadImage.js";
 import type { NativeAotSnapshotObservation } from "./native/nativeAotSnapshotObservation.js";
@@ -273,8 +273,8 @@ export type AnalysisPartialObservation =
   | BrowserScenarioPartialObservation
   | WebPageInspection
   | WebBundleAnalysis
-  | WebExecution
-  | WebEventListeners
+  | WebExecutionObservation
+  | WebEventListenersObservation
   | JavaScriptRuntimeObservation
   | ArtifactInventoryPartialObservation
   | ArtifactExtractionPartialObservation

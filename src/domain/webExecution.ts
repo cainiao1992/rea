@@ -29,7 +29,7 @@ const functionSchema = z.object({
 });
 
 /** Precise V8 ranges retain their nested structure and counts without summing them. */
-export const webExecutionSchema = z.object({
+export const webExecutionObservationSchema = z.object({
   browser: browserVersionSchema,
   target: webRuntimeTargetSchema,
   window: z.object({
@@ -86,9 +86,18 @@ export const webExecutionSchema = z.object({
     disables_optimized_execution: z.literal(true),
     takes_one_resetting_sample: z.boolean(),
     executes_selected_code: z.literal(false),
-    cleanup: z.literal("confirmed"),
+    cleanup: z.enum(["confirmed", "unconfirmed"]),
     page_ownership: z.literal("external"),
   }),
   limitations: z.array(z.string()),
 });
+/** Successful operations require the cleanup owner's acknowledgement. */
+export const webExecutionSchema = webExecutionObservationSchema.extend({
+  instrumentation: webExecutionObservationSchema.shape.instrumentation.extend({
+    cleanup: z.literal("confirmed"),
+  }),
+});
+export type WebExecutionObservation = z.infer<
+  typeof webExecutionObservationSchema
+>;
 export type WebExecution = z.infer<typeof webExecutionSchema>;

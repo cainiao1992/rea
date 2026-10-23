@@ -95,6 +95,11 @@ export interface BinarySessionPort
   ): Promise<Result<SavedAnalysisSnapshot, AnalysisError>>;
   status(options?: { readonly signal?: AbortSignal }): Promise<JsonValue>;
   activeTarget(): BinaryTarget | undefined;
+  /** Read a snapshot with failed descriptors retained for session cleanup retry. */
+  readAnalysisSnapshot(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<Result<AnalysisSnapshot, AnalysisError>>;
   exportAnalysisSnapshot(): Result<AnalysisSnapshot, AnalysisError>;
   importAnalysisSnapshot(
     snapshot: AnalysisSnapshot,

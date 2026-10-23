@@ -431,6 +431,11 @@ cached result. `close_binary` accepts `snapshot_path` and optional
 `overwrite: true` to save before releasing provider resources. A failed save
 leaves the session open so the caller can resolve the output failure.
 
+If a selected snapshot's file descriptor cannot close, `open_binary` reports
+`cleanup_incomplete`. `binary_session` reports `cleanup_pending` even when no
+target opened. Retry `close_binary` to release the retained descriptor before
+opening another target.
+
 If a snapshot switch fails after the previous target was retired, restoration
 keeps that target's analysis commitments with the replacement client. This
 includes the native dispatch workflow profile on a profileless route, so its

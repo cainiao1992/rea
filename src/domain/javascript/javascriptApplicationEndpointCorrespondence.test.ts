@@ -194,9 +194,10 @@ it.each(["unknown", "unavailable"] as const)(
           authority: "unknown",
           confidence: "unknown",
           coverage: {
-            ...observation.evidence.coverage,
             status: "unknown",
+            truncated: false,
             omitted_count: null,
+            limits: [],
           },
           limitations: ["Endpoint target was not established."],
         },

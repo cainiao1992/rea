@@ -103,7 +103,9 @@ export const traceNativeValues = async (
     );
     decompilations++;
     if (!execution.ok) {
-      if (execution.error._tag === "AnalysisCancelledError")
+      // A seed failure has no trace to qualify. Preserve the provider's typed
+      // refusal; failures after a validated seed remain partial observations.
+      if (next.depth === 0 || execution.error._tag === "AnalysisCancelledError")
         return err(execution.error);
       unknowns.push({
         procedure: next.procedure,

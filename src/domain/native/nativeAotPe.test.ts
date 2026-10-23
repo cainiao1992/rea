@@ -120,11 +120,18 @@ describe("read-only NativeAOT PE parser", () => {
     );
   });
 
-  it("fails closed on snapshot identity mismatch", () => {
+  it("fails closed on snapshot identity mismatch while preserving observed identity", () => {
     const bytes = nativeAotPeFixture();
-    expect(() =>
-      parseNativeAotPe(bytes, "0".repeat(64), SUMMARY_BUDGET),
-    ).toThrow(/digest/iu);
+    try {
+      parseNativeAotPe(bytes, "0".repeat(64), SUMMARY_BUDGET);
+      throw new Error("Expected source identity mismatch");
+    } catch (cause: unknown) {
+      expect(cause).toMatchObject({
+        name: "NativeAotSnapshotIdentityError",
+        expectedSha256: "0".repeat(64),
+        observedSha256: nativeAotPeDigest(bytes),
+      });
+    }
   });
 
   it("reports a detected but unsupported RTR version as partial without guessed types", () => {

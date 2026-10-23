@@ -73,6 +73,19 @@ class NativeAotParserBudget {
   }
 }
 
+/** Source-byte identity mismatch retained for adapter-specific recovery. */
+export class NativeAotSnapshotIdentityError extends Error {
+  constructor(
+    readonly expectedSha256: string,
+    readonly observedSha256: string,
+  ) {
+    super(
+      `NativeAOT snapshot digest does not match the admitted artifact identity: expected ${expectedSha256}, observed ${observedSha256}`,
+    );
+    this.name = "NativeAotSnapshotIdentityError";
+  }
+}
+
 /** Hydration stops by throwing; other scans record truncation and continue. */
 class NativeAotParserBudgetError extends Error {
   constructor(readonly budget: "work" | "working-memory") {
@@ -1272,9 +1285,7 @@ export const parseNativeAotPe = (
     );
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   if (sha256 !== expectedSha256)
-    throw new Error(
-      "NativeAOT snapshot digest does not match the admitted artifact identity",
-    );
+    throw new NativeAotSnapshotIdentityError(expectedSha256, sha256);
   let image: PeImage;
   try {
     image = new PeImage(bytes);

@@ -2166,6 +2166,44 @@ it.each(["captured", "cancelled-with-facts"] as const)(
   },
 );
 
+it("preserves the observed NativeAOT snapshot digest with source-change recovery", async () => {
+  const bytes = nativeAotPeFixture();
+  const expected = "0".repeat(64);
+  const owner = new GhidraNativeAotSnapshotOwner({
+    targetSha256: expected,
+    targetPath: "/fixtures/admitted.exe",
+    readSnapshot: async () => ok({ kind: "captured", bytes }),
+    projectFailure: () => {
+      throw new Error("Identity mismatch must retain source-change recovery");
+    },
+  });
+  try {
+    const result = await owner.derive(
+      "0x140000000",
+      "inspect_native_load_image",
+      undefined,
+      {},
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisArtifactChangedError",
+      path: "/fixtures/admitted.exe",
+      diagnostics: {
+        expected_sha256: expected,
+        observed_sha256: nativeAotPeDigest(bytes),
+      },
+      partialObservation: {
+        kind: "native-aot-snapshot",
+        analysis_artifact_sha256: expected,
+        capture: { status: "captured", bytes: bytes.length },
+      },
+    });
+  } finally {
+    await owner.close();
+  }
+});
+
 it("preserves NativeAOT source facts and cleanup when a later caller contradicts identity", async () => {
   const partial = {
     kind: "file-snapshot-hash" as const,
@@ -2181,6 +2219,7 @@ it("preserves NativeAOT source facts and cleanup when a later caller contradicts
   onTestFinished(() => lease.release());
   const owner = new GhidraNativeAotSnapshotOwner({
     targetSha256: partial.sha256,
+    targetPath: partial.path,
     readSnapshot: async () =>
       err(
         new GhidraSessionError(

@@ -131,6 +131,11 @@ establishing their absence. Performance on the large bflat report has not been
 measured; this change removes repeated closure scans rather than resolving
 that separate discovery limitation.
 
+If captured snapshot bytes no longer match their admitted digest, the parser
+retains both digests and the Ghidra owner reports `artifact_changed`, with the
+captured byte count and admitted identity still available. Reopen acquisition
+against a stable artifact; this is distinct from corrupted retained Evidence.
+
 The optional adapter performs its annotations in an ephemeral Program
 transaction. That workflow may change analysis-memory bytes, never the original
 executable file. It is unavailable on Windows P0, which has no database

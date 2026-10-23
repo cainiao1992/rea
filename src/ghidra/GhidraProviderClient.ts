@@ -532,6 +532,7 @@ export const createGhidraProviderClient = (input: {
     target.format === "pe"
       ? new GhidraNativeAotSnapshotOwner({
           targetSha256: target.sha256,
+          targetPath: target.path,
           readSnapshot: client.readTargetSnapshot?.bind(client),
           projectFailure: (operation, failure) =>
             projectSessionError(

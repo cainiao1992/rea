@@ -654,6 +654,7 @@ const loaderInvocationInterop = (state: JavaScriptSemanticAnalysisState) => {
 };
 
 export interface JavaScriptRequireCallFact {
+  readonly operation: "load" | "resolve";
   readonly loader: JavaScriptRequireLoaderFact;
   readonly arguments:
     | readonly t.CallExpression["arguments"][number][]
@@ -670,7 +671,12 @@ export const semanticRequireCallAt = (
   factoryBindingIds: ReadonlySet<string>,
 ): JavaScriptRequireCallFact | undefined => {
   if (semanticModuleRequireCallAt(node, state))
-    return { loader: "unknown", arguments: undefined, sourceRelative: false };
+    return {
+      operation: "load",
+      loader: "unknown",
+      arguments: undefined,
+      sourceRelative: false,
+    };
   const callee = unwrapJavaScriptExpression(node.callee).node;
   if (
     (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
@@ -680,7 +686,12 @@ export const semanticRequireCallAt = (
     selectedRequireSourcesAt(callee, node, state, factoryBindingIds)?.loader ===
       "local"
   )
-    return { loader: "local", arguments: undefined, sourceRelative: false };
+    return {
+      operation: "load",
+      loader: "local",
+      arguments: undefined,
+      sourceRelative: false,
+    };
   if (
     (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
     semanticStaticPropertyKey(callee.property, callee.computed) === "resolve"
@@ -701,6 +712,7 @@ export const semanticRequireCallAt = (
         factoryBindingIds,
       );
       return {
+        operation: "resolve",
         loader: selected?.loader ?? loader,
         arguments: node.arguments,
         sourceRelative:
@@ -726,6 +738,7 @@ export const semanticRequireCallAt = (
     );
     if (selected !== undefined || loader !== "local")
       return {
+        operation: "load",
         loader: selected?.loader ?? loader,
         arguments: node.arguments,
         sourceRelative: selected?.sourceRelative ?? loader !== "create-require",
@@ -767,6 +780,7 @@ export const semanticRequireCallAt = (
         factoryBindingIds,
       );
       return {
+        operation: "load",
         loader:
           invocation.path[1] === "local"
             ? "local"
@@ -790,6 +804,7 @@ export const semanticRequireCallAt = (
   return factory === undefined
     ? undefined
     : {
+        operation: "load",
         loader: factory,
         arguments: node.arguments.slice(t.isIdentifier(node.callee) ? 0 : 1),
         sourceRelative: true,

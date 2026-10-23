@@ -77,6 +77,10 @@ export interface JavaScriptAnalysisAccumulator {
   readonly senderValidations: LocatedJavaScriptFinding<ElectronSenderValidationFinding>[];
   readonly utilityProcesses: LocatedJavaScriptFinding<ElectronUtilityProcessFinding>[];
   readonly nativeAddonBindings: LocatedJavaScriptFinding<ElectronNativeAddonBindingFinding>[];
+  readonly pendingNativeAddonBindings: (
+    | t.VariableDeclarator
+    | t.AssignmentExpression
+  )[];
   readonly moduleRangeIndex: JavaScriptModuleRangeIndex;
   /** Binding identities proven as third-parameter loaders of recovered factories. */
   readonly factoryRequireBindingIds: Set<string>;
@@ -157,6 +161,7 @@ export const createJavaScriptAnalysisAccumulator = (
   senderValidations: [],
   utilityProcesses: [],
   nativeAddonBindings: [],
+  pendingNativeAddonBindings: [],
   moduleRangeIndex: new JavaScriptModuleRangeIndex(sourceLength),
   factoryRequireBindingIds: new Set(),
   seen: new Set(),

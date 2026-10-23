@@ -108,7 +108,7 @@ export const referenceSourceRequireCalls = (
               : "source-file"
             : "unknown";
       const searchBase = requireResolveSearchBase(
-        node,
+        callFact.operation,
         callFact.arguments,
         index.bindings,
         base,
@@ -144,14 +144,14 @@ export const referenceSourceRequireCalls = (
 
 /** `require.resolve` options replace the default search paths unless exact current-directory paths are supplied. */
 const requireResolveSearchBase = (
-  call: t.CallExpression | t.OptionalCallExpression,
+  operation: JavaScriptRequireCallFact["operation"],
   callArguments: JavaScriptRequireCallFact["arguments"],
   bindings: JavaScriptSemanticAnalysisState,
   loaderBase: ReferenceSourceRequireResolutionBase,
   hasCommonJsWrapper: boolean,
 ): ReferenceSourceRequireResolutionBase => {
   const arguments_ = callArguments ?? [];
-  if (!isRequireResolveCall(call) || arguments_.length < 2) return loaderBase;
+  if (operation !== "resolve" || arguments_.length < 2) return loaderBase;
   if (arguments_.length !== 2) return "unknown";
   const options = t.isExpression(arguments_[1]) ? arguments_[1] : undefined;
   if (options === undefined || !t.isObjectExpression(options)) return "unknown";
@@ -170,17 +170,6 @@ const requireResolveSearchBase = (
     isUnmodifiedGlobalReference(directory, bindings, "__dirname")
     ? "source-file"
     : "unknown";
-};
-
-const isRequireResolveCall = (
-  call: t.CallExpression | t.OptionalCallExpression,
-): boolean => {
-  const callee = call.callee;
-  if (!t.isMemberExpression(callee) && !t.isOptionalMemberExpression(callee))
-    return false;
-  return (
-    semanticStaticPropertyKey(callee.property, callee.computed) === "resolve"
-  );
 };
 
 type CommonJsWrapperMode = "present" | "absent" | "unknown";

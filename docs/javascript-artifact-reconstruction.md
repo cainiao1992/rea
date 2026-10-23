@@ -514,6 +514,14 @@ candidate. Dynamic channels are never paired, and multiple compatible handlers
 are reported as ambiguous without adding a caller-to-handler edge. A matching
 channel still does not prove registration order, reachability, or runtime use.
 
+Native-addon call bindings consume the same loader identity and normalized
+arguments as dependency analysis, including optional calls. Local methods or
+parameters named `require` establish no native binding; `require.resolve` records
+lookup rather than a native namespace. CommonJS re-export bindings require a
+selected export value and an applicable shared export receiver. Arithmetic and
+logical compound stores keep their dependency observations without asserting that
+the addon is the selected exported value.
+
 For `.node` bindings, member names mean “requested by JavaScript syntax.” A
 resolved add-on path does not convert them into verified native exports. Native
 symbol verification remains a separate deep-analysis claim.

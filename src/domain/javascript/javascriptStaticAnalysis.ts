@@ -15,6 +15,7 @@ import {
 } from "./javascriptSemanticTraversal.js";
 
 import { isElectronRendererLoad } from "./electronStaticRenderer.js";
+import { finishElectronNativeBindingsSteps } from "./electronStaticAnalysisNative.js";
 import { inspectElectronStaticNode } from "./electronStaticAnalysis.js";
 import { hasPossibleCommonJsDelegateWrite } from "./javascriptSemanticRequireOrigin.js";
 import { semanticResourceLimitReason } from "./javascriptSemanticResourceLimits.js";
@@ -124,6 +125,7 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
   );
   yield* traverseStaticSourceSteps(file, findings, bindings, routeScan);
   const routes = yield* routeScan.finishSteps();
+  yield* finishElectronNativeBindingsSteps(findings, index);
   yield* finishElectronBrowserWindowsSteps(findings, index);
   if (accumulator.pendingModuleRequireCalls.length > 0) {
     yield* index.indexMemberMutationFactsSteps();

@@ -874,7 +874,13 @@ export const specSignatureFacts = (
     }
     if (cursor !== blob.length)
       malformedSignature("Trailing signature data", cursor);
-    return { types, resolvedSha256: typeName === undefined ? null : resolvedSha256(blob, operands, typeName) };
+    return {
+      types,
+      resolvedSha256:
+        typeName === undefined
+          ? null
+          : resolvedSha256(blob, operands, typeName),
+    };
   } catch (cause: unknown) {
     if (
       !(cause instanceof ManagedReaderFailure) ||

@@ -52,7 +52,7 @@ it.each([
         .listeners(interrupt)
         .filter((listener) => !initialListeners.has(listener));
       expect(listeners).toHaveLength(1);
-        listeners[0]?.call(process, interrupt);
+      listeners[0]?.call(process, interrupt);
       if (cleanupFails) throw cleanup;
     };
     const args =

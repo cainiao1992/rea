@@ -147,7 +147,7 @@ it("summarizes selected members and pages every original collection after the fi
     expect(rows.length, collection).toBeGreaterThan(0);
     expect(view.summary.reported_counts[collection]).toBe(rows.length);
     const paged: unknown[] = [];
-    for (let offset: number | null = 0; offset !== null; ) {
+    for (let offset: number | null = 0; offset !== null;) {
       const result = await client.callTool({
         name: "inspect_analysis_view",
         arguments: {

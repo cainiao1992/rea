@@ -581,7 +581,13 @@ export const keyMembers = (
       left.result.fields,
       right.result.fields,
       sides,
-      (a, b) => matchFields(a, b, left.result.metadata.status === "complete" && right.result.metadata.status === "complete"),
+      (a, b) =>
+        matchFields(
+          a,
+          b,
+          left.result.metadata.status === "complete" &&
+            right.result.metadata.status === "complete",
+        ),
       (item) => keyField(item, declaredLeft),
       (item) => keyField(item, declaredRight),
     ),

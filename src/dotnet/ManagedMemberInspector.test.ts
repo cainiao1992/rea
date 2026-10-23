@@ -1585,7 +1585,9 @@ describe("managed derived edges", () => {
     const budget = new ManagedDecodeBudget();
     // Exercise the same capacity boundary without constructing 64 MiB of edges.
     budget.reserve(64 * 1024 * 1024 - 16 * 1024, null);
-    expect(() => edges([method], new Map(), budget)).toThrow(ManagedReaderFailure);
+    expect(() => edges([method], new Map(), budget)).toThrow(
+      ManagedReaderFailure,
+    );
   });
 });
 
@@ -1620,7 +1622,9 @@ describe("managed derived caller names", () => {
     const budget = new ManagedDecodeBudget();
     // Only the remaining capacity matters to refusal before interpolation.
     budget.reserve(64 * 1024 * 1024 - 1024, null);
-    expect(() => edges([method], new Map(), budget)).toThrow(ManagedReaderFailure);
+    expect(() => edges([method], new Map(), budget)).toThrow(
+      ManagedReaderFailure,
+    );
     expect(built).toBe(false);
   });
 });

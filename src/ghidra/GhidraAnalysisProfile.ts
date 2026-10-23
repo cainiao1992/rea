@@ -45,10 +45,22 @@ import {
   NATIVE_AOT_PROFILE_CONTRACT_REVISION,
 } from "../domain/native/nativeAotPe.js";
 
-const callRelationshipCoverage = "function-body-call-coverage-v5";
-const functionBoundaryObservations = "ghidra-function-boundary-limitations-v4";
-const instructionReferenceCoverage =
-  "exact-address-incoming-without-synthetic-entry-v2";
+/** Shared analysis commitments for raw and header-selected imports. */
+const sharedAnalysisSemantics = {
+  annotation_policy: "atomic-function-entry-metadata-v1",
+  load_image_observations: "source-mappings-entry-context-v2",
+  function_body_evidence: "complete-inclusive-ranges-v1",
+  function_references: "complete-body-and-entry-reference-manager-v2",
+  call_relationship_coverage: "function-body-call-coverage-v5",
+  function_dossier_coverage: "observed-facets-and-call-relationships-v1",
+  string_inventory_evidence: "defined-data-coverage-v1",
+  location_resolution: "explicit-address-exact-entry-symbol-first-v3",
+  procedure_file_offset_resolution:
+    "address-first-unique-target-source-mapping-v2",
+  instruction_flow_evidence: "decoded-return-pcode-v1",
+  instruction_references: "exact-address-incoming-without-synthetic-entry-v2",
+  function_boundary_observations: "ghidra-function-boundary-limitations-v4",
+} as const;
 
 /**
  * The processor language REA pins for this target, or undefined when Ghidra may
@@ -136,20 +148,7 @@ export const resolveGhidraAnalysisProfile = async (
           architecture: target.architecture,
           available_architectures: [...target.availableArchitectures].sort(),
           import_mode: "ephemeral-source-immutable",
-          annotation_policy: "atomic-function-entry-metadata-v1",
-          load_image_observations: "source-mappings-entry-context-v2",
-          function_body_evidence: "complete-inclusive-ranges-v1",
-          function_references: "complete-body-and-entry-reference-manager-v2",
-          call_relationship_coverage: callRelationshipCoverage,
-          function_dossier_coverage:
-            "observed-facets-and-call-relationships-v1",
-          string_inventory_evidence: "defined-data-coverage-v1",
-          location_resolution: "explicit-address-exact-entry-symbol-first-v3",
-          procedure_file_offset_resolution:
-            "address-first-unique-target-source-mapping-v2",
-          instruction_flow_evidence: "decoded-return-pcode-v1",
-          instruction_references: instructionReferenceCoverage,
-          function_boundary_observations: functionBoundaryObservations,
+          ...sharedAnalysisSemantics,
           no_return_repair:
             installation.platform === "win32"
               ? "disabled-windows-p0"
@@ -247,19 +246,7 @@ export const resolveGhidraAnalysisProfile = async (
               windows_arm_pe_machine: target.peMachine ?? null,
             }
           : {}),
-        annotation_policy: "atomic-function-entry-metadata-v1",
-        load_image_observations: "source-mappings-entry-context-v2",
-        function_body_evidence: "complete-inclusive-ranges-v1",
-        function_references: "complete-body-and-entry-reference-manager-v2",
-        call_relationship_coverage: callRelationshipCoverage,
-        function_dossier_coverage: "observed-facets-and-call-relationships-v1",
-        string_inventory_evidence: "defined-data-coverage-v1",
-        location_resolution: "explicit-address-exact-entry-symbol-first-v3",
-        procedure_file_offset_resolution:
-          "address-first-unique-target-source-mapping-v2",
-        instruction_flow_evidence: "decoded-return-pcode-v1",
-        instruction_references: instructionReferenceCoverage,
-        function_boundary_observations: functionBoundaryObservations,
+        ...sharedAnalysisSemantics,
         no_return_repair:
           installation.platform === "win32"
             ? "disabled-windows-p0"

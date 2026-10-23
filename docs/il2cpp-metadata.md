@@ -248,7 +248,8 @@ The result adds:
   field and parameter index with `type`, the index into the binary's
   `Il2CppType` table, and `name`, rendered from that table: C# keywords for
   primitives (`int`, `string`, `object`), `Namespace.Outer+Inner` for type
-  definitions, `T[]`, `T[,]` and `T*`, generic instances as
+  definitions, `T[]` for vectors, `T[*]` for rank-one multidimensional arrays,
+  `T[,]` for rank-two arrays and `T*`, generic instances as
   `System.Collections.Generic.List<string>` and generic parameters by their
   metadata name (`TKey`). A trailing `&` marks a by-reference type. `name` is
   `null` only for type index `-1`.

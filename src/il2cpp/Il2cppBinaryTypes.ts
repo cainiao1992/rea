@@ -122,9 +122,7 @@ export const createTypeNamer = (
         if (rank === 0) fail("array rank is zero");
         result = join([
           yield* name(pointer(data, "array element"), depth + 1),
-          "[",
-          ",".repeat(rank - 1),
-          "]",
+          rank === 1 ? "[*]" : `[${",".repeat(rank - 1)}]`,
         ]);
       } else if (kind === 0x13 || kind === 0x1e)
         result =

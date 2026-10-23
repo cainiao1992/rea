@@ -426,7 +426,10 @@ top-level limitation. That partial inventory does not establish absence among
 unexamined children. POSIX directory-entry bytes that are not valid UTF-8 cannot
 be represented as graph paths; the containing directory (or root) is marked
 unsupported, and REA does not access the entry through a replacement-character
-name. Readable siblings remain inventoried.
+name. Symlink targets are read as bytes too: a target that is not valid UTF-8
+is retained as an unreadable symlink with its bytes reported in the limitation,
+and is never resolved through a replacement-character path. Readable siblings
+remain inventoried.
 
 JavaScript and TypeScript import parsing requires valid UTF-8. Malformed source
 bytes retain their original hashes and sizes with a decoding diagnostic; REA

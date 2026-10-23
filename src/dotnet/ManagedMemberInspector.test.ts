@@ -1993,6 +1993,72 @@ it.each([
   },
 );
 
+it.each([
+  [[], "truncated compressed integer"],
+  [[0x80], "reserved compressed integer"],
+  [[0xc0, 0, 0], "reserved compressed integer"],
+  [[0xe0], "reserved compressed integer"],
+] as const)(
+  "retains TypeSpec prefix failure %j at its owning row",
+  (prefix, issue) => {
+    const bytes = buildManagedPeFixture({
+      typeSpecSignatures: [Buffer.from([0x12, ...prefix])],
+      memberRefParentRaw: (1 << 3) | 4,
+    });
+    const pe = readManagedPeLayout(bytes);
+    if (pe.cli === null) throw new Error("fixture has no CLI header");
+    const { rva, size } = pe.cli.metadata;
+    const layout = readManagedMetadataLayout(
+      bytes,
+      pe.rvaToOffset(rva, size, "metadata"),
+      size,
+    );
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.member_refs[0]?.parent_name).toBeNull();
+    expect(result.coverage.issues).toContainEqual({
+      code: "invalid-blob",
+      scope: "metadata.TypeSpec:0x1b000001",
+      offset: metadataRowOffset(layout, 27, 1),
+      detail: issue,
+    });
+  },
+);
+
+it.each([
+  [[0x01], -64],
+  [[0x80, 0x01], -8192],
+  [[0xc0, 0x00, 0x00, 0x01], -268435456],
+] as const)(
+  "preserves compressed signed width for array bound %j",
+  (bound, lower) => {
+    const bytes = buildManagedPeFixture({
+      fieldSignature: Buffer.from([
+        0x06,
+        0x14,
+        0x08,
+        0x01,
+        0x00,
+        0x01,
+        ...bound,
+      ]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.fields[0]?.signature).toMatchObject({
+      parse_status: "decoded",
+      field_type: `i4[${lower}...]`,
+    });
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  },
+);
+
 it("decodes generic instantiation member signatures as complete coverage", () => {
   // System.Runtime.Caching 0x06000001: instance void (Dictionary<string, object>)
   // shape, with TypeRef/TypeSpec coded tokens kept as encoded.

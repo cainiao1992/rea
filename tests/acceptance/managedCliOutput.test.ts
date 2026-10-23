@@ -526,3 +526,31 @@ cliTest(
     }
   },
 );
+
+cliTest(
+  "managed CLI retains target frameworks with multi-byte SerString lengths",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-managed-serstring-");
+    for (const length of [0x80, 0x4000]) {
+      const targetFramework = "A".repeat(length);
+      const path = join(root, `framework-${length}.dll`);
+      await writeFile(path, buildManagedPeFixture({ targetFramework }));
+
+      const result = await cli.run({
+        arguments: ["inspect-managed-artifact", path, "--json"],
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.json).toMatchObject({
+        operation: "inspect_managed_artifact",
+        normalized_result: {
+          target_frameworks: [targetFramework],
+          attributes: [
+            expect.objectContaining({ decoded_fixed_string: targetFramework }),
+          ],
+          coverage: { state: "complete", issues: [] },
+        },
+      });
+    }
+  },
+);

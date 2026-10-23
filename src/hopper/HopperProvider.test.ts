@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { parseConfig } from "../config/parseConfig.js";
 import { silentLogger } from "../logger.js";
+import { ok } from "../domain/result.js";
+import { HopperClient } from "./HopperClient.js";
 import { HopperProvider } from "./HopperProvider.js";
 
 describe("Hopper provider capabilities", () => {
@@ -85,4 +87,56 @@ describe("Hopper provider capabilities", () => {
       reason: expect.stringContaining("arm64_32"),
     });
   });
+});
+
+describe("Hopper relationship coverage", () => {
+  it.each([
+    ["procedure_callers", ["callers"]],
+    ["procedure_callees", ["callees"]],
+    ["analyze_function", ["callers", "callees"]],
+  ] as const)(
+    "retains %s observations without claiming exhaustive relationships",
+    async (operation, directions) => {
+      const config = parseConfig({});
+      if (!config.ok) throw config.error;
+      const source =
+        operation === "analyze_function"
+          ? {
+              callers: [],
+              callees: [{ address: "0x2000", name: "tail_target" }],
+            }
+          : operation === "procedure_callees"
+            ? ["0x2000"]
+            : [];
+      const callTool = vi
+        .spyOn(HopperClient.prototype, "callTool")
+        .mockResolvedValue(ok(source));
+      const client = new HopperProvider(
+        config.value,
+        silentLogger,
+        {},
+        "linux",
+      ).createClient({
+        path: "/tmp/fixture.hop",
+        sha256: "a".repeat(64),
+        kind: "database",
+        format: "analysis-database",
+      });
+      try {
+        const observed = await client.execute(operation, {
+          procedure: "0x1000",
+        });
+        if (!observed.ok) throw observed.error;
+        expect(observed.value.result).toEqual(source);
+        expect(observed.value.relationshipCoverage).toMatchObject({
+          status: "unknown",
+          limited_directions: directions,
+          reason: expect.stringContaining("resolved tail calls"),
+        });
+      } finally {
+        await client.close();
+        callTool.mockRestore();
+      }
+    },
+  );
 });

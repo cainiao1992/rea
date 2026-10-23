@@ -347,7 +347,19 @@ export class HopperProvider implements AnalysisProviderCandidate {
         ...(operation === "procedure_callers" ||
         operation === "procedure_callees" ||
         operation === "analyze_function"
-          ? { relationshipCoverage: { status: "complete" as const } }
+          ? {
+              relationshipCoverage: {
+                status: "unknown" as const,
+                limited_directions:
+                  operation === "procedure_callers"
+                    ? (["callers"] as const)
+                    : operation === "procedure_callees"
+                      ? (["callees"] as const)
+                      : (["callers", "callees"] as const),
+                reason:
+                  "Hopper reports caller and callee procedures through independent public API inventories. Their completeness, including resolved tail calls and agreement between reverse and forward relationships, has not been established. Observed relationships are retained.",
+              },
+            }
           : {}),
         limitations: [
           ...(target.kind !== "executable"

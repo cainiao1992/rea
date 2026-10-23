@@ -219,7 +219,12 @@ Function dossiers and `trace_feature` string matches retain this same string
 evidence, including decoding uncertainty; procedure matches keep their own
 named observation fields without invented string qualifications. Native call edges retain
 Hopper's partial `CallReference` classification and exact endpoints; detailed
-reference flags remain unavailable rather than being invented.
+reference flags remain unavailable rather than being invented. Caller and callee
+procedure inventories come from independent Hopper APIs; REA retains observed
+relationships but reports their completeness as unknown. In particular, a resolved
+tail call observed in one direction does not prove that the reverse inventory is
+complete. An empty Hopper inventory cannot establish that no such call exists.
+No whole-binary reverse scan is performed.
 Regex searches use ECMAScript Unicode syntax in a cancellable worker with a
 matching deadline and a worker old-generation heap. Deadline or cancellation
 stops matching while leaving the Hopper API available. The deadline is

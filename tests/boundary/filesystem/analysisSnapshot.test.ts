@@ -317,14 +317,17 @@ describe("analysis snapshot file ownership", () => {
         });
       let failure: unknown;
       try {
-        try {
-          await readAnalysisSnapshot(
-            path,
-            cancelDuringClose ? controller.signal : undefined,
-          );
-        } catch (cause: unknown) {
-          failure = cause;
-        }
+        const result = await readAnalysisSnapshot(
+          path,
+          cancelDuringClose ? controller.signal : undefined,
+        );
+        if (result.ok)
+          throw new Error("Expected typed snapshot cleanup failure");
+        expect(result.error.cleanupIncomplete).toBe(true);
+        failure =
+          cancelDuringClose && result.error.cause instanceof AggregateError
+            ? result.error.cause.errors[1].cause
+            : result.error.cause;
         expect(failure).toBeInstanceOf(RegularFileCleanupFailure);
         if (!(failure instanceof RegularFileCleanupFailure))
           throw new Error("Expected the retained snapshot file handle owner");

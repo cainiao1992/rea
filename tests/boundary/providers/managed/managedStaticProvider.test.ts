@@ -63,6 +63,7 @@ describe("managed static snapshot capacity failure", () => {
 
       permitClose = true;
       await resources.close();
+      expect(failure).toMatchObject({ cleanupIncomplete: false });
     } finally {
       permitClose = true;
       await resources.close();
@@ -72,6 +73,62 @@ describe("managed static snapshot capacity failure", () => {
 });
 
 describe("managed static snapshot cancellation", () => {
+  it.each([null, "stop after read", { caller: "stop after read" }])(
+    "retains completed snapshot facts and exact cancellation during failed close: %s",
+    async (reason) => {
+      const directory = await createTestTempDirectory(
+        "rea-managed-final-close-",
+      );
+      const path = join(directory, "fixture.exe");
+      const bytes = buildManagedPeFixture();
+      await writeFile(path, bytes);
+      const parsed = await parseBinaryTarget(path);
+      if (!parsed.ok) throw parsed.error;
+      const client = new ManagedStaticProvider().createClient(parsed.value);
+      const controller = new AbortController();
+      const nativeClose = OwnedFileHandle.prototype.close;
+      let denied = true;
+      const close = vi
+        .spyOn(OwnedFileHandle.prototype, "close")
+        .mockImplementation(async function (this: OwnedFileHandle) {
+          controller.abort(reason);
+          if (denied) throw new Error("controlled final close denial");
+          await nativeClose.call(this);
+        });
+      try {
+        const result = await client.execute(
+          "inspect_managed_artifact",
+          {},
+          { signal: controller.signal },
+        );
+        if (result.ok)
+          throw new Error("Expected cancellation and incomplete cleanup");
+        expect(result.error.cleanupIncomplete).toBe(true);
+        expect(result.error.cleanupPrimary).toMatchObject({
+          _tag: "AnalysisCancelledError",
+        });
+        expect(result.error.cleanupPrimary?.cause).toBe(reason);
+        expect(result.error.partialObservation).toEqual({
+          kind: "file-snapshot-hash",
+          path,
+          bytes: bytes.length,
+          sha256: parsed.value.sha256,
+        });
+        denied = false;
+        expect(await client.close()).toEqual({ ok: true, value: null });
+        expect(result.error.cleanupIncomplete).toBe(false);
+        expect(projectAnalysisError(result.error)).toMatchObject({
+          code: "cancelled",
+          details: { cleanup: "complete" },
+        });
+      } finally {
+        denied = false;
+        await client.close();
+        close.mockRestore();
+      }
+    },
+  );
+
   it("preserves cancellation when snapshot cleanup also fails", async () => {
     const directory = await createTestTempDirectory(
       "rea-managed-cancel-cleanup-",
@@ -128,6 +185,7 @@ describe("managed static snapshot cancellation", () => {
 
       permitClose = true;
       expect(await client.close()).toMatchObject({ ok: true });
+      expect(result.error.cleanupIncomplete).toBe(false);
       expect(owners.every((owner) => owner === owners[0])).toBe(true);
     } finally {
       permitClose = true;
@@ -177,11 +235,24 @@ describe("managed static file ownership", () => {
       });
       expect(owners).toHaveLength(3);
       expect(owners.every((owner) => owner === owners[0])).toBe(true);
+      const failedClose = await client.close();
+      if (failedClose.ok) throw new Error("Expected a retained close failure");
 
       permitClose = true;
       expect(await client.close()).toMatchObject({ ok: true });
-      expect(owners).toHaveLength(4);
+      expect(owners).toHaveLength(5);
       expect(owners.every((owner) => owner === owners[0])).toBe(true);
+      if (failed.ok || blocked.ok)
+        throw new Error("Expected retained failures");
+      expect(failed.error.cleanupIncomplete).toBe(false);
+      expect(blocked.error.cleanupIncomplete).toBe(false);
+      expect(failedClose.error.cleanupIncomplete).toBe(false);
+      expect(failed.error.partialObservation).toEqual({
+        kind: "file-snapshot-hash",
+        path,
+        bytes: bytes.length,
+        sha256: parsed.value.sha256,
+      });
     } finally {
       permitClose = true;
       await client.close();

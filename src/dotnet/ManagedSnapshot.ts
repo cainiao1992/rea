@@ -4,8 +4,12 @@ import type { FileHandle } from "node:fs/promises";
 
 import { MANAGED_STATIC_PROVIDER } from "../domain/investigationProviders.js";
 import { classifyBinaryTargetFilesystemFailure } from "../application/BinaryTargetResolver.js";
-import { RegularFileCleanupFailure } from "../filesystem/OwnedRegularFile.js";
 import {
+  RegularFileCleanupFailure,
+  regularFileCancellation,
+} from "../filesystem/OwnedRegularFile.js";
+import {
+  bindRegularFileCleanup,
   withRegularFile,
   type RegularFileReadOptions,
 } from "../application/RegularFileRead.js";
@@ -148,12 +152,14 @@ export const managedCleanupError = (
   signal?: AbortSignal,
 ): AnalysisError | undefined => {
   if (cause instanceof RegularFileCleanupFailure) {
+    const cancellation = regularFileCancellation(cause);
     const cleanup = new ProviderCleanupError(
       MANAGED_STATIC_PROVIDER.id,
       [cause.path],
       { reason: "A managed input file handle could not be closed" },
       { cause, operation },
     );
+    bindRegularFileCleanup(cause, cleanup);
     const failure =
       cause.outcome.kind === "failed"
         ? normalizeReadFailure(
@@ -162,20 +168,59 @@ export const managedCleanupError = (
             operation,
             signal,
           )
-        : undefined;
+        : cancellation === undefined
+          ? undefined
+          : new AnalysisCancelledError(operation, {
+              cause: cancellation.reason,
+            });
+    // This boundary produces only these snapshot facts. The descriptor owner
+    // confirms completion independently of a failed final close.
+    if (cause.outcome.kind === "completed") {
+      const observed = cause.outcome.value as ManagedSourceObservation;
+      const observation = {
+        kind: "file-snapshot-hash" as const,
+        path: cause.path,
+        bytes: observed.byteLength,
+        sha256: observed.sha256,
+      };
+      cleanup.retainPartialObservation(observation);
+      if (failure instanceof AnalysisError)
+        failure.retainPartialObservation(observation);
+    }
     return failure instanceof AnalysisError
-      ? analysisErrorWithCleanupFailure(failure, cleanup, operation)
+      ? analysisErrorWithCleanupFailure(
+          failure,
+          cleanup,
+          operation,
+        ).bindCleanupDependencies([failure, cleanup])
       : cleanup;
   }
-  if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
-    return new ProviderCleanupError(
+  if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined) {
+    const error = new ProviderCleanupError(
       MANAGED_STATIC_PROVIDER.id,
       cause.cleanup.resources.length > 0
         ? cause.cleanup.resources
         : [fallbackPath],
       { reason: cause.cleanup.reason },
-      { cause, operation },
+      { cause, operation, partialObservation: cause.partialObservation },
     );
+    bindRegularFileCleanup(cause, error);
+    if (cause.reason === "cancelled") {
+      const cancelled = new AnalysisCancelledError(operation, {
+        cause:
+          cause.cancellation === undefined
+            ? cause.cause
+            : cause.cancellation.reason,
+        partialObservation: cause.partialObservation,
+      });
+      return analysisErrorWithCleanupFailure(
+        cancelled,
+        error,
+        operation,
+      ).bindCleanupDependencies([cancelled, error]);
+    }
+    return error;
+  }
   return undefined;
 };
 

@@ -472,7 +472,9 @@ Every capture requires `truncation_details`, with separate accounting for:
   Denied or failed procfs reads mark
   sampling partial while preserving readable process rows and thread children;
   a process with unreadable identity is not attributed. Expected process-exit
-  races are separate from failed observations. Shutdown counts only when it
+  races are separate from failed observations. A native token reader's confirmed
+  process absence during initialization is an expected exit; token-read denial
+  and unavailable snapshots still count as failed observations. Shutdown counts only when it
   interrupts a read or leaves traversal unfinished; a completed pass does not
   become partial merely because the sampler stops. Completed rows
   remain available and issued reads settle before final coverage is returned.

@@ -929,3 +929,38 @@ it.each([
     expect(result.platforms).toEqual([]);
   },
 );
+
+it.each(["Core.framework", "Core.FRAMEWORK"])(
+  "uses the recognized %s role for framework components",
+  (name) => {
+    const framework = `Fixture.app/Contents/Frameworks/${name}`;
+    const result = project(
+      inventoryEvidence("directory", "Fixture.app", [
+        macho(`${framework}/Core`),
+        { path: `${framework}/Info.plist` },
+      ]),
+    );
+    expect(result.components.frameworks.map(({ path }) => path)).toEqual([
+      `${framework}/Core`,
+      `${framework}/Info.plist`,
+    ]);
+  },
+);
+
+it("preserves observed unavailable bundle metadata and signing paths without inventing executable content", () => {
+  const root = "Payload/Mobile.app";
+  const result = project(
+    inventoryEvidence("ipa", "Mobile.ipa", [
+      { path: `${root}/Info.plist`, unavailable: true },
+      { path: `${root}/_CodeSignature/CodeResources`, unavailable: true },
+      { path: `${root}/Main`, unavailable: true },
+    ]),
+  );
+  expect(result.bundles[0]).toMatchObject({
+    info_plist_path: `${root}/Info.plist`,
+    signing_paths: [`${root}/_CodeSignature/CodeResources`],
+    executable_candidates: [],
+  });
+  expect(result.platforms).toEqual(["ios"]);
+  expect(result.unavailable_components).toHaveLength(3);
+});

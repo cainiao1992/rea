@@ -133,7 +133,7 @@ export const projectAppleInventory = (
     roots,
     rootFormat,
   );
-  const classified = classifyComponents(entries, all, roots);
+  const classified = classifyComponents(entries, all, roots, bundles);
   const runtimeFamilies = identifyRuntimeFamilies(all);
   const bridgeProjection = identifyBridgeCandidates(
     classified.javascript,
@@ -263,7 +263,11 @@ const classifyComponents = (
   entries: readonly ProjectedInventoryEntry[],
   all: readonly Component[],
   roots: readonly string[],
+  bundles: readonly z.infer<typeof appleBundleSchema>[],
 ) => {
+  const frameworkRoots = bundles
+    .filter(({ role }) => role === "framework")
+    .map(({ path }) => path);
   const withinApp = (path: string): boolean =>
     roots.some((root) => isWithin(path, root));
   const matching = (predicate: (path: string) => boolean): Component[] =>
@@ -286,7 +290,9 @@ const classifyComponents = (
       ({ path, format }) =>
         isMachOFormat(format) && (withinApp(path) || !isNativeLibrary(path)),
     ),
-    frameworks: all.filter(({ path }) => /\.framework\//u.test(path)),
+    frameworks: all.filter(({ path }) =>
+      frameworkRoots.some((root) => isWithin(path, root)),
+    ),
     native_libraries: all.filter(({ path }) => isNativeLibrary(path)),
     javascript: all.filter(({ format }) => format === "javascript-bundle"),
     signing: all.filter(

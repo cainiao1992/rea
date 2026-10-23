@@ -168,8 +168,12 @@ it.each(["optional", "late-handle"] as const)(
         registerProcessShutdown(handler, { signals, stdin: input }),
     });
     await entered.promise;
-    if (stage === "optional") input.end();
-    else signals.emit("SIGTERM");
+    if (stage === "optional") {
+      await new Promise<void>((resolve) => {
+        input.once("end", resolve);
+        input.end();
+      });
+    } else signals.emit("SIGTERM");
     expect(closeHandle).not.toHaveBeenCalled();
     expect(closeSession).not.toHaveBeenCalled();
     release.resolve();

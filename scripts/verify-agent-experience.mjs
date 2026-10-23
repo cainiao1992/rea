@@ -11,9 +11,12 @@ import {
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 
 import { evaluateCodexEvents } from "../dist/evaluation/CodexAgentEval.js";
+import {
+  MISSING_TARGET_SCENARIO,
+  nativeProviderScenario,
+} from "../dist/evaluation/AgentEvaluationScenarios.js";
 import {
   createAgentEvaluationFixtures,
   agentFixtureClaims,
@@ -136,17 +139,7 @@ try {
     requestedScenarioIds.size === 0 || requestedScenarioIds.has("managed"),
   );
   const allScenarios = [
-    {
-      id: "native",
-      expectedFirstTool: "open_binary",
-      requiresEvidence: false,
-      requiredAnswerTermGroups: [["unavailable", "could not", "provider"]],
-      // The verifier authorizes these named session operations, not arbitrary
-      // writes or runtime execution. Missing-engine behavior stays observable.
-      approvedTools: ["open_binary", "close_binary"],
-      requiredToolSubsequence: ["open_binary", "close_binary"],
-      prompt: `Explain what static artifact evidence establishes about the shipped native program at ${targets.native}. Do not execute the target or install tools. Clearly state unavailable provider evidence, and close any analysis session you opened before finishing.`,
-    },
+    nativeProviderScenario(targets.native),
     {
       id: "asar",
       expectedFirstTool: "analyze_javascript_application",
@@ -194,14 +187,7 @@ try {
       ],
       prompt: `Inspect the recorded module identity, exports and observations for main.js in the shipped JavaScript tree ${targets.largeJavascript}. Use REA without directly reading target files or executing the target. Keep results focused on that module, cite Evidence, and state the limits of what its module view establishes.`,
     },
-    {
-      id: "missing-target",
-      expectedFirstTool: null,
-      requiresEvidence: false,
-      requiredAnswerTermGroups: [],
-      prompt:
-        'Reverse engineer my desktop app and explain how it saves user settings. Use static analysis; do not install software. End with one JSON object containing status ("needs_target" or "analyzed"), requested_input ("app_name_or_artifact_path" or null), and question (a string or null).',
-    },
+    MISSING_TARGET_SCENARIO,
     {
       id: "javascript-export-shape",
       expectedFirstTool: "analyze_javascript_application",
@@ -313,8 +299,9 @@ try {
     // Their existence does not identify the unnamed app in this request.
     const targetClarificationPassed =
       scenario.expectedFirstTool === null
-        ? validTargetClarification(metrics.finalMessage)
+        ? scenario.validTargetClarification(metrics.finalMessage)
         : undefined;
+    const scenarioOutcome = scenario.assess?.(metrics);
     const result = {
       id: scenario.id,
       expectedFirstTool: scenario.expectedFirstTool,
@@ -325,6 +312,12 @@ try {
       exitCode: execution.exitCode,
       stderr: execution.stderr,
       ...metrics,
+      ...(scenarioOutcome === undefined
+        ? {}
+        : {
+            scenarioOutcome,
+            scenarioOutcomePassed: scenarioOutcome !== "failed",
+          }),
       ...(targetClarificationPassed === undefined
         ? {}
         : { targetClarificationPassed }),
@@ -487,18 +480,4 @@ async function createTargets(root, includeManaged) {
         }
       : {}),
   };
-}
-
-function validTargetClarification(message) {
-  const schema = z.strictObject({
-    status: z.literal("needs_target"),
-    requested_input: z.literal("app_name_or_artifact_path"),
-    question: z.string().refine((value) => value.trim().length > 0),
-  });
-  try {
-    return schema.safeParse(JSON.parse(message)).success;
-  } catch (cause) {
-    if (cause instanceof SyntaxError) return false;
-    throw cause;
-  }
 }

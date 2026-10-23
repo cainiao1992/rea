@@ -6,6 +6,8 @@ export interface AgentEvaluationGateResult {
   /** Explicit null requires a target clarification with no REA calls. */
   readonly expectedFirstTool?: string | null;
   readonly targetClarificationPassed?: boolean;
+  /** A scenario-specific expected refusal or acquisition/cleanup outcome. */
+  readonly scenarioOutcomePassed?: boolean;
   readonly exitCode: number;
   readonly naturalUse: boolean;
   readonly correctFirstTool: boolean;
@@ -30,6 +32,7 @@ export const agentEvaluationPassed = (
   result.repeatedCallCount === 0 &&
   result.inputValidationFailureCount === 0 &&
   result.requiredToolSubsequenceMet &&
+  result.scenarioOutcomePassed !== false &&
   result.inputTokens > 0 &&
   (result.expectedFirstTool === null
     ? result.targetClarificationPassed === true

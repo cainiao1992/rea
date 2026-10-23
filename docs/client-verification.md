@@ -475,10 +475,16 @@ is removed after confirmed process cleanup even with
 `REA_AGENT_EVAL_KEEP_FIXTURES=true`. No user configuration,
 rules, plugins or history is copied; shell snapshots and additional agents are
 disabled. Existing API-key environment authentication remains available.
-The native missing-provider scenario preapproves only `open_binary` and
+The native provider scenario preapproves only `open_binary` and
 `close_binary` in the disposable client so it reaches REA's actual provider
-boundary instead of stopping at Codex approval. This does not validate a real
-native engine or authorize arbitrary runtime execution.
+boundary instead of stopping at Codex approval. Its scenario contract accepts
+one `provider_unavailable` open refusal without a close, or one successful open
+followed by a successful close. Other errors, an unclosed session, and a close
+without acquisition fail. These outcomes and the prompt are owned together in
+`src/evaluation/AgentEvaluationScenarios.ts`; generic successful-tool sequences
+still apply to scenarios that require them. The provider scenario checks routing,
+reported limitations, and cleanup; free-form answer correctness remains
+unassessed. It does not validate a real native engine or authorize runtime execution.
 
 Select a smaller run with `REA_AGENT_EVAL_SCENARIOS`, a comma-separated list of
 scenario IDs. `asar-zh` exercises the packaged desktop rubric from a Chinese
@@ -491,8 +497,10 @@ limit for the whole process tree when testing on a constrained host; a Node
 heap limit alone does not bound client and child-process memory.
 
 `missing-target` leaves desktop fixtures visible without selecting one in the
-request. It requires zero REA calls and a structured request for an app name or
-artifact path. Its `expectedFirstTool` is `null`, and
+request. It requires zero REA calls and a JSON-only request for an app name or
+artifact path, with no preceding prose or Markdown fences. Its prompt and
+whole-answer validator are defined together in `AgentEvaluationScenarios.ts`.
+Its `expectedFirstTool` is `null`, and
 `targetClarificationPassed` grades that limited routing outcome independently
 of analysis prose heuristics. Analyzing a nearby example cannot pass this case.
 
@@ -554,7 +562,10 @@ tool results and final answers for review.
 Report schema version 4 adds negative routing scenarios with nullable
 `expectedFirstTool` and a `targetClarificationPassed` outcome. Consumers must
 allow an expected absence of REA calls; this does not make an analysis scenario
-pass without its required tools. Version 3 changed the top-level
+pass without its required tools. Native provider records additionally report
+`scenarioOutcome` (`provider-unavailable`, `opened-and-closed`, or `failed`) and
+`scenarioOutcomePassed`; a failed outcome fails the gate independently of prose
+heuristics. Version 3 changed the top-level
 `factualCorrectness` from a constant
 string to an assessment summary with status, scope, and assessed/passed/failed/
 not-assessed scenario counts. Scenario records include the factual assessment and

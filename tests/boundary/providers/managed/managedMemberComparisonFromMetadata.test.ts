@@ -417,7 +417,7 @@ describe("managed member comparison", () => {
     });
   });
 
-  it("remaps renamed methods by exact CIL/signature without using names", () => {
+  it("remaps renamed methods by exact CIL while retaining field target changes", () => {
     const leftBytes = buildManagedPeFixture();
     const rightBytes = buildManagedPeFixture({
       mvid: Buffer.from("00112233445566778899aabbccddeefe", "hex"),
@@ -438,7 +438,7 @@ describe("managed member comparison", () => {
     expect(result.matching.exact_il_signature).toBe(1);
     expect(result.methods).toEqual([
       expect.objectContaining({
-        status: "unchanged",
+        status: "changed",
         left: expect.objectContaining({ token: "0x06000001", name: "Main" }),
         right: expect.objectContaining({ token: "0x06000001", name: "b" }),
         match: expect.objectContaining({
@@ -446,7 +446,7 @@ describe("managed member comparison", () => {
           basis: "exact-il-signature",
           confidence: "exact",
         }),
-        dimensions: [],
+        dimensions: ["field-target"],
       }),
     ]);
     expect(result.limitations).toContain(

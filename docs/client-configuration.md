@@ -265,6 +265,9 @@ and the selected `trustedFolders.json` (including
 `GEMINI_CLI_TRUSTED_FOLDERS_PATH`). Settings in an untrusted workspace do not
 participate. A workspace or system `mcpServers.rea` replaces the entire user
 entry; setup stops if the winning definition conflicts with its planned entry.
+Setup checks user policy against the file snapshot it is inspecting or about to
+update, including confirmed absence; an earlier discovery snapshot does not veto
+a repaired user policy. Independent system and workspace sources are still checked.
 Review those files manually: setup never edits administrator/workspace settings
 or grants workspace trust. Trust supplied only by a running IDE is outside this
 standalone CLI check.

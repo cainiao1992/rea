@@ -3,7 +3,7 @@ import type { WebNetworkCaptureRecord } from "../webNetworkCapture.js";
 
 /** One record's retained response text, as replay and state extraction both read it. */
 export interface RecordedResponseBody {
-  /** Producer-decoded response text, or null when the record retained none. */
+  /** Decoded response text, or null when absent, redacted or unsupported. */
   readonly bodyText: string | null;
   /** Set when the retained bytes are not UTF-8, so `bodyText` holds their base64 rather than a lossy decoding. */
   readonly bodyEncoding?: "base64";
@@ -28,7 +28,7 @@ const strictUtf8 = (): TextDecoder =>
 export const base64PrefixChars = (limitBytes: number): number =>
   Math.ceil((limitBytes + 4) / 3) * 4;
 
-/** The retained response text of one record, decoding HAR base64 content when the decoder kept it as valid UTF-8; base64 beyond `limitBytes` is decoded only that far. */
+/** Read producer-decoded text or supported HAR base64; unknown encoding declarations stay opaque. Base64 beyond `limitBytes` is decoded only that far. */
 export const readRecordedResponseBody = (
   record: WebNetworkCaptureRecord,
   limitBytes: number,
@@ -37,7 +37,16 @@ export const readRecordedResponseBody = (
   if (!content.success) return { bodyText: null };
   const { text, encoding } = content.data.response.content;
   if (typeof text !== "string") return { bodyText: null };
-  if (encoding !== "base64") return { bodyText: text };
+  if (encoding === undefined) {
+    // A hidden content property could have been the encoding declaration;
+    // omission after redaction does not establish producer-decoded text.
+    const hiddenNames = record.redactions.some(
+      (redaction) =>
+        "scope" in redaction && redaction.pointer === "/response/content",
+    );
+    return { bodyText: hiddenNames ? null : text };
+  }
+  if (encoding !== "base64") return { bodyText: null };
   const binary = record.binary_fields.find(
     (field) =>
       field.pointer === "/response/content/text" && field.state === "retained",

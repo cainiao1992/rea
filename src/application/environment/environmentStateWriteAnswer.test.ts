@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  analysisViewCaptureEvidence,
+  environmentManifestCaptureFixture,
+  type TimedCaptureRow,
+} from "../../../tests/fixtures/analysisView.js";
+import {
+  environmentStateServeFixture,
+  environmentStateServeInputs,
+} from "../../../tests/fixtures/environmentServe.js";
+import {
   servedFrom,
   type Served,
 } from "../../../tests/fixtures/environmentStateServing.js";
@@ -35,12 +44,14 @@ import {
   renamedBook,
   type Book,
 } from "../../../tests/fixtures/environmentStateWrites.js";
-import type { TimedCaptureRow } from "../../../tests/fixtures/analysisView.js";
 import { seededUuid } from "../../domain/analysisView/environmentStateWriteValues.js";
 import type { StateWritePlan } from "../../domain/analysisView/environmentStateWriteRules.js";
+import type { JsonValue } from "../../domain/jsonValue.js";
 import type { ReplayArguments } from "./environmentReplay.js";
 import { servedCatalog } from "./environmentState.js";
 import { describeWrite } from "./environmentStateWriteDescription.js";
+import { EnvironmentStateStore } from "./environmentStateStore.js";
+import { environmentToolAnswer } from "./environmentToolAnswer.js";
 import {
   environmentToolArguments,
   environmentToolDefinitions,
@@ -59,6 +70,118 @@ const expectReloadsUnchanged = (books: Served): void => {
   expect(books.store.replace(JSON.parse(before)).ok).toBe(true);
   expect(books.snapshot()).toBe(before);
 };
+
+describe("confirmed write response bodies", () => {
+  it.each<{
+    name: string;
+    content: Record<string, JsonValue>;
+    shape: "recorded" | "empty";
+    bodyRecorded: boolean;
+  }>([
+    {
+      name: "unsupported encoding with empty text",
+      content: {
+        mimeType: "application/json",
+        text: "",
+        encoding: "custom-json",
+      },
+      shape: "recorded",
+      bodyRecorded: false,
+    },
+    {
+      name: "omitted text with nonzero content size",
+      content: { mimeType: "application/json", size: 25 },
+      shape: "recorded",
+      bodyRecorded: false,
+    },
+    {
+      name: "known empty text",
+      content: { mimeType: "application/json", size: 0, text: "" },
+      shape: "empty",
+      bodyRecorded: true,
+    },
+  ])(
+    "preserves $name when serving a confirmed document write",
+    ({ content, shape, bodyRecorded }) => {
+      const entries: Record<string, JsonValue>[] = [
+        {
+          request: { method: "GET", url: "http://app.example/api/settings" },
+          response: {
+            status: 200,
+            content: {
+              mimeType: "application/json",
+              text: '{"theme":"light","lang":"en"}',
+            },
+          },
+        },
+        {
+          request: {
+            method: "PATCH",
+            url: "http://app.example/api/settings",
+            postData: {
+              mimeType: "application/json",
+              text: '{"theme":"dark"}',
+            },
+          },
+          response: { status: 200, content },
+        },
+        {
+          request: { method: "GET", url: "http://app.example/api/settings" },
+          response: {
+            status: 200,
+            content: {
+              mimeType: "application/json",
+              text: '{"theme":"dark","lang":"en"}',
+            },
+          },
+        },
+      ];
+      const capture = analysisViewCaptureEvidence(
+        environmentManifestCaptureFixture(
+          entries.map((entry, index) => ({
+            ...entry,
+            startedDateTime: `2026-10-17T18:00:0${String(index)}.000Z`,
+            time: 5,
+          })),
+        ),
+      );
+      const { source, state } = environmentStateServeInputs(
+        environmentStateServeFixture(capture),
+      );
+      const store = new EnvironmentStateStore(state);
+      expect(store.state.writes.get("patch_settings")).toMatchObject({
+        effect: "document",
+        served: true,
+        response: { ordinal: 1, shape, pointer: null },
+        checked_record_ordinals: [2],
+      });
+      const respond = environmentToolAnswer(source, store);
+      const patch = source.manifest.tools.find(
+        (tool) => tool.name === "patch_settings",
+      );
+      const get = source.manifest.tools.find(
+        (tool) => tool.name === "get_settings",
+      );
+      if (patch === undefined || get === undefined)
+        throw new Error("Expected settings tools");
+      const write = respond(patch, { body: { theme: "blue" } });
+      if (!write.ok) throw write.error;
+      expect(write.value).toMatchObject({
+        status: 200,
+        body: null,
+        replay: {
+          record_ordinal: 1,
+          evidence_id: source.evidenceId,
+          body_recorded: bodyRecorded,
+        },
+        state: { source: "state", view: "document-write" },
+      });
+      const read = respond(get, {});
+      if (!read.ok) throw read.error;
+      expect(read.value.body).toEqual({ theme: "blue", lang: "en" });
+    },
+  );
+});
 
 describe("served creates", () => {
   it("refuses an exhausted generated-value collision search without changing state", () => {

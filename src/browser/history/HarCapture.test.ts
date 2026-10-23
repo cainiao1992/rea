@@ -5,7 +5,188 @@ import {
   harWithContainerLookalikes,
 } from "../../../tests/fixtures/historicalHar.js";
 import { decodeCaptureText } from "./CaptureJson.js";
+import { CaptureFormatError } from "./CaptureFormatError.js";
 import { decodeHarCapture } from "./HarCapture.js";
+
+it.each([
+  { timings: null, field: "" },
+  { timings: { send: 0, receive: 0 }, field: "" },
+  ...["send", "wait", "receive"].map((field) => ({
+    timings: { send: 0, wait: 0, receive: 0, [field]: -1 },
+    field: `/${field}`,
+  })),
+  { timings: { send: 0, wait: -2, receive: 0 }, field: "/wait" },
+  ...["blocked", "dns", "connect", "ssl"].map((field) => ({
+    timings: { send: 0, wait: 0, receive: 0, [field]: -2 },
+    field: `/${field}`,
+  })),
+  { timings: { send: 0, wait: 0, receive: 0, dns: -0.5 }, field: "/dns" },
+])(
+  "rejects malformed HAR timing facts at their source coordinate: $timings",
+  ({ timings, field }) => {
+    const fixture = historicalHar();
+    const entry = fixture.log.entries[0];
+    if (entry === undefined) throw new Error("fixture missing");
+    const text = JSON.stringify({
+      log: { ...fixture.log, entries: [{ ...entry, timings }] },
+    });
+    expect(() => decodeHarCapture(text, [])).toThrow(
+      expect.objectContaining({
+        reason: "format",
+        pointer: `/log/entries/0/timings${field}`,
+      }),
+    );
+  },
+);
+
+it("validates malformed timings before excluding an explicitly sensitive property", () => {
+  const text = JSON.stringify(historicalHar()).replace(
+    '"timings":{"send":0,"wait":1.25,"receive":0}',
+    '"timings":null',
+  );
+  expect(() => decodeHarCapture(text, ["timings"])).toThrow(CaptureFormatError);
+});
+
+it.each([
+  { cache: null },
+  { cache: false },
+  { cache: 0 },
+  { cache: "cache" },
+  { cache: [] },
+])("rejects a non-object HAR cache: $cache", ({ cache }) => {
+  const fixture = historicalHar();
+  const entry = fixture.log.entries[0]!;
+  expect(() =>
+    decodeHarCapture(
+      JSON.stringify({
+        log: { ...fixture.log, entries: [{ ...entry, cache }] },
+      }),
+      [],
+    ),
+  ).toThrow(
+    expect.objectContaining({
+      reason: "format",
+      pointer: "/log/entries/0/cache",
+    }),
+  );
+});
+
+it.each([-1, -0.5])("rejects negative HAR elapsed time: %s", (time) => {
+  const fixture = historicalHar();
+  const entry = fixture.log.entries[0]!;
+  expect(() =>
+    decodeHarCapture(
+      JSON.stringify({
+        log: { ...fixture.log, entries: [{ ...entry, time }] },
+      }),
+      [],
+    ),
+  ).toThrow(
+    expect.objectContaining({
+      reason: "format",
+      pointer: "/log/entries/0/time",
+    }),
+  );
+});
+
+it.each(["onContentLoad", "onLoad"])(
+  "rejects invalid negative HAR page timing %s",
+  (field) => {
+    const fixture = historicalHar();
+    for (const value of [-2, -0.5]) {
+      const pages = [
+        {
+          startedDateTime: fixture.log.entries[0]!.startedDateTime,
+          id: "page_0",
+          title: "fixture",
+          pageTimings: { [field]: value },
+        },
+      ];
+      expect(() =>
+        decodeHarCapture(
+          JSON.stringify({ log: { ...fixture.log, pages } }),
+          [],
+        ),
+      ).toThrow(
+        expect.objectContaining({
+          reason: "format",
+          pointer: `/log/pages/0/pageTimings/${field}`,
+        }),
+      );
+    }
+  },
+);
+
+it.each([0, 1.25])(
+  "retains elapsed time %s and nullable cache states without normalization",
+  (time) => {
+    const fixture = historicalHar();
+    const entry = fixture.log.entries[0]!;
+    const cache = {
+      beforeRequest: null,
+      afterRequest: null,
+      _extension: "retained",
+    };
+    const decoded = decodeHarCapture(
+      JSON.stringify({
+        log: { ...fixture.log, entries: [{ ...entry, time, cache }] },
+      }),
+      [],
+    );
+    expect(decoded.records[0]?.reported).toMatchObject({ time, cache });
+  },
+);
+
+it.each([
+  {},
+  { onContentLoad: -1 },
+  { onLoad: -1 },
+  { onContentLoad: 0, onLoad: 1.25, _extension: -0.5 },
+])(
+  "preserves omitted, unavailable and measured HAR page timings: %j",
+  (pageTimings) => {
+    const fixture = historicalHar();
+    const pages = [
+      {
+        startedDateTime: fixture.log.entries[0]!.startedDateTime,
+        id: "page_0",
+        title: "fixture",
+        pageTimings,
+      },
+    ];
+    const decoded = decodeHarCapture(
+      JSON.stringify({ log: { ...fixture.log, pages } }),
+      [],
+    );
+    expect(decoded.container.reported).toHaveProperty("log.pages", pages);
+  },
+);
+
+it("retains valid timing measurements, optional omission and -1 without inventing values", () => {
+  const fixture = historicalHar();
+  const entry = fixture.log.entries[0];
+  if (entry === undefined) throw new Error("fixture missing");
+  const timings = {
+    send: 0,
+    wait: 1.25,
+    receive: 0,
+    blocked: -1,
+    dns: -1,
+    connect: -1,
+    ssl: -1,
+    _extension: "retained",
+  };
+  const decoded = decodeHarCapture(
+    JSON.stringify({
+      log: { ...fixture.log, entries: [{ ...entry, timings }, entry] },
+    }),
+    [],
+  );
+  expect(decoded.records[0]?.reported).toMatchObject({ timings });
+  expect(decoded.records[1]?.reported).toMatchObject({
+    timings: entry.timings,
+  });
+});
 
 it("interprets HTTP fields only within HAR entries, preserving document lookalikes", () => {
   const fixture = harWithContainerLookalikes();

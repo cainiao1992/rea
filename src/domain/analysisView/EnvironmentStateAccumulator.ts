@@ -98,12 +98,6 @@ const requestSchema = z.object({
     postData: z.object({ mimeType: z.string(), text: z.string() }),
   }),
 });
-const responseSizeSchema = z.object({
-  response: z.object({
-    status: z.number(),
-    content: z.object({ text: z.string().optional() }).optional(),
-  }),
-});
 
 interface RecordEntry {
   readonly facts: StateRecordFacts;
@@ -279,15 +273,17 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     }
   }
 
-  /** Whether a record's response carried no body: a 204, or empty content. */
+  /** Whether a record's response carried no body: a 204, or known decoded empty content. */
   #emptyResponse(ordinal: number): boolean {
-    const parsed = responseSizeSchema.safeParse(
-      this.#entries.get(ordinal)?.record.reported,
-    );
+    const entry = this.#entries.get(ordinal);
+    if (entry === undefined) return false;
+    if (entry.facts.status === 204) return true;
+    // Emptiness needs only a tiny decoded prefix; never decode a whole body outside the state budget.
+    const body = readRecordedResponseBody(entry.record, 0);
     return (
-      parsed.success &&
-      (parsed.data.response.status === 204 ||
-        (parsed.data.response.content?.text ?? "") === "")
+      body.bodyText === "" &&
+      body.bodyEncoding === undefined &&
+      body.bodyCut !== true
     );
   }
 

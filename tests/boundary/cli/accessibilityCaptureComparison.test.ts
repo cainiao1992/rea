@@ -144,6 +144,68 @@ it("keeps a count-mismatched tree unknown without a completeness marker", async 
   });
 });
 
+it.each([
+  ["known to missing role", "button", null, "unknown"],
+  ["missing to known role", null, "button", "unknown"],
+  ["both roles missing", null, null, "unknown"],
+  ["known roles differ", "button", "link", "changed"],
+] as const)(
+  "does not infer role equality or change when %s",
+  async (_label, beforeRole, afterRole, status) => {
+    const before = accessibleCapture();
+    const after = structuredClone(before);
+    before.accessibility.nodes[1]!.role = beforeRole;
+    after.accessibility.nodes[1]!.role = afterRole;
+
+    const result = await compare(before, after);
+
+    expect(result).toMatchObject({
+      normalized_result: {
+        dimensions: {
+          accessibility: {
+            status,
+            ...(status === "unknown"
+              ? {
+                  total_changes: 0,
+                  changes: [],
+                  reason: expect.stringContaining("incomplete"),
+                }
+              : {
+                  total_changes: 1,
+                  changes: [
+                    { identity: "accessibility_tree", change: "modified" },
+                  ],
+                }),
+          },
+        },
+      },
+    });
+  },
+  60_000,
+);
+
+it("retains an independent accessibility difference when another role is missing", async () => {
+  const before = accessibleCapture();
+  const after = structuredClone(before);
+  before.accessibility.nodes[1]!.role = null;
+  after.accessibility.nodes[1]!.role = "button";
+  after.accessibility.nodes[1]!.name = "Send";
+
+  const result = await compare(before, after);
+
+  expect(result).toMatchObject({
+    normalized_result: {
+      dimensions: {
+        accessibility: {
+          status: "changed",
+          total_changes: 1,
+          changes: [{ identity: "accessibility_tree", change: "modified" }],
+        },
+      },
+    },
+  });
+}, 60_000);
+
 it("compares known structure when only text was not approved", async () => {
   const before = accessibleCapture();
   const after = structuredClone(before);

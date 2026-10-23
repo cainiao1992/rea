@@ -28,6 +28,23 @@ export type WebResourceReconciliation =
   | { readonly status: "ambiguous"; readonly candidate_resource_keys: string[] }
   | { readonly status: "unmatched"; readonly reason: "no_exact_sanitized_url" };
 
+/**
+ * Comparison identity excludes optional size evidence while preserving the
+ * source inventory key.
+ */
+export const webResourceComparisonIdentity = (
+  resource: WebInventoryResourceInput,
+): string =>
+  `resg_${digestCanonicalValue(
+    {
+      url: resource.url,
+      origin: resource.origin,
+      type: resource.type,
+      mime_type: resource.mime_type,
+    },
+    "Web resource comparison identity",
+  )}`;
+
 /** Assign deterministic identities to a bounded resource inventory. */
 export const stableWebResources = (
   resources: readonly WebInventoryResourceInput[],

@@ -10,6 +10,7 @@ import type {
 } from "../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSessionPort } from "./BrowserScenarioSessionPort.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { browserCleanupObservation } from "../domain/browserObservationError.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
@@ -104,20 +105,6 @@ export const browserScenarioCaptureData = (input: {
   };
 };
 
-/** Describe the cleanup failure without discarding its resource evidence. */
-export const browserScenarioCleanupObservation = (
-  cause: unknown,
-): { readonly reason: string; readonly resources: readonly string[] } =>
-  cause instanceof AnalysisError && cause.cleanup !== undefined
-    ? cause.cleanup
-    : {
-        reason: cause instanceof Error ? cause.message : String(cause),
-        resources:
-          cause instanceof AnalysisError && cause.cleanupResources.length > 0
-            ? cause.cleanupResources
-            : ["browser_transport"],
-      };
-
 /** Retain operation diagnostics and capture data after cleanup settles. */
 export const browserScenarioOperationFailure = (
   cause: unknown,
@@ -134,7 +121,7 @@ export const browserScenarioOperationFailure = (
         );
   primary.retainPartialObservation(partialObservation);
   if (cleanupFailure === undefined) return primary;
-  const observation = browserScenarioCleanupObservation(cleanupFailure.cause);
+  const observation = browserCleanupObservation(cleanupFailure.cause);
   const cleanup =
     cleanupFailure.cause instanceof AnalysisError &&
     cleanupFailure.cause.cleanupIncomplete

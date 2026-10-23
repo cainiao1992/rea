@@ -6,9 +6,11 @@ import { withCommandCancellation } from "./cli/commandCancellation.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput, resolveCliJsonPaths } from "./cliJsonInput.js";
 import { logCliCommand } from "./cliLogging.js";
-import { AnalysisError } from "./domain/analysisErrorBase.js";
 import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
-import { BrowserObservationError } from "./domain/browserObservationError.js";
+import {
+  BrowserObservationError,
+  browserCleanupObservation,
+} from "./domain/browserObservationError.js";
 import { analysisInputErrorFromIssues } from "./domain/inputIssueProjection.js";
 import { browserScenarioSchema } from "./domain/browserScenario.js";
 import type { BrowserScenarioCapturePort } from "./application/BrowserScenarioCapturePort.js";
@@ -78,21 +80,7 @@ export const registerBrowserScenarioCommands = (
               if (result?.ok)
                 throw new BrowserObservationError(OPERATION, "cleanup_failed", {
                   cause,
-                  cleanup:
-                    cause instanceof AnalysisError &&
-                    cause.cleanup !== undefined
-                      ? cause.cleanup
-                      : {
-                          reason:
-                            cause instanceof Error
-                              ? cause.message
-                              : String(cause),
-                          resources:
-                            cause instanceof AnalysisError &&
-                            cause.cleanupResources.length > 0
-                              ? cause.cleanupResources
-                              : ["browser_transport"],
-                        },
+                  cleanup: browserCleanupObservation(cause),
                   partialObservation: result.value,
                 });
             }

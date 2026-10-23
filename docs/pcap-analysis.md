@@ -112,9 +112,12 @@ wall deadlines are 300 s for dissection, 60 s for metadata and 20 s for probes.
 Native ownership preparation has its own bounded lifecycle.
 
 Malformed/oversized output returns no partial success. Unvalidated partial JSON
-is not returned as facts. Cancellation reaches probes, acquisition, commands and
-projection. Cleanup failure returns a typed error, retains completed Evidence
-when available, and retains owned resources for retry on close.
+is not returned as facts. Invalid UTF-8 in either `capinfos` or TShark stdout or
+stderr is an unreadable-output error; replacement-decoded text is not parsed as
+producer evidence. A literal U+FFFD character in valid UTF-8 remains text.
+Cancellation reaches probes, acquisition, commands and projection. Cleanup
+failure returns a typed error, retains completed Evidence when available, and
+retains owned resources for retry on close.
 
 ## Verification scope
 

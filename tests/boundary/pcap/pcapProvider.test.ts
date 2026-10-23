@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { watch } from "node:fs";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, onTestFinished, test, vi } from "vitest";
 
@@ -20,100 +20,18 @@ import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
 import { cleanupOwnedProcessGroup } from "../../../src/process/ProcessOwnership.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
 import type { PcapCommandLauncher } from "../../../src/pcap/PcapCommand.js";
+import {
+  CAPINFOS_OUTPUT,
+  TSHARK_JSON,
+  writeStubTools,
+  type PcapStubToolsOptions,
+} from "../../fixtures/pcap/pcapTestTools.js";
 
 const it = test.skipIf(process.platform !== "linux");
-
-const CAPINFOS_OUTPUT = [
-  "File name:           /work/capture.pcap",
-  "File type:           Wireshark/tcpdump/... - pcap",
-  "File encapsulation:  Ethernet",
-  "Packet size limit:   file hdr: 262144 bytes",
-  "Number of packets:   3",
-  "Capture duration:    0.123 seconds",
-  "Earliest packet time: 1791728020.608505",
-  "Latest packet time:   1791728020.981978",
-].join("\n");
-
-const TSHARK_JSON = JSON.stringify([
-  {
-    _source: {
-      layers: {
-        "frame.number": ["1"],
-        "frame.protocols": ["eth:ethertype:ip:udp:dns"],
-        "ip.src": ["192.168.1.100"],
-        "ip.dst": ["8.8.8.8"],
-        "dns.qry.name": ["api.example.com"],
-        "dns.flags.response": ["1"],
-        "dns.a": ["93.184.216.34"],
-      },
-    },
-  },
-  {
-    _source: {
-      layers: {
-        "frame.number": ["2"],
-        "frame.protocols": ["eth:ethertype:ip:tcp:tls"],
-        "ip.src": ["192.168.1.100"],
-        "ip.dst": ["93.184.216.34"],
-        "tls.handshake.extensions_server_name": ["api.example.com"],
-      },
-    },
-  },
-  {
-    _source: {
-      layers: {
-        "frame.number": ["3"],
-        "frame.protocols": ["eth:ethertype:ip:tcp:http"],
-        "ip.src": ["192.168.1.100"],
-        "ip.dst": ["93.184.216.34"],
-        "http.request.full_uri": ["http://api.example.com/v1/data"],
-      },
-    },
-  },
-]);
-
-const writeStubTools = async (
-  root: string,
-  options: {
-    readonly failCapinfos?: boolean;
-    readonly httpAbsoluteUriOnly?: boolean;
-  } = {},
-): Promise<{ tshark: string; capinfos: string }> => {
-  const tshark = join(root, "tshark");
-  const capinfos = join(root, "capinfos");
-  await writeFile(
-    tshark,
-    `#!/bin/sh
-if [ "$1" = "--version" ]; then printf 'TShark (Wireshark) 4.6.6-stub\\n'; exit 0; fi
-[ "$1" = "-n" ] && [ "$2" = "-r" ] && [ "$4" = "-T" ] && [ "$5" = "json" ] || exit 2
-case " $* " in *" -e http.request.uri "*) ;; *) exit 2 ;; esac
-printf '%s' '${(options.httpAbsoluteUriOnly ? TSHARK_JSON.replace('"http.request.full_uri":["http://api.example.com/v1/data"]', '"http.request.uri":["http://proxy.example.test/path"]') : TSHARK_JSON).replace(/'/gu, "'\\''")}'
-exit 0
-`,
-    { mode: 0o755 },
-  );
-  await writeFile(
-    capinfos,
-    `#!/bin/sh
-if [ "$1" = "--version" ]; then printf 'Capinfos (Wireshark) 4.6.6-stub\\n'; exit 0; fi
-[ "$1" = "-M" ] && [ "$2" = "-S" ] && [ "$3" = "--" ] && [ "$#" = "4" ] || exit 2
-if [ "${String(options.failCapinfos === true)}" = "true" ]; then
-  printf 'capinfos: The file is not a capture file' >&2; exit 1
-fi
-printf '%s\\n' '${CAPINFOS_OUTPUT.replace(/'/gu, "'\\''")}'
-exit 0
-`,
-    { mode: 0o755 },
-  );
-  await chmod(tshark, 0o755);
-  await chmod(capinfos, 0o755);
-  return { tshark, capinfos };
-};
+const posixIt = test.skipIf(process.platform === "win32");
 
 const providerWith = async (
-  options: {
-    failCapinfos?: boolean;
-    httpAbsoluteUriOnly?: boolean;
+  options: PcapStubToolsOptions & {
     launcher?: PcapCommandLauncher;
     beforeClose?: () => void;
   } = {},
@@ -246,6 +164,82 @@ it("retains an absolute HTTP request target without a Host-derived full URI", as
   expect(result.http_request_uris).toEqual(["http://proxy.example.test/path"]);
   expect(result.coverage).toBe("complete");
 });
+
+it.each(["stdout", "stderr"] as const)(
+  "refuses replacement-decoded TShark %s and names its invalid stream",
+  async (stream) => {
+    const { provider, root } = await providerWith({
+      invalidTsharkStream: stream,
+    });
+    const path = await captureFixture(root);
+    const result = await provider.execute({
+      operation: "inspect_pcap_capture",
+      input: { path },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected malformed producer encoding");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        diagnostics: { stage: "tshark", invalid_utf8_streams: [stream] },
+      },
+    });
+  },
+);
+
+it("keeps a literal replacement character in valid TShark UTF-8", async () => {
+  const { provider, root } = await providerWith({ literalReplacement: true });
+  const path = await captureFixture(root);
+  const result = await evidenceResult(provider, {
+    operation: "inspect_pcap_capture",
+    input: { path },
+  });
+  expect(result.http_request_uris).toEqual(["http://api.example.com/�"]);
+  expect(result.coverage).toBe("complete");
+});
+
+posixIt.each(["stdout", "stderr"] as const)(
+  "refuses replacement-decoded TShark version %s before banner parsing",
+  async (stream) => {
+    const { provider } = await providerWith({
+      invalidTsharkVersionStream: stream,
+    });
+    const result = await provider.execute({
+      operation: "inspect_pcap_client",
+      input: {},
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected malformed version output");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        diagnostics: { stage: "version", invalid_utf8_streams: [stream] },
+      },
+    });
+  },
+);
+
+it.each(["stdout", "stderr"] as const)(
+  "refuses replacement-decoded capinfos %s before metadata parsing",
+  async (stream) => {
+    const { provider, root } = await providerWith({
+      invalidCapinfosStream: stream,
+    });
+    const path = await captureFixture(root);
+    const result = await provider.execute({
+      operation: "inspect_pcap_capture",
+      input: { path },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected malformed producer encoding");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        diagnostics: { stage: "capinfos", invalid_utf8_streams: [stream] },
+      },
+    });
+  },
+);
 
 it.each([
   { stage: "capinfos", denySnapshotClose: false },

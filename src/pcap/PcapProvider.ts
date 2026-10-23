@@ -14,6 +14,7 @@ import {
 import {
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
+  AnalysisOutputError,
   AnalysisProtocolError,
 } from "../domain/analysisErrorCore.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -154,6 +155,29 @@ const pcapCommandCleanupError = (
     },
   );
 
+const assertValidPcapCommandText = (
+  operation: PcapOperation,
+  stage: "version" | "capinfos" | "tshark",
+  output: Awaited<ReturnType<typeof runPcapCommand>>,
+): void => {
+  if (output.invalidUtf8Streams.length === 0) return;
+  throw new AnalysisOutputError(
+    operation,
+    `${stage} output is not valid UTF-8; retained text contains replacement characters.`,
+    {
+      capturedOutput: {
+        stdout: output.stdout,
+        stderr: output.stderr,
+        truncated: output.cleanup?.capturedOutput.truncated ?? false,
+      },
+      diagnostics: {
+        stage,
+        invalid_utf8_streams: [...output.invalidUtf8Streams],
+      },
+    },
+  );
+};
+
 export interface PcapProviderOptions {
   readonly environment?: Readonly<Record<string, string | undefined>>;
   readonly launcher?: PcapCommandLauncher;
@@ -213,6 +237,7 @@ export class PcapProvider {
 
   private async run(
     operation: PcapOperation,
+    stage: "version" | "capinfos" | "tshark",
     command: string,
     args: readonly string[],
     limits: PcapCommandLimits,
@@ -290,6 +315,7 @@ export class PcapProvider {
           },
         );
       }
+      assertValidPcapCommandText(operation, stage, output);
     } catch (cause) {
       if (
         retainedCommand !== undefined &&
@@ -382,6 +408,7 @@ export class PcapProvider {
         (
           await this.run(
             operation,
+            "version",
             command,
             ["--version"],
             { timeoutMs: 20_000, maxOutputBytes: 64 * 1024 },
@@ -888,6 +915,7 @@ export class PcapProvider {
   ) {
     const info = await this.run(
       "inspect_pcap_capture",
+      "capinfos",
       selection.capinfos.command,
       ["-M", "-S", "--", snapshot.path],
       { timeoutMs: 60_000, maxOutputBytes: 64 * 1024 },
@@ -930,6 +958,7 @@ export class PcapProvider {
       );
     const dissected = await this.run(
       "inspect_pcap_capture",
+      "tshark",
       selection.tshark.command,
       [
         "-n",

@@ -277,6 +277,15 @@ distinct pair that would collapse if representation tags or scope were lost.
 For learned identifiers, cover conflicting pairs and reused values in different
 collections; mappings must remain one-to-one within their declared scope.
 
+For format compatibility, identify the producer revision that establishes each
+rule. Include an accepted boundary case beside the rejected case so a stricter
+parser cannot pass by refusing both. Keep source-derived behavior, synthetic
+fixtures, and executed producer or runtime oracles distinct in validation
+reports. A fixture accepted by REA proves its reader behavior; it does not prove
+that a real loader accepts the artifact. If multiple producer revisions share a
+format identifier but differ in behavior, record that ambiguity rather than
+using one installed version as an oracle for all of them.
+
 Packed bridge validation uses Python's standard-library AST and tar readers
 with `-I -S`: caller-local modules, `PYTHONPATH`, and site startup hooks must
 not replace those readers or execute during validation. Controlled `ast.py`

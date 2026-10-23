@@ -78,6 +78,24 @@ satisfy. A plan without execution does not establish runtime behavior.
   ceiling and its recovery as described in
   [admission limits and recovery](design/limits-and-recovery.md).
 
+### Interpret boundary facts once
+
+The format or protocol reader owns interpretation. Pass its parsed facts and
+explicit uncertainty to consumers; do not make adapters reparse display text,
+reconstruct omitted values, or infer success from missing diagnostics.
+
+Keep format recognition separate from provider admission. A recognizable header
+can supply useful observations while later structure remains unresolved or a
+provider cannot accept the artifact. Report the reason at the affected boundary
+without erasing earlier observations or labeling unresolved input malformed.
+
+Derive validation from the field's own format and revision. A runtime API's
+narrower argument range need not constrain a wider on-disk field. A shared layout,
+magic, or version label need not identify every constructor or equality rule.
+When supported producer revisions differ, retain what the input establishes and
+state what it cannot distinguish. Static inspection does not establish that the
+artifact can execute successfully.
+
 ## Own the lifecycle
 
 For tools that acquire resources, identify the owner and the observations that

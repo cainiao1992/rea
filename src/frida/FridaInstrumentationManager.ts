@@ -588,10 +588,19 @@ export class FridaInstrumentationManager implements FridaInstrumentationPort {
       return err(unknownFridaSession("resume_frida_session", sessionId));
     if (managed.mode !== "spawn" || managed.targetResumeObserved)
       return err(
-        new AnalysisCapabilityUnavailableError(
-          "frida",
+        new AnalysisInputError(
           "resume_frida_session",
-          "Only a paused process spawned by this session can be resumed.",
+          {
+            userMessage:
+              "Only a paused process spawned by this session can be resumed.",
+          },
+          [
+            {
+              path: ["session_id"],
+              reason: "invalid_value",
+              message: "Select a paused process spawned by this session.",
+            },
+          ],
         ),
       );
     const pendingScripts = [...managed.scripts.values()].filter(

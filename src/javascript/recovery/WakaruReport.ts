@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import {
   normalizeArtifactPath,
   ArtifactPathRegistry,
@@ -57,6 +59,8 @@ type ReportContext = {
   provenancePath: string;
   snapshots: ReadonlyMap<string, Buffer>;
   files: readonly { relativePath: string }[];
+  resources?: ArtifactResourceScope;
+  signal?: AbortSignal;
 };
 
 /**
@@ -66,7 +70,7 @@ type ReportContext = {
  * checks below remain exact.
  */
 export const parseWakaruReports = async (context: ReportContext) => {
-  const { execution, provenancePath } = context;
+  const { execution, provenancePath, resources, signal } = context;
 
   try {
     if (execution.exit_code !== 0 && execution.exit_code !== 1)
@@ -76,7 +80,9 @@ export const parseWakaruReports = async (context: ReportContext) => {
     const report = reportSchema.parse(JSON.parse(execution.stdout));
     const provenance = provenanceSchema.parse(
       JSON.parse(
-        (await readWakaruProvenanceReport(provenancePath)).toString("utf8"),
+        (
+          await readWakaruProvenanceReport(provenancePath, signal, resources)
+        ).toString("utf8"),
       ),
     );
     if (report.total !== report.modules.length || report.failed > report.total)
@@ -101,6 +107,11 @@ export const parseWakaruReports = async (context: ReportContext) => {
           : ("complete" as const),
     };
   } catch (cause: unknown) {
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      (cause.cleanup !== undefined || cause.reason === "cancelled")
+    )
+      throw cause;
     throw new ProviderAdapterError("wakaru", OPERATION, {
       cause,
       ...wakaruReportGuidance(cause),
@@ -118,9 +129,18 @@ export const parseWakaruReports = async (context: ReportContext) => {
 const PROVENANCE_REPORT_ALLOWANCE = `Wakaru provenance report exceeds the ${String(RECOVERY_LIMITS.reportBytes)}-byte report allowance`;
 
 /** Report-size refusals name the fixed allowance; other read failures stay unchanged. */
-const readWakaruProvenanceReport = async (path: string): Promise<Buffer> => {
+const readWakaruProvenanceReport = async (
+  path: string,
+  signal: AbortSignal | undefined,
+  resources: ArtifactResourceScope | undefined,
+): Promise<Buffer> => {
   try {
-    return await readRecoveryFile(path, RECOVERY_LIMITS.reportBytes);
+    return await readRecoveryFile(
+      path,
+      RECOVERY_LIMITS.reportBytes,
+      signal,
+      resources,
+    );
   } catch (cause: unknown) {
     if (!isRecoveryFileSizeError(cause, RECOVERY_LIMITS.reportBytes))
       throw cause;

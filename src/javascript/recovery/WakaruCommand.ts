@@ -7,6 +7,8 @@ import {
   AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { prlimitArgumentVector } from "../../process/LinuxResourceLimits.js";
@@ -68,6 +70,8 @@ export class WakaruCleanupFailure extends ProviderCleanupError {
 /** Resolve and fingerprint explicitly configured tools; acquire nothing at startup. */
 export const resolveWakaruCommand = async (
   environment: Readonly<Record<string, string | undefined>>,
+  resources?: ArtifactResourceScope,
+  signal?: AbortSignal,
 ) => {
   const configured = environment.REA_WAKARU_COMMAND;
   if (
@@ -87,6 +91,8 @@ export const resolveWakaruCommand = async (
     const fingerprint = await fingerprintRecoveryFile(
       command,
       RECOVERY_LIMITS.outputBytes,
+      signal,
+      resources,
     );
     const limiter =
       environment.REA_JAVASCRIPT_PRLIMIT_COMMAND ?? "/usr/bin/prlimit";
@@ -97,6 +103,11 @@ export const resolveWakaruCommand = async (
       throw new TypeError(`Resource limiter is not a regular file: ${limiter}`);
     return { command, limiter, ...fingerprint };
   } catch (cause: unknown) {
+    if (
+      cause instanceof ArtifactReaderFailure &&
+      (cause.cleanup !== undefined || cause.reason === "cancelled")
+    )
+      throw cause;
     const reason = `Configured Wakaru or util-linux prlimit is unavailable: ${recoveryFailureMessage(cause)}`;
     throw new AnalysisCapabilityUnavailableError("wakaru", OPERATION, reason, {
       cause,
@@ -115,6 +126,7 @@ type WakaruCommandContext = {
   signal?: AbortSignal;
   launcher?: WakaruLauncher;
   staging?: string;
+  resources?: ArtifactResourceScope;
 };
 
 /** Run one bounded command and verify cleanup before consuming its output. */
@@ -183,7 +195,11 @@ export const runWakaruCommand = async (context: WakaruCommandContext) => {
           ),
         );
       if (context.staging !== undefined)
-        await inventoryRecoveryFiles(context.staging, context.signal);
+        await inventoryRecoveryFiles(
+          context.staging,
+          context.signal,
+          context.resources,
+        );
     }
     checkRecoveryDeadline(context.deadline, context.signal);
     if (oversized)

@@ -648,6 +648,34 @@ export const semanticRequireCallAt = (
 ): JavaScriptRequireCallFact | undefined => {
   if (semanticModuleRequireCallAt(node, state))
     return { loader: "unknown", arguments: undefined, sourceRelative: false };
+  const callee = unwrapJavaScriptExpression(node.callee).node;
+  if (
+    (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
+    semanticStaticPropertyKey(callee.property, callee.computed) === "resolve"
+  ) {
+    const loader = requireLoaderValueAt(
+      callee.object,
+      node,
+      state,
+      factoryBindingIds,
+    );
+    if (loader !== "local") {
+      const selected = selectedRequireSourcesAt(
+        callee.object,
+        node,
+        state,
+        factoryBindingIds,
+      );
+      return {
+        loader: selected?.loader ?? loader,
+        arguments: node.arguments,
+        sourceRelative: selected?.sourceRelative ?? loader !== "unknown",
+        ...(selected?.sourceRelativePath === undefined
+          ? {}
+          : { sourceRelativePath: selected.sourceRelativePath }),
+      };
+    }
+  }
   if (t.isNewExpression(node)) {
     const loader = requireLoaderValueAt(
       node.callee,

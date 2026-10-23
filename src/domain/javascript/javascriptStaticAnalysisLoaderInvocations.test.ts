@@ -21,7 +21,14 @@ it.each(["require", "require.resolve", "require.main"])(
     expect(analysis.references).toEqual(
       callee === "require"
         ? [expect.objectContaining({ kind: "require", specifier: "node:path" })]
-        : [],
+        : callee === "require.resolve"
+          ? [
+              expect.objectContaining({
+                kind: "require",
+                specifier: "node:path",
+              }),
+            ]
+          : [],
     );
     const parsed = parseJavaScriptSource(source);
     if (parsed === null) throw new Error("Expected loader association fixture");

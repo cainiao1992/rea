@@ -103,20 +103,17 @@ const moduleSpecifierFromExpression = (
 ):
   | { specifier: string; parseState: ReferenceSourceImportParseState }
   | undefined => {
-  if (expression === null || expression === undefined) return undefined;
-  const literal = readExactJavaScriptLiteral(expression);
-  if (literal.found && typeof literal.value === "string")
-    return { specifier: literal.value, parseState: "parsed" };
+  const specifier = exactStringModuleName(expression);
+  if (specifier !== undefined) return { specifier, parseState: "parsed" };
   if (
     isCallExpression(expression) &&
     isImport(expression.callee) &&
     expression.arguments.length > 0
   ) {
-    const first = expression.arguments[0];
-    if (isStringLiteral(first)) {
-      return { specifier: first.value, parseState: "parsed" };
-    }
-    return { specifier: "<dynamic-import>", parseState: "partial" };
+    const nestedSpecifier = exactStringModuleName(expression.arguments[0]);
+    return nestedSpecifier === undefined
+      ? { specifier: "<dynamic-import>", parseState: "partial" }
+      : { specifier: nestedSpecifier, parseState: "parsed" };
   }
   return undefined;
 };

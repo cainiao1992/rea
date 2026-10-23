@@ -30,9 +30,11 @@ result records the exact selected path, file size, header length, header SHA-256
 bytes read and read scope. GGUF alignment padding is outside this prefix.
 `artifact.sha256` and the Evidence subject are null: a header digest is not a
 commitment to the weights. Different files can have identical headers and sizes.
-The reported GGUF tensor-data offset is aligned after the tensor directory,
-including when the directory contains no tensors; `header_length` still ends at
-the directory, before that padding.
+The reported GGUF tensor-data offset follows the aligned tensor directory when
+padding is present. For zero-tensor metadata-only files that end at the
+directory, it is the directory end; no tensor payload is implied. A partial
+alignment gap is rejected. `header_length` still ends at the directory, before
+any padding.
 
 `hash: "full"` additionally streams the remaining file bytes through SHA-256.
 It returns a full-file digest and Evidence subject, while retaining the same
@@ -55,9 +57,20 @@ name, original type ID, dimensions, relative data offset, file offset and derive
 byte length. Alignment accepts every positive UINT32 multiple of eight, including
 non-powers of two. Partial Evidence retains explicit alignment once validated;
 the default alignment becomes known after metadata completes. Cancellation
-during tensor parsing or hashing retains that fact without claiming finalized
-digests or file identity. Metadata keys use ASCII lower-snake-case hierarchy components;
+digests or file identity. Metadata keys preserve their spelling and use lowercase
+ASCII alphanumeric components separated by dots, underscores or hyphens;
 standard numeric components such as `general.base_model.0.name` are preserved.
+Hyphenated components are retained for compatibility with the published
+llama.cpp v0.7.0 writer, which emits keys such as
+`gpt-oss.context_length` and `wavtokenizer-dec.context_length`; the current
+[GGUF specification](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md#standardized-key-value-pairs)
+restricts `general.architecture` values to letters and digits.
+This documents producer output that conflicts with that written restriction,
+not a claim that the specification permits hyphens. See the pinned
+[WAVTOKENIZER_DEC](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/gguf-py/gguf/constants.py#L1447)
+and [GPT_OSS](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/gguf-py/gguf/constants.py#L1466)
+architecture names, [context-length key template](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/gguf-py/gguf/constants.py#L110),
+and [writer method](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/gguf-py/gguf/gguf_writer.py#L698-L699).
 Scalar metadata is complete. Arrays have declared element types,
 counts and at most eight preview elements per array, with an explicit
 `preview_complete` flag. This includes tokenizer vocabularies: omitted values

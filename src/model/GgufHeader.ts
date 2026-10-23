@@ -287,10 +287,12 @@ export class GgufHeader {
       const key = await this.#text(true, 65535);
       // Numeric hierarchy components occur in standardized base_model.{id} keys.
       if (
-        !/^[a-z0-9]+(?:_[a-z0-9]+)*(?:\.[a-z0-9]+(?:_[a-z0-9]+)*)*$/u.test(key)
+        !/^[a-z0-9]+(?:[_-][a-z0-9]+)*(?:\.[a-z0-9]+(?:[_-][a-z0-9]+)*)*$/u.test(
+          key,
+        )
       )
         rejectModel(
-          "GGUF metadata keys require ASCII lower-snake-case hierarchy components",
+          "GGUF metadata keys require lowercase ASCII hierarchy components",
         );
       if (keys.has(key)) rejectModel(`Duplicate GGUF metadata key ${key}`);
       keys.add(key);
@@ -383,8 +385,12 @@ export class GgufHeader {
       tensors.push(tensor);
       progress?.onTensorDeclaration(tensor);
     }
+    const directoryEnd = this.reader.position;
+    const alignedDataOffset = Math.ceil(directoryEnd / alignment) * alignment;
     const tensor_data_offset =
-      Math.ceil(this.reader.position / alignment) * alignment;
+      tensorCount === 0 && this.reader.size === directoryEnd
+        ? directoryEnd
+        : alignedDataOffset;
     if (tensor_data_offset > this.reader.size)
       rejectModel("GGUF tensor data section begins outside the file");
     for (const tensor of tensors) {

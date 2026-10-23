@@ -244,13 +244,6 @@ it("aligns the GGUF data section after an empty tensor directory", async () => {
   expect(result.value.artifact.header_length).toBe(base.header.length);
 });
 
-it("rejects an empty GGUF whose required directory padding is truncated", async () => {
-  const fixture = ggufFixture({ tensors: [], metadata: [] });
-  const { path, provider } = await providerAt(fixture.header);
-  const result = await provider.inspect({ path, hash: "header" });
-  expect(result.ok).toBe(false);
-});
-
 it.each([0, 1, 2, 4, 12])(
   "rejects GGUF alignment %s outside positive multiples of eight",
   async (alignment) => {
@@ -276,6 +269,8 @@ it.each([
   "general..name",
   "general/name",
   "general.-name",
+  "general.name-",
+  "general.double--name",
   "general.name_",
   "general.__name",
 ])(

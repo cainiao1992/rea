@@ -20,6 +20,56 @@ import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
 cliTest(
+  "preserves lowercase hyphenated GGUF architecture metadata from the published writer",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-model-hyphen-architecture-",
+    );
+    const base = ggufFixture();
+    for (const architecture of ["gpt-oss", "wavtokenizer-dec"] as const) {
+      const path = join(root, `${architecture}.gguf`);
+      const bytes = ggufFixture({
+        tensors: [],
+        metadata: [
+          {
+            key: "general.architecture",
+            type: 8,
+            value: base.text(architecture),
+          },
+          {
+            key: `${architecture}.context_length`,
+            type: 4,
+            value: base.u32(4096),
+          },
+        ],
+      }).bytes;
+      await writeFile(path, bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-model-artifact",
+          path,
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const report = modelArtifactSchema.parse(
+        toolContract("inspect_model_artifact").outputSchema.parse(response.json)
+          .normalized_result,
+      );
+      expect(report.metadata.map(({ key, value }) => ({ key, value }))).toEqual(
+        [
+          { key: "general.architecture", value: architecture },
+          { key: `${architecture}.context_length`, value: 4096 },
+        ],
+      );
+      expect(report.artifact.sha256).toBeNull();
+    }
+  },
+);
+
+cliTest(
   "preserves exact large safetensors dimensions while bounding actual offsets",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-model-shape-precision-");
@@ -564,7 +614,6 @@ cliTest(
       emptyGgufHeader.header,
       Buffer.alloc(alignedOffset - emptyGgufHeader.header.length),
     ]);
-
     for (const [name, bytes] of [
       ["optional.safetensors", safetensors.bytes],
       ["empty.gguf", emptyGguf],
@@ -669,6 +718,116 @@ cliTest(
         await call("inspect_model_artifact", { path: malformedPath }),
       );
       expect(malformedMcp.error).toMatchObject({
+        code: "target_unavailable",
+        category: "unsupported_target",
+        details: { constraint: "file_format_rejected" },
+      });
+    }
+  },
+);
+
+cliTest(
+  "inspects unpadded zero-tensor vocab GGUF through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-model-vocab-only-");
+    const { call } = await connectLocalToolsMcp();
+    const base = ggufFixture();
+    const vocab = ggufFixture({
+      tensors: [],
+      metadata: [
+        { key: "general.type", type: 8, value: base.text("vocab") },
+        {
+          key: "tokenizer.ggml.model",
+          type: 8,
+          value: base.text("gpt2"),
+        },
+      ],
+    });
+    expect(vocab.header.length).toBe(105);
+    expect(vocab.bytes.length).toBe(128);
+    const padded = Buffer.concat([
+      vocab.header,
+      Buffer.alloc(vocab.bytes.length - vocab.header.length),
+    ]);
+    const files = [
+      ["vocab-unpadded.gguf", vocab.header, vocab.header.length],
+      ["vocab-padded.gguf", padded, vocab.bytes.length],
+    ] as const;
+
+    for (const [name, bytes, expectedOffset] of files) {
+      const path = join(root, name);
+      await writeFile(path, bytes);
+      const cliResult = await cli.run({
+        arguments: [
+          "inspect-model-artifact",
+          path,
+          "--detail",
+          "complete",
+          "--hash",
+          "full",
+          "--json",
+        ],
+      });
+      expect(cliResult.exitCode, cliResult.stderr).toBe(0);
+      const report = modelArtifactSchema.parse(
+        toolContract("inspect_model_artifact").outputSchema.parse(
+          cliResult.json,
+        ).normalized_result,
+      );
+      expect(report.metadata.map(({ key, value }) => ({ key, value }))).toEqual(
+        [
+          { key: "general.type", value: "vocab" },
+          { key: "tokenizer.ggml.model", value: "gpt2" },
+        ],
+      );
+      expect(report.tensors).toEqual([]);
+      expect(report.tensor_data_offset).toBe(expectedOffset);
+      expect(report.artifact.header_length).toBe(vocab.header.length);
+      expect(report.artifact.header_sha256).toBe(
+        createHash("sha256").update(vocab.header).digest("hex"),
+      );
+      expect(report.artifact.sha256).toBe(
+        createHash("sha256").update(bytes).digest("hex"),
+      );
+      const mcpResult = await call("inspect_model_artifact", {
+        path,
+        detail: "complete",
+        hash: "full",
+      });
+      expect(mcpResult.isError, JSON.stringify(mcpResult)).not.toBe(true);
+      expect(
+        parseEvidence(mcpResult.structuredContent).normalized_result,
+      ).toEqual(report);
+    }
+
+    const malformed = [
+      ["partial-padding.gguf", Buffer.concat([vocab.header, Buffer.alloc(1)])],
+      [
+        "truncated-tensor.gguf",
+        ggufFixture({
+          metadata: [],
+          tensors: [
+            { name: "weight", type: 0, shape: [4n], offset: 0n, bytes: 16 },
+          ],
+        }).header,
+      ],
+    ] as const;
+    for (const [name, bytes] of malformed) {
+      const path = join(root, name);
+      await writeFile(path, bytes);
+      const cliResult = await cli.run({
+        arguments: ["inspect-model-artifact", path, "--json"],
+      });
+      expect(cliResult.exitCode).toBe(1);
+      expect(cliResult.json).toMatchObject({
+        code: "target_unavailable",
+        category: "unsupported_target",
+        details: { constraint: "file_format_rejected" },
+      });
+      const mcpResult = parseMcpToolError(
+        await call("inspect_model_artifact", { path }),
+      );
+      expect(mcpResult.error).toMatchObject({
         code: "target_unavailable",
         category: "unsupported_target",
         details: { constraint: "file_format_rejected" },

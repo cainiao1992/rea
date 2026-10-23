@@ -425,6 +425,7 @@ const runAnalysis = async (
     const executed = await executeAnalysisTool({
       session,
       openedTarget: opened.value,
+      selectedPath: path,
       tool,
       arguments: arguments_,
       signal,
@@ -516,6 +517,7 @@ const runAnalysis = async (
 const executeAnalysisTool = async (input: {
   readonly session: BinarySession;
   readonly openedTarget: BinaryTarget;
+  readonly selectedPath: string;
   readonly tool:
     | NativeToolName
     | ArtifactAnalysisOperation
@@ -609,7 +611,10 @@ const executeAnalysisTool = async (input: {
     result.value.provider,
     {
       operation: tool,
-      parameters: input.arguments,
+      parameters:
+        tool === "inspect_artifact"
+          ? { ...input.arguments, input_path: input.selectedPath }
+          : input.arguments,
       result: result.value.result,
       ...(result.value.analysisProfile === undefined
         ? {}

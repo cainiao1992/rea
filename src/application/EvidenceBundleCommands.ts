@@ -136,8 +136,23 @@ export const publishEvidenceDelivery = async (input: {
   // Deliver interrupts queued during final publication cleanup before the
   // command's signal owner accepts completion and removes its listeners.
   await dispatchQueuedInterrupts();
-  if (!written.ok)
-    return err(written.error.retainPartialObservation(input.complete));
+  if (!written.ok) {
+    const original = written.error;
+    // This publication workflow never overwrites. The standalone export
+    // command retains its own overwrite-capable recovery guidance.
+    const failure =
+      original instanceof EvidenceFileError && original.reason === "exists"
+        ? new EvidenceFileError(original.operation, original.reason, {
+            cause: original,
+            ...(original.path === undefined ? {} : { path: original.path }),
+            userMessage:
+              "Evidence file already exists. Choose another output path.",
+            cleanup: original.cleanup,
+            diagnostics: original.diagnostics,
+          }).bindCleanupDependencies([original])
+        : original;
+    return err(failure.retainPartialObservation(input.complete));
+  }
   if (signal?.aborted)
     return err(
       new AnalysisCancelledError(operation, {

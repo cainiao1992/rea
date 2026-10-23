@@ -213,6 +213,12 @@ export const resolvedAnalysisError = (error: AnalysisError): AnalysisError => {
     error = error.cleanupPrimary;
   return error;
 };
+
+/** Original operation semantics remain distinct from the live cleanup envelope. */
+export const primaryAnalysisError = (error: AnalysisError): AnalysisError => {
+  while (error.cleanupPrimary !== undefined) error = error.cleanupPrimary;
+  return error;
+};
 import type {
   PartialProcessCaptureObservation,
   ProcessCaptureCleanupReport,

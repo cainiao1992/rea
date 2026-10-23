@@ -43,6 +43,7 @@ import { ProviderSelectionError } from "./providerSelectionError.js";
 import { UnknownRegistryError } from "./unknownRegistryError.js";
 import { providerRetryAction } from "./providerOperationHealth.js";
 import {
+  primaryAnalysisError,
   resolvedAnalysisError,
   type AnalysisError,
   type AnalysisErrorTag,
@@ -75,9 +76,11 @@ const projectError = (
   const partialObservation =
     composed.partialObservation ?? error.partialObservation;
   assertKnownAnalysisErrorTag(error._tag);
-  const underlyingCode = underlyingErrorCode(error);
+  const primary = primaryAnalysisError(error);
+  assertKnownAnalysisErrorTag(primary._tag);
+  const underlyingCode = underlyingErrorCode(primary);
   const code = error.cleanupIncomplete ? "cleanup_incomplete" : underlyingCode;
-  const primaryDetails = errorDetails(error);
+  const primaryDetails = errorDetails(primary);
   const details = {
     ...primaryDetails,
     ...(composed === error || composed.cleanupReport === undefined

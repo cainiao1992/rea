@@ -33,6 +33,7 @@ import { UnknownRegistryError } from "./unknownRegistryError.js";
 import { providerRetryAction } from "./providerOperationHealth.js";
 import { fixedAllowanceRemediation } from "./fixedAllowanceRemediation.js";
 import {
+  primaryAnalysisError,
   resolvedAnalysisError,
   type AnalysisError,
   type AnalysisErrorTag,
@@ -174,7 +175,7 @@ export const analysisErrorRemediationAction = (
 export const analysisErrorCategory = (
   error: AnalysisError,
 ): AnalysisErrorProjection["category"] => {
-  error = resolvedAnalysisError(error);
+  error = primaryAnalysisError(error);
   if (error instanceof AnalysisCapabilityUnavailableError && error.retryable)
     return "unavailable";
   if (

@@ -192,7 +192,10 @@ providers need not expose identical state machines.
   reports are released; releasing one child cannot clear another child's status.
 - Await one-shot cleanup without discarding the completed result or primary
   diagnostic. Preserve partial observations, remaining resources, and the cleanup
-  owner's recovery instructions. CLI adapters should reuse
+  owner's recovery instructions. While cleanup remains unconfirmed, canonical
+  errors keep `cleanup_incomplete` and live resources while taking category,
+  operation and failure details from the retained typed primary. Nested cleanup
+  composition does not replace that semantic identity. CLI adapters should reuse
   [`finishAnalysisCommand`](https://github.com/morluto/rea/blob/main/src/cli/finishAnalysisCommand.ts) where its contract
   applies rather than duplicate close/finally handling.
 - Give descriptor-backed reads an owner before opening the file. A rejected

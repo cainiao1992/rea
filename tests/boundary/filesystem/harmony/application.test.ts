@@ -228,6 +228,34 @@ describe("HarmonyOS packaging boundaries", () => {
     ]);
   });
 
+  it("does not classify a rawfile named module.json as a manifest", async () => {
+    const path = await writeApplicationZip(
+      "rea-harmony-rawfile-module-manifest-",
+      "Legacy.hap",
+      [
+        { path: "config.json", content: '{"app":{}}' },
+        {
+          path: "assets/entry/resources/rawfile/module.json",
+          content: '{"note":"ordinary raw resource"}',
+        },
+      ],
+    );
+    const inventory = await inventoryApplicationPackage(path);
+    const result = projectHarmonyApplicationEvidence({
+      inventory_evidence: [inventory],
+    });
+    const projection = harmonyApplicationProjectionResultSchema.parse(
+      requireSuccessfulProjection(result).normalized_result,
+    );
+    expect(projection.packaging_model).toBe("fa");
+    expect(projection.components.manifests.map(({ path }) => path)).toEqual([
+      "config.json",
+    ]);
+    expect(projection.components.resources.map(({ path }) => path)).toEqual([
+      "assets/entry/resources/rawfile/module.json",
+    ]);
+  });
+
   it("rejects non-HarmonyOS inventory Evidence", async () => {
     const inventory = await createNonApplicationZipInventory(
       "rea-harmony-invalid-",

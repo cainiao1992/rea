@@ -183,15 +183,13 @@ const packagingModel = (
 };
 
 const classify = (all: readonly Component[]) => ({
-  manifests: all.filter(({ path }) =>
-    /(?:^|\/)(?:module\.json|config\.json|pack\.info)$/iu.test(path),
+  manifests: all.filter(
+    ({ path }) =>
+      /(?:^|\/)(?:module\.json|config\.json|pack\.info)$/iu.test(path) &&
+      !isResourcePath(path),
   ),
   bytecode: all.filter(({ path }) => /\.(?:abc|pa)$/iu.test(path)),
-  resources: all.filter(
-    ({ path }) =>
-      /(?:^|\/)resources\.index$/iu.test(path) ||
-      /^(?:resources\/|assets\/[^/]+\/resources\/)/iu.test(path),
-  ),
+  resources: all.filter(({ path }) => isResourcePath(path)),
   native_libraries: all.filter(
     ({ path, format }) =>
       format === "elf" || /(?:^|\/)libs\/[^/]+\/[^/]+\.so$/iu.test(path),
@@ -204,6 +202,10 @@ const classify = (all: readonly Component[]) => ({
     /^META-INF\/[^/]+\.(?:p7b|sig|cer|crt|pem|provision)$/iu.test(path),
   ),
 });
+
+const isResourcePath = (path: string): boolean =>
+  /(?:^|\/)resources\.index$/iu.test(path) ||
+  /^(?:resources\/|assets\/[^/]+\/resources\/)/iu.test(path);
 
 const runtimeFamilies = (
   all: readonly Component[],

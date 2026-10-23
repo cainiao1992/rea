@@ -36,8 +36,9 @@ The MCP tool `project_harmony_application_graph` takes the same
 
 - exact component paths, artifact IDs, and hashes (manifests, Ark bytecode,
   resources, native libraries, JavaScript, signing)
-- a packaging-model hint: Stage is claimed only from a `module.json` entry,
-  FA only from `config.json`, otherwise `unknown`
+- a packaging-model hint: Stage is claimed only from a `module.json` entry
+  outside a classified resource path, FA only from `config.json` outside a
+  classified resource path, otherwise `unknown`
 - FA resources under `assets/<module>/resources/` as well as Stage `resources/`
 - unavailable component paths with unknown IDs and hashes, including encrypted entries; these make projection coverage partial
 - App Pack child package paths without recursive inventory

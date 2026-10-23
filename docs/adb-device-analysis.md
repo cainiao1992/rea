@@ -136,8 +136,10 @@ and during shutdown.
   labelled hex in `unparsed_lines` and make directory coverage partial.
 - **Inferences carry their basis.** Device `kind` reports
   `kind_basis` (serial prefix or USB transport); APK `role` reports
-  `role_basis: file_name`; `emulator_observed` is the build's own
-  `ro.kernel.qemu` value, `null` when absent.
+  `role_basis: file_name`; `emulator_observed` is derived from the build's
+  `ro.kernel.qemu` property: `true` only when its value is `"1"`, `false` for
+  any other reported value, and `null` when the property is absent. The raw
+  property value remains available in `properties`.
 - **Device paths are not host paths.** `base_apk_device_path` values live on
   the device filesystem. Only pulls and captures produce host-local paths,
   each paired with byte size and SHA-256 digest. A pulled file's host name is

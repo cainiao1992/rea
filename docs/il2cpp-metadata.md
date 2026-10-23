@@ -60,8 +60,11 @@ Collections are `sections`, `images`, `types`, `methods`, `fields`,
 `properties`, `events`, `parameters`, `string_literals`, `method_addresses`,
 `return_types`, `field_types`, `parameter_types` and `code_gen_modules`. Every returned row includes
 its source `index`, scoped by artifact SHA-256 and collection. All collections
-accept batch `indices` and `fields`; collections whose rows have a `name` also
-accept exact `names`. Types also accept `image_indices`, `namespaces` and
+accept batch `indices` and `fields`. Exact `names` filtering is supported for
+`sections`, `images`, `types`, `methods`, `fields`, `properties`, `events` and
+`parameters`; native `return_types`, `field_types` and `parameter_types` rows
+are selected by source indices (or `method_indices` for `parameter_types`),
+not rendered names. Types also accept `image_indices`, `namespaces` and
 `declaring_types`; methods, fields, properties and events accept
 `declaring_types`. Parameters accept exact `method_indices`, so a batch of
 method indices retrieves their parameters without reading the entire parameter
@@ -144,7 +147,14 @@ in [CLI and Evidence](cli.md#run-a-command). Compact delivery requires
 preserves every decoded row for subsequent queries without the original file.
 
 `--binary PATH` links method addresses and `--architecture arm64|amd64` selects
-the slice of a universal Mach-O.
+exactly one slice of a universal Mach-O. Multiple slices with the same
+architecture label are refused as `ambiguous-slice-selection`, including
+distinct ARM subtypes that both map to `arm64`. On macOS, use `lipo -info`
+to enumerate exact subtypes, then extract the intended subtype into a separate
+file, for example `lipo universal -thin arm64e -output thin-arm64e`. Inspect
+that thin file without `--architecture`. An exact `arm64e` slice is not
+selected by `lipo -thin arm64`. Thinning resolves only selection ambiguity;
+the metadata must still match and unsupported pointer encodings remain unsupported.
 
 ## Observations
 
@@ -271,6 +281,11 @@ The result adds:
 `Il2CppMetadataRegistration.typesCount` and its value. That record is found as
 the single place whose `fieldOffsetsCount` and `typeDefinitionsSizesCount` both
 equal the metadata type-definition count and whose type table is file mapped.
+Counts use their declared 32-bit width independently of alignment padding.
+The complete registration must have mapped coverage; trailing declared zero-fill
+fields do not need physical file bytes. All dereferenced pointers use the loader
+fixup interpretation: unresolved dyld bindings cannot supply concrete type names
+from their stored placeholders and native linking refuses an unavailable type record.
 
 Without `binary_path`, `binary` is `null` and the four binary collections are
 empty in the complete producer report to indicate unrequested observations. Their summary counts, including state counts, are `null`, and native page requests report unavailable observations. This does not establish an empty native inventory. Missing native fields in historical Evidence remain unknown too.
@@ -282,29 +297,30 @@ Il2CppType byref flag in different bits, so a rendered name could gain or lose
 
 The builds checked are listed after the module search rules above.
 
-| Reason                            | Category    | Meaning                                                                                             |
-| --------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
-| `unsupported-container`           | unsupported | Not a 64-bit little-endian Mach-O, PE or ELF image (ELF: AArch64 or x86-64 with dynamic section).   |
-| `slice-selection-required`        | unsupported | A universal Mach-O was given without `binary_architecture`.                                         |
-| `slice-not-found`                 | unsupported | The requested slice is absent, or a thin binary was given an architecture.                          |
-| `unsupported-pointer-encoding`    | unsupported | Mach-O chained fixups or Android packed (APS2) ELF relocations; pointers not decoded.               |
-| `malformed-container`             | input error | The container headers are damaged.                                                                  |
-| `code-gen-modules-not-found`      | input error | An image has no module record; often a binary from a different build.                               |
-| `ambiguous-code-gen-module`       | input error | More than one module record matches an image.                                                       |
-| `code-registration-not-found`     | input error | No unique module table or executable-byte array candidate was resolved.                             |
-| `invalid-method-token`            | input error | A token is outside its module's method-pointer rows, or a MethodDef row is reused within one image. |
-| `invalid-method-pointer`          | input error | A slot is unavailable or its nonzero address lacks unambiguous executable file coverage.            |
-| `metadata-registration-not-found` | input error | No single MetadataRegistration matches the type-definition count.                                   |
-| `invalid-type`                    | input error | A type index or `Il2CppType` record is out of range, unmapped or malformed.                         |
-| `unsupported-type-kind`           | unsupported | A valid type kind has no implemented rendering.                                                     |
+| Reason                            | Category    | Meaning                                                                                                    |
+| --------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `unsupported-container`           | unsupported | Not a 64-bit little-endian Mach-O, PE or ELF image (ELF: AArch64 or x86-64 with dynamic section).          |
+| `slice-selection-required`        | unsupported | A universal Mach-O was given without `binary_architecture`.                                                |
+| `ambiguous-slice-selection`       | unsupported | More than one universal slice matches the selected architecture label; select an exact subtype externally. |
+| `slice-not-found`                 | unsupported | The requested slice is absent, or a thin binary was given an architecture.                                 |
+| `unsupported-pointer-encoding`    | unsupported | Mach-O chained fixups or Android packed (APS2) ELF relocations; pointers not decoded.                      |
+| `malformed-container`             | input error | The container headers are damaged.                                                                         |
+| `code-gen-modules-not-found`      | input error | An image has no module record; often a binary from a different build.                                      |
+| `ambiguous-code-gen-module`       | input error | More than one module record matches an image.                                                              |
+| `code-registration-not-found`     | input error | No unique module table or executable-byte array candidate was resolved.                                    |
+| `invalid-method-token`            | input error | A token is outside its module's method-pointer rows, or a MethodDef row is reused within one image.        |
+| `invalid-method-pointer`          | input error | A slot is unavailable or its nonzero address lacks unambiguous executable file coverage.                   |
+| `metadata-registration-not-found` | input error | No single MetadataRegistration matches the type-definition count.                                          |
+| `invalid-type`                    | input error | A type index or `Il2CppType` record is out of range, unmapped or malformed.                                |
+| `unsupported-type-kind`           | unsupported | A valid type kind has no implemented rendering.                                                            |
 
-Format and selection failures name `binary_path`; capacity refusals remain typed resource errors. Failed linking preserves the metadata source identity, validated counts, selected binary path/architecture and its SHA-256 when observed, plus prior producer observations. It never publishes an incomplete native table as complete. The binary input is bounded to1GiB.
+Format and selection failures name `binary_path`; capacity refusals remain typed resource errors. Failed linking preserves the metadata source identity, validated counts, selected binary path/architecture and its SHA-256 when observed, plus prior producer observations. It never publishes an incomplete native table as complete. The binary input is bounded to 1 GiB.
 
-Scans yield cooperatively in bounded batches. Name-address retention and reverse-trie construction are each limited to65,536 entries/nodes and fallback module-array candidates to64 (`native-index-capacity`); exceeding capacity does not prove absence. Rendered type text has a64MiB UTF-8 cache-workspace guard, separate from the64MiB encoded-report admission, and64 nested rendering frames (`native-type-text-capacity` / `type-nesting-capacity`). Genuine cycles are malformed; unsupported type kinds are explicit coverage failures. Native row/text admission runs before allocation or retention. Unused generic parameter names are read on demand from the same stable metadata snapshot. There is no cross-inspection file cache; validated immutable Evidence is reused for session views.
+Scans yield cooperatively in bounded batches. Name-address retention and reverse-trie construction are each limited to 65,536 entries/nodes and fallback module-array candidates to 64 (`native-index-capacity`); exceeding capacity does not prove absence. Rendered type text has a 64 MiB UTF-8 cache-workspace guard, separate from the 64 MiB encoded-report admission, and 64 nested rendering frames (`native-type-text-capacity` / `type-nesting-capacity`). Genuine cycles are malformed; unsupported type kinds are explicit coverage failures. Native row/text admission runs before allocation or retention. Unused generic parameter names are read on demand from the same stable metadata snapshot. There is no cross-inspection file cache; validated immutable Evidence is reused for session views.
 
 ELF RELATIVE writes into zero-fill are kept as a private virtual-pointer overlay. Unresolved supported-width symbol relocations, including RELA PLT entries, remain unknown only for the bytes their ELF ABI relocation type covers; an adjacent 32-bit relocation does not make a separate 64-bit method slot unknown. Stored zeros never establish no-body. COPY, TLS descriptor, REL, packed APS2 and other unsupported relocation encodings fail closed. Input bytes are unchanged.
 
-Native address queries batch exact64-bit hexadecimal `addresses` and `states` (`code`, `no-body`, `unknown`), intersecting indices and pagination. Numerically equal address spellings match; original row indices and every shared-body alternative survive:
+Native address queries batch exact 64-bit hexadecimal `addresses` and `states` (`code`, `no-body`, `unknown`), intersecting indices and pagination. Numerically equal address spellings match; original row indices and every shared-body alternative survive:
 
 ```json
 {
@@ -344,7 +360,7 @@ for Mach-O and PE; `--seed-base 0x...` overrides it for a different import. When
 identical code folding gives several methods one address, the first method names
 the function and a `# folded <address> <kept> also <names>` comment line after
 the seeds lists the others, so the kept name is visibly one of several. Ghidra still names a seeded function that is a thunk after its
-target. The file is atomically published with exclusive creation; an existing destination is never replaced. Failed staging retains its cleanup owner for retry. Source digest and link/seed-base comments make the mapping inspectable. Unknown slots are skipped separately from observed no-body slots. `--seed-base` requires `--ghidra-seeds`; overflowing rebased addresses and names/outputs beyond the existing Ghidra protocol limits (2,000 name characters,32MiB file,1,000,000 entries) are refused before publication. The CLI and reusable service use one formatter and owned output workflow; ordinary MCP inspection remains read-only.
+target. The file is atomically published with exclusive creation; an existing destination is never replaced. Failed staging retains its cleanup owner for retry. Source digest and link/seed-base comments make the mapping inspectable. Unknown slots are skipped separately from observed no-body slots. `--seed-base` requires `--ghidra-seeds`; overflowing rebased addresses and names/outputs beyond the existing Ghidra protocol limits (2,000 name characters, 32 MiB file, 1,000,000 entries) are refused before publication. The CLI and reusable service use one formatter and owned output workflow; ordinary MCP inspection remains read-only.
 
 ## Failures
 

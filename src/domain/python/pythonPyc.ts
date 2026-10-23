@@ -77,6 +77,13 @@ export const PYTHON_PYC_MAGIC_TABLE: ReadonlyMap<number, MagicEntry> = new Map([
 export const pythonPycMagicEntry = (magic: number): MagicEntry | null =>
   PYTHON_PYC_MAGIC_TABLE.get(magic) ?? null;
 
+export const PYTHON_PYC_LIMIT_MAXIMA = {
+  max_file_bytes: 64 * 1024 * 1024,
+  max_objects: 65536,
+  max_depth: 256,
+  max_string_bytes: 8 * 1024 * 1024,
+} as const;
+
 export const inspectPythonPycInputSchema = z.strictObject({
   path: localPathStringSchema.describe(
     "Absolute filesystem path to the selected CPython .pyc file",
@@ -85,7 +92,7 @@ export const inspectPythonPycInputSchema = z.strictObject({
     .number()
     .int()
     .min(16)
-    .max(64 * 1024 * 1024)
+    .max(PYTHON_PYC_LIMIT_MAXIMA.max_file_bytes)
     .default(16 * 1024 * 1024)
     .describe(
       "Maximum selected file size in bytes; exceeding the budget fails without partial success",
@@ -94,7 +101,7 @@ export const inspectPythonPycInputSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(65536)
+    .max(PYTHON_PYC_LIMIT_MAXIMA.max_objects)
     .default(16384)
     .describe(
       "Maximum marshal objects to examine; exceeding the budget fails without partial success",
@@ -103,7 +110,7 @@ export const inspectPythonPycInputSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(256)
+    .max(PYTHON_PYC_LIMIT_MAXIMA.max_depth)
     .default(64)
     .describe(
       "Maximum marshal nesting depth; exceeding the budget fails without partial success",
@@ -112,7 +119,7 @@ export const inspectPythonPycInputSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(8 * 1024 * 1024)
+    .max(PYTHON_PYC_LIMIT_MAXIMA.max_string_bytes)
     .default(1024 * 1024)
     .describe(
       "Maximum bytes retained for one marshal string or byte string; exceeding the budget fails without partial success",
@@ -124,7 +131,10 @@ export const PYTHON_PYC_CONST_PREVIEW_LIMIT = 80;
 export const PYTHON_PYC_INT_PREVIEW_BITS = 256;
 
 /** CPython float repr for values JSON numbers cannot carry. */
-const pythonFloatSchema = z.union([z.number(), z.enum(["inf", "-inf", "nan"])]);
+const pythonFloatSchema = z.union([
+  z.number(),
+  z.enum(["inf", "-inf", "nan", "-0.0"]),
+]);
 
 const pythonConstSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("none") }),

@@ -19,7 +19,10 @@ import {
   AnalysisResourceConstraintError,
   AnalysisUnsupportedTargetError,
 } from "../domain/analysisErrorCore.js";
-import type { InspectPythonPycInput } from "../domain/python/pythonPyc.js";
+import {
+  PYTHON_PYC_LIMIT_MAXIMA,
+  type InspectPythonPycInput,
+} from "../domain/python/pythonPyc.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok } from "../domain/result.js";
@@ -37,6 +40,30 @@ export const PYTHON_PYC_PROVIDER_IDENTITY = {
 } as const;
 
 const OPERATION = "inspect_python_pyc";
+
+const parserLimitRecovery = (
+  limits: PythonPycResourceFailure["reported_limits"],
+) => {
+  const actions = (
+    Object.keys(
+      PYTHON_PYC_LIMIT_MAXIMA,
+    ) as (keyof typeof PYTHON_PYC_LIMIT_MAXIMA)[]
+  ).flatMap((field) => {
+    const selected = limits[field];
+    if (selected === undefined) return [];
+    const maximum = PYTHON_PYC_LIMIT_MAXIMA[field];
+    const option = `--${field.replaceAll("_", "-")}`;
+    return [
+      selected < maximum
+        ? `Raise ${field} (${option}) above ${selected}, up to ${maximum}, on the next call.`
+        : `${field} (${option}) is at this operation's maximum of ${maximum}; select a complete artifact within that bound.`,
+    ];
+  });
+  return {
+    retryable: false as const,
+    remediationAction: `${actions.join(" ")} Repeating the unchanged request fails the same way; waiting or adding host memory does not raise these parser limits.`,
+  };
+};
 
 const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
   if (cause instanceof AnalysisError) return cause;
@@ -57,7 +84,7 @@ const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
       cause.boundary === "depth" ? "capacity" : "memory",
       cause.message,
       cause.reported_limits,
-      { cause },
+      { cause, ...parserLimitRecovery(cause.reported_limits) },
     );
   if (cause instanceof PythonPycFormatFailure)
     return cause.kind === "unsupported"
@@ -81,7 +108,10 @@ const failureForPrimary = (cause: unknown, input: InspectPythonPycInput) => {
         "file-size",
         cause.message,
         { max_file_bytes: input.max_file_bytes },
-        { cause },
+        {
+          cause,
+          ...parserLimitRecovery({ max_file_bytes: input.max_file_bytes }),
+        },
       );
     if (cause.reason === "path" || cause.reason === "format")
       return new AnalysisInputError(OPERATION, { cause }, [

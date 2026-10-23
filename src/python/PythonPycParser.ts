@@ -413,26 +413,49 @@ class MarshalReader {
         return { kind: "int", value: decoded.value, bits: decoded.bits };
       }
       case TYPE_BYTES:
-        return { kind: "bytes", value: this.blob(this.u32()) };
+        return {
+          kind: "bytes",
+          value: this.blob(this.nonNegativeInt32("Marshal string length")),
+        };
       case TYPE_INTERNED:
       case TYPE_UNICODE:
-        return this.utf8(this.u32(), false);
+        return this.utf8(this.nonNegativeInt32("Marshal string length"), false);
       case TYPE_ASCII:
       case TYPE_ASCII_INTERNED:
-        return this.utf8(this.u32(), true);
+        return this.utf8(this.nonNegativeInt32("Marshal string length"), true);
       case TYPE_SHORT_ASCII:
       case TYPE_SHORT_ASCII_INTERNED:
         return this.utf8(this.u8(), true);
       case TYPE_TUPLE:
-        return this.sequenceValue("tuple", this.u32(), depth, slot);
+        return this.sequenceValue(
+          "tuple",
+          this.nonNegativeInt32("Marshal tuple length"),
+          depth,
+          slot,
+        );
       case TYPE_SMALL_TUPLE:
         return this.sequenceValue("tuple", this.u8(), depth, slot);
       case TYPE_LIST:
-        return this.sequenceValue("list", this.u32(), depth, slot);
+        return this.sequenceValue(
+          "list",
+          this.nonNegativeInt32("Marshal list length"),
+          depth,
+          slot,
+        );
       case TYPE_SET:
-        return this.setValue("set", this.u32(), depth, slot);
+        return this.setValue(
+          "set",
+          this.nonNegativeInt32("Marshal set length"),
+          depth,
+          slot,
+        );
       case TYPE_FROZENSET:
-        return this.setValue("frozenset", this.u32(), depth, slot);
+        return this.setValue(
+          "frozenset",
+          this.nonNegativeInt32("Marshal frozenset length"),
+          depth,
+          slot,
+        );
       case TYPE_DICT:
         return this.dict(depth, slot);
       case TYPE_CODE:
@@ -1546,15 +1569,17 @@ class MarshalReader {
   }
 }
 
-/** JSON has no non-finite numbers; keep CPython's repr for them. */
-const jsonFloat = (value: number): number | "inf" | "-inf" | "nan" =>
+/** Keep values whose identity JSON numbers cannot preserve as Python repr. */
+const jsonFloat = (value: number): number | "inf" | "-inf" | "nan" | "-0.0" =>
   Number.isNaN(value)
     ? "nan"
     : value === Infinity
       ? "inf"
       : value === -Infinity
         ? "-inf"
-        : value;
+        : Object.is(value, -0)
+          ? "-0.0"
+          : value;
 
 /**
  * Emit each distinct code object once, the top-level object first. A child
@@ -1640,13 +1665,21 @@ const buildConstSummary = (value: MarshalValue): PythonPycConst => {
       return { kind: "float", value: jsonFloat(value.value) };
     case "str": {
       const truncated = value.value.length > PYTHON_PYC_CONST_PREVIEW_LIMIT;
+      let end = PYTHON_PYC_CONST_PREVIEW_LIMIT;
+      // Preserve source lone surrogates, but do not split a source scalar.
+      if (
+        truncated &&
+        value.value.charCodeAt(end - 1) >= 0xd800 &&
+        value.value.charCodeAt(end - 1) <= 0xdbff &&
+        value.value.charCodeAt(end) >= 0xdc00 &&
+        value.value.charCodeAt(end) <= 0xdfff
+      )
+        end--;
       return {
         kind: "str",
         bytes: value.bytes,
         truncated,
-        value: truncated
-          ? value.value.slice(0, PYTHON_PYC_CONST_PREVIEW_LIMIT)
-          : value.value,
+        value: truncated ? value.value.slice(0, end) : value.value,
       };
     }
     case "bytes":

@@ -104,17 +104,12 @@ describe("resolved member signature digests", () => {
     expect(forged.raw_sha256).toBe(resolved.resolved_sha256);
   });
 
-  it.each([
-    ["a TypeSpec, whose blob member inspection does not decode", (1 << 2) | 2],
-    ["a TypeRef row outside its table", (9 << 2) | 1],
-  ])("does not name %s", (_name, codedIndex) => {
-    const bytes = buildManagedPeFixture({
-      fieldSignature: Buffer.from([0x06, 0x12, codedIndex]),
+  it("decodes a valid but unnamed non-generic TypeSpec operand", () => {
+    const inspection = fieldOf({
+      typeSpecSignatures: [Buffer.from([0x08])],
+      fieldSignature: Buffer.from([0x06, 0x12, (1 << 2) | 2]),
     });
-    const field = inspectManagedMembersBytes(
-      bytes,
-      managedPeFixtureTarget(bytes),
-    ).fields[0];
+    const field = inspection.fields[0];
 
     expect(field?.signature.parse_status).toBe("decoded");
     expect(field?.signature.resolved_sha256).toBeNull();
@@ -271,6 +266,10 @@ describe("type operand names", () => {
       fieldSignature: Buffer.from([0x06, 0x12, (9 << 2) | 1]),
     });
 
+    expect(inspection.fields[0]?.signature.parse_status).toBe("malformed");
+    expect(inspection.fields[0]?.signature.issue).toContain(
+      "coded index selects row 9 in table 1, which has 1 rows",
+    );
     expect(inspection.fields[0]?.signature.resolved_sha256).toBeNull();
     expect(inspection.coverage.state).toBe("partial");
     expect(inspection.coverage.issues).toEqual([

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { absoluteLocalPathStringSchema } from "../../domain/localPath.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { toolContractMetadata } from "../toolEffects.js";
 import { electronFuseOutputSchemas } from "../toolOutputSchemaGroups.js";
@@ -35,13 +36,19 @@ import { JAVASCRIPT_RUNTIME_RECONCILIATION_EXAMPLE } from "./javascriptRuntimeRe
 
 const listOutputSchema = evidenceResultOf(electronTargetListSchema);
 const inspectionOutputSchema = evidenceResultOf(electronPageInspectionSchema);
+const javascriptApplicationMcpInputSchema =
+  analyzeJavaScriptApplicationInputSchema.extend({
+    input_path: absoluteLocalPathStringSchema.describe(
+      "Absolute path to the JavaScript application on the machine running REA.",
+    ),
+  });
 /** Caller-selected delivery of a completed JavaScript application analysis. */
 export const analyzeJavaScriptApplicationRequestSchema = z
   .discriminatedUnion("detail", [
-    analyzeJavaScriptApplicationInputSchema.extend(
+    javascriptApplicationMcpInputSchema.extend(
       javaScriptRoutesCompleteDeliveryShape,
     ),
-    analyzeJavaScriptApplicationInputSchema.extend(
+    javascriptApplicationMcpInputSchema.extend(
       javaScriptRoutesSummaryDeliveryShape,
     ),
   ])

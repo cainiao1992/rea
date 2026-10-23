@@ -331,6 +331,18 @@ pass that definition through the SDK's `toolDefinition` call option. This keeps
 the selected output-schema validation without eagerly compiling unrelated
 catalog schemas. Re-read definitions if the server advertises a changed list.
 
+The deferred-runtime discovery matrix retains independent SDK clients and real
+CLI children. Its file-owned `catalogSchemaValidator` fixture shares the SDK's
+default AJV compiler only for full canonical documents from the expected
+catalog. The catalog's schema identifiers bound the retained compiled set;
+changed documents, other dialects and unknown schemas use isolated default SDK
+compilers, so an old identifier cannot select an obsolete validator. The
+provider is released at file teardown. Every tool result still follows the
+SDK's output validation. This reuse can remove compilation across fresh
+clients; the SDK already reuses compiled identifiers within a client. Compare
+the complete matrix and peak process-family memory before claiming a benefit,
+since shared validators remain live between cases.
+
 Artifact verification uses `artifactMcpCall` for both lifecycle and analysis
 calls. A fresh SDK client has no held tool listing, so a bare `callTool` can
 skip output-schema validation. The helper discovers actual advertised

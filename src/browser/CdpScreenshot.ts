@@ -9,13 +9,17 @@ import { cdpFrameIdentity } from "./CdpCaptureEventHelpers.js";
 import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
 import type { CdpConnection, CdpEvent } from "./CdpConnection.js";
 import {
-  allowedSanitizedUrl,
   recordValue,
   cdpStringValue,
   numberValue,
 } from "./CdpCaptureValues.js";
-import { mainFrameUrl } from "./CdpCaptureDocuments.js";
-import { captureFrames } from "./CdpCaptureDocuments.js";
+import {
+  observeCdpFrameUrl,
+  observeMainFrameUrl,
+  classifyCdpFrameUrl,
+  captureFrames,
+} from "./CdpCaptureDocuments.js";
+
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import { decodeCanonicalBase64 } from "../domain/webScreenshot.js";
 import { readPngHeaderDimensions } from "../domain/pngHeader.js";
@@ -53,10 +57,22 @@ export const captureCdpScreenshot = async (
     context.sessionId,
     context.signal,
   );
-  const beforeUrl = mainFrameUrl(before);
-  const authorized = allowedSanitizedUrl(beforeUrl, origins);
+  const beforeObservation = observeMainFrameUrl(before);
+  const beforeFacts = classifyCdpFrameUrl(beforeObservation, origins);
+  if (
+    beforeFacts.scope === "outside_policy" ||
+    beforeFacts.scope === "unsupported"
+  )
+    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+  if (beforeObservation.kind !== "observed")
+    throw new BrowserObservationError("inspect_web_page", "protocol_error");
+  const beforeUrl = beforeFacts.url;
   const mainFrame = captureFrames(before, origins, 1).items[0];
-  if (authorized === undefined || mainFrame === undefined)
+  if (
+    beforeUrl === undefined ||
+    beforeFacts.origin === null ||
+    mainFrame === undefined
+  )
     throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
   const initialFrame = recordValue(
     recordValue(recordValue(before)?.frameTree)?.frame,
@@ -75,13 +91,13 @@ export const captureCdpScreenshot = async (
     observeScreenshotNavigation(event, origins, navigation);
   });
   const assertCurrentDocument = () => {
-    if (navigation.invalidIdentity)
-      throw new BrowserObservationError("inspect_web_page", "protocol_error");
     if (navigation.leftScope)
       throw new BrowserObservationError(
         "inspect_web_page",
         "target_not_allowed",
       );
+    if (navigation.invalidIdentity)
+      throw new BrowserObservationError("inspect_web_page", "protocol_error");
     if (navigation.changed)
       throw new BrowserObservationError("inspect_web_page", "target_changed");
   };
@@ -123,11 +139,19 @@ export const captureCdpScreenshot = async (
     removeListener();
   }
   assertCurrentDocument();
-  const afterUrl = mainFrameUrl(after);
+  if (navigation.leftScope)
+    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+  const afterObservation = observeMainFrameUrl(after);
+  const afterFacts = classifyCdpFrameUrl(afterObservation, origins);
   if (
-    afterUrl !== beforeUrl ||
-    allowedSanitizedUrl(afterUrl, origins) === undefined
+    afterFacts.scope === "outside_policy" ||
+    afterFacts.scope === "unsupported"
   )
+    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+  if (navigation.invalidIdentity || afterObservation.kind !== "observed")
+    throw new BrowserObservationError("inspect_web_page", "protocol_error");
+  const afterUrl = afterFacts.url;
+  if (navigation.changed || afterUrl !== beforeUrl || afterUrl === undefined)
     throw new BrowserObservationError("inspect_web_page", "target_changed");
   await context.progress?.report({
     phase: "browser_observation",
@@ -140,8 +164,8 @@ export const captureCdpScreenshot = async (
     browser: context.discovery.version,
     target: {
       target_id: context.target.id,
-      url: authorized.url,
-      origin: authorized.origin ?? "",
+      url: beforeUrl,
+      origin: beforeFacts.origin,
     },
     captured_at: new Date().toISOString(),
     viewport: screenshot.dimensions,
@@ -319,27 +343,41 @@ const observeScreenshotNavigation = (
   if (identity.selection === "other" && !identity.isRootReplacement) return;
   const params = recordValue(event.params);
   if (params === undefined) return;
+  // A requested navigation does not establish a committed document change.
+  // The frame-tree read after capture still verifies the selected URL.
+  if (event.method === "Page.frameRequestedNavigation") return;
   const frame =
     event.method === "Page.frameNavigated" ? recordValue(params.frame) : params;
+  const observed = observeCdpFrameUrl(frame);
+  const facts = classifyCdpFrameUrl(observed, origins);
+  const frameUrl = facts.url;
+  if (
+    event.method === "Page.navigatedWithinDocument" &&
+    state.loaderId !== undefined &&
+    state.loaderId !== "" &&
+    frameUrl === state.url
+  )
+    return;
   if (
     event.method === "Page.frameNavigated" &&
     !identity.isRootReplacement &&
     state.loaderId !== undefined &&
     state.loaderId !== "" &&
     cdpStringValue(frame?.loaderId) === state.loaderId &&
-    cdpStringValue(frame?.url) === state.url
+    frameUrl === state.url
   )
     return;
 
   state.changed = true;
-  if (allowedSanitizedUrl(frame?.url, origins) === undefined)
+  if (facts.scope === "outside_policy" || facts.scope === "unsupported")
     state.leftScope = true;
+  if (observed.kind !== "observed") state.invalidIdentity = true;
   if (event.method === "Page.frameNavigated") {
     if (identity.isRootReplacement)
       state.frameId = identity.frameId ?? state.frameId;
-    state.url = cdpStringValue(frame?.url) ?? state.url;
+    state.url = frameUrl ?? state.url;
     state.loaderId = cdpStringValue(frame?.loaderId);
   } else if (event.method === "Page.navigatedWithinDocument") {
-    state.url = cdpStringValue(frame?.url) ?? state.url;
+    state.url = frameUrl ?? state.url;
   }
 };

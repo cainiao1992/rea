@@ -1,4 +1,5 @@
 import type { InspectWebPageInput } from "../domain/browserObservation.js";
+import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import {
   allowedSanitizedUrl,
@@ -55,16 +56,22 @@ export const captureFrames = (
   )) {
     const frame = recordValue(tree.frame);
     const frameId = cdpStringValue(frame?.id);
-    const sanitized = allowedSanitizedUrl(frame?.url, allowedOrigins);
+    const observation = observeCdpFrameUrl(frame);
+    const scopeUrl =
+      observation.kind === "missing" ? undefined : observation.scopeUrl;
+    const facts = classifyCdpFrameUrl(observation, allowedOrigins);
     if (frame === undefined || frameId === undefined) {
       completeness?.exclude("frames", "invalid_protocol_value");
       continue;
     }
-    if (sanitized === undefined || sanitized.origin === null) {
-      completeness?.exclude(
-        "frames",
-        exclusionReasonForUrl(cdpStringValue(frame.url)),
-      );
+    if (observation.kind === "invalid_fragment") {
+      completeness?.exclude("frames", "invalid_protocol_value");
+      if (facts.scope !== "approved")
+        completeness?.exclude("frames", exclusionReasonForUrl(scopeUrl));
+      continue;
+    }
+    if (facts.url === undefined || facts.origin === null) {
+      completeness?.exclude("frames", exclusionReasonForUrl(scopeUrl));
       continue;
     }
     if (maximum !== undefined && items.length >= maximum) continue;
@@ -78,18 +85,85 @@ export const captureFrames = (
     items.push({
       frame_id: frameId,
       parent_frame_id: parentFrameId ?? null,
-      url: sanitized.url,
-      origin: sanitized.origin,
+      url: facts.url,
+      origin: facts.origin,
     });
   }
   return { items };
 };
 
-/** Read the current main-frame URL from an untrusted Page.getFrameTree result. */
-export const mainFrameUrl = (result: unknown): string | undefined =>
-  cdpStringValue(
-    recordValue(recordValue(requiredRecord(result).frameTree)?.frame)?.url,
+export type CdpFrameUrlObservation =
+  | {
+      readonly kind: "observed";
+      readonly url: string;
+      readonly scopeUrl: string;
+    }
+  | { readonly kind: "invalid_fragment"; readonly scopeUrl: string }
+  | { readonly kind: "missing" };
+
+/** Parse identity and scope facts once; an invalid fragment cannot erase its base origin. */
+export const observeCdpFrameUrl = (
+  frame: UnknownRecord | undefined,
+): CdpFrameUrlObservation => {
+  const url = cdpStringValue(frame?.url);
+  if (url === undefined) return { kind: "missing" };
+  if (frame?.urlFragment === undefined)
+    return { kind: "observed", url, scopeUrl: url };
+  const fragment = cdpStringValue(frame.urlFragment);
+  if (fragment === undefined || (fragment !== "" && !fragment.startsWith("#")))
+    return { kind: "invalid_fragment", scopeUrl: url };
+  return {
+    kind: "observed",
+    url: `${url.split("#", 1)[0] ?? ""}${fragment}`,
+    scopeUrl: url,
+  };
+};
+
+export const observeMainFrameUrl = (result: unknown): CdpFrameUrlObservation =>
+  observeCdpFrameUrl(
+    recordValue(recordValue(requiredRecord(result).frameTree)?.frame),
   );
+
+/** Policy and readable identity are independent facts, including on malformed frames. */
+export const classifyCdpFrameUrl = (
+  observation: CdpFrameUrlObservation,
+  allowedOrigins: ReadonlySet<string>,
+): {
+  readonly scope: "approved" | "outside_policy" | "unsupported" | "unknown";
+  readonly origin: string | null;
+  readonly url: string | undefined;
+} => {
+  if (observation.kind === "missing")
+    return { scope: "unknown", origin: null, url: undefined };
+  const base = sanitizeBrowserUrl(observation.scopeUrl);
+  const scope =
+    base.origin === null
+      ? "unsupported"
+      : allowedOrigins.has(base.origin)
+        ? "approved"
+        : "outside_policy";
+  return {
+    scope,
+    origin: base.origin,
+    url:
+      observation.kind === "observed" && scope === "approved"
+        ? sanitizeBrowserUrl(observation.url).url
+        : undefined,
+  };
+};
+
+/** Read the complete identity only when the protocol established it. */
+export const cdpFrameUrl = (
+  frame: UnknownRecord | undefined,
+): string | undefined => {
+  const observed = observeCdpFrameUrl(frame);
+  return observed.kind === "observed" ? observed.url : undefined;
+};
+
+export const mainFrameUrl = (result: unknown): string | undefined => {
+  const observed = observeMainFrameUrl(result);
+  return observed.kind === "observed" ? observed.url : undefined;
+};
 
 /** Normalize every allowed resource. */
 export const captureResources = (

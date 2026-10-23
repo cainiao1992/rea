@@ -24,7 +24,12 @@ import {
   cdpStringValue,
   type UnknownRecord,
 } from "./CdpCaptureValues.js";
-import { mainFrameUrl } from "./CdpCaptureDocuments.js";
+import {
+  mainFrameUrl,
+  observeCdpFrameUrl,
+  observeMainFrameUrl,
+  classifyCdpFrameUrl,
+} from "./CdpCaptureDocuments.js";
 import { cdpFrameIdentity } from "./CdpCaptureEventHelpers.js";
 import { cdpTargetEventMatches } from "./CdpTargetEvents.js";
 
@@ -46,6 +51,7 @@ interface TimelineEntryOptions {
   readonly params: UnknownRecord;
   readonly timestamp?: number | null;
   readonly rawUrl?: string | null;
+  readonly destinationScope?: TimelineEvent["destination_scope"];
   readonly requestId?: string | null;
   readonly detail?: string | null;
 }
@@ -393,16 +399,20 @@ class TimelineCapture {
     if (identity.identityIssue !== null || identity.parentIssue !== null)
       this.completeness.exclude("timeline", "invalid_protocol_value");
     if (identity.selection !== "main" && !identity.isRootReplacement) return;
-    const rawUrl = cdpStringValue(frame?.url);
-    const destination = scopedUrl(rawUrl, this.allowedOrigins);
+    const observation = observeCdpFrameUrl(frame);
+    const rawUrl =
+      observation.kind === "observed" ? observation.url : undefined;
+    const destination = classifyCdpFrameUrl(observation, this.allowedOrigins);
     if (identity.isRootReplacement) {
       this.mainFrameId = identity.frameId ?? this.mainFrameId;
       this.#pendingReload = false;
       if (contextOnly) {
+        if (observation.kind !== "observed") this.invalidateFinalUrl();
         this.#stopIfOutOfScope(destination);
         return;
       }
     }
+
     this.#add({
       type:
         !identity.isRootReplacement && !contextOnly && this.#pendingReload
@@ -411,13 +421,16 @@ class TimelineCapture {
       params: { ...params, frameId: frame?.id, loaderId: frame?.loaderId },
       timestamp: null,
       rawUrl: rawUrl ?? null,
+      destinationScope:
+        destination.scope === "unknown" ? null : destination.scope,
       requestId: null,
       detail: safeDetail(frame?.transitionType),
     });
+    if (observation.kind !== "observed") this.invalidateFinalUrl();
     if (this.#stopIfOutOfScope(destination)) return;
     if (contextOnly) return;
     this.#pendingReload = false;
-    this.finalUrl = destination.url;
+    this.finalUrl = destination.url ?? null;
   }
 
   #sameDocument(
@@ -439,6 +452,7 @@ class TimelineCapture {
       requestId: null,
       detail: null,
     });
+    if (!this.#hasObservedUrl(rawUrl)) return;
     if (this.#stopIfOutOfScope(destination)) return;
     if (contextOnly) return;
     this.finalUrl = destination.url;
@@ -467,14 +481,27 @@ class TimelineCapture {
       requestId: cdpStringValue(params.requestId) ?? null,
       detail: null,
     });
-    if (this.#stopIfOutOfScope(destination)) return;
+    if (!this.#hasObservedUrl(rawUrl)) return;
+    this.#stopIfOutOfScope(destination);
+  }
+
+  invalidateFinalUrl(): void {
+    this.completeness.exclude("timeline", "invalid_protocol_value");
+    this.finalUrl = null;
+  }
+
+  /** Missing protocol identity cannot establish that the target left policy. */
+  #hasObservedUrl(rawUrl: string | undefined): boolean {
+    if (rawUrl !== undefined) return true;
+    this.invalidateFinalUrl();
+    return false;
   }
 
   #stopIfOutOfScope(destination: {
-    readonly url: string | null;
-    readonly scope: "approved" | "outside_policy" | "unsupported";
+    readonly scope: "approved" | "outside_policy" | "unsupported" | "unknown";
   }): boolean {
-    if (destination.scope === "approved") return false;
+    if (destination.scope === "approved" || destination.scope === "unknown")
+      return false;
     this.excludeTargetScope("out_of_target_scope");
     this.end("target_left_scope");
     return true;
@@ -572,7 +599,7 @@ class TimelineCapture {
       loader_id: boundedId(params.loaderId),
       request_id: requestId ?? null,
       url: destination?.scope === "approved" ? destination.url : null,
-      destination_scope: destination?.scope ?? null,
+      destination_scope: options.destinationScope ?? destination?.scope ?? null,
       detail,
     });
   }
@@ -651,18 +678,15 @@ const captureFinalUrl = async (
     context.signal,
   );
   if (capture.scopeExcluded) return "target_left_scope";
-  const url = mainFrameUrl(result);
-  if (
-    url !== undefined &&
-    allowedSanitizedUrl(url, allowedOrigins) !== undefined
-  ) {
-    capture.setFinalUrl(url);
-    return "window_elapsed";
+  const observation = observeMainFrameUrl(result);
+  const facts = classifyCdpFrameUrl(observation, allowedOrigins);
+  if (observation.kind !== "observed") capture.invalidateFinalUrl();
+  if (facts.scope === "outside_policy" || facts.scope === "unsupported") {
+    capture.excludeTargetScope("out_of_target_scope");
+    return "target_left_scope";
   }
-  capture.excludeTargetScope(
-    url === undefined ? "invalid_protocol_value" : "out_of_target_scope",
-  );
-  return "target_left_scope";
+  if (facts.url !== undefined) capture.setFinalUrl(facts.url);
+  return "window_elapsed";
 };
 
 const frameId = (result: unknown): string | undefined =>

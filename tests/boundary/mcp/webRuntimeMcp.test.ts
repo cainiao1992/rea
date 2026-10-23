@@ -86,6 +86,87 @@ it("advertises actual SDK schemas, instrumentation effects and session-owned inl
   expect(invalid.isError).toBe(true);
 });
 
+it("preserves the same reconstructed runtime identity through compiled CLI and MCP evidence", async () => {
+  const { runCliJson } = await import("../../fixtures/cliJsonProcess.js");
+  const browser = await startRuntimeBrowser({
+    commandResult: ({ method }, origin) =>
+      method === "Page.getFrameTree"
+        ? {
+            frameTree: {
+              frame: {
+                id: "runtime-main",
+                loaderId: "document-1",
+                url: `${origin}/app?caller=retained#old`,
+                urlFragment: "#details",
+              },
+            },
+          }
+        : undefined,
+  });
+  const provider = new CdpWebRuntimeProvider();
+  const session = createTestBinarySession(() => {
+    throw new Error("Binary provider must not start");
+  });
+  const server = createServer(
+    { kind: "session", session },
+    { webRuntime: new WebRuntimeService(provider) },
+  );
+  const client = new Client({ name: "runtime-frame-identity", version: "1" });
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+    await provider.close();
+    await session.close();
+    await browser.close();
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  for (const name of [
+    "observe_web_execution",
+    "inspect_web_event_listeners",
+  ] as const) {
+    const response = await client.callTool({
+      name,
+      arguments: {
+        cdp_endpoint: browser.endpoint,
+        target_id: "allowed-page",
+        allowed_origins: [browser.allowedOrigin],
+        ...(name === "observe_web_execution"
+          ? { observation_ms: 1 }
+          : { selector: "#selected" }),
+      },
+    });
+    expect(response.isError).not.toBe(true);
+    const evidence = parseEvidence(
+      toolContract(name).outputSchema.parse(response.structuredContent),
+    );
+    expect(evidence.normalized_result).toMatchObject({
+      target: {
+        initial_url: `${browser.allowedOrigin}/app?caller=retained#details`,
+      },
+    });
+    expect(session.evidenceById(evidence.evidence_id)).toEqual(evidence);
+    const cli = await runCliJson([
+      name.replaceAll("_", "-"),
+      browser.endpoint,
+      "allowed-page",
+      ...(name === "observe_web_execution"
+        ? ["--observation-ms", "1"]
+        : ["#selected"]),
+      "--allowed-origins",
+      browser.allowedOrigin,
+      "--json",
+    ]);
+    expect(parseEvidence(cli).normalized_result).toMatchObject({
+      target: {
+        initial_url: `${browser.allowedOrigin}/app?caller=retained#details`,
+      },
+    });
+  }
+}, 20_000);
+
 it.each([
   {
     name: "observe_web_execution" as const,

@@ -70,7 +70,10 @@ DOM node indices retain their snapshot positions. Invalid rows are omitted with
 completeness diagnostics, so `total_nodes` can exceed the retained node count
 and a parent index can refer to an omitted source node.
 
-Script metadata retains its execution-context frame ID when CDP supplies one. The capture also
+Script metadata retains its execution-context frame ID when CDP supplies one and
+the observed frame generation is authorized. Frames describe the current inventory;
+script observations can retain earlier authorized frames that have since detached.
+The capture also
 inventories worker, service-worker, and shared-worker targets with
 validated opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.

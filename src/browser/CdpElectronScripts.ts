@@ -25,7 +25,7 @@ interface ElectronScriptCaptureInput {
   readonly signal?: AbortSignal;
   readonly request: InspectElectronPageInput;
   readonly scripts: readonly ElectronScriptDraft[];
-  readonly frameIds: ReadonlySet<string>;
+  readonly frameForScript: (script: ElectronScriptDraft) => string | null;
   readonly completeness: CdpCaptureCompleteness;
   readonly asarHeaderAdmission: AsarHeaderAdmission;
 }
@@ -60,10 +60,7 @@ export const captureElectronScripts = async (
         continue;
       }
       const identity = {
-        frame_id:
-          script.frameId !== null && input.frameIds.has(script.frameId)
-            ? script.frameId
-            : null,
+        frame_id: input.frameForScript(script),
         file_path: path,
         cdp_hash: script.hash,
         length: script.length,

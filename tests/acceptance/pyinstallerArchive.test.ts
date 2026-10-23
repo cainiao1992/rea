@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -81,6 +81,42 @@ const onefile = async (
             ...(pyzToc === undefined ? {} : { toc: pyzToc }),
           }),
           compress: compressPyz,
+        },
+      ],
+    }),
+  );
+  return path;
+};
+
+const namespacePathCollision = async (): Promise<string> => {
+  const directory = await createTestTempDirectory("rea-pyinstaller-namespace-");
+  const path = join(directory, "collision");
+  await writeFile(
+    path,
+    cArchiveExecutable({
+      layout: "2.1",
+      pythonVersion: 309,
+      members: [
+        {
+          name: "PYZ.pyz",
+          typeCode: "z",
+          payload: pyzArchive({
+            magic: PYTHON_39_MAGIC,
+            modules: [{ name: "ns", typeCode: 3, body: Buffer.alloc(0) }],
+          }),
+          compress: false,
+        },
+        {
+          name: "PYZ.pyz/ns",
+          typeCode: "x",
+          payload: Buffer.from("outer data"),
+          compress: false,
+        },
+        {
+          name: "healthy.txt",
+          typeCode: "x",
+          payload: Buffer.from("healthy sibling"),
+          compress: false,
         },
       ],
     }),
@@ -178,6 +214,104 @@ it("extracts CArchive members through extract-artifact", async () => {
       item.relative_path.includes("pyi-contents-directory"),
     ),
   ).toBe(false);
+});
+
+it("preserves a PYZ namespace declaration beside a physical CArchive file at the same path", async () => {
+  const path = await namespacePathCollision();
+  const inspectResult = await execute(process.execPath, [
+    cli,
+    "inspect-artifact",
+    path,
+    "--json",
+  ]);
+  const inspection = artifactInspectionResultSchema.parse(
+    parseEvidence(JSON.parse(inspectResult.stdout)).normalized_result,
+  );
+  const inventory = inspection.substeps[0]?.evidence.normalized_result;
+  expect(inventory?.coverage.status).toBe("complete");
+  const namespace = inventory?.occurrences.find(
+    (row) =>
+      row.logical_path === "PYZ.pyz/ns" &&
+      row.format_metadata?.kind === "pyinstaller-entry" &&
+      row.format_metadata.type_code === 3,
+  );
+  const data = inventory?.occurrences.find(
+    (row) =>
+      row.logical_path === "PYZ.pyz/ns" &&
+      row.entry_kind === "file" &&
+      row.format_metadata?.kind === "pyinstaller-entry" &&
+      row.format_metadata.type_code === "x",
+  );
+  expect(namespace).toMatchObject({
+    entry_kind: "metadata",
+    artifact_id: null,
+    format_metadata: {
+      container: "pyz",
+      container_name: "PYZ.pyz",
+      index: 0,
+      source_name: "ns",
+      type_code: 3,
+    },
+  });
+  expect(data).toMatchObject({
+    entry_kind: "file",
+    hash_status: "verified",
+    format_metadata: {
+      container: "carchive",
+      index: 1,
+      source_name: "PYZ.pyz/ns",
+      type_code: "x",
+    },
+  });
+  expect(namespace?.occurrence_id).not.toBe(data?.occurrence_id);
+  const dataNode = inventory?.nodes.find(
+    (node) => node.artifact_id === data?.artifact_id,
+  );
+  expect(dataNode).toMatchObject({
+    sha256: createHash("sha256").update("outer data").digest("hex"),
+    size: Buffer.byteLength("outer data"),
+  });
+  const sibling = inventory?.occurrences.find(
+    (row) => row.logical_path === "healthy.txt",
+  );
+  expect(sibling).toMatchObject({
+    hash_status: "verified",
+    format_metadata: {
+      container: "carchive",
+      index: 2,
+      source_name: "healthy.txt",
+      type_code: "x",
+    },
+  });
+  expect(
+    inventory?.nodes.find((node) => node.artifact_id === sibling?.artifact_id),
+  ).toMatchObject({
+    sha256: createHash("sha256").update("healthy sibling").digest("hex"),
+    size: Buffer.byteLength("healthy sibling"),
+  });
+
+  const extractResult = await execute(process.execPath, [
+    cli,
+    "extract-artifact",
+    path,
+    "--json",
+  ]);
+  const extracted = artifactExtractionResultSchema.parse(
+    parseEvidence(JSON.parse(extractResult.stdout)).normalized_result,
+  );
+  try {
+    expect(extracted.artifacts.map((item) => item.relative_path)).toEqual(
+      expect.arrayContaining(["PYZ.pyz/ns", "healthy.txt"]),
+    );
+    expect(
+      await readFile(join(extracted.output_root, "PYZ.pyz", "ns")),
+    ).toEqual(Buffer.from("outer data"));
+    expect(await readFile(join(extracted.output_root, "healthy.txt"))).toEqual(
+      Buffer.from("healthy sibling"),
+    );
+  } finally {
+    await rm(extracted.output_root, { recursive: true, force: true });
+  }
 });
 
 it("reports unknown traversal through the CLI for an opaque PYZ", async () => {

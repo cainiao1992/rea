@@ -661,7 +661,7 @@ it("retains legacy namespace payload extents without materializing them", async 
       expect(
         inventory.occurrences.find((row) => row.logical_path === "PYZ.pyz/ns"),
       ).toMatchObject({
-        entry_kind: "directory",
+        entry_kind: "metadata",
         declared_size: 0,
         compressed_size: length,
         format_metadata: {
@@ -785,7 +785,7 @@ it.each([false, true])(
             (row) => row.logical_path === "PYZ.pyz/legacy",
           ),
         ).toMatchObject({
-          entry_kind: "directory",
+          entry_kind: "metadata",
           encrypted: marker,
           compressed_size: expect.any(Number),
           format_metadata: {
@@ -797,7 +797,7 @@ it.each([false, true])(
             (row) => row.logical_path === "PYZ.pyz/empty",
           ),
         ).toMatchObject({
-          entry_kind: "directory",
+          entry_kind: "metadata",
           encrypted: false,
           compressed_size: 0,
           format_metadata: { encryption_source: null },
@@ -904,7 +904,7 @@ it("retains the producer's nonzero namespace offset without inventing data", asy
       expect(
         inventory.occurrences.find((row) => row.logical_path === "PYZ.pyz/ns"),
       ).toMatchObject({
-        entry_kind: "directory",
+        entry_kind: "metadata",
         declared_size: 0,
         compressed_size: 0,
         format_metadata: {

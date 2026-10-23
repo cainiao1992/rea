@@ -211,7 +211,7 @@ export const projectPyzMember = (
     return {
       entry: {
         path: path,
-        kind: "directory",
+        kind: "metadata",
         declaredSize: 0,
         compressedSize: item.length,
         executable: false,

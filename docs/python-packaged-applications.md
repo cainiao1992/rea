@@ -19,7 +19,8 @@ the decoded PYZ image for PYZ rows. A CArchive directory record starts at
 `archive_start + toc_offset + directory_record_offset`; its size is
 `directory_record_size`. PYZ row directory extents remain unknown.
 
-Namespace packages remain directories. Their `relative_offset` and
+Namespace packages remain metadata declarations at their projected query path;
+they do not claim a destination directory. Their `relative_offset` and
 `compressed_size` preserve any payload declared by older producers, while
 `declared_size` is zero because no bytecode is materialized for a namespace.
 Every declared span must end before the PYZ table of contents.

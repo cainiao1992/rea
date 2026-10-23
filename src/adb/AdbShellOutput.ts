@@ -324,10 +324,7 @@ export const parseDumpsysPackageOutput = (
       continue;
     }
     // Android 10 and 11 mark restricted entries as "NAME: restricted=true".
-    if (
-      inPermissions &&
-      /^\s{2,}[A-Za-z0-9._$-]+(?:: restricted=true)?$/u.test(line)
-    ) {
+    if (inPermissions && /^\s{2,}\S+(?:: restricted=true)?$/u.test(line)) {
       permissions += 1;
       continue;
     }

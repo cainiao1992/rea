@@ -865,6 +865,32 @@ it("counts requested permissions that the device marks as restricted", async () 
   });
 });
 
+it("counts Unicode requested-permission names and continues through the section", async () => {
+  const { binary } = await writeAdbStub(
+    shellStub({
+      "dumpsys:package": `Packages:
+  Package [com.example] (abcdef):
+    pkg=Package{abcdef com.example}
+    versionCode=45 minSdk=24 targetSdk=34
+    requested permissions:
+      com.example.permission.FIRST
+      com.example.permission.ÉCRIRE
+      android.permission.CAMERA
+    install permissions:
+      android.permission.CAMERA: granted=true
+`,
+    }),
+  );
+  const result = await evidenceResult(providerOver(binary), {
+    operation: "inspect_adb_package",
+    input: { serial: "emulator-5554", package: "com.example" },
+  });
+  expect(result).toMatchObject({
+    requested_permissions_count: 3,
+    coverage: "complete",
+  });
+});
+
 it("reports an uninstalled package from dumpsys refusal output", async () => {
   const { binary } = await writeAdbStub(
     shellStub({ "dumpsys:package": "Unable to find package: com.absent\n" }),

@@ -284,6 +284,23 @@ describe("parseDumpsysPackageOutput", () => {
       ).requestedPermissions,
     ).toBe(2);
   });
+
+  it("counts Unicode permission names without ending the section", () => {
+    expect(
+      parseDumpsysPackageOutput(
+        [
+          "Package [com.example] (abcdef):",
+          "  pkg=Package{abcdef com.example}",
+          "  requested permissions:",
+          "    com.example.permission-First",
+          "    com.example.permission.ÉCRIRE",
+          "    android.permission.CAMERA",
+          "  install permissions:",
+          "    android.permission.CAMERA: granted=true",
+        ].join("\n"),
+      ).requestedPermissions,
+    ).toBe(3);
+  });
 });
 
 describe("parseWmDensityOutput", () => {

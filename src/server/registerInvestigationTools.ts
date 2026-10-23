@@ -1,3 +1,7 @@
+import {
+  investigationEvidenceBundle,
+  resolveInvestigationEvidenceClosure,
+} from "../application/investigation/InvestigationEvidence.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
@@ -9,7 +13,6 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { correlateStaticAndRuntime } from "../domain/staticRuntimeCorrelation.js";
 import {
   comparisonClosure,
-  evidenceClosure,
   isIncomplete,
   recordWorkflowEvidence,
 } from "./registerInvestigationTools/helpers.js";
@@ -75,7 +78,10 @@ const registerChangedBehavior = (
         if (!computed.ok)
           return server.delivery.toCallToolResult(computed, contract);
         const { result, comparisonEvidenceIds } = computed.value;
-        const closure = evidenceClosure(session, result.evidence_links);
+        const closure = resolveInvestigationEvidenceClosure(
+          session,
+          result.evidence_links,
+        );
         if (!closure.ok)
           return server.delivery.toCallToolResult(closure, contract);
         const links = closure.value;
@@ -136,7 +142,7 @@ const registerCallPath = (
         contract.name,
         context.mcpReq.signal,
         async () => {
-          const closure = evidenceClosure(
+          const closure = resolveInvestigationEvidenceClosure(
             session,
             input.functions.map(({ evidence_id }) => evidence_id),
           );
@@ -209,7 +215,7 @@ const registerStaticRuntime = (
         contract.name,
         context.mcpReq.signal,
         async () => {
-          const closure = evidenceClosure(
+          const closure = resolveInvestigationEvidenceClosure(
             session,
             comparisonClosure([
               ...input.static_comparisons,
@@ -283,7 +289,7 @@ const registerReconstruction = (
         contract.name,
         context.mcpReq.signal,
         async () => {
-          const owned = session.exportEvidenceBundle();
+          const owned = investigationEvidenceBundle(session);
           const computed = await runDerivedOperation(
             context,
             contract.name,
@@ -292,7 +298,10 @@ const registerReconstruction = (
           if (!computed.ok)
             return server.delivery.toCallToolResult(computed, contract);
           const result = computed.value;
-          const closure = evidenceClosure(session, result.evidence_links);
+          const closure = resolveInvestigationEvidenceClosure(
+            session,
+            result.evidence_links,
+          );
           if (!closure.ok)
             return server.delivery.toCallToolResult(closure, contract);
           const links = closure.value;

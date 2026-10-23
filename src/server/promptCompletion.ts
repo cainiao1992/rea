@@ -1,4 +1,3 @@
-import type { EvidenceReader } from "../application/investigation/InvestigationRecordPort.js";
 import { z } from "zod";
 
 import { uniqueSorted } from "../domain/canonicalOrdering.js";
@@ -11,6 +10,8 @@ import { addressedValueSchema } from "../domain/native/nativeInventory.js";
 import { currentMcpRequestSignal } from "./EvidenceMcpServerCore.js";
 import { parseArtifactInventoryEvidence } from "../domain/artifactInventoryEvidence.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
+import type { Evidence } from "../domain/evidence.js";
+import { investigationEvidenceBundle } from "../application/investigation/InvestigationEvidence.js";
 
 const documentListSchema = z.array(z.string().min(1));
 const procedureInventorySchema = z.array(
@@ -171,18 +172,14 @@ const evidenceCandidates = (
 ): readonly string[] => {
   if (session === undefined) return [];
   const candidates: string[] = [];
-  for (const evidence of session.exportEvidenceBundle().records)
+  for (const evidence of investigationEvidenceBundle(session).records)
     candidates.push(...evidenceValues(kind, evidence));
   return candidates;
 };
 
-type LedgerEvidence = ReturnType<
-  EvidenceReader["exportEvidenceBundle"]
->["records"][number];
-
 const evidenceValues = (
   kind: "evidence" | "capture" | "manifest" | "occurrence",
-  evidence: LedgerEvidence,
+  evidence: Evidence,
 ): readonly string[] => {
   if (kind === "evidence") return [evidence.evidence_id];
   if (kind === "capture")
@@ -210,7 +207,7 @@ const artifactInventoryValues = (
   }
 };
 
-const isProcessCaptureEvidence = (evidence: LedgerEvidence): boolean => {
+const isProcessCaptureEvidence = (evidence: Evidence): boolean => {
   const parsed = parseProcessCaptureEvidence(evidence);
   if (parsed.ok) return true;
   switch (parsed.error.kind) {

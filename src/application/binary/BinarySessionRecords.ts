@@ -107,9 +107,9 @@ export abstract class BinarySessionRecords {
     return this.#records.exportEvidenceBundle();
   }
 
-  /** Borrow a sealed bundle for complete serialization without cloning retained graphs. */
-  evidenceBundleForSerialization(): EvidenceBundle {
-    return this.#records.evidenceBundleForSerialization();
+  /** Borrow the record owner's immutable bundle for read-only workflows. */
+  immutableEvidenceBundle(): EvidenceBundle {
+    return this.#records.immutableEvidenceBundle();
   }
 
   /** Persist one provider-neutral snapshot under this session's resource owner. */

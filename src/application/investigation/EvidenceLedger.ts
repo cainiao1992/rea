@@ -187,8 +187,8 @@ export class EvidenceLedger {
     );
   }
 
-  /** Borrow a sealed canonical bundle for serialization without copying its records. */
-  forSerialization(): EvidenceBundle {
+  /** Borrow an authenticated immutable bundle without copying its records. */
+  immutableBundle(): EvidenceBundle {
     return createImmutableEvidenceBundle(
       [...this.#records.values()],
       [...this.#unknownRevisions.values()],

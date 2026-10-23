@@ -138,13 +138,13 @@ describe("evidence ledger recording", () => {
     expect(Reflect.set(detached, "operation", "forged")).toBe(true);
     expect(ledger.record(detached).ok).toBe(false);
     expect(ledger.forAnalysis(evidence.evidence_id)).toBe(borrowed);
-    const snapshot = ledger.forSerialization();
+    const snapshot = ledger.immutableBundle();
     expect(snapshot).toEqual(ledger.export());
     expect(snapshot.records[0]).toBe(borrowed);
     expect(Object.isFrozen(snapshot.records)).toBe(true);
     ledger.clear();
     expect(ledger.forAnalysis(evidence.evidence_id)).toBeUndefined();
-    expect(ledger.forSerialization().records).toEqual([]);
+    expect(ledger.immutableBundle().records).toEqual([]);
     expect(snapshot.records).toEqual([evidence]);
   });
 });

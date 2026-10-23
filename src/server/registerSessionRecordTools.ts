@@ -11,6 +11,7 @@ import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.j
 import { err, ok } from "../domain/result.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { inspectEvidenceBundle } from "../application/investigation/InspectEvidenceBundle.js";
+import { investigationEvidenceBundle } from "../application/investigation/InvestigationEvidence.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
 import { runAdmittedToolOperation } from "./admittedToolOperation.js";
@@ -49,7 +50,7 @@ const registerExportEvidenceTool = ({
     exportContract.name,
     toolRegistrationOptions(exportContract),
     async (input, context) => {
-      const bundle = bundleForSerialization(session);
+      const bundle = investigationEvidenceBundle(session);
       const written = await writeEvidenceBundle(
         bundle,
         input.path,
@@ -82,7 +83,7 @@ const registerSnapshotEvidenceTool = ({
     toolRegistrationOptions(snapshotContract),
     (input) =>
       server.delivery.toCallToolResult(
-        inspectEvidenceBundle(bundleForSerialization(session), input),
+        inspectEvidenceBundle(investigationEvidenceBundle(session), input),
         snapshotContract,
       ),
   );
@@ -116,7 +117,7 @@ const registerImportEvidenceTool = ({
           if (!loaded.ok)
             return server.delivery.toCallToolResult(loaded, importContract);
           const retainedUnknownRevisions = new Set(
-            bundleForSerialization(session).unknowns.map((unknown) =>
+            investigationEvidenceBundle(session).unknowns.map((unknown) =>
               unknownRevisionKey(unknown),
             ),
           );
@@ -136,7 +137,7 @@ const registerImportEvidenceTool = ({
                         unknownRevisionKey(unknown),
                       ),
                   ).length,
-                  total: bundleForSerialization(session).records.length,
+                  total: investigationEvidenceBundle(session).records.length,
                 }),
                 importContract,
               )
@@ -145,9 +146,6 @@ const registerImportEvidenceTool = ({
       ),
   );
 };
-
-const bundleForSerialization = (session: BinarySessionPort): EvidenceBundle =>
-  session.evidenceBundleForSerialization?.() ?? session.exportEvidenceBundle();
 
 const unknownRevisionKey = (
   unknown: EvidenceBundle["unknowns"][number],

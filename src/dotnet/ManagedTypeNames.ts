@@ -3,7 +3,7 @@ import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import {
   fullName,
   readCompressed,
-  specSignature,
+  specSignatureFacts,
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import {
@@ -55,7 +55,7 @@ export const typeNameLookup = (
       scope: `metadata.TypeSpec:${metadataToken(27, row)}`,
       offset: cursor.start,
     } as const;
-    specSignature(layout, spec, owner);
+    specSignatureFacts(layout, spec, owner);
     if (spec[0] !== 0x15) return null;
     // GENERICINST (CLASS | VALUETYPE) TypeDefOrRefEncoded: never a TypeSpec,
     // so naming never recurses.

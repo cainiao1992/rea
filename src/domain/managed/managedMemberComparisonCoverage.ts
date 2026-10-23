@@ -19,7 +19,8 @@ export const buildComparisonCoverage = ({
   const unknownInput =
     left.coverage.state !== "complete" ||
     right.coverage.state !== "complete" ||
-    !sameSelection(left, right);
+    !sameSelection(left, right) ||
+    !sameMethodRows(left, right);
   return {
     status:
       !unknownInput && leftStatus === "complete" && rightStatus === "complete"
@@ -29,6 +30,25 @@ export const buildComparisonCoverage = ({
     right_status: rightStatus,
   };
 };
+
+/** Full MethodDef coverage is required before inferring cross-build absence. */
+export const hasCompleteMethodRows = (
+  result: ManagedMemberInspection,
+): boolean =>
+  result.method_rows !== null &&
+  result.method_rows.offset === 0 &&
+  result.method_rows.count === result.method_rows.total;
+
+const sameMethodRows = (
+  left: ManagedMemberInspection,
+  right: ManagedMemberInspection,
+): boolean =>
+  (hasCompleteMethodRows(left) && hasCompleteMethodRows(right)) ||
+  (left.method_rows !== null &&
+    right.method_rows !== null &&
+    left.method_rows.offset === right.method_rows.offset &&
+    left.method_rows.count === right.method_rows.count &&
+    left.method_rows.total === right.method_rows.total);
 
 /** Whether both observations inspected the same declaring types. */
 const sameSelection = (
@@ -139,6 +159,10 @@ export const comparisonLimitations = (
   else if (left.selection !== null)
     limitations.push(
       `Both observations cover only the selected declaring types (${left.selection.type_names.join(", ")}); member totals and statuses describe those types, not the whole assembly.`,
+    );
+  if (!hasCompleteMethodRows(left) || !hasCompleteMethodRows(right))
+    limitations.push(
+      "At least one observation lacks a complete MethodDef row inventory; paged or unrecorded method scope cannot establish cross-build method absence. Row intervals are reported in method_rows and describe build-local selections.",
     );
   if (!hasSignatureResolution(left) || !hasSignatureResolution(right))
     limitations.push(

@@ -83,7 +83,36 @@ export interface MemberCore {
    * MethodDef outside the type selection.
    */
   readonly genericArity?: number | null;
+  /** Nominal declaring type, name and decoded signature; never runtime binding. */
+  readonly identitySha256?: string | null;
 }
+
+export const memberTargetIdentity = (
+  name: string,
+  declaringToken: string | null,
+  signature: ManagedSignature,
+  typeName: SignatureTypeName,
+): string | null => {
+  if (
+    declaringToken === null ||
+    signature.resolved_sha256 === null ||
+    signature.parse_status !== "decoded"
+  )
+    return null;
+  const table = Number.parseInt(declaringToken.slice(2, 4), 16);
+  if (table !== 1 && table !== 2) return null;
+  const owner = typeName(
+    Number.parseInt(declaringToken.slice(4), 16) * 4 + Number(table === 1),
+  );
+  return owner === null
+    ? null
+    : createHash("sha256")
+        .update("managed-member-nominal-v1\0")
+        .update(owner)
+        .update(Buffer.from(signature.resolved_sha256, "hex"))
+        .update(name)
+        .digest("hex");
+};
 
 export interface ParsedInstruction {
   readonly offset: number;
@@ -804,7 +833,7 @@ const callingConvention = (value: number): string => {
  * rendered types. A malformed or unsupported blob throws invalid-blob or
  * unsupported-signature under the owning row, so coverage records it.
  */
-export const specSignature = (
+export const specSignatureFacts = (
   layout: ManagedMetadataLayout,
   blob: Buffer,
   owner: {
@@ -812,7 +841,11 @@ export const specSignature = (
     readonly scope: string;
     readonly offset: number;
   },
-): readonly string[] => {
+  typeName?: SignatureTypeName,
+): {
+  readonly types: readonly string[];
+  readonly resolvedSha256: string | null;
+} => {
   const budget = managedDecodeBudget(layout);
   // Rendering is transient, so charge it as member signatures are charged.
   budget.admitTransient(blob.length * 256, owner.offset);
@@ -829,15 +862,19 @@ export const specSignature = (
       cursor = header.next;
     }
     const types: string[] = [];
+    const operands: TypeOperand[] = [];
     // Each Type consumes at least one byte, so a false count fails on truncation.
     for (let index = 0; index < count; index += 1) {
-      const type = readTypeSignature(blob, cursor, "type", { layout });
+      const type = readTypeSignature(blob, cursor, "type", {
+        layout,
+        operands,
+      });
       types.push(type.value);
       cursor = type.next;
     }
     if (cursor !== blob.length)
       malformedSignature("Trailing signature data", cursor);
-    return types;
+    return { types, resolvedSha256: typeName === undefined ? null : resolvedSha256(blob, operands, typeName) };
   } catch (cause: unknown) {
     if (
       !(cause instanceof ManagedReaderFailure) ||

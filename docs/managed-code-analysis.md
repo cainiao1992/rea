@@ -250,7 +250,13 @@ remain an assembly-wide inventory, so output size is not guaranteed to be small.
 Coverage describes the selected members. Comparisons leave members outside the
 opposite observation's selection unknown, and application graphs report their
 selected scope as partial. Neither makes an absence claim about the whole
-assembly. Older member Evidence without `selection` remains readable.
+assembly. Older member Evidence without `selection` remains readable. The
+`method_rows` interval records the examined zero-based MethodDef offset, row
+count and full table total before type selection. A complete observation can
+cover only that interval. Comparison keeps omissions from a method page unknown:
+build-local row positions cannot prove member absence across builds. Historical
+Evidence without this interval also cannot establish method absence; observed
+pairs and field inventory comparisons remain available.
 
 For MCP callers, request `detail: "summary"` and page the `types` collection
 using the returned parent Evidence ID. Select one or more returned full names
@@ -318,6 +324,19 @@ does not load or execute the assembly. Reconstructed structure and unresolved
 native/runtime questions retain their own authority and coverage.
 
 ## Member comparison
+
+Call edges and field accesses retain `il_offset` as their instruction site within
+the caller's build-local method token and artifact identity. Their
+`target_identity_sha256` combines the existing enclosing-type nominal digest,
+member name and resolved decoded signature. Comparison joins edges to their
+instruction sites rather than array positions and compares these identities;
+display labels alone cannot establish equal targets. Same-named nested types
+under different enclosing types and different overload signatures stay distinct.
+This is nominal metadata identity, not assembly resolution or runtime binding.
+Historical edges without a site or identity, unresolved/cyclic type scopes,
+TypeSpec owners and unresolved MethodSpec instantiations retain unknown target
+equivalence. Valid MethodSpecs combine the base member identity with the
+resolved instantiation signature, preserving generic argument distinctions.
 
 Names and semantic labels do not establish durable member identity. Comparison
 preserves observed differences, structural inferences, and unknowns separately.

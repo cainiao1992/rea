@@ -10,6 +10,7 @@ import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import {
   metadataSignature,
+  memberTargetIdentity,
   signatureGenericArity,
   type ManagedCallEdge,
   type ManagedExportedType,
@@ -103,6 +104,25 @@ export const parseFields = (
         cursor.readIndex(layout.blobIndexSize),
         layout.blob?.size ?? 0,
       );
+      const decoded = budgetedSignature(
+        sig,
+        layout,
+        signatureTypeName,
+        issues,
+        `Field:${token}.signature`,
+      );
+      core.set(token, {
+        token,
+        name,
+        declaringType: declared?.fullName ?? null,
+        kind: "field",
+        identitySha256: memberTargetIdentity(
+          name,
+          declared?.token ?? null,
+          decoded,
+          signatureTypeName,
+        ),
+      });
       fields.push({
         token,
         row_offset: cursor.start,
@@ -110,13 +130,7 @@ export const parseFields = (
         declaring_type: declared?.fullName ?? null,
         name,
         flags,
-        signature: budgetedSignature(
-          sig,
-          layout,
-          signatureTypeName,
-          issues,
-          `Field:${token}.signature`,
-        ),
+        signature: decoded,
       });
     }, issues);
   }
@@ -271,6 +285,12 @@ export const parseMemberRefs = (
         declaringType: parentName,
         kind: decoded.kind,
         genericArity: signatureGenericArity(decoded),
+        identitySha256: memberTargetIdentity(
+          name,
+          parentToken,
+          decoded,
+          signatureTypeName,
+        ),
       });
     }, issues);
   }
@@ -375,6 +395,12 @@ export const parseMethods = ({
       core.set(token, {
         ...member,
         genericArity: signatureGenericArity(decoded),
+        identitySha256: memberTargetIdentity(
+          name,
+          declared?.token ?? null,
+          decoded,
+          signatureTypeName,
+        ),
       });
       const read = methodBody(bytes, pe, rva, {
         implementation: { implFlags, flags },
@@ -461,6 +487,8 @@ export const edges = (
           admitManagedProjection(
             {
               caller_token: method.token,
+              il_offset: anchor.il_offset,
+              target_identity_sha256: target?.identitySha256 ?? null,
               caller,
               opcode: anchor.opcode,
               target_token: operand,
@@ -477,6 +505,8 @@ export const edges = (
           admitManagedProjection(
             {
               method_token: method.token,
+              il_offset: anchor.il_offset,
+              target_identity_sha256: target?.identitySha256 ?? null,
               method: caller,
               opcode: anchor.opcode,
               field_token: operand,

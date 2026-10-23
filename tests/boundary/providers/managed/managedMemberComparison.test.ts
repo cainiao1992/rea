@@ -333,9 +333,9 @@ describe("managed member comparison of nested types", () => {
     // from TypeDef 4 on the left into TypeDef 5 on the right.
     expect(pairs(compare(original, swapped))).toEqual({
       methods: [
-        ["0x06000001", "0x06000002", "unknown", "exact-il-signature", "exact"],
-        ["0x06000002", "0x06000001", "unknown", "exact-il-signature", "exact"],
-        ["0x06000003", "0x06000003", "unknown", "exact-il-signature", "exact"],
+        ["0x06000001", "0x06000002", "changed", "exact-il-signature", "exact"],
+        ["0x06000002", "0x06000001", "changed", "exact-il-signature", "exact"],
+        ["0x06000003", "0x06000003", "changed", "exact-il-signature", "exact"],
       ],
       fields: [
         ["0x04000001", "0x04000002", "unchanged", "field-signature", "exact"],
@@ -365,10 +365,10 @@ describe("managed member comparison of nested types", () => {
     expect(
       comparison.methods.slice(0, 2).map(({ dimensions }) => dimensions),
     ).toEqual([
-      ["cil", "availability"],
-      ["cil", "availability"],
+      ["field-target", "cil", "availability"],
+      ["field-target", "cil", "availability"],
     ]);
-    expect(comparison.summary).toMatchObject({ changed: 2 });
+    expect(comparison.summary).toMatchObject({ changed: 3 });
   });
 
   it("retains explicitly limited bare names for historical observations", () => {
@@ -580,7 +580,12 @@ describe("managed call-target comparison", () => {
       (edges) =>
         edges.map((edge, index) =>
           index === 1
-            ? { ...edge, target_name: null, target_declaring_type: null }
+            ? {
+                ...edge,
+                target_name: null,
+                target_declaring_type: null,
+                target_identity_sha256: null,
+              }
             : edge,
         ),
     );

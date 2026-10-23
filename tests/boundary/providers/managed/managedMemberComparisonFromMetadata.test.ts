@@ -13,6 +13,262 @@ import {
   managedPeFixtureTarget,
 } from "../../../../src/dotnet/ManagedPe.fixture.js";
 
+import { buildManagedPeFixture as buildMultiMethodFixture } from "../../../../scripts/fixtures/managed/pe.mjs";
+
+describe("managed comparison method row coverage", () => {
+  it("keeps paged omissions unknown while preserving full and equal-page controls", () => {
+    const bytes = buildMultiMethodFixture({
+      methods: [
+        { name: "First", body: Buffer.from([0x2a]) },
+        { name: "Second", body: Buffer.from([0x2a]) },
+        { name: "Third", body: Buffer.from([0x2a]) },
+      ],
+    });
+    const target = managedPeFixtureTarget(bytes);
+    const observe = (offset: number, limit: number) => ({
+      evidenceId: `ev_${target.sha256}`,
+      result: inspectManagedMembersBytes(bytes, target, {
+        methodOffset: offset,
+        methodLimit: limit,
+      }),
+    });
+    const full = observe(0, 3);
+    const middle = observe(1, 1);
+    expect(middle.result.method_rows).toEqual({
+      offset: 1,
+      count: 1,
+      total: 3,
+    });
+    const limited = compareManagedMembers(full, middle);
+    expect(limited.summary).toMatchObject({
+      removed: 0,
+      added: 0,
+      unknown: 2,
+      unchanged: 2,
+    });
+    expect(limited.coverage.status).toBe("partial");
+    expect(compareManagedMembers(full, full).summary).toMatchObject({
+      unchanged: 4,
+      unknown: 0,
+    });
+    expect(compareManagedMembers(full, full).coverage.status).toBe(
+      "complete-within-inputs",
+    );
+    expect(compareManagedMembers(middle, middle).coverage.status).toBe(
+      "complete-within-inputs",
+    );
+    const overlapping = compareManagedMembers(observe(0, 2), observe(1, 2));
+    expect(overlapping.summary).toMatchObject({
+      added: 0,
+      removed: 0,
+      unchanged: 2,
+      unknown: 2,
+    });
+    expect(compareManagedMembers(observe(0, 1), middle).summary).toMatchObject({
+      added: 0,
+      removed: 0,
+      unknown: 2,
+    });
+    const selected = {
+      ...middle,
+      result: inspectManagedMembersBytes(bytes, target, {
+        typeNames: [full.result.types[0]!.full_name],
+        methodOffset: 1,
+        methodLimit: 1,
+      }),
+    };
+    expect(compareManagedMembers(full, selected).summary.removed).toBe(0);
+    const historical = {
+      ...full,
+      result: managedMemberInspectionSchema.parse({
+        ...full.result,
+        method_rows: undefined,
+      }),
+    };
+    expect(compareManagedMembers(historical, middle).summary.removed).toBe(0);
+  });
+});
+
+describe("managed edge nominal identity", () => {
+  const observe = (options: Parameters<typeof buildManagedPeFixture>[0] = {}) =>
+    inspect(
+      buildManagedPeFixture({
+        targetFramework: null,
+        memberRefName: "Ping",
+        memberRefSignature: Buffer.from([0, 0, 1]),
+        memberRefParentRaw: 25,
+        ilBody: Buffer.from([0x1a, 0x28, 1, 0, 0, 0x0a, 0x2a]),
+        typeReferences: [
+          { namespace: "Fixture", name: "Outer" },
+          { namespace: "", name: "Inner", enclosingRow: 2 },
+        ],
+        ...options,
+      }),
+      "/fixture/edges.dll",
+    );
+
+  it("detects an enclosing TypeRef change even when display labels and tokens are equal", () => {
+    const left = observe();
+    const right = observe({
+      typeReferences: [
+        { namespace: "Fixture", name: "OtherOuter" },
+        { namespace: "", name: "Inner", enclosingRow: 2 },
+      ],
+    });
+    expect(left.result.call_edges[0]?.target_declaring_type).toBe(
+      right.result.call_edges[0]?.target_declaring_type,
+    );
+    expect(compareManagedMembers(left, right).methods[0]).toMatchObject({
+      status: "changed",
+      dimensions: ["call-target"],
+    });
+    expect(compareManagedMembers(left, left).methods[0]?.status).toBe(
+      "unchanged",
+    );
+  });
+
+  it("compares the decoded MemberRef signature for calls and field accesses", () => {
+    expect(
+      compareManagedMembers(
+        observe(),
+        observe({ memberRefSignature: Buffer.from([0, 1, 1, 8]) }),
+      ).methods[0],
+    ).toMatchObject({ status: "changed", dimensions: ["call-target"] });
+    const field = (type: number) =>
+      observe({
+        memberRefName: "Value",
+        memberRefSignature: Buffer.from([6, type]),
+        ilBody: Buffer.from([0x1a, 0x7e, 1, 0, 0, 0x0a, 0x2a]),
+      });
+    expect(
+      compareManagedMembers(field(8), field(0x0a)).methods[0],
+    ).toMatchObject({ status: "changed", dimensions: ["field-target"] });
+  });
+
+  it("joins repeated calls by IL offset even when edge arrays are reordered", () => {
+    const source = observe({
+      ilBody: Buffer.from([
+        0x2e, 0x28, 1, 0, 0, 0x0a, 0x28, 1, 0, 0, 0x0a, 0x2a,
+      ]),
+    });
+    expect(source.result.call_edges.map((edge) => edge.il_offset)).toEqual([
+      0, 5,
+    ]);
+    const reordered = {
+      ...source,
+      result: {
+        ...source.result,
+        call_edges: [...source.result.call_edges].reverse(),
+      },
+    };
+    expect(compareManagedMembers(source, reordered).methods[0]?.status).toBe(
+      "unchanged",
+    );
+  });
+
+  it.each(["method", "field"] as const)(
+    "keeps a known %s target change beside an omitted edge",
+    (kind) => {
+      const opcode = kind === "method" ? 0x28 : 0x7e;
+      const args = {
+        ilBody: Buffer.from([
+          0x2e,
+          opcode,
+          1,
+          0,
+          0,
+          0x0a,
+          opcode,
+          1,
+          0,
+          0,
+          0x0a,
+          0x2a,
+        ]),
+        memberRefSignature:
+          kind === "method" ? Buffer.from([0, 0, 1]) : Buffer.from([6, 8]),
+      };
+      const left = observe(args);
+      const right = observe({ ...args, memberRefName: "Changed" });
+      const partial = {
+        ...right,
+        result: {
+          ...right.result,
+          ...(kind === "method"
+            ? { call_edges: right.result.call_edges.slice(0, 1) }
+            : { field_accesses: right.result.field_accesses.slice(0, 1) }),
+        },
+      };
+      expect(compareManagedMembers(left, partial).methods[0]).toMatchObject({
+        status: "changed",
+        dimensions: expect.arrayContaining([
+          kind === "method" ? "call-target" : "field-target",
+          "availability",
+        ]),
+      });
+    },
+  );
+
+  it("compares validated MethodSpec base identities and resolved generic arguments", () => {
+    const options = {
+      memberRefSignature: Buffer.from([0x10, 1, 0, 1]),
+      methodSpecMethods: [3],
+      methodSpecInstantiation: Buffer.from([0x0a, 1, 8]),
+      ilBody: Buffer.from([0x1a, 0x28, 1, 0, 0, 0x2b, 0x2a]),
+    };
+    const source = observe(options);
+    expect(compareManagedMembers(source, source).methods[0]?.status).toBe(
+      "unchanged",
+    );
+    const changedArgument = observe({
+      ...options,
+      methodSpecInstantiation: Buffer.from([0x0a, 1, 0x0a]),
+    });
+    const changedBase = observe({ ...options, memberRefName: "OtherGeneric" });
+    for (const changed of [changedArgument, changedBase])
+      expect(compareManagedMembers(source, changed).methods[0]).toMatchObject({
+        status: "changed",
+        dimensions: ["call-target"],
+      });
+  });
+
+  it("retains unknown identity for cyclic scope, TypeSpec and historical edges", () => {
+    const cyclic = observe({
+      typeReferences: [
+        { namespace: "Fixture", name: "Outer", enclosingRow: 3 },
+        { namespace: "", name: "Inner", enclosingRow: 2 },
+      ],
+    });
+    expect(compareManagedMembers(cyclic, cyclic).methods[0]?.status).toBe(
+      "unknown",
+    );
+    const spec = observe({
+      memberRefParentRaw: 12,
+      typeSpecSignatures: [Buffer.from([0x15, 0x12, 9, 1, 8])],
+    });
+    expect(compareManagedMembers(spec, spec).methods[0]?.status).toBe(
+      "unknown",
+    );
+    const source = observe();
+    const historical = {
+      ...source,
+      result: managedMemberInspectionSchema.parse({
+        ...source.result,
+        call_edges: source.result.call_edges.map(
+          ({
+            il_offset: _offset,
+            target_identity_sha256: _identity,
+            ...edge
+          }) => edge,
+        ),
+      }),
+    };
+    expect(compareManagedMembers(source, historical).methods[0]?.status).toBe(
+      "unknown",
+    );
+  });
+});
+
 describe("managed operand-free instruction structural matching", () => {
   it("preserves operand-free opcode order when remapping renamed methods", () => {
     const observe = (
@@ -151,16 +407,13 @@ describe("managed field target comparison", () => {
     });
     const base = inspect(bytes, "/tmp/field-target-base.dll");
     const counterpart = inspect(bytes, "/tmp/field-target-counterpart.dll");
-    const changedTarget = {
-      ...counterpart,
-      result: managedMemberInspectionSchema.parse({
-        ...counterpart.result,
-        field_accesses: counterpart.result.field_accesses.map((access) => ({
-          ...access,
-          field_name: "differentField",
-        })),
+    const changedTarget = inspect(
+      buildManagedPeFixture({
+        fieldName: "differentField",
+        ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
       }),
-    };
+      "/tmp/field-target-changed.dll",
+    );
 
     const comparison = compareManagedMembers(base, changedTarget);
     expect(comparison.methods[0]).toMatchObject({
@@ -174,6 +427,7 @@ describe("managed field target comparison", () => {
         ...counterpart.result,
         field_accesses: counterpart.result.field_accesses.map((access) => ({
           ...access,
+          target_identity_sha256: null,
           field_name: null,
           field_declaring_type: null,
         })),
@@ -1007,10 +1261,10 @@ describe("managed member comparison of undecoded signatures", () => {
     expect(left.result.fields[0]?.signature.parse_status).toBe("unsupported");
     const result = compareManagedMembers(left, right);
     expect(result.summary).toMatchObject({
-      unchanged: 2,
+      unchanged: 1,
       added: 0,
       removed: 0,
-      unknown: 0,
+      unknown: 1,
     });
     expect(result.methods[0]?.match).toMatchObject({
       status: "matched",

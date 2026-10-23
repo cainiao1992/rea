@@ -428,6 +428,8 @@ describe("managed member inspection", () => {
     expect(result.call_edges).toEqual([
       {
         caller_token: "0x06000001",
+        il_offset: 6,
+        target_identity_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         caller: "Fixture.Program.Main",
         opcode: "call",
         target_token: "0x0a000001",
@@ -440,6 +442,8 @@ describe("managed member inspection", () => {
     expect(result.field_accesses).toEqual([
       {
         method_token: "0x06000001",
+        il_offset: 1,
+        target_identity_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         method: "Fixture.Program.Main",
         opcode: "ldfld",
         field_token: "0x04000001",

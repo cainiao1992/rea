@@ -50,6 +50,7 @@ const emptyManagedMembers = (
   },
   types: [],
   nesting_read: true,
+  method_rows: { offset: 0, count: 0, total: 0 },
   exported_types: [],
   fields: [],
   methods: [],

@@ -119,6 +119,7 @@ it("summarizes selected members and pages every original collection after the fi
     unmatched_type_names: ["Missing.Type"],
   });
   expect(view.summary.coverage).toEqual(report.coverage);
+  expect(view.summary.method_rows).toEqual({ offset: 0, count: 2, total: 2 });
   expect(view.summary.signature_resolution).toBe("type-names-v1");
   expect(view.summary.identity_scope).toEqual(report.identity_scope);
   expect(view.summary).not.toHaveProperty("methods");
@@ -146,7 +147,7 @@ it("summarizes selected members and pages every original collection after the fi
     expect(rows.length, collection).toBeGreaterThan(0);
     expect(view.summary.reported_counts[collection]).toBe(rows.length);
     const paged: unknown[] = [];
-    for (let offset: number | null = 0; offset !== null;) {
+    for (let offset: number | null = 0; offset !== null; ) {
       const result = await client.callTool({
         name: "inspect_analysis_view",
         arguments: {
@@ -167,6 +168,7 @@ it("summarizes selected members and pages every original collection after the fi
       expect(page.signature_resolution).toBe("type-names-v1");
       expect(page.selection).toEqual(report.selection);
       expect(page.coverage.total).toBe(rows.length);
+      expect(page.method_rows).toEqual(report.method_rows);
       paged.push(...page.page.rows);
       offset = page.coverage.next_offset;
     }

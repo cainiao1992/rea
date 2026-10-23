@@ -198,6 +198,8 @@ describe("complete comparison projections", () => {
     ]);
     const compared = compareApplicationVersionsEvidence({ left, right });
     if (!compared.ok) throw compared.error;
+    expect(compared.value.sources[0]).toBe(left);
+    expect(compared.value.sources[1]).toBe(right);
     const result = compared.value.result;
     expectFullComparisonResultSchema(result);
     const modules = result.items.filter(

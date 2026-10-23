@@ -239,6 +239,35 @@ const checkMalformedEvidenceBeforeIdentities = async ({
       details: { issues: [{ path, reason: "invalid_type" }] },
     });
   }
+  const missingLeft = {
+    kind: "retained-evidence",
+    evidence_id: `ev_${"a".repeat(64)}`,
+  };
+  const missingRight = {
+    kind: "retained-evidence",
+    evidence_id: `ev_${"b".repeat(64)}`,
+  };
+  for (const [command, extra] of [
+    ["compare-application-versions", {}],
+    ["compare-javascript-export-shapes", selectors],
+  ] as const) {
+    // Lookup of both selected sources precedes graph authentication.
+    for (const [left, right, evidenceId] of [
+      [malformed, missingRight, missingRight.evidence_id],
+      [missingLeft, missingRight, missingLeft.evidence_id],
+    ] as const) {
+      const rejected = await runJson(cli, root, command, {
+        left,
+        right,
+        ...extra,
+      });
+      expect(rejected.exitCode).toBe(1);
+      expect(rejected.json).toMatchObject({
+        code: "evidence_integrity_mismatch",
+        details: { evidence_id: evidenceId, reason: "missing" },
+      });
+    }
+  }
 };
 
 cliTest(

@@ -7,6 +7,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { parseApplicationGraphEvidence } from "../../../src/application/javascript/JavaScriptApplicationEvidenceGraph.js";
+import { compareJavaScriptExportShapesEvidence } from "../../../src/application/javascript/JavaScriptApplicationWorkflowService.js";
 import { compareJavaScriptExportShapes } from "../../../src/domain/javascript/javascriptExportShapeComparison.js";
 import {
   javaScriptExportShapeComparisonResultSchema,
@@ -40,6 +41,18 @@ describe("JavaScript export return-shape comparison", () => {
 
     const first = compare(left, right);
     const second = compare(left, right);
+    const execution = compareJavaScriptExportShapesEvidence({
+      left: left.evidence,
+      right: right.evidence,
+      left_module_path: "parser.mjs",
+      left_export_name: "default",
+      right_module_path: "parser.mjs",
+      right_export_name: "default",
+    });
+    if (!execution.ok) throw execution.error;
+    expect(execution.value.result).toEqual(first);
+    expect(execution.value.sources[0]).toBe(left.evidence);
+    expect(execution.value.sources[1]).toBe(right.evidence);
 
     expect(first.comparison_id).toBe(second.comparison_id);
     expect(() =>

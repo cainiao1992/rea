@@ -194,8 +194,25 @@ const snapshotRecoveryInput = async (
       },
     ]);
   }
-  await mkdir(dirname(snapshotPath), { recursive: true, mode: 0o700 });
-  await writeFile(snapshotPath, bytes, { flag: "wx", mode: 0o600 });
+  try {
+    await mkdir(dirname(snapshotPath), { recursive: true, mode: 0o700 });
+    await writeFile(snapshotPath, bytes, { flag: "wx", mode: 0o600 });
+  } catch (cause: unknown) {
+    // The snapshot directory starts empty, so a collision means another
+    // selected input already took this name: the same file under another
+    // spelling, or a name that differs only in a way this filesystem ignores.
+    if (
+      cause instanceof Error &&
+      "code" in cause &&
+      (cause.code === "EEXIST" || cause.code === "ENOTDIR")
+    )
+      throw recoveryInputFailure(
+        "additional_paths",
+        `Selected input ${path} collides with another selected input at ${relativePath} on this filesystem. Select each file once.`,
+        cause,
+      );
+    throw cause;
+  }
   return {
     path,
     snapshot_path: snapshotPath,

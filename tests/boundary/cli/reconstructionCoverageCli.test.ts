@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect } from "vitest";
 
 import { completeReconstructionCoverageData } from "../../../src/domain/reconstructionCoverage.fixture.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest, type TestCli } from "../../support/cli/cliFixture.js";
 
@@ -62,6 +63,55 @@ cliTest(
     expect(result.json).toMatchObject({
       code: "evidence_integrity_mismatch",
       category: "integrity_mismatch",
+    });
+  },
+);
+
+cliTest(
+  "preserves shared integrity diagnostics for malformed source Evidence",
+  async ({ cli }) => {
+    const coverage = currentCoverage();
+    const malformed = {
+      ...coverage,
+      evidence_bundle: {
+        ...coverage.evidence_bundle,
+        records: coverage.evidence_bundle.records.map((record, index) =>
+          index === 0
+            ? { ...record, provider: { ...record.provider, name: 3 } }
+            : record,
+        ),
+      },
+    };
+    const call = await cli.sharedMcpCall?.();
+    if (call === undefined) throw new Error("Expected file MCP session");
+    const mcp = await call("evaluate_reconstruction_coverage", {
+      coverage: malformed,
+      boundary_id: "replacement.cli",
+    });
+    expect(mcp.isError).toBe(true);
+    expect(parseMcpToolError(mcp)).toMatchObject({
+      error: { code: "evidence_integrity_mismatch" },
+    });
+    const result = await evaluate(cli, malformed);
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "evidence_integrity_mismatch",
+      category: "integrity_mismatch",
+    });
+  },
+);
+
+cliTest(
+  "locates malformed coverage through its shared workflow owner",
+  async ({ cli }) => {
+    const result = await evaluate(cli, { ...currentCoverage(), owners: 3 });
+    expect(result.exitCode).toBe(1);
+    expect(result.json).toMatchObject({
+      code: "invalid_request",
+      details: {
+        operation: "evaluate_reconstruction_coverage",
+        issues: [{ path: ["coverage", "owners"], reason: "invalid_type" }],
+      },
     });
   },
 );

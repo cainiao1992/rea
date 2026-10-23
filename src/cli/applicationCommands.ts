@@ -1,4 +1,3 @@
-import { reconstructionCoverageEvaluationInputSchema } from "../domain/reconstructionCoverageInput.js";
 import { Cli, z } from "incur";
 
 import { CLI_COMMANDS } from "../cliCommandNames.js";
@@ -145,7 +144,7 @@ const registerCoverageCommand = (cli: CliInstance, logger: Logger): void =>
     logger,
     name: CLI_COMMANDS.evaluateReconstructionCoverage,
     description: "Evaluate inline fail-closed reconstruction coverage",
-    inputSchema: reconstructionCoverageEvaluationInputSchema,
+    inputSchema: z.unknown(),
     workflow: async (input) => {
       const { evaluateReconstructionCoverage } =
         await import("../application/ReconstructionCoverageService.js");

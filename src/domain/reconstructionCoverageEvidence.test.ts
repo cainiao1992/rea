@@ -4,12 +4,12 @@ import { createEvidence, type Evidence } from "./evidence.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
 import {
   completeReconstructionCoverageFixture,
+  assertReconstructionCoverageEvaluation,
   RECONSTRUCTION_COVERAGE_NOW,
 } from "./reconstructionCoverage.fixture.js";
 import {
   createReconstructionCoverageData,
   createReconstructionVerifierContract,
-  evaluateReconstructionClosure,
   type ReconstructionCoverageData,
 } from "./reconstructionCoverage.js";
 
@@ -79,7 +79,7 @@ const withPackageProof = (
 };
 
 const evaluate = (coverage: ReconstructionCoverageData) =>
-  evaluateReconstructionClosure(
+  assertReconstructionCoverageEvaluation(
     coverage,
     "replacement.cli",
     RECONSTRUCTION_COVERAGE_NOW,

@@ -325,23 +325,6 @@ export const createReconstructionVerifierContract = (
   });
 };
 
-/** Evaluate inline coverage data against one named fail-closed boundary. */
-export const evaluateReconstructionClosure = (
-  coverageInput: unknown,
-  boundaryId: string,
-  nowEpochMs: number,
-): ReconstructionClosureResult => {
-  const parsed = readReconstructionCoverageData(coverageInput, ["coverage"]);
-  if (!parsed.ok) throw parsed.error;
-  const result = evaluateParsedReconstructionClosure(
-    parsed.value,
-    boundaryId,
-    nowEpochMs,
-  );
-  if (!result.ok) throw result.error;
-  return result.value;
-};
-
 /** Evaluate the owner's authenticated workspace and lookup facts. */
 export const evaluateParsedReconstructionClosure = (
   parsed: ParsedReconstructionCoverage,

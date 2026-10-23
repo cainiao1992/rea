@@ -123,6 +123,42 @@ describe("reconstruction coverage inline Evidence", () => {
 });
 
 describe("reconstruction coverage selection", () => {
+  it.each([
+    {
+      label: "unknown root argument",
+      selection: { boundary_id: "replacement.cli", unexpected: true },
+      path: ["unexpected"],
+      reason: "unknown_argument",
+    },
+    {
+      label: "missing boundary",
+      selection: {},
+      path: ["boundary_id"],
+      reason: "missing_argument",
+    },
+  ])(
+    "rejects $label through the shared owner",
+    async ({ selection, path, reason }) => {
+      await withCoverageMcp(async ({ client, session }) => {
+        const result = await client.callTool({
+          name: "evaluate_reconstruction_coverage",
+          arguments: { coverage: currentFixtureCoverage(), ...selection },
+        });
+        expect(result.isError).toBe(true);
+        expect(parseMcpToolError(result)).toMatchObject({
+          error: {
+            code: "invalid_request",
+            details: {
+              operation: "evaluate_reconstruction_coverage",
+              issues: [{ path, reason }],
+            },
+          },
+        });
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+
   it("reports ambiguity when multiple verifier results cover one claim", async () => {
     await withCoverageMcp(async ({ client }) => {
       const coverage = currentFixtureCoverage();

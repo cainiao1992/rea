@@ -4,7 +4,7 @@ import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { evaluateReconstructionCoverage } from "../../application/ReconstructionCoverageService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
-import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
+import { applicationToolRegistrationOptions } from "../toolRegistrationOptions.js";
 import type { ApplicationToolRegistration } from "./types.js";
 
 const contract = applicationToolContract("evaluate_reconstruction_coverage");
@@ -16,7 +16,7 @@ export const registerCoverageTools = (
 ): void => {
   server.registerTool(
     contract.name,
-    toolRegistrationOptions(contract),
+    applicationToolRegistrationOptions(contract),
     async (input, context) =>
       runAdmittedToolOperation(
         server,

@@ -1,8 +1,12 @@
+import { expect } from "vitest";
+
 import { createEvidence } from "./evidence.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
 import {
   createReconstructionCoverageData,
   createReconstructionVerifierContract,
+  evaluateParsedReconstructionClosure,
+  readReconstructionCoverageData,
 } from "./reconstructionCoverage.js";
 
 const digest = (character: string): string => character.repeat(64);
@@ -147,6 +151,31 @@ export const completeReconstructionCoverageData = () => {
       },
     ],
   });
+};
+
+/** Assert successful domain parsing and evaluation for semantic test fixtures. */
+export const assertReconstructionCoverageEvaluation = (
+  input: unknown,
+  boundaryId: string,
+  nowEpochMs: number,
+) => {
+  const parsed = readReconstructionCoverageData(input, ["coverage"]);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok)
+    throw new Error("Expected valid reconstruction coverage fixture", {
+      cause: parsed.error,
+    });
+  const result = evaluateParsedReconstructionClosure(
+    parsed.value,
+    boundaryId,
+    nowEpochMs,
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok)
+    throw new Error("Expected reconstruction coverage evaluation success", {
+      cause: result.error,
+    });
+  return result.value;
 };
 
 /** Complete workspace with its first verifier result and boundary narrowed once. */

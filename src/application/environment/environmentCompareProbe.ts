@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  compareClockInstants,
+  readClock,
+} from "../../domain/analysisView/environmentStateWriteValues.js";
 import { isJsonLike } from "../../domain/analysisView/EnvironmentManifestAccumulator.js";
 import {
   primaryOrigin,
@@ -46,10 +50,11 @@ const postDataSchema = z.object({
 
 const methodSchema = z.object({ request: z.object({ method: z.string() }) });
 
-const startedMs = (record: WebNetworkCaptureRecord): number | undefined => {
+const startedClock = (
+  record: WebNetworkCaptureRecord,
+): ReturnType<typeof readClock> => {
   const started = startedSchema.safeParse(record.reported);
-  const ms = started.success ? Date.parse(started.data.startedDateTime) : NaN;
-  return Number.isFinite(ms) ? ms : undefined;
+  return started.success ? readClock(started.data.startedDateTime) : undefined;
 };
 
 /** Whether a probe makes calls that carry a request body: a POST, PUT or PATCH. */
@@ -118,13 +123,17 @@ export const probeRequests = (
   const unobserved: UnobservedRecord[] = [];
   // Without a start time for every record the probe keeps its recorded order, as state extraction does.
   const starts = new Map(
-    records.map((record) => [record.ordinal, startedMs(record)]),
+    records.map((record) => [record.ordinal, startedClock(record)]),
   );
   const timed = [...starts.values()].every((ms) => ms !== undefined);
   const ordered = [...records].sort(
     (left, right) =>
-      (timed ? starts.get(left.ordinal)! - starts.get(right.ordinal)! : 0) ||
-      left.ordinal - right.ordinal,
+      (timed
+        ? compareClockInstants(
+            starts.get(left.ordinal)!,
+            starts.get(right.ordinal)!,
+          )
+        : 0) || left.ordinal - right.ordinal,
   );
   const lines = new Map(
     records.map((record) => [

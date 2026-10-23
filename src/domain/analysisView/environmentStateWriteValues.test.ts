@@ -53,6 +53,9 @@ it.each<[string, number, ClockFormat, number?]>([
 );
 
 it.each([
+  "0001-02-29T00:00:00Z",
+  "0099-02-29T00:00:00Z",
+  "0100-02-29T00:00:00Z",
   "2026-02-30T00:00:00Z",
   "2026-02-29T00:00:00Z",
   "2026-13-01T00:00:00Z",
@@ -70,6 +73,30 @@ it.each([
   "next tuesday",
 ])("refuses %s as a clock", (text) => {
   expect(readClock(text)).toBeUndefined();
+});
+
+it.each(["0000", "0001", "0099", "0100"])(
+  "retains first-century ISO year %s without Date.UTC's adjustment",
+  (year) => {
+    const value = `${year}-01-01T00:00:00Z`;
+    expect(readClock(value)).toBeDefined();
+    expect(respellClock(value, iso(" ", 3, "Z"))).toBe(
+      `${year}-01-01 00:00:00.000Z`,
+    );
+  },
+);
+
+it.each(["𐐀42𐐁", "𝟙42𝟚", "é42é", "A42B"])(
+  "keeps token42 embedded in complete Unicode letters or digits: %s",
+  (text) => {
+    expect(delimitedOffsets(text, "42")).toEqual([]);
+    expect(replaceDelimited(text, "42", "43")).toBe(text);
+  },
+);
+
+it("preserves UTF-16 offsets while accepting emoji as a delimiter", () => {
+  expect(delimitedOffsets("😀42😀", "42")).toEqual([2]);
+  expect(replaceDelimited("😀42😀", "42", "43")).toBe("😀43😀");
 });
 
 it.each<[JsonValue | undefined, ReturnType<typeof readClock>]>([

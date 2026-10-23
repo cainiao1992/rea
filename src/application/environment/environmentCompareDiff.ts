@@ -1,6 +1,5 @@
 import type { JsonObject } from "../../domain/analysisView/environmentStateRules.js";
 import {
-  isUuid,
   readClock,
   type ClockFormat,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
@@ -74,42 +73,20 @@ const formatKey = (format: ClockFormat): string =>
     ? `epoch-${format.unit}`
     : `iso${format.separator}${String(format.fraction)}${format.zone === "" ? "" : format.zone === "Z" ? "Z" : "offset"}`;
 
-/** The format of a clock value: an ISO-8601 string, or an epoch number under a time-named field or as an array item. */
+/** ISO text has its own clock syntax; numeric epochs require a time-named field. */
 const clockFormat = (
   value: JsonValue,
   key: string | undefined,
 ): string | undefined => {
   if (
     typeof value === "number" &&
-    key !== undefined &&
-    !TIME_FIELD.test(key) &&
-    !TIME_FIELD_CAMEL.test(key)
+    (key === undefined ||
+      (!TIME_FIELD.test(key) && !TIME_FIELD_CAMEL.test(key)))
   )
     return undefined;
   const clock = readClock(value);
   return clock === undefined ? undefined : formatKey(clock.format);
 };
-
-const characterClasses = (text: string): string =>
-  [
-    ...new Set(
-      text
-        .replaceAll(/\d/gu, "0")
-        .replaceAll(/[a-z]/gu, "a")
-        .replaceAll(/[A-Z]/gu, "A"),
-    ),
-  ]
-    .sort()
-    .join("");
-
-/** Two values each side generated on its own: both UUIDs, or one length of eight or more with the same character classes and a digit. */
-const generatedPair = (live: string, env: string): boolean =>
-  (isUuid(live) && isUuid(env)) ||
-  (live.length === env.length &&
-    live.length >= 8 &&
-    /\d/u.test(live) &&
-    /\d/u.test(env) &&
-    characterClasses(live) === characterClasses(env));
 
 class Differ {
   readonly differences: Difference[] = [];
@@ -128,6 +105,7 @@ class Differ {
       readonly scope: string | undefined;
       readonly at: string;
       readonly identity: boolean;
+      readonly generatedFields: ReadonlySet<string>;
     },
   ) {}
 
@@ -211,9 +189,11 @@ class Differ {
       if (
         typeof live === "string" &&
         typeof env === "string" &&
+        at.own === true &&
+        key !== undefined &&
+        this.entity.generatedFields.has(key) &&
         !this.map.hasLive(live) &&
-        !this.map.hasEnv(env) &&
-        generatedPair(live, env)
+        !this.map.hasEnv(env)
       ) {
         this.normalised.generated += 1;
         return;
@@ -375,12 +355,15 @@ export const compareAnswers = (
     readonly scope?: string;
     readonly at?: string;
     readonly identity?: boolean;
+    /** Direct entity fields whose executed write plan proves independent generation. */
+    readonly generatedFields?: ReadonlySet<string>;
   } = {},
 ): { readonly differences: Difference[]; readonly normalised: Normalised } => {
   const differ = new Differ(map, {
     scope: entity.scope,
     at: entity.at ?? "",
     identity: entity.identity === true,
+    generatedFields: entity.generatedFields ?? new Set(),
   });
   if (live.status !== env.status)
     differ.add({

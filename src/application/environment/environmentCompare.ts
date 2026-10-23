@@ -157,8 +157,11 @@ const entityOf = (
   return { scope, at, identity };
 };
 
-const fromState = (answer: ReplayResult): boolean =>
-  (answer as Partial<StateAnswer>).state?.source === "state";
+const fromState = (answer: ReplayResult): boolean => {
+  const state = (answer as Partial<StateAnswer>).state;
+  // Missing-item selection comes from state, but its response is a recording.
+  return state?.source === "state" && state.view !== "missing";
+};
 
 /** Identity facts come from decoded JSON or text scalars, never binary presentations or truncated bodies. */
 const identityValue = (body: ReplayedBody): JsonValue | undefined => {
@@ -359,7 +362,21 @@ const compareStep = (
       entityAt: entity.at,
       identity: entity.identity,
     });
-  const compared = compareAnswers(live, env, run.map, entity);
+  const plan = run.store?.state.writes.get(call.tool.name);
+  const generatedFields = new Set(
+    fromState(answered.value) && plan?.served === true
+      ? plan.rules.flatMap((rule) =>
+          rule.rule === "unique" ||
+          (rule.rule === "identity" && rule.generator !== "sequence")
+            ? [rule.field]
+            : [],
+        )
+      : [],
+  );
+  const compared = compareAnswers(live, env, run.map, {
+    ...entity,
+    generatedFields,
+  });
   for (const key of NORMALISED_KEYS)
     run.normalised[key] += compared.normalised[key];
   const differences = [...compared.differences];

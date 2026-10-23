@@ -771,8 +771,12 @@ recording replayed in its place and never from a recording whose body the probe 
 two collections can reuse a live id, and an equal pair stays in that collection. A live id in a later request's path, query or body is translated before the
 environment answers, a path parameter by the collection the live path names (a nested collection keeps its parent values, each decoded once, and a literal route segment stays), except a query value that pages a list, such as `limit`
 or `page`. Each call is checked against the served tool's input schema first, as the MCP server checks it. After mapping, two clock values compare by format only (ISO-8601 strings, and epoch numbers under
-`at`, `time`, `date`, `timestamp`, `created`, `updated` or `modified` field names, including snake-case and camel-case forms), and two different values each side generated on its own compare equal: both UUIDs, or one length of
-eight or more with the same character classes and a digit. The report counts each kind of normalised value.
+`at`, `time`, `date`, `timestamp`, `created`, `updated` or `modified` field names, including snake-case and camel-case forms).
+Numeric array elements have no time-named field and remain literal measurements.
+Different string values compare as independently generated only at entity fields
+whose executed served write plan declares a unique token or UUID/token identity
+generator. UUID-like or token-like spelling alone does not establish generation;
+other business strings compare literally. The report counts each kind of normalised value.
 ISO clock offsets are accepted only within RFC 3339's `00`–`23` hour and `00`–`59` minute ranges.
 Timestamp ordering retains submillisecond precision when the source records it.
 
@@ -809,8 +813,8 @@ body the probe did not record compares by status only and is counted as `unobser
 carries one (204, 205, 304, `HEAD`). A browser probe captured without `capture.network.response_body` is refused, as
 is one that makes POST, PUT or PATCH calls without `capture.network.request_body`.
 
-Agreement covers only the calls the probes make, after the mapping the answers allow. Values compared by form, clocks
-and generated values, can still differ in content, and an equal answer after a write shows the state matched for that
+Agreement covers only the calls the probes make, after the mapping the answers allow. Clocks compared by format
+and fields normalized under explicit generation rules can still differ in content, and an equal answer after a write shows the state matched for that
 read, not that the write had no other effect.
 
 ## Compatibility verification

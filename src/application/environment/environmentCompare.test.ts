@@ -472,6 +472,27 @@ const compareRows = (
 };
 
 describe("ids the comparison used to misread", () => {
+  it.each([
+    ["", "", true],
+    ['""', "", false],
+    ["null", "", true],
+  ] as const)(
+    "compares a recorded missing-item body representation %j against %j",
+    (recorded, live, equal) => {
+      const probe = compareRows(
+        [
+          ["GET", "/api/books", [FIRST_BOOK]],
+          ["GET", "/api/books/1", FIRST_BOOK],
+          ["GET", "/api/books/9", recorded, 404],
+        ],
+        [
+          ["GET", "/api/books", [{ ...FIRST_BOOK, id: 101 }]],
+          ["GET", "/api/books/999", live, 404],
+        ],
+      );
+      expect(probe.results[1]?.equal).toBe(equal);
+    },
+  );
   it("reads a twice-encoded path id once, so book%2531 is not book1", () => {
     const probe = compareRows(
       [
@@ -766,6 +787,41 @@ describe("what a probe did not observe", () => {
     if (!report.ok) throw report.error;
     expect(report.value.summary).toMatchObject({ steps: 2, equal: 2 });
   });
+
+  it.each([
+    ["0002", "0001"],
+    ["002", "001"],
+  ])(
+    "orders probe requests by complete fractional timestamps: %s after %s",
+    (readFraction, writeFraction) => {
+      const report = run(
+        analysisViewCaptureEvidence(
+          environmentManifestCaptureFixture([
+            {
+              ...exchange(0, "GET", "http://app.example/api/books/2", 404),
+              startedDateTime: `2026-10-20T09:00:00.${readFraction}Z`,
+              response: {
+                status: 404,
+                content: {
+                  mimeType: "application/json",
+                  text: JSON.stringify(BOOK_NOT_FOUND),
+                },
+              },
+            },
+            {
+              ...exchange(0, "DELETE", "http://app.example/api/books/2", 204),
+              startedDateTime: `2026-10-20T09:00:00.${writeFraction}Z`,
+            },
+          ]),
+        ),
+      );
+      if (!report.ok) throw report.error;
+      expect(report.value.summary).toMatchObject({ steps: 2, equal: 2 });
+      expect(
+        report.value.probes[0]?.results.map(({ ordinal }) => ordinal),
+      ).toEqual([1, 0]);
+    },
+  );
 
   it("refuses a browser probe that makes writes without recorded request bodies", () => {
     const report = run(

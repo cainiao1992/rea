@@ -18,6 +18,12 @@ interface ClockReading {
   readonly format: ClockFormat;
 }
 
+/** Compare recorded instants without rounding away their submillisecond digits. */
+export const compareClockInstants = (
+  left: Pick<ClockReading, "ms" | "subMillisecond">,
+  right: Pick<ClockReading, "ms" | "subMillisecond">,
+): number => left.ms - right.ms || left.subMillisecond - right.subMillisecond;
+
 const ISO_INSTANT =
   /^(\d{4})-(\d{2})-(\d{2})([T ])(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$/u;
 const MINUTE_MS = 60_000;
@@ -56,23 +62,24 @@ const readIsoClock = (value: string): ClockReading | undefined => {
   const zone = match[9] ?? "";
   const offsetMinutes = zoneMinutes(zone);
   if (offsetMinutes === undefined) return undefined;
-  const local = Date.UTC(
-    year as number,
-    (month as number) - 1,
-    day as number,
+  // setUTCFullYear avoids Date.UTC's special 1900 adjustment for years 0–99.
+  const rolled = new Date(0);
+  rolled.setUTCFullYear(year as number, (month as number) - 1, day as number);
+  rolled.setUTCHours(
     hour as number,
     minute as number,
     second as number,
     Number(`${fraction}000`.slice(0, 3)),
   );
-  // Date.UTC rolls invalid fields over; the round trip refuses them.
-  const rolled = new Date(local);
+  const local = rolled.getTime();
+  // Date setters roll invalid fields over; the round trip refuses them.
   if (
     rolled.getUTCFullYear() !== year ||
     rolled.getUTCMonth() !== (month as number) - 1 ||
     rolled.getUTCDate() !== day ||
     rolled.getUTCHours() !== hour ||
-    rolled.getUTCMinutes() !== minute
+    rolled.getUTCMinutes() !== minute ||
+    rolled.getUTCSeconds() !== second
   )
     return undefined;
   return {
@@ -256,6 +263,20 @@ export const slugOf = (text: string): string =>
 const isAlphanumeric = (character: string | undefined): boolean =>
   character !== undefined && /[\p{L}\p{N}]/u.test(character);
 
+/** Source offsets stay UTF-16, while delimiter classification reads complete code points. */
+const previousCharacter = (text: string, at: number): string | undefined => {
+  if (at === 0) return undefined;
+  const last = text.charCodeAt(at - 1);
+  return last >= 0xdc00 && last <= 0xdfff && at > 1
+    ? text.slice(at - 2, at)
+    : text[at - 1];
+};
+
+const nextCharacter = (text: string, at: number): string | undefined => {
+  const point = text.codePointAt(at);
+  return point === undefined ? undefined : String.fromCodePoint(point);
+};
+
 /** Start offsets of `token` in `text` where neither neighbour is a letter or digit. */
 export const delimitedOffsets = (text: string, token: string): number[] => {
   const offsets: number[] = [];
@@ -263,7 +284,8 @@ export const delimitedOffsets = (text: string, token: string): number[] => {
   let at = text.indexOf(token);
   while (at >= 0) {
     const delimited =
-      !isAlphanumeric(text[at - 1]) && !isAlphanumeric(text[at + token.length]);
+      !isAlphanumeric(previousCharacter(text, at)) &&
+      !isAlphanumeric(nextCharacter(text, at + token.length));
     if (delimited) offsets.push(at);
     // A rejected match may overlap a delimited one, so the search moves on by one character.
     at = text.indexOf(token, at + (delimited ? token.length : 1));

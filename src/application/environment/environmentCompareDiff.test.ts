@@ -17,7 +17,7 @@ const compare = (
   );
 
 describe("compareAnswers", () => {
-  it("agrees on mapped ids, clocks of one format and generated values, and counts each", () => {
+  it("normalizes mapped ids and clocks while comparing unproven generated-looking values literally", () => {
     const map = new IdMap();
     map.learn(101, 1);
     const result = compare(
@@ -35,14 +35,38 @@ describe("compareAnswers", () => {
       },
       map,
     );
-    expect(result.differences).toEqual([]);
+    expect(
+      result.differences.map(({ category, pointer }) => [category, pointer]),
+    ).toEqual([
+      ["value", "/token"],
+      ["value", "/uuid"],
+    ]);
     expect(result.normalised).toEqual({
       ids: 1,
       clocks: 1,
-      generated: 2,
+      generated: 0,
       large_bodies: 0,
       unobserved_bodies: 0,
     });
+  });
+
+  it("normalizes string generation only at fields identified by an executed write plan", () => {
+    const result = compareAnswers(
+      {
+        status: 201,
+        body: { kind: "json", value: { token: "live-token", sku: "product2" } },
+      },
+      {
+        status: 201,
+        body: { kind: "json", value: { token: "env-token", sku: "product1" } },
+      },
+      new IdMap(),
+      { generatedFields: new Set(["token"]) },
+    );
+    expect(result.differences).toMatchObject([
+      { category: "value", pointer: "/sku" },
+    ]);
+    expect(result.normalised.generated).toBe(1);
   });
 
   it("categorises status, missing and extra fields, values and clock formats", () => {
@@ -152,7 +176,7 @@ describe("compareAnswers", () => {
     ).toEqual([]);
   });
 
-  it("reports a reordered set of scalars as order alone and reads epoch array items as clocks", () => {
+  it("reports scalar reordering and keeps unnamed epoch-shaped array measurements literal", () => {
     expect(
       compare(
         { access: ["a", "b", "c"] },
@@ -162,7 +186,7 @@ describe("compareAnswers", () => {
     expect(
       compare({ stats: [[1792450800, 3]] }, { stats: [[1792285200, 3]] })
         .differences,
-    ).toEqual([]);
+    ).toMatchObject([{ category: "value", pointer: "/stats/0/0" }]);
   });
 });
 

@@ -334,6 +334,35 @@ it("keeps unknown target discovery visible in the default MCP summary", async ()
   );
   expect(result.summary.coverage.discovery).toBe("partial");
   expect(result.summary.counts).toMatchObject({ objects: 1, targets: 0 });
+  const detailedReply = await call("inspect_gpu_code_objects", {
+    path,
+    analysis: "kernels",
+    view: { collection: "objects" },
+  });
+  expect(detailedReply.isError, JSON.stringify(detailedReply)).not.toBe(true);
+  const detailed = gpuCodeObjectsPageViewResultSchema.parse(
+    parseEvidence(detailedReply.structuredContent).normalized_result,
+  );
+  expect(detailed.items).toHaveLength(1);
+  const source = {
+    kind: "retained-evidence",
+    evidence_id: detailed.parent_evidence_id,
+  } as const;
+  for (const collection of ["objects", "targets", "kernels"] as const) {
+    const filteredReply = await call("inspect_analysis_view", {
+      source,
+      view: {
+        kind: "gpu-code-objects",
+        collection,
+        targets: [""],
+      },
+    });
+    expect(filteredReply.isError, JSON.stringify(filteredReply)).not.toBe(true);
+    const filtered = gpuCodeObjectsPageViewResultSchema.parse(
+      parseEvidence(filteredReply.structuredContent).normalized_result,
+    );
+    expect(filtered.items).toEqual([]);
+  }
 });
 
 it("retains selected kernel facts and complete PTX for historical MCP pages after source removal", async () => {

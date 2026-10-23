@@ -1,3 +1,4 @@
+import { isSelectedRegularFileError } from "../../filesystem/RegularFile.js";
 import { fixedNativeAllowance } from "../../domain/native/nativeDeadlines.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
@@ -172,7 +173,7 @@ const peResourcesFailurePrimary = (
       return new AnalysisAccessDeniedError(operation, input.path, cause.code, {
         cause,
       });
-    if (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+    if (isSelectedRegularFileError(cause))
       return new AnalysisInputError(operation, { cause }, [
         {
           path: ["path"],

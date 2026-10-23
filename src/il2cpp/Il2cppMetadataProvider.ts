@@ -1,3 +1,4 @@
+import { isSelectedRegularFileError } from "../filesystem/RegularFile.js";
 import { Il2cppBinaryFormatFailure } from "./Il2cppBinaryFormat.js";
 import { Il2cppMetadataFormatFailure } from "./Il2cppMetadataFormat.js";
 import type { AnalysisPartialObservation } from "../domain/analysisErrorBase.js";
@@ -138,11 +139,7 @@ const failureForPrimary = (
       return new AnalysisAccessDeniedError(OPERATION, path, cause.code, {
         cause,
       });
-    if (
-      ["ENOENT", "ENOTDIR", "ELOOP", "ENAMETOOLONG"].includes(
-        String(cause.code),
-      )
-    )
+    if (isSelectedRegularFileError(cause))
       return new AnalysisInputError(OPERATION, { cause }, [
         {
           path: [field],

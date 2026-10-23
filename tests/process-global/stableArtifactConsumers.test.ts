@@ -67,6 +67,7 @@ import { parseEvidence } from "../../src/domain/evidence.js";
 import { projectAnalysisError } from "../../src/domain/analysisErrorProjection.js";
 import {
   AnalysisCancelledError,
+  AnalysisInputError,
   AnalysisArtifactChangedError,
   AnalysisAccessDeniedError,
   AnalysisResourceConstraintError,
@@ -696,13 +697,17 @@ it("preserves upstream resource-bound facts through an unconfirmed descriptor cl
   }
 });
 
-const fileFailureProviders = [
+const stableArtifactProviders = [
   ...staticProviders,
   ["ELF notes", () => new ElfNotesProvider()],
   ["PE certificates", () => new PeCertificatesProvider()],
   ["native exports", () => new NativeExportsProvider()],
-  ["BEAM", () => new BeamProvider()],
   ["Python pyc", () => new PythonPycProvider()],
+] as const;
+
+const fileFailureProviders = [
+  ...stableArtifactProviders,
+  ["BEAM", () => new BeamProvider()],
 ] as const;
 
 const inspectFileFailure = (
@@ -743,6 +748,55 @@ const inspectFileFailure = (
     );
   return provider.inspect({ path }, options);
 };
+
+it.each(
+  stableArtifactProviders.flatMap(([name, makeProvider]) =>
+    [
+      ["ESTALE", "AnalysisInputError"],
+      ["ENOTFILE", "AnalysisInputError"],
+      ["EISDIR", "AnalysisInputError"],
+      ["ELOOP", "AnalysisInputError"],
+      ["EACCES", "AnalysisAccessDeniedError"],
+      ["EIO", undefined],
+    ].map(([code, expectedTag]) => ({ name, makeProvider, code, expectedTag })),
+  ),
+)(
+  "preserves $name descriptor failure classification for $code",
+  async ({ makeProvider, code, expectedTag }) => {
+    const path = await selectedImage();
+    const provider = makeProvider();
+    const physical = Object.assign(new Error("descriptor metadata failed"), {
+      code,
+    });
+    fault.blockNew = false;
+    fault.readFailure = { cause: physical };
+    try {
+      const result = await inspectFileFailure(provider, path);
+      if (result.ok) throw new Error("Expected physical read failure");
+      expect(result.error.cause).toBe(physical);
+      expect(result.error._tag).toBe(
+        expectedTag ??
+          (provider instanceof ElfNotesProvider ||
+          provider instanceof PeCertificatesProvider ||
+          provider instanceof PeResourcesProvider
+            ? "ArtifactOperationError"
+            : "ProviderAdapterError"),
+      );
+      if (result.error instanceof AnalysisInputError)
+        expect(result.error.issues).toEqual([
+          {
+            path: ["path"],
+            reason: "invalid_value",
+            message: expect.stringContaining(path),
+          },
+        ]);
+      expect(fault.handles).toHaveLength(1);
+      expect(fault.handles[0]!.fd).toBe(-1);
+    } finally {
+      await provider.close();
+    }
+  },
+);
 
 it.each(fileFailureProviders)(
   "uses the original %s physical failure across nested descriptor owners",

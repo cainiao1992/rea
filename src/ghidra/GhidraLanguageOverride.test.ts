@@ -68,6 +68,26 @@ const pe: BinaryTarget = {
   managed: false,
 };
 
+const fixedImportTarget = (
+  format: "raw-binary" | "dos-mz" | "dos-com",
+): BinaryTarget => {
+  const executable = {
+    path: pe.path,
+    sha256: pe.sha256,
+    kind: "executable",
+    architecture: "x86",
+    availableArchitectures: ["x86"],
+  } as const;
+  return format === "raw-binary"
+    ? {
+        ...executable,
+        format,
+        entryPoint: "0x0",
+        entryPointSource: "0x0",
+      }
+    : { ...executable, format };
+};
+
 const legacyMips: BinaryTarget = {
   path: "/fixture-mips.elf",
   sha256: "b".repeat(64),
@@ -402,22 +422,7 @@ describe("Ghidra language override profile", () => {
   it.each(["raw-binary", "dos-mz", "dos-com"] as const)(
     "attributes a fixed %s import override conflict to the named settings",
     async (format) => {
-      const executable = {
-        path: pe.path,
-        sha256: pe.sha256,
-        kind: "executable",
-        architecture: "x86",
-        availableArchitectures: ["x86"],
-      } as const;
-      const target: BinaryTarget =
-        format === "raw-binary"
-          ? {
-              ...executable,
-              format,
-              entryPoint: "0x0",
-              entryPointSource: "0x0",
-            }
-          : { ...executable, format };
+      const target = fixedImportTarget(format);
       const resolved = await provider({
         REA_GHIDRA_LANGUAGE_ID: "x86:LE:32:default",
         REA_GHIDRA_COMPILER_SPEC_ID: "borlandcpp",

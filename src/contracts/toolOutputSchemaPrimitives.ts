@@ -1,10 +1,7 @@
 import { procedureInfoSchema } from "../domain/native/procedureInfo.js";
 import { z } from "zod";
 
-import {
-  procedureIdentitySchema,
-  functionDossierSchema,
-} from "../domain/hopperValues.js";
+import { functionDossierSchema } from "../domain/hopperValues.js";
 import { analysisProfileSchema } from "../domain/analysisProfile.js";
 import {
   evidenceSchema,
@@ -554,20 +551,6 @@ export const addressedEntry = z.object({
   address: z.string(),
   name: z.string(),
 });
-export const containingProcedureResolution = z.discriminatedUnion("found", [
-  z.object({
-    query_address: z.string(),
-    found: z.literal(true),
-    procedure: procedureIdentitySchema,
-  }),
-  z.object({
-    query_address: z.string(),
-    found: z.literal(false),
-    procedure: z.null(),
-    reason: z.enum(["outside_segments", "not_in_procedure"]),
-  }),
-]);
-
 const unavailable = z.object({
   available: z.literal(false),
   reason: z.string(),

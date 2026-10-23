@@ -279,10 +279,9 @@ test.each([true, false])(
       if (cancel) {
         controller.abort(reason);
         const result = await pending;
-        expect(selected.mock.calls[0]?.[0]).toHaveProperty(
-          "signal",
-          controller.signal,
-        );
+        const selectedSignal = selected.mock.calls[0]?.[0].signal;
+        expect(selectedSignal?.aborted).toBe(true);
+        expect(selectedSignal?.reason).toBe(reason);
         expect(inspected).not.toHaveBeenCalled();
         expect(result.error).toBeInstanceOf(AnalysisCancelledError);
         expect((result.error as Error).cause).toBe(reason);

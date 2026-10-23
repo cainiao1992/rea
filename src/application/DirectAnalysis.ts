@@ -28,12 +28,8 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { access, stat } from "node:fs/promises";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
-import { readAnalysisSnapshot } from "./binary/AnalysisSnapshotFiles.js";
 import { requiresNativeSourceAdmissionBeforeReplay } from "./binary/AnalysisSnapshotCache.js";
-import {
-  classifyBinaryTargetFilesystemFailure,
-  parseBinaryTarget,
-} from "./BinaryTargetResolver.js";
+import { classifyBinaryTargetFilesystemFailure } from "./BinaryTargetResolver.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   snapshotEvidenceForQuery,
@@ -341,6 +337,7 @@ const runAnalysis = async (
       );
     }
     const prepared = await prepareSnapshot({
+      session,
       path,
       snapshotPath,
       signal,
@@ -482,7 +479,7 @@ const runAnalysis = async (
         const recovered =
           written.error instanceof EvidenceFileError &&
           written.error.published !== undefined &&
-          (await session.closeWriteResources()).ok;
+          (await session.closeFileResources()).ok;
         if (!recovered)
           return err(written.error.retainPartialObservation(evidence));
       }
@@ -653,6 +650,10 @@ const withProcessCancellation = async <Value>(
 };
 
 const prepareSnapshot = async (options: {
+  readonly session: Pick<
+    BinarySession,
+    "readAnalysisSnapshot" | "resolveTarget"
+  >;
   readonly path: string;
   readonly formatHint?: ExecutableFormatHint;
   readonly architecture?: BinaryArchitecture;
@@ -665,12 +666,15 @@ const prepareSnapshot = async (options: {
     AnalysisError
   >
 > => {
-  const { path, snapshotPath } = options;
+  const { path, snapshotPath, session } = options;
   if (snapshotPath === undefined || !(await fileExists(snapshotPath)))
     return ok({});
-  const loaded = await readAnalysisSnapshot(snapshotPath, options.signal);
+  const loaded = await session.readAnalysisSnapshot(
+    snapshotPath,
+    options.signal,
+  );
   if (!loaded.ok) return loaded;
-  const target = await parseBinaryTarget(path, {
+  const target = await session.resolveTarget(path, {
     signal: options.signal,
     ...(options.formatHint === undefined
       ? {}

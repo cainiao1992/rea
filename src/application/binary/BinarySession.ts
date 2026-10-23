@@ -54,6 +54,10 @@ import { profilelessNativeDispatchProfile } from "./ProfilelessNativeWorkflowSna
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
 import { AnalysisSnapshotMismatchError } from "../../domain/evidenceErrors.js";
 import {
+  parseBinaryTarget,
+  type BinaryTargetResolverOptions,
+} from "../BinaryTargetResolver.js";
+import {
   resolveAppBundleResourceRoot,
   type ResolvedAppBundleResourceRoot,
 } from "../AppBundleExecutable.js";
@@ -422,6 +426,17 @@ export class BinarySession
     return () => this.#availabilityListeners.delete(listener);
   }
 
+  /** Resolve target identity under this session's file cleanup owner. */
+  resolveTarget(
+    path: string,
+    options: Omit<BinaryTargetResolverOptions, "resources"> = {},
+  ) {
+    return parseBinaryTarget(path, {
+      ...options,
+      resources: this.fileResources,
+    });
+  }
+
   /** Resolve a target and provider profile without creating a provider client. */
   previewTarget(
     target: BinaryTarget,
@@ -464,6 +479,7 @@ export class BinarySession
     return this.#open(
       (admitted) =>
         resolveSessionOpen({
+          resources: this.fileResources,
           router: this.#providerRouter,
           current: this.#active,
           path,
@@ -850,7 +866,7 @@ export class BinarySession
           });
     if (clearRecords) this.clearSessionRecords();
     this.#clearRuntimeAvailability();
-    const fileResources = await this.closeWriteResources();
+    const fileResources = await this.closeFileResources();
     if (!fileResources.ok) onCleanupFailure?.(fileResources.error);
     const candidateResources = await this.#providerRouter.closeOwnedResources();
     if (!candidateResources.ok) onCleanupFailure?.(candidateResources.error);
@@ -865,20 +881,24 @@ export class BinarySession
     ];
     let resourceFailure = resourceFailures[0];
     for (const next of resourceFailures.slice(1))
-      if (resourceFailure !== undefined)
+      if (resourceFailure !== undefined) {
+        const previous = resourceFailure;
         resourceFailure = analysisErrorWithCleanupFailure(
-          resourceFailure,
+          previous,
           next,
           "close_binary",
         );
-    if (!closed.ok && resourceFailure !== undefined)
-      return err(
-        analysisErrorWithCleanupFailure(
-          closed.error,
-          resourceFailure,
-          "close_binary",
-        ),
+        resourceFailure.bindCleanupDependencies([previous, next]);
+      }
+    if (!closed.ok && resourceFailure !== undefined) {
+      const combined = analysisErrorWithCleanupFailure(
+        closed.error,
+        resourceFailure,
+        "close_binary",
       );
+      combined.bindCleanupDependencies([closed.error, resourceFailure]);
+      return err(combined);
+    }
     if (!closed.ok) return closed;
     return resourceFailure === undefined ? ok(null) : err(resourceFailure);
   }

@@ -14,6 +14,21 @@ import {
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest, type TestMcp } from "../../support/mcp/mcpFixture.js";
 
+const marshalInt64 = (value: bigint): Buffer => {
+  const payload = Buffer.alloc(8);
+  payload.writeBigInt64LE(value);
+  return Buffer.concat([Buffer.from([0x49]), payload]);
+};
+
+const marshalInt32 = (value: number): Buffer => {
+  const payload = Buffer.alloc(4);
+  payload.writeInt32LE(value);
+  return Buffer.concat([Buffer.from([0x69]), payload]);
+};
+
+const marshalSingleItemTuple = (item: Buffer): Buffer =>
+  Buffer.concat([Buffer.from([0x29, 1]), item]);
+
 const connect = async (mcp: TestMcp) => {
   const session = createTestBinarySession(() => {
     throw new Error("Python pyc inspection must not start a deep provider");
@@ -21,6 +36,97 @@ const connect = async (mcp: TestMcp) => {
   const client = await mcp.connect(createServer({ kind: "session", session }));
   return { client, session };
 };
+
+mcpTest(
+  "reads signed TYPE_INT64 constants and rejects a truncated payload",
+  async ({ mcp }) => {
+    const { client, session } = await connect(mcp);
+    try {
+      const root = await createTestTempDirectory("rea-python-pyc-mcp-int64-");
+      for (const [name, value, bits] of [
+        ["positive", 42n, 6],
+        ["negative", -1n, 1],
+        ["minimum", -(1n << 63n), 64],
+        ["maximum", (1n << 63n) - 1n, 63],
+      ] as const) {
+        const path = join(root, `${name}.pyc`);
+        await writeFile(
+          path,
+          Buffer.concat([
+            pythonPycHeader(3531),
+            marshalCode("py311", {
+              constsObject: marshalSingleItemTuple(marshalInt64(value)),
+            }),
+          ]),
+        );
+        const response = await client.callTool({
+          name: "inspect_python_pyc",
+          arguments: { path },
+        });
+        expect(response.isError, JSON.stringify(response.content)).not.toBe(
+          true,
+        );
+        const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+          response.structuredContent,
+        );
+        expect(
+          evidence.normalized_result.code_objects[0]?.consts,
+        ).toContainEqual({ kind: "int", bits, value: value.toString() });
+      }
+
+      const ordinaryPath = join(root, "ordinary-int.pyc");
+      await writeFile(
+        ordinaryPath,
+        Buffer.concat([
+          pythonPycHeader(3531),
+          marshalCode("py311", {
+            constsObject: marshalSingleItemTuple(marshalInt32(-42)),
+          }),
+        ]),
+      );
+      const ordinary = await client.callTool({
+        name: "inspect_python_pyc",
+        arguments: { path: ordinaryPath },
+      });
+      expect(ordinary.isError, JSON.stringify(ordinary.content)).not.toBe(true);
+      const ordinaryEvidence = toolContract(
+        "inspect_python_pyc",
+      ).outputSchema.parse(ordinary.structuredContent);
+      expect(
+        ordinaryEvidence.normalized_result.code_objects[0]?.consts,
+      ).toContainEqual({ kind: "int", bits: 6, value: "-42" });
+
+      const truncatedPath = join(root, "truncated.pyc");
+      await writeFile(
+        truncatedPath,
+        Buffer.concat([
+          pythonPycHeader(3531),
+          Buffer.from([0x49]),
+          Buffer.alloc(7),
+        ]),
+      );
+      const truncated = await client.callTool({
+        name: "inspect_python_pyc",
+        arguments: { path: truncatedPath },
+      });
+      expect(truncated.isError).toBe(true);
+      expect(parseMcpToolError(truncated).error).toMatchObject({
+        code: "invalid_request",
+        details: {
+          operation: "inspect_python_pyc",
+          issues: [
+            {
+              reason: "invalid_format",
+              message: expect.stringContaining("64-bit integer"),
+            },
+          ],
+        },
+      });
+    } finally {
+      await session.close();
+    }
+  },
+);
 
 mcpTest(
   "advertises inspect_python_pyc and reads nested code objects",

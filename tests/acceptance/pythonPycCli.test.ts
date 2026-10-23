@@ -17,6 +17,102 @@ const marshalUtf8 = (bytes: Buffer): Buffer => {
   return Buffer.concat([Buffer.from([0x75]), length, bytes]);
 };
 
+const marshalInt64 = (value: bigint): Buffer => {
+  const payload = Buffer.alloc(8);
+  payload.writeBigInt64LE(value);
+  return Buffer.concat([Buffer.from([0x49]), payload]);
+};
+
+const marshalInt32 = (value: number): Buffer => {
+  const payload = Buffer.alloc(4);
+  payload.writeInt32LE(value);
+  return Buffer.concat([Buffer.from([0x69]), payload]);
+};
+
+const marshalSingleItemTuple = (item: Buffer): Buffer =>
+  Buffer.concat([Buffer.from([0x29, 1]), item]);
+
+cliTest(
+  "reads backward-compatible signed 64-bit marshal integers",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-python-pyc-int64-");
+    for (const [name, value, bits] of [
+      ["positive", 42n, 6],
+      ["negative", -1n, 1],
+      ["minimum", -(1n << 63n), 64],
+      ["maximum", (1n << 63n) - 1n, 63],
+    ] as const) {
+      const path = join(root, `${name}.pyc`);
+      await writeFile(
+        path,
+        Buffer.concat([
+          pythonPycHeader(3531),
+          marshalCode("py311", {
+            constsObject: marshalSingleItemTuple(marshalInt64(value)),
+          }),
+        ]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result.code_objects[0]?.consts).toContainEqual(
+        { kind: "int", bits, value: value.toString() },
+      );
+    }
+
+    const ordinaryIntPath = join(root, "ordinary-int.pyc");
+    await writeFile(
+      ordinaryIntPath,
+      Buffer.concat([
+        pythonPycHeader(3531),
+        marshalCode("py311", {
+          constsObject: marshalSingleItemTuple(marshalInt32(-42)),
+        }),
+      ]),
+    );
+    const ordinaryInt = await cli.run({
+      arguments: ["inspect-python-pyc", ordinaryIntPath, "--json"],
+    });
+    expect(ordinaryInt.exitCode, ordinaryInt.stderr).toBe(0);
+    const ordinaryEvidence = toolContract(
+      "inspect_python_pyc",
+    ).outputSchema.parse(ordinaryInt.json);
+    expect(
+      ordinaryEvidence.normalized_result.code_objects[0]?.consts,
+    ).toContainEqual({ kind: "int", bits: 6, value: "-42" });
+
+    const truncatedPath = join(root, "truncated.pyc");
+    await writeFile(
+      truncatedPath,
+      Buffer.concat([
+        pythonPycHeader(3531),
+        Buffer.from([0x49]),
+        Buffer.alloc(7),
+      ]),
+    );
+    const truncated = await cli.run({
+      arguments: ["inspect-python-pyc", truncatedPath, "--json"],
+    });
+    expect(truncated.exitCode).toBe(1);
+    expect(truncated.json).toMatchObject({
+      code: "invalid_request",
+      details: {
+        operation: "inspect_python_pyc",
+        issues: [
+          {
+            reason: "invalid_format",
+            message: expect.stringContaining("64-bit integer"),
+          },
+        ],
+      },
+    });
+  },
+);
+
 cliTest(
   "uses magic-specific cache tables for synthetic pyc bytecode equality",
   async ({ cli }) => {

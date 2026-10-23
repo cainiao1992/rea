@@ -26,6 +26,7 @@ const TYPE_TRUE = 0x54;
 const TYPE_STOPITER = 0x53;
 const TYPE_ELLIPSIS = 0x2e;
 const TYPE_INT = 0x69;
+const TYPE_INT64 = 0x49;
 const TYPE_FLOAT_TEXT = 0x66;
 const TYPE_FLOAT = 0x67;
 const TYPE_COMPLEX_TEXT = 0x78;
@@ -388,6 +389,10 @@ class MarshalReader {
         return { kind: "ellipsis" };
       case TYPE_INT: {
         const value = BigInt(this.i32());
+        return { kind: "int", value, bits: smallBitLength(value) };
+      }
+      case TYPE_INT64: {
+        const value = this.i64();
         return { kind: "int", value, bits: smallBitLength(value) };
       }
       case TYPE_FLOAT_TEXT:
@@ -1511,6 +1516,14 @@ class MarshalReader {
       malformed("Marshal stream ended inside a 32-bit field.");
     const value = this.bytes.readInt32LE(this.offset);
     this.offset += 4;
+    return value;
+  }
+
+  i64(): bigint {
+    if (this.offset > this.bytes.length - 8)
+      malformed("Marshal stream ended inside a 64-bit integer.");
+    const value = this.bytes.readBigInt64LE(this.offset);
+    this.offset += 8;
     return value;
   }
 

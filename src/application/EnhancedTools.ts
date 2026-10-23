@@ -99,6 +99,12 @@ const isAnalysisCancellation = (
   error: AnalysisError,
 ): error is AnalysisCancelledError => error._tag === "AnalysisCancelledError";
 
+const permitsCapabilityFallback = (
+  error: AnalysisError,
+): error is AnalysisCapabilityUnavailableError =>
+  error instanceof AnalysisCapabilityUnavailableError &&
+  !error.cleanupIncomplete;
+
 /**
  * Composes direct provider operations into bounded reverse-engineering tools.
  * Direct callers use `execute`; adapters that own validation use
@@ -318,9 +324,7 @@ export class EnhancedTools {
       signal,
     );
     if (!bindingsExecution.ok) {
-      if (
-        !(bindingsExecution.error instanceof AnalysisCapabilityUnavailableError)
-      )
+      if (!permitsCapabilityFallback(bindingsExecution.error))
         return bindingsExecution;
       return ok(
         projectObjcClassCandidates(candidates, {
@@ -664,7 +668,7 @@ export class EnhancedTools {
     const symbols = await this.#allAddressed("list_names", signal);
     if (
       !symbols.ok &&
-      !(symbols.error instanceof AnalysisCapabilityUnavailableError)
+      !permitsCapabilityFallback(symbols.error)
     )
       return symbols;
     const result = categorizeSwiftTypes(
@@ -729,8 +733,7 @@ export class EnhancedTools {
     );
     if (
       direct.ok ||
-      !(direct.error instanceof AnalysisCapabilityUnavailableError) ||
-      direct.error.cleanupIncomplete
+      !permitsCapabilityFallback(direct.error)
     )
       return direct;
     const document = await resolveAnalysisDocument(
@@ -748,7 +751,7 @@ export class EnhancedTools {
     );
     if (
       !segmentsResult.ok &&
-      !(segmentsResult.error instanceof AnalysisCapabilityUnavailableError)
+      !permitsCapabilityFallback(segmentsResult.error)
     )
       return segmentsResult;
     if (!proceduresResult.ok) return proceduresResult;

@@ -1,3 +1,4 @@
+import type { AnalysisCapturedOutput } from "../domain/analysisErrorBase.js";
 import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import type { NativeCommandCapture } from "./CommandRunner.js";
 import { withoutEchoedPathHeader } from "./parsers/echoedPath.js";
@@ -20,6 +21,37 @@ export const isMissingUuidDyldFailure = (
         MISSING_UUID_DIAGNOSTIC,
     );
 
+/** The narrowly observed dyld refusal for an unbacked dSYM text section. */
+export const isUnbackedTextDyldFailure = (
+  capture: NativeCommandCapture,
+): boolean =>
+  capture.tool === "dyld_info" &&
+  capture.exitCode !== null &&
+  capture.exitCode !== 0 &&
+  capture.signal === null &&
+  [capture.stdout, capture.stderr].some((output) =>
+    withoutEchoedPathHeader(output, capture.arguments.at(-1))
+      .split(/\r?\n/u)
+      .some(
+        (line) =>
+          line.trim().replace(/^(?:dyld_info:\s*)/u, "") ===
+          "section '__TEXT/__text' has offset=0 but is not a zero-fill section type",
+      ),
+  );
+
+/** Complete captures come from the settled native command owner. */
+export const nativeMachoCapturedOutput = (
+  capture: NativeCommandCapture,
+): AnalysisCapturedOutput => ({
+  stdout: capture.stdout,
+  stderr: capture.stderr,
+  truncated: false,
+  stdout_bytes: capture.stdoutBytes,
+  stderr_bytes: capture.stderrBytes,
+  exit_code: capture.exitCode,
+  signal: capture.signal,
+});
+
 /** Keep the exact target diagnostic beside the incomplete collection. */
 export const missingUuidLimitation = (mode: "imports" | "exports"): string =>
   mode === "imports"
@@ -34,15 +66,7 @@ export const unusableNativeCommandOutput = (
     "inspect_macho",
     `${capture.tool} did not produce a usable inspection result`,
     {
-      capturedOutput: {
-        stdout: capture.stdout,
-        stderr: capture.stderr,
-        truncated: false,
-        stdout_bytes: capture.stdoutBytes,
-        stderr_bytes: capture.stderrBytes,
-        exit_code: capture.exitCode,
-        signal: capture.signal,
-      },
+      capturedOutput: nativeMachoCapturedOutput(capture),
     },
   );
 
@@ -54,14 +78,6 @@ export const conflictingUuidCommandEvidence = (
     "inspect_macho",
     "dyld_info reported a missing LC_UUID despite an observed LC_UUID load command",
     {
-      capturedOutput: {
-        stdout: command.stdout,
-        stderr: command.stderr,
-        truncated: false,
-        stdout_bytes: command.stdoutBytes,
-        stderr_bytes: command.stderrBytes,
-        exit_code: command.exitCode,
-        signal: command.signal,
-      },
+      capturedOutput: nativeMachoCapturedOutput(command),
     },
   );

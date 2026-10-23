@@ -409,6 +409,12 @@ A conversion refusal includes plutil's diagnostic from either output stream.
 `details.captured_output` retains bounded stdout/stderr excerpts, observed byte
 totals and exit status. `truncated: true` means those excerpts are incomplete.
 
+A dSYM companion that `dyld_info` refuses for an unbacked text section reports
+`unsupported_target`, retaining the exact diagnostic and directing inspection
+to the linked Mach-O. This classification requires both the recognized native
+refusal and an independently parsed dSYM Mach header; other tool failures keep
+their failure outcome.
+
 `inspect_macho.selected_architecture` identifies the exact selected lipo slice
 and its `container_file_offset` in the input file. A thin Mach-O has a known
 offset of zero; an unknown universal-slice offset stays null. The Evidence

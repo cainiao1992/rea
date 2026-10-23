@@ -46,6 +46,7 @@ export type WabtVersionProbe = {
 type WabtFailureContext = {
   readonly commandTimeoutMs: number;
   readonly versionProbe?: WabtVersionProbe;
+  readonly inputField?: readonly (string | number)[];
 };
 
 /** Configuration is captured by the server; fixing files and changing its environment are distinct repairs. */
@@ -169,7 +170,11 @@ const classifyWabtFailure = (
         { operation: "inspect_wasm_artifact", cause },
       );
     if (cause.reason === "cancelled")
-      return new AnalysisCancelledError("inspect_wasm_artifact", options);
+      return new AnalysisCancelledError("inspect_wasm_artifact", {
+        ...options,
+        cause:
+          cause.cancellation === undefined ? cause : cause.cancellation.reason,
+      });
     if (timeout !== undefined) return timeout;
     if (phase !== "configuration" && cause.reason === "output-limit")
       return new AnalysisResourceConstraintError(
@@ -275,7 +280,13 @@ const classifyWabtFailure = (
     return new AnalysisInputError(
       "inspect_wasm_artifact",
       { cause, ...cleanupOptions },
-      [{ path: ["path"], reason: "invalid_value", message: reason }],
+      [
+        {
+          path: [...(execution?.inputField ?? ["path"])],
+          reason: "invalid_value",
+          message: reason,
+        },
+      ],
     );
   return new AnalysisOutputError("inspect_wasm_artifact", reason, {
     cause,

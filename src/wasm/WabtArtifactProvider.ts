@@ -118,6 +118,10 @@ export class WabtArtifactProvider implements WasmArtifactPort {
     let result: Result<WasmArtifactExecution, AnalysisError>;
     let capturedOutput: AnalysisCapturedOutput | undefined;
     let versionProbe: WabtVersionProbe | undefined;
+    let artifactInput: { path: string; field: (string | number)[] } = {
+      path: input.path,
+      field: ["path"],
+    };
     const commandTimeoutMs =
       input.command_timeout_ms ?? DEFAULT_WASM_COMMAND_TIMEOUT_MS;
     try {
@@ -287,6 +291,13 @@ export class WabtArtifactProvider implements WasmArtifactPort {
       };
       const candidates = [];
       for (const path of new Set([input.path, ...input.candidate_paths])) {
+        artifactInput = {
+          path,
+          field:
+            path === input.path
+              ? ["path"]
+              : ["candidate_paths", input.candidate_paths.indexOf(path)],
+        };
         const bytes =
           path === input.path
             ? selected
@@ -304,7 +315,8 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         });
       }
       const glue = [];
-      for (const path of input.glue_paths) {
+      for (const [index, path] of input.glue_paths.entries()) {
+        artifactInput = { path, field: ["glue_paths", index] };
         const bytes = await readStableArtifact(
           path,
           WABT_LIMITS.inputBytes,
@@ -326,6 +338,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
           ),
         });
       }
+      phase = "producer";
       await writeFile(snapshotPath, selected.bytes, {
         flag: "wx",
         mode: 0o400,
@@ -496,10 +509,16 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         }),
       );
     } catch (cause: unknown) {
-      const failure = wabtFailure(cause, phase, input.path, {
-        commandTimeoutMs,
-        ...(versionProbe === undefined ? {} : { versionProbe }),
-      });
+      const failure = wabtFailure(
+        cause,
+        phase,
+        phase === "artifact" ? artifactInput.path : input.path,
+        {
+          commandTimeoutMs,
+          inputField: artifactInput.field,
+          ...(versionProbe === undefined ? {} : { versionProbe }),
+        },
+      );
       runtime?.retainCommandFailure(cause, failure, this.#resources);
       result = err(
         failure instanceof AnalysisOutputError &&

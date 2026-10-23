@@ -2,7 +2,9 @@ import { parseWabtInterface } from "./WabtInterface.js";
 import { watString, watStringEnd } from "./WabtString.js";
 
 /** Read only module-name metadata from WABT's preserved name-section payload. */
-const moduleNames = (bytes: Uint8Array): string[] | null => {
+const moduleNames = (
+  bytes: Uint8Array,
+): { names: string[]; complete: boolean } => {
   const names: string[] = [];
   let offset = 0;
   const uint32 = (end: number): number => {
@@ -36,9 +38,9 @@ const moduleNames = (bytes: Uint8Array): string[] | null => {
       offset = end;
     }
   } catch {
-    return null;
+    return { names, complete: false };
   }
-  return names;
+  return { names, complete: true };
 };
 
 /** Extract exact top-level WABT WAT forms; no raw WASM decoding or import/export name unescaping. */
@@ -133,13 +135,11 @@ export const parseWabtWat = (text: string) => {
               nameString.end + payloadPrefix[0].length,
             );
             const names = moduleNames(payload.bytes);
-            if (names === null) {
-              debugNameMetadata = "uninterpretable";
-              debugModuleNames.length = 0;
-            } else if (debugNameMetadata !== "uninterpretable") {
+            // Framing uses every name decoded before an optional subsection failure.
+            debugModuleNames.push(...names.names);
+            if (!names.complete) debugNameMetadata = "uninterpretable";
+            else if (debugNameMetadata !== "uninterpretable")
               debugNameMetadata = "complete";
-              debugModuleNames.push(...names);
-            }
           }
         }
       }

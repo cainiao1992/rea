@@ -387,7 +387,7 @@ it("matches a CLI-selected ./ module exactly against its glue reference", () => 
 });
 
 it("tests long multi-line glue literals for a .wasm suffix in linear time", () => {
-  const value = `${".wasm#".repeat(32_000)}\nend`;
+  const value = `${".wasm".repeat(32_000)}\nend`;
   const started = performance.now();
   expect(
     associateWasmGlue(`const s = ${JSON.stringify(value)};`, "/glue.js", []),
@@ -398,3 +398,40 @@ it("tests long multi-line glue literals for a .wasm suffix in linear time", () =
       .references,
   ).toMatchObject([{ value: "first\nmodule.wasm?v=1", line: 1 }]);
 });
+
+it("retains earlier module names for objdump framing when a later optional subsection is malformed", async () => {
+  const parsed = parseWabtWat(
+    '(module $hello (@custom "name" "\\00\\06\\05hello\\01\\02\\01"))',
+  );
+  expect(parsed).toMatchObject({
+    debugModuleNames: ["hello"],
+    debugNameMetadata: "uninterpretable",
+  });
+  const text = (await golden()).replace(
+    "\n\nSections:",
+    "\nmodule name: <hello>\n\nSections:",
+  );
+  expect(
+    parseWabtOutput(text, 76, ["test"], parsed.debugModuleNames).sections,
+  ).toHaveLength(7);
+});
+
+it.each(["\n", "\r", "\u2028", "\u2029"])(
+  "retains glue references with a line separator in a query or fragment: %j",
+  (separator) => {
+    for (const delimiter of ["?", "#"]) {
+      const value = `https://example.test/module.wasm${delimiter}before${separator}after`;
+      expect(
+        associateWasmGlue(`fetch(${JSON.stringify(value)});`, "/glue.js", [
+          "/module.wasm",
+        ]).references,
+      ).toMatchObject([
+        {
+          value,
+          candidate_paths: ["/module.wasm"],
+          association: "basename-candidates",
+        },
+      ]);
+    }
+  },
+);

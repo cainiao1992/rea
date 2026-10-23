@@ -210,3 +210,35 @@ it("keeps oversized tool admission distinct from selected artifact size", () => 
       .code,
   ).toBe("capability_unavailable");
 });
+
+it.each([null, { stopped: "caller" }])(
+  "keeps the command-owned cancellation reason as the direct typed cause: %j",
+  (reason) => {
+    const cause = new OwnedCommandFailure(
+      "cancelled",
+      "cancelled",
+      null,
+      null,
+      { cancellation: { reason } },
+    );
+    const error = wabtFailure(cause, "producer", "/module.wasm");
+    expect(error._tag).toBe("AnalysisCancelledError");
+    expect(error.cause).toBe(reason);
+  },
+);
+it("attributes optional artifact admission to its selected caller field", () => {
+  const cause = Object.assign(new Error("missing candidate"), {
+    code: "ENOENT",
+  });
+  expect(
+    projectAnalysisError(
+      wabtFailure(cause, "artifact", "/missing.wasm", {
+        commandTimeoutMs: 30000,
+        inputField: ["candidate_paths", 2],
+      }),
+    ),
+  ).toMatchObject({
+    code: "invalid_request",
+    details: { issues: [{ path: ["candidate_paths", 2] }] },
+  });
+});

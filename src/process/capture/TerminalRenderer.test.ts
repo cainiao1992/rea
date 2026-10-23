@@ -25,7 +25,7 @@ const boundedNormalize =
     const utf8Bytes = Buffer.byteLength(normalized);
     return utf8Bytes <= maxBytes
       ? { state: "normalized", value: normalized, utf8Bytes }
-      : { state: "over_budget" };
+      : { state: "over_budget", reason: "retention" };
   };
 
 const renderFrames = async (
@@ -152,6 +152,7 @@ it("omits rendered frames with unknown expanded size and keeps later bounded sta
       observed_frames: 2,
       retained_frames: 1,
       unknown_size_frames: 1,
+      normalization_over_budget_frames: 1,
     });
     expect(renderer.truncated()).toBe(true);
   } finally {
@@ -248,3 +249,36 @@ it("retains disposal failures for a later cleanup retry", async () => {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
 });
+
+it.each([1024, 2048])(
+  "keeps unchanged representation retention distinct from normalization at budget %s",
+  async (maxBytes) => {
+    const renderer = new TerminalRenderer({
+      columns: 600,
+      rows: 1,
+      scrollback: 0,
+      maxBytes,
+      normalize: createBoundedProcessTextNormalizer(
+        parseProcessScenario({
+          executable: "unused",
+          normalization: { paths: false, pids: false, ports: false },
+        }),
+        "/tmp",
+        -1,
+      ),
+    });
+    try {
+      renderer.write("a".repeat(600), 0);
+      const frames = await renderer.frames();
+      expect(frames).toHaveLength(maxBytes === 1024 ? 0 : 1);
+      expect(renderer.retention().normalization_over_budget_frames ?? 0).toBe(
+        0,
+      );
+      expect(renderer.retention().unknown_size_frames ?? 0).toBe(
+        maxBytes === 1024 ? 1 : 0,
+      );
+    } finally {
+      await renderer.dispose();
+    }
+  },
+);

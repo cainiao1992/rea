@@ -9,6 +9,7 @@ const byteRetentionSchema = z.strictObject({
   observed_frames: z.int().nonnegative(),
   retained_frames: z.int().nonnegative(),
   unknown_size_frames: z.int().nonnegative().optional(),
+  normalization_over_budget_frames: z.int().nonnegative().optional(),
 });
 
 const enumerationOmissionReasonSchema = z.enum([
@@ -60,7 +61,7 @@ export const processCaptureTruncationDetailsSchema = z.strictObject({
     "UTF-8 bytes of original PTY chunks; whole chunks are retained or omitted.",
   ),
   rendered_terminal: byteRetentionSchema.describe(
-    "Cumulative UTF-8 bytes of serialized state plus visible lines, evaluated from retained PTY input; whole frames are retained or omitted. When normalization exceeds a bound before the frame size is known, observed_bytes contains the exact total for size-known frames and unknown_size_frames counts the other omissions.",
+    "Cumulative UTF-8 bytes of serialized state plus visible lines, evaluated from retained PTY input; whole frames are retained or omitted. observed_bytes contains the exact total for size-known frames; unknown_size_frames counts frames whose complete size was not calculated. normalization_over_budget_frames identifies the subset stopped by an ordered normalization stage rather than final representation retention.",
   ),
   normalized_terminal: z
     .strictObject({

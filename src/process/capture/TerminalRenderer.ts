@@ -47,6 +47,7 @@ export class TerminalRenderer {
   #observedFrames = 0;
   #truncated = false;
   #unknownSizeFrames = 0;
+  #normalizationOverBudgetFrames = 0;
 
   constructor(private readonly options: TerminalRendererOptions) {
     this.#terminal = new HeadlessPackage.Terminal({
@@ -105,6 +106,12 @@ export class TerminalRenderer {
       ...(this.#unknownSizeFrames === 0
         ? {}
         : { unknown_size_frames: this.#unknownSizeFrames }),
+      ...(this.#normalizationOverBudgetFrames === 0
+        ? {}
+        : {
+            normalization_over_budget_frames:
+              this.#normalizationOverBudgetFrames,
+          }),
     };
   }
 
@@ -142,6 +149,8 @@ export class TerminalRenderer {
         Math.min(Number.MAX_SAFE_INTEGER, remainingBytes + trailingSpaceBytes),
       );
       if (normalized.state === "over_budget") {
+        if (normalized.reason === "normalization")
+          this.#normalizationOverBudgetFrames += 1;
         this.#unknownSizeFrames += 1;
         this.#truncated = true;
         return;
@@ -164,6 +173,8 @@ export class TerminalRenderer {
       remainingBytes,
     );
     if (normalizedState.state === "over_budget") {
+      if (normalizedState.reason === "normalization")
+        this.#normalizationOverBudgetFrames += 1;
       this.#unknownSizeFrames += 1;
       this.#truncated = true;
       return;

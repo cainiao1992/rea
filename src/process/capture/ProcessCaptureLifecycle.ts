@@ -455,7 +455,7 @@ const captureCoverageUnknowns = (
     unknowns.push({
       scope: "terminal",
       reason:
-        (details.rendered_terminal.unknown_size_frames ?? 0) > 0
+        (details.rendered_terminal.normalization_over_budget_frames ?? 0) > 0
           ? "Rendered frames were omitted because a normalization stage exceeded the remaining output_bytes budget; final rendered byte totals are unknown for those frames. See truncation_details.rendered_terminal."
           : "Cumulative rendered state and visible-line bytes exceeded output_bytes; whole rendered frames were omitted. Raw PTY coverage is reported separately. See truncation_details.rendered_terminal.",
     });

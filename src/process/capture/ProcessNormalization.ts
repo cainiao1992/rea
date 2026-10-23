@@ -10,7 +10,10 @@ export type BoundedProcessTextNormalization =
       readonly value: string;
       readonly utf8Bytes: number;
     }
-  | { readonly state: "over_budget" };
+  | {
+      readonly state: "over_budget";
+      readonly reason: "normalization" | "retention";
+    };
 
 type RegexReplacement = (match: string, ...groups: string[]) => string;
 
@@ -270,7 +273,8 @@ export const createBoundedProcessTextNormalizer = (
               rule.replacement,
               maxBytes,
             );
-      if (result.state === "over_budget") return result;
+      if (result.state === "over_budget")
+        return { state: "over_budget", reason: "normalization" };
       normalized = result.value;
     }
     const identity = boundedIdentity(normalized, maxBytes);
@@ -280,7 +284,7 @@ export const createBoundedProcessTextNormalizer = (
           value: identity.value,
           utf8Bytes: identity.utf8Bytes,
         }
-      : { state: "over_budget" };
+      : { state: "over_budget", reason: "retention" };
   };
 };
 

@@ -108,7 +108,10 @@ it("bounds ordered normalization before replacement expansion and preserves late
     rootPid,
   );
 
-  expect(normalize("a".repeat(100), 1_000)).toEqual({ state: "over_budget" });
+  expect(normalize("a".repeat(100), 1_000)).toEqual({
+    state: "over_budget",
+    reason: "normalization",
+  });
   expect(normalize("z", 1_000)).toEqual({
     state: "normalized",
     value: "z",
@@ -131,7 +134,10 @@ it("keeps ordered intermediate expansion explicit even when a later rule could s
     rootPid,
   );
 
-  expect(normalize("a", 10)).toEqual({ state: "over_budget" });
+  expect(normalize("a", 10)).toEqual({
+    state: "over_budget",
+    reason: "normalization",
+  });
 });
 
 it("counts UTF-8 bytes across replacement boundaries like the final JavaScript string", () => {
@@ -215,7 +221,7 @@ it("counts UTF-8 bytes across replacement boundaries like the final JavaScript s
       "/temporary",
       rootPid,
     )(input, Buffer.byteLength(expected) - 1),
-  ).toEqual({ state: "over_budget" });
+  ).toEqual({ state: "over_budget", reason: "normalization" });
 
   const loneSurrogate = scenario({
     paths: false,

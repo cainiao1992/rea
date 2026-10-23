@@ -433,10 +433,11 @@ Every capture requires `truncation_details`, with separate accounting for:
   bytes, plus observed/retained frame counts. This is independent of the raw
   chunk budget and does not count JSON encoding. Repeated screen snapshots can
   exhaust it even when all raw output fits. Rendered states use retained PTY
-  input, so raw omissions also limit rendered coverage. When bounded
-  normalization omits a rendered frame before its final size is known,
-  `unknown_size_frames` reports that count; `observed_bytes` includes only
-  rendered frame sizes that were determined exactly.
+  input, so raw omissions also limit rendered coverage. `unknown_size_frames`
+  counts frames whose complete size was not calculated; it does not by itself
+  identify normalization as the cause. `normalization_over_budget_frames`
+  identifies omissions caused by an ordered normalization stage.
+  `observed_bytes` includes only rendered frame sizes determined exactly.
 - `filesystem_before` and `filesystem_after`: file-count/depth limits,
   enumeration failures, whole-file hash budget and bytes successfully hashed.
   Directory names are read incrementally within the remaining entry capacity.

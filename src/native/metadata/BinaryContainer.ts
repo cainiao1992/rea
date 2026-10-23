@@ -232,6 +232,7 @@ export const mappedFileOffset = (
   const end = address + BigInt(size);
   let found: number | undefined;
   const covered: { start: bigint; end: bigint }[] = [];
+  let whollyCovered = size === 0;
   for (const mapping of mappings) {
     const mappingEnd = mapping.address + BigInt(mapping.size);
     const start = address > mapping.address ? address : mapping.address;
@@ -249,30 +250,33 @@ export const mappedFileOffset = (
         "Virtual span has ambiguous or noncontiguous file mappings",
       );
     found = origin;
-    covered.push({ start, end: overlapEnd });
+    if (start === address && overlapEnd === end) whollyCovered = true;
+    else if (!whollyCovered) covered.push({ start, end: overlapEnd });
   }
   if (found === undefined)
     throw new BinaryFormatFailure(
       "malformed",
       "Virtual address or string range is not file mapped",
     );
-  covered.sort((left, right) =>
-    left.start < right.start ? -1 : left.start > right.start ? 1 : 0,
-  );
-  let cursor = address;
-  for (const span of covered) {
-    if (span.start > cursor)
+  if (!whollyCovered) {
+    covered.sort((left, right) =>
+      left.start < right.start ? -1 : left.start > right.start ? 1 : 0,
+    );
+    let cursor = address;
+    for (const span of covered) {
+      if (span.start > cursor)
+        throw new BinaryFormatFailure(
+          "malformed",
+          "Virtual address or string range is not file mapped",
+        );
+      if (span.end > cursor) cursor = span.end;
+    }
+    if (cursor < end)
       throw new BinaryFormatFailure(
         "malformed",
         "Virtual address or string range is not file mapped",
       );
-    if (span.end > cursor) cursor = span.end;
   }
-  if (cursor < end)
-    throw new BinaryFormatFailure(
-      "malformed",
-      "Virtual address or string range is not file mapped",
-    );
   for (const zeroFill of zeroFills) {
     if (spansOverlap(address, BigInt(size), zeroFill.address, zeroFill.size))
       throw new BinaryFormatFailure(

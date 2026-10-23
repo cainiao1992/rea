@@ -209,16 +209,12 @@ export const inspectManagedMembersBytes = (
     const { operand: signatureTypeName, declaration: declarationTypeName } =
       managedTypeNameDigests(layout, issues, parsedTypes, typeReferences);
     const types = parsedTypes.types
-      .filter((type) => selected === null || selected.has(type.token))
-      .map((type) => {
+      .filter(({ type }) => selected === null || selected.has(type.token))
+      .map(({ row, type }) => {
         managedDecodeBudget(layout).reserve(512, type.row_offset);
         return {
           ...type,
-          name_sha256:
-            declarationTypeName(
-              2,
-              Number.parseInt(type.token.slice(4), 16),
-            )?.toString("hex") ?? null,
+          name_sha256: declarationTypeName(2, row)?.toString("hex") ?? null,
         };
       });
     const envelope = managedPeInspectionEnvelope(

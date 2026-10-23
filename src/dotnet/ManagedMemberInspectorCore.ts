@@ -36,6 +36,12 @@ import { memberListTable } from "./ManagedMemberPointers.js";
 import type { TypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 
 export type ManagedType = ManagedMemberInspection["types"][number];
+/** A renderable TypeDef projection paired with its original source row. */
+export interface DecodedTypeDefinition {
+  readonly row: number;
+  readonly type: ManagedType;
+}
+
 export type ManagedExportedType = NonNullable<
   ManagedMemberInspection["exported_types"]
 >[number];
@@ -225,13 +231,13 @@ export const parseTypes = (
   layout: ManagedMetadataLayout,
   definitions: readonly TypeDefinition[],
 ): {
-  readonly types: readonly ManagedType[];
+  readonly types: readonly DecodedTypeDefinition[];
   readonly issues: readonly ManagedParseIssue[];
   readonly nesting: ManagedTypeNesting;
 } => {
   const fields = memberListTable(layout, 4);
   const methods = memberListTable(layout, 6);
-  const items: ManagedType[] = [];
+  const items: DecodedTypeDefinition[] = [];
   const issues: ManagedParseIssue[] = [];
   const nesting = readManagedTypeNesting(bytes, layout, issues);
   for (const definition of definitions) {
@@ -272,26 +278,31 @@ export const parseTypes = (
         detail: `TypeDef Extends coded index 0x${extendsRaw.toString(16)} is invalid: ${extendsIndex.reason}`,
       });
     const enclosingRow = nesting.enclosing.get(row);
+    managedDecodeBudget(layout).reserve(128, cursor.start);
     items.push({
-      token,
-      row_offset: cursor.start,
-      namespace,
-      name,
-      full_name: definition.fullName,
-      flags,
-      extends_token: extendsIndex.kind === "valid" ? extendsIndex.token : null,
-      enclosing_type_token:
-        enclosingRow === undefined ? null : metadataToken(2, enclosingRow),
-      name_sha256: null,
-      field_list: {
-        first_row: fieldRange.first,
-        last_row: fieldRange.last,
-        count: fieldRange.count,
-      },
-      method_list: {
-        first_row: methodRange.first,
-        last_row: methodRange.last,
-        count: methodRange.count,
+      row,
+      type: {
+        token,
+        row_offset: cursor.start,
+        namespace,
+        name,
+        full_name: definition.fullName,
+        flags,
+        extends_token:
+          extendsIndex.kind === "valid" ? extendsIndex.token : null,
+        enclosing_type_token:
+          enclosingRow === undefined ? null : metadataToken(2, enclosingRow),
+        name_sha256: null,
+        field_list: {
+          first_row: fieldRange.first,
+          last_row: fieldRange.last,
+          count: fieldRange.count,
+        },
+        method_list: {
+          first_row: methodRange.first,
+          last_row: methodRange.last,
+          count: methodRange.count,
+        },
       },
     });
   }

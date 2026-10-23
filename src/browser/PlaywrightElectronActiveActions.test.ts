@@ -748,3 +748,40 @@ it.each(["acquisition", "identity"] as const)(
     expect(dispose).toHaveBeenCalledOnce();
   },
 );
+
+it("retains the caller reason when cancellation precedes failed handle disposal", async () => {
+  const controller = new AbortController();
+  const reason = { stop: "during handle disposal" };
+  const dispose = vi
+    .fn()
+    .mockImplementationOnce(async () => {
+      controller.abort(reason);
+      throw new Error("dispose rejected");
+    })
+    .mockResolvedValue(undefined);
+  const page = { locator: () => ({ click: async () => {} }) };
+  const resources = new ArtifactResourceScope();
+  const outcome = await runElectronActions(
+    {
+      windows: () => [page],
+      browserWindow: async () => ({ evaluate: async () => 99, dispose }),
+    } as unknown as ElectronApplication,
+    electronActiveObservationInputSchema.parse({
+      executable_path: "/opt/electron",
+      application_path: "/opt/app/main.js",
+      application_root: "/opt/app",
+      actions: [{ step_id: "selected", kind: "click", selector: "#selected" }],
+    }),
+    { signal: controller.signal },
+    resources,
+  );
+  expect(outcome.actions[0]).toMatchObject({
+    status: "completed",
+    target: "window:99",
+  });
+  expect(outcome.cleanupError?.cleanupPrimary?.cause).toBe(reason);
+  expect(outcome.cleanupError?.cleanupIncomplete).toBe(true);
+  await resources.close();
+  expect(outcome.cleanupError?.cleanupIncomplete).toBe(false);
+  expect(outcome.cleanupError?.cleanupPrimary?.cause).toBe(reason);
+});

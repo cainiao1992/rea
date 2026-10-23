@@ -9,6 +9,8 @@ import type {
 } from "../artifacts/ArtifactResourceScope.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import {
   electronActiveTimelineEventSchema,
@@ -159,7 +161,12 @@ export const runElectronActions = async (
       error: actionError,
     });
     if (handleOwner !== undefined) {
-      cleanupError = await releaseActionWindow(resources, handleOwner);
+      cleanupError = await releaseActionWindow(
+        resources,
+        handleOwner,
+        stoppedBy ?? "completed",
+        options.signal,
+      );
       if (cleanupError !== undefined) stoppedBy = "failed";
     }
   }
@@ -206,6 +213,8 @@ const ownActionWindow = (
 const releaseActionWindow = async (
   resources: ArtifactResourceScope,
   owner: ArtifactResourceOwner,
+  actionStatus: ElectronActions[number]["status"],
+  signal: AbortSignal | undefined,
 ): Promise<AnalysisError | undefined> => {
   const released = await resources.release(owner);
   if (released.kind === "released") return undefined;
@@ -219,7 +228,17 @@ const releaseActionWindow = async (
   );
   error.bindCleanupResourceOwner(released.lease);
   released.lease.bindCleanupError(error);
-  return error;
+  if (!signal?.aborted) return error;
+  const cancellation = new AnalysisCancelledError(OPERATION, {
+    cause: signal.reason,
+  });
+  return actionStatus === "failed"
+    ? error.retainSecondaryFailure(cancellation)
+    : analysisErrorWithCleanupFailure(
+        cancellation,
+        error,
+        OPERATION,
+      ).bindCleanupDependencies([cancellation, error]);
 };
 
 type RunActionContext = {

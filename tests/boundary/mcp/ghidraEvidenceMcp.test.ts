@@ -84,7 +84,7 @@ it.each([
         name: "compare_functions",
         arguments: { left: evidence, right: evidence },
       });
-      expect(reply.isError).not.toBe(true);
+      expect(reply.isError, JSON.stringify(reply)).not.toBe(true);
       const comparison = functionComparisonResultSchema.parse(
         sessionEvidence(harness.session, reply.structuredContent)
           .normalized_result,
@@ -176,7 +176,7 @@ it("retains terminal-call qualifications across function views and snapshot repl
             : { procedure: identity.address, document: "fixture" },
       };
       const reply = await harness.mcp.callTool(request);
-      expect(reply.isError, name).not.toBe(true);
+      expect(reply.isError, `${name}: ${JSON.stringify(reply)}`).not.toBe(true);
       const evidence = sessionEvidence(
         harness.session,
         reply.structuredContent,
@@ -231,7 +231,7 @@ it("retains handler-region limitations on incoming and outgoing reference Eviden
         name: "procedure_references",
         arguments: { procedure: dossier.procedure.address, direction },
       });
-      expect(reply.isError).not.toBe(true);
+      expect(reply.isError, JSON.stringify(reply)).not.toBe(true);
       const evidence = sessionEvidence(
         harness.session,
         reply.structuredContent,

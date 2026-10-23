@@ -243,6 +243,9 @@ it("continues rejecting duplicate explicit record_unknown identities", async () 
       name: "record_unknown",
       arguments: input,
     });
-    expect(parseMcpToolError(duplicate).error.code).toBe("revision_conflict");
+    expect(parseMcpToolError(duplicate).error).toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("already exists"),
+    });
   });
 });

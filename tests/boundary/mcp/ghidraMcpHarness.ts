@@ -265,6 +265,8 @@ const resultBuilders = new Map<GhidraOperation, GhidraResultBuilder>([
       procedure: ghidraFunctionIdentity(),
       direction: input.direction ?? "outgoing",
       references: [ghidraReferenceEdge()],
+      reference_kinds_available: true,
+      unresolved_calls: [],
     }),
   ],
   ["xrefs", () => ["0x401001"]],

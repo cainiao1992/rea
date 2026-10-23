@@ -1,3 +1,4 @@
+import { runWithExecutionLimits } from "./PlaywrightElectronExecution.js";
 // Fixture-backed action coverage; real Electron verification lives in
 // `npm run verify:electron`.
 import { afterEach, expect, it, vi } from "vitest";
@@ -13,7 +14,6 @@ import { createElectronActiveObservationFixtureResult } from "../domain/javascri
 import {
   readFinalApplicationState,
   runElectronActions,
-  runWithExecutionLimits,
 } from "./PlaywrightElectronActiveActions.js";
 
 const fixtureBrowserWindow = async () => ({

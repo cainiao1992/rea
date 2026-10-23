@@ -1,3 +1,4 @@
+import { runWithExecutionLimits } from "./PlaywrightElectronExecution.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { bindArtifactFileCleanup } from "../artifacts/ArtifactFileOperation.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -38,7 +39,6 @@ import {
   runElectronActions,
   readApplicationState,
   readFinalApplicationState,
-  runWithExecutionLimits,
 } from "./PlaywrightElectronActiveActions.js";
 import { projectElectronActiveCapture } from "./PlaywrightElectronActiveProjection.js";
 import { readElectronFuseImage } from "../electron/ElectronFuseReader.js";

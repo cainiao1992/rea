@@ -1,5 +1,6 @@
 import type { ElectronApplication, JSHandle, Page } from "playwright-core";
 import { z } from "zod";
+import { runWithExecutionLimits } from "./PlaywrightElectronExecution.js";
 
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import type {
@@ -101,6 +102,7 @@ export const runElectronActions = async (
     let selectedHandle: SelectedElectronWindow | undefined;
     let handleOwner: ArtifactResourceOwner | undefined;
     let target: string | null = null;
+    let actionError: string | null = null;
     try {
       if (options.signal?.aborted === true)
         throw new BrowserObservationError(OPERATION, "cancelled");
@@ -143,33 +145,19 @@ export const runElectronActions = async (
         selectedHandle,
         options,
       });
-      actions.push({
-        step_id: action.step_id,
-        kind: action.kind,
-        window_index: windowIndex,
-        target,
-        status: "completed",
-        elapsed_ms: Math.max(
-          0,
-          Math.round(performance.now() - actionStartedAt),
-        ),
-        error: null,
-      });
     } catch (cause: unknown) {
       stoppedBy = options.signal?.aborted ? "cancelled" : "failed";
-      actions.push({
-        step_id: action.step_id,
-        kind: action.kind,
-        window_index: windowIndex,
-        target,
-        status: stoppedBy,
-        elapsed_ms: Math.max(
-          0,
-          Math.round(performance.now() - actionStartedAt),
-        ),
-        error: safeActionErrorMessage(cause),
-      });
+      actionError = safeActionErrorMessage(cause);
     }
+    actions.push({
+      step_id: action.step_id,
+      kind: action.kind,
+      window_index: windowIndex,
+      target,
+      status: stoppedBy ?? "completed",
+      elapsed_ms: Math.max(0, Math.round(performance.now() - actionStartedAt)),
+      error: actionError,
+    });
     if (handleOwner !== undefined) {
       cleanupError = await releaseActionWindow(resources, handleOwner);
       if (cleanupError !== undefined) stoppedBy = "failed";
@@ -498,55 +486,6 @@ export const readFinalApplicationState = async (
       cancellation_grace_ms: CANCELLED_STATE_READ_TIMEOUT_MS,
     },
   });
-};
-
-/** Apply an optional lifecycle deadline and caller cancellation to an operation. */
-export const runWithExecutionLimits = async <Value>(
-  operation: Promise<Value>,
-  signal: AbortSignal | undefined,
-  deadline?: number,
-): Promise<Value> => {
-  if (signal?.aborted === true) {
-    // The operation has already started; observe its abandoned settlement.
-    void operation.catch(() => undefined);
-    throw new BrowserObservationError(OPERATION, "cancelled", {
-      cause: signal.reason,
-    });
-  }
-  if (signal === undefined && deadline === undefined) return operation;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let abortListener: (() => void) | undefined;
-  const interruptions: Promise<never>[] = [];
-  if (deadline !== undefined)
-    interruptions.push(
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new BrowserObservationError(OPERATION, "timeout")),
-          Math.max(1, deadline - performance.now()),
-        );
-      }),
-    );
-  if (signal !== undefined)
-    interruptions.push(
-      new Promise<never>((_, reject) => {
-        abortListener = () =>
-          reject(
-            new BrowserObservationError(OPERATION, "cancelled", {
-              cause: signal.reason,
-            }),
-          );
-        signal.addEventListener("abort", abortListener, { once: true });
-      }),
-    );
-  try {
-    return interruptions.length === 0
-      ? await operation
-      : await Promise.race([operation, ...interruptions]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-    if (abortListener !== undefined)
-      signal?.removeEventListener("abort", abortListener);
-  }
 };
 
 const safeActionErrorMessage = (cause: unknown): string => {

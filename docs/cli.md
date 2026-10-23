@@ -436,6 +436,10 @@ keeps that target's analysis commitments with the replacement client. This
 includes the native dispatch workflow profile on a profileless route, so its
 existing snapshot and fresh observations retain the same provenance.
 
+For native dispatch, the snapshot binding retains the reader profile; workflow
+Evidence and `workflow_entries` retain the composed profile, which commits that
+reader and the workflow's analysis caveats. Restoration preserves both profiles.
+
 The MCP save receipt reports `primitive_entries`, `workflow_entries`, and
 `evidence_records` separately. Zero primitive bindings can still accompany retained workflow
 results and Evidence. These are cached observations, not a saved provider

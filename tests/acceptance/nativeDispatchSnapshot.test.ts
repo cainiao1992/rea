@@ -5,6 +5,7 @@ import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import { parseEvidence } from "../../src/domain/evidence.js";
 import { readAnalysisSnapshot } from "../../src/application/binary/AnalysisSnapshotFiles.js";
+import { workflowAnalysisProfile } from "../../src/application/WorkflowAnalysisProfile.js";
 import { APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE } from "../../src/native/NativeMacOSProviderMetadata.js";
 import {
   CPU,
@@ -66,10 +67,21 @@ cliTest.skipIf(process.platform !== "darwin")(
         .structuredContent,
     );
     expect(original.analysis_profile).toEqual(
-      APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
+      workflowAnalysisProfile(
+        APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
+        "inspect_native_dispatch_metadata",
+      ),
     );
     await good("record_unknown", { ...unknown, severity: "medium" });
     await good("close_binary", { snapshot_path: saved, overwrite: true });
+    const savedSnapshot = await readAnalysisSnapshot(saved);
+    if (!savedSnapshot.ok) throw savedSnapshot.error;
+    expect(savedSnapshot.value.binding.analysis_profile).toEqual(
+      APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
+    );
+    expect(
+      savedSnapshot.value.workflow_entries[0]?.execution.analysis_profile,
+    ).toEqual(original.analysis_profile);
     await good("open_binary", { path: first, snapshot_path: saved });
     const rejected = await call("open_binary", {
       path: second,
@@ -94,7 +106,12 @@ cliTest.skipIf(process.platform !== "darwin")(
     const snapshot = await readAnalysisSnapshot(after);
     if (!snapshot.ok) throw snapshot.error;
     expect(snapshot.value.binding.analysis_profile).toEqual(
-      original.analysis_profile,
+      savedSnapshot.value.binding.analysis_profile,
+    );
+    expect(
+      snapshot.value.workflow_entries[0]?.execution.analysis_profile,
+    ).toEqual(
+      savedSnapshot.value.workflow_entries[0]?.execution.analysis_profile,
     );
     expect(await readFile(first)).toEqual(Buffer.from(bytes));
     expect(await readFile(second)).toEqual(Buffer.from(bytes));

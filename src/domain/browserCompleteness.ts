@@ -45,7 +45,7 @@ export type BrowserExclusionReason = z.infer<
   typeof browserExclusionReasonSchema
 >;
 
-const browserExclusionSchema = z.object({
+export const browserExclusionSchema = z.object({
   section: browserSectionSchema,
   reason: browserExclusionReasonSchema,
   count: z.int().min(0).nullable(),

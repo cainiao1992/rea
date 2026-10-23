@@ -558,6 +558,13 @@ Network and console coverage starts only after REA attaches and enables the rele
 
 Source maps are not fetched by inspection. Bundle analysis fetches them only when `fetch_source_maps` is selected, with exact-origin redirect checks and no credentials, cookies, or referrer. Each fetch operation uses `source_map_fetch_timeout_ms` (default 30000) and a 64 MiB aggregate streamed-response budget across redirects. The byte budget has no runtime override. A fetch overrun is an item limitation, not a thrown analysis timeout. A deadline or byte-limit failure remains explicitly unavailable and makes bundle completeness partial. Source-map decoding also bounds raw resolved identities to 64 MiB and aggregate inline evidence to 32 MiB. Failed maps preserve their failure context when it fits; if another context cannot fit, collection stops with the full requested count, the returned processed count, and an explicit unknown-results limitation. Retained mappings and original sources are returned inline. See [source-location limits](web-source-location.md) for the structural decoder bounds. Original source artifacts with `.ts`, `.tsx`, `.mts`, or `.cts` suffixes carry `text/typescript`; other source names retain `text/javascript`.
 
+When fetching is selected, source-map `excluded` facts preserve the capture
+ledger's reasons and counts for declarations rejected before download. No
+disallowed URL details are retained or fetched. `requested` and `processed`
+count the admitted fetch requests; exclusions are counted separately. Excluded
+declarations make the collection unavailable, or partial when maps were retained.
+An empty collection with no declarations remains `not_requested`.
+
 Source-map items retain the script's `declared_url` separately from the observed
 `effective_url`. Successful maps use the latter as their source-resolution base.
 Failed fetches retain the last response URL observed within the approved origins;

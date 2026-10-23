@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { browserExclusionSchema } from "./browserCompleteness.js";
 import { javaScriptRouteInventorySchema } from "./javascript/javascriptRouteInventory.js";
 
 import {
@@ -315,6 +316,12 @@ export const webSourceMapsSchema = z
     requested: z.int().min(0),
     processed: z.int().min(0),
     items: z.array(sourceMapSchema),
+    /** Capture exclusions retain counts/reasons without disallowed URL details. */
+    excluded: z
+      .array(
+        browserExclusionSchema.extend({ section: z.literal("source_maps") }),
+      )
+      .optional(),
     limitation: z.string().min(1).optional(),
   })
   .superRefine((sourceMaps, context) => {
@@ -341,7 +348,9 @@ export const webSourceMapsSchema = z
       (status) => status === "included" || status === "partial",
     ).length;
     const allowedStatuses =
-      sourceMaps.processed < sourceMaps.requested
+      sourceMaps.processed < sourceMaps.requested ||
+      sourceMaps.excluded?.some(({ count }) => count === null || count > 0) ===
+        true
         ? retained === 0
           ? ["unavailable"]
           : ["partial"]

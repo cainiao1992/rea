@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, parse, relative } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -402,3 +409,35 @@ describe("Ghidra language override profile", () => {
     ).toBe(false);
   });
 });
+
+it
+  .skipIf(process.platform === "win32" || process.getuid?.() === 0)
+  .each(["Ghidra/Processors", "Ghidra/Processors/x86/data/languages"])(
+  "preserves a physical refusal reading the language catalog directory %s",
+  async (relativePath) => {
+    const root = await createTestTempDirectory(
+      "rea-ghidra-catalog-permission-",
+    );
+    const languages = join(root, "Ghidra/Processors/x86/data/languages");
+    await mkdir(languages, { recursive: true });
+    await writeFile(join(languages, "x86.ldefs"), X86_LDEFS);
+    const resources = new ArtifactResourceScope();
+    const blocked = join(root, relativePath);
+    try {
+      const original = await readGhidraLanguageCatalog(root, resources);
+      expect(original.length).toBeGreaterThan(0);
+      await chmod(blocked, 0);
+      await expect(readdir(blocked)).rejects.toMatchObject({ code: "EACCES" });
+      await expect(
+        readGhidraLanguageCatalog(root, resources),
+      ).rejects.toMatchObject({ code: "EACCES", path: blocked });
+      await chmod(blocked, 0o755);
+      expect(await readGhidraLanguageCatalog(root, resources)).toEqual(
+        original,
+      );
+    } finally {
+      await chmod(blocked, 0o755);
+      await resources.close();
+    }
+  },
+);

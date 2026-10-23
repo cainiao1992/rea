@@ -25,6 +25,7 @@ import {
 } from "./javascriptAstValues.js";
 import { semanticRequireCallAt } from "./javascriptSemanticRequireOrigin.js";
 import {
+  commonJsExportApplicability,
   commonJsRuntimeExportValues,
   indexCommonJsExportReceiversSteps,
   type CommonJsExportReceiverEffect,
@@ -203,14 +204,19 @@ const inspectReExport = (
   bindings: JavaScriptSemanticAnalysisState,
   receiver: CommonJsExportReceiverEffect | undefined,
 ): void => {
-  const exported = commonJsRuntimeExportValues(node, bindings);
-  if (exported.length === 0 || receiver === "detached") return;
-  if (receiver === "uncertain") {
+  const exported = commonJsRuntimeExportValues(node, bindings)[0];
+  if (exported === undefined) return;
+  const applicability = commonJsExportApplicability(
+    receiver,
+    exported.exportedName,
+  );
+  if (applicability === "detached") return;
+  if (applicability === "uncertain") {
     context.accumulator.unknownFindings += 1;
     return;
   }
   // The export owner leaves arithmetic/logical stores without a selected RHS.
-  const value = exported[0]?.value;
+  const value = exported.value;
   if (value == null) return;
   const required = nativeRequire(value, context, bindings);
   if (required === undefined) return;

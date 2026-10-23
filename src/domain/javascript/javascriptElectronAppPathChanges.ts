@@ -364,15 +364,13 @@ export const createSemanticElectronAppPathChangeQuery = (
       (!t.isAssignmentExpression(node) && !t.isCallExpression(node))
     )
       return false;
-    commonJsReceivers ??= completeSemanticSteps(
+    const receivers = (commonJsReceivers ??= completeSemanticSteps(
       indexCommonJsExportReceiversSteps(state),
-    );
+    ));
     return exported.some(
       ({ exportedName, value, projection, ownEnumerable }) =>
-        commonJsExportApplicability(
-          commonJsReceivers.get(node),
-          exportedName,
-        ) !== "detached" &&
+        commonJsExportApplicability(receivers.get(node), exportedName) !==
+          "detached" &&
         value !== null &&
         possiblePath(value, true, projection, ownEnumerable),
     );

@@ -13,7 +13,7 @@ export const NATIVE_AOT_MAX_WORK_UNITS = 64 * 1024 * 1024;
 export const NATIVE_AOT_MAX_WORKING_MEMORY_BYTES = 64 * 1024 * 1024;
 /** Version of the built-in read-only PE metadata interpretation in profiles. */
 export const NATIVE_AOT_PROFILE_CONTRACT_REVISION =
-  "rtr-9.1-x64-pe-read-only-v5";
+  "rtr-9.1-x64-pe-read-only-v6";
 
 export type NativeAotParserLimits = {
   readonly sourceBytes: number;
@@ -186,6 +186,68 @@ class MethodTableIndex {
     if (!this.isIncluded(index)) {
       this.#records.writeUInt8(1, index * METHOD_TABLE_RECORD_BYTES + 28);
       this.#includedCount++;
+    }
+  }
+
+  /** Index validated related pointers once, then visit every reachable table once. */
+  includeReachable(root: number, image: PeImage): boolean {
+    const storageBytes = this.#count * 3 * Int32Array.BYTES_PER_ELEMENT;
+    if (!this.budget.reserveWorkingMemory(storageBytes)) return false;
+    try {
+      if (!this.budget.consumeWork(this.#count * 8)) return false;
+      const storage = new Int32Array(this.#count * 3);
+      const children = storage.subarray(0, this.#count).fill(-1);
+      const next = storage.subarray(this.#count, this.#count * 2).fill(-1);
+      const queue = storage.subarray(this.#count * 2);
+      for (let index = 0; index < this.#count; index += 1) {
+        const related = this.#records.readBigUInt64LE(
+          index * METHOD_TABLE_RECORD_BYTES + 16,
+        );
+        if (related === 0n) continue;
+        const parent = this.find(related, this.budget);
+        if (this.budget.truncationReason !== undefined) return false;
+        if (parent >= 0) {
+          next[index] = children[parent] ?? -1;
+          children[parent] = index;
+        }
+      }
+      let read = 0;
+      let write = 0;
+      const include = (index: number) => {
+        if (this.isIncluded(index)) return;
+        this.include(index);
+        queue[write++] = index;
+      };
+      include(root);
+      while (read < write) {
+        const baseIndex = queue[read++] ?? -1;
+        const base = this.at(baseIndex);
+        if (base === undefined) continue;
+        for (
+          let child = children[baseIndex] ?? -1;
+          child >= 0;
+          child = next[child] ?? -1
+        ) {
+          if (!this.budget.consumeWork(8)) return false;
+          include(child);
+        }
+        for (let index = 0; index < base.interfacesCount; index += 1) {
+          if (!this.budget.consumeWork(8)) return false;
+          const address = readU64(
+            image.read(
+              base.address + 24n + BigInt((base.slotsCount + index) * 8),
+              8,
+            ),
+          );
+          if (address === null) continue;
+          const interfaceIndex = this.find(address, this.budget);
+          if (this.budget.truncationReason !== undefined) return false;
+          if (interfaceIndex >= 0) include(interfaceIndex);
+        }
+      }
+      return true;
+    } finally {
+      this.budget.releaseWorkingMemory(storageBytes);
     }
   }
 
@@ -655,20 +717,25 @@ const findDirectory = (
   let found: RtrDirectory | null = null;
   let matches = 0;
   let scanBytesExamined = 0;
-  let totalScanBytes = 0;
-  let truncated = false;
-  scan: for (const section of image.sections) {
+  const ranges = image.sections.flatMap((section) => {
     if (
       (section.characteristics & 0x40000000) === 0 ||
       (section.characteristics & 0x20000000) !== 0
     )
-      continue;
+      return [];
     const begin = section.rawOffset;
     const end = begin + fileBackedVirtualExtent(section);
     const first = (begin + 7) & ~7;
     const candidateBytes =
       first <= end - 16 ? (Math.floor((end - 16 - first) / 8) + 1) * 8 : 0;
-    totalScanBytes += candidateBytes;
+    return [{ section, begin, end, first, candidateBytes }];
+  });
+  const totalScanBytes = ranges.reduce(
+    (total, range) => total + range.candidateBytes,
+    0,
+  );
+  let truncated = false;
+  scan: for (const { section, begin, end, first } of ranges) {
     for (let offset = first; offset <= end - 16; offset += 8) {
       if (!budget.consumeWork(8)) {
         truncated = true;
@@ -1163,55 +1230,7 @@ const discoverTables = (
       workBytesExamined,
       truncated,
     };
-  candidates.include(objectRoot);
-  let changed = true;
-  while (changed && !truncated) {
-    changed = false;
-    candidates.forEach((base, baseIndex) => {
-      if (truncated || !candidates.isIncluded(baseIndex)) return;
-      for (
-        let candidateIndex = 0;
-        candidateIndex < candidates.count;
-        candidateIndex++
-      ) {
-        if (!budget.consumeWork(8)) {
-          truncated = true;
-          return;
-        }
-        const candidate = candidates.at(candidateIndex);
-        if (
-          candidate !== undefined &&
-          candidate.related === base.address &&
-          !candidates.isIncluded(candidateIndex)
-        ) {
-          candidates.include(candidateIndex);
-          changed = true;
-        }
-      }
-      for (let index = 0; index < base.interfacesCount; index++) {
-        if (!budget.consumeWork(8)) {
-          truncated = true;
-          return;
-        }
-        const ifaceAddress = readU64(
-          image.read(
-            base.address + 24n + BigInt((base.slotsCount + index) * 8),
-            8,
-          ),
-        );
-        if (ifaceAddress === null) continue;
-        const interfaceIndex = candidates.find(ifaceAddress, budget);
-        if (budget.truncationReason !== undefined) {
-          truncated = true;
-          return;
-        }
-        if (interfaceIndex >= 0 && !candidates.isIncluded(interfaceIndex)) {
-          candidates.include(interfaceIndex);
-          changed = true;
-        }
-      }
-    });
-  }
+  truncated = !candidates.includeReachable(objectRoot, image);
   return {
     tables: candidates,
     pointerCount,

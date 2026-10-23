@@ -10,6 +10,77 @@ import {
 } from "../../../tests/fixtures/nativeaotPe.js";
 const SUMMARY_BUDGET = NATIVE_AOT_MAX_REPORT_BYTES;
 
+const linkedTableFixture = (shape: "deep" | "wide" | "interfaces") => {
+  const count = shape === "interfaces" ? 4 : 24;
+  const bytes = Buffer.alloc(0xa00 + count * 64);
+  nativeAotPeFixture().copy(bytes);
+  const data = 0x98 + 0xf0 + 40;
+  bytes.writeUInt32LE(bytes.length - 0x600, data + 8);
+  bytes.writeUInt32LE(bytes.length - 0x600, data + 16);
+  bytes.writeUInt32LE(0x5000, 0x98 + 56);
+  const address = (index: number) => 0x140002400n + BigInt(index * 64);
+  for (let index = 0; index < count; index += 1) {
+    const offset = 0xa00 + index * 64;
+    const isInterface = shape === "interfaces" && index === 2;
+    bytes.writeUInt32LE(isInterface ? 0x54000000 : 0x50000000, offset);
+    bytes.writeUInt32LE(0x20, offset + 4);
+    const parent = isInterface
+      ? 0n
+      : shape === "deep" && index < count - 1
+        ? address(index + 1)
+        : shape === "interfaces" && index === 3
+          ? address(2)
+          : 0x140002200n;
+    bytes.writeBigUInt64LE(parent, offset + 8);
+    if (shape === "interfaces" && index < 2) {
+      bytes.writeUInt16LE(1, offset + 18);
+      bytes.writeBigUInt64LE(address(2), offset + 24);
+    }
+  }
+  return {
+    bytes,
+    expected: Array.from(
+      { length: count },
+      (_, index) => `0x${address(index).toString(16)}`,
+    ),
+  };
+};
+
+describe("NativeAOT indexed MethodTable closure", () => {
+  it.each(["deep", "wide", "interfaces"] as const)(
+    "retains %s inheritance and shared interface relationships",
+    (shape) => {
+      const { bytes, expected } = linkedTableFixture(shape);
+      const before = Buffer.from(bytes);
+      const parsed = parseNativeAotPe(
+        bytes,
+        nativeAotPeDigest(bytes),
+        SUMMARY_BUDGET,
+      );
+      expect(parsed.summary.status).toBe("complete");
+      expect(parsed.summary.types.map(({ address }) => address)).toEqual([
+        "0x140002200",
+        "0x140002280",
+        "0x1400022c0",
+        ...expected,
+      ]);
+      expect(bytes).toEqual(before);
+    },
+  );
+
+  it("keeps duplicate System.Object roots unresolved", () => {
+    const { bytes } = linkedTableFixture("wide");
+    bytes.copy(bytes, 0xa00, 0x800, 0x830);
+    const parsed = parseNativeAotPe(
+      bytes,
+      nativeAotPeDigest(bytes),
+      SUMMARY_BUDGET,
+    );
+    expect(parsed.summary.method_tables).toBe(0);
+    expect(parsed.summary.reason).toContain("unique System.Object");
+  });
+});
+
 describe("read-only NativeAOT PE parser", () => {
   it("recovers a bounded RTR9.1 type graph and frozen literal from captured bytes", () => {
     const bytes = nativeAotPeFixture();

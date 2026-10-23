@@ -97,7 +97,19 @@ it.each(
       },
     });
     const text = Buffer.concat(chunks).toString("utf8");
-    if (full)
+    if (full && format === "jsonl") {
+      const records = text
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(records.slice(0, -1)).toEqual([1, null, null]);
+      expect(records.at(-1)).toMatchObject({
+        $rea: "jsonl/v1",
+        type: "metadata",
+        records: { path: ["data"], emitted: 3, source: 3, filter: "selected" },
+        context: { ok: true, meta: { command: "rows" } },
+      });
+    } else if (full)
       expect(JSON.parse(text)).toMatchObject({
         ok: true,
         data: [1, null, null],

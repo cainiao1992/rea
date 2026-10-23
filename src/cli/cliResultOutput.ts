@@ -16,6 +16,8 @@ import {
   type AnalysisErrorProjection,
 } from "../domain/analysisErrorProjection.js";
 import { formatCliOutput } from "./cliOutputFormatter.js";
+import { jsonLinesErrorRecord } from "./jsonLines.js";
+import { writeCliJsonLines } from "./jsonLinesOutput.js";
 import {
   jsonOutputParts,
   writeJsonOutput,
@@ -40,6 +42,13 @@ export interface CliResultOutput {
   readonly handled: boolean;
   readonly failed: boolean;
   readonly error: AnalysisErrorProjection | undefined;
+  /** Start another completed invocation on a reusable command registry. */
+  begin(options: ParsedCliOutputArguments): void;
+  /** SDK generators retain their own streaming event protocol. */
+  delegateStreaming(): void;
+  /** Retain one-shot SDK output until the SDK supplies its authoritative status. */
+  captureSdkOutput(text: string): boolean;
+  finishSdkOutput(exitCode: number): Promise<void>;
   write(value: unknown, metadata: CliResultOutputMetadata): Promise<boolean>;
   /** Recover only before any delegated stdout has been written. */
   recoverFormattingFailure(cause: unknown): Promise<boolean>;
@@ -70,8 +79,10 @@ const wrapCommand = (
       typeof result === "object" &&
       result !== null &&
       Symbol.asyncIterator in result
-    )
+    ) {
+      output.delegateStreaming();
       return result;
+    }
     return Promise.resolve(result).then(async (value: unknown) => {
       if (
         typeof value === "object" &&
@@ -100,14 +111,22 @@ const wrapCommand = (
 
 /** Preserve Incur output controls and stream JSON while framing failures. */
 export const createCliResultOutput = (
-  options: ParsedCliOutputArguments,
+  initialOptions: ParsedCliOutputArguments,
   destination: Writable,
 ): CliResultOutput | undefined => {
-  if (options.parseError || !options.validation.ok) return undefined;
-  const format = options.format as "json" | "jsonl" | "yaml" | "toon" | "md";
+  let options = initialOptions;
+  if (
+    (options.parseError && options.format !== "jsonl") ||
+    !options.validation.ok
+  )
+    return undefined;
+  let format = options.format as "json" | "jsonl" | "yaml" | "toon" | "md";
   let handled = false;
   let failed = false;
   let error: AnalysisErrorProjection | undefined;
+  let streaming = false;
+  const sdkParts: string[] = [];
+  let sdkCompletion: Promise<void> | undefined;
   let completed:
     | {
         readonly metadata: CliResultOutputMetadata;
@@ -160,7 +179,10 @@ export const createCliResultOutput = (
       : error;
     // Recovery must remain actionable even when a token window/count was
     // requested. Do not apply those controls to this small typed failure.
-    const text = formatCliOutput(document, format);
+    const text = formatCliOutput(
+      format === "jsonl" ? jsonLinesErrorRecord(document) : document,
+      format,
+    );
     handled = true;
     try {
       await writeOutputText(destination, `${text}\n`);
@@ -193,6 +215,55 @@ export const createCliResultOutput = (
     get error() {
       return error;
     },
+    begin(nextOptions) {
+      options = nextOptions;
+      format = options.format as typeof format;
+      handled = false;
+      failed = false;
+      error = undefined;
+      completed = undefined;
+      streaming = false;
+      sdkParts.length = 0;
+      sdkCompletion = undefined;
+    },
+    delegateStreaming() {
+      streaming = true;
+    },
+    captureSdkOutput(text) {
+      if (format !== "jsonl" || streaming || handled) return false;
+      // Incur already materializes one-shot documents. Retain references only;
+      // generator events bypass this buffer and remain incremental.
+      if (text.length > 0) sdkParts.push(text);
+      return true;
+    },
+    finishSdkOutput(exitCode) {
+      return (sdkCompletion ??= (async () => {
+        const parts = sdkParts.splice(0);
+        if (parts.length === 0) return;
+        try {
+          if (exitCode === 0) {
+            for (const part of parts) await writeOutputText(destination, part);
+          } else {
+            const text = parts.join("");
+            let result: unknown = text;
+            try {
+              result = JSON.parse(text);
+            } catch {
+              /* Preserve non-JSON SDK diagnostics verbatim. */
+            }
+            await writeJsonOutput(
+              jsonLinesErrorRecord(result),
+              destination,
+              "jsonl",
+            );
+          }
+        } catch (cause: unknown) {
+          handled = true;
+          failed = true;
+          throw cause;
+        }
+      })());
+    },
     write,
     recoverFormattingFailure,
   };
@@ -209,7 +280,7 @@ export const createCliResultOutput = (
       ? Filter.parse(options.filterOutput)
       : undefined;
     const operationFailure =
-      options.fullOutput || filterPaths !== undefined
+      format === "jsonl" || options.fullOutput || filterPaths !== undefined
         ? cliOperationFailurePayload(value)
         : undefined;
     const failure = options.fullOutput ? operationFailure : undefined;
@@ -222,6 +293,7 @@ export const createCliResultOutput = (
     if (
       operationFailure === undefined &&
       metadata.renderOutput === false &&
+      format !== "jsonl" &&
       !options.fullOutput &&
       !options.tokenCount
     )
@@ -254,6 +326,26 @@ export const createCliResultOutput = (
       !ownsSuccessfulTokenWindow
     )
       return false;
+    if (format === "jsonl") {
+      handled = true;
+      try {
+        error = await writeCliJsonLines(
+          {
+            ...options,
+            source: value,
+            selected: filtered,
+            operationFailure,
+            command: metadata.command,
+            duration: metadata.duration,
+          },
+          destination,
+        );
+      } catch (cause: unknown) {
+        failed = true;
+        throw cause;
+      }
+      return true;
+    }
     if (options.tokenCount) {
       // Incur/tokenx materialize JSON. Measure its UTF-16 expansion before
       // allowing that allocation, independently of UTF-8 bytes. Other formats
@@ -266,7 +358,7 @@ export const createCliResultOutput = (
         typeof tokenValue !== "function" &&
         typeof tokenValue !== "symbol"
       ) {
-        if (format === "json" || format === "jsonl") {
+        if (format === "json") {
           for (const part of jsonOutputParts(
             tokenValue,
             format,
@@ -382,8 +474,7 @@ export const createCliResultOutput = (
     const formattedText =
       format === "md" ||
       ((operationFailure !== undefined || ownsFilteredOutput) &&
-        format !== "json" &&
-        format !== "jsonl")
+        format !== "json")
         ? formatCliOutput(document, format)
         : undefined;
     if (

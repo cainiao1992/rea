@@ -182,6 +182,7 @@ async function runOneShot(args) {
               return;
             }
             if (output.length > 0) wroteOutput = true;
+            if (resultOutput?.captureSdkOutput(output)) return;
             process.stdout.write(output);
           },
           exit: (code) => {
@@ -198,6 +199,10 @@ async function runOneShot(args) {
         const empty = renderEmptyFilteredCliOutput(outputOptions);
         if (empty) process.stdout.write(empty);
       }
+      await resultOutput?.finishSdkOutput(
+        explicitExit ??
+          (typeof process.exitCode === "number" ? process.exitCode : 0),
+      );
     }
   } finally {
     process.stdout.write = originalStdoutWrite;

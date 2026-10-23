@@ -140,6 +140,7 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
               return;
             }
             if (output.length > 0) wroteOutput = true;
+            if (resultOutput?.captureSdkOutput(output)) return;
             writeStdout(output);
           },
           // A command failure caused by the closed pipe keeps the pipe's status.
@@ -147,26 +148,25 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
           // shutdown is reported here because this callback is what exits.
           exit: (code) => {
             exiting = true;
-            const status = stdoutClosed ? SIGPIPE_EXIT_STATUS : code;
-            void Promise.resolve()
-              .then(() => closeCliJavaScriptResources())
-              .then(
-                () => {
-                  process.exit(status);
-                },
-                (cleanup) => {
-                  process.stderr.write(
-                    `Failed to close the JavaScript analysis worker: ${cleanupFailureText(cleanup)}\n`,
-                  );
-                  process.exit(
-                    stdoutClosed
-                      ? SIGPIPE_EXIT_STATUS
-                      : status === 0
-                        ? 1
-                        : status,
-                  );
-                },
-              );
+            void (async () => {
+              let status = code;
+              try {
+                await closeCliJavaScriptResources();
+              } catch (cleanup) {
+                process.stderr.write(
+                  `Failed to close the JavaScript analysis worker: ${cleanupFailureText(cleanup)}\n`,
+                );
+                if (status === 0) status = 1;
+              }
+              try {
+                await resultOutput?.finishSdkOutput(code);
+              } catch (cause) {
+                if (!stdoutClosed)
+                  process.stderr.write(`${cleanupFailureText(cause)}\n`);
+                if (status === 0) status = 1;
+              }
+              process.exit(stdoutClosed ? SIGPIPE_EXIT_STATUS : status);
+            })();
           },
         });
       } catch (cause) {
@@ -184,6 +184,11 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
       }
       if (!wroteOutput && !resultOutput?.handled)
         writeStdout(renderEmptyFilteredCliOutput(outputOptions) ?? "");
+      // An SDK failure exits through the callback, which owns its pending write.
+      if (!exiting)
+        await resultOutput?.finishSdkOutput(
+          typeof process.exitCode === "number" ? process.exitCode : 0,
+        );
     }
   } catch (cause) {
     dispatchFailure = cause;

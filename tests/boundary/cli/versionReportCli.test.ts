@@ -53,6 +53,15 @@ cliTest(
     });
     expect(json.stdout).not.toContain(marker);
 
+    const jsonl = await cli.run({
+      arguments: ["--version", "--format", "jsonl"],
+      cwd,
+      environment,
+    });
+    expect(jsonl.exitCode, jsonl.stderr).toBe(0);
+    expect(jsonl.stdout.trimEnd().split("\n")).toHaveLength(1);
+    expect(versionReportSchema.parse(JSON.parse(jsonl.stdout))).toEqual(report);
+
     const yaml = await cli.run({
       arguments: ["--version", "--format=yaml"],
       cwd,

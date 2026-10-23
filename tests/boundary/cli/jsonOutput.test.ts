@@ -634,7 +634,7 @@ describe("CLI result output surface", () => {
 describe("streamed CLI filtered selections", () => {
   it.each([
     ["raw_result", "json", "null\n"],
-    ["raw_result", "jsonl", "null\n"],
+    ["raw_result", "jsonl", "JSONL_BOUNDARY_ERROR"],
     ["nested.value", "json", '{"nested":{"value":null}}\n'],
     ["missing", "json", "{}\n"],
     ["count", "json", "0\n"],
@@ -663,7 +663,14 @@ describe("streamed CLI filtered selections", () => {
         { raw_result: null, nested: { value: null }, count: 0, enabled: false },
         { command: "fixture", duration: "1ms", format },
       );
-      expect(Buffer.concat(chunks).toString("utf8")).toBe(expected);
+      const text = Buffer.concat(chunks).toString("utf8");
+      if (expected === "JSONL_BOUNDARY_ERROR")
+        expect(JSON.parse(text)).toMatchObject({
+          $rea: "jsonl/v1",
+          type: "error",
+          result: { code: "unreadable_output" },
+        });
+      else expect(text).toBe(expected);
     },
   );
 });

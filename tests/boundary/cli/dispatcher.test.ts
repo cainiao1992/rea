@@ -97,7 +97,7 @@ describe("executable dispatcher", () => {
       await installCliRuntime(
         workspace,
         'export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (_args, options) => { options.stdout("first document\\n"); throw new RangeError("Invalid string length"); } });\n',
-        'export const createCliResultOutput = () => ({ handled: false, failed: false, recoverFormattingFailure: () => { process.stdout.write("unexpected second document"); return true; } });\n',
+        'export const createCliResultOutput = () => ({ handled: false, failed: false, captureSdkOutput: () => false, finishSdkOutput: async () => {}, recoverFormattingFailure: () => { process.stdout.write("unexpected second document"); return true; } });\n',
       );
       const result = await processes.run(
         process.execPath,
@@ -225,6 +225,45 @@ describe("executable dispatcher", () => {
 });
 
 describe("executable dispatcher JavaScript shutdown", () => {
+  workspaceCliTest.for([
+    "success",
+    "cleanup-failure",
+    "write-failure",
+    "closed-pipe",
+  ] as const)(
+    "awaits SDK output after cleanup and retains finalization status: %s",
+    async (scenario, { processes, workspace }) => {
+      const cleanupFails = scenario === "cleanup-failure";
+      const finish =
+        scenario === "closed-pipe"
+          ? 'process.stdout.emit("error", Object.assign(new Error("broken pipe"), { code: "EPIPE" })); throw new Error("broken pipe");'
+          : scenario === "write-failure"
+            ? 'throw new Error("final write failed");'
+            : 'process.stdout.write("complete document\\n");';
+      await installCliRuntime(
+        workspace,
+        `export const closeCliJavaScriptResources = () => { globalThis.cleaned = true; ${cleanupFails ? 'return Promise.reject(new Error("worker still owned"));' : ""} }; export const createCli = () => ({ serve: (_args, options) => { options.stdout("pending document"); options.exit(0); } });\n`,
+        `export const createCliResultOutput = () => ({ handled: false, failed: false, captureSdkOutput: () => true, finishSdkOutput: async () => { if (!globalThis.cleaned) throw new Error("output preceded cleanup"); await new Promise(resolve => setTimeout(resolve, 10)); ${finish} } });\n`,
+      );
+      const result = await processes.run(
+        process.execPath,
+        [workspace.path("scripts/rea.mjs"), "fixture"],
+        { cwd: workspace.root },
+      );
+      expect(result.exitCode).toBe(
+        scenario === "closed-pipe" ? 141 : scenario === "success" ? 0 : 1,
+      );
+      expect(result.stdout).toBe(
+        scenario === "success" || cleanupFails ? "complete document\n" : "",
+      );
+      expect(result.stderr).not.toContain("output preceded cleanup");
+      if (cleanupFails) expect(result.stderr).toContain("worker still owned");
+      if (scenario === "write-failure")
+        expect(result.stderr).toContain("final write failed");
+      if (scenario === "closed-pipe") expect(result.stderr).toBe("");
+    },
+  );
+
   workspaceCliTest(
     "reports a failed JavaScript worker shutdown instead of exiting successfully",
     async ({ processes, workspace }) => {

@@ -147,7 +147,7 @@ it("retries the tracer-owned resolver supervisor before another trace", async ()
     const result = await tracer.trace(request);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error._tag).toBe("AnalysisCapabilityUnavailableError");
+    expect(result.error._tag).toBe("ProviderAdapterError");
     expect(result.error.cleanupIncomplete).toBe(true);
     expect(result.error.cleanupResources).toEqual(["owned-resolver-process"]);
     expect(projectAnalysisError(result.error).code).toBe("cleanup_incomplete");

@@ -1,3 +1,5 @@
+import { translateNativeCommandFailure } from "./NativeCommandAnalysisError.js";
+import { DEFAULT_NATIVE_COMMAND_TIMEOUT_MS } from "../domain/native/nativeDeadlines.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -515,39 +517,19 @@ export class LldbCallTracer implements NativeCallTracer {
     const preparation = failure.preparationFailure;
     if (preparation !== undefined)
       return withResolverMarkers(lldbPreparationFailure(preparation), markers);
-    const cleanup =
-      markers.length === 0
-        ? undefined
-        : {
-            reason: markers
-              .map((marker) =>
-                typeof marker.diagnostics?.reason === "string"
-                  ? marker.diagnostics.reason
-                  : marker.message,
-              )
-              .join("; "),
-            resources: [
-              ...new Set(markers.flatMap((marker) => marker.cleanupResources)),
-            ],
-          };
-    const cleanupContext =
-      cleanup === undefined ? {} : { cause: failure, cleanup };
-    const error =
-      failure.reason === "cancelled"
-        ? new AnalysisCancelledError(OPERATION, {
-            ...(cleanup === undefined ? {} : { cleanup }),
-            ...(failure.cancellation === undefined
-              ? cleanup === undefined
-                ? {}
-                : { cause: failure }
-              : { cause: failure.cancellation.reason }),
-          })
-        : new AnalysisCapabilityUnavailableError(
-            PROVIDER,
-            OPERATION,
-            LLDB_REQUIREMENT,
-            { ...cleanupContext, userMessage: LLDB_REQUIREMENT },
-          );
+    const error = translateNativeCommandFailure(
+      OPERATION,
+      failure,
+      DEFAULT_NATIVE_COMMAND_TIMEOUT_MS,
+      {
+        unavailableMessage: LLDB_REQUIREMENT,
+        timeoutRecovery: {
+          userMessage: `LLDB discovery reached REA's ${String(DEFAULT_NATIVE_COMMAND_TIMEOUT_MS)}ms xcrun deadline. This is not the client deadline.`,
+          remediationAction:
+            "Inspect the retained discovery output and cleanup state, then resolve the xcrun/toolchain condition before retrying. This LLDB discovery deadline has no runtime override; duration_ms controls the later target observation window.",
+        },
+      },
+    );
     return markers.length === 0
       ? error
       : error.bindCleanupDependencies(markers);

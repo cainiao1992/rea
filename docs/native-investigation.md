@@ -743,6 +743,12 @@ caller-selected entries, records them and continues:
 - Objective-C methods by selector, optionally limited to one class and to
   instance or class methods.
 
+LLDB discovery uses a separate 60000 ms `xcrun` deadline with no runtime
+override. Discovery timeouts report `provider_timeout` and retain timeout
+recovery, captured diagnostics and cleanup state. Output-budget and I/O failures
+retain their own error categories; only actual discovery unavailability reports
+missing LLDB. `duration_ms` controls the later target observation window.
+
 ```sh
 rea observe-native-calls /Applications/Example.app '{"breakpoints":[{"kind":"objc-method","class_name":"NSURLSession","selector":"dataTaskWithRequest:completionHandler:"},{"kind":"function","name":"open","module":"libsystem_kernel.dylib"}],"duration_ms":5000,"backtrace_frames":4}' --json
 ```

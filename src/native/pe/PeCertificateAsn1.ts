@@ -1,3 +1,9 @@
+import {
+  Asn1BerFailure,
+  Asn1BerReader,
+  type Asn1BerNode,
+} from "../../domain/asn1Ber.js";
+
 const OID_NAMES: Readonly<Record<string, string>> = {
   "1.2.840.113549.1.7.1": "data",
   "1.2.840.113549.1.7.2": "signedData",
@@ -19,16 +25,7 @@ const OID_NAMES: Readonly<Record<string, string>> = {
   "2.16.840.1.101.3.4.2.3": "sha512",
 };
 
-export interface Asn1Node {
-  readonly tag: number;
-  readonly constructed: boolean;
-  readonly lengthForm: "definite" | "indefinite";
-  readonly start: number;
-  readonly contentEnd: number;
-  readonly end: number;
-  readonly content: Buffer;
-  readonly children: readonly Asn1Node[];
-}
+export type Asn1Node = Asn1BerNode;
 
 export class PeCertificateAsn1Failure extends Error {
   constructor(message: string) {
@@ -48,96 +45,14 @@ const required = <T>(value: T | undefined, message: string): T =>
 // few thousand nodes; the budget bounds sibling fan-out, which depth does not.
 export const ASN1_NODE_BUDGET = 16_384;
 
-interface Asn1Budget {
-  remaining: number;
-}
-
 /** Decode one bounded ASN.1 TLV, including indefinite constructed BER values. */
-export const readAsn1 = (
-  bytes: Buffer,
-  offset = 0,
-  end = bytes.length,
-  depth = 0,
-  budget: Asn1Budget = { remaining: ASN1_NODE_BUDGET },
-): Asn1Node => {
-  if (depth > 32) return fail("ASN.1 nesting exceeds 32 levels.");
-  if (budget.remaining <= 0)
-    return fail(
-      `ASN.1 value count exceeds the ${String(ASN1_NODE_BUDGET)}-node budget.`,
-    );
-  budget.remaining -= 1;
-  if (offset >= end || offset + 2 > end)
-    return fail("Truncated ASN.1 tag or length.");
-  const tag = required(bytes[offset], "Truncated ASN.1 tag.");
-  if (tag === 0)
-    return fail(
-      "Unexpected end-of-contents marker outside an indefinite value.",
-    );
-  const constructed = (tag & 0x20) !== 0;
-  let cursor = offset + 1;
-  const lengthByte = required(bytes[cursor], "Truncated ASN.1 length.");
-  cursor += 1;
-  let length = 0;
-  const indefinite = lengthByte === 0x80;
-  if (indefinite) {
-    if (!constructed)
-      return fail("Primitive ASN.1 values cannot use indefinite length.");
-  } else if ((lengthByte & 0x80) === 0) length = lengthByte;
-  else {
-    const width = lengthByte & 0x7f;
-    if (width > 4) return fail("Unsupported ASN.1 long-form length width.");
-    if (cursor + width > end) return fail("Truncated ASN.1 long length.");
-    length = 0;
-    for (let index = 0; index < width; index += 1) {
-      length =
-        (length << 8) | required(bytes[cursor], "Truncated ASN.1 length.");
-      cursor += 1;
-    }
+export const readAsn1 = (bytes: Buffer): Asn1Node => {
+  try {
+    return new Asn1BerReader(bytes, ASN1_NODE_BUDGET).read();
+  } catch (cause: unknown) {
+    if (cause instanceof Asn1BerFailure) return fail(cause.message);
+    throw cause;
   }
-  const children: Asn1Node[] = [];
-  let contentEnd = cursor;
-  let encodedEnd = cursor;
-  if (indefinite) {
-    let at = cursor;
-    let terminated = false;
-    while (at < end) {
-      if (at + 1 < end && bytes[at] === 0 && bytes[at + 1] === 0) {
-        contentEnd = at;
-        encodedEnd = at + 2;
-        terminated = true;
-        break;
-      }
-      const child = readAsn1(bytes, at, end, depth + 1, budget);
-      children.push(child);
-      at = child.end;
-    }
-    if (!terminated)
-      return fail("Indefinite ASN.1 value has no end-of-contents marker.");
-  } else {
-    contentEnd = cursor + length;
-    if (length < 0 || contentEnd > end)
-      return fail("ASN.1 value exceeds its parent.");
-    encodedEnd = contentEnd;
-  }
-  if (constructed && !indefinite) {
-    let at = cursor;
-    while (at < contentEnd) {
-      const child = readAsn1(bytes, at, contentEnd, depth + 1, budget);
-      children.push(child);
-      at = child.end;
-    }
-  }
-  const content = bytes.subarray(cursor, contentEnd);
-  return {
-    tag,
-    constructed,
-    lengthForm: indefinite ? "indefinite" : "definite",
-    start: offset,
-    contentEnd,
-    end: encodedEnd,
-    content,
-    children,
-  };
 };
 
 const requireDefiniteEncoding = (node: Asn1Node, label: string): void => {

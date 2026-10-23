@@ -13,12 +13,16 @@ import { createServer } from "../../src/server/createServer.js";
 import {
   APK_SIGNATURE_V2_ID,
   APK_SIGNATURE_V3_ID,
+  indefinite,
   LEAF_CERTIFICATE,
   LEAF_SHA256,
   LEAF_SUBJECT,
   OPENSSL_BLOCK_ISSUER_SERIAL,
   OPENSSL_BLOCK_KEY_ID,
   ROOT_CERTIFICATE,
+  signedDataBlock,
+  signerInfo,
+  tlv,
   v2SchemeValue,
   v3SchemeValue,
   withSigningBlock,
@@ -171,6 +175,58 @@ cliTest(
       await client.close();
       await server.close();
       await session.close();
+    }
+  },
+);
+
+cliTest(
+  "retains v1 signer identity when the CMS signature OCTET STRING is constructed BER",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-apk-v1-ber-signature-");
+    const encodings = [
+      [
+        "definite",
+        tlv(0x24, tlv(0x04, Uint8Array.of(1)), tlv(0x04, Uint8Array.of(2, 3))),
+      ],
+      [
+        "indefinite",
+        indefinite(
+          0x24,
+          tlv(0x04, Uint8Array.of(1)),
+          tlv(0x04, Uint8Array.of(2, 3)),
+        ),
+      ],
+    ] as const;
+    for (const [form, signature] of encodings) {
+      const path = join(root, `${form}.apk`);
+      await writeFile(
+        path,
+        await zipWith([
+          { name: "META-INF/MANIFEST.MF", data: "Manifest-Version: 1.0" },
+          { name: "META-INF/CERT.SF", data: "Signature-Version: 1.0" },
+          {
+            name: "META-INF/CERT.RSA",
+            data: signedDataBlock({
+              certificates: [LEAF_CERTIFICATE],
+              signerInfos: [signerInfo({ names: LEAF_CERTIFICATE, signature })],
+            }),
+          },
+        ]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-apk-signature", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = completeEvidence(result.json);
+      expect(evidence.normalized_result.schemes.v1.signers).toMatchObject([
+        {
+          certificate: {
+            sha256_fingerprint: LEAF_SHA256,
+            subject: LEAF_SUBJECT,
+          },
+          decode_error: null,
+        },
+      ]);
     }
   },
 );

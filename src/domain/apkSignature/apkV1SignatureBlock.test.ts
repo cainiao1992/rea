@@ -18,7 +18,7 @@ import {
 } from "../../../tests/fixtures/apkSignature/v1SignatureBlock.js";
 import {
   decodeV1SignatureBlock,
-  MAX_DER_ELEMENTS,
+  MAX_ASN1_ELEMENTS,
   MAX_V1_BLOCK_CERTIFICATES,
   MAX_V1_SIGNER_INFOS,
 } from "./apkV1SignatureBlock.js";
@@ -181,7 +181,7 @@ describe("v1 signature block (PKCS#7 SignedData)", () => {
         }),
       ).kind,
     ).toBe("budget-exceeded");
-    const flood = new Uint8Array(2 * (MAX_DER_ELEMENTS + 1)).fill(0);
+    const flood = new Uint8Array(2 * (MAX_ASN1_ELEMENTS + 1)).fill(0);
     for (let i = 0; i < flood.length; i += 2) flood[i] = 0x05;
     expect(
       errorOf(
@@ -192,15 +192,55 @@ describe("v1 signature block (PKCS#7 SignedData)", () => {
       ),
     ).toEqual({
       kind: "budget-exceeded",
-      resource: "der-elements",
-      limit: MAX_DER_ELEMENTS,
+      resource: "asn1-elements",
+      limit: MAX_ASN1_ELEMENTS,
     });
     // Deep nesting is bounded before recursion can exhaust the stack.
     let nested: Uint8Array = Uint8Array.from([0x05, 0x00]);
     for (let i = 0; i < 64; i += 1) nested = indefinite(0x30, nested);
     expect(errorOf(nested)).toEqual({
       kind: "malformed-pkcs7",
-      detail: "nesting deeper than 32",
+      detail: "ASN.1 nesting exceeds 32 levels.",
     });
   });
+});
+
+it.each([
+  [
+    "definite",
+    tlv(0x24, tlv(0x04, Uint8Array.of(1)), tlv(0x04, Uint8Array.of(2, 3))),
+  ],
+  [
+    "indefinite",
+    indefinite(
+      0x24,
+      tlv(0x04, Uint8Array.of(1)),
+      tlv(0x04, Uint8Array.of(2, 3)),
+    ),
+  ],
+])("accepts %s constructed BER signature OCTET STRINGs", (_form, signature) => {
+  const block = decoded(
+    signedDataBlock({
+      certificates: [LEAF_CERTIFICATE],
+      signerInfos: [signerInfo({ names: LEAF_CERTIFICATE, signature })],
+    }),
+  );
+  expect(block.certificates.map(sha256)).toEqual([LEAF_SHA256]);
+  expect(block.signerInfos[0]?.certificateIndex).toBe(0);
+});
+
+it("rejects non-OCTET children inside a constructed signature", () => {
+  expect(
+    errorOf(
+      signedDataBlock({
+        certificates: [LEAF_CERTIFICATE],
+        signerInfos: [
+          signerInfo({
+            names: LEAF_CERTIFICATE,
+            signature: tlv(0x24, tlv(0x02, Uint8Array.of(1))),
+          }),
+        ],
+      }),
+    ).kind,
+  ).toBe("malformed-pkcs7");
 });

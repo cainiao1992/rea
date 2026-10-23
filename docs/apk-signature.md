@@ -99,10 +99,13 @@ share the application workflow, projection, retention and publication owners.
   certificate (`identified_by: subject-key-identifier`), adds a limitation,
   and treats that signer as unknown in `v1_signers_match_block_signers`. `certificates` lists every certificate the
   block carries (SHA-256 and subject) and `signer_infos` gives each
-  `SignerInfo`'s certificate and digest/signature algorithm OIDs.
+  `SignerInfo`'s certificate and digest/signature algorithm OIDs. The PKCS#7
+  `SignedData` envelope is read as BER, including constructed signature OCTET
+  STRINGs; each embedded certificate is still interpreted as DER by the X.509
+  owner.
   `certificate` is `null` when the block has more than one `SignerInfo` (with
   nothing verified there is no single signer) or names a certificate it does
-  not carry. A block that cannot be read (malformed DER, an unsupported
+  not carry. A block that cannot be read (malformed ASN.1, an unsupported
   compression method, Zip64 sizes, a local header that disagrees with the
   central directory on the name, data-descriptor flag, CRC-32 or a size, as
   apksig refuses it, or over a bound) keeps its names and carries
@@ -219,9 +222,11 @@ instances; pending scans retain no APK bytes and can be cancelled with their
 original reason. Further requests receive a capacity error. The active slot
 is held through parsing and cleanup. Signers per scheme, v1 signers and
 lineage nodes are capped at 32 each as resource admission limits, not format
-maxima (apksig separately accepts at most 10 v1 signers). Each v1 block is inflated to at most 1 MiB, and its DER
-is read within 32 levels of nesting and 65,536 elements, with at most 32
-certificates and 32 `SignerInfo`s; BER indefinite lengths are accepted. The report's size is
+maxima (apksig separately accepts at most 10 v1 signers). Each v1 block is
+inflated to at most 1 MiB, and its BER is read within 32 levels of nesting and
+65,536 elements, with at most 32 certificates and 32 `SignerInfo`s; BER
+indefinite lengths and constructed OCTET STRING fields are accepted. Embedded
+X.509 certificates retain their DER requirement. The report's size is
 bounded from above by those counts before anything is materialised, and the exact
 serialized size of the report together with its limitations (which repeat
 archive names) is then checked against an 8 MiB output budget (the exact check

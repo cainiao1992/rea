@@ -25,6 +25,39 @@ import { RegularFileCleanupFailure } from "../../../../src/filesystem/OwnedRegul
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
 import * as boundedFileBytes from "../../../../src/process/BoundedFileBytes.js";
 
+it("classifies a source changed during managed snapshot acquisition as artifact_changed", async () => {
+  const directory = await createTestTempDirectory("rea-managed-source-change-");
+  const path = join(directory, "fixture.dll");
+  const bytes = buildManagedPeFixture();
+  await writeFile(path, bytes);
+  const target = await parseBinaryTarget(path);
+  if (!target.ok) throw target.error;
+  const client = new ManagedStaticProvider().createClient(target.value);
+  const original = boundedFileBytes.readBoundedFileBytes;
+  const read = vi
+    .spyOn(boundedFileBytes, "readBoundedFileBytes")
+    .mockImplementation(async (...args) => {
+      const observed = await original(...args);
+      await writeFile(
+        path,
+        buildManagedPeFixture({ methodName: "ChangedAfterRead" }),
+      );
+      return observed;
+    });
+  try {
+    const result = await client.execute("inspect_managed_members", {});
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "artifact_changed",
+        retryable: true,
+      });
+  } finally {
+    read.mockRestore();
+    await client.close();
+  }
+});
+
 describe("managed static snapshot capacity failure", () => {
   it("preserves a typed capacity failure when closing the admitted file also fails", async () => {
     const directory = await createTestTempDirectory(
@@ -330,8 +363,14 @@ describe("managed static provider path boundary", () => {
     const staleDigest = await client.execute("inspect_managed_artifact", {});
     expect(staleDigest).toMatchObject({
       ok: false,
-      error: { _tag: "EvidenceIntegrityError" },
+      error: { _tag: "AnalysisArtifactChangedError" },
     });
+
+    if (!staleDigest.ok)
+      expect(staleDigest.error.diagnostics).toMatchObject({
+        expected_sha256: parsed.value.sha256,
+        observed_sha256: createHash("sha256").update(changed).digest("hex"),
+      });
 
     await client.close();
     const nativeClient = new ManagedStaticProvider().createClient({

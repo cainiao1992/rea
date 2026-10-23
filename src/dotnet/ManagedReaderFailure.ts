@@ -1,3 +1,4 @@
+import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 
 /** Bounded format failure retained as caller-visible managed coverage. */
@@ -9,6 +10,22 @@ export class ManagedReaderFailure extends Error {
     super(issue.detail, options);
   }
 }
+
+/** Malformed selected metadata is input failure for every inspection workflow. */
+export const managedInspectionInputFailure = (
+  operation: string,
+  path: string,
+  cause: unknown,
+): AnalysisInputError | undefined =>
+  cause instanceof ManagedReaderFailure && cause.issue.code !== "resource-limit"
+    ? new AnalysisInputError(operation, { cause }, [
+        {
+          path: ["path"],
+          reason: "invalid_format",
+          message: `Selected artifact ${path}: ${cause.issue.detail}`,
+        },
+      ])
+    : undefined;
 
 /** Construct a typed managed parse failure at an exact byte location. */
 export const managedFailure = (

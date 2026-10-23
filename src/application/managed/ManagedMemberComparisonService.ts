@@ -11,7 +11,6 @@ import {
   AnalysisInputError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
-import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import {
@@ -20,7 +19,11 @@ import {
 } from "../BinaryTargetResolver.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { inspectManagedMembersBytes } from "../../dotnet/ManagedMemberInspector.js";
-import { readManagedSnapshot } from "../../dotnet/ManagedSnapshot.js";
+import {
+  readManagedSnapshot,
+  verifyManagedSourceIdentity,
+} from "../../dotnet/ManagedSnapshot.js";
+import { managedInspectionInputFailure } from "../../dotnet/ManagedReaderFailure.js";
 import {
   MANAGED_STATIC_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
@@ -130,15 +133,19 @@ export const compareManagedMemberPaths = async (
         if (failure !== undefined) throw failure;
         throw cause;
       }
-      if (snapshot.sha256 !== target.sha256)
-        throw new EvidenceIntegrityError(
-          `Managed artifact digest changed after open: expected ${target.sha256}, observed ${snapshot.sha256} at ${target.path}`,
+      const admitted = verifyManagedSourceIdentity(target, snapshot, operation);
+      if (!admitted.ok) throw admitted.error;
+      // Member comparison never reads literals or spends their decode budget.
+      let inspection: ReturnType<typeof inspectManagedMembersBytes>;
+      try {
+        inspection = inspectManagedMembersBytes(snapshot.bytes, target, {
+          userStrings: false,
+        });
+      } catch (cause: unknown) {
+        throw (
+          managedInspectionInputFailure(operation, selectedPath, cause) ?? cause
         );
-      // Member comparison never reads literals, so it does not spend the
-      // decode budget on them.
-      const inspection = inspectManagedMembersBytes(snapshot.bytes, target, {
-        userStrings: false,
-      });
+      }
       const evidence = createEvidence(target, MANAGED_STATIC_PROVIDER, {
         operation: "inspect_managed_members",
         parameters: {},

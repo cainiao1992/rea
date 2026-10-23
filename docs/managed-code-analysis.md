@@ -323,6 +323,14 @@ when matching declared native calls to supplied native Evidence. Static inspecti
 does not load or execute the assembly. Reconstructed structure and unresolved
 native/runtime questions retain their own authority and coverage.
 
+When the selected source changes during acquisition or no longer matches its
+admitted digest, inspection and comparison report retryable `artifact_changed`;
+any completed hash retains the observed digest and byte count. Retry against a
+stable source. This differs from corrupted retained Evidence, which remains an
+Evidence-integrity failure. Malformed selected PE input has the same input-format
+classification in inspection and comparison, and a failed right-side comparison
+retains the completed left observation.
+
 ## Member comparison
 
 Call edges and field accesses retain `il_offset` as their instruction site within

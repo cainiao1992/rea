@@ -17,10 +17,11 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
+  AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
-import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
@@ -38,6 +39,29 @@ interface ManagedSourceObservation {
 interface ManagedSnapshot extends ManagedSourceObservation {
   readonly bytes: Buffer;
 }
+
+/** Admit one observed source digest before any parser or cache consumes its bytes. */
+export const verifyManagedSourceIdentity = (
+  target: { readonly path: string; readonly sha256: string },
+  observed: Pick<ManagedSourceObservation, "sha256" | "byteLength">,
+  operation: string,
+): Result<null, AnalysisArtifactChangedError> =>
+  observed.sha256 === target.sha256
+    ? ok(null)
+    : err(
+        new AnalysisArtifactChangedError(
+          operation,
+          target.path,
+          `Managed artifact digest changed after open: expected ${target.sha256}, observed ${observed.sha256} at ${target.path}`,
+          {
+            diagnostics: {
+              expected_sha256: target.sha256,
+              observed_sha256: observed.sha256,
+              observed_bytes: observed.byteLength,
+            },
+          },
+        ),
+      );
 
 const managedSnapshotCapacityError = (
   operation: string,
@@ -233,10 +257,9 @@ const normalizeReadFailure = (
   if (signal?.aborted === true && cause === signal.reason)
     return new AnalysisCancelledError(operation, { cause });
   if (cause instanceof RegularFileChangedError)
-    return new EvidenceIntegrityError(
-      `Managed source changed while ${operation} was reading ${path}.`,
-      { cause },
-    );
+    return new AnalysisArtifactChangedError(operation, path, cause.message, {
+      cause,
+    });
   if (cause instanceof AnalysisError) return cause;
   return (
     classifyBinaryTargetFilesystemFailure(path, cause) ??

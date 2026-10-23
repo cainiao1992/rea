@@ -308,8 +308,9 @@ describe("web capture dimension uncertainty", () => {
       changes: [expect.objectContaining({ change: "removed" })],
     });
     expect(result.dimensions.network).toMatchObject({
-      status: "changed",
-      changes: [expect.objectContaining({ change: "modified" })],
+      status: "unknown",
+      total_changes: 0,
+      changes: [],
     });
     expect(result.dimensions.webmcp).toMatchObject({
       status: "unknown",

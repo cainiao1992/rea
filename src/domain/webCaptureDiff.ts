@@ -44,7 +44,7 @@ export const compareWebCaptures = (
     limitations: [
       "A changed status proves an observed difference; an unknown status means necessary comparison facts or coverage were unavailable.",
       "Network comparison covers only activity observed after each CDP attachment. WebSocket connections with the same URL are compared as an unordered collection of ordered frame streams, retaining connection counts; their individual identities are not stable across captures.",
-      "Accessibility roles, ignored state, text, and hierarchy are compared only when the accessibility tree was fully captured and text capture was selected and not truncated. A missing role leaves that node's role comparison unknown; independently observed differences can still establish a change.",
+      "Accessibility structure is compared when the tree is complete; text additionally requires complete selected text capture. A missing role leaves that node's role comparison unknown; independently observed differences can still establish a change.",
       "Storage key inventories are compared only when selected and complete; usage and quota are compared only when reported. Redacted content is compared through complete SHA-256 fingerprints.",
     ],
   });
@@ -194,19 +194,7 @@ const compareWebCaptureDimensions = (
   const after = input.after.inspection;
   return {
     dom_structure: domDimension(before, after),
-    scripts: compareDimension(
-      keyed(
-        before.scripts.items.map(scriptProjection),
-        (item) => item.script_key,
-      ),
-      keyed(
-        after.scripts.items.map(scriptProjection),
-        (item) => item.script_key,
-      ),
-      sectionsComplete(before, ["scripts"]) &&
-        sectionsComplete(after, ["scripts"]),
-      "Script inventory was incomplete in at least one observation.",
-    ),
+    scripts: scriptsDimension(before, after),
     resources: compareResources(
       before.resources,
       after.resources,
@@ -472,6 +460,12 @@ const networkDimension = (
   const requestsComplete = [before, after].every((inspection) =>
     networkInventoryComplete(inspection, ["network_requests"]),
   );
+  const webSocketFramesComplete = [before, after].every((inspection) =>
+    networkInventoryComplete(inspection, [
+      "websocket_connections",
+      "websocket_frames",
+    ]),
+  );
   const webSocketInventoryComplete = [before, after].every(
     (inspection) =>
       networkInventoryComplete(inspection, [
@@ -487,7 +481,9 @@ const networkDimension = (
   const projection = {
     metadataFields: metadata.fields,
     ambiguousIdentities: requestIdentities.ambiguousIdentities,
-    inventoryComplete: requestsComplete,
+    initiatorsComplete: [before, after].every((inspection) =>
+      sectionsComplete(inspection, ["network_initiators"]),
+    ),
   };
   const sources = new Map<string, BodyShapeSources>();
   if (selected) {
@@ -545,17 +541,24 @@ const networkDimension = (
     beforeWebSockets,
     afterWebSockets,
     webSocketShapes,
+    webSocketFramesComplete,
+  );
+  const [beforeRequests, afterRequests] = networkComparisonMaps(
+    networkMap(before, sources, projection),
+    networkMap(after, sources, projection),
+    networkInventoryComplete(before, ["network_requests"]),
+    networkInventoryComplete(after, ["network_requests"]),
   );
   const compared = compareDimension(
     new Map([
-      ...networkMap(before, sources, projection),
+      ...beforeRequests,
       ...(webSocketInventoryComplete
         ? webSocketMetadataMap(beforeWebSockets)
         : []),
       ...beforeWebSocketPayload,
     ]),
     new Map([
-      ...networkMap(after, sources, projection),
+      ...afterRequests,
       ...(webSocketInventoryComplete
         ? webSocketMetadataMap(afterWebSockets)
         : []),
@@ -563,6 +566,7 @@ const networkDimension = (
     ]),
     requestsComplete &&
       requestIdentities.complete &&
+      projection.initiatorsComplete &&
       webSocketInventoryComplete &&
       shapesComplete &&
       webSocketPayloadBytesComplete &&
@@ -570,11 +574,11 @@ const networkDimension = (
     requestIdentities.complete
       ? "Network capture or selected HTTP/WebSocket payload-shape coverage is limited, unavailable, incomplete, or includes dropped network events."
       : "HTTP request identity is incomplete because a resource type is unavailable; potentially matching type groups cannot establish membership/content changes or complete network equality.",
-    // HTTP and WebSocket identities have independent inventory coverage. Shape
-    // selection can prevent equality without erasing proven membership changes.
+    // HTTP maps already retain only directionally proven membership/content
+    // changes. WebSocket inventory uses its own coverage independently.
     (identity) =>
       identity.startsWith("net_")
-        ? requestsComplete
+        ? true
         : identity.startsWith("ws_") && webSocketInventoryComplete,
   );
   if (metadata.complete) return compared;
@@ -601,9 +605,9 @@ const networkMap = (
       ReadonlySet<NetworkMetadataField>
     >;
     readonly ambiguousIdentities: ReadonlySet<string>;
-    readonly inventoryComplete: boolean;
+    readonly initiatorsComplete: boolean;
   },
-): ReadonlyMap<string, string> => {
+): ReadonlyMap<string, readonly string[]> => {
   const grouped = new Map<string, string[]>();
   for (const request of inspection.network.requests) {
     const identity = networkIdentity(request);
@@ -642,7 +646,9 @@ const networkMap = (
             };
           },
         ),
-        initiator: request.initiator,
+        ...(projection.initiatorsComplete
+          ? { initiator: request.initiator }
+          : {}),
         ...(shapes?.request === true
           ? { request_shape: request.body_shapes.request }
           : {}),
@@ -653,16 +659,48 @@ const networkMap = (
     );
     grouped.set(identity, values);
   }
-  return new Map(
-    [...grouped].map(([identity, values]) => [
-      identity,
-      digestCanonicalValue(
-        // Repeated samples do not establish multiplicity across omissions;
-        // keep their known content without interpreting missing rows as change.
-        (projection.inventoryComplete ? values : [...new Set(values)]).sort(),
-      ),
-    ]),
-  );
+  return grouped;
+};
+
+/** A partial multiset may omit any sample, including a distinct response. */
+const networkComparisonMaps = (
+  before: ReadonlyMap<string, readonly string[]>,
+  after: ReadonlyMap<string, readonly string[]>,
+  beforeComplete: boolean,
+  afterComplete: boolean,
+): readonly [ReadonlyMap<string, string>, ReadonlyMap<string, string>] => {
+  const left = new Map<string, string>();
+  const right = new Map<string, string>();
+  for (const identity of new Set([...before.keys(), ...after.keys()])) {
+    const previous = before.get(identity) ?? [];
+    const next = after.get(identity) ?? [];
+    if (
+      !(beforeComplete && afterComplete) &&
+      !(beforeComplete && !networkSamplesContained(next, previous)) &&
+      !(afterComplete && !networkSamplesContained(previous, next))
+    )
+      continue;
+    if (before.has(identity))
+      left.set(identity, digestCanonicalValue([...previous].sort()));
+    if (after.has(identity))
+      right.set(identity, digestCanonicalValue([...next].sort()));
+  }
+  return [left, right];
+};
+
+const networkSamplesContained = (
+  samples: readonly string[],
+  complete: readonly string[],
+): boolean => {
+  const counts = new Map<string, number>();
+  for (const sample of complete)
+    counts.set(sample, (counts.get(sample) ?? 0) + 1);
+  for (const sample of samples) {
+    const count = counts.get(sample) ?? 0;
+    if (count === 0) return false;
+    counts.set(sample, count - 1);
+  }
+  return true;
 };
 
 type WebSocketGroup = {
@@ -717,9 +755,13 @@ const webSocketPayloadMaps = (
   beforeGroups: ReadonlyMap<string, WebSocketGroup>,
   afterGroups: ReadonlyMap<string, WebSocketGroup>,
   selected: boolean,
+  inventoryComplete: boolean,
 ): readonly [ReadonlyMap<string, string>, ReadonlyMap<string, string>] => {
   const left = new Map<string, string>();
   const right = new Map<string, string>();
+  // Retained positions cannot identify frames after any frame or connection
+  // omission. A matching direction/opcode sequence does not prove alignment.
+  if (!inventoryComplete) return [left, right];
   for (const [groupKey, beforeGroup] of beforeGroups) {
     const afterGroup = afterGroups.get(groupKey);
     if (
@@ -783,46 +825,81 @@ const webMcpDimension = (
   before: WebMcpDiscovery | null,
   after: WebMcpDiscovery | null,
 ): Dimension => {
-  const afterTools = new Map(
-    after?.tools.items.map((tool) => [tool.tool_key, tool]),
-  );
-  const unknownHints = new Set(
-    (before?.tools.items ?? [])
-      .filter((tool) => {
-        const other = afterTools.get(tool.tool_key);
-        return (
-          other !== undefined &&
-          (tool.annotations.consequential === undefined ||
-            other.annotations.consequential === undefined)
-        );
-      })
-      .map((tool) => tool.tool_key),
-  );
-  const project = (
-    discovery: WebMcpDiscovery | null,
-  ): ReadonlyMap<string, string> =>
-    keyed(
-      (discovery?.tools.items ?? []).map((tool) => {
-        if (!unknownHints.has(tool.tool_key)) return tool;
-        const { consequential: _unknown, ...annotations } = tool.annotations;
-        return { ...tool, annotations };
-      }),
-      (tool) => tool.tool_key,
-    );
-  const result = compareDimension(
-    project(before),
-    project(after),
-    webMcpComplete(before) && webMcpComplete(after),
-    "WebMCP discovery was unavailable or incomplete in at least one capture.",
-  );
-  return result.status === "unchanged" && unknownHints.size > 0
-    ? {
-        ...result,
-        status: "unknown",
-        reason:
-          "Consequential annotations were not recorded or were invalid in at least one capture.",
+  type Tool = WebMcpDiscovery["tools"]["items"][number];
+  const groups = (discovery: WebMcpDiscovery | null) => {
+    const result = new Map<string, Tool[]>();
+    for (const tool of discovery?.tools.items ?? []) {
+      const identity = `webmcp_${digestCanonicalValue({
+        name: tool.name,
+        frame_url: tool.frame_url,
+        owner_origin: tool.owner_origin,
+      })}`;
+      const tools = result.get(identity) ?? [];
+      tools.push(tool);
+      result.set(identity, tools);
+    }
+    return result;
+  };
+  const previous = groups(before);
+  const next = groups(after);
+  const inventoryComplete = webMcpComplete(before) && webMcpComplete(after);
+  const left = new Map<string, string>();
+  const right = new Map<string, string>();
+  let valuesComplete = true;
+  for (const identity of new Set([...previous.keys(), ...next.keys()])) {
+    const beforeTools = previous.get(identity) ?? [];
+    const afterTools = next.get(identity) ?? [];
+    // Multiple same-name owners at the same URL cannot be paired by frame ID.
+    // Keep this uncertainty rather than selecting a duplicate by capture order.
+    if (beforeTools.length > 1 || afterTools.length > 1) {
+      valuesComplete = false;
+      // Complete counts can contradict one another even when individual
+      // owners cannot be paired. Do not discard that independent proof.
+      if (inventoryComplete) {
+        if (beforeTools.length > 0)
+          left.set(identity, String(beforeTools.length));
+        if (afterTools.length > 0)
+          right.set(identity, String(afterTools.length));
       }
-    : result;
+      continue;
+    }
+    const beforeTool = beforeTools[0];
+    const afterTool = afterTools[0];
+    const consequentialKnown =
+      beforeTool?.annotations.consequential !== undefined &&
+      afterTool?.annotations.consequential !== undefined;
+    if (
+      beforeTool !== undefined &&
+      afterTool !== undefined &&
+      !consequentialKnown
+    )
+      valuesComplete = false;
+    const project = (tool: Tool) => {
+      const {
+        tool_key: _key,
+        frame_id: _frameId,
+        annotations,
+        ...content
+      } = tool;
+      const { consequential, ...otherAnnotations } = annotations;
+      return digestCanonicalValue({
+        ...content,
+        annotations: {
+          ...otherAnnotations,
+          ...(consequentialKnown ? { consequential } : {}),
+        },
+      });
+    };
+    if (beforeTool !== undefined) left.set(identity, project(beforeTool));
+    if (afterTool !== undefined) right.set(identity, project(afterTool));
+  }
+  return compareDimension(
+    left,
+    right,
+    inventoryComplete && valuesComplete,
+    "WebMCP discovery, owner correspondence, or consequential annotation evidence was unavailable or incomplete in at least one capture.",
+    inventoryComplete,
+  );
 };
 
 const webMcpComplete = (discovery: WebMcpDiscovery | null): boolean =>
@@ -921,6 +998,53 @@ const scriptProjection = (
   language: script.language,
   source_map_url: script.source_map_url,
 });
+
+const scriptsDimension = (
+  before: WebPageInspection,
+  after: WebPageInspection,
+): Dimension => {
+  const inventoryComplete = [before, after].every((inspection) =>
+    sectionsComplete(inspection, ["scripts"]),
+  );
+  const byKey = (inspection: WebPageInspection) =>
+    new Map(
+      inspection.scripts.items.map((script) => [script.script_key, script]),
+    );
+  const left = byKey(before);
+  const right = byKey(after);
+  let sourcesComplete = true;
+  const project = (inspection: WebPageInspection, peer: typeof left) =>
+    keyed(
+      inspection.scripts.items.map((script) => {
+        const other = peer.get(script.script_key);
+        const sourceComparable =
+          script.source.included && other?.source.included === true;
+        if (
+          other !== undefined &&
+          (((script.source.included || other.source.included) &&
+            !sourceComparable) ||
+            (script.cdp_hash === null && !sourceComparable))
+        )
+          sourcesComplete = false;
+        return {
+          ...scriptProjection(script),
+          ...(sourceComparable && script.source.included
+            ? { source_sha256: script.source.artifact.sha256 }
+            : {}),
+        };
+      }),
+      (script) => script.script_key,
+    );
+  const previous = project(before, right);
+  const next = project(after, left);
+  return compareDimension(
+    previous,
+    next,
+    inventoryComplete && sourcesComplete,
+    "Script inventory or corresponding source digest evidence was incomplete in at least one observation.",
+    inventoryComplete,
+  );
+};
 
 const metadataProjection = (inspection: WebPageInspection) => ({
   responses: inspection.metadata.responses

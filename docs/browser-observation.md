@@ -54,6 +54,26 @@ from a protocol omission. Rejected DOM facts also mark derived URL and agent-hin
 metadata incomplete, while valid facts from other nodes and documents remain
 available in the capture.
 
+Passive comparison keeps lookup identity, cross-capture correspondence, content
+evidence, and inventory coverage separate:
+
+| Observation                                                                                      | Comparison outcome                                                                      |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Renamed WebMCP tool keys/frame IDs with one matching name, owner origin, and frame URL           | Compare the registration content; local IDs do not prove change                         |
+| Duplicate WebMCP owners with the same name, origin, and frame URL                                | Unknown correspondence; complete group count differences still prove change             |
+| Matching script inventory keys with retained source digests                                      | Compare the retained SHA-256 values even without a producer hash                        |
+| One corresponding script source is unavailable, or neither source nor producer hash is available | Source equality remains unknown; inventory changes and other proven differences survive |
+| A partial HTTP response group is a subset of the complete peer                                   | Unknown; omitted repeated responses can explain the difference                          |
+| An observed HTTP response fingerprint is absent from the complete peer group                     | Changed; omissions cannot explain that retained response                                |
+| A WebSocket connection or frame inventory is incomplete                                          | Do not align retained payloads by position                                              |
+
+Storage fingerprints decode supported CDP primitive/JSON values before hashing.
+Debugger descriptions, previews, and remote references do not represent storage
+content. Actual JSON properties with those names remain content. Reference-only
+objects, unsupported values, and opaque cookie partition identities remain
+incomplete. Previously exported fingerprints are not recomputed; recapture both
+sides when comparing captures produced across this decoder change.
+
 - `capture_web_screenshot` / `rea capture-web-screenshot` returns a content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
 - The CLI comparison commands accept each capture, screenshot artifact or normalization policy as inline JSON or a JSON file path. Use files for screenshot artifacts and scenario captures, whose embedded PNG bytes can exceed the host's command-line length limit.
@@ -356,8 +376,8 @@ REA retains local observation data and removes only URL userinfo credentials, ex
   request additions and removals remain observable even when selected body shapes,
   response metadata, or WebSocket coverage are unavailable. HTTP request and
   WebSocket inventory coverage are evaluated separately; complete HTTP coverage
-  cannot prove a missing WebSocket connection. Limited request inventory still
-  prevents request-absence claims. This comparison rule does not make live CDP's
+  cannot prove a missing WebSocket connection. A missing request in a limited inventory cannot prove absence; a retained
+  request absent from a complete peer can prove a change. This comparison rule does not make live CDP's
   attach-limited inventory complete or establish body-shape equality.
   An unavailable HTTP resource type also leaves request identity incomplete:
   observations with the same method and URL remain possible matches across types,
@@ -372,11 +392,15 @@ REA retains local observation data and removes only URL userinfo credentials, ex
   uses `websocket_connections` and `websocket_frames`. Drops in other event kinds
   and the aggregate total do not by themselves limit HTTP inventory. Proven
   modifications remain reportable despite incomplete inventory.
-  Repeated identical HTTP content samples establish multiplicity changes only
-  with complete request inventories; limited inventories retain known content
-  comparisons without interpreting duplicate sample counts as changes.
+  Repeated HTTP samples retain multiplicity. A partial group that is contained
+  in a complete peer cannot prove modification, even when the omitted response
+  had different content. A retained sample absent from the complete peer can
+  prove modification. Two partial groups cannot establish response
+  correspondence from their different retained samples alone.
   WebSocket stream inventories and connection counts likewise require complete
-  WebSocket coverage. Redirect resource types use only shared known metadata:
+  WebSocket coverage. Retained frame positions are compared only with complete
+  connection/frame inventories; matching direction/opcode sequences alone do
+  not prove alignment after drops. Redirect resource types use only shared known metadata:
   an omitted type leaves equality unknown rather than proving a modification.
 - Console observations with a stack source retain call type, argument types, the CDP `Runtime.Timestamp` in milliseconds since Unix epoch, and source location. An absent or invalid timestamp is `null` and makes `console_events` incomplete; an observed zero remains zero. Argument types are listed by CDP argument position. An absent or non-array argument inventory is `null`, and a malformed argument keeps its position as `unknown`; either makes `console_events` incomplete, while an observed empty inventory remains `[]`. A malformed stack or top stack frame is not replaced by its caller: the console event is excluded, and a request initiator location or WebMCP `registration_source` is `null`; each is reported as `invalid_protocol_value`. This epoch-millisecond clock is separate from the monotonic-second timestamps in `observe-web-session`. When console text capture is selected, already-delivered primitive values are retained verbatim with their original `argument_index`; objects, getters, and remote properties are never expanded. Text capture is `unavailable` when the argument inventory is unknown.
 - WebSocket observations retain direction, opcode, and payload byte length. A missing or malformed CDP opcode is returned as `null`, with opcode-dependent payload byte length and shape also `null`, and marks `websocket_frames` incomplete. Missing or wrong-typed payload data is not treated as empty; its byte length is `null`, and a text payload shape is unknown. Numeric opcode `0` and an observed empty payload remain distinct from missing data. Opcode is nullable in the public inspection schema, so clients must handle unknown protocol values. When shape capture is selected, text messages are classified as text or complete value-free JSON shape; binary bytes, hashes, prefixes, and raw payloads are never retained.

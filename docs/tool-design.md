@@ -80,6 +80,24 @@ satisfy. A plan without execution does not establish runtime behavior.
 
 ### Interpret boundary facts once
 
+Comparison needs separate proofs for lookup, correspondence, content, and
+coverage. A hash cannot supply the proof that two retained values belong to
+corresponding objects.
+
+| Comparison fact                                                               | What it establishes                             | What remains unknown                          |
+| ----------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
+| Same capture-local frame or request ID                                        | Lookup within that capture                      | Cross-capture identity                        |
+| Same HTTP method, URL, and resource type                                      | A repeated-request group                        | Which individual responses correspond         |
+| A partial HTTP response multiset is contained in a complete peer              | Omissions can explain every retained sample     | Equality or modification                      |
+| A retained HTTP sample is absent from a complete peer group                   | An observed difference independent of omissions | Other unobserved differences                  |
+| Complete WebSocket connection/frame inventories and matching metadata streams | Ordered payload positions can be compared       | Equality of unavailable payload facts         |
+| Unique WebMCP name, owner origin, and frame URL                               | Tool correspondence without transient frame IDs | Correspondence between duplicate owners       |
+| A complete source digest or decoded storage value                             | Comparable content                              | Missing source bytes or opaque remote objects |
+
+Complete traversal or inventory does not make unavailable values equal. A
+partial aggregate fingerprint difference cannot establish modification when
+omissions alone explain it; independently proven differences still survive.
+
 The format or protocol reader owns interpretation. Pass its parsed facts and
 explicit uncertainty to consumers; do not make adapters reparse display text,
 reconstruct omitted values, or infer success from missing diagnostics.

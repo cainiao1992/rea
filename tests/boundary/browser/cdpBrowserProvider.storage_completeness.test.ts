@@ -250,6 +250,17 @@ const completeRemoteObjects = [
   { type: "bigint", unserializableValue: "-42n" },
   { type: "object", subtype: "null", value: null },
   { type: "object", value: { nested: [false, null, 0] } },
+  {
+    type: "string",
+    value: "same",
+    description: "display",
+    objectId: "optional-reference",
+  },
+  {
+    type: "object",
+    value: { objectId: "business-value", customPreview: "content" },
+    preview: {},
+  },
 ] as const;
 
 it.each([
@@ -281,6 +292,87 @@ it.each([
       status: complete ? "unchanged" : "unknown",
       total_changes: 0,
     });
+  },
+);
+
+it("compares decoded IndexedDB content independently of debugger metadata", async () => {
+  let metadata = false;
+  let content = "before";
+  const { capture } = await inspect({
+    commandResult: (command) =>
+      command.method === "IndexedDB.requestData"
+        ? {
+            objectStoreDataEntries: [
+              {
+                key: {
+                  ...validKey,
+                  ...(metadata ? { description: "key display" } : {}),
+                },
+                primaryKey: validKey,
+                value: {
+                  type: "object",
+                  value: {
+                    objectId: content,
+                    customPreview: "retained property",
+                  },
+                  ...(metadata
+                    ? {
+                        description: "Object",
+                        preview: {},
+                        objectId: "session-only",
+                      }
+                    : {}),
+                },
+              },
+            ],
+            hasMore: false,
+          }
+        : undefined,
+  });
+  const before = await capture();
+  metadata = true;
+  const same = await capture();
+  expect(compareStorage(before, same)).toMatchObject({
+    status: "unchanged",
+    total_changes: 0,
+  });
+  content = "after";
+  const after = await capture();
+  expect(compareStorage(before, after)).toMatchObject({
+    status: "changed",
+    total_changes: 1,
+  });
+});
+
+it.each([undefined, false, true])(
+  "keeps opaque cookie partition identity incomplete: %s",
+  async (partitionKeyOpaque) => {
+    const { capture } = await inspect({
+      commandResult: (command) =>
+        command.method === "Network.getCookies"
+          ? {
+              cookies: [
+                {
+                  name: "cookie",
+                  value: "value",
+                  domain: "app.example.test",
+                  path: "/",
+                  partitionKeyOpaque,
+                },
+              ],
+            }
+          : undefined,
+    });
+    const before = await capture();
+    const after = await capture();
+    expect(
+      before.storage.content_fingerprints.find(
+        ({ scope }) => scope === "cookie",
+      )?.complete,
+    ).toBe(partitionKeyOpaque !== true);
+    expect(compareStorage(before, after).status).toBe(
+      partitionKeyOpaque === true ? "unknown" : "unchanged",
+    );
   },
 );
 

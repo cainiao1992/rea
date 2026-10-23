@@ -356,7 +356,10 @@ describe("keyed archive hierarchy coverage", () => {
       bundlePath: bundle,
       targetSha256: "f".repeat(64),
     });
-    const values = result.graph.nodes[0]?.attributes.nibValues;
+    const objectNode = result.graph.nodes.find(
+      ({ attributes }) => attributes.interface_builder_object_id === "0",
+    );
+    const values = objectNode?.attributes.nibValues;
     expect(values).toMatchObject({
       nan: { $plist_type: "real", value: "nan" },
       positive: { $plist_type: "real", value: "+infinity" },

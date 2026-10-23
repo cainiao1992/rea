@@ -333,7 +333,7 @@ describe("keyed archive identity decoding", () => {
       $top: { root: { UID: 1 } },
     });
 
-    expect(parsed.objects.map(({ id }) => id)).toEqual(["1", "2"]);
+    expect(parsed.objects.map(({ id }) => id)).toEqual(["1", "2", "3"]);
     expect(parsed.objects[0]?.attributes).toMatchObject({ archiveUID: 2 });
     expect(parsed.connections).toContainEqual(
       expect.objectContaining({

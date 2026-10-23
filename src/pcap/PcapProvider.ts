@@ -74,6 +74,7 @@ const FIELDS = [
   "dns.aaaa",
   "tls.handshake.extensions_server_name",
   "http.request.full_uri",
+  "http.request.uri",
 ];
 
 const pcapPartialEvidence = (

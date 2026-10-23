@@ -74,7 +74,10 @@ const TSHARK_JSON = JSON.stringify([
 
 const writeStubTools = async (
   root: string,
-  options: { readonly failCapinfos?: boolean } = {},
+  options: {
+    readonly failCapinfos?: boolean;
+    readonly httpAbsoluteUriOnly?: boolean;
+  } = {},
 ): Promise<{ tshark: string; capinfos: string }> => {
   const tshark = join(root, "tshark");
   const capinfos = join(root, "capinfos");
@@ -83,7 +86,8 @@ const writeStubTools = async (
     `#!/bin/sh
 if [ "$1" = "--version" ]; then printf 'TShark (Wireshark) 4.6.6-stub\\n'; exit 0; fi
 [ "$1" = "-n" ] && [ "$2" = "-r" ] && [ "$4" = "-T" ] && [ "$5" = "json" ] || exit 2
-printf '%s' '${TSHARK_JSON.replace(/'/gu, "'\\''")}'
+case " $* " in *" -e http.request.uri "*) ;; *) exit 2 ;; esac
+printf '%s' '${(options.httpAbsoluteUriOnly ? TSHARK_JSON.replace('"http.request.full_uri":["http://api.example.com/v1/data"]', '"http.request.uri":["http://proxy.example.test/path"]') : TSHARK_JSON).replace(/'/gu, "'\\''")}'
 exit 0
 `,
     { mode: 0o755 },
@@ -109,6 +113,7 @@ exit 0
 const providerWith = async (
   options: {
     failCapinfos?: boolean;
+    httpAbsoluteUriOnly?: boolean;
     launcher?: PcapCommandLauncher;
     beforeClose?: () => void;
   } = {},
@@ -228,6 +233,17 @@ it("inspects a capture with endpoints, DNS, TLS SNI, and HTTP", async () => {
   ]);
   expect(result.tls_sni_values).toEqual(["api.example.com"]);
   expect(result.http_request_uris).toEqual(["http://api.example.com/v1/data"]);
+  expect(result.coverage).toBe("complete");
+});
+
+it("retains an absolute HTTP request target without a Host-derived full URI", async () => {
+  const { provider, root } = await providerWith({ httpAbsoluteUriOnly: true });
+  const path = await captureFixture(root);
+  const result = await evidenceResult(provider, {
+    operation: "inspect_pcap_capture",
+    input: { path },
+  });
+  expect(result.http_request_uris).toEqual(["http://proxy.example.test/path"]);
   expect(result.coverage).toBe("complete");
 });
 

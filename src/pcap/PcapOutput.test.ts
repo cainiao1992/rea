@@ -237,6 +237,56 @@ it("excludes transport credentials without normalizing observed URL bytes", asyn
   expect(result.partial).toBe(true);
 });
 
+it("retains HTTP absolute-form request targets when Wireshark cannot synthesize full_uri", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      { "http.request.uri": ["http://proxy.example.test/a/../resource"] },
+      { "http.request.uri": ["/relative/path"] },
+    ]),
+  );
+  expect(result.httpRequestUris).toEqual([
+    "http://proxy.example.test/a/../resource",
+  ]);
+  expect(result.httpRequestUriCount).toBe(1);
+  expect(result.partial).toBe(true);
+});
+
+it("marks mixed request arrays partial when a relative target has no full URI", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        "http.request.uri": ["/resolved/with-host", "/unresolved/without-host"],
+        "http.request.full_uri": ["http://host.example/resolved/with-host"],
+      },
+    ]),
+  );
+  expect(result.httpRequestUris).toEqual([
+    "http://host.example/resolved/with-host",
+  ]);
+  expect(result.partial).toBe(true);
+});
+
+it("accounts for paired full URIs and absolute-form values without inventing array joins", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        "http.request.uri": ["/first", "/second", "http://proxy.example/third"],
+        "http.request.full_uri": [
+          "http://host.example/first",
+          "http://host.example/second",
+          "http://proxy.example/third",
+        ],
+      },
+    ]),
+  );
+  expect(result.httpRequestUris).toEqual([
+    "http://host.example/first",
+    "http://host.example/second",
+    "http://proxy.example/third",
+  ]);
+  expect(result.partial).toBe(false);
+});
+
 it("refuses dense JSON before its expanded graph exceeds the decoding budget", async () => {
   await expect(
     parseTsharkJsonOutput(`[${"{},".repeat(600_000)}{}]`),

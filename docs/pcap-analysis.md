@@ -86,6 +86,9 @@ not process identity or proof of the destination's authenticity.
 All examined inventories are retained within the resource budget; no fixed
 200/100/50-item truncation is applied. HTTP transport credentials are excluded
 without rewriting other URI bytes; ambiguous credential spans cause omission.
+The URI inventory includes absolute-form HTTP request targets when TShark cannot
+construct `http.request.full_uri` because no Host header was reported; relative
+request targets are not promoted to absolute URIs.
 Counts preserve distinct observed source URIs before omission or coalescing.
 `coverage: "partial"` records unresolved DNS attribution or URI item loss;
 component credential exclusion is also counted explicitly. Diagnostics retain

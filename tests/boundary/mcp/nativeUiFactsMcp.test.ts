@@ -219,23 +219,23 @@ it("keeps native UI availability after initial selection errors and preserves la
   await client.ping();
 });
 
-it.each([
-  "application-executable-unavailable",
-  "executable-path-unavailable",
-])("preserves unknown executable identity from %s", async (code) => {
-  const { client, replies } = await connectNativeUi();
-  const message = `Fixture ${code} diagnostic`;
-  replies.push({ ok: false, code, message });
-  const response = await client.callTool({
-    name: "observe_native_ui",
-    arguments: scope,
-  });
-  expect(parseMcpToolError(response)).toMatchObject({
-    error: {
-      code: "capability_unavailable",
-      message,
-      details: { reason: `${code}: ${message}` },
-    },
-  });
-  await client.ping();
-});
+it.each(["application-executable-unavailable", "executable-path-unavailable"])(
+  "preserves unknown executable identity from %s",
+  async (code) => {
+    const { client, replies } = await connectNativeUi();
+    const message = `Fixture ${code} diagnostic`;
+    replies.push({ ok: false, code, message });
+    const response = await client.callTool({
+      name: "observe_native_ui",
+      arguments: scope,
+    });
+    expect(parseMcpToolError(response)).toMatchObject({
+      error: {
+        code: "capability_unavailable",
+        message,
+        details: { reason: `${code}: ${message}` },
+      },
+    });
+    await client.ping();
+  },
+);

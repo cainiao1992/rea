@@ -43,9 +43,7 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
     const parent = join(root, "parent");
     await mkdir(parent);
     // Keep the caller's spelling while every traversed component exists.
-    const workspaceRoot = usable
-      ? `${parent}/./`
-      : join(parent, "absent");
+    const workspaceRoot = usable ? `${parent}/./` : join(parent, "absent");
     const registration = join(root, "registration.json");
     await writeFile(
       registration,

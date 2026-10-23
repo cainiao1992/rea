@@ -37,7 +37,8 @@ it.each([true, false])(
     const after = await readdir(root);
     expect(inspection.available).toBe(exists);
     expect(
-      inspection.checks.find(({ name }) => name === "private_workspace")?.detail,
+      inspection.checks.find(({ name }) => name === "private_workspace")
+        ?.detail,
     ).toContain(rawRoot);
     expect(after).toEqual(before);
   },

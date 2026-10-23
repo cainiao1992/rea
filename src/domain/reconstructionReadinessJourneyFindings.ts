@@ -390,7 +390,10 @@ const outcomeFindings = (
           "surface-semantic-drift",
           "export-replay",
           "fail",
-          `CLI/MCP structured outcomes disagree: ${label}; sequences ${outcomes.map(({ sequence }) => sequence).sort((left, right) => left - right).join(", ")}.`,
+          `CLI/MCP structured outcomes disagree: ${label}; sequences ${outcomes
+            .map(({ sequence }) => sequence)
+            .sort((left, right) => left - right)
+            .join(", ")}.`,
           outcomeEvidence,
         ),
       );

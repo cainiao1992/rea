@@ -953,3 +953,165 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
     expect(await readFile(path)).toEqual(original);
   },
 );
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "keeps selected table metadata tied to exact schema-name bytes through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-sqlite-invalid-name-");
+    const path = join(root, "selected.db");
+    const producer = new DatabaseSync(path);
+    try {
+      producer.exec(`
+        CREATE TABLE "col"(id INTEGER PRIMARY KEY, value TEXT) WITHOUT ROWID, STRICT;
+        INSERT INTO "col" VALUES(1, 'unrelated');
+        CREATE TABLE "�ol"(value TEXT);
+        INSERT INTO "�ol" VALUES('selected');
+      `);
+    } finally {
+      producer.close();
+    }
+    const bytes = await readFile(path);
+    let corruptedNameOccurrences = 0;
+    for (let index = 0; index < bytes.length - 3; index += 1) {
+      if (bytes.subarray(index, index + 3).equals(Buffer.from("col"))) {
+        bytes[index] = 0xff;
+        corruptedNameOccurrences += 1;
+      }
+    }
+    expect(corruptedNameOccurrences).toBeGreaterThanOrEqual(2);
+    await writeFile(path, bytes);
+
+    const native = new DatabaseSync(path, {
+      readOnly: true,
+      readBigInts: true,
+    });
+    try {
+      expect(native.prepare("PRAGMA integrity_check").get()).toEqual({
+        integrity_check: "ok",
+      });
+      const nativeTables = native
+        .prepare(
+          "SELECT hex(CAST(name AS BLOB)) AS name_hex, ncol, wr, strict FROM temp.pragma_table_list WHERE schema = 'main'",
+        )
+        .all();
+      expect(nativeTables).toEqual(
+        expect.arrayContaining([
+          {
+            name_hex: "EFBFBD6F6C",
+            ncol: 1n,
+            wr: 0n,
+            strict: 0n,
+          },
+          {
+            name_hex: "FF6F6C",
+            ncol: 2n,
+            wr: 1n,
+            strict: 1n,
+          },
+        ]),
+      );
+    } finally {
+      native.close();
+    }
+
+    const cliResult = await cli.run({
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--table",
+        "�ol",
+        "--row-limit",
+        "1",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    const { call } = await connectLocalToolsMcp();
+    const mcpResult = await call("inspect_sqlite_database", {
+      path,
+      table: "�ol",
+      row_limit: 1,
+    });
+    expect(cliResult.exitCode, cliResult.stdout + cliResult.stderr).toBe(0);
+    expect(cliResult.json).toMatchObject({
+      normalized_result: {
+        schema: {
+          tables: [
+            expect.objectContaining({
+              name: "�ol",
+              without_rowid: false,
+              strict: false,
+              column_count: 1,
+              columns_completeness: "complete",
+            }),
+          ],
+        },
+        rows: {
+          table: "�ol",
+          values: [[{ type: "text", value: "selected" }]],
+        },
+      },
+    });
+    expect(mcpResult.isError).not.toBe(true);
+    expect(mcpResult.structuredContent).toMatchObject({
+      normalized_result: {
+        schema: {
+          tables: [
+            expect.objectContaining({
+              name: "�ol",
+              without_rowid: false,
+              strict: false,
+              column_count: 1,
+              columns_completeness: "complete",
+            }),
+          ],
+        },
+        rows: {
+          table: "�ol",
+          values: [[{ type: "text", value: "selected" }]],
+        },
+      },
+    });
+  },
+);
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "folds ASCII trigger spelling without merging non-ASCII UTF-16 table names",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-sqlite-utf16-identity-");
+    const { call } = await connectLocalToolsMcp();
+    for (const encoding of ["UTF-16le", "UTF-16be"]) {
+      const path = join(root, `${encoding}.db`);
+      const producer = new DatabaseSync(path);
+      try {
+        producer.exec(`PRAGMA encoding = '${encoding}';
+          CREATE TABLE "Ł_table"(id INTEGER);
+          CREATE TABLE "š_table"(id INTEGER);
+          CREATE TRIGGER first_trigger AFTER INSERT ON "Ł_TABLE" BEGIN SELECT 1; END;
+          CREATE TRIGGER second_trigger AFTER INSERT ON "š_TABLE" BEGIN SELECT 1; END;`);
+      } finally {
+        producer.close();
+      }
+      const original = await readFile(path);
+      const result = await cli.run({
+        arguments: ["inspect-sqlite-database", path, "--json"],
+        environment: { REA_LOG_LEVEL: "silent" },
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.json).toMatchObject({
+        normalized_result: {
+          schema: {
+            triggers: [
+              { name: "first_trigger", table: "Ł_table" },
+              { name: "second_trigger", table: "š_table" },
+            ],
+          },
+        },
+      });
+      const response = await call("inspect_sqlite_database", { path });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      expect(response.structuredContent).toEqual(result.json);
+      expect(await readFile(path)).toEqual(original);
+    }
+  },
+);

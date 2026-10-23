@@ -117,7 +117,7 @@ const rejectedReply = (
       {
         javascript_heap_bytes: 256 * 1024 * 1024,
       },
-      { capturedOutput },
+      { capturedOutput, diagnostics: { selected_path: selectedPath } },
     );
   if (reply.reason === "output-limit")
     return new AnalysisResourceConstraintError(
@@ -130,6 +130,7 @@ const rejectedReply = (
       },
       {
         capturedOutput,
+        diagnostics: { selected_path: selectedPath },
         retryable: false,
         remediationAction:
           "The SQLite value/record and worker JSON reply allowances are fixed at 16 MiB; worker_timeout_ms and client deadlines do not raise them. If it preserves the requested facts, select exact columns, reduce row_limit, or use schema_scope: inventory instead of database. This worker refusal leaves no completed Evidence to retrieve. Do not repeat the unchanged request or truncate required database bytes.",
@@ -146,6 +147,7 @@ const rejectedReply = (
       },
       {
         capturedOutput,
+        diagnostics: { selected_path: selectedPath },
         retryable: false,
         remediationAction: `The selected database is readable; only the combined projection exceeded this connection's native result-column limit. Request at most ${String(reply.engine_column_limit)} columns per call, splitting wider facts across calls, or omit table to inspect stored declarations with schema_scope: database. The limit belongs to SQLite's connection, so worker_timeout_ms and client deadlines do not raise it. Do not repeat the unchanged request.`,
       },

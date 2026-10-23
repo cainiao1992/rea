@@ -34,7 +34,8 @@ const schemaRow = z.object({
 });
 const tableRow = z.object({
   schema: z.string(),
-  name: z.string(),
+  display_name: z.string(),
+  name: z.instanceof(Uint8Array),
   type: z.enum(["table", "view", "virtual", "shadow"]),
   ncol: natural,
   wr: z.bigint(),
@@ -121,9 +122,49 @@ const missingSelectedTable = (name: string): SqliteInspectionFailure =>
     "selection",
     `Selected ordinary table does not exist with that exact name: ${name}`,
   );
-// SQLite folds only ASCII letters when matching virtual/shadow table names.
-const sqliteIdentifierKey = (name: string): string =>
-  name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+// SQLite folds only ASCII letters when matching identifiers. Fold stored
+// bytes so replacement decoding cannot make distinct names share an identity.
+const sqliteNameBytesKey = (name: Uint8Array): string =>
+  Buffer.from(name).toString("hex");
+const sqliteIdentifierBytesKey = (
+  name: Uint8Array,
+  encoding: DatabaseEncoding,
+): string => {
+  const bytes = Buffer.from(name);
+  if (encoding === "UTF-8") {
+    for (let index = 0; index < bytes.length; index += 1)
+      if (bytes[index]! >= 0x41 && bytes[index]! <= 0x5a)
+        bytes[index] = bytes[index]! + 0x20;
+  } else {
+    const asciiOffset = encoding === "UTF-16le" ? 0 : 1;
+    for (let index = 0; index + 1 < bytes.length; index += 2) {
+      const letter = bytes[index + asciiOffset]!;
+      if (
+        bytes[index + (1 - asciiOffset)] === 0 &&
+        letter >= 0x41 &&
+        letter <= 0x5a
+      )
+        bytes[index + asciiOffset] = letter + 0x20;
+    }
+  }
+  return bytes.toString("hex");
+};
+const sqliteNameBytes = (
+  db: DatabaseSync,
+  name: string,
+): Uint8Array | undefined => {
+  const row = z
+    .object({ name: z.instanceof(Uint8Array) })
+    .optional()
+    .parse(
+      db
+        .prepare(
+          "SELECT CAST(name AS BLOB) AS name FROM temp.pragma_table_list WHERE schema = 'main' AND name = ? COLLATE BINARY",
+        )
+        .get(name),
+    );
+  return row?.name;
+};
 const textEncoding = (encoding: DatabaseEncoding): string =>
   encoding === "UTF-8"
     ? "utf-8"
@@ -257,29 +298,47 @@ const readSchema = (
     );
   let selectedTable: SelectedTableFacts | undefined;
   const metadata = new Map<string, z.output<typeof tableRow>>();
+  const selectedBytes =
+    selectedName === undefined ? undefined : sqliteNameBytes(db, selectedName);
   const selectedKey =
-    selectedName === undefined ? undefined : sqliteIdentifierKey(selectedName);
+    selectedBytes === undefined ? undefined : sqliteNameBytesKey(selectedBytes);
+  const selectedIdentifierKey =
+    selectedBytes === undefined
+      ? undefined
+      : sqliteIdentifierBytesKey(selectedBytes, encoding);
+  const underscore =
+    encoding === "UTF-8"
+      ? Buffer.from("_")
+      : encoding === "UTF-16le"
+        ? Buffer.from([0x5f, 0])
+        : Buffer.from([0, 0x5f]);
   const unresolvedVirtualTables: { name: string; prefix: string }[] = [];
   // Names bound eventual output only when the whole catalog is requested.
   // Selected scope retains one table and at most one possible shadow parent;
   // unrelated names are examined without retaining them or charging the reply.
   const metadataBudget = new OutputBudget();
-  for (const raw of db.prepare("PRAGMA main.table_list").iterate()) {
+  for (const raw of db
+    .prepare(
+      "SELECT schema, name AS display_name, CAST(name AS BLOB) AS name, type, ncol, wr, strict FROM temp.pragma_table_list WHERE schema = 'main'",
+    )
+    .iterate()) {
     const value = tableRow.parse(raw);
-    if (value.schema !== "main") continue;
+    const nameKey = sqliteNameBytesKey(value.name);
     if (selectedName === undefined) {
-      metadataBudget.retain(value.name);
-      metadata.set(value.name, value);
-    } else if (value.name === selectedName) {
-      metadata.set(value.name, value);
+      metadataBudget.retain(nameKey);
+      metadata.set(nameKey, value);
+    } else if (nameKey === selectedKey) {
+      metadata.set(nameKey, value);
     }
     if (value.type === "virtual" && value.ncol === 0) {
-      const prefix = sqliteIdentifierKey(`${value.name}_`);
+      const virtualName = value.display_name;
+      const prefix = `${sqliteIdentifierBytesKey(value.name, encoding)}${underscore.toString("hex")}`;
       if (
         selectedKey === undefined ||
-        (unresolvedVirtualTables.length === 0 && selectedKey.startsWith(prefix))
+        (unresolvedVirtualTables.length === 0 &&
+          selectedIdentifierKey?.startsWith(prefix) === true)
       )
-        unresolvedVirtualTables.push({ name: value.name, prefix });
+        unresolvedVirtualTables.push({ name: virtualName, prefix });
     }
   }
   // A trigger stores its target as written in CREATE TRIGGER, which SQLite
@@ -287,46 +346,74 @@ const readSchema = (
   // A selected-table scan returns only the selected table's dependents, and
   // other scopes fold stored names once, only when a spelling differs.
   let foldedNames: Map<string, string> | undefined;
-  const triggerTable = (written: string): string => {
+  const triggerTable = (written: string, writtenBytes: Uint8Array): string => {
     if (selectedName !== undefined) return selectedName;
-    if (metadata.has(written)) return written;
     foldedNames ??= new Map(
-      [...metadata.keys()].map((name) => [sqliteIdentifierKey(name), name]),
+      [...metadata.values()].flatMap((listed) => {
+        try {
+          const name = decodeSchemaText(listed.name, encoding, "name");
+          return [
+            [sqliteIdentifierBytesKey(listed.name, encoding), name] as const,
+          ];
+        } catch (cause: unknown) {
+          if (
+            !(cause instanceof SqliteInspectionFailure) ||
+            cause.reason !== "format"
+          )
+            throw cause;
+          // The catalog walk reports malformed names at the schema row. Never
+          // use SQLite's replacement-decoded display alias for identity.
+          return [];
+        }
+      }),
     );
-    return foldedNames.get(sqliteIdentifierKey(written)) ?? written;
+    return (
+      foldedNames.get(sqliteIdentifierBytesKey(writtenBytes, encoding)) ??
+      written
+    );
   };
   const shadowParentOf = (
-    name: string,
+    name: Uint8Array,
     listed: z.output<typeof tableRow>,
   ): (typeof unresolvedVirtualTables)[number] | undefined => {
     if (listed.type !== "table") return undefined;
-    const identifier = sqliteIdentifierKey(name);
+    const identifier = sqliteIdentifierBytesKey(name, encoding);
     return unresolvedVirtualTables.find((parent) =>
       identifier.startsWith(parent.prefix),
     );
   };
   const selected =
-    selectedName === undefined ? undefined : metadata.get(selectedName);
+    selectedKey === undefined ? undefined : metadata.get(selectedKey);
   if (selectedName !== undefined && selected === undefined)
     throw missingSelectedTable(selectedName);
   const selectedShadowParent =
     selectedName === undefined || selected === undefined
       ? undefined
-      : shadowParentOf(selectedName, selected);
+      : selectedBytes === undefined
+        ? undefined
+        : shadowParentOf(selectedBytes, selected);
   // sqlite_schema is a queryable ordinary table in PRAGMA inventory, but has
   // no self-row in its stored declaration table. Keep these row-source facts
   // separate from schema.tables rather than manufacturing a declaration.
+  const inputTableBytes =
+    input.table === undefined ? undefined : sqliteNameBytes(db, input.table);
+  const inputTableKey =
+    inputTableBytes === undefined
+      ? undefined
+      : sqliteNameBytesKey(inputTableBytes);
   const selectedRowSource =
-    input.table === undefined ? undefined : metadata.get(input.table);
+    inputTableKey === undefined ? undefined : metadata.get(inputTableKey);
+  const selectedRowSourceName = selectedRowSource?.display_name;
   if (
     input.table !== undefined &&
     !sqliteSchemaHasObjectDeclaration(input.table) &&
-    selectedRowSource?.type === "table"
+    selectedRowSource?.type === "table" &&
+    selectedRowSourceName !== undefined
   )
     selectedTable = {
-      name: selectedRowSource.name,
+      name: selectedRowSourceName,
       kind: selectedRowSource.type,
-      columns: readColumns(db, selectedRowSource.name, {
+      columns: readColumns(db, selectedRowSourceName, {
         budget: new OutputBudget(),
         encoding,
         selectedColumns: input.columns,
@@ -372,16 +459,16 @@ const readSchema = (
             : decodeSchemaText(parsed.sql, encoding, "sql"),
     };
     if (value.type === "table") {
-      const listed = metadata.get(value.name);
+      const listed = metadata.get(sqliteNameBytesKey(parsed.name));
       if (listed === undefined || listed.type === "view")
         throw new SqliteInspectionFailure(
           "format",
           `SQLite schema/table inventory mismatch: ${value.name}`,
         );
       const possibleShadowParent =
-        value.name === selectedName
+        sqliteNameBytesKey(parsed.name) === selectedKey
           ? selectedShadowParent
-          : shadowParentOf(value.name, listed);
+          : shadowParentOf(parsed.name, listed);
       const table: SqliteDatabase["schema"]["tables"][number] = {
         name: value.name,
         ...(scope === "inventory" ? {} : { sql: value.sql }),
@@ -444,7 +531,7 @@ const readSchema = (
     } else {
       const trigger = {
         name: value.name,
-        table: triggerTable(value.tbl_name),
+        table: triggerTable(value.tbl_name, parsed.tbl_name),
         ...(scope === "inventory" ? {} : { sql: value.sql }),
       };
       budget.retain(trigger);

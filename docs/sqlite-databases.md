@@ -173,7 +173,8 @@ evidence ID for later retrieval or export.
 
 Changed input identities, special files, malformed databases, unsupported
 formats and resource failures are reported as errors with the selected path and
-meaningful reason. Encrypted databases, database repair, arbitrary SQL,
+meaningful reason. Worker resource refusals expose the caller-selected file in
+`details.diagnostics.selected_path`. Encrypted databases, database repair, arbitrary SQL,
 cross-database queries and live capture are outside this inspection's coverage.
 
 ## Compatibility verification

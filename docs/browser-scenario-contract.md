@@ -15,6 +15,10 @@ there is no separate origin allowlist or request-interception layer. Environment
 settings (including service workers blocked by default), empty storage, and a
 final sanitized URL capture are supplied by default. Set
 `environment.service_workers` to `allow` when the application requires them.
+The connected service-worker policy owner retains its exact CDP transport
+through discovery, attachment and restoration. Failed admission preserves its
+primary diagnostic when socket cleanup also fails; later policy cleanup retries
+that retained transport and clears cleanup uncertainty only after close succeeds.
 For attached browsers, `block` rejects captures when the selected page or its
 frames are controlled by a service worker or already have a registration,
 including after navigation. Policy checks bracket each artifact capture, including

@@ -598,6 +598,9 @@ validation.
 ## Non-goals and threat model
 
 The browser provider deliberately does not expose generic CDP commands, `Runtime.evaluate`, WebMCP invocation, navigation, input, downloads, page closure, or browser closure. Screenshot capture is the sole pixel surface and returns an image only when requested. REA disables the domains it enabled, detaches the target session, and closes only its own WebSocket.
+Discovery and attachment errors remain primary if closing REA's socket also
+fails. The cleanup failure is reported alongside the original command failure;
+it cannot replace the operation diagnostic.
 
 This feature is not a browser sandbox or network containment mechanism. The attached page and browser continue running with their existing privileges and may make external requests independently of REA. CDP gives deep access to the selected browser profile, so use a dedicated profile, include only origins you intend to inspect, and treat other same-user processes as outside this boundary.
 

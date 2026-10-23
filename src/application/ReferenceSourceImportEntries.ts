@@ -61,6 +61,10 @@ const failedEntry = (
 ): HistoricalSourceGraphInput["entries"][number] => {
   const classifications = classifyReferenceSourcePath(entry.path);
   const limitation = projectReferenceSourceEntryFailure(entry);
+  const local =
+    entry.localDiagnostic === undefined
+      ? {}
+      : { local_diagnostics: [entry.localDiagnostic] };
   if (entry.kind === "directory")
     return {
       path: entry.path,
@@ -68,6 +72,7 @@ const failedEntry = (
       classifications,
       tree_state: "unreadable",
       limitations: [limitation],
+      ...local,
     };
   if (entry.kind === "symlink")
     return {
@@ -77,6 +82,7 @@ const failedEntry = (
       target_state: "unreadable",
       classifications,
       limitations: [limitation],
+      ...local,
     };
   if (entry.kind === "unknown" || entry.kind === "other")
     return {
@@ -84,6 +90,7 @@ const failedEntry = (
       kind: "unknown",
       classifications: ["unknown"],
       limitations: [limitation],
+      ...local,
     };
   return {
     path: entry.path,
@@ -94,6 +101,7 @@ const failedEntry = (
     classifications: entry.kind === "file" ? classifications : ["unknown"],
     content_state: "unreadable",
     limitations: [limitation],
+    ...local,
   };
 };
 

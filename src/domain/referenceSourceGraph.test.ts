@@ -283,6 +283,37 @@ describe("partial historical source graphs", () => {
     );
   });
 
+  it("retains local diagnostics outside semantic commitments while committing operation failures", () => {
+    const base = graphInput();
+    base.inventory_state = "partial";
+    base.entries[1] = unavailableFileEntry({
+      limitations: [
+        "File could not be read safely: EACCES. Check permissions.",
+      ],
+      local_diagnostics: [
+        "EACCES: permission denied, open '/first/src/main.ts'",
+      ],
+    });
+    const graph = createHistoricalSourceGraph(base);
+    const moved = structuredClone(base);
+    moved.entries[1]!.local_diagnostics = [
+      "EACCES: permission denied, open '/second/src/main.ts'",
+    ];
+    const relocated = createHistoricalSourceGraph(moved);
+    expect(createHistoricalSourceManifest(relocated)).toEqual(
+      createHistoricalSourceManifest(graph),
+    );
+    expect(relocated.entries[1]!.local_diagnostics).toEqual(
+      moved.entries[1]!.local_diagnostics,
+    );
+    moved.entries[1]!.limitations = [
+      "File could not be read safely: EIO. Check permissions.",
+    ];
+    expect(
+      computeHistoricalSourceGraphSha256(createHistoricalSourceGraph(moved)),
+    ).not.toBe(computeHistoricalSourceGraphSha256(graph));
+  });
+
   it("keeps an unreadable symlink target unknown and out of root identity", () => {
     const base = graphInput();
     base.inventory_state = "partial";

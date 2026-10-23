@@ -40,6 +40,8 @@ const entryBaseShape = {
   path: relativePathSchema,
   classifications: z.array(classificationSchema).min(1),
   limitations: z.array(boundedTextSchema),
+  // Host presentation is retained evidence, separate from relocatable semantics.
+  local_diagnostics: z.array(boundedTextSchema).optional(),
 };
 
 const sourceFileBaseShape = {
@@ -570,12 +572,19 @@ export const parseHistoricalSourceGraph = (
   input: unknown,
 ): HistoricalSourceGraph => historicalSourceGraphSchema.parse(input);
 
-/** Compute a deterministic graph commitment containing no absolute root path. */
-export const computeHistoricalSourceGraphSha256 = (input: unknown): string =>
-  digestCanonicalValue(
-    parseHistoricalSourceGraph(input),
+/** Commit semantic graph facts while retaining host-local diagnostic metadata separately. */
+export const computeHistoricalSourceGraphSha256 = (input: unknown): string => {
+  const graph = parseHistoricalSourceGraph(input);
+  return digestCanonicalValue(
+    {
+      ...graph,
+      entries: graph.entries.map(
+        ({ local_diagnostics: _local, ...entry }) => entry,
+      ),
+    },
     "Reference source graph",
   );
+};
 
 /** Build a deterministic, relocation-independent manifest for a source graph. */
 export const createHistoricalSourceManifest = (

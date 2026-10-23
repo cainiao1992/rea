@@ -62,6 +62,8 @@ export type ReferenceSourceEntry =
       readonly path: string;
       readonly code: ReferenceSourceFailureCode;
       readonly message: string;
+      /** Exact filesystem presentation; may contain the selected local root path. */
+      readonly localDiagnostic?: string;
       readonly size?: number;
     };
 

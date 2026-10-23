@@ -483,11 +483,19 @@ rea import-reference-source /absolute/path/to/source --detail summary --outline-
 
 The default (`--detail full`) returns the complete `HistoricalSourceGraph`.
 Choose `--detail summary` for a `HistoricalSourceSummary` of that same committed
-inventory: its `HistoricalSourceManifest` contains the full graph and root
+inventory: its `HistoricalSourceManifest` contains the semantic graph and root
 digests, with provenance, VCS facts, languages, manifest paths, entry and
 relationship counts, parse-failure counts, file/directory states, exclusions
 and limitations. The summary is a presentation view, not a graph accepted by
 source-to-bundle comparison; keep the full output for that workflow.
+
+Known filesystem failures commit the operation, parsed errno, entry-relative
+location and recovery guidance. Entry `local_diagnostics`, when present,
+retains the exact host message, including local paths, outside the semantic
+graph commitment. Equivalent permission failures therefore retain their manifest
+identity after relocation while preserving original source diagnostics in full
+output and visible summary outline entries. Other substantive limitations still
+participate in the graph commitment.
 
 `--outline-depth` requires `--detail summary` and accepts a nonnegative safe
 integer. Depth 1 shows root children, depth 2 (the default) also shows their

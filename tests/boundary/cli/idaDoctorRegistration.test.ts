@@ -42,9 +42,9 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
     const root = await createTestTempDirectory("rea-ida-doctor-parent-");
     const parent = join(root, "parent");
     await mkdir(parent);
-    // Keep the caller's unnormalized spelling; allocation normalizes it too.
+    // Keep the caller's spelling while every traversed component exists.
     const workspaceRoot = usable
-      ? `${parent}/missing/../.`
+      ? `${parent}/./`
       : join(parent, "absent");
     const registration = join(root, "registration.json");
     await writeFile(

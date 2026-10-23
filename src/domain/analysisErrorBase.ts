@@ -242,6 +242,7 @@ import type {
   AdbActivityStartPartialObservation,
   AdbAcquiredFilePartialObservation,
   AdbPackagePullPartialObservation,
+  AdbDisplayPartialObservation,
 } from "./adb/adbDeviceAnalysis.js";
 import type { InspectSignature } from "./native/nativeInspection.js";
 import type { NativeUiObservationResult } from "./native/nativeUiObservation.js";
@@ -297,4 +298,5 @@ export type AnalysisPartialObservation =
   | ElectronPagePartialObservation
   | AdbActivityStartPartialObservation
   | AdbAcquiredFilePartialObservation
-  | AdbPackagePullPartialObservation;
+  | AdbPackagePullPartialObservation
+  | AdbDisplayPartialObservation;

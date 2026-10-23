@@ -1,4 +1,7 @@
+import { collectNumericIssues } from "./AdbNumericIssues.js";
 import type {
+  AdbDisplayNumericIssues,
+  AdbPackageNumericIssues,
   AdbWindowFocusContext,
   AdbWindowFocusObservation,
 } from "../domain/adb/adbDeviceAnalysis.js";
@@ -139,64 +142,109 @@ export const parseServiceListOutput = (
   return { services, unparsedLines: unparsed.facts() };
 };
 
-const SIZE_PAIR = /^Physical size:\s+(\d+)x(\d+)$/u;
-const SIZE_OVERRIDE = /^Override size:\s+(\d+)x(\d+)$/u;
-const DENSITY_PHYSICAL = /^Physical density:\s+(\d+)$/u;
-const DENSITY_OVERRIDE = /^Override density:\s+(\d+)$/u;
+const SIZE_DECLARATION = /^(Physical|Override) size:(.*)$/u;
+const SIZE_VALUE = /^\s+(\d+)x(\d+)$/u;
+const DENSITY_DECLARATION = /^(Physical|Override) density:(.*)$/u;
+const DENSITY_VALUE = /^\s+(\d+)$/u;
 const DENSITY_BARE = /^(\d+)$/u;
 
-/** Parse `wm size` output into physical and optional override sizes. */
+type DisplayNumericIssue = AdbDisplayNumericIssues["sample"][number];
+
+/** Parse declarations before admission so a malformed last declaration stays owned. */
 export const parseWmSizeOutput = (
   stdout: string,
 ): {
   physical: { readonly width: number; readonly height: number } | null;
   override: { readonly width: number; readonly height: number } | null;
+  physicalDeclared: boolean;
+  numericIssues: AdbDisplayNumericIssues;
 } => {
   let physical = null;
   let override = null;
-  for (const line of stdout.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    const physicalMatch = SIZE_PAIR.exec(trimmed);
-    if (physicalMatch !== null)
-      physical = {
-        width: Number(physicalMatch[1]!),
-        height: Number(physicalMatch[2]!),
-      };
-    const overrideMatch = SIZE_OVERRIDE.exec(trimmed);
-    if (overrideMatch !== null)
-      override = {
-        width: Number(overrideMatch[1]!),
-        height: Number(overrideMatch[2]!),
-      };
+  let physicalDeclared = false;
+  const issues = collectNumericIssues<DisplayNumericIssue>();
+  for (const rawLine of stdout.split(/\r?\n/u)) {
+    const declaration = SIZE_DECLARATION.exec(rawLine.trim());
+    if (declaration === null) continue;
+    const field =
+      declaration[1] === "Physical" ? "physical_size" : "override_size";
+    if (field === "physical_size") physicalDeclared = true;
+    const match = SIZE_VALUE.exec(declaration[2]!);
+    const width = match === null ? null : safeInteger(match[1]!);
+    const height = match === null ? null : safeInteger(match[2]!);
+    const reason =
+      match === null
+        ? "invalid_format"
+        : width === null || height === null
+          ? "unsafe_integer"
+          : width <= 0 || height <= 0
+            ? "nonpositive"
+            : null;
+    const value =
+      reason === null && width !== null && height !== null
+        ? { width, height }
+        : null;
+    if (reason !== null)
+      issues.add({ command: "wm size", field, reason, raw_line: rawLine });
+    if (field === "physical_size") physical = value;
+    else override = value;
   }
-  return { physical, override };
+  return {
+    physical,
+    override,
+    physicalDeclared,
+    numericIssues: issues.facts(),
+  };
 };
 
-/**
- * Parse `wm density` output. Current builds print labeled physical and
- * optional override lines; older builds print the physical density as a
- * bare number on its own line (morluto/rea#3942). A labeled declaration
- * wins over a bare one so a mixed dump cannot downgrade the physical value.
- */
+/** Labeled physical density dominates the first bare declaration, even when malformed. */
 export const parseWmDensityOutput = (
   stdout: string,
 ): {
   physical: number | null;
   override: number | null;
+  numericIssues: AdbDisplayNumericIssues;
 } => {
   let physical = null;
   let override = null;
   let bare = null;
-  for (const line of stdout.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    const physicalMatch = DENSITY_PHYSICAL.exec(trimmed);
-    if (physicalMatch !== null) physical = Number(physicalMatch[1]!);
-    const overrideMatch = DENSITY_OVERRIDE.exec(trimmed);
-    if (overrideMatch !== null) override = Number(overrideMatch[1]!);
-    const bareMatch = DENSITY_BARE.exec(trimmed);
-    if (bareMatch !== null && bare === null) bare = Number(bareMatch[1]!);
+  let physicalDeclared = false;
+  let bareDeclared = false;
+  const issues = collectNumericIssues<DisplayNumericIssue>();
+  for (const rawLine of stdout.split(/\r?\n/u)) {
+    const trimmed = rawLine.trim();
+    const declaration = DENSITY_DECLARATION.exec(trimmed);
+    const bareMatch = declaration === null ? DENSITY_BARE.exec(trimmed) : null;
+    if (declaration === null && (bareMatch === null || bareDeclared)) continue;
+    const field =
+      declaration?.[1] === "Override" ? "override_density" : "physical_density";
+    const match =
+      declaration === null ? bareMatch : DENSITY_VALUE.exec(declaration[2]!);
+    const value = match === null ? null : safeInteger(match[1]!);
+    const reason =
+      match === null
+        ? "invalid_format"
+        : value === null
+          ? "unsafe_integer"
+          : value <= 0
+            ? "nonpositive"
+            : null;
+    const admitted = reason === null ? value : null;
+    if (reason !== null)
+      issues.add({ command: "wm density", field, reason, raw_line: rawLine });
+    if (declaration === null) {
+      bareDeclared = true;
+      bare = admitted;
+    } else if (field === "physical_density") {
+      physicalDeclared = true;
+      physical = admitted;
+    } else override = admitted;
   }
-  return { physical: physical ?? bare, override };
+  return {
+    physical: physicalDeclared ? physical : bare,
+    override,
+    numericIssues: issues.facts(),
+  };
 };
 
 /** Own declaration identity and omission before deriving a singular summary. */
@@ -280,6 +328,7 @@ export interface AdbPackageDetails {
   readonly userId: number | null;
   readonly pkgFlags: string | null;
   readonly requestedPermissions: number | null;
+  readonly numericIssues: AdbPackageNumericIssues;
 }
 
 const DETAIL_LINE = /^\s+([A-Za-z][A-Za-z0-9_]*)=(.*)$/u;
@@ -320,6 +369,8 @@ export const parseDumpsysPackageOutput = (
     userId: null,
     pkgFlags: null,
   };
+  const issues =
+    collectNumericIssues<AdbPackageNumericIssues["sample"][number]>();
   let permissionsIndent: number | null = null;
   let hasPermissionsSection = false;
   let permissions = 0;
@@ -369,9 +420,17 @@ export const parseDumpsysPackageOutput = (
       details.installerPackageName === null
     )
       details.installerPackageName = absentInstallerOrName(value);
-    else if ((key === "userId" || key === "appId") && details.userId === null) {
+    else if (key === "userId" || key === "appId") {
       const parsed = /^(\d+)/u.exec(value);
-      if (parsed !== null) details.userId = Number(parsed[1]!);
+      const admitted = parsed === null ? null : safeInteger(parsed[1]!);
+      if (admitted === null)
+        issues.add({
+          command: "dumpsys package",
+          field: "user_id",
+          reason: parsed === null ? "invalid_format" : "unsafe_integer",
+          raw_line: line,
+        });
+      else if (details.userId === null) details.userId = admitted;
     } else if (key === "pkgFlags" && details.pkgFlags === null)
       details.pkgFlags = value === "" ? null : value;
   }
@@ -385,7 +444,7 @@ export const parseDumpsysPackageOutput = (
         : parsedPackageAvailable === true
           ? 0
           : null;
-  return { ...details, requestedPermissions };
+  return { ...details, requestedPermissions, numericIssues: issues.facts() };
 };
 
 /**

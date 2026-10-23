@@ -513,6 +513,51 @@ export const adbWindowFocusContextSchema = z.strictObject({
 });
 export type AdbWindowFocusContext = z.infer<typeof adbWindowFocusContextSchema>;
 
+const displayNumericReason = z.enum([
+  "invalid_format",
+  "unsafe_integer",
+  "nonpositive",
+]);
+const displayNumericIssue = z.discriminatedUnion("command", [
+  z.strictObject({
+    command: z.literal("wm size"),
+    field: z.enum(["physical_size", "override_size"]),
+    reason: displayNumericReason,
+    raw_line: z.string().min(1),
+  }),
+  z.strictObject({
+    command: z.literal("wm density"),
+    field: z.enum(["physical_density", "override_density"]),
+    reason: displayNumericReason,
+    raw_line: z.string().min(1),
+  }),
+]);
+
+/** Bounded source diagnostics for display numeric declarations. */
+export const adbDisplayNumericIssuesSchema = z.strictObject({
+  sample: z.array(displayNumericIssue),
+  total: z.int().nonnegative(),
+});
+export type AdbDisplayNumericIssues = z.infer<
+  typeof adbDisplayNumericIssuesSchema
+>;
+
+/** Bounded source diagnostics for Package Manager's userId/appId declarations. */
+export const adbPackageNumericIssuesSchema = z.strictObject({
+  sample: z.array(
+    z.strictObject({
+      command: z.literal("dumpsys package"),
+      field: z.literal("user_id"),
+      reason: z.enum(["invalid_format", "unsafe_integer"]),
+      raw_line: z.string().min(1),
+    }),
+  ),
+  total: z.int().nonnegative(),
+});
+export type AdbPackageNumericIssues = z.infer<
+  typeof adbPackageNumericIssuesSchema
+>;
+
 /** Portable ADB observations with explicit identity and coverage limitations. */
 export const adbResultSchemas = {
   inspect_adb_client: z.strictObject({
@@ -589,9 +634,10 @@ export const adbResultSchemas = {
     first_install_time: z.string().nullable(),
     last_update_time: z.string().nullable(),
     installer_package_name: z.string().nullable(),
-    user_id: z.int().nullable(),
+    user_id: z.int().nonnegative().nullable(),
     pkg_flags: z.string().nullable(),
     requested_permissions_count: z.int().nonnegative().nullable(),
+    numeric_issues: adbPackageNumericIssuesSchema,
     coverage: z.enum(["complete", "partial"]),
   }),
   pull_adb_file: z.strictObject({
@@ -700,6 +746,8 @@ export const adbResultSchemas = {
       .nullable(),
     physical_density: z.int().positive().nullable(),
     override_density: z.int().positive().nullable(),
+    numeric_issues: adbDisplayNumericIssuesSchema,
+    coverage: z.enum(["complete", "partial"]),
   }),
   inspect_adb_window: z.strictObject({
     client,
@@ -787,6 +835,20 @@ export const adbResultSchemas = {
     package_name: packageNameSchema,
   }),
 } as const;
+
+/** Completed display facts retained when the required physical size is unreadable. */
+export const adbDisplayPartialObservationSchema = z.strictObject({
+  provider_id: z.literal("adb"),
+  operation: z.literal("inspect_adb_display"),
+  reason: z.enum(["physical_size_absent", "physical_size_malformed"]),
+  result: adbResultSchemas.inspect_adb_display.extend({
+    physical_size: z.null(),
+    coverage: z.literal("partial"),
+  }),
+});
+export type AdbDisplayPartialObservation = z.infer<
+  typeof adbDisplayPartialObservationSchema
+>;
 
 /** Parsed focus facts, before the adapter supplies client and command identity. */
 export type AdbWindowFocusObservation = Omit<

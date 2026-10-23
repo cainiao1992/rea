@@ -37,12 +37,17 @@ import type {
   ProviderAvailability,
 } from "./AnalysisProvider.js";
 import type { JebAnalysisAvailability } from "./jeb/JebAnalysisPort.js";
+import { FRIDA_TOOL_CONTRACTS } from "../contracts/fridaToolContracts.js";
 import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   clientRequirementsFor,
   NO_CLIENT_FEATURES,
 } from "./CapabilityClientRequirements.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
+
+const FRIDA_OPERATION_NAMES: ReadonlySet<string> = new Set(
+  FRIDA_TOOL_CONTRACTS.map(({ name }) => name),
+);
 
 const statusSchema = z.object({
   open: z.boolean(),

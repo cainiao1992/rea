@@ -107,7 +107,7 @@ interface PendingCommand {
   outputTruncated: boolean;
   outputInvalidUtf8: boolean;
   terminalRecord: string | undefined;
-  awaitingInferiorStop: boolean;
+  completionToken: number | undefined;
   readonly resolve: (result: GdbCommandResult) => void;
   readonly reject: (error: Error) => void;
   readonly cleanup: () => void;
@@ -1635,45 +1635,44 @@ export class GdbSessionManager {
           pending.outputInvalidUtf8 ||= invalidUtf8;
         } else pending.outputTruncated = true;
       }
-      if (line.startsWith("*stopped")) {
-        for (const [token, pending] of session.pending) {
-          if (!pending.awaitingInferiorStop) continue;
-          clearTimeout(pending.timer);
-          session.pending.delete(token);
-          pending.cleanup();
-
-          pending.resolve({
-            command: "",
-            mi: pending.terminalRecord ?? "",
-            ...snapshotGdbCommandRecords(pending.lines),
-            output_truncated: pending.outputTruncated,
-            ...(pending.outputInvalidUtf8
-              ? { output_invalid_utf8: true as const }
-              : {}),
-            completion_status: "complete",
-          });
-        }
-        continue;
-      }
       const match = /^(\d+)\^(done|running|connected|error|exit)(?:,|$)/u.exec(
         line,
       );
       if (match === null) continue;
       const token = Number(match[1]);
-      const pending = session.pending.get(token);
+      const pending =
+        session.pending.get(token) ??
+        [...session.pending.values()].find(
+          (command) => command.completionToken === token,
+        );
       if (pending === undefined) continue;
-      if (match[2] === "running") {
+      if (token === pending.completionToken) {
+        if (match[2] !== "done") {
+          this.#failProtocol(session, "GDB command completion query failed.");
+          continue;
+        }
+      } else {
         pending.terminalRecord = line;
-        pending.awaitingInferiorStop = true;
-        continue;
+        if (match[2] === "running" && pending.completionToken === undefined) {
+          // ^running and *stopped describe inferior execution, not completion
+          // of an outer CLI command such as a multi-run command file. GDB
+          // processes this read-only query after returning to its command loop.
+          pending.completionToken = session.nextToken++;
+          this.#writeMiRequest(
+            session,
+            pending.completionToken,
+            "-gdb-show mi-async",
+          );
+        }
+        if (pending.completionToken !== undefined) continue;
       }
       clearTimeout(pending.timer);
-      session.pending.delete(token);
+      session.pending.delete(pending.token);
       pending.cleanup();
 
       pending.resolve({
         command: "",
-        mi: line,
+        mi: pending.terminalRecord ?? line,
         ...snapshotGdbCommandRecords(pending.lines),
         output_truncated: pending.outputTruncated,
         ...(pending.outputInvalidUtf8
@@ -2085,7 +2084,7 @@ export class GdbSessionManager {
         outputTruncated: false,
         outputInvalidUtf8: false,
         terminalRecord: undefined,
-        awaitingInferiorStop: false,
+        completionToken: undefined,
       };
       session.pending.set(token, pending);
       abortListener = (): void => {
@@ -2174,25 +2173,28 @@ export class GdbSessionManager {
         abortListener();
         return;
       }
-      try {
-        session.launched.process.stdin?.write(
-          `${token}${command}\n`,
-          "utf8",
-          (cause?: Error | null) => {
-            if (cause)
-              this.#failProtocol(
-                session,
-                `GDB stdin write failed: ${cause.message}`,
-              );
-          },
-        );
-      } catch (cause) {
-        this.#failProtocol(
-          session,
-          `GDB stdin write failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
-        );
-      }
+      this.#writeMiRequest(session, token, command);
     }).then((result) => ({ ...result, command }));
+  }
+  #writeMiRequest(session: GdbSession, token: number, command: string): void {
+    try {
+      session.launched.process.stdin?.write(
+        `${token}${command}\n`,
+        "utf8",
+        (cause?: Error | null) => {
+          if (cause)
+            this.#failProtocol(
+              session,
+              `GDB stdin write failed: ${cause.message}`,
+            );
+        },
+      );
+    } catch (cause) {
+      this.#failProtocol(
+        session,
+        `GDB stdin write failed: ${cause instanceof Error ? cause.message : "unknown error"}`,
+      );
+    }
   }
 }
 

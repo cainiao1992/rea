@@ -75,6 +75,15 @@ const projectError = (
   const capturedOutput = composed.capturedOutput ?? error.capturedOutput;
   const partialObservation =
     composed.partialObservation ?? error.partialObservation;
+  // A finalizer can add a report above the semantic primary, including while
+  // its cleanup is pending or beneath another cleanup composition.
+  let cleanupReport = composed.cleanupReport;
+  for (
+    let owner = composed.cleanupPrimary;
+    cleanupReport === undefined && owner !== undefined;
+    owner = owner.cleanupPrimary
+  )
+    cleanupReport = owner.cleanupReport;
   assertKnownAnalysisErrorTag(error._tag);
   const primary = primaryAnalysisError(error);
   assertKnownAnalysisErrorTag(primary._tag);
@@ -83,9 +92,9 @@ const projectError = (
   const primaryDetails = errorDetails(primary);
   const details = {
     ...primaryDetails,
-    ...(composed === error || composed.cleanupReport === undefined
+    ...(cleanupReport === undefined
       ? {}
-      : { cleanup_report: jsonValueSchema.parse(composed.cleanupReport) }),
+      : { cleanup_report: jsonValueSchema.parse(cleanupReport) }),
     ...(diagnostics === undefined
       ? {}
       : {

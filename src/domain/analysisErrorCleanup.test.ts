@@ -318,3 +318,43 @@ it("retains an observation attached to the composite after the primary failed", 
     details: { partial_observation: observation },
   });
 });
+
+it("retains an owner's finalization report independently of pending primary semantics", () => {
+  const report = {
+    owned_process_group: { state: "not_required" as const, reason: null },
+    terminal_renderer: { state: "not_required" as const, reason: null },
+    temporary_root: { state: "cleaned" as const, reason: null },
+  };
+  class ReportedCleanup extends ProviderCleanupError {
+    override readonly cleanupReport = report;
+  }
+  const primary = new AnalysisInputError("inspect");
+  const finalized = new ReportedCleanup(
+    "fixture",
+    ["input"],
+    {},
+    {
+      cleanupPrimary: primary,
+    },
+  );
+  const later = new ProviderCleanupError("fixture", ["workspace"], {});
+  const outer = analysisErrorWithCleanupFailure(
+    finalized,
+    later,
+  ).bindCleanupDependencies([finalized, later]);
+  const assertReport = (error: typeof outer) => {
+    expect(projectAnalysisError(error)).toMatchObject({
+      category: "invalid_input",
+      details: { operation: "inspect", cleanup_report: report },
+    });
+  };
+  assertReport(finalized);
+  assertReport(outer);
+  expect(outer.cleanupIncomplete).toBe(true);
+  later.resolveCleanup();
+  assertReport(outer);
+  expect(outer.cleanupIncomplete).toBe(true);
+  finalized.resolveCleanup();
+  assertReport(outer);
+  expect(outer.cleanupIncomplete).toBe(false);
+});

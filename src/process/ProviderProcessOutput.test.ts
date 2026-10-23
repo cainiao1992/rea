@@ -664,3 +664,43 @@ it("keeps current checkpoint coverage separate from historically dropped output"
     producer.stderr.destroy();
   }
 });
+
+it("marks a stop the owner requested before any signal it sends", async () => {
+  const producer = () =>
+    Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      exitCode: null,
+      signalCode: null,
+      kill: () => false,
+    });
+  const external = producer();
+  const unowned = new ProviderProcessSupervisor({
+    process: external,
+    ownsProcessLifetime: true,
+    cleanup: async () => ({ cleaned: true, signaled: false }),
+  });
+  external.emit("exit", null, "SIGKILL");
+  expect(unowned.snapshot()).toMatchObject({ signal: "SIGKILL" });
+  expect(unowned.snapshot()).not.toHaveProperty("stopRequested");
+
+  const stopped = producer();
+  const owner = new ProviderProcessSupervisor({
+    process: stopped,
+    ownsProcessLifetime: true,
+    cleanup: async () => {
+      // The owner's group cleanup is the SIGKILL sender here.
+      expect(owner.snapshot().stopRequested).toBe(true);
+      stopped.emit("exit", null, "SIGKILL");
+      stopped.stdout.end();
+      stopped.stderr.end();
+      stopped.emit("close", null, "SIGKILL");
+      return { cleaned: true, signaled: true };
+    },
+  });
+  await owner.stop();
+  expect(owner.snapshot()).toMatchObject({
+    signal: "SIGKILL",
+    stopRequested: true,
+  });
+});

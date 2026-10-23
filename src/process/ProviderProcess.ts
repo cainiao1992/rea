@@ -130,6 +130,11 @@ export interface ProviderProcessSnapshot {
   readonly signal: NodeJS.Signals | null | undefined;
   /** Present only when the process tree reached its enforced memory limit. */
   readonly memoryLimitReached?: true;
+  /**
+   * Present once this supervisor began stopping the process, before any signal
+   * it sends. An exit signal observed without it did not come from the owner.
+   */
+  readonly stopRequested?: true;
   /** Present when a provider stream was destroyed before all bytes were observed. */
   readonly outputIncomplete?: true;
 }
@@ -388,6 +393,7 @@ export class ProviderProcessSupervisor {
   };
   #exitObservation: ProviderProcessExitObservation | undefined;
   #stopPromise: Promise<ProviderProcessStopResult> | undefined;
+  #stopRequested = false;
   #disposed = false;
   #maxDiagnosticBytes: number | undefined;
   #outputEpoch = 0;
@@ -439,6 +445,7 @@ export class ProviderProcessSupervisor {
       ...(this.launch.process.memoryLimitReached === true
         ? { memoryLimitReached: true }
         : {}),
+      ...(this.#stopRequested ? { stopRequested: true } : {}),
       ...(outputIncomplete ? { outputIncomplete: true } : {}),
     };
   }
@@ -608,6 +615,7 @@ export class ProviderProcessSupervisor {
   stop(
     options: ProviderProcessStopOptions = {},
   ): Promise<ProviderProcessStopResult> {
+    this.#stopRequested = true;
     this.#stopPromise ??= this.#stop(options).then((result) => {
       if (result.status === "incomplete") this.#stopPromise = undefined;
       return result;

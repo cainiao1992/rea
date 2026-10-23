@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import type { Result } from "../domain/result.js";
+import type { LinuxCgroupMemoryState } from "../process/LinuxCgroupMemory.js";
 import type { GhidraLauncher } from "./GhidraLauncher.js";
 import type { GhidraSessionError } from "./GhidraSessionError.js";
 import type { GhidraSessionInfo } from "./GhidraSessionValues.js";
@@ -46,4 +47,6 @@ export interface GhidraClientOptions {
   readonly startupTimeoutMs?: number;
   readonly onDiagnostic?: (event: GhidraDiagnostic) => void;
   readonly logger?: Logger;
+  /** Observes REA's memory cgroup around a run; defaults to the Linux cgroup v2 reader. */
+  readonly readMemoryCgroup?: () => Promise<LinuxCgroupMemoryState | undefined>;
 }

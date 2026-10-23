@@ -19,6 +19,10 @@ import {
 import { err, ok, type Result } from "../domain/result.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
+import {
+  readLinuxCgroupMemoryState,
+  type LinuxCgroupMemoryState,
+} from "../process/LinuxCgroupMemory.js";
 import { PendingOperations } from "../process/PendingOperations.js";
 import { DecodedNdjsonLineBuffer } from "../process/DecodedNdjsonLineBuffer.js";
 import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
@@ -133,6 +137,7 @@ export class GhidraClient {
   #socketRoot: PrivateRuntimeRoot | undefined;
   #endpointPath: string | undefined;
   #snapshotPath: string | undefined;
+  #memoryCgroupBaseline: LinuxCgroupMemoryState | undefined;
   readonly #fileResources = new ArtifactResourceScope();
   readonly #cleanupFailures = new Set<AnalysisError>();
   #targetAdmission: JsonValue | undefined;
@@ -216,12 +221,14 @@ export class GhidraClient {
               requestOptions.signal,
             );
             return err(
-              this.#refreshProcessFailure(
-                result.error,
-                owner,
-                checkpoint,
-                token,
-                !drained,
+              await this.#withMemoryCgroupEvidence(
+                this.#refreshProcessFailure(
+                  result.error,
+                  owner,
+                  checkpoint,
+                  token,
+                  !drained,
+                ),
               ),
             );
           }
@@ -679,7 +686,9 @@ export class GhidraClient {
           : { remoteCode: primary.remoteCode }),
       },
     );
-    primary = primary.withDiagnostics(refreshed.diagnostics, refreshed.message);
+    primary = await this.#withMemoryCgroupEvidence(
+      primary.withDiagnostics(refreshed.diagnostics, refreshed.message),
+    );
     try {
       await this.#cleanup();
       return err(primary);
@@ -869,6 +878,7 @@ export class GhidraClient {
     this.#authenticationTokens.add(this.#token);
     this.#lineage.reset();
     this.#runId = this.#options.runId ?? randomUUID();
+    this.#memoryCgroupBaseline = await this.#readMemoryCgroup();
     const launched = await this.#options.launcher
       .launch(
         {
@@ -1320,11 +1330,43 @@ export class GhidraClient {
       ...failure.diagnostics,
       exit_code: snapshot.exitCode ?? null,
       exit_signal: snapshot.signal ?? null,
+      ...(snapshot.stopRequested === true ? { stop_requested: true } : {}),
       diagnostic_truncated: snapshot.diagnosticTruncated === true || incomplete,
       output_incomplete: snapshot.outputIncomplete === true || drainIncomplete,
       stdout: ghidraDiagnosticStream(snapshot.stdout, token),
       stderr: ghidraDiagnosticStream(snapshot.stderr, token),
       failure_output: ghidraFailureOutput(scoped, token, drainIncomplete),
+    });
+  }
+
+  #readMemoryCgroup(): Promise<LinuxCgroupMemoryState | undefined> {
+    return (this.#options.readMemoryCgroup ?? readLinuxCgroupMemoryState)();
+  }
+
+  /**
+   * Compare REA's memory cgroup with its pre-launch observation once Ghidra is
+   * known to have died by SIGKILL, so a kernel OOM kill becomes evidence.
+   */
+  async #withMemoryCgroupEvidence(
+    failure: GhidraSessionError,
+  ): Promise<GhidraSessionError> {
+    const before = this.#memoryCgroupBaseline;
+    if (
+      before === undefined ||
+      failure.diagnostics.exit_signal !== "SIGKILL" ||
+      failure.diagnostics.stop_requested === true
+    )
+      return failure;
+    const after = await this.#readMemoryCgroup();
+    if (after === undefined || after.path !== before.path) return failure;
+    return failure.withDiagnostics({
+      ...failure.diagnostics,
+      memory_cgroup: {
+        path: after.path,
+        oom_kill_before: before.oomKills,
+        oom_kill_after: after.oomKills,
+        memory_max: after.memoryMax,
+      },
     });
   }
 

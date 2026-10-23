@@ -36,6 +36,8 @@ type FixtureMode =
   | "old_oom_then_malformed"
   | "prefix_cut_identifier_exit_tools"
   | "oom_exit_tools"
+  | "sigkill_tools"
+  | "sigkill_after_first_tool"
   | "flood_then_oom_exit_tools"
   | "flood_then_exit_tools"
   | "flood_then_malformed"

@@ -3916,6 +3916,114 @@ describe("Ghidra OOME beyond the retention budget", () => {
   });
 });
 
+describe("Ghidra SIGKILL projection", () => {
+  const killed = {
+    stdout: output("WARN Decompiling 14005c790, pcode error"),
+    stderr: output(""),
+    failure_output: failureOutput("WARN Decompiling 14005c790, pcode error"),
+    configured_jvm_max_heap: "2G",
+    exit_code: null,
+    exit_signal: "SIGKILL",
+  };
+  const cgroup = (oomKillAfter: number, memoryMax: number | "max" | null) => ({
+    path: "/",
+    oom_kill_before: 0,
+    oom_kill_after: oomKillAfter,
+    memory_max: memoryMax,
+  });
+
+  it.each(["process", "protocol"] as const)(
+    "reports a %s failure after a cgroup OOM kill as a memory constraint",
+    async (kind) => {
+      const projected = await projectFailure(kind, {
+        ...killed,
+        memory_cgroup: cgroup(1, 3_221_225_472),
+      });
+      expect(projected).toMatchObject({
+        code: "resource_constraint",
+        details: {
+          resource: "memory",
+          reported_limits: {
+            cgroup_memory_max: 3_221_225_472,
+            configured_jvm_max_heap: "2G",
+          },
+        },
+      });
+      expect(projected.message).toContain("oom_kill");
+      expect(projected.message).toContain("child groups");
+      expect(projected.message).not.toContain("process tree");
+      expect(projected.remediation.action).toContain("decompiler");
+      expect(projected.remediation.action).not.toContain("rea doctor");
+      expect(projected.remediation.action).not.toMatch(
+        /increas\w* GHIDRA_HEADLESS_MAXMEM/u,
+      );
+    },
+  );
+
+  it.each([
+    ["an unlimited group", "max"],
+    ["an unread limit", null],
+  ] as const)("reports %s as observed", async (_name, memoryMax) => {
+    const projected = await projectFailure("process", {
+      ...killed,
+      memory_cgroup: cgroup(2, memoryMax),
+    });
+    expect(projected).toMatchObject({
+      code: "resource_constraint",
+      details: { reported_limits: { cgroup_memory_max: memoryMax } },
+    });
+  });
+
+  it("does not attribute a SIGKILL sent while REA was stopping Ghidra", async () => {
+    const projected = await projectFailure("process", {
+      ...killed,
+      stop_requested: true,
+      memory_cgroup: cgroup(1, 3_221_225_472),
+    });
+    expect(projected.code).toBe("execution_failure");
+    expect(projected.message).not.toContain("SIGKILL");
+  });
+
+  it.each([
+    ["without cgroup evidence", {}],
+    [
+      "when the cgroup recorded no new OOM kill",
+      { memory_cgroup: cgroup(0, 3_221_225_472) },
+    ],
+  ])("names the signal instead of doctor advice %s", async (_name, extra) => {
+    const projected = await projectFailure("process", {
+      ...killed,
+      ...extra,
+    });
+    expect(projected.code).toBe("execution_failure");
+    expect(projected.message).toContain("SIGKILL");
+    expect(projected.message).toContain("out of memory");
+    expect(projected.message).not.toContain("rea doctor");
+    expect(projected.remediation.action).toContain("decompiler");
+  });
+
+  it("keeps an observed OOME primary over the kill", async () => {
+    const projected = await projectFailure("process", {
+      ...killed,
+      failure_output: failureOutput(issueOutput),
+      memory_cgroup: cgroup(1, 3_221_225_472),
+    });
+    expect(projected.message).toContain("Java heap space");
+  });
+
+  it.each(["timeout", "cancelled", "remote"] as const)(
+    "does not reinterpret a %s failure that ended in SIGKILL",
+    async (kind) => {
+      const projected = await projectFailure(kind, {
+        ...killed,
+        memory_cgroup: cgroup(1, 3_221_225_472),
+      });
+      expect(projected.code).not.toBe("resource_constraint");
+      expect(projected.message).not.toContain("SIGKILL");
+    },
+  );
+});
+
 it("reuses readiness only inside its active task and provider lifetime", async () => {
   let probes = 0;
   let version = "21.0.11";

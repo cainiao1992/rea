@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { overallStatus } from "./functionComparisonResults.js";
+import { overallStatus, summarize } from "./functionComparisonResults.js";
+import { canonicalJson } from "./comparisonSemantics.js";
 import { evidenceInputSchema } from "./evidenceReference.js";
 import { digestSchema } from "./../domain/digests.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
@@ -91,11 +92,60 @@ export const functionComparisonResultSchema = z
       changed: z.int().min(0),
       unknown: z.int().min(0),
     }),
-    dimensions: z.array(functionDimensionSchema).length(8),
+    dimensions: z
+      .array(functionDimensionSchema)
+      .length(functionComparisonDimensionNameSchema.options.length),
     changes: z.array(functionDimensionSchema),
     limitations: z.array(z.string()),
   })
   .superRefine((result, context) => {
+    const dimensions = new Map<DimensionName, FunctionDimension>();
+    for (const [index, dimension] of result.dimensions.entries()) {
+      if (dimensions.has(dimension.dimension))
+        context.addIssue({
+          code: "custom",
+          path: ["dimensions", index, "dimension"],
+          message: "Function comparison dimensions must occur exactly once.",
+        });
+      dimensions.set(dimension.dimension, dimension);
+    }
+    const expectedSummary = summarize(result.dimensions);
+    for (const status of comparisonStatusSchema.options)
+      if (result.summary[status] !== expectedSummary[status])
+        context.addIssue({
+          code: "custom",
+          path: ["summary", status],
+          message: "Function comparison summary must count its dimensions.",
+        });
+    const changes = new Set<DimensionName>();
+    for (const [index, change] of result.changes.entries()) {
+      const dimension = dimensions.get(change.dimension);
+      if (
+        changes.has(change.dimension) ||
+        dimension === undefined ||
+        change.status === "unchanged" ||
+        canonicalJson(change) !== canonicalJson(dimension)
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["changes", index],
+          message:
+            "Function comparison changes must cite each changed or unknown dimension exactly as recorded.",
+        });
+      changes.add(change.dimension);
+    }
+    if (
+      result.dimensions.some(
+        ({ dimension, status }) =>
+          status !== "unchanged" && !changes.has(dimension),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["changes"],
+        message:
+          "Function comparison changes must include every changed or unknown dimension.",
+      });
     if (
       result.status !==
       overallStatus(result.dimensions, result.function_match.status)

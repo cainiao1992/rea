@@ -14,7 +14,10 @@ import {
 } from "./comparisonSourceEvidence.js";
 import { evidenceSchema, type Evidence } from "./evidence.js";
 import { hasComparisonEvidenceIdentity } from "./comparisonEvidenceIdentity.js";
-import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
+import {
+  functionComparisonDimensionNameSchema,
+  functionComparisonResultSchema,
+} from "./functionComparisonSchemas.js";
 import type { JsonValue } from "./jsonValue.js";
 import {
   comparisonStatusSchema,
@@ -24,16 +27,6 @@ import { PROCESS_COMPARISON_DIMENSIONS } from "./process/processComparison.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
-const functionDimensionSchema = z.enum([
-  "identity",
-  "pseudocode",
-  "assembly",
-  "comments",
-  "calls",
-  "references",
-  "strings_names",
-  "cfg",
-]);
 const runtimeDimensionSchema = z.enum(PROCESS_COMPARISON_DIMENSIONS);
 const expectedPatternSchema = z.enum([
   "cochanged",
@@ -54,7 +47,10 @@ const artifactSelectorSchema = z
   })
   .strict();
 const functionSelectorSchema = z
-  .object({ kind: z.literal("function"), dimension: functionDimensionSchema })
+  .object({
+    kind: z.literal("function"),
+    dimension: functionComparisonDimensionNameSchema,
+  })
   .strict();
 const staticSelectorSchema = z.discriminatedUnion("kind", [
   artifactSelectorSchema,
@@ -333,16 +329,11 @@ const selectStatic = (
         "Function selector requires function comparison Evidence",
       );
     const result = comparison.result;
-    const matches = result.dimensions.filter(
+    const match = result.dimensions.find(
       ({ dimension }) => dimension === selector.dimension,
     );
-    const match = matches.at(0);
-    if (matches.length !== 1 || match === undefined)
-      throw callerInputError(
-        input,
-        path,
-        "Function selector must resolve exactly once",
-      );
+    if (match === undefined)
+      throw evidenceIntegrityError("Function comparison dimension missing");
     return {
       status: match.status,
       conclusion_kind: match.conclusion_kind,

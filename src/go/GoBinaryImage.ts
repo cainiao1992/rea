@@ -3,9 +3,11 @@ import {
   BinaryResourceFailure,
   BinaryReader,
   mappedFileOffset,
+  imageFileMappings,
   isZeroFilledSpan,
   type BinaryContainer,
   type FileMapping,
+  type ZeroFillMapping,
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
 import {
@@ -88,15 +90,11 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
         : { section_names_limitation: sectionNamesLimitation }),
     };
   const { search, header } = selected;
+  const mappings = imageFileMappings(container);
   const verifyMapping = (size: number): void => {
     const address = search.address + BigInt(header - search.offset);
     if (
-      mappedFileOffset(
-        container.mappings,
-        address,
-        size,
-        container.zero_fills,
-      ) !== header
+      mappedFileOffset(mappings, address, size, container.zero_fills) !== header
     )
       throw new BinaryFormatFailure(
         "malformed",
@@ -159,14 +157,16 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
     const pointerBits = ptrSize === 4 ? 32 : 64;
     version = readPointerString(
       reader,
-      container,
+      mappings,
+      container.zero_fills,
       reader.word(header + 16, pointerBits),
       pointerBits,
     );
     const moduleField = header + 16 + ptrSize;
     module = readOptionalModuleString(
       reader,
-      container,
+      mappings,
+      container.zero_fills,
       reader.word(moduleField, pointerBits),
       moduleField,
       pointerBits,
@@ -346,11 +346,11 @@ const readInlineExtent = (
 
 const readPointerString = (
   reader: BinaryReader,
-  container: BinaryContainer,
+  mappings: readonly FileMapping[],
+  zeroFills: readonly ZeroFillMapping[],
   address: bigint,
   pointerBits: 32 | 64,
 ): LocatedString => {
-  const { mappings, zero_fills: zeroFills } = container;
   const width = pointerBits / 8;
   const header = mappedFileOffset(mappings, address, width * 2, zeroFills);
   const valueAddress = reader.word(header, pointerBits);
@@ -375,19 +375,15 @@ const readPointerString = (
 
 const readOptionalModuleString = (
   reader: BinaryReader,
-  container: BinaryContainer,
+  mappings: readonly FileMapping[],
+  zeroFills: readonly ZeroFillMapping[],
   address: bigint,
   pointerField: number,
   pointerBits: 32 | 64,
 ): LocatedString =>
-  isZeroFilledSpan(
-    container.mappings,
-    container.zero_fills,
-    address,
-    (pointerBits / 8) * 2,
-  )
+  isZeroFilledSpan(mappings, zeroFills, address, (pointerBits / 8) * 2)
     ? { bytes: Buffer.alloc(0), location: { offset: pointerField, bytes: 0 } }
-    : readPointerString(reader, container, address, pointerBits);
+    : readPointerString(reader, mappings, zeroFills, address, pointerBits);
 
 /** Decode metadata text without replacing invalid bytes or stripping an initial BOM. */
 export const observedUtf8 = (bytes: Buffer, label: string): string => {

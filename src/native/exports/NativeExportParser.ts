@@ -3,6 +3,7 @@ import {
   BinaryReader,
   BinaryResourceFailure,
   mappedFileOffset,
+  imageFileMappings,
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
 import { isUtf8 } from "node:buffer";
@@ -109,10 +110,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       ],
     };
   const reader = new BinaryReader(bytes, true);
-  const mappings =
-    image.pe_header_mapping === undefined
-      ? image.mappings
-      : [image.pe_header_mapping, ...image.mappings];
+  const mappings = imageFileMappings(image);
   const map = (rva: number, size: number): number =>
     mappedFileOffset(mappings, base + BigInt(rva), size, image.zero_fills);
   const cString = (rva: number): string => {

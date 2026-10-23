@@ -1,5 +1,5 @@
 import {
-  BinaryFormatFailure,
+  BinaryMappingFailure,
   mappedFileOffset,
   isZeroFilledSpan,
   type FileMapping,
@@ -124,14 +124,15 @@ function* dynamicTags(image: Buffer): Generator<void, Map<bigint, bigint>> {
 }
 
 const fileOffset = (
-  mappings: readonly FileMapping[],
+  source: RelocationSource,
   address: bigint,
   size: number,
 ): number | null => {
   try {
-    return mappedFileOffset(mappings, address, size);
+    return mappedFileOffset(source.mappings, address, size, source.zeroFills);
   } catch (cause) {
-    if (cause instanceof BinaryFormatFailure) return null;
+    if (cause instanceof BinaryMappingFailure && cause.reason === "unmapped")
+      return null;
     throw cause;
   }
 };
@@ -163,7 +164,7 @@ function* applyRelaTable(
     size > BigInt(source.image.length)
   )
     throw malformed("invalid DT_RELASZ or DT_RELAENT");
-  const start = fileOffset(source.mappings, address, Number(size));
+  const start = fileOffset(source, address, Number(size));
   if (start === null) throw malformed("RELA table is not file-backed");
   for (let at = start; at < start + Number(size); at += 24) {
     if ((at - start) % (24 * 4096) === 0) yield;
@@ -180,11 +181,11 @@ function* applyRelaTable(
       output.unresolved.set(destination, Math.max(priorWidth ?? 0, width));
       // Registration scans read this private image directly. Clear unknown
       // fields so their stored bytes cannot masquerade as resolved pointers.
-      const target = fileOffset(source.mappings, destination, width);
+      const target = fileOffset(source, destination, width);
       if (target !== null) output.bytes.fill(0, target, target + width);
       continue;
     }
-    const target = fileOffset(source.mappings, destination, 8);
+    const target = fileOffset(source, destination, 8);
     const value = source.image.readBigInt64LE(at + 16) & 0xffffffffffffffffn;
     if (target !== null) output.bytes.writeBigUInt64LE(value, target);
     else if (

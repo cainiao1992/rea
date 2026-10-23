@@ -381,7 +381,7 @@ export const readAmdElfMetadata = async (
     const targetMatch =
       target === null
         ? null
-        : /^amdgcn-amd-amdhsa-(?:-(gfx[a-zA-Z0-9]+(?::[^\s]+)?)|unknown-(gfx[a-zA-Z0-9]+(?::[^\s]+)?))$/u.exec(
+        : /^amdgcn-amd-amdhsa-(?:-(gfx[a-zA-Z0-9]+(?:(?::[^\s]+)|(?:\+[a-zA-Z0-9_-]+))*)|unknown-(gfx[a-zA-Z0-9]+(?:(?::[^\s]+)|(?:\+[a-zA-Z0-9_-]+))*))$/u.exec(
             target,
           );
     const target_key = targetMatch?.[1] ?? targetMatch?.[2] ?? null;

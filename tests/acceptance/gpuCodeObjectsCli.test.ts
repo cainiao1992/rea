@@ -19,6 +19,7 @@ import {
   ptxFixture,
   amdFixture,
   cubinFixture,
+  hipFixture,
 } from "../fixtures/gpu/codeObjects.js";
 
 cliTest(
@@ -60,6 +61,197 @@ cliTest(
       expect(report.kernels[0]!.parameter_bytes).toBe(12);
       expect(report.coverage.payloads).toBe("complete");
     }
+  },
+);
+
+cliTest(
+  "compares equivalent PTX targets and retains family-specific CUDA targets",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-gpu-target-spelling-");
+    for (const [name, target, payloadTarget, ptx, flags] of [
+      [
+        "compute",
+        "sm_80",
+        "compute_80",
+        ptxFixture.replace(".target sm_80", ".target compute_80"),
+        0,
+      ],
+      [
+        "family",
+        "sm_100f",
+        "sm_100f",
+        ptxFixture.replace(".target sm_80", ".target sm_100f"),
+        0x200000,
+      ],
+    ] as const) {
+      const bytes = cudaFixture("none", [
+          {
+            kind: 1,
+            target: name === "compute" ? 80 : 100,
+            bytes: Buffer.from(ptx),
+            flags,
+          },
+        ]),
+        path = join(root, name);
+      await writeFile(path, bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          "kernels",
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const evidence = parseEvidence(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ),
+      );
+      const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+      expect(report.objects[0]).toMatchObject({
+        target,
+        payload_target: payloadTarget,
+        target_consistency: "consistent",
+      });
+      expect(report.coverage.payloads).toBe("complete");
+    }
+  },
+);
+
+cliTest(
+  "reads CUDA V2 parameter records through the public CLI",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-cubin-v2-parameter-"),
+      bytes = cudaFixture("none", [
+        {
+          kind: 2,
+          target: 80,
+          bytes: cubinFixture({ architecture: 80, v2ParameterSize: 20000 }),
+        },
+      ]),
+      path = join(root, "large-parameter.cubin");
+    await writeFile(path, bytes);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.kernels[0]).toMatchObject({
+      parameter_count: 1,
+      parameter_bytes: 20000,
+      parameters: [{ ordinal: 0, offset: 0, size: 20000 }],
+    });
+    expect(report.coverage.payloads).toBe("complete");
+  },
+);
+
+cliTest(
+  "preserves HIP v3 feature target IDs for exact selection",
+  async ({ cli }) => {
+    const target = "amdgcn-amd-amdhsa--gfx906+xnack",
+      root = await createTestTempDirectory("rea-hip-v3-target-id-"),
+      bytes = hipFixture(
+        amdFixture(false, undefined, target),
+        "hip-amdgcn-amd-amdhsa--gfx906+xnack",
+      ),
+      path = join(root, "feature.bundle");
+    await writeFile(path, bytes);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--targets",
+        JSON.stringify(["gfx906+xnack"]),
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.objects.find((row) => row.kind === "amdgpu")!.target).toBe(
+      "gfx906+xnack",
+    );
+    expect(report.kernels).toHaveLength(1);
+    expect(report.coverage.payloads).toBe("complete");
+  },
+);
+
+cliTest(
+  "keeps PTX pointer names and excludes call prototypes from resources",
+  async ({ cli }) => {
+    const source = ptxFixture
+        .replace(".u64 output", ".u64 .ptr .global output")
+        .replace(
+          ".u32 value",
+          ".u64 .ptr .global .align 4 ptr_arg, .param .u64 .ptr .align 1 increment_param_0, .param .u64 .ptr.global.align 4 joined_arg, .param .u32 value",
+        )
+        .replace(
+          ".reg .b64 %rd<5>;",
+          ".reg .b64 %rd<5>; F: .callprototype _ (.reg .b32 _);",
+        ),
+      root = await createTestTempDirectory("rea-ptx-callprototype-"),
+      path = join(root, "prototype.ptx");
+    await writeFile(path, source);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.kernels[0]).toMatchObject({
+      parameter_count: 5,
+      parameters: [
+        { name: "output", size: 8 },
+        { name: "ptr_arg", size: 8 },
+        { name: "increment_param_0", size: 8 },
+        { name: "joined_arg", size: 8 },
+        { name: "value", size: 4 },
+      ],
+      registers: {
+        virtual: [
+          { type: ".b32", count: 9 },
+          { type: ".b64", count: 5 },
+        ],
+      },
+    });
+    expect(report.coverage.payloads).toBe("complete");
   },
 );
 
@@ -343,7 +535,7 @@ it("preserves incomplete decoder coverage through MCP target and object pages", 
               ])
             : missing === "ptx-parameter"
               ? Buffer.from(
-                  ptxFixture.replace(".u64 output", ".u64 .ptr .global output"),
+                  ptxFixture.replace(".u64 output", ".u64 .vendor output"),
                 )
               : missing === "ptx-shared"
                 ? Buffer.from(ptxFixture.replace("scratch[32]", "scratch[]"))

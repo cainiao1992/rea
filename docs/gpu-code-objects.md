@@ -27,7 +27,7 @@ selected fields.
 Conflicting base architectures retain both values, mark object/report/target
 coverage partial and annotate the affected kernels. CUBIN flags establish a base
 architecture: `base-only` explicitly leaves feature-profile agreement unknown,
-including `a` variants. A standalone declaration is `single-source`, and
+including `a` and `f` variants. A standalone declaration is `single-source`, and
 unexamined payloads remain `unexamined`. An exact AMDGPU target is normalized at
 its note owner for comparison with a Clang bundle declaration; raw values remain
 intact. Unresolved feature comparisons stay `unknown`.
@@ -43,8 +43,8 @@ target remains unexamined; an empty filtered result does not establish that
 no enclosed code declares that target. Discovering every inner declaration
 requires decoding those payloads.
 
-HIP IDs with one or two separators before the architecture retain the declared
-target. If a recognized AMDGPU bundle ID does not expose a target, the same
+HIP bundle IDs retain the declared processor and v2-v3 `+feature` suffixes for
+exact selection. If a recognized AMDGPU bundle ID does not expose a target, the same
 bounded note-discovery owner used for standalone AMDGPU files establishes it
 before filtering. Those directory/note reads share the inspection work budget;
 successive queries can select the target returned by inventory.
@@ -83,14 +83,20 @@ Kernel representations have different meanings:
   shared memory, dynamic allocation or physical device resources.
   PTX 1.0–1.3 declares entry parameters in the body; PTX 1.4 and later uses the
   entry parameter list. A `.target compute_xx` spelling is retained as written;
-  NVIDIA PTX defines it as a synonym for `.target sm_xx`.
+  NVIDIA PTX defines it as a synonym for `.target sm_xx` when comparing its
+  target identity with the fatbin declaration. `.callprototype` formal
+  parameters are excluded from entry virtual-register counts. Parameter names
+  remain available when pointer qualifiers are understood or an unsupported
+  qualifier prevents layout decoding. A pointer's `.align` describes the
+  pointed-to memory and does not change parameter layout alignment.
   Scalar register declarations count each bare or percent-prefixed name and
   each parameterized range. Unsupported declaration forms or overflowing totals
   retain an unknown count and partial decoding coverage. Unsupported parameter
   layouts and unknown shared-memory declarations likewise retain their known
   facts, explicit limitations and partial coverage through retained pages.
-- CUBIN identifies CUDA entry symbols and reads numeric `nv.info` records and
-  native section declarations. Global register declarations also cover compiler
+- CUBIN identifies CUDA entry symbols and reads numeric `nv.info` records,
+  including V2 kernel-parameter sizes, and native section declarations. Global
+  register declarations also cover compiler
   versions that leave the older text-section register field empty.
 - AMDGPU reads v3+ MessagePack notes. Argument counts include hidden ABI arguments
   when present; SGPR/VGPR counts and fixed group/private segment sizes retain

@@ -47,6 +47,10 @@ import {
 } from "./GpuElfKernels.js";
 import { readPtxKernels, readPtxTarget } from "./PtxKernels.js";
 
+/** PTX calls compute_XX a synonym for the corresponding sm_XX target. */
+const targetIdentity = (target: string): string =>
+  target.replace(/^compute_(\d+[a-z]?)$/u, "sm_$1");
+
 /** File declarations only. Every child range stays in its named parent coordinate space. */
 export class GpuInventory {
   readonly objects: GpuObject[] = [];
@@ -400,7 +404,8 @@ export class GpuInventory {
         const inner = /^sm_([0-9]+)$/u.exec(payload.key)?.[1];
         if (base !== undefined && inner !== undefined)
           state = base === inner ? "base-only" : "conflict";
-      } else if (outer === payload.key) state = "consistent";
+      } else if (targetIdentity(outer) === targetIdentity(payload.key))
+        state = "consistent";
       else if (
         row.kind === "amdgpu" &&
         outer.split(":")[0] === payload.key.split(":")[0]
@@ -441,6 +446,7 @@ export class GpuInventory {
         return source.read(row.location.offset + offset, size);
       },
     };
+
     try {
       const native =
         directory ??

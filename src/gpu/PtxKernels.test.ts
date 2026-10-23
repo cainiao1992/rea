@@ -16,7 +16,7 @@ it("recognizes directives outside comments and strings and preserves UTF-8 byte 
     { type: ".b32", count: 3 },
   ]);
 });
-it("derives vector/array parameter declarations and leaves unknown qualifiers unresolved", () => {
+it("derives vector/array and pointer parameters while preserving their names", () => {
   const rows = [
     ...readPtxKernels(
       ".entry k(.param .v2 .u32 x, .param .align 16 .b8 a[32], .param .u64 .ptr .global y) {ret;}",
@@ -28,14 +28,62 @@ it("derives vector/array parameter declarations and leaves unknown qualifiers un
   ).toEqual([
     [0, 8],
     [16, 32],
-    [null, null],
+    [48, 8],
   ]);
-  expect(rows[0]!.kernel.parameter_bytes).toBeNull();
-  expect(rows[0]!.coverage).toBe("partial");
-  expect(rows[0]!.kernel.limitations.join(" ")).toContain(
-    "parameter declarations",
-  );
+  expect(rows[0]!.kernel.parameters[2]!.name).toBe("y");
+  expect(rows[0]!.kernel.parameter_bytes).toBe(56);
+  expect(rows[0]!.coverage).toBe("complete");
   expect(rows[0]!.kernel.parameter_count).toBe(3);
+});
+it("retains a parameter name when a qualifier is unknown", () => {
+  const [row] = [
+    ...readPtxKernels(
+      ".entry k(.param .u64 .vendor_specific value) { ret; }",
+      "object",
+    ),
+  ];
+  expect(row!.kernel.parameters).toEqual([
+    expect.objectContaining({ name: "value", size: null, offset: null }),
+  ]);
+  expect(row!.coverage).toBe("partial");
+});
+it.each([".ptr .global .align 4", ".ptr .align 1", ".ptr.global.align 4"])(
+  "parses PTX pointer qualifiers %s without treating pointee alignment as parameter alignment",
+  (qualifiers) => {
+    const [row] = [
+      ...readPtxKernels(
+        `.entry k(.param .u64 ${qualifiers} ptr_arg) { ret; }`,
+        "object",
+      ),
+    ];
+    expect(row!.kernel.parameters).toEqual([
+      expect.objectContaining({ name: "ptr_arg", offset: 0, size: 8 }),
+    ]);
+    expect(row!.kernel.parameter_bytes).toBe(8);
+    expect(row!.coverage).toBe("complete");
+  },
+);
+it("preserves pointer names but withholds layout for unknown pointer qualifiers", () => {
+  const [row] = [
+    ...readPtxKernels(
+      ".entry k(.param .u64 .ptr .mystery .align 4 ptr_arg) { ret; }",
+      "object",
+    ),
+  ];
+  expect(row!.kernel.parameters).toEqual([
+    expect.objectContaining({ name: "ptr_arg", offset: null, size: null }),
+  ]);
+  expect(row!.coverage).toBe("partial");
+});
+it("excludes call-prototype formals from entry virtual register counts", () => {
+  const [row] = [
+    ...readPtxKernels(
+      ".entry k() { .reg .b32 %r<4>; F: .callprototype _ (.reg .b32 _); ret; }",
+      "object",
+    ),
+  ];
+  expect(row!.kernel.registers.virtual).toEqual([{ type: ".b32", count: 4 }]);
+  expect(row!.coverage).toBe("complete");
 });
 it("keeps dynamic and compound shared declarations unknown", () => {
   const [row] = [

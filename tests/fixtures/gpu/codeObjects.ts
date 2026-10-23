@@ -94,6 +94,7 @@ export const cubinFixture = (
     osAbi?: number;
     flags?: number;
     extendedSectionIndex?: boolean;
+    v2ParameterSize?: number;
   } = {},
 ): Buffer => {
   const name = options.name ?? "add_one";
@@ -108,10 +109,24 @@ export const cubinFixture = (
   const global = Buffer.alloc(record.length * (options.globalRecords ?? 1));
   for (let offset = 0; offset < global.length; offset += record.length)
     record.copy(global, offset);
-  const info = Buffer.from(
-    "03190c0004170c00000000000100080000f0110004170c00000000000000000000f02100",
-    "hex",
-  );
+  const info =
+    options.v2ParameterSize === undefined
+      ? Buffer.from(
+          "03190c0004170c00000000000100080000f0110004170c00000000000000000000f02100",
+          "hex",
+        )
+      : (() => {
+          const byteCount = Buffer.alloc(4);
+          byteCount[0] = 3;
+          byteCount[1] = 0x19;
+          byteCount.writeUInt16LE(options.v2ParameterSize!, 2);
+          const v2 = Buffer.alloc(16);
+          v2[0] = 4;
+          v2[1] = 0x45;
+          v2.writeUInt16LE(12, 2);
+          v2.writeUInt32LE(options.v2ParameterSize!, 12);
+          return Buffer.concat([byteCount, v2]);
+        })();
   const paddingSections = options.extendedSectionIndex
     ? Array.from({ length: 65531 }, (_, index) => ({
         name: `.padding.${index}`,
@@ -243,12 +258,12 @@ export const amdFixture = (
 };
 export const cudaFixture = (
   compression: "none" | "zstd" = "none",
-  entries = [
+  entries: { kind: number; target: number; bytes: Buffer; flags?: number }[] = [
     { kind: 1, target: 80, bytes: Buffer.from(ptxFixture) },
     { kind: 2, target: 90, bytes: cubinFixture({ architecture: 90 }) },
   ],
 ): Buffer => {
-  const records = entries.map(({ kind, target, bytes }) => {
+  const records = entries.map(({ kind, target, bytes, flags: entryFlags }) => {
     const compressed = compression === "zstd",
       data = compressed ? zstdCompressSync(bytes) : bytes;
     const result = Buffer.alloc(64 + Math.ceil(data.length / 8) * 8);
@@ -258,7 +273,10 @@ export const cudaFixture = (
     result.writeBigUInt64LE(BigInt(result.length - 64), 8);
     result.writeUInt32LE(compressed ? data.length : 0, 16);
     result.writeUInt32LE(target, 28);
-    result.writeBigUInt64LE(compressed ? 0x8011n : 0x11n, 40);
+    result.writeBigUInt64LE(
+      (compressed ? 0x8011n : 0x11n) | BigInt(entryFlags ?? 0),
+      40,
+    );
     result.writeBigUInt64LE(compressed ? BigInt(bytes.length) : 0n, 56);
     data.copy(result, 64);
     return result;

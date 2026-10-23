@@ -69,7 +69,9 @@ export const readClangBundleDirectory = async (
     });
     row.bundle_id = name;
     row.target =
-      /-(?:-)?(gfx[a-zA-Z0-9]+(?::[^\s]+)?)$/u.exec(name)?.[1] ?? null;
+      /-(?:-)?(gfx[a-zA-Z0-9]+(?:(?::[^\s]+)|(?:\+[a-zA-Z0-9_-]+))*)$/u.exec(
+        name,
+      )?.[1] ?? null;
     objects.push(row);
     position += 24 + nameSize;
   }

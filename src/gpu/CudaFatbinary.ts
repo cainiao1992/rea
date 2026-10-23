@@ -47,7 +47,13 @@ export async function* readCudaFatbinary(
         kind: kind === 1 ? "ptx" : kind === 2 ? "cubin" : "unknown",
         metadata: { offset: position, size: width },
       });
-      row.target = `sm_${h.readUInt32LE(28)}${(flags & 0x100000n) !== 0n ? "a" : ""}`;
+      const architectureSuffix =
+        (flags & 0x100000n) !== 0n
+          ? "a"
+          : (flags & 0x200000n) !== 0n
+            ? "f"
+            : "";
+      row.target = `sm_${h.readUInt32LE(28)}${architectureSuffix}`;
       row.raw_flags = `0x${flags.toString(16)}`;
       row.compression =
         (flags & 0x8000n) !== 0n && (flags & 0x2000n) === 0n

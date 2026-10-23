@@ -153,10 +153,66 @@ const declaration = (
   const vector = values[at] === ".v2" ? 2 : values[at] === ".v4" ? 4 : 1;
   if (vector !== 1) at++;
   const scalar = values[at++],
-    unit = sizeOf(scalar),
-    candidate = values[at++];
-  const name =
+    unit = sizeOf(scalar);
+  const qualifiers = values.slice(at).flatMap((value) =>
+    value.startsWith(".ptr.")
+      ? [
+          ".ptr",
+          ...value
+            .slice(5)
+            .split(".")
+            .map((part) => `.${part}`),
+        ]
+      : [value],
+  );
+  let qualifierAt = 0,
+    pointer = false,
+    pointerLayoutKnown = true;
+  while (qualifiers[qualifierAt]?.startsWith(".")) {
+    const qualifier = qualifiers[qualifierAt++]!;
+    if (qualifier === ".ptr") {
+      if (pointer) pointerLayoutKnown = false;
+      pointer = true;
+    } else if (
+      pointer &&
+      [".const", ".global", ".local", ".shared"].includes(qualifier)
+    ) {
+      // Address-space qualifiers describe the pointed-to object.
+    } else if (pointer && qualifier === ".align") {
+      const alignmentToken = qualifiers[qualifierAt];
+      if (alignmentToken !== undefined && /^[0-9]+$/u.test(alignmentToken))
+        qualifierAt++;
+      const pointeeAlignment = integer(alignmentToken);
+      if (
+        pointeeAlignment === null ||
+        pointeeAlignment <= 0 ||
+        !Number.isInteger(Math.log2(pointeeAlignment))
+      )
+        pointerLayoutKnown = false;
+    } else pointerLayoutKnown = false;
+  }
+  const candidate = qualifiers[qualifierAt];
+  const candidateIndex =
+    candidate === undefined ? -1 : values.indexOf(candidate, at);
+  let name =
     candidate !== undefined && identifier.test(candidate) ? candidate : null;
+  if (!pointerLayoutKnown) name = null;
+  // Unknown qualifiers can carry operands; preserve a unique trailing name but
+  // do not derive a byte layout from an unrecognized declaration.
+  if (!pointerLayoutKnown) {
+    const nameToken = qualifiers
+      .slice(qualifierAt)
+      .reverse()
+      .find((value) => identifier.test(value));
+    name = nameToken ?? null;
+  }
+  const namePosition =
+    candidateIndex >= 0
+      ? candidateIndex
+      : name === null
+        ? values.length
+        : values.lastIndexOf(name);
+  at = namePosition + 1;
   let size = unit === null ? null : unit * vector;
   const type =
     scalar === undefined
@@ -178,6 +234,7 @@ const declaration = (
   }
   if (
     at !== values.length ||
+    !pointerLayoutKnown ||
     name === null ||
     align === null ||
     align <= 0 ||
@@ -326,6 +383,14 @@ export function* readPtxKernels(
           end = t.end;
           continue;
         }
+        // Call prototypes contain formal .reg/.param declarations, not entry resources.
+        if (t.value === ".callprototype") {
+          for (t = next(); t.value !== ";"; t = next()) {
+            if (t.value === "}") rejectGpu("Malformed PTX call prototype");
+          }
+          end = t.end;
+          continue;
+        }
         if (t.value !== ".reg" && t.value !== ".shared") continue;
         if (t.value === ".reg") {
           const { type, count } = registerDeclaration(next);
@@ -453,7 +518,7 @@ export const readPtxTarget = (text: string): string | null => {
         const value = stream.next();
         target =
           !value.done &&
-          /^(?:sm|compute)_[0-9]+[a-z]?$/u.test(value.value.value)
+          /^(?:sm_[0-9]+(?:a|f)?|compute_[0-9]+)$/u.test(value.value.value)
             ? value.value.value
             : null;
       }

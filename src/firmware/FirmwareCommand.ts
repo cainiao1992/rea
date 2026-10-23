@@ -1,4 +1,8 @@
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  FIRMWARE_TOOL_REQUIREMENTS,
+  type FirmwareEngineName,
+} from "../contracts/firmware/firmwareToolRequirements.js";
 import { randomUUID } from "node:crypto";
 import { access, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -73,13 +77,12 @@ export const firmwareHostSupported = (platform: NodeJS.Platform): boolean =>
 /** Resolve explicitly supplied executable paths; never install or search for engines. */
 export const resolveFirmwareCommand = async (
   environment: Readonly<Record<string, string | undefined>>,
-  engine: "binwalk" | "unblob",
+  engine: FirmwareEngineName,
   operation: string,
   files: FirmwareFileAccess,
   signal?: AbortSignal,
 ) => {
-  const variable =
-    engine === "binwalk" ? "REA_BINWALK_COMMAND" : "REA_UNBLOB_COMMAND";
+  const variable = FIRMWARE_TOOL_REQUIREMENTS[engine].commandEnvironment;
   const configured = environment[variable];
   if (
     !firmwareHostSupported(process.platform) ||

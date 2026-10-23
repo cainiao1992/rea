@@ -1,30 +1,17 @@
 import { BOUNDED_PRODUCER_LIMITS } from "../process/LinuxResourceLimits.js";
-
-/** Audited upstream sources; installed tool bytes are fingerprinted separately. */
-export const FIRMWARE_RELEASES = {
-  binwalk: {
-    version: "3.1.0",
-    revision: "4fdab3d464d97b68e0af9088df3f9e2e1545b21c",
-    repository: "https://github.com/ReFirmLabs/binwalk",
-  },
-  unblob: {
-    version: "26.6.4",
-    revision: "1fcc7a0a584a70a96c31f5a276c20944d199a089",
-    repository: "https://github.com/onekey-sec/unblob",
-  },
-} as const;
+import { FIRMWARE_TOOL_REQUIREMENTS } from "../contracts/firmware/firmwareToolRequirements.js";
 
 /** Catalog identity for the verified Binwalk release. Evidence replaces version with the observed banner. */
 export const BINWALK_PROVIDER_IDENTITY = {
   id: "binwalk",
-  name: "Binwalk",
-  version: FIRMWARE_RELEASES.binwalk.version,
+  name: FIRMWARE_TOOL_REQUIREMENTS.binwalk.name,
+  version: FIRMWARE_TOOL_REQUIREMENTS.binwalk.version,
 } as const;
 /** Catalog identity for explicit firmware extraction. */
 export const UNBLOB_PROVIDER_IDENTITY = {
   id: "unblob",
-  name: "Unblob",
-  version: FIRMWARE_RELEASES.unblob.version,
+  name: FIRMWARE_TOOL_REQUIREMENTS.unblob.name,
+  version: FIRMWARE_TOOL_REQUIREMENTS.unblob.version,
 } as const;
 
 /** Resource policy for this Linux integration, not a claim of aggregate containment. */

@@ -34,6 +34,14 @@ interface ScreenshotContext {
   readonly progress?: ProgressReporter;
 }
 
+const screenshotOriginRefusal = (): BrowserObservationError =>
+  new BrowserObservationError("inspect_web_page", "target_not_allowed", {
+    detail:
+      "The current screenshot document is outside the permitted HTTP(S) origin scope.",
+    remediationAction:
+      "Select a document within allowed_origins, or explicitly adjust allowed_origins if that document is intended, then retry.",
+  });
+
 /** Capture the current viewport without navigation, evaluation, or page mutation. */
 export const captureCdpScreenshot = async (
   context: ScreenshotContext,
@@ -63,7 +71,7 @@ export const captureCdpScreenshot = async (
     beforeFacts.scope === "outside_policy" ||
     beforeFacts.scope === "unsupported"
   )
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+    throw screenshotOriginRefusal();
   if (beforeObservation.kind !== "observed")
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
   const beforeUrl = beforeFacts.url;
@@ -73,7 +81,7 @@ export const captureCdpScreenshot = async (
     beforeFacts.origin === null ||
     mainFrame === undefined
   )
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+    throw screenshotOriginRefusal();
   const initialFrame = recordValue(
     recordValue(recordValue(before)?.frameTree)?.frame,
   );
@@ -91,11 +99,7 @@ export const captureCdpScreenshot = async (
     observeScreenshotNavigation(event, origins, navigation);
   });
   const assertCurrentDocument = () => {
-    if (navigation.leftScope)
-      throw new BrowserObservationError(
-        "inspect_web_page",
-        "target_not_allowed",
-      );
+    if (navigation.leftScope) throw screenshotOriginRefusal();
     if (navigation.invalidIdentity)
       throw new BrowserObservationError("inspect_web_page", "protocol_error");
     if (navigation.changed)
@@ -139,15 +143,14 @@ export const captureCdpScreenshot = async (
     removeListener();
   }
   assertCurrentDocument();
-  if (navigation.leftScope)
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+  if (navigation.leftScope) throw screenshotOriginRefusal();
   const afterObservation = observeMainFrameUrl(after);
   const afterFacts = classifyCdpFrameUrl(afterObservation, origins);
   if (
     afterFacts.scope === "outside_policy" ||
     afterFacts.scope === "unsupported"
   )
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+    throw screenshotOriginRefusal();
   if (navigation.invalidIdentity || afterObservation.kind !== "observed")
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
   const afterUrl = afterFacts.url;

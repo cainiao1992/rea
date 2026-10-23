@@ -2,6 +2,7 @@ import { crc32 } from "node:zlib";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CdpBrowserProvider } from "../../../src/browser/CdpBrowserProvider.js";
 import { captureWebScreenshotInputSchema } from "../../../src/domain/webScreenshot.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import {
   startFakeCdpBrowser,
   type FakeOptions,
@@ -39,6 +40,25 @@ const withCssViewport = (metrics: Readonly<Record<string, unknown>>) => ({
 });
 
 describe("screenshot authorization during metrics reads", () => {
+  it("explains current-document origin refusal without suggesting host installation repair", async () => {
+    const { browser, result } = await captureWithFake({
+      attachedFrameUrl: "https://outside.example.test/",
+    });
+    if (result.ok) throw new Error("Expected a scope refusal");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "target_unavailable",
+      message: expect.stringContaining(
+        "outside the permitted HTTP(S) origin scope",
+      ),
+      remediation: { action: expect.stringContaining("allowed_origins") },
+      details: { reason: "target_not_allowed" },
+    });
+    expect(
+      browser.commands.some(
+        ({ method }) => method === "Page.captureScreenshot",
+      ),
+    ).toBe(false);
+  });
   it.each([
     { stage: 1, expectedCaptures: 0 },
     { stage: 2, expectedCaptures: 1 },

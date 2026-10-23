@@ -2,6 +2,8 @@ import type { InspectWebPageInput } from "../domain/browserObservation.js";
 import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import type { ProgressReporter } from "../application/ProgressReporter.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { BrowserObservationOperation } from "../domain/browserObservationErrors.js";
 import { stableWebResources } from "../domain/webInventory.js";
 import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
@@ -101,8 +103,39 @@ export const capturePage = async (
   };
   try {
     return await captureAuthorizedPage(state);
+  } catch (cause: unknown) {
+    // A navigation can invalidate an in-flight script ID or another document
+    // read. Report the observed capture invalidation before its stale-read
+    // symptom, while preserving caller cancellation.
+    if (
+      context.signal?.aborted !== true &&
+      !(cause instanceof AnalysisCancelledError) &&
+      !(cause instanceof AnalysisError && cause.userCategory === "cancelled")
+    )
+      assertObservedCaptureValid(state, cause);
+    throw cause;
   } finally {
     removeListener();
+  }
+};
+
+const assertObservedCaptureValid = (
+  state: CaptureState,
+  cause?: unknown,
+): void => {
+  const reason = state.events.unknownRootIdentity
+    ? "protocol_error"
+    : state.events.originViolation
+      ? "target_not_allowed"
+      : state.events.navigationDuringCapture
+        ? "target_changed"
+        : undefined;
+  if (reason !== undefined) {
+    if (cause instanceof BrowserObservationError && cause.reason === reason)
+      throw cause;
+    throw new BrowserObservationError(state.context.operation, reason, {
+      cause,
+    });
   }
 };
 
@@ -175,11 +208,8 @@ const captureAuthorizedPage = async (
     operation: context.operation,
   });
   const completedUrl = mainFrameUrl(completedFrameResult) ?? "";
-  if (state.events.unknownRootIdentity)
-    throw new BrowserObservationError("inspect_web_page", "protocol_error");
-  if (state.events.originViolation)
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
-  if (state.events.navigationDuringCapture || completedUrl !== attachedUrl)
+  assertObservedCaptureValid(state);
+  if (completedUrl !== attachedUrl)
     throw new BrowserObservationError("inspect_web_page", "target_changed");
   // Body IDs were enumerated before asynchronous CDP reads. Events remain
   // enabled through the final capture, so account for eligible responses that

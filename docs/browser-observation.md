@@ -368,6 +368,12 @@ are reported in the result.
 Call `list_browser_targets` first because target IDs are browser-instance-specific. REA rechecks the selected target's current type and origin immediately before attaching. Without an origin filter, discovery lists all eligible pages; an individual capture defaults to the selected page's current origin.
 
 REA establishes a main-frame origin boundary before enabling Runtime, Debugger, or Network observation, rechecks it before document capture, and validates it again afterward. If the main frame navigates during final capture, REA discards the mixed result and returns `target_changed`.
+An observed navigation also takes precedence over failures from stale
+document reads, such as a script ID invalidated by reload; cancellation remains
+cancellation. Retry after navigation settles, or refresh target discovery if
+the selected page was replaced. Screenshot origin refusals identify the
+current document's permitted-origin scope and direct the caller to select a
+permitted document or explicitly revise `allowed_origins`.
 
 The web-session timeline uses CDP monotonic seconds where the event producer
 provides a comparable timestamp; absent or invalid timestamps are `null` rather

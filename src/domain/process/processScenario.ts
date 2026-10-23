@@ -133,7 +133,7 @@ export const processComparisonContract = (
   limits: scenario.limits,
   normalization: scenario.normalization,
   ...(scenario.normalization.paths
-    ? { path_normalization_version: "longest-original-paths-v1" }
+    ? { path_normalization_version: "path-component-boundaries-v2" }
     : {}),
   ...(scenario.normalization.ports
     ? { port_normalization_version: "contextual-endpoints-v2" }

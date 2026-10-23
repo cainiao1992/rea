@@ -262,7 +262,7 @@ itWithCaptureCapability(
     ).toBe(original.replaceAll("\n", "\r\n"));
     expect(capture.manifest.comparison_contract).toHaveProperty(
       "path_normalization_version",
-      "longest-original-paths-v1",
+      "path-component-boundaries-v2",
     );
     const legacyContract = { ...capture.manifest.comparison_contract };
     delete legacyContract.path_normalization_version;
@@ -281,6 +281,25 @@ itWithCaptureCapability(
         ],
       }),
     );
+    const formerPathSemantics = {
+      ...capture,
+      manifest: {
+        ...capture.manifest,
+        comparison_contract: {
+          ...capture.manifest.comparison_contract,
+          path_normalization_version: "longest-original-paths-v1",
+        },
+        comparison_contract_sha256: digestProcessCommitment({
+          ...capture.manifest.comparison_contract,
+          path_normalization_version: "longest-original-paths-v1",
+        }),
+      },
+    };
+    expect(() => compareProcessCaptures(formerPathSemantics, capture)).toThrow(
+      expect.objectContaining({
+        issues: [expect.objectContaining({ path: ["right"] })],
+      }),
+    );
     expect(capture.exit).toMatchObject({ code: 0, reason: "exited" });
     expect(capture.cleanup).toMatchObject({
       owned_process_group: "verified",
@@ -288,4 +307,30 @@ itWithCaptureCapability(
     });
   },
   20_000,
+);
+
+itWithCaptureCapability(
+  "keeps sibling executable names distinct in actual PTY Evidence",
+  async () => {
+    const root = await createTestTempDirectory("rea-process-sibling-path-");
+    const executable = join(root, "original", "tool");
+    await mkdir(join(root, "original"), { recursive: true });
+    await symlink(process.execPath, executable);
+    const sibling = `${executable}-helper`;
+    const scenario = parseProcessScenario({
+      executable,
+      working_directory: root,
+      arguments: ["-e", `process.stdout.write(${JSON.stringify(sibling)})`],
+      normalization: { paths: true, pids: false, ports: false, patterns: [] },
+      settle_ms: 100,
+    });
+    const result = await captureProcessScenario(scenario);
+    if (!result.ok) throw result.error;
+    const capture = parseProcessCapture(
+      createProcessCaptureEvidence(scenario, result.value).normalized_result,
+    );
+    expect(capture.frames.map(({ data }) => data).join("")).toBe(
+      `<working-directory>/original/tool-helper`,
+    );
+  },
 );

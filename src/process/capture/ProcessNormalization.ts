@@ -314,10 +314,16 @@ const createPathRule = (
   const pattern = paths
     .map((path) => path.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"))
     .join("|");
-  const matcher = new RegExp(pattern, "gu");
+  // A selected path is an identity, not an arbitrary text prefix. Only match
+  // it at a clear text delimiter; keep the parent-directory case (`/root` in
+  // `/root/file`) while leaving punctuation-adjacent names untouched.
+  const matcher = new RegExp(
+    `(^|[\\s"'=:(\\[{<])(${pattern})(?=$|/|[\\s"'])`,
+    "gu",
+  );
   return {
     matcher,
-    replace: (path) => aliases.get(path) ?? path,
+    replace: (_match, prefix, path) => `${prefix}${aliases.get(path) ?? path}`,
   };
 };
 

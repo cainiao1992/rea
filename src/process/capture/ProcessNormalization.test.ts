@@ -520,3 +520,21 @@ it("treats path metacharacters literally while preferring nested observed roots"
     "<executable> <filesystem-root-1>/item <filesystem-root-0>/file <working-directory>/log <working-directory>/toolll",
   );
 });
+
+it("does not give a selected executable identity to a sibling filename", () => {
+  const declared = parseProcessScenario({
+    executable: "/tmp/process-paths/original/tool",
+    working_directory: "/tmp/process-paths",
+    normalization: { paths: true, pids: false, ports: false, patterns: [] },
+  });
+  expect(
+    normalizeProcessText(
+      "/tmp/process-paths/original/tool-helper /tmp/process-paths/original/tool, /tmp/process-paths/original/tool",
+      declared,
+      "/tmp/rea-private",
+      rootPid,
+    ),
+  ).toBe(
+    "<working-directory>/original/tool-helper <working-directory>/original/tool, <executable>",
+  );
+});

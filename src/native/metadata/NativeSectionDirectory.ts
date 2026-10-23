@@ -38,6 +38,7 @@ export interface NativeSectionDirectory {
   readonly program_offset: bigint;
   readonly program_count: number;
   readonly program_width: number;
+  readonly has_dynamic_segment: boolean;
   readonly sections: readonly NativeSection[];
 }
 const STRUCTURE_BYTES = 16 * 1024 * 1024;
@@ -130,14 +131,24 @@ export function* readElfSectionDirectory(
         reject("ELF extended program count is below its reserved range");
     }
   }
+  let has_dynamic_segment = false;
   if (program_count !== 0) {
     if (program_width < (wide ? 56 : 32))
       reject("ELF program header width is invalid");
-    request(
-      fileSize,
-      program_offset,
-      BigInt(program_count) * BigInt(program_width),
+    const programs = new BinaryReader(
+      yield request(
+        fileSize,
+        program_offset,
+        BigInt(program_count) * BigInt(program_width),
+      ),
+      little,
     );
+    for (let index = 0; index < program_count; index++) {
+      if (programs.u32(index * program_width) === 2) {
+        has_dynamic_segment = true;
+        break;
+      }
+    }
   }
   const sections: NativeSection[] = [];
   let section_names_limitation: string | undefined;
@@ -259,6 +270,7 @@ export function* readElfSectionDirectory(
     program_offset,
     program_count,
     program_width,
+    has_dynamic_segment,
     sections,
   };
 }
@@ -346,6 +358,7 @@ export function* readPeSectionDirectory(
     program_offset: 0n,
     program_count: 0,
     program_width: 0,
+    has_dynamic_segment: false,
     sections,
   };
 }

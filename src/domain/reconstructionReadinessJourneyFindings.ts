@@ -352,26 +352,46 @@ const outcomeFindings = (
   }
   for (const outcomes of groupedOutcomes(input).values()) {
     const first = outcomes[0]!;
-    const label = `${first.operation}:${first.call_kind}:${String(first.expected_success)}`;
-    const citations = outcomes.flatMap((outcome) => outcome.evidence_ids);
-    if (new Set(outcomes.map((outcome) => outcome.surface)).size !== 2)
+    const label = `${first.operation}:${first.call_kind}`;
+    const surfaces = new Set(outcomes.map(({ surface }) => surface));
+    const outcomeEvidence = outcomes.flatMap(
+      ({ evidence_ids }) => evidence_ids,
+    );
+    if (surfaces.size !== 2) {
       findings.push(
         finding(
           "surface-parity-missing",
           "export-replay",
           "fail",
           `CLI/MCP outcome pair is incomplete: ${label}.`,
-          citations,
+          outcomeEvidence,
         ),
       );
-    if (outcomes.some((outcome) => outcome.error_code !== first.error_code))
+      continue;
+    }
+    // The contract has no run-pair identity. Compare every retained semantic variant,
+    // allowing repeated observations without inventing a pairing from input order.
+    const variants = new Map<string, Set<"cli" | "mcp">>();
+    for (const outcome of outcomes) {
+      const semantic = JSON.stringify([
+        outcome.expected_success,
+        outcome.error_code,
+      ]);
+      let observed = variants.get(semantic);
+      if (observed === undefined) {
+        observed = new Set();
+        variants.set(semantic, observed);
+      }
+      observed.add(outcome.surface);
+    }
+    if ([...variants.values()].some((observed) => observed.size !== 2))
       findings.push(
         finding(
           "surface-semantic-drift",
           "export-replay",
           "fail",
-          `CLI/MCP structured outcomes disagree: ${label}; sequences ${outcomes.map((outcome) => outcome.sequence).join(", ")}.`,
-          citations,
+          `CLI/MCP structured outcomes disagree: ${label}; sequences ${outcomes.map(({ sequence }) => sequence).sort((left, right) => left - right).join(", ")}.`,
+          outcomeEvidence,
         ),
       );
   }
@@ -389,14 +409,10 @@ const groupedOutcomes = (
     ReconstructionReadinessInput["operation_outcomes"]
   >();
   for (const outcome of input.operation_outcomes) {
-    const key = compositeKey([
-      outcome.operation,
-      outcome.call_kind,
-      String(outcome.expected_success),
-    ]);
-    const group = grouped.get(key);
-    if (group === undefined) grouped.set(key, [outcome]);
-    else group.push(outcome);
+    const key = compositeKey([outcome.operation, outcome.call_kind]);
+    const outcomes = grouped.get(key);
+    if (outcomes === undefined) grouped.set(key, [outcome]);
+    else outcomes.push(outcome);
   }
   return grouped;
 };

@@ -35,7 +35,10 @@ import {
 } from "../domain/browserScenarioCaptureValues.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
-import { BrowserObservationError } from "../domain/browserObservationError.js";
+import {
+  BrowserObservationError,
+  browserCleanupObservation,
+} from "../domain/browserObservationError.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type {
@@ -47,7 +50,6 @@ import {
   type ScenarioActionStop,
 } from "./ScenarioActionSequence.js";
 import {
-  browserScenarioCleanupObservation,
   browserScenarioOperationFailure,
   browserScenarioCaptureData,
 } from "./BrowserScenarioPartialObservation.js";
@@ -303,7 +305,7 @@ const runScenario = async (
   try {
     cleanupOutcome = { ok: true, cleanup: await session.close() };
   } catch (cause: unknown) {
-    const cleanup = browserScenarioCleanupObservation(cause);
+    const cleanup = browserCleanupObservation(cause);
     const failure = new BrowserObservationError(OPERATION, "cleanup_failed", {
       cause,
       cleanup,
@@ -320,7 +322,7 @@ const runScenario = async (
           cause: options.signal.reason,
         }),
       };
-    const cleanup = browserScenarioCleanupObservation(cleanupOutcome.cause);
+    const cleanup = browserCleanupObservation(cleanupOutcome.cause);
     const partialObservation: BrowserScenarioPartialObservation = {
       kind: "browser-scenario-observation",
       capture: browserScenarioCaptureData({

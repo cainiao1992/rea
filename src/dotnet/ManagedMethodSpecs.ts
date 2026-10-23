@@ -9,8 +9,7 @@ import {
 } from "./ManagedMemberInspectorCore.js";
 import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import {
-  metadataCodedToken,
-  metadataCodedTokenInvalidReason,
+  decodeMetadataCodedIndex,
   metadataRowCursor,
   readMetadataBlob,
 } from "./ManagedMetadataHeaps.js";
@@ -84,23 +83,23 @@ const readMethodSpec = (
   );
   const methodRaw = cursor.readIndex(layout.codedIndexSize("MethodDefOrRef"));
   const instantiation = cursor.readIndex(layout.blobIndexSize);
-  const methodReason = metadataCodedTokenInvalidReason(
+  const method = decodeMetadataCodedIndex(
     methodRaw,
     1,
     [6, 10],
     layout.rowCounts,
   );
-  if (methodReason !== null || methodRaw === 0)
+  if (method.kind !== "valid")
     issues.push({
       code: "invalid-row",
       scope,
       offset: cursor.start,
       detail:
-        methodReason === null
+        method.kind === "null"
           ? "MethodSpec method coded index 0x0 is null, but the Method column must reference a row"
-          : `MethodSpec method coded index 0x${methodRaw.toString(16)} is invalid: ${methodReason}`,
+          : `MethodSpec method coded index 0x${methodRaw.toString(16)} is invalid: ${method.reason}`,
     });
-  const generic = metadataCodedToken(methodRaw, 1, [6, 10], layout.rowCounts);
+  const generic = method.kind === "valid" ? method.token : null;
   const target = generic === null ? undefined : members.get(generic);
   // A MethodSpec instantiates a method, so a field target never lends it a
   // name, even to a field operand.

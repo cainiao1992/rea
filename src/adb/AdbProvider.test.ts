@@ -2057,6 +2057,46 @@ ${shellStub({ "am:start": "Starting: Intent { act=android.intent.action.VIEW dat
   ]);
 });
 
+it.each([
+  { value: "10", operand: "10" },
+  { value: "010", operand: "10" },
+  { value: "-010", operand: "-10" },
+  { value: "08", operand: "8" },
+  { value: "000", operand: "0" },
+])(
+  "passes int extra $value to am as decimal $operand",
+  async ({ value, operand }) => {
+    const { binary, root } = await writeAdbStub(
+      (root) => `printf '%s\\n' "$@" >> ${join(root, "argv.log")}
+${shellStub({ "am:start": "Starting: Intent { act=android.intent.action.VIEW }\n" })(root)}`,
+    );
+    await evidenceResult(providerOver(binary), {
+      operation: "start_adb_activity",
+      input: {
+        serial: "emulator-5554",
+        action: "android.intent.action.VIEW",
+        extras: [
+          { key: "count", type: "int", value },
+          // `--el` is read with Long.valueOf, which is always decimal.
+          { key: "total", type: "long", value },
+        ],
+      },
+    });
+    const logged = (await readFile(join(root, "argv.log"), "utf8"))
+      .trim()
+      .split("\n");
+    // am reads `--ei` with Integer.decode, where a leading zero means octal.
+    expect(logged.slice(-6)).toEqual([
+      "--ei",
+      "count",
+      operand,
+      "--el",
+      "total",
+      value,
+    ]);
+  },
+);
+
 it("collects a device bugreport archive with its digest", async () => {
   const { binary, root } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi

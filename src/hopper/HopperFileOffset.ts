@@ -26,6 +26,7 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import type { FileOffsetPartialObservation } from "../domain/native/fileOffsetPartialObservation.js";
 import {
   readFatSliceDeclarations,
+  readMachoHeaderPrefixFacts,
   type FatSliceDeclaration,
   validateFatSlice,
 } from "../domain/apple/machoContainer.js";
@@ -428,18 +429,12 @@ function originalOffset(
     observation.provider_image_header_hex === null
       ? null
       : Buffer.from(observation.provider_image_header_hex, "hex");
-  const loadedMagic = header?.readUInt32BE(0);
-  if (
-    header === null ||
-    loadedMagic === undefined ||
-    ![0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(loadedMagic)
-  )
+  const loadedIdentity =
+    header === null ? null : readMachoHeaderPrefixFacts(header).identity;
+  if (header === null || loadedIdentity === null)
     return err(
       "Hopper did not expose the loaded Mach-O header needed to identify its FAT slice",
     );
-  const little = loadedMagic === 0xcefaedfe || loadedMagic === 0xcffaedfe;
-  const cpu = little ? header.readUInt32LE(4) : header.readUInt32BE(4);
-  const subtype = little ? header.readUInt32LE(8) : header.readUInt32BE(8);
   const matches = [];
   const ranges = [...layout.value.slices].sort((a, b) => a.offset - b.offset);
   for (let index = 1; index < ranges.length; index++) {
@@ -460,25 +455,22 @@ function originalOffset(
       return err(
         `FAT architecture ${slice.index} has a truncated Mach-O header`,
       );
-    const embeddedMagic = embedded.readUInt32BE(0);
-    if (
-      ![0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(embeddedMagic)
-    )
+    const embeddedIdentity = readMachoHeaderPrefixFacts(embedded).identity;
+    if (embeddedIdentity === null)
       return err(
         `FAT architecture ${slice.index} does not contain a Mach-O image`,
       );
-    const embeddedLittle =
-      embeddedMagic === 0xcefaedfe || embeddedMagic === 0xcffaedfe;
-    const identityError = validateFatSlice(slice, size, layout.value.tableEnd, {
-      cpuType: embeddedLittle
-        ? embedded.readUInt32LE(4)
-        : embedded.readUInt32BE(4),
-      cpuSubtype: embeddedLittle
-        ? embedded.readUInt32LE(8)
-        : embedded.readUInt32BE(8),
-    });
+    const identityError = validateFatSlice(
+      slice,
+      size,
+      layout.value.tableEnd,
+      embeddedIdentity,
+    );
     if (identityError !== null) return err(identityError);
-    if (slice.cpuType === cpu && slice.cpuSubtype === subtype)
+    if (
+      slice.cpuType === loadedIdentity.cpuType &&
+      slice.cpuSubtype === loadedIdentity.cpuSubtype
+    )
       matches.push(slice);
   }
   const selected = matches.length === 1 ? matches[0] : undefined;

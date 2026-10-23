@@ -191,6 +191,46 @@ state. Select small explicit batches when using this workflow. A general batch
 admission/output policy, including completed per-item facts when capacity is
 exhausted, remains unresolved.
 
+`decompile_all` (`rea decompile-all <target> --output <directory>`) writes one
+pseudocode file per analyzed function and returns only a manifest: counts, the
+output directory, capped failure reasons, provider identity, and the
+analysis-profile digest. The manifest and `decompile-index.json` do not contain
+pseudocode. Each file records the provider name, canonical address, inclusive
+body ranges when `procedure_info` supplies them, and the `procedure_info` and
+pseudocode limitations for that function. Header values are abbreviated to
+2,000 characters per value and the joined limitation line to 4,000 characters;
+the index retains the complete selected names, addresses, provider facts and
+caveats. Failure details retain at most 32 rows within 2,048 JSON-encoded
+UTF-8 bytes; names may be omitted to keep complete addresses and reasons. The
+index retains every failure and its complete observed name.
+Each function's `decompile-index.json` record, whatever its status, keeps the
+complete limitations of the observations it used. The returned Evidence keeps
+at most eight first-observed distinct per-function provider limitations within an 8,000-byte JSON-encoded UTF-8 text budget and counts omitted observations. Repeated omitted text is counted per observation, not as a distinct caveat. This summary does not retain every omitted string in memory. A fresh output directory must not already exist. `--resume`
+continues an export for the same target SHA-256, provider, analysis profile,
+and layout; it requires the directory to exist, and an export without a known
+target or profile digest cannot be resumed. Resume skips files whose bytes still match the last write the journal
+recorded, even after a later read failure, tries
+functions it has not attempted before retrying recorded failures, ignores a
+journal line torn by an interrupted write, and never overwrites a conflicting
+file. File reservations compare ASCII paths without case, so distinct address
+spaces remain distinct on case-insensitive filesystems. A resumed journal with
+conflicting reservations is refused. One function's decompiler error or deadline is counted and does not stop
+the others. A function that `procedure_info` classifies as external, such as an
+import, is counted as `external` and recorded with that status and the body
+fact as observed. It gets no file, no pseudocode is requested, and a resume
+skips it. A function whose classification is unknown is decompiled as usual;
+a provider that returns null pseudocode for it is reported as `no_pseudocode`. Inventory rows without an address are counted in the limitations. `--layout dwarf`
+reports that compilation-unit paths are unavailable and still names files by
+address. Filters are a case-sensitive name substring, a case-sensitive name
+prefix, an inclusive address range (including uppercase hexadecimal input), and a positive safe-integer attempt limit. The limit does not allocate space in proportion to its value. Cancellation leaves
+files already written in place. One run at a time holds an output directory,
+identified by its device and inode, through export finalization and any retained cleanup retry; another
+run on the same directory is refused with the holder's process ID, and a
+crashed run can be recovered by the next run. Failed descriptor or staging cleanup remains owned by the session; close the target to retry it. Initialization cleanup preserves unexpected entries rather than recursively removing the directory. Resume hashes existing files in bounded chunks, and index generation reuses committed journal facts already held by the export owner. After five consecutive functions whose files
+could not be written or read, for example on a full disk, the export stops with
+an error instead of decompiling the rest. Files and records already committed
+stay, `decompile-index.json` is still written, and a later resume continues.
+
 Type inspection selects one exact database pathname or typed data address.
 Struct/union fields, enums, pointers, arrays, typedefs, size, alignment, packing
 and bitfields retain database authority. Child types use exact IDs for further

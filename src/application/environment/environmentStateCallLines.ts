@@ -28,8 +28,8 @@ export const callSegments = (
   const names = environmentToolArguments(tool).path;
   const params = new Map(tool.params.map((param) => [param.index, param]));
   const segments: SuppliedSegment[] = [];
-  const template = segmentsOf(tool.path_template);
-  for (const [index, text] of template.entries()) {
+  // Use the collection's path parser so repeated separators remain meaningful.
+  for (const [index, text] of segmentsOf(tool.path_template).entries()) {
     const param = params.get(index);
     if (param === undefined) {
       segments.push({ text, supplied: false });

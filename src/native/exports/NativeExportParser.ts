@@ -3,7 +3,7 @@ import {
   BinaryReader,
   BinaryResourceFailure,
   mappedFileOffset,
-  fileBackedMappings,
+  imageFileMappings,
   readMappedCString,
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
@@ -111,7 +111,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       ],
     };
   const reader = new BinaryReader(bytes, true);
-  const mappings = fileBackedMappings(image);
+  const mappings = imageFileMappings(image);
   const map = (rva: number, size: number): number =>
     mappedFileOffset(mappings, base + BigInt(rva), size, image.zero_fills);
   const cString = (rva: number): string => {
@@ -460,19 +460,35 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   };
   const { sections } = directory;
   const dynsym = sections.find(({ type }) => type === SHT_DYNSYM);
-  if (dynsym === undefined)
+  if (
+    sections.length === 0 ||
+    (dynsym === undefined && directory.has_dynamic_segment)
+  )
     return {
       ...result,
       exports: [],
       coverage: {
         status: "unsupported",
         reason:
-          "No SHT_DYNSYM section is available; enumerating dynamic symbols from the dynamic segment is not implemented",
+          sections.length === 0
+            ? "The ELF has no section headers; enumerating dynamic symbols from the dynamic segment is not implemented"
+            : "The ELF declares a dynamic segment but has no dynamic symbol section; enumerating dynamic symbols from the dynamic segment is not implemented",
         examined_entries: 0,
         exports: 0,
       },
       issues: [],
       limitations: ELF_LIMITATIONS,
+    };
+  if (dynsym === undefined)
+    return {
+      ...result,
+      exports: [],
+      coverage: coverage([], 0, 0),
+      issues: [],
+      limitations: [
+        "The ELF has no dynamic symbol table, so it exports no dynamic symbols.",
+        ...ELF_LIMITATIONS,
+      ],
     };
   const width = directory.bits === 64 ? 24 : 16;
   const strings = sections[dynsym.link];

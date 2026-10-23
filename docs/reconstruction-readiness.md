@@ -73,20 +73,25 @@ Stage `capability_issue` and `next_action` fields map unsupported or failing
 work to the responsible capability and remediation without claiming that the
 requested analysis ran.
 
-Operation parity groups observations by operation, call kind and expected
-success. Every retained CLI/MCP observation in that group must agree on its
-structured error code, including repeats; findings cite the complete group and
-its sequence numbers. Equivalent repeats are retained. A later recovery success
-is assessed with its corresponding success observations instead of replacing a
-recorded failure.
-
 Closure history describes one fixed required-obligation universe from the
-supplied ledger. Its first entry establishes the starting open count and cannot
-claim a new transition. Each later count decrease must equal the number of
-unique newly verified required obligations. An ID cannot be credited twice
-within an entry or across entries, and no historical open count can exceed the
-ledger's required-obligation count. Original history entries remain in the
-report snapshot when these checks fail.
+supplied final ledger. Its first entry establishes the starting open count and
+cannot claim a new transition. Every observation marked `ready` must report
+zero required obligations open. Observations marked `open` or `failed` must
+report a positive required-open count. `unknown` may have zero open obligations
+because limitations can prevent a ready verdict independently of that count.
+Every decrease must name that many distinct, verified required obligations;
+an obligation cannot count again within an entry or in a later observation.
+No historical open count can exceed the ledger's required-obligation count.
+The retained history is checked for consistency with that ledger, not
+authenticated as a series of complete historical ledgers. Original entries
+remain in the report snapshot when these checks fail.
+
+For each operation and call kind, every retained success/error-code variant
+must occur on both CLI and MCP. Repeated observations and their Evidence stay
+in the report snapshot; drift findings cite the complete group and its sequence
+numbers. Equal repeat counts and one-to-one run pairing are not claimed: the
+input has no identity linking an individual CLI attempt to an MCP attempt.
+Differing transport status is checked on each observation separately.
 
 ## Fixtures
 

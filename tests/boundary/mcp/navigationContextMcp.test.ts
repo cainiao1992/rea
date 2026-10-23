@@ -45,8 +45,16 @@ it.each([
     selection: { current_document: "fixture", current_address: null },
     operation: "current_address",
   },
+  {
+    selection: {
+      current_document: "fixture",
+      current_address: "0x401000",
+      resolve_containing_procedure: null,
+    },
+    operation: "resolve_containing_procedure",
+  },
 ])(
-  "delivers a typed MCP failure when $operation is not a string",
+  "delivers a typed MCP failure when $operation returns malformed output",
   async ({ selection, operation }) => {
     const result = await navigate(selection);
     expect(JSON.stringify(result.content)).not.toContain(

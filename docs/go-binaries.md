@@ -129,6 +129,18 @@ contract. Legacy pointer-backed fields are decoded at
 the width declared by Go's build-info record, independently of the image's ELF
 class. It does not scan arbitrary byte strings as compiler metadata.
 
+Legacy string descriptors and contents may use the declared file-backed PE
+headers. A descriptor or string may also cross adjacent loader mappings when
+their virtual ranges cover every requested byte and identify one contiguous
+file range. Gaps, conflicting file aliases and nonempty zero-fill overlap remain
+invalid. Discovery policy and the aggregate 1 MiB string-content limit are
+unchanged. These are static reads over REA's native mapping facts; they do not
+establish Windows/Linux loading or parity with Go's standard reader, whose
+[Go 1.24.0 ELF/PE readers](https://github.com/golang/go/blob/go1.24.0/src/debug/buildinfo/buildinfo.go#L445)
+read within individual segments or sections. The historical two-word string
+descriptor follows the
+[Go 1.17.13 reader](https://github.com/golang/go/blob/go1.17.13/src/cmd/go/internal/version/version.go#L212).
+
 A universal (FAT) Mach-O needs `architecture` (`x86`, `x86_64`, `arm`
 or `arm64`; CLI `--architecture`). REA reads its own FAT table, without `lipo`,
 and validates the selected slice's range, alignment and Mach-O header CPU

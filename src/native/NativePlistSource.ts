@@ -24,6 +24,7 @@ import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { sameRegularFileState } from "../filesystem/RegularFile.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   ArtifactFileCleanupFailure,
@@ -345,12 +346,7 @@ export const readNativePlistBytes = (
         { boundary: "file-size" },
       );
     if (
-      !after.isFile() ||
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs ||
-      before.ctimeNs !== after.ctimeNs ||
+      !sameRegularFileState(before, after) ||
       BigInt(position) !== before.size
     )
       throw new ArtifactReaderFailure(

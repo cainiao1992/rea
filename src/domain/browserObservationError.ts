@@ -4,9 +4,24 @@ import type {
 } from "./browserObservationErrors.js";
 import {
   AnalysisError,
+  type AnalysisCleanupObservation,
   type AnalysisErrorOptions,
 } from "./analysisErrorBase.js";
 import { AnalysisCancelledError } from "./analysisErrorCore.js";
+
+/** Describe browser cleanup failure without discarding its resource evidence. */
+export const browserCleanupObservation = (
+  cause: unknown,
+): AnalysisCleanupObservation =>
+  cause instanceof AnalysisError && cause.cleanup !== undefined
+    ? cause.cleanup
+    : {
+        reason: cause instanceof Error ? cause.message : String(cause),
+        resources:
+          cause instanceof AnalysisError && cause.cleanupResources.length > 0
+            ? cause.cleanupResources
+            : ["browser_transport"],
+      };
 
 /** A bounded passive browser observation failed at its CDP boundary. */
 export class BrowserObservationError extends AnalysisError {

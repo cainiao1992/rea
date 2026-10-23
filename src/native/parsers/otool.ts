@@ -507,10 +507,19 @@ const TEXT_FIELDS = /^(?:segname|sectname|string #\d+)$/u;
  */
 const OFFSET_STRING_FIELD = /^(name|path) (.* \(offset \d+\))$/u;
 
+/**
+ * otool prints segment and section names as `<key> %.16s`: one separator
+ * space, then the fixed-width name, whose own leading and trailing whitespace
+ * belongs to the Mach-O value.
+ */
+const MACHO_NAME_FIELD = /^(segname|sectname)(?: (.*))?$/u;
+
 const parseField = (rawLine: string): readonly [string, string] | undefined => {
   const offsetString = OFFSET_STRING_FIELD.exec(rawLine.trimStart());
   if (offsetString?.[1] !== undefined && offsetString[2] !== undefined)
     return [offsetString[1], offsetString[2]];
+  const name = MACHO_NAME_FIELD.exec(rawLine.trimStart());
+  if (name?.[1] !== undefined) return [name[1], name[2] ?? ""];
   // otool prints each linker option as `string #n <option>`; keep the option
   // exactly, including surrounding spaces, under otool's ordinal label.
   const option = /^\s*(string #[1-9]\d*)(?: (.*))?$/u.exec(rawLine);

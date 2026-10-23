@@ -195,6 +195,99 @@ describe("analysis context queries: navigation", () => {
   });
 });
 
+describe("navigation procedure admission", () => {
+  it.each([
+    { condition: "missing result", value: null },
+    { condition: "missing discriminator", value: {} },
+    {
+      condition: "missing query identity",
+      value: { found: false, procedure: null, reason: "not_in_procedure" },
+    },
+    {
+      condition: "missing procedure facts",
+      value: {
+        query_address: "0x401000",
+        found: true,
+        procedure: { address: "0x401000", name: "main" },
+      },
+    },
+  ])(
+    "rejects $condition instead of reporting no procedure",
+    async ({ value }) => {
+      const result = await getNavigationContext(
+        {
+          execute: async (operation) =>
+            ok(
+              createAnalysisExecution(
+                operation === "current_address" ? "0x401000" : value,
+                provider,
+              ),
+            ),
+        },
+        { document: "fixture" },
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "AnalysisOutputError",
+          operation: "resolve_containing_procedure",
+        },
+      });
+    },
+  );
+
+  it.each(["no procedure exists", "not in a procedure"])(
+    "preserves a provider failure containing %s",
+    async (message) => {
+      const failure = new AnalysisProtocolError(`Provider failed: ${message}`);
+      const result = await getNavigationContext(
+        {
+          execute: async (operation) =>
+            operation === "current_address"
+              ? ok(createAnalysisExecution("0x401000", provider))
+              : err(failure),
+        },
+        { document: "fixture" },
+      );
+      expect(result).toEqual(err(failure));
+      if (result.ok) throw new Error("expected original provider failure");
+      expect(result.error).toBe(failure);
+    },
+  );
+
+  it("returns a validated containing procedure name", async () => {
+    const result = await getNavigationContext(
+      {
+        execute: async (operation) =>
+          ok(
+            createAnalysisExecution(
+              operation === "current_address"
+                ? "0x401000"
+                : {
+                    query_address: "0x401000",
+                    found: true,
+                    procedure: {
+                      address: "0x401000",
+                      name: "main",
+                      classification: null,
+                      body: {
+                        available: false,
+                        reason: "Fixture has no body ranges",
+                      },
+                    },
+                  },
+              provider,
+            ),
+          ),
+      },
+      { document: "fixture" },
+    );
+    expect(result).toEqual(
+      ok({ document: "fixture", address: "0x401000", procedure: "main" }),
+    );
+  });
+});
+
 describe("analysis context queries: address facets", () => {
   it("keeps unsupported address facets local and filters bookmarks", async () => {
     const bookmarkInputs: Readonly<Record<string, unknown>>[] = [];

@@ -5,6 +5,7 @@ import { createReconstructionReadinessReport } from "./reconstructionReadiness.j
 import {
   reconstructionObligationLedgerClosureDigest,
   reconstructionObligationLedgerStatus,
+  reconstructionObligationOwnershipGraph,
   summarizeReconstructionObligations,
 } from "./reconstructionObligationLedgerIntegrity.js";
 import { reconstructionObligationLedgerSchema } from "./reconstructionObligationLedgerSchemas.js";
@@ -205,6 +206,279 @@ describe("readiness stage identity", () => {
       });
     },
   );
+});
+
+describe("readiness closure history", () => {
+  it("rejects an earlier ready observation that still has required obligations open", () => {
+    const value = input();
+    value.closure_history[0]!.status = "ready";
+
+    const report = createReconstructionReadinessReport(value);
+    expect(report.status).toBe("fail");
+    expect(report.summary.passed_required_stages).toBe(8);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        code: "invalid-obligation-closure-transition",
+        stage_id: "verify-reconstruction-closure",
+        status: "fail",
+        evidence_ids: value.closure_history[0]!.evidence_ids,
+      }),
+    ]);
+    expect(report.snapshot.closure_history).toEqual(value.closure_history);
+  });
+
+  it.each(["open", "failed", "unknown"] as const)(
+    "checks a zero-open middle observation marked %s without treating unknown as ready",
+    (status) => {
+      const value = input();
+      const [initial, final] = value.closure_history;
+      value.closure_history = [
+        initial!,
+        { ...final!, status, ledger_digest: "c".repeat(64) },
+        { ...final!, sequence: 2, newly_verified_obligation_ids: [] },
+      ];
+
+      const report = createReconstructionReadinessReport(value);
+      expect(report.status).toBe(status === "unknown" ? "pass" : "fail");
+      expect(report.findings).toEqual(
+        status === "unknown"
+          ? []
+          : [
+              expect.objectContaining({
+                code: "invalid-obligation-closure-transition",
+                stage_id: "verify-reconstruction-closure",
+                status: "fail",
+                evidence_ids: value.closure_history[1]!.evidence_ids,
+              }),
+            ],
+      );
+      expect(report.snapshot.closure_history).toEqual(value.closure_history);
+    },
+  );
+
+  it("does not count one obligation twice in a closure observation", () => {
+    const value = input();
+    value.closure_history[0]!.required_open = 2;
+    value.closure_history[1]!.newly_verified_obligation_ids = [
+      "obl.readiness",
+      "obl.readiness",
+    ];
+
+    const report = createReconstructionReadinessReport(value);
+    expect(report.status).toBe("fail");
+    expect(report.summary.passed_required_stages).toBe(8);
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({
+        code: "invalid-obligation-closure-transition",
+        stage_id: "verify-reconstruction-closure",
+        status: "fail",
+        evidence_ids: value.closure_history[1]!.evidence_ids,
+      }),
+    );
+    expect(report.snapshot.closure_history).toEqual(value.closure_history);
+  });
+
+  it.each([false, true])(
+    "checks distinct obligations across closure observations (repeated: %s)",
+    (repeated) => {
+      const value = input();
+      const first = value.obligation_ledger.obligations[0]!;
+      const second = structuredClone(first);
+      second.obligation_id = "obl.second";
+      second.binding!.obligation_id = "obl.second";
+      second.binding!.verifier!.enumerated_obligation_ids = ["obl.second"];
+      const obligations = [first, second];
+      const ledger = {
+        ...value.obligation_ledger,
+        obligations,
+        summary: summarizeReconstructionObligations(obligations),
+        ownership_graph: reconstructionObligationOwnershipGraph(obligations),
+      };
+      value.obligation_ledger = {
+        ...ledger,
+        closure_digest: reconstructionObligationLedgerClosureDigest(ledger),
+      };
+      const [initial, final] = value.closure_history;
+      value.closure_history = [
+        { ...initial!, required_open: 2 },
+        {
+          ...initial!,
+          sequence: 1,
+          required_open: 1,
+          newly_verified_obligation_ids: ["obl.readiness"],
+        },
+        {
+          ...final!,
+          sequence: 2,
+          ledger_digest: value.obligation_ledger.closure_digest,
+          newly_verified_obligation_ids: [
+            repeated ? "obl.readiness" : "obl.second",
+          ],
+        },
+      ];
+      // History order is determined by sequence, rather than caller array order.
+      value.closure_history.reverse();
+
+      const report = createReconstructionReadinessReport(value);
+      expect(report.status).toBe(repeated ? "fail" : "pass");
+      expect(report.findings.map(({ code }) => code)).toEqual(
+        repeated ? ["invalid-obligation-closure-transition"] : [],
+      );
+      expect(report.snapshot.closure_history).toEqual(value.closure_history);
+    },
+  );
+
+  it("does not close a required obligation with an optional obligation's verified proof", () => {
+    const value = input();
+    const first = value.obligation_ledger.obligations[0]!;
+    const optional = structuredClone(first);
+    optional.obligation_id = "obl.optional";
+    optional.required = false;
+    optional.binding!.obligation_id = "obl.optional";
+    optional.binding!.verifier!.enumerated_obligation_ids = ["obl.optional"];
+    const obligations = [first, optional];
+    const ledger = {
+      ...value.obligation_ledger,
+      obligations,
+      summary: summarizeReconstructionObligations(obligations),
+      ownership_graph: reconstructionObligationOwnershipGraph(obligations),
+    };
+    value.obligation_ledger = {
+      ...ledger,
+      closure_digest: reconstructionObligationLedgerClosureDigest(ledger),
+    };
+    value.closure_history[1]!.ledger_digest =
+      value.obligation_ledger.closure_digest;
+    value.closure_history[1]!.newly_verified_obligation_ids = ["obl.optional"];
+
+    const report = createReconstructionReadinessReport(value);
+    expect(report.status).toBe("fail");
+    expect(report.findings.map(({ code }) => code)).toEqual([
+      "closure-obligation-proof-missing",
+    ]);
+  });
+});
+
+describe("readiness repeated operation outcomes", () => {
+  it.each(["cli", "mcp"] as const)(
+    "checks a later conflicting %s error and preserves its Evidence",
+    (surface) => {
+      const value = input();
+      const original = value.operation_outcomes.find(
+        (outcome) =>
+          outcome.surface === surface && outcome.call_kind === "permission",
+      )!;
+      const later = {
+        ...original,
+        sequence: 4,
+        error_code: "different-error",
+        evidence_ids: [value.evidence_bundle.records[1]!.evidence_id],
+      };
+      value.operation_outcomes.push(later);
+      const report = createReconstructionReadinessReport(value);
+
+      expect(report.status).toBe("fail");
+      expect(report.summary.passed_required_stages).toBe(8);
+      expect(report.findings).toEqual([
+        expect.objectContaining({
+          code: "surface-semantic-drift",
+          stage_id: "export-replay",
+          status: "fail",
+          evidence_ids: [
+            ...new Set([...original.evidence_ids, ...later.evidence_ids]),
+          ].sort(),
+        }),
+      ]);
+      expect(report.snapshot.operation_outcomes).toEqual(
+        value.operation_outcomes,
+      );
+      value.operation_outcomes.reverse();
+      expect(createReconstructionReadinessReport(value).findings).toEqual(
+        report.findings,
+      );
+    },
+  );
+
+  it("checks later success/failure drift even when each transport status is consistent", () => {
+    const value = input();
+    value.operation_outcomes.push({
+      ...value.operation_outcomes[2]!,
+      sequence: 4,
+      expected_success: true,
+      cli_exit_code: 0,
+      error_code: null,
+    });
+    const report = createReconstructionReadinessReport(value);
+
+    expect(report.status).toBe("fail");
+    expect(report.findings.map(({ code }) => code)).toEqual([
+      "surface-semantic-drift",
+    ]);
+  });
+
+  it("accepts matched semantic variants without dropping or pairing repeated attempts", () => {
+    const value = input();
+    value.operation_outcomes.push(
+      {
+        ...value.operation_outcomes[2]!,
+        sequence: 4,
+        error_code: "different-error",
+      },
+      {
+        ...value.operation_outcomes[3]!,
+        sequence: 5,
+        error_code: "different-error",
+      },
+      { ...value.operation_outcomes[2]!, sequence: 6 },
+    );
+    const report = createReconstructionReadinessReport(value);
+
+    expect(report.status).toBe("pass");
+    expect(report.findings).toEqual([]);
+    expect(report.snapshot.operation_outcomes).toEqual(
+      value.operation_outcomes,
+    );
+  });
+
+  it("keeps missing Evidence on a repeated matching outcome unknown", () => {
+    const value = input();
+    const missing = `ev_${"0".repeat(64)}`;
+    value.operation_outcomes.push({
+      ...value.operation_outcomes[2]!,
+      sequence: 4,
+      evidence_ids: [missing],
+    });
+    const report = createReconstructionReadinessReport(value);
+
+    expect(report.status).toBe("unknown");
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        code: "referenced-evidence-missing",
+        stage_id: "export-replay",
+        status: "unknown",
+      }),
+    ]);
+    expect(report.snapshot.operation_outcomes.at(-1)?.evidence_ids).toEqual([
+      missing,
+    ]);
+  });
+
+  it("reports the retained Evidence for an operation missing the other surface", () => {
+    const value = input();
+    value.operation_outcomes = value.operation_outcomes.filter(
+      (outcome) =>
+        !(outcome.call_kind === "permission" && outcome.surface === "mcp"),
+    );
+    const report = createReconstructionReadinessReport(value);
+
+    expect(report.status).toBe("fail");
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        code: "surface-parity-missing",
+        evidence_ids: value.operation_outcomes[2]!.evidence_ids,
+      }),
+    ]);
+  });
 });
 
 describe("readiness missing Evidence references", () => {

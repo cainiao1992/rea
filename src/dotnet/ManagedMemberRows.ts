@@ -20,13 +20,13 @@ import {
   type ManagedMethod,
   type MemberCore,
   type SignatureTypeName,
+  type DeclarationTypeName,
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import {
   metadataToken,
   metadataRowCursor,
-  metadataCodedToken,
-  metadataCodedTokenInvalidReason,
+  decodeMetadataCodedIndex,
   readMetadataBlob,
   readMetadataString,
 } from "./ManagedMetadataHeaps.js";
@@ -57,9 +57,11 @@ export const parseFields = (
   memberLists: TypeMemberListFacts,
   {
     signatureTypeName,
+    declarationTypeName,
     selected = null,
   }: {
     readonly signatureTypeName: SignatureTypeName;
+    readonly declarationTypeName: DeclarationTypeName;
     readonly selected?: SelectedTypeTokens;
   },
 ): {
@@ -120,7 +122,7 @@ export const parseFields = (
           name,
           declared?.token ?? null,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
       fields.push({
@@ -172,21 +174,21 @@ export const parseExportedTypes = (
         layout.codedIndexSize("Implementation"),
       );
       const token = metadataToken(39, row);
-      const implementationReason = metadataCodedTokenInvalidReason(
+      const implementation = decodeMetadataCodedIndex(
         implementationRaw,
         2,
         [38, 35, 39],
         layout.rowCounts,
       );
-      if (implementationReason !== null || implementationRaw === 0)
+      if (implementation.kind !== "valid")
         issues.push({
           code: "invalid-row",
           scope: `metadata.ExportedType:${token}`,
           offset: implementationOffset,
           detail:
-            implementationReason === null
+            implementation.kind === "null"
               ? "ExportedType implementation coded index 0x0 is null, but the Implementation column must reference a row"
-              : `ExportedType implementation coded index 0x${implementationRaw.toString(16)} is invalid: ${implementationReason}`,
+              : `ExportedType implementation coded index 0x${implementationRaw.toString(16)} is invalid: ${implementation.reason}`,
         });
       exportedTypes.push({
         token,
@@ -196,12 +198,8 @@ export const parseExportedTypes = (
         flags,
         forwarder: (flags & TYPE_FORWARDER_FLAG) !== 0,
         type_def_id: typeDefId,
-        implementation_token: metadataCodedToken(
-          implementationRaw,
-          2,
-          [38, 35, 39],
-          layout.rowCounts,
-        ),
+        implementation_token:
+          implementation.kind === "valid" ? implementation.token : null,
       });
     }, issues);
   }
@@ -211,8 +209,15 @@ export const parseExportedTypes = (
 export const parseMemberRefs = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  typeName: (token: string | null) => string | null,
-  signatureTypeName: SignatureTypeName,
+  {
+    typeName,
+    signatureTypeName,
+    declarationTypeName,
+  }: {
+    readonly typeName: (token: string | null) => string | null;
+    readonly signatureTypeName: SignatureTypeName;
+    readonly declarationTypeName: DeclarationTypeName;
+  },
 ): {
   readonly refs: readonly ManagedMemberRef[];
   readonly core: ReadonlyMap<string, MemberCore>;
@@ -241,28 +246,23 @@ export const parseMemberRefs = (
         layout.blob?.size ?? 0,
       );
       const token = metadataToken(10, row);
-      const parentReason = metadataCodedTokenInvalidReason(
+      const parent = decodeMetadataCodedIndex(
         parentRaw,
         3,
         [2, 1, 26, 6, 27],
         layout.rowCounts,
       );
-      if (parentReason !== null || parentRaw === 0)
+      if (parent.kind !== "valid")
         issues.push({
           code: "invalid-row",
           scope: `metadata.MemberRef:${token}`,
           offset: cursor.start,
           detail:
-            parentReason === null
+            parent.kind === "null"
               ? "MemberRef parent coded index 0x0 is null, but the Class column must reference a row"
-              : `MemberRef parent coded index 0x${parentRaw.toString(16)} is invalid: ${parentReason}`,
+              : `MemberRef parent coded index 0x${parentRaw.toString(16)} is invalid: ${parent.reason}`,
         });
-      const parentToken = metadataCodedToken(
-        parentRaw,
-        3,
-        [2, 1, 26, 6, 27],
-        layout.rowCounts,
-      );
+      const parentToken = parent.kind === "valid" ? parent.token : null;
       const parentName = typeName(parentToken);
       const decoded = budgetedSignature(
         sig,
@@ -289,7 +289,7 @@ export const parseMemberRefs = (
           name,
           parentToken,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
     }, issues);
@@ -303,6 +303,7 @@ interface ParseMethodsInput {
   readonly pe: ManagedPeLayout;
   readonly ranges: readonly TypeRange[];
   readonly signatureTypeName: SignatureTypeName;
+  readonly declarationTypeName: DeclarationTypeName;
   readonly memberRefKinds: ReadonlyMap<string, "field" | "method">;
   readonly memberLists: TypeMemberListFacts;
   readonly selected?: SelectedTypeTokens;
@@ -316,6 +317,7 @@ export const parseMethods = ({
   pe,
   ranges,
   signatureTypeName,
+  declarationTypeName,
   memberRefKinds,
   memberLists,
   selected = null,
@@ -400,7 +402,7 @@ export const parseMethods = ({
           name,
           declared?.token ?? null,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
       const read = methodBody(bytes, pe, rva, {

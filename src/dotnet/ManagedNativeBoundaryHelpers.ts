@@ -11,8 +11,7 @@ import {
 import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,
-  metadataCodedToken,
-  metadataCodedTokenInvalidReason,
+  decodeMetadataCodedIndex,
   metadataToken,
   readMetadataString,
 } from "./ManagedMetadataHeaps.js";
@@ -169,28 +168,24 @@ export const parseImplMaps = ({
       const memberForwardedRaw = cursor.readIndex(
         layout.codedIndexSize("MemberForwarded"),
       );
-      const memberForwardedReason = metadataCodedTokenInvalidReason(
+      const memberForwarded = decodeMetadataCodedIndex(
         memberForwardedRaw,
         1,
         [4, 6],
         layout.rowCounts,
       );
-      if (memberForwardedReason !== null || memberForwardedRaw === 0)
+      if (memberForwarded.kind !== "valid")
         issues.push({
           code: "invalid-row",
           scope: `metadata.ImplMap:${metadataToken(28, row)}`,
           offset: memberForwardedOffset,
           detail:
-            memberForwardedReason === null
+            memberForwarded.kind === "null"
               ? "ImplMap MemberForwarded coded index 0x0 is null, but the column must reference a Field or MethodDef row"
-              : `ImplMap MemberForwarded coded index 0x${memberForwardedRaw.toString(16)} is invalid: ${memberForwardedReason}`,
+              : `ImplMap MemberForwarded coded index 0x${memberForwardedRaw.toString(16)} is invalid: ${memberForwarded.reason}`,
         });
-      const memberToken = metadataCodedToken(
-        memberForwardedRaw,
-        1,
-        [4, 6],
-        layout.rowCounts,
-      );
+      const memberToken =
+        memberForwarded.kind === "valid" ? memberForwarded.token : null;
       const importName = readMetadataString(
         bytes,
         layout,

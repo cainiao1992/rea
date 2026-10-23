@@ -234,7 +234,12 @@ export const readUInt32 = (
 
 export const isMapped = (image: NativeImage, address: bigint, size: number) => {
   try {
-    mappedFileOffset(image.container.mappings, address, size);
+    mappedFileOffset(
+      image.container.mappings,
+      address,
+      size,
+      image.container.zero_fills,
+    );
     return true;
   } catch (cause) {
     if (cause instanceof BinaryFormatFailure) return false;

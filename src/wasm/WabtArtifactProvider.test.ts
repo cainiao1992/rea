@@ -207,76 +207,136 @@ const createWabtArtifactFixture = async () => {
   return { selectedRoot, path, bytes, dump };
 };
 
-it("keeps core WASM usable when optional name-section metadata is malformed", async () => {
-  const fixture = await createWabtArtifactFixture();
-  const diagnostic =
-    "0000011: warning: invalid sub-section size: extends past end\n";
-  const dump = [
-    "",
-    "module.wasm:\tfile format wasm 0x1",
-    "",
-    "Sections:",
-    "",
-    ' Custom start=0x0000000a end=0x0000004c (size=0x00000042) "name"',
-    "",
-    "Section Details:",
-    "",
-  ].join("\n");
-  const provider = new WabtArtifactProvider(
-    { REA_WABT_BIN_DIRECTORY: fixture.selectedRoot },
-    (input) => {
-      const version = input.arguments[0] === "--version";
-      const isObjdump = input.command.includes("wasm-objdump");
-      const isDecoder = input.command.includes("wasm2wat");
-      const stdout = version
-        ? "1.0.42\n"
-        : isObjdump
-          ? dump
-          : isDecoder
-            ? '(module (@custom "name" "abc"))\n'
-            : "";
-      const stderr = version ? "" : diagnostic;
-      return spawnOwnedProviderProcess({
-        ...input,
-        hostEnvironment: nodeHostEnvironment(input.hostEnvironment),
-        command: process.execPath,
-        arguments: [
-          "-e",
-          `process.stdout.write(${JSON.stringify(stdout)}); process.stderr.write(${JSON.stringify(stderr)});`,
-        ],
-        expectedCommand: null,
+it.each([
+  {
+    label: "initially malformed",
+    preamble: "",
+    payload: "abc",
+    diagnostic:
+      "0000011: warning: invalid sub-section size: extends past end\n",
+    metadata: "uninterpretable",
+  },
+  {
+    label: "partially decoded",
+    preamble: "module name: <hello>\n",
+    payload: String.raw`\00\06\05hello\01\02\01`,
+    diagnostic:
+      "0000011: warning: invalid sub-section size: extends past end\n",
+    metadata: "uninterpretable",
+  },
+  {
+    label: "an inner map rejected by WABT",
+    preamble: "module name: <hello>\n",
+    payload: String.raw`\00\06\05hello\01\01\01`,
+    diagnostic:
+      "000002f: warning: invalid name count 1, only 0 bytes left in section\n",
+    metadata: "unknown",
+  },
+  {
+    label: "a valid empty function-name map",
+    preamble: "module name: <hello>\n",
+    payload: String.raw`\00\06\05hello\01\01\00`,
+    diagnostic: "",
+    metadata: "complete",
+  },
+  {
+    label: "a valid name with an unattributed custom-section warning",
+    preamble: "module name: <hello>\n",
+    payload: String.raw`\00\06\05hello\01\01\00`,
+    diagnostic:
+      "0000030: warning: unable to read u32 leb128: linking metadata version\n",
+    metadata: "unknown",
+  },
+])(
+  "keeps core WASM usable when optional name metadata is $label",
+  async ({ preamble, payload, diagnostic, metadata }) => {
+    const fixture = await createWabtArtifactFixture();
+    const dump = [
+      "",
+      `module.wasm:\tfile format wasm 0x1\n${preamble}`.trimEnd(),
+      "",
+      "Sections:",
+      "",
+      ' Custom start=0x0000000a end=0x0000004c (size=0x00000042) "name"',
+      "",
+      "Section Details:",
+      "",
+    ].join("\n");
+    const provider = new WabtArtifactProvider(
+      { REA_WABT_BIN_DIRECTORY: fixture.selectedRoot },
+      (input) => {
+        const version = input.arguments[0] === "--version";
+        const isObjdump = input.command.includes("wasm-objdump");
+        const isDecoder = input.command.includes("wasm2wat");
+        const stdout = version
+          ? "1.0.42\n"
+          : isObjdump
+            ? dump
+            : isDecoder
+              ? `(module (@custom "name" "${payload}"))\n`
+              : "";
+        const stderr = version ? "" : diagnostic;
+        return spawnOwnedProviderProcess({
+          ...input,
+          hostEnvironment: nodeHostEnvironment(input.hostEnvironment),
+          command: process.execPath,
+          arguments: [
+            "-e",
+            `process.stdout.write(${JSON.stringify(stdout)}); process.stderr.write(${JSON.stringify(stderr)});`,
+          ],
+          expectedCommand: null,
+        });
+      },
+    );
+    try {
+      const result = await provider.inspect({
+        path: fixture.path,
+        glue_paths: [],
+        candidate_paths: [],
       });
-    },
-  );
-  try {
-    const result = await provider.inspect({
-      path: fixture.path,
-      glue_paths: [],
-      candidate_paths: [],
-    });
-    if (!result.ok) throw result.error;
-    expect(result.value.result).toMatchObject({
-      validation: "valid",
-      debug_name_metadata: "uninterpretable",
-      custom_section_warnings: [
-        { tool: "wasm-validate", text: diagnostic },
-        { tool: "wasm-objdump", text: diagnostic },
-        { tool: "wasm2wat", text: diagnostic },
-      ],
-      sections: [{ kind: "Custom", start: 10, end: 76, description: '"name"' }],
-      limitations: expect.arrayContaining([
-        expect.stringContaining("optional WebAssembly name custom section"),
-      ]),
-    });
-    expect(
-      wasmArtifactSchema.parse(result.value.result).tool_profile.commands[0]
-        ?.arguments,
-    ).toContain("--ignore-custom-section-errors");
-    expect(await readFile(fixture.path)).toEqual(fixture.bytes);
-  } finally {
-    await provider.close();
-  }
-});
+      if (!result.ok) throw result.error;
+      const report = wasmArtifactSchema.parse(result.value.result);
+      expect(report).toMatchObject({
+        validation: "valid",
+        debug_name_metadata: metadata,
+        custom_section_warnings:
+          diagnostic === ""
+            ? []
+            : [
+                { tool: "wasm-validate", text: diagnostic },
+                { tool: "wasm-objdump", text: diagnostic },
+                { tool: "wasm2wat", text: diagnostic },
+              ],
+        sections: [
+          { kind: "Custom", start: 10, end: 76, description: '"name"' },
+        ],
+      });
+      if (metadata !== "complete")
+        expect(report.limitations).toContainEqual(
+          expect.stringContaining(
+            "complete debug-name coverage remains unknown",
+          ),
+        );
+      else
+        expect(report.limitations.join("\n")).not.toContain(
+          "complete debug-name coverage remains unknown",
+        );
+      expect(report.artifact.sha256).toBe(
+        createHash("sha256").update(fixture.bytes).digest("hex"),
+      );
+      expect(report.tool_profile.commands[0]?.arguments).toContain(
+        "--ignore-custom-section-errors",
+      );
+      expect(await readFile(fixture.path)).toEqual(fixture.bytes);
+      expect(report.headers).toBe(
+        dump.slice(0, dump.indexOf("Section Details:\n")),
+      );
+      expect(report.wat.text).toBe(`(module (@custom "name" "${payload}"))\n`);
+    } finally {
+      await provider.close();
+    }
+  },
+);
 
 const assertModeOutcome = (
   mode: OutcomeMode,

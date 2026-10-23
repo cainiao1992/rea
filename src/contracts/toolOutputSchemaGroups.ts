@@ -47,6 +47,7 @@ import {
   referenceEdgeSchema,
   unresolvedCallSchema,
   procedureIdentitySchema,
+  containingProcedureResolutionSchema,
 } from "../domain/hopperValues.js";
 import { nativeApiInspectionResultSchema } from "../domain/native/nativeApiBoundary.js";
 import {
@@ -78,6 +79,7 @@ import { changedBehaviorResultSchema } from "../domain/changedBehavior.js";
 import { callPathResultSchema } from "../domain/callPathSchemas.js";
 import { staticRuntimeCorrelationResultSchema } from "../domain/staticRuntimeCorrelation.js";
 import { reconstructionVerificationResultSchema } from "../domain/reconstructionVerificationSchemas.js";
+import { decompileDirectoryManifestSchema } from "./decompileDirectory.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
 import { relationshipCoverageSchema } from "../domain/relationshipCoverage.js";
 import { nativeDispatchMetadataResultSchema } from "../domain/native/objcSwiftMetadata.js";
@@ -85,7 +87,6 @@ import { nativeInvestigationTraceSchema } from "../domain/native/nativeInvestiga
 import {
   addressList,
   addressedEntry,
-  containingProcedureResolution,
   functionDossierOutput,
   graphNode,
   lifecycleResultOf,
@@ -205,7 +206,9 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     }),
   ),
   procedure_pseudo_code: evidenceResultOf(nullableText),
-  resolve_containing_procedure: evidenceResultOf(containingProcedureResolution),
+  resolve_containing_procedure: evidenceResultOf(
+    containingProcedureResolutionSchema,
+  ),
   search_procedures: analysisDetailOutputSchemaOf(
     z.array(z.object({ address: z.string(), value: z.string() })),
     nativeInventorySummaryViewResultSchema.extend({
@@ -237,7 +240,7 @@ const literalTraceOutput = evidenceResultOf(
       z.object({
         target_address: z.string(),
         source_address: z.string(),
-        containing_procedure: containingProcedureResolution,
+        containing_procedure: containingProcedureResolutionSchema,
       }),
     ),
     truncated: z.boolean(),
@@ -307,6 +310,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   trace_native_ui_action: evidenceResultOf(nativeInvestigationTraceSchema),
   get_objc_classes: objcClassDiscoveryOutput,
   get_objc_protocols: symbolDiscoveryOutput("protocols"),
+  decompile_all: evidenceResultOf(decompileDirectoryManifestSchema),
   batch_decompile: evidenceResultOf(
     z.object({
       items: z.array(

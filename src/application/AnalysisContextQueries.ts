@@ -168,7 +168,8 @@ const readContainingProcedure = (value: JsonValue) => {
     : err(
         new AnalysisOutputError(
           "resolve_containing_procedure",
-          "expected a valid found or absent containing-procedure result",
+          "expected a containing-procedure resolution",
+          { cause: parsed.error },
         ),
       );
 };

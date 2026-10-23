@@ -444,12 +444,23 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         exports,
         customSectionNames,
         debugModuleNames,
-        debugNameMetadata,
+        debugNameMetadata: decodedNameMetadata,
         interface: interfaceFacts,
       } = parseWabtWat(wat.stdout.text);
+      // WAT framing reads module names, not every inner name map. A producer
+      // warning may concern a skipped body or another custom section; without
+      // section attribution it cannot establish complete debug-name coverage.
+      const debugNameMetadata =
+        decodedNameMetadata === "complete" && customSectionWarnings.length > 0
+          ? "unknown"
+          : decodedNameMetadata;
       if (debugNameMetadata === "uninterpretable")
         optionalLimitations.push(
-          "The optional WebAssembly name custom section could not be interpreted; its original custom-section payload remains in decoded WAT, while debug module names are unavailable.",
+          "The optional WebAssembly name custom section could not be fully interpreted; its original payload remains in decoded WAT. Observed module-name displays are retained for producer framing; complete debug-name coverage remains unknown.",
+        );
+      else if (debugNameMetadata === "unknown")
+        optionalLimitations.push(
+          "WABT custom-section warning attribution is unknown, so complete debug-name coverage remains unknown. Observed module-name displays are retained for producer framing.",
         );
       if (customSectionWarnings.length > 0)
         optionalLimitations.push(

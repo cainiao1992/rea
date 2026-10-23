@@ -431,6 +431,118 @@ try {
       cases += 2;
     }
   }
+  // Source-owned inert core and raw optional payloads reproduce #6885 without
+  // asking wat2wasm to repair or regenerate the malformed name metadata.
+  const core = Buffer.from(
+    "0061736d0100000001040160000003020100070501016600000a040102000b",
+    "hex",
+  );
+  for (const [label, payload, metadata, observedName] of [
+    ["valid-name", Buffer.from("00060568656c6c6f", "hex"), "complete", true],
+    [
+      "valid-name-map",
+      Buffer.from("00060568656c6c6f010100", "hex"),
+      "complete",
+      true,
+    ],
+    [
+      "inner-name-error",
+      Buffer.from("00060568656c6c6f010101", "hex"),
+      "unknown",
+      true,
+    ],
+    [
+      "partial-name",
+      Buffer.from("00060568656c6c6f010201", "hex"),
+      "uninterpretable",
+      true,
+    ],
+    [
+      "initial-name-error",
+      Buffer.from("0006056e616d65", "hex"),
+      "uninterpretable",
+      false,
+    ],
+  ]) {
+    const fixtureRoot = join(root.path, label);
+    await mkdir(fixtureRoot);
+    const path = join(fixtureRoot, "module.wasm"),
+      custom = Buffer.concat([Buffer.from([4]), Buffer.from("name"), payload]),
+      original = Buffer.concat([core, Buffer.from([0, custom.length]), custom]);
+    await writeFile(path, original);
+    const validation = await tool(
+        "wasm-validate",
+        ["--enable-all", "--ignore-custom-section-errors", "module.wasm"],
+        fixtureRoot,
+      ),
+      dump = await tool(
+        "wasm-objdump",
+        ["-h", "-x", "module.wasm"],
+        fixtureRoot,
+      ),
+      decoded = await tool(
+        "wasm2wat",
+        ["--enable-all", "--ignore-custom-section-errors", "module.wasm"],
+        fixtureRoot,
+      );
+    const input = { path, glue_paths: [], candidate_paths: [] };
+    const cli = parseEvidence(await inspectCli(input));
+    const reply = await callTool({
+      name: "inspect_wasm_artifact",
+      arguments: input,
+    });
+    assert.notEqual(reply.isError, true, mcpTextValue(reply));
+    assert.ok(
+      ajv.validate(advertised.outputSchema, reply.structuredContent),
+      JSON.stringify(ajv.errors),
+    );
+    const mcp = parseEvidence(reply.structuredContent);
+    assert.deepEqual(cli, mcp);
+    const report = mcp.normalized_result;
+    assert.equal(report.validation, "valid");
+    assert.equal(report.artifact.sha256, sha256(original));
+    assert.equal(report.artifact.bytes, original.length);
+    assert.equal(report.debug_name_metadata, metadata);
+    assert.equal(report.interface.state, "complete");
+    assert.deepEqual(report.exports, ['(export "f" (func 0))']);
+    assert.deepEqual(
+      report.interface.entries.map(({ direction, name, signature }) => ({
+        direction,
+        name,
+        signature,
+      })),
+      [
+        {
+          direction: "export",
+          name: "f",
+          signature: { kind: "func", params: [], results: [] },
+        },
+      ],
+    );
+    assert.equal(
+      report.headers.includes("module name: <hello>\n"),
+      observedName,
+    );
+    assert.equal(report.sections.at(-1).end, original.length);
+    assert.equal(report.wat.text, decoded.stdout);
+    assert.equal(report.wat.sha256, sha256(decoded.stdout));
+    assert.ok(report.wat.text.includes('(@custom "name"'));
+    const warnings = [
+      { tool: "wasm-validate", text: validation.stderr },
+      { tool: "wasm-objdump", text: dump.stderr },
+      { tool: "wasm2wat", text: decoded.stderr },
+    ].filter(({ text }) => text !== "");
+    assert.equal(warnings.length, metadata === "complete" ? 0 : 3);
+    assert.deepEqual(report.custom_section_warnings, warnings);
+    if (metadata !== "complete")
+      assert.ok(
+        report.limitations.some((text) =>
+          text.includes("complete debug-name coverage remains unknown"),
+        ),
+      );
+    assert.deepEqual(await readFile(path), original);
+    cases += 2;
+  }
   cases += await verifyWabtCleanup(entrypoint, environment, childTempRoot);
 } catch (cause) {
   failures.push(cause);

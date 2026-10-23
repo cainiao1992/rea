@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { PROCEDURES, inventory, jsonResult } from "./enhancedToolsHarness.js";
@@ -63,29 +66,24 @@ const functionDossier = {
   limitations: [],
 };
 
+const capabilityUnavailable = (operation: string, message: string) =>
+  Promise.resolve(
+    err(new AnalysisCapabilityUnavailableError("fixture", operation, message)),
+  );
+
 const fixturePort = (): AnalysisOperationPort => ({
   // oxlint-disable-next-line complexity -- this fixture exhaustively serves the registered MCP surface.
   execute: (name, arguments_) => {
     switch (name) {
       case "read_binary_inventory_summary":
-        return Promise.resolve(
-          err(
-            new AnalysisCapabilityUnavailableError(
-              "fixture",
-              name,
-              "This fixture exercises composed overview",
-            ),
-          ),
+        return capabilityUnavailable(
+          name,
+          "This fixture exercises composed overview",
         );
       case "inspect_native_dispatch_metadata":
-        return Promise.resolve(
-          err(
-            new AnalysisCapabilityUnavailableError(
-              "fixture",
-              name,
-              "No byte reader or exact native seed in this symbol-only fixture",
-            ),
-          ),
+        return capabilityUnavailable(
+          name,
+          "No byte reader or exact native seed in this symbol-only fixture",
         );
       case "procedure_address": {
         const procedure = inventory(PROCEDURES).find(
@@ -153,6 +151,11 @@ const fixturePort = (): AnalysisOperationPort => ({
           ok(typeof procedure === "string" ? `pseudo:${procedure}` : "invalid"),
         );
       }
+      case "procedure_info":
+        return capabilityUnavailable(
+          name,
+          "This fixture does not report function bodies",
+        );
       case "procedure_callees": {
         const procedure = arguments_.procedure;
         return Promise.resolve(
@@ -215,11 +218,16 @@ const fixturePort = (): AnalysisOperationPort => ({
 });
 
 const resources: Array<{ close(): Promise<void> }> = [];
+let decompileOutput: string | undefined;
 
 afterEach(async () => {
   await Promise.all(
     resources.splice(0).map(async (resource) => resource.close()),
   );
+  if (decompileOutput !== undefined) {
+    await rm(decompileOutput, { recursive: true, force: true });
+    decompileOutput = undefined;
+  }
 });
 
 const connect = async (analysis: AnalysisOperationPort = fixturePort()) => {
@@ -257,6 +265,8 @@ describe("enhanced MCP tools", () => {
   // oxlint-disable-next-line max-lines-per-function -- one exhaustive registration test guards the public tool catalog.
   it("executes all enhanced tools through production registration", async () => {
     const client = await connect();
+    const outputParent = await mkdtemp(join(tmpdir(), "rea-decompile-all-"));
+    decompileOutput = outputParent;
     const calls = [
       ["get_objc_classes", { pattern: "Fixture" }],
       ["get_objc_protocols", {}],
@@ -272,6 +282,7 @@ describe("enhanced MCP tools", () => {
       ["trace_native_ui_action", { action: "missing-selector" }],
       ["inspect_native_dispatch_metadata", { max_records: 100 }],
       ["trace_native_values", { procedure: "0x1" }],
+      ["decompile_all", { output_directory: join(outputParent, "out") }],
     ] as const;
     const results = await Promise.all(
       calls.map(async ([name, arguments_]) =>
@@ -438,6 +449,11 @@ describe("enhanced MCP tools", () => {
         }),
       ],
     });
+    expect(results[14]).toMatchObject({
+      counts: { selected: 6, written: 6, failed: 0, excluded: 0 },
+      layout_status: "address",
+    });
+    expect(JSON.stringify(results[14])).not.toContain("pseudo:");
   });
 });
 

@@ -551,8 +551,6 @@ export const addressedEntry = z.object({
   address: z.string(),
   name: z.string(),
 });
-export { containingProcedureResolutionSchema as containingProcedureResolution } from "../domain/hopperValues.js";
-
 const unavailable = z.object({
   available: z.literal(false),
   reason: z.string(),

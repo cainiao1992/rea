@@ -18,6 +18,7 @@ import { withCommandCancellation } from "./commandCancellation.js";
 import { javascriptApplicationOptions } from "../cliObservationOptions.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
+import { registerDecompileDirectoryCommand } from "./decompileDirectoryCommand.js";
 
 /** Register provider-neutral binary overview and procedure CLI commands. */
 export const registerCoreBinaryCommands = (
@@ -28,6 +29,7 @@ export const registerCoreBinaryCommands = (
 ): void => {
   registerOverviewCommands(cli, logger, runDirectAnalysis, environment);
   registerDecompileCommand(cli, logger, runDirectAnalysis);
+  registerDecompileDirectoryCommand(cli, logger, runDirectAnalysis);
   registerFunctionCommand(cli, logger, runDirectAnalysis);
   registerInstructionsCommand(cli, logger, runDirectAnalysis);
   registerSearchCommand(cli, logger, runDirectAnalysis);

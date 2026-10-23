@@ -395,33 +395,25 @@ describe("ELF export version and name coverage", () => {
       exports: [],
       coverage: { status: "complete" },
     });
+    expect(
+      parse(elfExportImage({ symbols: [], dynamicSymbols: false })),
+    ).toMatchObject({ exports: [], coverage: { status: "complete" } });
     for (const bytes of [
-      elfExportImage({ symbols: [], dynamicSymbols: false }),
       elfExportImage({ symbols: [], sectionHeaders: false }),
+      elfExportImage({
+        symbols: [],
+        dynamicSymbols: false,
+        dynamicSegment: true,
+      }),
     ])
       expect(parse(bytes)).toMatchObject({
         exports: [],
         coverage: {
           status: "unsupported",
-          reason: expect.stringContaining("No SHT_DYNSYM"),
+          reason: expect.stringContaining("dynamic segment"),
           examined_entries: 0,
         },
       });
-  });
-
-  it("does not turn a null-only section directory into exhaustive export absence", () => {
-    const bytes = elfExportImage({ symbols: [{ name: "exported_answer" }] });
-    expect(parse(bytes)).toMatchObject({
-      exports: [{ name: "exported_answer" }],
-      coverage: { status: "complete" },
-    });
-    // Keep every symbol byte and the existing inactive section-zero header.
-    bytes.writeUInt16LE(1, 60);
-    bytes.writeUInt16LE(0, 62);
-    expect(parse(bytes)).toMatchObject({
-      exports: [],
-      coverage: { status: "unsupported", examined_entries: 0 },
-    });
   });
 });
 

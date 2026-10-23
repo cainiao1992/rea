@@ -207,6 +207,50 @@ it.each([
   },
 );
 
+it("keeps the surrounding spaces of segment and section names", () => {
+  // Captured from `otool -l` on an object whose section is " sec " in segment
+  // " seg ": otool prints one space after the label, then the stored name.
+  const output = [
+    "Load command 0",
+    "      cmd LC_SEGMENT_64",
+    "  cmdsize 152",
+    "  segname ",
+    "   vmaddr 0x0000000000000000",
+    "   vmsize 0x0000000000000008",
+    "  fileoff 184",
+    " filesize 8",
+    "  maxprot 0x00000007",
+    " initprot 0x00000007",
+    "   nsects 1",
+    "    flags 0x0",
+    "Section",
+    "  sectname  sec ",
+    "   segname  seg ",
+    "      addr 0x0000000000000000",
+    "      size 0x0000000000000008",
+    "    offset 184",
+    "     align 2^0 (1)",
+    "    reloff 0",
+    "    nreloc 0",
+    "     flags 0x00000000",
+    " reserved1 0",
+    " reserved2 0",
+    "",
+  ].join("\n");
+
+  expect(
+    parseOtoolLoadCommands(withOtoolMachHeader(output)).segments,
+  ).toMatchObject([
+    { name: "", sections: [{ segment: " seg ", name: " sec " }] },
+  ]);
+
+  const named = parseOtoolLoadCommands(
+    withOtoolMachHeader(output.replace("  segname \n", "  segname  seg \n")),
+  );
+  expect(named.commands[0]?.fields.segname).toBe(" seg ");
+  expect(named.segments[0]?.name).toBe(" seg ");
+});
+
 it("preserves dependency install names that begin with the word stamp", () => {
   const load = parseOtoolLoadCommands(
     withOtoolMachHeader(

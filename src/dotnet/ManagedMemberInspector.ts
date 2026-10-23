@@ -207,12 +207,8 @@ export const inspectManagedMembersBytes = (
       typeNames === undefined ? 0 : ranges.length - parsedTypes.types.length;
     appendManagedParseIssues(issues, parsedTypes.issues);
     const typeReferences = managedTypeReferences(bytes, layout, issues);
-    const signatureTypeName = managedTypeNameDigests(
-      layout,
-      issues,
-      parsedTypes,
-      typeReferences,
-    );
+    const { operand: signatureTypeName, declaration: declarationTypeName } =
+      managedTypeNameDigests(layout, issues, parsedTypes, typeReferences);
     const types = parsedTypes.types
       .filter((type) => selected === null || selected.has(type.token))
       .map((type) => {
@@ -220,8 +216,9 @@ export const inspectManagedMembersBytes = (
         return {
           ...type,
           name_sha256:
-            signatureTypeName(
-              Number.parseInt(type.token.slice(4), 16) * 4,
+            declarationTypeName(
+              2,
+              Number.parseInt(type.token.slice(4), 16),
             )?.toString("hex") ?? null,
         };
       });
@@ -285,6 +282,7 @@ export const inspectManagedMembersBytes = (
     appendManagedParseIssues(issues, exportedTypes.issues);
     const fields = parseFields(bytes, layout, ranges, memberLists, {
       signatureTypeName,
+      declarationTypeName,
       selected,
     });
     const resolveTypeName = typeNameLookup(
@@ -294,12 +292,11 @@ export const inspectManagedMembersBytes = (
       issues,
       typeReferences,
     );
-    const memberRefs = parseMemberRefs(
-      bytes,
-      layout,
-      resolveTypeName,
+    const memberRefs = parseMemberRefs(bytes, layout, {
+      typeName: resolveTypeName,
       signatureTypeName,
-    );
+      declarationTypeName,
+    });
     appendManagedParseIssues(issues, memberRefs.issues);
     const methods = parseMethods({
       bytes,
@@ -307,6 +304,7 @@ export const inspectManagedMembersBytes = (
       pe,
       ranges,
       signatureTypeName,
+      declarationTypeName,
       memberRefKinds: new Map(
         memberRefs.refs.flatMap((memberRef) =>
           memberRef.signature.kind === "field" ||
@@ -339,7 +337,7 @@ export const inspectManagedMembersBytes = (
             region.class_token === null
               ? null
               : classType !== null && tokenTable === 2
-                ? signatureTypeName(tokenRow * 4) !== null
+                ? declarationTypeName(2, tokenRow) !== null
                 : false;
           return {
             ...region,
@@ -347,9 +345,8 @@ export const inspectManagedMembersBytes = (
             class_type_name_sha256:
               region.class_token !== null &&
               (tokenTable === 1 || tokenTable === 2)
-                ? (signatureTypeName(
-                    tokenRow * 4 + Number(tokenTable === 1),
-                  )?.toString("hex") ?? null)
+                ? (declarationTypeName(tokenTable, tokenRow)?.toString("hex") ??
+                  null)
                 : null,
             class_type_identity_resolved: identityResolved,
           };

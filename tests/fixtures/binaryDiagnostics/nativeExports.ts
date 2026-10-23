@@ -248,7 +248,8 @@ export const elfExportImage = (options: {
   readonly versionsOutsideFile?: boolean;
   /** Declare a zero-byte `.dynsym`, without its null entry. */
   readonly emptyDynamicSymbols?: boolean;
-  readonly sectionHeaders?: boolean;
+  readonly sectionHeaders?: boolean | "null-only";
+  readonly dynamicSegment?: boolean;
   readonly dynamicSymbols?: boolean;
 }): Buffer => {
   const bits = options.bits ?? 64;
@@ -317,6 +318,8 @@ export const elfExportImage = (options: {
   u16(wide ? 52 : 40, wide ? 64 : 52);
   u16(wide ? 54 : 42, wide ? 56 : 32);
   u16(wide ? 58 : 46, sectionWidth);
+  if (options.dynamicSegment === true)
+    writeElfDynamicSegment(bytes, bits, little);
   if (options.sectionHeaders === false) return bytes;
 
   symbols.forEach((symbol, index) => {
@@ -381,8 +384,9 @@ export const elfExportImage = (options: {
     word(at + (wide ? 56 : 36), BigInt(entsize));
   });
   word(wide ? 40 : 32, BigInt(sectionAt));
-  u16(wide ? 60 : 48, sections.length);
-  u16(wide ? 62 : 50, sections.length - 1);
+  const nullOnly = options.sectionHeaders === "null-only";
+  u16(wide ? 60 : 48, nullOnly ? 1 : sections.length);
+  u16(wide ? 62 : 50, nullOnly ? 0 : sections.length - 1);
   return bytes;
 };
 
@@ -463,3 +467,19 @@ const elfSectionRows = (
       ] satisfies ElfSectionRow[])),
   [60, 3, layout.shstrtabAt, layout.shstrtab, 0, 0, 0],
 ];
+
+/** Two program headers: an empty load segment followed by a dynamic segment. */
+const writeElfDynamicSegment = (
+  bytes: Buffer,
+  bits: 32 | 64,
+  little: boolean,
+): void => {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const wide = bits === 64;
+  const programAt = wide ? 64 : 52;
+  if (wide) view.setBigUint64(32, BigInt(programAt), little);
+  else view.setUint32(28, programAt, little);
+  view.setUint16(wide ? 56 : 44, 2, little);
+  view.setUint32(programAt, 1, little);
+  view.setUint32(programAt + (wide ? 56 : 32), 2, little);
+};

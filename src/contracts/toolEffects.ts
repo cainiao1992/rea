@@ -564,6 +564,11 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   get_objc_classes: evidence,
   get_objc_protocols: evidence,
   batch_decompile: evidence,
+  decompile_all: effects({
+    mutatesSession: true,
+    writesFilesystem: true,
+    idempotent: false,
+  }),
   get_call_graph: evidence,
   analyze_swift_types: evidence,
   find_xrefs_to_name: evidence,

@@ -15,6 +15,7 @@ import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
   readFatSliceDeclarations,
+  readMachoHeaderPrefixFacts,
   validateFatSlice,
   type FatSliceDeclaration,
 } from "../domain/apple/machoContainer.js";
@@ -321,15 +322,14 @@ const inspectHopperMachOImage = async (
       return invalid(
         `Thin Mach-O source changed after target admission: expected SHA-256 ${target.sha256}, observed ${observedSha256}`,
       );
-    const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
-    const headerMagic = prefix.readUInt32BE(0);
-    if (headerMagic !== magic)
+    const facts = readMachoHeaderPrefixFacts(prefix);
+    if (facts.magic !== magic || facts.identity === null)
       return invalid("Thin Mach-O header changed during profile resolution");
     return ok({
       method: "thin_verified_copy",
       byte_length: size,
-      cpu_type: little ? prefix.readUInt32LE(4) : prefix.readUInt32BE(4),
-      cpu_subtype: little ? prefix.readUInt32LE(8) : prefix.readUInt32BE(8),
+      cpu_type: facts.identity.cpuType,
+      cpu_subtype: facts.identity.cpuSubtype,
     });
   }
   const isFatMagic = [0xcafebabe, 0xcafebabf, 0xbebafeca, 0xbfbafeca].includes(
@@ -390,16 +390,11 @@ const inspectHopperMachOImage = async (
     const embedded = await read(slice.offset, 12);
     if (embedded.length !== 12)
       return invalid(`FAT architecture ${slice.index} became truncated`);
-    const thinMagic = embedded.readUInt32BE(0);
-    if (![0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(thinMagic))
+    const identity = readMachoHeaderPrefixFacts(embedded).identity;
+    if (identity === null)
       return invalid(
         `FAT architecture ${slice.index} does not contain a Mach-O image`,
       );
-    const little = thinMagic === 0xcefaedfe || thinMagic === 0xcffaedfe;
-    const identity = {
-      cpuType: little ? embedded.readUInt32LE(4) : embedded.readUInt32BE(4),
-      cpuSubtype: little ? embedded.readUInt32LE(8) : embedded.readUInt32BE(8),
-    };
     const identityError = validateFatSlice(slice, size, tableEnd, identity);
     if (identityError !== null) return invalid(identityError);
     ranges.push(slice);
@@ -519,15 +514,12 @@ export const prepareHopperMachOImage = async (
   if (!copiedResult.ok) return copiedResult;
   const observed = hash.digest("hex");
   const header = Buffer.concat(thinHeader);
-  const magic = header.length === 12 ? header.readUInt32BE(0) : 0;
-  const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
+  const identity = readMachoHeaderPrefixFacts(header).identity;
   const headerMatches =
     header.length === 12 &&
-    [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic) &&
-    (little ? header.readUInt32LE(4) : header.readUInt32BE(4)) ===
-      image.cpu_type &&
-    (little ? header.readUInt32LE(8) : header.readUInt32BE(8)) ===
-      image.cpu_subtype;
+    identity !== null &&
+    identity.cpuType === image.cpu_type &&
+    identity.cpuSubtype === image.cpu_subtype;
   if (
     tableHash.digest("hex") !== image.container_table_sha256 ||
     !headerMatches
@@ -591,15 +583,14 @@ const prepareThinHopperMachOImage = async (
       }),
     );
   const observed = hash.digest("hex");
-  const magic = prefixLength === prefix.length ? prefix.readUInt32BE(0) : 0;
-  const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
+  const identity = readMachoHeaderPrefixFacts(
+    prefix.subarray(0, prefixLength),
+  ).identity;
   const headerMatches =
     prefixLength === prefix.length &&
-    [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic) &&
-    (little ? prefix.readUInt32LE(4) : prefix.readUInt32BE(4)) ===
-      image.cpu_type &&
-    (little ? prefix.readUInt32LE(8) : prefix.readUInt32BE(8)) ===
-      image.cpu_subtype;
+    identity !== null &&
+    identity.cpuType === image.cpu_type &&
+    identity.cpuSubtype === image.cpu_subtype;
   if (
     observed !== sourceSha256 ||
     copied !== image.byte_length ||

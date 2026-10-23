@@ -9,6 +9,16 @@ export class BinaryFormatFailure extends Error {
   }
 }
 
+/** A missing file span is a candidate miss; conflicting owners are malformed. */
+export class BinaryMappingFailure extends BinaryFormatFailure {
+  constructor(
+    readonly reason: "unmapped" | "ambiguous",
+    message: string,
+  ) {
+    super("malformed", message);
+  }
+}
+
 /** Resource boundary exceeded while decoding metadata or native container structure. */
 export class BinaryResourceFailure extends Error {
   constructor(
@@ -121,6 +131,14 @@ export interface BinaryContainer {
   readonly sections: readonly ImageSection[];
 }
 
+/** All declared file-backed image memory, including PE headers at the image base. */
+export const imageFileMappings = (
+  container: BinaryContainer,
+): readonly FileMapping[] =>
+  container.pe_header_mapping === undefined
+    ? container.mappings
+    : [container.pe_header_mapping, ...container.mappings];
+
 /** Reader that checks every structural range before decoding numeric fields. */
 export class BinaryReader {
   constructor(
@@ -212,14 +230,6 @@ export const declaredFileRange = (
   };
 };
 
-/** All file-backed image ranges, including the separately observed PE header. */
-export const fileBackedMappings = (
-  image: BinaryContainer,
-): readonly FileMapping[] =>
-  image.pe_header_mapping === undefined
-    ? image.mappings
-    : [image.pe_header_mapping, ...image.mappings];
-
 /** Map a physically contiguous virtual span across consistent adjacent ranges. */
 export const mappedFileOffset = (
   mappings: readonly FileMapping[],
@@ -245,8 +255,8 @@ export const mappedFileOffset = (
       continue;
     const origin = mapping.offset + Number(address - mapping.address);
     if (found !== undefined && found !== origin)
-      throw new BinaryFormatFailure(
-        "malformed",
+      throw new BinaryMappingFailure(
+        "ambiguous",
         "Virtual span has ambiguous or noncontiguous file mappings",
       );
     found = origin;
@@ -254,8 +264,8 @@ export const mappedFileOffset = (
     else if (!whollyCovered) covered.push({ start, end: overlapEnd });
   }
   if (found === undefined)
-    throw new BinaryFormatFailure(
-      "malformed",
+    throw new BinaryMappingFailure(
+      "unmapped",
       "Virtual address or string range is not file mapped",
     );
   if (!whollyCovered) {
@@ -265,22 +275,22 @@ export const mappedFileOffset = (
     let cursor = address;
     for (const span of covered) {
       if (span.start > cursor)
-        throw new BinaryFormatFailure(
-          "malformed",
+        throw new BinaryMappingFailure(
+          "unmapped",
           "Virtual address or string range is not file mapped",
         );
       if (span.end > cursor) cursor = span.end;
     }
     if (cursor < end)
-      throw new BinaryFormatFailure(
-        "malformed",
+      throw new BinaryMappingFailure(
+        "unmapped",
         "Virtual address or string range is not file mapped",
       );
   }
   for (const zeroFill of zeroFills) {
     if (spansOverlap(address, BigInt(size), zeroFill.address, zeroFill.size))
-      throw new BinaryFormatFailure(
-        "malformed",
+      throw new BinaryMappingFailure(
+        "ambiguous",
         "Virtual address has ambiguous file and zero-fill mappings",
       );
   }
@@ -294,7 +304,7 @@ export const readMappedCString = (
   address: bigint,
   maximumBytes: number,
 ): Buffer => {
-  const mappings = fileBackedMappings(image);
+  const mappings = imageFileMappings(image);
   const chunks: Buffer[] = [];
   let length = 0;
   while (length <= maximumBytes) {
@@ -305,8 +315,8 @@ export const readMappedCString = (
     );
     if (mapping === undefined) {
       mappedFileOffset(mappings, cursor, 1, image.zero_fills);
-      throw new BinaryFormatFailure(
-        "malformed",
+      throw new BinaryMappingFailure(
+        "unmapped",
         "String range is not file mapped",
       );
     }
@@ -352,8 +362,8 @@ export const isZeroFilledSpan = (
     return false;
   for (const mapping of mappings) {
     if (spansOverlap(address, bytes, mapping.address, BigInt(mapping.size)))
-      throw new BinaryFormatFailure(
-        "malformed",
+      throw new BinaryMappingFailure(
+        "ambiguous",
         "Virtual address has ambiguous file and zero-fill mappings",
       );
   }

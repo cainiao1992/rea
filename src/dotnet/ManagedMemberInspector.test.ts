@@ -21,6 +21,8 @@ import {
   type ManagedMethod,
 } from "./ManagedMemberInspectorCore.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import { managedTypeReferences } from "./ManagedTypeReferences.js";
+import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import { managedMemberInspectionSchema } from "../domain/managed/managedArtifact.js";
 import { comparisonLimitations } from "../domain/managed/managedMemberComparisonCoverage.js";
 import { buildManagedPeFixture as buildMultiMethodManagedPeFixture } from "../../scripts/fixtures/managed/pe.mjs";
@@ -553,7 +555,7 @@ const genericRef = Buffer.from([0x30, 0x01, 0x00, 0x01]);
 // GENERIC, one generic parameter, no parameters, void.
 const genericDef = Buffer.from([0x10, 0x01, 0x00, 0x01]);
 
-describe("managed edge target declaring types", () => {
+describe("managed TypeSpec declaring names", () => {
   it("names a generic TypeSpec parent by its generic type and leaves other TypeSpecs unknown", () => {
     // GENERICINST CLASS TypeRef(1) <string>
     const generic = memberRefOnTypeSpec(
@@ -567,6 +569,19 @@ describe("managed edge target declaring types", () => {
     expect(array.member_refs[0]?.parent_name).toBeNull();
     expect(array.coverage).toEqual({ state: "complete", issues: [] });
   });
+
+  it.each([{ prefix: [0x0f] }, { prefix: [0x1d] }, { prefix: [0x1f, 0x05] }])(
+    "leaves a wrapped generic TypeSpec unnamed with prefix $prefix",
+    ({ prefix }) => {
+      const result = memberRefOnTypeSpec(
+        Buffer.from([...prefix, 0x15, 0x12, 0x05, 0x01, 0x0e]),
+      );
+
+      expect(result.member_refs[0]?.parent_name).toBeNull();
+      expect(result.call_edges[0]?.target_declaring_type).toBeNull();
+      expect(result.coverage).toEqual({ state: "complete", issues: [] });
+    },
+  );
 
   it.each([
     [
@@ -612,6 +627,27 @@ describe("managed edge target declaring types", () => {
     },
   );
 
+  it("validates late generic arguments before exposing a TypeSpec's nominal head", () => {
+    const result = memberRefOnTypeSpec(
+      Buffer.from([0x15, 0x12, 0x05, 0x02, 0x0e, 0x12, 0x25]),
+    );
+
+    expect(result.member_refs[0]?.parent_name).toBeNull();
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [
+        {
+          code: "invalid-row",
+          scope: "metadata.TypeSpec:0x1b000001",
+          detail:
+            "TypeDefOrRefOrSpec operand 0x25 is invalid: coded index selects row 9 in table 1, which has 1 rows",
+        },
+      ],
+    });
+  });
+});
+
+describe("managed edge target declaring types", () => {
   it("reports unsupported TypeSpec and MethodSpec forms instead of treating them as unknown", () => {
     const typeSpec = memberRefOnTypeSpec(Buffer.from([0xff]));
     const methodSpec = inspect({
@@ -701,6 +737,38 @@ describe("managed edge target declaring types", () => {
 });
 
 describe("managed TypeRef resolution scopes", () => {
+  it.each([0, 9])(
+    "retains invalid enclosing TypeRef row %s without granting scope validity",
+    (enclosingRow) => {
+      const bytes = buildManagedPeFixture({
+        typeRefScopeRaw: enclosingRow * 4 + 3,
+      });
+      const pe = readManagedPeLayout(bytes);
+      if (pe.cli === null) throw new Error("fixture has no CLI header");
+      const { rva, size } = pe.cli.metadata;
+      const layout = readManagedMetadataLayout(
+        bytes,
+        pe.rvaToOffset(rva, size, "metadata"),
+        size,
+      );
+      const issues: ManagedParseIssue[] = [];
+      const reference = managedTypeReferences(bytes, layout, issues)(1);
+
+      expect(reference).toMatchObject({ enclosingRow, scopeValid: false });
+      expect(issues).toMatchObject([
+        {
+          code: "invalid-row",
+          scope: "metadata.TypeRef:0x01000001",
+          detail: expect.stringContaining(
+            enclosingRow === 0
+              ? "coded index selects row zero in table 1"
+              : "coded index selects row 9 in table 1, which has 1 rows",
+          ),
+        },
+      ]);
+    },
+  );
+
   it.each([
     // AssemblyRef 9 does not exist.
     ["an invalid", (9 << 2) | 2, "is invalid"],

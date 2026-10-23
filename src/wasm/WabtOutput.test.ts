@@ -203,6 +203,41 @@ it.each([
     debugNameMetadata: "uninterpretable",
   });
 });
+it.each([
+  String.raw`\00\06\05hello\01\02\01`,
+  String.raw`\00\07\05hello\00`,
+  String.raw`\00\06\05hello\00\06\05later`,
+])(
+  "preserves a module name already observed before malformed metadata: %s",
+  (payload) => {
+    expect(
+      parseWabtWat(`(module (@custom "name" "${payload}"))`),
+    ).toMatchObject({
+      debugModuleNames: ["hello"],
+      debugNameMetadata: "uninterpretable",
+    });
+  },
+);
+it("stops before a module name that WABT rejects as out of order", () => {
+  expect(
+    parseWabtWat(String.raw`(module (@custom "name" "\01\00\00\06\05hello"))`),
+  ).toMatchObject({
+    debugModuleNames: [],
+    debugNameMetadata: "uninterpretable",
+  });
+});
+it("keeps observed names across custom sections while coverage stays uninterpretable", () => {
+  expect(
+    parseWabtWat(String.raw`(module
+    (@custom "name" "\00\06\05hello")
+    (@custom "name" "\00\06\05short\01\02\01")
+    (@custom "name" "\00\06\05later"))`),
+  ).toMatchObject({
+    customSectionNames: ["name", "name", "name"],
+    debugModuleNames: ["hello", "short", "later"],
+    debugNameMetadata: "uninterpretable",
+  });
+});
 it("frames custom section names at their NUL-terminated objdump display", async () => {
   const text = await golden();
   expect(parseWabtOutput(text, 76, ["test\0hidden"]).sections.at(-1)).toEqual({

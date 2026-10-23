@@ -37,6 +37,7 @@ import {
 import { inspectNativeDispatch } from "./native/NativeDispatchMetadataInspection.js";
 import { traceNativeValues } from "./native/NativeValueTrace.js";
 import { traceNativeUiAction } from "./native/NativeUiActionTrace.js";
+import { decompileAll } from "./decompileDirectory/decompileAll.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { addressedValueSchema } from "../domain/native/nativeInventory.js";
 import {
@@ -164,6 +165,12 @@ export class EnhancedTools {
           ? this.executeValidated({ name, input: parsed.data }, signal)
           : invalidEnhancedInput(name, parsed.error);
       }
+      case "decompile_all": {
+        const parsed = enhancedInputSchemas.decompile_all.safeParse(input);
+        return parsed.success
+          ? this.executeValidated({ name, input: parsed.data }, signal)
+          : invalidEnhancedInput(name, parsed.error);
+      }
       case "get_call_graph": {
         const parsed = enhancedInputSchemas.get_call_graph.safeParse(input);
         return parsed.success
@@ -212,6 +219,8 @@ export class EnhancedTools {
         return this.#objcProtocols(signal);
       case "batch_decompile":
         return this.#batchDecompile(call.input.addresses, signal);
+      case "decompile_all":
+        return decompileAll(this.analysis, call.input, signal);
       case "get_call_graph":
         return this.#callGraph(call.input, signal);
       case "analyze_swift_types":

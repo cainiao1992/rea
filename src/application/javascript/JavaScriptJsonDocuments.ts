@@ -135,18 +135,16 @@ const parseDocument = (
   const topLevelKeys = Object.freeze(
     Object.keys(record).sort(compareUnicodeCodePoints),
   );
-  const packageFields =
-    snapshot.kind === "package-json"
-      ? Object.freeze(
-          Object.fromEntries(
-            PACKAGE_PROPERTIES.flatMap((key) =>
-              Object.hasOwn(record, key)
-                ? [[key, Reflect.get(record, key)]]
-                : [],
-            ),
-          ),
-        )
-      : null;
+  // Absent source fields must stay absent when consumers read named properties.
+  const packageFields: Partial<
+    Record<(typeof PACKAGE_PROPERTIES)[number], unknown>
+  > | null = snapshot.kind === "package-json" ? Object.create(null) : null;
+  if (packageFields !== null) {
+    for (const key of PACKAGE_PROPERTIES)
+      if (Object.hasOwn(record, key))
+        packageFields[key] = Reflect.get(record, key);
+    Object.freeze(packageFields);
+  }
   return Object.freeze({
     source: snapshot.source,
     status: "included",

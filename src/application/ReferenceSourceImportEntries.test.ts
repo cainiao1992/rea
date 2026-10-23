@@ -155,9 +155,12 @@ it("retains Kotlin source identity and language across the inventory projection"
   expect(parsed.relationships).toEqual([]);
 });
 
-it("resolves runtime require package mains without an index and before typed indexes", () => {
+it("resolves declared package mains and index fallback from source-owned fields", () => {
   const files = [
-    ["main.cjs", 'require("./pkg");\nrequire("./dep");\n'],
+    [
+      "main.cjs",
+      'require("./pkg");\nrequire("./dep");\nrequire("./fallback");\n',
+    ],
     [
       "main.ts",
       'import dep = require("./typed");\n' +
@@ -167,6 +170,9 @@ it("resolves runtime require package mains without an index and before typed ind
     ],
     ["pkg/package.json", '{"main":"actual.js"}\n'],
     ["pkg/actual.js", 'module.exports = "package main";\n'],
+    ["fallback/package.json", "{}\n"],
+    ["fallback/index.js", 'module.exports = "index";\n'],
+    ["fallback/phantom.js", 'module.exports = "host decoy";\n'],
     ["dep.js", 'module.exports = "file";\n'],
     ["dep/index.ts", 'export const value = "index";\n'],
     ["typed.js", 'module.exports = "runtime file";\n'],
@@ -192,12 +198,32 @@ it("resolves runtime require package mains without an index and before typed ind
     limitations: [],
   };
 
-  const parsed = parseReferenceSourceEntries(
-    read,
-    new Set(files.map(([path]) => path)),
-    [],
-  );
+  const previous = Object.getOwnPropertyDescriptor(Object.prototype, "main");
+  let parsed: ReturnType<typeof parseReferenceSourceEntries>;
+  try {
+    Object.defineProperty(Object.prototype, "main", {
+      configurable: true,
+      writable: true,
+      value: "phantom.js",
+    });
+    parsed = parseReferenceSourceEntries(
+      read,
+      new Set(files.map(([path]) => path)),
+      [],
+    );
+  } finally {
+    if (previous === undefined)
+      Reflect.deleteProperty(Object.prototype, "main");
+    else Object.defineProperty(Object.prototype, "main", previous);
+  }
 
+  expect(parsed.relationships).toContainEqual({
+    from_path: "main.cjs",
+    to: "fallback/index.js",
+    kind: "requires",
+    resolution: "internal",
+    parse_state: "parsed",
+  });
   expect(parsed.relationships).toContainEqual({
     from_path: "main.cjs",
     to: "pkg/actual.js",

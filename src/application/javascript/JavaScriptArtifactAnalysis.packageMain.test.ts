@@ -22,6 +22,62 @@ const packageObservation = (text: string) =>
     invalid_utf8_files: 0,
   }).packages[0];
 
+it("retains only declared package metadata despite inherited host fields", () => {
+  const inherited = {
+    name: "host-name",
+    version: "host-version",
+    main: "host-entry.cjs",
+    renderer: "host-renderer.cjs",
+    browser: "host-browser.cjs",
+    module: "host-module.mjs",
+  };
+  const previous = Object.fromEntries(
+    Object.keys(inherited).map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(Object.prototype, key),
+    ]),
+  );
+  let absent: ReturnType<typeof packageObservation>;
+  let declared: ReturnType<typeof packageObservation>;
+  try {
+    for (const [key, value] of Object.entries(inherited))
+      Object.defineProperty(Object.prototype, key, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    absent = packageObservation("{}");
+    declared = packageObservation(
+      '{"name":"source-name","version":"1.0.0","main":null,"browser":"source-browser.cjs"}',
+    );
+  } finally {
+    for (const key of Object.keys(inherited)) {
+      const descriptor = previous[key];
+      if (descriptor === undefined)
+        Reflect.deleteProperty(Object.prototype, key);
+      else Object.defineProperty(Object.prototype, key, descriptor);
+    }
+  }
+  expect(absent).toMatchObject({
+    status: "included",
+    name: null,
+    version: null,
+    main: null,
+    main_status: "default",
+    main_entrypoint: "",
+    renderer: null,
+  });
+  expect(declared).toMatchObject({
+    status: "included",
+    name: "source-name",
+    version: "1.0.0",
+    main: null,
+    main_status: "invalid",
+    main_entrypoint: "",
+    renderer: "source-browser.cjs",
+  });
+});
+
 it.each([null, false, 123, {}, []].map((main) => ({ main })))(
   "retains non-string main $main evidence separately from Node index fallback",
   ({ main }) => {

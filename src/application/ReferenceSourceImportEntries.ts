@@ -136,7 +136,9 @@ const readPackageMains = (
         new TextDecoder("utf-8", { fatal: true }).decode(entry.bytes),
       );
       const main =
-        typeof manifest === "object" && manifest !== null
+        typeof manifest === "object" &&
+        manifest !== null &&
+        Object.hasOwn(manifest, "main")
           ? Reflect.get(manifest, "main")
           : undefined;
       mains.set(

@@ -124,5 +124,11 @@
     "name": "മലയാളം",
     "readme": "docs/readme/README_ml.md",
     "dir": "ltr"
+  },
+  {
+    "code": "ur-Latn",
+    "name": "Roman Urdu",
+    "readme": "docs/readme/README_ur-Latn.md",
+    "dir": "ltr"
   }
 ]

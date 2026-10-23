@@ -4,12 +4,14 @@ import { join } from "node:path";
 import { Cli } from "incur";
 import { afterEach, expect, it, vi } from "vitest";
 
-import * as analysisViewService from "../../src/application/analysisView/AnalysisViewService.js";
+import * as evidenceInputResolver from "../../src/application/EvidenceInputResolver.js";
 import { WasmArtifactService } from "../../src/application/wasm/WasmArtifactService.js";
 import { registerAnalysisViewCommands } from "../../src/cli/analysisViewCommands.js";
 import { registerWasmCommands } from "../../src/cli/wasmCommands.js";
 import { wasmArtifactModule } from "../../src/composition/wasm.js";
 import { AnalysisOutputError } from "../../src/domain/analysisErrorCore.js";
+import * as analysisView from "../../src/domain/analysisView/analysisView.js";
+import { parseEvidence } from "../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
 import { ProviderCleanupError } from "../../src/domain/providerCleanupError.js";
 import { err, ok } from "../../src/domain/result.js";
@@ -160,7 +162,7 @@ it.each([
   ["bundle", "SIGINT", "projection"],
   ["bundle", "SIGTERM", "projection"],
   ["bundle", "SIGINT", "authentication-failure"],
-  ["bundle", "SIGTERM", "projection-failure"],
+  ["bundle", "SIGTERM", "source-resolution-failure"],
 ] as const)(
   "preserves the analysis-view result and exit status for %s: %s during %s",
   async (source, signal, phase) => {
@@ -174,7 +176,7 @@ it.each([
           ? {
               kind: "retained-evidence",
               evidence_id:
-                phase === "projection-failure"
+                phase === "source-resolution-failure"
                   ? `ev_${"f".repeat(64)}`
                   : parent.evidence_id,
             }
@@ -213,15 +215,25 @@ it.each([
         });
       });
     };
-    const originalProject = analysisViewService.inspectAnalysisViewValidated;
+    // Observe imported production boundaries: spying on the service's own
+    // export cannot intercept its lexical calls to that same function.
+    const originalProject = analysisView.projectAnalysisView;
     let projected: ReturnType<typeof originalProject> | undefined;
     const project = vi
-      .spyOn(analysisViewService, "inspectAnalysisViewValidated")
+      .spyOn(analysisView, "projectAnalysisView")
       .mockImplementation((...args) => {
         projected = originalProject(...args);
-        if (phase.startsWith("projection")) queueInterrupt();
+        if (phase === "projection") queueInterrupt();
         return projected;
       });
+    const originalResolve = evidenceInputResolver.resolveEvidenceInput;
+    vi.spyOn(evidenceInputResolver, "resolveEvidenceInput").mockImplementation(
+      (...args) => {
+        const resolved = originalResolve(...args);
+        if (phase === "source-resolution-failure") queueInterrupt();
+        return resolved;
+      },
+    );
     const originalClose = OwnedFileHandle.prototype.close;
     const close = vi
       .spyOn(OwnedFileHandle.prototype, "close")
@@ -268,11 +280,18 @@ it.each([
         signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 0,
       );
       if (signal !== "control") expect(interruptHandled).toBe(true);
-      if (phase.startsWith("authentication"))
-        expect(project).not.toHaveBeenCalled();
+      expect(project).toHaveBeenCalledTimes(
+        Number(signal === "control" || phase === "projection"),
+      );
       if (phase === "projection") {
         if (!projected?.ok) throw new Error("Expected a completed page");
-        expect(result.details.partial_observation).toEqual(projected.value);
+        const partial = parseEvidence(result.details.partial_observation);
+        expect(partial.normalized_result).toEqual(projected.value);
+        expect(partial).toMatchObject({
+          operation: "inspect_analysis_view",
+          evidence_links: [parent.evidence_id],
+          subject: parent.subject,
+        });
       }
     } finally {
       await pendingInterrupt;

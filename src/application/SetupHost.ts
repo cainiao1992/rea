@@ -213,7 +213,10 @@ export const systemSetupHost = (
         );
         const detail =
           result.verificationFailure?.message ??
-          result.pythonRuntimeFailure?.message;
+          result.pythonRuntimeFailure?.message ??
+          (result.operationFailure === undefined
+            ? undefined
+            : `${result.operationFailure.operation}${result.operationFailure.path === undefined ? "" : ` at ${result.operationFailure.path}`}: ${result.operationFailure.systemCode === undefined ? "" : `${result.operationFailure.systemCode}: `}${result.operationFailure.detail}`);
         return detail !== undefined
           ? {
               ...failure,

@@ -1477,3 +1477,10 @@ The tag pins the selected script revision; `--version` selects the npm package
 version. Neither command verifies a signature on the downloaded script.
 
 Supported options are `--version <semver>`, `--dry-run`, `--no-setup`, `--no-prompt`, and `--verbose`. Neither `--no-prompt` nor a non-interactive shell grants permission to install external dependencies.
+
+Hopper setup distinguishes a confirmed occupied destination from a failed
+destination inspection. It also reports local archive staging and installed
+launcher inspection failures separately from download failure or launcher
+absence. Follow the reported operation, path, and available filesystem code; an
+unresolved inspection does not establish that a destination exists or a launcher
+is missing.

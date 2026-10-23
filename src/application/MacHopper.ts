@@ -46,6 +46,7 @@ type MacHopperInstallFailureReason = Extract<
   | "integrity"
   | "launcher_missing"
   | "destination_exists"
+  | "destination_inspection"
   | "mount"
   | "bundle"
   | "publisher_verification_failed"
@@ -153,7 +154,7 @@ export const installMacHopper = async (
       if (!integrityMatches(archive.bytes, release))
         return { status: "failed", reason: "integrity" };
 
-      installStage = "destination_exists";
+      installStage = "destination_inspection";
       const destination = host.destination();
       const destinationExists = await host.destinationExists(destination);
       if (destinationExists && options.replaceExisting !== true)

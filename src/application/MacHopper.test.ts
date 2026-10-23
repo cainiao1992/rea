@@ -215,3 +215,21 @@ describe("macOS Hopper installation", () => {
     expect(host.cleanups).toBe(1);
   });
 });
+
+it("reports an unresolved destination probe without claiming an existing installation", async () => {
+  const host = new FakeMacHopperHost();
+  host.destinationExists = async () => {
+    throw Object.assign(new Error("destination inspection denied"), {
+      code: "EACCES",
+    });
+  };
+  expect(await installMacHopper({ replaceExisting: true }, host)).toMatchObject(
+    {
+      status: "failed",
+      reason: "destination_inspection",
+      diagnostic: "destination inspection denied",
+    },
+  );
+  expect(host.installs).toBe(0);
+  expect(host.unmounts).toBe(0);
+});

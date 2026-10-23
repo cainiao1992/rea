@@ -535,3 +535,69 @@ function releasesFor(
 }
 
 const installFixture = (host: RecordingLinuxHost) => installLinuxHopper(host);
+
+it("retains archive staging failure after download and cleans the owned temporary directory", async () => {
+  const host = new RecordingLinuxHost();
+  host.writeArchive = async () => {
+    throw Object.assign(new Error("archive write denied"), { code: "EACCES" });
+  };
+  expect(await installLinuxHopper(host)).toMatchObject({
+    status: "failed",
+    reason: "archive_write",
+    operationFailure: {
+      operation: "archive_write",
+      path: "/tmp/rea test/hopper.deb",
+      systemCode: "EACCES",
+      detail: "archive write denied",
+    },
+  });
+  expect(host.downloads).toHaveLength(1);
+  expect(host.installed).toEqual([]);
+  expect(host.cleaned).toEqual(["/tmp/rea test"]);
+});
+
+it("keeps an installed launcher inspection failure distinct from confirmed absence", async () => {
+  const host = new RecordingLinuxHost();
+  host.launcherStatusValue = {
+    status: "inspection_failed",
+    operation: "hash",
+    path: "/opt/hopper/bin/Hopper",
+    detail: "read denied",
+    systemCode: "EACCES",
+  };
+  expect(await installLinuxHopper(host)).toMatchObject({
+    status: "failed",
+    reason: "launcher_inspection",
+    operationFailure: { operation: "hash", systemCode: "EACCES" },
+  });
+  host.launcherStatusValue = "missing";
+  expect(await installLinuxHopper(host)).toMatchObject({
+    status: "failed",
+    reason: "launcher_missing",
+  });
+});
+
+it("reports missing ldd as unresolved launcher inspection while retaining actual absence", async () => {
+  const root = await createTestTempDirectory(
+    "rea-hopper-inspection-diagnostic-",
+  );
+  const launcher = join(root, "inert-launcher");
+  await writeFile(launcher, "inert fixture; never executed");
+  const host = systemLinuxHopperInstallHost(
+    { PATH: root },
+    async () => undefined,
+  );
+  try {
+    expect(await host.launcherStatus(launcher, "0".repeat(64))).toMatchObject({
+      status: "inspection_failed",
+      operation: "dependencies",
+      path: launcher,
+      systemCode: "ENOENT",
+    });
+    expect(
+      await host.launcherStatus(join(root, "absent"), "0".repeat(64)),
+    ).toBe("missing");
+  } finally {
+    await host.close?.();
+  }
+});

@@ -2,6 +2,7 @@
 // `npm run verify:electron`.
 import { afterEach, expect, it, vi } from "vitest";
 import type { ElectronApplication } from "playwright-core";
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 
 import {
   electronActiveObservationInputSchema,
@@ -13,6 +14,12 @@ import {
   runElectronActions,
   runWithExecutionLimits,
 } from "./PlaywrightElectronActiveActions.js";
+
+const fixtureBrowserWindow = async () => ({
+  evaluate: async (read: (window: { id: number }) => unknown) =>
+    read({ id: 42 }),
+  dispose: async () => {},
+});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -166,9 +173,15 @@ it("preserves local Playwright action diagnostics", async () => {
   };
   const application = {
     windows: () => [page],
+    browserWindow: fixtureBrowserWindow,
   };
 
-  const result = await runElectronActions(application as never, input, {});
+  const { actions: result } = await runElectronActions(
+    application as never,
+    input,
+    {},
+    new ArtifactResourceScope(),
+  );
 
   expect(result[0]).toMatchObject({
     status: "failed",
@@ -191,10 +204,11 @@ it("retains complete action errors and Electron window text", async () => {
       click: async () => Promise.reject(new Error(longError)),
     }),
   };
-  const actions = await runElectronActions(
-    { windows: () => [page] } as never,
+  const { actions } = await runElectronActions(
+    { windows: () => [page], browserWindow: fixtureBrowserWindow } as never,
     input,
     {},
+    new ArtifactResourceScope(),
   );
   const result = createElectronActiveObservationFixtureResult("/opt/app");
   const longUrl = `file://${"/segment".repeat(10_000)}`;
@@ -322,7 +336,12 @@ it("runs an untargeted deep-link without requiring a BrowserWindow", async () =>
     evaluate: async () => true,
   };
 
-  const result = await runElectronActions(application as never, input, {});
+  const { actions: result } = await runElectronActions(
+    application as never,
+    input,
+    {},
+    new ArtifactResourceScope(),
+  );
 
   expect(result).toMatchObject([
     {
@@ -348,10 +367,16 @@ it("honors caller-selected Electron waits beyond the former action timeout", asy
   };
   const application = {
     windows: () => [page],
+    browserWindow: fixtureBrowserWindow,
     firstWindow: async () => page,
   };
 
-  const result = await runElectronActions(application as never, input, {});
+  const { actions: result } = await runElectronActions(
+    application as never,
+    input,
+    {},
+    new ArtifactResourceScope(),
+  );
 
   expect(result[0]).toMatchObject({ status: "completed" });
   expect(duration).toBe(60_000);
@@ -386,7 +411,7 @@ it("cancels a wait without window_index while the app has no window", async () =
     }),
   } as unknown as ElectronApplication;
 
-  const actions = await runElectronActions(
+  const { actions } = await runElectronActions(
     application,
     electronActiveObservationInputSchema.parse({
       executable_path: "/opt/electron",
@@ -395,6 +420,7 @@ it("cancels a wait without window_index while the app has no window", async () =
       actions: [{ step_id: "settle", kind: "wait", duration_ms: 10 }],
     }),
     { signal: controller.signal },
+    new ArtifactResourceScope(),
   );
 
   expect(actions).toEqual([
@@ -423,8 +449,11 @@ it("records actions after a cancelled action as not executed", async () => {
     reload,
   };
 
-  const actions = await runElectronActions(
-    { windows: () => [page] } as unknown as ElectronApplication,
+  const { actions } = await runElectronActions(
+    {
+      windows: () => [page],
+      browserWindow: fixtureBrowserWindow,
+    } as unknown as ElectronApplication,
     electronActiveObservationInputSchema.parse({
       executable_path: "/opt/electron",
       application_path: "/opt/app/main.js",
@@ -435,6 +464,7 @@ it("records actions after a cancelled action as not executed", async () => {
       ],
     }),
     { signal: controller.signal },
+    new ArtifactResourceScope(),
   );
 
   expect(reload).not.toHaveBeenCalled();
@@ -593,3 +623,68 @@ it("observes an operation abandoned by an already-cancelled signal", async () =>
     process.off("unhandledRejection", recordUnhandled);
   }
 });
+
+it.each(["click", "renderer-crash"] as const)(
+  "keeps the selected Page's native identity and completed %s through handle cleanup failure",
+  async (kind) => {
+    const selectedEffect = vi.fn();
+    const page = {
+      locator: () => ({
+        click: async () => {
+          selectedEffect();
+        },
+      }),
+    };
+    const other = {};
+    const pages = [other, page];
+    const dispose = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("handle disposal failed"))
+      .mockResolvedValue(undefined);
+    const nativeWindow = {
+      id: 99,
+      isDestroyed: () => false,
+      webContents: { forcefullyCrashRenderer: selectedEffect },
+    };
+    const browserWindow = vi.fn(async (selected: unknown) => {
+      expect(selected).toBe(page);
+      pages.reverse();
+      return {
+        evaluate: async (read: (window: typeof nativeWindow) => unknown) =>
+          read(nativeWindow),
+        dispose,
+      };
+    });
+    const resources = new ArtifactResourceScope();
+    const outcome = await runElectronActions(
+      { windows: () => pages, browserWindow } as unknown as ElectronApplication,
+      electronActiveObservationInputSchema.parse({
+        executable_path: "/opt/electron",
+        application_path: "/opt/app/main.js",
+        application_root: "/opt/app",
+        actions: [
+          {
+            step_id: "selected",
+            kind,
+            window_index: 1,
+            ...(kind === "click" ? { selector: "#selected" } : {}),
+          },
+          { step_id: "later", kind: "renderer-reload", window_index: 0 },
+        ],
+      }),
+      {},
+      resources,
+    );
+    expect(selectedEffect).toHaveBeenCalledOnce();
+    expect(browserWindow).toHaveBeenCalledOnce();
+    expect(outcome.actions).toMatchObject([
+      { target: "window:99", status: "completed" },
+      { target: null, status: "cancelled" },
+    ]);
+    expect(outcome.cleanupError?.cleanupIncomplete).toBe(true);
+    expect(resources.hasPending).toBe(true);
+    await resources.close();
+    expect(dispose).toHaveBeenCalledTimes(2);
+    expect(outcome.cleanupError?.cleanupIncomplete).toBe(false);
+  },
+);

@@ -511,6 +511,11 @@ it("records actions after a failed action as not executed and keeps the capture"
     process: () => ({ pid: 424242 }),
     close: vi.fn(async () => undefined),
     windows: () => [page],
+    browserWindow: async () => ({
+      evaluate: async (read: (window: { id: number }) => unknown) =>
+        read({ id: 42 }),
+      dispose: async () => {},
+    }),
     firstWindow: async () => page,
   };
 
@@ -538,7 +543,7 @@ it("records actions after a failed action as not executed and keeps the capture"
       step_id: "fail",
       kind: "click",
       window_index: 0,
-      target: "window:0",
+      target: "window:42",
       status: "failed",
       elapsed_ms: expect.any(Number),
       error: "strict mode violation",
@@ -859,7 +864,7 @@ it.each(["process", "transport"] as const)(
     vi.spyOn(electronActions, "runElectronActions").mockImplementation(
       async () => {
         controller.abort(reason);
-        return [];
+        return { actions: [] };
       },
     );
     if (failure === "process") {

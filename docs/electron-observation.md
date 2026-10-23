@@ -103,6 +103,8 @@ window-targeted renderer reload/crash actions, and synthetic `open-url` or
 WebContents identities, process metrics, and IPC channel and value-shape metadata.
 Payload values are not retained.
 
+`window_index` selects from Playwright's current Page list at the start of each action. REA resolves that Page to its corresponding BrowserWindow once; the action's `target` uses the BrowserWindow's capture-scoped `window_id`, matching the window inventory. Reordering either enumeration after selection does not retarget the action. Handle cleanup failures retain the completed action records and remain owned for provider cleanup retry.
+
 Run the real fixture verifier with an operator-provided Electron runtime:
 
 ```bash

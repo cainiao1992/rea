@@ -1,7 +1,13 @@
-import type { ElectronApplication, Page } from "playwright-core";
+import type { ElectronApplication, JSHandle, Page } from "playwright-core";
 import { z } from "zod";
 
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
+import type {
+  ArtifactResourceScope,
+  ArtifactResourceOwner,
+} from "../artifacts/ArtifactResourceScope.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import {
   electronActiveTimelineEventSchema,
@@ -41,6 +47,11 @@ const hookSnapshotSchema = z.strictObject({
 
 type ElectronAction = ElectronActiveObservationInput["actions"][number];
 type ElectronActions = ElectronActiveObservationResult["actions"];
+type SelectedElectronWindow = JSHandle<{
+  readonly id: number;
+  isDestroyed(): boolean;
+  readonly webContents: { forcefullyCrashRenderer(): void };
+}>;
 
 export type ElectronHookSnapshot = z.infer<typeof hookSnapshotSchema>;
 export type ElectronHookEvent = z.infer<
@@ -63,8 +74,13 @@ export const runElectronActions = async (
   application: ElectronApplication,
   input: ElectronActiveObservationInput,
   options: ExecutionOptions,
-): Promise<ElectronActions> => {
+  resources: ArtifactResourceScope,
+): Promise<{
+  readonly actions: ElectronActions;
+  readonly cleanupError?: AnalysisError;
+}> => {
   const actions: ElectronActions = [];
+  let cleanupError: AnalysisError | undefined;
   let stoppedBy: ScenarioActionStop | undefined;
   for (const action of input.actions) {
     const actionStartedAt = performance.now();
@@ -82,6 +98,9 @@ export const runElectronActions = async (
       continue;
     }
     let selectedWindow: Page | undefined;
+    let selectedHandle: SelectedElectronWindow | undefined;
+    let handleOwner: ArtifactResourceOwner | undefined;
+    let target: string | null = null;
     try {
       if (options.signal?.aborted === true)
         throw new BrowserObservationError(OPERATION, "cancelled");
@@ -93,26 +112,35 @@ export const runElectronActions = async (
               windowIndex,
               signal: options.signal,
             });
-      if (
-        (action.kind === "click" ||
-          action.kind === "renderer-reload" ||
-          action.kind === "renderer-crash") &&
-        selectedWindow === undefined
-      )
-        throw new BrowserObservationError(OPERATION, "window_not_found");
+      if (selectedWindow !== undefined) {
+        const handle = await application.browserWindow(selectedWindow);
+        selectedHandle = handle;
+        handleOwner = {
+          kind: "lease",
+          resource: "selected Electron BrowserWindow handle",
+          lease: { release: () => handle.dispose() },
+        };
+        resources.retain(handleOwner);
+        const id = z
+          .int()
+          .safe()
+          .nonnegative()
+          .parse(await selectedHandle.evaluate((window) => window.id));
+        target = `window:${String(id)}`;
+      }
 
       await runAction({
         application,
         action,
         selectedWindow,
+        selectedHandle,
         options,
       });
       actions.push({
         step_id: action.step_id,
         kind: action.kind,
         window_index: windowIndex,
-        target:
-          selectedWindow === undefined ? null : `window:${String(windowIndex)}`,
+        target,
         status: "completed",
         elapsed_ms: Math.max(
           0,
@@ -126,8 +154,7 @@ export const runElectronActions = async (
         step_id: action.step_id,
         kind: action.kind,
         window_index: windowIndex,
-        target:
-          selectedWindow === undefined ? null : `window:${String(windowIndex)}`,
+        target,
         status: stoppedBy,
         elapsed_ms: Math.max(
           0,
@@ -136,14 +163,38 @@ export const runElectronActions = async (
         error: safeActionErrorMessage(cause),
       });
     }
+    if (handleOwner !== undefined) {
+      cleanupError = await releaseActionWindow(resources, handleOwner);
+      if (cleanupError !== undefined) stoppedBy = "failed";
+    }
   }
-  return actions;
+  return { actions, ...(cleanupError === undefined ? {} : { cleanupError }) };
+};
+
+const releaseActionWindow = async (
+  resources: ArtifactResourceScope,
+  owner: ArtifactResourceOwner,
+): Promise<AnalysisError | undefined> => {
+  const released = await resources.release(owner);
+  if (released.kind === "released") return undefined;
+  const error = new ProviderCleanupError(
+    "playwright-electron-active",
+    released.lease.cleanupResources ?? [owner.resource],
+    {
+      reason: safeActionErrorMessage(released.cause),
+    },
+    { cause: released.cause, operation: OPERATION },
+  );
+  error.bindCleanupResourceOwner(released.lease);
+  released.lease.bindCleanupError(error);
+  return error;
 };
 
 type RunActionContext = {
   readonly application: ElectronApplication;
   readonly action: ElectronAction;
   readonly selectedWindow: Page | undefined;
+  readonly selectedHandle: SelectedElectronWindow | undefined;
   readonly options: ExecutionOptions;
 };
 
@@ -151,6 +202,7 @@ const runAction = async ({
   application,
   action,
   selectedWindow,
+  selectedHandle,
   options,
 }: RunActionContext): Promise<void> => {
   switch (action.kind) {
@@ -190,13 +242,14 @@ const runAction = async ({
       );
       return;
     case "renderer-crash": {
+      if (selectedHandle === undefined)
+        throw new BrowserObservationError(OPERATION, "window_not_found");
       const crashed = await runWithExecutionLimits(
-        application.evaluate(({ BrowserWindow }, index) => {
-          const candidate = BrowserWindow.getAllWindows()[index];
-          if (candidate === undefined || candidate.isDestroyed()) return false;
-          candidate.webContents.forcefullyCrashRenderer();
+        selectedHandle.evaluate((window) => {
+          if (window.isDestroyed()) return false;
+          window.webContents.forcefullyCrashRenderer();
           return true;
-        }, action.window_index),
+        }),
         options.signal,
       );
       if (!crashed)

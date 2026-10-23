@@ -192,7 +192,15 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
         options.signal,
         startupDeadline,
       );
-      actions = await runElectronActions(application, input, options);
+      const actionOutcome = await runElectronActions(
+        application,
+        input,
+        options,
+        this.#resources,
+      );
+      actions = actionOutcome.actions;
+      if (actionOutcome.cleanupError !== undefined)
+        throw actionOutcome.cleanupError;
       const state = await readFinalApplicationState(
         application,
         options.signal,
@@ -218,9 +226,14 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
           ],
         };
       }
-      if (cause instanceof AnalysisError && cause.cleanupIncomplete)
+      if (cause instanceof AnalysisError && cause.cleanupIncomplete) {
+        if (capture !== undefined)
+          cause.retainPartialObservation({
+            kind: "electron-active-observation",
+            capture,
+          });
         outcome = err(cause);
-      else if (options.signal?.aborted === true)
+      } else if (options.signal?.aborted === true)
         outcome = err(
           new BrowserObservationError(OPERATION, "cancelled", {
             ...cancellationCause(cause, options.signal),

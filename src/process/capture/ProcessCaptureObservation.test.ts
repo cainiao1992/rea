@@ -74,7 +74,7 @@ it("returns detached terminal observations", async () => {
       const utf8Bytes = Buffer.byteLength(value);
       return utf8Bytes <= maxBytes
         ? { state: "normalized", value, utf8Bytes }
-        : { state: "over_budget" };
+        : { state: "over_budget", reason: "retention" };
     },
     recordEvent: (collection, index) =>
       observed.push(`${collection}:${String(index)}`),

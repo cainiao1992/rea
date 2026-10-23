@@ -151,14 +151,17 @@ export const runElectronActions = async (
       stoppedBy = options.signal?.aborted ? "cancelled" : "failed";
       actionError = safeActionErrorMessage(cause);
     }
+    const outcome =
+      actionError === null
+        ? { status: "completed" as const, error: null }
+        : { status: stoppedBy ?? "failed", error: actionError };
     actions.push({
       step_id: action.step_id,
       kind: action.kind,
       window_index: windowIndex,
       target,
-      status: stoppedBy ?? "completed",
+      ...outcome,
       elapsed_ms: Math.max(0, Math.round(performance.now() - actionStartedAt)),
-      error: actionError,
     });
     if (handleOwner !== undefined) {
       cleanupError = await releaseActionWindow(

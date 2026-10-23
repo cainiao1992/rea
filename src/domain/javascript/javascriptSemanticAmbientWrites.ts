@@ -49,6 +49,36 @@ const canonicalAmbientPath = (
 
 type AmbientPath = readonly (string | null)[];
 
+const retainedAmbientEffects = new WeakMap<
+  JavaScriptSemanticAnalysisState,
+  Map<t.Node | undefined, Set<string>>
+>();
+
+/** Retain canonical ambient effects once, whether discovered by syntax or receiver expansion. */
+export const retainSemanticAmbientEffect = (
+  state: JavaScriptSemanticAnalysisState,
+  kind: "write" | "escape",
+  path: AmbientPath,
+  node: t.Node | undefined,
+): boolean => {
+  const selected = kind === "escape" ? [...path, null] : path;
+  const byNode = retainedAmbientEffects.get(state) ?? new Map();
+  const keys = byNode.get(node) ?? new Set<string>();
+  const key = JSON.stringify([kind, selected]);
+  if (keys.has(key)) return false;
+  keys.add(key);
+  byNode.set(node, keys);
+  retainedAmbientEffects.set(state, byNode);
+  if (kind === "write") {
+    state.ambientWrites.retain(selected);
+    state.ambientWriteEffects.push({ path: selected, node });
+  } else {
+    state.ambientEscapes.retain(selected);
+    state.ambientEscapeEffects.push({ path: selected, node });
+  }
+  return true;
+};
+
 /** Undefined means a cyclic or conflicting projection can select any depth. */
 type AmbientProjection = AmbientPath | undefined;
 
@@ -641,17 +671,14 @@ export function* indexJavaScriptAmbientWritesSteps(
             ...path.slice(2),
           ]);
     for (const resolved of paths) {
-      state.ambientWrites.retain(resolved);
-      state.ambientWriteEffects.push({ path: resolved, node });
+      retainSemanticAmbientEffect(state, "write", resolved, node);
     }
   }
   for (const { node, target, browserReceiver, projection } of escapes)
     for (const path of ambientWrites(target, node, true, projection))
       // Only proven browser APIs keep their global receiver from user code.
       if (!(browserReceiver && path.length === 1 && path[0] === "global")) {
-        const escaped = [...path, null];
-        state.ambientEscapes.retain(escaped);
-        state.ambientEscapeEffects.push({ path: escaped, node });
+        retainSemanticAmbientEffect(state, "escape", path, node);
       }
   // A function may call a browser method replaced later in source order.
   if (

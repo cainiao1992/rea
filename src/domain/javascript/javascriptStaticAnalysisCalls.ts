@@ -91,6 +91,7 @@ export const inspectCall = (
       node,
       kind: "require",
       specifier: requireCall.specifier,
+      operation: requireCall.operation,
       ...(requireCall.resolutionBasePath === undefined
         ? {}
         : { resolutionBasePath: requireCall.resolutionBasePath }),
@@ -270,6 +271,7 @@ const requireCallSpecifier = (
   resolveMemberChanged = false,
 ): {
   readonly specifier: string | undefined;
+  readonly operation: "load" | "resolve";
   readonly resolutionBasePath?: string;
 } | null => {
   const call = semanticRequireCallAt(
@@ -284,9 +286,13 @@ const requireCallSpecifier = (
     !call.sourceRelative
   ) {
     context.accumulator.unknownFindings += 1;
-    return { specifier: undefined };
+    return {
+      specifier: undefined,
+      operation: resolveMemberChanged ? "load" : call.operation,
+    };
   }
   return {
+    operation: call.operation,
     specifier: argumentValue(call.arguments?.[0]),
     ...(call.sourceRelativePath === undefined
       ? {}
@@ -322,6 +328,7 @@ export const finishModuleRequireCalls = (
         node,
         kind: "require",
         specifier: call.specifier,
+        operation: call.operation,
         ...(call.resolutionBasePath === undefined
           ? {}
           : { resolutionBasePath: call.resolutionBasePath }),
@@ -947,10 +954,11 @@ export const addReference = (
       : { specifier, expression: null };
   addLocatedFinding(context, {
     collection: context.accumulator.references,
-    key: `reference\0${input.kind}\0${reference.specifier ?? reference.expression}\0${input.resolutionBasePath ?? ""}`,
+    key: `reference\0${input.kind}\0${input.operation ?? "load"}\0${reference.specifier ?? reference.expression}\0${input.resolutionBasePath ?? ""}`,
     node: input.node,
     value: {
       kind: input.kind,
+      operation: input.operation ?? "load",
       ...reference,
       ...(input.resolutionBasePath === undefined
         ? {}

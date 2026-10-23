@@ -205,6 +205,7 @@ const addReference = (
       ? null
       : resolveReference(context, input.file.path, input.value, input.coverage);
   if (
+    input.value.operation === "load" &&
     (input.value.kind === "static-import" ||
       input.value.kind === "dynamic-import" ||
       input.value.kind === "require") &&
@@ -222,6 +223,7 @@ const addReference = (
     resolved !== null &&
     resolved.path !== null &&
     resolved.file !== null &&
+    input.value.operation === "load" &&
     (input.value.kind === "static-import" ||
       input.value.kind === "dynamic-import" ||
       input.value.kind === "require")
@@ -305,6 +307,7 @@ const addReference = (
     relation: resolved?.file?.kind === "native-addon" ? "loads" : "imports",
     properties: {
       kind: input.value.kind,
+      operation: input.value.operation,
       specifier: input.value.specifier,
       expression: input.value.expression,
       resolution_base_path: input.value.resolution_base_path ?? null,

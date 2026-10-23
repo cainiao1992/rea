@@ -22,6 +22,8 @@ export interface JavaScriptSourceRange {
 }
 
 interface JavaScriptStaticReferenceState {
+  /** Resolution discovers a target without loading or executing it. */
+  readonly operation: "load" | "resolve";
   readonly kind:
     | "static-import"
     | "dynamic-import"

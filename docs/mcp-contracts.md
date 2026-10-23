@@ -980,7 +980,9 @@ current/containing procedure. Its capability inventory exposes a
 `current_selection` mode and an `explicit_document` mode; the latter works when
 the caller supplies `document` and the provider lacks `current_document`. A
 cursor outside a procedure is represented as
-`procedure: null`. `inspect_address_context` requires an explicit address and
+`procedure: null` only after a valid explicit absence result. Malformed
+procedure resolution returns typed unreadable output; provider errors never
+become absence from their message text. `inspect_address_context` requires an explicit address and
 returns name, procedure, comment, inline-comment, and bookmark facets;
 unsupported facets are local `unavailable` outcomes. Use `current_document`,
 `current_address`, and `current_procedure` for direct single-field lookups; use

@@ -216,6 +216,24 @@ export const procedureIdentitySchema = z
           "Function body entry membership disagrees with procedure identity",
       });
   });
+/** Exact containing-procedure outcome; valid absence is distinct from unreadable output. */
+export const containingProcedureResolutionSchema = z.discriminatedUnion(
+  "found",
+  [
+    z.object({
+      query_address: z.string(),
+      found: z.literal(true),
+      procedure: procedureIdentitySchema,
+    }),
+    z.object({
+      query_address: z.string(),
+      found: z.literal(false),
+      procedure: z.null(),
+      reason: z.enum(["outside_segments", "not_in_procedure"]),
+    }),
+  ],
+);
+
 export const localVariableSchema = z
   .object({
     description: z.string(),

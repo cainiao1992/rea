@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseExpression } from "@babel/parser";
 import { describe, expect, it } from "vitest";
 
-import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
+import { analyzeCommonJsStaticFixture } from "../../../tests/fixtures/javascriptCommonJsAnalysis.js";
 import { parserPluginsForPath } from "./javascriptSourceParser.js";
 import {
   calleeName,
@@ -358,7 +358,7 @@ it("decodes a source-relative file URL once before composing a filesystem path",
 
 it("retains Worker URL references through their separate URL-aware producer", () => {
   const specifier = "./worker%252Fentry.js?version=1#worker";
-  const analysis = analyzeJavaScriptStaticSource(`
+  const analysis = analyzeCommonJsStaticFixture(`
     import { Worker } from "node:worker_threads";
     new Worker(new URL(${JSON.stringify(specifier)}, import.meta.url));
   `);
@@ -404,7 +404,7 @@ const analyzePathConsumers = (expression: string) => {
     windowPrefix,
     windowExpression,
     utilityExpression,
-    analysis: analyzeJavaScriptStaticSource(
+    analysis: analyzeCommonJsStaticFixture(
       `${genericPrefix}${property} }; const { BrowserWindow, utilityProcess } = require("electron");\n${windowExpression};\n${utilityExpression};`,
     ),
   };

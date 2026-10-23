@@ -205,16 +205,17 @@ describe("Electron option evidence", () => {
     },
   );
 
-  it("does not read an audio or video preload attribute as a preload script", () => {
+  it("selects proven Electron preloads while ignoring media attributes and unrelated properties", () => {
     const analysis = analyzeJavaScriptStaticSource(`
       jsx("audio", { controls: true, preload: "metadata", src });
       (0, React.createElement)(\`video\`, { preload: "auto" });
       jsx("webview", { preload: "./guest.js" });
-      const options = { preload: "./preload.js" };
+      const options = { preload: "./unrelated.js" };
+      const { BrowserWindow } = require("electron");
+      new BrowserWindow({webPreferences: {preload: "./preload.js"}});
     `);
 
     expect(analysis.role_paths.map(({ path }) => path)).toEqual([
-      "./guest.js",
       "./preload.js",
     ]);
   });

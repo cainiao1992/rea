@@ -1944,7 +1944,7 @@ it.each([false, null] as const)(
       retryable: ready === false,
       details: { diagnostics: { auto_analysis_ready: ready } },
     });
-    producer.overrideCall = undefined;
+    delete producer.overrideCall;
     expect((await client.execute("health", {})).ok).toBe(true);
     await expectCleanClose(producer, client);
   },

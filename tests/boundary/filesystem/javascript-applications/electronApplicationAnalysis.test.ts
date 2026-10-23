@@ -162,6 +162,58 @@ describe("static Electron application analysis", () => {
   });
 });
 
+describe("native addon association", () => {
+  it.each([
+    { native: false, associations: [] },
+    {
+      native: true,
+      associations: [{ source: "native-addon", resolved: "addon.node" }],
+    },
+  ])(
+    "associates a requested binding only with a resolved native addon (exact addon.node: $native)",
+    async ({ native, associations }) => {
+      const root = await createTestTempDirectory("rea-electron-addon-kind-");
+      await Promise.all([
+        writeFile(
+          join(root, "main.js"),
+          'const addon = require("./addon.node");\nvoid addon;\n',
+        ),
+        writeFile(
+          join(root, "addon.node.js"),
+          "module.exports = { requested: true };\n",
+        ),
+        ...(native
+          ? [writeFile(join(root, "addon.node"), Buffer.from([0, 1, 2, 3]))]
+          : []),
+      ]);
+
+      const result = await reconstructJavaScriptArtifact({ input_path: root });
+      const graph = parseJavaScriptApplicationGraph(result.graph);
+      const nodes = new Map(graph.nodes.map((node) => [node.node_id, node]));
+
+      expect(result.electron_summary).toMatchObject({
+        native_addon_bindings: 1,
+        resolved_native_addon_bindings: native ? 1 : 0,
+      });
+      expect(
+        graph.nodes.filter(({ kind }) => kind === "native-export"),
+      ).toHaveLength(1);
+      expect(
+        graph.edges
+          .filter(
+            (edge) =>
+              edge.evidence.extractor.operation ===
+              "associate-native-addon-requested-exports",
+          )
+          .map((edge) => ({
+            source: nodes.get(edge.source_node_id)?.kind,
+            resolved: edge.properties.resolved_path,
+          })),
+      ).toEqual(associations);
+    },
+  );
+});
+
 const exactRuntimeEntrypointFixture = async (): Promise<void> => {
   const root = await createTestTempDirectory("rea-electron-exact-entrypoints-");
   await mkdir(join(root, "renderer/page"), { recursive: true });

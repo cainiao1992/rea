@@ -275,7 +275,7 @@ export const observeOwnedProcessLineage = async (
       if (observation.runId !== ownership.runId)
         return unavailableLineage(
           ownership,
-          "process lineage contains an unowned or PID-reused process",
+          lineageTokenMismatchReason(member.pid, observation.runId),
         );
       if (member.pid !== launcher.pid) verifiedDescendants.push(member);
       const seeded = examinedRefresh.get(member.pid);
@@ -476,7 +476,7 @@ const observeNativeOwnedProcessLineage = async (
     if (fact.token.runId !== ownership.runId)
       return unavailableLineage(
         ownership,
-        "process lineage contains an unowned or PID-reused process",
+        lineageTokenMismatchReason(member.pid, fact.token.runId),
       );
     const nativeMember = processWithNativeRelation(
       fact.process,
@@ -585,7 +585,7 @@ const classifyIdentitylessLineageRefresh = async (
     if (observation.runId !== ownership.runId)
       return {
         status: "unavailable",
-        reason: "process lineage contains an unowned or PID-reused process",
+        reason: lineageTokenMismatchReason(launcherPid, observation.runId),
       };
   }
   const identityFailure = launcherIdentityFailure(refreshedLauncher, ownership);
@@ -621,7 +621,7 @@ const classifyIdentitylessLineageRefresh = async (
         if (inTree.has(process.pid))
           return {
             status: "unavailable",
-            reason: "process lineage contains an unowned or PID-reused process",
+            reason: lineageTokenMismatchReason(process.pid, observation.runId),
           };
         continue;
       }
@@ -678,6 +678,14 @@ const processWithNativeRelation = (
         processGroupId: identity.relation.processGroupId,
       }
     : undefined;
+
+const lineageTokenMismatchReason = (
+  pid: number,
+  observedRunId: string | undefined,
+): string =>
+  observedRunId === undefined
+    ? `REA_PROCESS_RUN_ID was absent from the readable environment for PID ${String(pid)}; process lineage ownership remains unverified`
+    : "process lineage contains an unowned or PID-reused process";
 
 const unavailableLineage = (
   ownership: OwnedProcessGroup,

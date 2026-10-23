@@ -1467,7 +1467,7 @@ it.each(["attached", "resumed"] as const)(
             program: "/fixture",
           });
     if (!started.ok) throw started.error;
-    const id = started.value.session_id;
+    const id = started.value.sessionId;
     if (state === "resumed")
       expect((await fixture.manager.resumeSession(id)).ok).toBe(true);
     const result = await fixture.client.callTool({

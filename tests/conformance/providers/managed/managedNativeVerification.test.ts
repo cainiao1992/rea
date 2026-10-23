@@ -10,6 +10,7 @@ import {
 } from "../../../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { managedNativeBoundaryInspectionSchema } from "../../../../src/domain/managed/managedArtifact.js";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
+import { functionDossierSchema } from "../../../../src/domain/hopperValues.js";
 
 import { verifyManagedNativeBoundaries } from "../../../../src/domain/managed/managedNativeVerification.js";
 const exampleInput = () =>
@@ -63,6 +64,52 @@ const nativeEvidenceWithExports = (
       limitations: native.limitations,
       locations: native.locations,
       evidenceLinks: native.evidence_links,
+    },
+  );
+};
+
+const nativeFunctionEvidence = (
+  modulePath: string,
+  format: "elf" | "mach-o" | "pe" | "file",
+) => {
+  const native = exampleInput().native_observations[0];
+  if (native === undefined) throw new Error("missing native provider");
+  const dossier = functionDossierSchema.parse({
+    procedure: {
+      address: "0x1000",
+      name: "open_native",
+      classification: {
+        external: false,
+        thunk: false,
+        thunk_target: null,
+        provenance: "synthetic-provider",
+      },
+      body: { available: false, reason: "Synthetic fixture" },
+      signature: null,
+      locals: [],
+    },
+    pseudocode: "",
+    assembly: [],
+    comments: [],
+    callers: [],
+    callees: [],
+    incoming_references: [],
+    outgoing_references: [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [],
+    native_api: null,
+    native_value_flow: null,
+    limitations: [],
+  });
+  return createEvidence(
+    { path: modulePath, sha256: "8".repeat(64), format },
+    native.provider,
+    {
+      operation: "analyze_function",
+      parameters: {},
+      result: dossier,
+      rawResult: null,
     },
   );
 };
@@ -243,6 +290,62 @@ it("reports module mismatch as a contradiction within supplied Evidence", () => 
   expect(result.pinvoke_imports[0]).toMatchObject({
     status: "contradicted",
     basis: "module-mismatch",
+  });
+});
+
+it("matches ELF module names case-sensitively and leaves unknown platform equivalence unresolved", () => {
+  const linuxInput = inputWithImportScope("caseprobe");
+  const elfExact = verifyManagedNativeBoundaries({
+    ...linuxInput,
+    native_observations: [
+      nativeFunctionEvidence("/examples/libcaseprobe.so", "elf"),
+    ],
+  });
+  expect(elfExact.pinvoke_imports[0]).toMatchObject({
+    status: "verified",
+    basis: "exact-function-name",
+    matched_native: { module_path: "/examples/libcaseprobe.so" },
+  });
+
+  const elfCaseMismatch = verifyManagedNativeBoundaries({
+    ...linuxInput,
+    native_observations: [
+      nativeFunctionEvidence("/examples/libCaseProbe.so", "elf"),
+    ],
+  });
+  expect(elfCaseMismatch.pinvoke_imports[0]).toMatchObject({
+    status: "contradicted",
+    basis: "module-mismatch",
+    matched_native: { module_path: "/examples/libCaseProbe.so" },
+  });
+  const workflow = verifyManagedNativeBoundariesEvidence({
+    ...linuxInput,
+    native_observations: [
+      nativeFunctionEvidence("/examples/libCaseProbe.so", "elf"),
+    ],
+  });
+  expect(workflow.ok).toBe(true);
+  if (!workflow.ok) throw workflow.error;
+  expect(workflow.value.normalized_result).toMatchObject({
+    summary: { contradicted: 1, verified: 0 },
+    pinvoke_imports: [
+      expect.objectContaining({
+        basis: "module-mismatch",
+        confidence: "unknown",
+      }),
+    ],
+  });
+
+  const uncertainPlatform = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("foo"),
+    native_observations: [
+      nativeEvidenceWithExports(["open_native"], "/examples/libFoo.dylib"),
+    ],
+  });
+  expect(uncertainPlatform.pinvoke_imports[0]).toMatchObject({
+    status: "unresolved",
+    basis: "module-identity-unknown",
+    matched_native: { module_path: "/examples/libFoo.dylib" },
   });
 });
 

@@ -21,11 +21,17 @@ export const collectNativeSymbols = (
   readonly symbols: readonly NativeSymbol[];
   readonly accepted: number;
   readonly unsupported: number;
+  readonly moduleFormatsByEvidenceId: ReadonlyMap<string, string | null>;
 } => {
   const symbols: NativeSymbol[] = [];
+  const moduleFormatsByEvidenceId = new Map<string, string | null>();
   let accepted = 0;
   let unsupported = 0;
   for (const observation of observations) {
+    moduleFormatsByEvidenceId.set(
+      observation.evidence.evidence_id,
+      observation.evidence.subject?.format ?? null,
+    );
     if (!observation.supported) {
       unsupported += 1;
     } else {
@@ -33,7 +39,7 @@ export const collectNativeSymbols = (
       symbols.push(...observation.symbols);
     }
   }
-  return { symbols, accepted, unsupported };
+  return { symbols, accepted, unsupported, moduleFormatsByEvidenceId };
 };
 
 const normalizedSymbolName = (native: NativeSymbol): string =>
@@ -44,21 +50,27 @@ const normalizedSymbolName = (native: NativeSymbol): string =>
 const sameSymbolName = (expected: string, native: NativeSymbol): boolean =>
   expected === normalizedSymbolName(native);
 
-const normalizeModule = (value: string): string =>
-  basename(value)
-    .toLowerCase()
-    .replace(/\.(dll|dylib|so|node|exe)$/u, "");
+type ModuleCompatibility = "match" | "mismatch" | "unknown";
 
-/** A declared module identity, or null when normalization leaves no name. */
-const declaredModuleIdentity = (scope: string | null): string | null => {
-  if (scope === null || scope.trim().length === 0) return null;
-  const identity = normalizeModule(scope);
-  return identity.length > 0 ? identity : null;
+const declaredModuleIdentity = (scope: string | null): boolean =>
+  scope !== null &&
+  scope.trim().length > 0 &&
+  normalizeModule(scope, false).length > 0;
+
+const normalizeModule = (value: string, caseSensitive: boolean): string => {
+  const basename_ = basename(value);
+  const comparable = caseSensitive ? basename_ : basename_.toLowerCase();
+  return comparable.replace(/\.(dll|dylib|so|node|exe)$/u, "");
 };
 
-const nativeModuleIdentities = (value: string): ReadonlySet<string> => {
-  const filename = basename(value).toLowerCase();
-  const stem = normalizeModule(filename);
+const moduleIdentities = (
+  value: string,
+  caseSensitive: boolean,
+): ReadonlySet<string> => {
+  const filename = caseSensitive
+    ? basename(value)
+    : basename(value).toLowerCase();
+  const stem = normalizeModule(value, caseSensitive);
   const identities = new Set([stem]);
   if (/\.(dylib|so)$/u.test(filename) && stem.startsWith("lib"))
     identities.add(stem.slice("lib".length));
@@ -66,23 +78,52 @@ const nativeModuleIdentities = (value: string): ReadonlySet<string> => {
   return identities;
 };
 
-const moduleCompatible = (
+const moduleValueCompatibility = (
+  expected: string,
+  observed: string,
+  format: string | null,
+): ModuleCompatibility => {
+  if (
+    [...moduleIdentities(expected, true)].some((identity) =>
+      moduleIdentities(observed, true).has(identity),
+    )
+  )
+    return "match";
+  const caseFoldedMatch = [...moduleIdentities(expected, false)].some(
+    (identity) => moduleIdentities(observed, false).has(identity),
+  );
+  if (!caseFoldedMatch) return "mismatch";
+  if (format === "elf") return "mismatch";
+  if (format === "pe") return "match";
+  return "unknown";
+};
+
+const moduleCompatibility = (
   scope: string | null,
   symbol: NativeSymbol,
-): boolean => {
-  const expected = declaredModuleIdentity(scope);
-  if (expected === null) return false;
-  return [symbol.module_name, symbol.module_path]
-    .filter(
-      (value): value is string =>
-        value !== null && normalizeModule(value).length > 0,
-    )
-    .some((value) => nativeModuleIdentities(value).has(expected));
+  format: string | null,
+): ModuleCompatibility => {
+  if (
+    scope === null ||
+    scope.trim().length === 0 ||
+    normalizeModule(scope, false).length === 0
+  )
+    return "unknown";
+  const values = [symbol.module_name, symbol.module_path].filter(
+    (value): value is string => value !== null && value.length > 0,
+  );
+  if (values.length === 0) return "unknown";
+  const results = values.map((value) =>
+    moduleValueCompatibility(scope, value, format),
+  );
+  if (results.includes("match")) return "match";
+  if (results.includes("unknown")) return "unknown";
+  return "mismatch";
 };
 
 const hasModuleIdentity = (symbol: NativeSymbol): boolean =>
   [symbol.module_name, symbol.module_path].some(
-    (value) => value !== null && normalizeModule(value).length > 0,
+    (value) => value !== null && normalizeModule(value, false).length > 0,
   );
 
 const candidateNames = (
@@ -123,6 +164,7 @@ const matchPinvoke = (
   managed: PinvokeImport,
   symbols: readonly NativeSymbol[],
   supportedNativeEvidence: number,
+  moduleFormatsByEvidenceId: ReadonlyMap<string, string | null>,
 ): PinvokeCandidateMatch => {
   const names = candidateNames(managed);
   const allCandidates = symbols.filter((symbol) =>
@@ -144,14 +186,23 @@ const matchPinvoke = (
     };
 
   const candidates: [NativeSymbol, ...NativeSymbol[]] = [first, ...remaining];
-  const scopeKnown = declaredModuleIdentity(managed.import_scope_name) !== null;
+  const scopeKnown = declaredModuleIdentity(managed.import_scope_name);
+  const moduleRelation = (symbol: NativeSymbol) =>
+    moduleCompatibility(
+      managed.import_scope_name,
+      symbol,
+      moduleFormatsByEvidenceId.get(symbol.evidence_id) ?? null,
+    );
   const exact = candidates.find(
     (symbol) =>
       managed.import_name === normalizedSymbolName(symbol) &&
-      moduleCompatible(managed.import_scope_name, symbol),
+      moduleRelation(symbol) === "match",
   );
-  const decorated = candidates.find((symbol) =>
-    moduleCompatible(managed.import_scope_name, symbol),
+  const unknownModule = candidates.find(
+    (symbol) => moduleRelation(symbol) === "unknown",
+  );
+  const decorated = candidates.find(
+    (symbol) => moduleRelation(symbol) === "match",
   );
   const selected =
     exact ??
@@ -170,6 +221,16 @@ const matchPinvoke = (
             : "exact-function-name",
         confidence: "observed",
         matched_native: selected,
+        candidates,
+      },
+    };
+  if (unknownModule !== undefined)
+    return {
+      match: {
+        status: "unresolved",
+        basis: "module-identity-unknown",
+        confidence: "unknown",
+        matched_native: unknownModule,
         candidates,
       },
     };
@@ -239,6 +300,7 @@ interface VerifyPinvokeContext {
   readonly native: {
     readonly symbols: readonly NativeSymbol[];
     readonly accepted: number;
+    readonly moduleFormatsByEvidenceId: ReadonlyMap<string, string | null>;
   };
 }
 
@@ -263,7 +325,12 @@ export const verifyPinvoke = ({
     call_convention: item.call_convention,
     declaration_verification: item.verification,
   };
-  const selection = matchPinvoke(item, native.symbols, native.accepted);
+  const selection = matchPinvoke(
+    item,
+    native.symbols,
+    native.accepted,
+    native.moduleFormatsByEvidenceId,
+  );
   const limitations = pinvokeLimitations(selection.match, item);
   const context: PinvokeVerificationContext = {
     item_id: `mnv_pinvoke_${digestCanonicalValue(

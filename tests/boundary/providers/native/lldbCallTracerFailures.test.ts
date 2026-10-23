@@ -605,25 +605,21 @@ describe("LLDB process exit while output is still open", () => {
   );
 });
 
-describe("LLDB process exit at output-close loop completion", () => {
-  for (const abort of [false, true])
-    it.skipIf(process.platform === "win32")(
-      `retains completed trace facts after output closure (cancelled=${String(abort)})`,
-      async () => {
-        const fixtureRoot = await mkdtemp(
-          join(tmpdir(), "rea-lldb-complete-output-"),
-        );
-        const fakeLldb = join(fixtureRoot, "fake-lldb");
-        const completed = {
-          ...successfulTracerOutput,
-          target_output: {
-            ...successfulTracerOutput.target_output,
-            stdout_bytes: 2,
-          },
-        };
-        await writeFile(
-          fakeLldb,
-          `#!${process.execPath}
+const completedOutputCloseFixture = async () => {
+  const fixtureRoot = await mkdtemp(
+    join(tmpdir(), "rea-lldb-complete-output-"),
+  );
+  const fakeLldb = join(fixtureRoot, "fake-lldb");
+  const completed = {
+    ...successfulTracerOutput,
+    target_output: {
+      ...successfulTracerOutput.target_output,
+      stdout_bytes: 2,
+    },
+  };
+  await writeFile(
+    fakeLldb,
+    `#!${process.execPath}
 const fs = require("node:fs");
 const { spawnSync } = require("node:child_process");
 const command = process.argv.at(-1);
@@ -639,8 +635,18 @@ fs.writeFileSync(config.observation_path, JSON.stringify({ kind: "event", event:
 fs.writeFileSync(config.result_path, JSON.stringify(result));
 process.exit(0);
 `,
-          { mode: 0o700 },
-        );
+    { mode: 0o700 },
+  );
+  return { fixtureRoot, fakeLldb, completed };
+};
+
+describe("LLDB process exit at output-close loop completion", () => {
+  for (const abort of [false, true])
+    it.skipIf(process.platform === "win32")(
+      `retains completed trace facts after output closure (cancelled=${String(abort)})`,
+      async () => {
+        const { fixtureRoot, fakeLldb, completed } =
+          await completedOutputCloseFixture();
         const controller = new AbortController();
         const reason = { requested: "stop after completed output closure" };
         let interrupted = false;

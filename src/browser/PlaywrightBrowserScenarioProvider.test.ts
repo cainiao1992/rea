@@ -238,45 +238,47 @@ class FakeSession implements BrowserScenarioSessionPort {
   }
 }
 
+const capturedResponseBodyEvents = (): readonly BrowserScenarioEvent[] => [
+  {
+    sequence: 1,
+    step_index: 0,
+    kind: "response",
+    transaction_id: "request-1",
+    redirected_from_transaction_id: null,
+    method: "GET",
+    url: sanitizeBrowserUrl("https://app.example.test/main.js"),
+    resource_type: "script",
+    header_names: [],
+    status: 200,
+    failure: null,
+  },
+  {
+    sequence: 2,
+    step_index: 0,
+    kind: "network-content",
+    transaction_id: "request-1",
+    source_event_sequence: 1,
+    phase: "response",
+    headers: { state: "not_requested" },
+    body: {
+      state: "captured",
+      representation: "playwright-response-body-bytes",
+      encoding: "base64",
+      content: "",
+      bytes: 0,
+      sha256:
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      media_type: "text/javascript",
+      redacted: false,
+    },
+  },
+];
+
 describe("PlaywrightBrowserScenarioProvider", () => {
   it("reports response-body provenance uncertainty without marking event coverage missing", async () => {
     const session = new FakeSession("launch");
     const selected = scenario();
-    session.eventItems = [
-      {
-        sequence: 1,
-        step_index: 0,
-        kind: "response",
-        transaction_id: "request-1",
-        redirected_from_transaction_id: null,
-        method: "GET",
-        url: sanitizeBrowserUrl("https://app.example.test/main.js"),
-        resource_type: "script",
-        header_names: [],
-        status: 200,
-        failure: null,
-      },
-      {
-        sequence: 2,
-        step_index: 0,
-        kind: "network-content",
-        transaction_id: "request-1",
-        source_event_sequence: 1,
-        phase: "response",
-        headers: { state: "not_requested" },
-        body: {
-          state: "captured",
-          representation: "playwright-response-body-bytes",
-          encoding: "base64",
-          content: "",
-          bytes: 0,
-          sha256:
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          media_type: "text/javascript",
-          redacted: false,
-        },
-      },
-    ];
+    session.eventItems = capturedResponseBodyEvents();
     const input = browserScenarioSchema.parse({
       ...selected,
       capture: {

@@ -156,7 +156,9 @@ describe("tRPC procedure recognition", () => {
       },
     ]);
   });
+});
 
+describe("tRPC procedure recognition", () => {
   it("recognizes vanilla client calls and link URLs only in sources carrying a tRPC marker", () => {
     expect(
       rpcEndpoints(`

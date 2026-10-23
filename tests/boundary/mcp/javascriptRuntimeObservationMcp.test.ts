@@ -37,6 +37,14 @@ describe("JavaScript runtime observation MCP tools", () => {
     );
   });
 
+  registerRuntimeParameterContract(resources);
+  registerRuntimeMetadataContract();
+  registerRetainedRuntimeEvidence(resources, temporary);
+});
+
+function registerRuntimeParameterContract(
+  resources: Array<{ close(): Promise<unknown> }>,
+): void {
   test("attributes V8 role and target disagreements to the parameter that differs", async () => {
     const session = createTestBinarySession(() => {
       throw new Error("No provider expected");
@@ -118,7 +126,9 @@ describe("JavaScript runtime observation MCP tools", () => {
     }
     await client.ping();
   });
+}
 
+function registerRuntimeMetadataContract(): void {
   test("accepts long caller windows and complete observation metadata", () => {
     const repeated = (count: number): string[] =>
       Array.from({ length: count }, (_, index) => `item-${index}`);
@@ -190,7 +200,12 @@ describe("JavaScript runtime observation MCP tools", () => {
       }),
     ).toMatchObject({ unknowns, limitations });
   });
+}
 
+function registerRetainedRuntimeEvidence(
+  resources: Array<{ close(): Promise<unknown> }>,
+  temporary: string[],
+): void {
   test("lists and observes one target as retained Evidence", async () => {
     const root = await createTestTempDirectory("rea-v8-mcp-");
     temporary.push(root);
@@ -255,7 +270,7 @@ describe("JavaScript runtime observation MCP tools", () => {
     expect(direct.ok).toBe(true);
     if (direct.ok) expect(evidenceId).toBe(direct.value.evidence_id);
   });
-});
+}
 
 const assertSdkObservationSchema = async (
   client: Client,

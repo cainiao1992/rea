@@ -61,6 +61,12 @@ afterEach(async () => {
 });
 
 describe("guided prompts over MCP", () => {
+  registerPromptDiscoveryParameterContract();
+  registerPromptRenderingContracts();
+  registerPromptInputContracts();
+});
+
+function registerPromptDiscoveryParameterContract(): void {
   it("classifies malformed discovery parameters separately from handler failures", async () => {
     const session = fixtureSession();
     const server = createServer({ kind: "session", session });
@@ -126,6 +132,9 @@ describe("guided prompts over MCP", () => {
       error: { code: -32603, message: "injected internal failure" },
     });
   });
+}
+
+function registerPromptRenderingContracts(): void {
   it("lists and renders all workflows without changing the tool inventory", async () => {
     const session = fixtureSession();
     const client = await connect(createServer({ kind: "session", session }));
@@ -232,7 +241,9 @@ describe("guided prompts over MCP", () => {
     expect(content.text).not.toContain("Run the caller-provided scenario");
     expect(executions).toBe(0);
   });
+}
 
+function registerPromptInputContracts(): void {
   it("rejects invalid prompt requests and safely handles non-completable arguments", async () => {
     let executions = 0;
     const session = fixtureSession(() => {
@@ -283,7 +294,7 @@ describe("guided prompts over MCP", () => {
     });
     expect(executions).toBe(0);
   });
-});
+}
 
 it("preserves caller-selected paths and verbatim crash signals", async () => {
   const directory = await createTestTempDirectory("rea-prompt-exact-context-");

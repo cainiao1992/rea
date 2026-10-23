@@ -55,6 +55,39 @@ async function capturePassivePair(
   };
 }
 
+function invalidComparisonInputs(
+  passive: Awaited<ReturnType<typeof capturePassivePair>>,
+  scenario: (typeof contract.examples)[number]["input"],
+) {
+  const scenarioCapture = browserScenarioCaptureSchema.parse(
+    scenario.before_scenario,
+  );
+  return [
+    {},
+    { before: passive.before },
+    { before: { inspection: {} }, after: passive.after },
+    {
+      before: passive.before,
+      after: { ...passive.after, webmcp: {} },
+    },
+    { before_scenario: {}, after_scenario: {} },
+    { before_scenario: scenario.before_scenario },
+    { ...passive, unexpected: true },
+    {
+      ...scenario,
+      before_scenario: { ...scenarioCapture, steps: [{}] },
+    },
+    {
+      ...scenario,
+      normalization: {
+        rules: [
+          { rule_id: "bad", artifacts: [], match: "x", replacement: "y" },
+        ],
+      },
+    },
+  ];
+}
+
 describe("browser comparison input boundary", () => {
   it("advertises producer captures and agrees with SDK validation on both comparison families", async () => {
     const browser = await startFakeCdpBrowser({ sensitiveShapes: true });
@@ -105,33 +138,7 @@ describe("browser comparison input boundary", () => {
       const withoutNormalization = Object.fromEntries(
         Object.entries(scenario).filter(([key]) => key !== "normalization"),
       );
-      const scenarioCapture = browserScenarioCaptureSchema.parse(
-        scenario.before_scenario,
-      );
-      const invalid = [
-        {},
-        { before: passive.before },
-        { before: { inspection: {} }, after: passive.after },
-        {
-          before: passive.before,
-          after: { ...passive.after, webmcp: {} },
-        },
-        { before_scenario: {}, after_scenario: {} },
-        { before_scenario: scenario.before_scenario },
-        { ...passive, unexpected: true },
-        {
-          ...scenario,
-          before_scenario: { ...scenarioCapture, steps: [{}] },
-        },
-        {
-          ...scenario,
-          normalization: {
-            rules: [
-              { rule_id: "bad", artifacts: [], match: "x", replacement: "y" },
-            ],
-          },
-        },
-      ];
+      const invalid = invalidComparisonInputs(passive, scenario);
       // Strict clients reject combinators and dependentRequired, so the
       // projection states the groups in its description and leaves group
       // completeness and exclusion to the canonical runtime parser.

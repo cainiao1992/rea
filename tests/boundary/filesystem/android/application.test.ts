@@ -428,3 +428,62 @@ describe("Android bridge candidate coverage", () => {
     );
   });
 });
+
+it("does not infer a runtime from library-named directories or their text descendants", async () => {
+  const root = await createTestTempDirectory("rea-android-runtime-directory-");
+  const path = join(root, "Fixture.apk");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("AndroidManifest.xml", new TextReader("fixture"));
+  for (const name of ["libflutter.so", "libunity.so", "libreactnative.so"]) {
+    await writer.add(`assets/${name}/`, undefined, { directory: true });
+    await writer.add(`assets/${name}/NOTICE.txt`, new TextReader("inert text"));
+  }
+  await writeFile(path, await writer.close());
+  const inventory = parseEvidence(
+    await runProviderAnalysis(path, "inventory_artifact", {}),
+  );
+  const graph = androidApplicationProjectionResultSchema.parse(
+    requireSuccessfulProjection(
+      projectAndroidApplicationEvidence({ inventory_evidence: [inventory] }),
+    ).normalized_result,
+  );
+  expect(graph.components.native_libraries).toEqual([]);
+  expect(graph.runtime_families).toEqual([]);
+  expect(graph.coverage.status).toBe("complete-within-inventory");
+});
+
+it("retains an encrypted root manifest occurrence without claiming absence", async () => {
+  const root = await createTestTempDirectory("rea-android-locked-manifest-");
+  const path = join(root, "Locked.apk");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add("AndroidManifest.xml", new TextReader("manifest"), {
+    password: "fixture-only",
+  });
+  await writeFile(path, await writer.close());
+  const inventory = parseEvidence(
+    await runProviderAnalysis(path, "inventory_artifact", {}),
+  );
+  const graph = androidApplicationProjectionResultSchema.parse(
+    requireSuccessfulProjection(
+      projectAndroidApplicationEvidence({ inventory_evidence: [inventory] }),
+    ).normalized_result,
+  );
+  expect(graph.components.manifests).toEqual([]);
+  expect(graph.unavailable_components).toContainEqual(
+    expect.objectContaining({
+      path: "AndroidManifest.xml",
+      encrypted: true,
+      artifact_id: null,
+      sha256: null,
+    }),
+  );
+  expect(graph.coverage.status).toBe("partial");
+  expect(
+    graph.limitations.some((text) =>
+      text.startsWith("No root AndroidManifest.xml"),
+    ),
+  ).toBe(false);
+  expect(graph.limitations).toContainEqual(
+    expect.stringContaining("component absence is unknown"),
+  );
+});

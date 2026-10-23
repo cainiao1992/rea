@@ -143,7 +143,7 @@ describe("managed reference instruction comparison", () => {
   });
 });
 
-describe("managed member structural matching", () => {
+describe("managed field target comparison", () => {
   it("compares observed field targets for aligned field instructions", () => {
     const il = Buffer.from([0x7b, 1, 0, 0, 4, 0x26, 0x2a]);
     const bytes = buildManagedPeFixture({
@@ -186,7 +186,9 @@ describe("managed member structural matching", () => {
       dimensions: expect.arrayContaining(["availability"]),
     });
   });
+});
 
+describe("managed exception target comparison", () => {
   it("compares resolved catch names without comparing build-local tokens", () => {
     const bytes = buildManagedPeFixture({ ilBody: Buffer.from([0x06, 0x2a]) });
     const base = inspect(bytes, "/tmp/catch-target-base.dll");
@@ -302,7 +304,9 @@ describe("managed member structural matching", () => {
       dimensions: expect.arrayContaining(["availability"]),
     });
   });
+});
 
+describe("managed member structural matching", () => {
   it("keeps unequal constants from becoming a structural remap", () => {
     const observe = (
       typeName: string,

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
 import type {
   AnalysisExecution,
   AnalysisOperation,
@@ -93,9 +93,11 @@ const literalMatches = async (
       signal,
     );
     if (!result.ok) return result;
-    const items = z
-      .array(z.object({ address: z.string(), value: z.string() }))
-      .safeParse(result.value);
+    const items = (
+      type === "string"
+        ? nativeInventoryRowsSchemas.strings
+        : nativeInventoryRowsSchemas.names
+    ).safeParse(result.value);
     if (!items.success)
       return err(
         new AnalysisOutputError(
@@ -103,35 +105,18 @@ const literalMatches = async (
           "provider returned an invalid search result",
         ),
       );
-    addPageMatches({
-      items: items.data.map(({ address, value: name }) => ({
-        address,
-        name,
-      })),
-      type,
-      matches,
-      matched,
-    });
+    for (const item of items.data) {
+      const key = `${type}\u0000${item.address}`;
+      if (matched.has(key)) continue;
+      matches.push(
+        type === "string"
+          ? { ...item, type: "string" }
+          : { ...item, type: "procedure" },
+      );
+      matched.add(key);
+    }
   }
   return ok({ matches });
-};
-
-const addPageMatches = (input: {
-  readonly items: readonly {
-    readonly address: string;
-    readonly name: string;
-  }[];
-  readonly type: TraceMatch["type"];
-  readonly matches: TraceMatch[];
-  readonly matched: Set<string>;
-}): void => {
-  const { items, type, matches, matched } = input;
-  for (const item of items) {
-    const key = `${type}\u0000${item.address}`;
-    if (matched.has(key)) continue;
-    matches.push({ type, address: item.address, value: item.name });
-    matched.add(key);
-  }
 };
 
 const traceReferences = async (

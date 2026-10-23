@@ -10,11 +10,7 @@ import {
 } from "../contracts/enhancedInputs.js";
 
 export type EnhancedResult = Promise<Result<JsonValue, AnalysisError>>;
-export type TraceMatch = {
-  readonly type: string;
-  readonly address: string;
-  readonly value: string;
-};
+export type { LiteralFeatureMatch as TraceMatch } from "../domain/native/literalFeatureMatch.js";
 export type TraceReference = {
   readonly target_address: string;
   readonly source_address: string;

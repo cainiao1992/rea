@@ -267,3 +267,34 @@ describe("trace_feature reference coverage", () => {
     expect(calls.filter((call) => call.startsWith("xrefs:"))).toEqual([]);
   });
 });
+
+it("preserves string search qualifications in trace matches without fabricating them for procedures", async () => {
+  const baseline = provider({ duplicateProcedure: true });
+  const row = {
+    address: "0x10",
+    value: "hello",
+    provider_value: "provider display",
+    decoding: { available: false, reason: "Typed bytes were unavailable." },
+    string: {
+      encoding: "utf-8",
+      encoding_status: "inferred",
+      termination: "missing",
+      byte_length: 5,
+    },
+  } as const;
+  const output = await trace({
+    execute: (operation, input, options) =>
+      operation === "search_strings"
+        ? Promise.resolve(ok(createAnalysisExecution([row], PROVIDER)))
+        : baseline.execute(operation, input, options),
+  });
+  expect(output.normalized_result).toMatchObject({
+    matches: [
+      { ...row, type: "string" },
+      { type: "procedure", address: "0x10", value: "hello" },
+    ],
+  });
+  expect(
+    (output.normalized_result as { matches: object[] }).matches[1],
+  ).not.toHaveProperty("string");
+});

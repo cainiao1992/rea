@@ -1,3 +1,4 @@
+import { literalFeatureMatchSchema } from "../domain/native/literalFeatureMatch.js";
 import { byteEntropySchema } from "../domain/native/byteEntropy.js";
 import { byteEntropySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
 import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.js";
@@ -231,13 +232,7 @@ const literalTraceOutput = evidenceResultOf(
   z.object({
     query: z.string(),
     search_mode: z.literal("literal"),
-    matches: z.array(
-      z.object({
-        type: z.enum(["string", "procedure"]),
-        address: z.string(),
-        value: z.string(),
-      }),
-    ),
+    matches: z.array(literalFeatureMatchSchema),
     references: z.array(
       z.object({
         target_address: z.string(),

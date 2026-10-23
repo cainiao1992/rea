@@ -207,7 +207,9 @@ observed source encoding. Hopper can split long literals into adjacent
 unterminated objects; search matches each object's decoded bytes independently.
 Undecodable objects retain native display text with `decoding.available: false`
 and a reason, so one uncertain object does not block unrelated inspections.
-Function dossiers retain this same string evidence. Native call edges retain
+Function dossiers and `trace_feature` string matches retain this same string
+evidence, including decoding uncertainty; procedure matches keep their own
+named observation fields without invented string qualifications. Native call edges retain
 Hopper's partial `CallReference` classification and exact endpoints; detailed
 reference flags remain unavailable rather than being invented.
 Regex searches use ECMAScript Unicode syntax in a cancellable worker with a

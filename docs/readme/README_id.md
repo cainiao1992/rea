@@ -66,6 +66,8 @@ Proses penyiapan mendaftarkan REA ke agen Anda dan memasang instruksi alur kerja
 
 ## Mulai Cepat
 
+Di Linux, peluncuran Ghidra, JADX dan alat firmware serta analisis statis JavaScript/Electron memerlukan `ps` yang kompatibel dengan procps pada `PATH` REA untuk memeriksa kepemilikan proses. Lihat [prasyarat Linux](../installation.md#linux-owned-process-prerequisite).
+
 ### Siapkan agen Anda
 
 Dengan Node.js dan npm yang telah terpasang, jalankan:
@@ -77,6 +79,8 @@ npx rea-agents setup
 Pilih agen yang ingin digunakan, tinjau perubahan yang diusulkan, lalu setujui perubahan tersebut. Proses penyiapan menambahkan server MCP REA dan instruksi alur kerja yang sesuai, serta membuat cadangan konfigurasi yang sudah ada. Setelah itu, mulai ulang agen Anda.
 
 Penyiapan mendukung Claude Code, Codex, Cursor, Gemini CLI, Grok Build, dan [agen lainnya](../installation.md#supported-agents). Lihat [instalasi dan penyiapan](../installation.md) untuk konfigurasi penyedia dan pendaftaran MCP secara manual.
+
+MCP menggunakan skema input ringkas secara default. Untuk petunjuk bidang lengkap dan validasi bertingkat, atur `REA_MCP_INPUT_SCHEMA_PROFILE=full` pada pendaftaran MCP. Kedua profil mempertahankan semua alat dan validasi server kanonis yang sama; lihat panduan kontrak MCP.
 
 ### Minta agen Anda
 
@@ -114,6 +118,8 @@ Untuk CLI yang dipasang melalui `npm install --global` atau `bun add --global`:
 ```bash
 rea update
 ```
+
+`rea --update` adalah alias `rea update` dengan opsi keluaran global yang sama. Perintah pembaruan menyimpan stdout/stderr gabungan maksimal 4 MiB. Metadata terlalu besar ditolak setelah perintah selesai; instalasi verbose menyimpan diagnostik terbatas. Kemajuan mengikuti backpressure terminal dan menunggu penulisan yang telah dikirim.
 
 Pembaruan global dengan Bun memerlukan Bun 1.2.17 atau yang lebih baru. Pada rilis Bun yang lebih lama, perbarui Bun secara manual sebelum menjalankan `rea update`.
 
@@ -157,9 +163,9 @@ Alat tambahan dan dukungan sistem host bergantung pada target yang dianalisis:
 | Erlang BEAM                | IFF chunks, atoms, exports, and tables                                                                | Built-in static BEAM inspection; [Erlang BEAM](../erlang-beam.md)                                                              |
 | Crash Linux yang direkam   | Catatan mentah, register/sinyal setiap thread yang direkam, dan kandidat pemetaan opsional            | pwntools yang disediakan pemanggil; GDB/pwndbg opsional; [crash yang direkam](../recorded-crashes.md)                          |
 | Instalasi desktop          | Kandidat runtime, berkas pendukung, penanda komponen, dan langkah berikutnya                          | Pemeriksaan direktori dan header terbatas；[Aplikasi desktop](../desktop-applications.md)                                      |
-| JavaScript / Electron      | Modul, impor, source map, rute, IPC, dan hubungan add-on native                                       | Node.js dan npm; [analisis aplikasi](../javascript-application-workflows.md)                                                   |
+| JavaScript / Electron      | Modul, impor, source map, rute, IPC, dan hubungan add-on native                                       | Node.js dan npm; [analisis aplikasi](../javascript-application-workflows.md); Linux: procps `ps`                               |
 | Situs web                  | Struktur halaman, skrip, pengamatan jaringan, dan tangkapan layar yang diminta                        | Peramban berbasis Chrome; [analisis peramban](../browser-observation.md)                                                       |
-| Rekaman jaringan tersimpan | Permintaan, respons, payload yang terekspos, dan lokasi sumber                                        | HAR; mitmdump di Linux untuk rekaman native mitmproxy; [panduan rekaman](../web-network-captures.md)                           |
+| Rekaman jaringan tersimpan | Permintaan, respons, payload yang terekspos, dan lokasi sumber                                        | HAR / Fiddler Everywhere SAZ; mitmdump di Linux untuk rekaman native mitmproxy; [panduan rekaman](../web-network-captures.md)  |
 | Capturan paket             | Endpoint, DNS, TLS SNI, distribusi protokol, dan permintaan HTTP                                      | tshark dan capinfos buatan pemanggil; [panduan pcap](../pcap-analysis.md)                                                      |
 | Assembly .NET              | Metadata, instruksi CIL, dependensi native yang dideklarasikan, dan perbandingan build                | Tidak ada (hanya analisis statis); [panduan kode terkelola](../managed-code-analysis.md)                                       |
 | PyInstaller                | CArchive, PYZ, Python bytecode                                                                        | Static inspection; [Python packaged applications](../python-packaged-applications.md)                                          |
@@ -173,6 +179,13 @@ Alat tambahan dan dukungan sistem host bergantung pada target yang dianalisis:
 | Sinyal logika terekam      | Anotasi dekoder, rentang sampel, dan diagnostik                                                       | Linux: sigrok-cli 0.7.2 + prlimit; [panduan sinyal](../signal-recordings.md)                                                   |
 | Paket dan sumber daya      | Inventaris berkas, digest, plist, struktur paket Apple, dan sumber daya yang diekstrak                | [Panduan artefak dan JavaScript](../javascript-artifact-reconstruction.md), [aplikasi Apple](../apple-application-analysis.md) |
 | Perilaku proses            | Keluaran terminal, interaksi, pengamatan proses keluar dan sistem berkas, serta perbandingan eksekusi | Linux/macOS dengan PTY native; [perekaman proses](../process-capture.md)                                                       |
+| Biner Go                   | Versi compiler tertanam, modul, penggantian dan pengaturan build                                      | Pemeriksaan statis bawaan ELF/PE/thin Mach-O; Tidak perlu memasang Go                                                          |
+| Database SQLite            | Tabel, kolom, indeks, view, trigger dan baris terpilih dari tabel biasa                               | Snapshot database/WAL lokal; Node.js 24.x >=24.15 atau 26+ dengan batas SQLite native                                          |
+| Objek kode GPU             | Target CUDA/HIP, parameter dan sumber daya kernel terpilih, teks PTX yang dipertahankan               | Pemeriksaan statis bawaan ELF/PE/fatbin/CUBIN/PTX; [GPU](../gpu-code-objects.md)                                               |
+| Berkas model               | Metadata GGUF / safetensors, deklarasi tensor dan total turunan                                       | Pemeriksaan header; hash seluruh berkas opsional; [GGUF / safetensors](../model-artifacts.md)                                  |
+| Metadata IL2CPP            | Citra assembly Unity global-metadata.dat, nama tipe/metode dan rentang indeks                         | Dekode statis versi 24, 27, 29, 31, 39; tanpa Unity                                                                            |
+| Godot PCK                  | Inventaris dan ekstraksi arsip, header/direktori asli dan identitas konten terpilih                   | Format statis 2, 3, 4; tanpa Godot                                                                                             |
+| Tanda tangan APK           | Penanda tangan v1/v2/v3/v3.1, sidik jari sertifikat, rotasi kunci dan konsistensi internal digest     | Pemeriksaan statis bawaan; `inspect_apk_signature`                                                                             |
 
 Pemeriksaan JavaScript dan .NET statis membaca berkas yang disediakan tanpa menjalankan aplikasinya. Perekaman runtime menjalankan atau berinteraksi dengan target yang dipilih menggunakan izin pengguna Anda. Setiap panduan runtime menjelaskan dampaknya.
 
@@ -182,7 +195,7 @@ Format native dan dukungan sistem host berbeda-beda menurut penyedia. Lihat [pen
 
 Ghidra juga mendukung [analisis DOS 16-bit](../ghidra-dos.md).
 
-Untuk biner berukuran besar, tingkatkan batas waktu startup menggunakan `REA_GHIDRA_STARTUP_TIMEOUT_MS`.
+Untuk biner berukuran besar, tingkatkan batas waktu startup menggunakan `REA_GHIDRA_STARTUP_TIMEOUT_MS` / `REA_HOPPER_STARTUP_TIMEOUT_MS`.
 
 Untuk memilih penyedia, lihat [panduan CLI](../cli.md#choose-a-provider).
 

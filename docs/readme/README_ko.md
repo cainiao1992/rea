@@ -80,6 +80,8 @@ npx rea-agents setup
 
 설정은 Claude Code, Codex, Cursor, Gemini CLI, Grok Build 및 [다른 에이전트](../installation.md#supported-agents)를 지원합니다. 제공자 설정과 수동 MCP 등록은 [설치 및 설정](../installation.md)을 참고하세요.
 
+MCP는 기본적으로 간결한 입력 스키마를 사용합니다. 전체 필드 안내와 중첩 검증 정보가 필요하면 MCP 등록에서 `REA_MCP_INPUT_SCHEMA_PROFILE=full`을 설정하세요. 두 프로필 모두 전체 도구와 동일한 정규 서버 검증을 유지합니다. MCP 계약 가이드를 참고하세요.
+
 ### 에이전트에게 요청
 
 ```text
@@ -177,6 +179,11 @@ REA에는 Node.js 22.x(>=22.23.4), 24.x(>=24.22.1) 또는 26+ (>=26.12.1)와 npm
 | 패키지 및 리소스       | 파일 목록, 다이제스트, plist, Apple 번들 구조, 추출한 리소스                  | [아티팩트 및 JavaScript 가이드](../javascript-artifact-reconstruction.md), [Apple 애플리케이션](../apple-application-analysis.md) |
 | 프로세스 동작          | 터미널 출력, 상호작용, 종료 및 파일 시스템 관찰 결과, 실행 비교               | 네이티브 PTY를 지원하는 Linux/macOS; [프로세스 캡처](../process-capture.md)                                                       |
 | PyInstaller            | CArchive, PYZ, Python bytecode                                                | Static inspection; [Python packaged applications](../python-packaged-applications.md)                                             |
+| GPU 코드 객체          | CUDA/HIP 대상, 선택한 커널 매개변수와 자원, 보존된 PTX 텍스트                 | 내장 정적 검사 ELF/PE/fatbin/CUBIN/PTX; [GPU](../gpu-code-objects.md)                                                             |
+| 모델 파일              | GGUF / safetensors 메타데이터, 텐서 선언과 계산한 합계                        | 헤더 검사; 전체 파일 해시는 선택 사항; [GGUF / safetensors](../model-artifacts.md)                                                |
+| IL2CPP 메타데이터      | Unity global-metadata.dat 어셈블리 이미지, 형식·메서드 이름과 인덱스 범위     | 버전 24, 27, 29, 31, 39 정적 디코딩; Unity 불필요                                                                                 |
+| Godot PCK              | 아카이브 목록과 추출, 원본 헤더·디렉터리 정보, 선택한 내용 식별 정보          | 정적 형식 2, 3, 4; Godot 불필요                                                                                                   |
+| APK 서명               | v1/v2/v3/v3.1 서명자, 인증서 지문, 키 교체와 다이제스트 자체 일관성           | 내장 정적 검사; `inspect_apk_signature`                                                                                           |
 
 정적 JavaScript 및 .NET 검사는 제공된 파일을 읽으며 애플리케이션을 실행하지 않습니다. 런타임 캡처는 사용자의 권한으로 선택한 대상을 실행하거나 대상과 상호작용합니다. 각 런타임 가이드에서 그 영향을 설명합니다.
 

@@ -66,6 +66,8 @@ REA 將 AI 代理連接到分析工具，用於檢查原生二進位檔案、Jav
 
 ## 快速開始
 
+Linux 上的 Ghidra、JADX、韌體工具啟動和靜態 JavaScript/Electron 分析需要在 REA 的 `PATH` 中提供相容 procps 的 `ps`，用於檢查程序所有權。復原步驟見[安裝指南的 Linux 程序所有權前提](../installation.md#linux-owned-process-prerequisite)。
+
 ### 設定 AI 代理
 
 安裝 Node.js 和 npm 後，執行：
@@ -77,6 +79,8 @@ npx rea-agents setup
 選擇 AI 代理，檢查計劃中的變更並核准。設定流程會添加 REA 的 MCP 服務和對應的工作流程指引，並備份已有組態。完成後重新啟動 AI 代理。
 
 設定流程支援 Claude Code、Codex、Cursor、Gemini CLI、Grok Build 和[其他 AI 代理](../installation.md#supported-agents)。提供者組態和手動註冊 MCP 的方法見[安裝與設定](../installation.md)。
+
+MCP 預設使用精簡輸入 Schema，以減少上下文開銷。需要完整欄位說明和巢狀驗證細節時，請在 MCP 註冊中設定 `REA_MCP_INPUT_SCHEMA_PROFILE=full`。兩種設定都保留完整工具集和標準的伺服器驗證；見 MCP 合約指南。
 
 ### 詢問 AI 代理
 
@@ -114,6 +118,8 @@ REA 更新較快，新版本經常包含錯誤修復。請將安裝的版本保�
 ```bash
 rea update
 ```
+
+`rea --update` 是 `rea update` 的別名，接受相同的全域輸出選項。更新命令合計最多保留 4 MiB 的 stdout/stderr；命令結束後會拒絕過大的中繼資料回應，詳細安裝記錄採用有界診斷。進度輸出遵守終端背壓並等待已提交的寫入完成。
 
 Bun 全域更新需要 Bun 1.2.17 或更新版本。如果使用較舊的 Bun 版本，請先手動升級 Bun，再執行 `rea update`。
 
@@ -154,9 +160,9 @@ REA 需要 Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）或 26+ (>=26.12.1)�
 | ELF notes             | PT_NOTE/SHT_NOTE owners, types, GNU build-id and ABI-tag fields              | Built-in static ELF inspection; [ELF notes](../elf-notes.md)                                                       |
 | 已記錄的 Linux 崩潰   | 原始 note 記錄、每個已記錄執行緒的暫存器/訊號及可選的對映候選項              | Linux x64 上由呼叫方提供的 pwntools；可選的 GDB/pwndbg；[已記錄崩潰](../recorded-crashes.md)                       |
 | 桌面安裝目錄          | 執行階段候選、支持檔案、元件標記與後續操作                                   | 有界的目錄與檔頭檢查；[桌面應用](../desktop-applications.md)                                                       |
-| JavaScript / Electron | 模組、匯入、source map、路由、IPC 和原生附加元件關係                         | Node.js 和 npm；[應用分析](../javascript-application-workflows.md)                                                 |
+| JavaScript / Electron | 模組、匯入、source map、路由、IPC 和原生附加元件關係                         | Node.js 和 npm；[應用分析](../javascript-application-workflows.md); Linux: procps `ps`                             |
 | 網站                  | 頁面結構、腳本、網路觀察結果和按請求獲取的螢幕擷取畫面                       | Chrome 系瀏覽器；[瀏覽器分析](../browser-observation.md)                                                           |
-| 已保存的網路擷取      | 請求、回應、可訪問的酬載和來源位置                                           | HAR；原生 mitmproxy 擷取需要 Linux 上的 mitmdump；[擷取指南](../web-network-captures.md)                           |
+| 已保存的網路擷取      | 請求、回應、可訪問的酬載和來源位置                                           | HAR / Fiddler Everywhere SAZ；原生 mitmproxy 擷取需要 Linux 上的 mitmdump；[擷取指南](../web-network-captures.md)  |
 | 封包擷取              | 端點、DNS、TLS SNI、通訊協定分佈和 HTTP 請求                                 | 呼叫端提供的 tshark 和 capinfos；[pcap 指南](../pcap-analysis.md)                                                  |
 | .NET 程式集           | 中繼資料、CIL 指令、聲明的原生依賴和建置對比                                 | 靜態檢查；[托管程式碼指南](../managed-code-analysis.md)                                                            |
 | PyInstaller           | CArchive, PYZ, Python bytecode                                               | Static inspection; [Python packaged applications](../python-packaged-applications.md)                              |
@@ -170,10 +176,18 @@ REA 需要 Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）或 26+ (>=26.12.1)�
 | 錄製的邏輯訊號        | 解碼註解、樣本範圍與診斷資訊                                                 | Linux: sigrok-cli 0.7.2 + prlimit; [訊號記錄指南](../signal-recordings.md)                                         |
 | 軟體包與資源          | 檔案清單、摘要、plist、Apple bundle 結構和提取的資源                         | [製品與 JavaScript 指南](../javascript-artifact-reconstruction.md)、[Apple 應用](../apple-application-analysis.md) |
 | 處理程序行為          | 終端輸出、互動、退出和檔案系統觀察結果，以及執行對比                         | 支援原生 PTY 的 Linux/macOS；[處理程序擷取](../process-capture.md)                                                 |
+| SQLite 資料庫         | 資料表、欄位、索引、檢視、觸發器和選定普通資料表的列                         | 本機資料庫/WAL 快照；Node.js 24.x >=24.15 或 26+，具備原生 SQLite 限制 API                                         |
+| GPU 程式碼物件        | CUDA/HIP 目標、選定核心參數和資源、保留的 PTX 文字                           | 內建靜態檢查 ELF/PE/fatbin/CUBIN/PTX; [GPU](../gpu-code-objects.md)                                                |
+| 模型檔案              | GGUF / safetensors 中繼資料、張量宣告和衍生總量                              | 標頭檢查；可選完整檔案雜湊; [GGUF / safetensors](../model-artifacts.md)                                            |
+| IL2CPP 中繼資料       | Unity global-metadata.dat 組件映像、型別與方法名稱、索引範圍                 | 靜態解碼版本 24、27、29、31 和 39；無需 Unity                                                                      |
+| Godot PCK             | 封存清單與擷取、原始標頭和目錄資訊、選定內容身分                             | 靜態格式 2、3 和 4；無需 Godot                                                                                     |
+| APK 簽章              | v1/v2/v3/v3.1 簽署者、憑證指紋、金鑰輪換和摘要自洽性                         | 內建靜態檢查; `inspect_apk_signature`                                                                              |
 
 靜態 JavaScript 和 .NET 檢查讀取提供的檔案，不執行應用。執行階段擷取會以你的使用者權限執行目標或與之互動；各執行階段指南說明瞭具體影響。
 
 <a id="choosing-a-deep-analysis-provider"></a>
+
+大型二進位檔可透過 `REA_GHIDRA_STARTUP_TIMEOUT_MS` 或 `REA_HOPPER_STARTUP_TIMEOUT_MS` 延長提供者啟動期限。
 
 不同提供者支援的原生格式和主機系統有所不同。請參閱 [Hopper 與 Ghidra 設定](../installation.md#hopper)、[IDA 指南](../ida-provider.md)、[Kuna](../kuna-provider.md)和[實驗性 Windows Ghidra 支援](../windows-ghidra-p0.md)。Ghidra 也支援 [16 位 DOS 分析](../ghidra-dos.md)。提供者選擇見 [CLI 指南](../cli.md#choose-a-provider)。對於最新 npm 版本發佈後新增的功能，請查看[發佈可用性](../installation.md#released-package-and-main)。
 

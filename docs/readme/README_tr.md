@@ -66,6 +66,8 @@ Kurulum, REA'yı ajanınıza kaydeder ve uyumlu iş akışı talimatlarını yü
 
 ## Hızlı başlangıç
 
+Linux’ta Ghidra, JADX ve firmware araçlarının başlatılması ile statik JavaScript/Electron analizi, süreç sahipliğini doğrulamak için REA’nın `PATH` değişkeninde procps uyumlu `ps` gerektirir. Çözüm adımları için [Linux ön koşuluna](../installation.md#linux-owned-process-prerequisite) bakın.
+
 ### Ajanınızı yapılandırın
 
 Node.js ve npm yüklüyken şu komutu çalıştırın:
@@ -77,6 +79,8 @@ npx rea-agents setup
 Ajanlarınızı seçin, önerilen değişiklikleri inceleyin ve onaylayın. Kurulum, mevcut yapılandırmaları yedekleyerek REA'nın MCP sunucusunu ve uyumlu iş akışı talimatlarını ekler. Ardından ajanınızı yeniden başlatın.
 
 Kurulum Claude Code, Codex, Cursor, Gemini CLI, Grok Build ve [diğer ajanları](../installation.md#supported-agents) destekler. Sağlayıcı yapılandırması ve elle MCP kaydı için [yükleme ve kurulum](../installation.md) belgesine bakın.
+
+MCP varsayılan olarak kompakt girdi şemaları kullanır. Tam alan açıklamaları ve iç içe doğrulama ayrıntıları için MCP kaydında `REA_MCP_INPUT_SCHEMA_PROFILE=full` ayarlayın. Her iki profil tüm araçları ve aynı kanonik sunucu doğrulamasını korur; MCP sözleşme rehberine bakın.
 
 ### Ajanınıza sorun
 
@@ -114,6 +118,8 @@ REA hızla değişir ve yeni sürümler sık sık hata düzeltmeleri içerir. Ku
 ```bash
 rea update
 ```
+
+`rea --update`, aynı global çıktı seçeneklerini alan `rea update` takma adıdır. Güncelleme komutları toplam en fazla 4 MiB stdout/stderr tutar. Fazla büyük metaveri yanıtları komut bittikten sonra reddedilir; ayrıntılı kurulumlar sınırlı tanılama tutar. İlerleme çıktısı terminalin geri basıncına uyar ve gönderilmiş yazmaların bitmesini bekler.
 
 Bun ile yapılan global güncellemeler için Bun 1.2.17 veya üzeri gerekir. Daha eski bir Bun sürümünü kullanıyorsanız `rea update` komutunu çalıştırmadan önce Bun'u manuel olarak yükseltin.
 
@@ -155,7 +161,7 @@ REA; Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) veya 26+ (>=26.12.1) ve npm gere
 | SQLite veritabanları                    | Tablolar, sütunlar, index'ler, view'lar, trigger'lar ve seçilen sıradan tablo satırları                     | Yerel database/WAL snapshot'ı; native SQLite sınırlarıyla Node.js 24.x >=24.15 veya 26+                                            |
 | Kaydedilmiş Linux çökmeleri             | Ham note kayıtları, kaydedilen her iş parçacığının yazmaçları/sinyalleri ve isteğe bağlı eşleme adayları    | Linux x64 üzerinde çağıranın sağladığı pwntools; isteğe bağlı GDB/pwndbg; [kaydedilmiş çökmeler](../recorded-crashes.md)           |
 | Masaüstü kurulumları                    | Çalışma zamanı adayları, kanıt dosyaları, bileşen işaretleri ve sonraki adımlar                             | Sınırlı dizin ve başlık incelemesi；[Masaüstü uygulamaları](../desktop-applications.md)                                            |
-| JavaScript / Electron                   | Modüller, içe aktarmalar, kaynak haritaları, rotalar, IPC ve yerel eklenti ilişkileri                       | Node.js ve npm; [uygulama analizi](../javascript-application-workflows.md)                                                         |
+| JavaScript / Electron                   | Modüller, içe aktarmalar, kaynak haritaları, rotalar, IPC ve yerel eklenti ilişkileri                       | Node.js ve npm; [uygulama analizi](../javascript-application-workflows.md); Linux: procps `ps`                                     |
 | Web siteleri                            | Sayfa yapısı, betikler, ağ gözlemleri ve istenen ekran görüntüleri                                          | Chrome ailesinden bir tarayıcı; [tarayıcı analizi](../browser-observation.md)                                                      |
 | Kaydedilmiş ağ yakalamaları             | İstekler, yanıtlar, erişilebilir yük içerikleri ve kaynak konumları                                         | HAR veya Fiddler Everywhere SAZ; Linux'ta native mitmproxy için mitmdump; [ağ yakalama rehberi](../web-network-captures.md)        |
 | .NET derlemeleri                        | Meta veriler, CIL talimatları, bildirilmiş yerel bağımlılıklar ve derleme karşılaştırmaları                 | Statik inceleme; [yönetilen kod rehberi](../managed-code-analysis.md)                                                              |
@@ -171,6 +177,11 @@ REA; Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) veya 26+ (>=26.12.1) ve npm gere
 | Kaydedilmiş mantık sinyalleri           | Kod çözücü açıklamaları, örnek aralıkları ve tanılama                                                       | Linux: sigrok-cli 0.7.2 + prlimit; [sinyal kılavuzu](../signal-recordings.md)                                                      |
 | Paketler ve kaynaklar                   | Dosya envanterleri, özet değerleri, plist'ler, Apple paket yapısı ve çıkarılmış kaynaklar                   | [Artefakt ve JavaScript rehberi](../javascript-artifact-reconstruction.md), [Apple uygulamaları](../apple-application-analysis.md) |
 | Süreç davranışı                         | Terminal çıktısı, etkileşimler, sonlanma ve dosya sistemi gözlemleri, çalıştırma karşılaştırmaları          | Yerel PTY ile Linux/macOS; [süreç yakalama](../process-capture.md)                                                                 |
+| GPU kod nesneleri                       | CUDA/HIP hedefleri, seçili kernel parametreleri ve kaynakları, korunan PTX metni                            | Yerleşik statik inceleme ELF/PE/fatbin/CUBIN/PTX; [GPU](../gpu-code-objects.md)                                                    |
+| Model dosyaları                         | GGUF / safetensors metaverisi, tensor bildirimleri ve türetilmiş toplamlar                                  | Başlık incelemesi; tüm dosyanın hash’i isteğe bağlı; [GGUF / safetensors](../model-artifacts.md)                                   |
+| IL2CPP metaverisi                       | Unity global-metadata.dat assembly görüntüleri, tür/metot adları ve dizin aralıkları                        | 24, 27, 29, 31, 39 sürümlerini statik çözümleme; Unity gerekmez                                                                    |
+| Godot PCK                               | Arşiv envanteri ve çıkarma, özgün başlık/dizin bilgileri ve seçili içerik kimlikleri                        | Statik biçimler 2, 3, 4; Godot gerekmez                                                                                            |
+| APK imzaları                            | v1/v2/v3/v3.1 imzalayanları, sertifika parmak izleri, anahtar rotasyonu ve digest iç tutarlılığı            | Yerleşik statik inceleme; `inspect_apk_signature`                                                                                  |
 
 Statik JavaScript ve .NET incelemesi, uygulamayı çalıştırmadan sağlanan dosyaları okur. Çalışma zamanı yakalaması, seçilen hedefi kullanıcı izinlerinizle çalıştırır veya onunla etkileşime girer; her çalışma zamanı rehberi etkilerini açıklar.
 

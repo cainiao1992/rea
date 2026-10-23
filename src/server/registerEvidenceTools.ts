@@ -61,10 +61,8 @@ export const registerEvidenceTools = (
       contract.name,
       toolRegistrationOptions(contract),
       async (input, context) => {
-        const ready = options.preflight?.(
-          contract.name,
-          jsonObjectSchema.parse(input),
-        );
+        const parameters = jsonObjectSchema.parse(input);
+        const ready = options.preflight?.(contract.name, parameters);
         if (ready !== undefined && !ready.ok)
           return server.delivery.toCallToolResult(ready, contract);
         const admitted = await options.withAdmittedAnalysis(
@@ -81,7 +79,6 @@ export const registerEvidenceTools = (
               total: 1,
               message: "started",
             });
-            const parameters = jsonObjectSchema.parse(input);
             const executionParameters =
               options.parametersForExecution?.(contract.name, parameters) ??
               parameters;

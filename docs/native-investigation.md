@@ -433,9 +433,15 @@ complete observation.
   its outcome. Paths outside the analyzed root, including shared-cache system
   libraries, stay undetermined. See
   [Apple application analysis](apple-application-analysis.md#dylib-load-resolution).
+  Executable-root discovery preserves traversal uncertainty and skipped
+  symlinks as partial coverage; it cannot establish an empty root set from
+  unexamined names or symlink targets.
 - `inspect_asset_catalog` / `rea inspect-asset-catalog <app>` reads compiled
   `Assets.car` metadata through macOS `assetutil --info`. Catalog digests, raw
   rendition fields, pagination and exact UI resource-name matches are returned.
+  `inventory_coverage` describes traversal of source entries and remains
+  `unknown` when the reader cannot represent a filename. Represented symlinks
+  are inventoried but their targets remain uninspected, with a limitation.
   Image extraction and undocumented rendition interpretation are unsupported.
 - `inspect_keyed_archive` / `rea inspect-keyed-archive <plist>` reads XML or
   binary Foundation keyed archives without instantiating classes. For an active
@@ -509,6 +515,13 @@ complete observation.
   Archives beyond either aggregate budget are omitted with their paths and an
   explicitly partial `archive_decode` facet; previously decoded documents and
   their identities remain available.
+  The same facet is partial when source traversal cannot represent a filename
+  or an archive-shaped symlink was skipped. Unknown filename coverage has no
+  invented document count; known skipped nib and storyboard links are counted
+  as omitted. A readable empty bundle can report complete zero-document
+  coverage. Source I/O and identity failures retain their acquisition error
+  instead of being labeled invalid archive content. Rejected plist decodes
+  release their representation reservation for later documents.
 - `inspect_native_dispatch_metadata` /
   `rea inspect-native-dispatch-metadata <app-or-binary>` prefers a validated macOS Mach-O byte reader. It decodes
   64-bit little-endian Objective-C class/metaclass records, superclass pointers,

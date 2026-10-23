@@ -15,6 +15,34 @@ import {
 } from "./AppleAssetCatalogAnalysis.js";
 
 describe("Apple asset catalog application workflow", () => {
+  it.for([false, true])(
+    "retains catalog traversal coverage with invalid-byte entries: %s",
+    async (invalidName, context) => {
+      if (invalidName && process.platform !== "linux") context.skip();
+      const bundle = await createTestTempDirectory("rea-asset-traversal-");
+      if (invalidName)
+        await writeFile(
+          Buffer.concat([Buffer.from(`${bundle}/`), Buffer.from([0xff])]),
+          "unrepresented",
+        );
+      const result = await analyzeAppleAssetCatalogs({
+        bundlePath: bundle,
+        targetSha256: "a".repeat(64),
+        environment: {},
+        runAssetUtil: async () => {
+          throw new Error("no catalog was admitted");
+        },
+      });
+      expect(result.inventory_coverage).toEqual({
+        scope: "container-entries",
+        status: invalidName ? "unknown" : "complete",
+      });
+      if (invalidName)
+        expect(result.limitations).toContainEqual(
+          expect.stringContaining("not valid UTF-8"),
+        );
+    },
+  );
   it("joins only explicit resource-key fields with archive provenance", () => {
     expect(
       collectInterfaceBuilderResourceKeys([
@@ -63,6 +91,21 @@ describe("Apple asset catalog application workflow", () => {
         key: "Toolbar",
       },
     ]);
+  });
+
+  it("keeps represented symlinks distinct from catalog-target inspection", async () => {
+    const bundle = await createTestTempDirectory("rea-asset-subtree-");
+    await symlink("unexamined", join(bundle, "Resources"));
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      environment: {},
+      runAssetUtil: async () => "[]",
+    });
+    expect(result.inventory_coverage.status).toBe("complete");
+    expect(result.limitations).toContainEqual(
+      expect.stringContaining("catalogs beneath them may remain uninspected"),
+    );
   });
 
   it.each([0, 1, 5])(

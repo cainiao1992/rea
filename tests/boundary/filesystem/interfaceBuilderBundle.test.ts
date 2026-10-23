@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { analyzeInterfaceBuilderBundle } from "../../../src/artifacts/apple/InterfaceBuilderAnalysis.js";
 import { InterfaceBuilderDecodeBudget } from "../../../src/artifacts/apple/InterfaceBuilderDecodeBudget.js";
+import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
+import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
 import { encodeNibArchiveFixture } from "../../../src/artifacts/apple/NibArchive.fixture.js";
 import { thinMach } from "../../../src/domain/binaryTarget.fixture.js";
 import { xcodeIbtoolAvailable } from "../../fixtures/ibtool.js";
@@ -551,6 +553,81 @@ describe("flat Interface Builder plist values", () => {
 });
 
 describe("bounded Interface Builder archive decoding", () => {
+  it.for([
+    "empty",
+    "invalid-byte-name",
+    "nib-symlink",
+    "storyboard-symlink",
+    "subtree-symlink",
+  ])("preserves discovery coverage for %s", async (kind, context) => {
+    if (kind === "invalid-byte-name" && process.platform !== "linux")
+      context.skip();
+    const bundle = await createTestTempDirectory("rea-ib-traversal-");
+    if (kind === "invalid-byte-name")
+      await writeFile(
+        Buffer.concat([
+          Buffer.from(`${bundle}/`),
+          Buffer.from([0xff]),
+          Buffer.from(".nib"),
+        ]),
+        "unrepresented",
+      );
+    if (kind === "nib-symlink" || kind === "storyboard-symlink")
+      await symlink(
+        "unexamined",
+        join(bundle, kind === "nib-symlink" ? "Panel.nib" : "Main.storyboardc"),
+      );
+    if (kind === "subtree-symlink")
+      await symlink("unexamined", join(bundle, "Resources"));
+    const result = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+    });
+    expect(result.documents).toEqual([]);
+    expect(result.graph.coverage).toContainEqual({
+      facet: "archive_decode",
+      status: kind === "empty" ? "complete" : "partial",
+      reason:
+        kind === "empty"
+          ? null
+          : kind === "invalid-byte-name" || kind === "subtree-symlink"
+            ? "source_traversal_unknown"
+            : "archive_not_regular_file",
+      examined: 0,
+      omitted: kind === "nib-symlink" || kind === "storyboard-symlink" ? 1 : 0,
+    });
+    expect(result.graph.truncated).toBe(kind !== "empty");
+    if (kind === "invalid-byte-name")
+      expect(result.limitations).toContainEqual(
+        expect.stringContaining("not valid UTF-8"),
+      );
+  });
+
+  it.each(["io", "integrity"] as const)(
+    "preserves typed %s acquisition failures instead of calling the archive invalid",
+    async (reason) => {
+      const bundle = await createTestTempDirectory("rea-ib-source-failure-");
+      await writeFile(join(bundle, "Panel.nib"), "unread");
+      const failure = new ArtifactReaderFailure(
+        reason,
+        "source acquisition failed",
+      );
+      const open = vi
+        .spyOn(DirectoryArtifactReader.prototype, "open")
+        .mockRejectedValue(failure);
+      try {
+        await expect(
+          analyzeInterfaceBuilderBundle({
+            bundlePath: bundle,
+            targetSha256: null,
+          }),
+        ).rejects.toBe(failure);
+      } finally {
+        open.mockRestore();
+      }
+    },
+  );
+
   it("marks repeated NIB hierarchy references partial at the caller object limit", async () => {
     const root = await createTestTempDirectory("rea-ib-repeated-hierarchy-");
     const bundle = join(root, "Example.app");
@@ -1152,6 +1229,43 @@ describe("binary Interface Builder archive omissions", () => {
 });
 
 describe("aggregate Interface Builder archive retention budget", () => {
+  it("releases the rejected representation of malformed XML before decoding a healthy sibling", async () => {
+    const bundle = await createTestTempDirectory(
+      "rea-ib-rejected-reservation-",
+    );
+    await writeFile(
+      join(bundle, "A.nib"),
+      "<plist><dict><key>broken</key><string>unterminated",
+    );
+    await writeFile(
+      join(bundle, "B.nib"),
+      encodeNibArchiveFixture({
+        classes: ["NSView"],
+        objects: [{ classIndex: 0, values: {} }],
+      }),
+    );
+    const release = vi.spyOn(InterfaceBuilderDecodeBudget.prototype, "release");
+    try {
+      const result = await analyzeInterfaceBuilderBundle({
+        bundlePath: bundle,
+        targetSha256: "a".repeat(64),
+      });
+      expect(
+        result.documents.map(({ relative_path }) => relative_path),
+      ).toEqual(["B.nib"]);
+      expect(result.graph.coverage).toContainEqual(
+        expect.objectContaining({
+          facet: "archive_decode",
+          status: "partial",
+          reason: "one_or_more_archives_invalid",
+        }),
+      );
+      expect(release.mock.calls).toHaveLength(1);
+      expect(release.mock.calls[0]?.[0]).toBeGreaterThan(0);
+    } finally {
+      release.mockRestore();
+    }
+  });
   it("keeps earlier documents when the aggregate decode reservation is exhausted", async () => {
     const root = await createTestTempDirectory("rea-ib-budget-test-");
     const bundle = join(root, "Example.app");

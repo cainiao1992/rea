@@ -15,7 +15,10 @@ import {
   type MachoImageFacts,
 } from "../../domain/apple/dylibResolution.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
-import { ArtifactReaderFailure } from "../ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  type ArtifactReaderTraversal,
+} from "../ArtifactReader.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { consumeWithOrderedReads } from "../OrderedReads.js";
 import {
@@ -136,12 +139,15 @@ export const traceDylibResolution = async (options: {
         files,
         options.signal,
       );
-      const { roots: requested, unclassified } =
-        parsed.data.roots !== undefined
-          ? { roots: parsed.data.roots, unclassified: [] }
-          : options.enumerateRoots
-            ? await executableRoots(root, view, files, options.signal)
-            : { roots: [target], unclassified: [] };
+      const {
+        roots: requested,
+        unclassified,
+        traversal,
+      } = parsed.data.roots !== undefined
+        ? { roots: parsed.data.roots, unclassified: [], traversal: undefined }
+        : options.enumerateRoots
+          ? await executableRoots(root, view, files, options.signal)
+          : { roots: [target], unclassified: [], traversal: undefined };
       const roots = await requireMachoRoots(
         view,
         requested,
@@ -173,6 +179,12 @@ export const traceDylibResolution = async (options: {
       assertArtifactReadActive(options.signal);
       return dylibResolutionResultSchema.parse({
         ...trace,
+        coverage: {
+          ...trace.coverage,
+          status:
+            traversal?.status === "unknown" ? "partial" : trace.coverage.status,
+        },
+        limitations: [...trace.limitations, ...(traversal?.limitations ?? [])],
         root_path: options.rootPath,
         target_sha256: options.targetSha256,
         images: trace.images.map((image) => ({
@@ -196,17 +208,41 @@ const executableRoots = async (
   view: FilesystemTreeView,
   files: DylibFileAccess,
   signal?: AbortSignal,
-): Promise<{ readonly roots: string[]; readonly unclassified: string[] }> => {
+): Promise<{
+  readonly roots: string[];
+  readonly unclassified: string[];
+  readonly traversal: ArtifactReaderTraversal;
+}> => {
   const roots: string[] = [];
   const unclassified: string[] = [];
+  let status: ArtifactReaderTraversal["status"] = "complete";
+  const limitations: string[] = [];
+  let symlinks = 0;
+  let firstSymlink: string | undefined;
   // Bundles hold tens of thousands of files and few Mach-O images, so the
   // magic reads overlap the walk while results are classified in walk order.
   await consumeWithOrderedReads(
-    new DirectoryArtifactReader(root).entries(signal),
+    new DirectoryArtifactReader(root).entries(signal, {
+      onCoverage: (coverage) => {
+        if (coverage.status !== "complete") status = coverage.status;
+        limitations.push(...coverage.limitations);
+      },
+      onOmission: ({ path, kind }) => {
+        status = "unknown";
+        limitations.push(
+          `Executable-root traversal omitted ${kind} at ${JSON.stringify(path)}; its root role is unknown.`,
+        );
+      },
+    }),
     MAGIC_READ_CONCURRENCY,
     (entry) =>
       entry.kind === "file" ? files.startsWithMachoMagic(entry) : undefined,
     async (entry, macho) => {
+      if (entry.kind === "symlink") {
+        status = "unknown";
+        symlinks += 1;
+        firstSymlink ??= entry.path;
+      }
       if (!macho) return;
       const facts = await view.image(entry.path);
       if (facts.status === "malformed" || facts.status === "unsupported")
@@ -220,9 +256,14 @@ const executableRoots = async (
         roots.push(entry.path);
     },
   );
+  if (symlinks > 0)
+    limitations.push(
+      `Executable-root discovery did not follow ${symlinks} symlink(s); their root roles and possible descendants are unknown. First path: ${JSON.stringify(firstSymlink)}.`,
+    );
   return {
     roots: roots.sort(compare),
     unclassified: unclassified.sort(compare),
+    traversal: { status, limitations },
   };
 };
 

@@ -3,6 +3,10 @@ import { bundleResourceBoundResultSchema } from "./bundleResourceRoot.js";
 
 import { jsonValueSchema } from "../jsonValue.js";
 import { AnalysisOutputError } from "../analysisErrorCore.js";
+import {
+  artifactInventoryCoverageSchema,
+  type ArtifactInventoryCoverage,
+} from "../artifactGraph.js";
 
 const RESOURCE_KEY_FIELDS = new Set([
   "image",
@@ -71,6 +75,7 @@ export const appleAssetCatalogResultSchema = bundleResourceBoundResultSchema(
   z.string().regex(/^[a-f0-9]{64}$/u),
   {
     catalogs: z.array(catalogSchema),
+    inventory_coverage: artifactInventoryCoverageSchema,
     total_records: z.int().nonnegative(),
     offset: z.int().nonnegative(),
     limit: z.int().positive(),
@@ -109,6 +114,7 @@ export const parseAppleAssetCatalogRecords = (
 
 /** Project catalog records and apply stable global pagination. */
 export const projectAppleAssetCatalogPage = (input: {
+  readonly inventoryCoverage?: ArtifactInventoryCoverage;
   readonly targetSha256: string | null;
   readonly resourceRoot?: import("./bundleResourceRoot.js").BundleResourceRoot;
   readonly catalogs: readonly {
@@ -178,6 +184,10 @@ export const projectAppleAssetCatalogPage = (input: {
     };
   });
   return appleAssetCatalogResultSchema.parse({
+    inventory_coverage: input.inventoryCoverage ?? {
+      scope: "container-entries",
+      status: "unknown",
+    },
     target_sha256: input.targetSha256,
     ...(input.resourceRoot === undefined
       ? {}

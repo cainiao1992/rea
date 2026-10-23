@@ -4,6 +4,7 @@ import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import {
   ArtifactReaderFailure,
   sameArtifactSourceIdentity,
+  type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
 import { analyzeInterfaceBuilderBundle } from "./InterfaceBuilderAnalysis.js";
 import {
@@ -67,8 +68,9 @@ export const analyzeAppleAssetCatalogs = async (input: {
   );
   let catalogs: Awaited<ReturnType<typeof collectAssetCatalogs>>["catalogs"];
   let uninspected: readonly string[];
+  let traversal: ArtifactReaderTraversal;
   try {
-    ({ catalogs, uninspected } = await collectAssetCatalogs(input));
+    ({ catalogs, uninspected, traversal } = await collectAssetCatalogs(input));
   } catch (cause: unknown) {
     interfaceBuilderCancel.abort();
     await interfaceBuilderAnalysis;
@@ -86,6 +88,7 @@ export const analyzeAppleAssetCatalogs = async (input: {
       ? {}
       : { resourceRoot: input.resourceRoot }),
     catalogs,
+    inventoryCoverage: { scope: "container-entries", status: traversal.status },
     offset: page.offset,
     limit: page.limit,
     resourceReferences,
@@ -94,6 +97,7 @@ export const analyzeAppleAssetCatalogs = async (input: {
     ...result,
     limitations: [
       ...result.limitations,
+      ...traversal.limitations,
       // An app without a compiled catalog is an observed empty inventory, not
       // a missing host tool.
       ...(catalogs.length === 0
@@ -133,9 +137,29 @@ const collectAssetCatalogs = async (input: {
     records: ReturnType<typeof parseAppleAssetCatalogRecords>;
   }[] = [];
   const uninspected: string[] = [];
+  let status: ArtifactReaderTraversal["status"] = "complete";
+  const limitations: string[] = [];
+  let symlinks = 0;
+  let firstSymlink: string | undefined;
   let totalMetadataBytes = 0;
   try {
-    for await (const entry of reader.entries(input.signal)) {
+    for await (const entry of reader.entries(input.signal, {
+      onCoverage: (coverage) => {
+        if (coverage.status !== "complete") status = coverage.status;
+        limitations.push(...coverage.limitations);
+      },
+      onOmission: ({ path, kind }) => {
+        if (path.split("/").at(-1) === "Assets.car")
+          uninspected.push(`${path} (${kind})`);
+      },
+    })) {
+      if (
+        entry.kind === "symlink" &&
+        entry.path.split("/").at(-1) !== "Assets.car"
+      ) {
+        symlinks += 1;
+        firstSymlink ??= entry.path;
+      }
       // Reader paths are `/`-separated; only an entry named exactly
       // Assets.car is a compiled catalog, not e.g. NotAssets.car.
       if (entry.path.split("/").at(-1) !== "Assets.car") continue;
@@ -162,6 +186,10 @@ const collectAssetCatalogs = async (input: {
   } finally {
     await reader.close();
   }
+  if (symlinks > 0)
+    limitations.push(
+      `Asset catalog discovery did not follow ${symlinks} symlink(s); catalogs beneath them may remain uninspected. First path: ${JSON.stringify(firstSymlink)}.`,
+    );
   // Without any readable catalog, unmatched resource keys would overstate an
   // absence that a skipped catalog entry may contradict.
   if (catalogs.length === 0 && uninspected.length > 0)
@@ -169,7 +197,7 @@ const collectAssetCatalogs = async (input: {
       "path",
       `Asset catalog entries are not regular files and were not inspected: ${uninspected.join(", ")}`,
     );
-  return { catalogs, uninspected };
+  return { catalogs, uninspected, traversal: { status, limitations } };
 };
 
 const inspectAssetCatalogEntry = async (input: {

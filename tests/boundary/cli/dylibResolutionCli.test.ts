@@ -110,6 +110,54 @@ const withBrokenHelper = async (app: string): Promise<void> => {
   await writeFiles(app, { "Contents/Helpers/broken": broken });
 };
 
+cliTest.skipIf(process.platform !== "linux")(
+  "keeps unrepresentable bundle entries from establishing complete executable-root coverage",
+  async ({ cli }) => {
+    const app = await fixtureApp();
+    await writeFile(
+      Buffer.concat([
+        Buffer.from(`${app}/Contents/Helpers/`),
+        Buffer.from([0xff]),
+      ]),
+      machoImage({}),
+    );
+    const observed = await runFileCli(cli, {
+      arguments: ["trace-dylib-resolution", app, "--json"],
+      environment: ENVIRONMENT,
+    });
+    expect(observed.exitCode, observed.stderr).toBe(0);
+    const result = dylibResolutionResultSchema.parse(
+      parseEvidence(observed.json).normalized_result,
+    );
+    expect(result.coverage.status).toBe("partial");
+    expect(result.limitations).toContainEqual(
+      expect.stringContaining("not valid UTF-8"),
+    );
+  },
+);
+
+cliTest(
+  "reports skipped executable-root symlink subtrees as partial discovery",
+  async ({ cli }) => {
+    const app = await fixtureApp();
+    await symlink("unexamined", join(app, "Contents", "LinkedResources"));
+    const observed = await runFileCli(cli, {
+      arguments: ["trace-dylib-resolution", app, "--json"],
+      environment: ENVIRONMENT,
+    });
+    expect(observed.exitCode, observed.stderr).toBe(0);
+    const result = dylibResolutionResultSchema.parse(
+      parseEvidence(observed.json).normalized_result,
+    );
+    expect(result.coverage.status).toBe("partial");
+    expect(result.limitations).toContainEqual(
+      expect.stringContaining(
+        "their root roles and possible descendants are unknown",
+      ),
+    );
+  },
+);
+
 cliTest(
   "does not turn U+FEFF-prefixed strings into dyld path tokens",
   async ({ cli }) => {

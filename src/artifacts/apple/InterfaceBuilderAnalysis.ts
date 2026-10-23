@@ -28,7 +28,11 @@ import {
   InterfaceBuilderDecodeBudget,
   InterfaceBuilderDecodeBudgetExceeded,
 } from "./InterfaceBuilderDecodeBudget.js";
-import type { ArtifactEntry } from "../ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  type ArtifactEntry,
+  type ArtifactReaderTraversal,
+} from "../ArtifactReader.js";
 import {
   buildInterfaceBuilderAnalysis,
   interfaceBuilderLimitsSchema,
@@ -83,6 +87,10 @@ export const analyzeInterfaceBuilderBundle = async (input: {
   let omitted = 0;
   let attempted = 0;
   let aggregateInputBytes = 0;
+  let traversal: ArtifactReaderTraversal = {
+    status: "complete",
+    limitations: [],
+  };
   const decodeBudget = new InterfaceBuilderDecodeBudget(
     MAX_AGGREGATE_DECODE_BYTES,
   );
@@ -98,8 +106,9 @@ export const analyzeInterfaceBuilderBundle = async (input: {
       limits.max_documents,
     );
     omitted = selection.omitted;
-    for (const entry of selection.omittedSamples)
-      recordOmittedArchive(entry.path, "max_documents");
+    traversal = selection.traversal;
+    for (const { path, reason } of selection.omittedSamples)
+      recordOmittedArchive(path, reason);
     unreportedOmittedArchives += selection.unreportedOmitted;
     for (const entry of selection.selected) {
       // Plist representation reserved for this document before decoding.
@@ -218,17 +227,20 @@ export const analyzeInterfaceBuilderBundle = async (input: {
             : { omittedSerializedHierarchyReferences: nib.omitted }),
         });
       } catch (cause: unknown) {
+        // Failed documents retain no plist representation, whatever phase
+        // rejected them. Do not charge that representation to later archives.
+        decodeBudget.release(plistReservation);
         if (input.signal?.aborted === true) throw cause;
+        // Read/identity failures describe source acquisition, not bad content.
+        if (cause instanceof ArtifactReaderFailure) throw cause;
         if (cause instanceof InterfaceBuilderDecodeBudgetExceeded) {
           // A document rejected while decoding, e.g. beyond the shared depth
           // limit, retains no representation; later documents keep its share.
-          decodeBudget.release(plistReservation);
           omitted += 1;
           recordOmittedArchive(entry.path, cause.reason);
           continue;
         }
         if (cause instanceof UnsupportedBinaryPlistUidError) {
-          decodeBudget.release(plistReservation);
           omitted += 1;
           recordOmittedArchive(entry.path, "unsupported_uid_exact_range");
           continue;
@@ -264,6 +276,7 @@ export const analyzeInterfaceBuilderBundle = async (input: {
     unreportedOmittedArchives,
     attempted,
     omitted,
+    traversal,
   });
 };
 
@@ -274,28 +287,70 @@ const selectInterfaceBuilderCandidates = async (
   maximumDocuments: number,
 ): Promise<{
   readonly selected: readonly ArtifactEntry[];
-  readonly omittedSamples: readonly ArtifactEntry[];
+  readonly omittedSamples: readonly { path: string; reason: string }[];
   readonly omitted: number;
   readonly unreportedOmitted: number;
+  readonly traversal: ArtifactReaderTraversal;
 }> => {
   const capacity = maximumDocuments + MAX_REPORTED_OMITTED_ARCHIVES;
   const candidates: ArtifactEntry[] = [];
+  const omittedSamples: Array<{ path: string; reason: string }> = [];
+  const traversalLimitations: string[] = [];
+  let traversalStatus: ArtifactReaderTraversal["status"] = "complete";
+  let nonRegular = 0;
+  let unclassifiedSymlinks = 0;
+  let firstUnclassifiedSymlink: string | undefined;
   let total = 0;
-  for await (const entry of reader.entries(signal)) {
+  const omit = (path: string, reason: string) => {
+    nonRegular += 1;
+    if (omittedSamples.length < MAX_REPORTED_OMITTED_ARCHIVES)
+      omittedSamples.push({ path, reason });
+  };
+  for await (const entry of reader.entries(signal, {
+    onCoverage: (coverage) => {
+      if (coverage.status !== "complete") traversalStatus = coverage.status;
+      traversalLimitations.push(...coverage.limitations);
+    },
+    onOmission: ({ path, kind }) => {
+      if (isInterfaceBuilderArchive(path)) omit(path, `non_regular_${kind}`);
+    },
+  })) {
+    // A directory-shaped nib is a container for objects.nib; its children
+    // are visited normally. Symlinks cannot establish their own or subtree
+    // archive coverage without following them.
+    if (entry.kind === "symlink") {
+      if (
+        isInterfaceBuilderArchive(entry.path) ||
+        entry.path.toLowerCase().endsWith(".storyboardc")
+      )
+        omit(entry.path, "non_regular_symlink");
+      else {
+        traversalStatus = "unknown";
+        unclassifiedSymlinks += 1;
+        firstUnclassifiedSymlink ??= entry.path;
+      }
+      continue;
+    }
     if (entry.kind !== "file" || !isInterfaceBuilderArchive(entry.path))
       continue;
     total += 1;
     retainCandidate(candidates, entry, capacity);
   }
-  const omittedSamples = candidates.slice(maximumDocuments, capacity);
+  if (unclassifiedSymlinks > 0)
+    traversalLimitations.push(
+      `Interface Builder discovery did not follow ${unclassifiedSymlinks} symlink(s); whether they contain archives is unknown. First path: ${JSON.stringify(firstUnclassifiedSymlink)}.`,
+    );
+  const omitted = Math.max(0, total - maximumDocuments) + nonRegular;
+  for (const entry of candidates.slice(maximumDocuments, capacity)) {
+    if (omittedSamples.length === MAX_REPORTED_OMITTED_ARCHIVES) break;
+    omittedSamples.push({ path: entry.path, reason: "max_documents" });
+  }
   return {
     selected: candidates.slice(0, maximumDocuments),
     omittedSamples,
-    omitted: Math.max(0, total - maximumDocuments),
-    unreportedOmitted: Math.max(
-      0,
-      total - maximumDocuments - omittedSamples.length,
-    ),
+    omitted,
+    unreportedOmitted: omitted - omittedSamples.length,
+    traversal: { status: traversalStatus, limitations: traversalLimitations },
   };
 };
 
@@ -337,6 +392,7 @@ const finalizeHierarchyCoverage = (
     unreportedOmittedArchives: number;
     attempted: number;
     omitted: number;
+    traversal: ArtifactReaderTraversal;
   },
 ) => {
   const {
@@ -355,7 +411,8 @@ const finalizeHierarchyCoverage = (
   const archiveDecodePartial =
     invalid.length > 0 ||
     prototypeKeyOmissions.size > 0 ||
-    omittedArchives.length > 0;
+    counts.omitted > 0 ||
+    counts.traversal.status !== "complete";
   return {
     ...result,
     documents: result.documents.map((document) => ({
@@ -389,19 +446,29 @@ const finalizeHierarchyCoverage = (
           status: archiveDecodePartial
             ? ("partial" as const)
             : ("complete" as const),
-          reason: omittedArchives.some(
-            ({ reason }) => reason === "aggregate_decode_budget_exhausted",
-          )
-            ? "aggregate_decode_budget_exhausted"
-            : omittedArchives.some(({ reason }) => reason === "max_documents")
-              ? "document_limit_reached"
-              : omittedArchives.length > 0
-                ? "archive_decode_budget_exhausted"
-                : invalid.length > 0
-                  ? "one_or_more_archives_invalid"
-                  : prototypeKeyOmissions.size > 0
-                    ? "dictionary_entries_omitted"
-                    : null,
+          reason:
+            counts.traversal.status !== "complete"
+              ? "source_traversal_unknown"
+              : omittedArchives.some(({ reason }) =>
+                    reason.startsWith("non_regular_"),
+                  )
+                ? "archive_not_regular_file"
+                : omittedArchives.some(
+                      ({ reason }) =>
+                        reason === "aggregate_decode_budget_exhausted",
+                    )
+                  ? "aggregate_decode_budget_exhausted"
+                  : omittedArchives.some(
+                        ({ reason }) => reason === "max_documents",
+                      )
+                    ? "document_limit_reached"
+                    : omittedArchives.length > 0
+                      ? "archive_decode_budget_exhausted"
+                      : invalid.length > 0
+                        ? "one_or_more_archives_invalid"
+                        : prototypeKeyOmissions.size > 0
+                          ? "dictionary_entries_omitted"
+                          : null,
           examined: counts.attempted,
           omitted: counts.omitted,
         },
@@ -414,6 +481,7 @@ const finalizeHierarchyCoverage = (
     },
     limitations: [
       ...result.limitations,
+      ...counts.traversal.limitations,
       "Compiled Interface Builder archives are private serialized object graphs. The decoder reports only recognized keyed-archive objects and connections; unrecognized object classes and fields remain unknown.",
       ...(incompleteHierarchies.size === 0
         ? []

@@ -315,6 +315,21 @@ it("retains unknown PTX virtual counts and partial payload coverage", async () =
   });
 });
 it.each([
+  ".entry k { ret; }",
+  ".entry k() { ret; }",
+  ".entry k .maxntid 1 { ret; }",
+])("inspects PTX entry with optional parameters: %s", async (entry) => {
+  const result = await inspect(
+    Buffer.from(`.version 7.0\n.target sm_80\n.address_size 64\n${entry}`),
+  );
+  if (!result.ok) throw result.error;
+  expect(result.value.objects[0]!.inspection).toBe("complete");
+  expect(result.value.coverage.payloads).toBe("complete");
+  expect(result.value.kernels).toMatchObject([
+    { name: "k", parameter_count: 0, parameter_bytes: 0, parameters: [] },
+  ]);
+});
+it.each([
   ["parameter", ".u64 output", ".u64 .ptr .global output"],
   ["shared", "scratch[32]", "scratch[]"],
 ] as const)(

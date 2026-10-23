@@ -190,7 +190,7 @@ export function* readPtxKernels(
     }
     if (outerDepth !== 0 || token.value !== ".entry") continue;
     const name = next();
-    if (!/^[A-Za-z_$][\w$@.]*$/u.test(name.value) || next().value !== "(")
+    if (!/^[A-Za-z_$][\w$@.]*$/u.test(name.value))
       rejectGpu("Malformed PTX entry name or parameters");
     const parameters: GpuKernel["parameters"] = [];
     let part: string[] = [],
@@ -222,18 +222,23 @@ export function* readPtxKernels(
       });
       part = [];
     };
-    for (let t = next(); t.value !== ")"; t = next()) {
-      if (t.value === ",") flush();
-      else part.push(t.value);
-      if (part.length > 128 || parameters.length > 65536)
-        throw new BinaryResourceFailure(
-          "structure",
-          65536,
-          "PTX parameter declarations exceed the facts budget",
-        );
-    }
-    flush();
     let t = next();
+    if (t.value === "(") {
+      for (t = next(); t.value !== ")"; t = next()) {
+        if (t.value === ",") flush();
+        else part.push(t.value);
+        if (part.length > 128 || parameters.length > 65536)
+          throw new BinaryResourceFailure(
+            "structure",
+            65536,
+            "PTX parameter declarations exceed the facts budget",
+          );
+      }
+      flush();
+      t = next();
+    } else if (t.value !== "{" && t.value !== ";" && !t.value.startsWith(".")) {
+      rejectGpu("Malformed PTX entry name or parameters");
+    }
     // Entry directives can occur between the parameter list and body.
     let headerTokens = 0;
     while (t.value !== "{" && t.value !== ";") {

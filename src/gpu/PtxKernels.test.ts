@@ -83,6 +83,8 @@ it("does not round overflowing register totals or accept truncated ranges", () =
 it.each([
   "/* unfinished",
   ".entry broken(",
+  ".entry k",
+  ".entry k ) { ret; }",
   ".entry k() {",
   ".entry k() {.reg .u32 %x}",
   ".entry k() {.reg %x;}",

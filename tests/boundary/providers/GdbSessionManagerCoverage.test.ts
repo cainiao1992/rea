@@ -614,6 +614,231 @@ it("drains active GDB commands and rejects new commands before closeAll cleanup"
   expect(fake.children[0]?.killSignals).toEqual(["SIGTERM"]);
 });
 
+it("rejects GDB commands queued before closeAll when their turn arrives", async () => {
+  let heldToken = "";
+  const commands: string[] = [];
+  const fake = createFakeSpawner((child, token, command) => {
+    commands.push(command);
+    if (command.includes("held command")) heldToken = token;
+    else
+      child.stdout.write(
+        command.includes("list-thread-groups")
+          ? `${token}^done,groups=[]\n`
+          : `${token}^done\n`,
+      );
+  });
+  const manager = managerWithFakeSpawner(fake.spawnProcess, {
+    stopProcess: async () => {
+      fake.children[0]?.exit(null, "SIGTERM");
+      return { status: "stopped" };
+    },
+  });
+  const started = await expectGdbSessionStarted(manager);
+  const active = manager.execute(started.value.session_id, "held command");
+  await expect.poll(() => heldToken).not.toBe("");
+  const queued = manager.execute(started.value.session_id, "run");
+  const closing = manager.closeAll();
+  fake.children[0]?.stdout.write(`${heldToken}^done\n`);
+  expect((await active).ok).toBe(true);
+  await expect(queued).resolves.toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisInputError",
+      operation: "gdb_console",
+      issues: [{ path: ["session_id"], reason: "invalid_value" }],
+    },
+  });
+  await closing;
+  expect(commands.some((command) => command.includes('"run"'))).toBe(false);
+});
+
+it("rejects GDB commands queued behind a session close", async () => {
+  let heldToken = "";
+  const commands: string[] = [];
+  const fake = createFakeSpawner((child, token, command) => {
+    commands.push(command);
+    if (command.includes("held command")) heldToken = token;
+    else
+      child.stdout.write(
+        command.includes("list-thread-groups")
+          ? `${token}^done,groups=[]\n`
+          : `${token}^done\n`,
+      );
+  });
+  const manager = managerWithFakeSpawner(fake.spawnProcess, {
+    // The child exit event can arrive after stop reports success.
+    stopProcess: async () => ({ status: "stopped" }),
+  });
+  const started = await expectGdbSessionStarted(manager);
+  const active = manager.execute(started.value.session_id, "held command");
+  await expect.poll(() => heldToken).not.toBe("");
+  const closed = manager.close(started.value.session_id);
+  const queued = manager.execute(started.value.session_id, "run");
+  fake.children[0]?.stdout.write(`${heldToken}^done\n`);
+  expect((await active).ok).toBe(true);
+  expect((await closed).ok).toBe(true);
+  await expect(queued).resolves.toMatchObject({
+    ok: false,
+    error: {
+      _tag: "AnalysisInputError",
+      operation: "gdb_console",
+      issues: [{ path: ["session_id"], reason: "invalid_value" }],
+    },
+  });
+  expect(commands.some((command) => command.includes('"run"'))).toBe(false);
+});
+
+it.each(["close", "retryCleanupFailures"] as const)(
+  "blocks GDB commands during failed cleanup and retries through %s",
+  async (retry) => {
+    let heldToken = "";
+    const commands: string[] = [];
+    const fake = createFakeSpawner((child, token, command) => {
+      commands.push(command);
+      if (command.includes("held command")) heldToken = token;
+      else
+        child.stdout.write(
+          command.includes("list-thread-groups")
+            ? `${token}^done,groups=[]\n`
+            : `${token}^done\n`,
+        );
+    });
+    let finishStop!: () => void;
+    const stopHeld = new Promise<void>((resolve) => {
+      finishStop = resolve;
+    });
+    let stopCalls = 0;
+    const manager = managerWithFakeSpawner(fake.spawnProcess, {
+      stopProcess: async () => {
+        stopCalls += 1;
+        if (stopCalls === 1) {
+          await stopHeld;
+          return {
+            status: "incomplete",
+            reason: "simulated cleanup uncertainty",
+          };
+        }
+        return { status: "stopped" };
+      },
+    });
+    const started = await expectGdbSessionStarted(manager);
+    const id = started.value.session_id;
+    const active = manager.execute(id, "held command");
+    await expect.poll(() => heldToken).not.toBe("");
+    const closing = manager.close(id);
+    const queued = manager.execute(id, "run");
+    fake.children[0]?.stdout.write(`${heldToken}^done\n`);
+    expect((await active).ok).toBe(true);
+    await expect.poll(() => stopCalls).toBe(1);
+    const unavailable = {
+      ok: false,
+      error: {
+        _tag: "AnalysisInputError",
+        operation: "gdb_console",
+        issues: [{ path: ["session_id"], reason: "invalid_value" }],
+      },
+    };
+    // Finish the barrier before assertions so a regression cannot strand teardown.
+    const duringStop = manager.execute(id, "run");
+    finishStop();
+    const closed = await closing;
+    expect(closed).toMatchObject({
+      ok: false,
+      error: { cleanupIncomplete: true },
+    });
+    await expect(queued).resolves.toMatchObject(unavailable);
+    await expect(duringStop).resolves.toMatchObject(unavailable);
+    await expect(manager.execute(id, "run")).resolves.toMatchObject(
+      unavailable,
+    );
+    expect(manager.status(id)?.state).toBe("closed");
+    const commandsBeforeRetry = [...commands];
+    expect(
+      (
+        await (retry === "close"
+          ? manager.close(id)
+          : manager.retryCleanupFailures())
+      ).ok,
+    ).toBe(true);
+    expect(stopCalls).toBe(2);
+    expect(commands).toEqual(commandsBeforeRetry);
+    expect(commands.some((command) => command.includes('"run"'))).toBe(false);
+    expect(manager.status(id)).toBeUndefined();
+    if (!closed.ok) expect(closed.error.cleanupIncomplete).toBe(false);
+  },
+);
+
+it("allows explicit inferior remediation when close refuses before destructive cleanup", async () => {
+  let detached = false;
+  let stopCalls = 0;
+  const fake = createFakeSpawner((child, token, command) => {
+    if (command.includes('"detach"')) detached = true;
+    child.stdout.write(
+      command.includes("list-thread-groups")
+        ? `${token}^done,groups=${detached ? "[]" : '[{id="i1",pid="123"}]'}\n`
+        : `${token}^done\n`,
+    );
+  });
+  const manager = managerWithFakeSpawner(fake.spawnProcess, {
+    stopProcess: async () => {
+      stopCalls += 1;
+      return { status: "stopped" };
+    },
+  });
+  const started = await expectGdbSessionStarted(manager);
+  const id = started.value.session_id;
+  await expect(manager.close(id)).resolves.toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisCapabilityUnavailableError", retryable: true },
+  });
+  expect(stopCalls).toBe(0);
+  expect(manager.status(id)?.state).toBe("ready");
+  expect((await manager.execute(id, "detach")).ok).toBe(true);
+  expect((await manager.close(id)).ok).toBe(true);
+  expect(stopCalls).toBe(1);
+});
+
+it("rejects a duplicate GDB close queued behind a session close", async () => {
+  let heldToken = "";
+  const commands: string[] = [];
+  let stopCalls = 0;
+  const fake = createFakeSpawner((child, token, command) => {
+    commands.push(command);
+    if (command.includes("held command")) heldToken = token;
+    else
+      child.stdout.write(
+        command.includes("list-thread-groups")
+          ? `${token}^done,groups=[]\n`
+          : `${token}^done\n`,
+      );
+  });
+  const manager = managerWithFakeSpawner(fake.spawnProcess, {
+    stopProcess: async () => {
+      stopCalls += 1;
+      return { status: "stopped" };
+    },
+  });
+  const started = await expectGdbSessionStarted(manager);
+  const active = manager.execute(started.value.session_id, "held command");
+  await expect.poll(() => heldToken).not.toBe("");
+  const closed = manager.close(started.value.session_id);
+  const duplicate = manager.close(started.value.session_id);
+  fake.children[0]?.stdout.write(`${heldToken}^done\n`);
+  expect((await active).ok).toBe(true);
+  await expect(closed).resolves.toMatchObject({
+    ok: true,
+    value: { target_state: "none_observed" },
+  });
+  await expect(duplicate).resolves.toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisInputError", operation: "close_gdb_session" },
+  });
+  expect(
+    commands.filter((command) => command.includes("-gdb-exit")),
+  ).toHaveLength(1);
+  expect(stopCalls).toBe(1);
+});
+
 it("enforces the per-session queue capacity while a GDB command is active", async () => {
   let heldToken = "";
   const fake = createFakeSpawner((child, token, command) => {
@@ -2500,7 +2725,7 @@ it("retains ownership without signaling when detach confirmation fails", async (
 
   await expect(manager.closeAll()).rejects.toThrow(/did not stop cleanly/i);
 
-  expect(manager.status(started.value.session_id)?.state).toBe("ready");
+  expect(manager.status(started.value.session_id)?.state).toBe("closed");
   expect(fake.children[0]?.killSignals).toEqual([]);
 });
 
@@ -2608,7 +2833,7 @@ it("retains a session when closing cannot confirm the debugger process stopped",
       operation: "close_gdb_session",
     });
   }
-  expect(manager.status(started.value.session_id)?.state).toBe("ready");
+  expect(manager.status(started.value.session_id)?.state).toBe("closed");
 });
 
 it("retains an exited GDB session when provider stop verification is incomplete", async () => {

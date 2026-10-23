@@ -154,6 +154,8 @@ export class BinarySession
   #transition: Promise<void> = Promise.resolve();
   #transitionGeneration = 0;
   #transitionPending = 0;
+  /** Process shutdown has begun; later target acquisition must not outlive it. */
+  #shutdownStarted = false;
   readonly #calls = new Map<Promise<unknown>, number>();
   readonly #promptCompletionControllers = new Set<AbortController>();
   readonly #providerRouter: SessionProviderRouter;
@@ -182,6 +184,8 @@ export class BinarySession
     options: Pick<ExecutionOptions, "signal"> = {},
   ): Promise<Result<ResolvedAppBundleResourceRoot, AnalysisError>> {
     return this.#serialize(async (admittedThrough) => {
+      const refused = this.#targetAcquisitionRefused("open_bundle_resources");
+      if (refused !== undefined) return refused;
       await this.#drainCalls(admittedThrough);
       if (isAborted(options.signal))
         return err(
@@ -498,6 +502,8 @@ export class BinarySession
     options: BinarySessionOpenOptions,
   ): Promise<Result<BinaryTarget, AnalysisError>> {
     return this.#serialize(async (admittedThrough) => {
+      const refused = this.#targetAcquisitionRefused("open_binary");
+      if (refused !== undefined) return refused;
       const admitted = await this.#withLoadedSnapshot(options);
       if (!admitted.ok) return admitted;
       return this.#openWithinTransition(
@@ -755,6 +761,22 @@ export class BinarySession
       if (!retired.ok) return err(retirementFailure(value, retired.error));
       return ok(value);
     });
+  }
+
+  /**
+   * Reject target acquisition once process shutdown has begun.
+   * Acquisition already inside its transition still finishes; the shutdown
+   * close queued behind that transition retires it.
+   */
+  beginShutdown(): void {
+    this.#shutdownStarted = true;
+  }
+
+  #targetAcquisitionRefused(
+    operation: "open_binary" | "open_bundle_resources",
+  ): Result<never, AnalysisCancelledError> | undefined {
+    if (!this.#shutdownStarted) return undefined;
+    return err(new AnalysisCancelledError(operation));
   }
 
   /** Close the active target, if any. */

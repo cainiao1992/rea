@@ -494,6 +494,8 @@ interface GdbSession {
   readonly settleStdout: () => void;
   inferiorTtyVerified: boolean;
   noInferiorVerified: boolean;
+  /** Sticky admission seal once destructive cleanup starts, including failed stops. */
+  cleanupStarted: boolean;
   stopAttempt: ReturnType<typeof stopOwnedDebuggerProcess> | undefined;
   readonly pending: Map<number, PendingCommand>;
   readonly cleanupFailures: Set<AnalysisError>;
@@ -516,6 +518,18 @@ interface GdbSession {
   protocolError: string | undefined;
   recentRecordsTruncated: boolean;
 }
+
+const gdbConsoleUnavailable = (): AnalysisInputError =>
+  new AnalysisInputError("gdb_console", undefined, [
+    {
+      path: ["session_id"],
+      reason: "invalid_value",
+      message: "GDB session is unavailable or closed.",
+    },
+  ]);
+
+const gdbCloseUnavailable = (): AnalysisInputError =>
+  new AnalysisInputError("close_gdb_session");
 
 /** Owns persistent GDB/MI sessions independently from the active binary target. */
 export class GdbSessionManager {
@@ -794,6 +808,7 @@ export class GdbSessionManager {
       // GDB is launched with --nx and receives no target-execution commands
       // during startup, so no inferior can exist until execute() is called.
       noInferiorVerified: true,
+      cleanupStarted: false,
       stopAttempt: undefined,
       pending: new Map(),
       cleanupFailures: new Set(),
@@ -1140,26 +1155,27 @@ export class GdbSessionManager {
       this.#closing ||
       session === undefined ||
       !session.ready ||
+      session.cleanupStarted ||
       session.exited ||
       session.protocolError !== undefined
     )
-      return err(
-        new AnalysisInputError("gdb_console", undefined, [
-          {
-            path: ["session_id"],
-            reason: "invalid_value",
-            message: "GDB session is unavailable or closed.",
-          },
-        ]),
-      );
+      return err(gdbConsoleUnavailable());
     if (signal?.aborted)
       return err(cancelledWithCallerReason("gdb_console", signal));
     try {
       const completed = await this.#serialize(
         session,
         async () => {
-          if (session.exited || session.protocolError !== undefined)
-            return err(new AnalysisInputError("gdb_console"));
+          // Retained cleanup ownership and a delayed exit event do not imply
+          // command readiness. Recheck admission when this queued turn starts.
+          if (
+            this.#closing ||
+            this.#sessions.get(sessionId) !== session ||
+            session.cleanupStarted ||
+            session.exited ||
+            session.protocolError !== undefined
+          )
+            return err(gdbConsoleUnavailable());
           session.noInferiorVerified = false;
           session.knownInferiorIdentities.clear();
           if (commandMayChangeInferiorOutput(command))
@@ -1324,7 +1340,10 @@ export class GdbSessionManager {
       session_id: session.id,
       mi_version: session.miVersion,
       state:
-        session.exited || session.protocolError !== undefined || !session.ready
+        session.cleanupStarted ||
+        session.exited ||
+        session.protocolError !== undefined ||
+        !session.ready
           ? "closed"
           : "ready",
       recent_mi_records: [...session.lines],
@@ -1352,38 +1371,17 @@ export class GdbSessionManager {
     if (this.#closing)
       return err(new AnalysisCancelledError("close_gdb_session"));
     const session = this.#sessions.get(sessionId);
-    if (session === undefined)
-      return err(new AnalysisInputError("close_gdb_session"));
-    if (session.exited) {
-      const stopped = await this.#stopDebuggerOnly(session);
-      if (stopped.status === "incomplete")
-        return err(
-          this.#retainCleanupFailure(
-            session,
-            "close_gdb_session",
-            stopped.reason,
-          ),
-        );
-      this.#sessions.delete(sessionId);
-      return ok({ target_state: "unknown" });
-    }
+    if (session === undefined) return err(gdbCloseUnavailable());
+    if (session.exited) return this.#finishSessionCleanup(session);
     try {
       return await this.#serialize(
         session,
         async () => {
-          if (session.exited) {
-            const stopped = await this.#stopDebuggerOnly(session);
-            if (stopped.status === "incomplete")
-              return err(
-                this.#retainCleanupFailure(
-                  session,
-                  "close_gdb_session",
-                  stopped.reason,
-                ),
-              );
-            this.#sessions.delete(sessionId);
-            return ok({ target_state: "unknown" });
-          }
+          // An earlier close can remove this session while this close waits.
+          if (this.#sessions.get(sessionId) !== session)
+            return err(gdbCloseUnavailable());
+          if (session.exited || session.cleanupStarted)
+            return this.#finishSessionCleanup(session);
           let targetState: "none_observed" | "unknown" = "unknown";
           try {
             const groups = await this.#request(
@@ -1418,6 +1416,9 @@ export class GdbSessionManager {
                   },
                 ),
               );
+            // Refusing inferior disposition above leaves console remediation
+            // available; from here onward only owned cleanup may be retried.
+            session.cleanupStarted = true;
             if (groupCount === 0) {
               session.noInferiorVerified = true;
               targetState = "none_observed";
@@ -1452,6 +1453,22 @@ export class GdbSessionManager {
       if (cause instanceof AnalysisError) return err(cause);
       throw cause;
     }
+  }
+
+  async #finishSessionCleanup(
+    session: GdbSession,
+  ): Promise<Result<{ readonly target_state: "unknown" }, AnalysisError>> {
+    const stopped = await this.#stopDebuggerOnly(session);
+    if (stopped.status === "incomplete")
+      return err(
+        this.#retainCleanupFailure(
+          session,
+          "close_gdb_session",
+          stopped.reason,
+        ),
+      );
+    this.#sessions.delete(session.id);
+    return ok({ target_state: "unknown" });
   }
 
   async retryCleanupFailures(): Promise<Result<null, AnalysisError>> {
@@ -1764,6 +1781,7 @@ export class GdbSessionManager {
   #stopDebuggerOnly(
     session: GdbSession,
   ): ReturnType<typeof stopOwnedDebuggerProcess> {
+    session.cleanupStarted = true;
     if (session.stopAttempt !== undefined) return session.stopAttempt;
     const attempt = this.#stopProcess(session, "GDB")
       .then((stopped) => {

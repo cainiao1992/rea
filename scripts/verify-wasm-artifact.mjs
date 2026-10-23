@@ -231,6 +231,8 @@ try {
       'fetch("./module.wasm"); new URL("https://example.invalid/module.wasm?version=1", import.meta.url);';
     const glueSources = [
       glueSource,
+      'import source module from "./module.wasm"; new URL("https://example.invalid/module.wasm?version=1", import.meta.url);',
+      'const module = await import.source("./module.wasm"); new URL("https://example.invalid/module.wasm?version=1", import.meta.url);',
       `\uFEFF${glueSource}`,
       `\uFEFF\n${glueSource}`,
       `#!/usr/bin/env node\n${glueSource}`,

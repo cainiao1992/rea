@@ -435,3 +435,26 @@ it.each(["\n", "\r", "\u2028", "\u2029"])(
     }
   },
 );
+it.each([
+  'import source module from "./module.wasm";',
+  'const module = await import.source("./module.wasm");',
+  'import * as module from "./module.wasm";',
+  'const module = await import("./module.wasm");',
+])("retains source-phase and ordinary WASM import literals: %s", (source) => {
+  const offset = source.indexOf('"./module.wasm"');
+  expect(
+    associateWasmGlue(source, "/app/glue.mjs", ["/app/module.wasm"]),
+  ).toEqual({
+    parse_status: "complete",
+    references: [
+      {
+        value: "./module.wasm",
+        line: 1,
+        column: offset,
+        candidate_paths: ["/app/module.wasm"],
+        association: "local-path-candidate",
+        evidence_kind: "static-literal",
+      },
+    ],
+  });
+});

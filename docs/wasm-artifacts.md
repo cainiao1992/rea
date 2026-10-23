@@ -194,3 +194,9 @@ After building, run `REA_WABT_BIN_DIRECTORY=/absolute/wabt/bin node
 scripts/verify-wasm-interface-comparison.mjs` for original-module comparison
 through the compiled CLI and stdio MCP. It uses owned fixtures and WABT 1.0.42;
 no WASM module is instantiated or executed.
+
+Glue parsing accepts Node-supported WASM source-phase imports, including
+`import source module from "./module.wasm"` and
+`await import.source("./module.wasm")`. Their string literals retain the same
+coordinates and local candidate associations as ordinary import literals; these
+are static source observations, without module instantiation or execution.

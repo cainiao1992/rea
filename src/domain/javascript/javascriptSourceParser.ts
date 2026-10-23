@@ -87,6 +87,7 @@ const parseWithRuntimeContext = (
  *   `.ts/.cts/.mts` (angle-bracket assertions, not JSX) and for all
  *   declaration files. `.mts` (including `.d.mts`) sets
  *   `disallowAmbiguousJSXLike`, matching tsc's `.mts` mode.
+ * - `sourcePhaseImports` retains Node-supported WASM source imports as AST data.
  * - `decorators-legacy` always present: without it decorated sources fail
  *   hard instead of reporting recovered syntax, losing every derived fact.
  * - Unknown paths retain the existing JSX- and TypeScript-capable contract
@@ -94,7 +95,8 @@ const parseWithRuntimeContext = (
  */
 export const parserPluginsForPath = (sourcePath?: string): ParserPlugin[] => {
   const path = sourcePath ?? "";
-  if (/\.(?:js|jsx|mjs|cjs)$/iu.test(path)) return ["decorators-legacy", "jsx"];
+  const syntax: ParserPlugin[] = ["decorators-legacy", "sourcePhaseImports"];
+  if (/\.(?:js|jsx|mjs|cjs)$/iu.test(path)) return [...syntax, "jsx"];
   const dts = /\.d\.(?:ts|mts|cts)$/iu.test(path);
   const isTsLike = /\.(?:ts|cts|mts)$/iu.test(path);
   const isTsx = /\.tsx$/iu.test(path);
@@ -107,9 +109,7 @@ export const parserPluginsForPath = (sourcePath?: string): ParserPlugin[] => {
     },
   ];
   const jsxCapable = !dts && (isTsx || !isTsLike);
-  return jsxCapable
-    ? ["decorators-legacy", "jsx", typescript]
-    : ["decorators-legacy", typescript];
+  return jsxCapable ? [...syntax, "jsx", typescript] : [...syntax, typescript];
 };
 
 /** `.mjs` and `.mts` explicitly select module mode. */

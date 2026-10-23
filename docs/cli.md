@@ -837,7 +837,10 @@ error and exit `1`, as does a listener that fails after binding.
 `0`, or prints a structured `invalid_request` error and exits `1` for the same
 pair refusals, a non-empty or file-occupied directory, a missing package
 tarball or a name that is not a kebab-case label or is a Windows device name,
-writing nothing in each case.
+writing nothing in each case. A file occupying the destination is reported as
+requiring a directory; identity-change diagnostics are reserved for admitted
+paths that fail later identity checks. Host permission failures identify whether
+input reading or bundle writing was denied and retain the reported path.
 A write that fails after the first file (a permission, disk-space or
 pathname-length failure on a later path) propagates as the host's failure,
 naming its cause and, when it failed on one bundle file or the package

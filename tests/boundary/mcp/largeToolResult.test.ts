@@ -22,10 +22,8 @@ import {
 import { ok } from "../../../src/domain/result.js";
 import { silentLogger } from "../../../src/logger.js";
 import { registerOfficialTools } from "../../../src/server/registerOfficialTools.js";
-import {
-  mcpResponseOverflowProjection,
-  ToolResultDelivery,
-} from "../../../src/server/toolResult.js";
+import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { mcpResponseOverflowProjection } from "../../../src/server/ToolResultDelivery.js";
 import { MINIMUM_RESPONSE_BYTES } from "../../../src/config/mcpResponseBudget.js";
 import {
   MCP_RESULT_STRING_LIMIT,

@@ -42,5 +42,3 @@ const retainedEvidenceContinuation = (
     },
   };
 };
-
-export { mcpResponseOverflowProjection } from "./ToolResultDelivery.js";

@@ -256,12 +256,18 @@ export const parseErlangBeam = (
     payloads.set(name, { payload, offset: at });
     at = padded;
   }
-  const atomChunk = payloads.get("AtU8") ?? payloads.get("Atom");
-  const atomEncoding = payloads.has("AtU8")
-    ? "utf8"
-    : payloads.has("Atom")
-      ? "latin1"
-      : null;
+  const utf8Atoms = payloads.get("AtU8");
+  const legacyAtoms = payloads.get("Atom");
+  const useLegacyAtoms =
+    (utf8Atoms?.payload.length ?? 0) === 0 &&
+    (legacyAtoms?.payload.length ?? 0) > 0;
+  const atomChunk = useLegacyAtoms ? legacyAtoms : (utf8Atoms ?? legacyAtoms);
+  const atomEncoding =
+    atomChunk === undefined
+      ? null
+      : useLegacyAtoms || utf8Atoms === undefined
+        ? "latin1"
+        : "utf8";
   const atoms =
     atomChunk === undefined || atomEncoding === null
       ? null
@@ -300,10 +306,11 @@ export const parseErlangBeam = (
           function: atomAt(atoms, row[1]!),
           arity: row[2]!,
         }));
+  const lambdaPayload = payloads.get("FunT")?.payload;
   const lambdas =
-    payloads.get("FunT") === undefined
+    lambdaPayload === undefined || lambdaPayload.length === 0
       ? null
-      : parseRows(payloads.get("FunT")!.payload, 6, "lambda").map((row) => ({
+      : parseRows(lambdaPayload, 6, "lambda").map((row) => ({
           function_index: row[0]!,
           function: atomAt(atoms, row[0]!),
           arity: row[1]!,

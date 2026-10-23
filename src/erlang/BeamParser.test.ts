@@ -243,6 +243,52 @@ it("keeps a latin1 atom byte unchanged", () => {
   expect(report.module).toBe("ÿ");
 });
 
+it("uses a nonempty legacy atom table when the selected AtU8 chunk is empty", () => {
+  const legacy = singleChunkBeam("Atom", Buffer.from([0, 0, 0, 1, 1, 0xff]));
+  const empty = singleChunkBeam("AtU8", Buffer.alloc(0));
+  for (const chunks of [
+    [legacy, empty],
+    [empty, legacy],
+  ]) {
+    const bytes = Buffer.concat([chunks[0]!, chunks[1]!.subarray(12)]);
+    bytes.writeUInt32BE(bytes.length - 8, 4);
+    expect(parse(bytes)).toMatchObject({
+      atom_encoding: "latin1",
+      module: "ÿ",
+      chunks: expect.arrayContaining([
+        expect.objectContaining({
+          name: "AtU8",
+          payload: expect.objectContaining({ bytes: 0 }),
+        }),
+      ]),
+    });
+  }
+});
+
+it("retains empty optional FunT chunks without discarding compiler module facts", () => {
+  const original = erlangBeamOtp29Fixture();
+  const control = parse(original);
+  for (const payload of [Buffer.alloc(0), Buffer.alloc(4), Buffer.alloc(1)]) {
+    const bytes = Buffer.concat([
+      original,
+      singleChunkBeam("FunT", payload).subarray(12),
+    ]);
+    bytes.writeUInt32BE(bytes.length - 8, 4);
+    if (payload.length === 1) {
+      expect(() => parse(bytes)).toThrow(/lambda table is truncated/);
+      continue;
+    }
+    const report = parse(bytes);
+    expect(report.module).toBe(control.module);
+    expect(report.exports).toEqual(control.exports);
+    expect(report.lambdas).toEqual(payload.length === 0 ? null : []);
+    expect(report.chunks.at(-1)).toMatchObject({
+      name: "FunT",
+      payload: { bytes: payload.length },
+    });
+  }
+});
+
 it("rejects combined table rows before allocating them", () => {
   const below = Math.floor(MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS / 2);
   const overflow = MAX_INSPECT_ERLANG_BEAM_TABLE_ROWS - below * 2 + 1;

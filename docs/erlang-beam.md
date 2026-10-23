@@ -37,9 +37,15 @@ When `AtU8` or `Atom` is present, `atoms` is the 1-based name table and
 those names when the table is present; unresolved indices keep `function` or
 `module` null.
 
+A zero-byte `AtU8` chunk does not override a nonempty historical `Atom` table.
+The chunk inventory retains both occurrences. A nonempty malformed `AtU8`
+still fails instead of falling back to an older table.
+
 `code` reports the Code chunk instruction-set, opcode maximum, label count,
 function count, and the instruction stream's file range. Missing optional
-tables are null, not empty-everywhere.
+tables are null, not empty-everywhere. A zero-byte optional `FunT` has no decoded
+lambda table (`lambdas: null`); a four-byte zero count is an observed empty table
+(`lambdas: []`). Both chunks remain in the inventory.
 
 ## Limits and failures
 

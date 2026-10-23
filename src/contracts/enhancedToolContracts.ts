@@ -42,7 +42,7 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "batch_decompile",
-    "Decompile each explicit procedure symbol or address concurrently. Preserves each input selector in address and reports the observed canonical entry and entry label in procedure; identity or label failures remain explicit without discarding usable pseudocode. Returns ordered per-item success or error results and aggregate counts.",
+    "Decompile each explicit procedure symbol or address, with one provider read active per batch. Preserves each input selector in address and reports the observed canonical entry and entry label in procedure; identity or label failures remain explicit without discarding usable pseudocode. Returns ordered per-item success or error results and aggregate counts. The complete reply retains every pseudocode body; use selected small batches to bound retained output.",
     enhancedInputSchemas.batch_decompile,
   ),
   enhanced(

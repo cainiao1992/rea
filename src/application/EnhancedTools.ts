@@ -98,14 +98,6 @@ const isAnalysisCancellation = (
   error: AnalysisError,
 ): error is AnalysisCancelledError => error._tag === "AnalysisCancelledError";
 
-const firstAnalysisCancellation = <Value>(
-  results: readonly Result<Value, AnalysisError>[],
-): AnalysisCancelledError | undefined => {
-  for (const result of results)
-    if (!result.ok && isAnalysisCancellation(result.error)) return result.error;
-  return undefined;
-};
-
 /**
  * Composes direct provider operations into bounded reverse-engineering tools.
  * Direct callers use `execute`; adapters that own validation use
@@ -423,34 +415,24 @@ export class EnhancedTools {
     addresses: readonly string[],
     signal?: AbortSignal,
   ): EnhancedResult {
-    const resolutions = await Promise.all(
-      addresses.map(async (address) => {
-        const result = await resolveProcedureAddress(
-          this.#call.bind(this),
-          address,
-          signal,
-        );
-        return { address, result };
-      }),
-    );
-    const resolutionCancellation = firstAnalysisCancellation(
-      resolutions.map(({ result }) => result),
-    );
-    if (resolutionCancellation !== undefined)
-      return err(resolutionCancellation);
-
+    const resolutions: BatchResolution[] = [];
+    for (const address of addresses) {
+      const result = await resolveProcedureAddress(
+        this.#call.bind(this),
+        address,
+        signal,
+      );
+      if (!result.ok && isAnalysisCancellation(result.error)) return result;
+      resolutions.push({ address, result });
+    }
     const identities = await this.#batchIdentities(resolutions, signal);
-    const ready: BatchReadyItem[] = [];
-    for (const identity of identities) {
-      if (!identity.ok) return err(identity.error);
-      ready.push(identity.value);
-    }
-    const decompilations = await this.#batchPseudocode(ready, signal);
-    const items: BatchDecompileItem[] = [];
-    for (const decompilation of decompilations) {
-      if (!decompilation.ok) return err(decompilation.error);
-      items.push(decompilation.value);
-    }
+    if (!identities.ok) return identities;
+    const decompilations = await this.#batchPseudocode(
+      identities.value,
+      signal,
+    );
+    if (!decompilations.ok) return decompilations;
+    const items = decompilations.value;
     const succeeded = items.filter(({ status }) => status === "ok").length;
     return ok({
       items,
@@ -463,75 +445,73 @@ export class EnhancedTools {
   async #batchIdentities(
     resolutions: readonly BatchResolution[],
     signal?: AbortSignal,
-  ): Promise<Result<BatchReadyItem, AnalysisCancelledError>[]> {
-    return Promise.all(
-      resolutions.map(async ({ address, result }) => {
-        if (!result.ok)
-          return ok({
-            address,
-            providerProcedure: address,
-            procedure: {
-              status: "unknown" as const,
-              error: projectAnalysisError(result.error),
-            },
-          });
-        const identity = await this.#batchProcedureIdentity(
-          result.value,
-          signal,
-        );
-        return identity.ok
-          ? ok({
-              address,
-              providerProcedure: result.value,
-              procedure: identity.value,
-            })
-          : err(identity.error);
-      }),
-    );
+  ): Promise<Result<BatchReadyItem[], AnalysisCancelledError>> {
+    const ready: BatchReadyItem[] = [];
+    for (const { address, result } of resolutions) {
+      if (!result.ok) {
+        ready.push({
+          address,
+          providerProcedure: address,
+          procedure: {
+            status: "unknown",
+            error: projectAnalysisError(result.error),
+          },
+        });
+        continue;
+      }
+      const identity = await this.#batchProcedureIdentity(result.value, signal);
+      if (!identity.ok) return identity;
+      ready.push({
+        address,
+        providerProcedure: result.value,
+        procedure: identity.value,
+      });
+    }
+    return ok(ready);
   }
 
   async #batchPseudocode(
     ready: readonly BatchReadyItem[],
     signal?: AbortSignal,
-  ): Promise<Result<BatchDecompileItem, AnalysisCancelledError>[]> {
-    return Promise.all(
-      ready.map(async ({ address, procedure, providerProcedure }) => {
-        const result = await this.#call(
-          "procedure_pseudo_code",
-          { procedure: providerProcedure },
-          signal,
-          procedure.status === "resolved" ? "provider" : undefined,
-        );
-        if (!result.ok && isAnalysisCancellation(result.error))
-          return err(result.error);
-        const item: BatchDecompileItem = !result.ok
+  ): Promise<Result<BatchDecompileItem[], AnalysisCancelledError>> {
+    const items: BatchDecompileItem[] = [];
+    for (const { address, procedure, providerProcedure } of ready) {
+      const result = await this.#call(
+        "procedure_pseudo_code",
+        { procedure: providerProcedure },
+        signal,
+        procedure.status === "resolved" ? "provider" : undefined,
+      );
+      if (!result.ok && isAnalysisCancellation(result.error))
+        return err(result.error);
+      const item: BatchDecompileItem = !result.ok
+        ? {
+            address,
+            procedure,
+            status: "error",
+            error: projectAnalysisError(result.error),
+          }
+        : typeof result.value !== "string" || result.value.length === 0
           ? {
               address,
               procedure,
               status: "error",
-              error: projectAnalysisError(result.error),
-            }
-          : typeof result.value !== "string" || result.value.length === 0
-            ? {
-                address,
-                procedure,
-                status: "error",
-                error: projectAnalysisError(
-                  new AnalysisOutputError(
-                    "procedure_pseudo_code",
-                    "provider returned empty pseudocode",
-                  ),
+              error: projectAnalysisError(
+                new AnalysisOutputError(
+                  "procedure_pseudo_code",
+                  "provider returned empty pseudocode",
                 ),
-              }
-            : {
-                address,
-                procedure,
-                status: "ok",
-                pseudocode: result.value,
-              };
-        return ok(item);
-      }),
-    );
+              ),
+            }
+          : {
+              address,
+              procedure,
+              status: "ok",
+              pseudocode: result.value,
+            };
+      items.push(item);
+    }
+    return ok(items);
   }
 
   async #batchProcedureIdentity(

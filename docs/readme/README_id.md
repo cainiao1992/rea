@@ -203,7 +203,12 @@ Periksa [ketersediaan rilis](../installation.md#released-package-and-main) untuk
 
 ## Contoh Penggunaan
 
-[![Ilustrasi contoh penggunaan DX-Ball sound-pan, Notion clipboard-bridge, dan TH04 bullet-ring](../assets/rea-showcases.png)](https://rea.tools/id/showcase/)
+<a href="https://rea.tools/id/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Ilustrasi contoh penggunaan DX-Ball sound-pan, Notion clipboard-bridge, dan TH04 bullet-ring" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: merekonstruksi perhitungan sound-pan
 

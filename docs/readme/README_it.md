@@ -192,7 +192,12 @@ I formati nativi e il supporto host variano in base al provider. Vedi la [config
 
 ## Showcase
 
-[![Illustrazioni degli showcase del sound-pan di DX-Ball, del clipboard-bridge di Notion e dell'anello di proiettili di TH04](../assets/rea-showcases.png)](https://rea.tools/it/showcase/)
+<a href="https://rea.tools/it/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Illustrazioni degli showcase del sound-pan di DX-Ball, del clipboard-bridge di Notion e dell'anello di proiettili di TH04" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: ricostruisci un calcolo sound-pan
 

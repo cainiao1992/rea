@@ -195,7 +195,12 @@ Los formatos nativos y los sistemas anfitriones compatibles varían según el pr
 
 ## Casos prácticos
 
-[![Ilustraciones de los casos de panoramización de sonido de DX-Ball, el puente del portapapeles de Notion y el anillo de proyectiles de TH04](../assets/rea-showcases.png)](https://rea.tools/es/showcase/)
+<a href="https://rea.tools/es/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Ilustraciones de los casos de panoramización de sonido de DX-Ball, el puente del portapapeles de Notion y el anillo de proyectiles de TH04" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: reconstruir un cálculo de panoramización de sonido
 

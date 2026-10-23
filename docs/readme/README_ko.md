@@ -195,7 +195,12 @@ REA에는 Node.js 22.x(>=22.23.4), 24.x(>=24.22.1) 또는 26+ (>=26.12.1)와 npm
 
 ## 사례
 
-[![DX-Ball 사운드 패닝, Notion 클립보드 브리지, TH04 탄환 고리 사례를 보여 주는 그림](../assets/rea-showcases.png)](https://rea.tools/ko/showcase/)
+<a href="https://rea.tools/ko/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball 사운드 패닝, Notion 클립보드 브리지, TH04 탄환 고리 사례를 보여 주는 그림" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: 사운드 패닝 계산 재구현
 

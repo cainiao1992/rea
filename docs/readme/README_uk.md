@@ -195,7 +195,12 @@ REA потребує Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) або 26+ (>=26
 
 ## Приклади
 
-[![Ілюстрації прикладів панорамування звуку в DX-Ball, мосту буфера обміну Notion та кільця куль у TH04](../assets/rea-showcases.png)](https://rea.tools/uk/showcase/)
+<a href="https://rea.tools/uk/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Ілюстрації прикладів панорамування звуку в DX-Ball, мосту буфера обміну Notion та кільця куль у TH04" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: відновлення розрахунку звукової панорами
 

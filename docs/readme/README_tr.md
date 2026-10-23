@@ -191,7 +191,12 @@ Yerel makine kodu içeren ikili dosya biçimleri ve ana bilgisayar desteği sağ
 
 ## Örnek çalışmalar
 
-[![DX-Ball ses kaydırma, Notion pano köprüsü ve TH04 mermi halkası örneklerinin çizimleri](../assets/rea-showcases.png)](https://rea.tools/tr/showcase/)
+<a href="https://rea.tools/tr/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball ses kaydırma, Notion pano köprüsü ve TH04 mermi halkası örneklerinin çizimleri" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: Sesin stereo konumlandırma hesabını yeniden oluşturma
 

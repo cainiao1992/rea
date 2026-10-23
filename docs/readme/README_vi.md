@@ -195,7 +195,12 @@ Với tệp nhị phân lớn, tăng hạn khởi động bằng `REA_GHIDRA_STA
 
 ## Các nghiên cứu điển hình
 
-[![Minh họa các ví dụ về cân bằng âm thanh DX-Ball, cầu nối bảng nhớ tạm Notion và vòng đạn TH04](../assets/rea-showcases.png)](https://rea.tools/vi/showcase/)
+<a href="https://rea.tools/vi/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Minh họa các ví dụ về cân bằng âm thanh DX-Ball, cầu nối bảng nhớ tạm Notion và vòng đạn TH04" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: tái tạo phép tính phân bố âm thanh trái phải
 

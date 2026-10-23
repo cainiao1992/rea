@@ -195,7 +195,12 @@ npx rea-agents@latest setup
 
 ## دراسات الحالة
 
-[![رسوم توضيحية لأمثلة توزيع الصوت في DX-Ball وجسر الحافظة في Notion وحلقة الطلقات في TH04](../assets/rea-showcases.png)](https://rea.tools/ar/showcase/)
+<a href="https://rea.tools/ar/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="رسوم توضيحية لأمثلة توزيع الصوت في DX-Ball وجسر الحافظة في Notion وحلقة الطلقات في TH04" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: إعادة بناء حساب توزيع الصوت بين القناتين
 

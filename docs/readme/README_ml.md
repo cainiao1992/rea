@@ -199,7 +199,12 @@ Provider തിരഞ്ഞെടുക്കാൻ [CLI guide](../cli.md#choose
 
 ## ഉദാഹരണങ്ങൾ
 
-[![DX-Ball sound-pan, Notion clipboard-bridge, TH04 bullet-ring എന്നിവയുടെ ചിത്രീകരണങ്ങൾ](../assets/rea-showcases.png)](https://rea.tools/showcase/)
+<a href="https://rea.tools/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball sound-pan, Notion clipboard-bridge, TH04 bullet-ring എന്നിവയുടെ ചിത്രീകരണങ്ങൾ" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: sound-pan കണക്കുകൂട്ടൽ പുനർനിർമ്മിക്കുക
 

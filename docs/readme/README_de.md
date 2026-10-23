@@ -195,7 +195,12 @@ Native Formate und unterstützte Hostsysteme unterscheiden sich je nach Provider
 
 ## Fallstudien
 
-[![Illustrationen der Fallstudien zu DX-Balls Klangbalance, Notions Zwischenablage-Brücke und TH04s Geschossring](../assets/rea-showcases.png)](https://rea.tools/de/showcase/)
+<a href="https://rea.tools/de/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="Illustrationen der Fallstudien zu DX-Balls Klangbalance, Notions Zwischenablage-Brücke und TH04s Geschossring" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: Eine Stereo-Panning-Berechnung rekonstruieren
 

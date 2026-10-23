@@ -245,7 +245,12 @@ Latest npm release ke baad add hone wale features ki
 
 ## Amli misaalein
 
-[![DX-Ball sound-pan, Notion clipboard-bridge aur TH04 bullet-ring case studies ki tasveerein](../assets/rea-showcases.png)](https://rea.tools/showcase/)
+<a href="https://rea.tools/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball sound-pan, Notion clipboard-bridge aur TH04 bullet-ring case studies ki tasveerein" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball: sound-pan calculation dobara banayein
 

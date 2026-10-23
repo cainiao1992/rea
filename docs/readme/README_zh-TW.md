@@ -193,7 +193,12 @@ REA 需要 Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）或 26+ (>=26.12.1)�
 
 ## 案例
 
-[![DX-Ball 聲音平移、Notion 剪貼簿橋接與 TH04 彈幕環案例的插圖](../assets/rea-showcases.png)](https://rea.tools/zh-TW/showcase/)
+<a href="https://rea.tools/zh-TW/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball 聲音平移、Notion 剪貼簿橋接與 TH04 彈幕環案例的插圖" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball：重建聲像計算
 

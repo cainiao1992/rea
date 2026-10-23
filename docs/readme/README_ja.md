@@ -195,7 +195,12 @@ REA には Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）、または 26+ (>=
 
 ## 事例
 
-[![DX-Ball の音声パン、Notion のクリップボードブリッジ、TH04 の弾幕リングの事例を表すイラスト](../assets/rea-showcases.png)](https://rea.tools/ja/showcase/)
+<a href="https://rea.tools/ja/showcase/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/rea-showcases-dark.svg" />
+    <img alt="DX-Ball の音声パン、Notion のクリップボードブリッジ、TH04 の弾幕リングの事例を表すイラスト" src="../assets/rea-showcases.svg" />
+  </picture>
+</a>
 
 ### DX-Ball：音声のパン計算を再構築する
 

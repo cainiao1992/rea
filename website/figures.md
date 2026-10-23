@@ -57,6 +57,14 @@ The card and `public/assets/favicon.svg` each carry a dark
 browser tab strip. CairoSVG ignores it, so the PNG that link previews fetch
 stays light.
 
+## README showcases
+
+`docs/assets/rea-showcases.svg` and `docs/assets/rea-showcases-dark.svg` redraw
+the three showcase illustrations as flat SVG, one file per colour scheme. Every
+README edition picks one with a `<picture>` element and a
+`prefers-color-scheme: dark` source, as the star-history chart does. Keep the
+two files the same shape when you change one.
+
 ## Beginner homepage and dinosaur reconstruction
 
 The manual/agent comparison and Calculator percentage controls are semantic

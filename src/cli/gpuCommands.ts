@@ -101,7 +101,7 @@ export const registerGpuCommands = (cli: CliInstance, logger: Logger): void => {
             run: () =>
               service.inspect(
                 {
-                  path: absoluteCallerPath(args.path),
+                  path: selected.data.path,
                   analysis: selected.data.analysis,
                   ...(selected.data.expected_sha256 === undefined
                     ? {}

@@ -90,6 +90,8 @@ export const artifactComparisonResultSchema = z.object({
     contradiction: z.int().min(0).default(0),
   }),
   changes: z.array(artifactChangeSchema),
+  // Absent on legacy records; absence does not identify a contradicting side.
+  integrity_mismatch_evidence_ids: z.array(evidenceIdSchema).optional(),
   limitations: z.array(z.string()),
 });
 
@@ -214,6 +216,17 @@ export const compareArtifacts = (
     right_manifest_id: right.inventory.manifest.manifest_id,
     summary,
     changes,
+    integrity_mismatch_evidence_ids: [
+      ...new Set(
+        [left, right].flatMap((source) =>
+          source.inventory.occurrences.some(
+            (occurrence) => occurrence.hash_status === "mismatched",
+          )
+            ? source.evidence.map((record) => record.evidence_id)
+            : [],
+        ),
+      ),
+    ].sort(compareUnicodeCodePoints),
     limitations: [...new Set(limitations)].sort(compareUnicodeCodePoints),
   });
 };

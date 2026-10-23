@@ -95,7 +95,7 @@ export const registerArtifactComparisonTool = (
               artifactUnknownInput(
                 left,
                 right,
-                comparison.status,
+                comparison,
                 evidence.evidence_id,
               ),
             ),
@@ -108,22 +108,28 @@ export const registerArtifactComparisonTool = (
 const artifactUnknownInput = (
   left: { readonly evidence_id: string },
   right: { readonly evidence_id: string },
-  status: ReturnType<typeof compareArtifacts>["status"],
+  comparison: ReturnType<typeof compareArtifacts>,
   comparisonEvidenceId: string,
 ): RecordUnknownInput | undefined => {
+  const { status } = comparison;
   if (status === "unchanged") return undefined;
-  const contradictory =
-    (status === "changed" || status === "contradiction") &&
-    left.evidence_id !== right.evidence_id;
+  const sourceIds = [...new Set([left.evidence_id, right.evidence_id])];
+  const contradictingIds = comparison.integrity_mismatch_evidence_ids ?? [];
+  const contentContradictions =
+    status === "changed" && left.evidence_id !== right.evidence_id
+      ? [right.evidence_id]
+      : [];
+  const contradictions =
+    contradictingIds.length > 0 ? contradictingIds : contentContradictions;
   return {
     question: `Artifact comparison is ${status} (comparison ${comparisonEvidenceId})`,
     severity:
       status === "unknown" || status === "truncated" ? "high" : "medium",
     domain: "artifact-comparison",
-    supporting_evidence_ids: contradictory
-      ? [left.evidence_id]
-      : [...new Set([left.evidence_id, right.evidence_id])],
-    contradicting_evidence_ids: contradictory ? [right.evidence_id] : [],
+    supporting_evidence_ids: sourceIds.filter(
+      (id) => !contradictions.includes(id),
+    ),
+    contradicting_evidence_ids: contradictions,
     required_authority: "shipped-artifact",
     required_confidence: "observed",
     required_environment: null,

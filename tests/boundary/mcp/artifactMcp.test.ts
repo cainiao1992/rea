@@ -1,3 +1,8 @@
+import {
+  PROCESS_CAPTURE_REFERENCE,
+  PROCESS_CAPTURE_RECONSTRUCTION,
+  PROCESS_COMPARISON_EVIDENCE,
+} from "../../../src/contracts/investigationExamples.js";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
@@ -1164,3 +1169,141 @@ it("discovers artifact target prerequisites and preserves typed MCP refusals", a
     await Promise.allSettled([client.close(), server.close(), session.close()]);
   }
 });
+
+it("attributes ASAR integrity contradictions to their actual inputs and withholds correlation support", async () => {
+  const root = await createTestTempDirectory("rea-asar-attribution-");
+  const source = join(root, "source");
+  await mkdir(source);
+  const original = "console.log('ok');\n";
+  const changed = "console.log('no');\n";
+  await writeFile(join(source, "main.js"), original);
+  const originalArchive = join(root, "original.asar");
+  await createPackageWithOptions(source, originalArchive, {});
+  const staleBytes = await readFile(originalArchive);
+  const offset = staleBytes.indexOf(original);
+  expect(offset).toBeGreaterThanOrEqual(0);
+  staleBytes.write(changed, offset, "utf8");
+  const staleArchive = join(root, "stale.asar");
+  await writeFile(staleArchive, staleBytes);
+  await writeFile(join(source, "main.js"), changed);
+  const currentArchive = join(root, "current.asar");
+  await createPackageWithOptions(source, currentArchive, {});
+  const session = createTestBinarySession(new ArtifactProvider(process.env));
+  const server = createServer({ kind: "session", session });
+  const client = new Client({ name: "artifact-attribution", version: "1" });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(st);
+    await client.connect(ct);
+    const observations = [];
+    for (const path of [originalArchive, staleArchive, currentArchive]) {
+      expect(
+        (await client.callTool({ name: "open_binary", arguments: { path } }))
+          .isError,
+      ).not.toBe(true);
+      const inspected = await client.callTool({
+        name: "inspect_artifact",
+        arguments: { integrity_policy: "record-and-continue" },
+      });
+      expect(inspected.isError).not.toBe(true);
+      observations.push(toolEvidence(inspected.structuredContent));
+    }
+    for (const record of [
+      PROCESS_CAPTURE_REFERENCE,
+      PROCESS_CAPTURE_RECONSTRUCTION,
+      PROCESS_COMPARISON_EVIDENCE,
+    ])
+      expect(session.recordEvidence(record).ok).toBe(true);
+    const [originalEvidence, stale, current] = observations;
+    if (
+      originalEvidence === undefined ||
+      stale === undefined ||
+      current === undefined
+    )
+      throw new Error("Expected three artifact observations");
+    for (const [left, right, mismatches] of [
+      [stale, current, [stale.evidence_id]],
+      [current, stale, [stale.evidence_id]],
+      [stale, stale, [stale.evidence_id]],
+      [originalEvidence, current, []],
+    ] as const)
+      await assertIntegrityComparison(client, session, left, right, mismatches);
+  } finally {
+    await Promise.allSettled([client.close(), server.close(), session.close()]);
+  }
+});
+
+const assertIntegrityComparison = async (
+  client: Client,
+  session: ReturnType<typeof createTestBinarySession>,
+  left: ReturnType<typeof toolEvidence>,
+  right: ReturnType<typeof toolEvidence>,
+  mismatches: readonly string[],
+) => {
+  const compared = await client.callTool({
+    name: "compare_artifacts",
+    arguments: { left, right },
+  });
+  expect(compared.isError).not.toBe(true);
+  const comparison = toolEvidence(compared.structuredContent);
+  expect(comparison.normalized_result).toMatchObject({
+    status: mismatches.length === 0 ? "changed" : "contradiction",
+    integrity_mismatch_evidence_ids: mismatches,
+  });
+  const unknown = session
+    .listUnknowns({ domain: "artifact-comparison" })
+    .find((item) => item.question.includes(comparison.evidence_id));
+  expect(unknown).toBeDefined();
+  if (mismatches.length > 0) {
+    expect(unknown?.contradicting_evidence_ids).toEqual(mismatches);
+    expect(unknown?.supporting_evidence_ids).toEqual(
+      [...new Set([left.evidence_id, right.evidence_id])].filter(
+        (id) => !mismatches.includes(id),
+      ),
+    );
+  }
+  const correlated = await client.callTool({
+    name: "correlate_static_and_runtime",
+    arguments: {
+      static_comparisons: [comparison],
+      runtime_comparisons: [PROCESS_COMPARISON_EVIDENCE],
+      mappings: [
+        {
+          static: {
+            comparison_evidence_id: comparison.evidence_id,
+            selector: { kind: "artifact", logical_path: "main.js" },
+          },
+          runtime: {
+            comparison_evidence_id: PROCESS_COMPARISON_EVIDENCE.evidence_id,
+            dimension: "terminal",
+          },
+          side_alignment: "left_to_left",
+          hypothesis: {
+            statement: "Member bytes changed while terminal output did not.",
+            expected_pattern: "static_only",
+          },
+        },
+      ],
+    },
+  });
+  expect(correlated.isError).not.toBe(true);
+  expect(
+    toolEvidence(correlated.structuredContent).normalized_result,
+  ).toMatchObject(
+    mismatches.length > 0
+      ? {
+          status: "unknown",
+          summary: { hypotheses: 0, unresolved: 1 },
+          correlations: {
+            items: [
+              {
+                observed_pattern: "unknown",
+                classification: "unresolved_branch",
+                static: { status: "contradiction" },
+              },
+            ],
+          },
+        }
+      : { status: "correlated", summary: { hypotheses: 1, unresolved: 0 } },
+  );
+};

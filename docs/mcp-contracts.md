@@ -988,6 +988,25 @@ unsupported facets are local `unavailable` outcomes. Use `current_document`,
 `current_address`, and `current_procedure` for direct single-field lookups; use
 the aggregate tools when you need related context together.
 
+## Integrity attribution and reconstruction claims
+
+Artifact comparison results include `integrity_mismatch_evidence_ids`, naming
+the actual inventory Evidence carriers with declared/observed integrity
+mismatches. Argument order does not assign blame. The field is absent on older
+comparison records, where culprit attribution remains unknown. Automatically
+retained artifact unknowns use these source identities for contradiction links.
+
+Static/runtime correlation preserves a selected contradiction or unresolved
+conclusion without treating it as an observed content change. Such a selection
+produces an unresolved pattern and cannot support a cochange hypothesis.
+Ordinary observed content changes remain eligible for explicit hypotheses;
+correlation does not establish causality.
+
+An `overall` structural-function reconstruction claim selects every constituent
+function dimension and its active scoped unknowns. A question scoped only to
+pseudocode therefore keeps the aggregate unknown while an independent assembly
+claim may pass. Unknown citations and recommended probes are retained.
+
 ## Integrity record-and-continue
 
 Artifact integrity fails closed by default. A request can explicitly select

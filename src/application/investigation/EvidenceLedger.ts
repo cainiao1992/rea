@@ -30,12 +30,19 @@ import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.
 type EvidenceLedgerFailure = EvidenceIntegrityError;
 type RecordResult = Result<"added" | "duplicate", EvidenceLedgerFailure>;
 
-/** Describes the state changes made by one atomic bundle import. */
+/** Same authenticated semantic identity with new subject display metadata. */
+export interface EvidenceDisplayReplacement {
+  readonly kind: "subject-display";
+  readonly previous: Evidence;
+  readonly current: Evidence;
+}
+
+/** Committed changes made by one atomic bundle import. */
 export interface EvidenceImportDelta {
   readonly recordsAdded: number;
   readonly unknownsAdded: number;
   readonly changed: boolean;
-  readonly metadataChanged: boolean;
+  readonly replacements: readonly EvidenceDisplayReplacement[];
 }
 
 type ImportResult = Result<
@@ -96,8 +103,7 @@ export class EvidenceLedger {
     // atomic merge without rebuilding and reparsing the entire ledger.
     if (bundle.unknowns.length === 0) {
       const additions = new Map<string, Evidence>();
-      const replacements = new Map<string, Evidence>();
-      let metadataChanged = false;
+      const replacements: EvidenceDisplayReplacement[] = [];
       for (const evidence of bundle.records) {
         const existing = this.#records.get(evidence.evidence_id);
         if (existing !== undefined) {
@@ -105,35 +111,39 @@ export class EvidenceLedger {
             return err(
               new EvidenceIntegrityError("Conflicting evidence record"),
             );
-          if (canonicalize(existing) !== canonicalize(evidence)) {
-            replacements.set(evidence.evidence_id, evidence);
-            metadataChanged = true;
+          if (!displaySubjectsAgree(existing, evidence)) {
+            replacements.push({
+              kind: "subject-display",
+              previous: existing,
+              current: evidence,
+            });
           }
           continue;
         }
         additions.set(evidence.evidence_id, evidence);
       }
-      for (const [id, evidence] of replacements)
-        this.#records.set(id, evidence);
+      for (const { current } of replacements)
+        this.#records.set(current.evidence_id, current);
       for (const [id, evidence] of additions) this.#records.set(id, evidence);
       return ok({
         recordsAdded: additions.size,
         unknownsAdded: 0,
-        changed: additions.size > 0 || metadataChanged,
-        metadataChanged,
+        changed: additions.size > 0 || replacements.length > 0,
+        replacements,
       });
     }
     const pending = new Map(this.#records);
-    let metadataChanged = false;
+    const replacements: EvidenceDisplayReplacement[] = [];
     for (const evidence of bundle.records) {
       const existing = pending.get(evidence.evidence_id);
       if (existing !== undefined && !recordsAgree(existing, evidence))
         return err(new EvidenceIntegrityError("Conflicting evidence record"));
-      if (
-        existing !== undefined &&
-        canonicalize(existing) !== canonicalize(evidence)
-      )
-        metadataChanged = true;
+      if (existing !== undefined && !displaySubjectsAgree(existing, evidence))
+        replacements.push({
+          kind: "subject-display",
+          previous: existing,
+          current: evidence,
+        });
       pending.set(evidence.evidence_id, evidence);
     }
     const pendingUnknowns = new Map(this.#unknownRevisions);
@@ -162,8 +172,8 @@ export class EvidenceLedger {
     return ok({
       recordsAdded: added,
       unknownsAdded,
-      changed: added > 0 || unknownsAdded > 0 || metadataChanged,
-      metadataChanged,
+      changed: added > 0 || unknownsAdded > 0 || replacements.length > 0,
+      replacements,
     });
   }
 
@@ -518,3 +528,7 @@ const withoutLocalPath = (evidence: Evidence): Evidence => ({
           local_path: "<non-identity-local-path>",
         },
 });
+
+const displaySubjectsAgree = (left: Evidence, right: Evidence): boolean =>
+  left.subject?.name === right.subject?.name &&
+  left.subject?.local_path === right.subject?.local_path;

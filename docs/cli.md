@@ -309,7 +309,11 @@ an exact result when the target bytes, operation, parameters, provider and
 settings match. Mutations and cursor-dependent calls are excluded from the
 cache. Snapshot files are local and use owner-only permissions.
 
-Dispatching a metadata write invalidates the active session's snapshot cache,
+Importing an Evidence bundle refreshes retained subject display names and paths.
+It preserves cached analysis results, including observations for other targets.
+Snapshot bindings that use a replaced record retain its updated display path.
+
+Dispatching a provider metadata write invalidates the active session's snapshot cache,
 even if its reply fails: the provider may already have applied the write.
 Close and reopen the target before importing or saving another snapshot.
 

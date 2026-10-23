@@ -13,6 +13,8 @@ import { rebindEvidenceSubjectTargetPath } from "../../domain/evidence.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
   analysisQueryId,
+  evidenceMatchesEntry,
+  evidenceMatchesWorkflowEntry,
   createAnalysisSnapshotEntry,
   createAnalysisSnapshotWorkflowEntry,
   snapshotBinding,
@@ -34,6 +36,8 @@ import type {
 } from "../AnalysisProvider.js";
 import { OFFICIAL_TOOL_CONTRACTS } from "../../contracts/officialToolContracts.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
+
+import type { EvidenceDisplayReplacement } from "../investigation/EvidenceLedger.js";
 
 const RELATIONSHIP_OPERATIONS: ReadonlySet<AnalysisOperation> = new Set([
   "procedure_callers",
@@ -146,6 +150,59 @@ export class AnalysisSnapshotCache {
       this.#workflowEntries.set(entry.query_id, entry);
     }
     return imported;
+  }
+
+  /** Refresh only display bindings backed by the replaced authenticated records. */
+  refreshEvidenceDisplay(
+    replacements: readonly EvidenceDisplayReplacement[],
+  ): void {
+    if (this.#target === undefined || this.#binding === undefined) return;
+    const header = { target: this.#target, binding: this.#binding };
+    for (const { previous, current } of replacements) {
+      if (
+        current.subject === null ||
+        previous.subject?.local_path === current.subject.local_path
+      )
+        continue;
+      const queryId = analysisQueryId(
+        header.target,
+        header.binding,
+        previous.operation,
+        previous.parameters,
+      );
+      const entry = this.#entries.get(queryId);
+      if (
+        entry !== undefined &&
+        entry.execution.subject !== null &&
+        evidenceMatchesEntry(previous, entry, header)
+      )
+        this.#entries.set(queryId, {
+          ...entry,
+          execution: {
+            ...entry.execution,
+            subject: {
+              ...entry.execution.subject,
+              path: current.subject.local_path,
+            },
+          },
+        });
+      const workflow = this.#workflowEntries.get(queryId);
+      if (
+        workflow !== undefined &&
+        workflow.execution.subject !== null &&
+        evidenceMatchesWorkflowEntry(previous, workflow, header)
+      )
+        this.#workflowEntries.set(queryId, {
+          ...workflow,
+          execution: {
+            ...workflow.execution,
+            subject: {
+              ...workflow.execution.subject,
+              path: current.subject.local_path,
+            },
+          },
+        });
+    }
   }
 
   /** Build a complete snapshot for an active target. */

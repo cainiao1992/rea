@@ -576,82 +576,88 @@ describe("evidence metadata imports and snapshot cache", () => {
     await session.close();
   });
 
-  it("keeps changed evidence metadata out of snapshots until the session is recreated", async () => {
-    const [target] = await createBinarySessionTargets();
-    const calls: string[] = [];
-    const session = createTestBinarySession(createCacheProvider(calls));
-    expect((await session.open(target)).ok).toBe(true);
-    expect(
-      (
-        await session.execute("address_name", {
-          address: "0x1000",
-          document: "first",
-        })
-      ).ok,
-    ).toBe(true);
-    const baseline = session.exportAnalysisSnapshot();
-    if (!baseline.ok) throw baseline.error;
-
-    const evidence = session
-      .exportEvidenceBundle()
-      .records.find(({ operation }) => operation === "address_name");
-    if (evidence === undefined || evidence.subject === null)
-      throw new Error("Expected artifact-bound Evidence");
-    const callsAfterInitialRead = [...calls];
-
-    const relocated = {
-      ...evidence,
-      subject: {
-        ...evidence.subject,
-        local_path: `${evidence.subject.local_path}.moved`,
-        name: `${evidence.subject.name}.moved`,
-      },
-    };
-    expect(
-      session.importEvidenceBundle(createEvidenceBundle([relocated])),
-    ).toEqual({ ok: true, value: 0 });
-    expect(session.exportEvidenceBundle().records).toContainEqual(relocated);
-    expect(
-      (
-        await session.execute("address_name", {
-          address: "0x1000",
-          document: "first",
-        })
-      ).ok,
-    ).toBe(true);
-    expect(calls).toHaveLength(callsAfterInitialRead.length + 1);
-    expect(session.exportAnalysisSnapshot()).toMatchObject({
-      ok: false,
-      error: {
-        _tag: "EvidenceIntegrityError",
-      },
-    });
-    expect((await session.open(target)).ok).toBe(true);
-    expect(session.exportAnalysisSnapshot().ok).toBe(false);
-    expect(session.importAnalysisSnapshot(baseline.value)).toMatchObject({
-      ok: false,
-      error: {
-        _tag: "EvidenceIntegrityError",
-      },
-    });
-    expect(session.exportEvidenceBundle().records).toContainEqual(relocated);
-    const callsAfterInvalidation = calls.length;
-    expect(
-      (
-        await session.execute("address_name", {
-          address: "0x1000",
-          document: "first",
-        })
-      ).ok,
-    ).toBe(true);
-    expect(calls).toHaveLength(callsAfterInvalidation + 1);
-    await session.close();
-    expect((await session.open(target, { snapshot: baseline.value })).ok).toBe(
-      true,
-    );
-    expect(session.exportAnalysisSnapshot().ok).toBe(true);
-    await session.close();
-  });
+  it.each(["active", "unrelated"] as const)(
+    "refreshes %s Evidence display metadata without invalidating provider observations",
+    async (scope) => {
+      const [target] = await createBinarySessionTargets();
+      const calls: string[] = [];
+      const session = createTestBinarySession(createCacheProvider(calls));
+      try {
+        expect((await session.open(target)).ok).toBe(true);
+        const parameters = { address: "0x1000", document: "first" };
+        const initial = await session.execute("address_name", parameters);
+        if (!initial.ok) throw initial.error;
+        const baseline = session.exportAnalysisSnapshot();
+        if (!baseline.ok) throw baseline.error;
+        const activeEvidence = baseline.value.evidence_bundle.records.find(
+          ({ operation }) => operation === "address_name",
+        );
+        if (activeEvidence === undefined || activeEvidence.subject === null)
+          throw new Error("Expected artifact-bound Evidence");
+        const evidence =
+          scope === "active"
+            ? activeEvidence
+            : createEvidence(
+                { path: "/unrelated", sha256: "f".repeat(64), format: "elf" },
+                { id: "fixture", name: "Fixture", version: "1" },
+                { operation: "health", parameters: {}, result: true },
+              );
+        expect(session.recordEvidence(evidence).ok).toBe(true);
+        if (evidence.subject === null) throw new Error("Expected a subject");
+        const relocated = {
+          ...evidence,
+          subject: {
+            ...evidence.subject,
+            local_path: `${evidence.subject.local_path}.moved`,
+            name: `${evidence.subject.name}.moved`,
+          },
+        };
+        const changed = vi.fn();
+        const unsubscribe = session.onAnalysisSnapshotChanged(changed);
+        expect(
+          session.importEvidenceBundle(createEvidenceBundle([relocated])),
+        ).toEqual({ ok: true, value: 0 });
+        expect(changed).toHaveBeenCalledTimes(1);
+        unsubscribe();
+        expect(session.evidenceById(evidence.evidence_id)).toEqual(relocated);
+        const refreshed = session.exportAnalysisSnapshot();
+        if (!refreshed.ok) throw refreshed.error;
+        if (scope === "active") {
+          expect(refreshed.value.entries[0]?.execution.subject?.path).toBe(
+            relocated.subject.local_path,
+          );
+          expect(refreshed.value.evidence_bundle.records).toContainEqual(
+            relocated,
+          );
+        } else {
+          expect(refreshed.value.entries).toEqual(baseline.value.entries);
+          expect(refreshed.value.evidence_bundle.records).not.toContainEqual(
+            relocated,
+          );
+        }
+        const callsAfterInitialRead = [...calls];
+        const replay = await session.execute("address_name", parameters);
+        if (!replay.ok) throw replay.error;
+        expect(replay.value.result).toEqual(initial.value.result);
+        expect(replay.value.subject?.path).toBe(target);
+        expect(calls).toEqual(callsAfterInitialRead);
+        // Import follows the same display-refresh path without poisoning the session.
+        expect(
+          session.importAnalysisSnapshot({
+            ...baseline.value,
+            entries: [],
+            workflow_entries: [],
+          }).ok,
+        ).toBe(true);
+        expect(session.exportAnalysisSnapshot()).toMatchObject({
+          ok: true,
+          value: { entries: baseline.value.entries },
+        });
+      } finally {
+        expect(await session.close()).toEqual({ ok: true, value: null });
+      }
+    },
+  );
 });
 
 describe("snapshot invalidation at mutation dispatch", () => {

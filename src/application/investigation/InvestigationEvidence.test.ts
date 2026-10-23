@@ -43,7 +43,9 @@ it.each(["immutable", "detached"] as const)(
       createEvidenceBundle([replacement]),
     );
     if (!merged.ok) throw merged.error;
-    expect(merged.value.metadataChanged).toBe(true);
+    expect(merged.value.replacements).toEqual([
+      { kind: "subject-display", previous: first, current: replacement },
+    ]);
     expect(lookup(first.evidence_id)?.subject?.local_path).toBe("/moved");
     expect(
       investigationEvidenceBundle(reader).records[0]?.subject?.local_path,

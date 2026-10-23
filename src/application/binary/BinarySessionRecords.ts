@@ -150,8 +150,8 @@ export abstract class BinarySessionRecords {
   ): Result<number, EvidenceIntegrityError | AnalysisInputError> {
     const imported = this.#records.mergeEvidenceBundle(bundle);
     if (!imported.ok) return imported;
-    if (imported.value.metadataChanged) this.invalidateSnapshot();
-    else if (imported.value.changed) this.#emitSnapshotChanged();
+    this.#snapshot.refreshEvidenceDisplay(imported.value.replacements);
+    if (imported.value.changed) this.#emitSnapshotChanged();
     return ok(imported.value.recordsAdded);
   }
 
@@ -238,7 +238,9 @@ export abstract class BinarySessionRecords {
           : { target: active.target, profile },
       (bundle) => {
         const imported = this.#records.mergeEvidenceBundle(bundle);
-        return imported.ok ? ok(imported.value.recordsAdded) : imported;
+        if (!imported.ok) return imported;
+        this.#snapshot.refreshEvidenceDisplay(imported.value.replacements);
+        return ok(imported.value.recordsAdded);
       },
     );
     if (imported.ok) this.#emitSnapshotChanged();

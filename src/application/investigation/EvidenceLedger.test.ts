@@ -43,7 +43,7 @@ describe("evidence ledger recording", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: false,
-        metadataChanged: false,
+        replacements: [],
       },
     });
     expect(ledger.export().records).toEqual([evidence]);
@@ -60,7 +60,13 @@ describe("evidence ledger recording", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: true,
-        metadataChanged: true,
+        replacements: [
+          {
+            kind: "subject-display",
+            previous: evidence,
+            current: relocatedBundleRecord,
+          },
+        ],
       },
     });
     expect(ledger.get(evidence.evidence_id)).toEqual(relocatedBundleRecord);
@@ -73,7 +79,7 @@ describe("evidence ledger recording", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: false,
-        metadataChanged: false,
+        replacements: [],
       },
     });
     const conflictingBundle = createEvidenceBundle([
@@ -111,7 +117,7 @@ describe("evidence ledger recording", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: false,
-        metadataChanged: false,
+        replacements: [],
       },
     });
     ledger.clear();
@@ -194,7 +200,13 @@ describe("evidence ledger metadata imports", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: true,
-        metadataChanged: true,
+        replacements: [
+          {
+            kind: "subject-display",
+            previous: mutation,
+            current: relocatedMutation,
+          },
+        ],
       },
     });
     expect(ledger.get(mutation.evidence_id)).toEqual(relocatedMutation);
@@ -204,7 +216,7 @@ describe("evidence ledger metadata imports", () => {
         recordsAdded: 0,
         unknownsAdded: 0,
         changed: false,
-        metadataChanged: false,
+        replacements: [],
       },
     });
   });

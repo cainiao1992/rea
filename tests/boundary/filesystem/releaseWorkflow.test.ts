@@ -138,6 +138,169 @@ it("keeps main pushes proposal-only and gates merged-release automation", async 
   );
 });
 
+const finalizedRelease = {
+  number: 1399,
+  headRefName: "release-please--branches--main--components--rea-agents",
+  headRepository: { nameWithOwner: "fixture/rea" },
+};
+
+function editorialPage(nodes: unknown[], hasNextPage = false) {
+  return {
+    data: {
+      repository: {
+        nameWithOwner: "fixture/rea",
+        pullRequests: {
+          nodes,
+          pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null },
+        },
+      },
+    },
+  };
+}
+
+it.each([
+  {
+    name: "finalized release",
+    pages: [editorialPage([finalizedRelease])],
+    frozen: true,
+  },
+  { name: "no finalized PR", pages: [editorialPage([])], frozen: false },
+  {
+    name: "fork and unrelated head branch",
+    pages: [
+      editorialPage([
+        { ...finalizedRelease, headRepository: { nameWithOwner: "fork/rea" } },
+        {
+          ...finalizedRelease,
+          headRefName: "release-please--branches--other--component",
+        },
+        { ...finalizedRelease, headRepository: null },
+      ]),
+    ],
+    frozen: false,
+  },
+  {
+    name: "finalized release on a later page",
+    pages: [editorialPage([], true), editorialPage([finalizedRelease])],
+    frozen: true,
+  },
+])("preserves the proposal freeze for $name", async ({ pages, frozen }) => {
+  const step = (await readReleaseWorkflow()).jobs["release-proposal"].steps[0];
+  const directory = await createTestTempDirectory("rea-release-editorial-");
+  const output = join(directory, "output");
+  const summary = join(directory, "summary");
+  const args = join(directory, "args");
+  await writeFile(output, "");
+  await writeFile(summary, "");
+  await writeFile(join(directory, "pages"), JSON.stringify(pages));
+  await writeFile(
+    join(directory, "gh"),
+    '#!/bin/sh\nprintf "%s\n" "$@" > "$GH_ARGS"\ncat "$GH_PAGES"\n',
+    { mode: 0o755 },
+  );
+  await execFileAsync(
+    "bash",
+    ["-e", "-o", "pipefail", "-c", z.string().parse(step?.run)],
+    {
+      env: {
+        ...process.env,
+        PATH: `${directory}${delimiter}${process.env.PATH ?? ""}`,
+        GH_REPO: "fixture/rea",
+        GH_ARGS: args,
+        GH_PAGES: join(directory, "pages"),
+        GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: summary,
+      },
+    },
+  );
+  const request = await readFile(args, "utf8");
+  expect(request).toContain("api\ngraphql\n--paginate\n--slurp");
+  expect(request).toContain("owner=fixture");
+  expect(request).toContain("name=rea");
+  expect(request).toContain(
+    'states:OPEN,baseRefName:"main",labels:["rea:release-notes-finalized"]',
+  );
+  expect(request).toContain("after:$endCursor");
+  expect(await readFile(output, "utf8")).toBe(frozen ? "frozen=true\n" : "");
+  expect(await readFile(summary, "utf8")).toBe(
+    frozen
+      ? "Finalized release notes on PR 1399; automatic proposal refresh is paused.\n"
+      : "",
+  );
+});
+
+it.each([
+  { name: "transport quota failure", pages: [], status: 1 },
+  {
+    name: "partial GraphQL error",
+    pages: [{ ...editorialPage([]), errors: [{ message: "quota exceeded" }] }],
+    status: 0,
+  },
+  {
+    name: "unavailable repository",
+    pages: [{ data: { repository: null } }],
+    status: 0,
+  },
+  {
+    name: "missing nodes",
+    pages: [
+      {
+        data: {
+          repository: { nameWithOwner: "fixture/rea", pullRequests: {} },
+        },
+      },
+    ],
+    status: 0,
+  },
+  {
+    name: "malformed PR",
+    pages: [editorialPage([{ ...finalizedRelease, headRefName: null }])],
+    status: 0,
+  },
+  {
+    name: "incomplete pagination",
+    pages: [editorialPage([], true)],
+    status: 0,
+  },
+  { name: "empty response", pages: [], status: 0 },
+])("fails closed before release-please on $name", async ({ pages, status }) => {
+  const step = (await readReleaseWorkflow()).jobs["release-proposal"].steps[0];
+  const directory = await createTestTempDirectory(
+    "rea-release-editorial-error-",
+  );
+  const output = join(directory, "output");
+  await writeFile(output, "");
+  await writeFile(join(directory, "pages"), JSON.stringify(pages));
+  await writeFile(
+    join(directory, "gh"),
+    `#!/bin/sh\ncat "$GH_PAGES"\nexit ${status}\n`,
+    { mode: 0o755 },
+  );
+  await expect(
+    execFileAsync(
+      "bash",
+      [
+        "-e",
+        "-o",
+        "pipefail",
+        "-c",
+        `${z.string().parse(step?.run)}\nprintf 'action-ran\n' >> "$GITHUB_OUTPUT"`,
+      ],
+      {
+        env: {
+          ...process.env,
+          PATH: `${directory}${delimiter}${process.env.PATH ?? ""}`,
+          GH_REPO: "fixture/rea",
+          GH_PAGES: join(directory, "pages"),
+          GITHUB_OUTPUT: output,
+          GITHUB_STEP_SUMMARY: join(directory, "summary"),
+        },
+      },
+    ),
+  ).rejects.toMatchObject({ code: expect.any(Number) });
+  expect(await readFile(output, "utf8")).toBe("");
+});
+
 it("validates the reviewed merge before creating its release", async () => {
   const workflow = await readReleaseWorkflow();
   const steps = workflow.jobs["merged-release"].steps;

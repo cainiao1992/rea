@@ -555,7 +555,7 @@ it.each([
         {
           facet: `connections:${relativePath}`,
           status: "partial",
-          reason: "connection_limit_reached",
+          reason: "object_limit_reached",
           examined: 1,
           omitted: 2,
         },

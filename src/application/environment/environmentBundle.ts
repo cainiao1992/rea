@@ -1,4 +1,5 @@
 import { PRODUCT_IDENTITY } from "../../identity.js";
+import { PACKAGE_METADATA } from "../../generatedPackageMetadata.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../../domain/result.js";
@@ -15,7 +16,7 @@ import type { EnvironmentToolDefinition } from "./environmentTools.js";
 export const ENVIRONMENT_EXPORT_OPERATION = "environment-export";
 
 /** The image the exported Dockerfile builds from; the agentenv runner builds it with Docker. */
-export const BUNDLE_BASE_IMAGE = "node:24.18.0-bookworm-slim";
+export const BUNDLE_BASE_IMAGE = `node:${PACKAGE_METADATA.pinnedNodeVersion}-bookworm-slim`;
 
 /** The port the agentenv framework maps for an MCP server env; it sets the host but not the port. */
 export const BUNDLE_MCP_PORT = 18765;

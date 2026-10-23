@@ -3273,10 +3273,10 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"Your distribution's own {ph0} package is often older than 22.19, so check "
+"Your distribution's own {ph0} package is often older than 22.23.4, so check "
 "{ph1} if you use it instead."
 msgstr ""
-"التوزيع الخاص بك {ph0} غالبا ما تكون الحزمة أقدم من 22.19 ، لذا تحقق {ph1} "
+"التوزيع الخاص بك {ph0} غالبا ما تكون الحزمة أقدم من 22.23.4 ، لذا تحقق {ph1} "
 "إذا كنت تستخدم بدلا من ذلك."
 
 #. {ph0}: <a href="https://nodejs.org/en/download">
@@ -11425,8 +11425,8 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
-msgstr "سوف تحتاج {ph0} 22 (22.19+), 24 (24.11+) أو 26+. npm يأتي مع {ph1}."
+"You'll need {ph0} 22 (22.23.4+), 24 (24.22.1+) or 26+ (>=26.12.1). npm comes with {ph1}."
+msgstr "سوف تحتاج {ph0} 22 (22.23.4+), 24 (24.22.1+) أو 26+ (>=26.12.1). npm يأتي مع {ph1}."
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/get-started/index.html:262
@@ -11441,11 +11441,11 @@ msgstr "ليس لديك {ph0}, أو لست متأكدا?"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"If {ph0} prints v22.19+, v24.11+ or v26+, you're ready. If it prints an "
+"If {ph0} prints v22.23.4+, v24.22.1+ or v26.12.1+, you're ready. If it prints an "
 "older version or \"not recognized\" / \"command not found\", install {ph1} "
 "24 LTS:"
 msgstr ""
-"إذا عرض {ph0} ‏v22.19+ أو v24.11+ أو v26+، فأنت جاهز. إذا عرض إصدارًا أقدم "
+"إذا عرض {ph0} ‏v22.23.4+ أو v24.22.1+ أو v26.12.1+، فأنت جاهز. إذا عرض إصدارًا أقدم "
 "أو \"not recognized\" / \"command not found\"، فثبّت {ph1} 24 LTS:"
 
 #. {ph0}: <span translate="no">export.js</span>

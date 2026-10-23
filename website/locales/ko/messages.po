@@ -3112,9 +3112,9 @@ msgstr "약관 동의를 요청하면 Y를 입력하세요. PowerShell을 닫았
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"Your distribution's own {ph0} package is often older than 22.19, so check "
+"Your distribution's own {ph0} package is often older than 22.23.4, so check "
 "{ph1} if you use it instead."
-msgstr "배포판에서 제공하는 {ph0} 패키지는 22.19보다 오래된 경우가 많습니다. 이를 사용한다면 {ph1}로 확인하세요."
+msgstr "배포판에서 제공하는 {ph0} 패키지는 22.23.4보다 오래된 경우가 많습니다. 이를 사용한다면 {ph1}로 확인하세요."
 
 #. {ph0}: <a href="https://nodejs.org/en/download">
 #. {ph1}: </a>
@@ -10975,8 +10975,8 @@ msgstr "제목은 따옴표로 감싼 필드 하나에 남고, 내부 따옴표�
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
-msgstr "{ph0} 22(22.19+), 24(24.11+) 또는 26+가 필요합니다. npm은 {ph1}와 함께 제공됩니다."
+"You'll need {ph0} 22 (22.23.4+), 24 (24.22.1+) or 26+ (>=26.12.1). npm comes with {ph1}."
+msgstr "{ph0} 22(22.23.4+), 24(24.22.1+) 또는 26+ (>=26.12.1)가 필요합니다. npm은 {ph1}와 함께 제공됩니다."
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/get-started/index.html:262
@@ -10991,11 +10991,11 @@ msgstr "{ph0}가 없거나, 설치되어 있는지 확실하지 않나요?"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"If {ph0} prints v22.19+, v24.11+ or v26+, you're ready. If it prints an "
+"If {ph0} prints v22.23.4+, v24.22.1+ or v26.12.1+, you're ready. If it prints an "
 "older version or \"not recognized\" / \"command not found\", install {ph1} "
 "24 LTS:"
 msgstr ""
-"{ph0}가 v22.19+, v24.11+ 또는 v26+를 출력하면 준비가 된 것입니다. 이전 버전이나 ‘인식되지 않음’ / ‘명령을 "
+"{ph0}가 v22.23.4+, v24.22.1+ 또는 v26.12.1+를 출력하면 준비가 된 것입니다. 이전 버전이나 ‘인식되지 않음’ / ‘명령을 "
 "찾을 수 없음’이 나오면 {ph1} 24 LTS를 설치하세요:"
 
 #. {ph0}: <span translate="no">export.js</span>

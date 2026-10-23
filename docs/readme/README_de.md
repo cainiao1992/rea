@@ -137,7 +137,7 @@ Dein Agent ruft REA über MCP auf, um das Ziel zu untersuchen und relevanten Cod
 
 ## Was du analysieren kannst
 
-REA benötigt Node.js 22.x (>=22.19), 24.x (>=24.11) oder 26+ sowie npm. Zusätzliche Werkzeuge und unterstützte Hostsysteme hängen vom Ziel ab:
+REA benötigt Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) oder 26+ (>=26.12.1) sowie npm. Zusätzliche Werkzeuge und unterstützte Hostsysteme hängen vom Ziel ab:
 
 | Ziel                                | Was REA zurückgibt                                                                                              | Voraussetzungen und Anleitung                                                                                                               |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |

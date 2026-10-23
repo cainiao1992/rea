@@ -137,7 +137,7 @@ Seu agente chama o REA por MCP para inspecionar o alvo e rastrear o código rele
 
 ## O que você pode analisar
 
-O REA requer Node.js 22.x (>=22.19), 24.x (>=24.11) ou 26+, além do npm. As ferramentas adicionais e os sistemas anfitriões compatíveis dependem do alvo:
+O REA requer Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) ou 26+ (>=26.12.1), além do npm. As ferramentas adicionais e os sistemas anfitriões compatíveis dependem do alvo:
 
 | Alvo                        | O que o REA retorna                                                                                                     | Requisitos e guia                                                                                                                 |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |

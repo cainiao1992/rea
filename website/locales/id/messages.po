@@ -3369,10 +3369,10 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"Your distribution's own {ph0} package is often older than 22.19, so check "
+"Your distribution's own {ph0} package is often older than 22.23.4, so check "
 "{ph1} if you use it instead."
 msgstr ""
-"Distribusi Anda sendiri {ph0} paket seringkali lebih lama dari 22.19, jadi "
+"Distribusi Anda sendiri {ph0} paket seringkali lebih lama dari 22.23.4, jadi "
 "periksa {ph1} jika Anda menggunakannya sebagai gantinya."
 
 #. {ph0}: <a href="https://nodejs.org/en/download">
@@ -11680,9 +11680,9 @@ msgstr ""
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
+"You'll need {ph0} 22 (22.23.4+), 24 (24.22.1+) or 26+ (>=26.12.1). npm comes with {ph1}."
 msgstr ""
-"Anda akan membutuhkan {ph0} 22 (22.19+), 24 (24.11+) atau 26+.  npm hadir "
+"Anda akan membutuhkan {ph0} 22 (22.23.4+), 24 (24.22.1+) atau 26+ (>=26.12.1).  npm hadir "
 "dengan {ph1}."
 
 #. {ph0}: <span translate="no">Node.js</span>
@@ -11698,11 +11698,11 @@ msgstr "Tidak memiliki {ph0}, atau tidak yakin?"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"If {ph0} prints v22.19+, v24.11+ or v26+, you're ready. If it prints an "
+"If {ph0} prints v22.23.4+, v24.22.1+ or v26.12.1+, you're ready. If it prints an "
 "older version or \"not recognized\" / \"command not found\", install {ph1} "
 "24 LTS:"
 msgstr ""
-"Jika {ph0} menampilkan v22.19+, v24.11+, atau v26+, kamu sudah siap. Jika "
+"Jika {ph0} menampilkan v22.23.4+, v24.22.1+, atau v26.12.1+, kamu sudah siap. Jika "
 "menampilkan versi lebih lama atau \"not recognized\" / \"command not "
 "found\", instal {ph1} 24 LTS:"
 

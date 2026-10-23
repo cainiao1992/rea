@@ -140,7 +140,7 @@ Il tuo agente chiama REA tramite MCP per ispezionare il bersaglio e tracciare il
 
 ## Cosa puoi analizzare
 
-REA richiede Node.js 22.x (>=22.19), 24.x (>=24.11) o 26+, oltre a npm. Strumenti aggiuntivi e supporto host dipendono dal bersaglio:
+REA richiede Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) o 26+ (>=26.12.1), oltre a npm. Strumenti aggiuntivi e supporto host dipendono dal bersaglio:
 
 | Obiettivo                    | Cosa restituisce REA                                                                              | Requisiti e guida                                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

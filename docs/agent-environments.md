@@ -646,7 +646,7 @@ agent-env run ./grafana-example
 ```text
 grafana-example/
   README.md                                 provenance, what it serves, run command, rights note
-  envs/grafana-example/Dockerfile           pinned image: node:24.18.0-bookworm-slim + rea-agents@<this version>
+  envs/grafana-example/Dockerfile           pinned image: node:24.22.1-bookworm-slim + rea-agents@<this version>
   envs/grafana-example/env.toml             environment_name = "grafana-example"
   envs/grafana-example/manifest.json        byte-exact copy of manifest.json
   envs/grafana-example/evidence.json        byte-exact copy of capture.json

@@ -2959,9 +2959,9 @@ msgstr "如果要求你接受條款，請輸入 Y。關閉 PowerShell 後重新�
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"Your distribution's own {ph0} package is often older than 22.19, so check "
+"Your distribution's own {ph0} package is often older than 22.23.4, so check "
 "{ph1} if you use it instead."
-msgstr "發行版提供的 {ph0} 套件通常早於 22.19。如果使用它，請執行 {ph1} 確認版本。"
+msgstr "發行版提供的 {ph0} 套件通常早於 22.23.4。如果使用它，請執行 {ph1} 確認版本。"
 
 # Adapted from Kaoru0822's Traditional Chinese draft in PR #1737.
 #. {ph0}: <a href="https://nodejs.org/en/download">
@@ -10715,8 +10715,8 @@ msgstr "標題保留在一個帶引號的欄位裡，每個引號都寫成兩個
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"You'll need {ph0} 22 (22.19+), 24 (24.11+) or 26+. npm comes with {ph1}."
-msgstr "需要 {ph0} 22（22.19+）、24（24.11+）或 26+。npm 會隨 {ph1} 一起安裝。"
+"You'll need {ph0} 22 (22.23.4+), 24 (24.22.1+) or 26+ (>=26.12.1). npm comes with {ph1}."
+msgstr "需要 {ph0} 22（22.23.4+）、24（24.22.1+）或 26+ (>=26.12.1)。npm 會隨 {ph1} 一起安裝。"
 
 #. {ph0}: <span translate="no">Node.js</span>
 #: website/public/get-started/index.html:262
@@ -10731,11 +10731,11 @@ msgstr "還沒安裝 {ph0}，或不確定？"
 #, python-brace-format
 msgctxt "page:get-started/index.html"
 msgid ""
-"If {ph0} prints v22.19+, v24.11+ or v26+, you're ready. If it prints an "
+"If {ph0} prints v22.23.4+, v24.22.1+ or v26.12.1+, you're ready. If it prints an "
 "older version or \"not recognized\" / \"command not found\", install {ph1} "
 "24 LTS:"
 msgstr ""
-"如果 {ph0} 顯示 v22.19+、v24.11+ 或 v26+，就可以繼續。如果版本更舊，或顯示“無法識別”/“command not "
+"如果 {ph0} 顯示 v22.23.4+、v24.22.1+ 或 v26.12.1+，就可以繼續。如果版本更舊，或顯示“無法識別”/“command not "
 "found”，先安裝 {ph1} 24 LTS："
 
 #. {ph0}: <span translate="no">export.js</span>

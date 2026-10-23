@@ -344,10 +344,11 @@ const resolveInternalSpecifier = (
       resolution: "unresolved",
       limitation: imported.error,
     };
-  const normalized =
+  const normalizedPath =
     imported?.ok === true
       ? imported.value.path
       : posix.normalize(posix.join(posix.dirname(fromPath), specifier));
+  const normalized = normalizedPath.replace(/(?<=.)\/+$/u, "") || ".";
   if (logicalPathEscapesRoot(normalized))
     return { to: normalized, resolution: "unresolved" };
   // Preserve directory intent before normalization removes terminal dot segments.

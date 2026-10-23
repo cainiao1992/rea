@@ -20,6 +20,8 @@ cliTest(
       "package.json": '{"type":"module"}\n',
       "main.js": 'require("./dep.cjs"); export {};\n',
       "dep.cjs": 'throw new Error("must never load");\n',
+      "directory.cjs": 'require("./nested/");\n',
+      "nested/index.js": 'module.exports = "fallback";\n',
       "optional.cjs":
         'require.resolve?.("./dep.cjs"); require?.resolve("./dep.cjs");\n',
       "overwritten.cjs":
@@ -29,7 +31,7 @@ cliTest(
       "types.d.ts":
         'declare module "consumer" { import type { Marker } from "dependency"; export type A = import("./dep").Marker; export type B = typeof import("./dep"); }\n',
       "dep.ts": "export interface Marker { id: string }\n",
-      "nested/package.json": '{"type":"commonjs"}\n',
+      "nested/package.json": '{"type":"commonjs","main":"main.js"}\n',
       "nested/main.js": 'require("../dep.cjs");\n',
       "unknown/package.json": "{invalid",
       "unknown/main.js": 'require("../dep.cjs");\n',
@@ -73,6 +75,15 @@ cliTest(
     const edges = (from: string) =>
       graph.relationships.filter((edge) => edge.from_path === from);
     expect(edges("main.js")).toEqual([]);
+    expect(edges("directory.cjs")).toEqual([
+      {
+        from_path: "directory.cjs",
+        to: "nested/main.js",
+        kind: "requires",
+        resolution: "internal",
+        parse_state: "parsed",
+      },
+    ]);
     expect(edges("shadowed.cjs")).toEqual([]);
     for (const from of ["optional.cjs", "nested/main.js"])
       expect(edges(from)).toEqual([

@@ -189,6 +189,22 @@ try {
     assert.equal(noNotes.threads.length, 0);
     assert.equal(noNotes.note_interpretation_completeness, "unknown");
     cases++;
+    for (const [name, architecture, type] of [
+      ["aarch64-archext", "aarch64-little-endian", "PT_AARCH64_ARCHEXT"],
+      ["aarch64-unwind", "aarch64-little-endian", "PT_AARCH64_UNWIND"],
+      ["aarch64-mte-opaque", "aarch64-little-endian", 0x70000002],
+      ["amd64-processor-opaque", "x86_64-little-endian", 0x70000001],
+    ]) {
+      const auxiliary = await basic.inspect(mode, fixtures[name]);
+      assert.equal(auxiliary.architecture, architecture);
+      assert.equal(auxiliary.segments.length, 1);
+      assert.equal(auxiliary.segments[0].type, type);
+      assert.equal(auxiliary.notes.length, 0);
+      assert.equal(auxiliary.threads.length, 0);
+      assert.equal(auxiliary.note_interpretation_completeness, "unknown");
+      assert.equal(auxiliary.live_process_identity, "unknown");
+      cases++;
+    }
     const negative = await basic.inspect(mode, fixtures["negative-pid"]);
     assert.ok(negative.threads.some((thread) => thread.historical_pid === -2));
     cases++;

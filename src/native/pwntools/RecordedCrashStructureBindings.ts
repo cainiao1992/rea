@@ -2,10 +2,12 @@ import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import {
   RECORDED_LINUX_CORE_PROFILES,
   type RecordedCrash,
+  type RecordedCrashArchitecture,
 } from "../../domain/native/recordedCrash.js";
 
-// Exact amd64/core enum projections in the pinned pyelftools 0.33 profile.
-const segmentKinds = new Map([
+// Base plus machine-specific projections from pinned pyelftools 0.33. A name
+// establishes the original p_type only in the architecture that emits it.
+const baseSegmentKinds = new Map([
   [0, "PT_NULL"],
   [1, "PT_LOAD"],
   [2, "PT_DYNAMIC"],
@@ -21,6 +23,16 @@ const segmentKinds = new Map([
   [0x6474e552, "PT_GNU_RELRO"],
   [0x6474e553, "PT_GNU_PROPERTY"],
 ]);
+const segmentKinds: Readonly<
+  Record<RecordedCrashArchitecture, ReadonlyMap<number, string>>
+> = {
+  "x86_64-little-endian": baseSegmentKinds,
+  "aarch64-little-endian": new Map([
+    ...baseSegmentKinds,
+    [0x70000000, "PT_AARCH64_ARCHEXT"],
+    [0x70000001, "PT_AARCH64_UNWIND"],
+  ]),
+};
 const noteKinds = new Map([
   [1, "NT_PRSTATUS"],
   [2, "NT_FPREGSET"],
@@ -44,10 +56,11 @@ const matchesKind = (
 const segmentMatches = (
   segment: RecordedCrash["segments"][number],
   raw: Buffer,
+  kinds: ReadonlyMap<number, string>,
 ): boolean => {
   const type = raw.readUInt32LE(0);
   return (
-    matchesKind(type, segment.type, segmentKinds) &&
+    matchesKind(type, segment.type, kinds) &&
     BigInt(segment.flags) === BigInt(raw.readUInt32LE(4)) &&
     segment.file_backing ===
       (type === 0 || raw.readBigUInt64LE(32) === 0n ? "none" : "file") &&
@@ -115,7 +128,8 @@ export function validateRecordedCrashStructure(
     )
       fail();
     const raw = bytesAt(offset, entryBytes);
-    if (!segmentMatches(segment, raw)) fail();
+    if (!segmentMatches(segment, raw, segmentKinds[report.architecture]))
+      fail();
   }
   for (const note of report.notes) {
     const raw = bytesAt(BigInt(note.location.offset), 12);

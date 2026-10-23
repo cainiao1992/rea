@@ -174,6 +174,15 @@ service and extension names must also identify one declaration across the
 descriptor set, including nested and synthetic map-entry messages. Different
 packages or enclosing messages may reuse a local type name. Schema-admission
 failures retain the partial capture Evidence and its original artifact identity.
+REA also requires an unambiguous descriptor file identity. Repeated exact file
+names are coalesced only when protobuf-es equality confirms matching field
+presence, declared values and retained opaque unknown/custom-option fields.
+Opaque fields must match in their retained order and bytes; REA does not
+interpret them. Conflicting definitions are refused rather than selecting a
+file by its position. This is REA's supplied-schema admission policy, separate
+from protobuf wire validity and the [first-occurrence precedence in protoc v32.1](https://github.com/protocolbuffers/protobuf/blob/v32.1/src/google/protobuf/compiler/command_line_interface.cc#L1402).
+The descriptor-set byte count and SHA-256 continue to identify the complete
+original input, including repeated file facts.
 Map semantics, extensions and required-field validation are
 unsupported. A supplied schema does not establish the sender's actual schema.
 An invalid nested interpretation records `schema_status: "invalid-message"`

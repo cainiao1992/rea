@@ -327,6 +327,52 @@ describe("compiled Interface Builder bundle reader", () => {
 });
 
 describe("keyed archive hierarchy coverage", () => {
+  it("projects NIBArchive special reals as typed values with per-document counts", async () => {
+    const root = await createTestTempDirectory("rea-nib-real-projection-");
+    const bundle = join(root, "Example.app");
+    const resources = join(bundle, "Contents", "Resources");
+    await mkdir(resources, { recursive: true });
+    await writeFile(
+      join(resources, "Numbers.nib"),
+      encodeNibArchiveFixture({
+        classes: ["UIView"],
+        objects: [
+          {
+            classIndex: 0,
+            values: {
+              nan: { float32: Number.NaN },
+              positive: { float32: Number.POSITIVE_INFINITY },
+              negative: { float64: Number.NEGATIVE_INFINITY },
+              negativeZero32: { float32: -0 },
+              negativeZero64: { float64: -0 },
+              nil: null,
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await analyzeInterfaceBuilderBundle({
+      bundlePath: bundle,
+      targetSha256: "f".repeat(64),
+    });
+    const values = result.graph.nodes[0]?.attributes.nibValues;
+    expect(values).toMatchObject({
+      nan: { $plist_type: "real", value: "nan" },
+      positive: { $plist_type: "real", value: "+infinity" },
+      negative: { $plist_type: "real", value: "-infinity" },
+      negativeZero32: { $plist_type: "real", value: "-0" },
+      negativeZero64: { $plist_type: "real", value: "-0" },
+      nil: null,
+    });
+    expect(result.limitations).toContain(
+      'Numbers.nib: 3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } using canonical numeric labels nan, +infinity or -infinity because a JSON number cannot carry them.',
+    );
+    expect(result.limitations).toContain(
+      'Numbers.nib: 2 negative-zero real value(s) are reported as { "$plist_type": "real", "value": "-0" } because a JSON number cannot carry the sign of zero.',
+    );
+  });
+
   it("projects a deep keyed-archive hierarchy through NSArray wrappers", async () => {
     const root = await createTestTempDirectory("rea-ib-test-");
     const bundle = join(root, "Example.app");

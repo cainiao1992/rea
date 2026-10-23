@@ -4,7 +4,16 @@ export const encodeNibArchiveFixture = (input: {
   readonly objects: readonly {
     readonly classIndex: number;
     readonly values: Readonly<
-      Record<string, number | string | boolean | null | { ref: number }>
+      Record<
+        string,
+        | number
+        | string
+        | boolean
+        | null
+        | { ref: number }
+        | { float32: number }
+        | { float64: number }
+      >
     >;
   }[];
 }): Buffer => {
@@ -73,7 +82,14 @@ const varint = (value: number): Buffer => {
 };
 
 const encodeValue = (
-  value: number | string | boolean | null | { ref: number },
+  value:
+    | number
+    | string
+    | boolean
+    | null
+    | { ref: number }
+    | { float32: number }
+    | { float64: number },
 ): Buffer => {
   // Tags as written by ibtool and read by AppKit: 4 is NO, 5 is YES.
   if (typeof value === "boolean") return Buffer.from([value ? 5 : 4]);
@@ -85,6 +101,18 @@ const encodeValue = (
     return bytes;
   }
   if (typeof value === "object") {
+    if ("float32" in value) {
+      const bytes = Buffer.alloc(5);
+      bytes[0] = 6;
+      bytes.writeFloatLE(value.float32, 1);
+      return bytes;
+    }
+    if ("float64" in value) {
+      const bytes = Buffer.alloc(9);
+      bytes[0] = 7;
+      bytes.writeDoubleLE(value.float64, 1);
+      return bytes;
+    }
     const bytes = Buffer.alloc(5);
     bytes[0] = 10;
     bytes.writeUInt32LE(value.ref, 1);

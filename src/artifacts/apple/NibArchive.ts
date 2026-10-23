@@ -401,14 +401,14 @@ const readValue = (
       {
         const value = bytes.readFloatLE(cursor.offset);
         cursor.offset += 4;
-        return Number.isFinite(value) ? value : null;
+        return value;
       }
     case NibValueType.float64:
       ensureRange(cursor.offset, 8, end, `value ${index}`);
       {
         const value = bytes.readDoubleLE(cursor.offset);
         cursor.offset += 8;
-        return Number.isFinite(value) ? value : null;
+        return value;
       }
     case NibValueType.data: {
       const length = readVarint(bytes, cursor, end);

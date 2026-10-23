@@ -76,10 +76,11 @@ it("records the selected BEAM form", async () => {
 
 it("discards an observation if the caller cancels while the provider completes", async () => {
   const controller = new AbortController();
+  const reason = { source: "caller-request", operation: "cancel" };
   const service = new BeamService({
     identity,
     inspect: () => {
-      controller.abort();
+      controller.abort(reason);
       return Promise.resolve(ok(report));
     },
   });
@@ -88,5 +89,8 @@ it("discards an observation if the caller cancels while the provider completes",
     { signal: controller.signal },
   );
   expect(result.ok).toBe(false);
-  if (!result.ok) expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+  if (!result.ok) {
+    expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(reason);
+  }
 });

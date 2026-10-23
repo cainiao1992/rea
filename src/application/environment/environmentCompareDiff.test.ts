@@ -166,6 +166,21 @@ describe("compareAnswers", () => {
   });
 });
 
+describe("clock field names", () => {
+  it("keeps numeric format identifiers literal and recognizes clock field forms", () => {
+    expect(
+      compare({ format: 1196444237 }, { format: 1448695129 }).differences,
+    ).toMatchObject([{ category: "value", pointer: "/format" }]);
+    expect(
+      compare({ updated_at: 1760000000 }, { updated_at: 1760000999 })
+        .differences,
+    ).toEqual([]);
+    expect(
+      compare({ createdAt: 1760000000 }, { createdAt: 1760000999 }).differences,
+    ).toEqual([]);
+  });
+});
+
 describe("comparison body coverage", () => {
   it("compares a live body over the replay limit by status only and counts it", () => {
     const result = compareAnswers(

@@ -27,6 +27,42 @@ const compareRows = (
 };
 
 describe("environment comparison identifier semantics", () => {
+  it("compares numeric format identifiers literally while normalizing actual clock fields", () => {
+    const fourcc = (value: string) => Buffer.from(value).readUInt32LE(0);
+    const probe = compareRows(
+      [
+        [
+          "GET",
+          "/api/media",
+          {
+            format: fourcc("MJPG"),
+            size: 1,
+            updated_at: "2026-10-20T10:00:00Z",
+          },
+        ],
+      ],
+      [
+        [
+          "GET",
+          "/api/media",
+          {
+            format: fourcc("YUYV"),
+            size: 1,
+            updated_at: "2026-10-17T18:00:03Z",
+          },
+        ],
+      ],
+    );
+    expect(probe.results[0]?.equal).toBe(false);
+    expect(
+      probe.results[0]?.differences.map((difference) => [
+        difference.category,
+        difference.pointer,
+      ]),
+    ).toEqual([["value", "/format"]]);
+    expect(probe.normalised.clocks).toBe(1);
+  });
+
   it("does not normalize measurements after learning an unrelated numeric ID", () => {
     const probe = compareRows(
       [

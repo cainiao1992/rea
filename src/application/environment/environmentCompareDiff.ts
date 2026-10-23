@@ -52,7 +52,10 @@ export interface Normalised {
 /** At most this many differences are kept per step. */
 export const STEP_DIFFERENCE_LIMIT = 20;
 const VALUE_CHARS = 120;
-const TIME_FIELD = /(at|time|date|timestamp|created|updated|modified)$/iu;
+const TIME_FIELD =
+  /(?:^|[_-])(?:at|time|date|timestamp|created|updated|modified)$/iu;
+const TIME_FIELD_CAMEL =
+  /(?:At|Time|Date|Timestamp|Created|Updated|Modified)$/u;
 const ID_LIST_FIELD = /^(ids|uuids|guids)$/u;
 
 const isObject = (value: JsonValue | undefined): value is JsonObject =>
@@ -76,7 +79,12 @@ const clockFormat = (
   value: JsonValue,
   key: string | undefined,
 ): string | undefined => {
-  if (typeof value === "number" && key !== undefined && !TIME_FIELD.test(key))
+  if (
+    typeof value === "number" &&
+    key !== undefined &&
+    !TIME_FIELD.test(key) &&
+    !TIME_FIELD_CAMEL.test(key)
+  )
     return undefined;
   const clock = readClock(value);
   return clock === undefined ? undefined : formatKey(clock.format);

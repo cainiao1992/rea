@@ -755,8 +755,10 @@ recording replayed in its place and never from a recording whose body the probe 
 two collections can reuse a live id, and an equal pair stays in that collection. A live id in a later request's path, query or body is translated before the
 environment answers, a path parameter by the collection the live path names (a nested collection keeps its parent values, each decoded once, and a literal route segment stays), except a query value that pages a list, such as `limit`
 or `page`. Each call is checked against the served tool's input schema first, as the MCP server checks it. After mapping, two clock values compare by format only (ISO-8601 strings, and epoch numbers under
-time-named fields), and two different values each side generated on its own compare equal: both UUIDs, or one length of
+`at`, `time`, `date`, `timestamp`, `created`, `updated` or `modified` field names, including snake-case and camel-case forms), and two different values each side generated on its own compare equal: both UUIDs, or one length of
 eight or more with the same character classes and a digit. The report counts each kind of normalised value.
+ISO clock offsets are accepted only within RFC 3339's `00`–`23` hour and `00`–`59` minute ranges.
+Timestamp ordering retains submillisecond precision when the source records it.
 
 Comparison keeps response representations distinct: JSON values compare structurally, text compares as text, and a
 retained base64 body compares by bytes (including with UTF-8 text carrying those same bytes), never by its base64

@@ -14,7 +14,10 @@ const indirectSurface = (coverage: ReconstructionCoverageData): void => {
     ...coverage.surfaces[0]!,
     surface_id: "cli.indirect",
   });
-  coverage.owners.push({ ...coverage.owners[0]!, surface_id: "cli.indirect" });
+  coverage.owners.push({
+    ...structuredClone(coverage.owners[0]!),
+    surface_id: "cli.indirect",
+  });
 };
 
 const conflictingPackageProof = (

@@ -277,6 +277,10 @@ const swiftBoundWitnessSlotImage = () => {
   bytes.writeInt32LE(0x2f0, 0xa10);
   bytes.writeUInt32LE(16, 0xc00);
   bytes.writeInt32LE(0x238, 0xc08);
+  bytes.writeInt32LE(0xc40 - 0xc04, 0xc04);
+  bytes.writeUInt32LE(0, 0xc40);
+  bytes.writeInt32LE(0xec0 - 0xc48, 0xc48);
+  bytes.write("FixtureModule\0", 0xec0);
   bytes.writeUInt32LE(3, 0xd00);
   bytes.writeInt32LE(0x148, 0xd08);
   bytes.writeUInt32LE(0, 0xd0c);
@@ -2101,4 +2105,61 @@ describe("malformed Objective-C protocol method lists", () => {
       ),
     });
   });
+});
+
+it("decodes protocol instance properties through the same property-list owner as classes", () => {
+  const bytes = fixture();
+  bytes.writeBigUInt64LE(base + 0x600n, 0x778);
+  const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+  expect(result.objc_protocols[0]?.properties).toEqual(
+    result.objc_classes[0]?.properties,
+  );
+  expect(result.objc_protocols[0]?.properties).toHaveLength(3);
+  expect(result.objc_protocol_records[0]?.decode).toEqual({
+    status: "decoded",
+    reason: null,
+  });
+});
+it("retains protocol methods when its instance-property list is unreadable", () => {
+  const bytes = fixture();
+  bytes.writeBigUInt64LE(base + 0x5000n, 0x778);
+  const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+  expect(result.objc_protocols[0]).toMatchObject({
+    name: "FixtureProtocol",
+    methods: [{ selector: "requiredAction:" }],
+    properties: [],
+  });
+  expect(result.objc_protocol_records[0]?.decode.status).toBe("partial");
+  expect(
+    result.coverage.find(
+      ({ facet }) => facet === "objc_class_method_ivar_metadata",
+    )?.status,
+  ).toBe("partial");
+});
+it("retains conformance facts beside an empty Swift protocol name", () => {
+  const bytes = swiftConformanceTypeReferenceImage(2);
+  bytes[0xe50] = 0;
+  const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+  expect(result.swift_conformances[0]).toMatchObject({
+    type_name: "NSObject",
+    protocol_name: null,
+    decode: { status: "partial" },
+  });
+  expect(result.objc_classes).not.toHaveLength(0);
+});
+
+it("retains the enclosing Swift type and module in a conformance owner", () => {
+  const bytes = swiftBoundWitnessSlotImage();
+  bytes.writeInt32LE(0xc20 - 0xc04, 0xc04);
+  bytes.writeUInt32LE(17, 0xc20);
+  bytes.writeInt32LE(0xc40 - 0xc24, 0xc24);
+  bytes.writeInt32LE(0xea0 - 0xc28, 0xc28);
+  bytes.write("Outer\0", 0xea0);
+  const result = decodeAppleDispatchMetadata(bytes, 100, provenance);
+  expect(result.swift_conformances[0]).toMatchObject({
+    type_name: "Outer.Widget",
+    module: "FixtureModule",
+    decode: { status: "decoded" },
+  });
+  expect(result.swift_dispatch_slots[0]?.owner).toBe("Outer.Widget: Equatable");
 });

@@ -143,6 +143,14 @@ it("counts examined slots and reports an unresolved async slot", () => {
     descriptor: 0x200n,
     flags: 0x80000010,
     name: "Widget",
+    context: {
+      module: "Test",
+      path: "Widget",
+      depth: 2,
+      anonymous: false,
+      reason: null,
+      walkLimited: false,
+    },
   });
   const facts = vtables.facts();
 

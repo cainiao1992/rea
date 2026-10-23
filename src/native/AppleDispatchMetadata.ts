@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isSelectedRegularFileError } from "../filesystem/RegularFile.js";
 import {
   DEFAULT_DISPATCH_METADATA_INPUT_BYTES,
   MAXIMUM_DISPATCH_METADATA_INPUT_BYTES,
@@ -13,6 +14,9 @@ import {
 } from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCancelledError,
+  AnalysisInputError,
+  AnalysisArtifactChangedError,
+  AnalysisAccessDeniedError,
   AnalysisCapabilityUnavailableError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
@@ -49,7 +53,10 @@ import {
   type SwiftRelativeTargetLocation,
 } from "./AppleSwiftDispatchFacets.js";
 import { createSwiftClassVtableDecoder } from "./AppleSwiftVtables.js";
-import { decodeSwiftNominalTypes } from "./AppleSwiftNominalTypes.js";
+import {
+  decodeSwiftNominalTypes,
+  createSwiftContextReader,
+} from "./AppleSwiftNominalTypes.js";
 import { inspectObjcClassImportBindings } from "./AppleObjcClassImportBindings.js";
 
 /** Decode validated little-endian 64-bit Apple Objective-C metadata without loading target code. */
@@ -204,7 +211,13 @@ export const decodeAppleDispatchMetadata = (
     budget,
     result,
   });
+  const contextReader = createSwiftContextReader({
+    u32,
+    string,
+    relative: swiftRelative,
+  });
   const swift = decodeSwiftDispatchFacets({
+    contextReader,
     sections,
     segments,
     readers,
@@ -242,6 +255,7 @@ export const decodeAppleDispatchMetadata = (
     },
   });
   const declarations = decodeSwiftNominalTypes({
+    contextReader,
     entries: typeEntries,
     result,
     visitor: vtables.visitor,
@@ -436,6 +450,34 @@ export const appleDispatchMetadataFailure = (
       cause.message,
       { cause },
     );
+  if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+    return new AnalysisArtifactChangedError(OPERATION, path, cause.message, {
+      cause,
+    });
+  if (cause instanceof ArtifactReaderFailure && cause.reason === "path")
+    return new AnalysisInputError(OPERATION, { cause }, [
+      { path: ["path"], reason: "invalid_value", message: cause.message },
+    ]);
+  const readCause =
+    cause instanceof ArtifactReaderFailure && cause.reason === "io"
+      ? cause.cause
+      : cause;
+  if (
+    readCause instanceof Error &&
+    "code" in readCause &&
+    (readCause.code === "EACCES" || readCause.code === "EPERM")
+  )
+    return new AnalysisAccessDeniedError(OPERATION, path, readCause.code, {
+      cause,
+    });
+  if (isSelectedRegularFileError(readCause))
+    return new AnalysisInputError(OPERATION, { cause }, [
+      {
+        path: ["path"],
+        reason: "invalid_value",
+        message: `Selected metadata target could not be read (${String(readCause.code)}): ${path}`,
+      },
+    ]);
   return new ProviderAdapterError(IDENTITY.id, OPERATION, {
     cause,
     diagnostics: {

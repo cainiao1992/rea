@@ -40,18 +40,14 @@ export const classifyNextAppRoutePath = (
   if (!match) return;
   if (match[2] !== undefined && !/(?:^|\/)static\/chunks\/app\//u.test(value))
     return;
-  const encodedSegments = (match[1] ?? "").split("/");
+  const sourceSegments = (match[1] ?? "").split("/");
   // A private folder excludes the whole page, including intercepted ancestors.
-  // Test before decoding: %5F names are public URLs.
-  if (encodedSegments.some((segment) => segment.startsWith("_"))) return;
+  // Keep filesystem segment spelling: only Next's explicit %5F escape is
+  // normalized below; generic URI decoding merges distinct source filenames.
+  if (sourceSegments.some((segment) => segment.startsWith("_"))) return;
   const segments: string[] = [];
-  for (const encoded of encodedSegments) {
-    let segment: string;
-    try {
-      segment = decodeURIComponent(encoded);
-    } catch {
-      return;
-    }
+  for (const sourceSegment of sourceSegments) {
+    const segment = sourceSegment.replace(/%5F/gu, "_");
     if (/^\([^)]*\)$/u.test(segment) || segment.startsWith("@")) continue;
     // Intercepted routes need a parent routing context that a filename does not establish.
     if (segment.startsWith("("))

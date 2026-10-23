@@ -78,6 +78,17 @@ can differ from the routing base. Every affected occurrence keeps
 is explicitly a path-name heuristic; `page` uses page-file or structured/typed configuration support. Name-only
 `route`/`addRoute` calls remain `unknown` because they can also register server APIs.
 
+Next page-source segments keep their filename spelling when converted to route
+patterns. Next's [page-path conversion](https://github.com/vercel/next.js/blob/v16.4.2/packages/next/src/shared/lib/page-path/absolute-path-to-page.ts#L21-L39)
+removes page extensions and the `index` tail without URI-decoding segments, so
+ordinary percent sequences are not decoded: `%61` and `a` remain separate
+candidates and a literal `%` is retained. Its [App pathname normalizer](https://github.com/vercel/next.js/blob/v16.4.2/packages/next/src/server/normalizers/built/app/app-pathname-normalizer.ts#L5-L18)
+specifically applies the [underscore normalizer](https://github.com/vercel/next.js/blob/v16.4.2/packages/next/src/server/normalizers/underscore-normalizer.ts#L2-L9),
+which maps `%5F` to `_`; private-folder checks apply to the source spelling
+before that escape is mapped. When classifying a chunk URL, REA reads its
+pathname, then applies these same Next-specific rules. This is static source-path
+interpretation, not browser request-path decoding or reachability.
+
 Known capture omissions remain inline in `summary.reported_capture_omissions`
 and queryable as `unknowns` of kind `capture-omission`. Each keeps a stable gap ID,
 its script-record/script-source unit, and the reported count (including `null`

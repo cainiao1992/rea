@@ -258,6 +258,18 @@ it.each([
     status: 0,
   },
   {
+    name: "missing head repository identity",
+    pages: [
+      editorialPage([
+        {
+          number: finalizedRelease.number,
+          headRefName: finalizedRelease.headRefName,
+        },
+      ]),
+    ],
+    status: 0,
+  },
+  {
     name: "incomplete pagination",
     pages: [editorialPage([], true)],
     status: 0,

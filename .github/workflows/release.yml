@@ -70,7 +70,7 @@ jobs:
                 (.pullRequests.pageInfo.hasNextPage | type) != "boolean"
               then error("Invalid GitHub repository connection") else . end |
               .nameWithOwner as $repo | .pullRequests.nodes[] |
-              if (.number | type) != "number" or (.headRefName | type) != "string" or
+              if (.number | type) != "number" or (.headRefName | type) != "string" or (has("headRepository") | not) or
                 (.headRepository != null and (.headRepository.nameWithOwner | type) != "string")
               then error("Invalid GitHub pull request") else . end |
               select(.headRepository.nameWithOwner == $repo) |

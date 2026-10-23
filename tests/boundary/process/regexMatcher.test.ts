@@ -617,15 +617,25 @@ it("keeps Hopper's result projection and invalid-pattern contract with the share
   expect(
     await search.execute("search_strings", { pattern: "^δ", mode: "regex" }),
   ).toEqual(ok([{ address: "0x10", value: "Δelta" }]));
-  expect(
-    await search.execute("search_strings", { pattern: "[", mode: "regex" }),
-  ).toMatchObject({
-    ok: false,
-    error: {
-      _tag: "HopperRemoteError",
-      code: -32000,
-      diagnosticType: "invalid_request",
+  const invalid = await search.execute("search_strings", {
+    pattern: "[",
+    mode: "regex",
+  });
+  if (invalid.ok) throw new Error("Expected invalid-pattern refusal");
+  expect(projectAnalysisError(invalid.error)).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+    message: expect.stringContaining("Invalid regex pattern"),
+    recovery: { kind: "inspect_input_contract", operation: "search_strings" },
+    details: {
       operation: "search_strings",
+      issues: [
+        {
+          path: ["pattern"],
+          reason: "invalid_format",
+          message: "Supply a valid regular expression.",
+        },
+      ],
     },
   });
   await search.close();

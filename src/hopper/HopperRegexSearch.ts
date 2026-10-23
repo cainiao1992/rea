@@ -143,11 +143,6 @@ export class HopperRegexSearch {
       signal: options.signal,
       deadline: this.deadline,
       heapRequest: this.heapRequest,
-      invalidPattern: (reason) =>
-        new HopperRemoteError(-32000, `Invalid regex pattern: ${reason}`, {
-          diagnosticType: "invalid_request",
-          operation,
-        }),
     });
     if (!matched.ok) return matched;
     if (options.signal?.aborted)

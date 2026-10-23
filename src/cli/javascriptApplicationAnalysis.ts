@@ -1,6 +1,6 @@
 import type { AnalysisViewRequest } from "../domain/analysisView/analysisView.js";
 import { publishCliAnalysisEvidence } from "./analysisEvidenceDelivery.js";
-import { JAVASCRIPT_APPLICATION_PROVIDER } from "../application/InvestigationProviders.js";
+import { JAVASCRIPT_APPLICATION_PROVIDER } from "../domain/investigationProviders.js";
 import { createProgressReporter } from "../application/ProgressReporter.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";

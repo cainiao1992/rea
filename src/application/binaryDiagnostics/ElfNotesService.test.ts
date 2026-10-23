@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { ElfNotesService } from "./ElfNotesService.js";
-import { ELF_NOTES_PROVIDER } from "../InvestigationProviders.js";
+import { ELF_NOTES_PROVIDER } from "../../domain/investigationProviders.js";
 import type { ElfNotes } from "../../domain/native/elfNotes.js";
 import { ok } from "../../domain/result.js";
 import {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 
-import { MANAGED_STATIC_PROVIDER } from "../application/InvestigationProviders.js";
+import { MANAGED_STATIC_PROVIDER } from "../domain/investigationProviders.js";
 import { classifyBinaryTargetFilesystemFailure } from "../application/BinaryTargetResolver.js";
 import { RegularFileCleanupFailure } from "../filesystem/OwnedRegularFile.js";
 import {

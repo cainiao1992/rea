@@ -22,7 +22,7 @@ import {
   CHANGED_BEHAVIOR_PROVIDER,
   RECONSTRUCTION_PROVIDER,
   STATIC_RUNTIME_PROVIDER,
-} from "../application/InvestigationProviders.js";
+} from "../domain/investigationProviders.js";
 import {
   applicationToolRegistrationOptions,
   toolRegistrationOptions,

@@ -34,7 +34,7 @@ import { InvestigationRecords } from "../investigation/InvestigationRecords.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { writeAnalysisSnapshot as writeSnapshotFile } from "./AnalysisSnapshotFiles.js";
-import { workflowAnalysisProfile } from "../InvestigationProviders.js";
+import { workflowAnalysisProfile } from "../WorkflowAnalysisProfile.js";
 import {
   hasOnlyProfilelessNativeDispatchEntries,
   isProfilelessNativeDispatchSnapshot,

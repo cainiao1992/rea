@@ -27,7 +27,7 @@ import {
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { err, ok } from "../../domain/result.js";
-import { NATIVE_EXPORTS_PROVIDER } from "../../application/InvestigationProviders.js";
+import { NATIVE_EXPORTS_PROVIDER } from "../../domain/investigationProviders.js";
 import {
   BinaryFormatFailure,
   BinaryResourceFailure,

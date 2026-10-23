@@ -2,7 +2,7 @@ import {
   JAVASCRIPT_APPLICATION_PROVIDER,
   JAVASCRIPT_RUNTIME_RECONCILIATION_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
-} from "../InvestigationProviders.js";
+} from "../../domain/investigationProviders.js";
 import { isImmutableEvidence, type Evidence } from "../../domain/evidence.js";
 import { safeParseEvidence } from "../../domain/evidenceValidation.js";
 import {

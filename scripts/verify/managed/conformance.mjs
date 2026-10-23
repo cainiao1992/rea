@@ -11,7 +11,7 @@ import { verifyManagedNativeBoundariesEvidence } from "../../../dist/application
 import { importManagedReconstructionEvidence } from "../../../dist/application/managed/ManagedReconstructionService.js";
 import { projectManagedApplicationGraphEvidence } from "../../../dist/application/managed/ManagedApplicationGraphService.js";
 import { traceApplicationFeatureEvidence } from "../../../dist/application/javascript/JavaScriptApplicationWorkflowService.js";
-import { MANAGED_STATIC_PROVIDER } from "../../../dist/application/InvestigationProviders.js";
+import { MANAGED_STATIC_PROVIDER } from "../../../dist/domain/investigationProviders.js";
 import { createEvidence } from "../../../dist/domain/evidence.js";
 import { functionDossier } from "../../fixtures/managed/function-dossier.mjs";
 import {

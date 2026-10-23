@@ -34,7 +34,7 @@ import {
   createJavaScriptApplicationNode,
 } from "../domain/javascript/javascriptApplicationGraph.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import { MANAGED_WORKFLOW_PROVIDER } from "./InvestigationProviders.js";
+import { MANAGED_WORKFLOW_PROVIDER } from "../domain/investigationProviders.js";
 import { createProcessCaptureEvidence } from "./process/ProcessEvidence.js";
 
 const applicationWithUnknowns = (

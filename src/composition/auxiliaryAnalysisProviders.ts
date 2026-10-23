@@ -4,7 +4,7 @@ import { artifactCapabilities } from "../artifacts/ArtifactProviderMetadata.js";
 import {
   ARTIFACT_GRAPH_PROVIDER,
   MANAGED_STATIC_PROVIDER,
-} from "../application/InvestigationProviders.js";
+} from "../domain/investigationProviders.js";
 import { managedStaticCapabilities } from "../dotnet/ManagedStaticProviderMetadata.js";
 import {
   NATIVE_MACOS_PROVIDER_IDENTITY,

@@ -7,7 +7,7 @@ import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { parseCliJsonInput } from "../cliJsonInput.js";
-import { MANAGED_STATIC_PROVIDER } from "../application/InvestigationProviders.js";
+import { MANAGED_STATIC_PROVIDER } from "../domain/investigationProviders.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";

@@ -7,7 +7,7 @@ import {
   type ManagedNativeVerificationSource,
 } from "../../domain/managed/managedNativeVerificationSource.js";
 import type { ManagedNativeVerificationResult } from "../../domain/managed/managedNativeVerificationSchemas.js";
-import { MANAGED_WORKFLOW_PROVIDER } from "../InvestigationProviders.js";
+import { MANAGED_WORKFLOW_PROVIDER } from "../../domain/investigationProviders.js";
 
 const OPERATION = "verify_managed_native_boundaries" as const;
 

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
-import { BYTE_ENTROPY_PROVIDER } from "../../../src/application/InvestigationProviders.js";
+import { BYTE_ENTROPY_PROVIDER } from "../../../src/domain/investigationProviders.js";
 import { SUPPORTED_CLIENT_DEFINITIONS } from "../../../src/application/SupportedClients.js";
 import { CLI_COMMAND_NAMES } from "../../../src/cliCommandNames.js";
 import { createCli } from "../../../src/cli.js";

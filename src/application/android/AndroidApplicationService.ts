@@ -1,7 +1,7 @@
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { projectAndroidInventory } from "../../domain/android/androidApplication.js";
 import type { Result } from "../../domain/result.js";
-import { ANDROID_APPLICATION_PROVIDER } from "../InvestigationProviders.js";
+import { ANDROID_APPLICATION_PROVIDER } from "../../domain/investigationProviders.js";
 import {
   projectInventoryEvidence,
   type InventoryProjectionEvidenceResult,

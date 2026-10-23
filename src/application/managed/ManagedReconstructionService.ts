@@ -9,7 +9,7 @@ import {
   type ResolvedManagedReconstructionImport,
 } from "../../domain/managed/managedReconstruction.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import { MANAGED_WORKFLOW_PROVIDER } from "../InvestigationProviders.js";
+import { MANAGED_WORKFLOW_PROVIDER } from "../../domain/investigationProviders.js";
 import { requestInputError } from "../workflowInputError.js";
 
 const OPERATION = "import_managed_reconstruction" as const;

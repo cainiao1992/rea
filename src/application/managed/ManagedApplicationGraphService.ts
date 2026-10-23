@@ -12,7 +12,7 @@ import {
   type ParsedManagedGraphInput,
 } from "../../domain/managed/managedApplicationGraph.js";
 import { ok, type Result } from "../../domain/result.js";
-import { MANAGED_WORKFLOW_PROVIDER } from "../InvestigationProviders.js";
+import { MANAGED_WORKFLOW_PROVIDER } from "../../domain/investigationProviders.js";
 
 const OPERATION = "project_managed_application_graph" as const;
 

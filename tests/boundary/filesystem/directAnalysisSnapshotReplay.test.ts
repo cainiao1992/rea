@@ -25,10 +25,8 @@ import {
   type Evidence,
 } from "../../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
-import {
-  REA_WORKFLOW_PROVIDER,
-  workflowAnalysisProfile,
-} from "../../../src/application/InvestigationProviders.js";
+import { REA_WORKFLOW_PROVIDER } from "../../../src/domain/investigationProviders.js";
+import { workflowAnalysisProfile } from "../../../src/application/WorkflowAnalysisProfile.js";
 import {
   analysisQueryId,
   createAnalysisSnapshotWorkflowEntry,

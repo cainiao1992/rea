@@ -8,7 +8,7 @@ import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
 import { recordSessionEvidenceSources } from "./sessionEvidence.js";
-import { BUNDLE_COMPARISON_PROVIDER } from "../application/InvestigationProviders.js";
+import { BUNDLE_COMPARISON_PROVIDER } from "../domain/investigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
 import { runAdmittedToolOperation } from "./admittedToolOperation.js";

@@ -1,7 +1,5 @@
-import {
-  REA_WORKFLOW_PROVIDER,
-  workflowAnalysisProfile,
-} from "./InvestigationProviders.js";
+import { REA_WORKFLOW_PROVIDER } from "../domain/investigationProviders.js";
+import { workflowAnalysisProfile } from "./WorkflowAnalysisProfile.js";
 import type {
   AnalysisOperation,
   AnalysisOperationPort,

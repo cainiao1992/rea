@@ -24,7 +24,7 @@ import { readManagedSnapshot } from "../../dotnet/ManagedSnapshot.js";
 import {
   MANAGED_STATIC_PROVIDER,
   MANAGED_WORKFLOW_PROVIDER,
-} from "../InvestigationProviders.js";
+} from "../../domain/investigationProviders.js";
 import { requestInputError } from "../workflowInputError.js";
 
 const managedMemberComparisonRequestSchema = z.strictObject({

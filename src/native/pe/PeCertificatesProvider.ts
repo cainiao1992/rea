@@ -24,7 +24,7 @@ import {
 } from "../../domain/native/peCertificates.js";
 import { err, ok } from "../../domain/result.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
-import { PE_CERTIFICATES_PROVIDER } from "../../application/InvestigationProviders.js";
+import { PE_CERTIFICATES_PROVIDER } from "../../domain/investigationProviders.js";
 import { parsePeCertificates } from "./PeCertificateParser.js";
 
 const OPERATION = "inspect_pe_certificates";

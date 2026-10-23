@@ -30,7 +30,7 @@ import {
   reconstructJavaScriptArtifact,
   type JavaScriptArtifactReconstructionResult,
 } from "./JavaScriptArtifactReconstruction.js";
-import { JAVASCRIPT_APPLICATION_PROVIDER } from "../InvestigationProviders.js";
+import { JAVASCRIPT_APPLICATION_PROVIDER } from "../../domain/investigationProviders.js";
 
 const OPERATION = "analyze_javascript_application" as const;
 

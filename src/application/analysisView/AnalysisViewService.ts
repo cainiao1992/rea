@@ -4,7 +4,7 @@ import { readImmutableEvidenceBundle } from "../EvidenceBundleFiles.js";
 import { INSPECT_ANALYSIS_VIEW_OPERATION } from "../../domain/analysisView/analysisViewErrors.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 
-import { ANALYSIS_VIEW_PROVIDER } from "../InvestigationProviders.js";
+import { ANALYSIS_VIEW_PROVIDER } from "../../domain/investigationProviders.js";
 import type { EvidenceLookup } from "../EvidenceInputResolver.js";
 import { resolveEvidenceInput } from "../EvidenceInputResolver.js";
 import type { EvidenceWriter } from "../investigation/InvestigationRecordPort.js";

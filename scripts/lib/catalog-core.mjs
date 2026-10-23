@@ -125,7 +125,7 @@ const SOURCE_PATHS = {
   idaProvider: "dist/ida/IdaProviderCapabilities.js",
   kunaProvider: "dist/kuna/KunaProviderCapabilities.js",
   nativeProvider: "dist/native/NativeMacOSProviderMetadata.js",
-  artifactProviders: "dist/application/InvestigationProviders.js",
+  artifactProviders: "dist/domain/investigationProviders.js",
   browserIdentities: "dist/browser/providerIdentities.js",
   v8InspectorProvider: "dist/inspector/providerIdentity.js",
   evidence: "dist/domain/evidence.js",

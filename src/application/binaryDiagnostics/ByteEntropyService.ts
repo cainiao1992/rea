@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
-import { BYTE_ENTROPY_PROVIDER } from "../InvestigationProviders.js";
+import { BYTE_ENTROPY_PROVIDER } from "../../domain/investigationProviders.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   AnalysisOutputError,

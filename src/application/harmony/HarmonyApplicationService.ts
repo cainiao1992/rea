@@ -1,7 +1,7 @@
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { projectHarmonyInventory } from "../../domain/harmony/harmonyApplication.js";
 import type { Result } from "../../domain/result.js";
-import { HARMONY_APPLICATION_PROVIDER } from "../InvestigationProviders.js";
+import { HARMONY_APPLICATION_PROVIDER } from "../../domain/investigationProviders.js";
 import {
   projectInventoryEvidence,
   type InventoryProjectionEvidenceResult,

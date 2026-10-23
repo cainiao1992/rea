@@ -1,7 +1,7 @@
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { projectAppleInventory } from "../../domain/apple/appleApplication.js";
 import type { Result } from "../../domain/result.js";
-import { APPLE_APPLICATION_PROVIDER } from "../InvestigationProviders.js";
+import { APPLE_APPLICATION_PROVIDER } from "../../domain/investigationProviders.js";
 import {
   projectInventoryEvidence,
   type InventoryProjectionEvidenceResult,

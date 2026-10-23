@@ -25,7 +25,7 @@ import {
 } from "../../domain/native/peResources.js";
 import { err, ok } from "../../domain/result.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
-import { PE_RESOURCES_PROVIDER } from "../../application/InvestigationProviders.js";
+import { PE_RESOURCES_PROVIDER } from "../../domain/investigationProviders.js";
 import {
   parsePeResources,
   PE_RESOURCE_METADATA_BYTES,

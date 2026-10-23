@@ -26,7 +26,7 @@ import {
 } from "../../domain/native/elfNotes.js";
 import { err, ok } from "../../domain/result.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
-import { ELF_NOTES_PROVIDER } from "../../application/InvestigationProviders.js";
+import { ELF_NOTES_PROVIDER } from "../../domain/investigationProviders.js";
 import { BinaryFormatFailure } from "../metadata/BinaryContainer.js";
 import {
   ElfNoteSectionNameBudgetFailure,

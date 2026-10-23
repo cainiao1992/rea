@@ -192,9 +192,6 @@ export const parseErlangBeam = (
     requireRange(bytes, payloadOffset, size);
     const padded = payloadOffset + size + ((4 - (size % 4)) % 4);
     if (padded > formEnd) fail("BEAM chunk padding exceeds the form.");
-    const padding = bytes.subarray(payloadOffset + size, padded);
-    if (padding.some((byte) => byte !== 0))
-      fail("BEAM chunk padding is non-zero.");
     const payload = bytes.subarray(payloadOffset, payloadOffset + size);
     chunks.push({
       index: chunks.length,

@@ -43,7 +43,7 @@
     "rea-agents": "scripts/rea.mjs"
   },
   "engines": {
-    "node": "^22.19.0 || ^24.11.0 || >=26.0.0"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "packageManager": "npm@11.16.0",
   "files": [

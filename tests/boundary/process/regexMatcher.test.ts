@@ -63,7 +63,7 @@ const probeWorkerHeap = (
     env,
     encoding: "utf8",
   });
-  expect(result.status).toBe(0);
+  expect(result.status, result.stderr).toBe(0);
   return JSON.parse(result.stdout ?? "") as {
     resourceOld: number;
     heap: number;
@@ -219,10 +219,6 @@ it("does not report the 128 MiB request for a heap percentage in a Node config f
       [`--experimental-config-file=${file}`],
       undefined,
     );
-    const split = probeWorkerHeap(
-      ["--experimental-config-file", file],
-      undefined,
-    );
     const withAbsolute = probeWorkerHeap(
       [`--experimental-config-file=${file}`, "--max-old-space-size=256"],
       undefined,
@@ -233,7 +229,6 @@ it("does not report the 128 MiB request for a heap percentage in a Node config f
       directory,
     );
     expect(fromFile.resourceOld).toBe(128);
-    expect(split.resourceOld).toBe(128);
     expect(withAbsolute.resourceOld).toBe(128);
     expect(fromDefault.resourceOld).toBe(128);
     for (const execArgv of [

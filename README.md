@@ -177,7 +177,7 @@ CLI commands use the same workflows.
 
 ## What you can analyze
 
-REA requires Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+, plus npm.
+REA requires Node.js 22.x (>=22.23.4), 24.x (>=24.22.1), or 26.12.1+, plus npm.
 Additional tools and host support depend on the target:
 
 | Target                  | What REA returns                                                                                  | Requirements and guide                                                                                                                |

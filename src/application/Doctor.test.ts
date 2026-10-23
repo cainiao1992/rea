@@ -397,7 +397,8 @@ describe("doctor runtime check", () => {
   });
 
   it.each([
-    { compatibility: "26.3.0", ok: true },
+    { compatibility: "26.12.1", ok: true },
+    { compatibility: "26.12.0", ok: false },
     { compatibility: "25.1.0", ok: false },
   ])(
     "identifies Bun and admits it by Node.js compatibility $compatibility",

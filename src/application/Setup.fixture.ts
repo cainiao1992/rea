@@ -32,7 +32,7 @@ export class FakeSetupHost implements SetupHost {
   }
   registrationCommand: readonly string[];
   registrationCommandBlocker?: string;
-  nodeVersion = "24.18.0";
+  nodeVersion = "24.22.1";
   version: string | undefined = "14.5";
   distribution: LinuxDistribution | undefined;
   hopper: string | undefined;

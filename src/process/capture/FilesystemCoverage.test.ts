@@ -1,6 +1,7 @@
 import {
   chmod,
   mkdir,
+  mkdtemp,
   readFile,
   rm,
   symlink,
@@ -12,6 +13,9 @@ import { parseProcessScenario } from "../../domain/process/processScenario.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
+import { prepareProcessCapture } from "./ProcessCaptureLifecycle.js";
+import { ProcessCaptureSnapshotFailure } from "./FilesystemSnapshot.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 
 it.each(["after", "before"] as const)(
   "keeps absence unknown when the %s snapshot omits an existing file",
@@ -411,9 +415,17 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       await expect(
         snapshotRoots(scenarioFor(join(root, "file", "child"))),
       ).rejects.toMatchObject({ message: expect.stringContaining("ENOTDIR") });
-      await expect(
-        snapshotRoots(scenarioFor(join(root, "denied", "child"))),
-      ).rejects.toMatchObject({ message: expect.stringContaining("EACCES") });
+      const deniedFailure = await snapshotRoots(
+        scenarioFor(join(root, "denied", "child")),
+      ).catch((cause: unknown) => cause);
+      if (!(deniedFailure instanceof ProcessCaptureSnapshotFailure))
+        throw deniedFailure;
+      expect(
+        projectAnalysisError(deniedFailure.failureForCaller()),
+      ).toMatchObject({
+        code: "access_denied",
+        details: { path: join(root, "denied", "child"), system_code: "EACCES" },
+      });
       // The same lookups after admission are absence and an omission.
       const admission = await snapshotRoots(scenarioFor(join(root, "missing")));
       expect(admission.completeRoots).toEqual(["root_0"]);
@@ -504,5 +516,108 @@ it.skipIf(process.platform === "win32")(
     expect(after.coverage.enumeration_omissions).toEqual([
       { path: "root_0:.", reason: "entry_unavailable", system_code: "ELOOP" },
     ]);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "owns symlink subtree uncertainty independently of complete metadata enumeration",
+  async () => {
+    const root = await createTestTempDirectory("rea-symlink-subtree-");
+    const target = join(root, "target");
+    const link = join(root, "link");
+    await mkdir(target);
+    await symlink(target, link);
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      filesystem_observation_paths: [link],
+    });
+    const before = await snapshotRoots(scenario);
+    await writeFile(join(target, "created.txt"), "unobserved change");
+    const after = await snapshotRoots(scenario);
+    expect(before.files).toEqual(after.files);
+    expect(after.coverage.enumeration_truncated).toBe(false);
+    expect(after.coverage.unobserved_subtrees).toEqual([
+      { path: "root_0:.", reason: "symlink_not_followed" },
+    ]);
+    const followed = await snapshotRoots({
+      ...scenario,
+      filesystem_observation_paths: [target],
+    });
+    expect(followed.coverage.unobserved_subtrees).toEqual([]);
+    expect(
+      followed.files.some(({ path }) => path === "root_0:created.txt"),
+    ).toBe(true);
+  },
+);
+
+it("allocates the observer directory before baseline and excludes it before entry accounting", async () => {
+  const root = await createTestTempDirectory("rea-observer-filesystem-");
+  const scenario = parseProcessScenario({
+    executable: process.execPath,
+    filesystem_observation_paths: [root],
+    limits: { files: 1 },
+  });
+  const prepared = await prepareProcessCapture(
+    scenario,
+    undefined,
+    snapshotRoots,
+    {
+      createTemporaryRoot: () => mkdtemp(join(root, "rea-process-")),
+      cleanup: (path) => rm(path, { recursive: true, force: true }),
+    },
+  );
+  try {
+    const after = await snapshotRoots(scenario, undefined, prepared.before, {
+      observerPaths: [prepared.temporaryRoot],
+    });
+    expect(after.files).toEqual(prepared.before.files);
+    expect(after.files).toHaveLength(1);
+    expect(after.truncated).toBe(false);
+    expect(after.coverage.enumeration_reasons).toEqual([]);
+    expect(after.coverage.unobserved_subtrees).toMatchObject([
+      { reason: "observer_owned" },
+    ]);
+    expect(
+      classifyFilesystemEffects(prepared.before, after).map(
+        ({ status }) => status,
+      ),
+    ).toEqual(["unchanged"]);
+  } finally {
+    await rm(prepared.temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+it.skipIf(process.platform === "win32")(
+  "excludes the exact observer path through parent aliases while retaining same-name target directories",
+  async () => {
+    const fixture = await createTestTempDirectory("rea-observer-alias-");
+    const physicalParent = join(fixture, "physical");
+    const root = join(physicalParent, "root");
+    const alias = join(fixture, "alias");
+    const owner = join(root, "observer-run");
+    await mkdir(owner, { recursive: true });
+    await mkdir(join(root, "other", "observer-run"), { recursive: true });
+    await writeFile(
+      join(root, "other", "observer-run", "target.txt"),
+      "target",
+    );
+    await symlink(physicalParent, alias);
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      filesystem_observation_paths: [join(alias, "root")],
+    });
+    const snapshot = await snapshotRoots(scenario, undefined, undefined, {
+      observerPaths: [owner],
+    });
+    expect(snapshot.coverage.unobserved_subtrees).toEqual([
+      { path: "root_0:observer-run", reason: "observer_owned" },
+    ]);
+    expect(snapshot.files.map(({ path }) => path)).toEqual([
+      "root_0:.",
+      "root_0:other",
+      "root_0:other/observer-run",
+      "root_0:other/observer-run/target.txt",
+    ]);
+    expect(snapshot.coverage.enumeration_truncated).toBe(false);
   },
 );

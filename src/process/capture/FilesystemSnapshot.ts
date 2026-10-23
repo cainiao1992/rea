@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { lstat, open, opendir, readlink } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { lstat, open, opendir, readlink, realpath } from "node:fs/promises";
+import { basename, dirname, join, relative } from "node:path";
 import type { FileHandle } from "node:fs/promises";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
@@ -26,6 +26,9 @@ import {
   withProcessCaptureFile,
   type ProcessCaptureCleanupRetainer,
 } from "./ProcessCaptureRead.js";
+import { AnalysisAccessDeniedError } from "../../domain/analysisErrorCore.js";
+import type { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 
 const hasSameIdentity = (
   before: Stats,
@@ -118,6 +121,21 @@ type PathLookup =
       readonly cause: unknown;
     };
 
+const rootAdmissionFailure = (
+  path: string,
+  lookup: Exclude<PathLookup, { readonly state: "present" }>,
+): unknown =>
+  lookup.system_code === "EACCES" || lookup.system_code === "EPERM"
+    ? new AnalysisAccessDeniedError(
+        "capture_process",
+        path,
+        lookup.system_code,
+        {
+          cause: lookup.cause,
+        },
+      )
+    : lookup.cause;
+
 /**
  * Look up one path without following its final component. ENOENT and ENOTDIR
  * both prove that no entry exists at the path; other unavailable lookups leave
@@ -162,6 +180,7 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
   readonly snapshot: ProcessFilesystemSnapshot | undefined;
   readonly cleanupLeases: readonly AnalysisCleanupLease[];
   readonly readFailures: readonly ProcessCaptureReadFailure<unknown>[];
+  readonly primaryFailure: AnalysisAccessDeniedError | undefined;
 
   constructor(options: {
     readonly cause: unknown;
@@ -230,8 +249,24 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
     this.snapshot = options.snapshot;
     this.cleanupLeases = cleanupLeases;
     this.readFailures = readFailures;
+    this.primaryFailure =
+      options.cause instanceof AnalysisAccessDeniedError
+        ? options.cause
+        : undefined;
     if (cleanupLeases.length > 0)
       new AnalysisCleanupLeaseGroup(this, cleanupLeases);
+  }
+
+  /** The snapshot owns observations; the admitted read owns its failure identity. */
+  failureForCaller(): AnalysisError {
+    if (this.primaryFailure === undefined) return this;
+    return this.cleanupIncomplete
+      ? analysisErrorWithCleanupFailure(
+          this.primaryFailure,
+          this,
+          "capture_process",
+        ).bindCleanupDependencies([this.primaryFailure, this])
+      : this.primaryFailure;
   }
 }
 
@@ -341,6 +376,11 @@ export const hashFile = async (
   );
 };
 
+interface SnapshotResources {
+  readonly cleanup?: ProcessCaptureCleanupRetainer;
+  readonly observerPaths?: readonly string[];
+}
+
 /**
  * Capture bounded, root-aliased filesystem state without following symlinks.
  *
@@ -353,8 +393,10 @@ export const snapshotRoots = async (
   scenario: ProcessScenario,
   signal?: AbortSignal,
   admission?: ProcessFilesystemSnapshot,
-  retainer?: ProcessCaptureCleanupRetainer,
+  resources: SnapshotResources = {},
 ): Promise<ProcessFilesystemSnapshot> => {
+  const retainer = resources.cleanup;
+  const observerPaths = resources.observerPaths ?? [];
   const entries: FileState[] = [];
   const completeRoots: string[] = [];
   let remainingBytes = scenario.limits.file_bytes;
@@ -366,6 +408,29 @@ export const snapshotRoots = async (
   const enumerationOmissions: FilesystemCoverage["enumeration_omissions"] = [];
   const hashOmissions: FilesystemCoverage["hash_omissions"] = [];
   const closeFailures: ProcessCaptureReadFailure<unknown>[] = [];
+  const unobservedSubtrees: NonNullable<
+    FilesystemCoverage["unobserved_subtrees"]
+  > = [];
+  const observerRoots = new Set(
+    await Promise.all(observerPaths.map((path) => realpath(path))),
+  );
+  const observerNames = new Set(
+    [...observerRoots].map((path) => basename(path)),
+  );
+  const omitObserverPath = async (
+    root: string,
+    alias: string,
+    path: string,
+  ): Promise<boolean> => {
+    if (!observerNames.has(basename(path))) return false;
+    const physical = join(await realpath(dirname(path)), basename(path));
+    if (!observerRoots.has(physical)) return false;
+    unobservedSubtrees.push({
+      path: `${alias}:${relative(root, path) || "."}`,
+      reason: "observer_owned",
+    });
+    return true;
+  };
   const omitEntry = (path: string, omission: EntryOmission): false => {
     truncated = true;
     enumerationReasons.add(omission.reason);
@@ -419,6 +484,7 @@ export const snapshotRoots = async (
     admitted?: Stats,
   ): Promise<boolean> => {
     signal?.throwIfAborted();
+    if (await omitObserverPath(root, rootAlias, path)) return true;
     if (
       entries.length >= scenario.limits.files ||
       depth > scenario.limits.filesystem_depth
@@ -456,6 +522,10 @@ export const snapshotRoots = async (
         size: stats.size,
         sha256: null,
         symlink_target: target.value,
+      });
+      unobservedSubtrees.push({
+        path: `${rootAlias}:${relativePath}`,
+        reason: "symlink_not_followed",
       });
       return true;
     }
@@ -543,6 +613,8 @@ export const snapshotRoots = async (
             signal?.throwIfAborted();
             const child = await ownedDirectory.read();
             if (child === null) break;
+            if (await omitObserverPath(root, rootAlias, join(path, child.name)))
+              continue;
             if (
               children.length >= remainingEntries ||
               depth >= scenario.limits.filesystem_depth
@@ -608,6 +680,7 @@ export const snapshotRoots = async (
         completeRoots.length !== scenario.filesystem_observation_paths.length,
       enumeration_reasons: [...enumerationReasons],
       enumeration_omissions: enumerationOmissions,
+      unobserved_subtrees: unobservedSubtrees,
       hash_budget_bytes: scenario.limits.file_bytes,
       hashed_bytes: scenario.limits.file_bytes - remainingBytes,
       hash_omissions: hashOmissions,
@@ -623,7 +696,7 @@ export const snapshotRoots = async (
       const lookup = await lookupPath(root, signal);
       if (lookup.state !== "present") {
         if (admission === undefined && lookup.system_code !== "ENOENT")
-          throw lookup.cause;
+          throw rootAdmissionFailure(root, lookup);
         if (lookup.state === "absent") completeRoots.push(alias);
         else
           omitEntry(`${alias}:.`, {

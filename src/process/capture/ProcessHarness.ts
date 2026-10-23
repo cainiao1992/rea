@@ -544,7 +544,12 @@ const completeCapture = async (options: {
       scenario,
       options.signal,
       options.before,
-      options.resourceScope,
+      {
+        ...(options.resourceScope === undefined
+          ? {}
+          : { cleanup: options.resourceScope }),
+        observerPaths: [options.temporaryRoot],
+      },
     );
   } catch (cause: unknown) {
     if (cause instanceof ProcessCaptureSnapshotFailure)
@@ -561,7 +566,9 @@ const completeCapture = async (options: {
               reason: unavailableReason("Final filesystem snapshot", cause),
             },
     };
-    throw cause;
+    throw cause instanceof ProcessCaptureSnapshotFailure
+      ? cause.failureForCaller()
+      : cause;
   }
   options.observationBuffer.filesystem_snapshots = {
     ...options.observationBuffer.filesystem_snapshots,

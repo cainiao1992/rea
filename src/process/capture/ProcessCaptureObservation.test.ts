@@ -10,7 +10,10 @@ import { readLinuxChildren } from "./LinuxProcessSampling.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
 import { parseProcessScenario } from "../../domain/process/processScenario.js";
 import type { ProcessCapture } from "../../domain/process/processCaptureParsing.js";
-import type { ProcessCaptureTruncationDetails } from "../../domain/process/processCaptureCoverage.js";
+import type {
+  FilesystemCoverage,
+  ProcessCaptureTruncationDetails,
+} from "../../domain/process/processCaptureCoverage.js";
 import { emptyProcessCapture as emptyCapture } from "../../domain/process/processCapture.fixture.js";
 
 const base = {
@@ -304,3 +307,69 @@ it("cancels filesystem snapshots before traversing declared roots", async () => 
     controller.signal.reason,
   );
 });
+
+it.each(["symlink_not_followed", "observer_owned"] as const)(
+  "projects %s subtree coverage into Evidence limitations and residual unknowns",
+  (reason) => {
+    const capture = emptyCapture();
+    const build = (coverage: FilesystemCoverage) => {
+      const snapshot = {
+        files: [],
+        truncated: false,
+        completeRoots: ["root_0"],
+        coverage,
+      };
+      return buildCaptureResult({
+        frames: [],
+        exit: { exitCode: 0, reason: "exited" },
+        samples: [],
+        before: snapshot,
+        after: snapshot,
+        truncationDetails: {
+          ...truncationDetails([], [], []),
+          filesystem_before: coverage,
+          filesystem_after: coverage,
+        },
+        scenario: parseProcessScenario({
+          ...base,
+          filesystem_observation_paths: ["/selected"],
+        }),
+        rootPid: 1,
+        samplingPartial: false,
+        renderedFrames: [],
+        interactions: [],
+        checkpoints: capture.filesystem_checkpoints,
+        settlement: {
+          state: capture.settlement.state,
+          elapsed_ms: capture.settlement.elapsed_ms,
+        },
+        manifest: capture.manifest,
+        eventJournal: [],
+      });
+    };
+    const complete = { ...emptyFilesystemCoverage(), unobserved_subtrees: [] };
+    expect(
+      build(complete).residual_unknowns.filter(
+        ({ scope }) => scope === "filesystem",
+      ),
+    ).toEqual([]);
+    const result = build({
+      ...complete,
+      unobserved_subtrees: [{ path: "root_0:.", reason }],
+    });
+    const unknowns = result.residual_unknowns.filter(
+      ({ scope }) => scope === "filesystem",
+    );
+    expect(unknowns).toHaveLength(2);
+    for (const unknown of unknowns) {
+      expect(unknown.reason).toContain("root_0:.");
+      expect(unknown.reason).toContain(
+        reason === "symlink_not_followed"
+          ? "symbolic links are not followed"
+          : "exact observer-owned directory",
+      );
+      expect(result.limitations).toContain(unknown.reason);
+    }
+    expect(result.truncated).toBe(false);
+  },
+);

@@ -250,6 +250,15 @@ follow also remain unknown. Partial enumeration of one root does not erase
 known effects in another, and unavailable content hashes do not by themselves
 make path absence unknown.
 
+Filesystem coverage records `unobserved_subtrees` separately from metadata
+enumeration. `symlink_not_followed` identifies a link whose own metadata was
+observed while its descendants were outside the snapshot. `observer_owned`
+identifies the exact directory allocated for this capture's bookkeeping; it
+is created before the baseline and excluded from both snapshots and file-entry
+capacity. Target activity inside that excluded directory remains unobserved.
+Matching filenames elsewhere are included normally. Historical captures that
+omit subtree facts do not establish descendant absence under that scope.
+
 When a follow-up read fails after an entry's metadata was observed, the
 snapshot keeps unaffected observations and records an `entry_unavailable`
 enumeration omission with the root-aliased path and system error code.

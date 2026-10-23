@@ -37,6 +37,14 @@ export const filesystemCoverageSchema = z.strictObject({
       system_code: z.string().nullable(),
     }),
   ),
+  unobserved_subtrees: z
+    .array(
+      z.strictObject({
+        path: z.string(),
+        reason: z.enum(["symlink_not_followed", "observer_owned"]),
+      }),
+    )
+    .optional(),
   hash_budget_bytes: z.int().nonnegative(),
   hashed_bytes: z.int().nonnegative(),
   hash_omissions: z.array(

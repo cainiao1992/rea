@@ -56,6 +56,9 @@ import {
 } from "./ProcessNormalization.js";
 import { PROCESS_PROVIDER } from "../../domain/process/processEvidenceProvider.js";
 import { TerminalRenderer } from "./TerminalRenderer.js";
+import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
+import { jsonValueSchema } from "../../domain/jsonValue.js";
 import {
   hasCaptureTruncation,
   type NormalizedTerminalRetention,
@@ -463,6 +466,11 @@ const captureCoverageUnknowns = (
     ["before", details.filesystem_before],
     ["after_settlement", details.filesystem_after],
   ] as const) {
+    for (const subtree of coverage.unobserved_subtrees ?? [])
+      unknowns.push({
+        scope: "filesystem",
+        reason: `Filesystem ${name} subtree ${subtree.path} was outside observation: ${subtree.reason === "symlink_not_followed" ? "symbolic links are not followed" : "the exact observer-owned directory is excluded, including target activity within it"}.`,
+      });
     if (coverage.enumeration_truncated)
       unknowns.push({
         scope: "filesystem",
@@ -1571,6 +1579,15 @@ export const resolveProcessResult = (
         cleanupReport: cleanup,
         cleanupFailure: cleanupError,
       });
+    if (executionFailure instanceof AnalysisError) {
+      if (partialObservation !== undefined)
+        executionFailure.retainPartialObservation(partialObservation);
+      throw analysisErrorWithCleanupFailure(
+        executionFailure,
+        cleanupError,
+        "capture_process",
+      ).bindCleanupDependencies([executionFailure, cleanupError]);
+    }
     throw cleanupError;
   }
   if (executionFailure instanceof ProcessCaptureError) {
@@ -1583,6 +1600,14 @@ export const resolveProcessResult = (
     });
   }
   if (executionFailure !== undefined) {
+    if (executionFailure instanceof AnalysisError) {
+      if (partialObservation !== undefined)
+        executionFailure.retainPartialObservation(partialObservation);
+      executionFailure.retainDiagnostics({
+        cleanup_report: jsonValueSchema.parse(cleanup),
+      });
+      throw executionFailure;
+    }
     throw new ProcessCaptureError("process capture failed", {
       cause: executionFailure,
       reason: "capture_failed",
@@ -1649,17 +1674,22 @@ export const prepareProcessCapture = async (
   let temporaryRoot: string | undefined;
   const runId = randomUUID();
   try {
-    before = await captureSnapshot(scenario, signal, undefined, resourceScope);
     temporaryRoot = await host.createTemporaryRoot();
+    before = await captureSnapshot(scenario, signal, undefined, {
+      ...(resourceScope === undefined ? {} : { cleanup: resourceScope }),
+      observerPaths: [temporaryRoot],
+    });
     assertNotCancelled(signal);
     const ownershipBaseline =
       (await host.captureOwnershipBaseline?.(signal)) ?? [];
     assertNotCancelled(signal);
     return { temporaryRoot, runId, ownershipBaseline, before };
   } catch (cause: unknown) {
+    let failure = cause;
     if (cause instanceof ProcessCaptureSnapshotFailure) {
       before = cause.snapshot;
       for (const lease of cause.cleanupLeases) resourceScope?.retain(lease);
+      failure = cause.failureForCaller();
     }
     const cleanupOptions =
       temporaryRoot === undefined
@@ -1690,7 +1720,7 @@ export const prepareProcessCapture = async (
           : await resourceScope.release(cleanupOptions);
     resolveProcessResult(
       undefined,
-      normalizeCaptureFailure(cause, signal),
+      normalizeCaptureFailure(failure, signal),
       cleanup,
       createProcessCaptureObservationBuffer({
         frames: [],
@@ -1702,7 +1732,7 @@ export const prepareProcessCapture = async (
       }),
       { scenario },
     );
-    throw cause;
+    throw failure;
   }
 };
 

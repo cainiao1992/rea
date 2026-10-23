@@ -228,7 +228,7 @@ it("exposes a completed direct hash outcome while retaining its failed descripto
   const scope = new ProcessCaptureResourceScope();
   let cause: unknown;
   try {
-    await hashFile(path, await stat(path), 1024, undefined, { cleanup: scope });
+    await hashFile(path, await stat(path), 1024, undefined, scope);
   } catch (error: unknown) {
     cause = error;
   }

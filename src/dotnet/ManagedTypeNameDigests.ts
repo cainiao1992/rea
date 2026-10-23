@@ -4,10 +4,10 @@ import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import type {
   parseTypes,
+  ManagedType,
   SignatureTypeName,
   DeclarationTypeName,
 } from "./ManagedMemberInspectorCore.js";
-import { metadataToken } from "./ManagedMetadataHeaps.js";
 import type { ManagedTypeReferenceLookup } from "./ManagedTypeReferences.js";
 import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
 import { managedFailure, readManagedValue } from "./ManagedReaderFailure.js";
@@ -153,11 +153,11 @@ export const managedTypeNameDigests = (
 } => {
   const retain = () => managedDecodeBudget(layout).reserve(128, null);
   managedDecodeBudget(layout).reserve(parsedTypes.types.length * 128, null);
-  const types = new Map<string, (typeof parsedTypes.types)[number]>();
-  for (const type of parsedTypes.types) types.set(type.token, type);
+  const types = new Map<number, ManagedType>();
+  for (const { row, type } of parsedTypes.types) types.set(row, type);
   const definitions = nestedTypeDigests((row) => {
     if (!parsedTypes.nesting.complete) return null;
-    const type = types.get(metadataToken(TYPE_DEF, row));
+    const type = types.get(row);
     if (
       type === undefined &&
       (row < 1 || row > (layout.table(TYPE_DEF)?.rowCount ?? 0))

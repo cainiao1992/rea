@@ -19,7 +19,7 @@ import {
 } from "../../../support/javascriptApplicationScope.js";
 import {
   analyzeJavaScriptArtifactFiles,
-  analyzeAndProjectJavaScriptArtifactFiles,
+  analyzeAndAdoptJavaScriptArtifactFiles,
 } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
 import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
 import {
@@ -40,6 +40,7 @@ import {
 } from "../../../../src/javascript/analysis/JavaScriptAnalysisTransfer.js";
 import { javaScriptWorkerStaticAnalysisSchema } from "../../../../src/javascript/analysis/JavaScriptAnalysisWorkerSchemas.js";
 import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
+import { createJavaScriptSourceAnalysis } from "../../../../src/artifacts/javascript/JavaScriptSourceAnalysis.js";
 import {
   scanCanonicalArtifactInventory,
   scanArtifactInventory,
@@ -556,7 +557,7 @@ it("reports file progress and honors cancellation before the next source", async
   expect(progress[0]).not.toBe(progress[1]);
 });
 
-it("preserves graph commitments and export shapes when consuming file-local IR", async () => {
+it("preserves graph commitments and export shapes through worker adoption", async () => {
   const root = await fixtureDirectory();
   await writeFile(
     join(root, "exports.mjs"),
@@ -574,10 +575,27 @@ it("preserves graph commitments and export shapes when consuming file-local IR",
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
     const full = analyzeJavaScriptArtifactFiles(files);
     const projection = createJavaScriptSemanticGraphProjection();
-    const compact = await analyzeAndProjectJavaScriptArtifactFiles(
-      files,
-      projection.projectFile,
+    const worker = await createJavaScriptSourceAnalysis(
+      { heapMb: 512, timeoutMs: 30_000 },
+      files.files.filter(
+        (file) => file.kind === "javascript" && file.text.included,
+      ).length,
     );
+    let outcome: Awaited<
+      ReturnType<typeof analyzeAndAdoptJavaScriptArtifactFiles>
+    >;
+    try {
+      outcome = await analyzeAndAdoptJavaScriptArtifactFiles(
+        files,
+        worker,
+        projection,
+        async () => {},
+      );
+    } finally {
+      await worker.close();
+    }
+    if (outcome.interruption !== null) throw outcome.interruption;
+    const compact = outcome.analysis;
     const graph = buildJavaScriptArtifactGraph(snapshot, files, full);
     expect(buildJavaScriptArtifactGraph(snapshot, files, compact)).toEqual(
       graph,

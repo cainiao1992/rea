@@ -95,46 +95,6 @@ export const analyzeJavaScriptArtifactFiles = (
     return ir;
   });
 
-/**
- * Project each file's full IR immediately, retaining only later module facts.
- * Parsing, analysis and each projection pass run as separate steps, so control
- * messages and cancellation are handled within one large file as well.
- */
-export const analyzeAndProjectJavaScriptArtifactFiles = async (
-  fileSet: JavaScriptArtifactFileSet,
-  projectSemantics: (
-    file: JavaScriptArtifactFile,
-    ir: JavaScriptSemanticIr,
-  ) => Iterator<void, void> | void,
-  beforeFile?: (
-    file: JavaScriptArtifactFile,
-    completed: number,
-    total: number,
-  ) => Promise<void>,
-  signal?: AbortSignal,
-): Promise<JavaScriptModuleArtifactAnalysis> => {
-  const state = emptyArtifactAnalysis<JavaScriptModuleSemanticIr>();
-  const projectFileSemantics = function* (
-    file: JavaScriptArtifactFile,
-    ir: JavaScriptSemanticIr,
-  ): Generator<void, JavaScriptModuleSemanticIr> {
-    const projection = projectSemantics(file, ir);
-    if (projection !== undefined) while (projection.next().done !== true) yield;
-    return projectJavaScriptModuleSemantics(ir);
-  };
-  const context = { state, projectSemantics: projectFileSemantics };
-  for (const [index, file] of fileSet.files.entries()) {
-    // Let progress, cancellation and garbage collection run between files.
-    await setImmediate();
-    await beforeFile?.(file, index, fileSet.files.length);
-    await completeJavaScriptAnalysisSteps(
-      analyzeArtifactFileSteps(file, context),
-      signal,
-    );
-  }
-  return finalizeArtifactAnalysis(state);
-};
-
 /** Analyze sources behind a hard heap boundary, retaining collected facts on interruption. */
 export const analyzeAndAdoptJavaScriptArtifactFiles = async (
   fileSet: JavaScriptArtifactFileSet,

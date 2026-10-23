@@ -2,7 +2,6 @@ import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { MAX_TYPE_NESTING_DEPTH } from "./ManagedTypeNameDigests.js";
 import { readManagedTypeNesting } from "./ManagedTypeNesting.js";
-import type { ManagedTypeNesting } from "./ManagedTypeNesting.js";
 import { memberDeclaringTypeRowLookup } from "./ManagedMemberOwnership.js";
 import type { TypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 
@@ -27,7 +26,7 @@ import {
 import { managedFailure, readManagedValue } from "./ManagedReaderFailure.js";
 import type { ManagedTypeReferenceLookup } from "./ManagedTypeReferences.js";
 import type { ManagedResourceDirectory } from "./ManagedMetadataInventory.js";
-import type { ManagedType } from "./ManagedMemberInspectorCore.js";
+import type { ManagedType, parseTypes } from "./ManagedMemberInspectorCore.js";
 
 type ModuleIdentity = NonNullable<ManagedArtifactInspection["module"]>;
 type AssemblyIdentity = NonNullable<ManagedArtifactInspection["assembly"]>;
@@ -246,10 +245,7 @@ export const managedMetadataTypeNames = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
   issues: ManagedParseIssue[],
-  parsedTypes?: {
-    readonly types: readonly ManagedType[];
-    readonly nesting: ManagedTypeNesting;
-  },
+  parsedTypes?: Pick<ReturnType<typeof parseTypes>, "types" | "nesting">,
   parsedReferences?: ManagedTypeReferenceLookup,
 ): ManagedMetadataTypeNameLookup => {
   const nesting =
@@ -259,8 +255,7 @@ export const managedMetadataTypeNames = (
   const definitions = new Map<number, ManagedType>();
   if (parsedTypes !== undefined) {
     managedDecodeBudget(layout).reserve(parsedTypes.types.length * 128, null);
-    for (const type of parsedTypes.types)
-      definitions.set(Number.parseInt(type.token.slice(4), 16), type);
+    for (const { row, type } of parsedTypes.types) definitions.set(row, type);
   }
   const cache = new Map<
     string,

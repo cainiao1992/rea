@@ -181,21 +181,25 @@ it("resolves lazy package and JSON facts without completing their skipped observ
       outcome.analysis,
     );
     expect(graph.coverage.status).toBe("partial");
-    expect(
-      graph.edges.find(
-        ({ relation, properties }) =>
-          relation === "imports" && properties.specifier === "late-pkg",
-      )?.properties,
-    ).toMatchObject({
+    const packageRelationships = graph.edges.filter(
+      ({ relation, properties }) =>
+        relation === "imports" &&
+        properties.module_link_kind === "require" &&
+        properties.specifier === "late-pkg",
+    );
+    expect(packageRelationships).toHaveLength(1);
+    expect(packageRelationships[0]?.properties).toMatchObject({
       resolution_status: "resolved",
       resolved_path: "app/node_modules/late-pkg/index.cjs",
     });
-    expect(
-      graph.edges.find(
-        ({ relation, properties }) =>
-          relation === "imports" && properties.specifier === "./config.json",
-      )?.properties,
-    ).toMatchObject({
+    const jsonRelationships = graph.edges.filter(
+      ({ relation, properties }) =>
+        relation === "imports" &&
+        properties.module_link_kind === "require" &&
+        properties.specifier === "./config.json",
+    );
+    expect(jsonRelationships).toHaveLength(1);
+    expect(jsonRelationships[0]?.properties).toMatchObject({
       target_file_kind: "json",
       target_json_status: "included",
     });

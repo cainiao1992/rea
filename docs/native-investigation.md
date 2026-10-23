@@ -6,6 +6,15 @@ Use a native provider to discover functions, inspect instructions and pseudocode
 follow references, and examine database types. Static resources and runtime
 observation complement that analysis when they answer a specific question.
 
+`inspect_macho` reports build platforms from the selected slice. Legacy
+`LC_VERSION_MIN_IPHONEOS`, `LC_VERSION_MIN_TVOS` and
+`LC_VERSION_MIN_WATCHOS` commands are interpreted with the Mach-O CPU type, so
+Intel slices report simulator platforms while device CPU slices keep the
+device platform. A chained-import row ending in `+0x...` is ambiguous in
+dyld's text output: it may be an addend or part of a literal symbol name. REA
+keeps the full expression in `raw_name`, sets `name` and `addend` to null, and
+marks `name_status: "ambiguous"`; it does not synthesize a symbol identity.
+
 ## Start with a function
 
 Choose an installed provider from [setup](installation.md#hopper). For Ghidra:

@@ -299,6 +299,9 @@ it("retains native inventory facts from captured Apple tool output", async () =>
   ).toEqual([
     {
       name: "__Block_copy",
+      raw_name: null,
+      name_status: "exact",
+      addend: null,
       address: null,
       weak: null,
       reexport: null,
@@ -306,6 +309,9 @@ it("retains native inventory facts from captured Apple tool output", async () =>
     },
     {
       name: "_objc_bp_assist_cfg_np",
+      raw_name: null,
+      name_status: "exact",
+      addend: null,
       address: null,
       weak: true,
       reexport: null,
@@ -332,6 +338,56 @@ it("retains native inventory facts from captured Apple tool output", async () =>
     weak: null,
     reexport: false,
     source: null,
+  });
+});
+
+it("reports a chained bind addend separately in native inspection", async () => {
+  const outputs: Record<string, string> = {};
+  for (const tool of ["lipo", "otool", "nm", "dwarfdump", "vtool"])
+    outputs[tool] = await fixture(`dyld-inventory/${tool}.txt`);
+  outputs.otool = withOtoolMachHeader(
+    `${outputs.otool ?? ""}Load command 17
+      cmd LC_DYLD_CHAINED_FIXUPS
+  cmdsize 16
+    dataoff 100
+   datasize 20
+`,
+  );
+  outputs["dyld_info:-imports"] =
+    "-imports:\n 0x0000 _fixture_data (from libFixture)\n 0x0001 _fixture_data+0x4 (from libFixture)\n";
+  outputs["dyld_info:-exports"] = await fixture("dyld-inventory/exports.txt");
+  const client = new NativeMacOSProvider(
+    {},
+    new FixtureRunner(outputs),
+    "darwin",
+  ).createClient(machoTarget("/private/fixture"));
+  const execution = await client.execute("inspect_macho", {});
+  if (!execution.ok) throw execution.error;
+  expect(execution.value.result).toMatchObject({
+    imports: {
+      items: [
+        {
+          name: "_fixture_data",
+          raw_name: null,
+          name_status: "exact",
+          addend: null,
+          address: null,
+          weak: null,
+          reexport: null,
+          source: "libFixture",
+        },
+        {
+          name: null,
+          raw_name: "_fixture_data+0x4",
+          name_status: "ambiguous",
+          addend: null,
+          address: null,
+          weak: null,
+          reexport: null,
+          source: "libFixture",
+        },
+      ],
+    },
   });
 });
 
@@ -414,6 +470,9 @@ it("retains symbol names containing spaces in dyld inventory rows", () => {
   ).toEqual([
     {
       name: "_entry with space",
+      raw_name: null,
+      name_status: "exact",
+      addend: null,
       address: null,
       weak: null,
       reexport: null,
@@ -622,6 +681,72 @@ it("keeps true weak annotations when nm establishes the unannotated name", () =>
       source: null,
     },
   ]);
+});
+
+it("retains chained import suffixes as ambiguous raw text", () => {
+  expect(
+    parseDyldSymbols(
+      "0x0000 _fixture_data (from libFixture)\n0x0001 _fixture_data+0x4 (from libFixture)\n0x0002 _fixture_weak+0x8 [weak-import] (from libFixture)",
+      "imports",
+      null,
+      new Set(),
+      true,
+    ),
+  ).toEqual([
+    {
+      name: "_fixture_data",
+      raw_name: null,
+      name_status: "exact",
+      addend: null,
+      address: null,
+      weak: null,
+      reexport: null,
+      source: "libFixture",
+    },
+    {
+      name: null,
+      raw_name: "_fixture_data+0x4",
+      name_status: "ambiguous",
+      addend: null,
+      address: null,
+      weak: null,
+      reexport: null,
+      source: "libFixture",
+    },
+    {
+      name: null,
+      raw_name: "_fixture_weak+0x8",
+      name_status: "ambiguous",
+      addend: null,
+      address: null,
+      weak: true,
+      reexport: null,
+      source: "libFixture",
+    },
+  ]);
+  expect(
+    parseDyldSymbols(
+      "0x0001 _literal+0x4 (from libFixture)",
+      "imports",
+      null,
+      new Set(),
+      true,
+    ),
+  ).toEqual([
+    {
+      name: null,
+      raw_name: "_literal+0x4",
+      name_status: "ambiguous",
+      addend: null,
+      address: null,
+      weak: null,
+      reexport: null,
+      source: "libFixture",
+    },
+  ]);
+  expect(
+    parseDyldSymbols("0x0001 _literal+0x4 (from libFixture)", "imports"),
+  ).toMatchObject([{ name: "_literal+0x4", name_status: "exact" }]);
 });
 
 it("leaves an ambiguous short and literal name to the caller's nm inventory", () => {

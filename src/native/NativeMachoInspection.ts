@@ -246,9 +246,18 @@ const normalizeMacho = (
   const dyldExportsCapture = byTool("dyld_info", 1);
   const missingImportsUuid = isMissingUuidDyldFailure(dyldImportsCapture);
   const missingExportsUuid = isMissingUuidDyldFailure(dyldExportsCapture);
+  const hasChainedFixups = load.commands.some(
+    ({ kind }) => kind === "LC_DYLD_CHAINED_FIXUPS",
+  );
   const imports = missingImportsUuid
     ? []
-    : parseDyldSymbols(sliceOutput(dyldImportsCapture), "imports");
+    : parseDyldSymbols(
+        sliceOutput(dyldImportsCapture),
+        "imports",
+        null,
+        new Set(),
+        hasChainedFixups,
+      );
   const imageBase =
     load.segments.find(
       (segment) => segment.file_offset === 0 && (segment.file_size ?? 0) > 0,

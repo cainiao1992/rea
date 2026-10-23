@@ -1,92 +1,129 @@
-interface ParsedDyldSymbol {
-  readonly name: string;
+interface ParsedDyldSymbolFields {
   readonly address: string | null;
   readonly weak: boolean | null;
   readonly reexport: boolean | null;
   readonly source: string | null;
+}
+
+interface ParsedDyldImport extends ParsedDyldSymbolFields {
+  readonly name: string | null;
+  /** Full producer text when the symbol/addend split cannot be established. */
+  readonly raw_name: string | null;
+  readonly name_status: "exact" | "ambiguous";
+  readonly addend: string | null;
+}
+
+interface ParsedDyldExport extends ParsedDyldSymbolFields {
+  readonly name: string;
   /** The source library's name for a symbol it re-exports under another name. */
   readonly sourceSymbol?: string;
 }
 
 /** Decode Apple dyld inventory rows, projecting export offsets to VM addresses. */
-export const parseDyldSymbols = (
+export function parseDyldSymbols(
+  output: string,
+  mode: "imports",
+  imageBase?: string | null,
+  knownExportNames?: ReadonlySet<string>,
+  hasChainedFixups?: boolean,
+): ParsedDyldImport[];
+export function parseDyldSymbols(
+  output: string,
+  mode: "exports",
+  imageBase?: string | null,
+  knownExportNames?: ReadonlySet<string>,
+): ParsedDyldExport[];
+export function parseDyldSymbols(
   output: string,
   mode: "imports" | "exports",
   imageBase: string | null = null,
   knownExportNames: ReadonlySet<string> = new Set(),
-) => {
+  hasChainedFixups = false,
+): (ParsedDyldImport | ParsedDyldExport)[] {
   const offsets = /^\s*offset\s+symbol\s*$/mu.test(output);
   // dyld_info ends rows with LF. A carriage return before it belongs to the
   // symbol name, so export rows keep their trailing text.
-  return output.split("\n").flatMap<ParsedDyldSymbol>((rawLine) => {
-    const line = mode === "exports" ? rawLine.trimStart() : rawLine.trim();
-    if (mode === "imports") {
-      const imported =
-        /^(?:0x[\da-f]+\s+)?(.+?)(?:\s+\[([^\]]+)\])?\s+\(from (.+)\)$/iu.exec(
-          line,
-        );
-      if (imported?.[1] !== undefined)
+  return output
+    .split("\n")
+    .flatMap<ParsedDyldImport | ParsedDyldExport>((rawLine) => {
+      const line = mode === "exports" ? rawLine.trimStart() : rawLine.trim();
+      if (mode === "imports") {
+        const imported =
+          /^(?:0x[\da-f]+\s+)?(.+?)(?:\s+\[([^\]]+)\])?\s+\(from (.+)\)$/iu.exec(
+            line,
+          );
+        if (imported?.[1] !== undefined) {
+          const ambiguousSuffix = hasChainedFixups
+            ? /^(.*)\+0x[\da-f]+$/iu.test(imported[1])
+            : false;
+          return [
+            {
+              name: ambiguousSuffix ? null : imported[1],
+              raw_name: ambiguousSuffix ? imported[1] : null,
+              name_status: ambiguousSuffix ? "ambiguous" : "exact",
+              addend: null,
+              address: null,
+              weak: /\bweak-import\b/u.test(imported[2] ?? "") ? true : null,
+              reexport: null,
+              source: imported[3] ?? null,
+            },
+          ];
+        }
+        return [];
+      }
+      // dyld_info prints `_sym (from lib)`, or `_new (_old from lib)` when the
+      // source library names the symbol differently. Split the trailing
+      // parenthesized suffix with string scans so a library path containing
+      // " from ", or a source symbol containing parentheses such as
+      // `operator()`, cannot pull the match into nested lazy quantifiers.
+      const reexport = parseReexportRow(line, knownExportNames);
+      if (reexport !== null)
         return [
           {
-            name: imported[1],
+            name: reexport.name,
             address: null,
-            weak: /\bweak-import\b/u.test(imported[2] ?? "") ? true : null,
-            reexport: null,
-            source: imported[3] ?? null,
+            weak: null,
+            reexport: true,
+            source: reexport.source,
+            ...(reexport.sourceSymbol === undefined
+              ? {}
+              : { sourceSymbol: reexport.sourceSymbol }),
           },
         ];
-      return [];
-    }
-    // dyld_info prints `_sym (from lib)`, or `_new (_old from lib)` when the
-    // source library names the symbol differently. Split the trailing
-    // parenthesized suffix with string scans so a library path containing
-    // " from ", or a source symbol containing parentheses such as
-    // `operator()`, cannot pull the match into nested lazy quantifiers.
-    const reexport = parseReexportRow(line, knownExportNames);
-    if (reexport !== null)
+      const exported = /^(0x[\da-f]+)\s+(.+?)(?:\s+\[([^\]]+)\])?$/isu.exec(
+        line,
+      );
+      if (exported?.[1] === undefined || exported[2] === undefined) return [];
+      const rawName = /^0x[\da-f]+\s+(.+)$/isu.exec(line)?.[1];
+      const literalName =
+        rawName !== undefined && knownExportNames.has(rawName);
+      // If nm establishes both interpretations, the textual row cannot bind an address or flags.
+      // Let the caller retain the exact nm names without guessing which one owns this row.
+      if (
+        literalName &&
+        exported[3] !== undefined &&
+        knownExportNames.has(exported[2])
+      )
+        return [];
+      const annotation = literalName ? undefined : exported[3];
+      const absolute = /\babsolute\b/u.test(annotation ?? "");
+      const address =
+        offsets && !absolute
+          ? imageBase === null
+            ? null
+            : `0x${(BigInt(imageBase) + BigInt(exported[1])).toString(16)}`
+          : canonicalHex(exported[1]);
       return [
         {
-          name: reexport.name,
-          address: null,
-          weak: null,
-          reexport: true,
-          source: reexport.source,
-          ...(reexport.sourceSymbol === undefined
-            ? {}
-            : { sourceSymbol: reexport.sourceSymbol }),
+          name: literalName ? rawName : exported[2],
+          address,
+          weak: /\bweak-def\b/u.test(annotation ?? "") ? true : null,
+          reexport: false,
+          source: null,
         },
       ];
-    const exported = /^(0x[\da-f]+)\s+(.+?)(?:\s+\[([^\]]+)\])?$/isu.exec(line);
-    if (exported?.[1] === undefined || exported[2] === undefined) return [];
-    const rawName = /^0x[\da-f]+\s+(.+)$/isu.exec(line)?.[1];
-    const literalName = rawName !== undefined && knownExportNames.has(rawName);
-    // If nm establishes both interpretations, the textual row cannot bind an address or flags.
-    // Let the caller retain the exact nm names without guessing which one owns this row.
-    if (
-      literalName &&
-      exported[3] !== undefined &&
-      knownExportNames.has(exported[2])
-    )
-      return [];
-    const annotation = literalName ? undefined : exported[3];
-    const absolute = /\babsolute\b/u.test(annotation ?? "");
-    const address =
-      offsets && !absolute
-        ? imageBase === null
-          ? null
-          : `0x${(BigInt(imageBase) + BigInt(exported[1])).toString(16)}`
-        : canonicalHex(exported[1]);
-    return [
-      {
-        name: literalName ? rawName : exported[2],
-        address,
-        weak: /\bweak-def\b/u.test(annotation ?? "") ? true : null,
-        reexport: false,
-        source: null,
-      },
-    ];
-  });
-};
+    });
+}
 
 const canonicalHex = (value: string | undefined): string | null =>
   value === undefined ? null : `0x${BigInt(value).toString(16)}`;

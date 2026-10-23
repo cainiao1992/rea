@@ -163,6 +163,9 @@ export const processComparisonContract = (
     : {}),
   limits: scenario.limits,
   normalization: scenario.normalization,
+  ...(scenario.normalization.pids
+    ? { pid_normalization_version: "sampled-identifiers-v2" }
+    : {}),
   ...(scenario.normalization.paths
     ? { path_normalization_version: "path-component-boundaries-v2" }
     : {}),

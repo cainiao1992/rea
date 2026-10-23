@@ -2,7 +2,12 @@ import { expect, it } from "vitest";
 import type { IPty } from "@lydell/node-pty";
 
 import { parseProcessScenario } from "../../domain/process/processScenario.js";
-import type { TerminalFrame } from "../../domain/process/processCapture.js";
+import { AnalysisResourceConstraintError } from "../../domain/analysisErrorCore.js";
+import { createProcessIdentifierLookup } from "./ProcessNormalization.js";
+import type {
+  TerminalFrame,
+  ProcessSample,
+} from "../../domain/process/processCapture.js";
 import { captureTerminalFrames } from "./ProcessCaptureLifecycle.js";
 import { createBoundedProcessTextNormalizer } from "./ProcessNormalization.js";
 
@@ -36,6 +41,7 @@ it("omits an expanding chunk whole and retains a later smaller normalized chunk"
     renderer: { write: (data: string) => renderedChunks.push(data) } as never,
     normalizeText: createBoundedProcessTextNormalizer(scenario, "/tmp", -1),
     recordEvent: (collection, index) => journal.push([collection, index]),
+    identifiers: () => [],
   });
 
   onData?.("aaa");
@@ -61,3 +67,74 @@ it("omits an expanding chunk whole and retains a later smaller normalized chunk"
     },
   });
 });
+
+it.each([false, true])(
+  "reprojects bounded retained raw chunks after sampled child discovery, capacity failure=%s",
+  (overBudget) => {
+    let onData: ((data: string) => void) | undefined;
+    const terminal = {
+      onData: (listener: (data: string) => void) => {
+        onData = listener;
+        return { dispose: () => undefined };
+      },
+    } as unknown as IPty;
+    const scenario = parseProcessScenario({
+      executable: "unused",
+      limits: { output_bytes: overBudget ? 4 : 1000 },
+      normalization: {
+        paths: false,
+        ports: false,
+        pids: true,
+        patterns: overBudget
+          ? []
+          : [
+              { pattern: "<pid>", replacement: "selected" },
+              { pattern: "200", replacement: "wrong-order" },
+            ],
+      },
+    });
+    const samples: ProcessSample[] = [];
+    const frames: TerminalFrame[] = [];
+    const identifiers = createProcessIdentifierLookup(samples, () => 100);
+    const readRetention = captureTerminalFrames({
+      terminal,
+      scenario,
+      frames,
+      started: 0,
+      onOutput: () => undefined,
+      renderer: { write: () => undefined } as never,
+      normalizeText: createBoundedProcessTextNormalizer(
+        scenario,
+        "/tmp",
+        identifiers,
+      ),
+      identifiers,
+      recordEvent: () => undefined,
+    });
+    const original = overBudget ? "20" : "root=100 child=200 other=201";
+    onData?.(original);
+    const first = structuredClone(frames);
+    samples.push({
+      at_ms: 1,
+      pid: overBudget ? 20 : 200,
+      parent_pid: 100,
+      process_group_id: 100,
+      session_id: 100,
+      command: "child",
+    });
+    if (overBudget) {
+      expect(readRetention).toThrow(AnalysisResourceConstraintError);
+      expect(frames).toEqual(first);
+      expect(frames[0]?.data).toBe("20");
+    } else {
+      const retention = readRetention();
+      expect(frames[0]?.data).toBe("root=selected child=selected other=201");
+      expect(frames[0]?.raw_data).toBe(original);
+      expect(frames[0]?.at_ms).toBe(first[0]?.at_ms);
+      expect(retention.normalized_terminal.retained_bytes).toBe(
+        Buffer.byteLength(frames[0]!.data),
+      );
+      expect(readRetention()).toEqual(retention);
+    }
+  },
+);

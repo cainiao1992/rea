@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import {
   createBoundedProcessTextNormalizer,
   createProcessTextNormalizer,
+  createProcessIdentifierLookup,
   normalizeProcessSamples,
   normalizeProcessText,
 } from "./ProcessNormalization.js";
@@ -575,4 +576,48 @@ it.each([
       utf8Bytes: Buffer.byteLength(expected),
     });
   }
+});
+
+it("shares sampled identifiers before custom patterns in terminal and command normalization", () => {
+  const observed = [
+    {
+      at_ms: 0,
+      pid: 100,
+      parent_pid: 1,
+      process_group_id: 100,
+      session_id: 100,
+      command: "root=100",
+    },
+  ];
+  const lookup = createProcessIdentifierLookup(observed, () => 100);
+  const before = lookup();
+  expect(lookup()).toBe(before);
+  const declared = scenario({
+    paths: false,
+    ports: false,
+    pids: true,
+    patterns: [
+      { pattern: "<pid>", replacement: "selected" },
+      { pattern: "200", replacement: "wrong-order" },
+    ],
+  });
+  const normalize = createProcessTextNormalizer(declared, "/temporary", lookup);
+  expect(normalize("root=100 child=200 other=201")).toBe(
+    "root=selected child=wrong-order other=201",
+  );
+  observed.push({
+    at_ms: 1,
+    pid: 200,
+    parent_pid: 100,
+    process_group_id: 100,
+    session_id: 100,
+    command: "root=100 child=200 other=201",
+  });
+  expect(lookup()).not.toBe(before);
+  expect(normalize(observed[1]!.command)).toBe(
+    "root=selected child=selected other=201",
+  );
+  expect(normalizeProcessSamples(observed, declared, 100)[1]?.command).toBe(
+    "root=selected child=selected other=201",
+  );
 });

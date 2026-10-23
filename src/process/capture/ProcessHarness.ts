@@ -5,6 +5,8 @@ import { parseProcessCapture } from "../../domain/process/processCaptureParsing.
 import { err, ok, type Result } from "../../domain/result.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import { createProcessTerminalFinalizer } from "./ProcessTerminalObservation.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import {
   describeProcessCaptureExecutionFailure,
@@ -29,6 +31,7 @@ import { TerminalRenderer } from "./TerminalRenderer.js";
 import type { ProcessTimer } from "./ProcessTimer.js";
 import {
   createBoundedProcessTextNormalizer,
+  createProcessIdentifierLookup,
   type BoundedProcessTextNormalization,
 } from "./ProcessNormalization.js";
 import { selectCapturedProcessGroupIds } from "../ProcessOwnershipProcessTree.js";
@@ -52,7 +55,6 @@ import {
   describeUnverifiedCause,
   type ProcessCaptureResourceCleanupOptions,
   ProcessCaptureResourceScope,
-  type TerminalCaptureRetention,
   captureExitObservation,
 } from "./ProcessCaptureLifecycle.js";
 import {
@@ -88,7 +90,7 @@ interface StartedCaptureRuntime {
   readonly startedAt: Date;
   readonly executableIdentity: ReturnType<typeof observeLaunchedExecutable>;
   readonly lastOutput: () => number;
-  readonly terminalRetention: () => TerminalCaptureRetention;
+  readonly completeTerminal: ReturnType<typeof createProcessTerminalFinalizer>;
   readonly stopSampler: ReturnType<typeof startProcessSampler>;
   /** One ownership ledger shared by observations and final cleanup for this run. */
   readonly ownershipEvidence: ProcessOwnershipEvidenceOwner;
@@ -289,10 +291,14 @@ const startCaptureRuntime = async (
     const startedAt = new Date();
     const started = monotonicProcessCaptureClock();
     let lastOutput = started;
+    const identifiers = createProcessIdentifierLookup(
+      options.samples,
+      () => terminal?.pid ?? -1,
+    );
     const normalizeText = createBoundedProcessTextNormalizer(
       scenario,
       options.temporaryRoot,
-      () => terminal?.pid ?? -1,
+      identifiers,
     );
     renderer = createTerminalRenderer(
       scenario,
@@ -325,6 +331,7 @@ const startCaptureRuntime = async (
       onOutput: () => (lastOutput = monotonicProcessCaptureClock()),
       renderer,
       normalizeText,
+      identifiers,
     });
     scheduleScenarioInteractions({
       ...options,
@@ -348,7 +355,11 @@ const startCaptureRuntime = async (
       startedAt,
       executableIdentity,
       lastOutput: () => lastOutput,
-      terminalRetention,
+      completeTerminal: createProcessTerminalFinalizer(
+        renderer,
+        terminalRetention,
+        options.observationBuffer,
+      ),
       stopSampler,
       signalRoot: retainRootSignaller(
         terminal.pid,
@@ -401,6 +412,26 @@ const finishProcessRun = async (options: {
 }): Promise<ProcessCapture> => {
   options.progress.closeLive();
   await options.stopSampler();
+  let { capture, executionFailure } = options;
+  if (options.runtime !== undefined && capture === undefined) {
+    const terminal = await options.runtime.completeTerminal();
+    if (!terminal.ok) {
+      if (executionFailure === undefined) executionFailure = terminal.error;
+      else {
+        const primary =
+          executionFailure instanceof AnalysisError
+            ? executionFailure
+            : new ProcessCaptureError("process capture failed", {
+                cause: executionFailure,
+              });
+        if (primary !== terminal.error)
+          primary.retainSecondaryFailure(terminal.error, {
+            terminal_observation_error: projectAnalysisError(terminal.error),
+          });
+        executionFailure = primary;
+      }
+    }
+  }
   const sampledProcessGroupIds =
     options.runtime === undefined
       ? undefined
@@ -424,7 +455,6 @@ const finishProcessRun = async (options: {
       ? await releaseProcessResources(cleanupOptions)
       : await options.resourceScope.release(cleanupOptions);
   const cleanup = cleanupOutcome.report;
-  let { capture, executionFailure } = options;
   if (executionFailure === undefined && options.signal?.aborted)
     executionFailure = processCaptureCancelled(options.signal.reason);
   const observedExit =
@@ -578,20 +608,9 @@ const completeCapture = async (options: {
     },
   };
   options.recordEvent("filesystem_checkpoints", 1);
-  let renderedFrames: Awaited<ReturnType<TerminalRenderer["frames"]>>;
-  try {
-    renderedFrames = await runtime.renderer.frames();
-  } catch (cause: unknown) {
-    options.observationBuffer.rendered_frames = {
-      state: "unavailable",
-      reason: unavailableReason("Rendered terminal frame collection", cause),
-    };
-    throw cause;
-  }
-  options.observationBuffer.rendered_frames = {
-    state: "available",
-    value: renderedFrames,
-  };
+  const terminal = await runtime.completeTerminal();
+  if (!terminal.ok) throw terminal.error;
+  const { renderedFrames, retention } = terminal.value;
   const checkpoints: UnverifiedProcessCapture["filesystem_checkpoints"] = [
     {
       name: "before",
@@ -632,7 +651,7 @@ const completeCapture = async (options: {
     before: options.before,
     after,
     truncationDetails: {
-      ...runtime.terminalRetention(),
+      ...retention,
       rendered_terminal: runtime.renderer.retention(),
       filesystem_before: options.before.coverage,
       filesystem_after: after.coverage,
@@ -832,29 +851,6 @@ const runProcessScenario = async (
     });
   } catch (cause: unknown) {
     executionFailure = normalizeCaptureFailure(cause, signal);
-    if (
-      runtime !== undefined &&
-      observations.rendered_frames.state === "unavailable" &&
-      observations.rendered_frames.reason.startsWith(
-        "Rendered terminal frames were not collected",
-      )
-    ) {
-      try {
-        observations.rendered_frames = {
-          state: "available",
-          value: await runtime.renderer.frames(),
-        };
-      } catch (renderCause: unknown) {
-        const renderFailure =
-          renderCause instanceof Error
-            ? renderCause.message
-            : "unknown failure";
-        observations.rendered_frames = {
-          state: "unavailable",
-          reason: `Rendered terminal frame collection failed: ${renderFailure}`,
-        };
-      }
-    }
   }
   return finishProcessRun({
     runtime,

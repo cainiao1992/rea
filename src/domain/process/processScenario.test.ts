@@ -148,17 +148,23 @@ it("keeps scenario identity without finalization while versioning corrected port
   ).toBe("b50005d26269bd1db4a49c79e05bca67c3a18d837b45cd1c8ff591c01eb7623a");
   const comparison = processComparisonContract(scenario);
   expect(comparison.port_normalization_version).toBe("contextual-endpoints-v3");
+  const { pid_normalization_version: pidVersion, ...rootOnlyComparison } =
+    comparison;
+  expect(pidVersion).toBe("sampled-identifiers-v2");
   expect(
     digestProcessCommitment({
-      ...comparison,
+      ...rootOnlyComparison,
       port_normalization_version: "contextual-endpoints-v2",
     }),
     "the earlier comparison contract had no finalization field",
   ).toBe("675b759347a737a4f1cbfbf2fc759258d9c877216513f2f4dad3ed1e9e6e7631");
   expect(
-    digestProcessCommitment(comparison),
+    digestProcessCommitment(rootOnlyComparison),
     "corrected endpoint normalization has its own comparison commitment",
   ).toBe("301f70ed68bd81b67d07c88b44c85ed0cf7d583967d2f769e2cb193d4db61c20");
+  expect(digestProcessCommitment(comparison)).not.toBe(
+    digestProcessCommitment(rootOnlyComparison),
+  );
 });
 
 it("admits the default and the exact combined terminal-cell budget", () => {

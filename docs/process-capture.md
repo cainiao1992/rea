@@ -283,6 +283,23 @@ while comparisons and trace assertions use the normalized text. Retaining the
 original adds at most `limits.output_bytes` of text, because it comes from the
 same admitted PTY chunks rather than a second unbounded stream.
 
+When PID normalization is enabled, the root and identifiers in retained process
+samples use the same identity set in terminal text and sampled commands. Raw
+PTY chunks emitted before a child was sampled are projected again from their
+retained source after sampling stops; custom patterns still run after PID
+replacement. Earlier declared normalization omissions remain explicit; omitted
+chunks are not reconstructed. Numbers not in that observed set remain literal.
+Captures commit
+`pid_normalization_version: "sampled-identifiers-v2"`, so older root-only terminal
+normalization is not silently compared as equivalent.
+
+Headless rendering runs once at terminal finalization from the already retained,
+byte-bounded PTY chunks, preserving their elapsed times and resize order. Parsing
+latency therefore occurs during finalization; rendered journal entries record
+that derived observation. A corrected raw-text projection that exceeds
+`limits.output_bytes` returns a typed capacity failure with collected facts in
+partial observations. No additional raw-screen copy or replay is retained.
+
 When path normalization is enabled, aliases apply to selected path identities
 at clear text delimiters. A selected executable path does not alias a longer
 sibling filename such as `tool-helper`; selected parent directories still

@@ -334,3 +334,65 @@ itWithCaptureCapability(
     );
   },
 );
+
+itWithCaptureCapability.each([false, true])(
+  "normalizes a sampled child in raw and rendered terminal projections, pids=%s",
+  async (pids) => {
+    const root = await createTestTempDirectory("rea-sampled-terminal-pids-");
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      working_directory: root,
+      arguments: [
+        "-e",
+        `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setTimeout(()=>{},600)'],{stdio:'inherit'});console.log('rootpid='+process.pid+' childpid='+child.pid);setTimeout(()=>{},700);`,
+      ],
+      timeout_ms: 3000,
+      settle_ms: 100,
+      normalization: {
+        paths: false,
+        ports: false,
+        pids,
+        time_bucket_ms: 10000,
+        patterns: [{ pattern: "<pid>", replacement: "<selected-pid>" }],
+      },
+    });
+    const result = await captureProcessScenario(scenario);
+    if (!result.ok) throw result.error;
+    const capture = result.value;
+    const raw = capture.frames
+      .map(({ data, raw_data }) => raw_data ?? data)
+      .join("");
+    const match = /rootpid=(\d+) childpid=(\d+)/u.exec(raw);
+    if (match === null)
+      throw new Error("Expected exact root and child PID observations");
+    expect(
+      capture.process_samples.some((row) =>
+        pids
+          ? row.parent_pid === 1 && row.pid !== 1
+          : row.pid === Number(match[2]),
+      ),
+    ).toBe(true);
+    const expected = pids
+      ? "rootpid=<selected-pid> childpid=<selected-pid>"
+      : match[0];
+    expect(capture.frames.map(({ data }) => data).join("")).toContain(expected);
+    expect(
+      capture.rendered_frames.some(
+        ({ lines, serialized_state }) =>
+          lines.includes(expected) && serialized_state.includes(expected),
+      ),
+    ).toBe(true);
+    if (pids)
+      expect(
+        capture.manifest.comparison_contract.pid_normalization_version,
+      ).toBe("sampled-identifiers-v2");
+    else
+      expect(capture.manifest.comparison_contract).not.toHaveProperty(
+        "pid_normalization_version",
+      );
+    expect(capture.cleanup).toMatchObject({
+      owned_process_group: "verified",
+      temporary_root: "removed",
+    });
+  },
+);

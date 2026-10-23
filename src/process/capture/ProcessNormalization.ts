@@ -2,7 +2,11 @@ import { isIP } from "node:net";
 
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
 
-import type { ProcessSample } from "../../domain/process/processCapture.js";
+import { AnalysisResourceConstraintError } from "../../domain/analysisErrorCore.js";
+import type {
+  TerminalFrame,
+  ProcessSample,
+} from "../../domain/process/processCapture.js";
 
 export type BoundedProcessTextNormalization =
   | {
@@ -183,11 +187,52 @@ type ProcessTextRule =
       readonly replacement: string;
     };
 
+type ProcessIdentifierSource =
+  | number
+  | readonly number[]
+  | (() => number | readonly number[]);
+
+/** Encounter order defines one shared identity set for text and sampled rows. */
+const processSampleIdentifiers = (
+  samples: readonly ProcessSample[],
+  rootPid: number,
+): readonly number[] =>
+  [
+    ...new Set([
+      rootPid,
+      ...samples.flatMap((sample) => [
+        sample.pid,
+        sample.parent_pid,
+        sample.process_group_id ?? 0,
+        sample.session_id ?? 0,
+      ]),
+    ]),
+  ].filter((pid) => pid > 0);
+
+/** Reuse an immutable identifier snapshot until the root or retained samples change. */
+export const createProcessIdentifierLookup = (
+  samples: readonly ProcessSample[],
+  rootPid: () => number,
+): (() => readonly number[]) => {
+  let count = -1;
+  let root = -1;
+  let identifiers: readonly number[] = [];
+  return () => {
+    const currentRoot = rootPid();
+    if (currentRoot !== root || count !== samples.length) {
+      root = currentRoot;
+      count = samples.length;
+      identifiers = processSampleIdentifiers(samples, root);
+    }
+    return identifiers;
+  };
+};
+
 /** Compile one ordered policy for both bounded retention and unrestricted text. */
 const createProcessTextRules = (
   scenario: ProcessScenario,
   temporaryRoot: string,
-  pid: number | (() => number),
+  pid: ProcessIdentifierSource,
 ): (() => readonly (ProcessTextRule | undefined)[]) => {
   const rules: (ProcessTextRule | undefined)[] = [];
   const pathRule = scenario.normalization.paths
@@ -211,13 +256,15 @@ const createProcessTextRules = (
   if (scenario.normalization.pids) rules.push(undefined);
   for (const pattern of scenario.normalization.patterns)
     rules.push({ kind: "literal", ...pattern });
-  let previousPid: number | undefined;
+  let previousPid: number | readonly number[] | undefined;
   return () => {
     if (scenario.normalization.pids) {
-      const currentPid = typeof pid === "number" ? pid : pid();
+      const currentPid = typeof pid === "function" ? pid() : pid;
       if (currentPid !== previousPid) {
         previousPid = currentPid;
-        const matcher = createPidMatcher([currentPid]);
+        const matcher = createPidMatcher(
+          typeof currentPid === "number" ? [currentPid] : currentPid,
+        );
         rules[pidIndex] =
           matcher === undefined
             ? undefined
@@ -232,7 +279,7 @@ const createProcessTextRules = (
 export const createProcessTextNormalizer = (
   scenario: ProcessScenario,
   temporaryRoot: string,
-  pid: number | (() => number),
+  pid: ProcessIdentifierSource,
 ): ((value: string) => string) => {
   const rules = createProcessTextRules(scenario, temporaryRoot, pid);
   return (value) => {
@@ -252,7 +299,7 @@ export const createProcessTextNormalizer = (
 export const createBoundedProcessTextNormalizer = (
   scenario: ProcessScenario,
   temporaryRoot: string,
-  pid: number | (() => number),
+  pid: ProcessIdentifierSource,
 ): ((value: string, maxBytes: number) => BoundedProcessTextNormalization) => {
   const rules = createProcessTextRules(scenario, temporaryRoot, pid);
   return (value, maxBytes) => {
@@ -363,32 +410,17 @@ export const normalizeProcessSamples = (
   scenario: ProcessScenario,
   rootPid: number,
 ): readonly ProcessSample[] => {
-  const identifiers = [
-    rootPid,
-    ...samples.flatMap((sample) => [
-      sample.pid,
-      sample.parent_pid,
-      sample.process_group_id ?? 0,
-      sample.session_id ?? 0,
-    ]),
-  ];
-  const mapping = new Map<number, number>();
-  for (const identifier of identifiers)
-    if (identifier > 0 && !mapping.has(identifier))
-      mapping.set(identifier, mapping.size + 1);
+  const identifiers = processSampleIdentifiers(samples, rootPid);
+  const mapping = new Map(
+    identifiers.map((identifier, index) => [identifier, index + 1]),
+  );
   const normalizeText = createProcessTextNormalizer(
     scenario,
     "<no-temporary-root>",
-    rootPid,
+    identifiers,
   );
-  const normalizeSamplePids = scenario.normalization.pids
-    ? createPidNormalizer(identifiers)
-    : undefined;
-  const normalizeCommand = (command: string): string => {
-    const normalized = normalizeText(command);
-    const withNormalizedPids = normalizeSamplePids?.(normalized) ?? normalized;
-    return withNormalizedPids.trim();
-  };
+  const normalizeCommand = (command: string): string =>
+    normalizeText(command).trim();
   return samples.map((sample) => ({
     at_ms: normalizeProcessElapsedTime(
       sample.at_ms,
@@ -412,14 +444,6 @@ export const normalizeProcessSamples = (
   }));
 };
 
-const createPidNormalizer = (
-  identifiers: readonly number[],
-): ((value: string) => string) => {
-  const matcher = createPidMatcher(identifiers);
-  if (matcher === undefined) return (value) => value;
-  return (value) => value.replace(matcher, "<pid>");
-};
-
 const createPidMatcher = (
   identifiers: readonly number[],
 ): RegExp | undefined => {
@@ -429,4 +453,46 @@ const createPidMatcher = (
     .map(String);
   if (tokens.length === 0) return undefined;
   return new RegExp(`(?<!\\d)(?:${tokens.join("|")})(?!\\d)`, "gu");
+};
+
+/** Reproject retained raw chunks atomically when later samples reveal more identifiers. */
+export const normalizeRetainedTerminalFrames = (
+  frames: TerminalFrame[],
+  normalize: (
+    value: string,
+    maxBytes: number,
+  ) => BoundedProcessTextNormalization,
+  maximumBytes: number,
+): number => {
+  let bytes = 0;
+  const projected: TerminalFrame[] = [];
+  for (const frame of frames) {
+    const raw = frame.raw_data ?? frame.data;
+    const value = normalize(raw, maximumBytes - bytes);
+    if (value.state === "over_budget")
+      throw new AnalysisResourceConstraintError(
+        "capture_process",
+        "capacity",
+        "Retained terminal text exceeded the selected output budget after sampled PID normalization.",
+        {
+          maximum_output_bytes: maximumBytes,
+          frame_index: frame.sequence,
+          boundary: "terminal-pid-normalization",
+        },
+        {
+          retryable: false,
+          remediationAction:
+            "Increase limits.output_bytes within its advertised range, or select a narrower scenario. Completed raw PTY chunks remain in partial observations; the corrected normalized representation did not fit.",
+        },
+      );
+    bytes += value.utf8Bytes;
+    projected.push({
+      sequence: frame.sequence,
+      at_ms: frame.at_ms,
+      data: value.value,
+      ...(value.value === raw ? {} : { raw_data: raw }),
+    });
+  }
+  for (const [index, frame] of projected.entries()) frames[index] = frame;
+  return bytes;
 };

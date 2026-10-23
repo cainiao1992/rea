@@ -282,3 +282,88 @@ it.each([1024, 2048])(
     }
   },
 );
+
+it("renders retained chunks once after late PID knowledge, preserving event times and resize order", async () => {
+  let identifiers: readonly number[] = [100];
+  const scenario = parseProcessScenario({
+    executable: "unused",
+    normalization: {
+      paths: false,
+      ports: false,
+      pids: true,
+      patterns: [
+        { pattern: "<pid>", replacement: "selected" },
+        { pattern: "200", replacement: "wrong-order" },
+      ],
+    },
+  });
+  const write = vi.spyOn(Terminal.prototype, "write");
+  const renderer = new TerminalRenderer({
+    columns: 30,
+    rows: 2,
+    scrollback: 0,
+    maxBytes: 1000,
+    normalize: createBoundedProcessTextNormalizer(
+      scenario,
+      "/tmp",
+      () => identifiers,
+    ),
+  });
+  try {
+    renderer.write("child=200", 17);
+    renderer.resize(40, 3, 18);
+    expect(write).not.toHaveBeenCalled();
+    identifiers = [100, 200];
+    const frames = await renderer.frames();
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(
+      frames.map(({ at_ms, columns, rows }) => ({ at_ms, columns, rows })),
+    ).toEqual([
+      { at_ms: 17, columns: 30, rows: 2 },
+      { at_ms: 18, columns: 40, rows: 3 },
+    ]);
+    for (const frame of frames) {
+      expect(frame.lines[0]).toBe("child=selected");
+      expect(frame.serialized_state).toContain("child=selected");
+    }
+  } finally {
+    await renderer.dispose();
+    write.mockRestore();
+  }
+});
+
+it("renders a bounded sequence of retained chunks and resizes", async () => {
+  const scenario = parseProcessScenario({
+    executable: "unused",
+    normalization: { paths: false, ports: false, pids: true, patterns: [] },
+  });
+  const renderer = new TerminalRenderer({
+    columns: 20,
+    rows: 4,
+    scrollback: 10,
+    maxBytes: 1_048_576,
+    normalize: createBoundedProcessTextNormalizer(scenario, "/tmp", 100),
+  });
+  try {
+    for (let index = 0; index < 100; index += 1) {
+      renderer.write(`root=100 row=${index}\r\n`, index * 10);
+      if (index === 24 || index === 74)
+        renderer.resize(index === 24 ? 30 : 20, 4, index * 10 + 1);
+    }
+    const frames = await renderer.frames();
+    expect(frames).toHaveLength(102);
+    expect(
+      frames
+        .filter(({ at_ms }) => at_ms % 10 === 1)
+        .map(({ at_ms, columns }) => ({ at_ms, columns })),
+    ).toEqual([
+      { at_ms: 241, columns: 30 },
+      { at_ms: 741, columns: 20 },
+    ]);
+    expect(frames.at(-1)?.serialized_state).toContain("root=<pid> row=99");
+    expect(renderer.retention().retained_frames).toBe(102);
+    expect(renderer.truncated()).toBe(false);
+  } finally {
+    await renderer.dispose();
+  }
+});

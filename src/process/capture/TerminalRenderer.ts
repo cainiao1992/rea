@@ -42,6 +42,7 @@ export class TerminalRenderer {
   readonly #serializeAddon = new SerializePackage.SerializeAddon();
   readonly #frames: RenderedTerminalFrame[] = [];
   #pending: Promise<void> = Promise.resolve();
+  #operations: Array<() => void | Promise<void>> = [];
   #capturedBytes = 0;
   #observedBytes = 0;
   #observedFrames = 0;
@@ -86,7 +87,13 @@ export class TerminalRenderer {
 
   /** Await all queued parsing and return immutable rendered observations. */
   async frames(): Promise<readonly RenderedTerminalFrame[]> {
-    await this.#pending;
+    do {
+      const operations = this.#operations;
+      this.#operations = [];
+      for (const operation of operations)
+        this.#pending = this.#pending.then(operation);
+      await this.#pending;
+    } while (this.#operations.length > 0);
     return structuredClone(this.#frames);
   }
 
@@ -119,15 +126,15 @@ export class TerminalRenderer {
   async dispose(): Promise<void> {
     // frames() owns observation failures; cleanup reports only disposal failures.
     await this.#pending.catch(() => undefined);
+    this.#operations = [];
     // xterm owns and disposes every addon loaded through loadAddon().
     this.#terminal.dispose();
   }
 
   #queue(operation: () => void | Promise<void>): void {
-    this.#pending = this.#pending.then(operation);
-    // PTY callbacks can fail before capture completion awaits frames(). Keep
-    // the original rejection observable there without an unhandled rejection.
-    void this.#pending.catch(() => undefined);
+    // Raw chunks are already retained by the capture byte owner. Keep their
+    // references and resize order; render once after sampled identities settle.
+    this.#operations.push(operation);
   }
 
   #capture(atMs: number): void {

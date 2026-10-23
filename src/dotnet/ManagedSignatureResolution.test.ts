@@ -6,11 +6,13 @@ import {
   attachManagedDecodeBudget,
   ManagedDecodeBudget,
 } from "./ManagedDecodeBudget.js";
+import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
 import {
   parseTypes,
   signature,
   readTypeDefinitions,
+  type SignatureTypeName,
 } from "./ManagedMemberInspectorCore.js";
 import {
   metadataRowOffset,
@@ -22,6 +24,7 @@ import {
 } from "./ManagedPe.fixture.js";
 import { readManagedPeLayout } from "./ManagedPeReader.js";
 import { managedTypeNameDigests } from "./ManagedTypeNameDigests.js";
+import { metadataCodedIndexCoordinate } from "./ManagedMetadataHeaps.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { readTypeMemberListFacts } from "./ManagedTypeMemberLists.js";
 
@@ -48,10 +51,35 @@ const metadataLayout = (bytes: Buffer) => {
 
 const named =
   (names: Readonly<Record<number, string>>) =>
-  (codedIndex: number): Buffer | null => {
-    const name = names[codedIndex];
+  ({ value }: Parameters<SignatureTypeName>[0]): Buffer | null => {
+    const name = names[value];
     return name === undefined ? null : nameDigest(name);
   };
+
+describe("layoutless signature coordinates", () => {
+  it.each([
+    [0, 2, 0],
+    [0x25, 1, 9],
+    [0x07, undefined, 1],
+  ] as const)(
+    "keeps layoutless operand %s decoded without admitting a metadata row",
+    (value, table, row) => {
+      const name = vi.fn<SignatureTypeName>(() => Buffer.alloc(32));
+      const result = signature(
+        Buffer.from([0x06, 0x12, value]),
+        undefined,
+        name,
+      );
+
+      expect(result.parse_status).toBe("decoded");
+      expect(result.resolved_sha256).toMatch(/^[0-9a-f]{64}$/u);
+      expect(name).toHaveBeenCalledTimes(1);
+      expect(name).toHaveBeenCalledWith(
+        expect.objectContaining({ value, coordinate: { table, row } }),
+      );
+    },
+  );
+});
 
 describe("resolved member signature digests", () => {
   it("names modifier, class, and generic type operands instead of their rows", () => {
@@ -114,6 +142,43 @@ describe("resolved member signature digests", () => {
     expect(field?.signature.parse_status).toBe("decoded");
     expect(field?.signature.resolved_sha256).toBeNull();
   });
+});
+
+describe("metadata type-name digest ownership", () => {
+  it("shares declaration and operand identity while preserving invalid TypeDef diagnostics", () => {
+    const bytes = buildManagedPeFixture();
+    const layout = metadataLayout(bytes);
+    const issues: ManagedParseIssue[] = [];
+    const names = managedTypeNameDigests(
+      layout,
+      issues,
+      { types: [], nesting: { enclosing: new Map(), complete: true } },
+      managedTypeReferences(bytes, layout, issues),
+    );
+
+    for (const row of [0, 9]) {
+      expect(names.declaration(2, row)).toBeNull();
+      const value = row * 4;
+      expect(
+        names.operand({
+          value,
+          coordinate: metadataCodedIndexCoordinate(value, 2, [2, 1, 27]),
+        }),
+      ).toBeNull();
+    }
+    expect(issues).toMatchObject([
+      {
+        code: "invalid-row",
+        scope: "metadata.signature.type:2:0",
+        detail: "Signature references an unavailable TypeDef row 0",
+      },
+      {
+        code: "invalid-row",
+        scope: "metadata.signature.type:2:9",
+        detail: "Signature references an unavailable TypeDef row 9",
+      },
+    ]);
+  });
 
   it("names each type operand once, so repeated operands are not charged again", () => {
     const bytes = buildManagedPeFixture({
@@ -122,7 +187,7 @@ describe("resolved member signature digests", () => {
     const layout = metadataLayout(bytes);
     const budget = new ManagedDecodeBudget();
     attachManagedDecodeBudget(layout, budget);
-    const typeName = managedTypeNameDigests(
+    const typeNames = managedTypeNameDigests(
       layout,
       [],
       {
@@ -133,9 +198,14 @@ describe("resolved member signature digests", () => {
     );
     const uri = (2 << 2) | 1;
 
-    expect(typeName(uri)).toEqual(nameDigest("System.Uri"));
+    const operand = {
+      value: uri,
+      coordinate: metadataCodedIndexCoordinate(uri, 2, [2, 1, 27]),
+    };
+    expect(typeNames.operand(operand)).toEqual(nameDigest("System.Uri"));
     const reserve = vi.spyOn(budget, "reserve");
-    expect(typeName(uri)).toEqual(nameDigest("System.Uri"));
+    expect(typeNames.operand(operand)).toEqual(nameDigest("System.Uri"));
+    expect(typeNames.declaration(1, 2)).toEqual(nameDigest("System.Uri"));
     expect(reserve).not.toHaveBeenCalled();
   });
 
@@ -182,8 +252,8 @@ describe("resolved member signature digests", () => {
       parsedTypes,
       managedTypeReferences(bytes, layout, issues),
     );
-    expect(() => resolve((2 << 2) | 1)).not.toThrow();
-    expect(resolve((2 << 2) | 1)).toBeNull();
+    expect(() => resolve.declaration(1, 2)).not.toThrow();
+    expect(resolve.declaration(1, 2)).toBeNull();
     expect(issues).toEqual([]);
     const inspection = inspectManagedMembersBytes(
       bytes,

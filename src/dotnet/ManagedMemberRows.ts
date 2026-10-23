@@ -20,6 +20,7 @@ import {
   type ManagedMethod,
   type MemberCore,
   type SignatureTypeName,
+  type DeclarationTypeName,
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
 import {
@@ -56,9 +57,11 @@ export const parseFields = (
   memberLists: TypeMemberListFacts,
   {
     signatureTypeName,
+    declarationTypeName,
     selected = null,
   }: {
     readonly signatureTypeName: SignatureTypeName;
+    readonly declarationTypeName: DeclarationTypeName;
     readonly selected?: SelectedTypeTokens;
   },
 ): {
@@ -119,7 +122,7 @@ export const parseFields = (
           name,
           declared?.token ?? null,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
       fields.push({
@@ -206,8 +209,15 @@ export const parseExportedTypes = (
 export const parseMemberRefs = (
   bytes: Buffer,
   layout: ManagedMetadataLayout,
-  typeName: (token: string | null) => string | null,
-  signatureTypeName: SignatureTypeName,
+  {
+    typeName,
+    signatureTypeName,
+    declarationTypeName,
+  }: {
+    readonly typeName: (token: string | null) => string | null;
+    readonly signatureTypeName: SignatureTypeName;
+    readonly declarationTypeName: DeclarationTypeName;
+  },
 ): {
   readonly refs: readonly ManagedMemberRef[];
   readonly core: ReadonlyMap<string, MemberCore>;
@@ -279,7 +289,7 @@ export const parseMemberRefs = (
           name,
           parentToken,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
     }, issues);
@@ -293,6 +303,7 @@ interface ParseMethodsInput {
   readonly pe: ManagedPeLayout;
   readonly ranges: readonly TypeRange[];
   readonly signatureTypeName: SignatureTypeName;
+  readonly declarationTypeName: DeclarationTypeName;
   readonly memberRefKinds: ReadonlyMap<string, "field" | "method">;
   readonly memberLists: TypeMemberListFacts;
   readonly selected?: SelectedTypeTokens;
@@ -306,6 +317,7 @@ export const parseMethods = ({
   pe,
   ranges,
   signatureTypeName,
+  declarationTypeName,
   memberRefKinds,
   memberLists,
   selected = null,
@@ -389,7 +401,7 @@ export const parseMethods = ({
           name,
           declared?.token ?? null,
           decoded,
-          signatureTypeName,
+          declarationTypeName,
         ),
       });
       const read = methodBody(bytes, pe, rva, {

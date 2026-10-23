@@ -2,7 +2,6 @@ import type { ManagedTypeReferenceLookup } from "./ManagedTypeReferences.js";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import {
   fullName,
-  readCompressed,
   specSignatureFacts,
   type TypeRange,
 } from "./ManagedMemberInspectorCore.js";
@@ -15,7 +14,7 @@ import {
   metadataToken,
   readMetadataBlob,
 } from "./ManagedMetadataHeaps.js";
-import { managedFailure, readManagedValue } from "./ManagedReaderFailure.js";
+import { readManagedValue } from "./ManagedReaderFailure.js";
 
 /**
  * Name the type a TypeDef, TypeRef, or generic-instantiation TypeSpec token
@@ -55,20 +54,10 @@ export const typeNameLookup = (
       scope: `metadata.TypeSpec:${metadataToken(27, row)}`,
       offset: cursor.start,
     } as const;
-    specSignatureFacts(layout, spec, owner);
-    if (spec[0] !== 0x15) return null;
-    // GENERICINST (CLASS | VALUETYPE) TypeDefOrRefEncoded: never a TypeSpec,
-    // so naming never recurses.
-    const encoded = readCompressed(spec, 2).value;
-    const table = ([2, 1] as const)[encoded & 3];
-    if (table === undefined)
-      throw managedFailure(
-        "invalid-blob",
-        owner.scope,
-        "Generic instantiation does not name a TypeDef or TypeRef",
-        owner.offset,
-      );
-    return definitionName(table, Math.floor(encoded / 4));
+    const { nominalGenericType } = specSignatureFacts(layout, spec, owner);
+    return nominalGenericType === null
+      ? null
+      : definitionName(nominalGenericType.table, nominalGenericType.row);
   };
   return (token) => {
     if (token === null) return null;

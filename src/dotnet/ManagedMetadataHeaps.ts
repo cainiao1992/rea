@@ -392,6 +392,21 @@ export const metadataRowCursor = (
   );
 };
 
+/** Format coordinates do not establish that the selected metadata row exists. */
+export interface MetadataCodedIndexCoordinate {
+  readonly table: number | undefined;
+  readonly row: number;
+}
+
+export const metadataCodedIndexCoordinate = (
+  raw: number,
+  bits: number,
+  tables: readonly (number | undefined)[],
+): MetadataCodedIndexCoordinate & { readonly tag: number } => {
+  const tag = raw & (2 ** bits - 1);
+  return { tag, table: tables[tag], row: Math.floor(raw / 2 ** bits) };
+};
+
 export type ManagedCodedIndex =
   | { readonly kind: "null" }
   | {
@@ -415,9 +430,7 @@ export const decodeMetadataCodedIndex = (
   rowCounts: readonly number[],
 ): ManagedCodedIndex => {
   if (raw === 0) return { kind: "null" };
-  const tag = raw & (2 ** bits - 1);
-  const row = Math.floor(raw / 2 ** bits);
-  const table = tables[tag];
+  const { tag, table, row } = metadataCodedIndexCoordinate(raw, bits, tables);
   if (table === undefined)
     return {
       kind: "invalid",

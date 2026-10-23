@@ -272,6 +272,11 @@ cases. Share setup without hiding inputs or expected evidence. For successful
 `.ok` assertion adds no coverage. Protocol fixtures must reject unmodeled
 commands and preserve actual producer reply shapes.
 
+For comparison normalization, include a legitimate equivalent pair and a
+distinct pair that would collapse if representation tags or scope were lost.
+For learned identifiers, cover conflicting pairs and reused values in different
+collections; mappings must remain one-to-one within their declared scope.
+
 Packed bridge validation uses Python's standard-library AST and tar readers
 with `-I -S`: caller-local modules, `PYTHONPATH`, and site startup hooks must
 not replace those readers or execute during validation. Controlled `ast.py`

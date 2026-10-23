@@ -62,6 +62,9 @@ satisfy. A plan without execution does not establish runtime behavior.
 - Keep observed, derived, and inferred relationships distinct. Preserve
   unresolved edges and partial provider facts instead of requiring every
   provider to supply the same metadata.
+  When a format constructor changes defaults or flags, retain the source
+  values and use separately derived effective values only for operations
+  whose semantics require them.
 - For caller/callee reads, `relationship_coverage` describes only the
   provider-observed direct relationship set. `complete` means that set was
   returned without a known read limit; it does not claim every possible runtime

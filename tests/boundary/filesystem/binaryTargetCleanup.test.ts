@@ -156,7 +156,8 @@ it("retries target and provider owners independently through the same MCP connec
   let providerAllowed = false;
   const execute = vi.fn(async (operation: AnalysisOperation) => {
     if (operation === "health") return observed(null);
-    throw new Error("No analysis command should run");
+    if (operation === "address_name") return observed("fixture-name");
+    throw new Error("Unexpected fixture operation");
   });
   provider.createClient = vi.fn(() => ({
     execute,
@@ -188,6 +189,17 @@ it("retries target and provider owners independently through the same MCP connec
       await nativeClose.call(this);
     });
   try {
+    // Opening a composed session checks only already-instantiated children.
+    // Invoke the selected operation to acquire the provider owner before the
+    // next target admission creates its independently retained descriptor.
+    const acquired = await harness.client.callTool({
+      name: "address_name",
+      arguments: { address: "0x1000", document: "fixture" },
+    });
+    expect(acquired.isError).not.toBe(true);
+    expect(provider.createClient).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0]?.[0]).toBe("address_name");
     const refused = await harness.client.callTool({
       name: "open_binary",
       arguments: { path: second },
@@ -198,7 +210,7 @@ it("retries target and provider owners independently through the same MCP connec
     });
     expect(provider.createClient).toHaveBeenCalledTimes(1);
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(execute.mock.calls[0]?.[0]).toBe("health");
+    expect(execute.mock.calls[0]?.[0]).toBe("address_name");
     expect(await session.status()).toMatchObject({ cleanup_pending: true });
     await harness.client.ping();
     const firstClose = await harness.client.callTool({

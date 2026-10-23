@@ -55,7 +55,7 @@ both publication jobs and the published-package canary; a merged PR or GitHub
 tag alone does not establish that publication finished. Retry failed jobs in
 the original run after a partial publication.
 
-### Recover an already published npm release
+## Recover an already published npm release
 
 Rerunning a job uses its original workflow and source revision. When a verifier
 or publishing workflow needs a code fix, land that fix on main first, then use

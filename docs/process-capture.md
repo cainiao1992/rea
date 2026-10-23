@@ -517,7 +517,7 @@ current token proof is still required before signaling. Swept cleanup verifies t
 remaining family after its group signals. Coverage is bounded by the native
 snapshots and generations inspected; sampled group IDs select candidates.
 
-When the host withholds an unrelated process’s ownership token, REA leaves that
+When the host withholds an unrelated process's ownership token, REA leaves that
 process untouched and records its PID and reason in `cleanup.unverified_processes`
 and process residual unknowns. Successful cleanup verifies the owned group;
 it does not attribute those unrelated processes. Related or otherwise unexplained

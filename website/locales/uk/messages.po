@@ -138,8 +138,8 @@ msgid ""
 "REA — Find out how software works. Reverse engineering with your coding "
 "agent."
 msgstr ""
-"REA-Дізнайтеся, як працює програмне забезпечення. Зворотне проектування за "
-"допомогою вашого програміста."
+"REA — Дізнайтеся, як працює програмне забезпечення. Зворотне проектування за "
+"допомогою вашого ШІ-помічника для програмування."
 
 #: website/public/blog/index.html:112
 #: website/public/blog/reverse-engineering-models/index.html:112
@@ -4421,7 +4421,7 @@ msgstr "Налаштування REA"
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
 msgid "Connect your coding agent or use REA from the terminal."
-msgstr "Підключіть свій кодер або використовуйте REA з терміналу."
+msgstr "Підключіть свого ШІ-помічника для програмування або використовуйте REA в терміналі."
 
 #: website/public/guides/index.html:212
 msgctxt "page:guides/index.html"
@@ -6325,7 +6325,7 @@ msgstr "Маєте запитання?"
 #: website/public/index.html:6
 msgctxt "page:index.html"
 msgid "REA — Reverse Engineering for Your Coding Agent"
-msgstr "REA-реверс-інжиніринг для вашого програміста"
+msgstr "REA — Реверс-інжиніринг з вашим ШІ-помічником для програмування"
 
 #: website/public/index.html:7
 msgctxt "page:index.html"
@@ -6334,7 +6334,7 @@ msgid ""
 " Follow clear guides and try interactive examples with REA."
 msgstr ""
 "Реінжиніринг програм, двійкових файлів та поведінки браузера за допомогою "
-"агента кодування. Дотримуйтесь чітких інструкцій та спробуйте інтерактивні "
+"ШІ-помічника для програмування. Дотримуйтесь чітких інструкцій та спробуйте інтерактивні "
 "приклади з REA."
 
 #: website/public/index.html:259
@@ -8086,7 +8086,7 @@ msgid ""
 "available. The investigation below shows the REA queries and evidence behind"
 " the answer."
 msgstr ""
-"Приклад запиту для вашого coding agent з доступним локальним виконуваним "
+"Приклад запиту для вашого ШІ-помічника для програмування з доступним локальним виконуваним "
 "файлом. У наведеному нижче дослідженні Показані запити REA та докази, що "
 "лежать в основі відповіді."
 
@@ -9102,7 +9102,7 @@ msgid ""
 "coding agent."
 msgstr ""
 "Приклад запиту з локальним пакетом додатків Notion, доступним вашому "
-"програмісту."
+"ШІ-помічнику для програмування."
 
 #: website/public/showcase/notion/index.html:299
 msgctxt "page:showcase/notion/index.html"

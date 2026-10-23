@@ -139,7 +139,7 @@ msgid ""
 "agent."
 msgstr ""
 "REA — Узнайте, как работает программное обеспечение. Обратное проектирование"
-" с помощью вашего программиста."
+" с помощью вашего ИИ-помощника для программирования."
 
 #: website/public/blog/index.html:112
 #: website/public/blog/reverse-engineering-models/index.html:112
@@ -4441,7 +4441,7 @@ msgstr "Настройка REA"
 #: website/public/guides/index.html:211
 msgctxt "page:guides/index.html"
 msgid "Connect your coding agent or use REA from the terminal."
-msgstr "Подключите свой кодировщик или используйте REA с терминала."
+msgstr "Подключите своего ИИ-помощника для программирования или используйте REA в терминале."
 
 #: website/public/guides/index.html:212
 msgctxt "page:guides/index.html"
@@ -6352,7 +6352,7 @@ msgstr "Есть вопросы?"
 #: website/public/index.html:6
 msgctxt "page:index.html"
 msgid "REA — Reverse Engineering for Your Coding Agent"
-msgstr "REA — Реверс-инжиниринг для Вашего программиста"
+msgstr "REA — Реверс-инжиниринг с вашим ИИ-помощником для программирования"
 
 #: website/public/index.html:7
 msgctxt "page:index.html"
@@ -6361,7 +6361,7 @@ msgid ""
 " Follow clear guides and try interactive examples with REA."
 msgstr ""
 "Выполняйте реинжиниринг приложений, двоичных файлов и поведения браузера с "
-"помощью вашего coding agent. Следуйте четким инструкциям и попробуйте "
+"помощью вашего ИИ-помощника для программирования. Следуйте четким инструкциям и попробуйте "
 "интерактивные примеры с REA."
 
 #: website/public/index.html:259
@@ -8121,7 +8121,7 @@ msgid ""
 "available. The investigation below shows the REA queries and evidence behind"
 " the answer."
 msgstr ""
-"Пример запроса для вашего coding agent с доступным локальным исполняемым "
+"Пример запроса для вашего ИИ-помощника для программирования с доступным локальным исполняемым "
 "файлом. В приведенном ниже исследовании показаны запросы REA и "
 "доказательства, лежащие в основе ответа."
 
@@ -9141,7 +9141,7 @@ msgid ""
 "coding agent."
 msgstr ""
 "Пример запроса с локальным пакетом приложений Notion, доступным вашему "
-"программисту."
+"ИИ-помощнику для программирования."
 
 #: website/public/showcase/notion/index.html:299
 msgctxt "page:showcase/notion/index.html"

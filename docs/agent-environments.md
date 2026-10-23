@@ -805,8 +805,8 @@ with a JSON pointer and both values cut short:
 | `unmapped-id`   | The application answered with success and the environment did not, for a path id the comparison never mapped |
 
 What a probe did not observe is not counted as the application's behaviour. A record without a usable request line,
-such as a redacted URL or a transaction the capture cannot attribute, is not replayed, nor is a request to another
-origin than the application's (`other-origin`: the probe's origin with the most JSON-like records, as the manifest
+such as a redacted URL or a transaction the capture cannot attribute, is not replayed, nor is a request to an origin different
+from the application's (`other-origin`: the probe's origin with the most JSON-like records, as the manifest
 chooses its own), and a request with no recorded
 answer is made, since it may have changed the application, but not compared: each probe lists them under `unobserved` with the reason, and the summary counts them. A live
 body the probe did not record compares by status only and is counted as `unobserved_bodies`, unless the answer never

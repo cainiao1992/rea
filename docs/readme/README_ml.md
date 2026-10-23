@@ -11,7 +11,7 @@
 
 [![npm version](https://img.shields.io/npm/v/rea-agents?style=flat-square&color=cb3837)](https://www.npmjs.com/package/rea-agents)
 [![MCP tool catalog](https://img.shields.io/badge/MCP-tool_catalog-5c4ee5?style=flat-square)](../mcp-contracts.md#generated-catalog)
-[![Node.js requirements](https://img.shields.io/badge/Node.js-requirements-339933?style=flat-square&logo=nodedotjs&logoColor=white)](#what-you-can-analyze)
+[![Node.js requirements](https://img.shields.io/badge/Node.js-requirements-339933?style=flat-square&logo=nodedotjs&logoColor=white)](#എന്തൊക്കെ-വിശകലനം-ചെയ്യാം)
 [![skills.sh](https://skills.sh/b/morluto/rea?style=flat-square)](https://skills.sh/morluto/rea/reverse-engineer-anything)
 [![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](../../LICENSE)
 [![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
@@ -247,7 +247,7 @@ Local MCP servers പിന്തുണയ്ക്കുന്ന ഏത് age
 <details>
 <summary><strong>REA ഏത് തരത്തിലുള്ള code ആണ് നൽകുന്നത്?</strong></summary>
 
-Native analysis pseudocode-ഉം assembly-ഉം നൽകുന്നു. JavaScript/Electron analysis modules-ഉം അവയുടെ ബന്ധങ്ങളും വീണ്ടെടുക്കുന്നു. ഈ കണ്ടെത്തലുകൾ ഉപയോഗിച്ച് നിങ്ങളുടെ agent implementation എഴുതുകയും പരിശോധിക്കുകയും ചെയ്യും; പ്രായോഗിക ഉദാഹരണങ്ങൾക്കായി [ഉദാഹരണങ്ങൾ](#showcases) കാണുക.
+Native analysis pseudocode-ഉം assembly-ഉം നൽകുന്നു. JavaScript/Electron analysis modules-ഉം അവയുടെ ബന്ധങ്ങളും വീണ്ടെടുക്കുന്നു. ഈ കണ്ടെത്തലുകൾ ഉപയോഗിച്ച് നിങ്ങളുടെ agent implementation എഴുതുകയും പരിശോധിക്കുകയും ചെയ്യും; പ്രായോഗിക ഉദാഹരണങ്ങൾക്കായി [ഉദാഹരണങ്ങൾ](#ഉദാഹരണങ്ങൾ) കാണുക.
 
 </details>
 
@@ -275,7 +275,7 @@ rea update
 npx rea-agents@latest setup
 ```
 
-നിങ്ങൾ agent ഉപയോഗിക്കുന്നുണ്ടെങ്കിൽ, [setup പുതുക്കൽ](#update-rea) പൂർത്തിയാക്കി അത് വീണ്ടും ആരംഭിക്കുക. അതേ task വീണ്ടും ശ്രമിക്കുക. പ്രശ്നം തുടരുകയാണെങ്കിൽ, നിങ്ങളുടെ REA version, target type, പ്രശ്നം ആവർത്തിക്കാൻ ആവശ്യമായ ഘട്ടങ്ങൾ, error output എന്നിവ ഉൾപ്പെടുത്തി [issue തുറക്കുക](https://github.com/morluto/rea/issues).
+നിങ്ങൾ agent ഉപയോഗിക്കുന്നുണ്ടെങ്കിൽ, [setup പുതുക്കൽ](#rea-അപ്‌ഡേറ്റ്-ചെയ്യുക) പൂർത്തിയാക്കി അത് വീണ്ടും ആരംഭിക്കുക. അതേ task വീണ്ടും ശ്രമിക്കുക. പ്രശ്നം തുടരുകയാണെങ്കിൽ, നിങ്ങളുടെ REA version, target type, പ്രശ്നം ആവർത്തിക്കാൻ ആവശ്യമായ ഘട്ടങ്ങൾ, error output എന്നിവ ഉൾപ്പെടുത്തി [issue തുറക്കുക](https://github.com/morluto/rea/issues).
 
 </details>
 

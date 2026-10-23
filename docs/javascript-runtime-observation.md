@@ -91,9 +91,12 @@ The provider sends exactly two protocol commands:
 - `Debugger.enable`
 
 It never sends `Runtime.evaluate`, reads script source, installs breakpoints,
-pauses or resumes execution, calls `Runtime.runIfWaitingForDebugger`, launches
-the target, instruments JavaScript, or invokes Electron APIs. Closing a call
-closes only REA's WebSocket.
+sends pause/resume commands, calls `Runtime.runIfWaitingForDebugger`, launches
+the target, instruments JavaScript, or invokes Electron APIs. Enabling
+`Debugger` can make target-authored `debugger` statements pause execution.
+REA does not send `Debugger.setSkipAllPauses` or resume these pauses; passive
+observation is not a guarantee of uninterrupted target execution. Closing a
+call closes only REA's WebSocket.
 
 Each WebSocket handshake and command response has its own 20-second deadline,
 separate from the caller-selected observation window. A stalled handshake or

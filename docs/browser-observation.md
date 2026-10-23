@@ -131,6 +131,11 @@ preserve these authority and lifecycle differences. They share one exclusion
 vocabulary (`BrowserExclusionReason`): every denial reason maps onto it, even
 where a wire schema keeps a narrower historical bucket.
 
+Passive page and Inspector capture enable the `Debugger` domain. A target's
+`debugger` statement can then pause execution; these observation paths do not
+suppress pauses with `Debugger.setSkipAllPauses` or resume the target. Their
+lack of explicit pause commands does not guarantee uninterrupted execution.
+
 CDP attachment is not a guarantee that the browser preserves all state.
 Chromium can clear another client's `navigator.platform` emulation when REA's
 page session disconnects, even if that session sent no emulation commands.
@@ -537,10 +542,10 @@ Network and console coverage starts only after REA attaches and enables the rele
 
 Source maps are not fetched by inspection. Bundle analysis fetches them only when `fetch_source_maps` is selected, with exact-origin redirect checks and no credentials, cookies, or referrer. Each fetch operation uses `source_map_fetch_timeout_ms` (default 30000) and a 64 MiB aggregate streamed-response budget across redirects. The byte budget has no runtime override. A fetch overrun is an item limitation, not a thrown analysis timeout. A deadline or byte-limit failure remains explicitly unavailable and makes bundle completeness partial. Source-map decoding also bounds raw resolved identities to 64 MiB and aggregate inline evidence to 32 MiB. Failed maps preserve their failure context when it fits; if another context cannot fit, collection stops with the full requested count, the returned processed count, and an explicit unknown-results limitation. Retained mappings and original sources are returned inline. See [source-location limits](web-source-location.md) for the structural decoder bounds. Original source artifacts with `.ts`, `.tsx`, `.mts`, or `.cts` suffixes carry `text/typescript`; other source names retain `text/javascript`.
 
-source-map items retain the script's `declared_url` separately from the observed
-`effective_url`. successful maps use the latter as their source-resolution base.
-failed fetches retain the last response URL observed within the approved origins;
-`effective_url` is `null` when no response was observed. query parameters are
+Source-map items retain the script's `declared_url` separately from the observed
+`effective_url`. Successful maps use the latter as their source-resolution base.
+Failed fetches retain the last response URL observed within the approved origins;
+`effective_url` is `null` when no response was observed. Query parameters are
 preserved, and both URLs count toward the inline evidence budget.
 Current fetches emit a string or null; historical observations may omit
 `effective_url` without changing their stored content or Evidence identity.

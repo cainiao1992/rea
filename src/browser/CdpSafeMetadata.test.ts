@@ -162,6 +162,20 @@ describe("safe CDP response metadata", () => {
     ]);
   });
 
+  it.each(["/.well-known/MCP", "/.WELL-KNOWN/mcp"])(
+    "does not case-fold a different well-known resource path: %s",
+    (path) => {
+      const captured = safeResponseMetadata(
+        "request-case-variant",
+        `${origin}${path}`,
+        { headers: {} },
+        new Set([origin]),
+      );
+      expect(captured.response.url).toBe(`${origin}${path}`);
+      expect(captured.agentHints).toEqual([]);
+    },
+  );
+
   it("retains every parsed header, CSP directive, link, relation, and policy feature", () => {
     const csp = Array.from(
       { length: 105 },

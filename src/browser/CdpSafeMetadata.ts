@@ -350,7 +350,7 @@ const permissionFeatures = (value: string | undefined): string[] =>
 
 const wellKnownHint = (url: string): AgentHint[] => {
   try {
-    const path = new URL(url).pathname.toLowerCase();
+    const path = new URL(url).pathname;
     return wellKnownAgentPaths.has(path)
       ? [agentHint("well_known_resource", path, sanitizeBrowserUrl(url).url)]
       : [];

@@ -16,6 +16,11 @@ import { mcpProgressReporter } from "./mcpProgress.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
+import { recordSessionEvidenceSources } from "./sessionEvidence.js";
+import {
+  reportOperationStart,
+  reportOperationEnd,
+} from "./operationProgress.js";
 
 interface EvidenceToolRegistration {
   readonly logger: Logger;
@@ -73,12 +78,7 @@ export const registerEvidenceTools = (
               options.analysisForAdmission?.(admittedAnalysis) ??
               admittedAnalysis;
             const progress = mcpProgressReporter(context);
-            await progress.report({
-              phase: contract.name,
-              completed: 0,
-              total: 1,
-              message: "started",
-            });
+            await reportOperationStart(progress, contract.name);
             const executionParameters =
               options.parametersForExecution?.(contract.name, parameters) ??
               parameters;
@@ -91,13 +91,7 @@ export const registerEvidenceTools = (
                   progress,
                 }),
             );
-            await progress.report({
-              phase: contract.name,
-              completed: 1,
-              total: 1,
-              message: execution.ok ? "completed" : "failed",
-              terminal: true,
-            });
+            await reportOperationEnd(progress, contract.name, execution.ok);
             if (!execution.ok)
               return server.delivery.toCallToolResult(execution, contract);
             const sourceEvidence =
@@ -129,14 +123,12 @@ export const registerEvidenceTools = (
                 evidenceLinks: sourceEvidence.map(({ evidence_id: id }) => id),
               },
             );
-            for (const source of sourceEvidence) {
-              const sourceRecorded = options.recordEvidence?.(source);
-              if (sourceRecorded !== undefined && !sourceRecorded.ok)
-                return server.delivery.toCallToolResult(
-                  sourceRecorded,
-                  contract,
-                );
-            }
+            const sourceRecorded = recordSessionEvidenceSources(
+              options.recordEvidence,
+              sourceEvidence,
+            );
+            if (!sourceRecorded.ok)
+              return server.delivery.toCallToolResult(sourceRecorded, contract);
             const projected =
               options.projectEvidence?.(contract.name, parameters, evidence) ??
               ok(evidence);

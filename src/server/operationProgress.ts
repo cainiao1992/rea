@@ -1,14 +1,14 @@
 import type { ProgressReporter } from "../application/ProgressReporter.js";
 
-/** Report one lifecycle operation start through the shared monotonic boundary. */
-export const reportLifecycleStart = (
+/** Report one operation start through the shared monotonic boundary. */
+export const reportOperationStart = (
   progress: ProgressReporter,
   phase: string,
   message = "started",
 ): Promise<void> => progress.report({ phase, completed: 0, total: 1, message });
 
-/** Report one lifecycle operation's terminal disposition. */
-export const reportLifecycleEnd = (
+/** Report one operation's terminal disposition. */
+export const reportOperationEnd = (
   progress: ProgressReporter,
   phase: string,
   succeeded: boolean,

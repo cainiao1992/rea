@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, readdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -16,6 +16,10 @@ import { readWithoutFifoWriter } from "../../fixtures/fifoInput.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { scriptScenarioFixture } from "../../fixtures/webScriptCapture.js";
+import { createTestBinarySession } from "../../fixtures/binarySession.js";
+import { createServer } from "../../../src/server/createServer.js";
+import { parseEvidence } from "../../../src/domain/evidence.js";
+import { webScriptExportResultSchema } from "../../../src/domain/webScriptExport.js";
 
 it.skipIf(process.platform === "win32")(
   "returns a capture_path invalid_request for a named pipe without waiting or publishing output",
@@ -135,4 +139,65 @@ it("refuses an existing output directory as invalid output_directory input", asy
     },
   });
   expect(await readdir(outputDirectory)).toEqual(["marker.txt"]);
+});
+
+it("publishes script bytes and retains the returned Evidence without starting an analysis provider", async () => {
+  const root = await createTestTempDirectory("rea-script-export-retained-mcp-");
+  const capturePath = join(root, "capture.json");
+  const outputDirectory = join(root, "export");
+  const bytes = Buffer.from("export const callerValue = 'retained';\n");
+  await writeFile(
+    capturePath,
+    JSON.stringify(
+      scriptScenarioFixture([
+        { url: "https://caller.test/app/main.js", bytes },
+      ]),
+    ),
+  );
+  const session = createTestBinarySession(() => {
+    throw new Error("local script export must not start an analysis provider");
+  });
+  const server = createServer({ kind: "session", session });
+  const client = new Client({ name: "script-export-retention", version: "1" });
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+    await session.close();
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  const response = await client.callTool({
+    name: "export_web_scripts",
+    arguments: { capture_path: capturePath, output_directory: outputDirectory },
+  });
+  expect(response.isError).not.toBe(true);
+  const evidence = parseEvidence(response.structuredContent);
+  expect(evidence.operation).toBe("export_web_scripts");
+  expect(session.evidenceById(evidence.evidence_id)).toEqual(evidence);
+  expect(session.exportEvidenceBundle().records).toEqual([evidence]);
+  const exported = webScriptExportResultSchema.parse(
+    evidence.normalized_result,
+  );
+  expect(exported.output_directory).toBe(outputDirectory);
+  expect(exported.scripts).toHaveLength(1);
+  const content = exported.scripts[0]?.content;
+  expect(content?.state).toBe("exported");
+  if (content?.state !== "exported")
+    throw new Error("script bytes were not published");
+  if (exported.analysis_input === null)
+    throw new Error("published script bytes have no analysis input root");
+  expect(
+    await readFile(
+      join(exported.analysis_input.input_path, content.relative_path),
+    ),
+  ).toEqual(bytes);
+  expect(
+    JSON.parse(await readFile(exported.manifest.path, "utf8")),
+  ).toMatchObject({
+    capture_path: capturePath,
+    output_directory: outputDirectory,
+    scripts: exported.scripts,
+  });
 });

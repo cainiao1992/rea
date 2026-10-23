@@ -476,6 +476,6 @@ const addPathFacts = (row: DesktopFile): string | null => {
 
 const probeSelected = (entry: DirectoryArtifactEntry): boolean =>
   entry.executable ||
-  /(?:\.(?:exe|dll|so|dylib|pck|utoc)|(?:^|\/)global-metadata\.dat|(?:^|\/)data\.win)$/iu.test(
+  /(?:\.(?:exe|dll|so|dylib|pck|utoc)|(?:^|\/)(?:global-metadata\.dat|data\.win|game\.(?:unx|ios)))$/iu.test(
     entry.path,
   );

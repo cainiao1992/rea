@@ -787,6 +787,38 @@ it.each([
   },
 );
 
+it.each([
+  "assets/game.unx",
+  "Example.app/Contents/Resources/game.ios",
+])("probes the GameMaker data file at %s", async (path) => {
+  const root = await createTestTempDirectory("rea-desktop-gamemaker-data-");
+  const form = Buffer.alloc(16);
+  form.write("FORM");
+  form.writeUInt32LE(8, 4);
+  form.write("GEN8", 8);
+  form.writeUInt32LE(0, 12);
+  await put(root, path, form);
+
+  const { report } = await inspect(root);
+  expect(report.candidates.map((candidate) => candidate.family)).toContain(
+    "gamemaker",
+  );
+  expect(report.files).toContainEqual(
+    expect.objectContaining({
+      path,
+      read_status: "examined",
+      facts: [
+        expect.objectContaining({
+          kind: "gamemaker-form-header",
+          offset: 0,
+          value: { container: "FORM", first_chunk: "GEN8" },
+        }),
+      ],
+    }),
+  );
+  expect(report.coverage.status).toBe("complete-within-scan");
+});
+
 it("compares exact signature bytes without masking high bits in engine headers or trailers", async () => {
   const root = await createTestTempDirectory("rea-desktop-exact-signatures-");
   const pck = Buffer.alloc(20);

@@ -59,6 +59,7 @@ import {
 } from "./EnhancedToolTypes.js";
 import { resolveAnalysisDocument } from "./AnalysisDocument.js";
 import { traceCallPath } from "./CallPathTracing.js";
+import { resolveXrefsName } from "./XrefsAddressResolution.js";
 import { resolveProcedureAddress } from "./ProcedureAddressResolution.js";
 import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
 import { projectNativeApiInspection } from "./native/NativeApiInspection.js";
@@ -686,15 +687,19 @@ export class EnhancedTools {
   }
 
   async #findXrefs(name: string, signal?: AbortSignal): EnhancedResult {
-    const names = await this.#allAddressed("list_names", signal);
-    if (!names.ok) return names;
-    const resolved = names.value.find((entry) => entry.name === name);
-    if (resolved === undefined)
+    const resolved = await resolveXrefsName(
+      this.analysis,
+      name,
+      signal,
+      "find_xrefs_to_name",
+    );
+    if (!resolved.ok) return resolved;
+    if (resolved.value === null)
       return ok({ status: "unresolved", name, reason: "name_not_found" });
 
     const xrefs = await this.#call(
       "xrefs",
-      { address: resolved.address },
+      { address: resolved.value },
       signal,
     );
     if (!xrefs.ok) return xrefs;
@@ -711,7 +716,7 @@ export class EnhancedTools {
     return ok({
       status: "resolved",
       name,
-      address: resolved.address,
+      address: resolved.value,
       xrefs: xrefs.value,
     });
   }

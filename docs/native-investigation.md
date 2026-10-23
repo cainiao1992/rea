@@ -978,3 +978,7 @@ skipped uninitialized blocks. A missing match does not establish absence from
 uninitialized memory or across block boundaries. See
 [Ghidra byte search](ghidra-provider.md#masked-byte-search) for mask and coverage
 semantics. This query never executes or modifies target bytes.
+
+Exact-name xref lookup reports distinct candidate addresses as an input ambiguity;
+inventory order cannot select one silently. Duplicate rows at one address remain
+a singular match, and a missing name remains an unresolved observation.

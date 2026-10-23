@@ -1,4 +1,7 @@
-import { AnalysisResourceConstraintError } from "../../../src/domain/analysisErrorCore.js";
+import {
+  AnalysisOutputError,
+  AnalysisResourceConstraintError,
+} from "../../../src/domain/analysisErrorCore.js";
 import { signalDecodersSchema } from "../../../src/domain/signals/signalDecoders.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { OwnedCommandFailure } from "../../../src/process/OwnedCommand.js";
@@ -39,7 +42,12 @@ const fixture = async (mode = "ok", failCleanup = false) => {
   await writeFile(
     script,
     `import {readFileSync, writeFileSync, chmodSync, truncateSync} from 'node:fs';
-if (process.argv.includes('--version')) { console.log(${JSON.stringify(mode)} === 'bad-version' ? 'sigrok-cli 0.7.1' : 'sigrok-cli 0.7.2\\nlibsigrokdecode 0.5.3'); console.error('version warning'); }
+if (process.argv.includes('--version')) {
+  if (${JSON.stringify(mode)} === 'invalid-version-stdout') process.stdout.write(Buffer.concat([Buffer.from('sigrok-cli 0.7.2\\nlibsigrokdecode 0.5.3\\n'), Buffer.from([0xff])]));
+  else console.log(${JSON.stringify(mode)} === 'bad-version' ? 'sigrok-cli 0.7.1' : 'sigrok-cli 0.7.2\\nlibsigrokdecode 0.5.3');
+  if (${JSON.stringify(mode)} === 'invalid-version-stderr') process.stderr.write(Buffer.from([0xfe]));
+  else console.error('version warning');
+}
 else if (${JSON.stringify(mode)} === 'bad-version') console.log('unexpected version fallback');
 else if (${JSON.stringify(mode)} === 'nonzero') { console.error('invalid decoder'); process.exitCode = 1; }
 else if (${JSON.stringify(mode)} === 'unknown-decoder') { console.error("srd: ModuleNotFoundError: Failed to load decoder nosuchdecoder: import by name failed: No module named 'nosuchdecoder'\\nFailed to load protocol decoder nosuchdecoder."); process.exitCode = 1; }
@@ -47,6 +55,13 @@ else if (${JSON.stringify(mode)} === 'broken-decoder') { console.error("srd: Mod
 else if (${JSON.stringify(mode)} === 'unknown-annotation') { console.error("Annotation 'nosuchclass' not found for protocol decoder 'uart'."); process.exitCode = 1; }
 else if (${JSON.stringify(mode)} === 'unknown-channel') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: No channel with name "NONEXISTENT" found.'); }
 else if (${JSON.stringify(mode)} === 'other-channel-warning') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: No channel with name "OTHER" found.'); }
+else if (${JSON.stringify(mode)} === 'missing-channel-target') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: Channel name for "rx" missing.'); }
+else if (${JSON.stringify(mode)} === 'other-missing-channel-target-warning') { process.stdout.write('1000-1105 uart-1: Start bit\\n'); console.error('cli: Channel name for "OTHER" missing.'); }
+else if (${JSON.stringify(mode)} === 'invalid-stdout') { process.stdout.write(Buffer.concat([Buffer.from('10-20 uart-1: '), Buffer.from([0xff]), Buffer.from('\\n')])); }
+else if (${JSON.stringify(mode)} === 'invalid-stderr') { process.stdout.write('10-20 uart-1: 42\\n'); process.stderr.write(Buffer.from([0xfe])); }
+else if (${JSON.stringify(mode)} === 'literal-replacement') process.stdout.write('10-20 uart-1: �\\n');
+else if (${JSON.stringify(mode)} === 'invalid-catalog-stdout' && process.argv.includes('--list-supported')) process.stdout.write(Buffer.concat([Buffer.from('Supported protocol decoders:\\n  uart  '), Buffer.from([0xff])]));
+else if (${JSON.stringify(mode)} === 'invalid-help-stdout' && process.argv.includes('--show')) process.stdout.write(Buffer.concat([Buffer.from('ID: uart\\nOptions:\\n'), Buffer.from([0xfe])]));
 else if (${JSON.stringify(mode)} === 'malformed-copy') { chmodSync(${JSON.stringify(snapshotName)}, 0o600); writeFileSync(${JSON.stringify(snapshotName)}, 'changed'); }
 else if (${JSON.stringify(mode)} === 'oversized-copy') { chmodSync(${JSON.stringify(snapshotName)}, 0o600); truncateSync(${JSON.stringify(snapshotName)}, 32 * 1024 * 1024 + 1); }
 else if (${JSON.stringify(mode)} === 'line-budget') process.stdout.write('ID: uart' + '\\n'.repeat(65536));
@@ -407,6 +422,111 @@ it("does not match channel refusals by substring", async () => {
     decoders: "uart:rx=RX:baudrate=9600",
   });
   expect(result.ok).toBe(true);
+});
+
+it("projects a missing bare channel target as invalid decoder input through the CLI", async () => {
+  const f = await fixture("missing-channel-target");
+  const cli = Cli.create("signal-channel-target-test", { sync: false });
+  registerSignalCommands(cli, silentLogger, {}, f.service);
+  let stdout = "";
+  await cli.serve(
+    [
+      "decode-signal-recording",
+      f.path,
+      "--decoders",
+      "uart:rx:baudrate=9600",
+      "--format",
+      "json",
+    ],
+    {
+      stdout: (text) => {
+        stdout += text;
+      },
+      exit: () => {},
+    },
+  );
+  expect(JSON.parse(stdout)).toMatchObject({
+    code: "invalid_request",
+    details: {
+      issues: [
+        {
+          path: ["decoders"],
+          reason: "invalid_value",
+          message: expect.stringContaining('Channel name for "rx" missing.'),
+        },
+      ],
+      captured_output: {
+        exit_code: 0,
+        stdout: "1000-1105 uart-1: Start bit\n",
+        stderr: expect.stringContaining('Channel name for "rx" missing.'),
+      },
+    },
+  });
+});
+
+it("does not classify an unselected bare channel warning as caller input", async () => {
+  const f = await fixture("other-missing-channel-target-warning");
+  const result = await f.service.decode({
+    path: f.path,
+    decoders: "uart:rx=RX:baudrate=9600",
+  });
+  if (!result.ok) throw result.error;
+  expect(
+    signalRecordingSchema.parse(result.value.normalized_result).diagnostics,
+  ).toBe('cli: Channel name for "OTHER" missing.\n');
+});
+
+it.each([
+  ["invalid-version-stdout", "configuration", ["stdout"], "decode"],
+  ["invalid-version-stderr", "configuration", ["stderr"], "decode"],
+  ["invalid-stdout", "producer", ["stdout"], "decode"],
+  ["invalid-stderr", "producer", ["stderr"], "decode"],
+  ["invalid-catalog-stdout", "producer", ["stdout"], "catalog"],
+  ["invalid-help-stdout", "producer", ["stdout"], "help"],
+] as const)(
+  "returns an unreadable-output error for invalid UTF-8 in %s",
+  async (mode, stage, streams, operation) => {
+    const f = await fixture(mode);
+    const result =
+      operation === "decode"
+        ? await f.service.decode({ path: f.path, decoders: "uart" })
+        : await f.service.inspectDecoders(
+            operation === "catalog" ? {} : { decoder: "uart" },
+          );
+    if (result.ok) throw new Error("Expected invalid output failure");
+    expect(result.error).toBeInstanceOf(AnalysisOutputError);
+    expect(result.error.diagnostics).toEqual({
+      stage,
+      invalid_utf8_streams: streams,
+    });
+    expect(result.error.capturedOutput).toMatchObject({
+      stdout: expect.any(String),
+      stderr: expect.any(String),
+    });
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "unreadable_output",
+      details: {
+        diagnostics: { stage, invalid_utf8_streams: streams },
+        captured_output: {
+          stdout: expect.any(String),
+          stderr: expect.any(String),
+        },
+      },
+    });
+    expect(
+      `${result.error.capturedOutput?.stdout}${result.error.capturedOutput?.stderr}`,
+    ).toContain("�");
+  },
+);
+
+it("keeps a literal replacement character distinct from invalid UTF-8", async () => {
+  const f = await fixture("literal-replacement");
+  const result = await f.service.decode({ path: f.path, decoders: "uart" });
+  if (!result.ok) throw result.error;
+  expect(
+    signalRecordingSchema.parse(result.value.normalized_result)
+      .annotations_text,
+  ).toBe("10-20 uart-1: �\n");
 });
 
 it("reports an unknown decoder ID as the rejected field of each MCP operation", async () => {

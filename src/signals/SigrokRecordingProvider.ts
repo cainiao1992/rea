@@ -242,6 +242,22 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
           );
         phase = previousPhase;
         resourcePath = "path" in input ? input.path : command;
+        const invalidUtf8Streams = [
+          ...(output.stdout.invalidUtf8 ? ["stdout"] : []),
+          ...(output.stderr.invalidUtf8 ? ["stderr"] : []),
+        ];
+        if (invalidUtf8Streams.length > 0)
+          throw new AnalysisOutputError(
+            operation,
+            "sigrok-cli output is not valid UTF-8; retained text contains replacement characters.",
+            {
+              capturedOutput,
+              diagnostics: {
+                stage: phase,
+                invalid_utf8_streams: invalidUtf8Streams,
+              },
+            },
+          );
         // Some selected-channel refusals are diagnostics, not process failures:
         // sigrok can emit fallback annotations and still exit successfully.
         const rejection =

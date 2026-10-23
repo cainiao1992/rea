@@ -26,7 +26,7 @@ const DECODE_RECOVERY =
 const HELP_RECOVERY =
   "Omit decoder to list installed decoder IDs, optionally filtered by query, then request help for one of those IDs.";
 const CHANNEL_RECOVERY =
-  "Choose a channel present in the recording; inspect_signal_decoders shows the selected decoder's channel IDs.";
+  "Set each decoder channel target to a channel present in the recording; inspect_signal_decoders shows the selected decoder's channel IDs.";
 
 /**
  * sigrok-cli loads selected decoders before decoding or showing help, so an
@@ -49,10 +49,9 @@ const unknownDecoderRefusal = (
 };
 
 /**
- * The sigrok-cli 0.7.2 channel mapper reports a missing target as a plain
- * stderr line, even though it continues with the other channel mappings. It
- * does not include the decoder channel key, so compare the reported target
- * with exact values from the caller's assignments rather than searching the
+ * The sigrok-cli 0.7.2 channel mapper reports missing and unknown targets as
+ * plain stderr lines, even though it continues with the other mappings. Match
+ * the exact selected channel key or target value rather than searching the
  * selector text for a substring.
  */
 const missingSelectedChannelRefusal = (
@@ -60,11 +59,16 @@ const missingSelectedChannelRefusal = (
   decoders: string,
 ): string | undefined => {
   const selectedValues = new Set<string>();
-  for (const decoder of decoders.split(","))
+  for (const decoder of decoders.split(",")) {
     for (const assignment of decoder.split(":").slice(1)) {
       const separator = assignment.indexOf("=");
+      if (separator < 0 && assignment !== "") {
+        const producerMessage = `Channel name for "${assignment}" missing.`;
+        if (lines.has(`cli: ${producerMessage}`)) return producerMessage;
+      }
       if (separator > 0) selectedValues.add(assignment.slice(separator + 1));
     }
+  }
   for (const channel of selectedValues) {
     const producerMessage = `No channel with name "${channel}" found.`;
     if (lines.has(`cli: ${producerMessage}`)) return producerMessage;

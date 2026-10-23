@@ -94,6 +94,23 @@ it("reads BER indefinite constructed ContentInfo and preserves certificate bytes
   );
 });
 
+it.each([
+  ["primitive", 0x04],
+  ["constructed", 0x24],
+] as const)(
+  "rejects a high-bit four-octet BER length on a %s SignerInfo signature",
+  (_kind, tag) => {
+    const payload = pkcs7SignedDataFixture(
+      "REA Fixture",
+      "REA Tests",
+      Buffer.from([tag, 0x84, 0x80, 0, 0, 0]),
+    );
+    expect(() => parse(peCertificateFixture(false, payload))).toThrow(
+      /PKCS#7 signedData is malformed: ASN\.1 value exceeds its parent\./u,
+    );
+  },
+);
+
 it("matches nested indefinite constructed values and rejects invalid EOC forms", () => {
   const nested = readAsn1(
     Buffer.from([0x30, 0x80, 0x30, 0x80, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00]),

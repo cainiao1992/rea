@@ -90,7 +90,8 @@ export class Asn1BerReader {
       for (let index = 0; index < width; index += 1) {
         const byte = this.bytes[cursor];
         if (byte === undefined) return fail("Truncated ASN.1 length.");
-        length = (length << 8) | byte;
+        // Bitwise shifts sign-extend a four-octet length with bit 31 set.
+        length = length * 256 + byte;
         cursor += 1;
       }
     }

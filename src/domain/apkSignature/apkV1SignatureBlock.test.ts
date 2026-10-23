@@ -244,3 +244,24 @@ it("rejects non-OCTET children inside a constructed signature", () => {
     ).kind,
   ).toBe("malformed-pkcs7");
 });
+
+it.each([
+  ["primitive", 0x04],
+  ["constructed", 0x24],
+] as const)(
+  "rejects a high-bit four-octet BER length on a %s signature field",
+  (_kind, tag) => {
+    const signature = Uint8Array.of(tag, 0x84, 0x80, 0, 0, 0);
+    expect(
+      errorOf(
+        signedDataBlock({
+          certificates: [LEAF_CERTIFICATE],
+          signerInfos: [signerInfo({ names: LEAF_CERTIFICATE, signature })],
+        }),
+      ),
+    ).toEqual({
+      kind: "malformed-pkcs7",
+      detail: "ASN.1 value exceeds its parent.",
+    });
+  },
+);

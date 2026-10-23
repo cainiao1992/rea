@@ -29,10 +29,16 @@ export const registerJavaScriptRecoveryCommands = (
       additionalPath: javascriptRecoveryInputSchema.shape.additional_paths,
       extractionMode: javascriptRecoveryInputSchema.shape.extraction_mode
         .removeDefault()
-        .optional(),
+        .optional()
+        .describe(
+          javascriptRecoveryInputSchema.shape.extraction_mode.description!,
+        ),
       rewriteLevel: javascriptRecoveryInputSchema.shape.rewrite_level
         .removeDefault()
-        .optional(),
+        .optional()
+        .describe(
+          javascriptRecoveryInputSchema.shape.rewrite_level.description!,
+        ),
     }),
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>

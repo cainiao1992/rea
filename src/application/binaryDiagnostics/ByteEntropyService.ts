@@ -36,6 +36,7 @@ import {
 } from "../../artifacts/ArtifactFileOperation.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import { sameRegularFileState } from "../../filesystem/RegularFile.js";
 import { completeProviderEvidence } from "../ProviderOperationExecution.js";
 
 /** Bound retained result rows before constructing the Evidence representation. */
@@ -201,14 +202,8 @@ export class ByteEntropyService {
               input.path,
               "File identity, size or timestamps changed during entropy inspection.",
             );
-          const same = (value: typeof initial) =>
-            value.isFile() &&
-            value.dev === initial.dev &&
-            value.ino === initial.ino &&
-            value.size === initial.size &&
-            value.mtimeNs === initial.mtimeNs &&
-            value.ctimeNs === initial.ctimeNs;
-          if (!same(before)) throw changed();
+          if (!initial.isFile() || !sameRegularFileState(initial, before))
+            throw changed();
           const size = Number(initial.size);
           if (!Number.isSafeInteger(size))
             throw invalid(
@@ -280,8 +275,11 @@ export class ByteEntropyService {
             position += filled;
           }
           if (
-            !same(await file.stat({ bigint: true })) ||
-            !same(await this.files.stat(input.path, { bigint: true }))
+            !sameRegularFileState(initial, await file.stat({ bigint: true })) ||
+            !sameRegularFileState(
+              initial,
+              await this.files.stat(input.path, { bigint: true }),
+            )
           )
             throw changed();
           assertArtifactReadActive(options?.signal);

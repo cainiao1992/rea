@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants, type BigIntStats } from "node:fs";
 import { lstat, open, type FileHandle } from "node:fs/promises";
+import { sameRegularFileState } from "../filesystem/RegularFile.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import type { ArtifactResourceScope } from "./ArtifactResourceScope.js";
 import {
@@ -118,15 +119,7 @@ export const readStableArtifact = async (
         fileSystem.lstat(path),
       );
       if (
-        [after, current].some(
-          (stat) =>
-            !stat.isFile() ||
-            stat.dev !== initial.dev ||
-            stat.ino !== initial.ino ||
-            stat.size !== initial.size ||
-            stat.mtimeNs !== initial.mtimeNs ||
-            stat.ctimeNs !== initial.ctimeNs,
-        ) ||
+        [after, current].some((stat) => !sameRegularFileState(initial, stat)) ||
         BigInt(count) !== initial.size
       )
         throw new ArtifactReaderFailure(

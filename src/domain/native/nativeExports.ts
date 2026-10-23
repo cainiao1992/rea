@@ -4,6 +4,9 @@ import { absoluteLocalPathStringSchema } from "../localPath.js";
 
 const uint = z.number().int().min(0).max(0xffffffff);
 const address = z.string().regex(/^0x[0-9a-f]+$/u);
+// PE ordinals are the DWORD OrdinalBase plus an index into the DWORD-sized
+// export address table. The last valid index is one less than its entry count.
+const MAX_PE_EXPORT_ORDINAL = 0xffffffff + 0xfffffffe;
 
 /** Hard ceiling on the caller-selected input read budget. */
 export const MAX_INSPECT_NATIVE_EXPORTS_FILE_BYTES = 536870912;
@@ -33,7 +36,7 @@ export type InspectNativeExportsInput = z.infer<
  */
 const peExportSchema = z.strictObject({
   name: z.string().min(1).nullable(),
-  ordinal: z.number().int().min(0).max(0xffff),
+  ordinal: z.number().int().min(0).max(MAX_PE_EXPORT_ORDINAL),
   address: address.nullable(),
   forwarder: z.string().min(1).nullable(),
 });

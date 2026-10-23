@@ -321,10 +321,12 @@ The complete Evidence identifies the stable artifact snapshot by path, byte
 count and SHA-256.
 
 - PE rows reproduce the export directory: each used export-address-table slot
-  with its `ordinal`, one row per name (aliases share an ordinal), `address`
+  with its biased `ordinal` (`OrdinalBase` plus the slot index), one row per
+  name (aliases share an ordinal), `address`
   as the preferred-base virtual address, or `forwarder` text when the slot
   forwards to another DLL. Unused zero-address slots are omitted;
-  ordinal-only exports have a null `name`. The
+  ordinal-only exports have a null `name`. The name-ordinal table stores an
+  unbiased 16-bit EAT index; reported biased ordinals may exceed 16 bits. The
   directory's DLL name, ordinal base and timestamp are reported, and an image
   without an export directory is a complete empty inventory.
 - ELF rows list defined `.dynsym` symbols with global, weak or GNU-unique

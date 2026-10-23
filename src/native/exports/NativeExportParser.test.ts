@@ -115,16 +115,29 @@ describe("PE export directories", () => {
     expect(result.limitations[0]).toContain("declares no export directory");
   });
 
-  it("refuses ordinals beyond the 16-bit ordinal space", () => {
-    expect(() =>
-      parseNativeExports(
+  it("preserves biased ordinals beyond WORD and DWORD", () => {
+    const cases = [
+      { ordinalBase: 0x10000, index: 0, ordinal: 0x10000 },
+      { ordinalBase: 0xffffffff, index: 0, ordinal: 0xffffffff },
+      {
+        ordinalBase: 0xffffffff,
+        index: 1,
+        ordinal: 0x1_0000_0000,
+      },
+    ];
+
+    for (const { ordinalBase, index, ordinal } of cases) {
+      const result = parse(
         peExportImage({
-          functions: [{ rva: 0x2000 }],
-          ordinalBase: 0xffff + 1,
+          ordinalBase,
+          functions: Array.from({ length: index + 1 }, (_, row) =>
+            row === index ? { rva: 0x2000 } : null,
+          ),
+          names: [{ name: "Named", index }],
         }),
-        artifact,
-      ),
-    ).toThrow("16-bit ordinals");
+      );
+      expect(result.exports).toMatchObject([{ name: "Named", ordinal }]);
+    }
   });
 
   it("ignores a trailing unused slot after the last 16-bit ordinal", () => {

@@ -188,11 +188,6 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     // A zero slot is an unused ordinal, not an export.
     if (rva === 0) continue;
     const ordinal = ordinalBase + index;
-    if (ordinal > 0xffff)
-      throw new BinaryFormatFailure(
-        "malformed",
-        "PE exported ordinal exceeds 16-bit ordinals",
-      );
     let target: Pick<PeExport, "address" | "forwarder">;
     if (rva >= directory.virtual_address && rva < forwarderEnd) {
       try {

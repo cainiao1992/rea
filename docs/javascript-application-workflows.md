@@ -374,6 +374,16 @@ Direct return expressions, including expression-bodied arrows, are evaluated
 through an execution-free value lattice. Literal object fields and direct
 return sites are represented in the result. Calls, dynamic spreads, computed
 keys, and parser recovery remain partial or unknown.
+Declaration initializers and later assignments share the binding-at-read owner;
+a declaration-only `var` read before its initializer does not inherit the future
+value. Earlier `break`/`continue` paths can leave a var initializer unexecuted.
+Legacy non-strict block-function copies are indexed on their outer variable
+owner, while strict/module and lexical-shadowing boundaries keep their values.
+A catch-shadowed var declaration keeps declaration ownership separate from its
+initializer's lexical assignment. Ordinary functions own an implicit arguments
+object; arrows retain lexical arguments lookup. Promise source identity uses
+the same read-position selection and requires an unmodified intrinsic factory.
+
 Rebound values are evaluated at their read position: saving an incoming parameter
 before a later assignment preserves caller-dependent uncertainty, while a proven
 preceding assignment can supply a constant. Unresolved ordering remains unknown.

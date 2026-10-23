@@ -117,6 +117,8 @@ export interface JavaScriptSemanticScopeState {
   readonly bindings: Map<string, JavaScriptSemanticBindingState>;
   /** Object environment introduced by `with`, active only for its body. */
   readonly dynamicWithStatement?: t.WithStatement;
+  /** Ordinary functions own `arguments`; arrow functions inherit it. */
+  readonly implicitArguments?: true;
 }
 
 /** Shared state for semantic collection and evaluation. */
@@ -301,7 +303,14 @@ type SemanticBindingLookup =
       readonly kind: "binding" | "uncertain-binding";
       readonly binding: JavaScriptSemanticBindingState;
     }
-  | { readonly kind: "ambient" | "uncertain-ambient" | "captured" | "unknown" };
+  | {
+      readonly kind:
+        | "ambient"
+        | "uncertain-ambient"
+        | "captured"
+        | "unknown"
+        | "implicit-arguments";
+    };
 
 /** Retain both a dynamic lookup's uncertainty and its possible outer write owner. */
 export const semanticBindingLookupFromScope = (
@@ -314,6 +323,8 @@ export const semanticBindingLookupFromScope = (
     const binding = scope.bindings.get(name);
     if (binding !== undefined)
       return { kind: uncertain ? "uncertain-binding" : "binding", binding };
+    if (name === "arguments" && scope.implicitArguments === true)
+      return { kind: "implicit-arguments" };
     if (!scope.bindingsComplete) {
       if (scope.dynamicWithStatement === undefined) return { kind: "unknown" };
       const lookup = semanticWithRequireLookup(

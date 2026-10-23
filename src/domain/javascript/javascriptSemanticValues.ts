@@ -658,12 +658,16 @@ const evaluateExpressionValue = (
     const binding = resolveSemanticBindingState(context.state, node, node.name);
     if (binding === undefined)
       return { status: "unknown", reason: `Unbound identifier ${node.name}.` };
-    const read =
+    const read = semanticBindingAtRead(
+      binding,
+      node,
+      context.state.parentsByNode,
+    );
+    if (
+      read.status === "unresolved" &&
       binding.mutable &&
       binding.definitions.some(({ kind }) => kind === "assignment")
-        ? semanticBindingAtRead(binding, node, context.state.parentsByNode)
-        : undefined;
-    if (read?.status === "unresolved") {
+    ) {
       const value = evaluateBinding(binding, nestedContext(context));
       if (
         value.status === "unknown" ||
@@ -676,7 +680,7 @@ const evaluateExpressionValue = (
         reason: `Binding ${binding.name} has unresolved ordering at this read.`,
       };
     }
-    const atRead = read?.binding ?? binding;
+    const atRead = read.binding;
     if (
       semanticOpaqueBindingReadMayHaveChanged(
         binding,

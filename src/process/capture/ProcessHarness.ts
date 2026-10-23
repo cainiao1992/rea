@@ -53,6 +53,7 @@ import {
   type ProcessCaptureResourceCleanupOptions,
   ProcessCaptureResourceScope,
   type TerminalCaptureRetention,
+  captureExitObservation,
 } from "./ProcessCaptureLifecycle.js";
 import {
   assertNotCancelled,
@@ -801,15 +802,7 @@ const runProcessScenario = async (
       };
     observations.exit = {
       state: "available",
-      value: {
-        code:
-          exit.reason === "exited" && exit.exitCode >= 0 ? exit.exitCode : null,
-        signal: exit.signal ?? null,
-        reason: exit.reason,
-        ...(exit.finalization === undefined
-          ? {}
-          : { finalization: exit.finalization }),
-      },
+      value: captureExitObservation(exit),
     };
     capture = await completeCapture({
       scenario,

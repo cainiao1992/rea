@@ -124,6 +124,33 @@ export type TerminalExitResult =
       readonly finalization: ProcessCaptureFinalization;
     };
 
+/**
+ * The target's normal exit code. A signal-terminated process has none, so a
+ * nonzero signal yields null even when the PTY reports a numeric code.
+ */
+const normalExitCode = (exit: {
+  readonly exitCode: number;
+  readonly signal?: number;
+}): number | null =>
+  exit.exitCode >= 0 && (exit.signal ?? 0) === 0 ? exit.exitCode : null;
+
+/** Project an observed exit; only an `exited` reason carries a normal code. */
+export const captureExitObservation = <
+  Reason extends TerminalExitResult["reason"],
+>(exit: {
+  readonly exitCode: number;
+  readonly signal?: number;
+  readonly reason: Reason;
+  readonly finalization?: ProcessCaptureFinalization;
+}) => ({
+  code: exit.reason === "exited" ? normalExitCode(exit) : null,
+  signal: exit.signal ?? null,
+  reason: exit.reason,
+  ...(exit.finalization === undefined
+    ? {}
+    : { finalization: exit.finalization }),
+});
+
 interface CaptureResultOptions {
   readonly frames: readonly TerminalFrame[];
   readonly exit: {
@@ -330,17 +357,7 @@ export const buildCaptureResult = (
     frames: options.frames,
     rendered_frames: options.renderedFrames,
     interaction_events: options.interactions,
-    exit: {
-      code:
-        options.exit.reason === "exited" && options.exit.exitCode >= 0
-          ? options.exit.exitCode
-          : null,
-      signal: options.exit.signal ?? null,
-      reason: options.exit.reason,
-      ...(options.exit.finalization === undefined
-        ? {}
-        : { finalization: options.exit.finalization }),
-    },
+    exit: captureExitObservation(options.exit),
     settlement: options.settlement,
     process_samples: normalizeProcessSamples(
       options.samples,
@@ -985,9 +1002,7 @@ export const awaitTerminalExit = async ({
             : {
                 finalization: snapshot(
                   finalizationElapsedMs,
-                  exit.exitCode >= 0 && (exit.signal ?? 0) === 0
-                    ? exit.exitCode
-                    : null,
+                  normalExitCode(exit),
                 ),
               }),
         });

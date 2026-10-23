@@ -335,6 +335,10 @@ validation is recorded as `unverified` with its reason. Cancellation before any
 deadline keeps the existing terminal kill. Descendants are not signalled during
 finalization; owned-process cleanup handles them afterwards.
 
+For an `exited` capture, `exit.code` is the target's normal exit code. It is
+`null` when the target ended on a signal, such as one sent by a scenario
+`signal` event, and the observed signal stays in `exit.signal`.
+
 `exit.reason` keeps the initiating deadline (`timeout` or `idle_timeout`).
 `exit.code` is `null` for every deadline exit; the code of an exit observed
 during finalization is `exit.finalization.exit_code`, and the observed signal

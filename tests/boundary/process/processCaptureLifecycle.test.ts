@@ -1179,7 +1179,11 @@ itWithCaptureCapability(
     expect(capture.interaction_events).toMatchObject([
       { type: "signal", data: "SIGTERM", outcome: "dispatched" },
     ]);
-    expect(capture.exit).toMatchObject({ signal: 15, reason: "exited" });
+    expect(capture.exit).toMatchObject({
+      code: null,
+      signal: 15,
+      reason: "exited",
+    });
   },
 );
 

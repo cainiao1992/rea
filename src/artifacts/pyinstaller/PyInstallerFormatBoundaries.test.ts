@@ -238,34 +238,42 @@ it("keeps compressed source locations unknown when stored and decoded lengths co
   );
 });
 
-it("bounds an admitted drive-prefixed CArchive path before diagnostic serialization", async () => {
-  await withPyInstallerReader(
-    cArchiveExecutable({
-      layout: "2.1",
-      pythonVersion: 309,
-      members: [
-        {
-          name: "C:" + "x".repeat(10 * 1024 * 1024),
-          typeCode: "x",
-          payload: Buffer.from("x"),
-          compress: false,
-        },
-      ],
-    }),
-    async (reader) => {
-      const failure = await reader
-        .entries()
-        [Symbol.asyncIterator]()
-        .next()
-        .then(
-          () => undefined,
-          (cause: unknown) => cause,
-        );
-      expect(failure).toMatchObject({ reason: "path" });
-      expect((failure as Error).message.length).toBeLessThan(1024);
-    },
-  );
-});
+it.each([
+  ["admitted drive-prefixed path", 1024 * 1024, "path"],
+  ["directory facts above their retained allowance", 10 * 1024 * 1024, "limit"],
+] as const)(
+  "bounds %s before diagnostic serialization",
+  async (_case, length, reason) => {
+    await withPyInstallerReader(
+      cArchiveExecutable({
+        layout: "2.1",
+        pythonVersion: 309,
+        members: [
+          {
+            name: "C:" + "x".repeat(length),
+            typeCode: "x",
+            payload: Buffer.from("x"),
+            compress: false,
+          },
+        ],
+      }),
+      async (reader) => {
+        const failure = await reader
+          .entries()
+          [Symbol.asyncIterator]()
+          .next()
+          .then(
+            () => undefined,
+            (cause: unknown) => cause,
+          );
+        expect(failure).toMatchObject({ reason });
+        if (reason === "limit")
+          expect(failure).toMatchObject({ boundary: "memory" });
+        expect((failure as Error).message.length).toBeLessThan(1024);
+      },
+    );
+  },
+);
 
 it.each(["magic", "marshal"])(
   "reuses the private bytes of an opaque outer-compressed PYZ (%s)",

@@ -44,7 +44,9 @@ export const harmonyApplicationProjectionResultSchema = z.strictObject({
     signing: z.array(projectedComponentSchema),
   }),
   unavailable_components: z.array(unavailableComponentSchema),
-  app_pack_children: z.array(projectedComponentSchema),
+  app_pack_children: z.array(
+    z.union([projectedComponentSchema, unavailableComponentSchema]),
+  ),
   runtime_families: z.array(
     z.enum(["ark", "native", "javascript", "react-native", "flutter", "unity"]),
   ),
@@ -82,6 +84,17 @@ export const projectHarmonyInventory = (
   const unavailable = entries.flatMap(({ unavailable }) =>
     unavailable === undefined ? [] : [unavailable],
   );
+  const fileEntries = entries.filter(
+    ({ kind }) => kind === "file" || kind === "slice",
+  );
+  const children: HarmonyApplicationProjectionResult["app_pack_children"] = [];
+  if (rootFormat === "app-pack") {
+    for (const entry of fileEntries) {
+      if (!/\.(?:hap|hsp)$/iu.test(entry.path)) continue;
+      const child = entry.component ?? entry.unavailable;
+      if (child !== undefined) children.push(child);
+    }
+  }
   const classified = classify(all);
   const bridgeProjection = bridgeCandidates(
     classified.bytecode,
@@ -122,13 +135,12 @@ export const projectHarmonyInventory = (
     source_evidence_ids: evidence
       .map(({ evidence_id: id }) => id)
       .sort(compareUnicodeCodePoints),
-    packaging_model: packagingModel(classified.manifests),
+    packaging_model: packagingModel(
+      fileEntries.filter(({ path }) => !isResourcePath(path)),
+    ),
     components: classified,
     unavailable_components: unavailable,
-    app_pack_children:
-      rootFormat === "app-pack"
-        ? all.filter(({ path }) => /\.(?:hap|hsp)$/iu.test(path))
-        : [],
+    app_pack_children: children,
     runtime_families: runtimeFamilies(all, classified),
     bridge_candidates: bridgeProjection.candidates,
     bridge_candidate_coverage: bridgeProjection.coverage,
@@ -171,7 +183,7 @@ const harmonyRootFormat = (
 };
 
 const packagingModel = (
-  manifests: readonly Component[],
+  manifests: readonly { readonly path: string }[],
 ): HarmonyApplicationProjectionResult["packaging_model"] => {
   const stage = manifests.some(({ path }) =>
     /(?:^|\/)module\.json$/iu.test(path),
@@ -199,7 +211,9 @@ const classify = (all: readonly Component[]) => ({
       format === "javascript-bundle" || /\.(?:m?js|cjs)$/iu.test(path),
   ),
   signing: all.filter(({ path }) =>
-    /^META-INF\/[^/]+\.(?:p7b|sig|cer|crt|pem|provision)$/iu.test(path),
+    /^META-INF\/[^/]+\.(?:p7b|sig|cer|crt|pem|provision|rsa|dsa|ec)$/iu.test(
+      path,
+    ),
   ),
 });
 

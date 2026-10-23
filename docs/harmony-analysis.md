@@ -84,3 +84,12 @@ not been independently established. This lane does not complete the pinned
 toolchain acceptance in #1431 and does not verify Ark decoding or signatures.
 Set `REA_HARMONY_ENTRYPOINT` to an installed package's `scripts/rea.mjs` to run
 the same checks against that package; the default lane uses the repository build.
+
+Packaging-model and App Pack child presence use inventoried file/slice paths even
+when encrypted content cannot be authenticated. Unavailable App Pack children
+retain their path, format, encryption and limitations with null artifact ID and
+digest; they do not establish decoded package semantics. Missing source nodes
+outside supplied pages retain the inventory limitation and partial coverage.
+The signing list includes inventoried META-INF RSA, DSA and EC certificate-block
+paths alongside the existing suffixes; opaque content does not establish a valid
+signature or certificate.

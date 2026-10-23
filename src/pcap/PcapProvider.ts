@@ -76,6 +76,8 @@ const FIELDS = [
   "tls.handshake.extensions_server_name",
   "http.request.full_uri",
   "http.request.uri",
+  "http2.request.full_uri",
+  "http2.headers.path",
 ];
 
 const pcapPartialEvidence = (
@@ -235,6 +237,35 @@ export class PcapProvider {
     );
   }
 
+  /** Selected-tool reads are configuration admission, independently of capture bytes. */
+  private async readToolIdentity(
+    operation: PcapOperation,
+    path: string,
+    signal?: AbortSignal,
+  ) {
+    try {
+      return await this.#resources.read(path, 64 * 1024 * 1024, signal);
+    } catch (cause) {
+      if (cause instanceof AnalysisError) throw cause;
+      if (
+        cause instanceof ArtifactReaderFailure &&
+        cause.reason === "cancelled"
+      )
+        throw cause;
+      const classify = (failure: unknown) =>
+        failure instanceof AnalysisError
+          ? failure
+          : pcapToolUnavailable(
+              operation,
+              `Cannot read selected Wireshark tool ${path}: ${failure instanceof Error ? failure.message : String(failure)}`,
+              { cause: failure },
+            );
+      throw cause instanceof ArtifactReaderFailure
+        ? this.#resources.cleanupFailure(cause, classify, undefined, operation)
+        : classify(cause);
+    }
+  }
+
   private async run(
     operation: PcapOperation,
     stage: "version" | "capinfos" | "tshark",
@@ -252,9 +283,9 @@ export class PcapProvider {
     const selected = this.wiresharkIdentities.get(command);
     try {
       if (selected !== undefined) {
-        const before = await this.#resources.read(
+        const before = await this.readToolIdentity(
+          operation,
           selected.path,
-          64 * 1024 * 1024,
           signal,
         );
         assertWiresharkExecutableIdentity(
@@ -297,10 +328,7 @@ export class PcapProvider {
       });
       commandReturned = true;
       if (selected !== undefined) {
-        const after = await this.#resources.read(
-          selected.path,
-          64 * 1024 * 1024,
-        );
+        const after = await this.readToolIdentity(operation, selected.path);
         assertWiresharkExecutableIdentity(
           operation,
           selected.path,
@@ -392,9 +420,9 @@ export class PcapProvider {
           );
         throw cause;
       }
-      const snapshot = await this.#resources.read(
+      const snapshot = await this.readToolIdentity(
+        operation,
         resolvedPath,
-        64 * 1024 * 1024,
         signal,
       );
       this.wiresharkIdentities.set(selected.command, {
@@ -1016,9 +1044,10 @@ export class PcapProvider {
         "Both tools read one owned snapshot; target identity comes from its admitted source descriptor",
         "DNS address values are associated only with a single question in the same response packet; values may include additional DNS records, not only final resolution answers",
         "Only bytes present in the saved capture are examined; encryption and capture truncation can hide higher-level fields",
+        "HTTP URI inventory examines decoded HTTP/1 and HTTP/2 request fields; HTTP/3 URI semantics are outside this profile",
         ...(fields.partial
           ? [
-              "One or more projected categories were capped, credential-bearing URIs were omitted or coalesced, or DNS address attribution remains unresolved; counts retain the examined totals",
+              "One or more projected categories were capped, credential-bearing URIs were omitted or coalesced, or DNS address attribution or HTTP URI targets remain unresolved; counts retain the examined totals",
             ]
           : []),
         ...(fields.httpUriRedactionCount > 0

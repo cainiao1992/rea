@@ -318,3 +318,33 @@ it.each([
       expect(reason.cleanupIncomplete).toBe(true);
   },
 );
+
+it("includes decoded HTTP/2 URIs with shared credential handling and reports unresolved targets", async () => {
+  const full = await parseTsharkJsonOutput(
+    capture([
+      {
+        "http2.request.full_uri": [
+          "http://example.test/h2",
+          "https://user:pass@example.test/kept",
+        ],
+        "http2.headers.path": ["/h2", "/kept"],
+      },
+      { "http.request.full_uri": ["http://example.test/h1"] },
+    ]),
+  );
+  expect(full.httpRequestUris).toEqual([
+    "http://example.test/h2",
+    "https://example.test/kept",
+    "http://example.test/h1",
+  ]);
+  expect(full.httpRequestUriCount).toBe(3);
+  expect(full.httpUriRedactionCount).toBe(1);
+  expect(full.partial).toBe(false);
+  expect(
+    (
+      await parseTsharkJsonOutput(
+        capture([{ "http2.headers.path": ["/unresolved"] }]),
+      )
+    ).partial,
+  ).toBe(true);
+});

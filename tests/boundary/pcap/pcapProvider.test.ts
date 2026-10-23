@@ -726,3 +726,15 @@ it.each([false, true])(
     ).rejects.toMatchObject({ code: "ENOENT" });
   },
 );
+
+it("requests HTTP/2 URI facts and projects them through capture inspection", async () => {
+  const { provider, root } = await providerWith({ http2Uri: true });
+  const path = await captureFixture(root);
+  const result = await evidenceResult(provider, {
+    operation: "inspect_pcap_capture",
+    input: { path },
+  });
+  expect(result.http_request_uris).toEqual(["http://example.test/h2"]);
+  expect(result.http_request_uri_count).toBe(1);
+  expect(result.coverage).toBe("complete");
+});

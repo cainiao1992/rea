@@ -53,6 +53,7 @@ export const TSHARK_JSON = JSON.stringify([
 export interface PcapStubToolsOptions {
   readonly failCapinfos?: boolean;
   readonly httpAbsoluteUriOnly?: boolean;
+  readonly http2Uri?: boolean;
   readonly invalidTsharkStream?: "stdout" | "stderr";
   readonly invalidTsharkVersionStream?: "stdout" | "stderr";
   readonly invalidCapinfosStream?: "stdout" | "stderr";
@@ -68,17 +69,22 @@ export const writeStubTools = async (
 ): Promise<{ tshark: string; capinfos: string }> => {
   const tshark = join(root, "tshark");
   const capinfos = join(root, "capinfos");
-  const tsharkOutput = options.literalReplacement
+  const tsharkOutput = options.http2Uri
     ? TSHARK_JSON.replace(
-        "http://api.example.com/v1/data",
-        "http://api.example.com/�",
-      )
-    : options.httpAbsoluteUriOnly
+        '"http.request.full_uri":["http://api.example.com/v1/data"]',
+        '"http2.request.full_uri":["http://example.test/h2"],"http2.headers.path":["/h2"]',
+      ).replace('eth:ethertype:ip:tcp:http"', 'eth:ethertype:ip:tcp:http2"')
+    : options.literalReplacement
       ? TSHARK_JSON.replace(
-          '"http.request.full_uri":["http://api.example.com/v1/data"]',
-          '"http.request.uri":["http://proxy.example.test/path"]',
+          "http://api.example.com/v1/data",
+          "http://api.example.com/�",
         )
-      : TSHARK_JSON;
+      : options.httpAbsoluteUriOnly
+        ? TSHARK_JSON.replace(
+            '"http.request.full_uri":["http://api.example.com/v1/data"]',
+            '"http.request.uri":["http://proxy.example.test/path"]',
+          )
+        : TSHARK_JSON;
   await writeFile(
     tshark,
     `#!/bin/sh
@@ -89,6 +95,8 @@ if [ "$1" = "--version" ]; then
 fi
 [ "$1" = "-n" ] && [ "$2" = "-r" ] && [ "$4" = "-T" ] && [ "$5" = "json" ] || exit 2
 case " $* " in *" -e http.request.uri "*) ;; *) exit 2 ;; esac
+case " $* " in *" -e http2.request.full_uri "*) ;; *) exit 2 ;; esac
+case " $* " in *" -e http2.headers.path "*) ;; *) exit 2 ;; esac
 ${options.invalidTsharkStream === "stdout" ? `printf '%s' '[{"_source":{"layers":{"frame.number":["1"],"frame.protocols":["eth:ip:tcp:http"],"http.request.full_uri":["http://example.test/'; printf '\\377'; printf '%s' '"]}}}]'` : `printf '%s' '${tsharkOutput.replace(/'/gu, "'\\''")}'`}
 ${options.invalidTsharkStream === "stderr" ? `printf '\\377' >&2` : ""}
 exit 0

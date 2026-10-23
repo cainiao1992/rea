@@ -354,8 +354,20 @@ export const parseTsharkJsonOutput = async (
     if (relativeRequestCount > unmatchedFullUriCount)
       unresolvedHttpUriTarget = true;
 
+    const http2Uris = field("http2.request.full_uri").filter(
+      (value) => value !== "",
+    );
+    if (
+      field("http2.headers.path").filter((value) => value !== "").length >
+      http2Uris.length
+    )
+      unresolvedHttpUriTarget = true;
     for (const candidate of [
       ...fullUriCandidates,
+      ...http2Uris.map((value) => ({
+        value,
+        parsed: parseRecordedTransportUrl(value),
+      })),
       ...requestUriCandidates.filter(({ parsed }) => parsed.origin !== null),
     ]) {
       const { value, parsed } = candidate;

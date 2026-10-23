@@ -30,6 +30,8 @@ Evidence. Capture
 inspection requires Linux with util-linux prlimit or Windows with owned Job
 Objects. macOS capture inspection returns a capability gap because the new
 native memory boundary is unverified; its version probes remain available.
+A selected tool directory or unreadable tool is a configuration capability
+refusal naming its selected path, before any capture bytes are opened.
 Tools and installed libraries/plugins are caller-trusted. An empty private
 personal Wireshark configuration is used; this is not an OS sandbox.
 
@@ -88,7 +90,11 @@ All examined inventories are retained within the resource budget; no fixed
 without rewriting other URI bytes; ambiguous credential spans cause omission.
 The URI inventory includes absolute-form HTTP request targets when TShark cannot
 construct `http.request.full_uri` because no Host header was reported; relative
-request targets are not promoted to absolute URIs.
+request targets are not promoted to absolute URIs. The inventory also consumes
+`http2.request.full_uri`; a decoded HTTP/2 `:path` without a corresponding full
+URI leaves coverage partial. The HTTP URI profile covers HTTP/1 and HTTP/2;
+HTTP/3 URI semantics are unexamined. All admitted URI fields share the same
+credential exclusion and source-value retention rules.
 Counts preserve distinct observed source URIs before omission or coalescing.
 `coverage: "partial"` records unresolved DNS attribution or URI item loss;
 component credential exclusion is also counted explicitly. Diagnostics retain

@@ -168,6 +168,20 @@ Vitest worker limits do not bound subprocesses launched within a test. Bound
 those batches separately so repeated CLI validation cannot oversubscribe the
 runner. Preserve simultaneous launches where concurrency is itself under test.
 
+Coordinate expensive checks across agents sharing a host. If a test unexpectedly
+consumes heavy CPU, stop its owned process family, retain its log and revision,
+and profile a bounded representative case before retrying. Separate production
+work from fixture generation, schema compilation, subprocess startup and cleanup.
+Choose elapsed, CPU and process-family memory limits before the run; a worker
+count or test timeout alone does not enforce those limits.
+
+Remove demonstrated repeated work while preserving distinct assertions and
+resource ownership. Share immutable fixture preparation where safe; keep fresh
+sessions when lifecycle or concurrency is the behavior under test. Compare the
+same completed workload before and after, report cache state and measurement
+limits, and record interrupted runs separately from passes. Increasing a timeout
+does not explain a CPU regression.
+
 Build/documentation writers hold checkout-local output locks. Tests do not
 hold a broad command lock; `check:pr` finishes tests before document validation.
 Turbo caches deterministic preparation and static checks, but `test:run` always

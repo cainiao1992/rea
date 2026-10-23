@@ -514,10 +514,15 @@ describe("MIPS16 shared-image profile", () => {
     const ghidra = new GhidraProvider(parsed.value, silentLogger, {}, host);
     const resolved = await ghidra.resolveAnalysisProfile(shared());
     expect(resolved.ok).toBe(false);
-    if (!resolved.ok)
+    if (!resolved.ok) {
       expect(resolved.error.message).toContain(
         "requested override has not been changed",
       );
+      expect(resolved.error).toMatchObject({
+        _tag: "ConfigurationError",
+        settings: [{ setting: "REA_GHIDRA_LANGUAGE_ID" }],
+      });
+    }
   });
 });
 

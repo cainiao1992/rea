@@ -399,6 +399,32 @@ describe("Ghidra language override profile", () => {
     });
   });
 
+  it.each(["raw-binary", "dos-mz", "dos-com"] as const)(
+    "attributes a fixed %s import override conflict to the named settings",
+    async (format) => {
+      const target: BinaryTarget =
+        format === "raw-binary"
+          ? { ...pe, format, entryPoint: "0x0", entryPointSource: "0x0" }
+          : { ...pe, format };
+      const resolved = await provider({
+        REA_GHIDRA_LANGUAGE_ID: "x86:LE:32:default",
+        REA_GHIDRA_COMPILER_SPEC_ID: "borlandcpp",
+      }).resolveAnalysisProfile(target);
+      if (resolved.ok) throw new Error("Expected an override policy conflict");
+      expect(projectAnalysisError(resolved.error)).toMatchObject({
+        code: "configuration_invalid",
+        details: {
+          settings: [
+            { setting: "REA_GHIDRA_LANGUAGE_ID" },
+            { setting: "REA_GHIDRA_COMPILER_SPEC_ID" },
+          ],
+        },
+      });
+      const automatic = await provider({}).resolveAnalysisProfile(target);
+      expect(automatic.ok).toBe(true);
+    },
+  );
+
   it("compares committed and configured selections exactly", () => {
     expect(sameGhidraLanguageOverride(undefined, undefined)).toBe(true);
     expect(

@@ -192,6 +192,22 @@ describe("bounded Ghidra RISC-V admission", () => {
     expect(resolved.ok).toBe(false);
     if (resolved.ok) throw new Error("expected a refusal");
     expect(resolved.error.message).toContain("generic little-endian RISC-V");
+    expect(resolved.error).toMatchObject({
+      _tag: "ConfigurationError",
+      settings: [{ setting: "REA_GHIDRA_LANGUAGE_ID" }],
+    });
+  });
+
+  it("attributes a compiler-only pin conflict to its setting", async () => {
+    const resolved = await ghidra({
+      REA_GHIDRA_LANGUAGE_ID: "RISCV:LE:64:default",
+      REA_GHIDRA_COMPILER_SPEC_ID: "windows",
+    }).resolveAnalysisProfile(target());
+    if (resolved.ok) throw new Error("expected a configuration conflict");
+    expect(resolved.error).toMatchObject({
+      _tag: "ConfigurationError",
+      settings: [{ setting: "REA_GHIDRA_COMPILER_SPEC_ID" }],
+    });
   });
 
   it("keeps a caller-selected language that matches the pin as configured", async () => {

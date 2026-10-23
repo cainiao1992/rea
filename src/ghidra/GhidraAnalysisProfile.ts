@@ -12,6 +12,7 @@ import {
   AnalysisCancelledError,
   AnalysisUnsupportedTargetError,
 } from "../domain/analysisErrorCore.js";
+import { ConfigurationError } from "../domain/configurationErrors.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -74,6 +75,24 @@ export const ghidraPinnedLanguage = (
   ghidraRiscvLanguageOverride(target) ??
   ghidraPowerPcLanguage(target);
 
+/** Policy conflicts belong to the selected settings, not to the target's support. */
+const languageOverrideConflict = (
+  override: GhidraLanguageOverride,
+  constraint: string,
+  pinned?: GhidraLanguageOverride,
+): ConfigurationError =>
+  new ConfigurationError(constraint, {
+    settings: [
+      ...(pinned?.languageId === override.languageId
+        ? []
+        : [{ setting: "REA_GHIDRA_LANGUAGE_ID", constraint }]),
+      ...(override.compilerSpecId === undefined ||
+      pinned?.compilerSpecId === override.compilerSpecId
+        ? []
+        : [{ setting: "REA_GHIDRA_COMPILER_SPEC_ID", constraint }]),
+    ],
+  });
+
 /** Resolve version-bound, deterministic semantics before Ghidra imports a target. */
 export const resolveGhidraAnalysisProfile = async (
   target: BinaryTarget,
@@ -108,10 +127,9 @@ export const resolveGhidraAnalysisProfile = async (
   // A caller-selected generic processor cannot override this verified PSP loader.
   if (isGhidraPspTarget(target) && languageOverride !== undefined)
     return err(
-      new AnalysisUnsupportedTargetError(
-        "resolve_analysis_profile",
-        target.path,
-        "The bounded PSP Allegrex profile does not accept REA_GHIDRA_LANGUAGE_ID overrides.",
+      languageOverrideConflict(
+        languageOverride,
+        "The bounded PSP Allegrex profile does not accept processor or compiler specification overrides.",
       ),
     );
   const pspExtension = isGhidraPspTarget(target)
@@ -132,10 +150,9 @@ export const resolveGhidraAnalysisProfile = async (
     if (languageOverride !== undefined)
       return Promise.resolve(
         err(
-          new AnalysisUnsupportedTargetError(
-            "resolve_analysis_profile",
-            target.path,
-            "REA_GHIDRA_LANGUAGE_ID cannot override the admitted raw-binary import.",
+          languageOverrideConflict(
+            languageOverride,
+            "Processor or compiler specification overrides cannot replace the admitted raw-binary import.",
           ),
         ),
       );
@@ -187,14 +204,14 @@ export const resolveGhidraAnalysisProfile = async (
         languageOverride.compilerSpecId !== pinnedLanguage.compilerSpecId))
   )
     return err(
-      new AnalysisUnsupportedTargetError(
-        "resolve_analysis_profile",
-        target.path,
+      languageOverrideConflict(
+        languageOverride,
         `The caller-selected processor or compiler specification is outside the verified ${
           target.architecture === "riscv"
             ? "generic little-endian RISC-V"
             : "endian-matched MIPS32"
         } profile. The requested override has not been changed.`,
+        pinnedLanguage,
       ),
     );
   const selectedLanguage = languageOverride ?? pinnedLanguage;
@@ -202,10 +219,9 @@ export const resolveGhidraAnalysisProfile = async (
   if (dos && languageOverride !== undefined)
     return Promise.resolve(
       err(
-        new AnalysisUnsupportedTargetError(
-          "resolve_analysis_profile",
-          target.path,
-          "REA_GHIDRA_LANGUAGE_ID cannot override the admitted DOS real-mode import.",
+        languageOverrideConflict(
+          languageOverride,
+          "Processor or compiler specification overrides cannot replace the admitted DOS real-mode import.",
         ),
       ),
     );

@@ -15,7 +15,10 @@ snapshot parser and a separate optional annotation extension. Check the
 [release boundary](installation.md#released-package-and-main) when using npm.
 
 See [import language and analysis seeds](installation.md#ghidra-import-language-and-analysis-seeds)
-to override the header-detected language or seed analysis. An inaccessible language
+to override the header-detected language or seed analysis. An override that conflicts with a fixed raw, DOS, PSP, MIPS or RISC-V import
+is a configuration error naming the conflicting settings. It does not make an
+otherwise admitted target unsupported; REA preserves the requested settings.
+An inaccessible language
 catalog remains a read failure; it does not prove that a configured language is
 undefined. Installation `application.properties` has a fixed 1 MiB read allowance
 with no runtime override. The failure retains that allowance and directs recovery

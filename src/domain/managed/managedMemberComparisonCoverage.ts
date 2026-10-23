@@ -54,37 +54,73 @@ const sameMethodRows = (
     left.method_rows.count === right.method_rows.count &&
     left.method_rows.total === right.method_rows.total);
 
-/** Returned type facts, rather than request spelling, own the observed scope. */
-export const selectedDeclaringTypes = (
-  result: ManagedMemberInspection,
-): ReadonlySet<string> | null =>
-  result.selection === null
-    ? null
-    : new Set(result.types.map(({ full_name }) => full_name));
+/** One side's build-local TypeDef lookup and observed nominal selection. */
+const declaringTypeScope = (result: ManagedMemberInspection) => {
+  const names = new Map(
+    result.types.map((type) => [type.token, type.name_sha256]),
+  );
+  return {
+    names,
+    selected:
+      result.selection === null
+        ? null
+        : new Set([...names.values()].filter((name) => name !== null)),
+    complete:
+      result.coverage.state === "complete" &&
+      result.metadata.status === "complete" &&
+      result.types.every(({ name_sha256 }) => name_sha256 !== null),
+  };
+};
+
+type DeclaringTypeScope = ReturnType<typeof declaringTypeScope>;
+type DeclaredMember =
+  | ManagedMemberInspection["methods"][number]
+  | ManagedMemberInspection["fields"][number];
+
+/** Resolve tokens only in their own source, then test opposite nominal scope. */
+const observedBy = (
+  own: DeclaringTypeScope,
+  opposite: DeclaringTypeScope,
+  member: DeclaredMember,
+): boolean => {
+  if (opposite.selected === null) return true;
+  const name = own.names.get(member.declaring_type_token ?? "");
+  return name != null && opposite.selected.has(name);
+};
 
 /** Compare the nominal types the owner retained, independently of request spelling. */
-export const compareSelectedTypes = (
-  left: ManagedMemberInspection,
-  right: ManagedMemberInspection,
+const compareSelectedTypes = (
+  left: DeclaringTypeScope,
+  right: DeclaringTypeScope,
 ): SelectionAgreement => {
-  if (left.selection === null || right.selection === null)
-    return left.selection === right.selection ? "same" : "different";
-  if (
-    left.coverage.state !== "complete" ||
-    right.coverage.state !== "complete" ||
-    left.metadata.status !== "complete" ||
-    right.metadata.status !== "complete" ||
-    left.types.some(({ name_sha256 }) => name_sha256 === null) ||
-    right.types.some(({ name_sha256 }) => name_sha256 === null)
-  )
-    return "unknown";
-  const leftNames = new Set(left.types.map(({ name_sha256 }) => name_sha256));
-  const rightNames = new Set(right.types.map(({ name_sha256 }) => name_sha256));
+  const leftNames = left.selected;
+  const rightNames = right.selected;
+  if (leftNames === null || rightNames === null)
+    return leftNames === rightNames ? "same" : "different";
+  if (!left.complete || !right.complete) return "unknown";
   return leftNames.size === rightNames.size &&
     [...leftNames].every((name) => rightNames.has(name))
     ? "same"
     : "different";
 };
+
+/** Share the same nominal facts across pairing, absence and scope agreement. */
+export const managedComparisonScope = (
+  left: ManagedMemberInspection,
+  right: ManagedMemberInspection,
+) => {
+  const a = declaringTypeScope(left);
+  const b = declaringTypeScope(right);
+  return {
+    left: a,
+    right: b,
+    inLeft: (member: DeclaredMember) => observedBy(b, a, member),
+    inRight: (member: DeclaredMember) => observedBy(a, b, member),
+    agreement: compareSelectedTypes(a, b),
+  };
+};
+
+export type ManagedComparisonScope = ReturnType<typeof managedComparisonScope>;
 
 const sideCoverageStatus = (
   result: ManagedMemberInspection,
@@ -147,7 +183,8 @@ export const buildComparisonMatching = (
 export const comparisonLimitations = (
   left: ManagedMemberInspection,
   right: ManagedMemberInspection,
-  selectionAgreement: SelectionAgreement = compareSelectedTypes(left, right),
+  selectionAgreement: SelectionAgreement = managedComparisonScope(left, right)
+    .agreement,
 ): string[] => {
   const limitations: string[] = [
     "Metadata tokens are build-local coordinates; matched pairs are remaps, not persistent identities.",

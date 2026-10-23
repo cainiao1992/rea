@@ -20,7 +20,10 @@ import {
 } from "../../../../src/dotnet/ManagedPe.fixture.js";
 
 import { buildManagedPeFixture as buildMultiMethodFixture } from "../../../../scripts/fixtures/managed/pe.mjs";
-import { namespaceBearingNestedTypes } from "../../../fixtures/managedSelectedScope.js";
+import {
+  distinctSelectedNestedOwners,
+  namespaceBearingNestedTypes,
+} from "../../../fixtures/managedSelectedScope.js";
 
 it("selects namespace-bearing nested declarations from parsed type facts and compares the observed scope", () => {
   const bytes = namespaceBearingNestedTypes();
@@ -64,6 +67,106 @@ it("selects namespace-bearing nested declarations from parsed type facts and com
   ).toEqual([]);
 });
 
+describe("managed comparison selected nominal membership", () => {
+  it("retains known selected pairs in a partial inventory without needing display labels", () => {
+    const source = inspect(
+      distinctSelectedNestedOwners().left,
+      "/fixture/known.dll",
+      ["Fixture.Inner"],
+    );
+    const partial = structuredClone(source.result);
+    partial.metadata.status = "partial";
+    partial.coverage.state = "partial";
+    partial.methods = partial.methods.map((method) => ({
+      ...method,
+      declaring_type: null,
+    }));
+    partial.fields = partial.fields.map((field) => ({
+      ...field,
+      declaring_type: null,
+    }));
+    const comparison = compareManagedMembers(source, {
+      ...source,
+      result: partial,
+    });
+    expect(comparison.coverage.status).toBe("partial");
+    expect(comparison.summary).toEqual({
+      added: 0,
+      removed: 0,
+      unknown: 0,
+      changed: 0,
+      unchanged: 2,
+    });
+    expect(
+      [...comparison.methods, ...comparison.fields].every(
+        ({ match, right }) =>
+          match.status === "matched" && right?.declaring_type === null,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(["current", "historical"])(
+    "does not recover missing %s selected identity from display names",
+    (kind) => {
+      const source = inspect(
+        distinctSelectedNestedOwners().left,
+        "/fixture/selected.dll",
+        ["Fixture.Inner"],
+      );
+      const unknown = structuredClone(source.result);
+      unknown.types = unknown.types.map((type) => ({
+        ...type,
+        name_sha256: null,
+      }));
+      if (kind === "historical") unknown.nesting_read = null;
+      const comparison = compareManagedMembers(source, {
+        ...source,
+        result: unknown,
+      });
+      expect(comparison.summary).toEqual({
+        added: 0,
+        removed: 0,
+        unknown: 4,
+        changed: 0,
+        unchanged: 0,
+      });
+      expect(comparison.matching.unmatched).toBe(4);
+      expect(comparison.coverage.status).toBe("partial");
+    },
+  );
+
+  it("keeps one-sided members unknown when distinct selected owners share a display name", () => {
+    const bytes = distinctSelectedNestedOwners();
+    const left = inspect(bytes.left, "/fixture/left.dll", ["Fixture.Inner"]);
+    const right = inspect(bytes.right, "/fixture/right.dll", ["Fixture.Inner"]);
+    expect(left.result.coverage.state).toBe("complete");
+    expect(right.result.coverage.state).toBe("complete");
+    expect(left.result.types[0]?.full_name).toBe("Fixture.Inner");
+    expect(right.result.types[0]?.full_name).toBe("Fixture.Inner");
+    expect(left.result.types[0]?.name_sha256).not.toBe(
+      right.result.types[0]?.name_sha256,
+    );
+    const selected = compareManagedMembers(left, right);
+    expect(selected.coverage.status).toBe("partial");
+    expect(selected.summary).toEqual({
+      added: 0,
+      removed: 0,
+      unknown: 4,
+      changed: 0,
+      unchanged: 0,
+    });
+    expect(selected.matching.unmatched).toBe(4);
+    expect(selected.methods).toHaveLength(2);
+    expect(selected.fields).toHaveLength(2);
+    const whole = compareManagedMembers(
+      inspect(bytes.left, "/fixture/left.dll"),
+      inspect(bytes.right, "/fixture/right.dll"),
+    );
+    expect(whole.coverage.status).toBe("complete-within-inputs");
+    expect(whole.summary).toMatchObject({ added: 5, removed: 5, unknown: 0 });
+  });
+});
+
 describe("managed comparison selected scope agreement", () => {
   it("compares retained types rather than equivalent request spellings", () => {
     const bytes = namespaceBearingNestedTypes();
@@ -105,6 +208,14 @@ describe("managed comparison selected scope agreement", () => {
     );
     const comparison = compareManagedMembers(left, right);
     expect(comparison.coverage.status).toBe("partial");
+    expect(comparison.summary).toEqual({
+      added: 0,
+      removed: 0,
+      unknown: 4,
+      changed: 0,
+      unchanged: 0,
+    });
+    expect(comparison.matching.unmatched).toBe(4);
     expect(comparison.limitations).toContain(
       "The observations select different declaring types; a member outside the other side's selection is unknown, not added or removed.",
     );

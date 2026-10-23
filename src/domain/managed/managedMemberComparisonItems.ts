@@ -9,6 +9,7 @@ import type {
 } from "./managedMemberComparisonMatch.js";
 import { signatureIdentity } from "./managedMemberSignatureIdentity.js";
 import { isManagedMemberReferenceInstruction } from "./managedMemberInstructionFacts.js";
+import type { ManagedComparisonScope } from "./managedMemberComparisonCoverage.js";
 
 type Method = ManagedMemberInspection["methods"][number];
 type Field = ManagedMemberInspection["fields"][number];
@@ -38,9 +39,7 @@ interface ComparisonItemContext {
   readonly rightComplete: boolean;
   readonly leftMethodsComplete: boolean;
   readonly rightMethodsComplete: boolean;
-  /** Declaring types each side selected; null when it inspected every type. */
-  readonly leftSelection: ReadonlySet<string> | null;
-  readonly rightSelection: ReadonlySet<string> | null;
+  readonly scope: ManagedComparisonScope;
   /** Whether matching keyed signatures by resolved digests, not raw bytes. */
   readonly signatureResolutionExamined: boolean;
   readonly leftAssembly: ManagedMemberInspection["assembly"];
@@ -54,12 +53,9 @@ interface ComparisonItemContext {
 /** Whether an inventory observed every member of this member's declaring type. */
 const inventoryCovers = (
   complete: boolean,
-  selection: ReadonlySet<string> | null,
+  observes: (member: Method | Field) => boolean,
   member: Method | Field,
-): boolean =>
-  complete &&
-  (selection === null ||
-    (member.declaring_type !== null && selection.has(member.declaring_type)));
+): boolean => complete && observes(member);
 
 /**
  * Declared type and name of each unpaired member, per side, whose signature
@@ -443,7 +439,7 @@ const methodOnlyItem = (
     const limitations = absenceLimitations(member.left, identity, {
       oppositeComplete: inventoryCovers(
         context.rightMethodsComplete,
-        context.rightSelection,
+        context.scope.inRight,
         member.left,
       ),
       unpaired: undecoded,
@@ -466,7 +462,7 @@ const methodOnlyItem = (
   const limitations = absenceLimitations(member.right, identity, {
     oppositeComplete: inventoryCovers(
       context.leftMethodsComplete,
-      context.leftSelection,
+      context.scope.inLeft,
       member.right,
     ),
     unpaired: undecoded,
@@ -640,7 +636,7 @@ const fieldOnlyItem = (
     const limitations = absenceLimitations(member.left, identity, {
       oppositeComplete: inventoryCovers(
         context.rightComplete,
-        context.rightSelection,
+        context.scope.inRight,
         member.left,
       ),
       unpaired: undecoded,
@@ -662,7 +658,7 @@ const fieldOnlyItem = (
   const limitations = absenceLimitations(member.right, identity, {
     oppositeComplete: inventoryCovers(
       context.leftComplete,
-      context.leftSelection,
+      context.scope.inLeft,
       member.right,
     ),
     unpaired: undecoded,

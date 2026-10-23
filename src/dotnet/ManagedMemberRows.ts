@@ -109,7 +109,7 @@ export const parseFields = (
         layout,
         signatureTypeName,
         issues,
-        `Field:${token}.signature`,
+        { scope: `Field:${token}.signature`, kind: "field" },
       );
       core.set(token, {
         token,
@@ -269,7 +269,7 @@ export const parseMemberRefs = (
         layout,
         signatureTypeName,
         issues,
-        `MemberRef:${token}.signature`,
+        { scope: `MemberRef:${token}.signature` },
       );
       refs.push({
         token,
@@ -391,7 +391,7 @@ export const parseMethods = ({
         layout,
         signatureTypeName,
         issues,
-        `MethodDef:${token}.signature`,
+        { scope: `MethodDef:${token}.signature`, kind: "method" },
       );
       core.set(token, {
         ...member,
@@ -543,7 +543,7 @@ const budgetedSignature = (
   layout: ManagedMetadataLayout,
   signatureTypeName: SignatureTypeName,
   issues: ManagedParseIssue[],
-  scope: string,
+  owner: { readonly scope: string; readonly kind?: "field" | "method" },
 ): ReturnType<typeof metadataSignature> => {
   const budget = managedDecodeBudget(layout);
   budget.admitTransient(
@@ -557,7 +557,8 @@ const budgetedSignature = (
         typeName: signatureTypeName,
         layout,
         issues,
-        scope,
+        scope: owner.scope,
+        ...(owner.kind === undefined ? {} : { expectedKind: owner.kind }),
       }),
       budget,
     );

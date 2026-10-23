@@ -542,7 +542,8 @@ export const buildVerificationResult = ({
 > => {
   const counts = countStatuses(pinvokeImports);
   const nativeBodyUnresolved = managed.native_implementations.filter(
-    ({ boundary_kind: kind }) => kind !== "pinvoke",
+    ({ boundary_kind: kind }) =>
+      kind !== "pinvoke" && kind !== "runtime-provided",
   ).length;
   const coverage: ManagedNativeVerificationResult["coverage"] = {
     status:
@@ -578,6 +579,9 @@ export const buildVerificationResult = ({
     },
     pinvoke_imports: [...pinvokeImports],
     native_implementations: {
+      runtime_provided: managed.native_implementations.filter(
+        ({ boundary_kind }) => boundary_kind === "runtime-provided",
+      ).length,
       unresolved: nativeBodyUnresolved,
       reason:
         "Managed metadata tokens and RVAs are not translated to native provider addresses by this workflow; C++/CLI, ReadyToRun, and native-body mappings require explicit provider-supported bridge evidence.",

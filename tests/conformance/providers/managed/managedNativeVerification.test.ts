@@ -1,3 +1,8 @@
+import { readManagedPeLayout } from "../../../../src/dotnet/ManagedPeReader.js";
+import {
+  metadataRowOffset,
+  readManagedMetadataLayout,
+} from "../../../../src/dotnet/ManagedMetadataLayout.js";
 import { describe, expect, it } from "vitest";
 import {
   buildManagedPeFixture,
@@ -141,6 +146,40 @@ const inputWithImportScope = (scope: string | null) => {
     }),
   };
 };
+
+it("separates CLR runtime-provided methods from unresolved file-backed native bodies", () => {
+  const bytes = buildManagedPeFixture({ targetFramework: null });
+  const pe = readManagedPeLayout(bytes);
+  if (pe.cli === null) throw new Error("Missing fixture CLI");
+  const layout = readManagedMetadataLayout(
+    bytes,
+    pe.rvaToOffset(pe.cli.metadata.rva, pe.cli.metadata.size, "fixture"),
+    pe.cli.metadata.size,
+  );
+  bytes.writeUInt16LE(3, metadataRowOffset(layout, 6, 1) + 4);
+  const target = managedPeFixtureTarget(bytes);
+  const inspection = inspectManagedNativeBoundariesBytes(bytes, target);
+  expect(inspection.native_implementations[0]?.boundary_kind).toBe(
+    "runtime-provided",
+  );
+  const original = exampleInput().managed_boundaries;
+  const managed = createEvidence(target, original.provider, {
+    operation: "inspect_managed_native_boundaries",
+    parameters: {},
+    result: inspection,
+  });
+  const result = verifyManagedNativeBoundaries({
+    managed_boundaries: managed,
+    native_observations: [
+      nativeFunctionEvidence("/fixtures/nativehelper.dll", "pe"),
+    ],
+  });
+  expect(result.summary.native_body_unresolved).toBe(0);
+  expect(result.native_implementations).toMatchObject({
+    unresolved: 0,
+    runtime_provided: 1,
+  });
+});
 
 it.each([
   { flags: 0x200, symbol: "ExampleA", format: "pe", status: "inferred" },

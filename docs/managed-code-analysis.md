@@ -504,6 +504,13 @@ characters. These candidates follow [Microsoft's native library loading rules](h
 These filename rules compare declared and observed identities; they do not
 establish which library the runtime loaded.
 
+Signatures retain their decoded fields, but a Field or MethodDef row whose
+signature has the other member kind is malformed and cannot establish an
+unchanged signature. Runtime-provided methods are counted separately in
+`native_implementations.runtime_provided`; they have no file-backed native body
+for this workflow to map and do not increase `native_body_unresolved`. Historical
+verification Evidence without this separate count leaves it unknown (`null`).
+
 An empty declared import name remains unchanged in verification Evidence and
 produces no native-name candidates. With a supplied PE native context and
 `no_mangle: false`, an unspecified charset includes the ANSI `A` candidate;

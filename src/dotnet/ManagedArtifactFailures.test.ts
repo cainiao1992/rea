@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import * as inventoryProducer from "./ManagedMetadataInventory.js";
+import { describe, expect, it, vi } from "vitest";
 
 import { inspectManagedArtifactBytes } from "./ManagedArtifactInspector.js";
 import { inspectManagedMembersBytes } from "./ManagedMemberInspector.js";
@@ -9,6 +10,39 @@ import {
   buildNativePeFixture,
   managedPeFixtureTarget,
 } from "./ManagedPe.fixture.js";
+
+it("preserves a readable native declaration when inventory issue count exceeds call-argument capacity", () => {
+  const original = inventoryProducer.readManagedMetadataInventory;
+  const issue = {
+    code: "invalid-row" as const,
+    scope: "metadata.CustomAttribute:fixture",
+    offset: 0,
+    detail: "Controlled invalid constructor",
+  };
+  const producer = vi
+    .spyOn(inventoryProducer, "readManagedMetadataInventory")
+    .mockImplementation((...args) => ({
+      ...original(...args),
+      issues: Array.from({ length: 150_000 }, () => issue),
+    }));
+  try {
+    const bytes = buildManagedPeFixture({
+      targetFramework: null,
+      pinvoke: { importName: "Observe" },
+    });
+    const result = inspectManagedNativeBoundariesBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+    expect(result.pinvoke_imports[0]?.import_name).toBe("Observe");
+    expect(result.coverage).toMatchObject({
+      state: "partial",
+      issues: [issue],
+    });
+  } finally {
+    producer.mockRestore();
+  }
+});
 
 describe("managed artifact failure classification", () => {
   it("distinguishes native, malformed, and unsupported metadata", () => {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import {
+  appendManagedParseIssues,
   managedFailure,
   ManagedReaderFailure,
   readManagedValue,
@@ -190,7 +191,7 @@ export const readTypeDefinitions = (
   issues: ManagedParseIssue[],
   memberLists: TypeMemberListFacts,
 ): readonly TypeDefinition[] => {
-  issues.push(...memberLists.issues);
+  appendManagedParseIssues(issues, memberLists.issues);
   const typeTable = layout.table(2);
   const definitions: TypeDefinition[] = [];
   for (let row = 1; row <= (typeTable?.rowCount ?? 0); row += 1)
@@ -1119,21 +1120,32 @@ export const metadataSignature = (
     layout,
     issues,
     scope,
+    expectedKind,
   }: {
     readonly rawSha256: string;
     readonly typeName: SignatureTypeName;
     readonly layout: ManagedMetadataLayout;
     readonly issues: ManagedParseIssue[];
     readonly scope: string;
+    readonly expectedKind?: "field" | "method";
   },
 ): ManagedSignature => {
   const operands: TypeOperand[] = [];
-  const decoded = decodeSignature(
+  let decoded = decodeSignature(
     blob,
     layout,
     operands,
     (issue) => issues.push(issue),
     scope,
   );
+  if (
+    expectedKind !== undefined &&
+    decoded.kind !== "unknown" &&
+    decoded.kind !== expectedKind
+  ) {
+    const detail = `Expected ${expectedKind} signature; decoded ${decoded.kind}${decoded.issue === null ? "" : `: ${decoded.issue}`}`;
+    issues.push({ code: "invalid-blob", scope, offset: null, detail });
+    decoded = { ...decoded, parse_status: "malformed", issue: detail };
+  }
   return projectSignature(blob, rawSha256, typeName, decoded, operands);
 };

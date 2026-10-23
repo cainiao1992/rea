@@ -19,7 +19,10 @@ import {
   type ManagedCliHeader,
   type ManagedPeLayout,
 } from "./ManagedPeReader.js";
-import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import {
+  appendManagedParseIssues,
+  ManagedReaderFailure,
+} from "./ManagedReaderFailure.js";
 import {
   buildNativeBoundaryInspection,
   cliNative,
@@ -148,7 +151,7 @@ export const inspectManagedNativeBoundariesBytes = (
   }
   try {
     const heapExtent = Math.max(layout.strings.size, layout.blob?.size ?? 0);
-    issues.push(...inventory.issues);
+    appendManagedParseIssues(issues, inventory.issues);
     const moduleRefs = parseModuleRefs(bytes, layout, heapExtent, issues);
     const members = new Map([
       ...parseFields(bytes, layout, heapExtent, issues),

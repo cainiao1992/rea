@@ -326,7 +326,7 @@ describe("compiled Interface Builder bundle reader", () => {
   });
 });
 
-describe("keyed archive hierarchy coverage", () => {
+describe("NIBArchive real projection", () => {
   it("projects NIBArchive special reals as typed values with per-document counts", async () => {
     const root = await createTestTempDirectory("rea-nib-real-projection-");
     const bundle = join(root, "Example.app");
@@ -375,7 +375,9 @@ describe("keyed archive hierarchy coverage", () => {
       'Numbers.nib: 2 negative-zero real value(s) are reported as { "$plist_type": "real", "value": "-0" } because a JSON number cannot carry the sign of zero.',
     );
   });
+});
 
+describe("keyed archive hierarchy coverage", () => {
   it("projects a deep keyed-archive hierarchy through NSArray wrappers", async () => {
     const root = await createTestTempDirectory("rea-ib-test-");
     const bundle = join(root, "Example.app");

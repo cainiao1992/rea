@@ -80,6 +80,7 @@ type MarshalValue =
       readonly bytes: number;
       /** Marshal bytes. JavaScript strings merge lone surrogates with pairs. */
       readonly raw: Buffer;
+      readonly previewEnd: number;
     }
   | { readonly kind: "tuple"; readonly items: MarshalValue[] }
   | { readonly kind: "list"; readonly items: MarshalValue[] }
@@ -1483,15 +1484,17 @@ class MarshalReader {
       return {
         kind: "str",
         value: bytes.toString("latin1"),
+        previewEnd: Math.min(length, PYTHON_PYC_CONST_PREVIEW_LIMIT),
         bytes: length,
         raw: bytes,
       };
     }
-    const decoded = decodeMarshalUtf8(bytes);
+    const decoded = decodeMarshalUtf8(bytes, PYTHON_PYC_CONST_PREVIEW_LIMIT);
     if (!decoded.ok) return malformed("Marshal string is not valid UTF-8.");
     return {
       kind: "str",
-      value: decoded.value,
+      value: decoded.value.text,
+      previewEnd: decoded.value.prefixEnd,
       bytes: length,
       raw: bytes,
     };
@@ -1665,21 +1668,11 @@ const buildConstSummary = (value: MarshalValue): PythonPycConst => {
       return { kind: "float", value: jsonFloat(value.value) };
     case "str": {
       const truncated = value.value.length > PYTHON_PYC_CONST_PREVIEW_LIMIT;
-      let end = PYTHON_PYC_CONST_PREVIEW_LIMIT;
-      // Preserve source lone surrogates, but do not split a source scalar.
-      if (
-        truncated &&
-        value.value.charCodeAt(end - 1) >= 0xd800 &&
-        value.value.charCodeAt(end - 1) <= 0xdbff &&
-        value.value.charCodeAt(end) >= 0xdc00 &&
-        value.value.charCodeAt(end) <= 0xdfff
-      )
-        end--;
       return {
         kind: "str",
         bytes: value.bytes,
         truncated,
-        value: truncated ? value.value.slice(0, end) : value.value,
+        value: truncated ? value.value.slice(0, value.previewEnd) : value.value,
       };
     }
     case "bytes":

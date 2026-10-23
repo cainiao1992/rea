@@ -1625,3 +1625,21 @@ it("leaves 3.11 alpha magics with other code layouts unsupported", () => {
     parse(pythonPycFixture("py311", { magic: 3495 })).header,
   ).toMatchObject({ python_version: "3.11", code_layout: "py311" });
 });
+
+it.each([false, true])(
+  "preserves a source-encoded lone surrogate at the preview boundary (truncated=%s)",
+  (truncated) => {
+    const text = Buffer.concat([
+      Buffer.from("a".repeat(79)),
+      Buffer.from([0xed, 0xa0, 0x80]),
+      ...(truncated ? [Buffer.from("z")] : []),
+    ]);
+    const report = parse(withConsts([marshalUnicode(text)]));
+    expect(root(report).consts[0]).toEqual({
+      kind: "str",
+      value: "a".repeat(79) + "\ud800",
+      bytes: truncated ? 83 : 82,
+      truncated,
+    });
+  },
+);

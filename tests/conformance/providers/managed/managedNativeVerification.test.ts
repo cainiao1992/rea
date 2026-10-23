@@ -375,7 +375,40 @@ it("keeps literal module names distinct and accepts the shared-library lib alias
   });
 });
 
-it("keeps name candidates unresolved when a required module identity is absent", () => {
+it("keeps explicit PE module suffixes distinct and permits the Windows DLL variation", () => {
+  const verify = (scope: string, modulePath: string) =>
+    verifyManagedNativeBoundaries({
+      ...inputWithImportScope(scope),
+      native_observations: [nativeFunctionEvidence(modulePath, "pe")],
+    }).pinvoke_imports[0];
+
+  expect(
+    verify("nativehelper.dll", "/examples/nativehelper.dll"),
+  ).toMatchObject({
+    status: "verified",
+    basis: "exact-function-name",
+  });
+  for (const suffix of ["exe", "node"]) {
+    expect(
+      verify("nativehelper.dll", `/examples/nativehelper.${suffix}`),
+    ).toMatchObject({
+      status: "contradicted",
+      basis: "module-mismatch",
+    });
+  }
+  expect(verify("nativehelper", "/examples/nativehelper.dll")).toMatchObject({
+    status: "verified",
+    basis: "exact-function-name",
+  });
+  expect(
+    verify("C:\\examples\\nativehelper.dll", "C:\\examples\\nativehelper.dll"),
+  ).toMatchObject({ status: "verified" });
+  expect(
+    verify("C:\\examples\\nativehelper.dll", "C:\\other\\nativehelper.dll"),
+  ).toMatchObject({ status: "contradicted", basis: "module-mismatch" });
+});
+
+it("keeps empty identities unknown and compares suffix-only identities as data", () => {
   for (const scope of [null, "", "   "]) {
     const result = verifyManagedNativeBoundaries({
       ...inputWithImportScope(scope),
@@ -402,8 +435,8 @@ it("keeps name candidates unresolved when a required module identity is absent",
       native_observations: [nativeEvidenceWithExports(["open_native"], path)],
     });
     expect(extensionOnly.pinvoke_imports[0]).toMatchObject({
-      status: "unresolved",
-      basis: "module-identity-unknown",
+      status: "contradicted",
+      basis: "module-mismatch",
       candidates: [{ name: "open_native", module_path: path }],
     });
   }
@@ -423,6 +456,89 @@ it("keeps name candidates unresolved when a required module identity is absent",
       module_path: null,
     },
     candidates: [{ name: "open_native" }],
+  });
+});
+
+it("matches versioned ELF SONAME variations without dropping their version", () => {
+  const result = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("nativedep.so.6"),
+    native_observations: [
+      nativeFunctionEvidence("/examples/libnativedep.so.6", "elf"),
+    ],
+  });
+  expect(result.pinvoke_imports[0]).toMatchObject({
+    status: "verified",
+    matched_native: { module_path: "/examples/libnativedep.so.6" },
+  });
+
+  const relativePath = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("relative/nativedep.so.6"),
+    native_observations: [
+      nativeFunctionEvidence("/examples/relative/nativedep.so.6", "elf"),
+    ],
+  });
+  expect(relativePath.pinvoke_imports[0]).toMatchObject({ status: "verified" });
+
+  const basenameOnly = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("relative/nativedep.so.6"),
+    native_observations: [
+      nativeFunctionEvidence("/examples/other/nativedep.so.6", "elf"),
+    ],
+  });
+  expect(basenameOnly.pinvoke_imports[0]).toMatchObject({
+    status: "unresolved",
+    basis: "module-identity-unknown",
+  });
+});
+
+it("keeps POSIX backslashes literal in absolute module paths", () => {
+  const path = "/examples/native\\helper.so";
+  const exact = verifyManagedNativeBoundaries({
+    ...inputWithImportScope(path),
+    native_observations: [nativeFunctionEvidence(path, "elf")],
+  });
+  expect(exact.pinvoke_imports[0]).toMatchObject({ status: "verified" });
+
+  const slashEquivalent = verifyManagedNativeBoundaries({
+    ...inputWithImportScope(path),
+    native_observations: [
+      nativeFunctionEvidence("/examples/native/helper.so", "elf"),
+    ],
+  });
+  expect(slashEquivalent.pinvoke_imports[0]).toMatchObject({
+    status: "contradicted",
+    basis: "module-mismatch",
+  });
+});
+
+it("applies Unix suffix variations even when the name already has the suffix", () => {
+  const result = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("nativehelper.dylib"),
+    native_observations: [
+      nativeFunctionEvidence("/examples/nativehelper.dylib.dylib", "mach-o"),
+    ],
+  });
+  expect(result.pinvoke_imports[0]).toMatchObject({ status: "verified" });
+});
+
+it("does not append the Windows DLL suffix after a trailing period", () => {
+  const exact = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("nativehelper."),
+    native_observations: [
+      nativeFunctionEvidence("/examples/nativehelper.", "pe"),
+    ],
+  });
+  expect(exact.pinvoke_imports[0]).toMatchObject({ status: "verified" });
+
+  const appended = verifyManagedNativeBoundaries({
+    ...inputWithImportScope("nativehelper."),
+    native_observations: [
+      nativeFunctionEvidence("/examples/nativehelper.dll", "pe"),
+    ],
+  });
+  expect(appended.pinvoke_imports[0]).toMatchObject({
+    status: "contradicted",
+    basis: "module-mismatch",
   });
 });
 

@@ -1,5 +1,3 @@
-import { basename } from "node:path";
-
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import type { Evidence } from "../evidence.js";
 import type { ManagedNativeObservationFacts } from "./managedNativeVerificationSource.js";
@@ -55,27 +53,81 @@ type ModuleCompatibility = "match" | "mismatch" | "unknown";
 const declaredModuleIdentity = (scope: string | null): boolean =>
   scope !== null &&
   scope.trim().length > 0 &&
-  normalizeModule(scope, false).length > 0;
+  moduleFilename(scope, false).length > 0;
 
-const normalizeModule = (value: string, caseSensitive: boolean): string => {
-  const basename_ = basename(value);
-  const comparable = caseSensitive ? basename_ : basename_.toLowerCase();
-  return comparable.replace(/\.(dll|dylib|so|node|exe)$/u, "");
-};
-
-const moduleIdentities = (
+const moduleFilename = (
   value: string,
   caseSensitive: boolean,
-): ReadonlySet<string> => {
-  const filename = caseSensitive
-    ? basename(value)
-    : basename(value).toLowerCase();
-  const stem = normalizeModule(value, caseSensitive);
-  const identities = new Set([stem]);
-  if (/\.(dylib|so)$/u.test(filename) && stem.startsWith("lib"))
-    identities.add(stem.slice("lib".length));
-  identities.delete("");
-  return identities;
+  format?: string | null,
+): string => {
+  const separators = format === "elf" || format === "mach-o" ? /\//u : /[\\/]/u;
+  const filename = value.split(separators).at(-1) ?? value;
+  return caseSensitive ? filename : filename.toLowerCase();
+};
+
+const isAbsoluteModulePath = (value: string, format?: string | null): boolean =>
+  value.startsWith("/") ||
+  (format === "pe" &&
+    (/^[a-z]:[\\/]/iu.test(value) || value.startsWith("\\\\")));
+
+const hasModulePathSeparator = (
+  value: string,
+  format: string | null,
+): boolean => (format === "pe" ? /[\\/]/u.test(value) : value.includes("/"));
+
+const unixModuleCandidates = (
+  value: string,
+  suffix: ".so" | ".dylib",
+): readonly string[] => {
+  const suffixIndex = value.indexOf(suffix);
+  const containsSuffix =
+    suffixIndex >= 0 &&
+    (suffixIndex + suffix.length === value.length ||
+      value[suffixIndex + suffix.length] === ".");
+  const hasPath = value.includes("/");
+  const libPrefix = (name: string): string | null =>
+    hasPath ? null : `lib${name}`;
+  const suffixedName = `${value}${suffix}`;
+  const libSuffixedName = libPrefix(suffixedName);
+  const libName = libPrefix(value);
+  if (containsSuffix)
+    return [
+      value,
+      ...(libName === null ? [] : [libName]),
+      suffixedName,
+      ...(libSuffixedName === null ? [] : [libSuffixedName]),
+    ];
+  return [
+    suffixedName,
+    ...(libSuffixedName === null ? [] : [libSuffixedName]),
+    value,
+    ...(libName === null ? [] : [libName]),
+  ];
+};
+
+/** Candidate module names documented for each native loader platform. */
+const moduleCandidates = (
+  value: string,
+  format: string | null,
+): readonly string[] => {
+  if (isAbsoluteModulePath(value, format)) return [value];
+  if (format === "pe")
+    return /\.(dll|exe)$/iu.test(value) || value.endsWith(".")
+      ? [value]
+      : [value, `${value}.dll`];
+  if (format === "elf") return unixModuleCandidates(value, ".so");
+  if (format === "mach-o") return unixModuleCandidates(value, ".dylib");
+  return [value];
+};
+
+const plausiblePlatformCandidates = (value: string): readonly string[] => {
+  return [
+    ...new Set([
+      ...moduleCandidates(value, "pe"),
+      ...moduleCandidates(value, "elf"),
+      ...moduleCandidates(value, "mach-o"),
+    ]),
+  ];
 };
 
 const moduleValueCompatibility = (
@@ -83,16 +135,82 @@ const moduleValueCompatibility = (
   observed: string,
   format: string | null,
 ): ModuleCompatibility => {
-  if (
-    [...moduleIdentities(expected, true)].some((identity) =>
-      moduleIdentities(observed, true).has(identity),
+  const exactCandidates = moduleCandidates(expected, format);
+  const expectedIsAbsolutePath = isAbsoluteModulePath(expected, format);
+  if (expectedIsAbsolutePath) {
+    const observedIsAbsolutePath = isAbsoluteModulePath(observed, format);
+    if (!observedIsAbsolutePath) {
+      const hasMatchingFilename = exactCandidates.some(
+        (candidate) =>
+          moduleFilename(candidate, format !== "pe", format) ===
+          moduleFilename(observed, format !== "pe", format),
+      );
+      return hasMatchingFilename ? "unknown" : "mismatch";
+    }
+    const fold = format === "pe";
+    const normalize = (path: string) =>
+      fold ? path.replaceAll("\\", "/").toLowerCase() : path;
+    return exactCandidates.some(
+      (candidate) => normalize(candidate) === normalize(observed),
     )
-  )
-    return "match";
-  const caseFoldedMatch = [...moduleIdentities(expected, false)].some(
-    (identity) => moduleIdentities(observed, false).has(identity),
+      ? "match"
+      : format !== "pe" &&
+          format !== "elf" &&
+          exactCandidates.some(
+            (candidate) =>
+              normalize(candidate).toLowerCase() ===
+              normalize(observed).toLowerCase(),
+          )
+        ? "unknown"
+        : "mismatch";
+  }
+  if (hasModulePathSeparator(expected, format)) {
+    const isObservedAbsolute = isAbsoluteModulePath(observed, format);
+    if (!isObservedAbsolute && exactCandidates.includes(observed))
+      return "match";
+    const normalizePath = (path: string) =>
+      format === "pe" ? path.replaceAll("\\", "/").toLowerCase() : path;
+    if (
+      !isObservedAbsolute &&
+      format === "pe" &&
+      exactCandidates.some(
+        (candidate) => normalizePath(candidate) === normalizePath(observed),
+      )
+    )
+      return "match";
+    if (isObservedAbsolute) {
+      if (
+        exactCandidates.some((candidate) =>
+          normalizePath(observed).endsWith(`/${normalizePath(candidate)}`),
+        )
+      )
+        return "match";
+    }
+    const sameFilename = exactCandidates.some(
+      (candidate) =>
+        moduleFilename(candidate, false, format) ===
+        moduleFilename(observed, false, format),
+    );
+    return sameFilename ? "unknown" : "mismatch";
+  }
+  const observedFilename = moduleFilename(observed, true, format);
+  if (exactCandidates.includes(observedFilename)) return "match";
+  const caseFoldedCandidates = exactCandidates.map((candidate) =>
+    moduleFilename(candidate, false, format),
   );
-  if (!caseFoldedMatch) return "mismatch";
+  const observedFolded = moduleFilename(observed, false, format);
+  if (!caseFoldedCandidates.includes(observedFolded)) {
+    if (
+      format !== "pe" &&
+      format !== "elf" &&
+      format !== "mach-o" &&
+      plausiblePlatformCandidates(expected)
+        .map((candidate) => moduleFilename(candidate, false, format))
+        .includes(observedFolded)
+    )
+      return "unknown";
+    return "mismatch";
+  }
   if (format === "elf") return "mismatch";
   if (format === "pe") return "match";
   return "unknown";
@@ -106,10 +224,13 @@ const moduleCompatibility = (
   if (
     scope === null ||
     scope.trim().length === 0 ||
-    normalizeModule(scope, false).length === 0
+    moduleFilename(scope, false).length === 0
   )
     return "unknown";
-  const values = [symbol.module_name, symbol.module_path].filter(
+  const observedValues = isAbsoluteModulePath(scope, format)
+    ? [symbol.module_path]
+    : [symbol.module_name, symbol.module_path];
+  const values = observedValues.filter(
     (value): value is string => value !== null && value.length > 0,
   );
   if (values.length === 0) return "unknown";
@@ -123,7 +244,7 @@ const moduleCompatibility = (
 
 const hasModuleIdentity = (symbol: NativeSymbol): boolean =>
   [symbol.module_name, symbol.module_path].some(
-    (value) => value !== null && normalizeModule(value, false).length > 0,
+    (value) => value !== null && moduleFilename(value, false).length > 0,
   );
 
 const candidateNames = (

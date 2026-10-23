@@ -351,7 +351,8 @@ const appendFile = (
   if (parsed === undefined) return;
   output.limitations.push(...parsed.limitations);
   for (const relationship of parsed.relationships) {
-    const { resolutionStrategy, ...graphRelationship } = relationship;
+    const { resolutionStrategy, resolutionBasePath, ...graphRelationship } =
+      relationship;
     if (graphRelationship.resolution !== "internal") {
       output.relationships.push(graphRelationship);
       continue;
@@ -363,7 +364,7 @@ const appendFile = (
           ? "source-require"
           : "source-import";
     const resolved = resolveInternalSpecifier(
-      graphRelationship.from_path,
+      resolutionBasePath ?? graphRelationship.from_path,
       graphRelationship.to,
       context,
       mode,

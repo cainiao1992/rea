@@ -8,7 +8,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
 cliTest(
-  "preserves unknown CommonJS resolution when Node is given another base",
+  "resolves a proven createRequire URL base and preserves unsupported alternatives",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-reference-require-base-");
     const config = await createTestTempDirectory(
@@ -24,10 +24,12 @@ cliTest(
           'custom("./dep.cjs");',
           "const local = createRequire(import.meta.url);",
           'local("./dep.cjs");',
+          'local.resolve("./alias-options.cjs", { paths: [] });',
         ].join("\n"),
       ),
       writeFile(join(root, "dep.cjs"), "module.exports = 'root';\n"),
       writeFile(join(root, "sub", "dep.cjs"), "module.exports = 'sub';\n"),
+      writeFile(join(root, "sub", "entry.cjs"), "module.exports = {};\n"),
     ]);
 
     const result = await cli.run({
@@ -46,10 +48,10 @@ cliTest(
       expect.arrayContaining([
         {
           from_path: "main.mjs",
-          to: "./dep.cjs",
+          to: "sub/dep.cjs",
           kind: "requires",
-          resolution: "unknown",
-          parse_state: "partial",
+          resolution: "internal",
+          parse_state: "parsed",
         },
         {
           from_path: "main.mjs",
@@ -57,6 +59,13 @@ cliTest(
           kind: "requires",
           resolution: "internal",
           parse_state: "parsed",
+        },
+        {
+          from_path: "main.mjs",
+          to: "./alias-options.cjs",
+          kind: "requires",
+          resolution: "unknown",
+          parse_state: "partial",
         },
       ]),
     );
@@ -78,13 +87,16 @@ cliTest(
         join(root, "main.cjs"),
         [
           'require.resolve("./dep.cjs");',
-          'require.resolve("./dep.cjs", { paths: [__dirname] });',
+          'require.resolve("./same-path.cjs", { paths: [__dirname] });',
           'require.resolve("./dep.cjs", { paths: [__dirname + "/sub"] });',
           'require.resolve("./dep.cjs", { paths: [] });',
+          'function shadow(__dirname) { require.resolve("./shadow.cjs", { paths: [__dirname] }); }',
         ].join("\n"),
       ),
       writeFile(join(root, "dep.cjs"), "module.exports = 'root';\n"),
+      writeFile(join(root, "same-path.cjs"), "module.exports = 'same path';\n"),
       writeFile(join(root, "sub", "dep.cjs"), "module.exports = 'sub';\n"),
+      writeFile(join(root, "shadow.cjs"), "module.exports = 'shadow';\n"),
     ]);
 
     const result = await cli.run({
@@ -118,8 +130,22 @@ cliTest(
           resolution: "unknown",
           parse_state: "partial",
         },
+        {
+          from_path: "main.cjs",
+          to: "same-path.cjs",
+          kind: "requires",
+          resolution: "internal",
+          parse_state: "parsed",
+        },
+        {
+          from_path: "main.cjs",
+          to: "./shadow.cjs",
+          kind: "requires",
+          resolution: "unknown",
+          parse_state: "partial",
+        },
       ]),
     );
-    expect(relationships).toHaveLength(2);
+    expect(relationships).toHaveLength(4);
   },
 );

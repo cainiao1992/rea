@@ -48,6 +48,8 @@ interface ReferenceSourceImportRelationship {
   readonly parse_state: ReferenceSourceImportParseState;
   /** Distinguishes call-form CommonJS require from TS import-equals `requires`. */
   readonly resolutionStrategy?: "runtime-require";
+  /** Internal lookup origin for a proven createRequire URL base. */
+  readonly resolutionBasePath?: string;
 }
 
 interface ReferenceSourceParseFailure {
@@ -126,6 +128,7 @@ const appendRelationship = (
     readonly parseState: ReferenceSourceImportParseState;
     readonly resolution?: ReferenceSourceImportResolution;
     readonly resolutionStrategy?: "runtime-require";
+    readonly resolutionBasePath?: string;
   },
 ): void => {
   if (input.to === undefined) return;
@@ -144,6 +147,9 @@ const appendRelationship = (
     ...(input.resolutionStrategy === undefined
       ? {}
       : { resolutionStrategy: input.resolutionStrategy }),
+    ...(input.resolutionBasePath === undefined
+      ? {}
+      : { resolutionBasePath: input.resolutionBasePath }),
   });
 };
 
@@ -236,7 +242,12 @@ const extractRequireAndDynamicImports = (
   from_path: string,
   relationships: ReferenceSourceImportRelationship[],
   limitations: string[],
-  requireCallBases: ReadonlyMap<CallExpression, "source-file" | "unknown">,
+  requireCallBases: ReadonlyMap<
+    CallExpression,
+    | "source-file"
+    | { readonly kind: "source-relative-file"; readonly path: string }
+    | "unknown"
+  >,
 ): void => {
   // Single traversal owner: iterative, VISITOR_KEYS-gated, no recursion over
   // loc/comment objects. Survives deeply nested generated member chains that
@@ -280,6 +291,11 @@ const extractRequireAndDynamicImports = (
           ...(uncertainResolution
             ? {}
             : { resolutionStrategy: "runtime-require" as const }),
+          ...(typeof resolutionBase === "object"
+            ? {
+                resolutionBasePath: resolutionBase.path,
+              }
+            : {}),
         });
       }
       continue;

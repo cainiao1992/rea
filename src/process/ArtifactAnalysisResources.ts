@@ -15,15 +15,20 @@ import {
   type AnalysisPartialObservation,
 } from "../domain/analysisErrorBase.js";
 import {
+  AnalysisAccessDeniedError,
   AnalysisCancelledError,
   AnalysisArtifactChangedError,
+  AnalysisInputError,
   AnalysisResourceConstraintError,
   AnalysisOutputError,
   AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
+import {
+  fixedAllowanceOptions,
+  fixedProducerInputAllowance,
+} from "../domain/fixedAllowanceRemediation.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -43,6 +48,14 @@ export type ArtifactAnalysisRuntime = Pick<
   PrivateRuntimeRoot,
   "path" | "close"
 >;
+
+interface SelectedArtifactRead {
+  readonly path: string;
+  readonly maximumBytes: number;
+  readonly allowanceName: string;
+  readonly observedOutput: AnalysisCapturedOutput | undefined;
+  readonly signal?: AbortSignal | undefined;
+}
 
 export const artifactCommandOutput = (
   snapshot: ProviderProcessSnapshot,
@@ -144,6 +157,66 @@ export class ArtifactAnalysisResources {
       undefined,
       this.#artifacts.scope,
     );
+  }
+
+  /** Admit a selected input and classify its physical failure before later stages. */
+  async readSelectedArtifact(input: SelectedArtifactRead) {
+    const operation = this.#artifacts.operation;
+    try {
+      return await this.read(input.path, input.maximumBytes, input.signal);
+    } catch (cause: unknown) {
+      throw this.#selectedArtifactFailure(cause, input, operation);
+    }
+  }
+
+  #selectedArtifactFailure(
+    cause: unknown,
+    input: SelectedArtifactRead,
+    operation: string,
+  ): AnalysisError {
+    const { path, maximumBytes, allowanceName, observedOutput } = input;
+    if (cause instanceof AnalysisError) return cause;
+    if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined)
+      return this.cleanupFailure(
+        cause,
+        (primary) => this.#selectedArtifactFailure(primary, input, operation),
+        observedOutput,
+        operation,
+      );
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
+      return new AnalysisCancelledError(operation, {
+        cause: artifactFileCancellationCause(cause),
+        ...(observedOutput === undefined
+          ? {}
+          : { capturedOutput: observedOutput }),
+      });
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "limit")
+      return new AnalysisResourceConstraintError(
+        operation,
+        "file-size",
+        reason,
+        { input_bytes: maximumBytes },
+        {
+          cause,
+          ...fixedProducerInputAllowance(maximumBytes, allowanceName),
+        },
+      );
+    if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
+      return new AnalysisArtifactChangedError(operation, path, reason, {
+        cause,
+      });
+    if (
+      cause instanceof Error &&
+      "code" in cause &&
+      (cause.code === "EACCES" || cause.code === "EPERM")
+    )
+      return new AnalysisAccessDeniedError(operation, path, cause.code, {
+        cause,
+      });
+    return new AnalysisInputError(operation, { cause }, [
+      { path: ["path"], reason: "invalid_value", message: reason },
+    ]);
   }
 
   readLimits(limits: LinuxResourceLimits): Promise<LinuxResourceLimits> {

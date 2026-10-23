@@ -39,7 +39,6 @@ import {
   type AnalysisCapturedOutput,
 } from "../domain/analysisErrorBase.js";
 import {
-  AnalysisAccessDeniedError,
   AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
@@ -48,10 +47,7 @@ import {
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { createEvidence } from "../domain/evidence.js";
-import {
-  fixedAllowanceOptions,
-  fixedProducerInputAllowance,
-} from "../domain/fixedAllowanceRemediation.js";
+import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { windowAnnotationText } from "../domain/signals/annotationTextWindow.js";
 import {
@@ -129,12 +125,8 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
     options?: ExecutionOptions,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const operation = "path" in input ? OPERATION : "inspect_signal_decoders";
-    let phase:
-      | "configuration"
-      | "artifact"
-      | "workspace"
-      | "producer"
-      | "integrity" = "configuration";
+    let phase: "configuration" | "workspace" | "producer" | "integrity" =
+      "configuration";
     let capturedOutput: AnalysisCapturedOutput | undefined;
     let resourcePath = "path" in input ? input.path : "sigrok decoder catalog";
     let effectiveLimits: LinuxResourceLimits | undefined;
@@ -321,12 +313,13 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
           }),
         );
       } else {
-        phase = "artifact";
-        const selected = await this.#resources.read(
-          input.path,
-          LIMITS.input_bytes,
-          options?.signal,
-        );
+        const selected = await this.#resources.readSelectedArtifact({
+          path: input.path,
+          maximumBytes: LIMITS.input_bytes,
+          allowanceName: "the fixed sigrok input allowance",
+          observedOutput: capturedOutput,
+          signal: options?.signal,
+        });
         phase = "workspace";
         await writeFile(snapshotPath, selected.bytes, {
           flag: "wx",
@@ -429,12 +422,7 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
   }
   #failure(
     cause: unknown,
-    phase:
-      | "configuration"
-      | "artifact"
-      | "workspace"
-      | "producer"
-      | "integrity",
+    phase: "configuration" | "workspace" | "producer" | "integrity",
     path: string,
     workspacePath: string | null,
     effectiveLimits: LinuxResourceLimits | undefined,
@@ -517,41 +505,10 @@ export class SigrokRecordingProvider implements SignalRecordingPort {
           userMessage: `${reason} On Linux, configure sigrok-cli 0.7.2 through REA_SIGROK_COMMAND and util-linux prlimit through REA_SIGROK_PRLIMIT_COMMAND (default /usr/bin/prlimit).`,
         },
       );
-    if (
-      phase === "artifact" &&
-      cause instanceof ArtifactReaderFailure &&
-      cause.reason === "limit"
-    )
-      return new AnalysisResourceConstraintError(
-        operation,
-        "file-size",
-        reason,
-        { input_bytes: LIMITS.input_bytes },
-        {
-          cause,
-          ...fixedProducerInputAllowance(
-            LIMITS.input_bytes,
-            "the fixed sigrok input allowance",
-          ),
-        },
-      );
     if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
       return new AnalysisArtifactChangedError(operation, path, reason, {
         cause,
       });
-    if (
-      phase === "artifact" &&
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "EACCES" || cause.code === "EPERM")
-    )
-      return new AnalysisAccessDeniedError(operation, path, cause.code, {
-        cause,
-      });
-    if (phase === "artifact")
-      return new AnalysisInputError(operation, { cause }, [
-        { path: ["path"], reason: "invalid_value", message: reason },
-      ]);
     return new AnalysisOutputError(operation, reason, {
       cause,
       ...(observedOutput === undefined

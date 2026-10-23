@@ -37,19 +37,14 @@ import {
   type AnalysisCapturedOutput,
 } from "../domain/analysisErrorBase.js";
 import {
-  AnalysisAccessDeniedError,
   AnalysisArtifactChangedError,
   AnalysisCancelledError,
   AnalysisCapabilityUnavailableError,
-  AnalysisInputError,
   AnalysisOutputError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { createEvidence } from "../domain/evidence.js";
-import {
-  fixedAllowanceOptions,
-  fixedProducerInputAllowance,
-} from "../domain/fixedAllowanceRemediation.js";
+import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import {
   type InspectPacketCaptureInput,
@@ -137,12 +132,8 @@ export class TsharkCaptureProvider implements PacketCapturePort {
     // TShark 4.6.9 emits a 22.3 MB glossary; keep capture output capped at 4 MiB.
     const limits =
       "path" in input ? LIMITS : { ...LIMITS, output_bytes: 32 * 1024 * 1024 };
-    let phase:
-      | "configuration"
-      | "artifact"
-      | "workspace"
-      | "producer"
-      | "integrity" = "configuration";
+    let phase: "configuration" | "workspace" | "producer" | "integrity" =
+      "configuration";
     let capturedOutput: AnalysisCapturedOutput | undefined;
     let resourcePath = "path" in input ? input.path : "TShark field glossary";
     let effectiveLimits: LinuxResourceLimits | undefined;
@@ -298,12 +289,13 @@ export class TsharkCaptureProvider implements PacketCapturePort {
           }),
         );
       } else {
-        phase = "artifact";
-        const selected = await this.#resources.read(
-          input.path,
-          LIMITS.input_bytes,
-          options?.signal,
-        );
+        const selected = await this.#resources.readSelectedArtifact({
+          path: input.path,
+          maximumBytes: LIMITS.input_bytes,
+          allowanceName: "the fixed packet-capture input allowance",
+          observedOutput: capturedOutput,
+          signal: options?.signal,
+        });
         phase = "workspace";
         await writeFile(snapshotPath, selected.bytes, {
           flag: "wx",
@@ -428,12 +420,7 @@ export class TsharkCaptureProvider implements PacketCapturePort {
   }
   #failure(
     cause: unknown,
-    phase:
-      | "configuration"
-      | "artifact"
-      | "workspace"
-      | "producer"
-      | "integrity",
+    phase: "configuration" | "workspace" | "producer" | "integrity",
     path: string,
     workspacePath: string | null,
     effectiveLimits: LinuxResourceLimits | undefined,
@@ -521,41 +508,10 @@ export class TsharkCaptureProvider implements PacketCapturePort {
           userMessage: `${reason} On Linux, supply TShark 4.x on PATH or through absolute REA_TSHARK_COMMAND, and util-linux prlimit through REA_TSHARK_PRLIMIT_COMMAND (default /usr/bin/prlimit).`,
         },
       );
-    if (
-      phase === "artifact" &&
-      cause instanceof ArtifactReaderFailure &&
-      cause.reason === "limit"
-    )
-      return new AnalysisResourceConstraintError(
-        operation,
-        "file-size",
-        reason,
-        { input_bytes: LIMITS.input_bytes },
-        {
-          cause,
-          ...fixedProducerInputAllowance(
-            LIMITS.input_bytes,
-            "the fixed packet-capture input allowance",
-          ),
-        },
-      );
     if (cause instanceof ArtifactReaderFailure && cause.reason === "integrity")
       return new AnalysisArtifactChangedError(operation, path, reason, {
         cause,
       });
-    if (
-      phase === "artifact" &&
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "EACCES" || cause.code === "EPERM")
-    )
-      return new AnalysisAccessDeniedError(operation, path, cause.code, {
-        cause,
-      });
-    if (phase === "artifact")
-      return new AnalysisInputError(operation, { cause }, [
-        { path: ["path"], reason: "invalid_value", message: reason },
-      ]);
     return new AnalysisOutputError(operation, reason, {
       cause,
       ...(observedOutput === undefined

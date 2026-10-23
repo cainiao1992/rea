@@ -15,7 +15,8 @@ import {
   mcpHttpListenerPortSchema,
   type McpHttpEndpoint,
 } from "../config/mcpHttpEndpoint.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import type { StreamableHttpListenError } from "../server/http/streamableHttpListenError.js";
 import {
   AnalysisCancelledError,
@@ -215,16 +216,10 @@ const serveEnvironmentCommand = async (
     if (!(cause instanceof StreamableHttpListenError)) throw cause;
     return cliError(transportError(endpoint.value, cause));
   }
-  let failure: StreamableHttpListenError | undefined;
-  try {
-    failure = await Promise.race([untilAborted(signal), listenerFailed]);
-  } finally {
-    await served.close();
-  }
-  if (failure !== undefined)
-    return cliError(transportError(endpoint.value, failure));
-  return {
-    status: "stopped",
+  const failure = await Promise.race([untilAborted(signal), listenerFailed]);
+  const listenerError =
+    failure === undefined ? undefined : transportError(endpoint.value, failure);
+  const observation = {
     url: served.url,
     environment: served.card.name,
     tools: served.card.capabilities.tools.length,
@@ -232,6 +227,25 @@ const serveEnvironmentCommand = async (
     manifest_evidence_id: source.manifestEvidenceId,
     state: report,
   };
+  try {
+    await served.close();
+  } catch (cause: unknown) {
+    if (!(cause instanceof AnalysisError)) throw cause;
+    if (listenerError !== undefined)
+      return cliError(
+        analysisErrorWithCleanupFailure(
+          listenerError,
+          cause,
+          CLI_COMMANDS.environmentServe,
+        ).bindCleanupDependencies([cause]),
+      );
+    cause.retainDiagnostics({
+      shutdown_observation: { status: "shutdown_requested", ...observation },
+    });
+    return cliError(cause);
+  }
+  if (listenerError !== undefined) return cliError(listenerError);
+  return { status: "stopped", ...observation };
 };
 
 interface ExportArguments {

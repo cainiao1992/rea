@@ -850,6 +850,12 @@ Refusals before binding (unreadable files, non-Evidence JSON, capture Evidence
 in a format other than HAR, a manifest or state whose parent is not the
 supplied evidence, an unbindable port) print a structured
 error and exit `1`, as does a listener that fails after binding.
+If shutdown fails, the command reports `cleanup_incomplete` with the retained
+server resources. It preserves a primary listener diagnostic, or a
+`shutdown_observation` naming the requested shutdown and its URL, environment,
+tool count and Evidence identifiers. The successful `stopped` document is
+returned only after cleanup is confirmed. The same in-process server owner
+retains failed stages for retry; the CLI exposes no separate retry command.
 `rea environment-export` is one-shot: it prints the written files and exits
 `0`, or prints a structured `invalid_request` error and exits `1` for the same
 pair refusals, a non-empty or file-occupied directory, a missing package

@@ -190,6 +190,7 @@ const ENHANCED_REQUIREMENTS: ReadonlyMap<string, ProviderComposition> = new Map(
     get_objc_classes: ["list_names"],
     get_objc_protocols: ["list_names"],
     batch_decompile: ["procedure_pseudo_code"],
+    decompile_all: ["list_procedures", "procedure_pseudo_code"],
     get_call_graph: CALL_RELATIONSHIP_COMPOSITION,
     trace_call_path: CALL_RELATIONSHIP_COMPOSITION,
     analyze_swift_types: ["list_procedures"],

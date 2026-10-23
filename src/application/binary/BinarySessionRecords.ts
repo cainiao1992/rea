@@ -28,6 +28,7 @@ import { err, ok, type Result } from "../../domain/result.js";
 import type {
   AnalysisExecution,
   AnalysisOperation,
+  RetainedResourceScope,
 } from "../AnalysisProvider.js";
 import { AnalysisSnapshotCache } from "./AnalysisSnapshotCache.js";
 import { InvestigationRecords } from "../investigation/InvestigationRecords.js";
@@ -69,6 +70,16 @@ export interface WorkflowSnapshotRecordInput {
 export abstract class BinarySessionRecords {
   readonly #records: InvestigationRecords;
   protected readonly fileResources = new ArtifactResourceScope();
+
+  readonly resourceScope: RetainedResourceScope = {
+    retain: (owner, resource) =>
+      this.fileResources.retain({
+        kind: "lease",
+        resource,
+        lease: { release: () => owner.close() },
+      }),
+    run: (operation) => this.fileResources.run(operation),
+  };
 
   protected get hasPendingFileResources(): boolean {
     return this.fileResources.hasPending;

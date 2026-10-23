@@ -126,6 +126,8 @@ export function createAnalysisExecution(
 
 /** Provider-neutral application capability for one analysis operation. */
 export interface AnalysisOperationPort {
+  /** The session retains workflow resources whose final cleanup failed. */
+  readonly resourceScope?: RetainedResourceScope | undefined;
   execute(
     operation: AnalysisOperation,
     parameters: Readonly<Record<string, JsonValue>>,

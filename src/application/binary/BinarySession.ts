@@ -388,6 +388,7 @@ export class BinarySession
 
   /** External live state cannot be replayed by a direct or composed CLI workflow. */
   allowsSnapshotReplay(operation: AnalysisOperation): boolean {
+    if (operation === "decompile_all") return false;
     if (this.#activeBundleResources !== undefined) return false;
     const capabilities = this.#active?.route.capabilities;
     const descriptor = capabilities?.get(operation);
@@ -1141,6 +1142,7 @@ export class BinarySession
       if (!admission.ok) return admission;
       return ok(
         await operation({
+          resourceScope: this.resourceScope,
           execute: (name, arguments_, options) =>
             this.#execute(name, arguments_, options, Promise.resolve()),
         }),

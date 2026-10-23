@@ -691,6 +691,13 @@ it.each([0, 8, 16])(
     expect(linked.types_field).toBe(FIXTURE_BINARY_BASE + 0xfc0n);
     expect(linked.method_addresses).toEqual(expectedAddresses);
     expect(linked.return_types).toEqual(link(original).return_types);
+    if (tail === 0) {
+      const missingTail = Buffer.from(bytes);
+      missingTail.writeBigUInt64LE(BigInt(bytes.length), 64);
+      expect(failure(missingTail).reason).toBe(
+        "metadata-registration-not-found",
+      );
+    }
   },
 );
 

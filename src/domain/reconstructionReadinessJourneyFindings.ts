@@ -310,7 +310,6 @@ const outcomeFindings = (
   evidenceIds: ReadonlySet<string>,
 ): ReadinessFinding[] => {
   const findings: ReadinessFinding[] = [];
-  const parity = new Map<string, Set<"cli" | "mcp">>();
   for (const outcome of input.operation_outcomes) {
     const expectedCliExit = outcome.expected_success ? 0 : 1;
     if (
@@ -343,8 +342,6 @@ const outcomeFindings = (
           outcome.evidence_ids,
         ),
       );
-    const key = `${outcome.operation}:${outcome.call_kind}:${String(outcome.expected_success)}`;
-    parity.set(key, new Set([...(parity.get(key) ?? []), outcome.surface]));
     addMissingEvidenceFindings(
       findings,
       "export-replay",
@@ -352,32 +349,46 @@ const outcomeFindings = (
       evidenceIds,
     );
   }
-  for (const [key, surfaces] of parity)
-    if (surfaces.size !== 2)
+  for (const [key, outcomes] of groupedOutcomes(input)) {
+    const surfaces = new Set(outcomes.map(({ surface }) => surface));
+    const outcomeEvidence = outcomes.flatMap(
+      ({ evidence_ids }) => evidence_ids,
+    );
+    if (surfaces.size !== 2) {
       findings.push(
         finding(
           "surface-parity-missing",
           "export-replay",
           "fail",
           `CLI/MCP outcome pair is incomplete: ${key}.`,
+          outcomeEvidence,
         ),
       );
-  for (const [key, outcomes] of groupedOutcomes(input)) {
-    const cli = outcomes.find(({ surface }) => surface === "cli");
-    const mcp = outcomes.find(({ surface }) => surface === "mcp");
-    if (
-      cli !== undefined &&
-      mcp !== undefined &&
-      (cli.expected_success !== mcp.expected_success ||
-        cli.error_code !== mcp.error_code)
-    )
+      continue;
+    }
+    // The contract has no run-pair identity. Compare every retained semantic variant,
+    // allowing repeated observations without inventing a pairing from input order.
+    const variants = new Map<string, Set<"cli" | "mcp">>();
+    for (const outcome of outcomes) {
+      const semantic = JSON.stringify([
+        outcome.expected_success,
+        outcome.error_code,
+      ]);
+      let observed = variants.get(semantic);
+      if (observed === undefined) {
+        observed = new Set();
+        variants.set(semantic, observed);
+      }
+      observed.add(outcome.surface);
+    }
+    if ([...variants.values()].some((observed) => observed.size !== 2))
       findings.push(
         finding(
           "surface-semantic-drift",
           "export-replay",
           "fail",
           `CLI/MCP structured outcomes disagree: ${key}.`,
-          [...cli.evidence_ids, ...mcp.evidence_ids],
+          outcomeEvidence,
         ),
       );
   }
@@ -396,7 +407,9 @@ const groupedOutcomes = (
   >();
   for (const outcome of input.operation_outcomes) {
     const key = `${outcome.operation}:${outcome.call_kind}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), outcome]);
+    const outcomes = grouped.get(key);
+    if (outcomes === undefined) grouped.set(key, [outcome]);
+    else outcomes.push(outcome);
   }
   return grouped;
 };

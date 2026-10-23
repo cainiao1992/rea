@@ -73,6 +73,22 @@ Stage `capability_issue` and `next_action` fields map unsupported or failing
 work to the responsible capability and remediation without claiming that the
 requested analysis ran.
 
+Closure counts describe required obligations in the supplied final ledger.
+Every observation marked `ready` must report zero required obligations open.
+Observations marked `open` or `failed` must report a positive required-open
+count. `unknown` may have zero open obligations because limitations can prevent
+a ready verdict independently of that count.
+Every decrease must name that many distinct, verified required obligations;
+an obligation cannot count again in a later observation. The retained history
+is checked for consistency with that ledger, not authenticated as a series of
+complete historical ledgers.
+
+For each operation and call kind, every retained success/error-code variant
+must occur on both CLI and MCP. Repeated observations and their Evidence stay
+in the report snapshot. Equal repeat counts and one-to-one run pairing are not
+claimed: the input has no identity linking an individual CLI attempt to an MCP
+attempt. Differing transport status is checked on each observation separately.
+
 ## Fixtures
 
 The verifier uses only source-owned, redistributable fixtures:

@@ -312,6 +312,8 @@ const collectTransportFacts = (
       length: length.toString(),
       fin: typeof frame.fin === "boolean" ? frame.fin : null,
     });
+    if (typeof frame.fin !== "boolean")
+      fact.incomplete_fact_records.push(ordinal);
   }
 };
 

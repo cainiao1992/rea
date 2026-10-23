@@ -134,6 +134,38 @@ it("keeps incomplete fields unknown and FIN without bytes as metadata", () => {
   expect(traces[0]?.loss_declarations[0]?.packet_number.state).toBe("unknown");
 });
 
+it.each([
+  { fin: undefined, incomplete: [0] },
+  { fin: null, incomplete: [0] },
+  { fin: false, incomplete: [] },
+  { fin: true, incomplete: [] },
+])(
+  "retains STREAM ranges and marks unknown FIN records incomplete: $fin",
+  ({ fin, incomplete }) => {
+    const streamFrame: Record<string, unknown> = {
+      frame_type: "stream",
+      stream_id: 4,
+      offset: 8,
+      length: 3,
+    };
+    if (fin !== undefined) streamFrame.fin = fin;
+    const { traces } = facts(capture([event([streamFrame])]));
+    expect(traces[0]?.incomplete_fact_records).toEqual(incomplete);
+    expect(traces[0]?.streams[0]?.contributions).toEqual([
+      {
+        record_ordinal: 0,
+        frame_index: 0,
+        offset: "8",
+        length: "3",
+        fin: typeof fin === "boolean" ? fin : null,
+      },
+    ]);
+    expect(traces[0]?.streams[0]?.covered_ranges).toEqual([
+      { start: "8", end: "11" },
+    ]);
+  },
+);
+
 it("excludes structural auth material and explicit normalized values without guessing extension secrecy", () => {
   const text = capture([
     {

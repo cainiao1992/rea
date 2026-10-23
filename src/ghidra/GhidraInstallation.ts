@@ -596,21 +596,15 @@ const installationCoordinates = async (
           ...(options.signal === undefined ? {} : { signal: options.signal }),
         },
       );
-      if (!fallback.ok && fallback.error instanceof AnalysisError)
-        throw fallback.error;
       if (fallback.ok) {
         javaCommand = candidate;
         javaProbe = fallback;
         break;
       }
-      javaDiscoveryFailures.push({
-        command: candidate,
-        failure: fallback.error,
-      });
-      if (
-        fallback.error.cancellation !== undefined ||
-        options.signal?.aborted
-      ) {
+      const failure = fallback.error;
+      if (failure instanceof AnalysisError) throw failure;
+      javaDiscoveryFailures.push({ command: candidate, failure });
+      if (failure.cancellation !== undefined || options.signal?.aborted) {
         javaCommand = candidate;
         javaProbe = fallback;
         break;

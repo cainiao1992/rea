@@ -442,10 +442,6 @@ export class NativeDmgArtifactReader implements ArtifactReader {
       try {
         parsed = parseNativeDmgAttachOutput(attached.stdout);
       } catch (cause: unknown) {
-        if (cause instanceof NativeDmgCommandFailure)
-          this.#provenance.push(
-            command(arguments_, ["read", "mount"], cause.exitCode),
-          );
         throw new ArtifactReaderFailure(
           "format",
           "hdiutil returned a malformed attachment plist",
@@ -468,6 +464,10 @@ export class NativeDmgArtifactReader implements ArtifactReader {
         );
       this.#directory = new DirectoryArtifactReader(mountRoot);
     } catch (cause: unknown) {
+      if (cause instanceof NativeDmgCommandFailure)
+        this.#provenance.push(
+          command(arguments_, ["read", "mount"], cause.exitCode),
+        );
       if (cause instanceof NativeDmgCommandFailure && cause.stdout !== "") {
         try {
           this.#attachOutput = parseNativeDmgAttachOutput(cause.stdout);

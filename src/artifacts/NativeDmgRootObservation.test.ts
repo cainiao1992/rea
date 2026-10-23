@@ -42,6 +42,7 @@ it("retains authenticated carrier facts and unknown child coverage when native a
   } catch (cause: unknown) {
     failure = cause;
   }
+  expect(failure).toBeDefined();
   const projected = projectAnalysisError(
     translateArtifactFailure("inspect_artifact", failure),
   );

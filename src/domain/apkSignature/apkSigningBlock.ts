@@ -142,19 +142,49 @@ const centralDirectoryOffset = (
     if (offset !== ZIP64_SENTINEL && size !== ZIP64_SENTINEL)
       return ok({ offset, size, entries, end: eocdOffset });
     return err({
-      kind: "zip64-unsupported",
+      kind: "malformed-zip",
+      offset: eocdOffset,
       detail: "missing Zip64 EOCD locator",
     });
   }
-  const recordOffset = u64(dv, locator + 8);
-  if (
-    recordOffset === null ||
-    recordOffset + 56 > locator ||
-    dv.getUint32(recordOffset, true) !== ZIP64_EOCD_SIGNATURE
-  )
+  // APPNOTE 6.3.10 §4.3.15 makes the record offset relative to its disk.
+  // A selected file cannot resolve another disk's offset as a local span.
+  const recordDisk = dv.getUint32(locator + 4, true);
+  const totalDisks = dv.getUint32(locator + 16, true);
+  if (totalDisks === 0)
+    return err({
+      kind: "malformed-zip",
+      offset: locator + 16,
+      detail: "Zip64 locator declares zero disks",
+    });
+  if (recordDisk >= totalDisks)
+    return err({
+      kind: "malformed-zip",
+      offset: locator + 4,
+      detail: "Zip64 EOCD disk is outside the declared disk count",
+    });
+  if (totalDisks > 1)
     return err({
       kind: "zip64-unsupported",
-      detail: "malformed Zip64 EOCD record",
+      detail: "multi-disk Zip64 archives are not supported",
+    });
+  const recordOffset = u64(dv, locator + 8);
+  if (recordOffset === null)
+    return err({
+      kind: "zip64-unsupported",
+      detail: "Zip64 EOCD offset exceeds safe range",
+    });
+  if (recordOffset + 56 > locator)
+    return err({
+      kind: "malformed-zip",
+      offset: locator + 8,
+      detail: "Zip64 EOCD record extends beyond its locator",
+    });
+  if (dv.getUint32(recordOffset, true) !== ZIP64_EOCD_SIGNATURE)
+    return err({
+      kind: "malformed-zip",
+      offset: recordOffset,
+      detail: "invalid Zip64 EOCD signature",
     });
   const z64Offset = u64(dv, recordOffset + 48);
   const z64Size = u64(dv, recordOffset + 40);

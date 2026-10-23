@@ -85,7 +85,8 @@ export const decodeXmlPropertyList = (text: string) => {
             key = undefined;
           }
         }
-        if (key !== undefined) entries.push([key, ""]);
+        if (key !== undefined)
+          throw new TypeError("Missing value for key while parsing <dict/>");
         // Define own properties safely, including __proto__; the caller owns omission accounting.
         return Object.fromEntries(entries);
       }

@@ -13,6 +13,9 @@ it.each(["EACCES", "EPERM"] as const)(
   "retains %s admission facts through snapshot finalization and exact cleanup retry",
   async (systemCode) => {
     const selected = "/fixture/denied/selected";
+    const temporaryRoot = "/fixture/observer-owned";
+    let allocations = 0;
+    const cleanedRoots: string[] = [];
     const native = Object.assign(new Error("selected root lookup denied"), {
       code: systemCode,
     });
@@ -55,21 +58,26 @@ it.each(["EACCES", "EPERM"] as const)(
     const failure = await prepareProcessCapture(
       scenario,
       undefined,
-      async () => {
+      async (_scenario, _signal, _admission, resources) => {
+        expect(allocations).toBe(1);
+        expect(resources?.observerPaths).toEqual([temporaryRoot]);
         throw snapshotFailure;
       },
       {
         createTemporaryRoot: async () => {
-          throw new Error("admission must precede allocation");
+          allocations++;
+          return temporaryRoot;
         },
-        cleanup: async () => {
-          throw new Error("no temporary root was allocated");
+        cleanup: async (path) => {
+          cleanedRoots.push(path);
         },
       },
     ).catch((cause: unknown) => cause);
     if (!(failure instanceof ProcessCaptureError))
       throw new Error("Expected retained snapshot finalization failure");
     expect(primary.cause).toBe(native);
+    expect(allocations).toBe(1);
+    expect(cleanedRoots).toEqual([temporaryRoot]);
     expect(closes).toBe(0);
     expect(projectAnalysisError(failure)).toMatchObject({
       code: "cleanup_incomplete",
@@ -88,6 +96,7 @@ it.each(["EACCES", "EPERM"] as const)(
     await lease.release();
     await lease.release();
     expect(closes).toBe(1);
+    expect(cleanedRoots).toEqual([temporaryRoot]);
     expect(
       analysisErrorProjectionSchema.parse(projectAnalysisError(failure)),
     ).toMatchObject({

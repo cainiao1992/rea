@@ -212,31 +212,63 @@ export const declaredFileRange = (
   };
 };
 
-/** Map a virtual span without losing precision or selecting an ambiguous alias. */
+/** All file-backed image ranges, including the separately observed PE header. */
+export const fileBackedMappings = (
+  image: BinaryContainer,
+): readonly FileMapping[] =>
+  image.pe_header_mapping === undefined
+    ? image.mappings
+    : [image.pe_header_mapping, ...image.mappings];
+
+/** Map a physically contiguous virtual span across consistent adjacent ranges. */
 export const mappedFileOffset = (
   mappings: readonly FileMapping[],
   address: bigint,
   size: number,
   zeroFills: readonly ZeroFillMapping[] = [],
 ): number => {
+  if (!Number.isSafeInteger(size) || size < 0)
+    throw new BinaryFormatFailure("malformed", "Virtual span size is invalid");
+  const end = address + BigInt(size);
   let found: number | undefined;
+  const covered: { start: bigint; end: bigint }[] = [];
   for (const mapping of mappings) {
-    const delta = address - mapping.address;
+    const mappingEnd = mapping.address + BigInt(mapping.size);
+    const start = address > mapping.address ? address : mapping.address;
+    const overlapEnd = end < mappingEnd ? end : mappingEnd;
     if (
-      delta < 0n ||
-      delta > BigInt(mapping.size) ||
-      BigInt(size) > BigInt(mapping.size) - delta
+      size === 0
+        ? address < mapping.address || address > mappingEnd
+        : start >= overlapEnd
     )
       continue;
-    const offset = mapping.offset + Number(delta);
-    if (found !== undefined && found !== offset)
+    const origin = mapping.offset + Number(address - mapping.address);
+    if (found !== undefined && found !== origin)
       throw new BinaryFormatFailure(
         "malformed",
-        "Virtual address has ambiguous file mappings",
+        "Virtual span has ambiguous or noncontiguous file mappings",
       );
-    found = offset;
+    found = origin;
+    covered.push({ start, end: overlapEnd });
   }
   if (found === undefined)
+    throw new BinaryFormatFailure(
+      "malformed",
+      "Virtual address or string range is not file mapped",
+    );
+  covered.sort((left, right) =>
+    left.start < right.start ? -1 : left.start > right.start ? 1 : 0,
+  );
+  let cursor = address;
+  for (const span of covered) {
+    if (span.start > cursor)
+      throw new BinaryFormatFailure(
+        "malformed",
+        "Virtual address or string range is not file mapped",
+      );
+    if (span.end > cursor) cursor = span.end;
+  }
+  if (cursor < end)
     throw new BinaryFormatFailure(
       "malformed",
       "Virtual address or string range is not file mapped",
@@ -248,22 +280,54 @@ export const mappedFileOffset = (
         "Virtual address has ambiguous file and zero-fill mappings",
       );
   }
-  const end = address + BigInt(size);
-  for (const mapping of mappings) {
-    const start = address > mapping.address ? address : mapping.address;
-    const mappingEnd = mapping.address + BigInt(mapping.size);
-    const overlapEnd = end < mappingEnd ? end : mappingEnd;
-    if (start >= overlapEnd) continue;
-    if (
-      BigInt(found) + start - address !==
-      BigInt(mapping.offset) + start - mapping.address
-    )
+  return found;
+};
+
+/** Read a bounded NUL-terminated string while retaining mapping/alias semantics. */
+export const readMappedCString = (
+  bytes: Buffer,
+  image: BinaryContainer,
+  address: bigint,
+  maximumBytes: number,
+): Buffer => {
+  const mappings = fileBackedMappings(image);
+  const chunks: Buffer[] = [];
+  let length = 0;
+  while (length <= maximumBytes) {
+    const cursor = address + BigInt(length);
+    const mapping = mappings.find(
+      (range) =>
+        range.address <= cursor && cursor < range.address + BigInt(range.size),
+    );
+    if (mapping === undefined) {
+      mappedFileOffset(mappings, cursor, 1, image.zero_fills);
       throw new BinaryFormatFailure(
         "malformed",
-        "Virtual address has ambiguous file mappings",
+        "String range is not file mapped",
       );
+    }
+    const size = Math.min(
+      maximumBytes + 1 - length,
+      Number(mapping.address + BigInt(mapping.size) - cursor),
+    );
+    const offset = mapping.offset + Number(cursor - mapping.address);
+    const chunk = bytes.subarray(offset, offset + size);
+    const terminator = chunk.indexOf(0);
+    const consumed = terminator < 0 ? size : terminator + 1;
+    mappedFileOffset(mappings, cursor, consumed, image.zero_fills);
+    if (terminator >= 0) {
+      const tail = chunk.subarray(0, terminator);
+      if (chunks.length === 0) return tail;
+      chunks.push(tail);
+      return Buffer.concat(chunks, length + terminator);
+    }
+    chunks.push(chunk);
+    length += size;
   }
-  return found;
+  throw new BinaryFormatFailure(
+    "malformed",
+    `String is unterminated or longer than ${String(maximumBytes)} bytes`,
+  );
 };
 
 /** Recognize a wholly zero-filled span while refusing even partial file aliases. */

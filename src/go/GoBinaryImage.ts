@@ -3,6 +3,7 @@ import {
   BinaryResourceFailure,
   BinaryReader,
   mappedFileOffset,
+  fileBackedMappings,
   isZeroFilledSpan,
   type BinaryContainer,
   type FileMapping,
@@ -350,7 +351,8 @@ const readPointerString = (
   address: bigint,
   pointerBits: 32 | 64,
 ): LocatedString => {
-  const { mappings, zero_fills: zeroFills } = container;
+  const mappings = fileBackedMappings(container);
+  const zeroFills = container.zero_fills;
   const width = pointerBits / 8;
   const header = mappedFileOffset(mappings, address, width * 2, zeroFills);
   const valueAddress = reader.word(header, pointerBits);
@@ -381,7 +383,7 @@ const readOptionalModuleString = (
   pointerBits: 32 | 64,
 ): LocatedString =>
   isZeroFilledSpan(
-    container.mappings,
+    fileBackedMappings(container),
     container.zero_fills,
     address,
     (pointerBits / 8) * 2,

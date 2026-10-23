@@ -112,7 +112,14 @@ module record and no dependency records has an observed empty dependency list.
 The built-in TypeScript reader supports ELF, PE and thin Mach-O images, and one
 selected slice of a universal Mach-O, with Go's inline or historical pointer
 build-info encoding. Source ranges refer to the original stable file snapshot,
-including pointer-backed strings. Legacy pointer-backed fields are decoded at
+including pointer-backed strings. The shared native container owns address
+mapping, including file-backed PE headers. A descriptor or string can cross
+adjacent mappings when their virtual addresses map to physically contiguous
+file bytes with the same translation. Gaps, conflicting aliases, zero-fill
+aliases and noncontiguous string source bytes cannot establish a single source
+range and are refused. Native export C strings use the same mapping checks but
+can join multiple source chunks because their result has no single-span source
+contract. Legacy pointer-backed fields are decoded at
 the width declared by Go's build-info record, independently of the image's ELF
 class. It does not scan arbitrary byte strings as compiler metadata.
 

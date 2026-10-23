@@ -20,21 +20,10 @@ import {
 } from "../../../../src/dotnet/ManagedPe.fixture.js";
 
 import { buildManagedPeFixture as buildMultiMethodFixture } from "../../../../scripts/fixtures/managed/pe.mjs";
+import { namespaceBearingNestedTypes } from "../../../fixtures/managedSelectedScope.js";
 
 it("selects namespace-bearing nested declarations from parsed type facts and compares the observed scope", () => {
-  const bytes = buildManagedNestedTypeFixture();
-  const pe = readManagedPeLayout(bytes);
-  if (pe.cli === null) throw new Error("Missing fixture CLI");
-  const layout = readManagedMetadataLayout(
-    bytes,
-    pe.rvaToOffset(pe.cli.metadata.rva, pe.cli.metadata.size, "fixture"),
-    pe.cli.metadata.size,
-  );
-  const column = 4 + layout.stringIndexSize;
-  const namespace = bytes.readUInt16LE(
-    metadataRowOffset(layout, 2, 2) + column,
-  );
-  bytes.writeUInt16LE(namespace, metadataRowOffset(layout, 2, 4) + column);
+  const bytes = namespaceBearingNestedTypes();
   const selected = inspect(bytes, "/fixture/nested-selection.dll", ["Inner"]);
   expect(selected.result.selection?.unmatched_type_names).toEqual([]);
   expect(selected.result.types.map(({ token }) => token)).toEqual([
@@ -65,6 +54,7 @@ it("selects namespace-bearing nested declarations from parsed type facts and com
     ),
     topPe.cli.metadata.size,
   );
+  const column = 4 + topLayout.stringIndexSize;
   topLevel.writeUInt16LE(
     topLevel.readUInt16LE(metadataRowOffset(topLayout, 2, 2) + column),
     metadataRowOffset(topLayout, 2, 4) + column,
@@ -72,6 +62,112 @@ it("selects namespace-bearing nested declarations from parsed type facts and com
   expect(
     inspect(topLevel, "/fixture/top-level.dll", ["Inner"]).result.types,
   ).toEqual([]);
+});
+
+describe("managed comparison selected scope agreement", () => {
+  it("compares retained types rather than equivalent request spellings", () => {
+    const bytes = namespaceBearingNestedTypes();
+    const bare = inspect(bytes, "/fixture/bare.dll", ["Inner"]);
+    const explicit = inspect(bytes, "/fixture/explicit.dll", [
+      "Inner",
+      "Fixture.Inner",
+    ]);
+    expect(explicit.result.types).toEqual(bare.result.types);
+    expect(explicit.result.selection).not.toEqual(bare.result.selection);
+    const comparison = compareManagedMembers(bare, explicit);
+    expect(comparison.coverage.status).toBe("complete-within-inputs");
+    expect(comparison.limitations).toContain(
+      "Both observations cover only the selected declaring types (Fixture.Inner, Inner); member totals and statuses describe those types, not the whole assembly.",
+    );
+  });
+
+  it("distinguishes selected nested owners with identical request and display names", () => {
+    const observe = (swapEnclosing: boolean) =>
+      inspect(
+        buildManagedNestedTypeFixture({
+          swapEnclosing,
+          literalTopLevelName: "OtherInner",
+        }),
+        `/fixture/owner-${String(swapEnclosing)}.dll`,
+        ["Inner"],
+      );
+    const left = observe(false);
+    const right = observe(true);
+    expect(left.result.selection).toEqual(right.result.selection);
+    expect(left.result.types.map(({ full_name }) => full_name)).toEqual([
+      "Inner",
+    ]);
+    expect(right.result.types.map(({ full_name }) => full_name)).toEqual([
+      "Inner",
+    ]);
+    expect(left.result.types[0]?.name_sha256).not.toBe(
+      right.result.types[0]?.name_sha256,
+    );
+    const comparison = compareManagedMembers(left, right);
+    expect(comparison.coverage.status).toBe("partial");
+    expect(comparison.limitations).toContain(
+      "The observations select different declaring types; a member outside the other side's selection is unknown, not added or removed.",
+    );
+  });
+
+  it.each(["historical identities", "partial prefix", "unavailable"])(
+    "keeps selected scope agreement unknown for %s",
+    (condition) => {
+      const source = inspect(
+        namespaceBearingNestedTypes(),
+        "/fixture/scope.dll",
+        ["Inner"],
+      );
+      const limited = structuredClone(source.result);
+      if (condition === "historical identities")
+        limited.types = limited.types.map((type) => ({
+          ...type,
+          name_sha256: null,
+        }));
+      else {
+        limited.metadata.status =
+          condition === "unavailable" ? "malformed" : "partial";
+        limited.coverage.state =
+          condition === "unavailable" ? "unavailable" : "partial";
+        limited.types = limited.types.slice(
+          0,
+          condition === "unavailable" ? 0 : 1,
+        );
+      }
+      const comparison = compareManagedMembers(source, {
+        ...source,
+        result: limited,
+      });
+      expect(comparison.coverage.status).toBe("partial");
+      expect(comparison.limitations).toContainEqual(
+        expect.stringContaining(
+          "Selected declaring-type scope agreement is unknown",
+        ),
+      );
+      expect(comparison.limitations).not.toContain(
+        "The observations select different declaring types; a member outside the other side's selection is unknown, not added or removed.",
+      );
+    },
+  );
+
+  it("recognizes complete empty selected scopes despite different unmatched requests", () => {
+    const bytes = buildManagedPeFixture();
+    const left = inspect(bytes, "/fixture/empty-left.dll", ["Absent.Left"]);
+    const right = inspect(bytes, "/fixture/empty-right.dll", ["Absent.Right"]);
+    expect(left.result.types).toEqual([]);
+    expect(right.result.types).toEqual([]);
+    expect(left.result.selection?.unmatched_type_names).toEqual([
+      "Absent.Left",
+    ]);
+    expect(right.result.selection?.unmatched_type_names).toEqual([
+      "Absent.Right",
+    ]);
+    const comparison = compareManagedMembers(left, right);
+    expect(comparison.coverage.status).toBe("complete-within-inputs");
+    expect(comparison.limitations).toContain(
+      "Both observations select no observed declaring types; requested and unmatched names remain in each source selection.",
+    );
+  });
 });
 
 describe("managed comparison method row coverage", () => {

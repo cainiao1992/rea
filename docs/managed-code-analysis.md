@@ -254,7 +254,15 @@ Coverage describes the selected members. Comparisons leave members outside the
 opposite observation's selection unknown, and application graphs report their
 selected scope as partial. Neither makes an absence claim about the whole
 assembly. Older member Evidence without `selection` remains readable. The
-`method_rows` interval records the examined zero-based MethodDef offset, row
+comparison's aggregate selected-scope agreement uses retained `name_sha256`
+sets, including enclosing names, rather than requested spellings or display
+labels. Equivalent requests can cover the same types, while the same bare name
+can select different nested owners. Incomplete selected inventories or missing
+nominal identities leave that agreement unknown and aggregate coverage partial;
+observed member pairs remain available. Complete empty selected inventories
+agree even if their unmatched request names differ. Whole-assembly and selected
+inventories remain distinct scopes, and each source retains its exact request.
+The `method_rows` interval records the examined zero-based MethodDef offset, row
 count and full table total before type selection. A complete observation can
 cover only that interval. Comparison keeps omissions from a method page unknown:
 build-local row positions cannot prove member absence across builds. Historical

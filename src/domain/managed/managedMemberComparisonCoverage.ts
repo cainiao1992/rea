@@ -8,18 +8,22 @@ import { hasSignatureResolution } from "./managedMemberSignatureIdentity.js";
 interface ComparisonCoverageInput {
   readonly left: ManagedMemberInspection;
   readonly right: ManagedMemberInspection;
+  readonly selectionAgreement: SelectionAgreement;
 }
+
+type SelectionAgreement = "same" | "different" | "unknown";
 
 export const buildComparisonCoverage = ({
   left,
   right,
+  selectionAgreement,
 }: ComparisonCoverageInput): ManagedMemberComparisonResult["coverage"] => {
   const leftStatus = sideCoverageStatus(left);
   const rightStatus = sideCoverageStatus(right);
   const unknownInput =
     left.coverage.state !== "complete" ||
     right.coverage.state !== "complete" ||
-    !sameSelection(left, right) ||
+    selectionAgreement !== "same" ||
     !sameMethodRows(left, right);
   return {
     status:
@@ -58,18 +62,28 @@ export const selectedDeclaringTypes = (
     ? null
     : new Set(result.types.map(({ full_name }) => full_name));
 
-/** Whether both observations inspected the same declaring types. */
-const sameSelection = (
+/** Compare the nominal types the owner retained, independently of request spelling. */
+export const compareSelectedTypes = (
   left: ManagedMemberInspection,
   right: ManagedMemberInspection,
-): boolean => {
+): SelectionAgreement => {
   if (left.selection === null || right.selection === null)
-    return left.selection === right.selection;
-  const rightNames = new Set(right.selection.type_names);
-  return (
-    rightNames.size === new Set(left.selection.type_names).size &&
-    left.selection.type_names.every((name) => rightNames.has(name))
-  );
+    return left.selection === right.selection ? "same" : "different";
+  if (
+    left.coverage.state !== "complete" ||
+    right.coverage.state !== "complete" ||
+    left.metadata.status !== "complete" ||
+    right.metadata.status !== "complete" ||
+    left.types.some(({ name_sha256 }) => name_sha256 === null) ||
+    right.types.some(({ name_sha256 }) => name_sha256 === null)
+  )
+    return "unknown";
+  const leftNames = new Set(left.types.map(({ name_sha256 }) => name_sha256));
+  const rightNames = new Set(right.types.map(({ name_sha256 }) => name_sha256));
+  return leftNames.size === rightNames.size &&
+    [...leftNames].every((name) => rightNames.has(name))
+    ? "same"
+    : "different";
 };
 
 const sideCoverageStatus = (
@@ -133,6 +147,7 @@ export const buildComparisonMatching = (
 export const comparisonLimitations = (
   left: ManagedMemberInspection,
   right: ManagedMemberInspection,
+  selectionAgreement: SelectionAgreement = compareSelectedTypes(left, right),
 ): string[] => {
   const limitations: string[] = [
     "Metadata tokens are build-local coordinates; matched pairs are remaps, not persistent identities.",
@@ -160,13 +175,21 @@ export const comparisonLimitations = (
     );
   if (left.coverage.state !== "complete" || right.coverage.state !== "complete")
     limitations.push("At least one managed member observation is partial.");
-  if (!sameSelection(left, right))
+  if (selectionAgreement === "different")
     limitations.push(
       "The observations select different declaring types; a member outside the other side's selection is unknown, not added or removed.",
     );
+  else if (selectionAgreement === "unknown")
+    limitations.push(
+      "Selected declaring-type scope agreement is unknown because at least one observation is incomplete or lacks resolved nominal type identities; matching request names do not establish the same observed scope.",
+    );
+  else if (left.selection !== null && left.types.length === 0)
+    limitations.push(
+      "Both observations select no observed declaring types; requested and unmatched names remain in each source selection.",
+    );
   else if (left.selection !== null)
     limitations.push(
-      `Both observations cover only the selected declaring types (${left.selection.type_names.join(", ")}); member totals and statuses describe those types, not the whole assembly.`,
+      `Both observations cover only the selected declaring types (${[...new Set(left.types.map(({ full_name }) => full_name))].join(", ")}); member totals and statuses describe those types, not the whole assembly.`,
     );
   if (!hasCompleteMethodRows(left) || !hasCompleteMethodRows(right))
     limitations.push(

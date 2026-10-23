@@ -10,6 +10,7 @@ import {
 } from "./managedArtifact.js";
 import {
   buildComparisonCoverage,
+  compareSelectedTypes,
   hasCompleteMethodRows,
   selectedDeclaringTypes,
   buildComparisonMatching,
@@ -288,11 +289,17 @@ export const compareManagedMembers = (
   const allItems = [...methodItems, ...fieldItems];
   const summary = buildComparisonSummary(allItems);
   const matching = buildComparisonMatching(methodItems, fieldItems);
+  const selectionAgreement = compareSelectedTypes(left.result, right.result);
   const coverage = buildComparisonCoverage({
     left: left.result,
     right: right.result,
+    selectionAgreement,
   });
-  const limitations = comparisonLimitations(left.result, right.result);
+  const limitations = comparisonLimitations(
+    left.result,
+    right.result,
+    selectionAgreement,
+  );
   const result = {
     comparison_id: `mmc_${digestCanonicalValue(
       {

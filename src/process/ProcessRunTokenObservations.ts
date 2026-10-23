@@ -7,6 +7,14 @@ import type {
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+/** Only a variable observed on this process supplies its run token. */
+export const processRunIdFromEnvironment = (
+  environment: Readonly<Record<string, string>>,
+): string | undefined =>
+  Object.hasOwn(environment, "REA_PROCESS_RUN_ID")
+    ? environment.REA_PROCESS_RUN_ID
+    : undefined;
+
 /** Read only ownership tokens, using per-process fallback for missing batch rows. */
 export async function* readProcessRunTokens(
   host: ProcessOwnershipHost,
@@ -42,7 +50,7 @@ export async function* readProcessRunTokens(
             : await host.environment(process.pid, signal);
         observation = {
           state: "readable",
-          runId: environment.REA_PROCESS_RUN_ID,
+          runId: processRunIdFromEnvironment(environment),
         };
       } catch (cause: unknown) {
         signal?.throwIfAborted();

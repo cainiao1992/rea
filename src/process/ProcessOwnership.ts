@@ -12,7 +12,10 @@ import {
 } from "./ProcessOwnershipObservation.js";
 import { launcherIdentityFailure } from "./ProcessOwnershipIdentity.js";
 import { descendantsOf, liveProcesses } from "./ProcessOwnershipProcessTree.js";
-import { readProcessRunTokens } from "./ProcessRunTokenObservations.js";
+import {
+  processRunIdFromEnvironment,
+  readProcessRunTokens,
+} from "./ProcessRunTokenObservations.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import type { LinuxEnvironmentRestriction } from "./LinuxProcessStatus.js";
 import { ProcessOwnershipEvidenceOwner } from "./ProcessOwnershipEvidence.js";
@@ -310,7 +313,7 @@ export const readProcessRunId = async (
   host: ProcessOwnershipHost = systemHost,
   signal?: AbortSignal,
 ): Promise<string | undefined> =>
-  (await host.environment(pid, signal)).REA_PROCESS_RUN_ID;
+  processRunIdFromEnvironment(await host.environment(pid, signal));
 
 /** Merge duplicate uncertainty rows from discovery and final verification. */
 const mergeUnverifiedObservations = (

@@ -691,16 +691,15 @@ const unavailableLineage = (
 /** Parse the NUL-delimited Linux process environment without nameless keys. */
 export const parseProcessEnvironment = (
   value: string,
-): Readonly<Record<string, string>> =>
-  Object.fromEntries(
-    value
-      .split("\0")
-      .filter((entry) => entry.indexOf("=") > 0)
-      .map((entry) => {
-        const separator = entry.indexOf("=");
-        return [entry.slice(0, separator), entry.slice(separator + 1)];
-      }),
-  );
+): Readonly<Record<string, string>> => {
+  const environment: Record<string, string> = Object.create(null);
+  for (const entry of value.split("\0")) {
+    const separator = entry.indexOf("=");
+    if (separator > 0)
+      environment[entry.slice(0, separator)] = entry.slice(separator + 1);
+  }
+  return environment;
+};
 
 const identityFact = (
   observations: ReadonlyMap<number, ProcessIdentityObservation> | undefined,
@@ -1274,9 +1273,10 @@ export const createSystemProcessOwnershipHost = (
           throw new Error(
             observation?.reason ?? "process run token could not be read",
           );
-        return observation.runId === undefined
-          ? {}
-          : { REA_PROCESS_RUN_ID: observation.runId };
+        const environment: Record<string, string> = Object.create(null);
+        if (observation.runId !== undefined)
+          environment.REA_PROCESS_RUN_ID = observation.runId;
+        return environment;
       }
       const { stdout } = await execFileOutput(
         "ps",
@@ -1287,7 +1287,7 @@ export const createSystemProcessOwnershipHost = (
           ...(signal === undefined ? {} : { signal }),
         },
       );
-      const observedEnvironment: Record<string, string> = {};
+      const observedEnvironment: Record<string, string> = Object.create(null);
       for (const match of stdout.matchAll(
         /(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)/gu,
       )) {

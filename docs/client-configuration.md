@@ -313,9 +313,12 @@ workload needs more time. Devin honors `XDG_CONFIG_HOME` for its
 ## OMP
 
 For OMP, setup writes a `type: "stdio"` entry to the user-level
-`~/.omp/agent/mcp.json`. It follows `PI_CONFIG_DIR` and
-`PI_CODING_AGENT_DIR` (relative to the setup working directory), and the profile selected by `OMP_PROFILE` or
-`PI_PROFILE` (`~/.omp/profiles/<name>/agent/mcp.json`). Setup also removes
+`~/.omp/agent/mcp.json`. A relative `PI_CONFIG_DIR` selects a configuration root
+under the home directory. For the default profile, `PI_CODING_AGENT_DIR`
+overrides the agent directory; a relative value uses the setup working
+directory. A named profile selected by `OMP_PROFILE` or `PI_PROFILE` instead
+uses `<configuration-root>/profiles/<name>/agent/mcp.json` and ignores
+`PI_CODING_AGENT_DIR`. Setup also removes
 `rea` from that file's `disabledServers` list, which would otherwise hide the
 registration. Doctor treats an `enabled: false` entry as active when
 `enabledServers` lists `rea`, as OMP does, unless `disabledServers` also lists

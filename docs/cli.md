@@ -748,7 +748,9 @@ browser, web and Electron commands (including `analyze-web-bundle`,
 for Android/ADB, Apktool/JEB/Flutter, firmware, PCAP and signal analysis,
 WASM/EVM, Go/Rust and binary diagnostics, Frida instrumentation, the Cutter
 command, objdump, Rizin and GDB, and the agent environment server
-(`environment-serve`). In these paths, a returned structured
+(`environment-serve`). The handler also wraps `doctor`,
+`inspect-sqlite-database`, `recover-javascript-sources`,
+`inspect-il2cpp-metadata`, and `inspect-desktop-application`. In these paths, a returned structured
 `cancelled` result can be printed before the wrapper assigns the
 signal-derived status. This describes the current source routing; it is not a
 claim that every command or provider runtime has been independently exercised.
@@ -766,9 +768,9 @@ CLI stops writing, prints no error and exits `141` (`128 + 13`, the status of a
 SIGPIPE-terminated writer). The operation itself may have completed; only its
 output was declined.
 
-`inspect-artifact` also returns a structured cancelled result, but its direct
-analysis cancellation path does not set a signal-derived exit status, so it
-exits `1`. Setup has its own contract: cancellation exits `0`. Treat the
+`inspect-artifact` also returns a structured cancelled result. Its logging
+wrapper sits outside the cancellation handler and replaces the signal-derived
+status with the analysis failure status, so it exits `1`. Setup has its own contract: cancellation exits `0`. Treat the
 structured result and process status as separate signals when scripting
 cancellation.
 

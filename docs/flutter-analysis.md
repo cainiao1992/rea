@@ -136,8 +136,9 @@ server; older servers keep the complete request after schema discovery.
 - **Bounded reads.** APK snapshots are bounded at 2 GiB, including while
   copying. Identification permits 768 MiB of cumulative library extraction;
   declared sizes are checked before extraction. Library reads are bounded at 256 MiB each and ZIP
-  metadata at 8 MiB; the AOT image buffer is allocated at exactly the
-  declared size before reading. Exceeded budgets report
+  metadata at 8 MiB. Before reading, the AOT image buffer reserves the
+  admitted declared size plus one byte; the reported byte count is the number
+  actually read. Exceeded budgets report
   `resource_constraint`.
 - **Engine notes.** Engine libraries are spooled into the owned root. ELF
   headers, note tables and note payloads share an 8 MiB metadata budget;

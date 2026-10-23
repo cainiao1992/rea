@@ -763,8 +763,8 @@ Automatic discovery accepts executable regular files, including file symlinks,
 and skips directories.
 On Linux, it prefers executable `/opt/hopper/bin/Hopper`, then executable
 `~/.local/share/rea/hopper/bin/Hopper`, followed by `/opt/hopper-v4/bin/hopper`
-and `/usr/bin/hopper`; if none exists, the former remains the diagnostic
-fallback. `rea doctor` checks only the current platform's candidates, in the
+and `/usr/bin/hopper`; if none exists, `/opt/hopper/bin/Hopper` remains the
+diagnostic fallback. `rea doctor` checks only the current platform's candidates, in the
 same order; other platforms have no automatic candidates.
 `HOPPER_LAUNCHER_PATH` overrides those choices:
 
@@ -1452,5 +1452,23 @@ Pass options with `bash -s --`:
 curl -fsSL https://raw.githubusercontent.com/morluto/rea/main/install.sh |
   bash -s -- --dry-run
 ```
+
+To review a version-pinned installer before running it, select the release
+version, download its tagged script, and inspect the downloaded file:
+
+```bash
+rea_version=6.7.0
+curl -fsSL "https://raw.githubusercontent.com/morluto/rea/rea-agents-${rea_version}/install.sh" -o rea-install.sh
+less rea-install.sh
+```
+
+After reviewing it, install the same package version:
+
+```bash
+bash rea-install.sh --version "$rea_version"
+```
+
+The tag pins the selected script revision; `--version` selects the npm package
+version. Neither command verifies a signature on the downloaded script.
 
 Supported options are `--version <semver>`, `--dry-run`, `--no-setup`, `--no-prompt`, and `--verbose`. Neither `--no-prompt` nor a non-interactive shell grants permission to install external dependencies.

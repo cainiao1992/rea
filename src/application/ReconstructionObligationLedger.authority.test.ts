@@ -12,7 +12,82 @@ import {
 import { createEvidence } from "../domain/evidence.js";
 import type { ReviewedReconstructionObligation } from "../domain/reconstructionObligationLedgerSchemas.js";
 
+const registerOriginalProcessAuthorityCases = (): void => {
+  it.each([
+    { kind: "controlled capture", defect: null, qualifies: true },
+    { kind: "static authority", defect: "authority", qualifies: false },
+    { kind: "foreign provider", defect: "provider", qualifies: false },
+    { kind: "malformed capture", defect: "payload", qualifies: false },
+  ] as const)(
+    "qualifies original process authority for $kind",
+    ({ defect, qualifies }) => {
+      const capture = processEvidence();
+      const original = createEvidence(
+        undefined,
+        defect === "provider"
+          ? { id: "foreign", name: "Foreign observer", version: "1" }
+          : capture.provider,
+        {
+          predicateType: capture.predicate_type,
+          operation: capture.operation,
+          parameters: {},
+          result: defect === "payload" ? {} : capture.normalized_result,
+          confidence: "observed",
+          authority:
+            defect === "authority" ? "shipped-artifact" : "controlled-replay",
+        },
+      );
+      const reviewed = {
+        ...reviewedObligation("obl.reviewed.process", original.evidence_id),
+        required_original_authority: "process" as const,
+      };
+      const result = build(
+        request([original], {
+          reviewed_obligations: [reviewed],
+          manifest: {
+            bindings: [
+              {
+                obligation_id: reviewed.obligation_id,
+                owner: {
+                  module_path: "src/processOwner.ts",
+                  symbol: "runProcess",
+                  owner_sha256: "5".repeat(64),
+                },
+                parser_type: null,
+                original_cases: [
+                  {
+                    kind: "positive",
+                    evidence_id: original.evidence_id,
+                    location: "/normalized_result/exit",
+                  },
+                ],
+                fixtures: [],
+                verifier: null,
+              },
+            ],
+            contradictions: [],
+          },
+        }),
+      );
+      const obligation = result.obligations.find(
+        ({ obligation_id }) => obligation_id === reviewed.obligation_id,
+      );
+      expect(obligation).toBeDefined();
+      const diagnostics = new Set(
+        obligation?.diagnostics.map(({ code }) => code),
+      );
+      expect(diagnostics.has("static-only")).toBe(!qualifies);
+      expect(diagnostics.has("weak-original-case-authority")).toBe(!qualifies);
+      expect(obligation?.authority_references[0]?.state === "observed").toBe(
+        qualifies,
+      );
+    },
+  );
+};
+
 describe("reconstruction obligation ledger", () => {
+  registerOriginalProcessAuthorityCases();
+
   it("does not authenticate packaged-process proof with generic replay evidence", () => {
     const capture = processEvidence();
     const proof = proofEvidence("generic-packaged");

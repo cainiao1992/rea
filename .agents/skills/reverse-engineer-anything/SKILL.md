@@ -2,13 +2,13 @@
 name: reverse-engineer-anything
 description: Reverse engineer native, managed, Electron/JavaScript, packaged, firmware, and browser targets with REA. Use shipped-artifact or requested runtime evidence to explain features, compare versions, decompile code, or guide a reconstruction. Skip REA for ordinary source-repository architecture analysis.
 metadata:
-  version: "45"
+  version: "46"
 ---
 
 # REA
 
 Use REA when a claim depends on a shipped binary or package, decompilation,
-passive application runtime evidence, or comparison with
+requested runtime evidence, or comparison with
 behavior not established by available source. For ordinary analysis of a
 complete source repository, use normal repository tools and do not run REA
 readiness or provider commands.
@@ -124,6 +124,12 @@ explicit path or endpoint and do not need it.
 - .NET NativeAOT PE/ELF: native Ghidra analysis. Native code can yield pseudocode;
   consult the NativeAOT workflow in `references/native-and-artifacts.md` for
   optional metadata recovery and its supported host/layout boundary.
+- Native program behavior, live calls, instrumentation, or command-run effects:
+  choose the matching [native runtime workflow](references/runtime-observation.md#native-runtime-questions).
+  `open_binary` and `trace_native_values` establish static facts; they do not
+  observe execution. Runtime tools have distinct launch, attach, mutation and
+  cleanup effects, and do not require a preliminary static session unless their
+  own contract says so.
 - User-owned browser page already open: `list_browser_targets`.
 - Browser action the agent must perform (click, type, navigate):
   `capture_browser_scenario` with declared actions. See
@@ -438,8 +444,8 @@ as complete while required questions remain open.
   [references/javascript-applications.md](references/javascript-applications.md)
 - Android APK declarations, classes, methods, and static references:
   [references/android-applications.md](references/android-applications.md)
-- Browser/Electron observation (passive and scenario) and static/runtime
-  reconciliation:
+- Native instrumentation, debugger and process capture; browser/Electron
+  observation; static/runtime comparison:
   [references/runtime-observation.md](references/runtime-observation.md)
 - Evidence paging, comparisons, residual unknowns, and verification:
   [references/evidence-workflows.md](references/evidence-workflows.md)

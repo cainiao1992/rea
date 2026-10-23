@@ -114,6 +114,7 @@ describe("containing-procedure complete body evidence", () => {
   const identity = () => ({
     address: "0x1000",
     name: "fixture_function",
+    symbol: null,
     classification: {
       external: false,
       thunk: false,

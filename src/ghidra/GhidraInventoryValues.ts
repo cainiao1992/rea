@@ -1,3 +1,4 @@
+import { nativeSymbolMetadataSchema } from "../domain/native/nativeSymbol.js";
 import { nativeAddressObservationSchema } from "../domain/native/nativeAddress.js";
 import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
 import { z } from "zod";
@@ -193,6 +194,7 @@ export const ghidraProcedureIdentitySchema = z
   .object({
     address: nativeAddressObservationSchema,
     name: z.string().min(1),
+    symbol: nativeSymbolMetadataSchema.nullable(),
     classification: ghidraFunctionClassificationSchema,
     body: ghidraFunctionBodySchema,
   })

@@ -328,6 +328,49 @@ describe("Ghidra relationship metadata validation", () => {
 });
 
 describe("Ghidra reference and value-flow completeness", () => {
+  it.each(["procedure", "source_procedure", "target_procedure"] as const)(
+    "requires producer symbol metadata on %s identities",
+    (location) => {
+      const observation = (identity: JsonValue) => ({
+        procedure:
+          location === "procedure" ? identity : ghidraFunctionIdentity(),
+        direction: "outgoing",
+        references: [
+          {
+            ...ghidraReferenceEdge(),
+            ...(location === "procedure" ? {} : { [location]: identity }),
+          },
+        ],
+        reference_kinds_available: true,
+        unresolved_calls: [],
+      });
+      const identity = ghidraFunctionIdentity();
+      expect(
+        parseFunctionValueFixture("procedure_references", observation(identity))
+          .ok,
+      ).toBe(true);
+      expect(
+        parseFunctionValueFixture(
+          "procedure_references",
+          observation({ ...identity, symbol: null }),
+        ).ok,
+      ).toBe(true);
+      const { symbol: omitted, ...withoutSymbol } = identity;
+      expect(omitted).toBeDefined();
+      for (const invalid of [
+        withoutSymbol,
+        { ...identity, symbol: { primary: "yes" } },
+        { ...identity, unexpected: true },
+      ]) {
+        expect(
+          parseFunctionValueFixture(
+            "procedure_references",
+            observation(invalid),
+          ),
+        ).toMatchObject({ ok: false, error: { _tag: "AnalysisOutputError" } });
+      }
+    },
+  );
   it.each(["reference_kinds_available", "unresolved_calls"])(
     "rejects omitted %s instead of inventing complete reference observations",
     (field) => {

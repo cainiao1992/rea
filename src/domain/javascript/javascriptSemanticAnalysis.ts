@@ -1438,7 +1438,11 @@ function* indexPrototypeUncertaintySteps(
         parent.arguments.includes(node as t.Expression)
       )
         return;
-      if (t.isIdentifier(node) && semanticReferenceRole(node, parent) === null)
+      if (
+        t.isIdentifier(node) &&
+        semanticReferenceRole(node, parent, state.parentsByNode.get(parent)) ===
+          null
+      )
         return;
       taint(owner);
     },

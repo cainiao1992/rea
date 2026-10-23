@@ -447,11 +447,22 @@ ordinary destructuring can invoke an inherited getter. Operations requiring
 primitive conversion conservatively expose their conversion operands, including
 computed keys, arithmetic and untagged template interpolation. `using` and
 `await using` expose the retained resource at its lexical scope exit; earlier
-scalar reads retain their capture timing. These are source-derived effects,
+scalar reads retain their capture timing. Repeated loop iterations can expose
+a previous disposal and therefore retain uncertainty. Private getter fields
+retain their parsed initializer references; `super` reads use the selected
+receiver. Custom `instanceof` hooks expose their receiver and argument.
+These are source-derived effects,
 not execution results or proofs of accessor purity. Reflectively installed
 descriptors remain opaque; their setup calls retain ordinary argument/receiver
 escape uncertainty. External prototype changes and unsupported runtime protocols
 remain unknown rather than supplying exact post-invocation values.
+Identifier references and closure captures share Babel syntax-role facts plus
+explicit binding/write roles; noncomputed declaration keys and import/meta names
+are not lexical reads. Direct generator and async calls produce iterators and
+Promises; body returns do not become direct call-result flows. Their unresolved
+consumption remains an explicit frontier. Replaced emitter bindings select their
+initializer lifetime at each operation. A lexical `this` owner remains partial
+because it does not prove one runtime instance.
 Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 

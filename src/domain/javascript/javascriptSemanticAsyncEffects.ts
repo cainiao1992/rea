@@ -190,20 +190,53 @@ const emitterIdentity = (
 } => {
   if (t.isIdentifier(node)) {
     const binding = resolveSemanticBindingState(state, node, node.name);
-    if (binding !== undefined)
+    if (binding !== undefined) {
+      const read = semanticBindingAtRead(binding, node, state.parentsByNode);
+      const origins = [
+        ...read.binding.initializers,
+        ...read.binding.referenceInitializers,
+      ];
+      const replaced = [
+        ...binding.initializers,
+        ...binding.referenceInitializers,
+      ].some(({ assignment }) => assignment);
+      const origin = origins.length === 1 ? origins[0] : undefined;
+      const complete =
+        !replaced ||
+        (read.status === "ordered" &&
+          read.hasDefiniteInitializer &&
+          origin !== undefined);
       return {
-        key: `binding:${binding.bindingId}`,
+        key: !replaced
+          ? `binding:${binding.bindingId}`
+          : complete
+            ? `binding:${binding.bindingId}:origin:${origin?.node.start ?? -1}:${origin?.node.end ?? -1}`
+            : `expression:${node.start ?? -1}:${node.end ?? -1}`,
         bindingId: binding.bindingId,
-        complete: true,
+        complete,
       };
+    }
     return {
       key: `global:${node.name}`,
       bindingId: null,
       complete: !semanticResolutionBlocked(state, node, node.name),
     };
   }
-  if (t.isThisExpression(node))
-    return { key: "this", bindingId: null, complete: true };
+  if (t.isThisExpression(node)) {
+    let owner = state.parentsByNode.get(node);
+    while (
+      owner !== undefined &&
+      !t.isClass(owner) &&
+      !(t.isFunction(owner) && !t.isArrowFunctionExpression(owner))
+    )
+      owner = state.parentsByNode.get(owner);
+    // Lexical receiver ownership does not establish one runtime instance.
+    return {
+      key: `this:${owner?.start ?? -1}:${owner?.end ?? -1}`,
+      bindingId: null,
+      complete: false,
+    };
+  }
   return {
     key: `expression:${String(node.start ?? -1)}:${String(node.end ?? -1)}`,
     bindingId: null,

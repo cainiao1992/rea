@@ -9,7 +9,7 @@ import type {
   JavaScriptSemanticClosureCapture,
   JavaScriptSemanticFrontier,
 } from "./javascriptSemanticIr.js";
-import { semanticReferenceRole } from "./javascriptSemanticProjection.js";
+import { semanticIdentifierRole } from "./javascriptSemanticProjection.js";
 import { createSemanticCallableStack } from "./javascriptSemanticCallableStack.js";
 import {
   semanticStaticPropertyKey,
@@ -28,6 +28,7 @@ import {
 } from "./javascriptSemanticCallResolution.js";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
+import { semanticCallableResultKind } from "./javascriptSemanticCallableResults.js";
 import { assignedSemanticResultBindings } from "./javascriptSemanticDataEffectHelpers.js";
 
 /** Local call, flow, capture, and unsupported-frontier facts. */
@@ -293,6 +294,22 @@ const collectReturnFlows = (
   for (const callableId of site.calleeCallableIds) {
     const callable = callableById.get(callableId);
     if (callable === undefined) continue;
+    const source = state.callableNodesById.get(callableId);
+    const kind =
+      source === undefined ? "value" : semanticCallableResultKind(source);
+    if (kind !== "value") {
+      addFrontier(
+        {
+          kind: "dynamic-call",
+          callableId: site.callerCallableId,
+          location: site.location,
+          reason: `Direct invocation produces ${kind}; body results require separate consumption.`,
+        },
+        state,
+        output,
+      );
+      continue;
+    }
     for (const returnSite of callable.returnSites) {
       output.callReturnFlows.push({
         callSiteId: site.callSiteId,
@@ -318,7 +335,7 @@ const collectCapture = (
     owner.bodyScopeId === null
   )
     return;
-  if (semanticReferenceRole(node, parent) === null) return;
+  if (semanticIdentifierRole(node, parent, context.ancestors) === null) return;
   const binding = resolveSemanticBindingState(state, node, node.name);
   if (
     binding === undefined ||

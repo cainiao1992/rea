@@ -171,16 +171,12 @@ export function* collectSemanticReferencesSteps(
 ): Generator<void, JavaScriptSemanticReference[]> {
   const output: JavaScriptSemanticReference[] = [];
   const seen = new Set<string>();
-  const patterns: t.Node[] = [];
   yield* traverseJavaScriptAstSteps(program, {
     enter: (node, parent, readAncestors) => {
-      if (isPatternNode(node)) patterns.push(node);
       if (
         !t.isIdentifier(node) ||
         parent === null ||
-        (name !== undefined && node.name !== name) ||
-        (isNonReferenceKey(node, parent) &&
-          !patterns.some((pattern) => bindsIdentifier(pattern, parent, node)))
+        (name !== undefined && node.name !== name)
       )
         return;
       const ancestors = readAncestors();
@@ -217,9 +213,6 @@ export function* collectSemanticReferencesSteps(
                 : "unbound",
         });
       }
-    },
-    exit: (node) => {
-      if (isPatternNode(node)) patterns.pop();
     },
   });
   return output;
@@ -635,6 +628,13 @@ export const semanticIdentifierRole = (
   parent: t.Node,
   ancestors: readonly t.Node[],
 ): JavaScriptSemanticReference["role"] | null => {
+  if (
+    t.isObjectProperty(parent) &&
+    parent.key === node &&
+    !parent.computed &&
+    parent.value !== node
+  )
+    return null;
   const patternAncestor = enclosingPatternAncestor(node, parent, ancestors);
   if (patternAncestor !== null) {
     if (isPatternOwnerDeclaration(patternAncestor)) return null;
@@ -642,7 +642,7 @@ export const semanticIdentifierRole = (
   }
   const site = semanticWrappedWriteSite(node, parent, ancestors);
   if (site !== null && site !== parent && !isDeleteSite(site)) return "write";
-  return semanticReferenceRole(node, parent);
+  return semanticReferenceRole(node, parent, ancestors.at(-2));
 };
 
 /**
@@ -720,9 +720,8 @@ const isPatternOwnerDeclaration = (node: t.Node): boolean =>
 export const semanticReferenceRole = (
   node: t.Identifier,
   parent: t.Node,
+  grandparent?: t.Node,
 ): JavaScriptSemanticReference["role"] | null => {
-  if (isDeclarationIdentifier(node, parent) || isNonReferenceKey(node, parent))
-    return null;
   if (
     (t.isAssignmentExpression(parent) && parent.left === node) ||
     t.isUpdateExpression(parent) ||
@@ -730,58 +729,22 @@ export const semanticReferenceRole = (
       parent.left === node)
   )
     return "write";
-  if (t.isExportSpecifier(parent) && parent.local === node) return "export";
-  return "read";
-};
-
-const isDeclarationIdentifier = (
-  node: t.Identifier,
-  parent: t.Node,
-): boolean => {
-  if (t.isTSImportEqualsDeclaration(parent)) return parent.id === node;
-  return (
+  // Babel owns syntax roles. These TS declaration forms are not covered by
+  // the installed Babel 8 isReferenced predicate.
+  if (
+    (t.isTSImportEqualsDeclaration(parent) && parent.id === node) ||
     (t.isTSParameterProperty(parent) &&
       patternContains(parent.parameter, node)) ||
-    (t.isVariableDeclarator(parent) && patternContains(parent.id, node)) ||
-    ((t.isFunctionDeclaration(parent) || t.isFunctionExpression(parent)) &&
-      parent.id === node) ||
-    (t.isFunction(parent) &&
-      parent.params.some((value) => patternContains(value, node))) ||
-    ((t.isClassDeclaration(parent) || t.isClassExpression(parent)) &&
-      parent.id === node) ||
-    (t.isImportSpecifier(parent) &&
-      (parent.local === node || parent.imported === node)) ||
-    (t.isImportDefaultSpecifier(parent) && parent.local === node) ||
-    (t.isImportNamespaceSpecifier(parent) && parent.local === node) ||
-    (t.isCatchClause(parent) && parent.param === node)
-  );
+    ((t.isTSDeclareMethod(parent) || t.isTSMethodSignature(parent)) &&
+      parent.key === node &&
+      !parent.computed)
+  )
+    return null;
+  if (!t.isReferenced(node, parent, grandparent)) return null;
+  return t.isExportSpecifier(parent) && parent.local === node
+    ? "export"
+    : "read";
 };
-
-const isNonReferenceKey = (node: t.Identifier, parent: t.Node): boolean =>
-  ((t.isMemberExpression(parent) || t.isOptionalMemberExpression(parent)) &&
-    parent.property === node &&
-    !parent.computed) ||
-  ((t.isObjectProperty(parent) || t.isObjectMethod(parent)) &&
-    parent.key === node &&
-    !parent.computed &&
-    !(t.isObjectProperty(parent) && parent.shorthand)) ||
-  isNoncomputedClassMemberKey(node, parent) ||
-  t.isPrivateName(parent) ||
-  (t.isExportSpecifier(parent) && parent.exported === node) ||
-  t.isLabeledStatement(parent) ||
-  t.isBreakStatement(parent) ||
-  t.isContinueStatement(parent);
-
-/** A noncomputed class member name is a property key, never a lexical read. */
-const isNoncomputedClassMemberKey = (
-  node: t.Identifier,
-  parent: t.Node,
-): boolean =>
-  (t.isClassMethod(parent) ||
-    t.isClassProperty(parent) ||
-    t.isTSDeclareMethod(parent)) &&
-  parent.key === node &&
-  !parent.computed;
 
 const patternNames = (pattern: t.Node): string[] => {
   if (t.isTSParameterProperty(pattern)) return patternNames(pattern.parameter);

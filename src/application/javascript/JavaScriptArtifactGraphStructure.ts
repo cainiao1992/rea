@@ -246,6 +246,13 @@ export const addJavaScriptArtifactFiles = (
         ),
         details: { analysis_status: analyzed.analysis_failure.status },
       });
+    else if (file.kind === "html" && !file.text.included)
+      addUnavailableStaticParseScope(context, {
+        file,
+        asset: target,
+        ...javascriptArtifactAnalysisScopes.html,
+        limitation: `HTML text could not be decoded: ${file.text.reason}.`,
+      });
     else if (
       file.kind === "javascript" &&
       (analyzed.javascript === null ||

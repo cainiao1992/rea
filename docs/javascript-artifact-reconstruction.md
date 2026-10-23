@@ -194,6 +194,12 @@ missing native/resource bytes as unknown. The occurrence keeps
 those missing bytes. See [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
 for the tool-result contract.
 
+HTML whose bytes are not valid UTF-8 retains its file observation and an unknown
+`parse-html-script-references` scope with artifact-byte authority. Reference
+discovery was unavailable; zero retained script links does not establish that
+the unreadable HTML declared none. Readable HTML with no references has no such
+gap, and readable external references retain their load edges.
+
 ## Large results
 
 Use MCP `detail: "summary"` for a large application, then read selected views of

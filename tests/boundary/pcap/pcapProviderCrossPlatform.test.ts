@@ -240,7 +240,7 @@ it.each([0, 7])(
     expect(projectAnalysisError(retry.error)).toMatchObject({
       code: "cleanup_incomplete",
       details: {
-        resources: expect.arrayContaining(result.error.cleanupResources),
+        resources: expect.arrayContaining([...result.error.cleanupResources]),
       },
     });
     expect(retry.error.cleanupResources.length).toBeGreaterThan(0);

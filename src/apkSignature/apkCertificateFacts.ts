@@ -24,7 +24,7 @@ const attempt = <T>(read: () => T): T | null => {
 };
 
 /** Identity is the raw-DER fingerprint; parsed X.509 facts are null when unreadable. */
-export const certificateFacts = (der: Uint8Array): Certificate => {
+export const certificateFacts = (der: Uint8Array): NonNullable<Certificate> => {
   const cert = attempt(() => {
     // OpenSSL auto-detects PEM before DER, including PEM embedded in an extension.
     // An explicit envelope makes it decode the selected bytes; raw equality also

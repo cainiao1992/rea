@@ -100,6 +100,7 @@ const admitDescriptorRegistry = async (
         stack.push({ message: nested, prefix: length });
     }
   }
+  return undefined;
 };
 
 const scalarValue = (reader: BinaryReader, scalar: ScalarType): string => {

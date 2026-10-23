@@ -25,6 +25,8 @@ import {
   appendManagedParseIssues,
   ManagedReaderFailure,
   uniqueManagedParseIssues,
+  managedMetadataFailureStatus,
+  type ManagedMetadataHeaderFacts,
 } from "./ManagedReaderFailure.js";
 import {
   parseTypes,
@@ -50,8 +52,14 @@ import {
 const unavailable = (
   target: BinaryTarget,
   bytes: Buffer,
-  issue: ManagedParseIssue | null,
   typeNames: readonly string[] | undefined,
+  {
+    issue,
+    metadataHeader,
+  }: {
+    readonly issue: ManagedParseIssue | null;
+    readonly metadataHeader?: ManagedMetadataHeaderFacts | null;
+  },
 ): ManagedMemberInspection =>
   managedMemberInspectionSchema.parse(
     admitManagedProjection({
@@ -63,13 +71,8 @@ const unavailable = (
       },
       module: null,
       metadata: {
-        status:
-          issue === null
-            ? "absent"
-            : issue.code === "resource-limit"
-              ? "partial"
-              : "malformed",
-        version: null,
+        status: issue === null ? "absent" : managedMetadataFailureStatus(issue),
+        version: metadataHeader?.version ?? null,
         table_row_counts: {},
       },
       identity_scope: {
@@ -185,7 +188,7 @@ export const inspectManagedMembersBytes = (
     );
   const pe = readManagedPeLayout(bytes);
   if (pe.cli === null)
-    return unavailable(target, bytes, pe.cliIssue, typeNames);
+    return unavailable(target, bytes, typeNames, { issue: pe.cliIssue });
   const issues: ManagedParseIssue[] = [];
   let recover: ReturnType<typeof prepareManagedMemberRecovery> | undefined;
   try {
@@ -429,7 +432,7 @@ export const inspectManagedMembersBytes = (
         cause instanceof ManagedRepresentationFailure
       )
         return recover(cause.issue.offset);
-      return unavailable(target, bytes, cause.issue, typeNames);
+      return unavailable(target, bytes, typeNames, cause);
     }
     throw cause;
   }

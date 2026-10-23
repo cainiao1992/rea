@@ -2,7 +2,10 @@ import {
   attachManagedDecodeBudget,
   ManagedDecodeBudget,
 } from "./ManagedDecodeBudget.js";
-import { managedFailure } from "./ManagedReaderFailure.js";
+import {
+  managedFailure,
+  ManagedReaderFailure,
+} from "./ManagedReaderFailure.js";
 import {
   computeRowSize,
   type RowSizeContext,
@@ -214,6 +217,7 @@ const tableSize = (index: number, rows: readonly number[]): 2 | 4 =>
 interface ParsedStreams {
   readonly streams: ReadonlyMap<string, MetadataStream>;
   readonly version: string;
+  readonly minimalDeltaOffset: number | null;
 }
 
 const readMetadataStreams = (
@@ -249,6 +253,7 @@ const readMetadataStreams = (
     );
   cursor += 4;
   const streams = new Map<string, MetadataStream>();
+  let minimalDeltaOffset: number | null = null;
   for (let index = 0; index < streamCount; index += 1) {
     requireRange(bytes, rootOffset, cursor, 8, "metadata.stream-header");
     const relativeOffset = bytes.readUInt32LE(cursor);
@@ -273,9 +278,10 @@ const readMetadataStreams = (
       offset: rootOffset + relativeOffset,
       size: streamSize,
     });
+    if (named.name === "#JTD") minimalDeltaOffset = rootOffset + cursor;
     cursor = named.next;
   }
-  return { streams, version };
+  return { streams, version, minimalDeltaOffset };
 };
 
 interface HeapSizes {
@@ -442,7 +448,25 @@ export const readManagedMetadataLayout = (
     );
   const bytes = artifact.subarray(rootOffset, rootOffset + size);
   const budget = new ManagedDecodeBudget();
-  const { streams, version } = readMetadataStreams(bytes, rootOffset, budget);
+  const { streams, version, minimalDeltaOffset } = readMetadataStreams(
+    bytes,
+    rootOffset,
+    budget,
+  );
+  // Runtime v9.0.0 MetadataReader recognizes #JTD before sizing references.
+  // Minimal deltas also use baseline coordinates and cumulative heap handles;
+  // widening local rows alone cannot establish standalone member identities.
+  if (minimalDeltaOffset !== null)
+    throw new ManagedReaderFailure(
+      {
+        code: "unsupported-metadata",
+        scope: "metadata.#JTD",
+        detail:
+          "Minimal Edit-and-Continue metadata (#JTD) requires its baseline and prior generations; standalone metadata identities and inventories are unknown.",
+        offset: minimalDeltaOffset,
+      },
+      { metadataHeader: { version, streamNames: [...streams.keys()] } },
+    );
   const { tableBytes, tablesOffset, heaps, valid } = readTablesHeader(
     artifact,
     streams,

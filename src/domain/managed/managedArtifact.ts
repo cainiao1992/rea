@@ -400,6 +400,7 @@ const managedParseIssueSchema = z.object({
     "invalid-stream",
     "missing-stream",
     "invalid-tables",
+    "unsupported-metadata",
     "invalid-row",
     "invalid-heap-index",
     "invalid-string",

@@ -69,6 +69,15 @@ export const electronTargetListSchema = z.object({
 });
 export type ElectronTargetList = z.infer<typeof electronTargetListSchema>;
 
+const electronScriptFrameClaimsSchema = z.object({
+  script_event_frame_id: z.string().exactOptional(),
+  execution_context_frame_id: z.string().exactOptional(),
+});
+/** Actual reported claims remain available when their resolved association is unknown. */
+export type ElectronScriptFrameClaims = z.infer<
+  typeof electronScriptFrameClaimsSchema
+>;
+
 /** Provider-neutral passive Electron file-page structure and script inventory. */
 export const electronPageInspectionSchema = z.object({
   browser: browserVersionSchema,
@@ -97,6 +106,7 @@ export const electronPageInspectionSchema = z.object({
         script_key: prefixedDigestSchema("electron_script"),
         frame_id: z.string().nullable().default(null),
         frame_scope: z.enum(["authorized", "unknown"]).exactOptional(),
+        frame_claims: electronScriptFrameClaimsSchema.exactOptional(),
         file_path: z.string(),
         has_source_url: z.boolean().nullable().exactOptional(),
         reported_url: z.string().exactOptional(),

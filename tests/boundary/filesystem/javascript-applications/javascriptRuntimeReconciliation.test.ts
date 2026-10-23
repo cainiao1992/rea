@@ -291,6 +291,10 @@ it("preserves unknown Electron frame provenance without linking it to an authori
           frame_scope: "unknown",
           has_source_url: true,
           reported_url: "file:///reported-label.js",
+          frame_claims: {
+            script_event_frame_id: "declared-frame",
+            execution_context_frame_id: "context-frame",
+          },
         })),
       },
     },
@@ -310,6 +314,10 @@ it("preserves unknown Electron frame provenance without linking it to an authori
         reported_frame_id: inspection.scripts.items[0]?.frame_id,
         has_source_url: true,
         reported_url: "file:///reported-label.js",
+        frame_claims: {
+          script_event_frame_id: "declared-frame",
+          execution_context_frame_id: "context-frame",
+        },
       }),
     }),
   ]);

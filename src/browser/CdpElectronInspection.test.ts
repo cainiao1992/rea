@@ -469,12 +469,14 @@ describe("Electron frame capture", () => {
     await writeFile(scriptPath, "export const app = true;");
     const scripts: ElectronScriptDraft[] = [];
     const executionContextFrames = new Map<string, string>();
+    const retention = { bytes: 2 };
     const completeness = new CdpCaptureCompleteness();
     const ingest = (method: string, params: unknown): void =>
       ingestElectronScriptEvent({
         event: { method, params },
         scripts,
         executionContextFrames,
+        retention,
         completeness,
       });
     const context = (frameId: string) => ({
@@ -585,6 +587,7 @@ it("admits a prefix and fitting suffix around an oversized Electron source", asy
       language: "JavaScript",
       frameId: null,
       hasSourceUrl: null,
+      frameClaims: {},
     };
   });
   const completeness = new CdpCaptureCompleteness();

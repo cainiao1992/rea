@@ -188,6 +188,9 @@ const scriptEntities = (
         ...("has_source_url" in script && script.has_source_url !== undefined
           ? { has_source_url: script.has_source_url }
           : {}),
+        ...("frame_claims" in script && script.frame_claims !== undefined
+          ? { frame_claims: script.frame_claims }
+          : {}),
         cdp_hash: script.cdp_hash,
         length: script.length,
         is_module: script.is_module,

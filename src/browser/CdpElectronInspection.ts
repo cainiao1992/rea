@@ -30,6 +30,7 @@ import { cdpSnapshotString } from "./CdpSnapshotStrings.js";
 import {
   ingestElectronScriptEvent,
   type ElectronScriptDraft,
+  type ElectronScriptMetadataRetention,
 } from "./CdpElectronScriptEvents.js";
 import { captureElectronScripts } from "./CdpElectronScripts.js";
 import { captureElectronWorkers } from "./CdpElectronWorkers.js";
@@ -54,6 +55,7 @@ interface ElectronContext {
 interface ElectronInspectionState {
   readonly completeness: CdpCaptureCompleteness;
   readonly scripts: ElectronScriptDraft[];
+  readonly scriptMetadataRetention: ElectronScriptMetadataRetention;
   readonly executionContextFrames: Map<string, string>;
   readonly frameGenerations: Map<string, number>;
   readonly frameParents: Map<string, string | null>;
@@ -89,6 +91,7 @@ export const inspectCdpElectronPage = async (
   const state: ElectronInspectionState = {
     completeness: new CdpCaptureCompleteness(),
     scripts: [],
+    scriptMetadataRetention: { bytes: 2 },
     executionContextFrames: new Map(),
     frameGenerations: new Map(),
     frameParents: new Map(),
@@ -121,6 +124,7 @@ export const inspectCdpElectronPage = async (
       scripts: state.scripts,
       executionContextFrames: state.executionContextFrames,
       completeness: state.completeness,
+      retention: state.scriptMetadataRetention,
     });
     const script = state.scripts[priorScripts];
     if (script?.frameId != null)

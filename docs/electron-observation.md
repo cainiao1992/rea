@@ -84,6 +84,11 @@ Scripts from document generations whose frames were explicitly excluded by
 local-file policy are omitted before script-source reads. Frame identity can
 come from the script event's own auxiliary data or its observed execution
 context; contradictory identities are not aligned.
+`frame_claims.script_event_frame_id` and
+`frame_claims.execution_context_frame_id` preserve the actual observed claims
+from those two sources. Both remain available when their disagreement leaves
+the resolved `frame_id` null and `frame_scope` unknown. An omitted claim is
+unobserved, not proof that a frame was absent.
 Frames describe the current inventory; script observations can retain earlier
 authorized frames that have since detached.
 
@@ -97,6 +102,13 @@ The capture also
 inventories worker, service-worker, and shared-worker targets with
 validated opener-target and parent-frame IDs. Worker discovery uses passive
 target metadata; REA does not attach to or execute code in those targets.
+Script metadata uses the shared 8 MiB JSON-byte allowance for each retained
+representation: incoming drafts and normalized capture metadata. Admission
+counts escaped strings, frame claims, and provenance fields before retaining
+them or serializing metadata for a digest. Exhaustion preserves earlier records
+and reports counted `resource_budget_exhausted` script omissions; a later
+smaller record may still fit. This allowance adds no script-count cap and is
+separate from script-source bytes.
 Script-source collection retains at most 32 MiB of UTF-8 text across scripts
 and shares a 20-second collection deadline. Omitted sources retain their script
 metadata and an explicit reason; later smaller sources may still fit after an

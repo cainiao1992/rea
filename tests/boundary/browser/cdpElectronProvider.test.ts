@@ -422,6 +422,7 @@ it("excludes srcdoc scripts before source reads while retaining declared labels 
     frame_scope: "authorized",
     has_source_url: true,
     reported_url: label,
+    frame_claims: { script_event_frame_id: "frame-main" },
     file_path: join(root, "app.js"),
     source: { included: true },
   });

@@ -39,12 +39,17 @@ describe("CDP execution-context retention", () => {
           },
         },
         scripts,
+        retention: { bytes: 2 },
         executionContextFrames: new Map([["7", "frame-main"]]),
         completeness,
       });
       expect(scripts[0]).toMatchObject({
         frameId: expectedFrame,
         hasSourceUrl: expectedLabel,
+        frameClaims: {
+          script_event_frame_id: frameId,
+          execution_context_frame_id: "frame-main",
+        },
       });
       expect(completeness.snapshot().excluded).toContainEqual({
         section: "scripts",
@@ -85,6 +90,7 @@ describe("CDP execution-context retention", () => {
     expect(browser.frameForScript(script, new Set(["frame-old"]))).toBeNull();
 
     const electronFrames = new Map<string, string>();
+    const retention = { bytes: 2 };
     const completeness = new CdpCaptureCompleteness();
     ingestElectronScriptEvent({
       event: {
@@ -92,12 +98,14 @@ describe("CDP execution-context retention", () => {
         params: { context: { id: 7, auxData: { frameId: "frame-old" } } },
       },
       scripts: [],
+      retention,
       executionContextFrames: electronFrames,
       completeness,
     });
     ingestElectronScriptEvent({
       event: { method: "Runtime.executionContextsCleared", params: {} },
       scripts: [],
+      retention,
       executionContextFrames: electronFrames,
       completeness,
     });

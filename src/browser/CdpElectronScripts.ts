@@ -8,6 +8,8 @@ import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import type { CdpConnection } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import { requiredScriptSource } from "./CdpCaptureValues.js";
+import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
+import { CDP_CAPTURE_SCRIPT_METADATA_LIMITS } from "./CdpCaptureEventTypes.js";
 import type {
   ElectronScriptDraft,
   ElectronScriptFrameScope,
@@ -42,6 +44,7 @@ export const captureElectronScripts = async (
   let total = 0;
   const items: ElectronPageInspection["scripts"]["items"] = [];
   const seen = new Set<string>();
+  let metadataBytes = 2;
   const commandTimeoutMs = selectedCdpCommandTimeoutMs(
     input.request.command_timeout_ms,
   );
@@ -74,6 +77,7 @@ export const captureElectronScripts = async (
       const identity = {
         frame_id: frame.frameId,
         frame_scope: frame.state,
+        frame_claims: script.frameClaims,
         file_path: path,
         reported_url: script.rawUrl,
         has_source_url: script.hasSourceUrl,
@@ -82,9 +86,23 @@ export const captureElectronScripts = async (
         is_module: script.isModule,
         language: script.language,
       };
+      // Digest text has fixed ASCII width; count the final metadata shape
+      // before canonical hashing or retaining the expanded public projection.
+      const remaining =
+        CDP_CAPTURE_SCRIPT_METADATA_LIMITS.retainedBytes - metadataBytes;
+      const retainedBytes =
+        jsonValueByteLength(
+          { script_key: `electron_script_${"0".repeat(64)}`, ...identity },
+          remaining,
+        ) + (items.length > 0 ? 1 : 0);
+      if (retainedBytes > remaining) {
+        input.completeness.exclude("scripts", "resource_budget_exhausted");
+        continue;
+      }
       const scriptKey = `electron_script_${digestCanonicalValue(identity, "CDP capture")}`;
       if (seen.has(scriptKey)) continue;
       seen.add(scriptKey);
+      metadataBytes += retainedBytes;
       total += 1;
       let source: ElectronScriptSource = input.request.include_script_sources
         ? {

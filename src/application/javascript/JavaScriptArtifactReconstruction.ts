@@ -23,6 +23,7 @@ import type { JavaScriptSourceSelection } from "../../domain/javascript/javascri
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { parseOwnedJavaScriptApplicationAnalysisSteps } from "../../domain/javascript/javascriptApplicationAnalysis.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import type { ArtifactInventoryPartialObservation } from "../../domain/artifactPartialObservation.js";
@@ -232,7 +233,7 @@ export const reconstructJavaScriptArtifact = async (
         }
       }
       const analysis = outcome.analysis;
-      let interruption = cleanupFailure ?? outcome.interruption;
+      let interruption = outcome.interruption;
       // Source facts are owned now. Finish their projection cooperatively so a
       // later cancellation can retain Evidence instead of discarding those facts.
       const checkpointCompletedAnalysis = async (): Promise<void> => {
@@ -251,7 +252,7 @@ export const reconstructJavaScriptArtifact = async (
         message: string,
       ): Promise<void> => {
         await checkpointCompletedAnalysis();
-        if (interruption == null)
+        if (interruption == null && cleanupFailure === undefined)
           await progress?.report({ phase, completed: 0, total: 1, message });
         await checkpointCompletedAnalysis();
       };
@@ -373,7 +374,17 @@ export const reconstructJavaScriptArtifact = async (
         limitations: analysis.limitations,
       };
       await checkpointCompletedAnalysis();
-      if (interruption !== null && interruption !== undefined) {
+      const failure =
+        cleanupFailure === undefined
+          ? interruption
+          : interruption === null
+            ? cleanupFailure
+            : analysisErrorWithCleanupFailure(
+                interruption,
+                cleanupFailure,
+                OPERATION,
+              ).bindCleanupDependencies([interruption, cleanupFailure]);
+      if (failure !== null) {
         const { electron_summary: summary, ...application } = completed;
         const partial = await completeJavaScriptAnalysisSteps(
           parseOwnedJavaScriptApplicationAnalysisSteps({
@@ -387,7 +398,7 @@ export const reconstructJavaScriptArtifact = async (
             input,
             partial,
           );
-        throw interruption.retainPartialObservation(evidence);
+        throw failure.retainPartialObservation(evidence);
       }
       reconstructionOutcome = { kind: "completed", result: completed };
     } catch (cause: unknown) {

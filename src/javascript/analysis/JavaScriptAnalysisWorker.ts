@@ -1194,6 +1194,7 @@ export class JavaScriptAnalysisWorker {
       },
       {
         operation: OPERATION,
+        ...(original === undefined ? {} : { cleanupPrimary: original }),
         cause: new Error(
           reason,
           original === undefined ? undefined : { cause: original },

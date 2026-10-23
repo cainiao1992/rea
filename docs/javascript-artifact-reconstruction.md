@@ -246,6 +246,10 @@ waiting before receiving the reply, follow [MCP cancellation recovery](mcp-contr
 to find the record. CLI failure output contains the complete partial Evidence.
 Owned analyzer cleanup is verified before private files are released; uncertain
 cleanup retains ownership for retry and is reported separately.
+Typed cancellation or another primary interruption remains attached while
+cleanup is incomplete. Confirmed release restores that primary classification,
+including the caller's exact cancellation reason, while retaining partial
+application Evidence and historical cleanup diagnostics.
 
 Private worker storage failures retain the source identity, worker phase and
 reported I/O message as execution failures; they are distinct from malformed

@@ -648,8 +648,8 @@ const contextualCandidate = (
         "URL and Node builtin schemes are outside static artifact module resolution.",
       ]);
     if (
-      !isRelativeJavaScriptModuleSpecifier(declared) &&
-      !declared.startsWith("/")
+      !isRelativeJavaScriptModuleSpecifier(input.declaredPath) &&
+      !input.declaredPath.startsWith("/")
     )
       return bareModuleCandidate(input);
     if (input.moduleKind !== "require") {
@@ -1088,7 +1088,7 @@ const resolveLegacyEsmSubpath = (
   subpath: string,
 ): CandidateResolution => {
   const subpathPath = stripQueryAndFragment(htmlUrlText(subpath));
-  const declarationRejection = rejectDeclaration(subpathPath);
+  const declarationRejection = rejectDeclaration(subpathPath, true);
   if (declarationRejection !== null) return declarationRejection;
   let depth = directory === "." ? 0 : directory.split("/").length;
   for (const segment of subpathPath.split("/")) {
@@ -1115,7 +1115,7 @@ const resolveLegacyEsmSubpath = (
   const encodedPath = url.pathname.slice(
     PACKAGE_ARTIFACT_ROOT_URL.pathname.length,
   );
-  const rejected = rejectDeclaration(encodedPath);
+  const rejected = rejectDeclaration(encodedPath, true);
   if (rejected !== null) return rejected;
   const decoded = decodeModuleUrlPath(encodedPath);
   if (typeof decoded !== "string") return decoded;
@@ -1201,7 +1201,7 @@ const resolveExportTarget = (
     PACKAGE_ARTIFACT_ROOT_URL.pathname.length,
   );
   // Package targets are URLs for both loaders, so their percent bytes encode.
-  const rejected = rejectDeclaration(encodedPath, false);
+  const rejected = rejectDeclaration(encodedPath, true);
   if (rejected !== null) return withTargetSource(rejected);
   const decoded = decodeModuleUrlPath(encodedPath);
   if (typeof decoded !== "string") return withTargetSource(decoded);
@@ -1483,7 +1483,15 @@ const resolveCandidate = (
   emittedSourceCandidates: readonly TypeScriptEmittedSourceCandidate[] = [],
 ): CandidateResolution => {
   if (!commonJsDirectoryRequest(input)) {
+    // An explicitly selected source path owns its identity independently of
+    // whether its declaration bytes can implement a runtime module.
+    const exactSource =
+      input.context === "module-specifier" &&
+      input.runtimePathKind === undefined
+        ? resolveRuntimeSourceCandidates(input, candidate, [])
+        : null;
     const file =
+      exactSource ??
       resolveFileCandidates(
         input,
         fileCandidates(candidate, input.moduleKind),

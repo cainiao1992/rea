@@ -342,7 +342,6 @@ describe("package exports URL path rejections", () => {
         "./actual%00file.cjs",
         "./actual%2Ffile.cjs",
         "./actual%5Cfile.cjs",
-        "./actual%2Efile.cjs",
         "./../../../../escape.cjs",
       ].map((declaredPath) => ({ moduleKind, declaredPath })),
     ),

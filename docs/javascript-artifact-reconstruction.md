@@ -844,3 +844,12 @@ truncated under the `html_inline_script_locations_per_file` limit, and the
 scope's evidence counts the omitted locations. The graph names the
 file and up to 10 starting lines in its limitations, and coverage is partial. Import maps, speculation rules, data blocks, and blank
 bodies are not JavaScript and are not reported.
+
+For static source relationships, an explicitly requested declaration filename
+(`.d.ts`, `.d.mts`, or `.d.cts`) retains its inventoried identity through both
+`import` and `require`. A declaration found only as an emitted-extension fallback
+remains unavailable as a runtime implementation. Package URL targets decode
+filename escapes once, including dots within filenames; forbidden whole segments
+and encoded separators remain rejected. ESM local-path classification uses the
+authored request before URL whitespace preprocessing, so leading whitespace
+cannot turn a bare request into a relative file dependency.

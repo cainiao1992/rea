@@ -226,30 +226,40 @@ const evaluateClosureHistory = (
         "Closure history must begin partial and end ready with zero required obligations open.",
       ),
     );
+  const requiredObligations = input.obligation_ledger.obligations.filter(
+    (obligation) => obligation.required,
+  );
+  const verifiedRequiredIds = new Set(
+    requiredObligations
+      .filter((obligation) => obligation.status === "verified")
+      .map((obligation) => obligation.obligation_id),
+  );
+  const newlyVerifiedIds = new Set<string>();
   for (const [index, observation] of history.entries()) {
     const previous = history[index - 1];
+    const stepIds = new Set(observation.newly_verified_obligation_ids);
     if (
-      previous !== undefined &&
-      (observation.required_open > previous.required_open ||
-        observation.newly_verified_obligation_ids.length !==
-          previous.required_open - observation.required_open)
+      observation.required_open > requiredObligations.length ||
+      stepIds.size !== observation.newly_verified_obligation_ids.length ||
+      [...stepIds].some((id) => newlyVerifiedIds.has(id)) ||
+      (previous === undefined
+        ? stepIds.size !== 0
+        : observation.required_open > previous.required_open ||
+          stepIds.size !== previous.required_open - observation.required_open)
     )
       findings.push(
         finding(
           "invalid-obligation-closure-transition",
           "verify-reconstruction-closure",
           "fail",
-          `Closure observation ${String(observation.sequence)} does not match its newly verified obligations.`,
+          `Closure observation ${String(observation.sequence)} must count unique newly verified required obligations within the supplied ledger.`,
           observation.evidence_ids,
         ),
       );
+    for (const id of stepIds) newlyVerifiedIds.add(id);
     if (
       observation.newly_verified_obligation_ids.some(
-        (obligationId) =>
-          !input.obligation_ledger.obligations.some(
-            ({ obligation_id: candidateId, status }) =>
-              candidateId === obligationId && status === "verified",
-          ),
+        (obligationId) => !verifiedRequiredIds.has(obligationId),
       )
     )
       findings.push(
@@ -257,7 +267,7 @@ const evaluateClosureHistory = (
           "closure-obligation-proof-missing",
           "verify-reconstruction-closure",
           "fail",
-          `Closure observation ${String(observation.sequence)} names an obligation without verified ledger proof.`,
+          `Closure observation ${String(observation.sequence)} names an obligation without verified required ledger proof.`,
           observation.evidence_ids,
         ),
       );

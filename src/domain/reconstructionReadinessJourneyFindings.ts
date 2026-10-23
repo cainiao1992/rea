@@ -1,3 +1,4 @@
+import { compositeKey } from "./unicodeCodePointOrder.js";
 import {
   addMissingEvidenceFindings,
   readinessFinding as finding,
@@ -310,7 +311,6 @@ const outcomeFindings = (
   evidenceIds: ReadonlySet<string>,
 ): ReadinessFinding[] => {
   const findings: ReadinessFinding[] = [];
-  const parity = new Map<string, Set<"cli" | "mcp">>();
   for (const outcome of input.operation_outcomes) {
     const expectedCliExit = outcome.expected_success ? 0 : 1;
     if (
@@ -343,8 +343,6 @@ const outcomeFindings = (
           outcome.evidence_ids,
         ),
       );
-    const key = `${outcome.operation}:${outcome.call_kind}:${String(outcome.expected_success)}`;
-    parity.set(key, new Set([...(parity.get(key) ?? []), outcome.surface]));
     addMissingEvidenceFindings(
       findings,
       "export-replay",
@@ -352,32 +350,28 @@ const outcomeFindings = (
       evidenceIds,
     );
   }
-  for (const [key, surfaces] of parity)
-    if (surfaces.size !== 2)
+  for (const outcomes of groupedOutcomes(input).values()) {
+    const first = outcomes[0]!;
+    const label = `${first.operation}:${first.call_kind}:${String(first.expected_success)}`;
+    const citations = outcomes.flatMap((outcome) => outcome.evidence_ids);
+    if (new Set(outcomes.map((outcome) => outcome.surface)).size !== 2)
       findings.push(
         finding(
           "surface-parity-missing",
           "export-replay",
           "fail",
-          `CLI/MCP outcome pair is incomplete: ${key}.`,
+          `CLI/MCP outcome pair is incomplete: ${label}.`,
+          citations,
         ),
       );
-  for (const [key, outcomes] of groupedOutcomes(input)) {
-    const cli = outcomes.find(({ surface }) => surface === "cli");
-    const mcp = outcomes.find(({ surface }) => surface === "mcp");
-    if (
-      cli !== undefined &&
-      mcp !== undefined &&
-      (cli.expected_success !== mcp.expected_success ||
-        cli.error_code !== mcp.error_code)
-    )
+    if (outcomes.some((outcome) => outcome.error_code !== first.error_code))
       findings.push(
         finding(
           "surface-semantic-drift",
           "export-replay",
           "fail",
-          `CLI/MCP structured outcomes disagree: ${key}.`,
-          [...cli.evidence_ids, ...mcp.evidence_ids],
+          `CLI/MCP structured outcomes disagree: ${label}; sequences ${outcomes.map((outcome) => outcome.sequence).join(", ")}.`,
+          citations,
         ),
       );
   }
@@ -395,8 +389,14 @@ const groupedOutcomes = (
     ReconstructionReadinessInput["operation_outcomes"]
   >();
   for (const outcome of input.operation_outcomes) {
-    const key = `${outcome.operation}:${outcome.call_kind}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), outcome]);
+    const key = compositeKey([
+      outcome.operation,
+      outcome.call_kind,
+      String(outcome.expected_success),
+    ]);
+    const group = grouped.get(key);
+    if (group === undefined) grouped.set(key, [outcome]);
+    else group.push(outcome);
   }
   return grouped;
 };

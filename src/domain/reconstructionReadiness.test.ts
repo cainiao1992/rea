@@ -411,3 +411,90 @@ describe("readiness failure semantics", () => {
     );
   });
 });
+
+describe("readiness retained observation accounting", () => {
+  it.each([false, true])(
+    "rejects a conflicting repeated CLI outcome regardless of order (%s)",
+    (reverse) => {
+      const value = input();
+      value.operation_outcomes.push({
+        ...value.operation_outcomes[2]!,
+        sequence: 4,
+        error_code: "different-error",
+      });
+      if (reverse) value.operation_outcomes.reverse();
+      const report = createReconstructionReadinessReport(value);
+      expect(report.status).toBe("fail");
+      expect(report.findings).toContainEqual(
+        expect.objectContaining({
+          code: "surface-semantic-drift",
+          stage_id: "export-replay",
+          detail: expect.stringContaining("4"),
+        }),
+      );
+      expect(report.snapshot.operation_outcomes).toHaveLength(5);
+    },
+  );
+
+  it("retains agreeing repeats and paired recovery outcomes", () => {
+    const value = input();
+    value.operation_outcomes.push({
+      ...value.operation_outcomes[2]!,
+      sequence: 4,
+    });
+    value.operation_outcomes.push({
+      ...value.operation_outcomes[2]!,
+      sequence: 5,
+      expected_success: true,
+      cli_exit_code: 0,
+      error_code: null,
+    });
+    value.operation_outcomes.push({
+      ...value.operation_outcomes[3]!,
+      sequence: 6,
+      expected_success: true,
+      mcp_status: "success",
+      error_code: null,
+    });
+    expect(createReconstructionReadinessReport(value).status).toBe("pass");
+  });
+
+  it("does not credit duplicate obligation IDs as distinct closure", () => {
+    const value = input();
+    value.closure_history[0]!.required_open = 2;
+    value.closure_history[1]!.newly_verified_obligation_ids = [
+      "obl.readiness",
+      "obl.readiness",
+    ];
+    const report = createReconstructionReadinessReport(value);
+    expect(report.status).toBe("fail");
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({
+        code: "invalid-obligation-closure-transition",
+        stage_id: "verify-reconstruction-closure",
+      }),
+    );
+    expect(
+      report.snapshot.closure_history[1]!.newly_verified_obligation_ids,
+    ).toEqual(["obl.readiness", "obl.readiness"]);
+  });
+
+  it("checks every historical count against the supplied required-obligation universe", () => {
+    const value = input();
+    value.closure_history.unshift({
+      ...value.closure_history[0]!,
+      sequence: 0,
+      required_open: 2,
+    });
+    value.closure_history[1]!.sequence = 1;
+    value.closure_history[2]!.sequence = 2;
+    value.closure_history[1]!.newly_verified_obligation_ids = ["obl.readiness"];
+    const report = createReconstructionReadinessReport(value);
+    expect(report.status).toBe("fail");
+    expect(
+      report.findings.filter(
+        ({ code }) => code === "invalid-obligation-closure-transition",
+      ),
+    ).toHaveLength(2);
+  });
+});

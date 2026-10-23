@@ -73,6 +73,21 @@ Stage `capability_issue` and `next_action` fields map unsupported or failing
 work to the responsible capability and remediation without claiming that the
 requested analysis ran.
 
+Operation parity groups observations by operation, call kind and expected
+success. Every retained CLI/MCP observation in that group must agree on its
+structured error code, including repeats; findings cite the complete group and
+its sequence numbers. Equivalent repeats are retained. A later recovery success
+is assessed with its corresponding success observations instead of replacing a
+recorded failure.
+
+Closure history describes one fixed required-obligation universe from the
+supplied ledger. Its first entry establishes the starting open count and cannot
+claim a new transition. Each later count decrease must equal the number of
+unique newly verified required obligations. An ID cannot be credited twice
+within an entry or across entries, and no historical open count can exceed the
+ledger's required-obligation count. Original history entries remain in the
+report snapshot when these checks fail.
+
 ## Fixtures
 
 The verifier uses only source-owned, redistributable fixtures:

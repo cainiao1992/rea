@@ -1,5 +1,6 @@
 import { z } from "incur";
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
+import { findAppBundleResourceRoot } from "../application/AppBundleExecutable.js";
 
 import { resolveCliAnalysisSelector } from "./analysisSelector.js";
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
@@ -230,15 +231,14 @@ const routesToJavaScriptAnalysis = async (
   (await isJavaScriptApplicationPath(path));
 
 const isJavaScriptApplicationPath = async (path: string): Promise<boolean> => {
-  const lower = path.toLowerCase();
-  if (lower.endsWith(".asar")) return true;
-  // `A.app/` and `A.app/.` name the same bundle as `A.app`.
-  if (lower.replace(/(?:\/\.?)+$/u, "").endsWith(".app")) return false;
   try {
-    return (await stat(path)).isDirectory();
+    const canonical = await realpath(path);
+    if (canonical.toLowerCase().endsWith(".asar")) return true;
+    if (!(await stat(canonical)).isDirectory()) return false;
+    const bundle = await findAppBundleResourceRoot(canonical);
+    // Unresolved native metadata must reach native admission's typed failure.
+    return bundle.ok && bundle.value === undefined;
   } catch (cause: unknown) {
-    // A missing or unreadable path is not a JavaScript application directory;
-    // the caller falls through to direct binary analysis instead.
     void cause;
     return false;
   }

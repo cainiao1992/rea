@@ -108,10 +108,12 @@ export const resolveAppBundleExecutable = async (
  * Resolve only the root and Info.plist layout needed for read-only resource
  * inspection. This intentionally does not require or guess CFBundleExecutable.
  */
-export const resolveAppBundleResourceRoot = async (
+export const findAppBundleResourceRoot = async (
   path: string,
   options: { readonly cwd?: string } = {},
-): Promise<Result<ResolvedAppBundleResourceRoot, BinaryTargetError>> => {
+): Promise<
+  Result<ResolvedAppBundleResourceRoot | undefined, BinaryTargetError>
+> => {
   const callerPath = absoluteCallerPath(
     path,
     options.cwd === undefined ? {} : { cwd: options.cwd },
@@ -125,13 +127,7 @@ export const resolveAppBundleResourceRoot = async (
         : undefined;
     const root = wrapped ?? canonicalInput;
     const layout = directLayout ?? (await presentLayout(root));
-    if (layout === undefined)
-      return err(
-        new BinaryTargetError(
-          callerPath,
-          `app resource root has no supported Info.plist layout: ${callerPath}`,
-        ),
-      );
+    if (layout === undefined) return ok(undefined);
     const canonicalPath = await realpath(root);
     return ok({
       callerPath,
@@ -141,12 +137,30 @@ export const resolveAppBundleResourceRoot = async (
       executableSha256: null,
     });
   } catch (cause: unknown) {
+    if (cause instanceof BinaryTargetError) return err(cause);
     return err(
       new BinaryTargetError(callerPath, errorReason(cause, callerPath), {
         cause,
       }),
     );
   }
+};
+
+/** Require a discovered bundle layout while preserving typed read failures. */
+export const resolveAppBundleResourceRoot = async (
+  path: string,
+  options: { readonly cwd?: string } = {},
+): Promise<Result<ResolvedAppBundleResourceRoot, BinaryTargetError>> => {
+  const found = await findAppBundleResourceRoot(path, options);
+  if (!found.ok) return found;
+  if (found.value !== undefined) return ok(found.value);
+  const callerPath = absoluteCallerPath(path, options);
+  return err(
+    new BinaryTargetError(
+      callerPath,
+      `app resource root has no supported Info.plist layout: ${callerPath}`,
+    ),
+  );
 };
 
 const presentLayout = async (

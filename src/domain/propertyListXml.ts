@@ -1,3 +1,4 @@
+import { markPlistDictionary } from "./apple/plistUid.js";
 import type { Node } from "@xmldom/xmldom";
 
 import { readXmlPlistSource } from "./propertyListXmlSource.js";
@@ -88,7 +89,18 @@ export const decodeXmlPropertyList = (text: string) => {
         if (key !== undefined)
           throw new TypeError("Missing value for key while parsing <dict/>");
         // Define own properties safely, including __proto__; the caller owns omission accounting.
-        return Object.fromEntries(entries);
+        const value = Object.fromEntries(entries);
+        // XML archives use Foundation's CF$UID convention; a UID key is data.
+        const keys = Object.keys(value);
+        markPlistDictionary(
+          value,
+          keys.length === 1 &&
+            keys[0] === "CF$UID" &&
+            typeof value["CF$UID"] === "number"
+            ? value["CF$UID"]
+            : undefined,
+        );
+        return value;
       }
       case "key": {
         // The pinned decoder also accepted key elements as scalars. Keep their

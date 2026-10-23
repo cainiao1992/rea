@@ -549,9 +549,11 @@ complete observation.
   malformed/unresolved/nil references. Missing fields stay absent; unknown
   classes are preserved. Select `root`, `offset` and `limit` explicitly.
   Binary references retain their serialized type-8 UID identity; ordinary
-  dictionaries with `UID` or `CF$UID` keys remain authored data. XML has no UID
-  scalar, so its dictionary UID convention remains ambiguous with authored
-  dictionaries of the same shape. Object `kind` describes the decoded archive value: data, dates and numbers
+  dictionaries with `UID` or `CF$UID` keys remain authored data. XML uses
+  Foundation's single numeric `CF$UID` dictionary convention for references;
+  a numeric `UID` dictionary remains authored data. Reference identity follows
+  the parsed format, rather than the displayed key alone. Object `kind`
+  describes the decoded archive value: data, dates and numbers
   remain `scalar` when their JSON value uses a `$plist_type` wrapper. An actual
   dictionary with the same fields remains `dictionary`.
   XML must be well-formed. Data literals use

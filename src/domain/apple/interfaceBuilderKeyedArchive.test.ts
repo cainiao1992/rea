@@ -6,7 +6,7 @@ import {
 } from "./interfaceBuilderGraph.js";
 import { parseInterfaceBuilderRecords } from "./interfaceBuilderKeyedArchive.js";
 
-const uid = (value: number) => ({ UID: value });
+const uid = (value: number) => ({ CF$UID: value });
 
 const archive = (
   fields: Record<string, unknown> = {},
@@ -151,8 +151,8 @@ it.each([
   { id: "2" },
   { archiveUID: 2 },
   { archiveUID: 2, className: "NSView" },
-  { UID: 2, archiveUID: 2 },
-  { UID: "2" },
+  { CF$UID: 2, archiveUID: 2 },
+  { CF$UID: "2" },
   uid(-1),
   uid(99),
   uid(0),

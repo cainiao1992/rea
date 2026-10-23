@@ -1,4 +1,4 @@
-import { markBinaryPlistDictionary } from "../../domain/apple/plistUid.js";
+import { markPlistDictionary } from "../../domain/apple/plistUid.js";
 import {
   createPlistNumberCollector,
   type PlistNumberLiterals,
@@ -408,7 +408,7 @@ export const retainBinaryPlistUidIdentity = (
       !(item instanceof Date) &&
       !(item instanceof Uint8Array)
     ) {
-      markBinaryPlistDictionary(item);
+      markPlistDictionary(item);
       for (const child of Object.values(item)) pending.push(child);
     }
   }
@@ -428,7 +428,7 @@ export const retainBinaryPlistUidIdentity = (
     }
     if (item !== null && typeof item === "object") {
       const uid = Object.getOwnPropertyDescriptor(item, "UID")?.value;
-      if (typeof uid === "number") markBinaryPlistDictionary(item, uid);
+      if (typeof uid === "number") markPlistDictionary(item, uid);
     }
   }
   return value;

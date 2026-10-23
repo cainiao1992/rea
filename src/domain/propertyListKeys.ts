@@ -1,3 +1,4 @@
+import { copyPlistUidIdentity } from "./apple/plistUid.js";
 import { parseOpenStep } from "plist";
 
 import { decodeXmlPropertyList } from "./propertyListXml.js";
@@ -47,13 +48,15 @@ export const omitPrototypeKeys = (
       item instanceof UnknownPlistScalar
     )
       return item;
-    return Object.fromEntries(
+    const projected = Object.fromEntries(
       Object.entries(item).flatMap(([name, entry]) => {
         if (name !== PROTOTYPE_KEY) return [[name, strip(entry)]];
         omitted += 1;
         return [];
       }),
     );
+    copyPlistUidIdentity(item, projected);
+    return projected;
   };
   const stripped = strip(value);
   return { value: stripped, omittedPrototypeKeys: omitted };

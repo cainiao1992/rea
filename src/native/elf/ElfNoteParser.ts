@@ -415,6 +415,13 @@ export const parseElfNotes = (
     for (let index = 0; index < shnum; index += 1) {
       const at = shoff + index * shentsize;
       if (reader.u32(at + 4) !== SHT_NOTE) continue;
+      // Note locations are file ranges. Decoded section coordinates need a
+      // separate provenance contract before compressed notes can be emitted.
+      if ((reader.u32(at + 8 + (wide && !reader.little ? 4 : 0)) & 0x800) !== 0)
+        throw new BinaryFormatFailure(
+          "unsupported",
+          "Compressed ELF note sections are outside this parser's file-range coverage; inspect a separately decompressed copy.",
+        );
       const nameOffset = reader.u32(at);
       const fileOffset = reader.word(at + (wide ? 24 : 16));
       const fileSize = reader.word(at + (wide ? 32 : 20));

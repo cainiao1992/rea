@@ -105,6 +105,35 @@ it("reads the same notes from an SHT_NOTE section including its name", () => {
 
 it.each([
   [32, true],
+  [32, false],
+  [64, true],
+  [64, false],
+] as const)(
+  "refuses compressed ELF%i %s-endian note sections before interpreting codec bytes",
+  (bits, little) => {
+    const bytes = elfNoteFixture({ bits, little, ownership: "section" });
+    expect(parse(bytes).entries.length).toBeGreaterThan(0);
+    const shoff =
+      bits === 64
+        ? Number(little ? bytes.readBigUInt64LE(40) : bytes.readBigUInt64BE(40))
+        : little
+          ? bytes.readUInt32LE(32)
+          : bytes.readUInt32BE(32);
+    const flags =
+      shoff + (bits === 64 ? 64 : 40) + 8 + (bits === 64 && !little ? 4 : 0);
+    if (little) bytes.writeUInt32LE(0x800, flags);
+    else bytes.writeUInt32BE(0x800, flags);
+    expect(() => parse(bytes)).toThrow(
+      expect.objectContaining({
+        kind: "unsupported",
+        message: expect.stringContaining("Compressed ELF note sections"),
+      }),
+    );
+  },
+);
+
+it.each([
+  [32, true],
   [64, false],
 ] as const)(
   "decompresses a zlib section-name table for ELF%i %s-endian notes",

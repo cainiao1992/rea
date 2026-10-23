@@ -1218,7 +1218,27 @@ export function* collectSemanticMemberMutationsSteps(
       if (writeTarget !== null && !semanticWriteSiteReadsFirst(node))
         for (const target of semanticWriteTargets(writeTarget))
           writeOnlyMembers.add(target);
-      for (const source of semanticIterationSources(node, parent))
+      for (const source of semanticIterationSources(node, parent)) {
+        // Local stores retain their sources on member writes. Only the ambient
+        // identity owner can establish that storing itself exposes a reference.
+        if (
+          source.kind === "reference-store" &&
+          source.target !== undefined &&
+          !state.escapingReferenceStores.has(source.target) &&
+          (localAccessorMethods(
+            source.target.object,
+            [
+              semanticStaticPropertyKey(
+                source.target.property,
+                source.target.computed,
+              ),
+            ],
+            "set",
+            state,
+            accessorKeyMayExist,
+          )?.length ?? 1) === 0
+        )
+          continue;
         deferIterable({
           ...source,
           path: source.projection,
@@ -1228,6 +1248,7 @@ export function* collectSemanticMemberMutationsSteps(
           originAt: source.mutation,
           iterationOnly: source.kind === "iteration",
         });
+      }
       for (const operand of semanticCoercionOperands(node, (operand) => {
         const value = evaluateSemanticExpression(operand, state, node);
         return value.status === "object" || value.status === "array";

@@ -1053,6 +1053,7 @@ const createState = (
     requiredModuleEffects: new Map(),
     ambientBindingWrites: new Map(),
     ambientWrites: new SemanticPropertyPathCoverage(),
+    escapingReferenceStores: new WeakSet(),
     ambientEscapes: new SemanticPropertyPathCoverage(),
     ambientEscapeEffects: [],
     ambientWriteEffects: [],

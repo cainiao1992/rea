@@ -81,6 +81,7 @@ it.each([
   'const box = {}; box.prototype = Map.prototype; box.prototype.get = fetch; new Map().get("/accounts")',
   'const box = {}; box.p = (anything(), Map.prototype); patch(box); new Map().get("/accounts")',
   'window.prototype = Map.prototype; new Map().get("/accounts")',
+  'const box = { set prototype(value) { patch(value); } }; box.prototype = Map.prototype; new Map().get("/accounts")',
   'const box = new ExternalBox(); box.prototype = Map.prototype; new Map().get("/accounts")',
   'function expose(box) { box.prototype = Map.prototype; } new Map().get("/accounts")',
   'const factory = { make() { return Map.prototype; } }; factory.make().get = fetch; new Map().get("/accounts")',

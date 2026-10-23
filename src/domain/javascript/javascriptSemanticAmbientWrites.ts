@@ -650,7 +650,8 @@ export function* indexJavaScriptAmbientWritesSteps(
         local = true;
       },
     );
-    if (!local || ambient.length > 0)
+    if (!local || ambient.length > 0) {
+      state.escapingReferenceStores.add(source.target);
       escapes.push({
         node: source.mutation,
         target: source.node,
@@ -659,6 +660,7 @@ export function* indexJavaScriptAmbientWritesSteps(
           key === null || typeof key === "object" ? null : String(key),
         ),
       });
+    }
   }
   for (const { node, path } of writes) {
     const target =

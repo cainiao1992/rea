@@ -65,6 +65,23 @@ export const interfaceBuilderConnectionFieldNames = (className: string) =>
     ? { source: "UISource", destination: "UIDestination", label: "UILabel" }
     : { source: "NSSource", destination: "NSDestination", label: "NSLabel" };
 
+/** Only Interface Builder's known placeholder records establish an authored class override. */
+export const interfaceBuilderRuntimeClassName = (
+  archivedClass: string | null,
+  authoredName: (field: string) => string | null,
+): string | null => {
+  switch (archivedClass) {
+    case "NSClassSwapper":
+    case "NSCustomObject":
+    case "NSCustomResource":
+      return authoredName("NSClassName") ?? archivedClass;
+    case "UIClassSwapper":
+      return authoredName("UIClassName") ?? archivedClass;
+    default:
+      return archivedClass;
+  }
+};
+
 /** A decoded plist is not an Interface Builder document merely because it is named .nib. */
 export const requireInterfaceBuilderArchive = (value: unknown): void => {
   const root = record(value);
@@ -423,13 +440,20 @@ const parseKeyedArchive = (
   for (const [index, raw] of objectTable.entries()) {
     if (index === 0) continue;
     const resolved = record(resolve(raw));
-    const className = classNameOf(raw);
+    const archivedClassName = classNameOf(raw);
     // An archived object names its class with its own `$class` reference;
     // when that reference cannot be resolved the object is still observed,
     // with an unknown class. Scalars and class descriptors are not objects.
-    if (className === null && !Object.hasOwn(record(raw), "$class")) continue;
+    if (archivedClassName === null && !Object.hasOwn(record(raw), "$class"))
+      continue;
     objectCount += 1;
     const fields = { ...resolved };
+    const className = interfaceBuilderRuntimeClassName(
+      archivedClassName,
+      (field) => firstString(fields[field]),
+    );
+    if (className !== archivedClassName)
+      fields.interface_builder_archived_class_name = archivedClassName;
     // Keep the unresolvable class reference itself, e.g. a dangling UID.
     if (className === null) fields.$class = record(raw).$class;
     // Authored objectID, object-id, id and archiveUID fields are data. Only
@@ -566,6 +590,11 @@ const classifyObject = (
   className: string | null,
   classChain: readonly string[] = [],
 ): InterfaceBuilderObject["kind"] => {
+  if (
+    isInterfaceBuilderConnectionClass(className ?? "") ||
+    classChain.includes("NSNibConnector")
+  )
+    return "other";
   for (const [kind, bases] of archivedKindBases)
     if (bases.some((base) => classChain.includes(base))) return kind;
   const value = className?.toLowerCase() ?? "";

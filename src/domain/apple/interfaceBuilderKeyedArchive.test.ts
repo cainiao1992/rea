@@ -352,3 +352,36 @@ it.each([
     }).objects[0]?.kind,
   ).toBe(kind);
 });
+
+it.each(["NSCustomObject", "NSClassSwapper", "UIClassSwapper"])(
+  "uses the guarded authored class on %s and retains the archived class",
+  (archivedClass) => {
+    const source = archive({
+      [archivedClass === "UIClassSwapper" ? "UIClassName" : "NSClassName"]:
+        "FixtureWindowController",
+    });
+    source.$objects[4] = {
+      $classname: archivedClass,
+      $classes: [archivedClass, "NSObject"],
+    };
+    expect(parseInterfaceBuilderRecords(source).objects[0]).toMatchObject({
+      class_name: "FixtureWindowController",
+      kind: "view_controller",
+      attributes: { interface_builder_archived_class_name: archivedClass },
+    });
+  },
+);
+it("retains action connectors as serialized helpers without inventing UI controls", () => {
+  const source = archive();
+  source.$objects[5] = {
+    $classname: "NSNibControlConnector",
+    $classes: ["NSNibControlConnector", "NSNibConnector", "NSObject"],
+  };
+  const parsed = parseInterfaceBuilderRecords(source);
+  expect(parsed.objects.find(({ id }) => id === "3")?.kind).toBe("other");
+  expect(parsed.connections[0]).toMatchObject({
+    kind: "action",
+    source_id: "2",
+    destination_id: "1",
+  });
+});

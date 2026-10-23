@@ -4,6 +4,7 @@ import { parseBinary } from "plist";
 import { appleResourceKeyFields } from "../../domain/apple/appleAssetCatalog.js";
 import {
   interfaceBuilderConnectionFieldNames,
+  interfaceBuilderRuntimeClassName,
   requireInterfaceBuilderArchive,
   isInterfaceBuilderConnectionClass,
   isSourceLessAppKitAnnotationConnector,
@@ -637,12 +638,13 @@ const projectNibArchive = (
     const object = byId.get(objectId);
     if (object === undefined) return null;
     const storedClass = normalizeClassName(object.class_name);
-    const resolvedClass =
-      storedClass === "NSClassSwapper"
-        ? (referencedString(object.values.NSClassName) ?? storedClass)
-        : storedClass === "UIClassSwapper"
-          ? (referencedString(object.values.UIClassName) ?? storedClass)
-          : storedClass;
+    const resolvedClass = interfaceBuilderRuntimeClassName(
+      storedClass,
+      (field) => {
+        const value = object.values[field];
+        return typeof value === "string" ? value : referencedString(value);
+      },
+    );
     runtimeClasses.set(objectId, resolvedClass);
     return resolvedClass;
   };
@@ -696,6 +698,13 @@ const projectNibArchive = (
             label: name,
             objectID: String(object.id),
             nibValues,
+            ...(className === normalizeClassName(object.class_name)
+              ? {}
+              : {
+                  interface_builder_archived_class_name: normalizeClassName(
+                    object.class_name,
+                  ),
+                }),
             ...Object.fromEntries(resourceFields),
           },
         ];

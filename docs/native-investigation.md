@@ -460,7 +460,13 @@ complete observation.
   `inventory_coverage` describes traversal of source entries and remains
   `unknown` when the reader cannot represent a filename. Represented symlinks
   are inventoried but their targets remain uninspected, with a limitation.
-  Image extraction and undocumented rendition interpretation are unsupported.
+  `catalog_coverage` and `resource_key_coverage` separately describe examined
+  catalog metadata and the UI join; an unmatched key cannot establish absence
+  when either source is incomplete. Resource wrappers retain their serialized
+  class and authored runtime class, including AppKit `NSCustomResource` names.
+  Invalid producer JSON and subprocess failures retain captured output with
+  their typed failure reason. Image extraction and undocumented rendition
+  interpretation are unsupported.
 - `inspect_keyed_archive` / `rea inspect-keyed-archive <plist>` reads XML or
   binary Foundation keyed archives without instantiating classes. For an active
   app, provide its relative archive path as the second CLI argument or MCP

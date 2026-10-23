@@ -159,6 +159,7 @@ function* buildJavaScriptArtifactGraphInputSteps(
     root,
     filesByPath: new Map(fileSet.files.map((file) => [file.path, file])),
     unanalyzedFiles: {
+      coverage: snapshot.coverage,
       get: (path) =>
         unavailableFilesByPath.get(path) ?? fileSet.unanalyzed_files?.get(path),
       hasDirectory: (path, container) =>

@@ -10,6 +10,72 @@ import { artifactLocalIdentity } from "./JavaScriptArtifactGraphContext.js";
 import { applicationNodeIdentitySchema } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
 import { analyzeJavaScriptStaticSource } from "../../domain/javascript/javascriptStaticAnalysis.js";
 
+const completeInventoryCoverage = {
+  scope: "container-entries",
+  status: "complete",
+} as const;
+
+describe("incomplete inventory lookups", () => {
+  it.each(["complete", "unknown"] as const)(
+    "qualifies missing candidates before extension fallbacks under %s traversal",
+    (status) => {
+      const files = fileMap([
+        file("app/main.cjs", "root"),
+        file("app/target.js", "root"),
+      ]);
+      const unanalyzedFiles = {
+        coverage: { scope: "container-entries" as const, status },
+        get: () => undefined,
+        hasDirectory: () => false,
+      };
+      expect(
+        resolve({
+          declaredPath: "./target",
+          sourcePath: "app/main.cjs",
+          context: "module-specifier",
+          moduleKind: "require",
+          files,
+          unanalyzedFiles,
+        }),
+      ).toMatchObject(
+        status === "complete"
+          ? { resolution_status: "resolved", resolved_path: "app/target.js" }
+          : {
+              resolution_status: "unavailable",
+              resolved_path: null,
+              candidate_path: "app/target",
+            },
+      );
+      expect(
+        resolve({
+          declaredPath: "./target.js",
+          sourcePath: "app/main.cjs",
+          context: "module-specifier",
+          moduleKind: "require",
+          files,
+          unanalyzedFiles,
+        }),
+      ).toMatchObject({
+        resolution_status: "resolved",
+        resolved_path: "app/target.js",
+      });
+      expect(
+        resolve({
+          declaredPath: "./missing.js",
+          sourcePath: "app/main.cjs",
+          context: "module-specifier",
+          moduleKind: "require",
+          files,
+          unanalyzedFiles,
+        }),
+      ).toMatchObject({
+        resolution_status: status === "complete" ? "not-found" : "unavailable",
+        resolved_path: null,
+      });
+    },
+  );
+});
+
 describe("Windows CommonJS request classification", () => {
   it.each([
     "..\\shared\\window.cjs",
@@ -578,6 +644,7 @@ describe("loader-specific module suffix lookup", () => {
     const files = fileMap([file("app/entry.cjs", "root")]);
     const unanalyzedFiles = {
       get: (path: string) => opaque.get(path),
+      coverage: completeInventoryCoverage,
       hasDirectory: () => false,
     };
     expect(
@@ -650,6 +717,7 @@ describe("unavailable inventoried native add-ons", () => {
       files: fileMap([file("app/entry.cjs", "root")]),
       unanalyzedFiles: {
         get: (path) => (path === unavailable.path ? unavailable : undefined),
+        coverage: completeInventoryCoverage,
         hasDirectory: () => false,
       },
     });
@@ -689,6 +757,7 @@ describe("unavailable package metadata", () => {
         requestedPaths.push(path);
         return path === manifest.path ? manifest : undefined;
       },
+      coverage: completeInventoryCoverage,
       hasDirectory: () => false,
     };
     const relativeRequire = resolve({
@@ -757,6 +826,7 @@ describe("unavailable package metadata", () => {
     ]);
     const lookup = {
       get: (path: string) => (path === manifest.path ? manifest : undefined),
+      coverage: completeInventoryCoverage,
       hasDirectory: () => false,
     };
     for (const [sourcePath, moduleKind] of [
@@ -4128,6 +4198,7 @@ describe("Node launch package main ownership", () => {
                   limitations: ["main readback unavailable"],
                 }
               : undefined,
+          coverage: completeInventoryCoverage,
           hasDirectory: () => false,
         },
       }),
@@ -4376,6 +4447,7 @@ describe("package metadata at archive module boundaries", () => {
             unanalyzedFiles: {
               get: (requested) =>
                 opaque && requested === path ? target : undefined,
+              coverage: completeInventoryCoverage,
               hasDirectory: () => false,
             },
           }),

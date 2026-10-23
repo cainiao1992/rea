@@ -176,8 +176,8 @@ const materializeArtifactInventoryInScope = async (
         input.inputPath,
         `Archive entry ${occurrence.logical_path} is encrypted; REA does not decrypt archive entries, so the archive cannot be extracted completely`,
       );
-    // Inventory keeps an ASAR unpacked entry whose companion file is absent,
-    // but extraction cannot materialize bytes it never observed.
+    // Inventory retains unavailable source occurrences, but extraction cannot
+    // materialize bytes it never observed.
     if (
       occurrence.entry_kind === "file" &&
       occurrence.artifact_id === null &&
@@ -185,13 +185,13 @@ const materializeArtifactInventoryInScope = async (
     )
       throw new ArtifactReaderFailure(
         "unavailable",
-        `ASAR unpacked companion bytes are unavailable for ${occurrence.logical_path}`,
+        `Inventoried source bytes are unavailable for ${occurrence.logical_path}`,
         undefined,
         {
           logicalPath: occurrence.logical_path,
           declaredSha256: null,
           calculatedSha256: null,
-          unpacked: true,
+          unpacked: occurrence.unpacked,
         },
       );
     if (

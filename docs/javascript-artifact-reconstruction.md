@@ -97,14 +97,28 @@ Omit the selection for the existing complete
 application workflow.
 
 The result and summary retain `source_selection.requested_paths` and
-`source_selection.unselected_files`. Every relevant file keeps its original
-inventory identity; unselected files report `text_status:
+`source_selection.unselected_files`. Selecting every relevant file leaves this
+count at zero and adds no unselected-source caveat. Every relevant file keeps its
+original inventory identity; unselected files report `text_status:
 "outside-analysis-scope"`. Their relationships remain unknown, and application
 coverage is partial while any file remains outside scope. Selection does not
 claim whole-application completeness or change integrity policy. Summary detail
 only reduces delivery; source selection reduces text acquisition and analysis.
 Explicit native provider or snapshot routing rejects `--source-path` rather
 than ignoring it.
+
+For directory input, a permission-denied child file remains an unavailable
+inventory occurrence, and an unreadable child directory records an unknown
+descendant omission. Readable sources remain available; application coverage is
+partial and retains those inventory limitations. An unreadable selected root
+remains an error. Explicit readers that require selected child bytes keep their
+access errors rather than treating denied paths as absent.
+Incomplete traversal also qualifies negative path and package-metadata lookups:
+an unobserved earlier loader candidate cannot be skipped in favor of a later
+observed candidate. An explicit source selection whose discovery is unknown
+returns an unavailable error with the retained inventory, rather than claiming
+the selected source does not exist. Observed exact file candidates keep their
+identity; unknown traversal cannot establish a unique application root.
 
 ASAR header/index admission defaults to 16 MiB / 16777216 bytes. Set
 `REA_ASAR_MAX_HEADER_BYTES` in the environment that starts REA to a decimal

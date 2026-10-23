@@ -329,6 +329,7 @@ it.each([
         gap === "opaque"
           ? {
               get: (path) => (path === target.path ? target : undefined),
+              coverage: base.snapshot.coverage,
               hasDirectory: () => false,
             }
           : undefined,

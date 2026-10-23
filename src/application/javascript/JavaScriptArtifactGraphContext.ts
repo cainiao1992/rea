@@ -118,6 +118,7 @@ export const applicationRootPath = (
   context: JavaScriptArtifactGraphContext,
   source: JavaScriptArtifactFile,
 ): string | null => {
+  if (context.snapshot.coverage.status !== "complete") return null;
   // Unread launch metadata can name a main in another inventoried container.
   // Archive occurrence identity does not prove isolation from the Node loader.
   if (context.applicationOwnershipUnknownContainers.size > 0) return null;

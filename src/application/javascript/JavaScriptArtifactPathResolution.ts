@@ -1426,6 +1426,11 @@ const readPackageMetadata = (
           unavailable.limitations?.[0] ??
           `Directory package metadata ${path} was inventoried but its bytes are unavailable.`,
       };
+    if (input.unanalyzedFiles?.coverage.status === "unknown")
+      return {
+        kind: "unavailable",
+        limitation: `Directory package metadata ${path} was not observed, and artifact traversal is incomplete; its absence is unknown.`,
+      };
     return { kind: "absent" };
   }
   if (!admitsRuntimeContainer(input, path, file.container_sha256))
@@ -1748,6 +1753,15 @@ const findFileCandidate = (
         unanalyzed.kind === undefined
           ? `${path} exists in the inventoried artifact container (sha256 ${unanalyzed.sha256 ?? "unknown"}, ${unanalyzed.bytes === null ? "unknown size" : `${String(unanalyzed.bytes)} bytes`}) but is not a JavaScript, JSON, HTML, source map, or native add-on file; its contents were not analyzed.`
           : `${path} is an inventoried ${unanalyzed.kind} file, but its bytes are unavailable (hash status ${unanalyzed.hash_status ?? "unknown"}); resolution cannot be confirmed.`,
+      ],
+    };
+  if (input.unanalyzedFiles?.coverage.status === "unknown")
+    return {
+      resolvedPath: null,
+      status: "unavailable",
+      candidatePath: path,
+      limitations: [
+        `Artifact path ${path} was not observed, and artifact traversal is incomplete; its absence is unknown.`,
       ],
     };
   return null;

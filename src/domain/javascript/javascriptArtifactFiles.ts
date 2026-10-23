@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { digestSchema } from "../digests.js";
 import type { JavaScriptSourceSelection } from "./javascriptSourceSelection.js";
-import type { ArtifactOccurrence } from "../artifactGraph.js";
+import type {
+  ArtifactInventoryCoverage,
+  ArtifactOccurrence,
+} from "../artifactGraph.js";
 
 /** One physical file occurrence, independent of its graph representations. */
 export const javaScriptFileOccurrenceSchema = z.strictObject({
@@ -81,6 +84,8 @@ export interface JavaScriptUnanalyzedArtifactFile {
 
 /** Borrowed inventory lookup; metadata is materialized only for requested paths. */
 export interface JavaScriptUnanalyzedArtifactLookup {
+  /** Inventory traversal coverage qualifies every negative lookup. */
+  readonly coverage: ArtifactInventoryCoverage;
   get(path: string): JavaScriptUnanalyzedArtifactFile | undefined;
   hasDirectory(path: string, containerSha256: string | undefined): boolean;
 }

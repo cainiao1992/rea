@@ -94,7 +94,10 @@ export class DirectoryArtifactReader implements ArtifactReader {
   readonly #files = new Map<OwnedFileHandle, string>();
   readonly #fileCleanup = new WeakMap<OwnedFileHandle, AnalysisCleanupLease>();
 
-  constructor(root: string) {
+  constructor(
+    root: string,
+    private readonly unreadableDirectories: "fail" | "omit" = "fail",
+  ) {
     this.#rootPath = root;
   }
 
@@ -131,18 +134,36 @@ export class DirectoryArtifactReader implements ArtifactReader {
       await withDirectoryIoContext("inspect directory", directory, () =>
         assertContainedDirectory(root, directory, admittedRoot.identity),
       );
-      for await (const entry of this.#readDirectory(
-        directory,
-        pending,
-        signal,
-        options,
-        examine,
-        (rawHex) => {
-          unrepresentableNameCount += 1;
-          firstUnrepresentableNameHex ??= rawHex;
-        },
-      ))
-        yield entry;
+      try {
+        for await (const entry of this.#readDirectory(
+          directory,
+          pending,
+          signal,
+          options,
+          examine,
+          (rawHex) => {
+            unrepresentableNameCount += 1;
+            firstUnrepresentableNameHex ??= rawHex;
+          },
+        ))
+          yield entry;
+      } catch (cause: unknown) {
+        if (
+          this.unreadableDirectories !== "omit" ||
+          !(cause instanceof DirectoryArtifactEntryAccessDenied)
+        )
+          throw cause;
+        abortIfNeeded(signal);
+        options?.onOmission?.({
+          path: cause.entryPath,
+          kind: "directory-descendants",
+        });
+        options?.onCoverage?.({
+          status: "unknown",
+          limitations: [cause.message],
+        });
+        continue;
+      }
       await withDirectoryIoContext("inspect directory", directory, () =>
         assertContainedDirectory(root, directory, admittedRoot.identity),
       );
@@ -204,6 +225,14 @@ export class DirectoryArtifactReader implements ArtifactReader {
     const handle = new OwnedDirectoryHandle(
       await opendir(directory, { encoding: "buffer" as BufferEncoding }).catch(
         (cause: unknown) => {
+          const code = hostErrorCode(cause);
+          if (directory !== root && (code === "EACCES" || code === "EPERM"))
+            throw new DirectoryArtifactEntryAccessDenied(
+              code,
+              relative(root, directory).split(sep).join("/"),
+              directoryIoFailure("open directory", directory, cause).message,
+              { cause },
+            );
           throw directoryIoFailure(
             "open directory",
             directory,

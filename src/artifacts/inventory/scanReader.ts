@@ -18,6 +18,7 @@ import {
   type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
 import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
+import { DirectoryArtifactEntryAccessDenied } from "../DirectoryArtifactReader.js";
 import { AsarArtifactReader } from "../AsarArtifactReader.js";
 import type { ArtifactNode } from "../../domain/artifactGraph.js";
 import {
@@ -34,7 +35,7 @@ import {
   STRICT_INTEGRITY_POLICY,
   type ArtifactIntegrityPolicy,
 } from "./types.js";
-import { hashReadable } from "../ArtifactHash.js";
+import { abortIfNeeded, hashReadable } from "../ArtifactHash.js";
 
 export interface PendingIntegrityContradiction {
   readonly occurrence: MutableOccurrence;
@@ -214,9 +215,17 @@ const visitArtifactEntries = async (
           occurrence,
         );
       } catch (cause: unknown) {
-        if (!isUnavailableUnpackedEntry(cause, entry)) throw cause;
+        let limitation = UNAVAILABLE_UNPACKED_LIMITATION;
+        if (cause instanceof DirectoryArtifactEntryAccessDenied) {
+          abortIfNeeded(context.signal);
+          limitation = cause.message;
+          context.traversal.onCoverage({
+            status: "unknown",
+            limitations: [limitation],
+          });
+        } else if (!isUnavailableUnpackedEntry(cause, entry)) throw cause;
         occurrence.hash_status = "unavailable";
-        occurrence.limitations.push(UNAVAILABLE_UNPACKED_LIMITATION);
+        occurrence.limitations.push(limitation);
       }
       if (digested === undefined) noteUnreadContainerSuffix(occurrence);
       else {

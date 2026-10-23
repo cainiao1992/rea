@@ -16,4 +16,4 @@ export const createJavaScriptArtifactReader = (
           ? {}
           : { headerAdmission: asarHeaderAdmission },
       )
-    : new DirectoryArtifactReader(path);
+    : new DirectoryArtifactReader(path, "omit");

@@ -31,7 +31,7 @@ export const createReader = (
     return new ZipArtifactReader(path, format, undefined, rootSource);
   switch (format) {
     case "directory":
-      return new DirectoryArtifactReader(path);
+      return new DirectoryArtifactReader(path, "omit");
     case "asar":
       return new AsarArtifactReader(
         path,

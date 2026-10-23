@@ -80,6 +80,23 @@ export const readJavaScriptArtifactFiles = async (
     sourcePaths === undefined
       ? undefined
       : new Map([...new Set(sourcePaths)].map((path, index) => [path, index]));
+  const undiscoveredPath = sourcePaths?.find(
+    (path) =>
+      relevantKind(path) !== undefined &&
+      !expected.has(path) &&
+      !inventory.unavailableFiles.has(path) &&
+      snapshot.occurrences[
+        lowerBound(snapshot.occurrences, path, (entry) => entry.logical_path)
+      ]?.logical_path !== path,
+  );
+  if (undiscoveredPath !== undefined && snapshot.coverage.status === "unknown")
+    throw new ArtifactReaderFailure(
+      "unavailable",
+      `Selected source discovery is unavailable under incomplete artifact traversal: ${undiscoveredPath}`,
+      {
+        partialObservation: { kind: "artifact-inventory", inventory: snapshot },
+      },
+    );
   const issues = (sourcePaths ?? []).flatMap((path, index) =>
     expected.has(path) || inventory.unavailableFiles.has(path)
       ? []
@@ -229,11 +246,7 @@ const visitReader = async (
             `Nested ASAR was not present in inventory: ${path}`,
           );
         if (container.hash_status === "mismatched") continue;
-        if (container.hash_status === "unavailable")
-          throw new ArtifactReaderFailure(
-            "unavailable",
-            `Nested ASAR bytes were unavailable during inventory: ${path}`,
-          );
+        if (container.hash_status === "unavailable") continue;
         if (container.hash_status !== "verified")
           throw new ArtifactReaderFailure(
             "integrity",
@@ -512,6 +525,7 @@ const createUnanalyzedArtifactLookup = (
     occurrence.artifact_id === null &&
     relevantKind(occurrence.logical_path) !== undefined;
   return {
+    coverage: snapshot.coverage,
     get(path) {
       if (requested.has(path)) return requested.get(path);
       const occurrence =

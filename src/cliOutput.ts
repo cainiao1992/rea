@@ -1,3 +1,8 @@
+export {
+  normalizeCliArguments,
+  splitIncurBuiltinArguments,
+  type IncurBuiltinArgumentSplit,
+} from "./cliBuiltinArguments.js";
 import { formatCliOutput } from "./cli/cliOutputFormatter.js";
 
 import { jsonOutputParts } from "./cli/jsonOutput.js";
@@ -40,36 +45,6 @@ export const renderCliDocument = (
   format === "json" || format === "jsonl"
     ? [...jsonOutputParts(value, format, stdoutIsTerminal)].join("")
     : `${formatCliOutput(value, format)}\n`;
-/** Global output flags that take a value. */
-const VALUED_OUTPUT_FLAGS = new Set([
-  "--format",
-  "--filter-output",
-  "--token-limit",
-  "--token-offset",
-]);
-
-const ROOT_UPDATE_OUTPUT_FLAGS = new Set([
-  "--json",
-  "--full-output",
-  "--token-count",
-]);
-
-/** Valueless flags Incur removes from every position before command parsing. */
-const INCUR_BUILTIN_FLAGS = new Set([
-  "--full-output",
-  "--llms",
-  "--llms-full",
-  "--mcp",
-  "--help",
-  "-h",
-  "--update",
-  // Incur's internal update-check flag.
-  "--incur-update-check",
-  "--schema",
-  "--json",
-  "--token-count",
-]);
-
 /**
  * Incur's message when its builtin pass rejects this spaced value of a valued
  * output flag, or undefined when Incur accepts it.
@@ -88,83 +63,6 @@ export const cliOutputValueRejection = (
   )
     return `Invalid value for ${flag}: "${value}"`;
   return undefined;
-};
-
-/** Command tokens and output-flag values as Incur's builtin pass assigns them. */
-export interface IncurBuiltinArgumentSplit {
-  /** Tokens left for command resolution and command option parsing. */
-  readonly command: readonly string[];
-  /** Positions of nonempty values consumed by valued output flags. */
-  readonly outputValues: readonly {
-    readonly flag: string;
-    readonly index: number;
-  }[];
-}
-
-/**
- * Mirror Incur's builtin pass over normalized arguments without stopping at a
- * rejected value, so callers can still see every later token. REA configures
- * neither a config flag nor global options, which Incur would also remove.
- */
-export const splitIncurBuiltinArguments = (
-  arguments_: readonly string[],
-): IncurBuiltinArgumentSplit => {
-  const command: string[] = [];
-  const outputValues: { readonly flag: string; readonly index: number }[] = [];
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index]!;
-    const next = arguments_[index + 1];
-    if (
-      INCUR_BUILTIN_FLAGS.has(argument) ||
-      // A following value belongs to a command-local `--version` option.
-      (argument === "--version" && (next === undefined || next.startsWith("-")))
-    )
-      continue;
-    if (VALUED_OUTPUT_FLAGS.has(argument) && next) {
-      outputValues.push({ flag: argument, index: index + 1 });
-      index += 1;
-      continue;
-    }
-    command.push(argument);
-  }
-  return { command, outputValues };
-};
-
-/**
- * Route the root update alias and split `--flag=value` output forms. Incur reads these
- * flags only in spaced form, so `--format=json` otherwise reaches the command
- * parser and fails as an unknown flag. Command options accept both forms.
- */
-export const normalizeCliArguments = (
-  arguments_: readonly string[],
-): string[] => {
-  const normalized: string[] = [];
-  const updates = new Set<number>();
-  let rootUpdate = true;
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index]!;
-    if (VALUED_OUTPUT_FLAGS.has(argument) && arguments_[index + 1]) {
-      // Incur consumes a nonempty spaced value before looking for more flags.
-      // Its contents belong to that option, even when they look like a flag.
-      normalized.push(argument, arguments_[index + 1]!);
-      index += 1;
-      continue;
-    }
-    const separator = argument.indexOf("=");
-    const flag = argument.slice(0, separator);
-    if (separator >= 0 && VALUED_OUTPUT_FLAGS.has(flag))
-      normalized.push(flag, argument.slice(separator + 1));
-    else {
-      if (argument === "--update") updates.add(normalized.length);
-      else if (!ROOT_UPDATE_OUTPUT_FLAGS.has(argument)) rootUpdate = false;
-      normalized.push(argument);
-    }
-  }
-  // Output option values were consumed above; flag-shaped data is never an alias.
-  // Help/check/command/unknown tokens retain Incur's parsing and precedence.
-  return rootUpdate && updates.size > 0
-    ? ["update", ...normalized.filter((_, index) => !updates.has(index))]
-    : normalized;
 };
 
 export type CliOutputArgumentValidation =

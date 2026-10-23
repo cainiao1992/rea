@@ -19,6 +19,10 @@ const installCliRuntime = async (
   await workspace.mkdir("dist/cli-runtime");
   await Promise.all([
     copyFile("scripts/rea.mjs", workspace.path("scripts/rea.mjs")),
+    copyFile(
+      "dist/cli-runtime/cliBuiltinArguments.js",
+      workspace.path("dist/cli-runtime/cliBuiltinArguments.js"),
+    ),
     workspace.write(
       "package.json",
       JSON.stringify({ type: "module", version: "1.0.0" }),
@@ -119,6 +123,10 @@ describe("executable dispatcher", () => {
       await workspace.mkdir("dist/mcp");
       await Promise.all([
         copyFile("scripts/rea.mjs", join(scripts, "rea.mjs")),
+        copyFile(
+          "dist/cli-runtime/cliBuiltinArguments.js",
+          workspace.path("dist/cli-runtime/cliBuiltinArguments.js"),
+        ),
         workspace.write(
           "package.json",
           JSON.stringify({ type: "module", version: "1.0.0" }),
@@ -154,10 +162,24 @@ describe("executable dispatcher", () => {
 
       await expect(invoke(["mcp"])).resolves.toEqual({ adapter: "mcp" });
       await expect(invoke(["--mcp"])).resolves.toEqual({ adapter: "mcp" });
-      await expect(invoke(["mcp", "doctor", "--json"])).resolves.toEqual({
-        adapter: "mcp-doctor",
-        args: ["--json"],
-        stdoutIsTerminal: false,
+      for (const args of [
+        ["mcp", "doctor", "--json"],
+        ["--json", "mcp", "doctor"],
+        ["mcp", "--json", "doctor"],
+        ["--format", "json", "mcp", "doctor"],
+        ["mcp", "--format=json", "doctor"],
+      ]) {
+        await expect(invoke(args)).resolves.toEqual({
+          adapter: "mcp-doctor",
+          args: args.includes("--json") ? ["--json"] : ["--format", "json"],
+          stdoutIsTerminal: false,
+        });
+      }
+      await expect(
+        invoke(["--filter-output", "mcp", "doctor"]),
+      ).resolves.toEqual({
+        adapter: "cli",
+        args: ["--filter-output", "mcp", "doctor"],
       });
       await expect(invoke(["mcp", "add"])).resolves.toEqual({
         adapter: "cli",

@@ -12,9 +12,15 @@ const { default: packageJson } = await import("../package.json", {
   with: { type: "json" },
 });
 process.env.REA_PACKAGE_VERSION = packageJson.version;
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const builtinArgumentRuntime = "dist/cli-runtime/cliBuiltinArguments.js";
+const builtinArguments = (await compiledRuntimeExists([builtinArgumentRuntime]))
+  ? await import("../dist/cli-runtime/cliBuiltinArguments.js")
+  : undefined;
+const doctorArguments = builtinArguments?.productionMcpDoctorArguments(args);
 const isMcpEntry = args[0] === "--mcp" || args[0] === "mcp";
 const isMcpMode = isMcpEntry && args.length === 1;
-const isMcpDoctorMode = args[0] === "mcp" && args[1] === "doctor";
+const isMcpDoctorMode = doctorArguments !== undefined;
 // Only flags may follow the entry: `mcp add --http` stays Incur's `mcp add`,
 // while `mcp -h --http` reaches the HTTP entry's own help.
 const isMcpHttpMode =
@@ -25,8 +31,6 @@ const isMcpHttpMode =
 const SIGPIPE_EXIT_STATUS = 141;
 // Set once the reader of CLI output has closed the pipe.
 let stdoutClosed = false;
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-
 // Windows home lookup throws for an empty USERPROFILE. Dependencies resolve
 // home during import, before REA's own resolver can apply its account fallback.
 if (process.platform === "win32" && process.env.USERPROFILE === "") {
@@ -47,8 +51,9 @@ if (
   process.env.PLAYWRIGHT_BROWSERS_PATH = join(cacheRoot, "ms-playwright");
 }
 
-const runtimeFiles =
-  isMcpMode || isMcpHttpMode
+const runtimeFiles = [
+  builtinArgumentRuntime,
+  ...(isMcpMode || isMcpHttpMode
     ? ["dist/mcp/main.js"]
     : isMcpDoctorMode
       ? ["dist/mcp/main.js", "dist/cli-runtime/mcpDoctor.js"]
@@ -56,7 +61,8 @@ const runtimeFiles =
           "dist/cli-runtime/cli.js",
           "dist/cli-runtime/cliOutput.js",
           "dist/cli-runtime/cliResultOutput.js",
-        ];
+        ]),
+];
 
 if (!(await compiledRuntimeExists(runtimeFiles))) {
   process.stderr.write(
@@ -73,7 +79,7 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
   guardClosedStdout();
   const { runProductionMcpDoctorCli } =
     await import("../dist/cli-runtime/mcpDoctor.js");
-  const result = await runProductionMcpDoctorCli(args.slice(2), {
+  const result = await runProductionMcpDoctorCli(doctorArguments, {
     dispatcherPath: fileURLToPath(import.meta.url),
     packageRoot,
     stdoutIsTerminal: process.stdout.isTTY === true,

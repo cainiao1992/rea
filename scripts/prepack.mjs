@@ -49,6 +49,7 @@ if (await pathExists(join(root, "src"))) {
     "dist/mcp/main.js",
     "dist/cli-runtime/cli.js",
     "dist/cli-runtime/cliOutput.js",
+    "dist/cli-runtime/cliBuiltinArguments.js",
     "dist/cli-runtime/cliResultOutput.js",
     "dist/cli-runtime/mcpDoctor.js",
     "dist/mcpDoctor.js",

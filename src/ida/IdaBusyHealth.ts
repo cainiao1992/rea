@@ -35,7 +35,7 @@ const isBusyStatus = (raw: JsonValue): boolean =>
 
 interface LastBusyHealth {
   readonly raw: JsonValue;
-  readonly operation: string;
+  readonly tool: string;
 }
 
 /**
@@ -90,15 +90,7 @@ export const readSettledHealth = async (
         cause.timeoutMs === requestTimeoutMs &&
         requestTimeoutMs < timeoutMs
       ) {
-        throw new AnalysisTimeoutError(lastBusy.operation, timeoutMs, {
-          cause: lastBusy.raw,
-          capturedOutput: cause.capturedOutput,
-          ...idaRegistrationTimeoutGuidance(timeoutMs, "readiness"),
-          diagnostics: {
-            health_request_operation: cause.operation,
-            health_request_timeout_ms: cause.timeoutMs,
-          },
-        });
+        throw busyTimeout(lastBusy, timeoutMs, cause);
       }
       throw cause;
     }
@@ -109,7 +101,7 @@ export const readSettledHealth = async (
     }
     const observedBusy = {
       raw,
-      operation: `server_health: headless worker still busy in ${busyToolName(busy.data.busy_tool)}`,
+      tool: busyToolName(busy.data.busy_tool),
     };
     lastBusy = observedBusy;
     const expired = (): AnalysisTimeoutError =>
@@ -139,8 +131,24 @@ export const readSettledHealth = async (
 const busyTimeout = (
   lastBusy: LastBusyHealth,
   timeoutMs: number,
-): AnalysisTimeoutError =>
-  new AnalysisTimeoutError(lastBusy.operation, timeoutMs, {
+  requestFailure?: AnalysisTimeoutError,
+): AnalysisTimeoutError => {
+  const guidance = idaRegistrationTimeoutGuidance(timeoutMs, "readiness");
+  return new AnalysisTimeoutError("server_health", timeoutMs, {
     cause: lastBusy.raw,
-    ...idaRegistrationTimeoutGuidance(timeoutMs, "readiness"),
+    ...guidance,
+    userMessage: `${guidance.userMessage} The last reported busy tool was ${lastBusy.tool}.`,
+    diagnostics: {
+      busy_tool: lastBusy.tool,
+      ...(requestFailure === undefined
+        ? {}
+        : {
+            health_request_operation: requestFailure.operation,
+            health_request_timeout_ms: requestFailure.timeoutMs,
+          }),
+    },
+    ...(requestFailure === undefined
+      ? {}
+      : { capturedOutput: requestFailure.capturedOutput }),
   });
+};

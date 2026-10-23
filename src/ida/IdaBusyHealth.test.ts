@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { IdaMcpConnection } from "./IdaMcpConnection.js";
 import { readSettledHealth } from "./IdaBusyHealth.js";
@@ -139,8 +140,13 @@ it("reports the busy tool of the last observation", async () => {
     clock,
   }).catch((cause: unknown) => cause);
 
-  expect(failure, "the operation names the tool seen last").toMatchObject({
-    operation: "server_health: headless worker still busy in last_tool",
+  expect(
+    failure,
+    "the producer retains the tool seen last independently of attribution",
+  ).toMatchObject({
+    operation: "server_health",
+    userMessage: expect.stringContaining("last_tool"),
+    diagnostics: { busy_tool: "last_tool" },
     cause: busy("last_tool"),
   });
 });
@@ -165,4 +171,35 @@ it("rejects without another read when the signal aborts after the pause has fulf
     cause: reason,
   });
   expect(failure instanceof Error && failure.cause).toBe(reason);
+});
+
+it("retains the last busy observation when a shortened health request times out", async () => {
+  const capturedOutput = {
+    stdout: "",
+    stderr: "transport closed",
+    truncated: false,
+  };
+  const raw = busy("last_tool");
+  let reads = 0;
+  const { connection } = scripted([raw]);
+  connection.call = async (_name, _args, options) => {
+    if (reads++ === 0) return raw;
+    throw new AnalysisTimeoutError("server_health", options?.timeoutMs ?? 0, {
+      capturedOutput,
+    });
+  };
+  const { clock } = virtualClock();
+  const failure = await readSettledHealth(connection, {
+    database: "db",
+    timeoutMs: 350,
+    clock,
+  }).catch((cause: unknown) => cause);
+  expect(failure).toMatchObject({
+    operation: "server_health",
+    timeoutMs: 350,
+    cause: raw,
+    capturedOutput,
+    userMessage: expect.stringContaining("last_tool"),
+    diagnostics: { busy_tool: "last_tool", health_request_timeout_ms: 250 },
+  });
 });

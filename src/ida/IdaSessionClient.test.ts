@@ -771,22 +771,28 @@ describe("headless IDA transient busy health", () => {
     expect(projected.retryable, "the caller may retry").toBe(true);
     expect(
       projected.details,
-      "the observed busy tool is named exactly in the operation",
+      "the timeout is attributed to the requested operation",
     ).toMatchObject({
-      operation: "server_health: headless worker still busy in config_json_get",
+      operation: "health",
       timeout_ms: 300,
     });
     expect(
-      result.error.message,
-      "the error message names the busy tool",
+      projected.message,
+      "the public error message names the busy tool",
     ).toContain("config_json_get");
     expect(
       `${result.error.message} ${projected.message}`,
       "no Hopper wording leaks in",
     ).not.toContain("Hopper");
-    expect(result.error.cause, "the raw busy payload is the cause").toEqual(
-      busy,
-    );
+    expect(
+      result.error.cause,
+      "reattribution preserves the producing timeout",
+    ).toMatchObject({
+      _tag: "AnalysisTimeoutError",
+      operation: "server_health",
+      cause: busy,
+      diagnostics: { busy_tool: "config_json_get" },
+    });
     expect(
       elapsed,
       "the wait runs to the deadline, not less",
@@ -808,10 +814,14 @@ describe("headless IDA transient busy health", () => {
     if (result.ok) throw new Error("expected a busy timeout");
     expect(
       projectAnalysisError(result.error).details,
-      "an omitted busy_tool is reported as exactly unknown",
+      "the public operation stays independent of an omitted busy tool",
     ).toMatchObject({
-      operation: "server_health: headless worker still busy in unknown",
+      operation: "health",
     });
+    expect(result.error.diagnostics).toMatchObject({ busy_tool: "unknown" });
+    expect(projectAnalysisError(result.error).message).toContain(
+      "busy tool was unknown",
+    );
     await expectCleanClose(producer, client);
   });
 
@@ -832,11 +842,12 @@ describe("headless IDA transient busy health", () => {
         projectAnalysisError(result.error).details,
         "only a tool-name-shaped value is repeated",
       ).toMatchObject({
-        operation: "server_health: headless worker still busy in unknown",
+        operation: "health",
       });
+      expect(result.error.diagnostics).toMatchObject({ busy_tool: "unknown" });
       expect(
-        result.error.message,
-        "the producer text never reaches the error message",
+        projectAnalysisError(result.error).message,
+        "the producer text never reaches the public error message",
       ).not.toContain(tool);
       await expectCleanClose(producer, client);
     },

@@ -129,7 +129,7 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "demangle_swift",
-    "Demangle an ordered list of single-line Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status. native_command_timeout_ms is the swift-demangle wall clock (omitted means 60000 ms) and does not raise the fixed 67108864-byte output allowance.",
+    "Demangle an ordered list of single-line Swift symbols without requiring Hopper. Each input returns demangled, unchanged, or invalid status. An exact underscore input skipped by swift-demangle is invalid with empty output; it does not discard valid companion results. native_command_timeout_ms is the swift-demangle wall clock (omitted means 60000 ms) and does not raise the fixed 67108864-byte output allowance.",
     z.object({
       symbols: swiftSymbolsSchema,
       native_command_timeout_ms: nativeCommandTimeoutField,

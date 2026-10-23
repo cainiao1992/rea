@@ -108,7 +108,9 @@ export const traceCallPath = async (
   ) {
     if (isAborted(signal))
       return err(
-        new AnalysisCancelledError("trace_call_path", { cause: signal?.reason }),
+        new AnalysisCancelledError("trace_call_path", {
+          cause: signal?.reason,
+        }),
       );
     const address = state.queue[state.queueIndex++];
     if (address === undefined) break;

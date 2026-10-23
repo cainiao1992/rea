@@ -4,10 +4,7 @@ import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysis
 import { err } from "../../../src/domain/result.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
-import {
-  closeEnhancedToolResources,
-  connect,
-} from "./enhancedToolsHarness.js";
+import { closeEnhancedToolResources, connect } from "./enhancedToolsHarness.js";
 
 afterEach(closeEnhancedToolResources);
 

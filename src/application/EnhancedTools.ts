@@ -666,10 +666,7 @@ export class EnhancedTools {
     const procedures = await this.#allAddressed("list_procedures", signal);
     if (!procedures.ok) return procedures;
     const symbols = await this.#allAddressed("list_names", signal);
-    if (
-      !symbols.ok &&
-      !permitsCapabilityFallback(symbols.error)
-    )
+    if (!symbols.ok && !permitsCapabilityFallback(symbols.error))
       return symbols;
     const result = categorizeSwiftTypes(
       procedures.value,
@@ -731,11 +728,7 @@ export class EnhancedTools {
       {},
       signal,
     );
-    if (
-      direct.ok ||
-      !permitsCapabilityFallback(direct.error)
-    )
-      return direct;
+    if (direct.ok || !permitsCapabilityFallback(direct.error)) return direct;
     const document = await resolveAnalysisDocument(
       this.analysis,
       undefined,
@@ -749,10 +742,7 @@ export class EnhancedTools {
         this.#call("list_strings", {}, signal),
       ],
     );
-    if (
-      !segmentsResult.ok &&
-      !permitsCapabilityFallback(segmentsResult.error)
-    )
+    if (!segmentsResult.ok && !permitsCapabilityFallback(segmentsResult.error))
       return segmentsResult;
     if (!proceduresResult.ok) return proceduresResult;
     if (!stringsResult.ok) return stringsResult;

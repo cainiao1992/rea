@@ -445,7 +445,14 @@ canonical form, or compare two supplied bundles:
 rea evidence-import /absolute/path/to/evidence/bundle.json
 rea evidence-export /absolute/path/to/evidence/bundle.json /absolute/path/to/evidence/canonical.json
 rea compare /absolute/path/to/evidence/left.json /absolute/path/to/evidence/right.json
+rea compare left.json right.json --record_pairs '[{"left_evidence_id":"ev_<left-sha256>","right_evidence_id":"ev_<right-sha256>"}]' --json
 ```
+
+`--record_pairs` supplies an explicit JSON array of observation pairs, matching
+MCP `compare_bundles.record_pairs`. Pair IDs must exist on their named sides and
+be one-to-one. Without pairs, one-sided membership remains unknown; REA does
+not infer correspondence from position or display names.
+
 
 Exports preserve an existing destination unless `--overwrite` is explicit.
 For application traces and version comparisons, see

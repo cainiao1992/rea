@@ -79,7 +79,7 @@ export type BundleComparisonResult = z.infer<
   typeof bundleComparisonResultSchema
 >;
 type BundleChange = z.infer<typeof bundleChangeSchema>;
-type RecordPair = z.infer<
+export type BundleRecordPair = z.infer<
   typeof bundleComparisonInputSchema
 >["record_pairs"][number];
 
@@ -87,7 +87,7 @@ type RecordPair = z.infer<
 export const compareBundles = (
   leftInput: unknown,
   rightInput: unknown,
-  recordPairs: readonly RecordPair[] = [],
+  recordPairs: readonly BundleRecordPair[] = [],
 ): BundleComparisonResult => {
   const left = parseEvidenceBundle(leftInput);
   const right = parseEvidenceBundle(rightInput);
@@ -123,7 +123,7 @@ export const compareBundles = (
 const compareRecords = (
   left: EvidenceBundle,
   right: EvidenceBundle,
-  pairs: readonly RecordPair[],
+  pairs: readonly BundleRecordPair[],
 ) => {
   const leftIds = new Set(left.records.map(({ evidence_id: id }) => id));
   const rightIds = new Set(right.records.map(({ evidence_id: id }) => id));
@@ -212,7 +212,7 @@ const compareRecords = (
 
 const recordPairFailure = (
   index: number,
-  field: keyof RecordPair,
+  field: keyof BundleRecordPair,
   message: string,
 ): AnalysisInputError =>
   new AnalysisInputError("compare_bundles", { userMessage: message }, [

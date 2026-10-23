@@ -111,6 +111,25 @@ cliTest(
   },
 );
 
+cliTest("accepts the PTX compute_xx .target synonym verbatim", async ({ cli }) => {
+  const root = await createTestTempDirectory("rea-ptx-target-cli-");
+  const text = `.version 8.8\n.target compute_80\n.address_size 64\n.entry kernel() {\nret;\n}\n`;
+  const path = join(root, "target.ptx");
+  await writeFile(path, text);
+  const response = await cli.run({
+    arguments: ["inspect-gpu-code-objects", path, "--json"],
+  });
+  expect(response.exitCode, response.stderr).toBe(0);
+  const evidence = parseEvidence(
+    toolContract("inspect_gpu_code_objects").outputSchema.parse(response.json),
+  );
+  const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+  expect(report.objects[0]!.target).toBe("compute_80");
+  expect(report.ptx_artifacts[0]!.sha256).toBe(
+    createHash("sha256").update(text).digest("hex"),
+  );
+});
+
 cliTest(
   "attributes malformed selector JSON to its actual CLI option",
   async ({ cli }) => {

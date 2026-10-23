@@ -406,7 +406,7 @@ export const readPtxTarget = (text: string): string | null => {
       if (token.value === ".target") {
         const value = stream.next();
         target =
-          !value.done && /^sm_[0-9]+[a-z]?$/u.test(value.value.value)
+          !value.done && /^(?:sm|compute)_[0-9]+[a-z]?$/u.test(value.value.value)
             ? value.value.value
             : null;
       }

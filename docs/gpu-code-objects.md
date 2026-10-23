@@ -81,6 +81,8 @@ Kernel representations have different meanings:
 - PTX reports parameter declarations and virtual registers. Shared bytes cover
   supported static declarations inside that entry; they do not establish module
   shared memory, dynamic allocation or physical device resources.
+  A `.target compute_xx` spelling is retained as written; NVIDIA PTX defines it
+  as a synonym for `.target sm_xx`.
   Scalar register declarations count each bare or percent-prefixed name and
   each parameterized range. Unsupported declaration forms or overflowing totals
   retain an unknown count and partial decoding coverage. Unsupported parameter

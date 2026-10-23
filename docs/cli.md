@@ -553,6 +553,13 @@ retain their complete typed diagnostic projection even when the selector matches
 a field such as `code` or `message`, or names a missing field. `--full-output`
 controls whether the outer `{ok, error, meta}` envelope is included.
 
+Sibling array slices that select different fields are combined by original row
+index and emitted in source order, regardless of selector order. Selecting a
+whole parent row keeps that row intact and takes precedence over narrower fields
+selected from the same row. For example, `rows[0,2].name,rows[1,3].version`
+combines both fields for overlapping rows, while `rows[0,2],rows[1,3].version`
+retains rows 0 and 1 whole.
+
 For `cutter-command`, `--json-output` requests command-specific JSON from
 Cutter when available. This is separate from `--format json`, which selects the
 CLI result representation; the global `--json` flag selects that same CLI

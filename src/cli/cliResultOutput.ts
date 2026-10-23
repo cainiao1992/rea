@@ -217,6 +217,10 @@ export const createCliResultOutput = (
         ? cliOperationFailurePayload(value)
         : undefined;
     const failure = options.fullOutput ? operationFailure : undefined;
+    const ownsFilteredOutput =
+      operationFailure === undefined &&
+      filterPaths !== undefined &&
+      filterPaths.length > 0;
     // Incur owns suppressed human presentation, but a filter must never erase
     // the typed failure that this boundary already owns.
     if (
@@ -226,30 +230,30 @@ export const createCliResultOutput = (
       !options.tokenCount
     )
       return false;
-    const filtered: unknown =
+    const selected: unknown =
       operationFailure ??
-      (filterPaths === undefined ? value : Filter.apply(value, filterPaths));
+      (filterPaths === undefined
+        ? value
+        : applyCliOutputFilter(value, filterPaths));
+    const filtered =
+      (format === "json" || format === "jsonl") &&
+      ownsFilteredOutput &&
+      Array.isArray(selected)
+        ? normalizeJsonArrayValues(selected)
+        : selected;
     const ownsSuccessfulTokenWindow =
       operationFailure === undefined &&
       options.tokenWindow &&
       !options.tokenCount &&
       format !== "json" &&
       format !== "jsonl";
-    if (
-      operationFailure === undefined &&
-      filterPaths !== undefined &&
-      filterPaths.length > 0 &&
-      (format === "json" || format === "jsonl") &&
-      Array.isArray(filtered)
-    )
-      normalizeFilteredJsonArrays(filtered);
-    // Leave successful non-JSON rendering to Incur. This owner handles typed
-    // failures when full output is requested or a data filter would erase the
-    // failure projection.
+    // Delegate unfiltered successful non-JSON rendering to Incur. This boundary
+    // owns filtered successes, requested failure projections, and token windows.
     if (
       format !== "json" &&
       format !== "jsonl" &&
       operationFailure === undefined &&
+      !ownsFilteredOutput &&
       !ownsSuccessfulTokenWindow
     )
       return false;
@@ -378,16 +382,18 @@ export const createCliResultOutput = (
     }
     // Once writing starts, a failed destination must not receive a second
     // document from Incur's error formatter.
-    const failureText =
-      operationFailure !== undefined && format !== "json" && format !== "jsonl"
+    const formattedText =
+      (operationFailure !== undefined || ownsFilteredOutput) &&
+      format !== "json" &&
+      format !== "jsonl"
         ? Formatter.format(document, format)
         : undefined;
     handled = true;
     try {
-      if (failureText !== undefined) {
+      if (formattedText !== undefined) {
         // Incur's error sentinel only carries code/message/retryable. Render
-        // the full caller-visible failure at this output boundary.
-        await writeOutputText(destination, `${failureText}\n`);
+        // the owned projection or caller-visible failure at this boundary.
+        await writeOutputText(destination, `${formattedText}\n`);
       } else {
         await writeJsonOutput(
           error === undefined
@@ -428,20 +434,124 @@ const fullFailureEnvelope = (
   };
 };
 
-/** Filter.apply owns these mapped arrays; an empty path list returns the source. */
-const normalizeFilteredJsonArrays = (selection: unknown[]): void => {
-  const pending = [selection];
-  while (pending.length > 0) {
-    const array = pending.pop()!;
-    for (let index = 0; index < array.length; index += 1) {
-      const value: unknown = array[index];
-      if (
-        value === undefined ||
-        typeof value === "function" ||
-        typeof value === "symbol"
-      )
-        array[index] = null;
-      else if (Array.isArray(value)) pending.push(value);
+type FilterPaths = ReturnType<typeof Filter.parse>;
+type FilterPath = FilterPaths[number];
+
+/** Apply Incur's parsed path grammar while merging sibling array selections. */
+const applyCliOutputFilter = (value: unknown, paths: FilterPaths): unknown => {
+  if (paths.length === 0) return value;
+  if (Array.isArray(value))
+    return value.map((item) => applyCliOutputFilter(item, paths));
+  if (
+    paths.length === 1 &&
+    paths[0]?.length === 1 &&
+    paths[0][0] !== undefined &&
+    "key" in paths[0][0]
+  ) {
+    const key = paths[0][0].key;
+    if (typeof value !== "object" || value === null) return undefined;
+    const selected = (value as Record<string, unknown>)[key];
+    return typeof selected !== "object" || selected === null
+      ? selected
+      : { [key]: selected };
+  }
+  return projectObjectPaths(value, paths);
+};
+
+/** Build a fresh object projection; a path ending at a key selects its subtree. */
+const projectObjectPaths = (value: unknown, paths: FilterPaths): unknown => {
+  if (typeof value !== "object" || value === null) return {};
+  const byKey = new Map<string, FilterPath[]>();
+  for (const path of paths) {
+    const [segment, ...tail] = path;
+    if (segment === undefined || !("key" in segment)) continue;
+    const siblings = byKey.get(segment.key) ?? [];
+    siblings.push(tail);
+    byKey.set(segment.key, siblings);
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const key of [...byKey.keys()].sort()) {
+    const siblings = byKey.get(key)!;
+    const child = (value as Record<string, unknown>)[key];
+    if (child === undefined) continue;
+    // Selecting a parent retains its complete original subtree and dominates
+    // any narrower selections below it, independent of path order.
+    if (siblings.some((path) => path.length === 0)) {
+      result[key] = child;
+      continue;
+    }
+    const slicePaths = siblings.filter(
+      (path) => path[0] !== undefined && "start" in path[0],
+    );
+    if (slicePaths.length > 0 && Array.isArray(child)) {
+      result[key] = projectArraySlices(child, slicePaths);
+      continue;
+    }
+    const objectPaths = siblings.filter(
+      (path) => path[0] !== undefined && "key" in path[0],
+    );
+    if (objectPaths.length > 0 && typeof child === "object" && child !== null)
+      result[key] = projectObjectPaths(child, objectPaths);
+  }
+  return result;
+};
+
+/** Union sliced rows by their original index, then emit them in source order. */
+const projectArraySlices = (
+  source: readonly unknown[],
+  paths: readonly FilterPath[],
+): unknown[] => {
+  const selected = new Map<number, FilterPath[]>();
+  for (const path of paths) {
+    const [slice, ...tail] = path;
+    if (slice === undefined || !("start" in slice)) continue;
+    const start = normalizeSliceIndex(slice.start, source.length);
+    const end = normalizeSliceIndex(slice.end, source.length);
+    for (let index = start; index < end; index += 1) {
+      const siblings = selected.get(index) ?? [];
+      siblings.push(tail);
+      selected.set(index, siblings);
     }
   }
+  return [...selected.keys()]
+    .sort((left, right) => left - right)
+    .map((index) => {
+      const siblings = selected.get(index)!;
+      const item = source[index];
+      if (siblings.some((path) => path.length === 0)) return item;
+      return projectObjectPaths(item, siblings);
+    });
+};
+
+const normalizeSliceIndex = (index: number, length: number): number => {
+  const integer = Number.isNaN(index) ? 0 : Math.trunc(index);
+  return integer < 0
+    ? Math.max(length + integer, 0)
+    : Math.min(integer, length);
+};
+
+/**
+ * The streaming JSON writer requires JSON values in arrays. Copy only array
+ * branches that need normalization so a parent selection never mutates its
+ * source value.
+ */
+const normalizeJsonArrayValues = (source: unknown[]): unknown[] => {
+  let result: unknown[] | undefined;
+  for (let index = 0; index < source.length; index += 1) {
+    const value: unknown = source[index];
+    const normalized =
+      value === undefined ||
+      typeof value === "function" ||
+      typeof value === "symbol"
+        ? null
+        : Array.isArray(value)
+          ? normalizeJsonArrayValues(value)
+          : value;
+    if (normalized !== value) {
+      result ??= source.slice();
+      result[index] = normalized;
+    }
+  }
+  return result ?? source;
 };

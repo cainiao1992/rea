@@ -11,6 +11,48 @@ import {
 
 const source = [{ selected: 1 }, { other: 2 }, { selected: null }];
 
+const freezeRecursively = <T>(value: T): T => {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value))
+    return value;
+  for (const child of Object.values(value)) freezeRecursively(child);
+  return Object.freeze(value);
+};
+
+const runFilteredCli = async (
+  value: unknown,
+  format: "json" | "jsonl" | "yaml" | "toon" | "md",
+  filter: string,
+): Promise<string> => {
+  const cli = Cli.create("filtered-array-test", { sync: false });
+  cli.command("rows", { run: () => value });
+  const args = ["rows", "--format", format, "--filter-output", filter];
+  const chunks: Buffer[] = [];
+  const output = createCliResultOutput(
+    args,
+    new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        chunks.push(chunk);
+        callback();
+      },
+    }),
+  );
+  if (output === undefined) throw new Error("Missing CLI output owner");
+  streamCliCommandResults(cli, output);
+  let fallback = "";
+  await cli.serve(args, {
+    exit: (code) => {
+      expect(code).toBe(0);
+    },
+    stdout: (text) => {
+      if (!output.handled) fallback += text;
+    },
+  });
+  expect(fallback).toBe("");
+  expect(output.handled).toBe(true);
+  expect(output.failed).toBe(false);
+  return Buffer.concat(chunks).toString("utf8");
+};
+
 it.each(
   (["json", "jsonl"] as const).flatMap((format) =>
     [false, true].map((full) => ({ format, full })),
@@ -167,3 +209,107 @@ it("finishes JSONL after a bounded large record before a missing selection", asy
   ]);
   expect(output.failed).toBe(false);
 });
+
+const projectionSource = freezeRecursively([
+  {
+    rows: [
+      { id: 0, left: "l0", right: "r0", retained: [0, 10] },
+      { id: 1, left: "l1", right: "r1", retained: [1, 11] },
+      { id: 2, left: "l2", right: "r2", retained: [2, 12] },
+      { id: 3, left: "l3", right: "r3", retained: [3, 13] },
+    ],
+  },
+]);
+
+const overlappingPaths = [
+  "rows[0,3].left,rows[1,4].right",
+  "rows[1,4].right,rows[0,3].left",
+] as const;
+
+it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
+  "unions overlapping sibling slices independent of path order in %s",
+  async (format) => {
+    const expected = [
+      {
+        rows: [
+          { left: "l0" },
+          { left: "l1", right: "r1" },
+          { left: "l2", right: "r2" },
+          { right: "r3" },
+        ],
+      },
+    ];
+    const outputs = await Promise.all(
+      overlappingPaths.map((filter) =>
+        runFilteredCli(projectionSource, format, filter),
+      ),
+    );
+    expect(outputs[0]).toBe(outputs[1]);
+    if (format === "json") expect(JSON.parse(outputs[0]!)).toEqual(expected);
+    else if (format === "jsonl")
+      expect(
+        outputs[0]!
+          .trimEnd()
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+      ).toEqual(expected);
+    else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
+    expect(projectionSource[0]?.rows[0]?.retained).toEqual([0, 10]);
+  },
+);
+
+const parentAndChildPaths = [
+  "rows[0,2],rows[1,3].right",
+  "rows[1,3].right,rows[0,2]",
+] as const;
+
+it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
+  "preserves missing selected array values in %s",
+  async (format) => {
+    const value = freezeRecursively([{ selected: 1 }, {}, { selected: null }]);
+    const selected = [1, undefined, null];
+    const output = await runFilteredCli(value, format, "selected");
+    if (format === "json") expect(JSON.parse(output)).toEqual([1, null, null]);
+    else if (format === "jsonl")
+      expect(
+        output
+          .trimEnd()
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+      ).toEqual([1, null, null]);
+    else expect(output).toBe(`${Formatter.format(selected, format)}\n`);
+    expect(value).toEqual([{ selected: 1 }, {}, { selected: null }]);
+  },
+);
+
+it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
+  "lets whole-parent selection dominate child paths without mutating source in %s",
+  async (format) => {
+    const expected = [
+      {
+        rows: [
+          projectionSource[0]!.rows[0],
+          projectionSource[0]!.rows[1],
+          { right: "r2" },
+        ],
+      },
+    ];
+    const before = structuredClone(projectionSource);
+    const outputs = await Promise.all(
+      parentAndChildPaths.map((filter) =>
+        runFilteredCli(projectionSource, format, filter),
+      ),
+    );
+    expect(outputs[0]).toBe(outputs[1]);
+    if (format === "json") expect(JSON.parse(outputs[0]!)).toEqual(expected);
+    else if (format === "jsonl")
+      expect(
+        outputs[0]!
+          .trimEnd()
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+      ).toEqual(expected);
+    else expect(outputs[0]).toBe(`${Formatter.format(expected, format)}\n`);
+    expect(projectionSource).toEqual(before);
+  },
+);

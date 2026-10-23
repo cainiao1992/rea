@@ -44,6 +44,29 @@ module page. See
 [JavaScript application workflows](javascript-application-workflows.md) for
 views, feature traces and comparisons that take the same saved Evidence.
 
+## Shell completion
+
+The CLI includes optional shell completion. Run `rea completions --help` to
+see the available shells and their setup commands. For Bash, load the hook
+into the current shell:
+
+```bash
+eval "$(rea completions bash)"
+```
+
+The current Bash hook requires support for `complete -o nosort`; macOS's
+system Bash 3.2 cannot load it. Use a newer Bash for this hook.
+
+For future interactive non-login Bash sessions, add the command to
+`~/.bashrc`. Interactive login Bash sessions read the first available file in
+`~/.bash_profile`, `~/.bash_login`, and `~/.profile`; add the command to the
+file your shell reads, or have that file source `~/.bashrc`. Remove the command
+from the startup file to stop loading completion, and run `complete -r rea` to
+remove the registration from the current shell. These are manual, opt-in
+steps.
+Completion is a discovery aid; use `rea COMMAND --help` to confirm the
+available options and subcommands.
+
 ## Managed assemblies (.NET)
 
 For a .NET PE/CLI assembly, inspect its identity and deployment form before

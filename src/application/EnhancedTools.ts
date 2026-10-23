@@ -317,9 +317,9 @@ export class EnhancedTools {
       signal,
     );
     if (!bindingsExecution.ok) {
-      if (bindingsExecution.error._tag === "AnalysisCancelledError")
-        return bindingsExecution;
-      if (bindingsExecution.error._tag !== "AnalysisCapabilityUnavailableError")
+      if (
+        !(bindingsExecution.error instanceof AnalysisCapabilityUnavailableError)
+      )
         return bindingsExecution;
       return ok(
         projectObjcClassCandidates(candidates, {

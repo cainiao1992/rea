@@ -203,6 +203,10 @@ reported. Directory headers, entries, data entries and payloads retain original
 file offsets and lengths. Each opaque payload has its own SHA-256; code page and
 reserved data-entry fields are preserved.
 
+Each `directories[]` row retains its incoming identity `path` and corresponding
+`entry_locations`, including branches with no payload leaves. The root has empty
+arrays; a type branch has one identity and a name branch has two.
+
 RT_GROUP_ICON records expose original image descriptors and RT_ICON candidates.
 A reference resolves only when an icon with the same numeric ID and language
 exists. Missing references, other-language candidates and declared-size mismatch

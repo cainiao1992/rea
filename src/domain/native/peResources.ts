@@ -65,6 +65,8 @@ export const peResourcesSchema = z.strictObject({
     .nullable(),
   directories: z.array(
     z.strictObject({
+      path: z.array(identity).max(2),
+      entry_locations: z.array(range).max(2),
       location: range,
       characteristics: uint,
       timestamp: uint,

@@ -62,7 +62,7 @@ cliTest(
         $archiver: "NSKeyedArchiver",
         $version: 100000,
         $objects: ["$null", { userID: 42 }],
-        $top: { main: { CF$UID: 1 } },
+        $top: { main: { UID: 1 } },
       }),
     );
     for (const [name, bytes] of [

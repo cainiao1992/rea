@@ -765,10 +765,10 @@ describe("bounded Interface Builder archive decoding", () => {
             : [
                 {
                   classIndex: 2,
-                  values: {
-                    first: { ref: viewId + 2 },
-                    second: { ref: viewId + 2 },
-                  },
+                  values: [
+                    ["NS.objects", { ref: viewId + 2 }],
+                    ["NS.objects", { ref: viewId + 2 }],
+                  ] as const,
                 },
               ]),
         ];
@@ -1391,7 +1391,7 @@ describe("aggregate Interface Builder archive retention budget", () => {
     await mkdir(resources, { recursive: true });
     const padding = `<!--${"x".repeat(1024)}-->`.repeat(11 * 1024);
     const valid = (name: string, body = "") =>
-      `<?xml version="1.0"?><plist version="1.0"><dict><key>document</key><string>${name}</string>${body}</dict></plist>`;
+      `<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.ibtool.document.objects</key><dict><key>view</key><dict><key>class</key><string>NSView</string><key>document</key><string>${name}</string>${body}</dict></dict></dict></plist>`;
     // XML data expands to a Uint8Array and then to a base64 JSON projection;
     // this first valid document exercises expansion beyond the source bytes.
     const expandedData = Buffer.alloc(1024 * 1024, 7).toString("base64");
@@ -1434,12 +1434,12 @@ describe("Interface Builder XML plist depth", () => {
     const bundle = join(root, "Example.app");
     const resources = join(bundle, "Contents", "Resources");
     await mkdir(resources, { recursive: true });
-    // The root dict is value depth 0, so the leaf sits at `nested + 1`. The
-    // plist envelope and keys add XML elements but not value depth.
+    // Root, object table and object occupy depths 0, 1 and 2. The leaf
+    // sits at nested + 3; plist envelopes and keys add no value depth.
     const document = (nested: number) =>
-      `<?xml version="1.0"?><plist version="1.0"><dict>${"<key>child</key><dict>".repeat(nested)}<key>leaf</key><integer>1</integer>${"</dict>".repeat(nested)}</dict></plist>`;
-    await writeFile(join(resources, "AtLimit.nib"), document(127));
-    await writeFile(join(resources, "BeyondLimit.nib"), document(128));
+      `<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.ibtool.document.objects</key><dict><key>view</key><dict><key>class</key><string>NSView</string>${"<key>child</key><dict>".repeat(nested)}<key>leaf</key><integer>1</integer>${"</dict>".repeat(nested)}</dict></dict></dict></plist>`;
+    await writeFile(join(resources, "AtLimit.nib"), document(125));
+    await writeFile(join(resources, "BeyondLimit.nib"), document(126));
 
     const release = vi.spyOn(InterfaceBuilderDecodeBudget.prototype, "release");
     const result = await analyzeInterfaceBuilderBundle({

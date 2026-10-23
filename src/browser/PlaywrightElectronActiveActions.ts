@@ -113,19 +113,26 @@ export const runElectronActions = async (
               signal: options.signal,
             });
       if (selectedWindow !== undefined) {
-        const handle = await application.browserWindow(selectedWindow);
-        selectedHandle = handle;
-        handleOwner = {
-          kind: "lease",
-          resource: "selected Electron BrowserWindow handle",
-          lease: { release: () => handle.dispose() },
-        };
-        resources.retain(handleOwner);
+        const selected = ownActionWindow(
+          application,
+          selectedWindow,
+          resources,
+        );
+        handleOwner = selected.owner;
+        selectedHandle = await runWithExecutionLimits(
+          selected.handle,
+          options.signal,
+        );
         const id = z
           .int()
           .safe()
           .nonnegative()
-          .parse(await selectedHandle.evaluate((window) => window.id));
+          .parse(
+            await runWithExecutionLimits(
+              selectedHandle.evaluate((window) => window.id),
+              options.signal,
+            ),
+          );
         target = `window:${String(id)}`;
       }
 
@@ -169,6 +176,43 @@ export const runElectronActions = async (
     }
   }
   return { actions, ...(cleanupError === undefined ? {} : { cleanupError }) };
+};
+
+const ownActionWindow = (
+  application: ElectronApplication,
+  page: Page,
+  resources: ArtifactResourceScope,
+): {
+  readonly handle: Promise<SelectedElectronWindow>;
+  readonly owner: ArtifactResourceOwner;
+} => {
+  const handle = Promise.resolve().then(() => application.browserWindow(page));
+  let disposing: Promise<void> | undefined;
+  const owner: ArtifactResourceOwner = {
+    kind: "lease",
+    resource: "selected Electron BrowserWindow handle",
+    lease: {
+      release: async () => {
+        if (disposing === undefined) {
+          const attempt = handle.then(
+            (selected) => selected.dispose(),
+            () => undefined,
+          );
+          disposing = attempt;
+          void attempt.catch(() => {
+            if (disposing === attempt) disposing = undefined;
+          });
+        }
+        await runWithExecutionLimits(
+          disposing,
+          undefined,
+          performance.now() + CANCELLED_STATE_READ_TIMEOUT_MS,
+        );
+      },
+    },
+  };
+  resources.retain(owner);
+  return { handle, owner };
 };
 
 const releaseActionWindow = async (

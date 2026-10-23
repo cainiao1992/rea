@@ -3,6 +3,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { ElectronApplication } from "playwright-core";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { createDeferred } from "../../tests/fixtures/binarySession.js";
 
 import {
   electronActiveObservationInputSchema,
@@ -686,5 +687,64 @@ it.each(["click", "renderer-crash"] as const)(
     await resources.close();
     expect(dispose).toHaveBeenCalledTimes(2);
     expect(outcome.cleanupError?.cleanupIncomplete).toBe(false);
+  },
+);
+
+it.each(["acquisition", "identity"] as const)(
+  "owns a late handle when cancellation interrupts window %s",
+  async (phase) => {
+    const started = createDeferred<void>();
+    const finish = createDeferred<void>();
+    const controller = new AbortController();
+    const page = { locator: vi.fn() };
+    const dispose = vi.fn(async () => {});
+    const handle = {
+      evaluate: async () => {
+        if (phase === "identity") {
+          started.resolve();
+          await finish.promise;
+        }
+        return 77;
+      },
+      dispose,
+    };
+    const application = {
+      windows: () => [page],
+      browserWindow: async () => {
+        if (phase === "acquisition") {
+          started.resolve();
+          await finish.promise;
+        }
+        return handle;
+      },
+    };
+    const resources = new ArtifactResourceScope();
+    const running = runElectronActions(
+      application as unknown as ElectronApplication,
+      electronActiveObservationInputSchema.parse({
+        executable_path: "/opt/electron",
+        application_path: "/opt/app/main.js",
+        application_root: "/opt/app",
+        actions: [
+          { step_id: "selected", kind: "click", selector: "#selected" },
+        ],
+      }),
+      { signal: controller.signal },
+      resources,
+    );
+    await started.promise;
+    controller.abort(new Error("stop during selected window read"));
+    await Promise.resolve();
+    finish.resolve();
+    const outcome = await running;
+    expect(outcome.actions[0]).toMatchObject({
+      status: "cancelled",
+      target: null,
+    });
+    expect(page.locator).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(resources.hasPending).toBe(false);
+    await resources.close();
+    expect(dispose).toHaveBeenCalledOnce();
   },
 );

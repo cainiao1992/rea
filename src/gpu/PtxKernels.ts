@@ -75,11 +75,11 @@ const sizeOf = (type: string | undefined): number | null => {
   const match = /^\.(?:b|u|s|f)(8|16|32|64|128)$/u.exec(type ?? "");
   return match === null ? null : Number(match[1]) / 8;
 };
+const identifier = /^%?[A-Za-z_$][\w$@.]*$/u;
 /** Stream register names/ranges without retaining the declaration token list. */
 const registerDeclaration = (
   next: () => Token,
 ): { type: string; count: number | null } => {
-  const identifier = /^%?[A-Za-z_$][\w$@.]*$/u;
   let type = "";
   let t = next();
   while (!identifier.test(t.value)) {
@@ -146,9 +146,7 @@ const declaration = (
     unit = sizeOf(scalar),
     candidate = values[at++];
   const name =
-    candidate !== undefined && /^[A-Za-z_$][\w$@.]*$/u.test(candidate)
-      ? candidate
-      : null;
+    candidate !== undefined && identifier.test(candidate) ? candidate : null;
   let size = unit === null ? null : unit * vector;
   const type =
     scalar === undefined
@@ -211,7 +209,7 @@ export function* readPtxKernels(
     }
     if (outerDepth !== 0 || token.value !== ".entry") continue;
     const name = next();
-    if (!/^[A-Za-z_$][\w$@.]*$/u.test(name.value))
+    if (!identifier.test(name.value))
       rejectGpu("Malformed PTX entry name or parameters");
     const parameters: GpuKernel["parameters"] = [];
     let part: string[] = [],

@@ -64,6 +64,54 @@ cliTest(
 );
 
 cliTest(
+  "preserves PTX target spelling and percent-prefixed entry names",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ptx-identifiers-cli-");
+    const text = `.version 8.8\n.target sm_80\n.address_size 64\n.entry %kernel(.param .u32 input) {\nret;\n}\n`;
+    const path = join(root, "identifiers.ptx");
+    await writeFile(path, text);
+    const response = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--detail",
+        "complete",
+        "--json",
+      ],
+    });
+    expect(response.exitCode, response.stderr).toBe(0);
+    const evidence = parseEvidence(
+      toolContract("inspect_gpu_code_objects").outputSchema.parse(
+        response.json,
+      ),
+    );
+    const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+    expect(report.objects[0]!.target).toBe("sm_80");
+    expect(report.kernels).toEqual([
+      expect.objectContaining({
+        name: "%kernel",
+        parameter_count: 1,
+        parameter_bytes: 4,
+        parameters: [
+          expect.objectContaining({
+            ordinal: 0,
+            name: "input",
+            offset: 0,
+            size: 4,
+            type: ".u32",
+          }),
+        ],
+      }),
+    ]);
+    expect(report.ptx_artifacts[0]!.sha256).toBe(
+      createHash("sha256").update(text).digest("hex"),
+    );
+  },
+);
+
+cliTest(
   "attributes malformed selector JSON to its actual CLI option",
   async ({ cli }) => {
     for (const name of ["object_ids", "targets", "view"]) {

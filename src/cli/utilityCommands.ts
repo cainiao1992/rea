@@ -121,16 +121,14 @@ const registerNativeUiCommands = (
       ...nativeUiScopeOptions,
       steps: z
         .string()
-        .optional()
-        .describe("JSON array of declarative AX actions or waits"),
+        .describe(
+          "Required JSON array of one or more declarative AX actions or waits",
+        ),
     }),
     run: ({ args, options }) =>
       logCliCommand(logger, CLI_COMMANDS.captureNativeUiScenario, async () => {
         const parameters = nativeUiScope(options);
-        const decoded =
-          options.steps === undefined
-            ? { ok: true as const, value: undefined }
-            : safeParseJson(options.steps);
+        const decoded = safeParseJson(options.steps);
         if (!decoded.ok)
           return invalidNativeUiScenarioInput(operation, [
             { path: ["steps"], reason: "invalid_format", expected: "JSON" },
@@ -144,7 +142,7 @@ const registerNativeUiCommands = (
             operation,
             projectInputIssues(parsed.error.issues, {
               ...parameters,
-              ...(options.steps === undefined ? {} : { steps: decoded.value }),
+              steps: decoded.value,
             }),
           );
         const { native_ui_deadline_ms: deadline, ...scenario } = parsed.data;

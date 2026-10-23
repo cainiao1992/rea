@@ -136,7 +136,8 @@ export const registerFridaCommands = (
       ),
   });
   cli.command(CLI_COMMANDS.instrumentWithFrida, {
-    description: "Run one Frida script against a selected process and detach",
+    description:
+      "Run one Frida script against a selected process and detach; requires exactly one of --script or --script-file",
     args: z.object({
       mode: z
         .enum(["attach", "spawn"])
@@ -153,7 +154,12 @@ export const registerFridaCommands = (
           .min(1)
           .optional()
           .describe("Frida device identifier"),
-        script: z.string().optional().describe("Inline JavaScript to load"),
+        script: z
+          .string()
+          .optional()
+          .describe(
+            "Inline JavaScript to load; supply exactly one of --script or --script-file",
+          ),
         scriptFile: z
           .string()
           .min(1)

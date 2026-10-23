@@ -14,13 +14,17 @@ const artifact = z.strictObject({
 /** Default execution budget; upper bound is the runtime's signed 32-bit timer range. */
 export const DEFAULT_WASM_COMMAND_TIMEOUT_MS = 30_000;
 export const MAX_WASM_COMMAND_TIMEOUT_MS = 2_147_483_647;
+/** Selected artifact lists share the same resource bound across path transports. */
+export const wasmArtifactPathsSchema = (
+  pathSchema: z.ZodString = absoluteLocalPathStringSchema,
+) => z.array(pathSchema).max(16);
 /** All artifacts are explicitly selected local files; references never trigger acquisition. */
 export const inspectWasmArtifactInputSchema = z.strictObject({
   path: absoluteLocalPathStringSchema.describe(
     "Absolute selected local WASM artifact path",
   ),
-  glue_paths: z.array(absoluteLocalPathStringSchema).max(16).default([]),
-  candidate_paths: z.array(absoluteLocalPathStringSchema).max(16).default([]),
+  glue_paths: wasmArtifactPathsSchema().default([]),
+  candidate_paths: wasmArtifactPathsSchema().default([]),
   command_timeout_ms: z
     .number()
     .int()

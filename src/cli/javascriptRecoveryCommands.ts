@@ -1,3 +1,4 @@
+import { javascriptRecoveryInputSchema } from "../domain/javascript/javascriptRecovery.js";
 import { z } from "incur";
 import { JavaScriptRecoveryService } from "../application/javascript/JavaScriptRecoveryService.js";
 import { createJavaScriptRecoveryProvider } from "../composition/javascriptRecovery.js";
@@ -21,30 +22,17 @@ export const registerJavaScriptRecoveryCommands = (
     description:
       "Recover readable JavaScript modules with source provenance and verified files",
     args: z.object({
-      path: z
-        .string()
-        .describe("Absolute UTF-8 JavaScript input; never executed"),
-      outputDirectory: z.string().describe("Absolute absent output directory"),
+      path: javascriptRecoveryInputSchema.shape.path,
+      outputDirectory: javascriptRecoveryInputSchema.shape.output_directory,
     }),
     options: z.object({
-      additionalPath: z
-        .array(z.string())
-        .optional()
-        .describe(
-          "Related absolute UTF-8 JavaScript file; repeat for multiple chunks",
-        ),
-      extractionMode: z
-        .enum(["structural", "heuristic", "inspection"])
-        .optional()
-        .describe(
-          "Structural boundaries, heuristic fallback, or inspection-only regions",
-        ),
-      rewriteLevel: z
-        .enum(["minimal", "standard", "aggressive"])
-        .optional()
-        .describe(
-          "Upstream syntax recovery level; runtime equivalence remains unknown",
-        ),
+      additionalPath: javascriptRecoveryInputSchema.shape.additional_paths,
+      extractionMode: javascriptRecoveryInputSchema.shape.extraction_mode
+        .removeDefault()
+        .optional(),
+      rewriteLevel: javascriptRecoveryInputSchema.shape.rewrite_level
+        .removeDefault()
+        .optional(),
     }),
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>

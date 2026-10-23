@@ -242,6 +242,20 @@ which some clients require even alongside `prefixItems`. Tuples with a rest
 schema also need explicit minimum lengths. Check parser/schema parity for empty,
 short, overlong, and malformed values in both input and output projections.
 
+CLI translations must reuse the canonical semantic fields, enum membership and
+list bounds. Document transport differences such as relative path spelling and
+JSON text decoding; reject empty selections before path normalization. Preserve
+required alternatives across positional arguments and options. When the CLI
+schema format separates those groups and cannot express their relationship,
+state the required choice in command discovery/help and retain aggregate admission
+before target access. Test emitted schemas and parser behavior together, including
+omission, empty strings, alternatives, conflicts and boundary list counts.
+
+Expected input failures must retain caller field/index paths and safe constraints.
+Internal operation/input envelopes are not caller paths. Reuse the input issue
+projector at the admission owner; a schema cause alone does not supply correction
+metadata to either adapter.
+
 When discoverability changes, evaluate representative broad, direct, and negative
 tasks on the intended host. Record host/model/catalog, selected tools, arguments,
 errors, retries, and task outcomes. Schema validity and keyword heuristics do not

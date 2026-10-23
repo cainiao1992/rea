@@ -112,6 +112,63 @@ describe("CLI advertised input schemas", () => {
     expect(mismatches).toEqual([]);
   });
 
+  it("preserves client choices, selected path bounds and required decoded steps", async () => {
+    const cli = createCli({});
+    const ajv = new Ajv2020({ strict: false });
+    for (const command of ["setup", "doctor"]) {
+      const schema = await advertisedSchema(cli, command);
+      const validate = ajv.compile(schema.options ?? {});
+      for (const client of ["codex", "unsupported-client"]) {
+        const input = { client: [client] };
+        expect(validate(input)).toBe(client === "codex");
+        expect(
+          parserSchema(cli, command, "options")?.safeParse(input).success,
+        ).toBe(client === "codex");
+      }
+    }
+    const setup = await advertisedSchema(cli, "setup");
+    const validateSkill = ajv.compile(setup.options ?? {});
+    for (const skillClient of ["shared", "codex", "unsupported-client"]) {
+      const input = { skillClient: [skillClient] };
+      expect(validateSkill(input)).toBe(skillClient !== "unsupported-client");
+      expect(
+        parserSchema(cli, "setup", "options")?.safeParse(input).success,
+      ).toBe(skillClient !== "unsupported-client");
+    }
+    for (const [command, field] of [
+      ["inspect-wasm-artifact", "glue_paths"],
+      ["inspect-wasm-artifact", "candidate_paths"],
+      ["recover-javascript-sources", "additionalPath"],
+    ]) {
+      const schema = await advertisedSchema(cli, command);
+      const validate = ajv.compile(schema.options ?? {});
+      for (const count of [16, 17]) {
+        const input = {
+          [field]: Array.from({ length: count }, () => "./selected"),
+        };
+        expect(validate(input)).toBe(count === 16);
+        expect(
+          parserSchema(cli, command, "options")?.safeParse(input).success,
+        ).toBe(count === 16);
+      }
+    }
+    const scenario = await advertisedSchema(cli, "capture-native-ui-scenario");
+    expect(scenario.options?.required).toContain("steps");
+    expect(scenario.options?.properties.steps).toMatchObject({
+      description: expect.stringContaining("one or more"),
+    });
+    const desktop = await advertisedSchema(cli, "inspect-desktop-application");
+    const validate = ajv.compile(desktop.args ?? {});
+    for (const path of ["", ".", "./selected"]) {
+      expect(validate({ path })).toBe(path !== "");
+      expect(
+        parserSchema(cli, "inspect-desktop-application", "args")?.safeParse({
+          path,
+        }).success,
+      ).toBe(path !== "");
+    }
+  });
+
   it("allows an omitted WASM timeout while validating explicitly supplied values", async () => {
     const cli = createCli({});
     const advertised = await advertisedSchema(cli, "inspect-wasm-artifact");

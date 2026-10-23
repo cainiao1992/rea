@@ -9,9 +9,13 @@ import {
   symlink,
 } from "node:fs/promises";
 import { join } from "node:path";
-const args = process.argv.slice(2);
+const engine = process.argv[2];
+if (engine !== "binwalk" && engine !== "unblob")
+  throw new Error(
+    "Firmware fixture requires an explicit binwalk or unblob engine",
+  );
+const args = process.argv.slice(3);
 const mode = process.env.REA_FIRMWARE_FIXTURE_MODE;
-const engine = process.env.REA_FIRMWARE_FIXTURE_ENGINE;
 const banner = process.env.REA_FIRMWARE_FIXTURE_VERSION;
 if (args.includes("--version")) {
   console.log(

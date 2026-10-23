@@ -99,6 +99,11 @@ it("binds region observations to exact bytes and preserves provider-reported unc
   const normalized = firmwareResultSchemas.inspect_firmware_regions.parse(
     result.value.normalized_result,
   );
+  expect(normalized.engine).toMatchObject({
+    name: "binwalk",
+    version: "3.1.0",
+    executable_path: fixture.commands.binwalk,
+  });
   expect(normalized.regions[0]).toMatchObject({
     offset: 2,
     reported_size: 4,
@@ -145,6 +150,11 @@ it("extracts a selected interval with verified file identity and parent-byte lin
   const normalized = firmwareResultSchemas.extract_firmware.parse(
     result.value.normalized_result,
   );
+  expect(normalized.engine).toMatchObject({
+    name: "unblob",
+    version: "26.6.4",
+    executable_path: fixture.commands.unblob,
+  });
   expect(normalized.selection).toMatchObject({ offset: 2, length: 4 });
   expect(normalized.files[0]).toMatchObject({
     relative_path: "rootfs/config",

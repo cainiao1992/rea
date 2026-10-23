@@ -1,3 +1,4 @@
+import { reconstructionCoverageScopeCases } from "./reconstructionCoverageScope.fixture.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -607,4 +608,29 @@ describe("reconstruction coverage reference constraints", () => {
       });
     },
   );
+});
+
+describe("effective reconstruction boundary", () => {
+  for (const {
+    label,
+    coverage,
+    status,
+    codes,
+    surfaces,
+    evidenceIds,
+  } of reconstructionCoverageScopeCases())
+    it(label, () => {
+      const result = assertReconstructionCoverageEvaluation(
+        coverage,
+        "replacement.cli",
+        RECONSTRUCTION_COVERAGE_NOW,
+      );
+      expect(result.status).toBe(status);
+      expect(result.summary.required_surfaces).toBe(surfaces);
+      expect(result.reasons.map(({ code }) => code).sort()).toEqual(
+        [...codes].sort(),
+      );
+      expect(result.evidence_ids).toEqual(expect.arrayContaining(evidenceIds));
+      expect(result.recommended_probes).toHaveLength(codes.length);
+    });
 });

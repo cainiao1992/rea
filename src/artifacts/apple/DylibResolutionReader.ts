@@ -147,7 +147,7 @@ export const traceDylibResolution = async (options: {
       } = parsed.data.roots !== undefined
         ? { roots: parsed.data.roots, unclassified: [], traversal: undefined }
         : options.enumerateRoots
-          ? await executableRoots(root, view, files, options.signal)
+          ? await executableRoots(root, view, files, resources, options.signal)
           : { roots: [target], unclassified: [], traversal: undefined };
       const roots = await requireMachoRoots(
         view,
@@ -203,6 +203,7 @@ const executableRoots = async (
   root: string,
   view: FilesystemTreeView,
   files: DylibFileAccess,
+  resources: ArtifactResourceScope,
   signal?: AbortSignal,
 ): Promise<{
   readonly roots: string[];
@@ -216,34 +217,53 @@ const executableRoots = async (
   let firstSymlink: string | undefined;
   // Bundles hold tens of thousands of files and few Mach-O images, so the
   // magic reads overlap the walk while results are classified in walk order.
-  await consumeWithOrderedReads(
-    new DirectoryArtifactReader(root).entries(signal, traversal),
-    MAGIC_READ_CONCURRENCY,
-    (entry) => {
-      // The ordered-read owner skips consume() when read() returns undefined.
-      // Discovery facts for skipped entries belong at this selection boundary.
-      if (entry.kind === "symlink") {
-        symlinks += 1;
-        firstSymlink ??= entry.path;
-      }
-      return entry.kind === "file"
-        ? files.startsWithMachoMagic(entry)
-        : undefined;
-    },
-    async (entry, macho) => {
-      if (!macho) return;
-      const facts = await view.image(entry.path);
-      if (facts.status === "malformed" || facts.status === "unsupported")
-        unclassified.push(entry.path);
-      else if (
-        facts.status === "parsed" &&
-        machoImageSlices(facts).some(
-          ({ file_type: type }) => type === "execute",
+  const reader = new DirectoryArtifactReader(root);
+  let outcome:
+    | { readonly kind: "completed" }
+    | { readonly kind: "failed"; readonly cause: unknown } = {
+    kind: "completed",
+  };
+  try {
+    await consumeWithOrderedReads(
+      reader.entries(signal, traversal),
+      MAGIC_READ_CONCURRENCY,
+      (entry) => {
+        // The ordered-read owner skips consume() when read() returns undefined.
+        // Discovery facts for skipped entries belong at this selection boundary.
+        if (entry.kind === "symlink") {
+          symlinks += 1;
+          firstSymlink ??= entry.path;
+        }
+        return entry.kind === "file"
+          ? files.startsWithMachoMagic(entry)
+          : undefined;
+      },
+      async (entry, macho) => {
+        if (!macho) return;
+        const facts = await view.image(entry.path);
+        if (facts.status === "malformed" || facts.status === "unsupported")
+          unclassified.push(entry.path);
+        else if (
+          facts.status === "parsed" &&
+          machoImageSlices(facts).some(
+            ({ file_type: type }) => type === "execute",
+          )
         )
-      )
-        roots.push(entry.path);
-    },
-  );
+          roots.push(entry.path);
+      },
+    );
+  } catch (cause: unknown) {
+    outcome = { kind: "failed", cause };
+  }
+  const released = await resources.release({
+    kind: "reader",
+    reader,
+    resource: `executable-root reader for ${root}`,
+  });
+  if (released.kind === "failed")
+    throw resources.cleanupFailure(outcome, [released]);
+  if (outcome.kind === "failed") throw outcome.cause;
+  assertArtifactReadActive(signal);
   if (symlinks > 0)
     traversal.onCoverage({
       status: "unknown",

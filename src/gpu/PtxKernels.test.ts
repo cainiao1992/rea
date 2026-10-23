@@ -183,6 +183,20 @@ it("sums bare names and every register range while preserving unsupported totals
   ]);
   expect(row!.kernel.limitations.join(" ")).toContain("count unknown");
 });
+it("counts numeric percent-prefixed PTX register names", () => {
+  const [row] = [
+    ...readPtxKernels(
+      ".entry kernel() { .reg .b32 %0; mov.u32 %0, 0; ret; }",
+      "object",
+    ),
+  ];
+  expect(row!.kernel.registers.virtual).toEqual([{ type: ".b32", count: 1 }]);
+});
+it.each(["0", "%"])("rejects malformed PTX register identifier %s", (name) => {
+  expect(() => [
+    ...readPtxKernels(`.entry kernel() { .reg .b32 ${name}; ret; }`, "object"),
+  ]).toThrow();
+});
 it("does not round overflowing register totals or accept truncated ranges", () => {
   for (const declaration of [
     "%r<9007199254740991>, %s",

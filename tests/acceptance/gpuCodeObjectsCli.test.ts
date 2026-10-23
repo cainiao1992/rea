@@ -413,6 +413,44 @@ cliTest(
 );
 
 cliTest(
+  "counts numeric percent-prefixed PTX register declarations",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ptx-numeric-register-");
+    for (const register of ["%0", "%r0"] as const) {
+      const text = `.version 7.0\n.target sm_80\n.address_size 64\n.visible .entry kernel() {\n.reg .b32 ${register};\nmov.u32 ${register}, 0;\nret;\n}\n`;
+      const path = join(root, `${register.slice(1)}.ptx`);
+      await writeFile(path, text);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          "kernels",
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const report = gpuCodeObjectsSchema.parse(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ).normalized_result,
+      );
+      expect(report.kernels).toMatchObject([
+        {
+          name: "kernel",
+          registers: { virtual: [{ type: ".b32", count: 1 }] },
+        },
+      ]);
+      expect(report.ptx_artifacts[0]!.sha256).toBe(
+        createHash("sha256").update(text).digest("hex"),
+      );
+    }
+  },
+);
+
+cliTest(
   "preserves PTX target spelling and percent-prefixed entry names",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-ptx-identifiers-cli-");

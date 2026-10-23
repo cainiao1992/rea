@@ -85,7 +85,7 @@ const sizeOf = (type: string | undefined): number | null => {
   const match = /^\.(?:b|u|s|f)(8|16|32|64|128)$/u.exec(type ?? "");
   return match === null ? null : Number(match[1]) / 8;
 };
-const identifier = /^%?[A-Za-z_$][\w$@.]*$/u;
+const identifier = /^(?:%?[A-Za-z_$][\w$@.]*|%[0-9][A-Za-z0-9_$]*)$/u;
 /** Stream register names/ranges without retaining the declaration token list. */
 const registerDeclaration = (
   next: () => Token,

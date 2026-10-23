@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 
 import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
-import type { JavaScriptApplicationAnalysisResult } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { buildJavaScriptNativeHandoffs } from "../../../src/domain/javascript/javascriptNativeHandoff.js";
 import { analyzeJavaScriptApplication } from "../../../src/application/javascript/JavaScriptApplicationService.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -20,8 +20,9 @@ const analyzeFixture = async (source: string) => {
       scope,
     );
     if (!result.ok) throw result.error;
-    return result.value
-      .normalized_result as unknown as JavaScriptApplicationAnalysisResult;
+    return javascriptApplicationAnalysisResultSchema.parse(
+      result.value.normalized_result,
+    );
   } finally {
     await scope.close();
   }

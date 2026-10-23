@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -23,8 +24,8 @@ import {
 
 const source = environmentServeSource();
 
-const tool = (name: string) => {
-  const found = source.manifest.tools.find((entry) => entry.name === name);
+const tool = (name: string, from: EnvironmentSource = source) => {
+  const found = from.manifest.tools.find((entry) => entry.name === name);
   if (found === undefined) throw new Error(`Fixture manifest lacks ${name}`);
   return found;
 };
@@ -34,36 +35,37 @@ const replay = (
   args: Readonly<Record<string, unknown>>,
   from: EnvironmentSource = source,
 ) => {
-  const result = replayEnvironmentTool(from, tool(name), args);
+  const result = replayEnvironmentTool(from, tool(name, from), args);
   if (!result.ok) throw result.error;
   return result.value;
 };
 
 /** The fixture source with /api/users/2's response replaced by HAR base64 content the decoder retained. */
 const base64Source = async (bytes: Buffer): Promise<EnvironmentSource> => {
-  const capture = environmentManifestCaptureFixture();
-  const record = capture.records.find(
-    (entry) =>
-      typeof entry.reported === "object" &&
-      entry.reported !== null &&
-      "request" in entry.reported &&
-      JSON.stringify(entry.reported).includes("/api/users/2"),
-  );
+  const encoded = bytes.toString("base64");
+  const capture = environmentManifestCaptureFixture([
+    {
+      request: { method: "GET", url: "http://grafana.example/api/users/2" },
+      response: {
+        status: 200,
+        content: {
+          mimeType: "application/json",
+          text: encoded,
+          encoding: "base64",
+        },
+      },
+    },
+  ]);
+  const record = capture.records[0];
   if (record === undefined) throw new Error("Fixture lacks /api/users/2");
-  const reported = structuredClone(record.reported) as {
-    response: { content: { text: string; encoding?: string } };
-  };
-  reported.response.content.text = bytes.toString("base64");
-  reported.response.content.encoding = "base64";
-  record.reported = reported;
   record.binary_fields = [
     {
       pointer: "/response/content/text",
       representation: "har-base64-content",
       state: "retained",
-      content_base64: bytes.toString("base64"),
+      content_base64: encoded,
       bytes: bytes.length,
-      sha256: "0".repeat(64),
+      sha256: createHash("sha256").update(bytes).digest("hex"),
     },
   ];
   const evidence = analysisViewCaptureEvidence(capture);

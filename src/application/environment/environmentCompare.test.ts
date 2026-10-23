@@ -592,19 +592,55 @@ describe("ids the comparison used to misread", () => {
 
 describe("browser probes", () => {
   it("keeps a browser probe's request bodies, which are its call arguments", () => {
+    const responseBody = '{"note":"postData is response text"}';
+    const responseContent = {
+      text: Buffer.from(responseBody).toString("base64"),
+      encoding: "base64",
+    };
+    const capture = scenarioCaptureEvidence(
+      scenarioCaptureFixture([
+        {
+          method: "POST",
+          url: "/api/folders",
+          status: 200,
+          mediaType: "application/json",
+          body: responseBody,
+          requestMediaType: "application/json",
+          requestBody: '{"title":"probe folder"}',
+        },
+      ]),
+    );
     const post = (purpose?: "manifest") => {
       const parsed = parseCaptureEvidence(
         "environment-compare",
-        scenarioCaptureEvidence(),
+        capture,
         purpose,
       );
       if (!parsed.ok) throw parsed.error;
-      return parsed.value.records.find((record) =>
-        JSON.stringify(record.reported).includes('"method":"POST"'),
-      )?.reported;
+      expect(parsed.value.records).toHaveLength(1);
+      const record = parsed.value.records[0];
+      if (record === undefined) throw new Error("Scenario capture lacks POST");
+      return record.reported;
     };
-    expect(JSON.stringify(post("manifest"))).toContain("postData");
-    expect(JSON.stringify(post())).not.toContain("postData");
+    expect(post("manifest")).toMatchObject({
+      request: {
+        method: "POST",
+        postData: {
+          mimeType: "application/json",
+          text: '{"title":"probe folder"}',
+        },
+      },
+      response: {
+        content: responseContent,
+      },
+    });
+    expect(post()).toMatchObject({
+      request: { method: "POST" },
+      response: {
+        content: responseContent,
+      },
+    });
+    expect(post()).not.toHaveProperty("request.postData");
   });
 });
 

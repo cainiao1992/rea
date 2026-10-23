@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   analysisViewCaptureEvidence,
   analysisViewCaptureFixture,
-  environmentManifestCaptureFixture,
+  timedCaptureEvidence,
 } from "../../../tests/fixtures/analysisView.js";
 import { scenarioCaptureEvidence } from "../../../tests/fixtures/browserScenarioCapture.js";
 import {
@@ -303,17 +303,10 @@ describe("loadEnvironmentSource payload attribution", () => {
 
 describe("loadEnvironmentSource recorded request lines", () => {
   it("keeps the delimiter of an explicit empty query in the recorded exchange", async () => {
-    const capture = environmentManifestCaptureFixture();
-    const record = capture.records.find((entry) =>
-      JSON.stringify(entry.reported).includes("/api/users/2"),
-    );
-    if (record === undefined) throw new Error("Fixture lacks /api/users/2");
-    const reported = structuredClone(record.reported) as {
-      request: { url: string };
-    };
-    reported.request.url = `${reported.request.url}?`;
-    record.reported = reported;
-    const evidence = analysisViewCaptureEvidence(capture);
+    const evidence = timedCaptureEvidence([
+      ["GET", "/api/users/2?", { id: 2 }],
+      ["GET", "/api/users/3", { id: 3 }],
+    ]);
     const manifest = await inspectAnalysisView({
       source: { kind: "inline", evidence },
       view: { kind: "environment-manifest" },
@@ -321,12 +314,7 @@ describe("loadEnvironmentSource recorded request lines", () => {
     if (!manifest.ok) throw manifest.error;
     const loaded = loadEnvironmentSource(manifest.value, evidence);
     if (!loaded.ok) throw loaded.error;
-    const exchanges = [...loaded.value.exchanges.values()];
-    expect(
-      exchanges.find((entry) => entry.path === "/api/users/2")?.query,
-    ).toBe("?");
-    expect(
-      exchanges.find((entry) => entry.path === "/api/users/3")?.query,
-    ).toBeNull();
+    expect(loaded.value.exchanges.get(0)?.query).toBe("?");
+    expect(loaded.value.exchanges.get(1)?.query).toBeNull();
   });
 });

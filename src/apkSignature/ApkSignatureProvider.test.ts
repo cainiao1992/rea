@@ -24,36 +24,10 @@ import {
   zipWith,
 } from "../../tests/fixtures/apkSignature/v1SignatureBlock.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import { apkSignatureResultSchema } from "../domain/apkSignature/apkSignatureReport.js";
 import { ApkSignatureProvider } from "./ApkSignatureProvider.js";
 import { apkSignatureFailure } from "./apkSignatureFailures.js";
 import { apkSchemeValue } from "../../tests/fixtures/apkSignature/signingScheme.js";
-
-type V1Signer = {
-  signature_file: string;
-  block_file: string;
-  certificate: { sha256_fingerprint: string; subject: string | null } | null;
-  certificates: { sha256_fingerprint: string; subject: string | null }[];
-  signer_infos: Record<string, unknown>[];
-  decode_error: string | null;
-};
-type Report = {
-  schemes: { v1: { present: boolean; signers: V1Signer[] } } & Record<
-    string,
-    {
-      present: boolean;
-      signers?: {
-        certificate: unknown;
-        digests: { algorithm: string; matches_apk: boolean | null }[];
-      }[];
-    }
-  >;
-  posture: Record<string, unknown>;
-  source_stamp: {
-    present: boolean;
-    certificate: { sha256_fingerprint: string } | null;
-    decode_error: string | null;
-  };
-};
 
 const zipOf = async (names: readonly string[]): Promise<Uint8Array> => {
   const writer = new ZipWriter(new Uint8ArrayWriter());
@@ -168,10 +142,10 @@ const write = async (
   await writeFile(path, bytes);
   return path;
 };
-const reportOf = async (path: string): Promise<Report> => {
+const reportOf = async (path: string) => {
   const result = await provider.inspect({ path });
   if (!result.ok) throw new Error(`expected ok: ${result.error.message}`);
-  return result.value.result as Report;
+  return apkSignatureResultSchema.parse(result.value.result);
 };
 
 describe("ApkSignatureProvider without the Android SDK", () => {
@@ -389,7 +363,7 @@ describe("ApkSignatureProvider v1 signers", () => {
       ),
     });
     if (!result.ok) throw new Error(result.error.message);
-    const report = result.value.result as Report;
+    const report = apkSignatureResultSchema.parse(result.value.result);
     expect(report.posture.v1_signers_match_block_signers).toBeNull();
     expect(result.value.limitations).toContain(
       "v1_signers_match_block_signers is null: the v3 signer's declared rotation lineage could not be decoded, so the original certificate v1 is expected to carry is unknown.",
@@ -599,7 +573,10 @@ describe("ApkSignatureProvider failure surfaces", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect((result.value.result as Report).posture.self_consistent).toBeNull();
+    expect(
+      apkSignatureResultSchema.parse(result.value.result).posture
+        .self_consistent,
+    ).toBeNull();
     expect(result.value.limitations.at(-1)).toContain(
       "not immediately followed by the end-of-central-directory",
     );

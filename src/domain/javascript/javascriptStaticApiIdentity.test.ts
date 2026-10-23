@@ -22,6 +22,21 @@ it.each([
 );
 
 it.each([
+  ["", "./native.js"],
+  ["url.URL = class {};", null],
+] as const)(
+  "requires the native URL constructor identity after %s",
+  (write, expected) => {
+    const analysis = analyzeJavaScriptStaticSource(`${windowPrefix}
+    import url from 'node:url';${write}
+    new BrowserWindow({webPreferences:{preload:fileURLToPath(new (url.URL as typeof URL)("./native.js", import.meta.url))}});`);
+    expect(analysis.electron.browser_windows).toMatchObject([
+      { preload_path: expected },
+    ]);
+  },
+);
+
+it.each([
   '["a", "b"].join("/")',
   'settings.join("/app", "preload.js")',
   'settings.fileURLToPath("file:///decoy.js")',

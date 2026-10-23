@@ -221,7 +221,7 @@ describe("inert JavaScript path resolution", () => {
     [
       'path.join("sub", "../preload.js")',
       posix.join("sub", "../preload.js"),
-      "module-specifier",
+      "filesystem-expression",
     ],
     [
       'path.join(__dirname, "preload.js")',
@@ -253,7 +253,7 @@ describe("inert JavaScript path resolution", () => {
       "preload.js",
       "filesystem-expression",
     ],
-    ['join("sub", "preload.js")', "sub/preload.js", "module-specifier"],
+    ['join("sub", "preload.js")', "sub/preload.js", "filesystem-expression"],
     ["path.join(__dirname)", ".", "filesystem-expression"],
   ] as const)("preserves join behavior in %s", (expression, path, context) => {
     assertPathProjection(expression, path, context);
@@ -394,7 +394,7 @@ const parsePathExpression = (expression: string) =>
 const analyzePathConsumers = (expression: string) => {
   const property = `preload: ${expression}`;
   const genericPrefix =
-    'import path, {dirname} from "node:path"; import {fileURLToPath} from "node:url"; const options = { ';
+    'import path, {dirname,join} from "node:path"; import url, {fileURLToPath} from "node:url"; const options = { ';
   const windowPrefix = "new BrowserWindow({ webPreferences: { ";
   const windowExpression = `${windowPrefix}${property} } })`;
   const utilityExpression = `utilityProcess.fork(${expression})`;
@@ -437,7 +437,11 @@ const assertPathProjection = (
     if (fact === "source-url") return true;
     const name = calleeName(callee);
     if (fact === "file-url-to-path") return name.endsWith("fileURLToPath");
-    return name.endsWith(`.${fact ?? "resolve"}`) && !name.includes("win32");
+    return (
+      (name === (fact ?? "resolve") ||
+        name.endsWith(`.${fact ?? "resolve"}`)) &&
+      !name.includes("win32")
+    );
   };
   expect(staticPath(node, pathIntrinsics)).toBe(path);
   expect(staticPathResolutionContext(node, pathIntrinsics)).toBe(context);

@@ -419,7 +419,9 @@ establish a browser or Electron API. The shared lexical, ambient-write, and
 member-mutation owners must establish the receiver before static API facts become
 roles or storage observations. Path `join`, `resolve`, and `fileURLToPath` use
 proven Node imports; source-relative URL conversion additionally requires an
-unmodified global URL constructor and `import.meta.url`. Other calls preserve
+unmodified global or proven Node `url.URL` constructor and `import.meta.url`.
+Relative results of native path operations retain filesystem-expression context;
+their spelling does not turn them into module specifiers. Other calls preserve
 their expressions. A property named `preload` outside a proven BrowserWindow
 configuration does not establish a script entrypoint. Renderer recovery currently
 covers direct BrowserWindow instances, stable local aliases, and their

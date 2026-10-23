@@ -71,7 +71,8 @@ export const createStaticPathIntrinsicQuery = (
       kind === "source-url"
         ? t.isNewExpression(callee) &&
           callee.arguments.length === 2 &&
-          isUnmodifiedGlobalReference(callee.callee, index.bindings, "URL") &&
+          (isUnmodifiedGlobalReference(callee.callee, index.bindings, "URL") ||
+            nativeMethod(callee.callee, "URL", ["url"])) &&
           isUnmodifiedImportMetaUrl(callee.arguments[1], index.bindings)
         : kind === "file-url-to-path"
           ? nativeMethod(callee, "fileURLToPath", ["url"])

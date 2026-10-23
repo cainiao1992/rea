@@ -45,7 +45,8 @@ license](https://github.com/morluto/rea/blob/main/third_party/evmole/README.md) 
   map from the selected bytes. Integers use decimal strings; byte strings use hex,
   and scalar keys retain their types. The recorded offset/length addresses the
   original bytecode, so summary delivery does not copy an opaque CBOR payload.
-  Nested containers have partial scalar coverage; unsupported or malformed
+  Nested containers have partial scalar coverage; map keys are still checked for
+  duplicates throughout nested maps and arrays. Unsupported or malformed
   candidates report `not-decoded` with a diagnostic. Decoding is bounded to 64
   container levels and the terminal payload's encoded size.
 - An unavailable trailer does not prove metadata absence or Solidity origin.

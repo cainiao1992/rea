@@ -122,6 +122,12 @@ it("decodes distinct byte keys and distinct nested-container keys", () => {
   expect(inspectSolidityMetadata(bytecode("a281800181a002"))).toMatchObject({
     status: "partial",
   });
+  expect(
+    inspectSolidityMetadata(bytecode("a264736f6c634300081e6178a2410101410202")),
+  ).toMatchObject({
+    status: "partial",
+    compiler_version: { representation: "release-bytes", value: "0.8.30" },
+  });
 });
 
 it.each([
@@ -131,6 +137,11 @@ it.each([
   ["floating point", "a16178fa3f800000"],
   ["duplicate key", "a2617801617802"],
   ["duplicate byte key", "a2410101410102"],
+  [
+    "duplicate byte key in nested map",
+    "a264736f6c634300081e6178a2410101410102",
+  ],
+  ["duplicate byte key in map inside array", "a1617881a2410101410102"],
   ["duplicate array key", "a280018002"],
   ["duplicate map key", "a2a001a002"],
   ["duplicate map key in another order", "a2a20102030401a20304010202"],

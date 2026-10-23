@@ -497,8 +497,14 @@ Do not rename `index.cjs` to `index.mjs` or disable protection to make startup p
 
 `rea update` installs the exact resolved
 release into the npm prefix or Bun global directory that owns the running
-package, then checks the new executable's version before reporting success. It
-does not reopen onboarding. For npm installations, release lookup and
+package, then checks the new executable's version before reporting success.
+That verification covers the CLI version; it does not establish readiness of
+optional native providers such as Frida. Updates keep dependency lifecycle
+scripts disabled, so a native binding that needs an install or build step may
+remain unavailable. A later provider command reports its own load failure;
+retain that diagnostic and the owning installation path before choosing a manual
+repair. The updater does not download or rebuild the binding. It does not reopen
+onboarding. For npm installations, release lookup and
 installation both use npm's configured registry. Bun global updates require
 Bun 1.2.17 or later, which introduced `bun info`. The updater checks `bun --version`
 first and stops with an instruction to upgrade Bun manually if the version is

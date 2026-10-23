@@ -47,6 +47,14 @@ it("retains a parameter name when a qualifier is unknown", () => {
   ]);
   expect(row!.coverage).toBe("partial");
 });
+it("keeps external declarations bodyless and resource values unknown", () => {
+  const [row] = [
+    ...readPtxKernels(".extern .entry k(.param .u32 input);", "object"),
+  ];
+  expect(row!.kernel.parameter_count).toBe(1);
+  expect(row!.kernel.shared_bytes).toBeNull();
+  expect(row!.coverage).toBe("partial");
+});
 it.each([".ptr .global .align 4", ".ptr .align 1", ".ptr.global.align 4"])(
   "parses PTX pointer qualifiers %s without treating pointee alignment as parameter alignment",
   (qualifiers) => {
@@ -153,6 +161,7 @@ it.each([
   ".entry k",
   ".entry k ) { ret; }",
   ".entry k() {",
+  ".entry k() .pragma; { ret; }",
   ".entry k() {.reg .u32 %x}",
   ".entry k() {.reg %x;}",
 ])("rejects incomplete PTX %s", (text) => {

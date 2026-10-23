@@ -82,7 +82,9 @@ Kernel representations have different meanings:
   supported static declarations inside that entry; they do not establish module
   shared memory, dynamic allocation or physical device resources.
   PTX 1.0–1.3 declares entry parameters in the body; PTX 1.4 and later uses the
-  entry parameter list. A `.target compute_xx` spelling is retained as written;
+  entry parameter list. Entry-scoped `.pragma` statements before the body do
+  not end the declaration or suppress its body resources. A `.target
+  compute_xx` spelling is retained as written;
   NVIDIA PTX defines it as a synonym for `.target sm_xx` when comparing its
   target identity with the fatbin declaration. `.callprototype` formal
   parameters are excluded from entry virtual-register counts. Parameter names

@@ -461,6 +461,71 @@ cliTest(
 );
 
 cliTest(
+  "keeps entry-scoped PTX pragmas outside the body boundary",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ptx-entry-pragma-");
+    const preamble = ".version 8.8\n.target sm_80\n.address_size 64\n",
+      body = "{ .reg .b32 %r<3>; .shared .align 4 .b8 scratch[16]; ret; }",
+      declarations = [
+        ["plain", `.visible .entry k(.param .u32 input) ${body}`],
+        [
+          "entry-pragma",
+          `.visible .entry k(.param .u32 input) .pragma "nounroll"; ${body}`,
+        ],
+        [
+          "body-pragma",
+          `.visible .entry k(.param .u32 input) { .pragma "nounroll"; .reg .b32 %r<3>; .shared .align 4 .b8 scratch[16]; ret; }`,
+        ],
+      ] as const;
+    const reports = new Map();
+    for (const [name, declaration] of declarations) {
+      const text = `${preamble}${declaration}\n`,
+        path = join(root, `${name}.ptx`);
+      await writeFile(path, text);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          "kernels",
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const evidence = parseEvidence(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ),
+      );
+      const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+      expect(report.ptx_artifacts[0]!.sha256).toBe(
+        createHash("sha256").update(text).digest("hex"),
+      );
+      reports.set(name, report);
+    }
+    const expected = {
+      name: "k",
+      parameter_count: 1,
+      parameter_bytes: 4,
+      registers: { virtual: [{ type: ".b32", count: 3 }] },
+      shared_bytes: 16,
+    };
+    for (const [name, report] of reports) {
+      expect(report.kernels[0]).toMatchObject(expected);
+      expect(report.coverage.payloads).toBe("complete");
+      const declaration = declarations.find(
+        ([caseName]) => caseName === name,
+      )![1];
+      expect(report.kernels[0]!.location.size).toBe(
+        Buffer.byteLength(declaration.slice(declaration.indexOf(".entry"))),
+      );
+    }
+  },
+);
+
+cliTest(
   "accepts the PTX compute_xx .target synonym verbatim",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-ptx-target-cli-");

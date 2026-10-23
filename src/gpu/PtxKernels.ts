@@ -345,6 +345,21 @@ export function* readPtxKernels(
     let headerTokens = 0;
     while (t.value !== "{" && t.value !== ";") {
       if (++headerTokens > 65536) rejectGpu("PTX entry header is too large");
+      if (t.value === ".pragma") {
+        t = next();
+        if (t.value !== '""') rejectGpu("Malformed PTX entry pragma");
+        while (true) {
+          if (++headerTokens > 65536)
+            rejectGpu("PTX entry header is too large");
+          t = next();
+          if (t.value === ";") break;
+          if (t.value !== ",") rejectGpu("Malformed PTX entry pragma");
+          t = next();
+          if (t.value !== '""') rejectGpu("Malformed PTX entry pragma");
+        }
+        t = next();
+        continue;
+      }
       t = next();
     }
     let end = t.end,

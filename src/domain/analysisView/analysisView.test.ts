@@ -27,7 +27,7 @@ import {
 } from "./analysisViewCoverage.js";
 import { sourceMapReference } from "../javascript/javascriptApplicationGraph.fixture.js";
 import { createArtifactInspection } from "../artifactInspection.js";
-import { javascriptModulePath } from "./javascriptApplicationView.js";
+import { javascriptModulePaths } from "./javascriptApplicationView.js";
 import {
   inspectAnalysisViewInputSchema,
   projectAnalysisView,
@@ -497,7 +497,7 @@ it("projects JavaScript summary and preserves selected module observations", () 
   if (!item.ok) throw item.error;
   const moduleNode = analysis.graph.nodes[0];
   if (moduleNode === undefined) throw new Error("missing module");
-  expect(javascriptModulePath(moduleNode)).toBe("renderer.js");
+  expect(javascriptModulePaths(moduleNode)).toEqual(["renderer.js"]);
   if (item.value.kind !== "item") throw new Error("expected item view");
   expect(item.value.item).toMatchObject({
     path: "renderer.js",
@@ -1366,6 +1366,50 @@ it("preserves selected native facet unavailability instead of an exhausted empty
     expect(result.value).toMatchObject({
       item: { available: false, reason },
       unknowns: expect.arrayContaining([reason]),
+    });
+  }
+});
+
+it("selects a unique content-deduplicated module by any retained path", () => {
+  const source = analysisViewJavaScriptAnalysisWithSource();
+  const original = source.graph.nodes[0];
+  const observation = original?.observations[0];
+  if (original === undefined || observation === undefined)
+    throw new Error("Missing module fixture");
+  const node = createJavaScriptApplicationNode({
+    kind: original.kind,
+    identity: original.identity,
+    observations: [
+      ...original.observations.map(({ label, properties, evidence }) => ({
+        label,
+        properties,
+        evidence,
+      })),
+      {
+        evidence: observation.evidence,
+        label: "renderer-alias.js",
+        properties: { ...observation.properties, path: "renderer-alias.js" },
+      },
+    ],
+  });
+  const { graph_id: _graphId, ...graphFacts } = source.graph;
+  const graph = createJavaScriptApplicationGraph({
+    ...graphFacts,
+    nodes: [node],
+  });
+  const parent = javascriptParent(
+    analysisViewBindJavaScriptGraphs(source, graph),
+  );
+  for (const path of ["renderer.js", "renderer-alias.js"]) {
+    const selected = projectAnalysisView(parent, {
+      kind: "item",
+      collection: "modules",
+      selector: { path },
+    });
+    if (!selected.ok) throw selected.error;
+    expect(selected.value).toMatchObject({
+      kind: "item",
+      item: { node_id: node.node_id, path },
     });
   }
 });

@@ -40,6 +40,12 @@ combine its fields with the fact's location. Semantic trace results include the
 canonical context subset referenced by their returned facts, so those facts
 remain self-contained in the response.
 
+Content-deduplicated module references match every retained observation path.
+A path-filtered reference reports the caller-selected path while keeping its
+shared node identity. Item selection also accepts any retained path when it
+identifies one module; if several module kinds share that path, select the
+reported `node_id`. Node-ID selection uses the stable representative path.
+
 ## Retained module facts
 
 For canonical identities and retained source-range counts, query the existing

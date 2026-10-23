@@ -39,21 +39,27 @@ const jsIncompatible = (detail: string): AnalysisError =>
     },
   ]);
 
-/** Exact module path or original source-map reference, when available. */
-export const javascriptModulePath = (node: ApplicationNode): string | null => {
-  if (node.identity.strategy === "canonical-path") return node.identity.path;
+/** Every exact module path or original source-map reference retained by a node. */
+export const javascriptModulePaths = (
+  node: ApplicationNode,
+): readonly string[] => {
+  if (node.identity.strategy === "canonical-path") return [node.identity.path];
   if (node.identity.strategy === "source-map-original")
-    return node.identity.original_source;
+    return [node.identity.original_source];
+  const paths = new Set<string>();
   for (const observation of node.observations) {
     const path = observation.properties.path;
-    if (typeof path === "string") return path;
+    if (typeof path === "string") {
+      paths.add(path);
+      continue;
+    }
     const location = observation.evidence.location;
     if (location.available && location.value.kind === "artifact-path")
-      return location.value.path;
+      paths.add(location.value.path);
     if (location.available && location.value.kind === "source-range")
-      return location.value.source;
+      paths.add(location.value.source);
   }
-  return null;
+  return [...paths];
 };
 
 interface ModuleEntry {
@@ -61,6 +67,7 @@ interface ModuleEntry {
     readonly kind: JavaScriptModuleReference["kind"];
   };
   readonly path: string | null;
+  readonly paths: readonly string[];
 }
 
 const isModuleNode = (node: ApplicationNode): node is ModuleEntry["node"] =>
@@ -73,7 +80,10 @@ function* moduleEntries(
   nodes: readonly ApplicationNode[],
 ): Generator<ModuleEntry> {
   for (const node of nodes) {
-    if (isModuleNode(node)) yield { node, path: javascriptModulePath(node) };
+    if (isModuleNode(node)) {
+      const paths = javascriptModulePaths(node);
+      yield { node, path: paths[0] ?? null, paths };
+    }
   }
 }
 
@@ -94,10 +104,20 @@ const modulePage = (
   for (const entry of moduleEntries(nodes)) {
     if (view.where?.kind !== undefined && entry.node.kind !== view.where.kind)
       continue;
-    if (view.where?.path !== undefined && entry.path !== view.where.path)
+    const selectedPath = view.where?.path;
+    if (
+      selectedPath !== undefined &&
+      (selectedPath === null
+        ? entry.path !== null
+        : !entry.paths.includes(selectedPath))
+    )
       continue;
+    const selectedEntry =
+      selectedPath !== undefined && selectedPath !== null
+        ? { ...entry, path: selectedPath }
+        : entry;
     if (total >= view.offset && entries.length < view.limit)
-      entries.push(entry);
+      entries.push(selectedEntry);
     total += 1;
   }
   return { entries, total };
@@ -147,10 +167,10 @@ const sourceRanges = (node: ApplicationNode): readonly JsonValue[] =>
       : [];
   });
 
-const moduleItem = (node: ApplicationNode): JsonValue => ({
+const moduleItem = (node: ApplicationNode, path: string | null): JsonValue => ({
   node_id: node.node_id,
   kind: node.kind,
-  path: javascriptModulePath(node),
+  path,
   identity: node.identity,
   hashes: [...nodeHashes(node)],
   exports: [...exportNames(node)],
@@ -252,14 +272,14 @@ const parentFields = (
 const selectModule = (
   modules: readonly ModuleEntry[],
   selector: Extract<AnalysisViewRequest, { readonly kind: "item" }>["selector"],
-): Result<ApplicationNode, AnalysisError> => {
+): Result<ModuleEntry, AnalysisError> => {
   if ("node_id" in selector) {
     const matches = modules.filter(
       ({ node }) => node.node_id === selector.node_id,
     );
     if (matches.length === 1) {
       const selected = matches[0];
-      if (selected !== undefined) return ok(selected.node);
+      if (selected !== undefined) return ok(selected);
     }
     return err(
       inputError([
@@ -272,10 +292,15 @@ const selectModule = (
     );
   }
   if ("path" in selector) {
-    const matches = modules.filter((entry) => entry.path === selector.path);
+    const matches = modules.filter((entry) =>
+      selector.path === null
+        ? entry.path === null
+        : entry.paths.includes(selector.path),
+    );
     if (matches.length === 1) {
       const selected = matches[0];
-      if (selected !== undefined) return ok(selected.node);
+      if (selected !== undefined)
+        return ok({ ...selected, path: selector.path });
     }
     if (matches.length === 0)
       return err(
@@ -403,7 +428,7 @@ export const projectJavaScriptApplicationView = (
     return ok({
       kind: "item",
       view,
-      item: moduleItem(selected.value),
+      item: moduleItem(selected.value.node, selected.value.path),
       coverage: completeCoverage(1, modules.length),
       ...shared,
     });

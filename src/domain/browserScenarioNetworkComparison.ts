@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BrowserScenarioCapture } from "./browserScenarioCapture.js";
+import type { RetainedBrowserScenarioCapture } from "./browserScenarioCapture.js";
 import type { BrowserScenarioNormalizationRule } from "./browserScenarioDiffValues.js";
 import { digestCanonicalValue } from "./canonicalDigest.js";
 import { normalizeScenarioValue } from "./browserScenarioNormalization.js";
@@ -16,7 +16,7 @@ export type ScenarioNetworkTransaction = z.infer<
 
 /** Project each transaction once, retaining ancestry as references rather than nested copies. */
 export const scenarioNetworkTransactions = (
-  capture: BrowserScenarioCapture,
+  capture: RetainedBrowserScenarioCapture,
 ): ScenarioNetworkTransaction[] => {
   const sourceSteps = new Map(
     capture.events.items.map((event) => [event.sequence, event.step_index]),
@@ -132,7 +132,7 @@ export const scenarioNetworkTransactions = (
 
 /** Missing or cyclic ancestry cannot support an unchanged claim. */
 export const scenarioNetworkCoverageReason = (
-  capture: BrowserScenarioCapture,
+  capture: RetainedBrowserScenarioCapture,
   nodes = scenarioNetworkTransactions(capture),
 ): string | undefined => {
   const finished = new Set<number>();

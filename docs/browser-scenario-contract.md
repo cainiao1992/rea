@@ -468,6 +468,11 @@ selection. Captures with different selections report event evidence as unknown
 with a recovery instruction, even when no selected family emitted an event.
 Captures written before this field existed omit it, so their event evidence is
 also unknown.
+Retained-capture readers admit that omission without deriving a selection from
+observed events; other artifact families remain comparable. Current capture
+producers still require and publish the selected event families. Manifest,
+environment and script-export readers share the retained-capture admission
+rules and preserve the same missing fact.
 
 Network normalization also commits the removal of capture-local transaction IDs,
 attribution to the requesting step, and unordered transaction comparison. These

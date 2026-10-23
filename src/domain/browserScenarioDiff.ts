@@ -1,4 +1,4 @@
-import type { BrowserScenarioCapture } from "./browserScenarioCapture.js";
+import type { RetainedBrowserScenarioCapture } from "./browserScenarioCapture.js";
 import type { BrowserScenarioStep } from "./browserScenarioCaptureValues.js";
 import { z } from "zod";
 import { digestCanonicalValue } from "./canonicalDigest.js";
@@ -144,8 +144,8 @@ export const compareBrowserScenarios = (
 };
 
 const alignScenarioSteps = (
-  beforeCapture: BrowserScenarioCapture,
-  afterCapture: BrowserScenarioCapture,
+  beforeCapture: RetainedBrowserScenarioCapture,
+  afterCapture: RetainedBrowserScenarioCapture,
 ): ScenarioAlignment => {
   const beforeDuplicates = duplicateStepIds(beforeCapture.steps);
   const afterDuplicates = duplicateStepIds(afterCapture.steps);
@@ -188,8 +188,8 @@ const alignScenarioSteps = (
 };
 
 interface CompareAlignedStepsInput {
-  readonly beforeCapture: BrowserScenarioCapture;
-  readonly afterCapture: BrowserScenarioCapture;
+  readonly beforeCapture: RetainedBrowserScenarioCapture;
+  readonly afterCapture: RetainedBrowserScenarioCapture;
   readonly alignment: ScenarioAlignment;
   readonly rules: readonly BrowserScenarioNormalizationRule[];
   readonly beforeEvents: ReturnType<typeof prepareScenarioEvents>;
@@ -293,17 +293,17 @@ const missingFailures = (
   }));
 
 const captureContextsMatch = (
-  before: BrowserScenarioCapture,
-  after: BrowserScenarioCapture,
+  before: RetainedBrowserScenarioCapture,
+  after: RetainedBrowserScenarioCapture,
 ): boolean =>
   before.browser.product === after.browser.product &&
   before.browser.version === after.browser.version &&
   before.scenario.start_origin === after.scenario.start_origin;
 
 interface CompareStepArtifactsInput {
-  readonly beforeCapture: BrowserScenarioCapture;
+  readonly beforeCapture: RetainedBrowserScenarioCapture;
   readonly beforeStep: BrowserScenarioStep;
-  readonly afterCapture: BrowserScenarioCapture;
+  readonly afterCapture: RetainedBrowserScenarioCapture;
   readonly afterStep: BrowserScenarioStep;
   readonly rules: readonly BrowserScenarioNormalizationRule[];
   readonly beforeEvents: ReturnType<typeof prepareScenarioEvents>;

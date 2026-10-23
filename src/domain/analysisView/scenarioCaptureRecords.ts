@@ -5,8 +5,8 @@ import type {
   BrowserNetworkHeaders,
 } from "../browserNetworkEvidence.js";
 import {
-  browserScenarioCaptureSchema,
-  type BrowserScenarioCapture,
+  retainedBrowserScenarioCaptureSchema,
+  type RetainedBrowserScenarioCapture,
 } from "../browserScenarioCapture.js";
 import type { BrowserScenarioEvent } from "../browserScenarioCaptureValues.js";
 import {
@@ -16,7 +16,7 @@ import {
 import type { JsonValue } from "../jsonValue.js";
 import { err, ok, type Result } from "../result.js";
 import type { WebNetworkCaptureRecord } from "../webNetworkCapture.js";
-import { analysisViewInputError } from "./analysisViewErrors.js";
+import { analysisViewResultInputError } from "./analysisViewParent.js";
 import type { AnalysisViewParent } from "./analysisView.js";
 import type { WebNetworkProjectionAccumulator } from "./WebNetworkProjectionAccumulator.js";
 import { textBytes } from "./webNetworkRouteTemplates.js";
@@ -184,7 +184,7 @@ const record = (
 
 /** Project each network transaction, in request order, as one record; the ordinal is its zero-based position. */
 export const scenarioCaptureRecords = (
-  capture: BrowserScenarioCapture,
+  capture: RetainedBrowserScenarioCapture,
   purpose: "manifest" | "replay",
 ): ScenarioCaptureRecords => {
   const index = indexBrowserScenarioTransactions(capture.events.items);
@@ -269,19 +269,12 @@ export const admitScenarioCaptureParent = (
     derivedTextBytes(parent.normalizedResult),
   );
   if (!derived.ok) return derived;
-  const parsed = browserScenarioCaptureSchema.safeParse(
+  const parsed = retainedBrowserScenarioCaptureSchema.safeParse(
     parent.normalizedResult,
   );
   if (!parsed.success)
     return err(
-      analysisViewInputError([
-        {
-          path: ["source"],
-          reason: "invalid_value",
-          message:
-            "Parent Evidence result does not match capture_browser_scenario.",
-        },
-      ]),
+      analysisViewResultInputError(parent.normalizedResult, parsed.error),
     );
   const content = parsed.data.scenario.network_content;
   // Tools are chosen by response media type, which only bodies or header values carry; state is read from bodies.

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { browserScenarioCaptureSchema } from "./browserScenarioCapture.js";
+import { retainedBrowserScenarioCaptureSchema } from "./browserScenarioCapture.js";
 
 /** Scenario artifact families compared after step alignment. */
 export const browserScenarioArtifactKindSchema = z.enum([
@@ -74,10 +74,10 @@ const normalizationInputSchema = z
 
 /** Input for step-aligned comparison of two browser scenario captures. */
 export const compareBrowserScenariosInputSchema = z.strictObject({
-  before_scenario: browserScenarioCaptureSchema.describe(
+  before_scenario: retainedBrowserScenarioCaptureSchema.describe(
     "Earlier complete normalized_result from capture_browser_scenario.",
   ),
-  after_scenario: browserScenarioCaptureSchema.describe(
+  after_scenario: retainedBrowserScenarioCaptureSchema.describe(
     "Later complete normalized_result from capture_browser_scenario.",
   ),
   normalization: normalizationInputSchema

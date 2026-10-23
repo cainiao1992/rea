@@ -14,7 +14,7 @@ import {
   mediaTypeEssence,
   readRecordedRequestLine,
 } from "../../domain/analysisView/webNetworkRouteTemplates.js";
-import { browserScenarioCaptureSchema } from "../../domain/browserScenarioCapture.js";
+import { retainedBrowserScenarioCaptureSchema } from "../../domain/browserScenarioCapture.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   AnalysisInputError,
@@ -277,7 +277,7 @@ const parseScenarioCapture = (
   parameters: unknown,
   purpose: "manifest" | "replay",
 ): Result<CaptureFacts, AnalysisError> => {
-  const scenario = browserScenarioCaptureSchema.safeParse(normalized);
+  const scenario = retainedBrowserScenarioCaptureSchema.safeParse(normalized);
   if (!scenario.success)
     return err(
       schemaInputError(

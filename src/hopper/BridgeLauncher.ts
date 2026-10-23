@@ -39,8 +39,11 @@ import {
 import {
   prepareHopperMachOImage,
   type HopperMachOImage,
-  type HopperMachOImageFileSystem,
 } from "./HopperMachOImage.js";
+import {
+  prepareHopperExecutableImage,
+  type HopperImageCopyFileSystem,
+} from "./HopperImageCopy.js";
 
 import {
   acquireHopperTargetLease,
@@ -132,6 +135,8 @@ interface SharedHopperApplicationLauncherOptions {
   readonly launcherPath: string;
   readonly targetPath: string;
   readonly targetKind: "executable" | "database";
+  /** Selected artifact identity; provider-created executable launches always supply it. */
+  readonly targetSha256?: string;
   readonly loaderArgs: readonly string[];
   readonly bridgeScriptPath: string;
   /** Caller-selected request ceiling. Omitted or source default leaves the bridge at 16 MiB. */
@@ -154,7 +159,7 @@ export type HopperApplicationLauncherOptions =
     });
 
 export interface HopperApplicationLauncherDependencies {
-  readonly imageFileSystem?: HopperMachOImageFileSystem;
+  readonly imageFileSystem?: HopperImageCopyFileSystem;
   readonly verifyNativeHelper?: typeof verifyMacHopperNativeHelper;
   readonly verifyLinuxLauncher?: typeof inspectLinuxHopperLauncher;
   readonly retryPublisherCleanup?: typeof retryLinuxHopperPublisherCleanup;
@@ -271,25 +276,36 @@ export class HopperApplicationLauncher implements BridgeLauncher {
     try {
       let loadedPath = this.options.targetPath;
       const preparedImage = this.options.preparedImage;
-      if (preparedImage !== undefined) {
+      const sourceSha256 =
+        preparedImage?.sourceSha256 ??
+        (this.options.targetKind === "executable"
+          ? this.options.targetSha256
+          : undefined);
+      if (sourceSha256 !== undefined) {
         let prepared: Awaited<ReturnType<typeof prepareHopperMachOImage>>;
         try {
+          const copyOptions = {
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            resourceScope: this.#preparedImageResources,
+            ...(this.dependencies.imageFileSystem === undefined
+              ? {}
+              : { fileSystem: this.dependencies.imageFileSystem }),
+          };
           prepared = await this.#preparedImageResources.run(() =>
-            prepareHopperMachOImage(
-              this.options.targetPath,
-              preparedImage.sourceSha256,
-              preparedImage.image,
-              join(session.directory, "image.macho"),
-              {
-                ...(options.signal === undefined
-                  ? {}
-                  : { signal: options.signal }),
-                resourceScope: this.#preparedImageResources,
-                ...(this.dependencies.imageFileSystem === undefined
-                  ? {}
-                  : { fileSystem: this.dependencies.imageFileSystem }),
-              },
-            ),
+            preparedImage === undefined
+              ? prepareHopperExecutableImage(
+                  this.options.targetPath,
+                  sourceSha256,
+                  join(session.directory, "image.executable"),
+                  copyOptions,
+                )
+              : prepareHopperMachOImage(
+                  this.options.targetPath,
+                  sourceSha256,
+                  preparedImage.image,
+                  join(session.directory, "image.macho"),
+                  copyOptions,
+                ),
           );
         } catch (cause: unknown) {
           const failure = new HopperStartError({
@@ -418,7 +434,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
             LINUX_DEMO_ORDERLY_SHUTDOWN_GRACE_MS,
         });
       const ownedLauncher = {
-        ...(this.options.preparedImage === undefined
+        ...(input.loadedPath === this.options.targetPath
           ? {}
           : { preparedImagePath: input.loadedPath }),
         process: started.process,

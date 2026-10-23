@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { access, chmod, open, rm, writeFile } from "node:fs/promises";
+import { access, chmod, open, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -761,3 +761,40 @@ it.skipIf(process.platform !== "linux")(
     }
   },
 );
+
+it("ordinary executable launches pass a verified private image with configured loader arguments", async () => {
+  const directory = await createTestTempDirectory("rea-hopper-ordinary-image-");
+  const targetPath = join(directory, "target.exe");
+  const selected = Buffer.from("MZ selected image");
+  await writeFile(targetPath, selected);
+  const launcher = new HopperApplicationLauncher({
+    environment: {},
+    launcherPath: process.execPath,
+    targetPath,
+    targetKind: "executable",
+    targetSha256: createHash("sha256").update(selected).digest("hex"),
+    loaderArgs: ["-e", "process.stdout.write(process.argv.at(-1))", "--"],
+    bridgeScriptPath: "/rea/unused-bridge.py",
+    launchMode: "native",
+  });
+  const launched = await launcher.launch({
+    directory,
+    socketPath: join(directory, "bridge.sock"),
+    token: "fixture-token",
+    runId: randomUUID(),
+  });
+  if (!launched.ok) throw launched.error;
+  const supervisor = new ProviderProcessSupervisor(launched.value);
+  try {
+    expect(await supervisor.waitForOutputClose(5_000)).toBe(true);
+    const preparedPath = join(directory, "image.executable");
+    expect(supervisor.snapshot().stdout.text).toBe(preparedPath);
+    expect(launched.value.preparedImagePath).toBe(preparedPath);
+    await writeFile(targetPath, "replacement bytes");
+    expect(await readFile(preparedPath)).toEqual(selected);
+  } finally {
+    await supervisor.stop();
+    await launched.value.releaseLease?.();
+    expect(await launcher.cleanup()).toEqual({ ok: true, value: null });
+  }
+});

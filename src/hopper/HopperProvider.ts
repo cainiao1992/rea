@@ -284,6 +284,9 @@ export class HopperProvider implements AnalysisProviderCandidate {
         launcherPath: this.config.hopperLauncherPath,
         targetPath: target.path,
         targetKind: target.kind,
+        ...(target.kind === "executable"
+          ? { targetSha256: target.sha256 }
+          : {}),
         ...(preparedImage === undefined
           ? {}
           : {
@@ -347,10 +350,12 @@ export class HopperProvider implements AnalysisProviderCandidate {
           ? { relationshipCoverage: { status: "complete" as const } }
           : {}),
         limitations: [
-          ...(preparedImage === undefined
+          ...(target.kind !== "executable"
             ? []
             : [
-                "REA loaded a verified thin Mach-O image prepared from the original source. Identity and file offsets refer to the original file. The owned temporary image and its Hopper document close together, including on MCP shutdown.",
+                preparedImage === undefined
+                  ? "REA loaded a digest-verified private executable copy. Evidence identifies the selected original source; Hopper document names describe the private image. The owned image and its Hopper document close together."
+                  : "REA loaded a verified thin Mach-O image prepared from the original source. Identity and file offsets refer to the original file. The owned temporary image and its Hopper document close together, including on MCP shutdown.",
               ]),
           ...(this.#capabilities.find(
             (descriptor) => descriptor.operation === operation,

@@ -96,6 +96,14 @@ After metadata edits, snapshot saves and imports remain unavailable in that
 session. Use `export_evidence_bundle` to retain the observations, close without
 `snapshot_path`, and reopen the target before importing or saving a snapshot.
 
+Hopper executable opens use an owned private image verified against the digest
+selected by `open_binary`. The ordinary ELF/PE path and configured loader overrides
+copy the whole source; default Mach-O opens retain their selected-image checks.
+A changed source fails before the launcher reads it. The bridge binds its Hopper document to that private
+loaded path, while Evidence retains the selected original artifact identity. Hopper
+database opens retain their separate database semantics. Real Hopper conformance for ordinary
+copies and loader overrides remains unverified by the source regression tests.
+
 Ghidra checks its private import copy against the artifact digest selected by
 `open_binary`. If the source changes before that copy is acquired, the query
 reports `artifact_changed` with the selected path and both digests. Reopen the

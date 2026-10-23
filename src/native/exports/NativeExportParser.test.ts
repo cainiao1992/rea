@@ -282,6 +282,134 @@ describe("ELF dynamic symbol exports", () => {
   });
 });
 
+describe("ELF version requirements", () => {
+  it("resolves defined copy-relocated symbols through version requirements", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [
+          { name: "stdout", type: 1, value: 0x28268n, version: 3 },
+          { name: "stderr", type: 1, value: 0x282a0n, version: 0x8003 },
+        ],
+        versionRequirements: [{ index: 3, name: "GLIBC_2.2.5" }],
+      }),
+    );
+
+    expect(result).toMatchObject({
+      coverage: { status: "complete", exports: 2 },
+      issues: [],
+      exports: [
+        {
+          name: "stdout",
+          value: "0x28268",
+          version: { index: 3, name: "GLIBC_2.2.5", hidden: false },
+        },
+        {
+          name: "stderr",
+          value: "0x282a0",
+          version: { index: 3, name: "GLIBC_2.2.5", hidden: true },
+        },
+      ],
+    });
+  });
+
+  it("keeps version definitions and requirements in the same symbol lookup", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [
+          { name: "defined_version", version: 2 },
+          { name: "required_version", version: 4 },
+        ],
+        versionDefinitions: ["libfixture.so", "FIXTURE_1"],
+        versionRequirements: [
+          { index: 3, name: "GLIBC_2.2.5" },
+          { index: 4, name: "GLIBC_2.3" },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({
+      coverage: { status: "complete", exports: 2 },
+      issues: [],
+      exports: [
+        { name: "defined_version", version: { index: 2, name: "FIXTURE_1" } },
+        {
+          name: "required_version",
+          version: { index: 4, name: "GLIBC_2.3" },
+        },
+      ],
+    });
+  });
+
+  it("keeps conflicting names for one version index unknown", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [{ name: "ambiguous", version: 2 }],
+        versionDefinitions: ["libfixture.so", "DEFINITION"],
+        versionRequirements: [{ index: 2, name: "REQUIREMENT" }],
+      }),
+    );
+
+    expect(result.exports).toMatchObject([
+      { name: "ambiguous", version: { index: 2, name: null, hidden: false } },
+    ]);
+    expect(result.coverage.status).toBe("partial");
+    expect(result.issues).toMatchObject([{ code: "version_unresolved" }]);
+  });
+
+  it("retains exports and reports a truncated version-requirement chain", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [{ name: "stdout", type: 1, version: 3 }],
+        versionRequirements: [{ index: 3, name: "GLIBC_2.2.5" }],
+        truncatedVersionRequirements: true,
+      }),
+    );
+
+    expect(result.exports).toMatchObject([
+      { name: "stdout", version: { index: 3, name: null, hidden: false } },
+    ]);
+    expect(result.coverage.status).toBe("partial");
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "version_unresolved",
+          message: expect.stringContaining(
+            "auxiliary chain leaves its section",
+          ),
+        }),
+      ]),
+    );
+  });
+
+  it("marks a definition chain that ends before its declared count", () => {
+    const result = parse(
+      elfExportImage({
+        symbols: [{ name: "defined_version", version: 2 }],
+        versionDefinitions: ["libfixture.so", "FIXTURE_1"],
+        truncatedVersionDefinitions: true,
+      }),
+    );
+
+    expect(result.exports).toMatchObject([
+      {
+        name: "defined_version",
+        version: { index: 2, name: null, hidden: false },
+      },
+    ]);
+    expect(result.coverage.status).toBe("partial");
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "version_unresolved",
+          message: expect.stringContaining(
+            "chain ends before its declared count",
+          ),
+        }),
+      ]),
+    );
+  });
+});
+
 describe("export inventory review regressions", () => {
   it("reads an export directory stored in the PE headers", () => {
     const result = parse(

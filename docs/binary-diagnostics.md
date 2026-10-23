@@ -329,17 +329,19 @@ count and SHA-256.
 - ELF rows list defined `.dynsym` symbols with global, weak or GNU-unique
   binding and default or protected visibility. Each row keeps `value`
   (`st_value` as stored; bit 0 marks Thumb code on 32-bit ARM), `size`, `type`
-  and `binding`. `version` is null for an unversioned symbol, the
-  `.gnu.version_d` index, name and `hidden` flag for a versioned one, or
-  `"unknown"` when the version table cannot be read. A hidden version is not
+  and `binding`. `version` is null for an unversioned symbol. A versioned
+  symbol reports its GNU index, a name resolved from `.gnu.version_d` or
+  `.gnu.version_r`, and the `hidden` flag from `.gnu.version`. `"unknown"`
+  means the symbol-version table could not be read. A hidden version is not
   the default version that a by-name `dlsym` lookup selects.
 
 Unreadable names, out-of-range name ordinals and unreadable forwarders are
 listed in `issues`, their entries are not reported, and coverage is `partial`.
-Unresolved symbol versions keep their rows: the version name is null for an
-index no definition names, and `version` is `"unknown"` when the version table
-cannot be read; coverage is likewise `partial`. A dynamic symbol table without
-its null entry is malformed. An ELF without section headers is `unsupported`:
+Unresolved symbol versions keep their rows: the version name is null when no
+unambiguous definition or requirement names the index, and `version` is
+`"unknown"` when the version table cannot be read; coverage is likewise
+`partial`. A dynamic symbol table without its null entry is malformed. An ELF
+without section headers is `unsupported`:
 enumerating dynamic symbols from the dynamic segment is not
 implemented. Mach-O exports are reported by `inspect_macho`.
 

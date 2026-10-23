@@ -16,7 +16,9 @@ import {
   ArtifactReaderFailure,
   type ArtifactEntry,
   type ArtifactReader,
+  type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { SafeOutputTree } from "../SafeOutputTree.js";
@@ -153,6 +155,8 @@ const materializeArtifactInventoryInScope = async (
     if (neededNodes.has(node.artifact_id)) nodes.set(node.artifact_id, node);
   const inventory: ExtractionInventory = {
     manifest: snapshot.manifest,
+    coverage: snapshot.coverage,
+    limitations: snapshot.limitations,
     integrityContradictions: snapshot.integrity_contradictions.filter(
       ({ occurrence_id: id }) => selectedIds.has(id),
     ),
@@ -269,7 +273,19 @@ const materializeSelection = async ({
       if (cause instanceof SafeOutputTreeCreationFailure) output = cause.tree;
       throw cause;
     }
-    await writeSelectedEntries({ reader, output, byPath, extracted, signal });
+    const traversal = new ArtifactTraversalObservation();
+    traversal.onCoverage({
+      status: inventory.coverage.status,
+      limitations: inventory.limitations,
+    });
+    await writeSelectedEntries({
+      reader,
+      output,
+      byPath,
+      extracted,
+      traversal,
+      signal,
+    });
     localReaderOwner = undefined;
     const closeAttempt = await input.resourceScope.release(readerOwner);
     if (closeAttempt.kind === "failed")
@@ -279,7 +295,13 @@ const materializeSelection = async ({
     extracted.sort((left, right) =>
       compareUnicodeCodePoints(left.relative_path, right.relative_path),
     );
-    completed = createExtractionResult(input, inventory, selected, extracted);
+    completed = createExtractionResult(
+      input,
+      inventory,
+      selected,
+      extracted,
+      traversal.snapshot(),
+    );
     await output.commit(signal);
     return completed;
   } catch (cause: unknown) {
@@ -309,16 +331,18 @@ const writeSelectedEntries = async ({
   output,
   byPath,
   extracted,
+  traversal,
   signal,
 }: {
   readonly reader: ArtifactReader;
   readonly output: SafeOutputTree;
   readonly byPath: Map<string, SelectedOccurrence>;
   readonly extracted: ExtractedOccurrence[];
+  readonly traversal: ArtifactTraversalObservation;
   readonly signal: AbortSignal | undefined;
 }): Promise<void> => {
   const registry = new ArtifactPathRegistry();
-  for await (const entry of reader.entries(signal)) {
+  for await (const entry of reader.entries(signal, traversal)) {
     const path = normalizeArtifactPath(entry.path);
     registry.add(path, entry.kind);
     // Logical declarations may share a query path with a real file. They do
@@ -389,6 +413,7 @@ const createExtractionResult = (
   inventory: ExtractionInventory,
   selected: readonly SelectedOccurrence[],
   extracted: readonly ExtractedOccurrence[],
+  traversal: ArtifactReaderTraversal,
 ): ArtifactExtractionResult => {
   const extractionSemantic = {
     source_manifest_id: inventory.manifest.manifest_id,
@@ -411,7 +436,10 @@ const createExtractionResult = (
     provenance: [],
     integrity_contradictions: inventory.integrityContradictions,
     limitations: [
-      "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file.",
+      ...traversal.limitations,
+      traversal.status === "complete"
+        ? "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file."
+        : "All inventoried regular files exposed by the active reader were materialized; source traversal coverage is unknown, so the output is not established as a complete source copy. Nested archive contents remain represented by their containing file.",
       ...(inventory.integrityContradictions.length === 0
         ? []
         : [
@@ -423,6 +451,8 @@ const createExtractionResult = (
 
 interface ExtractionInventory {
   readonly manifest: ArtifactGraphManifest;
+  readonly coverage: ArtifactInventorySnapshot["coverage"];
+  readonly limitations: readonly string[];
   readonly integrityContradictions: readonly IntegrityContradiction[];
 }
 

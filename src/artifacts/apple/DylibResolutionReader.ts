@@ -15,7 +15,11 @@ import {
   type MachoImageFacts,
 } from "../../domain/apple/dylibResolution.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
-import { ArtifactReaderFailure } from "../ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  type ArtifactReaderTraversal,
+} from "../ArtifactReader.js";
+import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { consumeWithOrderedReads } from "../OrderedReads.js";
 import {
@@ -136,12 +140,15 @@ export const traceDylibResolution = async (options: {
         files,
         options.signal,
       );
-      const { roots: requested, unclassified } =
-        parsed.data.roots !== undefined
-          ? { roots: parsed.data.roots, unclassified: [] }
-          : options.enumerateRoots
-            ? await executableRoots(root, view, files, options.signal)
-            : { roots: [target], unclassified: [] };
+      const {
+        roots: requested,
+        unclassified,
+        traversal,
+      } = parsed.data.roots !== undefined
+        ? { roots: parsed.data.roots, unclassified: [], traversal: undefined }
+        : options.enumerateRoots
+          ? await executableRoots(root, view, files, options.signal)
+          : { roots: [target], unclassified: [], traversal: undefined };
       const roots = await requireMachoRoots(
         view,
         requested,
@@ -150,6 +157,7 @@ export const traceDylibResolution = async (options: {
       const trace = await traceDylibLoading(view, {
         roots,
         unclassified,
+        ...(traversal === undefined ? {} : { rootEnumeration: traversal }),
         ...(parsed.data.architecture === undefined
           ? {}
           : { architecture: parsed.data.architecture }),
@@ -196,13 +204,18 @@ const executableRoots = async (
   view: FilesystemTreeView,
   files: DylibFileAccess,
   signal?: AbortSignal,
-): Promise<{ readonly roots: string[]; readonly unclassified: string[] }> => {
+): Promise<{
+  readonly roots: string[];
+  readonly unclassified: string[];
+  readonly traversal: ArtifactReaderTraversal;
+}> => {
   const roots: string[] = [];
   const unclassified: string[] = [];
+  const traversal = new ArtifactTraversalObservation();
   // Bundles hold tens of thousands of files and few Mach-O images, so the
   // magic reads overlap the walk while results are classified in walk order.
   await consumeWithOrderedReads(
-    new DirectoryArtifactReader(root).entries(signal),
+    new DirectoryArtifactReader(root).entries(signal, traversal),
     MAGIC_READ_CONCURRENCY,
     (entry) =>
       entry.kind === "file" ? files.startsWithMachoMagic(entry) : undefined,
@@ -223,6 +236,7 @@ const executableRoots = async (
   return {
     roots: roots.sort(compare),
     unclassified: unclassified.sort(compare),
+    traversal: traversal.snapshot(),
   };
 };
 

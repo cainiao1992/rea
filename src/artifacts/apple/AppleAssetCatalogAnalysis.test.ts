@@ -147,6 +147,34 @@ describe("Apple asset catalog application workflow", () => {
   });
 });
 
+it.skipIf(process.platform === "win32")(
+  "qualifies UI resource joins when a symlinked nib was not decoded",
+  async () => {
+    const bundle = await createTestTempDirectory("rea-asset-ui-symlink-");
+    const resources = join(bundle, "Contents", "Resources");
+    await mkdir(resources, { recursive: true });
+    await writeFile(
+      join(resources, "Panel.data"),
+      encodeNibArchiveFixture({
+        classes: ["NSView"],
+        objects: [{ classIndex: 0, values: { title: "Panel" } }],
+      }),
+    );
+    await symlink("Panel.data", join(resources, "Panel.nib"));
+    const result = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      environment: {},
+      targetSha256: "a".repeat(64),
+      runAssetUtil: () => {
+        throw new Error("No catalog is present");
+      },
+    });
+    expect(result.limitations).toContain(
+      "Interface Builder resource-key joins may be incomplete because the decoded UI graph was truncated.",
+    );
+  },
+);
+
 it.each([0, 1, 5])(
   "keeps an empty assetutil inventory complete at offset %i",
   async (offset) => {

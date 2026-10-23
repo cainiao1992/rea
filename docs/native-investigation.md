@@ -433,6 +433,9 @@ complete observation.
   its outcome. Paths outside the analyzed root, including shared-cache system
   libraries, stay undetermined. See
   [Apple application analysis](apple-application-analysis.md#dylib-load-resolution).
+  Bundle root enumeration retains directory traversal uncertainty, including
+  undecodable filenames; known executable roots remain available with partial
+  coverage instead of establishing that no other roots exist.
 - `inspect_asset_catalog` / `rea inspect-asset-catalog <app>` reads compiled
   `Assets.car` metadata through macOS `assetutil --info`. Catalog digests, raw
   rendition fields, pagination and exact UI resource-name matches are returned.
@@ -779,6 +782,15 @@ macOS Intel does not claim an Intel verification run. Unsupported metadata and
 unresolved runtime/value semantics remain visible in results.
 
 ## Interface Builder hierarchy coverage
+
+Bundle archive selection preserves directory traversal uncertainty, including
+filenames that cannot be decoded as UTF-8. These names are not guessed or
+counted as known archive omissions. Recognized symlinked `.nib` entries are
+not followed; they retain their paths and reader limitations as counted archive
+omissions. Either gap makes `archive_decode` partial and the graph truncated
+while preserving decoded documents. Its `examined` count remains actual decode
+attempts, and asset-catalog UI joins retain their existing incomplete-graph
+qualification.
 
 A document's `hierarchy_complete` flag follows its own hierarchy coverage.
 If graph limits omit a hierarchy source or destination, or prevent a hierarchy

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, realpath, rename, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   CPU,
@@ -31,11 +31,74 @@ import {
   readMachoImage,
 } from "./MachoLoadCommandReader.js";
 import { traceDylibResolution } from "./DylibResolutionReader.js";
+import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import { javaClassFile } from "../../../tests/fixtures/javaClassFile.js";
 
 const read = (bytes: Uint8Array) =>
   readMachoImage(readerOf(bytes), bytes.length);
+
+it("retains unknown executable-root traversal after a complete callback and keeps known image facts", async () => {
+  const root = await createTestTempDirectory("rea-dylib-traversal-callback-");
+  const bytes = machoImage({ commands: [buildVersionCommand(1)] });
+  const path = join(root, "main");
+  await writeFile(path, bytes);
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  const reason = "Controlled producer executable-root uncertainty";
+  const entries = DirectoryArtifactReader.prototype.entries;
+  const spy = vi
+    .spyOn(DirectoryArtifactReader.prototype, "entries")
+    .mockImplementation(async function* (
+      this: DirectoryArtifactReader,
+      signal,
+      options,
+    ) {
+      yield* entries.call(this, signal, options);
+      if (typeof options === "function") return;
+      options?.onCoverage?.({
+        status: "unknown",
+        examinedEntries: 1,
+        limitations: [reason],
+      });
+      options?.onCoverage?.({
+        status: "complete",
+        examinedEntries: 1,
+        limitations: [],
+      });
+    });
+  try {
+    const trace = await traceDylibResolution({
+      rootPath: root,
+      targetPath: path,
+      targetSha256: digest,
+      enumerateRoots: true,
+      parameters: {},
+    });
+    expect(trace.coverage).toMatchObject({
+      status: "partial",
+      unparsed_images: [],
+      roots_without_architecture: [],
+    });
+    expect(trace.roots).toEqual([{ image: "main", architecture: "arm64" }]);
+    expect(trace.images).toContainEqual(
+      expect.objectContaining({
+        path: "main",
+        sha256: digest,
+        parse_status: "parsed",
+        slices: [
+          expect.objectContaining({
+            architecture: "arm64",
+            file_type: "execute",
+            platform: 1,
+          }),
+        ],
+      }),
+    );
+    expect(trace.limitations).toContain(reason);
+  } finally {
+    spy.mockRestore();
+  }
+});
 
 // Legacy `LC_VERSION_MIN_*` commands carry no simulator flag: per dyld
 // rules Intel images are simulator, ARM images are device (tvOS simulator

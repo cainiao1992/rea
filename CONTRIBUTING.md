@@ -249,6 +249,11 @@ base revision, or run the suite on Linux or WSL, before attributing them to a
 change. See [testing](docs/testing.md#developer-commands) for command scopes
 and lane selection.
 
+`git submodule update --init --recursive` fails at the pinned Unblob submodule
+on Windows and can leave later submodules unchecked out. Apply the
+[Unblob checkout workaround](docs/firmware-analysis.md#windows-submodule-checkout),
+then rerun the command.
+
 ## Documentation website
 
 The VitePress site uses the Markdown files in `docs/`. Run `npm run docs:dev`

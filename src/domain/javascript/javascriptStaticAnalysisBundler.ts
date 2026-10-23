@@ -256,15 +256,29 @@ const recoverBundlerModule = (
   if (key.startsWith("[computed@") || key.startsWith("[unknown@"))
     accumulator.unknownFindings += 1;
   const fingerprint = fingerprintJavaScriptAst(factory);
-  const exportsParameter =
-    runtimeFunctionParameters(factory)[runtime === "esbuild-commonjs" ? 0 : 1];
-  const exportsValue = collectJavaScriptExports(
-    factory,
-    bindings,
-    t.isIdentifier(exportsParameter) ? exportsParameter : undefined,
-  );
-  const requireName = factoryRequireName(factory);
-  const requireParameter = runtimeFunctionParameters(factory)[2];
+  const parameters = runtimeFunctionParameters(factory);
+  const esbuild = runtime.startsWith("esbuild-");
+  const identifierAt = (index: number): t.Identifier | undefined => {
+    const parameter = parameters[index];
+    return t.isIdentifier(parameter) ? parameter : undefined;
+  };
+  const exportsValue = collectJavaScriptExports(factory, bindings, {
+    exports:
+      runtime === "esbuild-commonjs"
+        ? identifierAt(0)
+        : esbuild
+          ? undefined
+          : identifierAt(1),
+    module:
+      runtime === "esbuild-commonjs"
+        ? identifierAt(1)
+        : esbuild
+          ? undefined
+          : identifierAt(0),
+    loader: esbuild ? undefined : identifierAt(2),
+  });
+  const requireName = esbuild ? null : factoryRequireName(factory);
+  const requireParameter = esbuild ? undefined : parameters[2];
   const requireBindingId = t.isIdentifier(requireParameter)
     ? (resolveSemanticBindingState(
         bindings,

@@ -31,6 +31,21 @@ const expectUnresolved = (source: string) => {
 };
 
 describe("Electron identity through Webpack externals", () => {
+  it.each([
+    ["const key=45840;n.m[key]=local;", 0],
+    ["const key='45840';delete n.m[key];", 0],
+    ["n.m[runtimeKey]=local;", 0],
+    ["const key=45841;n.m[key]=local;", 1],
+  ] as const)(
+    "preserves only unmodified external slots after %s",
+    (write, expected) => {
+      expect(
+        electronOf(bootstrap(EXTERNAL, CONSUMER, `n.m=m;${write}n(100);`))
+          .browser_windows,
+      ).toHaveLength(expected);
+    },
+  );
+
   it("follows the default-export getter produced by webpack n.n", () => {
     const source = bootstrap(
       EXTERNAL,
@@ -70,6 +85,14 @@ describe("Electron identity through Webpack externals", () => {
     ["delete", "delete n.n;"],
     ["a destructuring write", "({g:n.n}={g:e=>()=>0});"],
     ["an unknown key", "n[key]=e=>()=>0;"],
+    [
+      "a stable loader alias",
+      "const copy=n;copy.n=e=>()=>({BrowserWindow:class{}});",
+    ],
+    [
+      "a reflective write through a loader alias",
+      "const copy=n;Reflect.set(copy,'n',e=>()=>({BrowserWindow:class{}}));",
+    ],
   ])(
     "does not infer Electron after a getter write through %s",
     (_name, write) => {

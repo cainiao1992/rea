@@ -8,6 +8,8 @@ import {
   unwrapJavaScriptExpression,
 } from "./javascriptAstValues.js";
 import { collectJavaScriptIdentityWritesSteps } from "./javascriptElectronMemberWrites.js";
+import { semanticBindingAtRead } from "./javascriptSemanticMutationInitializers.js";
+import { SEMANTIC_ALIAS_SELECTION_LIMIT } from "./javascriptSemanticResourceLimits.js";
 import { createSemanticModuleInterop } from "./javascriptModuleInterop.js";
 import {
   semanticRequireOrigin,
@@ -153,18 +155,41 @@ const canonicalWebpackInteropBindings = (
   // The shared identity-write owner covers assignment, delete, destructuring,
   // and Object/Reflect mutators; any write that may select `n` counts.
   const writes = new Set<t.Node>();
+  const loaderMayOwnReference = (root: t.Node): boolean => {
+    const pending = [root];
+    const seen = new Set<t.Node>();
+    while (pending.length > 0) {
+      const reference = pending.pop();
+      if (reference === undefined || seen.has(reference)) continue;
+      seen.add(reference);
+      if (seen.size > SEMANTIC_ALIAS_SELECTION_LIMIT) {
+        state.valueResourceLimits.add("alias-selections");
+        return true;
+      }
+      const node = unwrapJavaScriptExpression(reference).node;
+      if (!t.isIdentifier(node)) continue;
+      const binding = resolveSemanticBindingState(state, node, node.name);
+      if (binding === undefined) continue;
+      if (loaderBindingIds.has(binding.bindingId)) return true;
+      const selected = semanticBindingAtRead(
+        binding,
+        node,
+        state.parentsByNode,
+      ).binding;
+      for (const source of [
+        ...selected.initializers,
+        ...selected.referenceInitializers,
+      ])
+        if (source.projection.length === 0) pending.push(source.node);
+    }
+    return false;
+  };
   const interop = createSemanticModuleInterop(state);
   completeSemanticSteps(
     collectJavaScriptIdentityWritesSteps(
       state.program,
       (root, kind) => {
-        const node = unwrapJavaScriptExpression(root).node;
-        return kind === "member" &&
-          t.isIdentifier(node) &&
-          loaderBindingIds.has(
-            resolveSemanticBindingState(state, node, node.name)?.bindingId ??
-              "",
-          )
+        return kind === "member" && loaderMayOwnReference(root)
           ? [["loader"]]
           : [];
       },

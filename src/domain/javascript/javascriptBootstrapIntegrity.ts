@@ -8,7 +8,7 @@ import {
   type JavaScriptSemanticAnalysisState,
 } from "./javascriptSemanticState.js";
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
-import { argumentValue } from "./javascriptStaticAnalysisHelpers.js";
+import { evaluateSemanticExpression } from "./javascriptSemanticValues.js";
 
 type Bootstrap = NonNullable<ReturnType<typeof javascriptBootstrapAt>>;
 
@@ -452,7 +452,7 @@ const referencesAreContained = (
       const use: Use = { node, parent, ancestors, shape, loaderIds, state };
       if (role !== "loader") contained = containedUse(role, use);
       else if (exposedTableUse(use) === "escaped") contained = false;
-      else exposedSlotWrite(use, replacedKeys);
+      else contained = exposedSlotWrite(use, replacedKeys);
     },
   });
   return contained ? { replacedKeys } : undefined;
@@ -522,13 +522,9 @@ const exposedTableUse = (use: Use): "other" | "contained" | "escaped" => {
   return entryWritten ? "escaped" : "contained";
 };
 
-/**
- * `loader.m[key] = factory` or `delete loader.c[key]` replaces a literal slot.
- * Writes with runtime keys are chunk installation, which adds modules under
- * their own ids; they are not treated as replacing a declared slot.
- */
-const exposedSlotWrite = (use: Use, replacedKeys: Set<string>): void => {
-  const { parent, ancestors } = use;
+/** Unknown computed writes may replace any existing slot; fresh installation is unproven. */
+const exposedSlotWrite = (use: Use, replacedKeys: Set<string>): boolean => {
+  const { parent, ancestors, state } = use;
   const slot = ancestors.at(-2);
   const write = ancestors.at(-3);
   if (
@@ -545,11 +541,21 @@ const exposedSlotWrite = (use: Use, replacedKeys: Set<string>): void => {
       t.isUpdateExpression(write)
     )
   )
-    return;
-  const key = slot.computed
-    ? argumentValue(slot.property)
-    : semanticStaticPropertyKey(slot.property, false);
-  if (key !== undefined && key !== null) replacedKeys.add(key);
+    return true;
+  if (!slot.computed) {
+    const key = semanticStaticPropertyKey(slot.property, false);
+    if (key === null) return false;
+    replacedKeys.add(key);
+    return true;
+  }
+  const key = evaluateSemanticExpression(slot.property, state);
+  if (
+    key.status !== "literal" ||
+    (typeof key.value !== "string" && typeof key.value !== "number")
+  )
+    return false;
+  replacedKeys.add(String(key.value));
+  return true;
 };
 
 const bindingOf = (

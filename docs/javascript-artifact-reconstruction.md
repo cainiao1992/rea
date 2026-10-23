@@ -330,6 +330,16 @@ recorded path keeps those leading carrier segments; the procedure path is its
 suffix. Utility calls such as `useUtils().invoice.list.fetch()`, `useQueries`,
 and links whose callee was renamed by a minifier are not recognized.
 
+Bundler adapters own callback roles: Webpack supplies module, exports, then
+loader; esbuild CommonJS supplies exports, then module. Export extraction uses
+those binding identities for assignments and declarations, so renaming either
+parameter does not change the recovered names. Global property-definition
+intrinsics require lexical and visible-write proof. Computed writes through a
+standalone loader's exposed module/cache table use the shared value owner; an
+unknown key invalidates the original-slot proof rather than implying a fresh
+chunk installation. Export names describe recognized declarations, not a proof
+of final runtime property lifetime or arbitrary helper behavior.
+
 Each recovered bundle module retains the exact factory-source digest. A complete
 bounded AST also receives a `babel-ast-v3` structural fingerprint. It ignores
 ordinary identifier spellings while retaining literal and directive values,

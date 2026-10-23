@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import * as t from "@babel/types";
 
+import { isUnmodifiedGlobalReference } from "./javascriptSemanticAmbientWrites.js";
+
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
 
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
@@ -29,32 +31,42 @@ export const fingerprintJavaScriptAst = (node: t.Node): string => {
   return createHash("sha256").update(JSON.stringify(tokens)).digest("hex");
 };
 
+/** Calling-convention roles established by the bundler adapter. */
+export interface JavaScriptFactoryExportBindings {
+  readonly exports: t.Identifier | undefined;
+  readonly module: t.Identifier | undefined;
+  readonly loader: t.Identifier | undefined;
+}
+
 /** Collect statically declared CommonJS/bundler export names from one factory. */
 export const collectJavaScriptExports = (
   node: t.Node,
   bindings?: JavaScriptSemanticAnalysisState,
-  exportsParameter?: t.Identifier,
+  roles?: JavaScriptFactoryExportBindings,
 ): StaticExports => {
   const exports = new Set<string>();
-  const factoryExports =
-    bindings !== undefined &&
-    t.isFunction(node) &&
-    exportsParameter !== undefined
-      ? resolveSemanticBindingState(
-          bindings,
-          exportsParameter,
-          exportsParameter.name,
-        )?.bindingId
+  const bindingId = (
+    reference: t.Node | null | undefined,
+  ): string | undefined =>
+    bindings !== undefined && t.isIdentifier(reference)
+      ? resolveSemanticBindingState(bindings, reference, reference.name)
+          ?.bindingId
       : undefined;
-  const isExportsAlias = (reference: t.Node | null): boolean => {
-    if (!t.isIdentifier(reference)) return false;
-    if (factoryExports === undefined) return reference.name === "exports";
-    return (
-      bindings !== undefined &&
-      resolveSemanticBindingState(bindings, reference, reference.name)
-        ?.bindingId === factoryExports
-    );
+  const identity = (
+    role: keyof JavaScriptFactoryExportBindings,
+    fallback: string,
+  ) => {
+    const id = bindingId(roles?.[role]);
+    return (reference: t.Node | null): boolean => {
+      if (!t.isIdentifier(reference)) return false;
+      if (roles === undefined) return reference.name === fallback;
+      return id !== undefined && bindingId(reference) === id;
+    };
   };
+  const isExportsAlias = identity("exports", "exports");
+  const isModuleAlias = identity("module", "module");
+  const isLoaderAlias = identity("loader", "__webpack_require__");
+  const receivers = { isExportsAlias, isModuleAlias };
   traverseJavaScriptAst(node, {
     enter: (current) => {
       if (t.isAssignmentExpression(current))
@@ -62,17 +74,33 @@ export const collectJavaScriptExports = (
           current.left,
           current.right,
           exports,
-          isExportsAlias,
+          receivers,
         );
-      if (t.isCallExpression(current))
-        collectCallExports(current, exports, isExportsAlias);
+      if (t.isCallExpression(current)) {
+        const intrinsic =
+          bindings !== undefined &&
+          isUnmodifiedGlobalReference(current.callee, bindings, [
+            "Object",
+            "defineProperty",
+          ]);
+        collectCallExports(
+          current,
+          exports,
+          receivers,
+          intrinsic,
+          isLoaderAlias,
+        );
+      }
       return undefined;
     },
   });
-  return {
-    values: [...exports].sort(compareUnicodeCodePoints),
-  };
+  return { values: [...exports].sort(compareUnicodeCodePoints) };
 };
+
+interface ExportReceivers {
+  readonly isExportsAlias: (root: t.Node | null) => boolean;
+  readonly isModuleAlias: (root: t.Node | null) => boolean;
+}
 
 const semanticTokens = (node: t.Node): string[] => {
   const tokens = [`node:${node.type}`];
@@ -140,7 +168,7 @@ const collectAssignmentExports = (
   left: t.LVal | t.OptionalMemberExpression,
   right: t.Expression,
   output: Set<string>,
-  isExportsAlias: (root: t.Node | null) => boolean,
+  { isExportsAlias, isModuleAlias }: ExportReceivers,
 ): void => {
   const path = memberPath(left);
   if (path === null) return;
@@ -150,7 +178,7 @@ const collectAssignmentExports = (
   if (path.length === 1 && exportsAlias) return;
   const exportOffset = exportsAlias
     ? 1
-    : path[0] === "module" && path[1] === "exports"
+    : isModuleAlias(root) && path[1] === "exports"
       ? 2
       : null;
   if (exportOffset === null) return;
@@ -168,15 +196,17 @@ const collectAssignmentExports = (
 const collectCallExports = (
   call: t.CallExpression,
   output: Set<string>,
-  isExportsAlias: (root: t.Node | null) => boolean,
+  { isExportsAlias, isModuleAlias }: ExportReceivers,
+  intrinsic: boolean,
+  isLoaderAlias: (root: t.Node | null) => boolean,
 ): void => {
   const callee = memberPath(call.callee);
   if (callee === null) return;
-  const definePropertyCall =
+  const definePropertyCall = intrinsic;
+  const declarationCall =
     callee.length === 2 &&
-    callee[0] === "Object" &&
-    callee[1] === "defineProperty";
-  const declarationCall = callee.length >= 2 && callee.at(-1) === "d";
+    callee[1] === "d" &&
+    isLoaderAlias(memberRoot(call.callee));
   if (!definePropertyCall && !declarationCall) return;
   const targetNode = call.arguments[0];
   const target = memberPath(targetNode);
@@ -184,7 +214,7 @@ const collectCallExports = (
     isExportsAlias(targetNode ?? null) ||
     (target !== null &&
       target.length === 2 &&
-      target[0] === "module" &&
+      isModuleAlias(memberRoot(targetNode)) &&
       target[1] === "exports");
   if (!exportTarget) return;
   if (definePropertyCall) {

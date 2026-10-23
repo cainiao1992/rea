@@ -571,6 +571,49 @@ describe("artifact comparison completeness", () => {
 });
 
 describe("artifact source-map relationship coverage", () => {
+  it("reports when an unchanged map points to changed source content", async () => {
+    const root = await createTestTempDirectory("rea-map-target-change-");
+    const leftPath = join(root, "left");
+    const rightPath = join(root, "right");
+    await Promise.all([mkdir(leftPath), mkdir(rightPath)]);
+    await Promise.all([
+      writeFile(join(leftPath, "main.js"), "/* first source */\n"),
+      writeFile(join(rightPath, "main.js"), "/* second source */\n"),
+      writeFile(
+        join(leftPath, "main.js.map"),
+        '{"version":3,"sources":[],"names":[],"mappings":""}',
+      ),
+      writeFile(
+        join(rightPath, "main.js.map"),
+        '{"version":3,"sources":[],"names":[],"mappings":""}',
+      ),
+    ]);
+    const [left, right] = await Promise.all([
+      observe(leftPath),
+      observe(rightPath),
+    ]);
+
+    const comparison = compareArtifacts(left, right);
+    const leftInventory = parseArtifactInventoryEvidence(left).inventory;
+    const rightInventory = parseArtifactInventoryEvidence(right).inventory;
+    const leftMap = leftInventory.occurrences.find(
+      ({ logical_path }) => logical_path === "main.js.map",
+    );
+    const rightMap = rightInventory.occurrences.find(
+      ({ logical_path }) => logical_path === "main.js.map",
+    );
+    expect(leftMap?.artifact_id).toBe(rightMap?.artifact_id);
+    expect(comparison.changes).toContainEqual(
+      expect.objectContaining({
+        logical_path: "main.js.map",
+        classification: "changed",
+        dimensions: ["relations"],
+        left_artifact_id: leftMap?.artifact_id,
+        right_artifact_id: rightMap?.artifact_id,
+      }),
+    );
+  });
+
   it("preserves unknown source-map relationships for duplicate ZIP paths", async () => {
     const root = await createTestTempDirectory("rea-duplicate-source-map-");
     const path = join(root, "duplicate-source-map.zip");

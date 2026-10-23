@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { ARTIFACT_COMPARISON_EXAMPLE } from "../contracts/artifactComparisonExample.js";
 import { INVESTIGATION_EXAMPLES } from "../contracts/investigationExamples.js";
+import {
+  artifactComparisonResultSchema,
+  compareArtifacts,
+} from "./artifactComparison.js";
+import { findChangedBehavior } from "./changedBehavior.js";
+import { ARTIFACT_COMPARISON_PROVIDER } from "./comparisonEvidenceIdentity.js";
 import { createEvidence, type Evidence } from "./evidence.js";
+import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
 import { jsonValueSchema, type JsonValue } from "./jsonValue.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../contracts/functionComparisonExample.js";
 import { functionDossierSchema } from "./hopperValues.js";
@@ -16,6 +24,31 @@ const staticComparison =
   INVESTIGATION_EXAMPLES.find_changed_behavior.comparisons[0];
 if (staticComparison === undefined)
   throw new Error("Missing static comparison fixture");
+
+const artifactComparison = createEvidence(
+  undefined,
+  ARTIFACT_COMPARISON_PROVIDER,
+  {
+    predicateType: "rea.artifact-comparison",
+    operation: "compare_artifacts",
+    parameters: {
+      left_evidence_ids: [ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id],
+      right_evidence_ids: [ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id],
+    },
+    result: jsonValueSchema.parse(
+      compareArtifacts(
+        ARTIFACT_COMPARISON_EXAMPLE.left,
+        ARTIFACT_COMPARISON_EXAMPLE.right,
+      ),
+    ),
+    confidence: "derived",
+    authority: "analyst-inference",
+    evidenceLinks: [
+      ARTIFACT_COMPARISON_EXAMPLE.left.evidence_id,
+      ARTIFACT_COMPARISON_EXAMPLE.right.evidence_id,
+    ],
+  },
+);
 
 const capture = (digit: string): Evidence =>
   createEvidence(
@@ -317,7 +350,7 @@ describe("static/runtime correlation outcomes", () => {
   });
 });
 
-describe("static/runtime correlation selection and Evidence validation", () => {
+describe("static/runtime correlation selection", () => {
   it("returns all correlations order-stably and rejects duplicates and absent selectors", () => {
     const runtime = processComparison("changed");
     const base = mapping(runtime, "cochanged");
@@ -414,7 +447,9 @@ describe("static/runtime correlation selection and Evidence validation", () => {
       }),
     );
   });
+});
 
+describe("static/runtime correlation Evidence validation", () => {
   it("rejects comparison citations that disagree with source parameters", () => {
     const runtime = processComparison("changed");
     const forged = createEvidence(undefined, runtime.provider, {
@@ -463,4 +498,107 @@ describe("static/runtime correlation selection and Evidence validation", () => {
       }),
     );
   });
+});
+
+describe("static/runtime correlation citation closure", () => {
+  it("accepts extra parent citations for changed behavior but rejects them for correlation", () => {
+    const runtime = processComparison("changed");
+    const extra = staticComparison.evidence_id;
+    const extended = createEvidence(undefined, runtime.provider, {
+      predicateType: runtime.predicate_type,
+      operation: runtime.operation,
+      parameters: runtime.parameters,
+      result: runtime.normalized_result,
+      confidence: runtime.confidence,
+      authority: runtime.authority,
+      evidenceLinks: [...runtime.evidence_links, extra],
+    });
+    const aggregated = findChangedBehavior({ comparisons: [extended] });
+    expect(aggregated.result.behavior_status).toBe("observed_changed");
+    expect(aggregated.result.evidence_links).toContain(extra);
+    expect(() =>
+      correlateStaticAndRuntime(mapping(extended, "cochanged")),
+    ).toThrowError(
+      expect.toSatisfy(
+        (error: { _tag?: unknown; userMessage?: unknown; cause?: unknown }) =>
+          error._tag === "EvidenceIntegrityError" &&
+          error.userMessage ===
+            "Comparison Evidence closure disagrees with its source parameters" &&
+          error.cause === undefined,
+      ),
+    );
+  });
+
+  it.each([
+    ["function", staticComparison],
+    ["artifact", artifactComparison],
+  ] as const)(
+    "rejects authenticated %s citations outside the top-level Evidence closure",
+    (_kind, base) => {
+      const outside = `ev_${"f".repeat(64)}`;
+      let result: JsonValue;
+      if (base.operation === "compare_functions") {
+        const parsed = functionComparisonResultSchema.parse(
+          base.normalized_result,
+        );
+        const dimensions = parsed.dimensions.map((dimension) => ({
+          ...dimension,
+          evidence_links: [...dimension.evidence_links, outside],
+        }));
+        result = jsonValueSchema.parse(
+          functionComparisonResultSchema.parse({
+            ...parsed,
+            dimensions,
+            changes: dimensions.filter(({ status }) => status !== "unchanged"),
+          }),
+        );
+      } else {
+        const parsed = artifactComparisonResultSchema.parse(
+          base.normalized_result,
+        );
+        expect(parsed.changes.length).toBeGreaterThan(0);
+        result = jsonValueSchema.parse({
+          ...parsed,
+          changes: parsed.changes.map((change) => ({
+            ...change,
+            evidence_links: [...change.evidence_links, outside],
+          })),
+        });
+      }
+      const danglingNested = createEvidence(undefined, base.provider, {
+        predicateType: base.predicate_type,
+        operation: base.operation,
+        parameters: base.parameters,
+        result,
+        confidence: base.confidence,
+        authority: base.authority,
+        evidenceLinks: base.evidence_links,
+      });
+      const input = mapping(processComparison("changed"), "cochanged");
+      expect(() =>
+        correlateStaticAndRuntime({
+          ...input,
+          static_comparisons: [danglingNested],
+          mappings: input.mappings.map((item) => ({
+            ...item,
+            static: {
+              comparison_evidence_id: danglingNested.evidence_id,
+              selector:
+                base.operation === "compare_functions"
+                  ? { kind: "function", dimension: "pseudocode" }
+                  : { kind: "artifact", logical_path: "." },
+            },
+          })),
+        }),
+      ).toThrowError(
+        expect.toSatisfy(
+          (error: { _tag?: unknown; message?: unknown; cause?: unknown }) =>
+            error._tag === "EvidenceIntegrityError" &&
+            error.message ===
+              "Comparison finding cites Evidence outside its top-level closure" &&
+            error.cause === undefined,
+        ),
+      );
+    },
+  );
 });

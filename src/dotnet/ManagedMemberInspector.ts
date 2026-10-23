@@ -29,6 +29,7 @@ import {
 import {
   parseTypes,
   readTypeDefinitions,
+  type DecodedTypeDefinition,
 } from "./ManagedMemberInspectorCore.js";
 import { edgeTargets } from "./ManagedMethodSpecs.js";
 import { managedTypeNameDigests } from "./ManagedTypeNameDigests.js";
@@ -123,7 +124,7 @@ const readMemberLayout = (bytes: Buffer, pe: ManagedPeLayout) => {
 };
 
 const selectTypes = (
-  types: readonly ManagedMemberInspection["types"][number][],
+  types: readonly DecodedTypeDefinition[],
   typeNames: readonly string[] | undefined,
 ): {
   readonly tokens: SelectedTypeTokens;
@@ -133,7 +134,7 @@ const selectTypes = (
   const requested = new Set(typeNames);
   const tokens = new Set<string>();
   const matched = new Set<string>();
-  for (const type of types) {
+  for (const { type } of types) {
     const nested = (type.flags & 0x7) >= 2;
     const spellings = nested ? [type.full_name, type.name] : [type.full_name];
     for (const name of spellings) {

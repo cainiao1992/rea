@@ -89,3 +89,39 @@ it("does not copy array holes over retained own object properties", () => {
     value: 1,
   });
 });
+
+it("keeps detached receiver ownership stronger than field deletion uncertainty", () => {
+  expect(
+    names(
+      `Object.defineProperty(exports,"old",{value:()=>1}); delete exports.old; module.exports={live:()=>2};`,
+    ),
+  ).toEqual(["default"]);
+  expect(
+    names(
+      `exports.old=()=>1; module.exports={live:()=>2}; if(flag)delete exports.old;`,
+    ),
+  ).toEqual(["default"]);
+});
+
+it("distinguishes copied scalar snapshots from earlier writes and shared reference fields", () => {
+  const returned = (body: string) =>
+    onlyCallable(
+      analyzeJavaScriptSemantics(`export function observe(){${body}}`),
+      "observe",
+    ).returnSites[0]?.value;
+  expect(
+    returned(
+      `const source={a:1};const copy={...source};source.a=9;return copy.a;`,
+    ),
+  ).toEqual({ status: "literal", value: 1 });
+  expect(
+    returned(
+      `const source={a:1};source.a=9;const copy={...source};return copy.a;`,
+    )?.status,
+  ).toBe("unknown");
+  expect(
+    returned(
+      `const source={child:{a:1}};const copy={...source};source.child.a=9;return copy.child.a;`,
+    )?.status,
+  ).toBe("unknown");
+});

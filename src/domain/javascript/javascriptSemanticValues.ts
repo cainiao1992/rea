@@ -14,6 +14,7 @@ import {
 import {
   semanticCapturePosition,
   semanticEscapeFollowsCapture,
+  semanticBindingEffectFollowsCapture,
   semanticBindingPrecedesCapture,
   semanticBindingAtRead,
 } from "./javascriptSemanticMutationInitializers.js";
@@ -546,7 +547,19 @@ const evaluateBinding = (
   }
   let projected = invalidateSemanticMutationPaths(
     value,
-    binding.memberWrites.map(({ path }) => path),
+    binding.memberWrites
+      .filter(
+        ({ node }) =>
+          context.capturePoint === undefined ||
+          node === undefined ||
+          !semanticBindingEffectFollowsCapture(
+            binding,
+            context.capturePoint,
+            node,
+            context.state.parentsByNode,
+          ),
+      )
+      .map(({ path }) => path),
   );
   for (const escape of binding.escapedPaths) {
     // Escapes only invalidate object references; other lattice values survive.

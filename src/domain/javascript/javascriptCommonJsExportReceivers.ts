@@ -62,7 +62,9 @@ export const commonJsExportApplicability = (
   effect: CommonJsExportReceiverEffect | undefined,
   name: string,
 ): ReceiverStatus =>
-  effect?.fields?.get(name) ?? effect?.receiver ?? "connected";
+  effect?.receiver === "detached"
+    ? "detached"
+    : (effect?.fields?.get(name) ?? effect?.receiver ?? "connected");
 
 /** A CommonJS export assignment or `Object.defineProperty` export call. */
 export type CommonJsExportSite = t.AssignmentExpression | t.CallExpression;
@@ -582,6 +584,10 @@ export function* indexCommonJsExportReceiversSteps(
           : fresh.has(receiver) && fresh.has(publicIdentity)
             ? "detached"
             : "uncertain";
+    if (status === "detached") {
+      effects.set(node, { receiver: status });
+      continue;
+    }
     const fields = new Map<string, ReceiverStatus>();
     for (const { exportedName } of commonJsRuntimeExportValues(node, state)) {
       const removed = [

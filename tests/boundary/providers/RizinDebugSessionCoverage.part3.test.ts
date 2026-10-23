@@ -216,7 +216,9 @@ it.skipIf(process.platform === "win32").each([false, true])(
     );
     expect(result.ok).toBe(false);
     if (!result.ok && incomplete)
-      expect(result.error.message).toContain("injected stop uncertainty");
+      expect(result.error.cleanup?.reason).toContain(
+        "injected stop uncertainty",
+      );
   },
 );
 
@@ -373,5 +375,184 @@ it.skipIf(process.platform === "win32").each([false, true])(
     }
     expect(writes.some((text) => text.startsWith("olj\n"))).toBe(true);
     expect(manager.status(started.value.session_id)).toBeUndefined();
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "retains the producing protocol diagnosis after cleanup synchronization recovers transport",
+  async () => {
+    const injected = createInjectedProcess({
+      onWrite: (text, control) => {
+        const marker = /!echo (.+)\n/u.exec(text)?.[1];
+        if (marker === undefined) return;
+        if (text.startsWith("!echo __REA_CLEANUP_SYNC_"))
+          control.output(`${marker}\0`);
+        else if (text.startsWith("olj\n")) control.output(`[]\0${marker}\0`);
+        else throw new Error(`Unexpected command: ${text}`);
+      },
+    });
+    const { manager, started } = await startInjected(injected.spawnProcess, {
+      stopProcess: stopOwnedDebuggerProcess,
+    });
+    if (!started.ok) throw started.error;
+    injected.control.output("unsolicited\0");
+    const result = await manager.execute(
+      started.value.session_id,
+      "never dispatched",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCapabilityUnavailableError",
+        reason:
+          "Unsolicited Rizin frames arrived before a command; command output can no longer be safely correlated.",
+      });
+      expect(result.error.cleanupIncomplete).toBe(false);
+    }
+    expect(manager.status(started.value.session_id)?.state).toBe("closed");
+  },
+);
+
+it.skipIf(process.platform === "win32").each([
+  { stage: "output", incomplete: false },
+  { stage: "output", incomplete: true },
+  { stage: "timeout", incomplete: false },
+  { stage: "timeout", incomplete: true },
+  { stage: "exited", incomplete: false },
+  { stage: "exited", incomplete: true },
+] as const)(
+  "preserves cancellation during $stage final cleanup (incomplete=$incomplete)",
+  async ({ stage, incomplete }) => {
+    const controller = new AbortController();
+    const reason = { boundary: "final cleanup" };
+    let enterStop!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enterStop = resolve;
+    });
+    let releaseStop!: () => void;
+    const released = new Promise<void>((resolve) => {
+      releaseStop = resolve;
+    });
+    let stopping = true;
+    const injected = createInjectedProcess({
+      onWrite: (_text, control) => {
+        if (stage === "output")
+          control.output("beyond selected output budget\0");
+        if (stage === "exited") {
+          control.output("partial\0");
+          control.exit();
+        }
+      },
+    });
+    const { manager, started } = await startInjected(injected.spawnProcess, {
+      maxCommandOutputBytes: stage === "output" ? 8 : 128,
+      frameTimeoutMs: 10,
+      stopProcess: async () => {
+        if (stopping) {
+          enterStop();
+          await released;
+        }
+        return incomplete && stopping
+          ? { status: "incomplete", reason: "stop settlement pending" }
+          : { status: "stopped" };
+      },
+    });
+    if (!started.ok) throw started.error;
+    const pending = manager.execute(
+      started.value.session_id,
+      "noisy",
+      controller.signal,
+    );
+    await entered;
+    controller.abort(reason);
+    releaseStop();
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisCancelledError",
+      cleanupIncomplete: incomplete,
+    });
+    expect(result.error.cause).toBe(reason);
+    expect(result.error.capturedOutput?.stdout).toBe(
+      stage === "output" ? "beyond s" : stage === "exited" ? "partial" : "",
+    );
+    expect(result.error.partialObservation).toBeDefined();
+    if (incomplete) {
+      stopping = false;
+      expect((await manager.close(started.value.session_id)).ok).toBe(true);
+      expect(result.error.cleanupIncomplete).toBe(false);
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "retains a startup protocol diagnosis across successful cleanup synchronization",
+  async () => {
+    const injected = createInjectedProcess({
+      startup: (control) => control.stdinError(),
+      onWrite: (text, control) => {
+        const marker = /!echo (.+)\n/u.exec(text)?.[1];
+        if (marker === undefined) return;
+        control.output(
+          text.startsWith("olj\n") ? `[]\0${marker}\0` : `${marker}\0`,
+        );
+      },
+    });
+    const { started } = await startInjected(injected.spawnProcess, {
+      stopProcess: stopOwnedDebuggerProcess,
+    });
+    expect(started.ok).toBe(false);
+    if (!started.ok)
+      expect(started.error).toMatchObject({
+        _tag: "AnalysisCapabilityUnavailableError",
+        reason: "Rizin stdin stream failed: injected stdin error",
+        cleanupIncomplete: false,
+      });
+  },
+);
+
+it.skipIf(process.platform === "win32").each([false, true])(
+  "preserves cancellation observed during failed startup cleanup (incomplete=%s)",
+  async (incomplete) => {
+    const controller = new AbortController();
+    const reason = { boundary: "startup cleanup" };
+    const injected = createInjectedProcess({
+      startup: (control) => control.stdinError(),
+    });
+    let retained = true;
+    const manager = createManager(
+      { REA_RIZIN_COMMAND: "injected-rizin" },
+      {
+        spawnProcess: injected.spawnProcess,
+        stopProcess: async () => {
+          controller.abort(reason);
+          return incomplete && retained
+            ? { status: "incomplete", reason: "stop settlement pending" }
+            : { status: "stopped" };
+        },
+      },
+    );
+    const result = await manager.start(
+      { path: "/tmp/injected", inferior_tty: await rizinTestInferiorTty() },
+      controller.signal,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const primary = result.error.cleanupPrimary ?? result.error;
+    expect(primary).toMatchObject({
+      _tag: "AnalysisCapabilityUnavailableError",
+      reason: "Rizin stdin stream failed: injected stdin error",
+    });
+    expect(primary.secondaryFailures[0]).toMatchObject({
+      _tag: "AnalysisCancelledError",
+    });
+    expect(primary.secondaryFailures[0]?.cause).toBe(reason);
+    expect(result.error.cleanupIncomplete).toBe(incomplete);
+    if (incomplete) {
+      retained = false;
+      await manager.closeAll();
+      expect(result.error.cleanupIncomplete).toBe(false);
+    }
   },
 );

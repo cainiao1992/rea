@@ -653,6 +653,10 @@ complete observation.
   non-generic, non-resilient class vtable descriptors. Records include exact virtual addresses/file offsets and
   artifact evidence. Vtable indexes are metadata word offsets; witness indexes
   start after the conformance header. Names unavailable in metadata remain null.
+  The selected Mach-O header must match the requested CPU family for both thin
+  files and universal slices before metadata decoding. CPU subtypes and
+  capability bits remain source facts; an `arm64` request may select an
+  `arm64e` image under the existing slice preference policy.
   The byte reader holds the whole selected file in memory, so it admits files up
   to 64 MiB / 67108864 bytes by default. Select a larger budget with
   `max_input_bytes` (CLI `--max-input-bytes`), at most 1 GiB / 1073741824

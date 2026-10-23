@@ -35,6 +35,41 @@ it("keeps unknown magic distinct from recognized unsupported Mach-O formats", ()
   expect(failure).not.toBeInstanceOf(UnsupportedMachoMetadataFormatError);
 });
 
+const registerThinCpuFamilyControls = (): void => {
+  it.each([
+    { cpu: CPU.x86_64, architecture: "arm64" },
+    { cpu: CPU.arm64, architecture: "x86_64" },
+    { cpu: CPU.arm64, architecture: "unrecognized" },
+  ])(
+    "rejects a thin image outside the requested $architecture CPU family",
+    ({ cpu, architecture }) => {
+      const bytes = Buffer.from(machoImage({ cpu }));
+      expect(() => parseMachoLayout(bytes, architecture)).toThrow(
+        `Mach-O CPU type does not match requested architecture ${architecture}`,
+      );
+      expect(() =>
+        decodeAppleDispatchMetadata(
+          bytes,
+          10,
+          { path: "/thin", sha256: "fixture" },
+          architecture,
+        ),
+      ).toThrow(
+        `Mach-O CPU type does not match requested architecture ${architecture}`,
+      );
+    },
+  );
+
+  it("accepts a thin x86_64 image for the requested CPU family", () => {
+    const bytes = Buffer.from(machoImage({ cpu: CPU.x86_64 }));
+    expect(parseMachoLayout(bytes, "x86_64").selectedImage).toMatchObject({
+      container: "thin",
+      cpuType: CPU.x86_64.type,
+      cpuSubtype: CPU.x86_64.subtype,
+    });
+  });
+};
+
 describe("native Mach-O slice selection", () => {
   it("rejects misaligned load commands", () => {
     expect(() =>
@@ -75,6 +110,8 @@ describe("native Mach-O slice selection", () => {
     const fat = fatImage([{ cpu: CPU.arm64, bytes: machoImage({}) }]);
     expect(parseMachoLayout(Buffer.from(fat), "arm64").segments).toEqual([]);
   });
+
+  registerThinCpuFamilyControls();
 
   it("retains the selected image range and complete raw CPU identity", () => {
     const thin = Buffer.from(machoImage({ cpu: CPU.arm64e }));

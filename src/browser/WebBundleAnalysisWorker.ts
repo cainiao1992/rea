@@ -16,7 +16,10 @@ import {
   artifactFileCancellationCause,
   withArtifactFileHandle,
 } from "../artifacts/ArtifactFileOperation.js";
-import { readStableArtifact } from "../artifacts/readStableArtifact.js";
+import {
+  completedStableArtifact,
+  readStableArtifact,
+} from "../artifacts/readStableArtifact.js";
 import type { StableArtifactSnapshot } from "../artifacts/readStableArtifact.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
@@ -105,21 +108,6 @@ type WebBundleObservedFailure =
 type WebBundleActiveJob = {
   readonly id: string;
   readonly resultBudgetBytes: number;
-};
-
-const stableSnapshotValue = (
-  value: unknown,
-): StableArtifactSnapshot | undefined => {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    !("bytes" in value) ||
-    !Buffer.isBuffer(value.bytes) ||
-    !("sha256" in value) ||
-    typeof value.sha256 !== "string"
-  )
-    return undefined;
-  return { bytes: value.bytes, sha256: value.sha256 };
 };
 
 export interface WebBundleScriptAnalysisFailure {
@@ -394,7 +382,7 @@ export class WebBundleAnalysisWorker {
       result = ok(facts);
     } catch (cause) {
       const completion = artifactFileCompletion(cause);
-      const snapshot = stableSnapshotValue(completion?.value);
+      const snapshot = completedStableArtifact(cause);
       if (snapshot !== undefined && resultDescriptor !== undefined) {
         try {
           completed = this.#validateCompletedResult(

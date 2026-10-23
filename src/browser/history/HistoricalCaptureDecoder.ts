@@ -18,15 +18,13 @@ import {
   NODE_CAPTURE_HEAP_ENFORCED,
   captureDecoderProcessMemoryLimitBytes,
 } from "./CaptureRelease.js";
-import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import type { HistoricalCaptureFormatAdapter } from "./HistoricalCaptureFormatAdapter.js";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
-import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import type { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
   ArtifactResourceScope,
   type ArtifactCleanupAttempt,
@@ -47,7 +45,6 @@ import { err, ok, type Result } from "../../domain/result.js";
 import {
   WEB_NETWORK_CAPTURE_LIMITS,
   selectedWebNetworkCaptureTimeoutMs,
-  webNetworkCapturePayloadSchema,
   type InspectWebNetworkCaptureInput,
   type WebNetworkCapture,
 } from "../../domain/webNetworkCapture.js";
@@ -55,27 +52,10 @@ import { runOwnedCommand } from "../../process/OwnedCommand.js";
 import { PrivateRuntimeRoot } from "../../process/PrivateRuntimeRoot.js";
 import { redactExplicitFailure } from "../../domain/explicitSensitiveFailure.js";
 
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import { readHistoricalCaptureReply } from "./HistoricalCaptureReply.js";
+
 const OPERATION = "inspect_web_network_capture";
-const replySchema = z.discriminatedUnion("ok", [
-  z.strictObject({
-    ok: z.literal(true),
-    value: webNetworkCapturePayloadSchema,
-  }),
-  z.strictObject({
-    ok: z.literal(false),
-    reason: z.enum([
-      "format",
-      "unsupported",
-      "input-limit",
-      "expanded-limit",
-      "resource-limit",
-      "decoder",
-      "limit",
-    ]),
-    message: z.string(),
-    pointer: z.string(),
-  }),
-]);
 
 /** One owned snapshot/process/root lifecycle for replaceable historical format decoders. */
 export class HistoricalCaptureDecoder {
@@ -145,6 +125,7 @@ export class HistoricalCaptureDecoder {
     let phase: "capture-read" | "decoder" = "capture-read";
     let encodedReplyBytes = 0;
     let reportedHeap = this.#heap;
+    let replyFinalization: ArtifactReaderFailure | undefined;
     try {
       const adapter = this.adapters.find(
         (candidate) => candidate.format === input.format,
@@ -212,34 +193,15 @@ export class HistoricalCaptureDecoder {
           undefined,
           reportedHeap,
         );
-      let reply: z.output<typeof replySchema>;
-      try {
-        const replyFile = await readStableArtifact(
-          replyPath,
-          WEB_NETWORK_CAPTURE_LIMITS.outputBytes,
-          options?.signal,
-          undefined,
-          this.#resources,
-        );
-        encodedReplyBytes = replyFile.bytes.length;
-        reply = replySchema.parse(JSON.parse(replyFile.bytes.toString("utf8")));
-      } catch (cause: unknown) {
-        if (cause instanceof ArtifactReaderFailure) throw cause;
-        if (
-          options?.signal?.aborted === true &&
-          (cause === options.signal.reason ||
-            (cause instanceof Error &&
-              cause.name === "AbortError" &&
-              "code" in cause &&
-              cause.code === "ABORT_ERR"))
-        )
-          throw cause;
-        throw new AnalysisOutputError(
-          OPERATION,
-          `Owned capture decoder reply failed for ${input.capture_path}: ${replyFailureReason(cause)}`,
-          { cause },
-        );
-      }
+      const decodedReply = await readHistoricalCaptureReply(
+        replyPath,
+        input.capture_path,
+        this.#resources,
+        options?.signal,
+      );
+      const reply = decodedReply.value;
+      encodedReplyBytes = decodedReply.bytes;
+      replyFinalization = decodedReply.finalization;
       if (!reply.ok) {
         if (reply.reason === "format")
           throw new AnalysisInputError(OPERATION, undefined, [
@@ -294,7 +256,14 @@ export class HistoricalCaptureDecoder {
             OPERATION,
             reply.message,
           );
-        throw new AnalysisOutputError(OPERATION, reply.message);
+        throw new AnalysisOutputError(OPERATION, reply.message, {
+          userMessage: `The capture decoder refused a complete reply exceeding ${String(WEB_NETWORK_CAPTURE_LIMITS.outputBytes)} bytes: ${reply.message}`,
+          remediationAction: `The ${String(WEB_NETWORK_CAPTURE_LIMITS.outputBytes)}-byte complete-reply allowance has no runtime override. Select a smaller capture exported by its producer when a narrower observation is acceptable. Record selection, delivery mode and worker memory do not raise it; no completed capture Evidence is available from this refusal.`,
+          diagnostics: {
+            maximum_reply_bytes: WEB_NETWORK_CAPTURE_LIMITS.outputBytes,
+            boundary: "historical-capture-reply",
+          },
+        });
       }
       if (
         reply.value.decoder.id !== adapter.identity.id ||
@@ -388,6 +357,17 @@ export class HistoricalCaptureDecoder {
           if (safePartialSource) error.retainPartialObservation(result.value);
           throw error;
         }
+        if (replyFinalization !== undefined) {
+          const error = historicalCaptureFailure(
+            input,
+            replyFinalization,
+            phase,
+            options,
+            reportedHeap,
+          );
+          error.retainPartialObservation(result.value);
+          throw error;
+        }
       }
     } catch (cause: unknown) {
       const error = historicalCaptureFailure(
@@ -397,9 +377,24 @@ export class HistoricalCaptureDecoder {
         options,
         reportedHeap,
       );
+      if (
+        replyFinalization?.reason === "cancelled" &&
+        !(error instanceof AnalysisCancelledError)
+      ) {
+        const cancellation = historicalCaptureFailure(
+          input,
+          replyFinalization,
+          phase,
+          options,
+          reportedHeap,
+        );
+        error.retainSecondaryFailure(cancellation, {
+          reply_finalization_error: projectAnalysisError(cancellation),
+        });
+      }
       result = err(
         redactExplicitFailure(
-          withCaptureReaderCleanup(error, cause),
+          withCaptureReaderCleanup(error, replyFinalization ?? cause),
           input.sensitive_values,
         ),
       );
@@ -490,14 +485,4 @@ const nodeMemoryLimitation = (heap: CaptureDecoderHeap): string => {
   return commitLimit === null
     ? `HAR/SAZ/qlog run on Bun, which does not enforce REA's V8 heap flags. ${recovery}`
     : `HAR/SAZ/qlog run on Bun, which does not enforce REA's V8 heap flags, under a ${String(commitLimit)}-byte Windows Job Object commit limit. ${recovery}`;
-};
-
-const replyFailureReason = (cause: unknown): string => {
-  if (cause instanceof ArtifactReaderFailure) return cause.message;
-  if (cause instanceof z.ZodError)
-    return `Reply violates its schema at ${cause.issues[0]?.path.map(String).join(".") ?? "root"}.`;
-  if (cause instanceof SyntaxError) return "Reply is malformed JSON.";
-  if (cause instanceof Error && "code" in cause)
-    return `Reply file could not be read (${String(cause.code)}).`;
-  return "Reply could not be validated.";
 };

@@ -744,6 +744,12 @@ budget. Those budgets have no runtime override. `capture_timeout_ms` does not
 raise them. Exceeding a budget returns no partial success.
 Oversized selected captures return an input error identifying `capture_path`
 and the byte budget; owned reply/output failures remain output or provider errors.
+An explicit complete-reply refusal names the 100663296-byte allowance and its
+lack of a runtime override. Record selection, paging, delivery mode and worker
+memory do not increase that allowance; a smaller producer export is a narrower
+observation, and the refusal leaves no completed capture Evidence to retrieve.
+Cancellation during reply-file finalization retains validated completed capture
+facts as partial observations. Malformed or unvalidated replies are not promoted.
 HAR, SAZ and qlog run in an owned Node old-generation heap with one V8 worker.
 `REA_CAPTURE_DECODER_OLD_GENERATION_MIB` is a decimal integer of mebibytes from
 8 to 16384. Unset uses 192, the previous constant. Invalid values fail

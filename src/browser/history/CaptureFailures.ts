@@ -134,11 +134,7 @@ export const historicalCaptureFailure = (
       cause.message,
       { cause },
     );
-  if (
-    phase !== "decoder" &&
-    cause instanceof ArtifactReaderFailure &&
-    cause.reason === "cancelled"
-  )
+  if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
     return new AnalysisCancelledError(OPERATION, {
       cause: artifactFileCancellationCause(cause),
     });
@@ -290,16 +286,6 @@ export const withCaptureReaderCleanup = (
 ): AnalysisError => {
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
-  if (cause.reason === "unavailable") {
-    const cleanup = new ProviderCleanupError(
-      "web-network-capture",
-      cause.cleanup.resources,
-      { reason: cause.cleanup.reason },
-      { operation: OPERATION, cause },
-    );
-    bindArtifactFileCleanup(cause, cleanup);
-    return cleanup;
-  }
   const cleanup = new ProviderCleanupError(
     "web-network-capture",
     cause.cleanup.resources,
@@ -307,6 +293,15 @@ export const withCaptureReaderCleanup = (
     { operation: OPERATION, cause },
   );
   bindArtifactFileCleanup(cause, cleanup);
+  if (
+    cause.reason === "unavailable" &&
+    primary instanceof ProviderAdapterError &&
+    primary.cause === cause
+  ) {
+    if (primary.partialObservation !== undefined)
+      cleanup.retainPartialObservation(primary.partialObservation);
+    return cleanup;
+  }
   const composed = analysisErrorWithCleanupFailure(
     primary,
     cleanup,

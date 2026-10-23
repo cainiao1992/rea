@@ -8,6 +8,7 @@ import type {
   ManagedMethodMatches,
 } from "./managedMemberComparisonMatch.js";
 import { signatureIdentity } from "./managedMemberSignatureIdentity.js";
+import { isManagedMemberReferenceInstruction } from "./managedMemberInstructionFacts.js";
 
 type Method = ManagedMemberInspection["methods"][number];
 type Field = ManagedMemberInspection["fields"][number];
@@ -162,8 +163,9 @@ const compareCallTargets = (
 ): { readonly changed: boolean; readonly unknown: boolean } => {
   const callAnchors = (method: Method) =>
     method.body.anchors.filter(
-      ({ opcode, operand_kind }) =>
-        opcode !== "ldtoken" && operand_kind === "method",
+      (instruction) =>
+        isManagedMemberReferenceInstruction(instruction) &&
+        instruction.operand_kind === "method",
     );
   const leftAnchors = callAnchors(left);
   const rightAnchors = callAnchors(right);
@@ -203,14 +205,22 @@ const compareCallTargets = (
 const callShape = (anchors: Method["body"]["anchors"]): string =>
   JSON.stringify(
     anchors
-      .filter(({ operand_kind }) => operand_kind === "method")
+      .filter(
+        (instruction) =>
+          isManagedMemberReferenceInstruction(instruction) &&
+          instruction.operand_kind === "method",
+      )
       .map(({ opcode, operand_kind }) => [opcode, operand_kind]),
   );
 
 const fieldShape = (anchors: Method["body"]["anchors"]): string =>
   JSON.stringify(
     anchors
-      .filter(({ operand_kind }) => operand_kind === "field")
+      .filter(
+        (instruction) =>
+          isManagedMemberReferenceInstruction(instruction) &&
+          instruction.operand_kind === "field",
+      )
       .map(({ opcode, operand_kind }) => [opcode, operand_kind]),
   );
 

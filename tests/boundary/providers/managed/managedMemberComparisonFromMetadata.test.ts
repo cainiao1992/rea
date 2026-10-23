@@ -101,6 +101,48 @@ describe("managed operand-free instruction structural matching", () => {
   });
 });
 
+describe("managed reference instruction comparison", () => {
+  it("does not count ldtoken MemberRefs as calls or field accesses", () => {
+    const observe = (signature: readonly number[], path: string) => {
+      const il = Buffer.from([0xd0, 1, 0, 0, 0x0a, 0x26, 0x2a]);
+      return inspect(
+        buildManagedPeFixture({
+          targetFramework: null,
+          memberRefName: "Counter",
+          memberRefParentRaw: 8,
+          ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+          memberRefSignature: Buffer.from(signature),
+        }),
+        path,
+      );
+    };
+    const methodHandle = observe(
+      [0x20, 0x01, 0x01, 0x0e],
+      "/tmp/ldtoken-method-handle.dll",
+    );
+    const fieldHandle = observe([0x06, 0x08], "/tmp/ldtoken-field-handle.dll");
+
+    expect(methodHandle.result.methods[0]?.body.anchors[0]).toMatchObject({
+      opcode: "ldtoken",
+      operand_kind: "method",
+    });
+    expect(fieldHandle.result.methods[0]?.body.anchors[0]).toMatchObject({
+      opcode: "ldtoken",
+      operand_kind: "field",
+    });
+    expect(methodHandle.result.call_edges).toEqual([]);
+    expect(fieldHandle.result.call_edges).toEqual([]);
+    expect(methodHandle.result.field_accesses).toEqual([]);
+    expect(fieldHandle.result.field_accesses).toEqual([]);
+
+    const comparison = compareManagedMembers(methodHandle, fieldHandle);
+    const dimensions = comparison.methods[0]?.dimensions ?? [];
+    expect(dimensions).not.toContain("call-shape");
+    expect(dimensions).not.toContain("field-shape");
+    expect(dimensions).not.toContain("call-target");
+  });
+});
+
 describe("managed member structural matching", () => {
   it("keeps unequal constants from becoming a structural remap", () => {
     const observe = (

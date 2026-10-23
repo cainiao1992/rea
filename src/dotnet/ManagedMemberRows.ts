@@ -1,4 +1,5 @@
 import { jsonStringByteLength } from "../domain/jsonStringByteLength.js";
+import { isManagedMemberReferenceInstruction } from "../domain/managed/managedMemberInstructionFacts.js";
 import {
   admitManagedProjection,
   managedDecodeBudget,
@@ -445,18 +446,14 @@ export const edges = (
   const fieldAccesses: ManagedFieldAccess[] = [];
   for (const method of methods) {
     const derives = method.body.anchors.some(
-      (anchor) =>
-        anchor.opcode !== "ldtoken" &&
-        anchor.operand !== null &&
-        (anchor.operand_kind === "method" || anchor.operand_kind === "field"),
+      isManagedMemberReferenceInstruction,
     );
     if (derives) budget.admitTransient(callerNameBytes(method), null);
     // Built once per method, only after its exact size was admitted.
     const caller = derives ? callerName(method) : method.name;
     for (const anchor of method.body.anchors) {
-      if (anchor.opcode === "ldtoken") continue;
+      if (!isManagedMemberReferenceInstruction(anchor)) continue;
       const { operand } = anchor;
-      if (operand === null) continue;
       const target = namedTarget(members, anchor.operand_kind, operand);
       if (anchor.operand_kind === "method") {
         // Each derived record is admitted before the graph grows further.

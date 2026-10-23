@@ -139,7 +139,7 @@ it.each([false, true])(
     if (inspected.ok)
       throw new Error("Unified profile was admitted as split VM/isolate");
     expect(projectAnalysisError(inspected.error)).toMatchObject({
-      code: "target_unavailable",
+      code: "unsupported_target",
       category: "unsupported_target",
       details: {
         diagnostics: {

@@ -107,6 +107,29 @@ const parent = (
   limitations: ["Parent limitation."],
 });
 
+it("preserves ambiguous import facts without adding import fields to exports", () => {
+  const imported = {
+    ...symbol("unused"),
+    name: null,
+    raw_name: "_value+0x4",
+    name_status: "ambiguous",
+    addend: null,
+  };
+  const observed = { ...report, imports: coverage([imported], false) };
+  for (const facet of ["imports", "exports"] as const) {
+    const projected = projectAnalysisView(parent(observed), {
+      kind: "macho",
+      facet,
+      offset: 0,
+      limit: 64,
+    });
+    if (!projected.ok) throw projected.error;
+    expect(projected.value.kind === "macho" && projected.value.item).toEqual(
+      observed[facet].items,
+    );
+  }
+});
+
 describe("Mach-O analysis views", () => {
   it("summarizes slice identity and collection counts without rows", () => {
     const projected = projectAnalysisView(parent(), { kind: "summary" });

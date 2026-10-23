@@ -51,7 +51,8 @@ export const machoViewItemSchema = z.union([
   exactRows(shape.build_metadata.shape.items),
   exactRows(shape.load_commands.shape.items),
   exactRows(shape.dependencies.shape.items),
-  // Imports and exports share one row shape.
+  // Exports must precede imports, whose historical defaults also accept export keys.
+  exactRows(shape.exports.shape.items),
   exactRows(shape.imports.shape.items),
   exactRows(shape.segments.shape.items),
   exactRows(shape.provenance),

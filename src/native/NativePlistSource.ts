@@ -91,9 +91,7 @@ export const resolveBundleResourcePlistSelection = (
   if (requested === undefined)
     return ok({ path: root.infoPlistPath, origin: "default" });
   return ok({
-    path: isAbsolute(requested)
-      ? resolve(requested)
-      : resolve(root.canonicalPath, requested),
+    path: absoluteCallerPath(requested, { cwd: root.canonicalPath }),
     origin: "selected",
   });
 };

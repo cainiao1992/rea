@@ -35,7 +35,12 @@ export type DecodedPointer =
       readonly weak: boolean;
       readonly addend: bigint;
     }
-  | { readonly kind: "unsupported"; readonly reason: string };
+  | {
+      readonly kind: "unsupported";
+      readonly reason: string;
+      /** Source bind facts survive when its byte name has no lossless text projection. */
+      readonly binding?: Import & { readonly symbol: null };
+    };
 
 /** Pointer-slot outcome, including whether a rebase was actually applied. */
 export type PointerResolution =
@@ -58,7 +63,10 @@ export interface PointerFixups {
   readonly issues: readonly DecodeIssue[];
   /** Chained segments, legacy rebase streams, or bind streams this reader walked. */
   readonly examined: number;
-  /** Fully decoded fixup segments or bind streams, in the same units as `examined`. */
+  /** Chained segments without observed decode failures, plus structurally parsed
+   * legacy opcode streams, in the same units as `examined`. Legacy location
+   * coverage survives unavailable symbol text, which is qualified by `issues`.
+   */
   readonly decoded: number;
   /** Declared legacy opcode streams examined by this owner. */
   readonly legacyRebaseStreams: number;
@@ -87,22 +95,28 @@ const bits = (value: bigint, from: number, width: number): bigint =>
 const signed = (value: bigint, width: number): bigint =>
   value >= 1n << BigInt(width - 1) ? value - (1n << BigInt(width)) : value;
 
-interface Import {
-  readonly symbol: string;
+type SymbolName =
+  | { readonly symbol: string }
+  | { readonly symbol: null; readonly symbol_bytes_base64: string };
+
+type Import = SymbolName & {
   readonly binding_source: "chained" | "bind" | "weak" | "lazy";
   readonly library_ordinal: number;
   readonly library: string | null;
   readonly weak: boolean;
   readonly addend: bigint;
-}
+};
 
 interface BindRun {
   readonly start: bigint;
   count: bigint;
   readonly stride: bigint;
   readonly binding:
-    | { readonly kind: "bind"; readonly value: Import }
-    | { readonly kind: "unsupported"; readonly reason: string };
+    | {
+        readonly kind: "bind";
+        readonly value: Import & { readonly symbol: string };
+      }
+    | Extract<DecodedPointer, { readonly kind: "unsupported" }>;
 }
 
 interface BindFacts {
@@ -111,6 +125,7 @@ interface BindFacts {
   readonly issues: readonly DecodeIssue[];
   readonly examined: number;
   readonly decoded: number;
+  /** All opcode locations are known, independently of symbol text availability. */
   readonly complete: boolean;
 }
 
@@ -132,12 +147,49 @@ const libraryName = (
   return null;
 };
 
-const cString = (bytes: Buffer, offset: number, end: number): string => {
+/** dyld names are NUL-terminated bytes; text projection must never replace their identity. */
+const symbolName = (bytes: Buffer): SymbolName => {
+  try {
+    return {
+      symbol: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+        bytes,
+      ),
+    };
+  } catch {
+    return { symbol: null, symbol_bytes_base64: bytes.toString("base64") };
+  }
+};
+
+const cString = (bytes: Buffer, offset: number, end: number): SymbolName => {
   const stop = bytes.indexOf(0, offset);
   if (offset < 0 || offset >= end || stop < 0 || stop >= end)
     throw new RangeError("Fixup symbol name is outside the symbol pool");
-  return bytes.toString("utf8", offset, stop);
+  return symbolName(bytes.subarray(offset, stop));
 };
+
+const resolvedBind = (
+  imported: Import,
+  addend: bigint,
+): Exclude<DecodedPointer, { readonly kind: "rebase" }> =>
+  imported.symbol === null
+    ? {
+        kind: "unsupported",
+        reason:
+          "Fixup symbol bytes cannot be represented losslessly as UTF-8 text",
+        binding: { ...imported, addend: imported.addend + addend },
+      }
+    : { kind: "bind", ...imported, addend: imported.addend + addend };
+
+const sameImport = (left: Import, right: Import): boolean =>
+  left.symbol === right.symbol &&
+  (left.symbol !== null ||
+    right.symbol !== null ||
+    left.symbol_bytes_base64 === right.symbol_bytes_base64) &&
+  left.binding_source === right.binding_source &&
+  left.library_ordinal === right.library_ordinal &&
+  left.library === right.library &&
+  left.weak === right.weak &&
+  left.addend === right.addend;
 
 const readImport = (
   data: {
@@ -172,7 +224,7 @@ const readImport = (
     const ordinal =
       encodedOrdinal > 0xfff0 ? encodedOrdinal - 0x10000 : encodedOrdinal;
     return {
-      symbol: cString(
+      ...cString(
         bytes,
         base + header.symbols + Number(bits(word, 32, 32)),
         end,
@@ -189,7 +241,7 @@ const readImport = (
   const ordinal =
     encodedOrdinal > 0xf0 ? encodedOrdinal - 0x100 : encodedOrdinal;
   return {
-    symbol: cString(bytes, base + header.symbols + (word >>> 9), end),
+    ...cString(bytes, base + header.symbols + (word >>> 9), end),
     binding_source: "chained",
     library_ordinal: ordinal,
     library: libraryName(ordinal, dylibs),
@@ -212,7 +264,7 @@ export const decodeChainedPointer = (
         : imports[Number(ordinal)];
     if (target === undefined)
       throw new RangeError(`Chained bind ordinal ${ordinal} has no import`);
-    return { kind: "bind", ...target, addend: target.addend + addend };
+    return resolvedBind(target, addend);
   };
   if (format === 2 || format === 6) {
     if (bits(raw, 63, 1) === 1n)
@@ -496,6 +548,31 @@ const chainedFixups = (
   const failures = issues.map(({ message }) => message);
   const applicabilityFailures = [...rebases.failures, ...binds.failures];
   const applicabilityComplete = rebases.complete && binds.complete;
+  const recordPointerFailure = (
+    reason: string,
+    address: bigint,
+    chainIndex: number,
+  ): void => {
+    const location = `0x${address.toString(16)}`;
+    if (
+      !issues.some(
+        (entry) =>
+          entry.code === "chained_pointer_decode_failed" &&
+          entry.location === location,
+      )
+    ) {
+      issues.push(
+        issue(
+          "pointer_fixups",
+          "chained_pointer_decode_failed",
+          reason,
+          location,
+        ),
+      );
+      failures.push(reason);
+    }
+    decodedRanges.delete(chainIndex);
+  };
   return {
     kind: "chained",
     formats,
@@ -595,6 +672,8 @@ const chainedFixups = (
             baseAddress,
             imports,
           );
+          if (decoded.kind === "unsupported")
+            recordPointerFailure(decoded.reason, address, chainIndex);
           return decoded;
         }
         if (
@@ -605,25 +684,7 @@ const chainedFixups = (
         return legacyBind ?? legacyRebase ?? rawPointer();
       } catch (cause: unknown) {
         const reason = cause instanceof Error ? cause.message : String(cause);
-        const location = `0x${address.toString(16)}`;
-        if (
-          !issues.some(
-            (entry) =>
-              entry.code === "chained_pointer_decode_failed" &&
-              entry.location === location,
-          )
-        ) {
-          issues.push(
-            issue(
-              "pointer_fixups",
-              "chained_pointer_decode_failed",
-              reason,
-              location,
-            ),
-          );
-          failures.push(reason);
-        }
-        decodedRanges.delete(chainIndex);
+        recordPointerFailure(reason, address, chainIndex);
         return { kind: "unsupported", reason };
       }
     },
@@ -926,7 +987,7 @@ interface BindState {
   ordinal: number;
   ordinalFailure: string | null;
   segmentIndex: number;
-  symbol: string;
+  symbol: SymbolName;
   weak: boolean;
   addend: bigint;
   address: bigint;
@@ -967,7 +1028,7 @@ const setBindRegister = (
       const stop = bytes.indexOf(0, cursor.at);
       if (stop < 0 || stop >= end)
         throw new RangeError("Unterminated bind symbol");
-      state.symbol = bytes.toString("utf8", cursor.at, stop);
+      state.symbol = symbolName(bytes.subarray(cursor.at, stop));
       state.weak = (immediate & 0x1) !== 0;
       cursor.at = stop + 1;
       return true;
@@ -1010,7 +1071,7 @@ const readBindStream = (
     ordinal: 0,
     ordinalFailure: null,
     segmentIndex: -1,
-    symbol: "",
+    symbol: { symbol: "" },
     weak: false,
     addend: 0n,
     address: 0n,
@@ -1034,17 +1095,19 @@ const readBindStream = (
       if (state.ordinalFailure !== null)
         throw new RangeError(state.ordinalFailure);
       const resolvedLibrary = libraryName(state.ordinal, image.dylibs);
-      binding = {
-        kind: "bind",
-        value: {
-          symbol: state.symbol,
+      const decoded = resolvedBind(
+        {
+          ...state.symbol,
           binding_source: range.stream,
           library_ordinal: state.ordinal,
           library: range.stream === "weak" ? null : resolvedLibrary,
           weak: state.weak,
           addend: state.addend,
         },
-      };
+        0n,
+      );
+      binding =
+        decoded.kind === "bind" ? { kind: "bind", value: decoded } : decoded;
     } catch (cause: unknown) {
       binding = {
         kind: "unsupported",
@@ -1057,14 +1120,12 @@ const readBindStream = (
       right: BindRun["binding"],
     ) =>
       left.kind === "unsupported" && right.kind === "unsupported"
-        ? left.reason === right.reason
+        ? left.reason === right.reason &&
+          (left.binding === undefined || right.binding === undefined
+            ? left.binding === right.binding
+            : sameImport(left.binding, right.binding))
         : left.kind === "bind" && right.kind === "bind"
-          ? left.value.symbol === right.value.symbol &&
-            left.value.binding_source === right.value.binding_source &&
-            left.value.library_ordinal === right.value.library_ordinal &&
-            left.value.library === right.value.library &&
-            left.value.weak === right.value.weak &&
-            left.value.addend === right.value.addend
+          ? sameImport(left.value, right.value)
           : false;
     if (
       previous !== undefined &&
@@ -1157,15 +1218,30 @@ const parseLegacyBinds = (
       );
     }
   }
+  const complete = failures.length === 0;
+  const issues = failures.map((message) =>
+    issue("pointer_fixups", "bind_stream_decode_failed", message),
+  );
+  for (const run of runs) {
+    if (run.binding.kind !== "unsupported" || run.binding.binding === undefined)
+      continue;
+    issues.push(
+      issue(
+        "pointer_fixups",
+        "bind_symbol_text_unavailable",
+        run.binding.reason,
+        `0x${run.start.toString(16)}`,
+      ),
+    );
+    failures.push(run.binding.reason);
+  }
   return {
     runs,
     failures,
-    issues: failures.map((message) =>
-      issue("pointer_fixups", "bind_stream_decode_failed", message),
-    ),
+    issues,
     examined: streams.length,
     decoded,
-    complete: failures.length === 0,
+    complete,
   };
 };
 

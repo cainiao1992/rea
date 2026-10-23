@@ -467,6 +467,12 @@ unreadable default plist of another target reports `capability_unavailable`.
 Permission failures remain `access_denied`; output and cleanup failures retain
 their own error categories.
 
+Selected plist paths preserve filesystem resolution, including `..` after a
+directory symlink and trailing directory separators. Resource-only bundle
+sessions resolve relative selections from the bundle root with the same path
+semantics as executable sessions; the reported source path retains those
+selected segments.
+
 A conversion refusal includes plutil's diagnostic from either output stream.
 `details.captured_output` retains bounded stdout/stderr excerpts, observed byte
 totals and exit status. `truncated: true` means those excerpts are incomplete.
@@ -699,6 +705,16 @@ complete observation.
   - `LC_DYLD_CHAINED_FIXUPS` rebases and binds, including the authenticated
     arm64e formats;
   - legacy `LC_DYLD_INFO` rebase and bind opcodes.
+
+  [dyld symbol names are byte strings](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/mach_o/BindOpcodes.cpp#L203-L208),
+  compared with [`strcmp`](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/mach_o/BindOpcodes.cpp#L42-L56).
+  When a name has no lossless UTF-8 text
+  projection, the affected binding remains unresolved and pointer-fixup
+  coverage is partial; later readable bindings and other metadata survive.
+  The internal fixup reader retains the exact name bytes and parsed binding
+  fields, while public Objective-C and Swift results retain the unresolved
+  reason instead of publishing a guessed symbol or class name. A literal
+  U+FFFD in valid UTF-8 remains a known symbol character.
 
   A Swift conformance whose type or protocol reference is an external bind
   keeps its name as `null` and carries the raw dyld identity in

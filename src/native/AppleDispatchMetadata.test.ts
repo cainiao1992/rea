@@ -314,6 +314,54 @@ const swiftConformanceTypeReferenceImage = (
   return bytes;
 };
 
+describe("Imported class symbol byte identities", () => {
+  it.each(["invalid bytes", "literal replacement character"] as const)(
+    "keeps imported class identity distinct for %s",
+    (nameKind) => {
+      const bytes = swiftExternalSwiftBindingImage("objc-class");
+      const nameAt = 0xf02;
+      const literalName = "_OBJC_CLASS_$_�bject";
+      if (nameKind === "invalid bytes")
+        bytes[nameAt + Buffer.byteLength("_OBJC_CLASS_$_")] = 0xff;
+      else Buffer.from(literalName).copy(bytes, nameAt);
+      const result = decodeAppleDispatchMetadata(
+        bytes,
+        100,
+        provenance,
+        "arm64",
+        ["0x100000b00"],
+      );
+      expect(result.swift_conformances).toMatchObject([
+        {
+          type_name: null,
+          type_reference_kind: 3,
+          protocol_name: "Equatable",
+          type_binding:
+            nameKind === "invalid bytes" ? null : { symbol: literalName },
+          decode: { status: "partial" },
+        },
+      ]);
+      expect(result.objc_class_import_bindings).toEqual(
+        nameKind === "invalid bytes"
+          ? []
+          : [expect.objectContaining({ symbol: literalName })],
+      );
+      expect(result.objc_class_import_binding_coverage).toMatchObject({
+        status: nameKind === "invalid bytes" ? "partial" : "complete",
+      });
+      expect(
+        result.coverage.find(({ facet }) => facet === "pointer_fixups"),
+      ).toMatchObject({
+        status: nameKind === "invalid bytes" ? "partial" : "complete",
+      });
+      if (nameKind === "invalid bytes")
+        expect(result.objc_class_import_binding_coverage?.reason).toContain(
+          "UTF-8",
+        );
+    },
+  );
+});
+
 describe("Swift imported protocol references", () => {
   it("preserves bind identity without reading VM address zero and marks coverage partial", () => {
     const result = decodeAppleDispatchMetadata(
@@ -1638,7 +1686,7 @@ describe("malformed Apple dispatch metadata", () => {
     const bytes = fixture();
     bytes.writeUInt32LE(7, 36);
     expect(() => decodeAppleDispatchMetadata(bytes, 100, provenance)).toThrow(
-      "command size",
+      new RangeError("load command 0 at offset 0 has invalid cmdsize 7"),
     );
     expect(() =>
       decodeAppleDispatchMetadata(Buffer.alloc(10), 100, provenance),

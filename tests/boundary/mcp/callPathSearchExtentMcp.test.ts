@@ -8,7 +8,11 @@ import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 
-const observe = (address: string, callees: readonly string[]) => {
+const observe = (
+  address: string,
+  callees: readonly string[],
+  unresolvedCalls: readonly { address: string; reason: string }[] = [],
+) => {
   const template = FUNCTION_COMPARISON_EXAMPLE.left;
   if (template.subject === null)
     throw new Error("Expected artifact-bound fixture");
@@ -33,7 +37,7 @@ const observe = (address: string, callees: readonly string[]) => {
           body: dossier.procedure.body,
         })),
         callers: [],
-        unresolved_calls: [],
+        unresolved_calls: [...unresolvedCalls],
         limitations: [],
       },
       confidence: template.confidence,
@@ -97,6 +101,87 @@ it("publishes explored extent without the terminal goal's callees", async () => 
         explored,
         limitations: [],
       });
+    }
+  } finally {
+    await Promise.allSettled([session.close(), client.close(), server.close()]);
+  }
+});
+
+it("preserves unresolved outgoing call caveats and bounds search completeness at expanded nodes", async () => {
+  const session = createTestBinarySession(() => {
+    throw new Error("Offline call paths must not launch a provider");
+  });
+  const server = createServer({ kind: "session", session });
+  const client = new Client({ name: "unresolved-call-path", version: "1" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const unresolved = {
+      address: "0x1008",
+      reason: "Computed target could not be resolved.",
+    };
+    const scenarios = [
+      {
+        start: observe("0x1000", [], [unresolved]),
+        terminal: undefined,
+        goal: "0x4000",
+        expected: {
+          status: "unknown",
+          search_scope: { exhaustive: false },
+          limitations: [
+            "Unresolved call at 0x1008: Computed target could not be resolved.",
+          ],
+        },
+      },
+      {
+        start: observe("0x1000", ["0x4000"], [unresolved]),
+        terminal: undefined,
+        goal: "0x4000",
+        expected: {
+          status: "found",
+          shortest_hops: 1,
+          search_scope: { exhaustive: false },
+          limitations: [
+            "Unresolved call at 0x1008: Computed target could not be resolved.",
+          ],
+        },
+      },
+      {
+        start: observe("0x1000", ["0x4000"]),
+        terminal: observe("0x4000", [], [unresolved]),
+        goal: "0x4000",
+        expected: {
+          status: "found",
+          shortest_hops: 1,
+          search_scope: { exhaustive: true },
+          limitations: [
+            "Unresolved call at 0x1008: Computed target could not be resolved.",
+          ],
+        },
+      },
+    ];
+    for (const scenario of scenarios) {
+      const functions = [
+        scenario.start,
+        ...(scenario.terminal ? [scenario.terminal] : []),
+      ];
+      for (const evidence of functions)
+        expect(session.recordEvidence(evidence).ok).toBe(true);
+      const reply = await client.callTool({
+        name: "build_call_path",
+        arguments: {
+          functions,
+          start: { address: "0x1000" },
+          goal: { address: scenario.goal },
+        },
+      });
+      if (reply.isError) throw new Error(JSON.stringify(reply));
+      const result = callPathResultSchema.parse(
+        parseEvidence(reply.structuredContent).normalized_result,
+      );
+      expect(result).toMatchObject(scenario.expected);
     }
   } finally {
     await Promise.allSettled([session.close(), client.close(), server.close()]);

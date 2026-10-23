@@ -14,6 +14,7 @@ export interface FunctionSnapshot {
   readonly dossier: FunctionDossier;
   readonly limitations: readonly string[];
   readonly callCoverageBlockers: readonly string[];
+  readonly unresolvedCallCaveats: readonly string[];
   readonly callCoverageDiagnostics: readonly string[];
 }
 
@@ -62,6 +63,7 @@ export const parseFunctionEvidence = (
       ...new Set([...evidence.limitations, ...dossier.value.limitations]),
     ].sort((left, right) => compareUnicodeCodePoints(left, right)),
     callCoverageBlockers: callCoverage.blockers,
+    unresolvedCallCaveats: callCoverage.unresolvedCallCaveats,
     callCoverageDiagnostics: callCoverage.diagnostics,
   });
 };

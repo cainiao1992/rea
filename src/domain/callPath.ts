@@ -259,6 +259,7 @@ const inspectSearch = ({
       const coverage = snapshot.evidence.relationship_coverage;
       for (const limitation of snapshot.limitations)
         limitations.push(limitation);
+      limitations.push(...snapshot.unresolvedCallCaveats);
       if (coverage !== null) {
         for (const limitation of relationshipCoverageLimitations(coverage))
           limitations.push(limitation);
@@ -269,6 +270,8 @@ const inspectSearch = ({
       // cannot add a path to the goal, so its dossier limits are contextual
       // but do not make the searched start-to-goal closure incomplete.
       if (node === goal) continue;
+      if (snapshot.unresolvedCallCaveats.length > 0)
+        incompleteExpandedCoverage = true;
       const callees = snapshot.dossier.facet_availability?.callees;
       if (callees?.available === false) {
         limitations.push(callees.reason);

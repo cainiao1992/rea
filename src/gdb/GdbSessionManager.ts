@@ -1825,11 +1825,8 @@ export class GdbSessionManager {
     // incomplete, malformed, or reports multiple inferiors, no earlier PID
     // can stand in for the current unknown inventory.
     session.knownInferiorIdentities.clear();
-    if (
-      session.protocolError !== undefined ||
-      session.pending.size > 0 ||
-      session.pendingCommandCount > 1
-    )
+    // Queue reservations have not sent MI requests and do not affect synchronization.
+    if (session.protocolError !== undefined || session.pending.size > 0)
       throw new Error(
         "GDB MI state is not synchronized; inferior state is unknown.",
       );

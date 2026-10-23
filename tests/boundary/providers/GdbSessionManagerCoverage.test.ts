@@ -2236,49 +2236,65 @@ it.each([
   },
 );
 
-it("detaches a live inferior before the shared stop helper signals GDB", async () => {
-  const tty = "/dev/pts/42";
-  const commands: string[] = [];
-  let detached = false;
-  const fake = createFakeSpawner((_child, token, command) => {
-    commands.push(command);
-    if (command.includes("inferior-tty-show"))
-      fake.children[0]?.stdout.write(
-        `${token}^done,inferior_tty_terminal=${JSON.stringify(tty)}\n`,
-      );
-    else if (command.includes("list-thread-groups"))
-      fake.children[0]?.stdout.write(
-        detached
-          ? `${token}^done,groups=[]\n`
-          : `${token}^done,groups=[{id="i1",pid="123"}]\n`,
-      );
-    else {
-      if (command.includes("target-detach")) detached = true;
-      fake.children[0]?.stdout.write(`${token}^done\n`);
-    }
-  });
-  const manager = managerWithFakeSpawner(fake.spawnProcess);
-  const started = await expectGdbSessionStarted(manager, undefined, {
-    inferiorTty: tty,
-  });
+it.each([false, true])(
+  "detaches a live inferior with a queued follower: %s",
+  async (withFollower) => {
+    const tty = "/dev/pts/42";
+    const commands: string[] = [];
+    let detached = false;
+    const fake = createFakeSpawner((_child, token, command) => {
+      commands.push(command);
+      if (command.includes("inferior-tty-show"))
+        fake.children[0]?.stdout.write(
+          `${token}^done,inferior_tty_terminal=${JSON.stringify(tty)}\n`,
+        );
+      else if (command.includes("list-thread-groups"))
+        fake.children[0]?.stdout.write(
+          detached
+            ? `${token}^done,groups=[]\n`
+            : `${token}^done,groups=[{id="i1",pid="123"}]\n`,
+        );
+      else {
+        if (command.includes("target-detach")) detached = true;
+        fake.children[0]?.stdout.write(`${token}^done\n`);
+      }
+    });
+    const manager = managerWithFakeSpawner(fake.spawnProcess);
+    const started = await expectGdbSessionStarted(manager, undefined, {
+      inferiorTty: tty,
+    });
 
-  const closed = await manager.close(started.value.session_id);
+    const closing = manager.close(started.value.session_id);
+    const follower = withFollower
+      ? manager.execute(started.value.session_id, "show version")
+      : undefined;
+    const closed = await closing;
+    if (follower !== undefined)
+      expect(await follower).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisInputError" },
+      });
+    expect(commands.some((command) => command.includes("show version"))).toBe(
+      false,
+    );
+    expect(manager.status(started.value.session_id)).toBeUndefined();
 
-  expect(closed).toMatchObject({
-    ok: true,
-    value: { target_state: "unknown" },
-  });
-  expect(commands).toContain("-list-thread-groups --recurse 1");
-  expect(commands).toContain("-target-detach");
-  expect(
-    commands.filter((command) => command.includes("target-detach")),
-  ).toHaveLength(1);
-  expect(commands).not.toContain("-gdb-exit");
-  expect(commands.indexOf("-inferior-tty-show")).toBeLessThan(
-    commands.indexOf("-target-detach"),
-  );
-  expect(fake.children[0]?.killSignals).toEqual(["SIGTERM"]);
-});
+    expect(closed).toMatchObject({
+      ok: true,
+      value: { target_state: "unknown" },
+    });
+    expect(commands).toContain("-list-thread-groups --recurse 1");
+    expect(commands).toContain("-target-detach");
+    expect(
+      commands.filter((command) => command.includes("target-detach")),
+    ).toHaveLength(1);
+    expect(commands).not.toContain("-gdb-exit");
+    expect(commands.indexOf("-inferior-tty-show")).toBeLessThan(
+      commands.indexOf("-target-detach"),
+    );
+    expect(fake.children[0]?.killSignals).toEqual(["SIGTERM"]);
+  },
+);
 
 it("reports none observed when the inferior disappears before detach", async () => {
   const tty = "/dev/pts/42";

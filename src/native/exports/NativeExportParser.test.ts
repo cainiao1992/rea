@@ -127,6 +127,22 @@ describe("PE export directories", () => {
     ).toThrow("16-bit ordinals");
   });
 
+  it("ignores a trailing unused slot after the last 16-bit ordinal", () => {
+    const result = parse(
+      peExportImage({
+        ordinalBase: 0xffff,
+        functions: [{ rva: 0x2000 }, null],
+        names: [{ name: "Kept", index: 0 }],
+      }),
+    );
+
+    expect(result).toMatchObject({
+      coverage: { status: "complete", examined_entries: 2, exports: 1 },
+      issues: [],
+      exports: [{ name: "Kept", ordinal: 0xffff }],
+    });
+  });
+
   it("refuses an export table above the inventory allowance", () => {
     expect(() =>
       parseNativeExports(

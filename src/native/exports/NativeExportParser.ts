@@ -134,11 +134,6 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   const functionCount = reader.u32(header + 20);
   const nameCount = reader.u32(header + 24);
   rowBudget(functionCount, "PE export address table");
-  if (ordinalBase + functionCount > 0x10000)
-    throw new BinaryFormatFailure(
-      "malformed",
-      "PE export ordinal base and address-table size exceed 16-bit ordinals",
-    );
   rowBudget(nameCount, "PE export name table");
   const functions =
     functionCount === 0 ? 0 : map(reader.u32(header + 28), functionCount * 4);
@@ -193,6 +188,11 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     // A zero slot is an unused ordinal, not an export.
     if (rva === 0) continue;
     const ordinal = ordinalBase + index;
+    if (ordinal > 0xffff)
+      throw new BinaryFormatFailure(
+        "malformed",
+        "PE exported ordinal exceeds 16-bit ordinals",
+      );
     let target: Pick<PeExport, "address" | "forwarder">;
     if (rva >= directory.virtual_address && rva < forwarderEnd) {
       try {

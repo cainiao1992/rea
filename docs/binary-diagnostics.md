@@ -323,7 +323,8 @@ count and SHA-256.
 - PE rows reproduce the export directory: each used export-address-table slot
   with its `ordinal`, one row per name (aliases share an ordinal), `address`
   as the preferred-base virtual address, or `forwarder` text when the slot
-  forwards to another DLL. Ordinal-only exports have a null `name`. The
+  forwards to another DLL. Unused zero-address slots are omitted;
+  ordinal-only exports have a null `name`. The
   directory's DLL name, ordinal base and timestamp are reported, and an image
   without an export directory is a complete empty inventory.
 - ELF rows list defined `.dynsym` symbols with global, weak or GNU-unique

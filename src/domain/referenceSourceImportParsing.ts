@@ -152,6 +152,23 @@ const appendRelationship = (
   });
 };
 
+const appendImportEquals = (
+  statement: Node,
+  from_path: string,
+  relationships: ReferenceSourceImportRelationship[],
+  limitations: string[],
+): void => {
+  if (!isTSImportEqualsDeclaration(statement)) return;
+  const reference = statement.moduleReference;
+  if (!isTSExternalModuleReference(reference)) return;
+  appendRelationship(relationships, limitations, {
+    fromPath: from_path,
+    to: safeModuleName(reference.expression),
+    kind: "requires",
+    parseState: "parsed",
+  });
+};
+
 const extractImportDeclarations = (
   body: readonly Node[],
   from_path: string,
@@ -177,7 +194,16 @@ const extractImportDeclarations = (
           kind: "imports",
           parseState: "parsed",
         });
-      }
+      } else if (
+        statement.declaration !== null &&
+        statement.declaration !== undefined
+      )
+        appendImportEquals(
+          statement.declaration,
+          from_path,
+          relationships,
+          limitations,
+        );
       continue;
     }
 
@@ -192,15 +218,7 @@ const extractImportDeclarations = (
     }
 
     if (isTSImportEqualsDeclaration(statement)) {
-      const reference = statement.moduleReference;
-      if (isTSExternalModuleReference(reference)) {
-        appendRelationship(relationships, limitations, {
-          fromPath: from_path,
-          to: safeModuleName(reference.expression),
-          kind: "requires",
-          parseState: "parsed",
-        });
-      }
+      appendImportEquals(statement, from_path, relationships, limitations);
       continue;
     }
 

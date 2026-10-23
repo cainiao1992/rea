@@ -398,11 +398,17 @@ Entries that change during an import retain an unavailable-entry diagnostic
 alongside readable siblings. If enumeration of an already admitted root fails,
 the graph keeps its observed children and records the root failure as a
 top-level limitation. That partial inventory does not establish absence among
-unexamined children.
+unexamined children. POSIX directory-entry bytes that are not valid UTF-8 cannot
+be represented as graph paths; the containing directory (or root) is marked
+unsupported, and REA does not access the entry through a replacement-character
+name. Readable siblings remain inventoried.
 
 JavaScript and TypeScript import parsing requires valid UTF-8. Malformed source
 bytes retain their original hashes and sizes with a decoding diagnostic; REA
-does not infer module targets from replacement characters.
+does not infer module targets from replacement characters. Exact dynamic-import
+strings, expression-free templates and runtime-transparent TypeScript wrappers
+retain their targets; computed imports remain unknown. TypeScript import-equals
+dependencies remain `requires` relationships whether or not they are exported.
 
 Historical-source import requires safe no-follow file opens on Linux or
 macOS. Native Windows returns `unsupported_host`; use Linux REA inside WSL

@@ -1453,7 +1453,9 @@ const runLldb = async (
     const snapshot = supervisor.snapshot();
     const interruption = deadline.interruption;
     return await finish(
-      interruption === undefined
+      // Closed output with an observed exit owns a physical result. Read it
+      // before the outer success-only cancellation projection retains facts.
+      interruption === undefined || supervisor.observedExit() !== undefined
         ? {
             kind: "exited",
             exitCode: snapshot.exitCode ?? null,

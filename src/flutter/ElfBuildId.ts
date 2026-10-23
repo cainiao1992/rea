@@ -1,3 +1,4 @@
+import { MAX_FLUTTER_BUILD_ID_BYTES } from "../domain/flutter/flutterBuildAnalysis.js";
 import type { FileHandle } from "node:fs/promises";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
@@ -167,9 +168,9 @@ export const readElfBuildIds = async (
         type === 3 &&
         notes.subarray(at + 12, at + 16).equals(Buffer.from("GNU\0"))
       ) {
-        if (descsz < 4 || descsz > 64)
+        if (descsz < 1 || descsz > MAX_FLUTTER_BUILD_ID_BYTES)
           return failure(
-            "GNU build-id descriptor exceeds the 4–64 byte projection",
+            `GNU build-id descriptor is outside the 1–${MAX_FLUTTER_BUILD_ID_BYTES} byte projection`,
           );
         const candidate = notes.subarray(descriptor, end).toString("hex");
         if (!candidates.has(candidate) && candidates.size === MAX_BUILD_IDS)

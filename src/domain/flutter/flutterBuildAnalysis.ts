@@ -5,6 +5,14 @@ import { digestSchema } from "../digests.js";
 /** Full logical ZIP path budget, enforced by Flutter library inventory. */
 export const MAX_FLUTTER_LIBRARY_PATH_BYTES = 1024;
 
+/** Retained GNU build-ID descriptor budget, in bytes. */
+export const MAX_FLUTTER_BUILD_ID_BYTES = 64;
+const gnuBuildIdSchema = z
+  .string()
+  .min(2)
+  .max(MAX_FLUTTER_BUILD_ID_BYTES * 2)
+  .regex(/^(?:[0-9a-f]{2})+$/u);
+
 /**
  * A libapp label can occupy every remaining byte of an admitted path. Its
  * Unicode character count cannot exceed that byte count. The query permits
@@ -118,15 +126,13 @@ export const flutterResultSchemas = {
           present: z.boolean(),
           bytes: z.int().nonnegative().nullable(),
           sha256: digestSchema.nullable(),
-          build_id: z
-            .string()
-            .regex(/^[0-9a-f]{8,128}$/u)
+          build_id: gnuBuildIdSchema
             .nullable()
             .describe(
               "The single GNU build ID when ELF note coverage is complete and unambiguous",
             ),
           build_id_candidates: z
-            .array(z.string().regex(/^[0-9a-f]{8,128}$/u))
+            .array(gnuBuildIdSchema)
             .max(64)
             .describe(
               "Distinct GNU build IDs observed in ELF-owned note ranges; conflicting IDs remain explicit",

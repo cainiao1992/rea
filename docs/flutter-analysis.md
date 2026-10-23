@@ -108,6 +108,8 @@ server; older servers keep the complete request after schema discovery.
   `build_id_candidates` preserves distinct IDs. `build_id` is populated only
   when all declared note ranges were examined and one ID was found;
   conflicting IDs or malformed/bounded note metadata make coverage partial.
+  Nonempty GNU build-ID descriptors up to 64 bytes are retained as lowercase
+  hexadecimal, including IDs shorter than four bytes.
   Matching bytes outside declared note ranges cannot supply a build ID.
 - Labeled strings must fit their complete grammar. `dart_version_capped`
   and `toolchain_capped` independently report labels omitted by grammar or

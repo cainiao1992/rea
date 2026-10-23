@@ -1,3 +1,4 @@
+import { gnuBuildIdNote } from "../../src/native/elf/ElfNotes.fixture.js";
 import { createHash } from "node:crypto";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
@@ -242,6 +243,47 @@ cliTest(
             expect(evidence.limitations.join("\n")).toContain("note-range");
         }
       }
+    }
+  },
+);
+
+cliTest(
+  "CLI and stdio MCP preserve byte-sized GNU build IDs and descriptor coverage",
+  async ({ cli }) => {
+    const { call } = await connectLocalToolsMcp();
+    for (const bytes of [0, 1, 2, 3, 64, 65]) {
+      const hex = "ab".repeat(bytes);
+      const path = await createFlutterApk(`engine-${bytes}.apk`, [
+        { path: "lib/arm64-v8a/libapp.so", bytes: aotFixtureImage() },
+        {
+          path: "lib/arm64-v8a/libflutter.so",
+          bytes: engineFixtureImage({ notes: gnuBuildIdNote(hex) }),
+        },
+      ]);
+      const output = await cli.run({
+        arguments: ["identify-flutter-build", path, "--json"],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      const cliEvidence = parseEvidence(output.json);
+      const response = await call("identify_flutter_build", { path });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      const mcpEvidence = parseEvidence(response.structuredContent);
+      expect(mcpEvidence.normalized_result).toEqual(
+        cliEvidence.normalized_result,
+      );
+      const result = flutterResultSchemas.identify_flutter_build.parse(
+        cliEvidence.normalized_result,
+      );
+      const admitted = bytes > 0 && bytes <= 64;
+      expect(result.abis[0]?.libflutter).toMatchObject({
+        build_id: admitted ? hex : null,
+        build_id_candidates: admitted ? [hex] : [],
+      });
+      expect(result.coverage).toBe(admitted ? "complete" : "partial");
+      if (!admitted)
+        expect(cliEvidence.limitations.join("\n")).toContain(
+          "1–64 byte projection",
+        );
     }
   },
 );

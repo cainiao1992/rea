@@ -180,6 +180,33 @@ try {
     );
     assert.equal(opaque.threads.length, 1);
     cases++;
+    for (const [name, kind] of [
+      ["gnu-type3", 3],
+      ["gnu-file-collision", 0x46494c45],
+    ]) {
+      const value = await basic.inspect(mode, fixtures[name]);
+      assert.ok(
+        value.notes.some(
+          (note) =>
+            note.owner_display === "GNU" &&
+            note.type === kind &&
+            note.type_id === kind,
+        ),
+      );
+      assert.equal(value.threads.length, 1);
+      cases++;
+    }
+    for (const [name, kind, label] of [
+      ["aarch64-archext", 0x70000000, "PT_AARCH64_ARCHEXT"],
+      ["aarch64-unwind", 0x70000001, "PT_AARCH64_UNWIND"],
+    ]) {
+      const value = await basic.inspect(mode, fixtures[name]);
+      assert.equal(value.architecture, "aarch64-little-endian");
+      assert.equal(value.segments[0]?.type_id, kind);
+      assert.equal(value.segments[0]?.type, label);
+      assert.equal(value.threads.length, 0);
+      cases++;
+    }
     const noSignals = await basic.inspect(mode, fixtures["unknown-signals"]);
     assert.equal(noSignals.signals.length, 0);
     assert.equal(noSignals.threads.length, 2);

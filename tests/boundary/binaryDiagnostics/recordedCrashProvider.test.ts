@@ -609,7 +609,7 @@ const alterRecordedCrashReply = (
     }));
   if (scenario === "wrong-note-kind") {
     payload.notes = payload.notes.map((note) =>
-      note.index === 0 ? { ...note, type: "NT_AUXV" } : note,
+      note.index === 0 ? { ...note, type: "NT_AUXV", type_id: 6 } : note,
     );
     payload.threads = [];
   }

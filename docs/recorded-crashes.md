@@ -25,8 +25,16 @@ note interpretation; an unspecified OSABI alone does not prove OS origin.
   are inline through CLI and MCP.
 - Original program headers and recorded segment file/memory ranges. Undumped
   memory and current executable/library identity remain unknown.
+- Program headers and notes retain their original numeric `type_id` separately
+  from the decoder's `type` label. Source binding and semantic decisions use the
+  numeric identity; an architecture-specific display name does not establish
+  support for that segment's payload semantics.
 - Every note's original identity, owner/descriptor bytes and source ranges,
   including unfamiliar owners and note kinds.
+  CORE symbolic note labels apply only to the exact `CORE\0` owner. Other
+  owners keep numeric types, so GNU/type 3 remains opaque instead of acquiring
+  CORE process-info semantics, and a GNU-owned numeric NT_FILE collision does
+  not acquire debugger mapping authority.
 - Every exact Linux CORE PRSTATUS note as a separate recorded thread, with
   historical PID, signal and lossless uint64 registers bound to source bytes.
   Each supported note has exactly one interpretation; each thread contains the

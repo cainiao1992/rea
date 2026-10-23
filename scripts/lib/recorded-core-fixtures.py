@@ -64,6 +64,19 @@ save("truncated-owner", content)
 content = bytearray(original)
 content[status.n_offset + image.structs.Elf_Nhdr.sizeof()] = 255
 save("opaque-owner", content)
+for name, kind in [("gnu-type3", 3), ("gnu-file-collision", 0x46494c45)]:
+    content = bytearray(original)
+    note_header(content, status, n_type=kind)
+    owner_start = status.n_offset + image.structs.Elf_Nhdr.sizeof()
+    # Preserve the original five-byte name extent and all note alignment.
+    content[owner_start:owner_start + 5] = b"GNU\0\0"
+    save(name, content)
+for name, kind in [("aarch64-archext", 0x70000000), ("aarch64-unwind", 0x70000001)]:
+    header = Container(**dict(image.header, e_machine="EM_AARCH64", e_phoff=64, e_phentsize=56,
+                              e_phnum=1, e_shoff=0, e_shnum=0, e_shstrndx=0))
+    segment = Container(p_type=kind, p_flags=4, p_offset=120, p_vaddr=0, p_paddr=0,
+                        p_filesz=4, p_memsz=4, p_align=4)
+    save(name, image.structs.Elf_Ehdr.build(header) + image.structs.Elf_Phdr.build(segment) + bytes(4))
 content = bytearray(original)
 for note in notes:
     if note.n_type == "NT_SIGINFO":

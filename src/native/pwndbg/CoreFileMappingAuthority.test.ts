@@ -15,6 +15,15 @@ function mapping(paths: readonly Buffer[]) {
 }
 
 describe("core-only NT_FILE authority", () => {
+  it("keeps GNU-owned colliding note numbers outside CORE mapping authority", () => {
+    const { report, bytes } = mapping([Buffer.from("../unsafe")]);
+    expect(validateCoreFileMappingAuthority(report, bytes).ok).toBe(false);
+    report.notes[0]!.owner_bytes_base64 =
+      Buffer.from("GNU\0\0").toString("base64");
+    report.notes[0]!.owner_display = "GNU";
+    report.notes[0]!.type = 0x46494c45;
+    expect(validateCoreFileMappingAuthority(report, bytes).ok).toBe(true);
+  });
   it.each([
     "/usr/bin/app",
     "//usr/lib/libc.so",

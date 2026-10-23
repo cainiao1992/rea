@@ -4,50 +4,13 @@ import {
   type RecordedCrash,
 } from "../../domain/native/recordedCrash.js";
 
-// Exact amd64/core enum projections in the pinned pyelftools 0.33 profile.
-const segmentKinds = new Map([
-  [0, "PT_NULL"],
-  [1, "PT_LOAD"],
-  [2, "PT_DYNAMIC"],
-  [3, "PT_INTERP"],
-  [4, "PT_NOTE"],
-  [5, "PT_SHLIB"],
-  [6, "PT_PHDR"],
-  [7, "PT_TLS"],
-  [0x60000000, "PT_LOOS"],
-  [0x6fffffff, "PT_HIOS"],
-  [0x6474e550, "PT_GNU_EH_FRAME"],
-  [0x6474e551, "PT_GNU_STACK"],
-  [0x6474e552, "PT_GNU_RELRO"],
-  [0x6474e553, "PT_GNU_PROPERTY"],
-]);
-const noteKinds = new Map([
-  [1, "NT_PRSTATUS"],
-  [2, "NT_FPREGSET"],
-  [3, "NT_PRPSINFO"],
-  [4, "NT_TASKSTRUCT"],
-  [6, "NT_AUXV"],
-  [0x53494749, "NT_SIGINFO"],
-  [0x46494c45, "NT_FILE"],
-]);
-const matchesKind = (
-  raw: number,
-  reported: string | number,
-  kinds: ReadonlyMap<number, string>,
-): boolean => {
-  const known = kinds.get(raw);
-  return typeof reported === "string"
-    ? reported === known
-    : known === undefined && reported === raw;
-};
-
 const segmentMatches = (
   segment: RecordedCrash["segments"][number],
   raw: Buffer,
 ): boolean => {
   const type = raw.readUInt32LE(0);
   return (
-    matchesKind(type, segment.type, segmentKinds) &&
+    type === segment.type_id &&
     BigInt(segment.flags) === BigInt(raw.readUInt32LE(4)) &&
     segment.file_backing ===
       (type === 0 || raw.readBigUInt64LE(32) === 0n ? "none" : "file") &&
@@ -122,19 +85,8 @@ export function validateRecordedCrashStructure(
     if (
       BigInt(note.owner_location.bytes) !== BigInt(raw.readUInt32LE(0)) ||
       BigInt(note.descriptor_location.bytes) !== BigInt(raw.readUInt32LE(4)) ||
-      !matchesKind(raw.readUInt32LE(8), note.type, noteKinds)
+      raw.readUInt32LE(8) !== note.type_id
     )
-      fail();
-    const owner = bytesAt(
-      BigInt(note.owner_location.offset),
-      raw.readUInt32LE(0),
-    );
-    const terminator = owner.indexOf(0);
-    const display =
-      owner.length === 0
-        ? null
-        : owner.subarray(0, terminator).toString("utf8");
-    if ((owner.length > 0 && terminator < 0) || note.owner_display !== display)
       fail();
   }
 }

@@ -31,6 +31,7 @@ import { assignmentValueSources } from "./javascriptSemanticRequireOrigin.js";
 import { semanticRuntimeExportValueSources } from "./javascriptModuleDeclaration.js";
 import {
   commonJsRuntimeExportValues,
+  commonJsExportApplicability,
   indexCommonJsExportReceiversSteps,
   type CommonJsExportReceiverEffect,
   type CommonJsExportSite,
@@ -366,13 +367,14 @@ export const createSemanticElectronAppPathChangeQuery = (
     commonJsReceivers ??= completeSemanticSteps(
       indexCommonJsExportReceiversSteps(state),
     );
-    return (
-      commonJsReceivers.get(node) !== "detached" &&
-      exported.some(
-        ({ value, projection, ownEnumerable }) =>
-          value !== null &&
-          possiblePath(value, true, projection, ownEnumerable),
-      )
+    return exported.some(
+      ({ exportedName, value, projection, ownEnumerable }) =>
+        commonJsExportApplicability(
+          commonJsReceivers.get(node),
+          exportedName,
+        ) !== "detached" &&
+        value !== null &&
+        possiblePath(value, true, projection, ownEnumerable),
     );
   };
 };

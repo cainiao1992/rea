@@ -51,10 +51,18 @@ const commonJsExportInvocation = (
   return interop.intrinsicInvocation(node);
 };
 
-export type CommonJsExportReceiverEffect =
-  | "connected"
-  | "detached"
-  | "uncertain";
+type ReceiverStatus = "connected" | "detached" | "uncertain";
+export interface CommonJsExportReceiverEffect {
+  readonly receiver: ReceiverStatus;
+  readonly fields?: ReadonlyMap<string, ReceiverStatus>;
+}
+
+/** Publication is selected per field; one assign site can publish many fields. */
+export const commonJsExportApplicability = (
+  effect: CommonJsExportReceiverEffect | undefined,
+  name: string,
+): ReceiverStatus =>
+  effect?.fields?.get(name) ?? effect?.receiver ?? "connected";
 
 /** A CommonJS export assignment or `Object.defineProperty` export call. */
 export type CommonJsExportSite = t.AssignmentExpression | t.CallExpression;
@@ -366,6 +374,7 @@ export function* indexCommonJsExportReceiversSteps(
   const fresh = new WeakSet<t.Node>([initial]);
   const values = new WeakMap<t.Node, Identity>();
   const captures = new Map<CommonJsExportSite, Identity>();
+  const describedFields = new Map<Identity, Set<string>>();
   const deletions = new Map<
     Identity,
     Map<string, { readonly node: t.Node; readonly mode: Execution }>
@@ -463,9 +472,20 @@ export function* indexCommonJsExportReceiversSteps(
               : publicIdentity,
         );
       }
-      const defined =
-        commonJsDefinedExport(node, state) ??
-        commonJsAssignedExports(node, state);
+      const descriptor = commonJsDefinedExport(node, state);
+      if (descriptor !== undefined) {
+        const receiver = isUnshadowedGlobal(
+          descriptor.receiver,
+          state,
+          "exports",
+        )
+          ? exportsIdentity
+          : publicIdentity;
+        const names = describedFields.get(receiver) ?? new Set<string>();
+        names.add(descriptor.exportedName);
+        describedFields.set(receiver, names);
+      }
+      const defined = descriptor ?? commonJsAssignedExports(node, state);
       if (defined !== undefined && t.isCallExpression(node))
         captures.set(
           node,
@@ -513,7 +533,7 @@ export function* indexCommonJsExportReceiversSteps(
           const name = commonJsExportName(node.argument, state);
           if (
             name !== undefined &&
-            name !== "default" &&
+            !isCommonJsModuleExports(node.argument, state) &&
             (t.isMemberExpression(node.argument) ||
               t.isOptionalMemberExpression(node.argument))
           ) {
@@ -554,37 +574,46 @@ export function* indexCommonJsExportReceiversSteps(
   });
   const effects = new Map<CommonJsExportSite, CommonJsExportReceiverEffect>();
   for (const [node, receiver] of captures) {
-    const removed = commonJsRuntimeExportValues(node, state).flatMap(
-      ({ exportedName }) => {
-        const fields = deletions.get(receiver);
-        return [fields?.get(exportedName), fields?.get("*")].filter(
-          (deletion) =>
-            deletion !== undefined &&
-            (deletion.mode === "deferred" ||
-              (deletion.node.start ?? -1) > (node.start ?? -1)),
-        );
-      },
-    );
-    if (removed.length > 0) {
-      effects.set(
-        node,
-        removed.some((deletion) => deletion?.mode !== "ordered") ||
-          receiver === null
-          ? "uncertain"
-          : "detached",
-      );
-      continue;
-    }
-    effects.set(
-      node,
+    const status: ReceiverStatus =
       deferredReplacement || receiver === null || publicIdentity === null
         ? "uncertain"
         : receiver === publicIdentity
           ? "connected"
           : fresh.has(receiver) && fresh.has(publicIdentity)
             ? "detached"
-            : "uncertain",
-    );
+            : "uncertain";
+    const fields = new Map<string, ReceiverStatus>();
+    for (const { exportedName } of commonJsRuntimeExportValues(node, state)) {
+      const removed = [
+        deletions.get(receiver)?.get(exportedName),
+        deletions.get(receiver)?.get("*"),
+      ].filter(
+        (deletion) =>
+          deletion !== undefined &&
+          (deletion.mode === "deferred" ||
+            (deletion.node.start ?? -1) > (node.start ?? -1)),
+      );
+      if (removed.length === 0) continue;
+      // An ordinary publication creates configurable data slots. Descriptor
+      // definitions do not establish deletion success without their flags.
+      const configurable =
+        (t.isAssignmentExpression(node) ||
+          commonJsAssignedExports(node, state) !== undefined) &&
+        !describedFields.get(receiver)?.has(exportedName) &&
+        !describedFields.get(receiver)?.has("*");
+      fields.set(
+        exportedName,
+        configurable &&
+          status !== "uncertain" &&
+          removed.every((deletion) => deletion?.mode === "ordered")
+          ? "detached"
+          : "uncertain",
+      );
+    }
+    effects.set(node, {
+      receiver: status,
+      ...(fields.size === 0 ? {} : { fields }),
+    });
   }
   return effects;
 }

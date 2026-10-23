@@ -1234,6 +1234,22 @@ it("preserves export lifetime and selected value facts through retained comparis
   });
 });
 
+it("retains provenance-only depth omissions alongside unaffected export facts", async () => {
+  const graphs = await analyzeSources({
+    left: `const deep=${"a=".repeat(300)}"x"; export default()=>({type:"stable",value:7});`,
+    right: `const deep=${"a=".repeat(10)}"x"; export default()=>({type:"stable",value:7});`,
+  });
+  expect(graphs[0].graph.coverage).toMatchObject({
+    status: "partial",
+    omitted_count: null,
+    limits: expect.arrayContaining([
+      expect.objectContaining({ name: "javascript_semantic_expression_depth" }),
+    ]),
+  });
+  expect(graphs[1].graph.coverage.status).toBe("complete");
+  expect(compare(...graphs).changes).toEqual([]);
+});
+
 type GraphSource = Awaited<ReturnType<typeof analyzeGraph>>;
 
 const compare = (

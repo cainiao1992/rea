@@ -60,3 +60,32 @@ it("retains captured object-copy literals and known logical/conditional values",
     ],
   });
 });
+
+it("selects deletion applicability per published field and preserves descriptor uncertainty", () => {
+  const ir = analyzeJavaScriptSemantics(`
+    Object.assign(exports,{deleted:()=>1,intact:()=>2}); delete exports.deleted;
+    exports.default=()=>3; delete exports.default;
+    Object.defineProperty(exports,"protected",{value:()=>4,enumerable:true}); delete exports.protected;
+  `);
+  const exports = ir.moduleLinks.filter(
+    ({ kind }) => kind === "commonjs-export",
+  );
+  expect(exports.map(({ exportedName }) => exportedName).sort()).toEqual([
+    "intact",
+    "protected",
+  ]);
+  expect(
+    exports.find(({ exportedName }) => exportedName === "protected")
+      ?.callableId,
+  ).toBeNull();
+});
+
+it("does not copy array holes over retained own object properties", () => {
+  const ir = analyzeJavaScriptSemantics(
+    `export function observe(){ const copied={0:1,...[,]}; return copied[0]; }`,
+  );
+  expect(onlyCallable(ir, "observe").returnSites[0]?.value).toEqual({
+    status: "literal",
+    value: 1,
+  });
+});

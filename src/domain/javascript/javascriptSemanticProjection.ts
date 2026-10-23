@@ -40,6 +40,7 @@ import {
 } from "./javascriptModuleDeclaration.js";
 import {
   commonJsRuntimeExportValues,
+  commonJsExportApplicability,
   type CommonJsExportReceiverEffect,
   type CommonJsExportSite,
 } from "./javascriptCommonJsExportReceivers.js";
@@ -468,17 +469,21 @@ const collectCommonJsExport = (
   state: JavaScriptSemanticAnalysisState,
   receiverEffect: CommonJsExportReceiverEffect | undefined,
 ): void => {
-  if (receiverEffect === "detached") return;
-  // Compound and logical writes also depend on the previous value, so remain
-  // unknown.
-  for (const exported of commonJsRuntimeExportValues(node, state))
+  // Compound and logical writes also depend on the previous value, so remain unknown.
+  for (const exported of commonJsRuntimeExportValues(node, state)) {
+    const applicability = commonJsExportApplicability(
+      receiverEffect,
+      exported.exportedName,
+    );
+    if (applicability === "detached") continue;
     addCommonJsExport(
       node,
       state,
       exported.exportedName,
-      receiverEffect === "uncertain" ? null : exported.value,
+      applicability === "uncertain" ? null : exported.value,
       exported.projection,
     );
+  }
 };
 
 const addCommonJsExport = (

@@ -392,7 +392,10 @@ name on each authenticated graph. Missing or duplicate exact selectors return
 candidate inventory and an unknown result; the tool never chooses a fuzzy
 match. An export is linked to a callable only through exact lexical/module
 relationships recovered by the AST analysis. A later named CommonJS deletion
-invalidates the earlier publication at the receiver owner. Conditional or
+invalidates the earlier publication per exported field at the receiver owner;
+surviving fields from the same assignment stay available. Descriptor-defined
+fields retain unknown deletion success unless configurability is established.
+Conditional or
 dynamic deletions retain uncertainty. Unresolved invocation spreads remain
 unknown source sequences and cannot publish a phantom array index.
 
@@ -401,8 +404,10 @@ through an execution-free value lattice. Literal object fields and direct
 return sites are represented in the result. Calls, dynamic spreads, computed
 keys, and parser recovery remain partial or unknown. Known conditional and
 logical tests select only the established branch; uncertain tests retain
-alternatives. Object copies preserve known own data fields at copy time while
-unknown sources retain incomplete coverage.
+alternatives. Object copies preserve known own primitive data fields at copy time while
+unknown sources retain incomplete coverage. Array holes do not overwrite own
+fields during a copy. Copied reference fields keep explicit uncertainty; shared
+reference projection remains responsible for their later member reads.
 Declaration initializers and later assignments share the binding-at-read owner;
 a declaration-only `var` read before its initializer does not inherit the future
 value. Earlier `break`/`continue` paths can leave a var initializer unexecuted.
@@ -483,7 +488,9 @@ escape uncertainty. External prototype changes and unsupported runtime protocols
 remain unknown rather than supplying exact post-invocation values.
 Identifier references and closure captures share Babel syntax-role facts plus
 explicit binding/write roles; noncomputed declaration keys and import/meta names
-are not lexical reads. Direct generator and async calls produce iterators and
+are not lexical reads. Provenance-only expression-depth omissions enter the same typed source coverage
+as value-evaluation bounds and remain visible in retained application Evidence.
+Direct generator and async calls produce iterators and
 Promises; body returns do not become direct call-result flows. Their unresolved
 consumption remains an explicit frontier. Replaced emitter bindings select their
 initializer lifetime at each operation. A lexical `this` owner remains partial

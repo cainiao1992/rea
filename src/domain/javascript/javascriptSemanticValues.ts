@@ -18,7 +18,10 @@ import {
   semanticBindingAtRead,
 } from "./javascriptSemanticMutationInitializers.js";
 
-import { semanticSlotAtPath } from "./javascriptSemanticSlots.js";
+import {
+  semanticSlotAtPath,
+  semanticContainer,
+} from "./javascriptSemanticSlots.js";
 
 import {
   invalidateSemanticEscapedPath,
@@ -810,9 +813,10 @@ const evaluateObject = (
   };
   for (const property of node.properties) {
     if (t.isSpreadElement(property)) {
-      const copied = evaluateCapturedExpression(
+      const copied = evaluateExpression(
         property.argument,
-        nestedContext(context),
+        captureContextAt(property.argument, nestedContext(context)) ??
+          nestedContext(context),
       );
       if (copied.status === "object" || copied.status === "array") {
         const unknown =
@@ -824,10 +828,19 @@ const evaluateObject = (
           omittedProperties = null;
           invalidateEarlierProperties();
         }
-        for (const field of copied.status === "object"
-          ? copied.properties
-          : copied.items)
-          propertiesByName.set(field.name, field);
+        for (const field of semanticContainer(copied).slots) {
+          if (field.presence === "absent") continue;
+          propertiesByName.set(field.name, {
+            ...field,
+            value: isPrimitive(field.value)
+              ? field.value
+              : {
+                  status: "unknown",
+                  reason:
+                    "Copied reference fields retain live identity rather than a scalar snapshot.",
+                },
+          });
+        }
       } else if (
         copied.status !== "literal" ||
         typeof copied.value === "string"
@@ -1205,6 +1218,7 @@ const provenanceForExpression = (
 ): JavaScriptBindingProvenance => {
   if (context.expressionDepth > SEMANTIC_EXPRESSION_DEPTH_LIMIT) {
     context.dependence.lowest = EVERY_CALLER;
+    context.state.valueResourceLimits.add("expression-depth");
     return semanticUnresolvedProvenance(
       "unknown",
       semanticResourceLimitReason("expression-depth"),
@@ -1217,6 +1231,7 @@ const provenanceForExpression = (
       SEMANTIC_EXPRESSION_DEPTH_LIMIT
     ) {
       context.dependence.lowest = EVERY_CALLER;
+      context.state.valueResourceLimits.add("expression-depth");
       return semanticUnresolvedProvenance(
         "unknown",
         semanticResourceLimitReason("expression-depth"),

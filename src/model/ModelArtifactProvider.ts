@@ -239,7 +239,8 @@ export class ModelArtifactProvider implements ModelArtifactPort {
       if (
         error.partialObservation === undefined &&
         partialProgress !== undefined &&
-        (partialProgress.metadata.length > 0 ||
+        (partialProgress.coverage.header === "complete" ||
+          partialProgress.metadata.length > 0 ||
           partialProgress.tensor_declarations.length > 0 ||
           partialProgress.tensors.length > 0)
       ) {
@@ -277,62 +278,57 @@ export class ModelArtifactProvider implements ModelArtifactPort {
     const first = await reader.take(4);
     if (first.equals(Buffer.from([0x50, 0x4b, 3, 4]))) rejectPickle();
     const format = first.equals(Buffer.from("GGUF")) ? "gguf" : "safetensors";
-    let partial: ModelArtifactPartial | undefined;
-    if (format === "gguf") {
-      partial = {
-        kind: "model-artifact-partial",
-        artifact: {
-          path: input.path,
-          observed_file_size: Number(initial.size),
-          header_sha256: null,
-          sha256: null,
-          file_identity: "unverified",
-        },
-        format,
-        version: null,
-        byte_order: null,
-        alignment: null,
-        declared_metadata_count: null,
-        declared_tensor_count: null,
-        metadata: [],
-        tensor_declarations: [],
-        tensors: [],
-        coverage: {
-          header: "partial",
-          metadata: "not-started",
-          tensors: "not-started",
-        },
-        limitations: [
-          "This partial observation contains only rows fully parsed before the interrupted read.",
-          "Header and full-file digests and final file identity are unknown because finalization did not complete.",
-          "No model behavior or tensor payload values were interpreted.",
-        ],
-      };
-      retainProgress?.(partial);
-    }
+    const partial: ModelArtifactPartial = {
+      kind: "model-artifact-partial",
+      artifact: {
+        path: input.path,
+        observed_file_size: Number(initial.size),
+        header_sha256: null,
+        sha256: null,
+        file_identity: "unverified",
+      },
+      format,
+      version: null,
+      byte_order: null,
+      alignment: null,
+      declared_metadata_count: null,
+      declared_tensor_count: null,
+      metadata: [],
+      tensor_declarations: [],
+      tensors: [],
+      coverage: {
+        header: "partial",
+        metadata: "not-started",
+        tensors: "not-started",
+      },
+      limitations: [
+        "This partial observation contains only rows fully parsed before the interrupted read.",
+        "Header and full-file digests and final file identity are unknown because finalization did not complete.",
+        "No model behavior or tensor payload values were interpreted.",
+      ],
+    };
+    retainProgress?.(partial);
     const parsed =
       format === "gguf"
         ? await new GgufHeader(reader).read({
             onHeader: (info) => {
-              if (partial === undefined) return;
               partial.version = info.version;
               partial.byte_order = info.byte_order;
               partial.declared_metadata_count = info.declared_metadata_count;
               partial.declared_tensor_count = info.declared_tensor_count;
               partial.coverage.metadata = "partial";
             },
-            onMetadata: (row) => partial?.metadata.push(row),
+            onMetadata: (row) => partial.metadata.push(row),
             onAlignment: (alignment) => {
-              if (partial !== undefined) partial.alignment = alignment;
+              partial.alignment = alignment;
             },
             onMetadataComplete: () => {
-              if (partial !== undefined) partial.coverage.metadata = "complete";
+              partial.coverage.metadata = "complete";
             },
             onTensorsStarted: () => {
-              if (partial !== undefined) partial.coverage.tensors = "partial";
+              partial.coverage.tensors = "partial";
             },
-            onTensorDeclaration: (row) =>
-              partial?.tensor_declarations.push(row),
+            onTensorDeclaration: (row) => partial.tensor_declarations.push(row),
           })
         : await readSafetensorsHeader(reader, first);
     const intervals = parsed.tensors
@@ -344,12 +340,19 @@ export class ModelArtifactProvider implements ModelArtifactPort {
         rejectModel(`Overlapping tensor byte ranges at ${row.name}`);
       end = Math.max(end, row.file_offset + (row.byte_length ?? 0));
     }
-    if (partial !== undefined && format === "gguf") {
-      partial.tensor_declarations = [];
-      partial.tensors = parsed.tensors;
-      partial.coverage.tensors = "complete";
-      partial.coverage.header = "complete";
-    }
+    partial.version = parsed.version;
+    partial.byte_order = parsed.byte_order;
+    partial.alignment = parsed.alignment;
+    partial.metadata = parsed.metadata;
+    partial.declared_metadata_count = parsed.metadata.length;
+    partial.declared_tensor_count = parsed.tensors.length;
+    partial.tensor_declarations = [];
+    partial.tensors = parsed.tensors;
+    partial.coverage = {
+      header: "complete",
+      metadata: "complete",
+      tensors: "complete",
+    };
     const header_length = reader.position;
     const hashes = await reader.finish(input.hash === "full");
     const after = await file.stat({ bigint: true });

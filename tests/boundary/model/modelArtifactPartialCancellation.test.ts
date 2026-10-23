@@ -5,7 +5,7 @@ import { expect, it, vi } from "vitest";
 import { ModelArtifactProvider } from "../../../src/model/ModelArtifactProvider.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
-import { ggufFixture } from "../../fixtures/model/model.js";
+import { ggufFixture, safetensorsFixture } from "../../fixtures/model/model.js";
 
 const cancelledArrayFixture = (alignment?: number) => {
   const seed = ggufFixture();
@@ -229,23 +229,40 @@ it("retains completed GGUF tensor declarations before later tensor bytes cancel"
   }
 });
 
-it.each([32, 64])(
-  "retains resolved GGUF alignment %s when full hashing is cancelled",
-  async (alignment) => {
+it.each([
+  { format: "gguf", alignment: 32 },
+  { format: "gguf", alignment: 64 },
+  { format: "safetensors", alignment: null },
+])(
+  "retains parsed $format facts with alignment $alignment when full hashing is cancelled",
+  async ({ format, alignment }) => {
     const root = await mkdtemp(join(tmpdir(), "rea-model-hash-cancel-"));
-    const path = join(root, "model.gguf");
-    const fixture = ggufFixture({
-      ...(alignment === 32 ? {} : { alignment }),
-      tensors: [
-        {
-          name: "weight",
-          type: 0,
-          shape: [524288n],
-          offset: 0n,
-          bytes: 2 * 1024 * 1024,
-        },
-      ],
-    });
+    const path = join(root, `model.${format}`);
+    const fixture =
+      format === "safetensors"
+        ? safetensorsFixture(
+            JSON.stringify({
+              __metadata__: { author: "test" },
+              weight: {
+                dtype: "F32",
+                shape: [524288],
+                data_offsets: [0, 2 * 1024 * 1024],
+              },
+            }),
+            Buffer.alloc(2 * 1024 * 1024),
+          )
+        : ggufFixture({
+            ...(alignment === 64 ? { alignment } : {}),
+            tensors: [
+              {
+                name: "weight",
+                type: 0,
+                shape: [524288n],
+                offset: 0n,
+                bytes: 2 * 1024 * 1024,
+              },
+            ],
+          });
     await writeFile(path, fixture.bytes);
     const sample = await open(path, "r");
     const prototype = Object.getPrototypeOf(sample) as {
@@ -296,7 +313,12 @@ it.each([32, 64])(
         parseEvidence(result.error.partialObservation).normalized_result,
       ).toMatchObject({
         kind: "model-artifact-partial",
+        format,
         alignment,
+        declared_tensor_count: 1,
+        tensors: [
+          expect.objectContaining({ name: "weight", shape: ["524288"] }),
+        ],
         coverage: {
           header: "complete",
           metadata: "complete",

@@ -42,6 +42,12 @@ check descriptor and selected-path identity and metadata before completion;
 this detects observed replacement or modification, not adversarial modification
 that defeats filesystem metadata checks.
 
+If full-file hashing fails or is cancelled after either format's header has
+been validated, partial Evidence retains the parsed metadata and tensor directory.
+Header coverage is complete; digests and final file identity remain unknown.
+Safetensors header parsing is atomic, so interruption before validation does not
+expose unvalidated JSON rows.
+
 ## Facts and selected queries
 
 GGUF reports version, byte order, alignment, typed metadata, and each tensor's

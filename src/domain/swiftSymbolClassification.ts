@@ -42,7 +42,14 @@ export const classifySwiftSymbol = (
       // A zero-prefixed identifier uses word substitutions or Punycode. We
       // cannot tell whether it continues a nested type or names a member, so
       // retaining the outer category would be a guess.
-      if (mangling.charAt(offset) === "0") category = null;
+      if (
+        mangling.charAt(offset) === "0" ||
+        // A substituted module can introduce a constrained extension after
+        // the nominal type. This parser does not decode that context, so it
+        // cannot retain the preceding nominal category as the member's owner.
+        mangling.startsWith("AA", offset)
+      )
+        category = null;
       break;
     }
     const kind = mangling.charAt(end);

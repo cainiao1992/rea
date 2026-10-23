@@ -25,6 +25,30 @@ describe("modern Swift category evidence", () => {
     });
   });
 
+  it("keeps undecoded substituted extension contexts unclassified", () => {
+    const names = [
+      "_$s1M7WrapperVAASQRzlE4sameySbxF",
+      "_$s1M3BoxVAARi_zrlE1vxvM",
+    ];
+    const result = categorizeSwiftTypes(
+      names.map((name, index) => ({ address: String(index), name })),
+    );
+    expect(result.categories.structs.count).toBe(0);
+    expect(result.categories.other.count).toBe(2);
+    expect(result.unclassified.map(({ name }) => name)).toEqual(names);
+    const controls = [
+      ["_$s1M7WrapperV1vxvg", "structs"],
+      ["_$s1M7WrapperVMa", "structs"],
+      ["_$s1M7WrapperVACyxGxcfC", "structs"],
+      ["_$s10Foundation4DataV1ME10countTwiceSiyF", "extensions"],
+    ] as const;
+    for (const [name, category] of controls)
+      expect(
+        categorizeSwiftTypes([{ address: "0x1", name }]).categories[category]
+          .count,
+      ).toBe(1);
+  });
+
   it("retains unresolved Swift observations under category filters", () => {
     const names = [
       "$s4main13swiftIndirectySiAA7Scoring_p_SitF",

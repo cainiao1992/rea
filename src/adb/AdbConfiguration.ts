@@ -51,6 +51,7 @@ export const resolveAdbBinary = (
 export type AdbConfigurationFailureCode =
   | "not_absolute"
   | "binary_missing"
+  | "binary_not_executable"
   | "version_unresolved";
 
 export class AdbConfigurationFailure extends Error {
@@ -173,6 +174,18 @@ export const inspectAdbClient = async (
         },
         { cause },
       );
+    if (failure?.code === "EACCES" || failure?.code === "EPERM")
+      throw new AdbConfigurationFailure(
+        "binary_not_executable",
+        `Execution of the selected adb binary was denied (${failure.code}): ${selection.binary}`,
+        {
+          selected_binary: selection.binary,
+          path_source: selection.pathSource,
+          filesystem_error: failure.code,
+          remediation: `Check file type and execute permission for ${ADB_BINARY_ENV} or select an executable adb binary`,
+        },
+        { cause },
+      );
     throw new AdbConfigurationFailure(
       "version_unresolved",
       "The selected adb binary did not report a usable version",
@@ -196,7 +209,7 @@ const rejectionCodeOf = (
 ): ProviderRejectionCode =>
   code === "binary_missing"
     ? "executable_missing"
-    : code === "not_absolute"
+    : code === "not_absolute" || code === "binary_not_executable"
       ? "not_configured"
       : "version_unresolved";
 

@@ -2013,12 +2013,20 @@ ${shellStub({ "am:start": "Starting: Intent { act=android.intent.action.VIEW dat
       action: "android.intent.action.VIEW",
       data_uri: "https://example.com/",
       extras: [
-        { key: "level", type: "int", value: "3" },
+        { key: "level", type: "int", value: "010" },
+        { key: "negative", type: "int", value: "-010" },
+        { key: "eight", type: "int", value: "08" },
         { key: "label", type: "string", value: "probe" },
       ],
     },
   });
   expect(started.action).toBe("android.intent.action.VIEW");
+  expect(started.extras).toEqual([
+    { key: "level", type: "int", value: "010" },
+    { key: "negative", type: "int", value: "-010" },
+    { key: "eight", type: "int", value: "08" },
+    { key: "label", type: "string", value: "probe" },
+  ]);
   const logged = (await readFile(join(root, "argv.log"), "utf8"))
     .trim()
     .split("\n");
@@ -2036,7 +2044,13 @@ ${shellStub({ "am:start": "Starting: Intent { act=android.intent.action.VIEW dat
     "https://example.com/",
     "--ei",
     "level",
-    "3",
+    "10",
+    "--ei",
+    "negative",
+    "-10",
+    "--ei",
+    "eight",
+    "8",
     "--es",
     "label",
     "probe",
@@ -2121,4 +2135,80 @@ it("reports cancellation arriving during the version probe", async () => {
   } finally {
     clearTimeout(timer);
   }
+});
+
+it("preserves the typed offline failure and failed paths when every package pull fails", async () => {
+  const { binary, root } = await writeAdbStub(
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$3" = "shell" ]; then printf 'package:/data/app/base.apk\\n'; exit 0; fi
+if [ "$3" = "pull" ]; then printf 'error: device offline\\n' >&2; exit 1; fi
+exit 1`,
+  );
+  const result = await providerOver(binary).execute({
+    operation: "pull_adb_package",
+    input: {
+      serial: "emulator-5554",
+      package: "com.example",
+      output_directory: join(root, "pulls"),
+    },
+  });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "unsupported_target",
+    details: { reason: "error: device offline" },
+  });
+  expect(result.error.partialObservation).toMatchObject({
+    result: {
+      artifacts: [],
+      failures: [{ device_path: "/data/app/base.apk", stage: "pull" }],
+      coverage: "partial",
+    },
+  });
+});
+
+it("retains a completed push when checksum capture exceeds its budget", async () => {
+  const { binary, root } = await writeAdbStub(
+    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
+if [ "$3" = "push" ]; then exit 0; fi
+if [ "$4" = "sha256sum" ]; then head -c 2048 /dev/zero | tr '\\000' a; exit 0; fi
+exit 1`,
+  );
+  const local = join(root, "payload.bin");
+  await writeFile(local, "payload");
+  const result = await providerOver(binary).execute({
+    operation: "push_adb_file",
+    input: {
+      serial: "emulator-5554",
+      local_path: local,
+      device_path: "/data/local/tmp/payload.bin",
+      overwrite: true,
+    },
+  });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "resource_constraint",
+    details: { operation: "push_adb_file" },
+  });
+  expect(result.error.partialObservation).toBeDefined();
+});
+
+it("attributes version capture failures to the public operation and retains the prerequisite", async () => {
+  const { binary } = await writeAdbStub(
+    () => "head -c 70000 /dev/zero | tr '\\000' a",
+  );
+  const result = await providerOver(binary).execute({
+    operation: "list_adb_devices",
+    input: {},
+  });
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "resource_constraint",
+    details: {
+      operation: "list_adb_devices",
+      diagnostics: { prerequisite_operation: "inspect_adb_client" },
+    },
+  });
 });

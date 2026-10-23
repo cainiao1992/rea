@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseAmStartOutput,
+  parsePackageChangeOutput,
   parseDumpsysPackageOutput,
   parseWmDensityOutput,
   parseWindowFocusOutput,
@@ -18,6 +19,16 @@ const packageDump = (installerLine: string | undefined): string =>
   ].join("\n");
 
 describe("parseDumpsysPackageOutput", () => {
+  it.each(["userId", "appId"])(
+    "retains the printed %s package identifier",
+    (key) => {
+      expect(
+        parseDumpsysPackageOutput(
+          `Packages:\n  Package [com.example] (abcdef):\n    ${key}=10234\n`,
+        ).userId,
+      ).toBe(10234);
+    },
+  );
   it.each(["", "  My Build  ", "  ", "null"])(
     "preserves the printed version name %j",
     (versionName) => {
@@ -224,6 +235,16 @@ describe("parseWindowFocusOutput declaration presence", () => {
 });
 
 describe("parseDumpsysPackageOutput", () => {
+  it.each(["userId", "appId"])(
+    "retains the printed %s package identifier",
+    (key) => {
+      expect(
+        parseDumpsysPackageOutput(
+          `Packages:\n  Package [com.example] (abcdef):\n    ${key}=10234\n`,
+        ).userId,
+      ).toBe(10234);
+    },
+  );
   it("reports unknown requested permissions when the package is null", () => {
     expect(
       parseDumpsysPackageOutput("Package [com.example] (abcdef):\n  pkg=null\n")
@@ -487,6 +508,28 @@ describe("parseAmStartOutput", () => {
       status: "refused",
       startedActivity: null,
       reportedStatus: "ok",
+    });
+  });
+});
+
+describe("parsePackageChangeOutput", () => {
+  it.each(["", "Performing Streamed Install\n", "progress"])(
+    "keeps an absent package-change verdict unknown: %j",
+    (text) => {
+      expect(parsePackageChangeOutput(text)).toEqual({
+        status: "unknown",
+        reason: null,
+      });
+    },
+  );
+  it("retains explicit failure even alongside success text", () => {
+    expect(parsePackageChangeOutput("Success\nFailure [DENIED]\n")).toEqual({
+      status: "failure",
+      reason: "DENIED",
+    });
+    expect(parsePackageChangeOutput("Success\n")).toEqual({
+      status: "success",
+      reason: null,
     });
   });
 });

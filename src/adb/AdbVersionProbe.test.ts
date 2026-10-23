@@ -60,3 +60,22 @@ it("names the adb version-output cap and says it has no runtime override", async
   expect(projected.remediation.action).toContain("65536 bytes");
   expect(projected.remediation.action).toContain("no runtime override");
 });
+
+it("distinguishes execute denial from missing or unreadable version output", async () => {
+  vi.mocked(execFileOutput).mockRejectedValueOnce(
+    Object.assign(new Error("denied"), {
+      code: "EACCES",
+      stdout: "",
+      stderr: "",
+      signal: null,
+      killed: false,
+    }),
+  );
+  await expect(inspectAdbClient(selection)).rejects.toMatchObject({
+    code: "binary_not_executable",
+    diagnostics: {
+      selected_binary: selection.binary,
+      filesystem_error: "EACCES",
+    },
+  });
+});

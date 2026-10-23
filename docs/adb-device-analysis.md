@@ -242,3 +242,13 @@ Record: verified against adb 34.0.5 on Linux against an Android 14
 287 services, 92 features, a real two-APK split set pulled with byte-exact
 digests, a verified push/pull roundtrip, a 1.3 MB screen capture, and the
 complete package lifecycle; see `docs/testing.md` for the lane summary.
+
+Intent integer extras use signed decimal text. The ADB argument encoder removes
+redundant leading zeros for Android's radix-sensitive `--ei` parser while retained
+Evidence keeps the caller's original spelling. Package inspection accepts both
+`userId` and Android 16's `appId` spelling for the legacy `user_id` result field.
+
+A completed push and device digest verification are separate observations. A
+verification timeout, cancellation, or output budget failure returns the typed
+failure with partial Evidence of the completed transfer. An unavailable checksum
+command or unrecognized checksum output leaves verification explicitly unknown.

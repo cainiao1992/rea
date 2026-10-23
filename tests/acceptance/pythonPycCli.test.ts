@@ -299,6 +299,116 @@ cliTest(
 );
 
 cliTest(
+  "uses constructor-normalized legacy flags for code keys and preserves raw flags",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-python-pyc-effective-flags-",
+    );
+    const cases = [
+      {
+        name: "py37-empty-tables",
+        magic: 3394,
+        layout: "py37" as const,
+        freevars: [],
+        cellvars: [],
+        lengths: [1, 1],
+      },
+      {
+        name: "py310-nonempty-tables",
+        magic: 3439,
+        layout: "py38" as const,
+        freevars: ["capture"],
+        cellvars: [],
+        lengths: [1, 1],
+      },
+      {
+        name: "py311-raw-flags",
+        magic: 3531,
+        layout: "py311" as const,
+        freevars: [],
+        cellvars: [],
+        lengths: [2, 2],
+      },
+    ];
+    for (const testCase of cases) {
+      const code = (flags: number) =>
+        marshalCode(testCase.layout, {
+          name: "f",
+          filename: "fixture.py",
+          firstlineno: 1,
+          flags,
+          freevars: testCase.freevars,
+          cellvars: testCase.cellvars,
+        });
+      const first = code(0);
+      const second = code(0x40);
+      const frozenSet = Buffer.concat([
+        Buffer.from([0x3e]),
+        Buffer.from([2, 0, 0, 0]),
+        first,
+        second,
+      ]);
+      const dict = Buffer.concat([
+        Buffer.from([0x7b]),
+        first,
+        Buffer.from([0x4e]),
+        second,
+        Buffer.from([0x54, 0x30]),
+      ]);
+      const path = join(root, `${testCase.name}.pyc`);
+      await writeFile(
+        path,
+        Buffer.concat([
+          pythonPycHeader(testCase.magic),
+          marshalCode(testCase.layout, { consts: [frozenSet, dict] }),
+        ]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(
+        evidence.normalized_result.code_objects[0]?.consts.map((value) =>
+          value.kind === "frozenset" || value.kind === "dict"
+            ? value.length
+            : null,
+        ),
+      ).toEqual(testCase.lengths);
+      expect(
+        evidence.normalized_result.code_objects
+          .filter((object) => object.name === "f")
+          .map((object) => object.flags),
+      ).toContain(0);
+
+      const rawPath = join(root, `raw-${testCase.name}.pyc`);
+      await writeFile(
+        rawPath,
+        Buffer.concat([
+          pythonPycHeader(testCase.magic),
+          marshalCode(testCase.layout, {
+            name: "f",
+            flags: 0x40,
+            freevars: testCase.freevars,
+            cellvars: testCase.cellvars,
+          }),
+        ]),
+      );
+      const rawResult = await cli.run({
+        arguments: ["inspect-python-pyc", rawPath, "--json"],
+      });
+      expect(rawResult.exitCode, rawResult.stderr).toBe(0);
+      const rawEvidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        rawResult.json,
+      );
+      expect(rawEvidence.normalized_result.code_objects[0]?.flags).toBe(0x40);
+    }
+  },
+);
+
+cliTest(
   "resolves a relative pyc path against the working directory",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-python-pyc-cli-rel-");

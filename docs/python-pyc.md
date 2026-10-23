@@ -50,7 +50,9 @@ names, locals (or `localsplusnames` on 3.11+), const
 summaries, and bytecode length plus SHA-256.
 
 Code-object equality used by sets and dictionaries follows the selected layout:
-3.7–3.10 ignore line tables, while 3.11+ include line and exception tables. The
+3.7–3.10 derive `CO_NOFREE` from the free/cell tables for equality, while
+3.11+ compare raw flags; raw `co_flags` remain in reported facts. The older
+layouts ignore line tables, while 3.11+ include line and exception tables. The
 artifact SHA-256 identifies the exact selected `.pyc` bytes independently of
 this decoded object graph. Reference slots follow each tag's CPython behavior:
 singleton values and `TYPE_REF` do not reserve new slots even when their tag

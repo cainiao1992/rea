@@ -56,6 +56,8 @@ const TYPES_WITHOUT_REFERENCE_SLOTS = new Set([
 /** CPython `CO_VARARGS` / `CO_VARKEYWORDS`. Each consumes one local name. */
 const CO_VARARGS = 0x04;
 const CO_VARKEYWORDS = 0x08;
+/** CPython 3.7–3.10 derives this bit from the free/cell variable tables. */
+const CO_NOFREE = 0x40;
 /** CPython `_PyLocals_Kind` bit counted by `_PyCode_Validate` as a local. */
 const CO_FAST_LOCAL = 0x20;
 
@@ -149,6 +151,7 @@ const containerChildren = (value: MarshalValue): readonly MarshalValue[] => {
  */
 type CodeEquality = {
   readonly consts: readonly MarshalValue[];
+  readonly effectiveFlags: number;
   readonly linetable: string;
   readonly exceptiontable: string;
 };
@@ -520,8 +523,15 @@ class MarshalReader {
       consts: [],
       nested: [],
     };
+    const effectiveFlags =
+      this.layout === "py311"
+        ? flags
+        : (freevars?.length ?? 0) === 0 && (cellvars?.length ?? 0) === 0
+          ? flags | CO_NOFREE
+          : flags & ~CO_NOFREE;
     this.#codeEquality.set(node, {
       consts,
+      effectiveFlags,
       linetable: `${linetable.length}:${sha256(linetable)}`,
       exceptiontable: `${exceptiontable.length}:${sha256(exceptiontable)}`,
     });
@@ -1176,7 +1186,7 @@ class MarshalReader {
       String(node.posonlyargcount ?? 0),
       String(node.kwonlyargcount),
       node.nlocals === null ? "" : String(node.nlocals),
-      String(node.flags),
+      String(material.effectiveFlags),
       String(node.firstlineno),
       `${node.bytecode.bytes}:${node.bytecode.sha256}`,
       this.#constKeyItems(material.consts),

@@ -66,7 +66,7 @@ Thiết lập đăng ký REA với tác nhân và cài hướng dẫn công vi�
 
 ## Bắt đầu nhanh
 
-Trên Linux, khởi chạy Ghidra, JADX và công cụ firmware cùng phân tích tĩnh JavaScript/Electron cần `ps` tương thích procps trong `PATH` của REA để kiểm tra quyền sở hữu tiến trình. Xem [điều kiện Linux](../installation.md#linux-owned-process-prerequisite).
+Trên Linux, khởi chạy Ghidra, JADX và công cụ firmware cùng phân tích tĩnh JavaScript/Electron cần `ps` tương thích procps trong `PATH` của REA để kiểm tra quyền sở hữu tiến trình. Xem điều kiện Linux.
 
 ### Thiết lập tác nhân
 
@@ -288,8 +288,6 @@ Bắt đầu với [hướng dẫn thực hành](https://rea.tools/vi/guides/) t
 
 - [Cài đặt và thiết lập](../installation.md): đăng ký tác nhân, cấu hình trình phân tích, cập nhật và gỡ cài đặt.
 - [Kiểm tra mức sẵn sàng và khắc phục sự cố](../installation.md#check-readiness-for-your-task): chẩn đoán một tác nhân hoặc bộ máy phân tích cụ thể.
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI và Evidence](../cli.md): lệnh, lựa chọn trình phân tích, ảnh chụp trạng thái, nhập/xuất và trạng thái thoát.
 - [Hợp đồng MCP](../mcp-contracts.md) và [prompt cho tác nhân](../mcp-prompts.md): kết quả công cụ, phiên làm việc và điều tra có hướng dẫn.
 - [Danh mục công cụ](../mcp-contracts.md#generated-catalog): danh sách công cụ, trình phân tích và lệnh CLI được tạo khi dựng dự án.

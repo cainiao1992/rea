@@ -66,7 +66,7 @@ REA はエージェントを分析ツールにつなぎ、ネイティブバイ�
 
 ## クイックスタート
 
-Linux での Ghidra、JADX、ファームウェアツールの起動と静的 JavaScript/Electron 解析には、プロセス所有権の確認用に、REA の `PATH` 上に procps 互換の `ps` が必要です。対処方法は[インストールガイドの Linux 前提条件](../installation.md#linux-owned-process-prerequisite)を参照してください。
+Linux での Ghidra、JADX、ファームウェアツールの起動と静的 JavaScript/Electron 解析には、プロセス所有権の確認用に、REA の `PATH` 上に procps 互換の `ps` が必要です。対処方法はインストールガイドの Linux 前提条件を参照してください。
 
 ### エージェントを設定する
 
@@ -290,8 +290,6 @@ npx rea-agents@latest setup
 
 - [インストールとセットアップ](../installation.md)：エージェントの登録、プロバイダーの設定、更新、アンインストール。
 - [準備状況の確認とトラブルシューティング](../installation.md#check-readiness-for-your-task)：特定のエージェントや分析エンジンを診断。
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI と Evidence](../cli.md)：コマンド、プロバイダーの選択、スナップショット、インポート／エクスポート、終了ステータス。
 - [MCP 契約](../mcp-contracts.md)と[エージェント向けプロンプト](../mcp-prompts.md)：ツールの結果、セッション、ガイド付き調査。
 - [ツールカタログ](../mcp-contracts.md#generated-catalog)：ビルド時に生成されるツール、プロバイダー、CLI コマンドの一覧。

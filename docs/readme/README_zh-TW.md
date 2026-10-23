@@ -66,7 +66,7 @@ REA 將 AI 代理連接到分析工具，用於檢查原生二進位檔案、Jav
 
 ## 快速開始
 
-Linux 上的 Ghidra、JADX、韌體工具啟動和靜態 JavaScript/Electron 分析需要在 REA 的 `PATH` 中提供相容 procps 的 `ps`，用於檢查程序所有權。復原步驟見[安裝指南的 Linux 程序所有權前提](../installation.md#linux-owned-process-prerequisite)。
+Linux 上的 Ghidra、JADX、韌體工具啟動和靜態 JavaScript/Electron 分析需要在 REA 的 `PATH` 中提供相容 procps 的 `ps`，用於檢查程序所有權。復原步驟見安裝指南的 Linux 程序所有權前提。
 
 ### 設定 AI 代理
 
@@ -288,8 +288,6 @@ npx rea-agents@latest setup
 
 - [安裝與設定](../installation.md)：AI 代理註冊、提供者組態、更新和卸載。
 - [就緒檢查與故障排查](../installation.md#check-readiness-for-your-task)：診斷特定 AI 代理或分析引擎。
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI 與 Evidence](../cli.md)：命令、提供者選擇、快照、匯入/匯出和退出狀態。
 - [MCP 契約](../mcp-contracts.md)和[AI 代理提示詞](../mcp-prompts.md)：工具結果、會話和引導式調查。
 - [工具目錄](../mcp-contracts.md#generated-catalog)：建置時生成的工具、提供者和 CLI 命令清單。

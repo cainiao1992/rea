@@ -66,7 +66,7 @@ REA 将智能体连接到分析工具，用于检查原生二进制文件、Java
 
 ## 快速开始
 
-Linux 上的 Ghidra、JADX、固件工具启动和静态 JavaScript/Electron 分析需要在 REA 的 `PATH` 中提供兼容 procps 的 `ps`，用于检查进程所有权。恢复步骤见[安装指南的 Linux 进程所有权前提](../installation.md#linux-owned-process-prerequisite)。
+Linux 上的 Ghidra、JADX、固件工具启动和静态 JavaScript/Electron 分析需要在 REA 的 `PATH` 中提供兼容 procps 的 `ps`，用于检查进程所有权。恢复步骤见安装指南的 Linux 进程所有权前提。
 
 ### 设置智能体
 
@@ -288,8 +288,6 @@ npx rea-agents@latest setup
 
 - [安装与设置](../installation.md)：智能体注册、提供方配置、更新和卸载。
 - [就绪检查与故障排查](../installation.md#check-readiness-for-your-task)：诊断特定智能体或分析引擎。
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI 与 Evidence](../cli.md)：命令、提供方选择、快照、导入/导出和退出状态。
 - [MCP 契约](../mcp-contracts.md)和[智能体提示词](../mcp-prompts.md)：工具结果、会话和引导式调查。
 - [工具目录](../mcp-contracts.md#generated-catalog)：构建时生成的工具、提供方和 CLI 命令清单。

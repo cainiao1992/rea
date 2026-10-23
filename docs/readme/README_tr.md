@@ -66,7 +66,7 @@ Kurulum, REA'yı ajanınıza kaydeder ve uyumlu iş akışı talimatlarını yü
 
 ## Hızlı başlangıç
 
-Linux’ta Ghidra, JADX ve firmware araçlarının başlatılması ile statik JavaScript/Electron analizi, süreç sahipliğini doğrulamak için REA’nın `PATH` değişkeninde procps uyumlu `ps` gerektirir. Çözüm adımları için [Linux ön koşuluna](../installation.md#linux-owned-process-prerequisite) bakın.
+Linux’ta Ghidra, JADX ve firmware araçlarının başlatılması ile statik JavaScript/Electron analizi, süreç sahipliğini doğrulamak için REA’nın `PATH` değişkeninde procps uyumlu `ps` gerektirir. Çözüm adımları için Linux ön koşuluna bakın.
 
 ### Ajanınızı yapılandırın
 
@@ -284,8 +284,6 @@ Web sitesindeki [uygulamalı rehberlerden](https://rea.tools/tr/guides/) başlay
 
 - [Yükleme ve kurulum](../installation.md): ajan kaydı, sağlayıcı yapılandırması, güncellemeler ve kaldırma.
 - [Hazırlık ve sorun giderme](../installation.md#check-readiness-for-your-task): belirli bir ajanı veya analiz motorunu tanılama.
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI ve Evidence](../cli.md): komutlar, sağlayıcı seçimi, anlık görüntüler, içe/dışa aktarma ve çıkış durumları.
 - [MCP sözleşmeleri](../mcp-contracts.md) ve [ajan istemleri](../mcp-prompts.md): araç sonuçları, oturumlar ve yönlendirmeli araştırmalar.
 - [Araç kataloğu](../mcp-contracts.md#generated-catalog): derleme sırasında oluşturulan araç, sağlayıcı ve CLI komutu envanteri.

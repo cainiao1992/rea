@@ -68,7 +68,7 @@
 
 ## Γρήγορη εκκίνηση
 
-Στο Linux, η εκκίνηση Ghidra, JADX και εργαλείων firmware και η στατική ανάλυση JavaScript/Electron απαιτούν `ps` συμβατό με procps στο `PATH` του REA για έλεγχο ιδιοκτησίας διεργασιών. Δες την [προϋπόθεση Linux](../installation.md#linux-owned-process-prerequisite).
+Στο Linux, η εκκίνηση Ghidra, JADX και εργαλείων firmware και η στατική ανάλυση JavaScript/Electron απαιτούν `ps` συμβατό με procps στο `PATH` του REA για έλεγχο ιδιοκτησίας διεργασιών. Δες την προϋπόθεση Linux.
 
 ### Ρύθμιση του agent σου
 
@@ -292,8 +292,6 @@ npx rea-agents@latest setup
 
 - [Εγκατάσταση και ρύθμιση](../installation.md): καταχώριση agents, ρύθμιση παρόχων ανάλυσης, ενημερώσεις και απεγκατάσταση.
 - [Έλεγχος ετοιμότητας και αντιμετώπιση προβλημάτων](../installation.md#check-readiness-for-your-task): διάγνωση ενός agent ή μιας μηχανής ανάλυσης.
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI και Evidence](../cli.md): εντολές, επιλογή παρόχου, στιγμιότυπα, εισαγωγή/εξαγωγή και κωδικοί εξόδου.
 - [Προδιαγραφές MCP](../mcp-contracts.md) και [prompts για agents](../mcp-prompts.md): αποτελέσματα εργαλείων, συνεδρίες και καθοδηγούμενες διερευνήσεις.
 - [Κατάλογος εργαλείων](../mcp-contracts.md#generated-catalog): αυτόματα παραγόμενος κατάλογος εργαλείων, παρόχων και εντολών CLI.

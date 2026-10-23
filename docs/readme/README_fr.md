@@ -66,7 +66,7 @@ Setup enregistre REA auprès de votre agent et installe les instructions de work
 
 ## Démarrage rapide
 
-Sous Linux, les lancements de Ghidra, JADX et des outils de firmware, ainsi que l’analyse statique JavaScript/Electron, nécessitent un `ps` compatible procps dans le `PATH` de REA pour vérifier la propriété des processus. Voir le [prérequis Linux](../installation.md#linux-owned-process-prerequisite).
+Sous Linux, les lancements de Ghidra, JADX et des outils de firmware, ainsi que l’analyse statique JavaScript/Electron, nécessitent un `ps` compatible procps dans le `PATH` de REA pour vérifier la propriété des processus. Voir le prérequis Linux.
 
 ### Configurer votre agent
 
@@ -285,8 +285,6 @@ Commencez par les [guides pas à pas](https://rea.tools/fr/guides/) du site web.
 
 - [Installation et configuration](../installation.md) : enregistrement des agents, configuration des fournisseurs, mises à jour et désinstallation.
 - [Vérification et dépannage](../installation.md#check-readiness-for-your-task) : diagnostiquer un agent ou un moteur d'analyse donné.
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI et Evidence](../cli.md) : commandes, choix du fournisseur, snapshots, import/export et codes de sortie.
 - [Contrats MCP](../mcp-contracts.md) et [prompts pour agents](../mcp-prompts.md) : résultats des outils, sessions et investigations guidées.
 - [Catalogue des outils](../mcp-contracts.md#generated-catalog) : inventaire des outils, fournisseurs et commandes CLI, généré lors du build.

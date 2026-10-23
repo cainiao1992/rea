@@ -66,7 +66,7 @@ Die Einrichtung registriert REA bei deinem Agenten und installiert passende Work
 
 ## Schnellstart
 
-Unter Linux benötigen Starts von Ghidra, JADX und Firmware-Werkzeugen sowie statische JavaScript/Electron-Analysen ein procps-kompatibles `ps` in REAs `PATH`, um die Prozesseigentümerschaft zu prüfen. Abhilfe beschreibt die [Linux-Voraussetzung](../installation.md#linux-owned-process-prerequisite).
+Unter Linux benötigen Starts von Ghidra, JADX und Firmware-Werkzeugen sowie statische JavaScript/Electron-Analysen ein procps-kompatibles `ps` in REAs `PATH`, um die Prozesseigentümerschaft zu prüfen. Abhilfe beschreibt die Linux-Voraussetzung.
 
 ### Deinen Agenten einrichten
 
@@ -288,8 +288,6 @@ Beginne mit den [praxisnahen Anleitungen](https://rea.tools/de/guides/) auf der 
 
 - [Installation und Einrichtung](../installation.md): Agentenregistrierung, Provider-Konfiguration, Updates und Deinstallation.
 - [Bereitschaft und Fehlerbehebung](../installation.md#check-readiness-for-your-task): Diagnose eines bestimmten Agenten oder einer Analyse-Engine.
-- [CUDA / HIP](../gpu-code-objects.md)
-- [GGUF / safetensors](../model-artifacts.md)
 - [CLI und Evidence](../cli.md): Befehle, Provider-Auswahl, Snapshots, Import/Export und Exit-Status.
 - [MCP-Kontrakte](../mcp-contracts.md) und [Agenten-Prompts](../mcp-prompts.md): Werkzeugergebnisse, Sitzungen und geführte Untersuchungen.
 - [Werkzeugkatalog](../mcp-contracts.md#generated-catalog): Beim Build erzeugtes Inventar von Werkzeugen, Providern und CLI-Befehlen.

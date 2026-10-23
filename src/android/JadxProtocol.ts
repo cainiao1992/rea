@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
+import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
 import { dexDescriptorSchema } from "../domain/android/androidAnalysis.js";
 
@@ -61,14 +61,24 @@ export const jadxAppSchema = z.object({
   target_sdk: z.string(),
   permissions: z.array(z.string()),
 });
-export const jadxClassPageSchema = z.object({
-  scope: z.literal("top_level"),
-  total_classes: count,
-  next_offset: count,
-  offset: count,
-  limit: count,
-  items: z.array(z.string()),
-});
+const jadxClassPageSchema = z
+  .object({
+    scope: z.literal("top_level"),
+    total_classes: count,
+    next_offset: count,
+    offset: count,
+    limit: count,
+    items: z.array(z.string()),
+  })
+  .catchall(jsonValueSchema);
+export type JadxClassPage = z.infer<typeof jadxClassPageSchema>;
+
+/** Validate a decoded page without dropping observed JSON members such as __proto__. */
+export const parseJadxClassPage = (value: JsonValue): JadxClassPage => {
+  jadxClassPageSchema.parse(value);
+  return value as JadxClassPage;
+};
+
 export const jadxClassSchema = z.object({
   full_name: z.string(),
   name: z.string(),
@@ -131,28 +141,30 @@ export const jadxXrefsSchema = z.object({
     }),
   ),
 });
-const toolResponse = z.object({
-  content: z
-    .array(z.object({ type: z.literal("text"), text: z.string() }))
-    .length(1),
-  isError: z.boolean().optional(),
-});
+const toolResponse = z
+  .object({
+    content: z.tuple([
+      z
+        .object({ type: z.literal("text"), text: z.string() })
+        .catchall(jsonValueSchema),
+    ]),
+    isError: z.boolean().exactOptional(),
+  })
+  .catchall(jsonValueSchema);
 
 /** Parse the upstream text-only envelope, preserving errors at the producing boundary. */
 export const parseJadxEnvelope = (
-  response: unknown,
+  response: JsonValue,
   operation: AndroidOperation,
-): { text: string; failed: boolean } => {
+): z.infer<typeof toolResponse> => {
   const parsed = toolResponse.safeParse(response);
-  if (!parsed.success || parsed.data.content[0] === undefined)
+  if (!parsed.success)
     throw new AnalysisOutputError(
       operation,
       "JADX returned an unsupported MCP content envelope",
     );
-  return {
-    text: parsed.data.content[0].text,
-    failed: parsed.data.isError === true,
-  };
+  // The schema establishes the shape; its object copy would omit __proto__.
+  return response as z.infer<typeof toolResponse>;
 };
 
 /** Decode an upstream JSON text payload without trusting its contents. */

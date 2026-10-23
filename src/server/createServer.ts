@@ -892,7 +892,7 @@ const registerConfiguredAnalysisTools = (
 ): void => {
   registerAndroidTools(
     server,
-    new AndroidAnalysisService(android),
+    new AndroidAnalysisService(android, recordEvidence),
     toolLogger,
     recordEvidence,
     withAdmittedAnalysis,

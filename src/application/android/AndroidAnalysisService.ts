@@ -1,3 +1,5 @@
+import type { EvidenceWriter } from "../investigation/InvestigationRecordPort.js";
+import { summarizeRetainedAndroidSearch } from "./AndroidSearchEvidenceSummary.js";
 import type { AndroidAnalysisPort } from "./AndroidAnalysisPort.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import { parseBinaryTarget } from "../BinaryTargetResolver.js";
@@ -17,7 +19,10 @@ import { completeProviderEvidence } from "../ProviderOperationExecution.js";
 
 /** Shared CLI/MCP admission, execution and Evidence composition for Android. */
 export class AndroidAnalysisService {
-  constructor(readonly provider: AndroidAnalysisPort) {}
+  constructor(
+    readonly provider: AndroidAnalysisPort,
+    readonly recordEvidence?: EvidenceWriter["recordEvidence"],
+  ) {}
 
   /** Inspect a caller-selected APK and retain producing-provider provenance inline. */
   async execute(
@@ -44,7 +49,7 @@ export class AndroidAnalysisService {
     );
     if (!executed.ok) return executed;
     const execution = executed.value;
-    return completeProviderEvidence(
+    const completed = completeProviderEvidence(
       createEvidence(
         execution.subject === undefined
           ? target.value
@@ -62,6 +67,17 @@ export class AndroidAnalysisService {
         },
       ),
       options?.signal,
+    );
+    if (
+      !completed.ok ||
+      operation !== "search_android_classes" ||
+      execution.searchRawSummary === undefined
+    )
+      return completed;
+    return summarizeRetainedAndroidSearch(
+      completed.value,
+      execution.searchRawSummary,
+      this.recordEvidence,
     );
   }
 }

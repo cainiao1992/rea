@@ -25,6 +25,7 @@ behavior, and complete CI evidence before merging.
 | `npm run check:changed`           | Cached typecheck/lint and branch-related source feedback                                                                |
 | `npm run check:pr`                | Opt-in complete local deterministic gate and generated-file checks                                                      |
 | `npm run docs:check`              | Generated-document validation and fresh onboarding example consistency checks                                           |
+| `npm run docs:build`              | Render VitePress documentation and apply its page-link checks; no live external-link or GitHub fragment verification    |
 
 The general source suite above runs on Linux in CI, and Windows CI runs a
 curated lane ([Native platform baseline in CI](#native-platform-baseline-in-ci)).
@@ -33,6 +34,12 @@ change, such as POSIX fixture paths, `#!/bin/sh` tool stubs, or POSIX rename
 semantics. Compare failures against the base revision, or run the suite on
 Linux or WSL, before attributing them to a change. See `CONTRIBUTING.md` →
 Windows source checkouts.
+
+The CI documentation lane runs both `docs:check` and `docs:build` when the
+existing change classifier selects documentation or its producing inputs.
+Generated facts and rendered page links have separate checks. VitePress does not
+establish that every external URL or GitHub-rendered localized heading exists;
+verify those destinations when editing them.
 
 For example:
 

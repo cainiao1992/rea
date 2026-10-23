@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -122,5 +122,36 @@ it.each([false, true])(
     expect(graph.entries.some(({ path }) => path === "lower.tmp")).toBe(
       !ignoreCase,
     );
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "binds Git pointer/configuration reads to physical symlink-parent selection",
+  async () => {
+    const root = await createTestTempDirectory("rea-reference-git-parent-");
+    const source = join(root, "source");
+    const physical = join(root, "physical");
+    await mkdir(source);
+    await mkdir(join(physical, "child"), { recursive: true });
+    await mkdir(join(physical, "metadata"));
+    await mkdir(join(source, "metadata"));
+    await symlink(join(physical, "child"), join(source, "alias"));
+    const intendedHead = "1".repeat(40);
+    for (const [directory, head, ignoreCase] of [
+      [join(physical, "metadata"), intendedHead, false],
+      [join(source, "metadata"), "2".repeat(40), true],
+    ] as const) {
+      await writeFile(join(directory, "HEAD"), `${head}\n`);
+      await writeFile(
+        join(directory, "config"),
+        `[core]\nignorecase = ${String(ignoreCase)}\n`,
+      );
+    }
+    await writeFile(join(source, ".git"), "gitdir: alias/../metadata\n");
+    await writeFile(join(source, ".gitignore"), "*.TMP\n");
+    await writeFile(join(source, "lower.tmp"), "selected policy\n");
+    const graph = await importTree(source);
+    expect(graph.entries.some(({ path }) => path === "lower.tmp")).toBe(true);
+    expect(graph.vcs).toMatchObject({ kind: "git", head: intendedHead });
   },
 );

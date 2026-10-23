@@ -1,4 +1,4 @@
-import { lstat } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 
@@ -29,20 +29,29 @@ export const locateReferenceSourceGitDirectory = async (
       repository = parent;
       continue;
     }
-    let gitDirectory = dotgit;
+    let selectedGitDirectory = dotgit;
     if (metadata.isFile()) {
       const pointer = (await readText(dotgit)).replace(/\r?\n$/u, "");
       if (!pointer.startsWith("gitdir: ") || pointer.length === 8)
         throw new Error("Invalid Git directory pointer");
-      gitDirectory = absoluteCallerPath(pointer.slice(8), { cwd: repository });
+      selectedGitDirectory = absoluteCallerPath(pointer.slice(8), {
+        cwd: repository,
+      });
     }
+    // Derived joins and the Git library normalize paths lexically. Admit the
+    // physical directory first, while the source pointer stays in its file.
+    const gitDirectory = await realpath(selectedGitDirectory);
     let commonDirectory = gitDirectory;
     try {
       const common = (await readText(join(gitDirectory, "commondir"))).replace(
         /\r?\n$/u,
         "",
       );
-      commonDirectory = absoluteCallerPath(common, { cwd: gitDirectory });
+      if (common.length === 0)
+        throw new Error("Invalid Git common-directory pointer");
+      commonDirectory = await realpath(
+        absoluteCallerPath(common, { cwd: gitDirectory }),
+      );
     } catch (cause: unknown) {
       if (!hasCode(cause, "ENOENT")) throw cause;
     }

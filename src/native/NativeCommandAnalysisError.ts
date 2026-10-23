@@ -196,7 +196,6 @@ export const translateNativeCommandFailure = (
     );
   return bindCleanup(
     new ProviderAdapterError(IDENTITY.id, operation, {
-      cause: failure,
       ...errorOptions,
       diagnostics: {
         tool: failure.tool,

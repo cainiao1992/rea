@@ -369,10 +369,10 @@ describe("NIBArchive real projection", () => {
       nil: null,
     });
     expect(result.limitations).toContain(
-      'Numbers.nib: 3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } using canonical numeric labels nan, +infinity or -infinity because a JSON number cannot carry them.',
+      'Contents/Resources/Numbers.nib: 3 non-finite real value(s) are reported as { "$plist_type": "real", "value": "<spelling>" } using canonical numeric labels nan, +infinity or -infinity because a JSON number cannot carry them.',
     );
     expect(result.limitations).toContain(
-      'Numbers.nib: 2 negative-zero real value(s) are reported as { "$plist_type": "real", "value": "-0" } because a JSON number cannot carry the sign of zero.',
+      'Contents/Resources/Numbers.nib: 2 negative-zero real value(s) are reported as { "$plist_type": "real", "value": "-0" } because a JSON number cannot carry the sign of zero.',
     );
   });
 });

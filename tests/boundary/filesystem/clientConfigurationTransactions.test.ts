@@ -280,7 +280,15 @@ describe("client configuration write failures", () => {
             format,
             configPath: join(root, `config.${format}`),
           }),
-        ).toEqual({ status: "failed", reason: "write" });
+        ).toMatchObject({
+          status: "failed",
+          reason: "write",
+          failure: {
+            operation: "publish",
+            path: join(root, `config.${format}`),
+            systemCode: expect.stringMatching(/^(?:EACCES|EPERM)$/u),
+          },
+        });
       } finally {
         await chmod(root, 0o700);
       }

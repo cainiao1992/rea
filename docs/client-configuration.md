@@ -536,3 +536,10 @@ write targets. Update maintenance considers only known enabled, owned REA
 registrations and owned skills. If identity or a selected skill root is
 unresolved, it reports maintenance as unavailable with the known scope and
 remaining diagnostics. An empty writable scope alone does not prove current.
+
+When configuration publication fails, setup retains the affected path, operation
+and available filesystem code in the client result. Owner/group and mode
+preservation failures identify that operation rather than implying that the
+configuration bytes or parent directory are unwritable. Setup preserves the
+original and reports its recovery backup; review local ownership and group
+membership before retrying.

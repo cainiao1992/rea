@@ -28,7 +28,10 @@ import { dirname } from "node:path";
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
 import { withClientConfigurationTransaction } from "./ClientConfigurationTransaction.js";
 import { isClientConfigurationCleanupFailure } from "./ClientConfigurationCleanup.js";
-import { ClientConfigurationPublication } from "./ClientConfigurationPublication.js";
+import {
+  ClientConfigurationPublication,
+  ClientConfigurationWriteError,
+} from "./ClientConfigurationPublication.js";
 import {
   clientRegistrationEnvironment,
   clientRegistrationEnvironmentDetailsWithBudget,
@@ -328,8 +331,15 @@ const persistClientConfiguration = async ({
     );
   } catch (cause: unknown) {
     // An unserializable edit is reported before any file is written.
-    void cause;
-    return { status: "failed", reason: "write" };
+    return {
+      status: "failed",
+      reason: "write",
+      failure: new ClientConfigurationWriteError(
+        client.configPath,
+        "serialize",
+        cause,
+      ).problem,
+    };
   }
   if (!serialized.ok)
     return {
@@ -361,9 +371,17 @@ const persistClientConfiguration = async ({
     if (isClientConfigurationCleanupFailure(cause)) throw cause;
     if (isConfigurationConflict(cause))
       return conflictFailure(recoveryBackupPath);
-    // Write failure is reported by the status reason.
-    void cause;
-    return { status: "failed", reason: "write" };
+    return {
+      status: "failed",
+      reason: "write",
+      failure: (cause instanceof ClientConfigurationWriteError
+        ? cause
+        : new ClientConfigurationWriteError(client.configPath, "publish", cause)
+      ).problem,
+      ...(recoveryBackupPath === undefined
+        ? {}
+        : { backupPath: recoveryBackupPath }),
+    };
   }
   return publication.verify(async () => {
     try {

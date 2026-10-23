@@ -1,3 +1,4 @@
+import type { ClientConfigurationWriteProblem } from "./ClientConfigurationPublication.js";
 import type { DoctorReport, DoctorScope, runDoctor } from "./Doctor.js";
 import type { LinuxDistribution } from "./LinuxHopper.js";
 import type { HopperReleaseError } from "./HopperReleaseFeed.js";
@@ -40,7 +41,13 @@ export type ClientConfigurationResult =
     }
   | {
       readonly status: "failed";
-      readonly reason: "path" | "target_changed" | "backup" | "write";
+      readonly reason: "path" | "target_changed" | "backup";
+    }
+  | {
+      readonly status: "failed";
+      readonly reason: "write";
+      readonly failure?: ClientConfigurationWriteProblem;
+      readonly backupPath?: string;
     }
   | {
       readonly status: "failed";

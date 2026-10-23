@@ -341,10 +341,9 @@ const recordCounts = (
 };
 
 /**
- * Decode NUL-terminated UTF-8 names once each from the strings section. An
- * index must start a string, so a shifted section or a pointer into another
- * name fails instead of returning a different name, and total decoding stays
- * bounded by the section size.
+ * Decode NUL-terminated UTF-8 names once each from the strings section. Indices
+ * are byte offsets and may refer to a suffix of another stored name. Bounds,
+ * termination, UTF-8 validity, and the total decoding budget remain enforced.
  */
 const createStringReader = (
   bytes: Buffer,
@@ -363,11 +362,6 @@ const createStringReader = (
       throw new Il2cppMetadataFormatFailure(
         "invalid-string",
         `${label} string index ${index} has no terminated entry inside the ${strings.size}-byte string section`,
-      );
-    if (index > 0 && pool[index - 1] !== 0)
-      throw new Il2cppMetadataFormatFailure(
-        "invalid-string",
-        `${label} string index ${index} starts inside another string`,
       );
     beforeText?.(end - index);
     let value: string;

@@ -368,16 +368,15 @@ message names one reason:
 | `nested-type-conflict`    | A type is listed as nested in two types, in itself, or in a cycle of declaring types.                            |
 | `declaring-type-mismatch` | A method inside a type's method range names a different type, or a method lies outside its type's range.         |
 | `image-range-overlap`     | Two images claim the same type definitions.                                                                      |
-| `invalid-string`          | A name index does not start a string, or the name is unterminated or not valid UTF-8.                            |
+| `invalid-string`          | A name index is outside the strings section, its string is unterminated, or it is not valid UTF-8.               |
 
 A version field that disagrees with the file's layout, for example a version
 39 file relabeled as 29, usually surfaces as `unexpected-header-size` or
 `record-size-mismatch`.
 
-Two checks are stricter than the IL2CPP runtime: a name index must start a
-string, and an empty range's start must lie between -1 and the collection size.
-Every Unity-written file checked so far satisfies both; metadata rewritten by
-other tools may be rejected.
+An empty range's start must lie between -1 and the collection size, which is
+stricter than some runtime paths. String indices are byte offsets; a valid
+offset may select a suffix of another NUL-terminated name.
 
 An incomplete inventory is never reported as complete. Failures after a verified
 snapshot retain partial source Evidence with its SHA-256, byte length and any

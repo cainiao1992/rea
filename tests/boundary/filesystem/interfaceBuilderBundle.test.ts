@@ -2273,8 +2273,8 @@ it.each([1, 2])(
     expect(edges).toHaveLength(count);
     expect(
       edges.every(
-        ({ resolution, reason }) =>
-          resolution === "observed" && reason === null,
+        ({ resolution, limitations }) =>
+          resolution === "observed" && limitations.length === 0,
       ),
     ).toBe(true);
     const outlets = result.graph.nodes.filter(({ kind }) => kind === "outlet");

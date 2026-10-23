@@ -42,6 +42,7 @@ export interface GgufProgress {
     declared_tensor_count: number;
   }): void;
   onMetadata(row: ModelMetadata): void;
+  onAlignment(alignment: number): void;
   onMetadataComplete(): void;
   onTensorsStarted(): void;
   onTensorDeclaration(row: ModelArtifactPartialTensor): void;
@@ -318,10 +319,12 @@ export class GgufHeader {
             "GGUF general.alignment must be a positive UINT32 multiple of eight",
           );
         alignment = parsed.value;
+        progress?.onAlignment(alignment);
       }
       metadata.push(row);
       progress?.onMetadata(row);
     }
+    if (!keys.has("general.alignment")) progress?.onAlignment(alignment);
     progress?.onMetadataComplete();
     progress?.onTensorsStarted();
     const tensors: ModelArtifactPartialTensor[] = [];

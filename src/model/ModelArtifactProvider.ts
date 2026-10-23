@@ -322,6 +322,9 @@ export class ModelArtifactProvider implements ModelArtifactPort {
               partial.coverage.metadata = "partial";
             },
             onMetadata: (row) => partial?.metadata.push(row),
+            onAlignment: (alignment) => {
+              if (partial !== undefined) partial.alignment = alignment;
+            },
             onMetadataComplete: () => {
               if (partial !== undefined) partial.coverage.metadata = "complete";
             },

@@ -1,5 +1,17 @@
+import { z } from "zod";
+import { digestSchema } from "../digests.js";
 import type { JavaScriptSourceSelection } from "./javascriptSourceSelection.js";
 import type { ArtifactOccurrence } from "../artifactGraph.js";
+
+/** One physical file occurrence, independent of its graph representations. */
+export const javaScriptFileOccurrenceSchema = z.strictObject({
+  container_sha256: digestSchema,
+  path: z.string().min(1),
+  sha256: digestSchema,
+});
+export type JavaScriptFileOccurrence = z.infer<
+  typeof javaScriptFileOccurrenceSchema
+>;
 
 /** Whether an inventoried path has a source extension read by the analyzer. */
 export const isJavaScriptSourcePath = (path: string): boolean =>

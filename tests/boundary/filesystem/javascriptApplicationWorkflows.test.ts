@@ -48,6 +48,37 @@ afterEach(async () => {
 });
 
 describe("JavaScript application workflows", () => {
+  it("preserves source-owned requested native members across trace directions", () => {
+    const graph = buildSyntheticJavaScriptApplicationGraph();
+    const addon = graph.nodes.find(({ kind }) => kind === "native-addon");
+    if (addon === undefined) throw new Error("Expected native fixture node");
+    const traces = (["incoming", "outgoing", "both"] as const).map(
+      (direction) =>
+        traceApplicationFeature({
+          sourceEvidenceId: `ev_${"a".repeat(64)}`,
+          graph,
+          nativeEvidence: [],
+          seed: {
+            kind: "node-id",
+            value: addon.node_id,
+            match: "exact",
+            case_sensitive: true,
+          },
+          direction,
+        }),
+    );
+    for (const trace of traces)
+      expect(trace.native_handoffs).toMatchObject([
+        {
+          native_node_id: addon.node_id,
+          requested_exports: ["openProject"],
+          export_node_ids: [expect.any(String)],
+        },
+      ]);
+    expect(traces[0]!.native_handoffs).toEqual(traces[1]!.native_handoffs);
+    expect(traces[0]!.graph?.edges).not.toEqual(traces[1]!.graph?.edges);
+  });
+
   it("traces a contextBridge API through IPC into linked native evidence", () => {
     const graph = buildSyntheticJavaScriptApplicationGraph();
     const nativeEvidence = createEvidence(

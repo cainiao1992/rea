@@ -25,6 +25,7 @@ import {
   dependencyManifest,
   addUnavailableStaticParseScope,
   artifactFileNodeKind,
+  fileOccurrenceIdentity,
   artifactLocalIdentity,
   javascriptAnalysisCoverage,
   createElectronRoleNode,
@@ -603,6 +604,7 @@ const createFileTarget = (
       {
         label: file.path,
         properties: {
+          file_occurrence: fileOccurrenceIdentity(file),
           path: file.path,
           bytes: file.bytes,
           inventory_artifact_id: file.inventory_artifact_id,

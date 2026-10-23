@@ -19,6 +19,50 @@ import {
 } from "../../../src/domain/javascript/javascriptApplicationGraph.js";
 
 describe("JavaScript export return-shape comparison", () => {
+  it("propagates proven ancestor absence to nested additions and removals", async () => {
+    const [left, right] = await analyzeSources({
+      left: 'export default () => ({kind:"result"});',
+      right: 'export default () => ({kind:"result",nested:{total:1}});',
+    });
+    const forward = compare(left, right),
+      reverse = compare(right, left);
+    expect(forward.summary).toEqual({
+      added: 2,
+      removed: 0,
+      changed: 0,
+      unknown: 0,
+    });
+    expect(reverse.summary).toEqual({
+      added: 0,
+      removed: 2,
+      changed: 0,
+      unknown: 0,
+    });
+    expect(forward.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "/nested/total",
+          status: "added",
+          presence: { left: "absent", right: "present" },
+        }),
+      ]),
+    );
+    expect(forward.coverage.status).toBe("complete-within-inputs");
+    const [unknown, present] = await analyzeSources({
+      left: 'export default () => ({kind:"result",nested:unresolved});',
+      right: 'export default () => ({kind:"result",nested:{total:1}});',
+    });
+    expect(compare(unknown, present).changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "/nested/total",
+          status: "unknown",
+          presence: { left: "unknown-coverage", right: "present" },
+        }),
+      ]),
+    );
+  });
+
   it("reports exactly the heading depth addition from source-owned parser fixtures", async () => {
     const root = await temporaryRoot();
     const leftRoot = join(root, "left");

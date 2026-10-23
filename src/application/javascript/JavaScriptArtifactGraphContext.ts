@@ -379,6 +379,13 @@ export const javascriptAnalysisCoverage = (
     ? completeApplicationCoverage()
     : partialApplicationCoverage([], null);
 
+/** Parsed inventory identity shared by whole-file graph representations. */
+export const fileOccurrenceIdentity = (file: JavaScriptArtifactFile) => ({
+  container_sha256: file.container_sha256,
+  path: file.path,
+  sha256: file.sha256,
+});
+
 /** Stable identity for a fact scoped to one exact artifact. */
 export const artifactLocalIdentity = (
   sha256: string,

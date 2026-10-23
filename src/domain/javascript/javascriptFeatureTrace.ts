@@ -52,8 +52,12 @@ export const traceApplicationFeature = (
   const graph = traceGraph(input, seedMatches, traversal);
   const paths = terminalPaths(traversal, seedMatches);
   const nativeHandoffs = buildJavaScriptNativeHandoffs(
-    traversal.nodes,
-    traversal.edges,
+    input.graph,
+    new Set(
+      traversal.nodes
+        .filter(({ kind }) => kind === "native-addon")
+        .map(({ node_id }) => node_id),
+    ),
     input.nativeEvidence,
   );
   const evidenceLinks = uniqueSorted([

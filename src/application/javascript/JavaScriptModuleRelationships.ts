@@ -23,6 +23,7 @@ import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptA
 import {
   addAstContainsEdge,
   artifactLocalIdentity,
+  fileOccurrenceIdentity,
   type JavaScriptArtifactGraphContext,
   type JavaScriptArtifactGraphCoverage,
 } from "./JavaScriptArtifactGraphContext.js";
@@ -106,6 +107,7 @@ export const addJavaScriptSourceModules = (
           label: file.path,
           properties: {
             semantic_role: "source-module",
+            file_occurrence: fileOccurrenceIdentity(file),
             source_sha256: file.sha256,
             path: file.path,
             logical_module_key: file.path,
@@ -202,6 +204,7 @@ const addExportRelationship = (
         label: `${file.path}:${link.exportedName}`,
         properties: {
           semantic_role: "export-binding",
+          file_occurrence: fileOccurrenceIdentity(file),
           module_path: file.path,
           relationship_kind: link.kind,
           exported_name: link.exportedName,

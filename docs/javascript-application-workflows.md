@@ -160,7 +160,10 @@ matching seeds and the complete graph reachable in the selected direction.
 The result contains the matching basis, complete reachable subgraph, terminal
 paths, authority summaries, and native handoffs. A handoff binds
 the exact native artifact digest and requested exports from the application
-graph. Existing Hopper or Ghidra Evidence is linked only when its subject digest
+graph. Trace direction selects the reachable addons; requested
+exports for each selected addon come from the complete supplied graph, so an
+outgoing trace does not discard an incoming export association. Existing Hopper
+or Ghidra Evidence is linked only when its subject digest
 matches exactly. Otherwise the result recommends provider-neutral follow-up
 tools and reports `requires-provider-analysis`; it never starts or switches a
 provider implicitly.
@@ -366,9 +369,16 @@ files; multiple canonical-equivalent candidates remain unknown.
 
 Each historical source file is classified as `unchanged`, `modified`,
 `removed`, `split`, `merged`, `duplicated`, or `unknown`. Multiple equally
-scored path mappings form a static split inference. Multiple current
-nodes with the exact historical digest are duplicated; multiple historical
-paths with exact identity to one current node are merged. `removed` requires
+scored path mappings form a static split inference. Multiple current file
+occurrences with the exact historical digest are duplicated; multiple historical
+paths with exact identity to one current occurrence are merged. Fresh file
+observations carry their container digest, inventory path, and content digest.
+Their asset, source-module, and export-binding representations form one candidate,
+which retains `current_file_occurrence` and `representation_node_ids`. Equal bytes
+at two inventory paths remain two occurrences even when they share an asset node.
+Logical bundle modules and older observations without occurrence facts retain
+their graph identities; matching does not infer common ownership from a label.
+`removed` requires
 complete historical and application inventories. The comparison analyzes and
 returns all source files, candidate nodes, and matching signals represented in
 the supplied graphs. Partial inventories remain unknown where absence cannot
@@ -484,7 +494,9 @@ Changes use JSON Pointer paths with `added`, `removed`, `changed`, or `unknown`
 status and a separate `presence` object (`present`, `absent`, or
 `unknown-coverage`) on each side. A name is `added` or `removed` when one paired
 shape proves presence and the other proves absence. Complete parent-property
-coverage can establish absence even when field values stay unresolved. Identical literals are
+coverage can establish absence even when field values stay unresolved. Proven
+absence of an ancestor also establishes absence of its descendants. An observed
+ancestor with unresolved contents keeps its descendants unknown. Identical literals are
 omitted. Unresolved values that remain on both sides stay `unknown` when the
 projections differ, and are omitted when presence is unchanged and the unknown
 projections match. Incomplete spreads and other partial parent coverage keep

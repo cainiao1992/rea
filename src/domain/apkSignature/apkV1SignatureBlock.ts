@@ -184,9 +184,59 @@ const algorithmOid = (tlv: Asn1BerNode | undefined, what: string) =>
 const equalBytes = (a: Uint8Array, b: Uint8Array): boolean =>
   a.length === b.length && a.every((byte, i) => byte === b[i]);
 
+/**
+ * RFC 5280 §7.1: RDN order matters; attributes in one SET do not. This
+ * comparison profile admits ASCII PrintableString/UTF8String for common
+ * caseIgnore DirectoryString attributes. Other name rules remain unknown;
+ * exact encoded identity is still available independently of normalization.
+ */
+const directoryNameKey = (name: Asn1BerNode): string | null => {
+  const attributes = new Set([
+    "2.5.4.3",
+    "2.5.4.6",
+    "2.5.4.7",
+    "2.5.4.8",
+    "2.5.4.10",
+    "2.5.4.11",
+  ]);
+  const rdns: string[][] = [];
+  for (const rdn of name.children) {
+    if (rdn.tag !== TAG.set || rdn.children.length === 0) return null;
+    const values: string[] = [];
+    for (const attribute of rdn.children) {
+      if (attribute.tag !== TAG.sequence || attribute.children.length !== 2)
+        return null;
+      const [id, value] = attribute.children;
+      if (
+        id?.tag !== TAG.oid ||
+        value === undefined ||
+        ![0x0c, 0x13].includes(value.tag)
+      )
+        return null;
+      const oid = oidText(id.content);
+      if (
+        !attributes.has(oid) ||
+        value.content.some((byte) => byte < 0x20 || byte > 0x7e)
+      )
+        return null;
+      const text = Buffer.from(value.content)
+        .toString("ascii")
+        .trim()
+        .replace(/ +/gu, " ")
+        .toLowerCase();
+      if (value.tag === 0x13 && !/^[a-z0-9 '()+,./:=?-]*$/iu.test(text))
+        return null;
+      values.push(JSON.stringify([oid, text]));
+    }
+    rdns.push(values.sort());
+  }
+  return JSON.stringify(rdns);
+};
+
 /** The X.509 facts a SignerInfo can name: issuer Name DER, serial and SKI. */
 interface CertificateIdentity {
   readonly issuer: Uint8Array;
+  readonly issuerKey: string | null;
   readonly serial: Uint8Array;
   readonly subjectKeyIdentifier: Uint8Array | null;
 }
@@ -233,6 +283,7 @@ const certificateIdentity = (
     }
     return {
       issuer: reader.rawEncodedSpan(issuer),
+      issuerKey: directoryNameKey(issuer),
       serial: serial.content,
       subjectKeyIdentifier,
     };
@@ -257,9 +308,9 @@ const signerInfo = (
   let certificateIndex: number;
   if (sid?.tag === TAG.sequence) {
     const parts = sid.children;
-    const issuer = reader.rawEncodedSpan(
-      expectTag(parts[0], TAG.sequence, `${what} issuer`),
-    );
+    const issuerNode = expectTag(parts[0], TAG.sequence, `${what} issuer`);
+    const issuer = reader.rawEncodedSpan(issuerNode);
+    const issuerKey = directoryNameKey(issuerNode);
     const serial = expectTag(
       parts[1],
       TAG.integer,
@@ -269,7 +320,8 @@ const signerInfo = (
     certificateIndex = identities.findIndex(
       (identity) =>
         identity !== null &&
-        equalBytes(identity.issuer, issuer) &&
+        (equalBytes(identity.issuer, issuer) ||
+          (issuerKey !== null && identity.issuerKey === issuerKey)) &&
         equalBytes(identity.serial, serial),
     );
   } else if (sid?.tag === TAG.context0Primitive) {

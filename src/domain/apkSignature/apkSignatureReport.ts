@@ -412,7 +412,10 @@ export const deriveApkPosture = (
     ),
   );
   const v1Match = input.v1Present
-    ? v1MatchesBlockSigners(input.v1SignerFingerprints, present[0])
+    ? v1MatchesBlockSigners(
+        input.v1SignerFingerprints,
+        present.find(({ signers }) => signers.length > 0),
+      )
     : { match: null, note: null };
   return {
     posture: {

@@ -102,7 +102,11 @@ share the application workflow, projection, retention and publication owners.
   `SignerInfo`'s certificate and digest/signature algorithm OIDs. The PKCS#7
   `SignedData` envelope is read as BER, including constructed signature OCTET
   STRINGs; each embedded certificate is still interpreted as DER by the X.509
-  owner.
+  owner. Issuer matching preserves the encoded Name and also admits equivalent
+  ASCII PrintableString/UTF8String values for CN, C, L, ST, O and OU: case and
+  repeated/edge spaces are normalized, RDN sequence order is preserved, and
+  attribute order inside one multivalued RDN is ignored. Other name forms
+  require exact encoded identity; semantic equivalence remains unestablished.
   `certificate` is `null` when the block has more than one `SignerInfo` (with
   nothing verified there is no single signer) or names a certificate it does
   not carry. A block that cannot be read (malformed ASN.1, an unsupported
@@ -144,7 +148,10 @@ share the application workflow, projection, retention and publication owners.
 - **Per signer:** the certificate's **SHA-256 fingerprint over the raw embedded
   DER** (the same value `apksigner --print-certs` prints), plus subject, issuer,
   serial, ISO 8601 validity and public-key algorithm when the X.509 parser can
-  read them (each is `null` otherwise); raw signature algorithm IDs, declared
+  read the exact carried DER (each is `null` otherwise). The parser's returned
+  DER must equal those bytes before readable facts are combined with their
+  fingerprint; embedded PEM text and trailing data cannot select a different
+  certificate. Raw signature algorithm IDs, declared
   digest hex and digest algorithms, signature lengths and public-key length; and for
   v3/v3.1 the signer's declared min/max SDK.
 - **Key rotation (v3/v3.1):** the declared proof-of-rotation lineage, oldest

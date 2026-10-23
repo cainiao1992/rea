@@ -162,6 +162,44 @@ export const withSubject = (
   );
 };
 
+/** Replace a fixture's issuer or extensions without asserting a valid signature. */
+export const withIssuer = (
+  certificate: Uint8Array,
+  issuer: Uint8Array,
+): Uint8Array => {
+  const { fields, outer } = certificateParts(certificate);
+  const part = ({ start, end }: DerSpan) => certificate.subarray(start, end);
+  return tlv(
+    0x30,
+    tlv(
+      0x30,
+      ...fields.map((field, index) => (index === 3 ? issuer : part(field))),
+    ),
+    ...outer.map(part),
+  );
+};
+export const withExtension = (
+  certificate: Uint8Array,
+  bytes: Uint8Array,
+): Uint8Array => {
+  const { fields, outer } = certificateParts(certificate);
+  const part = ({ start, end }: DerSpan) => certificate.subarray(start, end);
+  const extension = tlv(
+    0xa3,
+    tlv(0x30, tlv(0x30, oid("1.2.3.4"), tlv(0x04, bytes))),
+  );
+  return tlv(
+    0x30,
+    tlv(
+      0x30,
+      ...fields.map((field) =>
+        certificate[field.start] === 0xa3 ? extension : part(field),
+      ),
+    ),
+    ...outer.map(part),
+  );
+};
+
 export interface SignerInfoSpec {
   /** Certificate whose issuer and serial the SignerInfo names. */
   readonly names: Uint8Array;

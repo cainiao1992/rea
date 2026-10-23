@@ -280,3 +280,28 @@ describe("deriveApkPosture v1 comparison", () => {
     }
   });
 });
+
+it.each([true, false, null])(
+  "compares v1 against populated v3 despite empty v2: %s",
+  (expected) => {
+    const result = derive({
+      v1Present: true,
+      v2Present: true,
+      v3Present: true,
+      v1SignerFingerprints: ["old"],
+      blockSchemes: blocks(
+        [],
+        [
+          signer(
+            "new",
+            expected === null
+              ? { kind: "undecoded" }
+              : decoded(expected ? "old" : "other", "new"),
+          ),
+        ],
+      ),
+    });
+    expect(result.v1_signers_match_block_signers).toBe(expected);
+    expect(result.schemes_agree_on_signer).toBe(false);
+  },
+);

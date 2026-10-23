@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   indefinite,
+  oid,
+  withIssuer,
   LEAF_CERTIFICATE,
   LEAF_SHA256,
   OID_ECDSA_SHA256,
@@ -265,3 +267,42 @@ it.each([
     });
   },
 );
+
+it("matches supported issuer strings across encodings and RDN attribute order, preserving changed-name and serial controls", () => {
+  const attribute = (id: string, tag: number, value: string) =>
+    tlv(0x30, oid(id), tlv(tag, Buffer.from(value)));
+  const name = (...attributes: Uint8Array[]) =>
+    tlv(0x30, tlv(0x31, ...attributes));
+  const issuer = name(
+    attribute("2.5.4.3", 0x13, "REA Root"),
+    attribute("2.5.4.10", 0x0c, "REA"),
+  );
+  const equivalent = name(
+    attribute("2.5.4.10", 0x13, "rea"),
+    attribute("2.5.4.3", 0x0c, " rea  root "),
+  );
+  const certificate = withIssuer(LEAF_CERTIFICATE, issuer);
+  const identify = (selected: Uint8Array) =>
+    decoded(
+      signedDataBlock({
+        certificates: [certificate],
+        signerInfos: [signerInfo({ names: selected })],
+      }),
+    ).signerInfos[0]?.certificateIndex;
+  expect(identify(withIssuer(LEAF_CERTIFICATE, equivalent))).toBe(0);
+  expect(
+    identify(
+      withIssuer(LEAF_CERTIFICATE, name(attribute("2.5.4.3", 0x0c, "Other"))),
+    ),
+  ).toBeNull();
+  expect(identify(withIssuer(ROOT_CERTIFICATE, equivalent))).toBeNull();
+  // Unsupported string forms never become equal merely from display similarity.
+  expect(
+    identify(
+      withIssuer(
+        LEAF_CERTIFICATE,
+        name(attribute("2.5.4.3", 0x14, "REA Root")),
+      ),
+    ),
+  ).toBeNull();
+});

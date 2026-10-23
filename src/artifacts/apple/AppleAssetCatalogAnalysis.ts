@@ -12,6 +12,9 @@ import { fixedAllowanceOptions } from "../../domain/fixedAllowanceRemediation.js
 import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
+import { ArtifactResourceScope } from "../ArtifactResourceScope.js";
+import { translateArtifactFailure } from "../ArtifactOperationFailure.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import {
   ArtifactReaderFailure,
@@ -48,6 +51,7 @@ export const analyzeAppleAssetCatalogs = async (input: {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly page?: unknown;
   readonly signal?: AbortSignal;
+  readonly resources?: ArtifactResourceScope;
   readonly runAssetUtil?: (
     path: string,
     signal?: AbortSignal,
@@ -60,6 +64,7 @@ export const analyzeAppleAssetCatalogs = async (input: {
       "Apple asset catalog inspection requires macOS assetutil",
     );
   const page = appleAssetCatalogInputSchema.parse(input.page ?? {});
+  const resources = input.resources ?? new ArtifactResourceScope();
   // The Interface Builder graph only supplies resource keys for the join. Its
   // bundle walk is independent of the catalog walk, so both run together; a
   // catalog failure cancels it and is reported as the sequential order would.
@@ -69,6 +74,7 @@ export const analyzeAppleAssetCatalogs = async (input: {
   )({
     bundlePath: input.bundlePath,
     targetSha256: input.targetSha256,
+    resources,
     ...(input.resourceRoot === undefined
       ? {}
       : { resourceRoot: input.resourceRoot }),
@@ -90,10 +96,30 @@ export const analyzeAppleAssetCatalogs = async (input: {
       uninspected,
       traversal,
       coverage: catalogCoverage,
-    } = await collectAssetCatalogs(input));
+    } = await resources.run(() =>
+      collectAssetCatalogs({ ...input, resources }),
+    ));
   } catch (cause: unknown) {
     interfaceBuilderCancel.abort();
-    await interfaceBuilderAnalysis;
+    const joined = await interfaceBuilderAnalysis;
+    if (
+      !joined.ok &&
+      ((joined.error instanceof ArtifactReaderFailure &&
+        joined.error.cleanup !== undefined) ||
+        (joined.error instanceof AnalysisError &&
+          joined.error.cleanupIncomplete))
+    ) {
+      const primary = translateArtifactFailure("inspect_asset_catalog", cause);
+      const cleanup = translateArtifactFailure(
+        "inspect_asset_catalog",
+        joined.error,
+      );
+      throw analysisErrorWithCleanupFailure(
+        primary,
+        cleanup,
+        "inspect_asset_catalog",
+      ).bindCleanupDependencies([primary, cleanup]);
+    }
     throw cause;
   }
   const analyzed = await interfaceBuilderAnalysis;
@@ -152,6 +178,7 @@ const collectAssetCatalogs = async (input: {
   readonly bundlePath: string;
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly signal?: AbortSignal;
+  readonly resources: ArtifactResourceScope;
   readonly runAssetUtil?: (
     path: string,
     signal?: AbortSignal,
@@ -168,6 +195,9 @@ const collectAssetCatalogs = async (input: {
   let symlinks = 0;
   let firstSymlink: string | undefined;
   let totalMetadataBytes = 0;
+  let outcome: { kind: "completed" } | { kind: "failed"; cause: unknown } = {
+    kind: "completed",
+  };
   try {
     for await (const entry of reader.entries(input.signal, {
       onCoverage: traversal.onCoverage,
@@ -208,9 +238,29 @@ const collectAssetCatalogs = async (input: {
         );
       catalogs.push(inspected.catalog);
     }
-  } finally {
-    await reader.close();
+  } catch (cause: unknown) {
+    outcome = { kind: "failed", cause };
   }
+  const released = await input.resources.release({
+    kind: "reader",
+    reader,
+    resource: input.bundlePath,
+  });
+  if (released.kind === "failed") {
+    if (outcome.kind === "failed" && outcome.cause instanceof AnalysisError) {
+      const cleanup = translateArtifactFailure(
+        "inspect_asset_catalog",
+        input.resources.cleanupFailure({ kind: "completed" }, [released]),
+      );
+      throw analysisErrorWithCleanupFailure(
+        outcome.cause,
+        cleanup,
+        "inspect_asset_catalog",
+      ).bindCleanupDependencies([outcome.cause, cleanup]);
+    }
+    throw input.resources.cleanupFailure(outcome, [released]);
+  }
+  if (outcome.kind === "failed") throw outcome.cause;
   if (symlinks > 0)
     traversal.onCoverage({
       // Source entries are represented even when their link targets were not

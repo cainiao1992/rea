@@ -475,7 +475,11 @@ complete observation.
   when either source is incomplete. Resource wrappers retain their serialized
   class and authored runtime class, including AppKit `NSCustomResource` names.
   Invalid producer JSON and subprocess failures retain captured output with
-  their typed failure reason. Image extraction and undocumented rendition
+  their typed failure reason. Catalog-reader cleanup retains the primary
+  integrity, utility or cancellation failure and its cleanup resources; the
+  provider retains catalog, Interface Builder and keyed-archive readers until
+  cleanup is confirmed. A catalog failure also retains cleanup failures from
+  its parallel Interface Builder join. Image extraction and undocumented rendition
   interpretation are unsupported.
 - `inspect_keyed_archive` / `rea inspect-keyed-archive <plist>` reads XML or
   binary Foundation keyed archives without instantiating classes. For an active

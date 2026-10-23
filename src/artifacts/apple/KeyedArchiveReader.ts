@@ -38,6 +38,10 @@ import {
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import type { ArtifactEntry } from "../ArtifactReader.js";
 import { bindArtifactFileCleanup } from "../ArtifactFileOperation.js";
+import { ArtifactResourceScope } from "../ArtifactResourceScope.js";
+import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { translateArtifactFailure } from "../ArtifactOperationFailure.js";
+import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 
 import { decodeXmlPlistText } from "../../domain/propertyListXmlText.js";
 import {
@@ -173,8 +177,7 @@ const keyedArchiveKindRemediation = (
     : "Select an NSKeyedArchiver archive; inspect_keyed_archive decodes only those. inspect_plist, which reads ordinary property lists, requires a macOS host.";
 };
 
-/** Read exactly one regular, contained bundle entry without following symlinks. */
-export const inspectBundleKeyedArchive = async (input: {
+interface BundleKeyedArchiveInput {
   bundlePath: string;
   targetSha256: string | null;
   resourceRoot?: import("../../domain/apple/bundleResourceRoot.js").BundleResourceRoot;
@@ -182,7 +185,57 @@ export const inspectBundleKeyedArchive = async (input: {
   signal?: AbortSignal;
   /** Host whose available workflows the remediation names. */
   platform?: NodeJS.Platform;
-}) => {
+  resources?: ArtifactResourceScope;
+}
+
+/** Keep the selected archive and its reader under the caller's cleanup owner. */
+export const inspectBundleKeyedArchive = (input: BundleKeyedArchiveInput) => {
+  const resources = input.resources ?? new ArtifactResourceScope();
+  return resources.run(async () => {
+    const reader = new DirectoryArtifactReader(input.bundlePath);
+    let outcome:
+      | {
+          kind: "completed";
+          value: Awaited<ReturnType<typeof readSelectedKeyedArchive>>;
+        }
+      | { kind: "failed"; cause: unknown };
+    try {
+      outcome = {
+        kind: "completed",
+        value: await readSelectedKeyedArchive(input, reader),
+      };
+    } catch (cause: unknown) {
+      outcome = { kind: "failed", cause };
+    }
+    const released = await resources.release({
+      kind: "reader",
+      reader,
+      resource: input.bundlePath,
+    });
+    if (released.kind === "failed") {
+      if (outcome.kind === "failed" && outcome.cause instanceof AnalysisError) {
+        const cleanup = translateArtifactFailure(
+          "inspect_keyed_archive",
+          resources.cleanupFailure({ kind: "completed" }, [released]),
+        );
+        throw analysisErrorWithCleanupFailure(
+          outcome.cause,
+          cleanup,
+          "inspect_keyed_archive",
+        ).bindCleanupDependencies([outcome.cause, cleanup]);
+      }
+      throw resources.cleanupFailure(outcome, [released]);
+    }
+    if (outcome.kind === "failed") throw outcome.cause;
+    return outcome.value;
+  });
+};
+
+/** Read exactly one regular, contained bundle entry without following symlinks. */
+const readSelectedKeyedArchive = async (
+  input: BundleKeyedArchiveInput,
+  reader: DirectoryArtifactReader,
+) => {
   const selected = keyedArchiveInputSchema.parse(input.parameters);
   if (
     selected.path.startsWith("/") ||
@@ -196,105 +249,95 @@ export const inspectBundleKeyedArchive = async (input: {
         ? "Select a keyed archive path relative to the active app bundle."
         : `Archive path must be a canonical relative bundle path without empty, '.', or '..' segments: ${selected.path}`,
     );
-  const reader = new DirectoryArtifactReader(input.bundlePath);
-  try {
-    // Match inventory spelling while retaining the raw path for I/O and evidence.
-    const wanted = selected.path.normalize("NFC");
-    let entry: ArtifactEntry | undefined;
-    for await (const candidate of reader.entries(input.signal, (directory) =>
-      wanted.startsWith(`${directory.normalize("NFC")}/`),
-    )) {
-      if (candidate.path.normalize("NFC") !== wanted) continue;
-      if (candidate.kind !== "file")
-        throw archivePathError(
-          "invalid_value",
-          `Archive path selects a ${candidate.kind}, not a regular file: ${selected.path}`,
-        );
-      if ((candidate.declaredSize ?? 0) > MAX_BYTES)
-        throw new ArtifactReaderFailure(
-          "limit",
-          "Keyed archive exceeds 64 MiB",
-        );
-      if (entry !== undefined)
-        throw archivePathError(
-          "invalid_value",
-          `Archive path matches multiple Unicode-equivalent bundle entries; selection is ambiguous: ${selected.path}`,
-        );
-      entry = candidate;
-    }
-    if (entry === undefined)
+  // Match inventory spelling while retaining the raw path for I/O and evidence.
+  const wanted = selected.path.normalize("NFC");
+  let entry: ArtifactEntry | undefined;
+  for await (const candidate of reader.entries(input.signal, (directory) =>
+    wanted.startsWith(`${directory.normalize("NFC")}/`),
+  )) {
+    if (candidate.path.normalize("NFC") !== wanted) continue;
+    if (candidate.kind !== "file")
       throw archivePathError(
         "invalid_value",
-        `No regular file exists at ${selected.path} in the active app bundle.`,
+        `Archive path selects a ${candidate.kind}, not a regular file: ${selected.path}`,
       );
-    const stream = await reader
-      .open(entry, input.signal)
-      .catch((cause: unknown) => {
-        throw selectedArchiveReadFailure(input.bundlePath, entry, cause);
-      });
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of stream) {
-      if (input.signal?.aborted) {
-        stream.destroy();
-        throw new ArtifactReaderFailure(
-          "cancelled",
-          "Archive inspection cancelled",
-        );
-      }
-      const bytes = z.instanceof(Buffer).parse(chunk);
-      size += bytes.length;
-      if (size > MAX_BYTES) {
-        stream.destroy();
-        throw new ArtifactReaderFailure(
-          "limit",
-          "Keyed archive exceeds 64 MiB",
-        );
-      }
-      chunks.push(bytes);
-    }
-    const bytes = Buffer.concat(chunks, size);
-    try {
-      return keyedArchiveResultSchema.parse({
-        target_sha256: input.targetSha256,
-        ...(input.resourceRoot === undefined
-          ? {}
-          : { resource_root: input.resourceRoot }),
-        archive_path: entry.path,
-        archive_sha256: createHash("sha256").update(bytes).digest("hex"),
-        ...decodeKeyedArchiveBytes(bytes, selected),
-      });
-    } catch (cause) {
-      if (cause instanceof AnalysisInputError) throw cause;
-      if (cause instanceof UnsupportedBinaryPlistUidError)
-        throw new AnalysisUnsupportedTargetError(
-          "inspect_keyed_archive",
-          join(input.bundlePath, entry.path),
-          cause.message,
-          { cause },
-        );
-      // An intact file of another kind is not a damaged archive.
-      if (cause instanceof KeyedArchiveKindError)
-        throw new AnalysisUnsupportedTargetError(
-          "inspect_keyed_archive",
-          join(input.bundlePath, entry.path),
-          cause.message,
-          {
-            cause,
-            remediationAction: keyedArchiveKindRemediation(
-              cause.kind,
-              input.platform ?? process.platform,
-            ),
-          },
-        );
+    if ((candidate.declaredSize ?? 0) > MAX_BYTES)
+      throw new ArtifactReaderFailure("limit", "Keyed archive exceeds 64 MiB");
+    if (entry !== undefined)
+      throw archivePathError(
+        "invalid_value",
+        `Archive path matches multiple Unicode-equivalent bundle entries; selection is ambiguous: ${selected.path}`,
+      );
+    entry = candidate;
+  }
+  if (entry === undefined)
+    throw archivePathError(
+      "invalid_value",
+      `No regular file exists at ${selected.path} in the active app bundle.`,
+    );
+  const stream = await reader
+    .open(entry, input.signal)
+    .catch((cause: unknown) => {
+      throw selectedArchiveReadFailure(input.bundlePath, entry, cause);
+    });
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    if (input.signal?.aborted) {
+      stream.destroy();
       throw new ArtifactReaderFailure(
-        cause instanceof RangeError ? "limit" : "format",
-        `Cannot decode selected Foundation keyed archive: ${cause instanceof Error ? cause.message : String(cause)}`,
+        "cancelled",
+        "Archive inspection cancelled",
+        { cause: input.signal.reason },
+      );
+    }
+    const bytes = z.instanceof(Buffer).parse(chunk);
+    size += bytes.length;
+    if (size > MAX_BYTES) {
+      stream.destroy();
+      throw new ArtifactReaderFailure("limit", "Keyed archive exceeds 64 MiB");
+    }
+    chunks.push(bytes);
+  }
+  const bytes = Buffer.concat(chunks, size);
+  try {
+    return keyedArchiveResultSchema.parse({
+      target_sha256: input.targetSha256,
+      ...(input.resourceRoot === undefined
+        ? {}
+        : { resource_root: input.resourceRoot }),
+      archive_path: entry.path,
+      archive_sha256: createHash("sha256").update(bytes).digest("hex"),
+      ...decodeKeyedArchiveBytes(bytes, selected),
+    });
+  } catch (cause) {
+    if (cause instanceof AnalysisInputError) throw cause;
+    if (cause instanceof UnsupportedBinaryPlistUidError)
+      throw new AnalysisUnsupportedTargetError(
+        "inspect_keyed_archive",
+        join(input.bundlePath, entry.path),
+        cause.message,
         { cause },
       );
-    }
-  } finally {
-    await reader.close();
+    // An intact file of another kind is not a damaged archive.
+    if (cause instanceof KeyedArchiveKindError)
+      throw new AnalysisUnsupportedTargetError(
+        "inspect_keyed_archive",
+        join(input.bundlePath, entry.path),
+        cause.message,
+        {
+          cause,
+          remediationAction: keyedArchiveKindRemediation(
+            cause.kind,
+            input.platform ?? process.platform,
+          ),
+        },
+      );
+    throw new ArtifactReaderFailure(
+      cause instanceof RangeError ? "limit" : "format",
+      `Cannot decode selected Foundation keyed archive: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
   }
 };
 

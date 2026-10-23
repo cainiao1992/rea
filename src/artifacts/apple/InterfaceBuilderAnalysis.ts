@@ -11,6 +11,7 @@ import {
   isUIKitRuntimeConnectionClass,
 } from "../../domain/apple/interfaceBuilderKeyedArchive.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
+import { ArtifactResourceScope } from "../ArtifactResourceScope.js";
 import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import {
   projectPlistValue,
@@ -77,14 +78,28 @@ interface OmittedArchive {
   readonly limitations: readonly string[];
 }
 
-/** Decode compiled Interface Builder archives from a local app bundle. */
-export const analyzeInterfaceBuilderBundle = async (input: {
+interface InterfaceBuilderBundleInput {
   readonly bundlePath: string;
   readonly targetSha256: string | null;
   readonly resourceRoot?: import("../../domain/apple/bundleResourceRoot.js").BundleResourceRoot;
   readonly limits?: unknown;
   readonly signal?: AbortSignal;
-}) => {
+  readonly resources?: ArtifactResourceScope;
+}
+
+/** Own decoding and directory finalization under the caller's resource scope. */
+export const analyzeInterfaceBuilderBundle = (
+  input: InterfaceBuilderBundleInput,
+) => {
+  const resources = input.resources ?? new ArtifactResourceScope();
+  return resources.run(() => decodeInterfaceBuilderBundle(input, resources));
+};
+
+/** Decode compiled archives while keeping their reader's completion distinct from cleanup. */
+const decodeInterfaceBuilderBundle = async (
+  input: InterfaceBuilderBundleInput,
+  resources: ArtifactResourceScope,
+) => {
   const limits = interfaceBuilderLimitsSchema.parse(input.limits ?? {});
   const reader = new DirectoryArtifactReader(input.bundlePath);
   const documents: InterfaceBuilderDocumentInput[] = [];
@@ -107,6 +122,9 @@ export const analyzeInterfaceBuilderBundle = async (input: {
   const decodeBudget = new InterfaceBuilderDecodeBudget(
     MAX_AGGREGATE_DECODE_BYTES,
   );
+  let outcome: { kind: "completed" } | { kind: "failed"; cause: unknown } = {
+    kind: "completed",
+  };
   const recordOmittedArchive = (
     path: string,
     reason: string,
@@ -277,9 +295,17 @@ export const analyzeInterfaceBuilderBundle = async (input: {
         );
       }
     }
-  } finally {
-    await reader.close();
+  } catch (cause: unknown) {
+    outcome = { kind: "failed", cause };
   }
+  const released = await resources.release({
+    kind: "reader",
+    reader,
+    resource: input.bundlePath,
+  });
+  if (released.kind === "failed")
+    throw resources.cleanupFailure(outcome, [released]);
+  if (outcome.kind === "failed") throw outcome.cause;
   const result = buildInterfaceBuilderAnalysis({
     targetSha256: input.targetSha256,
     ...(input.resourceRoot === undefined

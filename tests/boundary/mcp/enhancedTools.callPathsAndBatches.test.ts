@@ -214,6 +214,58 @@ describe("enhanced MCP graph caveats", () => {
   });
 });
 
+describe("trace_call_path MCP path selection", () => {
+  it.each(["forward", "backward"] as const)(
+    "selects the first shortest %s path through a diamond with cycles",
+    async (direction) => {
+      const expanded: string[] = [];
+      const related: Readonly<Record<string, readonly string[]>> = {
+        "0x1": ["0x3", "0x2", "0x2"],
+        "0x2": ["0x1", "0x2", "0x4"],
+        "0x3": ["0x4"],
+      };
+      const client = await connect({
+        execute: async (name, arguments_) => {
+          if (name === "procedure_address")
+            return relationshipExecution(String(arguments_.procedure));
+          expect(name).toBe(
+            direction === "forward" ? "procedure_callees" : "procedure_callers",
+          );
+          const address = String(arguments_.procedure);
+          expanded.push(address);
+          return relationshipExecution(related[address] ?? [], [], {
+            status: "complete",
+          });
+        },
+      });
+      const trace = await client.callTool({
+        name: "trace_call_path",
+        arguments: { start: "0x1", goal: "0x4", direction },
+      });
+      expect(trace.isError).not.toBe(true);
+      expect(trace.structuredContent).toMatchObject({
+        normalized_result: {
+          goal_status: "reached",
+          traversal_path: ["0x1", "0x2", "0x4"],
+          nodes: [
+            { address: "0x1", depth: 0 },
+            { address: "0x2", depth: 1 },
+            { address: "0x3", depth: 1 },
+            { address: "0x4", depth: 2 },
+          ],
+          truncated: false,
+          failures: [],
+          relationship_coverage: {
+            "0x1": { status: "complete" },
+            "0x2": { status: "complete" },
+          },
+        },
+      });
+      expect(expanded).toEqual(["0x1", "0x2"]);
+    },
+  );
+});
+
 describe("trace_call_path MCP outcome semantics", () => {
   it("reports an unreachable goal as unknown when relationship coverage is partial", async () => {
     const client = await connect({

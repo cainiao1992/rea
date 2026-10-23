@@ -35,11 +35,14 @@ export interface CallPathTraceInput {
   readonly direction: CallRelationshipDirection;
 }
 
+interface TraceNode {
+  readonly address: string;
+  readonly depth: number;
+  readonly parent: TraceNode | undefined;
+}
+
 interface TraceState {
-  readonly visited: Map<
-    string,
-    { readonly depth: number; readonly path: string[] }
-  >;
+  readonly visited: Map<string, TraceNode>;
   readonly queue: string[];
   readonly edges: Map<
     string,
@@ -64,7 +67,7 @@ interface AddressExpansion {
   readonly input: CallPathTraceInput;
   readonly state: TraceState;
   readonly address: string;
-  readonly current: { readonly depth: number; readonly path: string[] };
+  readonly current: TraceNode;
   readonly signal?: AbortSignal;
 }
 
@@ -123,7 +126,9 @@ export const traceCallPath = async (
 };
 
 const createTraceState = (input: CallPathTraceInput): TraceState => ({
-  visited: new Map([[input.start, { depth: 0, path: [input.start] }]]),
+  visited: new Map([
+    [input.start, { address: input.start, depth: 0, parent: undefined }],
+  ]),
   queue: [input.start],
   edges: new Map(),
   failures: [],
@@ -195,28 +200,28 @@ const expandAddress = async (
       relatedAddress,
       discoveryDepth: current.depth + 1,
     });
-    const path = state.visited.get(relatedAddress)?.path ?? [
-      ...current.path,
-      relatedAddress,
-    ];
-    if (state.visited.has(relatedAddress)) {
-      if (relatedAddress === input.goal) {
-        state.traversalPath = path;
-        return ok(true);
-      }
-      continue;
-    }
-    state.visited.set(relatedAddress, {
+    if (state.visited.has(relatedAddress)) continue;
+    const discovered: TraceNode = {
+      address: relatedAddress,
       depth: current.depth + 1,
-      path,
-    });
+      parent: current,
+    };
+    state.visited.set(relatedAddress, discovered);
     if (relatedAddress === input.goal) {
-      state.traversalPath = path;
+      state.traversalPath = reconstructPath(discovered);
       return ok(true);
     }
     state.queue.push(relatedAddress);
   }
   return ok(false);
+};
+
+/** Only the selected goal needs a path; each discovered node owns one parent link. */
+const reconstructPath = (goal: TraceNode): string[] => {
+  const path: string[] = [];
+  for (let node: TraceNode | undefined = goal; node; node = node.parent)
+    path.push(node.address);
+  return path.reverse();
 };
 
 const recordEdge = (

@@ -399,7 +399,7 @@ to improve the code or docs.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
 [testing](docs/testing.md) for verification lanes, and the
-[architecture map](docs/architecture.mermaid) for the project structure.
+[architecture map](docs/architecture.mermaid) for selected layers and dependency paths.
 
 ## License
 

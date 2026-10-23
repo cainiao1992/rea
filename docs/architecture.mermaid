@@ -1,4 +1,6 @@
 graph TD
+    %% Selected layer owners and dependency/wiring paths, not a directory or import inventory.
+    %% Current deep-provider candidates are wired in src/composition/binary.ts.
     subgraph "Entry Points"
         CLI["src/cli.ts + src/cli/<br/>One-shot CLI adapter<br/>setup, diagnostics, analysis, decompilation"]
         MAIN["src/main.ts + src/main/<br/>MCP server adapter: stdio default, streamable HTTP opt-in<br/>config, session, process lifetime"]
@@ -25,7 +27,7 @@ graph TD
         JS_RECON["src/application/javascript/ + src/artifacts/javascript/<br/>JavaScript artifact reconstruction<br/>directory/ASAR reads<br/>AST-only bundle projection"]
     end
 
-    subgraph "Provider Layers"
+    subgraph "Provider Layers (selected adapters)"
         PROVIDER_OWNERS["src/providers/<br/>shared deferred client and inspection owners<br/>exact cleanup retry and attributed failures"]
         PWNTOOLS["src/native/pwntools/ + src/native/pwndbg/<br/>BYO offline ELF/core adapters<br/>owned snapshots/Python and optional core-only GDB<br/>unchanged upstream parsers, ABI structures and mapping API"]
         WASM["src/wasm/<br/>caller-supplied WABT; immutable artifact inspection<br/>owned process supervision and retryable workspace cleanup"]
@@ -34,6 +36,7 @@ graph TD
         HOPPER["src/hopper/<br/>Hopper launch & Unix-socket protocol<br/>BridgeLauncher, HopperClient, protocol"]
         GHIDRA["src/ghidra/<br/>Ghidra discovery, profile & function analysis<br/>snapshot, Unix/Windows transport, bounded lifecycle"]
         IDA["src/ida/<br/>Upstream MCP contract adaptation<br/>live GUI binding or owned headless database"]
+        KUNA["src/kuna/<br/>BYO Kuna deep analysis candidate<br/>discovery reads metadata; version probe on target open"]
         IDA_MCP["External ida-pro-mcp<br/>GUI proxy or database supervisor<br/>upstream installation and engine lifecycle"]
         AUX["src/artifacts/ + src/native/<br/>artifact inventory, bounded directory triage and extraction<br/>format readers and native capabilities"]
         BROWSER["src/browser/<br/>CDP / Playwright capture<br/>captured scripts and native module resolution<br/>execution/: coverage, listener and source attribution"]
@@ -112,6 +115,7 @@ graph TD
     COMPOSITION --> HOPPER
     COMPOSITION --> GHIDRA
     COMPOSITION --> IDA
+    COMPOSITION --> KUNA
     COMPOSITION --> AUX
     IDA --> IDA_MCP
     IDA --> CONTRACTS
@@ -142,6 +146,7 @@ graph TD
     GHIDRA --> GHIDRA_BRIDGE
     HOPPER --> PROCESS
     GHIDRA --> PROCESS
+    KUNA --> PROCESS
     GHIDRA --> PROVIDER_OWNERS
     APP --> PROVIDER_OWNERS
     PROVIDER_OWNERS --> PROCESS
@@ -159,6 +164,7 @@ graph TD
     CONTRACTS --> DOMAIN
     HOPPER --> DOMAIN
     GHIDRA --> DOMAIN
+    KUNA --> DOMAIN
     AUX --> DOMAIN
     BROWSER --> DOMAIN
     PROCESS --> DOMAIN

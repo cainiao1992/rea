@@ -132,6 +132,11 @@ includes sectionless PIE images with metadata in a later data segment. Named
 sections retain priority, and alignment, file mapping and record validation
 remain required.
 
+A named ELF build-info section selects the record's discovery range. For inline
+encoding, the following version and module strings may continue past that
+section into its file-backed load mapping; their bytes are still checked
+against the mapping and the existing aggregate string limit.
+
 Historical moduleless Go binaries can store their empty module-string header in
 declared zero-initialized virtual memory rather than file-backed bytes. The reader
 recognizes this only when the complete optional module header lies in that memory

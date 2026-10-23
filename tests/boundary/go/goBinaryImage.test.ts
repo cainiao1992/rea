@@ -191,6 +191,24 @@ it.each([
   },
 );
 
+it("reads inline build strings past the ELF build-info discovery section", () => {
+  const fixture = createGoBinaryFixture();
+  const buildInfoSection = 256 + 64 * 2;
+  fixture.bytes.writeBigUInt64LE(32n, buildInfoSection + 32);
+
+  expect(readGoBinaryImage(fixture.bytes).build_info).toMatchObject({
+    header_offset: fixture.headerOffset,
+    encoding: "inline",
+    go_version: "go1.26.0",
+    module_text: GO_MODULE_TEXT,
+    version_location: { offset: fixture.versionOffset, bytes: 8 },
+    module_location: {
+      offset: fixture.moduleOffset,
+      bytes: fixture.moduleBytes.length,
+    },
+  });
+});
+
 it.each(["elf", "pe", "macho"] as const)(
   "follows mapped pointers in legacy %s metadata",
   (format) => {

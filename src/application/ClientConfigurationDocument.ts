@@ -771,11 +771,14 @@ const editInlineServerTable = (
   table: string,
   serverKey: string,
   entry: unknown,
-): string | undefined => {
+):
+  | { readonly text: string; readonly comments: readonly string[] }
+  | undefined => {
   if (!table.startsWith("{")) return undefined;
   const end = endOfContainer(table, 0);
   if (table[end - 1] !== "}") return undefined;
   const pairs: InlinePair[] = [];
+  const comments: string[] = [];
   let index = 1;
   let trailing = "";
   while (index < end - 1) {
@@ -790,10 +793,14 @@ const editInlineServerTable = (
     if (table[equals] !== "=") return undefined;
     const valueEnd = endOfTomlValue(table, equals + 1);
     if (valueEnd > end - 1) return undefined;
+    const pairText = table.slice(trivia.next, valueEnd);
+    const drop = key.segments[0] === serverKey;
+    if (drop)
+      for (const comment of tomlCommentLines(pairText)) comments.push(comment);
     pairs.push({
       leading: trivia.text,
-      text: table.slice(trivia.next, valueEnd),
-      drop: key.segments[0] === serverKey,
+      text: pairText,
+      drop,
     });
     index = valueEnd;
   }
@@ -802,8 +809,8 @@ const editInlineServerTable = (
       ? undefined
       : `${tomlInlineKey(serverKey)} = ${tomlInlineValue(entry)}`;
   if (insertion === undefined && pairs.every((pair) => !pair.drop))
-    return table;
-  return rebuildInlineTable(pairs, trailing, insertion);
+    return { text: table, comments };
+  return { text: rebuildInlineTable(pairs, trailing, insertion), comments };
 };
 
 const rebuildInlineTable = (
@@ -992,10 +999,32 @@ const withoutTrailingLineFeeds = (text: string): string => {
   return text.slice(0, end);
 };
 
+/** Retain comment trivia from removed code without promoting string contents. */
+const tomlCommentLines = (text: string): readonly string[] => {
+  const comments: string[] = [];
+  let index = 0;
+  while (index < text.length) {
+    if (text.startsWith('"""', index) || text.startsWith("'''", index)) {
+      const basic = text[index] === '"';
+      index =
+        closeMultiline(text, index + 3, basic ? '"""' : "'''", basic) ??
+        text.length;
+    } else if (text[index] === '"' || text[index] === "'") {
+      index = parseQuotedKey(text, index)?.next ?? text.length;
+    } else if (text[index] === "#") {
+      const end = text.indexOf("\n", index);
+      comments.push(text.slice(index, end < 0 ? text.length : end));
+      index = end < 0 ? text.length : end + 1;
+    } else index += 1;
+  }
+  return comments;
+};
+
 /**
  * Replace REA's TOML server tables and assignments. Every comment line stays
  * where it was, including comments before, inside, and after REA's own table;
- * only blank lines that separated a removed table go with it. Text inside
+ * inline comments on replaced code become standalone comment lines.
+ * Only blank lines that separated a removed table go with it. Text inside
  * strings is not treated as a header. Only Grok Build reads the root
  * `disabled_mcp_servers` list that registration also edits.
  */
@@ -1055,6 +1084,7 @@ const upsertTomlServerSection = (
       tablePath = header.path;
       if (isTomlServerTable(header.path, serverKey)) {
         discardPending();
+        appendLines(tomlCommentLines(physical));
         skipping = true;
         lineIndex += 1;
         continue;
@@ -1083,6 +1113,7 @@ const upsertTomlServerSection = (
         endLine += 1;
       if (skipping) {
         discardPending();
+        appendLines(tomlCommentLines(text.slice(lineStart, statementEnd)));
         lineIndex = endLine + 1;
         mode = "none";
         continue;
@@ -1132,10 +1163,16 @@ const upsertTomlServerSection = (
           const replacement =
             edited === undefined
               ? text.slice(lineStart, statementEnd)
-              : `${prefix}${edited}${suffix}`;
+              : `${prefix}${edited.text}${suffix}`;
           appendLines(replacement.split("\n"));
+          // TOML 1.0 inline tables cannot gain standalone comments between
+          // their fields. Retain removed value comments after the assignment.
+          if (edited !== undefined) appendLines(edited.comments);
           inlineServerTable = true;
-        } else discardPending();
+        } else {
+          discardPending();
+          appendLines(tomlCommentLines(text.slice(lineStart, statementEnd)));
+        }
       } else {
         flushPending();
         for (let index = lineIndex; index <= endLine; index += 1)

@@ -39,6 +39,11 @@ pass an absolute path. REA reads and authenticates the file, then projects it
 like retained Evidence, so a large file is bounded by the file reader rather
 than charged as inline input.
 
+Local file inspection commands reject empty paths and NUL bytes before resolving
+relative inputs, auxiliary files or output destinations. An empty string never
+selects the working directory; use an explicit `.` when selecting that directory
+is supported by the command.
+
 For example, a 334 MB Obsidian application Evidence file yields a summary view
 of about 10 KB. Replace the view with
 `{"kind": "page", "collection": "modules", "offset": 0, "limit": 32}` for a

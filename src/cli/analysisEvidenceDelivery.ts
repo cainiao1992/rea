@@ -10,6 +10,7 @@ import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { publishEvidenceDelivery } from "../application/EvidenceBundleCommands.js";
 import { inspectAnalysisViewValidated } from "../application/analysisView/AnalysisViewService.js";
+import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
 
@@ -18,9 +19,7 @@ export const analysisEvidenceDeliveryOptions = {
     .enum(["complete", "summary"])
     .default("complete")
     .describe("Deliver complete Evidence, or a summary with --evidence_output"),
-  evidence_output: z
-    .string()
-    .min(1)
+  evidence_output: localPathStringSchema
     .optional()
     .describe(
       "Save complete Evidence as a bundle; required for summary delivery. Never overwrites.",

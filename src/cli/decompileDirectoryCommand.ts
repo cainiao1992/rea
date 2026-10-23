@@ -9,6 +9,7 @@ import {
   nativeOpenOptionFields,
 } from "./options.js";
 import type { CliInstance } from "./types.js";
+import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
@@ -25,12 +26,9 @@ export const registerDecompileDirectoryCommand = (
       path: z.string().describe("App or program path"),
     }),
     options: z.object({
-      output: z
-        .string()
-        .min(1)
-        .describe(
-          "Output directory. A relative path is resolved from the working directory. The parent must exist.",
-        ),
+      output: localPathStringSchema.describe(
+        "Output directory. A relative path is resolved from the working directory. The parent must exist.",
+      ),
       layout: z
         .enum(["address", "dwarf"])
         .default("address")

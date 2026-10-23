@@ -8,6 +8,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { safeParseJson } from "../domain/safeJson.js";
 import { logCliCommand } from "../cliLogging.js";
+import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
@@ -25,7 +26,9 @@ export const registerApkSignatureCommands = (
   cli.command(apkSignatureModule.cliCommand, {
     description:
       "Inspect declared APK signing schemes, signers and content digests",
-    args: z.object({ path: z.string().describe("Selected local APK/ZIP/AAB") }),
+    args: z.object({
+      path: localPathStringSchema.describe("Selected local APK/ZIP/AAB"),
+    }),
     options: z.object({
       ...analysisEvidenceDeliveryOptions,
       view: z

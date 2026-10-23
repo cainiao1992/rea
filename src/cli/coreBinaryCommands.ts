@@ -22,6 +22,7 @@ import { runCliJavaScriptApplicationAnalysis } from "./javascriptApplicationAnal
 import { withCommandCancellation } from "./commandCancellation.js";
 import { javascriptApplicationOptions } from "../cliObservationOptions.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
+import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { registerDecompileDirectoryCommand } from "./decompileDirectoryCommand.js";
 
@@ -84,10 +85,9 @@ const registerOverviewCommands = (
   cli.command(CLI_COMMANDS.analyze, {
     description: "Get an overview of an app",
     args: z.object({
-      path: z
-        .string()
-        .min(1)
-        .describe("App, program, or analysis database path"),
+      path: localPathStringSchema.describe(
+        "App, program, or analysis database path",
+      ),
     }),
     options: overviewOptions.extend({
       integrityPolicy: laneIntegrityPolicy,

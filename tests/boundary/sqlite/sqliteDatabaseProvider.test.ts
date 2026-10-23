@@ -804,6 +804,52 @@ it("attributes table and column selection failures to their own arguments", asyn
   expect(selected.value.result).toMatchObject({ rows: { columns: ["id"] } });
 });
 
+it("reports a projection above SQLite's result-column capacity as capacity, not invalid input", async () => {
+  const { database } = await createFixture();
+  const reader = new DatabaseSync(database.path, { readOnly: true });
+  const engineColumnLimit = (() => {
+    try {
+      return reader.limits.column;
+    } finally {
+      reader.close();
+    }
+  })();
+  const provider = createProvider();
+  onTestFinished(() => provider.close());
+  const columns = (count: number): string[] =>
+    Array.from({ length: count }, () => "text_value");
+  const atLimit = await provider.inspect({
+    path: database.path,
+    table: "records",
+    columns: columns(engineColumnLimit),
+    row_limit: 1,
+  });
+  if (!atLimit.ok) throw atLimit.error;
+  expect(atLimit.value.result).toMatchObject({
+    rows: { columns: columns(engineColumnLimit), returned_rows: 1 },
+  });
+
+  const overLimit = await provider.inspect({
+    path: database.path,
+    table: "records",
+    columns: columns(engineColumnLimit + 1),
+    row_limit: 1,
+  });
+  if (overLimit.ok) throw new Error("Expected a rejected projection");
+  const projection = projectAnalysisError(overLimit.error);
+  expect(projection).toMatchObject({
+    code: "resource_constraint",
+    details: {
+      resource: "capacity",
+      reported_limits: {
+        selected_result_columns: engineColumnLimit + 1,
+        engine_result_column_limit: engineColumnLimit,
+      },
+    },
+  });
+  expect(JSON.stringify(projection)).not.toContain("invalid_format");
+});
+
 it("rejects malformed databases without altering the selected file", async () => {
   const workspace = await createTestWorkspace("rea-sqlite-invalid-");
   onTestFinished(() => removeTestWorkspace(workspace.root));

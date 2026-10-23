@@ -611,3 +611,42 @@ nativeTest.skipIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
     ).toThrow("DatabaseSync.limits");
   },
 );
+
+it("classifies SQLite's result-column capacity refusal without blaming the database", async () => {
+  const path = await createDatabase(
+    "CREATE TABLE records(email TEXT); INSERT INTO records VALUES ('sample');",
+  );
+  const reader = new DatabaseSync(path, { readOnly: true });
+  const engineColumnLimit = (() => {
+    try {
+      return reader.limits.column;
+    } finally {
+      reader.close();
+    }
+  })();
+  const columns = (count: number): string[] =>
+    Array.from({ length: count }, () => "email");
+  const atLimit = inspectSqliteDatabaseSnapshot(path, {
+    path,
+    table: "records",
+    columns: columns(engineColumnLimit),
+  });
+  expect(atLimit.rows).toMatchObject({
+    columns: columns(engineColumnLimit),
+    returned_rows: 1,
+  });
+  expect(() =>
+    inspectSqliteDatabaseSnapshot(path, {
+      path,
+      table: "records",
+      columns: columns(engineColumnLimit + 1),
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      reason: "column-limit",
+      selectedColumns: engineColumnLimit + 1,
+      engineColumnLimit,
+      message: expect.stringContaining("too many columns in result set"),
+    }),
+  );
+});

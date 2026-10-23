@@ -66,7 +66,12 @@ whose sampled values were read; stored and other generated cells stay readable. 
 cause a format refusal when all columns are requested. In inventory scope, an explicit valid subset can
 still be sampled without decoding unrelated malformed column names.
 Column selection requires a
-table and at least one name; empty-string identifiers are valid. `row_limit`
+table and at least one name; empty-string identifiers are valid. SQLite counts
+every projected name, including a repeated name, against its native
+result-column capacity; a wider projection is refused as `resource_constraint`
+with `resource: "capacity"`, reporting the selected count and this connection's
+column limit. The selected database is readable and is not reported as
+malformed; request fewer columns per call instead. `row_limit`
 requires `table`, defaults to 20 and accepts positive safe integers. Samples
 remain subject to the byte and worker resource limits below, regardless of row count. The result reports
 the selected limit, returned count and whether more rows were observed. Row

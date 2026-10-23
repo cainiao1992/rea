@@ -59,6 +59,13 @@ const replySchema = z.union([
     message: z.string(),
     readable_columns: z.array(z.string()),
   }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.literal("column-limit"),
+    message: z.string(),
+    selected_columns: z.int().positive(),
+    engine_column_limit: z.int().positive(),
+  }),
 ]);
 /** Replaceable launcher retains the shared owned-process supervision boundary. */
 export type SqliteWorkerLauncher = NonNullable<
@@ -126,6 +133,21 @@ const rejectedReply = (
         retryable: false,
         remediationAction:
           "The SQLite value/record and worker JSON reply allowances are fixed at 16 MiB; worker_timeout_ms and client deadlines do not raise them. If it preserves the requested facts, select exact columns, reduce row_limit, or use schema_scope: inventory instead of database. This worker refusal leaves no completed Evidence to retrieve. Do not repeat the unchanged request or truncate required database bytes.",
+      },
+    );
+  if (reply.reason === "column-limit")
+    return new AnalysisResourceConstraintError(
+      operation,
+      "capacity",
+      reply.message,
+      {
+        selected_result_columns: reply.selected_columns,
+        engine_result_column_limit: reply.engine_column_limit,
+      },
+      {
+        capturedOutput,
+        retryable: false,
+        remediationAction: `The selected database is readable; only the combined projection exceeded this connection's native result-column limit. Request at most ${String(reply.engine_column_limit)} columns per call, splitting wider facts across calls, or omit table to inspect stored declarations with schema_scope: database. The limit belongs to SQLite's connection, so worker_timeout_ms and client deadlines do not raise it. Do not repeat the unchanged request.`,
       },
     );
   const argument = rejectedArgument[reply.reason];

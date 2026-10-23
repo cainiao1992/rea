@@ -763,7 +763,9 @@ const readNativeJson = async (
     : err(
         invalidJson(operation, parsed.error, {
           cause: parsed.cause,
-          userMessage: parsed.userMessage,
+          ...(parsed.userMessage === undefined
+            ? {}
+            : { userMessage: parsed.userMessage }),
         }),
       );
 };

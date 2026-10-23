@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   readMetadataBlob,
+  metadataTokenFact,
   readMetadataString,
   readMetadataUserString,
 } from "./ManagedMetadataHeaps.js";
@@ -97,7 +98,7 @@ describe("managed metadata heaps", () => {
       } as unknown as ManagedMetadataLayout;
 
       expect(() =>
-        readMetadataUserString(bytes, layout, "0x70000001"),
+        readMetadataUserString(bytes, layout, metadataTokenFact(0x70000001)),
       ).toThrowError(
         expect.objectContaining({
           issue: expect.objectContaining({

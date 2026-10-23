@@ -775,6 +775,25 @@ describe("managed comparison post-admission read failures", () => {
 });
 
 describe("managed comparison snapshot admission and cleanup", () => {
+  const snapshotReaderWithClose =
+    (
+      closeHandle: (owner: OwnedFileHandle) => Promise<void>,
+    ): typeof readManagedSnapshot =>
+    async (path, operation, options) => {
+      // Target resolution owns separate handles. Inject only while the real
+      // snapshot reader owns the descriptor whose retry this test observes.
+      const close = vi
+        .spyOn(OwnedFileHandle.prototype, "close")
+        .mockImplementation(function (this: OwnedFileHandle) {
+          return closeHandle(this);
+        });
+      try {
+        return await readManagedSnapshot(path, operation, options);
+      } finally {
+        close.mockRestore();
+      }
+    };
+
   it("rejects a sparse oversized snapshot through the default reader before reading it", async () => {
     const directory = await createTestTempDirectory(
       "rea-managed-oversized-snapshot-",
@@ -825,26 +844,28 @@ describe("managed comparison snapshot admission and cleanup", () => {
     const originalClose = OwnedFileHandle.prototype.close;
     const owners: OwnedFileHandle[] = [];
     let attempts = 0;
-    const close = vi
-      .spyOn(OwnedFileHandle.prototype, "close")
-      .mockImplementation(async function (this: OwnedFileHandle) {
-        owners.push(this);
-        attempts += 1;
-        if (attempts === 1) throw new Error("injected transient close failure");
-        await originalClose.call(this);
-      });
     try {
       const result = await compareManagedMemberPaths(
         { leftPath, rightPath },
-        {},
+        {
+          readSnapshot: snapshotReaderWithClose(async (owner) => {
+            owners.push(owner);
+            attempts += 1;
+            if (attempts === 1)
+              throw new Error("injected transient close failure");
+            await originalClose.call(owner);
+          }),
+        },
         resources,
       );
 
       expect(result.ok).toBe(true);
       expect(owners[0]).toBe(owners[1]);
       expect(attempts).toBe(3);
+      expect(owners[2]).not.toBe(owners[0]);
+      expect(owners.map((owner) => owner.handle.fd)).toEqual([-1, -1, -1]);
+      expect(resources.hasPending).toBe(false);
     } finally {
-      close.mockRestore();
       await resources.close();
     }
   });
@@ -860,17 +881,16 @@ describe("managed comparison snapshot admission and cleanup", () => {
     const resources = new ArtifactResourceScope();
     const cleanupCause = new Error("injected persistent close failure");
     const owners: OwnedFileHandle[] = [];
-    const close = vi
-      .spyOn(OwnedFileHandle.prototype, "close")
-      .mockImplementation(async function (this: OwnedFileHandle) {
-        owners.push(this);
-        throw cleanupCause;
-      });
     let result: Awaited<ReturnType<typeof compareManagedMemberPaths>>;
     try {
       result = await compareManagedMemberPaths(
         { leftPath, rightPath },
-        {},
+        {
+          readSnapshot: snapshotReaderWithClose(async (owner) => {
+            owners.push(owner);
+            throw cleanupCause;
+          }),
+        },
         resources,
       );
       expect(result.ok).toBe(false);
@@ -879,12 +899,16 @@ describe("managed comparison snapshot admission and cleanup", () => {
         code: "cleanup_incomplete",
         details: { cleanup: "incomplete", resources: [leftPath] },
       });
+      expect(owners).toHaveLength(2);
       expect(owners[0]).toBe(owners[1]);
       expect(owners[0]?.handle.fd).toBeGreaterThanOrEqual(0);
+      expect(resources.hasPending).toBe(true);
+      expect(resources.cleanupResources).toEqual([leftPath]);
     } finally {
-      close.mockRestore();
       await resources.close();
     }
+    expect(owners[0]?.handle.fd).toBe(-1);
+    expect(resources.hasPending).toBe(false);
   });
 });
 

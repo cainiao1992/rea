@@ -18,8 +18,11 @@ import { parseUserStrings } from "./ManagedUserStrings.js";
 import {
   readCompressed,
   signature,
+  isParsedTokenInstruction,
+  type DecodedMethod,
   type ManagedMethod,
 } from "./ManagedMemberInspectorCore.js";
+import { decodeInstructions } from "./ManagedMemberInstructionDecoder.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
@@ -34,6 +37,19 @@ import {
   fixtureUserStringHeap,
   managedPeFixtureTarget,
 } from "./ManagedPe.fixture.js";
+
+/** Decode real token operands for capacity tests that do not need a PE method body. */
+const decodedTokenInstructions = (
+  opcode: number,
+  tokens: readonly number[],
+) => {
+  const il = Buffer.alloc(tokens.length * 5);
+  for (const [index, token] of tokens.entries()) {
+    il.writeUInt8(opcode, index * 5);
+    il.writeUInt32LE(token, index * 5 + 1);
+  }
+  return decodeInstructions(il).parsed.filter(isParsedTokenInstruction);
+};
 
 /** A tiny-header body that loads each `ldstr` token, discards it, and returns. */
 const ldstrBody = (tokens: readonly string[]): Buffer => {
@@ -1329,16 +1345,14 @@ describe("managed user strings", () => {
     const layout = { userStrings: null } as unknown as ManagedMetadataLayout;
     // Leave 1 KiB of the 64 MiB budget: too little for 100 distinct tokens.
     managedDecodeBudget(layout).reserve(64 * 1024 * 1024 - 1024, null);
-    const method = {
-      body: {
-        anchors: Array.from({ length: 100 }, (_, index) => ({
-          il_offset: index * 5,
-          opcode: "ldstr",
-          operand_kind: "string",
-          operand: `0x70${(index + 1).toString(16).padStart(6, "0")}`,
-        })),
-      },
-    } as unknown as ManagedMethod;
+    const method: DecodedMethod = {
+      method: {} as ManagedMethod,
+      tokenInstructions: decodedTokenInstructions(
+        0x72,
+        Array.from({ length: 100 }, (_, index) => 0x70000001 + index),
+      ),
+      catchTokens: new Map(),
+    };
 
     expect(() =>
       parseUserStrings(Buffer.alloc(0), layout, {
@@ -1512,16 +1526,14 @@ describe("managed user string issues", () => {
     } as unknown as ManagedMetadataLayout;
     // Leave 24 KiB: enough for the failures, not for 512 bytes leaked each.
     managedDecodeBudget(layout).reserve(64 * 1024 * 1024 - 24 * 1024, null);
-    const method = {
-      body: {
-        anchors: Array.from({ length: 64 }, (_, index) => ({
-          il_offset: index * 5,
-          opcode: "ldstr",
-          operand_kind: "string",
-          operand: `0x70${(1 + index * 2).toString(16).padStart(6, "0")}`,
-        })),
-      },
-    } as unknown as ManagedMethod;
+    const method: DecodedMethod = {
+      method: {} as ManagedMethod,
+      tokenInstructions: decodedTokenInstructions(
+        0x72,
+        Array.from({ length: 64 }, (_, index) => 0x70000001 + index * 2),
+      ),
+      catchTokens: new Map(),
+    };
 
     expect(
       parseUserStrings(heap, layout, { methods: [method], unscannedMethods: 0 })
@@ -1801,23 +1813,25 @@ describe("managed member decoding budget", () => {
 
 describe("managed derived edges", () => {
   it("admits call edges before the derived graph exceeds the budget", () => {
-    const anchor = {
-      il_offset: 0,
-      opcode: "call",
-      operand_kind: "method",
-      operand: "0x0a000001",
-    };
     const method = {
       token: "0x06000001",
       declaring_type: "T".repeat(2000),
       name: "m",
-      body: { anchors: Array.from({ length: 16 }, () => anchor) },
     } as unknown as ManagedMethod;
+
+    const decoded: DecodedMethod = {
+      method,
+      tokenInstructions: decodedTokenInstructions(
+        0x28,
+        Array(16).fill(0x0a000001),
+      ),
+      catchTokens: new Map(),
+    };
 
     const budget = new ManagedDecodeBudget();
     // Exercise the same capacity boundary without constructing 64 MiB of edges.
     budget.reserve(64 * 1024 * 1024 - 16 * 1024, null);
-    expect(() => edges([method], new Map(), budget)).toThrow(
+    expect(() => edges([decoded], new Map(), budget)).toThrow(
       ManagedReaderFailure,
     );
   });
@@ -1839,22 +1853,18 @@ describe("managed derived caller names", () => {
       token: "0x06000001",
       declaring_type: declaringType,
       name: "m",
-      body: {
-        anchors: [
-          {
-            il_offset: 0,
-            opcode: "call",
-            operand_kind: "method",
-            operand: "0x0a000001",
-          },
-        ],
-      },
     } as unknown as ManagedMethod;
+
+    const decoded: DecodedMethod = {
+      method,
+      tokenInstructions: decodedTokenInstructions(0x28, [0x0a000001]),
+      catchTokens: new Map(),
+    };
 
     const budget = new ManagedDecodeBudget();
     // Only the remaining capacity matters to refusal before interpolation.
     budget.reserve(64 * 1024 * 1024 - 1024, null);
-    expect(() => edges([method], new Map(), budget)).toThrow(
+    expect(() => edges([decoded], new Map(), budget)).toThrow(
       ManagedReaderFailure,
     );
     expect(built).toBe(false);

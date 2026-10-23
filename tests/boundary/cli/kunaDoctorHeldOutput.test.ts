@@ -57,11 +57,20 @@ process.exit(0);
       // regression that waits for the descendant's finite fallback expiry.
       timeoutMs: 20_000,
     });
+    let commandSettled = false;
+    void pending.then(
+      () => {
+        commandSettled = true;
+      },
+      () => {
+        commandSettled = true;
+      },
+    );
     let ownership: OwnedProcessGroup | undefined;
     const startedAt = Date.now();
     try {
       let markerContents: string | undefined;
-      for (let attempt = 0; attempt < 100; attempt++) {
+      for (;;) {
         try {
           markerContents = await readFile(marker, "utf8");
           break;
@@ -75,9 +84,23 @@ process.exit(0);
           )
             throw cause;
         }
+        // CLI startup and the probe are separate phases. The owned command's
+        // existing deadline bounds this wait; its marker establishes readiness.
+        if (commandSettled) break;
         await delay(50);
       }
-      expect(markerContents, "fake Kuna probe did not start").toBeDefined();
+      if (markerContents === undefined) {
+        const markerWaitMs = Date.now() - startedAt;
+        const result = await pending;
+        expect(
+          markerContents,
+          `Kuna probe marker was absent when the CLI settled: ${JSON.stringify({
+            markerWaitMs,
+            cliElapsedMs: Date.now() - startedAt,
+            ...result,
+          })}`,
+        ).toBeDefined();
+      }
       const observed = z
         .strictObject({
           leaderPid: z.number().int().positive(),

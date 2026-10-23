@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterEach, describe, expect, test } from "vitest";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -134,6 +135,7 @@ describe("JavaScript runtime observation MCP tools", () => {
       },
     });
     expect(observedRuntime.isError).not.toBe(true);
+    await assertSdkObservationSchema(client, observedRuntime.structuredContent);
     expect(observedRuntime.structuredContent).toMatchObject({
       normalized_result: {
         target: {
@@ -144,7 +146,11 @@ describe("JavaScript runtime observation MCP tools", () => {
         scripts: {
           items: [
             expect.objectContaining({
-              location: { kind: "file", file_path: entry },
+              location: expect.objectContaining({
+                kind: "file",
+                file_path: entry,
+              }),
+              reported_url: pathToFileURL(entry).href,
             }),
           ],
         },
@@ -164,6 +170,21 @@ describe("JavaScript runtime observation MCP tools", () => {
     if (direct.ok) expect(evidenceId).toBe(direct.value.evidence_id);
   });
 });
+
+const assertSdkObservationSchema = async (
+  client: Client,
+  content: unknown,
+): Promise<void> => {
+  const observeTool = (await client.listTools()).tools.find(
+    ({ name }) => name === "observe_javascript_runtime",
+  );
+  if (observeTool?.outputSchema === undefined)
+    throw new Error("Missing Inspector observation output schema");
+  const ajv = new Ajv2020({ strict: false, validateFormats: false });
+  const schema: Record<string, unknown> = observeTool.outputSchema;
+  expect(ajv.validateSchema(schema)).toBe(true);
+  expect(ajv.validate(schema, content), JSON.stringify(ajv.errors)).toBe(true);
+};
 
 const createObservationClient = async (
   root: string,

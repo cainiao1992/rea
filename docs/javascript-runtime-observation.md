@@ -105,7 +105,9 @@ The direct observations are:
 - `Debugger.scriptParsed`, establishing that a bounded script location was
   parsed in the observed execution context;
 - `Debugger.scriptFailedToParse`, retained only as a bounded invalid-script
-  count;
+  count in `scripts.parse_failed_total`. A well-formed parse-failure
+  event is distinct from malformed protocol data and does not make loaded
+  script coverage unavailable. Older Evidence may omit this count;
 - `Runtime.executionContextCreated`,
   `Runtime.executionContextDestroyed`, and
   `Runtime.executionContextsCleared`, establishing context lifecycle within
@@ -118,6 +120,12 @@ EventEmitter emissions or listener invocation, Electron IPC messages or
 handlers, or script-unload events. Those facts remain explicit unknowns.
 `scriptParsed` proves script presence, not the importing module, feature
 execution, initialization order, or causality.
+
+For an authorized file script, `location.file_path` is the verified filesystem
+identity and optional script-item `reported_url` preserves the exact Inspector
+URL. Script identity includes that reported URL, so query and fragment
+variants of one file remain separate observations. Older Evidence may omit
+`reported_url` and remains readable.
 
 ## Node and Electron roles
 

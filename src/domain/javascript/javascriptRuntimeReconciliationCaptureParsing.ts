@@ -79,7 +79,7 @@ interface NormalizedV8Inspection {
       source: { readonly included: false; readonly reason: string };
     }> &
       (
-        | { readonly file_path: string }
+        | { readonly file_path: string; readonly reported_url?: string }
         | { readonly url: string }
         | {
             readonly unresolved_location: Extract<
@@ -335,6 +335,9 @@ const normalizeV8Inspection = (
       script_key: script.script_key,
       frame_id: script.execution_context_key,
       ...runtimeLocation(script.location),
+      ...("reported_url" in script && script.reported_url !== undefined
+        ? { reported_url: script.reported_url }
+        : {}),
       cdp_hash: script.cdp_hash,
       length: script.length,
       is_module: script.is_module,

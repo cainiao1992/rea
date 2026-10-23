@@ -191,6 +191,7 @@ export const finalizeInspectorCapture = async ({
     scripts: {
       items,
       observed_total: state.scriptsObserved,
+      parse_failed_total: state.parseFailedScripts,
       excluded: {
         ...exclusions,
         invalid_protocol_value: state.invalidScripts,
@@ -241,6 +242,7 @@ const scriptFromDraft = (
 ): JavaScriptRuntimeObservation["scripts"]["items"][number] => {
   const stable = JSON.stringify({
     location,
+    ...(location.kind === "file" ? { reported_url: draft.rawUrl } : {}),
     execution_context_key: draft.executionContextKey,
     cdp_hash: draft.cdpHash,
     length: draft.length,
@@ -249,6 +251,7 @@ const scriptFromDraft = (
   return {
     script_key: `v8_script_${createHash("sha256").update(stable).digest("hex")}`,
     location,
+    ...(location.kind === "file" ? { reported_url: draft.rawUrl } : {}),
     execution_context_key: draft.executionContextKey,
     cdp_hash: draft.cdpHash,
     length: draft.length,

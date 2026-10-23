@@ -34,6 +34,7 @@ const stateFor = (scripts: CaptureState["scripts"]): CaptureState => ({
   metadataBytes: 0,
   scriptsObserved: scripts.length,
   invalidScripts: 0,
+  parseFailedScripts: 0,
   invalidContexts: 0,
   truncated: false,
   truncationReasons: new Set(),
@@ -102,13 +103,20 @@ it("authorizes distinct Inspector locations and preserves stable deduplication",
     ]),
   );
 
-  expect(result.scripts.items.map(({ location }) => location)).toEqual(
+  expect(result.scripts.items).toEqual(
     expect.arrayContaining([
-      { kind: "file", file_path: await realpath(firstPath) },
-      { kind: "file", file_path: await realpath(secondPath) },
+      expect.objectContaining({
+        location: { kind: "file", file_path: await realpath(firstPath) },
+        reported_url: firstUrl,
+      }),
+      expect.objectContaining({
+        location: { kind: "file", file_path: await realpath(secondPath) },
+        reported_url: secondUrl,
+      }),
     ]),
   );
   expect(result.scripts.items).toHaveLength(2);
+  expect(result.scripts.parse_failed_total).toBe(0);
   expect(result.scripts.excluded).toEqual({
     unsupported_location: 1,
     invalid_protocol_value: 0,
@@ -154,6 +162,7 @@ it("authorizes each unique script location through a bounded worker pool", async
   expect(activeUrls.size).toBe(0);
   expect(result.scripts.items).toHaveLength(200);
   expect(result.scripts.observed_total).toBe(202);
+  expect(result.scripts.parse_failed_total).toBe(0);
   expect(result.scripts.excluded).toEqual({
     unsupported_location: 1,
     invalid_protocol_value: 0,

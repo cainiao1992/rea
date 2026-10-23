@@ -173,6 +173,9 @@ const scriptEntities = (
               location_reason: script.unresolved_location.reason,
             }
           : { location: location.value }),
+        ...("reported_url" in script && script.reported_url !== undefined
+          ? { reported_url: script.reported_url }
+          : {}),
         cdp_hash: script.cdp_hash,
         length: script.length,
         is_module: script.is_module,

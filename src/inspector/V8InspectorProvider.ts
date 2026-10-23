@@ -160,6 +160,7 @@ export interface CaptureState {
   metadataBytes: number;
   scriptsObserved: number;
   invalidScripts: number;
+  parseFailedScripts: number;
   invalidContexts: number;
   truncated: boolean;
   readonly truncationReasons: Set<string>;
@@ -589,6 +590,7 @@ const emptyCaptureState = (): CaptureState => ({
   metadataBytes: 0,
   scriptsObserved: 0,
   invalidScripts: 0,
+  parseFailedScripts: 0,
   invalidContexts: 0,
   truncated: false,
   truncationReasons: new Set(),
@@ -609,7 +611,16 @@ const ingestEvent = (event: CdpEvent, state: CaptureState): void => {
     return;
   }
   if (event.method === "Debugger.scriptFailedToParse") {
-    state.invalidScripts += 1;
+    const params = recordValue(event.params);
+    if (
+      typeof params?.scriptId !== "string" ||
+      typeof params.url !== "string"
+    ) {
+      state.invalidScripts += 1;
+      retainEvent(state, 0);
+      return;
+    }
+    state.parseFailedScripts += 1;
     retainEvent(state, 0);
     return;
   }

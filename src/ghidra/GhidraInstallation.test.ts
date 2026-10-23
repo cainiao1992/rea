@@ -9,7 +9,15 @@ import {
   parseGhidraJavaOutput,
   type GhidraJavaObservation,
 } from "./GhidraJavaProbe.js";
-import { chmod, mkdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  realpath,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -152,6 +160,87 @@ it.skipIf(process.platform === "win32")(
     ).toBeUndefined();
   },
 );
+
+it
+  .skipIf(process.platform === "win32")
+  .each([
+    "selected alias",
+    "selected foreign alias",
+    "selected missing alias",
+    "discovered matching opt",
+    "discovered foreign opt",
+    "discovered missing opt",
+  ] as const)("keeps JDK registration identity for %s", async (scenario) => {
+  const temporaryRoot = await createTestTempDirectory("rea-java-home-");
+  const prefix = await realpath(temporaryRoot);
+  const suffix = "libexec/openjdk.jdk/Contents/Home";
+  const firstKeg = join(prefix, "Cellar", "openjdk@21", "21.0.12");
+  const secondKeg = join(prefix, "Cellar", "openjdk@21", "21.0.13");
+  const observedHome = join(firstKeg, suffix);
+  const optAlias = join(prefix, "opt", "openjdk@21");
+  const selectedAlias = join(prefix, "selected-jdk");
+  await mkdir(observedHome, { recursive: true });
+  await mkdir(join(secondKeg, suffix), { recursive: true });
+  await mkdir(join(prefix, "opt"));
+  const selected = scenario.startsWith("selected");
+  const missing = scenario.includes("missing");
+  const foreign = scenario.includes("foreign");
+  if (!missing)
+    await symlink(
+      selected
+        ? foreign
+          ? join(secondKeg, suffix)
+          : observedHome
+        : foreign
+          ? secondKeg
+          : firstKeg,
+      selected ? selectedAlias : optAlias,
+    );
+  const inspection = await inspectGhidraInstallation(
+    {
+      resourceOwner: inspectionResources.owner,
+      environment: {},
+      installDir: INSTALL,
+      platform: process.platform,
+      architecture: "x64",
+      ...(selected ? { javaHome: selectedAlias } : {}),
+    },
+    host({
+      probeJava: () =>
+        javaProbeOk({
+          ...JAVA,
+          home: observedHome,
+          osName: process.platform === "darwin" ? "Mac OS X" : "Linux",
+        }),
+      executable: (path) =>
+        path === HEADLESS ||
+        path === LINUX_DECOMPILER ||
+        path ===
+          `${INSTALL}/Ghidra/Features/Decompiler/os/mac_x86_64/decompile`,
+    }),
+  );
+  expect(inspection.status).toBe("available");
+  const stable =
+    !missing && !foreign && (selected || process.platform === "darwin");
+  const expected = stable
+    ? selected
+      ? selectedAlias
+      : join(optAlias, suffix)
+    : observedHome;
+  expect(inspection.javaHome).toBe(expected);
+  expect(
+    projectGhidraDoctorInspection(inspection).registrationEnvironment.JAVA_HOME,
+  ).toBe(expected);
+  expect(
+    inspection.checks.find(({ name }) => name === "java")?.detail,
+  ).toContain(observedHome);
+  if (stable && !selected) {
+    await unlink(optAlias);
+    await symlink(secondKeg, optAlias);
+    await rm(firstKeg, { recursive: true });
+    expect(await realpath(expected)).toBe(join(secondKeg, suffix));
+  }
+});
 
 it.skipIf(process.platform !== "darwin")(
   "uses a same-installation Homebrew opt alias for doctor registration and survives keg rotation",

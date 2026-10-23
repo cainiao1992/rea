@@ -1027,7 +1027,11 @@ cached across launches. `JAVA_TOOL_OPTIONS`
 and `_JAVA_OPTIONS` do not expand `@file` tokens, so they remain
 literal-token checks.
 When Java is found through `PATH`, setup records its observed JDK home so GUI
-MCP clients do not depend on an incidental shell path. Setup shows every exact
+MCP clients do not depend on an incidental shell path. A caller-selected
+`JAVA_HOME` spelling is preserved when it resolves to that observed JDK. On
+macOS, a discovered Homebrew Cellar home uses the formula's stable `opt` alias
+only when both resolve to the same JDK. The Java check retains the JVM-reported
+home as evidence. Setup shows every exact
 environment entry in its plan, writes only after approval, and never downloads,
 installs, upgrades, or modifies Ghidra or Java.
 

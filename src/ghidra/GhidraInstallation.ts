@@ -391,15 +391,16 @@ export const inspectGhidraInstallation = async (
     throw new AnalysisCancelledError("ghidra:installation", {
       cause: options.signal.reason,
       diagnostics: ghidraInstallationDiagnostics(
-        availableInstallation(coordinates, observation),
+        availableInstallation(coordinates, observation, options.javaHome),
       ),
     });
-  return availableInstallation(coordinates, observation);
+  return availableInstallation(coordinates, observation, options.javaHome);
 };
 
 const availableInstallation = (
   coordinates: GhidraInstallationCoordinates,
   observation: GhidraInstallationObservation,
+  selectedJavaHome: string | undefined,
 ): AvailableGhidraInstallation => {
   const providerVersion = coordinates.properties?.providerVersion;
   if (
@@ -420,7 +421,11 @@ const availableInstallation = (
     analyzeHeadlessPath: coordinates.analyzeHeadlessPath,
     applicationPropertiesPath: coordinates.applicationPropertiesPath,
     providerVersion,
-    javaHome: coordinates.java.home,
+    javaHome: stableJavaHome(
+      coordinates.java.home,
+      selectedJavaHome,
+      observation.platform,
+    ),
     javaVersion: coordinates.java.version,
   };
 };
@@ -1079,6 +1084,52 @@ const stableGhidraInstallationRoot = (
     void cause;
     return root;
   }
+};
+
+/** Preserve a proven caller alias, or an active Homebrew keg alias. */
+const stableJavaHome = (
+  observedHome: string,
+  selectedHome: string | undefined,
+  platform: NodeJS.Platform,
+): string => {
+  // Compare paths only with the matching host filesystem semantics.
+  if (platform !== process.platform) return observedHome;
+  const sameHome = (candidate: string): boolean => {
+    try {
+      return realpathSync(candidate) === realpathSync(observedHome);
+    } catch (cause: unknown) {
+      // Missing or unresolved aliases do not prove identity.
+      void cause;
+      return false;
+    }
+  };
+  if (selectedHome !== undefined)
+    return sameHome(selectedHome) ? selectedHome : observedHome;
+  if (platform !== "darwin") return observedHome;
+  const parsed = posix.parse(observedHome);
+  const segments = observedHome.slice(parsed.root.length).split(posix.sep);
+  const cellarIndex = segments.length - 7;
+  const formula = segments[cellarIndex + 1];
+  const version = segments[cellarIndex + 2];
+  if (
+    cellarIndex < 0 ||
+    segments[cellarIndex] !== "Cellar" ||
+    formula === undefined ||
+    formula.length === 0 ||
+    version === undefined ||
+    version.length === 0 ||
+    segments.slice(cellarIndex + 3).join("/") !==
+      "libexec/openjdk.jdk/Contents/Home"
+  )
+    return observedHome;
+  const prefix = posix.join(parsed.root, ...segments.slice(0, cellarIndex));
+  const candidate = posix.join(
+    prefix,
+    "opt",
+    formula,
+    "libexec/openjdk.jdk/Contents/Home",
+  );
+  return sameHome(candidate) ? candidate : observedHome;
 };
 
 const executablePath = (path: string): boolean => {

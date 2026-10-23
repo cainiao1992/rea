@@ -95,6 +95,12 @@ heap limit is established. Cleanup may extend the deadline and an unconfirmed
 cleanup overrides success with `cleanup_incomplete` and the owning
 operation/resources.
 
+The decoder releases its owned codec process before removing the private request
+directory. A cleanup failure reports only the owners still pending: the process
+run token while process release is unconfirmed, and the directory until removal
+succeeds. A later successful retry settles every error bound to that command;
+historical failure diagnostics remain available.
+
 Complete evidence is bounded by a 4 MiB map, 32 MiB codec reply, 262144 decoded
 rows/segments and 64 nested section levels. Those structural budgets and the
 192 MiB codec heap have no runtime override. Exceeding a budget returns an explicit

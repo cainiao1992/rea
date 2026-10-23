@@ -154,6 +154,7 @@ class OwnedCodec implements SourceMapCleanupOwner {
   readonly #runId = `rea-source-map-${randomUUID()}`;
   #runtime: SourceMapCodecRuntime | undefined;
   #supervisor: ProviderProcessSupervisor | undefined;
+  #cleanupAnchor: SourceMapCleanupFailure | undefined;
   #outcome: CodecOutcome | undefined;
   #drainStop: CodecPhysicalObservation | undefined;
   readonly #onInterruption: () => void;
@@ -462,6 +463,14 @@ class OwnedCodec implements SourceMapCleanupOwner {
     );
   }
 
+  /** Current ownership, independent of historical cleanup diagnostics. */
+  get cleanupResources(): readonly string[] {
+    return [
+      ...(this.#supervisor === undefined ? [] : [this.#runId]),
+      ...(this.#runtime === undefined ? [] : [this.#runtime.path]),
+    ];
+  }
+
   async close(
     previousError: string | null,
   ): Promise<ProviderCleanupError | undefined> {
@@ -483,21 +492,20 @@ class OwnedCodec implements SourceMapCleanupOwner {
         failures.push(message(cause));
       }
     }
-    return failures.length === 0
-      ? undefined
-      : new SourceMapCleanupFailure(
-          this,
-          [
-            this.#runId,
-            ...(this.#runtime === undefined ? [] : [this.#runtime.path]),
-          ],
-          {
-            map_path: this.path,
-            cleanup_failures: failures,
-            previous_error: previousError,
-            codec_pid: this.#supervisor?.launch.process.pid ?? null,
-          },
-        );
+    if (failures.length === 0) {
+      this.#cleanupAnchor?.resolveCleanup();
+      this.#cleanupAnchor = undefined;
+      return undefined;
+    }
+    const failure = new SourceMapCleanupFailure(this, this.cleanupResources, {
+      map_path: this.path,
+      cleanup_failures: failures,
+      previous_error: previousError,
+      codec_pid: this.#supervisor?.launch.process.pid ?? null,
+    }).bindCleanupResourceOwner(this);
+    if (this.#cleanupAnchor === undefined) this.#cleanupAnchor = failure;
+    else failure.bindCleanupDependencies([this.#cleanupAnchor], this);
+    return failure;
   }
 }
 const message = (cause: unknown): string =>

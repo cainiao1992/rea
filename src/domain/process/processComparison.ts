@@ -503,15 +503,21 @@ export const compareProcessCaptures = (
         ? ({ status: "none" } as const)
         : observedFirstDivergence.status === "found"
           ? observedFirstDivergence
-          : !sameNormalization ||
-              left.residual_unknowns.length > 0 ||
-              right.residual_unknowns.length > 0
+          : trace?.verdict === "different" || trace?.verdict === "unknown"
             ? ({
                 status: "unknown",
                 reason:
-                  "Residual unknowns prevent proving that no divergence occurred.",
+                  "The declared trace differs or has insufficient journal evidence; per-source observations cannot locate its first cross-source divergence.",
               } as const)
-            : observedFirstDivergence;
+            : !sameNormalization ||
+                left.residual_unknowns.length > 0 ||
+                right.residual_unknowns.length > 0
+              ? ({
+                  status: "unknown",
+                  reason:
+                    "Residual unknowns prevent proving that no divergence occurred.",
+                } as const)
+              : observedFirstDivergence;
   const observedStatus = deriveProcessComparisonStatus(
     PROCESS_COMPARISON_DIMENSIONS.map((dimension) => dimensions[dimension]),
   );

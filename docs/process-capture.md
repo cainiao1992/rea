@@ -484,7 +484,11 @@ Trace assertions use coverage for the sources they select, so an assertion
 about complete raw terminal output need not fail because rendered snapshots
 were omitted. A trace difference applies to the dimensions identified by its
 diagnostic; unrelated dimensions retain their own comparison, including unknown
-coverage. Captures missing `truncation_details` are rejected on import;
+coverage. A finite-variant omission stays nonconforming to that variant, but does
+not mark a shared successor changed merely because its journal position shifted.
+Observed ordering violations remain changes. When a requested trace differs or
+its journal is unavailable and per-source values cannot locate the difference,
+`first_divergence` is unknown rather than evidence that no divergence occurred. Captures missing `truncation_details` are rejected on import;
 preserve them as historical files and recapture for current comparisons.
 `limits.file_bytes` is already the cumulative whole-file hashing budget,
 independent of `limits.output_bytes`, which bounds retained terminal content.

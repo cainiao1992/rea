@@ -11,12 +11,18 @@ export const analysisInputErrorFromIssues = (
   input: unknown,
   options: {
     readonly cause?: unknown;
+    readonly userMessage?: string;
     readonly additionalIssues?: readonly AnalysisInputIssue[];
   } = {},
 ): AnalysisInputError =>
   new AnalysisInputError(
     operation,
-    options.cause === undefined ? undefined : { cause: options.cause },
+    {
+      ...(options.cause === undefined ? {} : { cause: options.cause }),
+      ...(options.userMessage === undefined
+        ? {}
+        : { userMessage: options.userMessage }),
+    },
     [...projectInputIssues(issues, input), ...(options.additionalIssues ?? [])],
   );
 

@@ -9,12 +9,11 @@ import {
 } from "../../domain/firmware/firmwareAnalysis.js";
 import {
   AnalysisCancelledError,
-  AnalysisInputError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Evidence } from "../../domain/evidence.js";
-import { projectInputIssues } from "../../domain/inputIssueProjection.js";
+import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { err, type Result } from "../../domain/result.js";
 import { completeProviderEvidence } from "../ProviderOperationExecution.js";
 
@@ -39,10 +38,11 @@ export class FirmwareAnalysisService {
     const parsed = firmwareRequestSchema.safeParse({ operation, input });
     if (!parsed.success)
       return err(
-        new AnalysisInputError(
+        analysisInputErrorFromIssues(
           operation,
+          parsed.error.issues,
+          { operation, input },
           { cause: parsed.error },
-          projectInputIssues(parsed.error.issues, { operation, input }),
         ),
       );
     const executed = await this.provider.execute(parsed.data, options);

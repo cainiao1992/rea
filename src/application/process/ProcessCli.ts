@@ -149,10 +149,11 @@ const parseCaptureEvidence = (input: unknown, side: "left" | "right") => {
   const failure = parsed.error;
   switch (failure.kind) {
     case "invalid-evidence":
-      throw new AnalysisInputError(
+      throw analysisInputErrorFromIssues(
         "compare_process_captures",
+        failure.cause.issues,
+        input,
         { cause: failure.cause },
-        projectInputIssues(failure.cause.issues, input),
       );
     case "wrong-workflow":
       throw processInputFailure(

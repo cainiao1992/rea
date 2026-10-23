@@ -11,7 +11,7 @@ import {
   comparisonSourceEvidenceIds,
 } from "./comparisonSourceEvidence.js";
 import { evidenceSchema, type Evidence } from "./evidence.js";
-import { AnalysisInputError } from "./analysisErrorCore.js";
+import type { AnalysisInputError } from "./analysisErrorCore.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
 import { analysisInputErrorFromIssues } from "./inputIssueProjection.js";
 import { readEvidence, readEvidencePayload } from "./evidenceValidation.js";
@@ -128,10 +128,14 @@ export const findChangedBehavior = (input: unknown): FoundChangedBehavior => {
     .strictObject({ comparisons: z.array(z.unknown()).min(1) })
     .safeParse(input);
   if (!envelope.success)
-    throw inputSchemaError(
+    throw analysisInputErrorFromIssues(
+      OPERATION,
+      envelope.error.issues,
       input,
-      envelope.error,
-      "Provide at least one comparison Evidence item.",
+      {
+        cause: envelope.error,
+        userMessage: "Provide at least one comparison Evidence item.",
+      },
     );
   const { comparisons } = envelope.data;
   const evidence = comparisons.map((item, index) =>
@@ -428,38 +432,15 @@ const firstDuplicateIndex = (values: readonly string[]): number | undefined => {
 
 const OPERATION = "find_changed_behavior";
 
-const inputSchemaError = (
-  input: unknown,
-  cause: z.ZodError,
-  userMessage: string,
-): AnalysisInputError => {
-  const projected = analysisInputErrorFromIssues(
-    OPERATION,
-    cause.issues,
-    input,
-    { cause },
-  );
-  return new AnalysisInputError(
-    OPERATION,
-    { cause, userMessage },
-    projected.issues,
-  );
-};
-
 const callerInputError = (
   input: unknown,
   path: readonly (string | number)[],
   message: string,
-): AnalysisInputError => {
-  const projected = analysisInputErrorFromIssues(OPERATION, [], input, {
+): AnalysisInputError =>
+  analysisInputErrorFromIssues(OPERATION, [], input, {
+    userMessage: message,
     additionalIssues: [{ path, reason: "invalid_value", message }],
   });
-  return new AnalysisInputError(
-    OPERATION,
-    { userMessage: message },
-    projected.issues,
-  );
-};
 
 const evidenceIntegrityError = (message: string): EvidenceIntegrityError =>
   new EvidenceIntegrityError(message, { userMessage: message });

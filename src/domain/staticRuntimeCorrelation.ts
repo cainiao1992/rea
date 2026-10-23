@@ -2,7 +2,7 @@ import { digestCanonicalValue } from "./canonicalDigest.js";
 import { z } from "zod";
 
 import { artifactComparisonResultSchema } from "./artifactComparison.js";
-import { AnalysisInputError } from "./analysisErrorCore.js";
+import type { AnalysisInputError } from "./analysisErrorCore.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
 import { analysisInputErrorFromIssues } from "./inputIssueProjection.js";
 import { readEvidence, readEvidencePayload } from "./evidenceValidation.js";
@@ -169,11 +169,11 @@ export const correlateStaticAndRuntime = (
 ): StaticRuntimeCorrelationResult => {
   const parsed = staticRuntimeCorrelationEnvelopeSchema.safeParse(input);
   if (!parsed.success)
-    throw inputSchemaError(
-      input,
-      parsed.error,
-      "Provide valid static and runtime comparison Evidence and mappings.",
-    );
+    throw analysisInputErrorFromIssues(OPERATION, parsed.error.issues, input, {
+      cause: parsed.error,
+      userMessage:
+        "Provide valid static and runtime comparison Evidence and mappings.",
+    });
   const { data } = parsed;
   const staticEvidence = data.static_comparisons.map((item, index) =>
     parseStatic(item, input, index),
@@ -513,38 +513,15 @@ const firstDuplicateIndex = (values: readonly string[]): number | undefined => {
 
 const OPERATION = "correlate_static_and_runtime";
 
-const inputSchemaError = (
-  input: unknown,
-  cause: z.ZodError,
-  userMessage: string,
-): AnalysisInputError => {
-  const projected = analysisInputErrorFromIssues(
-    OPERATION,
-    cause.issues,
-    input,
-    { cause },
-  );
-  return new AnalysisInputError(
-    OPERATION,
-    { cause, userMessage },
-    projected.issues,
-  );
-};
-
 const callerInputError = (
   input: unknown,
   path: readonly (string | number)[],
   message: string,
-): AnalysisInputError => {
-  const projected = analysisInputErrorFromIssues(OPERATION, [], input, {
+): AnalysisInputError =>
+  analysisInputErrorFromIssues(OPERATION, [], input, {
+    userMessage: message,
     additionalIssues: [{ path, reason: "invalid_value", message }],
   });
-  return new AnalysisInputError(
-    OPERATION,
-    { userMessage: message },
-    projected.issues,
-  );
-};
 
 const evidenceIntegrityError = (message: string): EvidenceIntegrityError =>
   new EvidenceIntegrityError(message, { userMessage: message });

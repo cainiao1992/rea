@@ -14,7 +14,7 @@ import { hasComparisonEvidenceIdentity } from "./comparisonEvidenceIdentity.js";
 import { readEvidenceBundle } from "./evidenceBundle.js";
 import { AnalysisInputError } from "./analysisErrorCore.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
-import { projectInputIssues } from "./inputIssueProjection.js";
+import { analysisInputErrorFromIssues } from "./inputIssueProjection.js";
 import { readEvidencePayload } from "./evidenceValidation.js";
 import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
 import { functionDossierSchema } from "./hopperValues.js";
@@ -58,10 +58,11 @@ export const verifyReconstruction = (
   const parsedSpecification =
     reconstructionSpecificationSchema.safeParse(specificationInput);
   if (!parsedSpecification.success)
-    throw new AnalysisInputError(
+    throw analysisInputErrorFromIssues(
       "verify_reconstruction",
+      parsedSpecification.error.issues,
+      specificationInput,
       { cause: parsedSpecification.error },
-      projectInputIssues(parsedSpecification.error.issues, specificationInput),
     );
   const specification = parsedSpecification.data;
   const bundleResult = readEvidenceBundle(bundleInput);

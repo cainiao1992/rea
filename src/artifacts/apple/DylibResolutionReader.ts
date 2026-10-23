@@ -13,7 +13,7 @@ import {
   type DylibTreeView,
   type MachoImageFacts,
 } from "../../domain/apple/dylibResolution.js";
-import { projectInputIssues } from "../../domain/inputIssueProjection.js";
+import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { consumeWithOrderedReads } from "../OrderedReads.js";
@@ -109,10 +109,11 @@ export const traceDylibResolution = async (options: {
 }): Promise<DylibResolutionResult> => {
   const parsed = dylibResolutionInputSchema.safeParse(options.parameters);
   if (!parsed.success)
-    throw new AnalysisInputError(
+    throw analysisInputErrorFromIssues(
       OPERATION,
+      parsed.error.issues,
+      options.parameters,
       { cause: parsed.error },
-      projectInputIssues(parsed.error.issues, options.parameters),
     );
   const resources = options.resourceScope ?? new ArtifactResourceScope();
   return await resources.run(async () => {

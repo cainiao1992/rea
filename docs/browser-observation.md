@@ -54,6 +54,20 @@ from a protocol omission. Rejected DOM facts also mark derived URL and agent-hin
 metadata incomplete, while valid facts from other nodes and documents remain
 available in the capture.
 
+Page network and console coverage starts independently at the first observed
+event from that domain or its successful enable acknowledgment. The capture's
+lifecycle start is earlier and does not establish domain readiness. Events
+received before the enable reply remain part of the observation.
+
+Worker output is a final target-inventory snapshot. `attached` describes any
+debugging client, not an REA-owned observing session. The selected page-session
+collector does not collect worker-session requests, console events, or scripts,
+and workers that disappeared before the snapshot may be missing; worker
+coverage is therefore attach-limited. Missing ownership metadata is reported as
+`unknown_target_relationship` with unavailable worker attribution, separately
+from a proven foreign owner excluded as `out_of_target_scope`. A shared origin
+alone establishes neither relationship.
+
 Passive comparison keeps lookup identity, cross-capture correspondence, content
 evidence, and inventory coverage separate:
 

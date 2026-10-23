@@ -23,6 +23,9 @@ export const captureWorkers = async (
 ): Promise<WebPageInspection["workers"]> => {
   const { context, allowedOrigins, limitations, events } = input;
   const completeness = events.completeness;
+  // This final target snapshot cannot establish worker lifetimes or observed
+  // worker-session activity during the preceding page observation window.
+  completeness.attachLimited("workers");
   const result = await optionalCdpCommand(
     { ...context, sessionId: undefined },
     "Target.getTargets",
@@ -78,8 +81,18 @@ export const captureWorkers = async (
     const relatedToPage =
       openerId === context.target.id ||
       (parentFrameId !== undefined && frameIds.has(parentFrameId));
-    if (!relatedToPage) {
-      completeness.exclude("workers", "out_of_target_scope");
+    const relationship = relatedToPage
+      ? "related"
+      : openerId !== undefined || parentFrameId !== undefined
+        ? "foreign"
+        : "unknown";
+    if (relationship !== "related") {
+      completeness.exclude(
+        "workers",
+        relationship === "foreign"
+          ? "out_of_target_scope"
+          : "unknown_target_relationship",
+      );
       continue;
     }
     if (url === undefined) {

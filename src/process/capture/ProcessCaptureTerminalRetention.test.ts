@@ -138,3 +138,42 @@ it.each([false, true])(
     }
   },
 );
+
+it("retains PTY chunk boundaries when two output messages arrive fragmented", () => {
+  let onData: ((data: string) => void) | undefined;
+  const terminal = {
+    onData: (listener: (data: string) => void) => {
+      onData = listener;
+      return { dispose: () => undefined };
+    },
+  } as unknown as IPty;
+  const scenario = parseProcessScenario({
+    executable: "unused",
+    normalization: { paths: false, pids: false, ports: false },
+  });
+  const frames: TerminalFrame[] = [];
+  const captureRetention = captureTerminalFrames({
+    terminal,
+    scenario,
+    frames,
+    started: 0,
+    onOutput: () => undefined,
+    renderer: { write: () => undefined } as never,
+    normalizeText: createBoundedProcessTextNormalizer(scenario, "/tmp", -1),
+    recordEvent: () => undefined,
+    identifiers: () => [],
+  });
+  // A PTY transports chunks, independently of the child's write boundaries.
+  const chunks = ["SPARSE_CHILD_", "STARTED\r\n", "SPARSE_CHILD_", "DONE\r\n"];
+  for (const chunk of chunks) onData?.(chunk);
+
+  expect(frames.map(({ data }) => data)).toEqual(chunks);
+  expect(frames.map(({ sequence }) => sequence)).toEqual([0, 1, 2, 3]);
+  expect(frames.map(({ data }) => data).join("")).toBe(
+    "SPARSE_CHILD_STARTED\r\nSPARSE_CHILD_DONE\r\n",
+  );
+  expect(captureRetention().raw_terminal).toMatchObject({
+    observed_frames: 4,
+    retained_frames: 4,
+  });
+});

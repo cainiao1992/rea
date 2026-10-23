@@ -250,6 +250,16 @@ const evaluateBinding = (
       "missing-parser-type",
       "This boundary requires an explicit parser, schema, and domain type.",
     );
+  // Optional fixture kinds are retained and linked too, so their Evidence
+  // references must resolve even though only required kinds close the claim.
+  for (const fixture of binding.fixtures)
+    for (const evidenceId of fixture.evidence_ids)
+      if (!context.evidence.has(evidenceId))
+        addDiagnostic(
+          diagnostics,
+          "missing-case",
+          `${fixture.case_kind} fixture ${fixture.fixture_id} references Evidence ${evidenceId}, which is absent from the bundle.`,
+        );
   for (const caseKind of candidate.required_case_kinds) {
     const fixtures = binding.fixtures.filter(
       ({ case_kind: fixtureCase }) => fixtureCase === caseKind,
@@ -262,14 +272,6 @@ const evaluateBinding = (
       );
       continue;
     }
-    for (const fixture of fixtures)
-      for (const evidenceId of fixture.evidence_ids)
-        if (!context.evidence.has(evidenceId))
-          addDiagnostic(
-            diagnostics,
-            "missing-case",
-            `${caseKind} fixture ${fixture.fixture_id} references Evidence ${evidenceId}, which is absent from the bundle.`,
-          );
     if (
       !fixtures.some(
         (fixture) =>

@@ -264,10 +264,12 @@ describe("reconstruction obligation manifest references", () => {
     if (binding === undefined) throw new Error("Expected binding");
     const variants: {
       readonly code: string;
+      readonly kind: "positive" | "malformed";
       readonly binding: typeof binding;
     }[] = [
       {
         code: "missing-original-case",
+        kind: "positive",
         binding: {
           ...binding,
           original_cases: [
@@ -278,6 +280,7 @@ describe("reconstruction obligation manifest references", () => {
       },
       {
         code: "missing-case",
+        kind: "positive",
         binding: {
           ...binding,
           fixtures: [
@@ -291,17 +294,88 @@ describe("reconstruction obligation manifest references", () => {
           ],
         },
       },
+      {
+        code: "missing-original-case",
+        kind: "malformed",
+        binding: {
+          ...binding,
+          original_cases: [
+            ...binding.original_cases,
+            { kind: "malformed", evidence_id: absent, location: "/old" },
+          ],
+        },
+      },
+      {
+        code: "missing-case",
+        kind: "malformed",
+        binding: {
+          ...binding,
+          fixtures: [
+            ...binding.fixtures,
+            {
+              fixture_id: "packaged.old",
+              case_kind: "malformed",
+              authority: "packaged-process",
+              evidence_ids: [absent],
+            },
+          ],
+        },
+      },
     ];
-    for (const { code, binding: dangling } of variants) {
+    for (const { code, kind, binding: dangling } of variants) {
       const open = build({
         ...ledgerRequest,
         manifest: { ...ledgerRequest.manifest, bindings: [dangling] },
       });
       expect(open.status).not.toBe("ready");
       expect(open.obligations[0]?.status).toBe("implemented");
-      expect(open.obligations[0]?.diagnostics).toEqual([
-        { code, detail: expect.stringContaining(absent) },
-      ]);
+      expect(open.obligations[0]?.diagnostics).toContainEqual({
+        code,
+        detail: expect.stringMatching(new RegExp(`${kind}.*${absent}`)),
+      });
+      expect(open.evidence_links).toContain(absent);
     }
+
+    const surplusEvidence = proofEvidence("surplus-case");
+    const validSurplus = build(
+      request([...ledgerRequest.evidence_bundle.records, surplusEvidence], {
+        manifest: {
+          ...ledgerRequest.manifest,
+          bindings: [
+            {
+              ...binding,
+              original_cases: [
+                ...binding.original_cases,
+                {
+                  kind: "malformed",
+                  evidence_id: surplusEvidence.evidence_id,
+                  location: "/retained",
+                },
+              ],
+              fixtures: [
+                ...binding.fixtures,
+                {
+                  fixture_id: "packaged.malformed",
+                  case_kind: "malformed",
+                  authority: "packaged-process",
+                  evidence_ids: [surplusEvidence.evidence_id],
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(validSurplus.status).toBe("ready");
+    expect(validSurplus.obligations[0]?.observed_cases).toContainEqual(
+      expect.objectContaining({ kind: "malformed", location: "/retained" }),
+    );
+    expect(validSurplus.obligations[0]?.binding?.fixtures).toContainEqual(
+      expect.objectContaining({
+        case_kind: "malformed",
+        fixture_id: "packaged.malformed",
+      }),
+    );
+    expect(validSurplus.evidence_links).toContain(surplusEvidence.evidence_id);
   });
 });

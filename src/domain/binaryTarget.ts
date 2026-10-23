@@ -169,6 +169,12 @@ const parseThinMachO = (
     const complete = commands.finish();
     if (!complete.ok) return complete;
   }
+  if (architecture === "arm64_32")
+    return ok({
+      format: "mach-o",
+      architecture,
+      availableArchitectures: [architecture],
+    });
   return ok({
     format: "mach-o",
     architecture,

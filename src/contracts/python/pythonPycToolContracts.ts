@@ -12,6 +12,7 @@ export const PYTHON_PYC_TOOL_CONTRACTS = [
     name: "inspect_python_pyc",
     ...toolContractMetadata("inspect_python_pyc"),
     kind: "artifact-provider",
+    requiresActiveTarget: true,
     description:
       "Inspect one explicit local CPython 3.7–3.13 .pyc file with a supported 16-byte header without executing bytecode, invoking CPython or recovering source. Returns the header (magic, pinned python_version, PEP 552 flags, source hash or mtime/size), the top-level code object with nested functions, names, const summaries, and bytecode length/SHA-256. Marshal is walked with object, depth and string budgets; unsupported magics/layouts, truncated streams and exhausted budgets return no partial success. A decoded header is not proof the matching .py is present. Portable on supported Node hosts; no Python installation required.",
     inputSchema: inspectPythonPycInputSchema,

@@ -18,6 +18,7 @@ const enhanced = <Name extends string, Schema extends z.ZodObject>(
     ...toolContractMetadata(name),
     description,
     kind: "enhanced",
+    requiresActiveTarget: true,
     inputSchema,
     outputSchema: requireOutputSchema(enhancedOutputSchemas, name),
     examples: examplesFor(name, inputSchema),

@@ -53,6 +53,7 @@ const native = <Name extends string, Schema extends z.ZodObject>(
     ...toolContractMetadata(name),
     description,
     kind: "native-provider",
+    requiresActiveTarget: true,
     inputSchema: strictInputSchema,
     outputSchema,
     examples: [

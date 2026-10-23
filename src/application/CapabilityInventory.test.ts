@@ -5,6 +5,8 @@ import {
   buildCapabilityInventory,
   compactToolAvailability,
 } from "./CapabilityInventory.js";
+import { idaCapabilities } from "../ida/IdaProviderCapabilities.js";
+import { providerCapabilitySets } from "./binary/BinarySessionStatus.js";
 import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   expandToolAvailability,
@@ -841,5 +843,59 @@ it.each(["darwin", "linux", "win32"])(
           }
         : { available: true, reason: "available" },
     );
+  },
+);
+
+it("keeps independent native sessions discoverable without an unrelated binary target", () => {
+  const entries = buildCapabilityInventory(status(), enabledPolicy);
+  for (const name of [
+    "list_cutter_sessions",
+    "cutter_command",
+    "start_gdb_session",
+    "gdb_command",
+    "gdb_session_status",
+    "close_gdb_session",
+    "start_rizin_debug_session",
+    "rizin_debug_command",
+    "rizin_debug_session_status",
+    "close_rizin_debug_session",
+    "inspect_with_objdump",
+    "execute_rizin_command",
+  ]) {
+    expect(
+      entries.find((entry) => entry.name === name),
+      name,
+    ).toMatchObject({ available: true });
+  }
+  expect(entries.find((entry) => entry.name === "inspect_macho")).toMatchObject(
+    { available: false, reason: "target_required" },
+  );
+});
+
+it.each([false, true])(
+  "retains selected provider UI/process/network effects in direct and composed discovery (UI=%s)",
+  (showUi) => {
+    const input = {
+      open: true,
+      kind: "executable",
+      capabilities: providerCapabilitySets(
+        idaCapabilities(showUi ? "attached" : "headless", false),
+      ),
+    };
+    const entries = buildCapabilityInventory(input, enabledPolicy);
+    for (const name of [
+      "procedure_pseudo_code",
+      "analyze_function",
+      "batch_decompile",
+    ]) {
+      expect(entries.find((entry) => entry.name === name)).toMatchObject({
+        effects: {
+          changesUiState: showUi,
+          accessesNetwork: true,
+          launchesProcess: !showUi,
+        },
+        annotations: { open_world: true },
+      });
+    }
   },
 );

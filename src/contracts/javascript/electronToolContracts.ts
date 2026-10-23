@@ -167,6 +167,7 @@ export const ELECTRON_TOOL_CONTRACTS = [
     name: "inspect_electron_fuses",
     ...toolContractMetadata("inspect_electron_fuses"),
     kind: "artifact-provider",
+    requiresActiveTarget: true,
     description:
       "Inspect packaged Electron fuse bytes in one local macOS app bundle, Electron Framework binary, Windows PE executable, or Linux ELF executable. Returns the artifact digest, per-slice wire version, fuse index, version-1 name, state, and raw byte, plus derived implications for Inspector flags, ELECTRON_RUN_AS_NODE, embedded ASAR integrity, and app.asar-only loading. A missing sentinel is unknown fuse state. Reads artifact bytes only and does not modify the selected file or open a runtime target.",
     inputSchema: inspectElectronFusesInputSchema,

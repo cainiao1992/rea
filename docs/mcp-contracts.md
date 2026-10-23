@@ -558,7 +558,14 @@ should expand `tool_availability.groups` and use `tools/list` for schemas. The
 same catalog identity summary is returned by CLI `capabilities` and `providers`;
 MCP tool definitions remain available through `tools/list`.
 
-Provider capabilities are grouped by provider identity and shared facts. In each
+Provider capabilities are grouped by provider identity and shared facts.
+Tool families group discovery; they do not imply an active-binary prerequisite.
+Contracts whose handlers dispatch through that session declare it explicitly.
+Cutter, GDB and Rizin debugger tools use their independent session/input owners,
+so discovery does not ask them to open an unrelated binary. Session tool effects
+also retain the applicable provider composition's UI, process, network and
+filesystem declarations; for example, attached IDA navigation may show UI while
+a headless profile launches a worker. In each
 set, `shared_limitations` is the ordered common prefix; append a group's ordered
 `limitations` suffix to recover each operation's exact limitations. Group
 `effects` arrays use the same true-only closed-vocabulary rule as tool

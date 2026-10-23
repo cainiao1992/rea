@@ -33,6 +33,7 @@ const official = <Name extends string, Schema extends z.ZodObject>(
     ...toolContractMetadata(name),
     description,
     kind: "official-proxy",
+    requiresActiveTarget: true,
     inputSchema: strictInputSchema,
     outputSchema: requireOutputSchema(officialOutputSchemas, name),
     examples: examplesFor(name, strictInputSchema),

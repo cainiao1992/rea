@@ -65,6 +65,7 @@ const artifact = <
     ...toolContractMetadata(name),
     description,
     kind: "artifact-provider",
+    requiresActiveTarget: true,
     inputSchema,
     outputSchema,
     examples: [

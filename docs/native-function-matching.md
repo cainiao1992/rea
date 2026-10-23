@@ -115,6 +115,11 @@ extract its matching Evidence record to a JSON file for the existing CLI
 Representation admission is bounded at 96 MiB before cloning selected observations
 and expanding matching indexes and repeated per-function source links. Work yields to cancellation. No worker/provider
 concurrency is introduced; this budget is not a bound on total process RSS.
+Summary delivery happens after complete matching Evidence is constructed and
+retained. It reduces the initial reply, but does not avoid that construction or
+raise the allowance. There is no runtime override. Repeated provenance remains
+part of the complete member contract; splitting inventories into separate matches
+would change global name/body uniqueness and is not an equivalent workaround.
 
 The self-owned source fixture is [nativeFunctionMatching.c](https://github.com/morluto/rea/blob/main/tests/fixtures/nativeFunctionMatching.c).
 On Linux x86-64, compile with `cc -O2 -g0 -fno-pie -no-pie -DVERSION=1` and

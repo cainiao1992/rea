@@ -1022,6 +1022,17 @@ installation remains unavailable on Windows. Setup never installs Ghidra,
 Java, or Python. It preserves valid detected Ghidra/JDK settings in agent
 registrations. See [Windows Ghidra P0](windows-ghidra-p0.md) for provider diagnostics.
 
+The separate `rea mcp add` builtin currently uses Incur's package-runner child
+launcher, which can fail on Windows with `MCP_ADD_FAILED: spawn npx ENOENT`
+before registering a client. REA's setup path is unaffected. For a client supported
+by setup, review `rea setup --client opencode --skill=false --dry-run --json`
+(substitute its client ID), then use the same scoped command without `--dry-run`
+and approve the displayed plan. Non-interactive application additionally needs
+`--yes`. This configures setup's user-level client location; it does not replace
+`mcp add --no-global`, arbitrary `--command` registrations, or unsupported clients.
+The builtin launcher defect remains pending a dependency fix; a successful setup
+run does not verify that `mcp add` works on Windows.
+
 When `GHIDRA_INSTALL_DIR` is unset, doctor and the Ghidra provider also search
 `PATH` for `ghidra` or `ghidraRun`, resolve the selected launcher through its
 real path, and accept it only when that location belongs to a Ghidra tree with

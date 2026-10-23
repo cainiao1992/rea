@@ -2079,8 +2079,16 @@ describe("DeepSeek Harness ownership and editability", () => {
     const host = systemUninstallHost(home);
     expect(await host.inspectClient(client)).toMatchObject({
       status: "failed",
+      detail: expect.stringContaining(
+        "Expression-backed Cordis IDs have unknown ownership; use literal IDs",
+      ),
     });
-    expect((await host.removeClient(client)).status).toBe("failed");
+    expect(await host.removeClient(client)).toMatchObject({
+      status: "failed",
+      detail: expect.stringContaining(
+        "Expression-backed Cordis IDs have unknown ownership; use literal IDs",
+      ),
+    });
     expect(await readFile(client.configPath, "utf8")).toBe(initial);
     await expect(
       readFile(`${client.configPath}.rea.backup`),
@@ -2439,4 +2447,25 @@ ${row("second-launcher")}`,
       { insert: [{ id: "user-a", name: "plugin-a" }] },
     ]);
   });
+});
+
+it("keeps Cordis YAML syntax failures distinct from unresolved ID ownership", async () => {
+  const { home, client } = await harnessClient();
+  const initial = "- insert: [{id: [unterminated\n";
+  await writeFile(client.configPath, initial);
+  const host = systemUninstallHost(home);
+  try {
+    const inspected = await host.inspectClient(client);
+    expect(inspected).toMatchObject({
+      status: "failed",
+      detail: expect.stringContaining("Invalid or unsupported Cordis YAML"),
+    });
+    expect(inspected?.detail).not.toContain("unknown ownership");
+    expect(await readFile(client.configPath, "utf8")).toBe(initial);
+    await expect(
+      readFile(`${client.configPath}.rea.backup`),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    await host.close?.();
+  }
 });

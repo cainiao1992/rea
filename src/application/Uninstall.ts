@@ -13,6 +13,7 @@ import {
   type ClientConfigurationDocument,
 } from "./ClientConfigurationDocument.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { ConfigurationError } from "../domain/configurationErrors.js";
 import { copyFile, lstat, realpath, rm, rmdir } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
@@ -457,7 +458,8 @@ const readClientConfiguration = async (
       item(
         client.name,
         "failed",
-        cause instanceof ClientConfigurationShapeError
+        cause instanceof ClientConfigurationShapeError ||
+          cause instanceof ConfigurationError
           ? `Configuration was not changed: ${cause.message}. Repair it, then rerun uninstall.`
           : `Configuration is not valid ${client.format === "toml" || client.format === "grok" ? "TOML" : client.format === "opencode" ? "JSONC" : client.format === "hermes" || client.format === "dsh" ? "YAML" : "JSON"} and was not changed. Repair it, then rerun uninstall.`,
       ),

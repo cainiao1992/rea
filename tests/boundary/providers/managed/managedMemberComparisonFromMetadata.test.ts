@@ -89,27 +89,29 @@ describe("managed comparison method row coverage", () => {
   });
 });
 
-describe("managed edge nominal identity", () => {
-  const observe = (options: Parameters<typeof buildManagedPeFixture>[0] = {}) =>
-    inspect(
-      buildManagedPeFixture({
-        targetFramework: null,
-        memberRefName: "Ping",
-        memberRefSignature: Buffer.from([0, 0, 1]),
-        memberRefParentRaw: 25,
-        ilBody: Buffer.from([0x1a, 0x28, 1, 0, 0, 0x0a, 0x2a]),
-        typeReferences: [
-          { namespace: "Fixture", name: "Outer" },
-          { namespace: "", name: "Inner", enclosingRow: 2 },
-        ],
-        ...options,
-      }),
-      "/fixture/edges.dll",
-    );
+const observeEdgeTarget = (
+  options: Parameters<typeof buildManagedPeFixture>[0] = {},
+) =>
+  inspect(
+    buildManagedPeFixture({
+      targetFramework: null,
+      memberRefName: "Ping",
+      memberRefSignature: Buffer.from([0, 0, 1]),
+      memberRefParentRaw: 25,
+      ilBody: Buffer.from([0x1a, 0x28, 1, 0, 0, 0x0a, 0x2a]),
+      typeReferences: [
+        { namespace: "Fixture", name: "Outer" },
+        { namespace: "", name: "Inner", enclosingRow: 2 },
+      ],
+      ...options,
+    }),
+    "/fixture/edges.dll",
+  );
 
+describe("managed edge nominal identity", () => {
   it("detects an enclosing TypeRef change even when display labels and tokens are equal", () => {
-    const left = observe();
-    const right = observe({
+    const left = observeEdgeTarget();
+    const right = observeEdgeTarget({
       typeReferences: [
         { namespace: "Fixture", name: "OtherOuter" },
         { namespace: "", name: "Inner", enclosingRow: 2 },
@@ -130,12 +132,12 @@ describe("managed edge nominal identity", () => {
   it("compares the decoded MemberRef signature for calls and field accesses", () => {
     expect(
       compareManagedMembers(
-        observe(),
-        observe({ memberRefSignature: Buffer.from([0, 1, 1, 8]) }),
+        observeEdgeTarget(),
+        observeEdgeTarget({ memberRefSignature: Buffer.from([0, 1, 1, 8]) }),
       ).methods[0],
     ).toMatchObject({ status: "changed", dimensions: ["call-target"] });
     const field = (type: number) =>
-      observe({
+      observeEdgeTarget({
         memberRefName: "Value",
         memberRefSignature: Buffer.from([6, type]),
         ilBody: Buffer.from([0x1a, 0x7e, 1, 0, 0, 0x0a, 0x2a]),
@@ -144,9 +146,11 @@ describe("managed edge nominal identity", () => {
       compareManagedMembers(field(8), field(0x0a)).methods[0],
     ).toMatchObject({ status: "changed", dimensions: ["field-target"] });
   });
+});
 
+describe("managed edge instruction sites", () => {
   it("joins repeated calls by IL offset even when edge arrays are reordered", () => {
-    const source = observe({
+    const source = observeEdgeTarget({
       ilBody: Buffer.from([
         0x2e, 0x28, 1, 0, 0, 0x0a, 0x28, 1, 0, 0, 0x0a, 0x2a,
       ]),
@@ -188,8 +192,8 @@ describe("managed edge nominal identity", () => {
         memberRefSignature:
           kind === "method" ? Buffer.from([0, 0, 1]) : Buffer.from([6, 8]),
       };
-      const left = observe(args);
-      const right = observe({ ...args, memberRefName: "Changed" });
+      const left = observeEdgeTarget(args);
+      const right = observeEdgeTarget({ ...args, memberRefName: "Changed" });
       const partial = {
         ...right,
         result: {
@@ -208,7 +212,9 @@ describe("managed edge nominal identity", () => {
       });
     },
   );
+});
 
+describe("managed edge identity resolution", () => {
   it("compares validated MethodSpec base identities and resolved generic arguments", () => {
     const options = {
       memberRefSignature: Buffer.from([0x10, 1, 0, 1]),
@@ -216,15 +222,18 @@ describe("managed edge nominal identity", () => {
       methodSpecInstantiation: Buffer.from([0x0a, 1, 8]),
       ilBody: Buffer.from([0x1a, 0x28, 1, 0, 0, 0x2b, 0x2a]),
     };
-    const source = observe(options);
+    const source = observeEdgeTarget(options);
     expect(compareManagedMembers(source, source).methods[0]?.status).toBe(
       "unchanged",
     );
-    const changedArgument = observe({
+    const changedArgument = observeEdgeTarget({
       ...options,
       methodSpecInstantiation: Buffer.from([0x0a, 1, 0x0a]),
     });
-    const changedBase = observe({ ...options, memberRefName: "OtherGeneric" });
+    const changedBase = observeEdgeTarget({
+      ...options,
+      memberRefName: "OtherGeneric",
+    });
     for (const changed of [changedArgument, changedBase])
       expect(compareManagedMembers(source, changed).methods[0]).toMatchObject({
         status: "changed",
@@ -233,7 +242,7 @@ describe("managed edge nominal identity", () => {
   });
 
   it("retains unknown identity for cyclic scope, TypeSpec and historical edges", () => {
-    const cyclic = observe({
+    const cyclic = observeEdgeTarget({
       typeReferences: [
         { namespace: "Fixture", name: "Outer", enclosingRow: 3 },
         { namespace: "", name: "Inner", enclosingRow: 2 },
@@ -242,14 +251,14 @@ describe("managed edge nominal identity", () => {
     expect(compareManagedMembers(cyclic, cyclic).methods[0]?.status).toBe(
       "unknown",
     );
-    const spec = observe({
+    const spec = observeEdgeTarget({
       memberRefParentRaw: 12,
       typeSpecSignatures: [Buffer.from([0x15, 0x12, 9, 1, 8])],
     });
     expect(compareManagedMembers(spec, spec).methods[0]?.status).toBe(
       "unknown",
     );
-    const source = observe();
+    const source = observeEdgeTarget();
     const historical = {
       ...source,
       result: managedMemberInspectionSchema.parse({

@@ -66,6 +66,7 @@ it("does not round overflowing register totals or accept truncated ranges", () =
   for (const declaration of [
     "%r<9007199254740991>, %s",
     "%r<4",
+    "%r<2><3>",
     "%r<0>",
     "%r,",
   ]) {
@@ -79,6 +80,15 @@ it("does not round overflowing register totals or accept truncated ranges", () =
       { type: ".b32", count: null },
     ]);
   }
+});
+it("retains overlong unsupported register type prefixes within the PTX text", () => {
+  const [row] = [
+    ...readPtxKernels(".entry k() { .reg .v2 .u32 .extra %r; ret; }", "object"),
+  ];
+  expect(row!.kernel.registers.virtual).toEqual([
+    { type: ".v2 .u32 .extra", count: null },
+  ]);
+  expect(row!.coverage).toBe("partial");
 });
 it.each([
   "/* unfinished",

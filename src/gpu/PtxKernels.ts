@@ -75,36 +75,57 @@ const sizeOf = (type: string | undefined): number | null => {
   const match = /^\.(?:b|u|s|f)(8|16|32|64|128)$/u.exec(type ?? "");
   return match === null ? null : Number(match[1]) / 8;
 };
-/** Parse every declared register name/range; unsupported forms poison the type total. */
+/** Stream register names/ranges without retaining the declaration token list. */
 const registerDeclaration = (
-  values: string[],
+  next: () => Token,
 ): { type: string; count: number | null } => {
   const identifier = /^%?[A-Za-z_$][\w$@.]*$/u;
-  const firstName = values.findIndex((value) => identifier.test(value));
-  if (firstName <= 0)
-    return rejectGpu("PTX register declaration has no type or name");
-  const type = values.slice(0, firstName).join(" ");
-  if (firstName !== 1 || !/^\.(?:pred|[busf](?:8|16|32|64|128))$/u.test(type))
-    return { type, count: null };
-  let at = firstName,
-    count = 0;
-  while (at < values.length) {
-    if (!identifier.test(values[at++]!)) return { type, count: null };
-    let declared = 1;
-    if (values[at] === "<") {
-      const range = integer(values[at + 1]);
-      if (range === null || range === 0 || values[at + 2] !== ">")
-        return { type, count: null };
-      declared = range;
-      at += 3;
-    }
-    if (!Number.isSafeInteger(count + declared)) return { type, count: null };
-    count += declared;
-    if (at === values.length) return { type, count };
-    if (values[at++] !== "," || at === values.length)
-      return { type, count: null };
+  let type = "";
+  let t = next();
+  while (!identifier.test(t.value)) {
+    if (t.value === ";" || t.value === "}")
+      rejectGpu("PTX register declaration has no type or name");
+    type += `${type.length === 0 ? "" : " "}${t.value}`;
+    t = next();
   }
-  return { type, count: null };
+  if (type.length === 0)
+    rejectGpu("PTX register declaration has no type or name");
+  const supported = /^\.(?:pred|[busf](?:8|16|32|64|128))$/u.test(type);
+  let count = 0;
+  const discard = (token: Token): { type: string; count: null } => {
+    while (token.value !== ";") {
+      if (token.value === "}") rejectGpu("Malformed PTX resource declaration");
+      token = next();
+    }
+    return { type, count: null };
+  };
+  while (true) {
+    let declared = 1;
+    let separator = next();
+    if (separator.value === "<") {
+      const range = next();
+      if (range.value === ";" || range.value === "}") return discard(range);
+      const close = next();
+      if (close.value !== ">") return discard(close);
+      const value = integer(range.value);
+      if (value === null || value === 0) return discard(next());
+      declared = value;
+      separator = next();
+    }
+    if (separator.value === ";") {
+      const total = count + declared;
+      return {
+        type,
+        count: supported && Number.isSafeInteger(total) ? total : null,
+      };
+    }
+    if (separator.value !== ",") return discard(separator);
+    count += declared;
+    if (!Number.isSafeInteger(count) || !supported) return discard(separator);
+    const name = next();
+    if (name.value === ";" || !identifier.test(name.value))
+      return discard(name);
+  }
 };
 const declaration = (
   source: string[],
@@ -262,15 +283,8 @@ export function* readPtxKernels(
           continue;
         }
         if (t.value !== ".reg" && t.value !== ".shared") continue;
-        const kind = t.value;
-        const declarationTokens: string[] = [];
-        for (t = next(); t.value !== ";"; t = next()) {
-          if (t.value === "}" || declarationTokens.length > 128)
-            rejectGpu("Malformed PTX resource declaration");
-          declarationTokens.push(t.value);
-        }
-        if (kind === ".reg") {
-          const { type, count } = registerDeclaration(declarationTokens);
+        if (t.value === ".reg") {
+          const { type, count } = registerDeclaration(next);
           const previous = virtual.get(type);
           const total =
             previous === null || count === null
@@ -280,20 +294,26 @@ export function* readPtxKernels(
             type,
             total === null || !Number.isSafeInteger(total) ? null : total,
           );
-        } else {
-          const value = declaration(declarationTokens);
-          if (
-            shared === null ||
-            value.size === null ||
-            value.align === null ||
-            value.align === 0
-          )
-            shared = null;
-          else {
-            const total =
-              Math.ceil(shared / value.align) * value.align + value.size;
-            shared = Number.isSafeInteger(total) ? total : null;
-          }
+          continue;
+        }
+        const declarationTokens: string[] = [];
+        for (t = next(); t.value !== ";"; t = next()) {
+          if (t.value === "}" || declarationTokens.length > 128)
+            rejectGpu("Malformed PTX resource declaration");
+          declarationTokens.push(t.value);
+        }
+        const value = declaration(declarationTokens);
+        if (
+          shared === null ||
+          value.size === null ||
+          value.align === null ||
+          value.align === 0
+        )
+          shared = null;
+        else {
+          const total =
+            Math.ceil(shared / value.align) * value.align + value.size;
+          shared = Number.isSafeInteger(total) ? total : null;
         }
       }
     }

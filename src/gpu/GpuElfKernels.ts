@@ -351,12 +351,14 @@ export const readAmdElfMetadata = async (
   let retainedBytes = 0;
   const observed = (): AmdElfMetadata => {
     const target = targets.size === 1 ? [...targets][0]! : null;
-    const target_key =
+    // LLVM notes use both the empty and explicit `unknown` environment forms.
+    const targetMatch =
       target === null
         ? null
-        : (/^amdgcn-amd-amdhsa--(gfx[a-zA-Z0-9]+(?::[^\s]+)?)$/u.exec(
+        : /^amdgcn-amd-amdhsa-(?:-(gfx[a-zA-Z0-9]+(?::[^\s]+)?)|unknown-(gfx[a-zA-Z0-9]+(?::[^\s]+)?))$/u.exec(
             target,
-          )?.[1] ?? null);
+          );
+    const target_key = targetMatch?.[1] ?? targetMatch?.[2] ?? null;
     return { target, target_key, limitations, notes };
   };
   try {

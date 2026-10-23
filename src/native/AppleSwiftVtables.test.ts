@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { objcSwiftMetadataSchema } from "../domain/native/objcSwiftMetadata.js";
 import { pushDispatchCoverage } from "./AppleDispatchCoverage.js";
 import { createSwiftClassVtableDecoder } from "./AppleSwiftVtables.js";
-import { decodeSwiftNominalTypes } from "./AppleSwiftNominalTypes.js";
+import {
+  decodeSwiftNominalTypes,
+  createSwiftContextReader,
+  type SwiftNominalReaders,
+} from "./AppleSwiftNominalTypes.js";
 import { decodeSwiftDispatchFacets } from "./AppleSwiftDispatchFacets.js";
 import type { DispatchRecordBudget } from "./AppleSwiftDispatchFacets.js";
 import { issue } from "./AppleDispatchDecodeFacts.js";
@@ -24,25 +28,27 @@ it("preserves unsupported type-metadata tag reasons instead of reporting null", 
       admit: () => true,
     },
   });
+  const nominalReaders: SwiftNominalReaders = {
+    u32: () => 0,
+    relative: () => ({
+      kind: "unknown",
+      reason: "Unsupported Swift type metadata record tag 2",
+    }),
+    string: () => "unused",
+    location: (address) => ({
+      address: `0x${address.toString(16)}`,
+      file_offset: Number(address),
+    }),
+    evidence: () => [],
+    executable: () => false,
+    admit: () => true,
+  };
   const nominal = decodeSwiftNominalTypes({
     entries: [0x100n],
     result,
     visitor: vtables.visitor,
-    readers: {
-      u32: () => 0,
-      relative: () => ({
-        kind: "unknown",
-        reason: "Unsupported Swift type metadata record tag 2",
-      }),
-      string: () => "unused",
-      location: (address) => ({
-        address: `0x${address.toString(16)}`,
-        file_offset: Number(address),
-      }),
-      evidence: () => [],
-      executable: () => false,
-      admit: () => true,
-    },
+    readers: nominalReaders,
+    contextReader: createSwiftContextReader(nominalReaders),
   });
   const facts = vtables.facts();
 

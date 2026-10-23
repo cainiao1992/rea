@@ -123,7 +123,7 @@ const readMemberLayout = (bytes: Buffer, pe: ManagedPeLayout) => {
 };
 
 const selectTypes = (
-  types: ManagedMemberInspection["types"],
+  types: readonly ManagedMemberInspection["types"][number][],
   typeNames: readonly string[] | undefined,
 ): {
   readonly tokens: SelectedTypeTokens;

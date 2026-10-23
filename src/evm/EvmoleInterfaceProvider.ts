@@ -53,6 +53,7 @@ import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import {
   evmInterfaceFailure,
   capturedEvmOutput,
+  evmReplyBudgetFailure,
   type EvmFileSizeFailureEvidence,
 } from "./EvmoleFailures.js";
 import {
@@ -582,15 +583,24 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
             bindArtifactFileCleanup(cause, failure);
           throw failure;
         }
-        const failure = new AnalysisOutputError(
-          OPERATION,
-          `Owned interface worker reply failed for ${input.path}: ${cause instanceof Error ? cause.message : String(cause)}`,
-          {
-            cause,
-            capturedOutput,
-            ...(cleanup === undefined ? {} : { cleanup }),
-          },
-        );
+        const failure =
+          cause instanceof ArtifactReaderFailure &&
+          cause.reason === "limit" &&
+          cause.boundary === "file-size"
+            ? evmReplyBudgetFailure(cause.message, {
+                cause,
+                capturedOutput,
+                ...(cleanup === undefined ? {} : { cleanup }),
+              })
+            : new AnalysisOutputError(
+                OPERATION,
+                `Owned interface worker reply failed for ${input.path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+                {
+                  cause,
+                  capturedOutput,
+                  ...(cleanup === undefined ? {} : { cleanup }),
+                },
+              );
         if (cause instanceof ArtifactReaderFailure)
           bindArtifactFileCleanup(cause, failure);
         throw failure;
@@ -612,10 +622,8 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
             },
           ]);
         if (reply.reason === "output-limit")
-          throw new AnalysisOutputError(OPERATION, reply.message, {
+          throw evmReplyBudgetFailure(reply.message, {
             capturedOutput,
-            userMessage: `${reply.message} The reply allowance is ${String(EVM_INTERFACE_LIMITS.outputBytes)} bytes. This release has no runtime override.`,
-            remediationAction: `The EVMole reply allowance is ${String(EVM_INTERFACE_LIMITS.outputBytes)} bytes. This release has no runtime override. timeout_ms does not raise it. Repeating the unchanged request fails the same way.`,
           });
         throw new ProviderAdapterError(EVMOLE_PROVIDER_IDENTITY.id, OPERATION, {
           diagnostics: {
@@ -653,7 +661,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
         "Bytecode kind, hardfork and deployed-contract authenticity are unknown. This inspection performs no target runtime execution, chain/RPC lookup or network request.",
         "Original carrier and decoded bytecode SHA-256 are distinct identities; SHA-256 is not the Ethereum Keccak code hash.",
         "Terminal CBOR metadata is an independently decoded candidate, not proof of Solidity origin, source identity or deployment. Nested or unsupported values retain explicit unavailable interpretation and original byte ranges.",
-        `The owned worker has a 256 MiB JavaScript heap, an address-space ceiling of ${String(EVM_INTERFACE_LIMITS.addressSpaceBytes)} bytes, and a CPU ceiling of ${String(EVM_CPU_SECONDS)} seconds. The command deadline is timeout_ms at ${String(timeoutMs)} ms (default ${String(DEFAULT_EVM_TIMEOUT_MS)}). Those byte, address-space, and CPU ceilings have no runtime override, and timeout_ms does not raise them. Virtual address space is distinct from resident memory; limits fail without partial success.`,
+        `The owned worker has a 256 MiB JavaScript heap. The profile maxima are ${String(EVM_INTERFACE_LIMITS.addressSpaceBytes)} address-space bytes and ${String(EVM_CPU_SECONDS)} CPU seconds; the configured soft limits above retain tighter inherited limits. The command deadline is timeout_ms at ${String(timeoutMs)} ms (default ${String(DEFAULT_EVM_TIMEOUT_MS)}). Those byte, address-space, and CPU maxima have no runtime override, and timeout_ms does not raise them. Virtual address space is distinct from resident memory; limits fail without partial success.`,
       ];
       const validated = evmInterfaceSchema.safeParse({
         artifact: {

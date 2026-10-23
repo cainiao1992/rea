@@ -377,6 +377,7 @@ it
     "success",
     "format",
     "unsupported",
+    "output-limit",
     "wrong-version",
     "wrong-decoded-carrier",
     "broken-reply",
@@ -409,11 +410,14 @@ it
           scenario === "broken-reply"
             ? "broken"
             : JSON.stringify(
-                ["format", "unsupported"].includes(scenario)
+                ["format", "unsupported", "output-limit"].includes(scenario)
                   ? {
                       ok: false,
                       reason: scenario,
-                      message: "Malformed hex carrier.",
+                      message:
+                        scenario === "output-limit"
+                          ? "Complete interface evidence exceeds the 16 MiB reply budget."
+                          : "Malformed hex carrier.",
                     }
                   : {
                       ok: true,
@@ -465,7 +469,9 @@ it
               ? "AnalysisInputError"
               : scenario === "unsupported"
                 ? "AnalysisUnsupportedTargetError"
-                : "AnalysisOutputError",
+                : scenario === "output-limit"
+                  ? "AnalysisResourceConstraintError"
+                  : "AnalysisOutputError",
         },
       });
     if (!result.ok)

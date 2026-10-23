@@ -595,12 +595,10 @@ const normalizeSourceMap = (
         4,
     );
     const sourcesByRaw = new Map<string, string>();
-    const resolvedByRoot = new Map<string | null, Map<string, string>>();
-    preflightResolvedSourceBytes(
+    const resolvedByRoot = prepareResolvedSources(
       inspected.leaves,
       fetchedUrl,
       context.budget,
-      resolvedByRoot,
       sourcesByRaw,
       check,
     );
@@ -614,11 +612,12 @@ const normalizeSourceMap = (
     const nameJsonBytes = new Map<string, number>();
     const originalSources: ParsedSourceMapItem["original_sources"] = [];
     let declarationIndex = 0;
-    for (const { leaf, resolvedSources } of decoded) {
+    for (const { leaf } of decoded) {
+      const resolvedSources = resolvedByRoot.get(leaf.map.sourceRoot ?? null);
       for (const [index, rawSource] of leaf.map.sources.entries()) {
         if ((index & 255) === 0) check();
         const resolved =
-          rawSource === null ? null : (resolvedSources[index] ?? null);
+          rawSource === null ? null : (resolvedSources?.get(rawSource) ?? null);
         const sanitized =
           resolved === null ? null : cachedSanitized(sourcesByRaw, resolved);
         const content = leaf.map.sourcesContent?.[index] ?? null;
@@ -647,7 +646,8 @@ const normalizeSourceMap = (
     }
     const mappings: ParsedSourceMapItem["mappings"] = [];
     declarationIndex = 0;
-    for (const { leaf, rows, resolvedSources } of decoded) {
+    for (const { leaf, rows } of decoded) {
+      const resolvedSources = resolvedByRoot.get(leaf.map.sourceRoot ?? null);
       const declarationBase = declarationIndex;
       declarationIndex += leaf.map.sources.length;
       for (const [line, row] of rows.entries()) {
@@ -657,7 +657,9 @@ const normalizeSourceMap = (
           const rawSource = leaf.map.sources[segment[1]];
           if (rawSource === undefined) continue;
           const resolved =
-            rawSource === null ? null : (resolvedSources[segment[1]] ?? null);
+            rawSource === null
+              ? null
+              : (resolvedSources?.get(rawSource) ?? null);
           const source =
             resolved === null ? null : cachedSanitized(sourcesByRaw, resolved);
           const name =
@@ -908,14 +910,15 @@ const sanitizeSource = (value: string): string => {
   }
 };
 
-const preflightResolvedSourceBytes = (
+/** Resolve and admit source identities once, before allocating public mapping rows. */
+const prepareResolvedSources = (
   leaves: readonly SourceMapLeaf[],
   mapUrl: string,
   budget: { readonly expandedBytes: number; resolvedSourceBytes: number },
-  resolvedByRoot: Map<string | null, Map<string, string>>,
   sanitizedByResolved: Map<string, string>,
   check: () => void,
-): void => {
+): ReadonlyMap<string | null, ReadonlyMap<string, string>> => {
+  const resolvedByRoot = new Map<string | null, Map<string, string>>();
   let estimate = budget.expandedBytes;
   let resolvedBytes = budget.resolvedSourceBytes;
   for (const { map } of leaves) {
@@ -950,6 +953,7 @@ const preflightResolvedSourceBytes = (
     }
   }
   budget.resolvedSourceBytes = resolvedBytes;
+  return resolvedByRoot;
 };
 
 const consumeExpandedBytes = (

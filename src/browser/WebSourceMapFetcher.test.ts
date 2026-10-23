@@ -114,3 +114,53 @@ it("observes a fetch rejection that arrives after its host aborts synchronously"
     process.off("unhandledRejection", onUnhandled);
   }
 });
+
+it.each([
+  {
+    sourceRoot: "https://cdn.example/src/",
+    expected: "https://cdn.example/src/a.js",
+  },
+  {
+    sourceRoot: "https://cdn.example/src//",
+    expected: "https://cdn.example/src//a.js",
+  },
+  { sourceRoot: "webpack://", expected: "webpack://a.js" },
+  { sourceRoot: "webpack:///", expected: "webpack:///a.js" },
+  { sourceRoot: "", expected: "https://app.example.test/a.js" },
+  { sourceRoot: null, expected: "https://app.example.test/maps/a.js" },
+])(
+  "retains the admitted ECMA-426 source identity for root $sourceRoot",
+  async ({ sourceRoot, expected }) => {
+    const text = JSON.stringify({
+      version: 3,
+      sourceRoot,
+      sources: ["a.js", null],
+      names: [],
+      mappings: "AAAA;ACAA",
+    });
+    const fetchInput = analyzeWebBundleInputSchema.parse({
+      cdp_endpoint: "http://127.0.0.1:9222",
+      target_id: "page-1",
+      fetch_source_maps: true,
+      allowed_origins: [new URL(request.fetchUrl).origin],
+    });
+    const selectedRequest = {
+      ...request,
+      declaredUrl: "https://app.example.test/maps/app.js.map",
+      fetchUrl: "https://app.example.test/maps/app.js.map",
+    };
+    const result = await fetchWebSourceMaps(
+      [selectedRequest],
+      fetchInput,
+      undefined,
+      {
+        fetch: async () => new Response(text, { status: 200 }),
+      },
+    );
+    expect(result.items[0]).toMatchObject({
+      status: "included",
+      original_sources: [{ source: expected }, { source: null }],
+      mappings: [{ source: expected }, { source: null }],
+    });
+  },
+);

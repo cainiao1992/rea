@@ -1,6 +1,5 @@
 import { posix } from "node:path";
 import { domainToASCII, fileURLToPath, pathToFileURL } from "node:url";
-import { TraceMap } from "@jridgewell/trace-mapping";
 
 import { z } from "zod";
 
@@ -32,24 +31,16 @@ export const resolveJavaScriptSourceMapReferences = (
   sourceRoot: string | null,
   mapPath: string,
 ): (JavaScriptSourceMapReference | null)[] => {
-  if (sourceNames.length === 0) return [];
-  const resolvedSources = resolveSourceMapUrls(
-    sourceNames.map((sourceName) => sourceName ?? ""),
-    sourceRoot,
-    "",
-  );
-  return sourceNames.map((sourceName, index) => {
+  return sourceNames.map((sourceName) => {
     if (sourceName === null) return null;
-    const reference = resolvedSources[index];
-    if (reference === undefined)
-      throw new TypeError(
-        `TraceMap did not resolve source declaration ${String(index)}`,
-      );
     return {
       source_name: sourceName,
       source_root: sourceRoot,
       map_path: mapPath,
-      resolution: resolveJavaScriptSourceMapPath(reference, mapPath),
+      resolution: resolveJavaScriptSourceMapPath(
+        sourceMapReference(sourceName, sourceRoot),
+        mapPath,
+      ),
     };
   });
 };
@@ -72,25 +63,6 @@ const sourceMapReference = (
 ): string => {
   if (sourceRoot == null) return source;
   return `${sourceRoot}${sourceRoot.endsWith("/") ? "" : "/"}${source}`;
-};
-
-const resolveSourceMapUrls = (
-  sources: string[],
-  sourceRoot: string | null | undefined,
-  mapUrl: string,
-): readonly string[] => {
-  // ECMA-426 prefixes each source when sourceRoot is non-null, adding `/`
-  // only when the root does not already end with one. Do this before handing
-  // the references to TraceMap so its URL resolver cannot duplicate a slash.
-  return new TraceMap(
-    {
-      version: 3,
-      names: [],
-      sources: sources.map((source) => sourceMapReference(source, sourceRoot)),
-      mappings: "",
-    },
-    mapUrl,
-  ).resolvedSources;
 };
 
 /** Resolve a source-map URL reference without changing its recorded identity. */

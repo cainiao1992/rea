@@ -255,9 +255,12 @@ import type { FileSnapshotPartialObservation } from "./fileSnapshotObservation.j
 
 import type { WebModuleResolutionObservation } from "./webModuleTrace.js";
 import type { WebNetworkCapture } from "./webNetworkCapture.js";
+import type { FridaDeviceList, FridaProcessList } from "./fridaDiscovery.js";
 
 /** Provider-neutral evidence collected before a typed analysis failure. */
 export type AnalysisPartialObservation =
+  | FridaDeviceList
+  | FridaProcessList
   | WebModuleResolutionObservation
   | WebNetworkCapture
   | NativeLoadImagePartialObservation

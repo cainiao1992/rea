@@ -1,9 +1,6 @@
 import { z } from "incur";
 
-import {
-  FridaInstrumentationService,
-  withRecoveredFridaCleanup,
-} from "../application/frida/FridaInstrumentationService.js";
+import { FridaInstrumentationService } from "../application/frida/FridaInstrumentationService.js";
 import type {
   FridaInstrumentationPort,
   FridaRemoteConnection,
@@ -13,16 +10,13 @@ import { CLI_COMMANDS } from "../cliCommandNames.js";
 import { logCliCommand } from "../cliLogging.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
-import { ProviderCleanupError } from "../domain/providerCleanupError.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
-import { err, type Result } from "../domain/result.js";
+import { ok } from "../domain/result.js";
 import { FRIDA_KEEPALIVE_INTERVAL_DESCRIPTION } from "../contracts/fridaToolContracts.js";
 import { isValidFridaRemoteAddress } from "../contracts/fridaRemoteAddress.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
+import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
 
 /** Register Frida discovery and one-shot instrumentation CLI operations. */
 export const registerFridaCommands = (
@@ -33,33 +27,7 @@ export const registerFridaCommands = (
   const service = new FridaInstrumentationService(provider);
   // CLI calls own a disposable provider; MCP retains its shared provider until
   // server shutdown. Await cleanup here, including failed startup resources.
-  const withProviderCleanup = async <Value>(
-    operation: () => Promise<Result<Value, AnalysisError>>,
-  ): Promise<Result<Value, AnalysisError>> => {
-    const result = await operation();
-    try {
-      await provider.closeAll();
-    } catch (cause: unknown) {
-      const cleanup = new ProviderCleanupError(
-        "frida",
-        ["Frida sessions or connections"],
-        result.ok
-          ? { partial_observation: jsonValueSchema.parse(result.value) }
-          : {},
-        { cause, operation: "frida_cleanup" },
-      );
-      return err(
-        result.ok
-          ? cleanup
-          : analysisErrorWithCleanupFailure(
-              result.error,
-              cleanup,
-              "frida_cleanup",
-            ),
-      );
-    }
-    return result.ok ? result : err(withRecoveredFridaCleanup(result.error));
-  };
+  const cleanup = { close: () => provider.closeAll() };
   const remoteOptions = z.object({
     remoteAddress: z
       .string()
@@ -116,12 +84,17 @@ export const registerFridaCommands = (
       "Remote credentials and connection options require remoteAddress",
     ),
     run: ({ options }) =>
-      logCliCommand(logger, CLI_COMMANDS.listFridaDevices, async () => {
-        const result = await withProviderCleanup(() =>
-          service.listDevices(remoteFrom(options)),
-        );
-        return result.ok ? result.value : projectAnalysisError(result.error);
-      }),
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.listFridaDevices, () =>
+          finishAnalysisCommand(
+            () => service.listDevices(remoteFrom(options)),
+            cleanup,
+            "frida",
+            "list_frida_devices",
+            signal,
+          ),
+        ),
+      ),
   });
   cli.command(CLI_COMMANDS.listFridaProcesses, {
     description: "List processes visible through a Frida device",
@@ -144,17 +117,23 @@ export const registerFridaCommands = (
         "Remote credentials and connection options require remoteAddress",
       ),
     run: ({ options }) =>
-      logCliCommand(logger, CLI_COMMANDS.listFridaProcesses, async () => {
-        const remote = remoteFrom(options);
-        const result = await withProviderCleanup(() =>
-          service.listProcesses(
-            remote === undefined
-              ? { deviceId: options.deviceId ?? "local" }
-              : { remote },
-          ),
-        );
-        return result.ok ? result.value : projectAnalysisError(result.error);
-      }),
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.listFridaProcesses, () => {
+          const remote = remoteFrom(options);
+          return finishAnalysisCommand(
+            () =>
+              service.listProcesses(
+                remote === undefined
+                  ? { deviceId: options.deviceId ?? "local" }
+                  : { remote },
+              ),
+            cleanup,
+            "frida",
+            "list_frida_processes",
+            signal,
+          );
+        }),
+      ),
   });
   cli.command(CLI_COMMANDS.instrumentWithFrida, {
     description: "Run one Frida script against a selected process and detach",
@@ -275,25 +254,28 @@ export const registerFridaCommands = (
                 ],
               ),
             );
-          const result = await withProviderCleanup(() =>
-            service.instrument(
-              {
-                ...targetInput,
-                source:
-                  options.scriptFile === undefined
-                    ? { sourceKind: "inline", source: options.script ?? "" }
-                    : { sourceKind: "file", path: options.scriptFile },
-                durationMs: options.durationMs,
-              },
-              signal,
-            ),
+          return finishAnalysisCommand(
+            async () => {
+              const result = await service.instrument(
+                {
+                  ...targetInput,
+                  source:
+                    options.scriptFile === undefined
+                      ? { sourceKind: "inline", source: options.script ?? "" }
+                      : { sourceKind: "file", path: options.scriptFile },
+                  durationMs: options.durationMs,
+                },
+                signal,
+              );
+              if (!result.ok) return result;
+              if (result.value.cleanupError !== null) process.exitCode = 1;
+              return ok(result.value.evidence);
+            },
+            cleanup,
+            "frida",
+            "instrument_with_frida",
+            signal,
           );
-          if (!result.ok) return projectAnalysisError(result.error);
-          if (result.value.cleanupError !== null) process.exitCode = 1;
-          return {
-            evidence: result.value.evidence,
-            cleanup_error: result.value.cleanupError,
-          };
         }),
       ),
   });

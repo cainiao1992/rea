@@ -102,7 +102,7 @@ it.each([false, true])(
     if (cleanupFails)
       expect(JSON.parse(stdout)).toMatchObject({
         code: "cleanup_incomplete",
-        details: { diagnostics: { partial_observation: expected } },
+        details: { partial_observation: expected },
       });
     else
       expect(
@@ -213,6 +213,9 @@ it("maps one-shot Frida CLI target, script, duration, and remote options", async
   );
   expect(exitCode).toBe(0);
   const result: unknown = JSON.parse(stdout);
+  expect(() =>
+    toolContract("instrument_with_frida").outputSchema.parse(result),
+  ).not.toThrow();
   expect(JSON.stringify(result)).not.toContain("synthetic-secret-token");
   expect(calls).toEqual([
     {
@@ -359,14 +362,12 @@ it("keeps Frida script-file identity in original bytes when UTF-8 decoding repla
       if (name === "ff.js" || name === "fe.js") {
         expect(rawDigest).not.toBe(loadedSourceDigest);
         expect(output).toMatchObject({
-          evidence: {
-            normalized_result: { source_sha256: rawDigest },
-            raw_result: {
-              source_representation: {
-                encoding: "utf8",
-                decoding: "replacement",
-                loaded_source_sha256: loadedSourceDigest,
-              },
+          normalized_result: { source_sha256: rawDigest },
+          raw_result: {
+            source_representation: {
+              encoding: "utf8",
+              decoding: "replacement",
+              loaded_source_sha256: loadedSourceDigest,
             },
           },
         });
@@ -375,9 +376,7 @@ it("keeps Frida script-file identity in original bytes when UTF-8 decoding repla
         );
       } else {
         expect(output).toMatchObject({
-          evidence: {
-            normalized_result: { source_sha256: rawDigest },
-          },
+          normalized_result: { source_sha256: rawDigest },
         });
         expect(outputText).not.toContain("source_representation");
       }
@@ -388,7 +387,7 @@ it("keeps Frida script-file identity in original bytes when UTF-8 decoding repla
   }
 });
 
-it("awaits failed startup cleanup and retains the primary error if cleanup still fails", async () => {
+it("awaits failed startup cleanup without clearing an unbound cleanup marker", async () => {
   for (const cleanupFails of [false, true]) {
     const calls: string[] = [];
     const provider: FridaInstrumentationPort =
@@ -435,7 +434,7 @@ it("awaits failed startup cleanup and retains the primary error if cleanup still
     expect(calls).toEqual(["start", "cleanup"]);
     const output: unknown = JSON.parse(stdout);
     expect(output).toMatchObject({
-      code: cleanupFails ? "cleanup_incomplete" : "capability_unavailable",
+      code: "cleanup_incomplete",
     });
     expect(stdout).toContain("attach failed after spawn");
     if (cleanupFails) expect(stdout).toContain("primary_error");
@@ -469,17 +468,15 @@ it("preserves observed devices when CLI provider cleanup fails", async () => {
   expect(output).toMatchObject({
     code: "cleanup_incomplete",
     details: {
-      diagnostics: {
-        partial_observation: {
-          devices: [
-            {
-              device_id: "remote-device",
-              name: "selected endpoint",
-              type: "remote",
-            },
-          ],
-          cleanup_error: null,
-        },
+      partial_observation: {
+        devices: [
+          {
+            device_id: "remote-device",
+            name: "selected endpoint",
+            type: "remote",
+          },
+        ],
+        cleanup_error: null,
       },
     },
   });

@@ -3,6 +3,8 @@
 Use the CLI for a direct inspection or a script. It uses the same application
 workflows and evidence contracts as REA's MCP server. Each CLI invocation is a
 separate process; save results when you want to use them in a later command.
+For a pinned, noninteractive workflow with retained reports, see
+[static analysis in GitHub Actions](ci-analysis.md).
 
 ## Run a command
 

@@ -346,6 +346,13 @@ Mach-O fixtures check each case against source-owned return values.
 
 ## Static inspection
 
+Native target admission checks Mach-O slice headers before assigning FAT
+identity. A shared `CAFEBABE` prefix whose declarations do not identify Mach-O
+images receives the generic unsupported-format refusal, including JVM class
+files larger than the bounded admission probe. This does not identify a partial
+prefix as a validated JVM class. Malformed recognized FAT declarations retain
+their format-specific reasons.
+
 `inspect_artifact` and `extract_artifact` retain universal Mach-O slices under
 their exact `lipo` names, including 32-bit ARM implementations such as `armv7`,
 `armv7s`, and `armv7k`. These names are reconciled with the FAT CPU subtype;

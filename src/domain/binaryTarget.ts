@@ -373,8 +373,7 @@ const fatIdentityError = (
   });
   if (identity.state === "needs-slice-header")
     return "FAT slice identity is outside the bounded prefix";
-  if (identity.state === "not-mach-o")
-    return "FAT table does not identify a Mach-O image";
+  if (identity.state === "not-mach-o") return "unsupported binary format";
   if (identity.state === "malformed") return identity.reason;
   return null;
 };

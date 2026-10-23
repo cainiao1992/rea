@@ -31,12 +31,33 @@ import { hasXmlPlistSignature } from "../../../src/domain/apple/appleArchiveForm
 import { parseExecutableHeader } from "../../../src/domain/binaryTarget.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { javaClassFile } from "../../fixtures/javaClassFile.js";
 import {
   arArchive,
   CPU,
   fatImage,
   machoImage,
 } from "../../../src/artifacts/apple/MachoImage.fixture.js";
+
+it.each([4000, 9000])(
+  "refuses a JVM class with %i unused constant bytes without claiming FAT identity",
+  async (constantBytes) => {
+    const directory = await createTestTempDirectory("rea-class-target-");
+    const path = join(directory, "input.class");
+    await writeFile(path, javaClassFile(constantBytes));
+    const resolved = await parseBinaryTarget(path);
+    expect(resolved).toMatchObject({
+      ok: false,
+      error: { reason: "unsupported binary format" },
+    });
+    if (resolved.ok) throw new Error("JVM class was admitted as executable");
+    expect(projectAnalysisError(resolved.error)).toMatchObject({
+      code: "target_unavailable",
+      category: "unsupported_target",
+      details: { reason: "unsupported binary format" },
+    });
+  },
+);
 
 it.each([0x01c0, 0x01c2, 0x01c4, 0xaa64])(
   "retains original PE COFF machine %i through file-backed target resolution",

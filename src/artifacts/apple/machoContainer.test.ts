@@ -43,7 +43,7 @@ describe("FAT Mach-O identity", () => {
     });
     expect(parseExecutableHeader(Buffer.from(bytes), "arm64")).toEqual({
       ok: false,
-      error: "FAT table does not identify a Mach-O image",
+      error: "unsupported binary format",
     });
   });
 
@@ -62,7 +62,7 @@ describe("FAT Mach-O identity", () => {
     });
     expect(parseExecutableHeader(Buffer.from(bytes), "arm64")).toEqual({
       ok: false,
-      error: "FAT table does not identify a Mach-O image",
+      error: "unsupported binary format",
     });
   });
 

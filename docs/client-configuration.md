@@ -265,6 +265,12 @@ the diagnostic identifies the setting to repair. See the
 [Codex configuration reference](https://developers.openai.com/codex/config-reference/)
 for the supported policy values.
 
+When direct launcher paths prove the same executable or Node entrypoint,
+setup retains the existing caller-selected spelling. An otherwise aligned
+registration therefore needs no rewrite or recovery backup merely because
+REA was invoked through another symlink. Unresolved identity does not prove
+equivalence.
+
 | Settings                                  | Setup ownership                                                       |
 | ----------------------------------------- | --------------------------------------------------------------------- |
 | Launcher, transport and activation        | Refreshes the REA stdio connection and enables it.                    |

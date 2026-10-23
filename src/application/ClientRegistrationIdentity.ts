@@ -149,6 +149,40 @@ const directEntrypointIdentity = (
     : "unknown";
 };
 
+/** Preserve caller spelling only when both direct launchers prove the same file. */
+export const equivalentClientRegistrationCommands = (
+  previous: readonly string[],
+  requested: readonly string[],
+): boolean => {
+  if (
+    previous.length === requested.length &&
+    previous.every((value, index) => value === requested[index])
+  )
+    return true;
+  const entrypoint = (command: readonly string[]): string | undefined => {
+    if (
+      command.length === 2 &&
+      command[1] === "mcp" &&
+      isAbsolute(command[0] ?? "")
+    )
+      return command[0];
+    if (
+      command.length === 3 &&
+      command[2] === "mcp" &&
+      isAbsolute(command[1] ?? "") &&
+      entrypointIdentity(command[0] ?? "", process.execPath) === "owned"
+    )
+      return normalizeEntrypointPath(command[1]);
+    return undefined;
+  };
+  const current = entrypoint(requested);
+  return (
+    current !== undefined &&
+    entrypoint(previous) !== undefined &&
+    classifyClientRegistrationCommand(previous, current) === "owned"
+  );
+};
+
 /** Classify the command once; uncertainty never grants positive ownership. */
 export const classifyClientRegistrationCommand = (
   command: readonly string[],

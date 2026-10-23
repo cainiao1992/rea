@@ -14,6 +14,7 @@ import {
   type ClientRegistrationDialect,
 } from "./ClientConfigurationDocument.js";
 import type { SetupClient } from "./SupportedClients.js";
+import { equivalentClientRegistrationCommands } from "./ClientRegistrationIdentity.js";
 
 const tomlTimeoutSchema = z.union([
   z.number().positive(),
@@ -181,8 +182,17 @@ export const refreshClientRegistration = (
   const existing = source.success ? source.data : {};
   const policy = validateClientPolicy(existing, client);
   if (!policy.ok) return policy;
+  const prior = parseClientRegistration(existing, client);
+  const priorCommand = prior.ok
+    ? [prior.value.command, ...prior.value.args]
+    : undefined;
+  const launcher =
+    priorCommand !== undefined &&
+    equivalentClientRegistrationCommands(priorCommand, command)
+      ? priorCommand
+      : command;
   const registration = {
-    ...clientRegistrationEntry(dialect, command, environment),
+    ...clientRegistrationEntry(dialect, launcher, environment),
     ...Object.fromEntries(
       Object.entries(existing).filter(
         ([key]) => !managedConnectionKeys.has(key),

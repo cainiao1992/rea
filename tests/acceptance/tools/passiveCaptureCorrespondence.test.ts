@@ -4,6 +4,7 @@ import { expect } from "vitest";
 
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { createWebTextArtifact } from "../../../src/domain/webContentArtifact.js";
+import { stableWebScriptKey } from "../../../src/domain/webInventory.js";
 import type { WebMcpDiscovery } from "../../../src/domain/webMcpDiscovery.js";
 import {
   type CompareWebCapturesInput,
@@ -250,6 +251,33 @@ add(
   "webmcp",
   "changed",
 );
+const droppedTools = structuredClone(discovery);
+droppedTools.completeness = withPassiveDroppedEvents(inspection, {
+  webmcp_tools: 1,
+}).completeness;
+const partialChangedTools = structuredClone(changedTool);
+partialChangedTools.completeness = structuredClone(droppedTools.completeness);
+add(
+  "dropped WebMCP observations cannot establish equality",
+  { inspection, webmcp: droppedTools },
+  { inspection, webmcp: droppedTools },
+  "webmcp",
+  "unknown",
+);
+add(
+  "two partial WebMCP groups cannot prove modification",
+  { inspection, webmcp: droppedTools },
+  { inspection, webmcp: partialChangedTools },
+  "webmcp",
+  "unknown",
+);
+add(
+  "known WebMCP difference survives one complete inventory",
+  { inspection, webmcp: discovery },
+  { inspection, webmcp: partialChangedTools },
+  "webmcp",
+  "changed",
+);
 const duplicateOwner = structuredClone(discovery);
 duplicateOwner.tools.total = 2;
 duplicateOwner.tools.items.push({
@@ -304,6 +332,30 @@ script.scripts = {
   ],
 };
 const scriptChanged = structuredClone(script);
+const scriptMissingModule = structuredClone(script);
+scriptMissingModule.scripts.items[0]!.is_module = null;
+scriptMissingModule.scripts.items[0]!.script_key = stableWebScriptKey(
+  scriptMissingModule.scripts.items[0]!,
+);
+add(
+  "missing script module metadata is unknown rather than removed and added",
+  { inspection: script },
+  { inspection: scriptMissingModule },
+  "scripts",
+  "unknown",
+);
+const scriptDifferentModule = structuredClone(script);
+scriptDifferentModule.scripts.items[0]!.is_module = true;
+scriptDifferentModule.scripts.items[0]!.script_key = stableWebScriptKey(
+  scriptDifferentModule.scripts.items[0]!,
+);
+add(
+  "known unequal script module metadata remains changed",
+  { inspection: script },
+  { inspection: scriptDifferentModule },
+  "scripts",
+  "changed",
+);
 scriptChanged.scripts.items[0]!.source = {
   included: true,
   artifact: createWebTextArtifact("2", "text/javascript"),

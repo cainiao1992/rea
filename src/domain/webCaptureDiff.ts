@@ -283,14 +283,6 @@ const sameResourceSizes = (
 ): boolean =>
   left.size === right.size && [...left].every((size) => right.has(size));
 
-const keyed = <T>(
-  values: readonly T[],
-  identity: (value: T) => string,
-): ReadonlyMap<string, string> =>
-  new Map(
-    values.map((value) => [identity(value), digestCanonicalValue(value)]),
-  );
-
 type BodyShapeSources = {
   readonly request: boolean;
   readonly response: boolean;
@@ -676,8 +668,8 @@ const networkComparisonMaps = (
     const next = after.get(identity) ?? [];
     if (
       !(beforeComplete && afterComplete) &&
-      !(beforeComplete && !networkSamplesContained(next, previous)) &&
-      !(afterComplete && !networkSamplesContained(previous, next))
+      !(beforeComplete && !samplesContained(next, previous)) &&
+      !(afterComplete && !samplesContained(previous, next))
     )
       continue;
     if (before.has(identity))
@@ -688,7 +680,7 @@ const networkComparisonMaps = (
   return [left, right];
 };
 
-const networkSamplesContained = (
+const samplesContained = (
   samples: readonly string[],
   complete: readonly string[],
 ): boolean => {
@@ -842,20 +834,30 @@ const webMcpDimension = (
   };
   const previous = groups(before);
   const next = groups(after);
-  const inventoryComplete = webMcpComplete(before) && webMcpComplete(after);
+  const beforeComplete = webMcpComplete(before);
+  const afterComplete = webMcpComplete(after);
+  const inventoryComplete = beforeComplete && afterComplete;
   const left = new Map<string, string>();
   const right = new Map<string, string>();
   let valuesComplete = true;
   for (const identity of new Set([...previous.keys(), ...next.keys()])) {
     const beforeTools = previous.get(identity) ?? [];
     const afterTools = next.get(identity) ?? [];
+    if (!beforeComplete && !afterComplete) {
+      valuesComplete = false;
+      continue;
+    }
     // Multiple same-name owners at the same URL cannot be paired by frame ID.
     // Keep this uncertainty rather than selecting a duplicate by capture order.
     if (beforeTools.length > 1 || afterTools.length > 1) {
       valuesComplete = false;
       // Complete counts can contradict one another even when individual
       // owners cannot be paired. Do not discard that independent proof.
-      if (inventoryComplete) {
+      if (
+        inventoryComplete ||
+        (beforeComplete && afterTools.length > beforeTools.length) ||
+        (afterComplete && beforeTools.length > afterTools.length)
+      ) {
         if (beforeTools.length > 0)
           left.set(identity, String(beforeTools.length));
         if (afterTools.length > 0)
@@ -898,13 +900,19 @@ const webMcpDimension = (
     right,
     inventoryComplete && valuesComplete,
     "WebMCP discovery, owner correspondence, or consequential annotation evidence was unavailable or incomplete in at least one capture.",
-    inventoryComplete,
+    (identity) =>
+      !previous.has(identity)
+        ? beforeComplete
+        : !next.has(identity)
+          ? afterComplete
+          : inventoryComplete,
   );
 };
 
 const webMcpComplete = (discovery: WebMcpDiscovery | null): boolean =>
   discovery !== null &&
   discovery.status === "available" &&
+  discovery.completeness.dropped_events.webmcp_tools === 0 &&
   !incompleteSections(discovery.completeness).has("webmcp_tools");
 
 const sectionsComplete = (
@@ -987,62 +995,86 @@ const domDimension = (
       };
 };
 
-const scriptProjection = (
-  script: WebPageInspection["scripts"]["items"][number],
-) => ({
-  script_key: script.script_key,
-  url: script.url,
-  cdp_hash: script.cdp_hash,
-  length: script.length,
-  is_module: script.is_module,
-  language: script.language,
-  source_map_url: script.source_map_url,
-});
-
 const scriptsDimension = (
   before: WebPageInspection,
   after: WebPageInspection,
 ): Dimension => {
-  const inventoryComplete = [before, after].every((inspection) =>
-    sectionsComplete(inspection, ["scripts"]),
-  );
-  const byKey = (inspection: WebPageInspection) =>
-    new Map(
-      inspection.scripts.items.map((script) => [script.script_key, script]),
-    );
-  const left = byKey(before);
-  const right = byKey(after);
-  let sourcesComplete = true;
-  const project = (inspection: WebPageInspection, peer: typeof left) =>
-    keyed(
-      inspection.scripts.items.map((script) => {
-        const other = peer.get(script.script_key);
-        const sourceComparable =
-          script.source.included && other?.source.included === true;
-        if (
-          other !== undefined &&
-          (((script.source.included || other.source.included) &&
-            !sourceComparable) ||
-            (script.cdp_hash === null && !sourceComparable))
-        )
-          sourcesComplete = false;
-        return {
-          ...scriptProjection(script),
+  type Script = WebPageInspection["scripts"]["items"][number];
+  const groups = (inspection: WebPageInspection) => {
+    const result = new Map<string, Script[]>();
+    for (const script of inspection.scripts.items) {
+      // Inventory keys include optional metadata. Their spelling cannot prove
+      // semantic identity when that metadata is missing in another capture.
+      const identity = `scrg_${digestCanonicalValue(script.url)}`;
+      const items = result.get(identity) ?? [];
+      items.push(script);
+      result.set(identity, items);
+    }
+    return result;
+  };
+  const previous = groups(before);
+  const next = groups(after);
+  const beforeComplete =
+    sectionsComplete(before, ["scripts"]) &&
+    before.completeness.dropped_events.scripts === 0;
+  const afterComplete =
+    sectionsComplete(after, ["scripts"]) &&
+    after.completeness.dropped_events.scripts === 0;
+  const left = new Map<string, string>();
+  const right = new Map<string, string>();
+  let valuesComplete = true;
+  for (const identity of new Set([...previous.keys(), ...next.keys()])) {
+    const prior = previous.get(identity) ?? [];
+    const later = next.get(identity) ?? [];
+    const all = [...prior, ...later];
+    const fields = (
+      ["cdp_hash", "length", "is_module", "language"] as const
+    ).filter((field) => all.every((script) => script[field] !== null));
+    const sourceComparable =
+      prior.length > 0 &&
+      later.length > 0 &&
+      all.every((script) => script.source.included);
+    if (
+      prior.length > 0 &&
+      later.length > 0 &&
+      (!fields.includes("length") ||
+        !fields.includes("is_module") ||
+        !fields.includes("language") ||
+        (!sourceComparable &&
+          (!fields.includes("cdp_hash") ||
+            all.some((script) => script.source.included))))
+    )
+      valuesComplete = false;
+    const project = (items: readonly Script[]) =>
+      items.map((script) =>
+        digestCanonicalValue({
+          url: script.url,
+          source_map_url: script.source_map_url,
+          ...Object.fromEntries(fields.map((field) => [field, script[field]])),
           ...(sourceComparable && script.source.included
             ? { source_sha256: script.source.artifact.sha256 }
             : {}),
-        };
-      }),
-      (script) => script.script_key,
-    );
-  const previous = project(before, right);
-  const next = project(after, left);
+        }),
+      );
+    const priorSamples = project(prior);
+    const laterSamples = project(later);
+    if (
+      !(beforeComplete && afterComplete) &&
+      !(beforeComplete && !samplesContained(laterSamples, priorSamples)) &&
+      !(afterComplete && !samplesContained(priorSamples, laterSamples))
+    )
+      continue;
+    if (prior.length > 0)
+      left.set(identity, digestCanonicalValue(priorSamples.sort()));
+    if (later.length > 0)
+      right.set(identity, digestCanonicalValue(laterSamples.sort()));
+  }
   return compareDimension(
-    previous,
-    next,
-    inventoryComplete && sourcesComplete,
-    "Script inventory or corresponding source digest evidence was incomplete in at least one observation.",
-    inventoryComplete,
+    left,
+    right,
+    beforeComplete && afterComplete && valuesComplete,
+    "Script inventory or corresponding source/metadata evidence was incomplete in at least one observation.",
+    true, // Selected map entries already carry their directional absence proof.
   );
 };
 

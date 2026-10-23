@@ -95,6 +95,15 @@ objects, unsupported values, and opaque cookie partition identities remain
 incomplete. Previously exported fingerprints are not recomputed; recapture both
 sides when comparing captures produced across this decoder change.
 
+Script comparison groups observations by reported URL and compares unordered
+content samples. Producer inventory keys include optional metadata, so a changed
+key cannot by itself prove script removal or addition. Missing module, length,
+language or source-hash facts remain unknown; shared known values and complete
+retained source digests can still prove a group change. Partial inventories use
+the same omission rule as repeated HTTP samples. WebMCP dropped-tool counts also
+prevent equality, and two incomplete owner inventories cannot prove tool
+correspondence merely from their different retained registrations.
+
 - `capture_web_screenshot` / `rea capture-web-screenshot` returns a content-addressed visible-viewport PNG.
 - `compare_web_screenshots` / `rea compare-web-screenshots` performs bounded local PNG pixel comparison without OCR or external services.
 - The CLI comparison commands accept each capture, screenshot artifact or normalization policy as inline JSON or a JSON file path. Use files for screenshot artifacts and scenario captures, whose embedded PNG bytes can exceed the host's command-line length limit.

@@ -1007,7 +1007,7 @@ describe("web capture diff incomplete inventories", () => {
       if (script === undefined) throw new Error("Missing captured script");
       script.url = `${script.url}?revision=2`;
       expect(compare(complete, modified).changes).toEqual([
-        expect.objectContaining({ change: "modified" }),
+        expect.objectContaining({ change: "added" }),
       ]);
     },
   );

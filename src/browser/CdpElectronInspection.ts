@@ -59,6 +59,7 @@ interface ElectronInspectionState {
   readonly frameParents: Map<string, string | null>;
   readonly frameDocuments: Map<string, ElectronFrameDocument>;
   readonly authorizedFrameGenerations: Set<string>;
+  readonly excludedFrameGenerations: Set<string>;
   readonly scriptGenerations: WeakMap<ElectronScriptDraft, number>;
   readonly limitations: string[];
   mainFrameId: string | undefined;
@@ -68,6 +69,7 @@ interface ElectronInspectionState {
 interface ElectronFrameInventory {
   readonly frames: ElectronPageInspection["frames"];
   readonly parents: ReadonlyMap<string, string | null>;
+  readonly excludedFrameIds: ReadonlySet<string>;
 }
 
 interface ElectronFrameRead extends ElectronFrameInventory {
@@ -92,12 +94,15 @@ export const inspectCdpElectronPage = async (
     frameParents: new Map(),
     frameDocuments: new Map(),
     authorizedFrameGenerations: new Set(),
+    excludedFrameGenerations: new Set(),
     scriptGenerations: new WeakMap(),
     limitations: [
       ...(context.discovery.limitations ?? []),
       "Local file paths exposed by the selected CDP target are retained in the observation.",
       "REA does not evaluate renderer JavaScript, invoke Electron APIs, navigate, click, or close the page.",
       "Select include_script_sources to retain script contents.",
+      "Script file_path is the admitted local-file URL or sourceURL label, not a verification that disk bytes supplied the runtime code. has_source_url retains CDP's sourceURL declaration flag; null or an omitted historical field is unknown.",
+      "Known script frame identity is retained independently from frame_scope authorization. Unknown frame scope is attach-limited; scripts from known excluded document generations are omitted before source reads.",
       ...(context.target.attached === null
         ? [
             "CDP discovery omitted the target attachment state; attached is reported as unknown.",
@@ -234,6 +239,11 @@ const authorizeFrameGenerations = (
       compositeKey([frame.frame_id, generation]),
     );
   }
+  for (const id of read.excludedFrameIds)
+    if (!unproven.has(id))
+      state.excludedFrameGenerations.add(
+        compositeKey([id, read.generations.get(id) ?? 0]),
+      );
 };
 
 /** A changed ancestor also invalidates descendants first discovered in this tree. */
@@ -512,17 +522,16 @@ const captureElectronContent = async (
     ...(context.signal === undefined ? {} : { signal: context.signal }),
     request: context.input,
     scripts: state.scripts,
-    frameForScript: (script) => {
+    frameScopeForScript: (script) => {
       const generation = state.scriptGenerations.get(script);
-      const authorized =
-        script.frameId !== null &&
-        generation !== undefined &&
-        state.authorizedFrameGenerations.has(
-          compositeKey([script.frameId, generation]),
-        );
-      if (script.frameId !== null && !authorized)
-        state.completeness.attachLimited("scripts");
-      return authorized ? script.frameId : null;
+      if (script.frameId !== null && generation !== undefined) {
+        const key = compositeKey([script.frameId, generation]);
+        if (state.excludedFrameGenerations.has(key))
+          return { state: "excluded" };
+        if (state.authorizedFrameGenerations.has(key))
+          return { state: "authorized", frameId: script.frameId };
+      }
+      return { state: "unknown", frameId: script.frameId };
     },
     completeness: state.completeness,
     asarHeaderAdmission: context.asarHeaderAdmission,
@@ -606,6 +615,7 @@ export const captureFrames = async (
   const frames: ElectronPageInspection["frames"] = [];
   const enclosingParents = new Map<UnknownRecord, string>();
   const parents = new Map<string, string | null>();
+  const excludedFrameIds = new Set<string>();
   for (const tree of walkFrameTrees(frameTree, (count) =>
     completeness.exclude("frames", "invalid_protocol_value", count),
   )) {
@@ -643,6 +653,7 @@ export const captureFrames = async (
     );
     if (path === undefined) {
       completeness.exclude("frames", "out_of_target_scope");
+      excludedFrameIds.add(frameId);
       continue;
     }
     frames.push({
@@ -651,7 +662,7 @@ export const captureFrames = async (
       file_path: path,
     });
   }
-  return { frames, parents };
+  return { frames, parents, excludedFrameIds };
 };
 
 const captureResources = async (

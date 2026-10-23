@@ -209,7 +209,11 @@ it.each([
       expect(fired).toBe(true);
       if (stage !== "final")
         expect(result.scripts.items).toContainEqual(
-          expect.objectContaining({ frame_id: null, cdp_hash: "new-document" }),
+          expect.objectContaining({
+            frame_id: "child",
+            frame_scope: "unknown",
+            cdp_hash: "new-document",
+          }),
         );
       expect(result.completeness.attach_limited_sections).toContain("frames");
     }
@@ -369,7 +373,8 @@ it.each([
         expect(captured.scripts.items).toContainEqual(
           expect.objectContaining({
             cdp_hash: "observed",
-            frame_id: kind === "duplicate-child" ? "child" : null,
+            frame_id: "child",
+            frame_scope: kind === "duplicate-child" ? "authorized" : "unknown",
           }),
         );
     }
@@ -518,11 +523,11 @@ describe("Electron frame capture", () => {
         include_script_sources: false,
       }),
       scripts,
-      frameForScript: (script) =>
+      frameScopeForScript: (script) =>
         script.frameId !== null &&
         new Set(["frame-old", "frame-new"]).has(script.frameId)
-          ? script.frameId
-          : null,
+          ? { state: "authorized", frameId: script.frameId }
+          : { state: "unknown", frameId: script.frameId },
       completeness,
       asarHeaderAdmission: DEFAULT_ASAR_HEADER_ADMISSION,
     });
@@ -543,7 +548,7 @@ describe("Electron frame capture", () => {
       ),
     ).toEqual({
       unknown: null,
-      outside: null,
+      outside: "frame-outside",
     });
     expect(completeness.snapshot().excluded).toContainEqual({
       section: "scripts",
@@ -579,6 +584,7 @@ it("admits a prefix and fitting suffix around an oversized Electron source", asy
       isModule: false,
       language: "JavaScript",
       frameId: null,
+      hasSourceUrl: null,
     };
   });
   const completeness = new CdpCaptureCompleteness();
@@ -602,7 +608,7 @@ it("admits a prefix and fitting suffix around an oversized Electron source", asy
       include_script_sources: true,
     }),
     scripts,
-    frameForScript: () => null,
+    frameScopeForScript: () => ({ state: "unknown", frameId: null }),
     completeness,
     asarHeaderAdmission: DEFAULT_ASAR_HEADER_ADMISSION,
   });
@@ -788,7 +794,8 @@ it.each([
         expect(captured.scripts.items).toContainEqual(
           expect.objectContaining({
             cdp_hash: `after-${id}`,
-            frame_id: changed ? null : id,
+            frame_id: id,
+            frame_scope: changed ? "unknown" : "authorized",
           }),
         );
       }

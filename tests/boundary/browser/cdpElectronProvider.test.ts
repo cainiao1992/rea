@@ -126,14 +126,22 @@ it.each(["late", "initial", "destroyed", "final-malformed", "out-of-scope"])(
     expect(
       inspected.value.frames.some(({ frame_id }) => frame_id === "child"),
     ).toBe(kind !== "out-of-scope");
-    expect(inspected.value.scripts.items).toContainEqual(
-      expect.objectContaining({
-        file_path: join(root, "app.js"),
-        // Main snapshots historical frame identity at script ingestion, so
-        // later context teardown does not erase this observed association.
-        frame_id: kind === "out-of-scope" ? null : "child",
-      }),
-    );
+    if (kind === "out-of-scope") {
+      expect(inspected.value.scripts.items).toEqual([]);
+      expect(
+        browser.commands.some(
+          ({ method }) => method === "Debugger.getScriptSource",
+        ),
+      ).toBe(false);
+    } else
+      expect(inspected.value.scripts.items).toContainEqual(
+        expect.objectContaining({
+          file_path: join(root, "app.js"),
+          // Later context teardown does not erase the observed association.
+          frame_id: "child",
+          frame_scope: "authorized",
+        }),
+      );
     if (kind === "final-malformed") {
       expect(inspected.value.completeness.attach_limited_sections).toEqual(
         expect.arrayContaining(["frames", "scripts", "workers"]),
@@ -339,9 +347,107 @@ it.each([
   ).toEqual(["first", "second"]);
   if (kind !== "detached" && kind !== "same-document")
     expect(
-      result.value.scripts.items.find(({ cdp_hash }) => cdp_hash === "foreign")
-        ?.frame_id,
-    ).toBeNull();
+      result.value.scripts.items.find(({ cdp_hash }) => cdp_hash === "foreign"),
+    ).toMatchObject({
+      frame_id: kind === "unvalidated-context" ? "not-authorized" : "first",
+      frame_scope: "unknown",
+    });
+});
+
+it("excludes srcdoc scripts before source reads while retaining declared labels and unknown frame scope", async () => {
+  const root = await electronFixture();
+  const mainUrl = pathToFileURL(join(root, "index.html")).href;
+  const label = pathToFileURL(join(root, "app.js")).href;
+  const browser = await startFakeCdpBrowser({
+    electronFileUrl: mainUrl,
+    eventsBeforeReply: ["Debugger.enable"],
+    commandResult: ({ method, params }) =>
+      method === "Page.getFrameTree"
+        ? {
+            frameTree: {
+              frame: { id: "frame-main", url: mainUrl },
+              childFrames: [
+                {
+                  frame: {
+                    id: "srcdoc",
+                    parentId: "frame-main",
+                    url: "about:srcdoc",
+                  },
+                },
+              ],
+            },
+          }
+        : method === "Debugger.getScriptSource"
+          ? { scriptSource: `void ${String(params.scriptId)};` }
+          : undefined,
+    commandEvents: ({ method, sessionId }) =>
+      method === "Runtime.enable"
+        ? []
+        : method === "Debugger.enable"
+          ? [
+              ["declared", "frame-main", true],
+              ["reported", "frame-main", false],
+              ["excluded", "srcdoc", true],
+              ["unknown", "unproven-frame", true],
+            ].map(([scriptId, frameId, hasSourceURL], index) => ({
+              method: "Debugger.scriptParsed",
+              sessionId,
+              params: {
+                scriptId,
+                url: label,
+                executionContextId: index + 1,
+                executionContextAuxData: { frameId },
+                hasSourceURL,
+                hash: scriptId,
+              },
+            }))
+          : undefined,
+  });
+  browsers.push(browser);
+  const result = await new CdpElectronProvider().inspectPage(
+    inspectElectronPageInputSchema.parse({
+      cdp_endpoint: browser.endpoint,
+      target_id: "electron-page",
+      observation_ms: 0,
+      include_script_sources: true,
+    }),
+  );
+  if (!result.ok) throw result.error;
+  const byHash = new Map(
+    result.value.scripts.items.map((script) => [script.cdp_hash, script]),
+  );
+  expect(byHash.has("excluded")).toBe(false);
+  expect(byHash.get("declared")).toMatchObject({
+    frame_id: "frame-main",
+    frame_scope: "authorized",
+    has_source_url: true,
+    reported_url: label,
+    file_path: join(root, "app.js"),
+    source: { included: true },
+  });
+  expect(byHash.get("reported")).toMatchObject({
+    has_source_url: false,
+    frame_scope: "authorized",
+  });
+  expect(byHash.get("unknown")).toMatchObject({
+    frame_id: "unproven-frame",
+    frame_scope: "unknown",
+    has_source_url: true,
+  });
+  expect(
+    browser.commands
+      .filter(({ method }) => method === "Debugger.getScriptSource")
+      .map(({ params }) => params.scriptId)
+      .sort(),
+  ).toEqual(["declared", "reported", "unknown"]);
+  expect(result.value.completeness.excluded).toContainEqual({
+    section: "scripts",
+    reason: "out_of_target_scope",
+    count: 1,
+  });
+  expect(result.value.completeness.attach_limited_sections).toContain(
+    "scripts",
+  );
 });
 
 describe("CdpElectronProvider target access", () => {

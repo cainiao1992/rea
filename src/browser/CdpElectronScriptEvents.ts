@@ -15,7 +15,14 @@ export interface ElectronScriptDraft {
   readonly isModule: boolean | null;
   readonly language: string | null;
   readonly frameId: string | null;
+  readonly hasSourceUrl: boolean | null;
 }
+
+/** Frame identity is retained separately from the document generation's admission. */
+export type ElectronScriptFrameScope =
+  | { readonly state: "authorized"; readonly frameId: string }
+  | { readonly state: "excluded" }
+  | { readonly state: "unknown"; readonly frameId: string | null };
 
 /** Retain script/frame metadata from passive Electron events. */
 export const ingestElectronScriptEvent = (input: {
@@ -51,14 +58,34 @@ export const ingestElectronScriptEvent = (input: {
     return;
   }
   const contextKey = executionContextKey(value?.executionContextId);
+  const contextFrame =
+    contextKey === null
+      ? undefined
+      : input.executionContextFrames.get(contextKey);
+  const auxiliary = recordValue(value?.executionContextAuxData);
+  const reportedFrame = cdpStringValue(auxiliary?.frameId);
+  const declaredFrame = reportedFrame === "" ? undefined : reportedFrame;
+  const conflictingFrame =
+    declaredFrame !== undefined &&
+    contextFrame !== undefined &&
+    declaredFrame !== contextFrame;
+  if (
+    conflictingFrame ||
+    (value?.executionContextAuxData !== undefined && auxiliary === undefined) ||
+    (auxiliary !== undefined &&
+      Object.hasOwn(auxiliary, "frameId") &&
+      declaredFrame === undefined) ||
+    (value?.hasSourceURL !== undefined &&
+      typeof value.hasSourceURL !== "boolean")
+  )
+    input.completeness.exclude("scripts", "invalid_protocol_value");
   input.scripts.push({
     scriptId,
     rawUrl,
     ...scriptMetadataValues(value),
-    frameId:
-      contextKey === null
-        ? null
-        : (input.executionContextFrames.get(contextKey) ?? null),
+    frameId: conflictingFrame ? null : (declaredFrame ?? contextFrame ?? null),
+    hasSourceUrl:
+      typeof value?.hasSourceURL === "boolean" ? value.hasSourceURL : null,
   });
 };
 
@@ -70,7 +97,7 @@ const retainExecutionContext = (
   const runtimeContext = recordValue(parameters?.context);
   const contextKey = executionContextKey(runtimeContext?.id);
   const frameId = cdpStringValue(recordValue(runtimeContext?.auxData)?.frameId);
-  if (contextKey === null || frameId === undefined) return;
+  if (contextKey === null || frameId === undefined || frameId === "") return;
   frames.set(contextKey, frameId);
 };
 

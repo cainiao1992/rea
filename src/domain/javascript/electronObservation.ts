@@ -96,7 +96,10 @@ export const electronPageInspectionSchema = z.object({
       z.object({
         script_key: prefixedDigestSchema("electron_script"),
         frame_id: z.string().nullable().default(null),
+        frame_scope: z.enum(["authorized", "unknown"]).optional(),
         file_path: z.string(),
+        has_source_url: z.boolean().nullable().optional(),
+        reported_url: z.string().optional(),
         ...cdpScriptMetadataSchema.shape,
         source: cdpScriptSourceSchema,
       }),

@@ -76,8 +76,23 @@ completeness diagnostics, so `total_nodes` can exceed the retained node count
 and a parent index can refer to an omitted source node.
 
 Script metadata retains its execution-context frame ID when CDP supplies one and
-the observed frame generation is authorized. Frames describe the current inventory;
-script observations can retain earlier authorized frames that have since detached.
+records admission separately in `frame_scope`. An `authorized` scope refers to
+the observed document generation; `unknown` retains the known frame ID without
+claiming authorization and makes script coverage attach-limited. Historical
+captures may omit this field, which leaves that admission fact unknown.
+Scripts from document generations whose frames were explicitly excluded by
+local-file policy are omitted before script-source reads. Frame identity can
+come from the script event's own auxiliary data or its observed execution
+context; contradictory identities are not aligned.
+Frames describe the current inventory; script observations can retain earlier
+authorized frames that have since detached.
+
+`has_source_url` preserves CDP's sourceURL declaration flag as true, false, or
+unknown (`null`, or omitted in historical captures). A script's canonical
+`file_path` is the admitted local-file URL or supplied sourceURL label. It does
+not verify that the runtime bytes came from that disk file; captured source
+bytes have their own digest. `reported_url` retains the original URL or label
+before canonical path admission. Labels remain distinct from filesystem provenance.
 The capture also
 inventories worker, service-worker, and shared-worker targets with
 validated opener-target and parent-frame IDs. Worker discovery uses passive

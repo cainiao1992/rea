@@ -8,7 +8,10 @@ import { createWebTextArtifact } from "../domain/webContentArtifact.js";
 import type { CdpConnection } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import { requiredScriptSource } from "./CdpCaptureValues.js";
-import type { ElectronScriptDraft } from "./CdpElectronScriptEvents.js";
+import type {
+  ElectronScriptDraft,
+  ElectronScriptFrameScope,
+} from "./CdpElectronScriptEvents.js";
 import { authorizedElectronFile } from "./ElectronFileScope.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
@@ -25,7 +28,9 @@ interface ElectronScriptCaptureInput {
   readonly signal?: AbortSignal;
   readonly request: InspectElectronPageInput;
   readonly scripts: readonly ElectronScriptDraft[];
-  readonly frameForScript: (script: ElectronScriptDraft) => string | null;
+  readonly frameScopeForScript: (
+    script: ElectronScriptDraft,
+  ) => ElectronScriptFrameScope;
   readonly completeness: CdpCaptureCompleteness;
   readonly asarHeaderAdmission: AsarHeaderAdmission;
 }
@@ -49,6 +54,11 @@ export const captureElectronScripts = async (
   try {
     for (const script of input.scripts) {
       throwIfCallerCancelled(input.signal);
+      const frame = input.frameScopeForScript(script);
+      if (frame.state === "excluded") {
+        input.completeness.exclude("scripts", "out_of_target_scope");
+        continue;
+      }
       const path = await authorizedElectronFile(
         script.rawUrl,
         input.signal,
@@ -59,9 +69,14 @@ export const captureElectronScripts = async (
         input.completeness.exclude("scripts", "out_of_target_scope");
         continue;
       }
+      if (frame.state === "unknown")
+        input.completeness.attachLimited("scripts");
       const identity = {
-        frame_id: input.frameForScript(script),
+        frame_id: frame.frameId,
+        frame_scope: frame.state,
         file_path: path,
+        reported_url: script.rawUrl,
+        has_source_url: script.hasSourceUrl,
         cdp_hash: script.hash,
         length: script.length,
         is_module: script.isModule,

@@ -25,6 +25,8 @@ const jobSchema = z.object({
   if: z.string().optional(),
   needs: z.union([z.string(), z.array(z.string())]).optional(),
   outputs: z.record(z.string(), z.string()).optional(),
+  permissions: z.record(z.string(), z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
   steps: z.array(stepSchema),
 });
 
@@ -45,6 +47,7 @@ async function readReleaseWorkflow() {
           with: z.record(z.string(), z.union([z.string(), z.boolean()])),
         }),
         publish: jobSchema,
+        "verify-npm": jobSchema,
         rehearsal: jobSchema.extend({
           permissions: z.record(z.string(), z.string()),
         }),
@@ -306,7 +309,7 @@ it("binds npm and MCP publication to the same immutable release SHA", async () =
     "needs.qualification.result == 'success'",
   );
   expect(workflow.jobs["publish-mcp"].if).toContain(
-    "needs.publish.result == 'success'",
+    "needs.verify-npm.result == 'success'",
   );
   expect(workflow.jobs.publish.needs).toContain("merged-release");
   expect(workflow.jobs["publish-mcp"].needs).toContain("merged-release");
@@ -341,9 +344,9 @@ it("binds npm and MCP publication to the same immutable release SHA", async () =
   const publishCommand = workflow.jobs.publish.steps.find(
     (step) => step.name === "Publish",
   )?.run;
-  expect(publishCommand).toContain("scripts/release-npm-tag.mjs");
+  expect(publishCommand).toContain("--ignore-scripts");
   expect(publishCommand).toContain(
-    'npm publish "${VERIFIED_PACKAGE_TARBALL}" --access public --tag "${tag}"',
+    '--registry=https://registry.npmjs.org --access=public --tag="$NPM_RELEASE_TAG"',
   );
   for (const [version, tag] of [
     ["6.1.0", "latest"],
@@ -698,7 +701,8 @@ it("rehearses the qualified archive before npm authority and retains registry ve
   const publish = workflow.jobs.publish;
   expect(publish.needs).toContain("rehearsal");
   expect(publish.if).toContain("needs.rehearsal.result == 'success'");
-  for (const job of [rehearsal, publish]) {
+  const verification = workflow.jobs["verify-npm"];
+  for (const job of [rehearsal, verification]) {
     const inputs = job.steps.findIndex(
       (step) => step.uses === "./.github/actions/prepare-release-package",
     );
@@ -746,28 +750,53 @@ it("rehearses the qualified archive before npm authority and retains registry ve
     expect(step.if).toBeUndefined();
     expect(step["continue-on-error"]).toBeUndefined();
   }
-  const commands = publish.steps.map((step) => step.run ?? "");
-  const inspect = commands.findIndex((command) =>
-    command.includes("npm-release.mjs inspect"),
+  expect(publish.permissions).toEqual({
+    contents: "read",
+    "id-token": "write",
+  });
+  expect(
+    publish.steps.filter((step) => step.run).map((step) => step.run),
+  ).toEqual([
+    "node scripts/ci/prepare-npm-publication.mjs",
+    expect.stringContaining(
+      "npm publish .cache/verified-package/package.tgz --ignore-scripts",
+    ),
+  ]);
+  expect(
+    publish.steps
+      .filter((step) => step.uses?.startsWith("actions/download-artifact@"))
+      .map((step) => step.with?.name),
+  ).toEqual(["verified-release-package"]);
+  expect(publish.steps.find((step) => step.name === "Publish")?.if).toBe(
+    "steps.package.outputs.published == 'false'",
   );
-  const write = commands.findIndex((command) =>
-    command.includes("npm publish"),
-  );
+  expect(verification.needs).toContain("publish");
+  expect(verification.if).toContain("needs.publish.result == 'success'");
+  expect(verification.permissions).toEqual({
+    contents: "read",
+    actions: "read",
+  });
+  const commands = verification.steps.map((step) => step.run ?? "");
   const bytes = commands.findIndex((command) =>
     command.includes("npm-release.mjs verify"),
   );
   const canary = commands.findIndex((command) =>
     command.includes("verify-published-package.mjs"),
   );
-  expect(inspect).toBeGreaterThanOrEqual(0);
-  expect(write).toBeGreaterThan(inspect);
-  expect(bytes).toBeGreaterThan(write);
+  expect(bytes).toBeGreaterThanOrEqual(0);
   expect(canary).toBeGreaterThan(bytes);
-  expect(publish.steps[write]?.if).toBe(
-    "steps.registry.outputs.published == 'false'",
-  );
-  for (const index of [inspect, bytes, canary]) {
-    expect(publish.steps[index]?.if).toBeUndefined();
-    expect(publish.steps[index]?.["continue-on-error"]).toBeUndefined();
+  for (const index of [bytes, canary]) {
+    expect(verification.steps[index]?.if).toBeUndefined();
+    expect(verification.steps[index]?.["continue-on-error"]).toBeUndefined();
+  }
+  expect(workflow.jobs["publish-mcp"].needs).toContain("verify-npm");
+  for (const job of [
+    rehearsal,
+    publish,
+    verification,
+    workflow.jobs["publish-mcp"],
+  ]) {
+    expect(job.env?.TURBO_TOKEN).toBe("");
+    expect(job.env?.TURBO_CACHE).toBe("local:rw");
   }
 });

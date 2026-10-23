@@ -315,6 +315,9 @@ jobs:
 
   rehearsal:
     name: Rehearse qualified release on a clean runner
+    env:
+      TURBO_TOKEN: ""
+      TURBO_CACHE: local:rw
     needs: [merged-release, release-please, qualification]
     if: >-
       always() && !cancelled() && needs.qualification.result == 'success'
@@ -348,6 +351,9 @@ jobs:
       always() && !cancelled() &&
       needs.qualification.result == 'success' && needs.rehearsal.result == 'success'
     runs-on: ubuntu-latest
+    env:
+      TURBO_TOKEN: ""
+      TURBO_CACHE: local:rw
     permissions:
       contents: read
       id-token: write
@@ -356,41 +362,56 @@ jobs:
         with:
           ref: ${{ needs.merged-release.outputs.sha || needs.release-please.outputs.sha }}
           persist-credentials: false
-
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
           registry-url: https://registry.npmjs.org
+      - name: Download the original qualified package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: verified-release-package
+          path: .cache/verified-package/
+      - name: Bind publication to qualified intent
+        id: package
+        run: node scripts/ci/prepare-npm-publication.mjs
+      - name: Publish
+        if: steps.package.outputs.published == 'false'
+        env:
+          NPM_RELEASE_TAG: ${{ steps.package.outputs.tag }}
+        run: >-
+          npm publish .cache/verified-package/package.tgz --ignore-scripts
+          --registry=https://registry.npmjs.org --access=public --tag="$NPM_RELEASE_TAG"
 
+  verify-npm:
+    name: Verify published npm package
+    needs: [merged-release, release-please, publish]
+    if: >-
+      always() && !cancelled() && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      TURBO_TOKEN: ""
+      TURBO_CACHE: local:rw
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ needs.merged-release.outputs.sha || needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
       - run: npm ci
-
       - uses: ./.github/actions/prepare-release-package
         id: package
-
-      - name: Inspect existing npm version
-        id: registry
-        env:
-          VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
-          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
-        run: node scripts/ci/npm-release.mjs inspect "$VERIFIED_PACKAGE_TARBALL" "$VERIFIED_PACKAGE_VERSION"
-
-      - name: Publish
-        if: steps.registry.outputs.published == 'false'
-        shell: bash
-        env:
-          VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
-          VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
-        run: |
-          tag="$(node scripts/release-npm-tag.mjs "$VERIFIED_PACKAGE_VERSION")"
-          npm publish "${VERIFIED_PACKAGE_TARBALL}" --access public --tag "${tag}"
-
       - name: Verify published npm bytes and dist-tag
         env:
           VERIFIED_PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
           VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
         run: node scripts/ci/npm-release.mjs verify "$VERIFIED_PACKAGE_TARBALL" "$VERIFIED_PACKAGE_VERSION"
-
       - name: Verify published CLI from npm
         env:
           VERIFIED_PACKAGE_VERSION: ${{ steps.package.outputs.version }}
@@ -398,9 +419,12 @@ jobs:
 
   publish-mcp:
     name: Publish to MCP Registry
-    needs: [merged-release, release-please, publish]
+    env:
+      TURBO_TOKEN: ""
+      TURBO_CACHE: local:rw
+    needs: [merged-release, release-please, verify-npm]
     if: >-
-      always() && !cancelled() && needs.publish.result == 'success' &&
+      always() && !cancelled() && needs.verify-npm.result == 'success' &&
       ((needs.merged-release.result == 'success' && needs.merged-release.outputs.release_created == 'true') ||
       (needs.release-please.result == 'success' && inputs.phase == 'publish' && needs.release-please.outputs.release_created == 'true'))
     runs-on: ubuntu-latest

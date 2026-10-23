@@ -286,7 +286,7 @@ it("exposes endpoint-scoped Electron discovery and inspection as Evidence", asyn
   );
   await writeFile(join(root, "worker.js"), "self.onmessage = () => {};\n");
   const browser = await startFakeCdpBrowser({
-    electronFileUrl: pathToFileURL(join(root, "index.html")).href,
+    electronFileUrl: `${pathToFileURL(join(root, "index.html")).href}?next=%2Fsettings#%5Csettings`,
     commandEvents: ({ method }) =>
       method === "Debugger.enable"
         ? [
@@ -332,6 +332,15 @@ it("exposes endpoint-scoped Electron discovery and inspection as Evidence", asyn
   });
   expect(listed.isError).not.toBe(true);
   expect(listed.structuredContent).toMatchObject({
+    environment: {
+      id: expect.any(String),
+      platform: "unknown",
+      architecture: "unknown",
+      isolation: "none",
+    },
+    limitations: expect.arrayContaining([
+      "Browser host platform and architecture were not observed.",
+    ]),
     normalized_result: {
       targets: [{ target_id: "electron-page" }],
     },
@@ -345,6 +354,10 @@ it("exposes endpoint-scoped Electron discovery and inspection as Evidence", asyn
       include_script_sources: true,
     },
   });
+  expect(inspected.isError).not.toBe(true);
+  expect(parseEvidence(inspected.structuredContent).environment).toEqual(
+    parseEvidence(listed.structuredContent).environment,
+  );
   const analyzed = await client.callTool({
     name: "analyze_javascript_application",
     arguments: { input_path: root },

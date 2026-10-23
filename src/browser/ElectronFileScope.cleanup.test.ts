@@ -1,4 +1,6 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -97,7 +99,9 @@ afterEach(async () => {
 });
 
 const asarPage = async (): Promise<string> => {
-  const root = await mkdtemp(join(tmpdir(), "rea-electron-file-scope-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "rea-electron-file-scope-")),
+  );
   roots.push(root);
   const archive = join(root, "app.asar");
   const json = Buffer.from(
@@ -295,3 +299,89 @@ it("retries a failed ASAR descriptor lease during provider shutdown", async () =
 
   expect(handleState.events).toEqual(["open", "close", "close"]);
 });
+
+it.each(["completed", "read-failed", "cancelled"] as const)(
+  "retains the completed listing prefix after ASAR finalization: %s",
+  async (mode) => {
+    const archiveUrl = await asarPage();
+    const page = join(roots.at(-1)!, "first.html");
+    await writeFile(page, "first");
+    const controller = new AbortController();
+    handleState.failCloseCount = 1;
+    if (mode === "read-failed")
+      handleState.readFailure = new Error("controlled ASAR read denial");
+    if (mode === "cancelled") {
+      handleState.closeController = controller;
+      handleState.closeReason = { request: "ASAR descriptor close" };
+    }
+    let endpoint = "";
+    const server = createServer((request, response) => {
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify(
+          request.url === "/json/version"
+            ? {
+                Browser: "Electron/fixture",
+                "Protocol-Version": "1.3",
+                "WebKit-Version": "revision",
+                "User-Agent": "fixture",
+                "V8-Version": "V8",
+                webSocketDebuggerUrl:
+                  endpoint.replace("http:", "ws:") +
+                  "/devtools/browser/fixture",
+              }
+            : [pathToFileURL(page).href, archiveUrl].map((url, index) => ({
+                id: `page-${index}`,
+                type: "page",
+                title: `page ${index}`,
+                url,
+                attached: false,
+                webSocketDebuggerUrl:
+                  endpoint.replace("http:", "ws:") +
+                  `/devtools/page/page-${index}`,
+              })),
+        ),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    if (address === null || typeof address === "string")
+      throw new Error("Expected discovery port");
+    endpoint = `http://127.0.0.1:${address.port}`;
+    const provider = new CdpElectronProvider();
+    try {
+      const result = await provider.listTargets(
+        { cdp_endpoint: endpoint },
+        { signal: controller.signal },
+      );
+      if (result.ok) throw new Error("Expected ASAR finalization failure");
+      const origin = result.error.cleanupPrimary ?? result.error;
+      expect(origin.diagnostics).toMatchObject({
+        completed_prefix: {
+          examined_targets: 2,
+          allowed_targets: [{ target_id: "page-0", file_path: page }],
+          coverage: expect.stringContaining("remaining targets are unknown"),
+        },
+      });
+      expect(JSON.stringify(projectAnalysisError(result.error))).toContain(
+        "completed_prefix",
+      );
+      expect(result.error.cleanupIncomplete).toBe(true);
+      expect(handleState.events).toEqual(["open", "close"]);
+      await provider.close();
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(handleState.events).toEqual(["open", "close", "close"]);
+      expect(origin.diagnostics).toHaveProperty("completed_prefix");
+    } finally {
+      handleState.failCloseCount = 0;
+      await provider.close();
+      await new Promise<void>((resolve, reject) =>
+        server.close((cause) =>
+          cause === undefined ? resolve() : reject(cause),
+        ),
+      );
+    }
+  },
+);

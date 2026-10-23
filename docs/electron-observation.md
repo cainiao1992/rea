@@ -29,15 +29,20 @@ files, including pages a packaged application serves from inside `app.asar`.
 For those, the first `.asar` path component that is a regular file is the
 archive, the remainder must name a regular file in its header, and the reported
 path is the canonical archive path joined with that member. Remote hosts,
-encoded path separators, ASAR directories or links, and nonexistent paths are
+encoded separators in the pathname, ASAR directories or links, and nonexistent paths are
 rejected. The endpoint exposes every eligible target and its local path
-metadata.
+metadata. Query strings and fragments do not participate in filesystem path
+admission, including their encoded separator text. Listing and inspection
+Evidence both retain the observed browser product/revision; host platform and
+architecture remain explicitly unknown.
 
 Cancellation stops further file authorization after an already-started filesystem
 operation settles. ASAR descriptor-close failures remain typed incomplete cleanup
 with an exact retryable owner; they are not treated as a missing or unauthorized
 page. A later authorization and provider shutdown retry retained descriptors
-before reporting their release.
+before reporting their release. Failed listing retains its already-authorized
+target prefix and explicit remaining-target uncertainty through cleanup errors
+and exact-owner retries.
 
 ## Workflow
 

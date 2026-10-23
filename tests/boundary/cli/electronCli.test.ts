@@ -43,7 +43,7 @@ it(
     await writeFile(join(root, "index.html"), "<script src='app.js'></script>");
     await writeFile(join(root, "app.js"), "export const app = true;");
     const browser = await startFakeCdpBrowser({
-      electronFileUrl: pathToFileURL(join(root, "index.html")).href,
+      electronFileUrl: `${pathToFileURL(join(root, "index.html")).href}?next=%2Fsettings#%5Csettings`,
       commandEvents: ({ method }) =>
         method === "Debugger.enable"
           ? [
@@ -67,6 +67,15 @@ it(
     );
     expect(listed).toMatchObject({
       operation: "list_electron_targets",
+      environment: {
+        id: expect.any(String),
+        platform: "unknown",
+        architecture: "unknown",
+        isolation: "none",
+      },
+      limitations: expect.arrayContaining([
+        "Browser host platform and architecture were not observed.",
+      ]),
       normalized_result: {
         targets: [{ target_id: "electron-page" }],
       },
@@ -84,6 +93,7 @@ it(
     );
     expect(inspected).toMatchObject({
       operation: "inspect_electron_page",
+      environment: listed.environment,
       provider: { id: "rea-cdp-electron" },
       normalized_result: {
         target: { file_path: join(root, "index.html") },

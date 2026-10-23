@@ -156,3 +156,26 @@ describe("Electron file scope", () => {
     ).toBeUndefined();
   });
 });
+
+it("keeps encoded query and fragment separators outside filesystem admission", async () => {
+  const root = await createTestTempDirectory("rea-electron-url-components-");
+  const path = join(root, "index.html");
+  await writeFile(path, "allowed");
+  const base = pathToFileURL(path).href;
+  for (const suffix of [
+    "",
+    "?next=/settings",
+    "#/settings",
+    "?next=%2Fsettings",
+    "?next=%5Csettings",
+    "#%2Fsettings",
+    "#%5Csettings",
+  ])
+    await expect(authorizedElectronFile(`${base}${suffix}`)).resolves.toBe(
+      path,
+    );
+  for (const encoded of ["%2F", "%5C"])
+    await expect(
+      authorizedElectronFile(`${pathToFileURL(root).href}${encoded}index.html`),
+    ).resolves.toBeUndefined();
+});

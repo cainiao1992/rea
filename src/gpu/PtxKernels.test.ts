@@ -53,7 +53,7 @@ it.each([
     ".param .b8 payload[6], .param .u32 count",
     ["payload", "count"],
     [6, 4],
-    [0, 6],
+    [0, 8],
     "complete",
   ],
   [

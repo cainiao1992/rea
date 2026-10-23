@@ -2,6 +2,7 @@ import {
   BinaryFormatFailure,
   BinaryResourceFailure,
   type BinaryContainer,
+  type ImageSection,
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
 import type {

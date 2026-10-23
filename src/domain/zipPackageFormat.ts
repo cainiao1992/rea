@@ -17,13 +17,14 @@ export const isZipPackageFormat = (
 ): format is ZipPackageFormat =>
   ZIP_PACKAGE_FORMATS.some((candidate) => candidate === format);
 
-/** Recognize local-header, empty-archive, or split-archive ZIP signatures, not archive validity. */
+/** Recognize local-header, classic/Zip64 empty-archive, or split ZIP signatures, not validity. */
 export const hasZipSignature = (bytes: Uint8Array): boolean =>
   bytes.length >= 4 &&
   bytes[0] === 0x50 &&
   bytes[1] === 0x4b &&
   ((bytes[2] === 0x03 && bytes[3] === 0x04) ||
     (bytes[2] === 0x05 && bytes[3] === 0x06) ||
+    (bytes[2] === 0x06 && bytes[3] === 0x06) ||
     (bytes[2] === 0x07 && bytes[3] === 0x08));
 
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50;

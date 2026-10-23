@@ -128,10 +128,16 @@ const createEvaluationMemo = (
 ): EvaluationMemo => {
   let dependencies = dependencyProofsByState.get(state);
   if (dependencies === undefined) {
-    dependencies = new SemanticDependencyProofs(state.bindingsById.keys());
+    dependencies = SemanticDependencyProofs.forBindings(
+      state.bindingsById.keys(),
+    );
     dependencyProofsByState.set(state, dependencies);
   }
-  return { provenance: new Map(), dependencyFrames: [], dependencies };
+  return {
+    provenance: new Map(),
+    dependencyFrames: [],
+    dependencies: dependencies.forQuery(),
+  };
 };
 
 interface EvaluationContext {

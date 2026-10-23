@@ -81,9 +81,35 @@ it("coalesces exact patterns while retaining independent occurrences and stable 
     "/reports/settings",
   ]);
   expect(result.routes[0]).toMatchObject({
-    occurrence_count: 3,
+    occurrence_count: 2,
     source_count: 2,
   });
+  const reportOccurrences = result.occurrences.filter(
+    ({ route_id }) => route_id === result.routes[0]!.id,
+  );
+  expect(
+    reportOccurrences
+      .map(({ source_id, mechanism, segments }) => ({
+        source: result.sources.find(({ id }) => id === source_id)?.key,
+        mechanism,
+        segments: segments.map(({ value }) => value),
+      }))
+      .sort((left, right) => left.source!.localeCompare(right.source!)),
+  ).toEqual([
+    {
+      source: "one.js",
+      mechanism: "navigation-target",
+      segments: ["/reports"],
+    },
+    {
+      source: "two.js",
+      mechanism: "nested-route-object",
+      segments: ["/reports"],
+    },
+  ]);
+  expect(new Set(result.occurrences.map(({ id }) => id)).size).toBe(
+    result.occurrences.length,
+  );
   expect(result.routes.map(({ id }) => id)).toEqual(
     repeated.routes.map(({ id }) => id),
   );

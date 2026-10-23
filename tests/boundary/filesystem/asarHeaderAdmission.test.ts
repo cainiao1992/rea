@@ -250,9 +250,7 @@ it("keeps unrelated artifact limit recovery distinct from header admission", () 
         "Directory traversal reached its examined-entry budget",
       ),
     ).message,
-  ).toBe(
-    "Artifact is too large to process safely. Narrow the requested path or use a smaller artifact.",
-  );
+  ).toBe("Directory traversal reached its examined-entry budget");
 });
 
 afterEach(() => {

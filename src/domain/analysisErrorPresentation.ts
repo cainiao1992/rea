@@ -106,6 +106,12 @@ export const analysisErrorRemediationAction = (
   )
     return error.remediationAction;
   if (error instanceof AnalysisTimeoutError) return timeoutRemediation(error);
+  if (
+    error instanceof ArtifactOperationError &&
+    error.reason === "limit" &&
+    error.boundary === "capacity"
+  )
+    return "Use an artifact within the capacity reported in details.detail. Changing output detail or retrying the unchanged input does not remove this boundary.";
   if (error instanceof HopperTimeoutError)
     return error.operation === undefined
       ? "Review details.launcher and inspect Hopper for ongoing initial analysis or a pending loader, demo, or license dialog. For a large target, increase REA_HOPPER_STARTUP_TIMEOUT_MS in the environment that starts REA and allow at least that long in the MCP client. Resolve retained cleanup before reopening."
@@ -471,7 +477,10 @@ const artifactMessage = ({
   if (reason === "cancelled")
     return "Artifact operation was cancelled. Start it again when ready.";
   if (reason === "limit")
-    return "Artifact is too large to process safely. Narrow the requested path or use a smaller artifact.";
+    return (
+      detail ??
+      "Artifact processing reached a resource limit. Select an artifact within the reported limits and retry."
+    );
   if (reason === "path")
     return (
       detail ??

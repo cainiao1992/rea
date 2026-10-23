@@ -381,6 +381,7 @@ const artifactStateErrorDetails = (
       reason: error.reason,
       ...(error.reason === "limit" ? { truncated: true } : {}),
       ...(error.detail === undefined ? {} : { detail: error.detail }),
+      ...(error.boundary === undefined ? {} : { boundary: error.boundary }),
       ...(error.admission === undefined
         ? {}
         : {

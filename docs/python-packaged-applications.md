@@ -120,6 +120,10 @@ Outer-compressed PYZ images have a separate per-reader capacity of 128 private
 files, bounding retained inodes and image identities. The complete image count
 is admitted before any temporary file is created; excess images return a
 capacity failure. This is a resource policy, not a PyInstaller format limit.
+Artifact errors retain this distinction as `details.boundary: "capacity"`, with
+the actual allowance in the diagnosis and `details.detail`. Changing output
+detail does not reduce that allowance's input scope; these operations do not
+select a narrower member path during inventory.
 Only a zero-byte read establishes EOF; short successful descriptor reads fill
 the bounded range. Compressed members must consume their complete declared
 input span; trailing junk and concatenated streams are refused.

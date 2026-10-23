@@ -7,6 +7,9 @@ import {
   type AnalysisErrorOptions,
 } from "./analysisErrorBase.js";
 
+/** The resource class that refused an artifact operation. */
+export type ArtifactLimitBoundary = "file-size" | "capacity" | "memory";
+
 /** Admission named by the producing reader, with its effective byte ceiling and its source. */
 export interface ArtifactAdmissionLimit {
   readonly kind: "asar-header";
@@ -19,6 +22,7 @@ export class ArtifactOperationError extends AnalysisError {
   readonly _tag = "ArtifactOperationError";
   override readonly userMessage: string | undefined;
   readonly admission: ArtifactAdmissionLimit | undefined;
+  readonly boundary: ArtifactLimitBoundary | undefined;
 
   constructor(
     readonly operation:
@@ -52,6 +56,7 @@ export class ArtifactOperationError extends AnalysisError {
     options?: AnalysisErrorOptions & {
       readonly userMessage?: string;
       readonly admission?: ArtifactAdmissionLimit;
+      readonly boundary?: ArtifactLimitBoundary;
     },
   ) {
     super(
@@ -61,6 +66,7 @@ export class ArtifactOperationError extends AnalysisError {
       options,
     );
     this.admission = options?.admission;
+    this.boundary = options?.boundary;
     this.userMessage =
       options?.userMessage ??
       (options?.admission === undefined ? undefined : detail);

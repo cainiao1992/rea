@@ -29,6 +29,7 @@ export const translateArtifactFailure = (
         ...(cause.admission === undefined
           ? {}
           : { admission: cause.admission }),
+        ...(cause.boundary === undefined ? {} : { boundary: cause.boundary }),
       },
     );
     bindArtifactFileCleanup(cause, error);

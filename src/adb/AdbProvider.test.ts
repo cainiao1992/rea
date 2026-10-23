@@ -874,7 +874,7 @@ it("counts Unicode requested-permission names and continues through the section"
     versionCode=45 minSdk=24 targetSdk=34
     requested permissions:
       com.example.permission.FIRST
-      com.example.permission.ÉCRIRE
+      com.example.permission.ÉCRIRE WITH SPACE
       android.permission.CAMERA
     install permissions:
       android.permission.CAMERA: granted=true
@@ -887,6 +887,30 @@ it("counts Unicode requested-permission names and continues through the section"
   });
   expect(result).toMatchObject({
     requested_permissions_count: 3,
+    coverage: "complete",
+  });
+});
+
+it("ends requested permissions at a same-indent dumpsys field", async () => {
+  const { binary } = await writeAdbStub(
+    shellStub({
+      "dumpsys:package": `Packages:
+  Package [com.example] (abcdef):
+    pkg=Package{abcdef com.example}
+    versionCode=45 minSdk=24 targetSdk=34
+    requested permissions:
+      android.permission.INTERNET
+    gids=[1000]
+      android.permission.CAMERA
+`,
+    }),
+  );
+  const result = await evidenceResult(providerOver(binary), {
+    operation: "inspect_adb_package",
+    input: { serial: "emulator-5554", package: "com.example" },
+  });
+  expect(result).toMatchObject({
+    requested_permissions_count: 1,
     coverage: "complete",
   });
 });

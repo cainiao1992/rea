@@ -311,24 +311,30 @@ export const parseDumpsysPackageOutput = (
     userId: null,
     pkgFlags: null,
   };
-  let inPermissions = false;
+  let permissionsIndent: number | null = null;
   let hasPermissionsSection = false;
   let permissions = 0;
   let parsedPackageAvailable: boolean | null = null;
   for (const line of stdout.split(/\r?\n/u)) {
     // Hidden system packages describe a separate section, not the requested package.
     if (/^\s*Hidden system packages:\s*$/u.test(line)) break;
-    if (line.trim().startsWith("requested permissions:")) {
+    const permissionsHeader = /^(\s*)requested permissions:\s*$/u.exec(line);
+    if (permissionsHeader !== null) {
       hasPermissionsSection = true;
-      inPermissions = true;
+      permissionsIndent = permissionsHeader[1]!.length;
       continue;
     }
-    // Android 10 and 11 mark restricted entries as "NAME: restricted=true".
-    if (inPermissions && /^\s{2,}\S+(?:: restricted=true)?$/u.test(line)) {
-      permissions += 1;
-      continue;
+    if (permissionsIndent !== null) {
+      const indentation = /^\s*/u.exec(line)![0].length;
+      if (line.trim() !== "" && indentation > permissionsIndent) {
+        // Android 10 and 11 may append ": restricted=true" to a row. The
+        // section is indentation-delimited; permission strings are arbitrary.
+        permissions += 1;
+        continue;
+      }
+      if (line.trim() === "" && indentation > permissionsIndent) continue;
+      permissionsIndent = null;
     }
-    inPermissions = false;
     const match = DETAIL_LINE.exec(line);
     if (match === null) continue;
     const key = match[1]!;

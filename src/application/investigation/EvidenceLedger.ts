@@ -4,8 +4,7 @@ import { z } from "zod";
 import {
   createEvidenceBundle,
   createImmutableEvidenceBundle,
-  describeEvidenceBundleFailure,
-  parseEvidenceBundle,
+  safeParseEvidenceBundle,
   validateResidualUnknownAddition,
   type EvidenceBundle,
 } from "../../domain/evidenceBundle.js";
@@ -75,25 +74,24 @@ export class EvidenceLedger {
 
   /** Validate an entire bundle before atomically merging its records. */
   import(input: unknown): ImportResult {
-    let bundle: EvidenceBundle;
-    try {
-      bundle = parseEvidenceBundle(input);
-    } catch (cause: unknown) {
-      const failure = describeEvidenceBundleFailure(input, cause);
-      if (failure.kind === "single-record")
+    const parsed = safeParseEvidenceBundle(input);
+    if (!parsed.ok) {
+      const { kind, message, cause } = parsed.error;
+      if (kind === "single-record")
         return err(
           new AnalysisInputError("import_evidence_bundle", {
             cause,
-            userMessage: failure.message,
+            userMessage: message,
           }),
         );
       return err(
         new EvidenceIntegrityError("Evidence bundle validation failed", {
           cause,
-          userMessage: failure.message,
+          userMessage: message,
         }),
       );
     }
+    const bundle = parsed.value;
     // A record-only bundle cannot change the already-valid unknown graph. The
     // bundle parser has validated every incoming record and its manifests, so
     // checking ID conflicts and committing only the additions preserves the

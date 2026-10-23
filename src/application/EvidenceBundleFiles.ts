@@ -3,10 +3,10 @@ import { absoluteCallerPath } from "../filesystem/callerPath.js";
 
 import { describeValidationFailure } from "../domain/validationFailure.js";
 import {
-  describeEvidenceBundleFailure,
-  parseImmutableEvidenceBundle,
-  parseEvidenceBundle,
+  safeParseImmutableEvidenceBundle,
+  safeParseEvidenceBundle,
   type EvidenceBundle,
+  type EvidenceBundleFailure,
 } from "../domain/evidenceBundle.js";
 import {
   EvidenceFileError,
@@ -42,7 +42,7 @@ export const readEvidenceBundle = (
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
-  readBundle(path, parseEvidenceBundle, signal, resources, operation);
+  readBundle(path, safeParseEvidenceBundle, signal, resources, operation);
 
 /** Read an authenticated immutable snapshot for a subsequent session import. */
 export const readImmutableEvidenceBundle = (
@@ -51,11 +51,19 @@ export const readImmutableEvidenceBundle = (
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
-  readBundle(path, parseImmutableEvidenceBundle, signal, resources, operation);
+  readBundle(
+    path,
+    safeParseImmutableEvidenceBundle,
+    signal,
+    resources,
+    operation,
+  );
 
 const readBundle = async (
   path: string,
-  parseBundle: (input: unknown) => EvidenceBundle,
+  parseBundle: (
+    input: unknown,
+  ) => Result<EvidenceBundle, EvidenceBundleFailure>,
   signal?: AbortSignal,
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
@@ -81,26 +89,25 @@ const readBundle = async (
       "Insufficient heap headroom to authenticate the Evidence bundle",
   });
   if (!headroom.ok) return headroom;
-  let bundle: EvidenceBundle;
-  try {
-    bundle = parseBundle(loaded.value);
-  } catch (cause: unknown) {
-    const failure = describeEvidenceBundleFailure(loaded.value, cause);
+  const parsed = parseBundle(loaded.value);
+  if (!parsed.ok) {
+    const failure = parsed.error;
     if (failure.kind === "single-record")
       return err(
         new EvidenceFileError("read", "wrong-kind", {
           path: absoluteCallerPath(path),
-          cause,
+          cause: failure.cause,
           userMessage: failure.message,
         }),
       );
     return err(
       new EvidenceIntegrityError("Evidence bundle validation failed", {
-        cause,
+        cause: failure.cause,
         userMessage: failure.message,
       }),
     );
   }
+  const bundle = parsed.value;
   for (const record of bundle.records) {
     if (record.predicate_type !== "rea.process-capture") continue;
     const parsedCapture = safeParseProcessCapture(record.normalized_result);
@@ -136,18 +143,16 @@ export const writeEvidenceBundle = async (
         cause: signal.reason,
       }),
     );
-  let checked: EvidenceBundle;
-  try {
-    checked = parseEvidenceBundle(bundle);
-  } catch (cause: unknown) {
+  const checked = safeParseEvidenceBundle(bundle);
+  if (!checked.ok) {
     return err(
       new EvidenceIntegrityError("Evidence bundle validation failed", {
-        cause,
+        cause: checked.error.cause,
       }),
     );
   }
   return writeTextParts(
-    bufferedJsonParts(canonicalJsonParts(checked)),
+    bufferedJsonParts(canonicalJsonParts(checked.value)),
     path,
     overwrite,
     resources,

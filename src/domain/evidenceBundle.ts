@@ -238,27 +238,35 @@ const referencedEvidenceIds = (unknown: ResidualUnknown): readonly string[] => [
   ...(unknown.resolution?.evidence_ids ?? []),
 ];
 
-/**
- * Name the bundle constraint that failed and how to recover. A single
- * Evidence record, such as one command result, is not a bundle.
- */
-export type EvidenceBundleFailureDescription =
-  | { readonly kind: "single-record"; readonly message: string }
-  | { readonly kind: "invalid-bundle"; readonly message: string };
+type EvidenceBundleValidationFailure =
+  | z.ZodError
+  | DuplicateEvidenceRecordError
+  | InvalidResidualUnknownGraphError
+  | NonCanonicalEvidenceBundleError;
 
-export const describeEvidenceBundleFailure = (
+/** Expected source rejection, including authenticated standalone Evidence. */
+export type EvidenceBundleFailure = {
+  readonly kind: "single-record" | "invalid-bundle";
+  readonly message: string;
+  readonly cause: EvidenceBundleValidationFailure;
+};
+
+const describeEvidenceBundleFailure = (
   input: unknown,
-  cause: unknown,
-): EvidenceBundleFailureDescription => {
+  cause: EvidenceBundleValidationFailure,
+): EvidenceBundleFailure => {
   try {
     const record = parseEvidence(input);
     return {
       kind: "single-record",
+      cause,
       message: `Expected an Evidence bundle with records and manifest arrays, but this JSON is one Evidence record (${record.evidence_id}). Export a session bundle with the MCP export_evidence_bundle tool and supply that file.`,
     };
-  } catch {
+  } catch (recordFailure: unknown) {
+    if (!(recordFailure instanceof z.ZodError)) throw recordFailure;
     return {
       kind: "invalid-bundle",
+      cause,
       message:
         cause instanceof z.ZodError
           ? `Evidence bundle does not match the bundle schema ${describeValidationFailure(cause)}. Supply an unmodified bundle written by export_evidence_bundle or rea evidence-export.`
@@ -272,12 +280,19 @@ export const parseEvidenceBundle = (input: unknown): EvidenceBundle => {
   return parseBundle(input, false);
 };
 
-/** Authenticate and seal file-owned payloads once for downstream zero-copy reuse. */
-export const parseImmutableEvidenceBundle = (
+/** Authenticate and seal snapshot-owned payloads, throwing validation failures. */
+export const parseImmutableEvidenceBundle = (input: unknown): EvidenceBundle =>
+  parseBundle(input, true);
+
+/** Read expected source failures as facts; implementation failures still throw. */
+export const safeParseEvidenceBundle = (
   input: unknown,
-): EvidenceBundle => {
-  return parseBundle(input, true);
-};
+): Result<EvidenceBundle, EvidenceBundleFailure> => readBundle(input, false);
+
+/** Authenticate and seal file-owned payloads once for downstream zero-copy reuse. */
+export const safeParseImmutableEvidenceBundle = (
+  input: unknown,
+): Result<EvidenceBundle, EvidenceBundleFailure> => readBundle(input, true);
 
 const parseBundle = (input: unknown, seal: boolean): EvidenceBundle => {
   if (typeof input === "object" && input !== null) {
@@ -291,8 +306,25 @@ const parseBundle = (input: unknown, seal: boolean): EvidenceBundle => {
 export const readEvidenceBundle = (
   input: unknown,
 ): Result<EvidenceBundle, EvidenceIntegrityError> => {
+  const parsed = safeParseEvidenceBundle(input);
+  if (parsed.ok) return parsed;
+  const { cause } = parsed.error;
+  return err(
+    new EvidenceIntegrityError(cause.message, {
+      cause,
+      userMessage: cause.message,
+    }),
+  );
+};
+
+const readBundle = (
+  input: unknown,
+  seal: boolean,
+): Result<EvidenceBundle, EvidenceBundleFailure> => {
   try {
-    return ok(parseEvidenceBundle(input));
+    return ok(
+      seal ? parseImmutableEvidenceBundle(input) : parseEvidenceBundle(input),
+    );
   } catch (cause: unknown) {
     if (
       !(cause instanceof z.ZodError) &&
@@ -301,12 +333,7 @@ export const readEvidenceBundle = (
       !(cause instanceof NonCanonicalEvidenceBundleError)
     )
       throw cause;
-    return err(
-      new EvidenceIntegrityError(cause.message, {
-        cause,
-        userMessage: cause.message,
-      }),
-    );
+    return err(describeEvidenceBundleFailure(input, cause));
   }
 };
 

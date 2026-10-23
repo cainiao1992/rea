@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   createImmutableEvidenceBundle,
-  parseImmutableEvidenceBundle,
+  safeParseImmutableEvidenceBundle,
 } from "../../src/domain/evidenceBundle.js";
 import { ArtifactResourceScope } from "../../src/artifacts/ArtifactResourceScope.js";
 import { deliverAnalysisEvidence } from "../../src/application/EvidenceBundleCommands.js";
@@ -190,7 +190,7 @@ it("admits bundle authentication before cloning and hashing retained records", a
         availableBytes: 0,
       }),
   );
-  vi.mocked(parseImmutableEvidenceBundle).mockClear();
+  vi.mocked(safeParseImmutableEvidenceBundle).mockClear();
   const resources = new ArtifactResourceScope();
   try {
     expect(
@@ -199,7 +199,7 @@ it("admits bundle authentication before cloning and hashing retained records", a
       ok: false,
       error: { _tag: "AnalysisResourceConstraintError", resource: "memory" },
     });
-    expect(parseImmutableEvidenceBundle).not.toHaveBeenCalled();
+    expect(safeParseImmutableEvidenceBundle).not.toHaveBeenCalled();
   } finally {
     await resources.close();
   }

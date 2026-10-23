@@ -59,6 +59,10 @@ const activityExtraStringValueSchema = z
   .max(2048)
   .regex(/^[^\x00]*$/u, "Extra values cannot contain NUL");
 const activityExtraNonEmptyValueSchema = activityExtraStringValueSchema.min(1);
+// Android's `am start --ef` parses this text with Float.valueOf. Keep the
+// caller's spelling intact while admitting Java FloatValue forms.
+const javaFloatValuePattern =
+  /^[\x01-\x20]*[+-]?(?:NaN|Infinity|(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[fFdD]?|0[xX](?:[\da-fA-F]+(?:\.[\da-fA-F]*)?|\.[\da-fA-F]+)[pP][+-]?\d+[fFdD]?))[\x01-\x20]*$/u;
 const activityExtraSchema = z.discriminatedUnion("type", [
   z.strictObject({
     key: activityExtraKeySchema,
@@ -92,8 +96,13 @@ const activityExtraSchema = z.discriminatedUnion("type", [
     key: activityExtraKeySchema,
     type: z.literal("float").describe("Float extra value type"),
     value: activityExtraNonEmptyValueSchema
-      .regex(/^-?\d+(\.\d+)?$/u, "Float extra values must be a number")
-      .describe("Float extra value as decimal text"),
+      .regex(
+        javaFloatValuePattern,
+        "Float extra value must be valid Java float text",
+      )
+      .describe(
+        "Float extra text parsed by Android am without changing its spelling",
+      ),
   }),
 ]);
 

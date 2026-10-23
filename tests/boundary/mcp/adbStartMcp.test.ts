@@ -160,7 +160,7 @@ const assertAdvertisedActivityExtras = async (
     ["boolean", "yes"],
     ["int", "1.5"],
     ["long", ""],
-    ["float", "1e3"],
+    ["float", "garbage"],
   ])
     expect(
       validateInput({ ...input, extras: [{ key: "invalid", type, value }] }),
@@ -224,6 +224,7 @@ it
             extras: [
               { key: "mode", type: "string" as const, value: "test" },
               { key: "empty", type: "string" as const, value: "" },
+              { key: "scale", type: "float" as const, value: "1e-3" },
             ],
           };
     const success = await client.callTool({
@@ -312,6 +313,7 @@ it
                 "-n com.example/.Main",
                 "--es mode test",
                 "--es empty ''",
+                "--ef scale 1e-3",
               ]),
         ].join(" "),
       ),

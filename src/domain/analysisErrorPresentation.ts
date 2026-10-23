@@ -211,6 +211,8 @@ export const analysisErrorCategory = (
     return "unavailable";
   if (error instanceof ArtifactOperationError)
     return artifactErrorCategory(error.reason);
+  if (error instanceof EvidenceFileError && error.reason === "path-limit")
+    return "resource_constraint";
   if (
     error instanceof EvidenceFileError &&
     (error.reason === "missing" ||
@@ -514,6 +516,8 @@ const evidenceFileMessage = ({
 }: EvidenceFileError): string => {
   if (published !== undefined)
     return "The output file was published, but staging cleanup remains incomplete.";
+  if (reason === "path-limit")
+    return "Filesystem path-length constraints prevented reading or atomic publication at the selected path. Choose a shorter local path.";
   if (reason === "missing")
     return operation === "read"
       ? "Evidence file does not exist at the selected path. Check the path and try again."

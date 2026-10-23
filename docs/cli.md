@@ -455,6 +455,13 @@ not infer correspondence from position or display names.
 
 
 Exports preserve an existing destination unless `--overwrite` is explicit.
+
+Atomic Evidence output stages on the selected destination's filesystem. If the
+OS pathname ceiling prevents its internal staging name, REA retries in a shorter
+ancestor on that same filesystem and removes the unused stage. Existing output
+protection still applies. A genuine pathname refusal uses `resource_constraint`
+with `details.reason: path-limit` and `boundary: filesystem-path`.
+
 For application traces and version comparisons, see
 [JavaScript application workflows](javascript-application-workflows.md).
 MCP [retained Evidence references](mcp-contracts.md#retained-application-evidence-inputs)

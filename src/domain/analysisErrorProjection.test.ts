@@ -1018,6 +1018,7 @@ describe("analysis error projection: evidence files", () => {
     ["read", "not-file", "invalid_request", "invalid_input"],
     ["write", "missing", "invalid_request", "invalid_input"],
     ["write", "exists", "invalid_request", "invalid_input"],
+    ["write", "path-limit", "resource_constraint", "resource_constraint"],
     [
       "read",
       "invalid-json",

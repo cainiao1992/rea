@@ -219,7 +219,9 @@ const jsonFileReadFailure = (
     return new AnalysisCancelledError(operation, { cause: signal?.reason });
   return new EvidenceFileError(
     "read",
-    cause instanceof NonRegularFileReadError ? "not-file" : missingOrIo(cause),
+    cause instanceof NonRegularFileReadError
+      ? "not-file"
+      : fileAccessFailureReason(cause),
     { cause, path },
   );
 };
@@ -402,11 +404,15 @@ const writeTextPartsOwned = async (
           cause.lease,
         );
       return stagedCleanupFailure(
-        new EvidenceFileError("write", missingOrIo(cause.outcome.error), {
-          cause,
-          path: requestedPath,
-          cleanup,
-        }),
+        new EvidenceFileError(
+          "write",
+          fileAccessFailureReason(cause.outcome.error),
+          {
+            cause,
+            path: requestedPath,
+            cleanup,
+          },
+        ),
         cause.lease,
       );
     }
@@ -424,7 +430,7 @@ const writeTextPartsOwned = async (
         }),
       );
     return err(
-      new EvidenceFileError("write", missingOrIo(cause), {
+      new EvidenceFileError("write", fileAccessFailureReason(cause), {
         cause,
         path: requestedPath,
       }),
@@ -444,8 +450,11 @@ const stagedCleanupFailure = <
 };
 
 /** A missing path or parent is a selection error, not a permission failure. */
-const missingOrIo = (cause: unknown): "missing" | "io" => {
+const fileAccessFailureReason = (
+  cause: unknown,
+): "missing" | "io" | "path-limit" => {
   const code = fileErrorCode(cause);
+  if (code === "ENAMETOOLONG") return "path-limit";
   return code === "ENOENT" || code === "ENOTDIR" ? "missing" : "io";
 };
 
@@ -456,15 +465,13 @@ const publishFile = async (
   resources: ArtifactResourceScope,
   cancellation?: TextWriteCancellation,
 ): Promise<number> => {
-  const stagingDirectory = await mkdtemp(
-    resolve(dirname(destination), ".rea-write-"),
+  const { owner, staged, file } = await acquireStagedFile(
+    dirname(destination),
+    resources,
+    cancellation,
   );
-  const owner = await OwnedStagedOutput.create(stagingDirectory);
   let outcome: Result<PublishedEvidenceFile, unknown>;
-  const staged = resolve(stagingDirectory, "content");
   try {
-    const file = await open(staged, "wx", 0o600);
-    owner.setFile(new OwnedFileHandle(file));
     let written: Result<number, unknown>;
     try {
       const bytes = await writeStagedParts(file, parts, cancellation);
@@ -510,6 +517,60 @@ const publishFile = async (
     );
   if (!outcome.ok) throw outcome.error;
   return outcome.value.bytes;
+};
+
+/** Keep staging on the destination filesystem without imposing a shorter path ceiling. */
+const acquireStagedFile = async (
+  destinationParent: string,
+  resources: ArtifactResourceScope,
+  cancellation?: TextWriteCancellation,
+): Promise<{
+  readonly owner: OwnedStagedOutput;
+  readonly staged: string;
+  readonly file: FileHandle;
+}> => {
+  const destinationDevice = (await lstat(destinationParent)).dev;
+  let parent = destinationParent;
+  for (;;) {
+    assertWriteActive(cancellation);
+    let failure: unknown;
+    let directory: string | undefined;
+    try {
+      directory = await mkdtemp(resolve(parent, ".rea-write-"));
+    } catch (cause: unknown) {
+      if (fileErrorCode(cause) !== "ENAMETOOLONG") throw cause;
+      failure = cause;
+    }
+    if (directory !== undefined) {
+      const owner = await OwnedStagedOutput.create(directory);
+      const staged = resolve(directory, "content");
+      try {
+        const file = await open(staged, "wx", 0o600);
+        owner.setFile(new OwnedFileHandle(file));
+        return { owner, staged, file };
+      } catch (cause: unknown) {
+        const released = await resources.release({
+          kind: "staged-output",
+          resource: owner.directory,
+          output: owner,
+        });
+        if (released.kind === "failed")
+          throw new StagedOutputCleanupFailure(
+            err(cause),
+            released.cause,
+            owner,
+            released.lease,
+          );
+        if (fileErrorCode(cause) !== "ENAMETOOLONG") throw cause;
+        failure = cause;
+      }
+    }
+    const ancestor = dirname(parent);
+    if (ancestor === parent) throw failure;
+    const metadata = await lstat(ancestor);
+    if (metadata.dev !== destinationDevice) throw failure;
+    parent = ancestor;
+  }
 };
 
 class StagedOutputCleanupFailure extends Error {

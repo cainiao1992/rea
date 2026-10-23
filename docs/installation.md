@@ -646,6 +646,9 @@ an existing Hopper launcher is selected through `HOPPER_LAUNCHER_PATH`. Ghidra
 and IDA have their own provider-specific host requirements; Windows Ghidra uses
 the [experimental P0 boundary](windows-ghidra-p0.md).
 
+Hopper metadata and package downloads require HTTPS throughout the redirect
+chain; a redirect to HTTP is refused before that destination is requested.
+
 On macOS, approved setup downloads the official DMG, checks its published size
 and digest, validates the application bundle, and atomically installs it to
 `~/Applications/Hopper Disassembler.app`. REA then opens Hopper so the

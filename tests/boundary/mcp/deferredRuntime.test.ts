@@ -1,4 +1,4 @@
-import { Client, type jsonSchemaValidator } from "@modelcontextprotocol/client";
+import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { spawnSync } from "node:child_process";
 import {
@@ -10,21 +10,13 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { resolve, join } from "node:path";
-import { afterAll, expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { GENERATED_MCP_TOOL_CATALOG } from "../../fixtures/mcpToolCatalog.js";
-import { createCatalogSchemaValidator } from "../../fixtures/catalogSchemaValidator.js";
 import { PROMPT_CONTRACTS } from "../../../src/contracts/promptContracts.js";
 import { evidenceSchema } from "../../../src/domain/evidence.js";
 import { analysisViewResultSchema } from "../../../src/domain/analysisView/analysisView.js";
 import { SERVER_START_FAILED } from "../../../src/main/messages.js";
-
-// Independent SDK sessions still validate every result. Only their immutable
-// catalog compilation is shared, and released after this fixture file finishes.
-let outputValidator: jsonSchemaValidator | undefined;
-afterAll(() => {
-  outputValidator = undefined;
-});
 
 const connect = async (
   mode: "legacy" | "auto",
@@ -49,12 +41,7 @@ const connect = async (
   });
   const client = new Client(
     { name: "deferred-runtime-boundary", version: "1" },
-    {
-      versionNegotiation: { mode },
-      jsonSchemaValidator: (outputValidator ??= createCatalogSchemaValidator(
-        GENERATED_MCP_TOOL_CATALOG.map(({ outputSchema }) => outputSchema),
-      )),
-    },
+    { versionNegotiation: { mode } },
   );
   onTestFinished(async () => {
     await client.close();

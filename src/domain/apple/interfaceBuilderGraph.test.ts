@@ -307,6 +307,44 @@ describe("Interface Builder parser bounds", () => {
 });
 
 describe("keyed archive identity decoding", () => {
+  it("uses object-table indexes when authored archiveUID fields collide", () => {
+    const parsed = parseInterfaceBuilderRecords({
+      $archiver: "NSKeyedArchiver",
+      $version: 100000,
+      $objects: [
+        "$null",
+        { archiveUID: 2, title: "First", $class: { UID: 4 } },
+        { title: "Second", $class: { UID: 4 } },
+        {
+          NSSource: { UID: 2 },
+          NSDestination: { UID: 1 },
+          NSLabel: "peer",
+          $class: { UID: 5 },
+        },
+        {
+          $classname: "ArchiveProbeView",
+          $classes: ["ArchiveProbeView", "NSView", "NSObject"],
+        },
+        {
+          $classname: "NSNibOutletConnector",
+          $classes: ["NSNibOutletConnector", "NSObject"],
+        },
+      ],
+      $top: { root: { UID: 1 } },
+    });
+
+    expect(parsed.objects.map(({ id }) => id)).toEqual(["1", "2"]);
+    expect(parsed.objects[0]?.attributes).toMatchObject({ archiveUID: 2 });
+    expect(parsed.connections).toContainEqual(
+      expect.objectContaining({
+        kind: "outlet",
+        source_id: "2",
+        destination_id: "1",
+        label: "peer",
+      }),
+    );
+  });
+
   it("preserves keyed archive UID identities, arrays, and control actions", () => {
     const parsed = parseInterfaceBuilderRecords({
       $archiver: "NSKeyedArchiver",

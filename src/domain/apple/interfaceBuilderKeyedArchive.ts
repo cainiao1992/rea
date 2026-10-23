@@ -409,11 +409,10 @@ const parseKeyedArchive = (
     // Keep the unresolvable class reference itself, e.g. a dangling UID.
     if (className === null) fields.$class = record(raw).$class;
     const authoredId = firstString(fields.objectID, fields["object-id"]);
-    const objectId =
-      authoredId ??
-      (typeof fields.archiveUID === "number"
-        ? String(fields.archiveUID)
-        : String(index));
+    // Object identity comes from the archive table. `archiveUID` is ordinary
+    // application data when it appears on an archived object; only UID
+    // reference stubs select object-table entries.
+    const objectId = authoredId ?? String(index);
     const kind = classifyObject(className, classChainOf(raw));
     if (objects.length < 20_000)
       objects.push(

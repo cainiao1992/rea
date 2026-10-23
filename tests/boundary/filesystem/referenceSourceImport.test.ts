@@ -602,6 +602,94 @@ describe("reference source manifest inventory", () => {
   });
 });
 
+const registerReferenceRelocationTests = (): void => {
+  it("is relocation-stable, resolves imports, and excludes secrets before capture", async () => {
+    const parent = await createTestTempDirectory("rea-reference-import-");
+    try {
+      const leftRoot = await fixture(parent, "left");
+      const rightRoot = await fixture(parent, "right");
+      const [left, right] = await Promise.all([
+        importTree(leftRoot),
+        importTree(rightRoot),
+      ]);
+      if (!left.ok || !right.ok) throw new Error("expected imports to pass");
+      expect(createHistoricalSourceManifest(left.value)).toEqual(
+        createHistoricalSourceManifest(right.value),
+      );
+      expect(left.value.relationships).toContainEqual(
+        expect.objectContaining({
+          from_path: "src/main.ts",
+          to: "src/dep.ts",
+          resolution: "internal",
+        }),
+      );
+      expect(left.value.parse_failures).toHaveLength(1);
+      expect(left.value.exclusions).toContainEqual({
+        path: ".env",
+        entry_kind: "file",
+        reason: "configured-secret",
+        pattern: ".env",
+      });
+      expect(JSON.stringify(left.value)).not.toContain("SECRET_SENTINEL");
+      expect(JSON.stringify(left.value)).not.toContain(leftRoot);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  it
+    .skipIf(process.platform === "win32" || process.getuid?.() === 0)
+    .each(["file", "directory"] as const)(
+    "commits equivalent unreadable %s inventories independently of relocation and retains exact local diagnostics",
+    async (kind) => {
+      const parent = await createTestTempDirectory(
+        "rea-reference-failure-relocation-",
+      );
+      const roots = [join(parent, "left"), join(parent, "right")];
+      const denied: string[] = [];
+      try {
+        for (const root of roots) {
+          await mkdir(root);
+          const path = join(root, kind === "file" ? "blocked.ts" : "blocked");
+          if (kind === "file")
+            await writeFile(path, "export const answer = 42;\n");
+          else await mkdir(path);
+          denied.push(path);
+          await chmod(path, 0);
+        }
+        const [left, right] = await Promise.all(
+          roots.map((root) => importTree(root)),
+        );
+        if (left === undefined || right === undefined || !left.ok || !right.ok)
+          throw new Error("Expected partial imports");
+        expect(left.value.inventory_state).toBe("partial");
+        expect(createHistoricalSourceManifest(left.value)).toEqual(
+          createHistoricalSourceManifest(right.value),
+        );
+        for (const [index, graph] of [left.value, right.value].entries()) {
+          const entry = graph.entries[0];
+          const root = roots[index];
+          if (entry === undefined || root === undefined)
+            throw new Error("Expected failed entry");
+          expect(entry.limitations.join(" ")).toContain("EACCES");
+          expect(entry.limitations.join(" ")).toMatch(/Check.*permissions/u);
+          expect(entry.limitations.join(" ")).not.toContain(root);
+          expect(entry.local_diagnostics).toEqual([
+            expect.stringContaining(await realpath(root)),
+          ]);
+          expect(
+            createHistoricalSourceSummary(graph, 2).outline.entries[0],
+          ).toMatchObject({ local_diagnostics: entry.local_diagnostics });
+        }
+      } finally {
+        for (const path of denied)
+          await chmod(path, kind === "file" ? 0o600 : 0o700);
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+};
+
 describe("reference source import behavior", () => {
   // The importer declares no byte ceiling and no entry-count ceiling. Scale
   // independence cannot be asserted as a relationship over a bounded fixture,
@@ -697,91 +785,7 @@ describe("reference source import behavior", () => {
     }
   });
 
-  it("is relocation-stable, resolves imports, and excludes secrets before capture", async () => {
-    const parent = await createTestTempDirectory("rea-reference-import-");
-    try {
-      const leftRoot = await fixture(parent, "left");
-      const rightRoot = await fixture(parent, "right");
-      const [left, right] = await Promise.all([
-        importTree(leftRoot),
-        importTree(rightRoot),
-      ]);
-      if (!left.ok || !right.ok) throw new Error("expected imports to pass");
-      expect(createHistoricalSourceManifest(left.value)).toEqual(
-        createHistoricalSourceManifest(right.value),
-      );
-      expect(left.value.relationships).toContainEqual(
-        expect.objectContaining({
-          from_path: "src/main.ts",
-          to: "src/dep.ts",
-          resolution: "internal",
-        }),
-      );
-      expect(left.value.parse_failures).toHaveLength(1);
-      expect(left.value.exclusions).toContainEqual({
-        path: ".env",
-        entry_kind: "file",
-        reason: "configured-secret",
-        pattern: ".env",
-      });
-      expect(JSON.stringify(left.value)).not.toContain("SECRET_SENTINEL");
-      expect(JSON.stringify(left.value)).not.toContain(leftRoot);
-    } finally {
-      await rm(parent, { recursive: true, force: true });
-    }
-  });
-
-  it
-    .skipIf(process.platform === "win32" || process.getuid?.() === 0)
-    .each(["file", "directory"] as const)(
-    "commits equivalent unreadable %s inventories independently of relocation and retains exact local diagnostics",
-    async (kind) => {
-      const parent = await createTestTempDirectory(
-        "rea-reference-failure-relocation-",
-      );
-      const roots = [join(parent, "left"), join(parent, "right")];
-      const denied: string[] = [];
-      try {
-        for (const root of roots) {
-          await mkdir(root);
-          const path = join(root, kind === "file" ? "blocked.ts" : "blocked");
-          if (kind === "file")
-            await writeFile(path, "export const answer = 42;\n");
-          else await mkdir(path);
-          denied.push(path);
-          await chmod(path, 0);
-        }
-        const [left, right] = await Promise.all(
-          roots.map((root) => importTree(root)),
-        );
-        if (left === undefined || right === undefined || !left.ok || !right.ok)
-          throw new Error("Expected partial imports");
-        expect(left.value.inventory_state).toBe("partial");
-        expect(createHistoricalSourceManifest(left.value)).toEqual(
-          createHistoricalSourceManifest(right.value),
-        );
-        for (const [index, graph] of [left.value, right.value].entries()) {
-          const entry = graph.entries[0];
-          const root = roots[index];
-          if (entry === undefined || root === undefined)
-            throw new Error("Expected failed entry");
-          expect(entry.limitations.join(" ")).toContain("EACCES");
-          expect(entry.limitations.join(" ")).toMatch(/Check.*permissions/u);
-          expect(entry.limitations.join(" ")).not.toContain(root);
-          expect(entry.local_diagnostics).toEqual([
-            expect.stringContaining(await realpath(root)),
-          ]);
-          expect(
-            createHistoricalSourceSummary(graph, 2).outline.entries[0],
-          ).toMatchObject({ local_diagnostics: entry.local_diagnostics });
-        }
-      } finally {
-        for (const path of denied)
-          await chmod(path, kind === "file" ? 0o600 : 0o700);
-        await rm(parent, { recursive: true, force: true });
-      }
-    },
-  );
+  registerReferenceRelocationTests();
 
   it("imports the caller-selected directory and honors cancellation", async () => {
     const outside = await createTestTempDirectory("rea-reference-outside-");

@@ -10,50 +10,52 @@ import { historicalSourceGraphSchema } from "../../../src/domain/referenceSource
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
+const historicalModuleFixture = async () => {
+  const root = await createTestTempDirectory("rea-reference-module-semantics-");
+  const files: Record<string, string> = {
+    "package.json": '{"type":"module"}\n',
+    "main.js": 'require("./dep.cjs"); export {};\n',
+    "dep.cjs": 'throw new Error("must never load");\n',
+    "directory.cjs": 'require("./nested/");\n',
+    "nested/index.js": 'module.exports = "fallback";\n',
+    "optional.cjs":
+      'require.resolve?.("./dep.cjs"); require?.resolve("./dep.cjs");\n',
+    "overwritten.cjs":
+      'require.resolve = other; require.resolve?.("./dep.cjs");\n',
+    "shadowed.cjs": 'function f(require) { require?.resolve("./dep.cjs"); }\n',
+    "types.d.ts":
+      'declare module "consumer" { import type { Marker } from "dependency"; export type A = import("./dep").Marker; export type B = typeof import("./dep"); }\n',
+    "dep.ts": "export interface Marker { id: string }\n",
+    "nested/package.json": '{"type":"commonjs","main":"main.js"}\n',
+    "nested/main.js": 'require("../dep.cjs");\n',
+    "untyped/package.json": "{}\n",
+    "untyped/main.js": 'require("../dep.cjs");\n',
+    "unknown/package.json": "{invalid",
+    "unknown/main.js": 'require("../dep.cjs");\n',
+    "url.mjs":
+      'import "./dep%20name.mjs?v=1#first"; import "./dep%20name.mjs?v=2#second"; import "./dep%2520name.mjs"; import "./bad%2Fname.mjs"; import "./bad%.mjs";\n',
+    "dep name.mjs": "export const actual = 1;\n",
+    "dep%20name.mjs": "export const literalPercent = 2;\n",
+    "literal.cjs":
+      'require.resolve("./dep%20name.mjs"); require.resolve("./dep?literal.cjs");\n',
+    "dep?literal.cjs": 'throw new Error("must never load");\n',
+    "oracle.mjs":
+      'import { fileURLToPath } from "node:url"; import { createRequire } from "node:module"; const require = createRequire(import.meta.url); console.log(JSON.stringify([fileURLToPath(import.meta.resolve("./dep%20name.mjs?v=1#first")), fileURLToPath(import.meta.resolve("./dep%2520name.mjs")), require.resolve("./dep%20name.mjs"), require.resolve("./dep?literal.cjs")]));\n',
+  };
+  for (const directory of ["nested", "unknown", "untyped"])
+    await mkdir(join(root, directory));
+  await Promise.all(
+    Object.entries(files).map(([path, source]) =>
+      writeFile(join(root, path), source),
+    ),
+  );
+  return { root, files };
+};
+
 cliTest(
   "preserves historical module syntax, loader scope and URL request identity",
   async ({ cli }) => {
-    const root = await createTestTempDirectory(
-      "rea-reference-module-semantics-",
-    );
-    const files: Record<string, string> = {
-      "package.json": '{"type":"module"}\n',
-      "main.js": 'require("./dep.cjs"); export {};\n',
-      "dep.cjs": 'throw new Error("must never load");\n',
-      "directory.cjs": 'require("./nested/");\n',
-      "nested/index.js": 'module.exports = "fallback";\n',
-      "optional.cjs":
-        'require.resolve?.("./dep.cjs"); require?.resolve("./dep.cjs");\n',
-      "overwritten.cjs":
-        'require.resolve = other; require.resolve?.("./dep.cjs");\n',
-      "shadowed.cjs":
-        'function f(require) { require?.resolve("./dep.cjs"); }\n',
-      "types.d.ts":
-        'declare module "consumer" { import type { Marker } from "dependency"; export type A = import("./dep").Marker; export type B = typeof import("./dep"); }\n',
-      "dep.ts": "export interface Marker { id: string }\n",
-      "nested/package.json": '{"type":"commonjs","main":"main.js"}\n',
-      "nested/main.js": 'require("../dep.cjs");\n',
-      "untyped/package.json": "{}\n",
-      "untyped/main.js": 'require("../dep.cjs");\n',
-      "unknown/package.json": "{invalid",
-      "unknown/main.js": 'require("../dep.cjs");\n',
-      "url.mjs":
-        'import "./dep%20name.mjs?v=1#first"; import "./dep%20name.mjs?v=2#second"; import "./dep%2520name.mjs"; import "./bad%2Fname.mjs"; import "./bad%.mjs";\n',
-      "dep name.mjs": "export const actual = 1;\n",
-      "dep%20name.mjs": "export const literalPercent = 2;\n",
-      "literal.cjs":
-        'require.resolve("./dep%20name.mjs"); require.resolve("./dep?literal.cjs");\n',
-      "dep?literal.cjs": 'throw new Error("must never load");\n',
-      "oracle.mjs":
-        'import { fileURLToPath } from "node:url"; import { createRequire } from "node:module"; const require = createRequire(import.meta.url); console.log(JSON.stringify([fileURLToPath(import.meta.resolve("./dep%20name.mjs?v=1#first")), fileURLToPath(import.meta.resolve("./dep%2520name.mjs")), require.resolve("./dep%20name.mjs"), require.resolve("./dep?literal.cjs")]));\n',
-    };
-    for (const directory of ["nested", "unknown", "untyped"])
-      await mkdir(join(root, directory));
-    await Promise.all(
-      Object.entries(files).map(([path, source]) =>
-        writeFile(join(root, path), source),
-      ),
-    );
+    const { root, files } = await historicalModuleFixture();
     // This self-authored resolver control never loads a dependency.
     const oracle = await promisify(execFile)(
       process.execPath,

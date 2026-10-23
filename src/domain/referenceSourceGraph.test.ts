@@ -103,53 +103,7 @@ const graphInput = (): HistoricalSourceGraphInput => ({
   limitations: [],
 });
 
-describe("historical source graph", () => {
-  it("validates supplementary paths and derived indexes by code point", () => {
-    const paths = ["a", "aa", "\uE000", "\u{10000}"];
-    const input: HistoricalSourceGraphInput = {
-      ...graphInput(),
-      entries: paths.map((path) =>
-        fileEntry({
-          path,
-          language: path,
-          classifications: ["manifest"],
-        }),
-      ),
-      relationships: [],
-      languages: paths,
-      manifests: paths,
-    };
-    const graph = createHistoricalSourceGraph(input);
-    expect(parseHistoricalSourceGraph(graph)).toEqual(graph);
-    expect(() =>
-      createHistoricalSourceGraph({
-        ...input,
-        entries: [...input.entries].sort((left, right) =>
-          left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-        ),
-      }),
-    ).toThrow(/Unicode code point/u);
-  });
-
-  it("omits absent local diagnostics and rejects explicitly undefined non-JSON metadata", () => {
-    const input = graphInput();
-    const graph = createHistoricalSourceGraph(input);
-    expect(
-      graph.entries.every(
-        (entry) => !Object.hasOwn(entry, "local_diagnostics"),
-      ),
-    ).toBe(true);
-    expect(() =>
-      createHistoricalSourceGraph({
-        ...input,
-        entries: input.entries.map((entry) => ({
-          ...entry,
-          local_diagnostics: undefined,
-        })),
-      }),
-    ).toThrow();
-  });
-
+const registerSourceCommitmentTests = (): void => {
   it("builds and verifies internal root and manifest commitments", () => {
     const graph = createHistoricalSourceGraph(graphInput());
     const first = createHistoricalSourceManifest(graph);
@@ -224,6 +178,56 @@ describe("historical source graph", () => {
       graphWith("*.env").root_sha256,
     );
   });
+};
+
+describe("historical source graph", () => {
+  it("validates supplementary paths and derived indexes by code point", () => {
+    const paths = ["a", "aa", "\uE000", "\u{10000}"];
+    const input: HistoricalSourceGraphInput = {
+      ...graphInput(),
+      entries: paths.map((path) =>
+        fileEntry({
+          path,
+          language: path,
+          classifications: ["manifest"],
+        }),
+      ),
+      relationships: [],
+      languages: paths,
+      manifests: paths,
+    };
+    const graph = createHistoricalSourceGraph(input);
+    expect(parseHistoricalSourceGraph(graph)).toEqual(graph);
+    expect(() =>
+      createHistoricalSourceGraph({
+        ...input,
+        entries: [...input.entries].sort((left, right) =>
+          left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+        ),
+      }),
+    ).toThrow(/Unicode code point/u);
+  });
+
+  it("omits absent local diagnostics and rejects explicitly undefined non-JSON metadata", () => {
+    const input = graphInput();
+    const graph = createHistoricalSourceGraph(input);
+    expect(
+      graph.entries.every(
+        (entry) => !Object.hasOwn(entry, "local_diagnostics"),
+      ),
+    ).toBe(true);
+    expect(() =>
+      createHistoricalSourceGraph({
+        ...input,
+        entries: input.entries.map((entry) => ({
+          ...entry,
+          local_diagnostics: undefined,
+        })),
+      }),
+    ).toThrow();
+  });
+
+  registerSourceCommitmentTests();
 
   it("retains actual external targets and rejects placeholder targets", () => {
     const input = { ...graphInput(), inventory_state: "partial" as const };
@@ -277,7 +281,7 @@ describe("historical source graph", () => {
   });
 });
 
-describe("partial historical source graphs", () => {
+const registerLocalDiagnosticCommitmentTests = (): void => {
   it("keeps unknown-entry diagnostics outside the root commitment", () => {
     const base = graphInput();
     base.inventory_state = "partial";
@@ -332,6 +336,10 @@ describe("partial historical source graphs", () => {
       computeHistoricalSourceGraphSha256(createHistoricalSourceGraph(moved)),
     ).not.toBe(computeHistoricalSourceGraphSha256(graph));
   });
+};
+
+describe("partial historical source graphs", () => {
+  registerLocalDiagnosticCommitmentTests();
 
   it("keeps an unreadable symlink target unknown and out of root identity", () => {
     const base = graphInput();

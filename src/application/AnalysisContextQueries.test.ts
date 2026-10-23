@@ -18,7 +18,7 @@ import { err, ok } from "../domain/result.js";
 
 const provider = { id: "fixture", name: "Fixture", version: "1" };
 
-describe("analysis context queries: navigation", () => {
+const registerNavigationSelectionValidationTests = (): void => {
   it.each([
     [null, "0x401000", "current_document"],
     ["fixture", null, "current_address"],
@@ -47,6 +47,10 @@ describe("analysis context queries: navigation", () => {
       );
     },
   );
+};
+
+describe("analysis context queries: navigation", () => {
+  registerNavigationSelectionValidationTests();
 
   it("aggregates volatile navigation and treats a missing procedure as null", async () => {
     const calls: {

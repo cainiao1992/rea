@@ -22,7 +22,7 @@ const application = async () => {
   return { root, directory };
 };
 
-describe("JavaScript application input selection", () => {
+const registerSelectedPathResolutionTests = (): void => {
   it("preserves the selected path and host reason for an overlong name", async () => {
     const { root } = await application();
     const longPath = join(root, "x".repeat(300));
@@ -90,6 +90,10 @@ describe("JavaScript application input selection", () => {
       expect(loopError).not.toEqual(chainError);
     },
   );
+};
+
+describe("JavaScript application input selection", () => {
+  registerSelectedPathResolutionTests();
 
   it("reports a missing input path as invalid input, not an artifact read failure", async () => {
     const { root } = await application();

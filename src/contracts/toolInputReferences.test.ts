@@ -419,6 +419,76 @@ describe("root input presentation", () => {
   });
 });
 
+const registerBooleanLiteralCompatibilityTests = (): void => {
+  it("keeps canonical boolean-literal inputs accepted after advertisement", () => {
+    const canonical = {
+      type: "object",
+      properties: {
+        enabled: { type: "boolean", const: false },
+      },
+      required: ["enabled"],
+      additionalProperties: false,
+    };
+    const advertised = presentInputJsonSchema(canonical, () => undefined);
+    const canonicalValidate = new Ajv2020({ strict: false }).compile(canonical);
+    const advertisedValidate = new Ajv2020({ strict: false }).compile(
+      advertised,
+    );
+
+    expect(canonicalValidate({ enabled: false })).toBe(true);
+    expect(canonicalValidate({ enabled: true })).toBe(false);
+    expect(advertisedValidate({ enabled: false })).toBe(true);
+    expect(advertisedValidate({ enabled: true })).toBe(true);
+    expect(advertised.properties).toEqual({ enabled: { type: "boolean" } });
+  });
+
+  it("drops affected negation and conditional groups without rejecting canonical inputs", () => {
+    const negated = {
+      type: "object",
+      properties: {
+        flag: { type: "boolean", not: { const: false } },
+      },
+    };
+    const negatedAdvertisement = presentInputJsonSchema(
+      negated,
+      () => undefined,
+    );
+    const canonicalNegated = new Ajv2020({ strict: false }).compile(negated);
+    const advertisedNegated = new Ajv2020({ strict: false }).compile(
+      negatedAdvertisement,
+    );
+    expect(canonicalNegated({ flag: true })).toBe(true);
+    expect(canonicalNegated({ flag: false })).toBe(false);
+    expect(advertisedNegated({ flag: true })).toBe(true);
+
+    const conditional = {
+      type: "object",
+      properties: {
+        choice: {
+          if: { const: false },
+          then: { type: "string" },
+          else: { type: "boolean" },
+        },
+      },
+    };
+    const conditionalAdvertisement = presentInputJsonSchema(
+      conditional,
+      () => undefined,
+    );
+    const canonicalConditional = new Ajv2020({ strict: false }).compile(
+      conditional,
+    );
+    const advertisedConditional = new Ajv2020({ strict: false }).compile(
+      conditionalAdvertisement,
+    );
+    expect(canonicalConditional({ choice: true })).toBe(true);
+    expect(advertisedConditional({ choice: true })).toBe(true);
+    expect(conditionalAdvertisement.properties).toEqual({
+      choice: {},
+    });
+  });
+};
+
 describe("advertised client-compatible literals", () => {
   it.each([{ const: "" }, { enum: ["", "named"] }])(
     "widens unsupported empty-string literals without changing canonical validation: %j",
@@ -510,73 +580,7 @@ describe("advertised client-compatible literals", () => {
     expect(schema.safeParse(input).success).toBe(true);
     expect(input).not.toHaveProperty("only_left");
   });
-  it("keeps canonical boolean-literal inputs accepted after advertisement", () => {
-    const canonical = {
-      type: "object",
-      properties: {
-        enabled: { type: "boolean", const: false },
-      },
-      required: ["enabled"],
-      additionalProperties: false,
-    };
-    const advertised = presentInputJsonSchema(canonical, () => undefined);
-    const canonicalValidate = new Ajv2020({ strict: false }).compile(canonical);
-    const advertisedValidate = new Ajv2020({ strict: false }).compile(
-      advertised,
-    );
-
-    expect(canonicalValidate({ enabled: false })).toBe(true);
-    expect(canonicalValidate({ enabled: true })).toBe(false);
-    expect(advertisedValidate({ enabled: false })).toBe(true);
-    expect(advertisedValidate({ enabled: true })).toBe(true);
-    expect(advertised.properties).toEqual({ enabled: { type: "boolean" } });
-  });
-
-  it("drops affected negation and conditional groups without rejecting canonical inputs", () => {
-    const negated = {
-      type: "object",
-      properties: {
-        flag: { type: "boolean", not: { const: false } },
-      },
-    };
-    const negatedAdvertisement = presentInputJsonSchema(
-      negated,
-      () => undefined,
-    );
-    const canonicalNegated = new Ajv2020({ strict: false }).compile(negated);
-    const advertisedNegated = new Ajv2020({ strict: false }).compile(
-      negatedAdvertisement,
-    );
-    expect(canonicalNegated({ flag: true })).toBe(true);
-    expect(canonicalNegated({ flag: false })).toBe(false);
-    expect(advertisedNegated({ flag: true })).toBe(true);
-
-    const conditional = {
-      type: "object",
-      properties: {
-        choice: {
-          if: { const: false },
-          then: { type: "string" },
-          else: { type: "boolean" },
-        },
-      },
-    };
-    const conditionalAdvertisement = presentInputJsonSchema(
-      conditional,
-      () => undefined,
-    );
-    const canonicalConditional = new Ajv2020({ strict: false }).compile(
-      conditional,
-    );
-    const advertisedConditional = new Ajv2020({ strict: false }).compile(
-      conditionalAdvertisement,
-    );
-    expect(canonicalConditional({ choice: true })).toBe(true);
-    expect(advertisedConditional({ choice: true })).toBe(true);
-    expect(conditionalAdvertisement.properties).toEqual({
-      choice: {},
-    });
-  });
+  registerBooleanLiteralCompatibilityTests();
 });
 
 describe("advertised Boolean schema composition", () => {

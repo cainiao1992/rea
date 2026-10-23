@@ -75,7 +75,7 @@ const omissionRejected = (schema: z.ZodObject | undefined): string[] =>
 const acceptsOmittedKey = (key: string, field: z.ZodType): boolean =>
   z.object({ [key]: field }).safeParse({}).success;
 
-describe("CLI advertised input schemas", () => {
+const registerParserAdvertisementInventoryTests = (): void => {
   it("require exactly the inputs whose omission the parser rejects", async () => {
     const cli = createCli({});
     const mismatches: string[] = [];
@@ -111,6 +111,10 @@ describe("CLI advertised input schemas", () => {
     }
     expect(mismatches).toEqual([]);
   });
+};
+
+describe("CLI advertised input schemas", () => {
+  registerParserAdvertisementInventoryTests();
 
   it("preserves client choices, selected path bounds and required decoded steps", async () => {
     const cli = createCli({});

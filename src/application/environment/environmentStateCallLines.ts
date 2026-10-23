@@ -2,6 +2,7 @@ import {
   allLines,
   collectionPathOf,
   collectionMatch,
+  segmentsOf,
   type SuppliedSegment,
   type StateListView,
 } from "../../domain/analysisView/environmentStateRules.js";
@@ -27,13 +28,11 @@ export const callSegments = (
   const names = environmentToolArguments(tool).path;
   const params = new Map(tool.params.map((param) => [param.index, param]));
   const segments: SuppliedSegment[] = [];
-  const template = tool.path_template
-    .slice(tool.path_template.indexOf("/") + 1)
-    .split("/");
+  const template = segmentsOf(tool.path_template);
   for (const [index, text] of template.entries()) {
     const param = params.get(index);
     if (param === undefined) {
-      if (text !== "") segments.push({ text, supplied: false });
+      segments.push({ text, supplied: false });
       continue;
     }
     const value = args[names.get(param.name) ?? param.name];

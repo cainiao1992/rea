@@ -442,6 +442,11 @@ A read with repeated query values uses replay, because the state query model
 does not infer repeated-parameter semantics. A repeated-query write is refused
 before it can change state for the same reason.
 
+List counters retain their recorded number or digit-string representation.
+Changing a digit-string counter preserves its observed zero-padding width;
+query-total inference remains limited to canonical decimal counts. Path matching
+uses the same segment parser as extraction, preserving empty internal segments.
+
 An item or list view that always spells a clock field otherwise than the
 entity's stored value names that spelling in `clock_formats`, and a value it
 never recorded, such as a created entity's clock, is rendered in it: a list that

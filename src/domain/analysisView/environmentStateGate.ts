@@ -7,6 +7,7 @@ import {
   isObject,
   lastSegmentValue,
   listItems,
+  recordedItemCount,
   renderStateEntity,
   renderStateList,
   replaceAt,
@@ -280,17 +281,22 @@ const listFacts = (
       items.forEach((item) => union.add(item));
       const parent = plan.pointer === "" || !isObject(body) ? {} : body;
       const counted = Object.keys(parent).filter(
-        (name) => isItemTotal(name) && countOf(parent[name]) !== undefined,
+        (name) =>
+          isItemTotal(name) && recordedItemCount(parent[name]) !== undefined,
       );
       counting.set(
         record.ordinal,
-        counted.filter((name) => parent[name] === items.length),
+        counted.filter(
+          (name) => recordedItemCount(parent[name]) === items.length,
+        ),
       );
       // Only a line that pages at most can hold its whole collection; a total that differs from
       // the number listed, or a next page, shows it is partial.
       if (
         !startsAtBeginning(record.query) ||
-        counted.some((name) => countOf(parent[name]) !== items.length) ||
+        counted.some(
+          (name) => recordedItemCount(parent[name]) !== items.length,
+        ) ||
         Object.keys(parent).some((name) => continues(name, parent[name]))
       )
         return;
@@ -331,14 +337,6 @@ const isItemTotal = (name: string): boolean => {
     )
   );
 };
-
-/** A count recorded as a number or as a string of digits. */
-const countOf = (value: JsonValue | undefined): number | undefined =>
-  typeof value === "number"
-    ? value
-    : typeof value === "string" && /^\d+$/u.test(value)
-      ? Number(value)
-      : undefined;
 
 const CONTINUATION_NAMES = new Set([
   "hasmore",

@@ -596,6 +596,25 @@ export const listItems = (
   return Array.isArray(items) && items.every(isObject) ? items : undefined;
 };
 
+/** An observed item count, retaining the original value separately for rendering. */
+export const recordedItemCount = (
+  value: JsonValue | undefined,
+): number | undefined =>
+  typeof value === "number"
+    ? value
+    : typeof value === "string" && /^\d+$/u.test(value)
+      ? Number(value)
+      : undefined;
+
+/** Spell a changed count with the recorded numeric/string type and digit width. */
+export const formatItemCount = (
+  count: number,
+  observed: JsonValue,
+): JsonValue =>
+  typeof observed === "string"
+    ? String(count).padStart(observed.length, "0")
+    : count;
+
 /** One entity as a view shows it: the view's fields it has, view-specific values first; volatile fields take `observed` values when given. */
 export const renderStateEntity = (
   entity: StateEntity,
@@ -650,10 +669,13 @@ export const renderStateList = (
 ): JsonValue => {
   const listed = listItems(base, view.pointer)?.length;
   return view.counters.reduce(
-    (body, name) =>
-      at(base, pointerTo(name)) === listed
-        ? replaceAt(body, pointerTo(name), items.length)
-        : body,
+    (body, name) => {
+      const observed = at(base, pointerTo(name));
+      if (listed === undefined || recordedItemCount(observed) !== listed)
+        return body;
+      const count = formatItemCount(items.length, observed!);
+      return replaceAt(body, pointerTo(name), count);
+    },
     replaceAt(base, view.pointer, [...items]),
   );
 };

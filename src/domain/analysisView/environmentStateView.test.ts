@@ -23,6 +23,7 @@ import {
   at,
   identityCandidates,
   replaceAt,
+  renderStateList,
   type JsonObject,
 } from "./environmentStateRules.js";
 import { environmentStateFields } from "./environmentStateView.js";
@@ -331,6 +332,25 @@ it("lists the whole collection with its counter only when every recording did", 
     expect.objectContaining({ shape: "list", membership: "recorded" }),
   );
 });
+
+it.each([1, "1", "001"])(
+  "retains item count representation %j in extracted list plans",
+  (total) => {
+    const body = { total, items: [{ id: 1, title: "One" }] };
+    const state = stateOf(captureOf([["GET", "/api/items", body]]));
+    const view = state.views.find((candidate) => candidate.shape === "list");
+    if (view?.shape !== "list") throw new Error("Expected an item list view");
+    expect(view.counters).toEqual(["total"]);
+    expect(renderStateList(view, body, body.items)).toEqual(body);
+    const added = renderStateList(view, body, [
+      ...body.items,
+      { id: 2, title: "Two" },
+    ]);
+    expect(added).toMatchObject({
+      total: typeof total === "string" ? "2".padStart(total.length, "0") : 2,
+    });
+  },
+);
 
 it("leaves recorded the views it cannot reproduce, with the reason", () => {
   const state = stateOf(

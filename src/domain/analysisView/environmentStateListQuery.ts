@@ -3,6 +3,8 @@ import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js
 import { literalSubstringPredicate } from "../analysisSearch.js";
 import {
   isObject,
+  recordedItemCount,
+  formatItemCount,
   pointerTo,
   renderStateList,
   replaceAt,
@@ -569,13 +571,11 @@ export const learnQuery = (
 export const queryTotalCount = (
   value: JsonValue | undefined,
 ): number | undefined => {
-  const count =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && /^(?:0|[1-9]\d*)$/u.test(value)
-        ? Number(value)
-        : undefined;
-  return count !== undefined && Number.isSafeInteger(count) && count >= 0
+  const count = recordedItemCount(value);
+  return count !== undefined &&
+    Number.isSafeInteger(count) &&
+    count >= 0 &&
+    (typeof value !== "string" || String(count) === value)
     ? count
     : undefined;
 };
@@ -594,11 +594,7 @@ export const renderQueryList = (
       isObject(base) &&
       Object.hasOwn(base, name) &&
       queryTotalCount(base[name]) !== undefined
-        ? replaceAt(
-            body,
-            pointerTo(name),
-            typeof base[name] === "string" ? String(total) : total,
-          )
+        ? replaceAt(body, pointerTo(name), formatItemCount(total, base[name]!))
         : body,
     renderStateList(view, base, items),
   );

@@ -133,12 +133,14 @@ describe("portable PE resource parsing", () => {
     const fixture = peResourceFixture(false, []);
     expect(await parse(fixture.bytes)).toMatchObject({
       directory: { rva: 0x2000 },
+      directories: [{ path: [], entry_locations: [] }],
       resources: [],
       coverage: { resources: 0, examined_entries: 0 },
     });
     fixture.bytes.fill(0, fixture.directoryAt, fixture.directoryAt + 8);
     expect(await parse(fixture.bytes)).toMatchObject({
       directory: null,
+      directories: [],
       resources: [],
     });
   });

@@ -123,6 +123,7 @@ describe("skill publication ownership", () => {
 
 describe("skill publication recovery", () => {
   it.each([
+    Buffer.alloc(0),
     Buffer.from([0xff, 0xfe, 0x61, 0x00]),
     Buffer.from("\ufefforiginal BOM instructions\r\n"),
   ])(

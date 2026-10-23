@@ -312,9 +312,21 @@ it.each([
       omitted: 0,
     }),
   );
+  const source = result.graph.nodes.find(
+    ({ attributes }) => attributes.interface_builder_object_id === "2",
+  );
+  const outlet = result.graph.nodes.find(({ kind }) => kind === "outlet");
+  expect(source).toBeDefined();
+  expect(outlet).toBeDefined();
   expect(
-    result.graph.edges.filter(({ id }) => id.includes(":hierarchy:")),
-  ).toEqual([]);
+    result.graph.edges.filter(({ relation }) => relation === "contains"),
+  ).toEqual([
+    expect.objectContaining({
+      from: source?.id,
+      to: outlet?.id,
+      resolution: "observed",
+    }),
+  ]);
 });
 
 it("counts a dangling named root without substituting a valid generic root", () => {

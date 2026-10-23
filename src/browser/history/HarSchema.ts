@@ -5,51 +5,32 @@ import { z } from "zod";
 import { CaptureFormatError } from "./CaptureFormatError.js";
 import { captureObject } from "./CaptureRedaction.js";
 
-// har-schema 2.0.0 omits timings' object type and spells numeric bounds `min`.
-// Add the HAR 1.2 constraints without modifying the imported schema or source.
-const elapsedMilliseconds = { type: "number", minimum: 0 };
-const optionalMilliseconds = { anyOf: [{ const: -1 }, elapsedMilliseconds] };
-const timingRequirements = {
+const durationSchema = { type: "number", minimum: 0 };
+const optionalDurationSchema = {
+  anyOf: [durationSchema, { const: -1 }],
+};
+
+// har-schema@2.0.0 omits object types and uses the unknown `min` keyword
+// on duration fields. Own the corrections from HAR 1.2 without changing
+// producer data or mutating the installed schemas.
+const timingsSchema = {
+  $id: "timings.json#",
+  $schema: "http://json-schema.org/draft-06/schema#",
+  type: "object",
+  required: ["send", "wait", "receive"],
   properties: {
-    log: {
-      properties: {
-        entries: {
-          items: {
-            properties: {
-              time: elapsedMilliseconds,
-              timings: {
-                type: "object",
-                properties: {
-                  send: elapsedMilliseconds,
-                  wait: elapsedMilliseconds,
-                  receive: elapsedMilliseconds,
-                  blocked: optionalMilliseconds,
-                  dns: optionalMilliseconds,
-                  connect: optionalMilliseconds,
-                  ssl: optionalMilliseconds,
-                },
-              },
-            },
-          },
-        },
-        pages: {
-          items: {
-            properties: {
-              pageTimings: {
-                properties: {
-                  onContentLoad: optionalMilliseconds,
-                  onLoad: optionalMilliseconds,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    send: durationSchema,
+    wait: durationSchema,
+    receive: durationSchema,
+    blocked: optionalDurationSchema,
+    dns: optionalDurationSchema,
+    connect: optionalDurationSchema,
+    ssl: optionalDurationSchema,
+    comment: { type: "string" },
   },
 };
 
-/** Validate the pinned HAR 1.2 schemas with explicit specification timing constraints. */
+/** Validate with pinned HAR 1.2 draft-06 schemas and the owned schema corrections. */
 export const createHarValidator = (): ((
   value: unknown,
 ) => readonly number[]) => {
@@ -63,10 +44,31 @@ export const createHarValidator = (): ((
   if (typeof plugin !== "function")
     throw new Error("Pinned AJV formats plugin is unavailable");
   plugin(ajv);
-  for (const schema of Object.values(schemas)) ajv.addSchema(schema);
-  const validate = ajv.compile({
-    allOf: [{ $ref: "har.json#" }, timingRequirements],
-  });
+  const propertiesSchema = z.record(z.string(), z.unknown());
+  const correctedSchemas: Record<string, Record<string, unknown>> = {
+    timings: timingsSchema,
+    cache: { ...schemas.cache, type: "object" },
+    entry: {
+      ...schemas.entry,
+      properties: {
+        ...propertiesSchema.parse(schemas.entry?.properties),
+        time: durationSchema,
+      },
+    },
+    pageTimings: {
+      ...schemas.pageTimings,
+      properties: {
+        ...propertiesSchema.parse(schemas.pageTimings?.properties),
+        onContentLoad: optionalDurationSchema,
+        onLoad: optionalDurationSchema,
+      },
+    },
+  };
+  for (const [name, schema] of Object.entries(schemas))
+    ajv.addSchema(correctedSchemas[name] ?? schema);
+  const validate = ajv.getSchema("har.json#");
+  if (validate === undefined)
+    throw new Error("Pinned HAR root schema is unavailable");
   return (value) => {
     const adaptedPlaywrightEntries =
       allowObservedProducerRepresentations(value);

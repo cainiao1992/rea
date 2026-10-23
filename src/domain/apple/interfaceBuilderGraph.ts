@@ -192,6 +192,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
       else connectionEdgeCount += 1;
     };
     const connect = (
+      category: "hierarchy" | "connection",
       id: string,
       from: string,
       to: string | null,
@@ -199,7 +200,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
       description: string,
       reason?: string,
     ) => {
-      const isHierarchy = relation === "contains" && id.includes(":hierarchy:");
+      const isHierarchy = category === "hierarchy";
       if (!nodes.has(from)) {
         truncated = true;
         if (isHierarchy) {
@@ -299,6 +300,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           )
             hierarchyTruncated = true;
           connect(
+            "hierarchy",
             graphId("hierarchy", [parentId, childId]),
             parentId,
             childId,
@@ -346,6 +348,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           evidence: evidenceFor(`action ${item.id}`),
         });
         connect(
+          "connection",
           graphId("action-edge", [item.id, "source"]),
           sourceId,
           actionId,
@@ -362,6 +365,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
             evidence: evidenceFor(`selector ${item.label}`),
           });
           connect(
+            "connection",
             graphId("action-edge", [item.id, "selector"]),
             actionId,
             selectorId,
@@ -371,6 +375,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
         }
         if (destinationId === null || !nodes.has(destinationId))
           connect(
+            "connection",
             graphId("action-edge", [item.id, "destination"]),
             actionId,
             null,
@@ -380,6 +385,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           );
         else
           connect(
+            "connection",
             graphId("action-edge", [item.id, "destination"]),
             actionId,
             destinationId,
@@ -397,6 +403,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           evidence: evidenceFor(`outlet ${item.id}`),
         });
         connect(
+          "connection",
           graphId("outlet-edge", [item.id, "source"]),
           sourceId,
           outletId,
@@ -405,6 +412,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
         );
         if (destinationId === null || !nodes.has(destinationId))
           connect(
+            "connection",
             graphId("outlet-edge", [item.id, "destination"]),
             outletId,
             null,
@@ -414,6 +422,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           );
         else
           connect(
+            "connection",
             graphId("outlet-edge", [item.id, "destination"]),
             outletId,
             destinationId,
@@ -423,6 +432,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
       } else if (item.kind === "segue") {
         if (destinationId === null || !nodes.has(destinationId))
           connect(
+            "connection",
             graphId("segue", [index]),
             sourceId,
             null,
@@ -432,6 +442,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           );
         else
           connect(
+            "connection",
             graphId("segue", [index]),
             sourceId,
             destinationId,
@@ -440,6 +451,7 @@ export const buildInterfaceBuilderAnalysis = (input: {
           );
       } else {
         connect(
+          "connection",
           graphId("unknown-connection", [index]),
           sourceId,
           null,

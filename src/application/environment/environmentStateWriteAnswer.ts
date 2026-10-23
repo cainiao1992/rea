@@ -201,8 +201,14 @@ const generator = (
     const seed = (attempt: number) =>
       `${store.state.evidenceId}:${request.tool.name}:${rule.field}:${String(write.count)}:${String(attempt)}`;
     switch (rule.rule) {
-      case "clock":
-        return ok(formatClock(write.clockMs, rule.format));
+      case "clock": {
+        const value = formatClock(write.clockMs, rule.format);
+        return value === undefined
+          ? err(
+              `The generated clock for ${rule.field} is outside its recorded four-digit year format.`,
+            )
+          : ok(value);
+      }
       case "sequence":
         return ok(
           spelledLike(

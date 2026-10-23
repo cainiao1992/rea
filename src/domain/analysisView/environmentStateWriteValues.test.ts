@@ -33,6 +33,27 @@ const seeds = (count: number): string[] =>
   Array.from({ length: count }, (_, index) => `seed-${String(index)}`);
 
 it.each<[string, number, ClockFormat, number?]>([
+  [
+    "0000-02-29T00:00:00.000123456Z",
+    Date.parse("0000-02-29T00:00:00Z"),
+    iso("T", 9, "Z"),
+    123456,
+  ],
+  [
+    "0001-01-01T00:00:00Z",
+    Date.parse("0001-01-01T00:00:00Z"),
+    iso("T", 0, "Z"),
+  ],
+  [
+    "0099-01-01T00:00:00Z",
+    Date.parse("0099-01-01T00:00:00Z"),
+    iso("T", 0, "Z"),
+  ],
+  [
+    "0100-01-01T00:00:00Z",
+    Date.parse("0100-01-01T00:00:00Z"),
+    iso("T", 0, "Z"),
+  ],
   ["2026-03-04T05:06:07Z", WHOLE_SECOND, iso("T", 0, "Z")],
   ["2026-03-04 05:06:07.123Z", WITH_MS, iso(" ", 3, "Z")],
   ["2026-03-04T05:06:07.123456Z", WITH_MS, iso("T", 6, "Z"), 456000],
@@ -98,6 +119,16 @@ it("preserves UTF-16 offsets while accepting emoji as a delimiter", () => {
   expect(delimitedOffsets("😀42😀", "42")).toEqual([2]);
   expect(replaceDelimited("😀42😀", "42", "43")).toBe("😀43😀");
 });
+
+it.each(["0000-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00"])(
+  "keeps %s when conversion cannot fit the four-digit year format",
+  (value) => {
+    const clock = readClock(value)!;
+    expect(respellClock(value, iso("T", 0, "Z"))).toBe(value);
+    expect(formatClock(clock.ms, iso("T", 0, "Z"))).toBeUndefined();
+    expect(formatClock(clock.ms, clock.format)).toBe(value);
+  },
+);
 
 it.each<[JsonValue | undefined, ReturnType<typeof readClock>]>([
   [

@@ -71,14 +71,17 @@ evidence. Duplicate object keys, including equal values and escaped spellings,
 are rejected before materialization. Prototype-named members such as
 `__proto__` are preserved as ordinary own JSON members without prototype
 mutation. Original capture files remain unchanged.
-REA supplements the pinned schema's missing timing constraints: `timings` must
-be an object with nonnegative `send`, `wait`, and `receive`; optional timing
-phases and page timings may be nonnegative or exactly `-1` for unavailable.
-Total request time must be nonnegative. Invalid timing fields refuse the entire
-capture, even when the affected records would be redacted or unselected.
-Body readers decode plain text and supported `base64` representations. Other
-declared encodings remain preserved in reported Evidence, but decoded body
-content is unavailable; their encoded characters are never treated as text.
+REA owns specific schema corrections because pinned upstream schemas omit
+object types and use the unrecognized `min` keyword. Following
+[HAR 1.2](https://github.com/ahmadnassri/har-spec/blob/81adb2fcf845e81ff3de728cf6829a0e6ad63e95/versions/1.2.md#timings),
+`timings` must be an object with nonnegative `send`, `wait` and `receive`;
+optional `blocked`, `dns`, `connect` and `ssl` may be absent, `-1`, or
+nonnegative. Entry `time` must be nonnegative; page `onContentLoad` and `onLoad`
+may be absent, `-1`, or nonnegative. `cache` must be an object, while its optional
+`beforeRequest` and `afterRequest` retain their specified nullable forms.
+Invalid values fail with their source JSON pointer before record selection or
+sensitivity projection. Measurements are not invented or repaired. Decoder
+provenance names these corrections as `har-schema-corrections@1`.
 The observed mitmproxy 12.2.3 `SaveHar` profile can emit `postData.text: null`
 for a missing request body. REA preserves that reported null, omitting the
 optional field only from its validation copy for this exact producer profile;
@@ -286,7 +289,13 @@ not register or wrap the Fiddler MCP server.
 - `binary_fields` retain exposed bytes, base64 and SHA-256 independently of
   declared sizes. Valid HAR `content.encoding: "base64"` is decoded exactly;
   producer-decoded Unicode text, missing text and unknown encodings do not
-  establish original body bytes. Post-data parameters do not reconstruct a
+  establish original body bytes. Response readers expose decoded text only when
+  `encoding` is absent or supported base64 bytes decode as UTF-8. Other declared
+  encodings remain opaque: original text and encoding stay in Evidence, while
+  replay and state extraction treat the decoded body as unavailable. A redacted
+  encoding declaration does not establish plain text. See the
+  [HAR content representation](https://github.com/ahmadnassri/har-spec/blob/81adb2fcf845e81ff3de728cf6829a0e6ad63e95/versions/1.2.md#content).
+  Post-data parameters do not reconstruct a
   multipart body. Native byte fields also have an exact UTF-8 display view
   when valid; binary sidecars establish their actual representation. Native
   missing content and empty content remain distinct.

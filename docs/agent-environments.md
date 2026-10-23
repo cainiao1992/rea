@@ -783,7 +783,16 @@ whose executed served write plan declares a unique token or UUID/token identity
 generator. UUID-like or token-like spelling alone does not establish generation;
 other business strings compare literally. The report counts each kind of normalised value.
 ISO clock offsets are accepted only within RFC 3339's `00`–`23` hour and `00`–`59` minute ranges.
-Timestamp ordering retains submillisecond precision when the source records it.
+Probe ordering retains every recorded fractional-second digit in ISO timestamps
+with a four-digit year, `T`, and a `Z` or `±HH:MM` suffix. Equal instants use ordinal order. Other native-Date
+spellings keep their existing millisecond interpretation; an absent or unreadable
+start time makes the whole probe use record order. Original capture timestamps
+remain unchanged. Clock-format comparison and respelling recognize four-digit
+ISO years `0000`–`0099` as well as later years, with normal calendar validation.
+Respelling preserves the original value when the target zone would require a year
+outside `0000`–`9999`; generated writes refuse a clock outside that format.
+Capture-state extraction still uses millisecond coordinates for request intervals
+and their ordering, and generated-clock progression compares milliseconds.
 
 Comparison keeps response representations distinct: JSON values compare structurally, text compares as text, and a
 retained base64 body compares by bytes (including with UTF-8 text carrying those same bytes), never by its base64

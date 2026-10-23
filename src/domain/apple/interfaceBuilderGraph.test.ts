@@ -509,6 +509,61 @@ describe("Interface Builder graph limits", () => {
   });
 });
 
+it.each([
+  { relativePath: "Main.nib", sourceId: "missing" },
+  { relativePath: "Views/:hierarchy:/Main.nib", sourceId: "missing" },
+  { relativePath: "Main.nib", sourceId: "missing:hierarchy:source" },
+])(
+  "keeps connection omissions separate from complete hierarchy for $relativePath / $sourceId",
+  ({ relativePath, sourceId }) => {
+    const result = buildInterfaceBuilderAnalysis({
+      targetSha256: hash,
+      toolVersion: "test",
+      documents: [
+        {
+          relativePath,
+          archiveSha256: hash,
+          documentKind: "nib",
+          raw: {
+            "com.apple.ibtool.document.objects": {
+              kept: { class: "UIView" },
+            },
+            "com.apple.ibtool.document.hierarchy": [{ objectID: "kept" }],
+            "com.apple.ibtool.document.connections": {
+              [sourceId]: [
+                { type: "outlet", label: "view", destinationId: "kept" },
+              ],
+            },
+          },
+        },
+      ],
+      limits: interfaceBuilderLimitsSchema.parse({ max_objects: 2 }),
+    });
+    expect(result.documents[0]?.hierarchy_complete).toBe(true);
+    expect(result.graph.nodes).toHaveLength(2);
+    expect(result.graph.edges).toHaveLength(1);
+    expect(result.graph.truncated).toBe(true);
+    expect(result.graph.coverage).toEqual(
+      expect.arrayContaining([
+        {
+          facet: `hierarchy:${relativePath}`,
+          status: "complete",
+          reason: null,
+          examined: 1,
+          omitted: 0,
+        },
+        {
+          facet: `connections:${relativePath}`,
+          status: "partial",
+          reason: "connection_limit_reached",
+          examined: 1,
+          omitted: 2,
+        },
+      ]),
+    );
+  },
+);
+
 describe("Interface Builder hierarchy completeness", () => {
   it("marks only the later document incomplete when its hierarchy root is omitted", () => {
     const document = (relativePath: string, objectId: string) => ({

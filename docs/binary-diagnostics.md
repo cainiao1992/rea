@@ -203,9 +203,13 @@ reported. Directory headers, entries, data entries and payloads retain original
 file offsets and lengths. Each opaque payload has its own SHA-256; code page and
 reserved data-entry fields are preserved.
 
-Each `directories[]` row retains its incoming identity `path` and corresponding
-`entry_locations`, including branches with no payload leaves. The root has empty
-arrays; a type branch has one identity and a name branch has two.
+Every `directories[]` row retains its identity `path` and the matching incoming
+`entry_locations`: both are empty for the root, then contain the type and
+optionally the name. Empty branches keep these identities even when they have
+no payload leaves. Shared directory bytes produce a row for each incoming path,
+with the original directory range and each path's own entry locations. These
+rows are included in the metadata budget. A present empty root remains distinct
+from an absent resource data directory (`directory: null`, `directories: []`).
 
 RT_GROUP_ICON records expose original image descriptors and RT_ICON candidates.
 A reference resolves only when an icon with the same numeric ID and language

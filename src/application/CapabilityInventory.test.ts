@@ -852,7 +852,7 @@ it("keeps independent native sessions discoverable without an unrelated binary t
     "list_cutter_sessions",
     "cutter_command",
     "start_gdb_session",
-    "gdb_command",
+    "gdb_console",
     "gdb_session_status",
     "close_gdb_session",
     "start_rizin_debug_session",

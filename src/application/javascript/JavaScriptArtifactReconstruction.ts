@@ -42,6 +42,7 @@ import {
   type JavaScriptArtifactReconstructionInput,
 } from "./JavaScriptArtifactReconstructionInput.js";
 import { scanCanonicalArtifactInventoryInScope } from "../../artifacts/inventory/scanCanonical.js";
+import { createJavaScriptNextAppContext } from "./JavaScriptNextAppContext.js";
 import { summarizeElectronBoundaries } from "./ElectronBoundaryAnalysis.js";
 import { createJavaScriptSemanticGraphProjection } from "./JavaScriptSemanticGraphBuilder.js";
 import type { ProgressReporter } from "../ProgressReporter.js";
@@ -285,6 +286,16 @@ export const reconstructJavaScriptArtifact = async (
       const semanticGraph =
         await completeJavaScriptAnalysisSteps(semanticGraphSteps);
       await checkpointCompletedAnalysis();
+      const directoryPaths = new Set(
+        snapshot.occurrences
+          .filter(({ entry_kind }) => entry_kind === "directory")
+          .map(({ logical_path }) => logical_path),
+      );
+      const nextAppContext = createJavaScriptNextAppContext(
+        files.files,
+        analysis.jsonDocuments,
+        directoryPaths,
+      );
       const completed = {
         route_inventory: await completeJavaScriptAnalysisSteps(
           buildJavaScriptRouteInventorySteps([
@@ -292,6 +303,7 @@ export const reconstructJavaScriptArtifact = async (
               .filter(({ file }) => file.kind === "javascript")
               .map(({ file, javascript, analysis_failure }) => ({
                 key: file.path,
+                next_app_context: nextAppContext(file),
                 path: file.path,
                 url: null,
                 sha256: file.sha256,
@@ -318,6 +330,7 @@ export const reconstructJavaScriptArtifact = async (
               .filter((file) => file.kind === "javascript")
               .map((file) => ({
                 key: file.path,
+                next_app_context: nextAppContext(file),
                 path: file.path,
                 url: null,
                 sha256: file.sha256,
@@ -339,14 +352,7 @@ export const reconstructJavaScriptArtifact = async (
           : { source_selection: files.source_selection }),
         graph,
         semantic_graph: semanticGraph,
-        electron_summary: summarizeElectronBoundaries(
-          analysis,
-          new Set(
-            snapshot.occurrences
-              .filter(({ entry_kind }) => entry_kind === "directory")
-              .map(({ logical_path }) => logical_path),
-          ),
-        ),
+        electron_summary: summarizeElectronBoundaries(analysis, directoryPaths),
         statistics: {
           relevant_files:
             files.files.length + files.unavailable_relevant_files.length,

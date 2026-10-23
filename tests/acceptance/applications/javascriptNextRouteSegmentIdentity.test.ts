@@ -13,6 +13,7 @@ cliTest(
     const page = (name: string) =>
       `export default function Page${name}(){return null;}`;
     await writeFixtureFiles(root, {
+      "package.json": JSON.stringify({ dependencies: { next: "16.4.2" } }),
       "app/%61/page.js": page("EncodedA"),
       "app/a/page.js": page("PlainA"),
       "app/100%/page.js": page("Percent"),

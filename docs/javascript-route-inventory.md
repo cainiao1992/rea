@@ -48,7 +48,8 @@ at the 1 MiB serialized view budget. Oversized indivisible facts return a
 resource error carrying the retained parent Evidence ID.
 
 Pattern IDs bind the exact path. Source IDs bind the source key, path, original
-URL, content digest and container digest. Occurrences identify a detector mechanism at a source location; one location
+URL, content digest, container digest, and any retained Next source applicability
+context (including the owning package digest). Occurrences identify a detector mechanism at a source location; one location
 may support multiple mechanisms. `source_count` counts distinct sources. Lookup IDs use 128 bits of SHA-256;
 full content and inventory digests remain SHA-256. Field selection always keeps
 row identity and necessary provenance. The page's deduplicated `sources` table
@@ -72,6 +73,25 @@ Generic Next runtime path constants require a top-level application segment
 supported by structural or navigation candidates across the supplied sources.
 This limits framework filesystem noise, while leaving unsupported candidates
 unknown. The parser shares the existing AST traversal and lexical index.
+
+Next page conversion receives an explicit source context. For local source files,
+the shared JSON owner first establishes a declared `next` dependency in the
+nearest owning package. Inventoried directories then select that package's `app`
+before `src/app`, following Next's [root selection](https://github.com/vercel/next.js/blob/v16.4.2/packages/next/src/lib/find-pages-dir.ts).
+Only files beneath the selected directory supply source-page support. Default
+`.next/static/chunks/app` output receives a separate compiled-directory context
+from the same package owner; custom build directories remain unmodeled. Pages Router
+files, unrelated components, and nested packages do not inherit that root merely
+because their paths contain `app`. Missing package/framework evidence remains an
+interpretation unknown for page-shaped source paths. Each page-shaped source retains its
+`next_app_context` and package identity so this derivation remains inspectable.
+
+Captured script URLs use the `/_next/static/chunks/app/` asset boundary, independently
+of local package evidence. Source literals use recognized Next runtime context;
+imports, exports, and direct call arguments do not themselves declare pages.
+The parser completes its runtime-marker scan before interpreting retained module
+literals, so marker placement does not change the result. A matching filename
+suffix alone cannot establish App Router ownership.
 
 [Next dynamic segments](https://nextjs.org/docs/app/api-reference/file-conventions/dynamic-routes)
 map to `:id`, `:slug+`, or `:slug*`; groups and parallel slots do not contribute

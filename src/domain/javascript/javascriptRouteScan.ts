@@ -250,6 +250,8 @@ export class JavaScriptRouteScan {
   };
   readonly #rejected = new WeakSet<t.Node>();
   readonly #seen = new Set<string>();
+  readonly #nextPaths: { value: string; node: t.Node; computed: boolean }[] =
+    [];
   readonly #literalPaths: { value: string; node: t.Node }[] = [];
   readonly #propertyValues = new WeakSet<t.Node>();
   readonly #dynamicValues = new WeakMap<t.Node, DynamicRouteValueOwner>();
@@ -533,33 +535,31 @@ export class JavaScriptRouteScan {
       }
       const value = stringValue(node);
       if (value === undefined) return;
-      const next = classifyNextAppRoutePath(value);
-      if (
-        (t.isBinaryExpression(expressionParent) &&
-          expressionParent.operator === "+") ||
-        (t.isTemplateLiteral(expressionParent) &&
-          expressionParent.expressions.length > 0)
-      ) {
-        if (next !== undefined)
-          this.#unknown(
-            "next-app-chunk",
-            expressionParent!,
-            "The module filename is part of a computed expression; a complete page path remains unknown.",
-          );
-        return;
-      }
-      if (next?.kind === "unknown") {
-        this.#unknown("next-app-chunk", node, next.reason);
-        return;
-      }
-      if (next?.kind === "known")
-        this.#emit(
-          next.path,
-          "next-app-chunk",
-          [{ value, location: range(node), origin: "next-app-path" }],
+      const reference =
+        expressionParent !== null &&
+        (t.isImportDeclaration(expressionParent) ||
+          t.isExportNamedDeclaration(expressionParent) ||
+          t.isExportAllDeclaration(expressionParent) ||
+          t.isImportExpression(expressionParent) ||
+          t.isCallExpression(expressionParent) ||
+          t.isOptionalCallExpression(expressionParent) ||
+          t.isNewExpression(expressionParent));
+      const next = classifyNextAppRoutePath(
+        value,
+        reference
+          ? { kind: "source-reference" }
+          : { kind: "source-literal", runtime: "unknown" },
+      );
+      if (next !== undefined && this.#queue(node, value))
+        this.#nextPaths.push({
+          value,
           node,
-          false,
-        );
+          computed:
+            (t.isBinaryExpression(expressionParent) &&
+              expressionParent.operator === "+") ||
+            (t.isTemplateLiteral(expressionParent) &&
+              expressionParent.expressions.length > 0),
+        });
       if (
         !this.#propertyValues.has(node) &&
         routePath(value) !== undefined &&
@@ -703,6 +703,30 @@ export class JavaScriptRouteScan {
   *finishSteps(): Generator<void, JavaScriptRouteSourceFacts> {
     const index = this.index;
     if (this.#result.capacity !== null) return this.#result;
+    for (const { value, node, computed } of this.#nextPaths) {
+      yield;
+      if (this.#result.capacity !== null) return this.#result;
+      const next = classifyNextAppRoutePath(value, {
+        kind: "source-literal",
+        runtime: this.#nextRuntime ? "next" : "unknown",
+      });
+      if (computed) {
+        this.#unknown(
+          "next-app-chunk",
+          node,
+          "The module filename is part of a computed expression; a complete page path remains unknown.",
+        );
+      } else if (next?.kind === "unknown")
+        this.#unknown("next-app-chunk", node, next.reason);
+      else if (next?.kind === "known")
+        this.#emit(
+          next.path,
+          "next-app-chunk",
+          [{ value, location: range(node), origin: "next-app-path" }],
+          node,
+          false,
+        );
+    }
     if (
       this.#calls.length > 0 ||
       this.#automaticRoots.size > 0 ||

@@ -168,34 +168,79 @@ export const normalizeProcessElapsedTime = (
   timeBucketMs: number,
 ): number => Math.floor(elapsedMs / timeBucketMs) * timeBucketMs;
 
+type ProcessTextRule =
+  | {
+      readonly kind: "regex";
+      readonly matcher: RegExp;
+      readonly replace: RegexReplacement;
+    }
+  | {
+      readonly kind: "literal";
+      readonly pattern: string;
+      readonly replacement: string;
+    };
+
+/** Compile one ordered policy for both bounded retention and unrestricted text. */
+const createProcessTextRules = (
+  scenario: ProcessScenario,
+  temporaryRoot: string,
+  pid: number | (() => number),
+): (() => readonly (ProcessTextRule | undefined)[]) => {
+  const rules: (ProcessTextRule | undefined)[] = [];
+  const pathRule = scenario.normalization.paths
+    ? createPathRule(scenario, temporaryRoot)
+    : undefined;
+  if (pathRule !== undefined) rules.push({ kind: "regex", ...pathRule });
+  if (scenario.normalization.ports)
+    rules.push(
+      {
+        kind: "regex",
+        matcher: PORT_ENDPOINT_MATCHER,
+        replace: portEndpointReplacement,
+      },
+      {
+        kind: "regex",
+        matcher: PORT_FIELD_MATCHER,
+        replace: portFieldReplacement,
+      },
+    );
+  const pidIndex = rules.length;
+  if (scenario.normalization.pids) rules.push(undefined);
+  for (const pattern of scenario.normalization.patterns)
+    rules.push({ kind: "literal", ...pattern });
+  let previousPid: number | undefined;
+  return () => {
+    if (scenario.normalization.pids) {
+      const currentPid = typeof pid === "number" ? pid : pid();
+      if (currentPid !== previousPid) {
+        previousPid = currentPid;
+        const matcher = createPidMatcher([currentPid]);
+        rules[pidIndex] =
+          matcher === undefined
+            ? undefined
+            : { kind: "regex", matcher, replace: () => "<pid>" };
+      }
+    }
+    return rules;
+  };
+};
+
 /** Prepare capture-local matchers while retaining a live terminal PID lookup. */
 export const createProcessTextNormalizer = (
   scenario: ProcessScenario,
   temporaryRoot: string,
   pid: number | (() => number),
 ): ((value: string) => string) => {
-  const normalizePaths = scenario.normalization.paths
-    ? createPathNormalizer(scenario, temporaryRoot)
-    : (value: string): string => value;
-  let previousPid: number | undefined;
-  let normalizePids = (value: string): string => value;
+  const rules = createProcessTextRules(scenario, temporaryRoot, pid);
   return (value) => {
-    let normalized = normalizePaths(value);
-    if (scenario.normalization.ports)
-      normalized = normalizePortTokens(normalized);
-    if (scenario.normalization.pids) {
-      const currentPid = typeof pid === "number" ? pid : pid();
-      if (currentPid !== previousPid) {
-        previousPid = currentPid;
-        normalizePids = createPidNormalizer([currentPid]);
-      }
-      normalized = normalizePids(normalized);
+    let normalized = value;
+    for (const rule of rules()) {
+      if (rule === undefined) continue;
+      normalized =
+        rule.kind === "regex"
+          ? normalized.replace(rule.matcher, rule.replace)
+          : normalized.replaceAll(rule.pattern, () => rule.replacement);
     }
-    for (const pattern of scenario.normalization.patterns)
-      normalized = normalized.replaceAll(
-        pattern.pattern,
-        () => pattern.replacement,
-      );
     return normalized;
   };
 };
@@ -206,73 +251,34 @@ export const createBoundedProcessTextNormalizer = (
   temporaryRoot: string,
   pid: number | (() => number),
 ): ((value: string, maxBytes: number) => BoundedProcessTextNormalization) => {
-  const pathRule = scenario.normalization.paths
-    ? createPathRule(scenario, temporaryRoot)
-    : undefined;
-  let previousPid: number | undefined;
-  let pidMatcher: RegExp | undefined;
+  const rules = createProcessTextRules(scenario, temporaryRoot, pid);
   return (value, maxBytes) => {
     let normalized = value;
-    const apply = (result: BoundedStageResult): boolean => {
-      if (result.state === "over_budget") return false;
-      if (result.state === "bounded") normalized = result.value;
-      return true;
-    };
-    if (pathRule !== undefined) {
-      if (
-        !apply(
-          boundedRegexReplace(
-            normalized,
-            pathRule.matcher,
-            pathRule.replace,
-            maxBytes,
-          ),
-        )
-      )
-        return { state: "over_budget" };
-    }
-    if (scenario.normalization.ports) {
-      if (!apply(normalizePortsBounded(normalized, maxBytes)))
-        return { state: "over_budget" };
-    }
-    if (scenario.normalization.pids) {
-      const currentPid = typeof pid === "number" ? pid : pid();
-      if (currentPid !== previousPid) {
-        previousPid = currentPid;
-        pidMatcher = createPidMatcher([currentPid]);
-      }
-      if (pidMatcher !== undefined) {
-        if (
-          !apply(
-            boundedRegexReplace(
+    for (const rule of rules()) {
+      if (rule === undefined) continue;
+      const result =
+        rule.kind === "regex"
+          ? boundedRegexReplace(
               normalized,
-              pidMatcher,
-              () => "<pid>",
+              rule.matcher,
+              rule.replace,
               maxBytes,
-            ),
-          )
-        )
-          return { state: "over_budget" };
-      }
+            )
+          : boundedLiteralReplace(
+              normalized,
+              rule.pattern,
+              rule.replacement,
+              maxBytes,
+            );
+      if (result.state === "over_budget") return result;
+      normalized = result.value;
     }
-    for (const pattern of scenario.normalization.patterns) {
-      if (
-        !apply(
-          boundedLiteralReplace(
-            normalized,
-            pattern.pattern,
-            pattern.replacement,
-            maxBytes,
-          ),
-        )
-      )
-        return { state: "over_budget" };
-    }
-    return boundedIdentity(normalized, maxBytes).state === "bounded"
+    const identity = boundedIdentity(normalized, maxBytes);
+    return identity.state === "bounded"
       ? {
           state: "normalized",
-          value: normalized,
-          utf8Bytes: Buffer.byteLength(normalized),
+          value: identity.value,
+          utf8Bytes: identity.utf8Bytes,
         }
       : { state: "over_budget" };
   };
@@ -327,26 +333,9 @@ const createPathRule = (
   };
 };
 
-const createPathNormalizer = (
-  scenario: ProcessScenario,
-  temporaryRoot: string,
-): ((value: string) => string) => {
-  const rule = createPathRule(scenario, temporaryRoot);
-  if (rule === undefined) return (value) => value;
-  return (value) => value.replace(rule.matcher, rule.replace);
-};
-
 // A port may end a sentence, but a period followed by a letter, digit, or
-// underscore in any script continues a decimal, version, or host name and is
-// not a port boundary.
-// PTY chunks are normalized independently, so a period that ends the chunk
-// stays unnormalized: its continuation may arrive in the next chunk.
-const normalizePortTokens = (value: string): string => {
-  return value
-    .replaceAll(PORT_ENDPOINT_MATCHER, portEndpointReplacement)
-    .replaceAll(PORT_FIELD_MATCHER, portFieldReplacement);
-};
-
+// underscore continues a decimal, version, or host name. A period ending a PTY
+// chunk stays unnormalized because its continuation may arrive in the next one.
 const PORT_ENDPOINT_MATCHER =
   /(\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#"'<>]+|\blocalhost|\b(?:\d{1,3}\.){3}\d{1,3}|\[[\da-f:.%]+\]):(\d{1,5})(?![\p{L}\p{N}_@:]|\.(?:[\p{L}\p{N}_]|$))/giu;
 const PORT_FIELD_MATCHER =
@@ -363,26 +352,6 @@ const portEndpointReplacement: RegexReplacement = (match, endpoint, port) => {
 
 const portFieldReplacement: RegexReplacement = (match, prefix, port) =>
   Number(port) <= 65_535 ? `${prefix}<port>` : match;
-
-const normalizePortsBounded = (
-  value: string,
-  maxBytes: number,
-): BoundedStageResult => {
-  const endpoint = boundedRegexReplace(
-    value,
-    PORT_ENDPOINT_MATCHER,
-    portEndpointReplacement,
-    maxBytes,
-  );
-  if (endpoint.state === "over_budget") return endpoint;
-  const afterEndpoint = endpoint.state === "bounded" ? endpoint.value : value;
-  return boundedRegexReplace(
-    afterEndpoint,
-    PORT_FIELD_MATCHER,
-    portFieldReplacement,
-    maxBytes,
-  );
-};
 
 /** Project sampled observations under the caller-selected normalization rules. */
 export const normalizeProcessSamples = (

@@ -136,7 +136,7 @@ export const processComparisonContract = (
     ? { path_normalization_version: "path-component-boundaries-v2" }
     : {}),
   ...(scenario.normalization.ports
-    ? { port_normalization_version: "contextual-endpoints-v2" }
+    ? { port_normalization_version: "contextual-endpoints-v3" }
     : {}),
   ...(scenario.normalization.patterns.length > 0
     ? { pattern_normalization_version: "literal-replacements-v1" }

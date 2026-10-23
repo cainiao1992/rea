@@ -538,3 +538,35 @@ it("does not give a selected executable identity to a sibling filename", () => {
     "<working-directory>/original/tool-helper <working-directory>/original/tool, <executable>",
   );
 });
+
+it.each([
+  "http://localhost:8080/ready",
+  "port=8080",
+  "http://localhost:8080/ready port=8080",
+  "/workspace/child http://localhost:8080/ready pid=41010 marker",
+])("keeps every ordered bounded stage for %s", (input) => {
+  for (const enabled of [true, false]) {
+    const settings = scenario({
+      paths: enabled,
+      ports: enabled,
+      pids: enabled,
+      patterns: enabled ? [{ pattern: "marker", replacement: "selected" }] : [],
+    });
+    const expected = createProcessTextNormalizer(
+      settings,
+      "/temporary",
+      rootPid,
+    )(input);
+    expect(
+      createBoundedProcessTextNormalizer(
+        settings,
+        "/temporary",
+        rootPid,
+      )(input, 4096),
+    ).toEqual({
+      state: "normalized",
+      value: expected,
+      utf8Bytes: Buffer.byteLength(expected),
+    });
+  }
+});

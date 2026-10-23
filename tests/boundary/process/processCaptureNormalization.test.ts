@@ -93,7 +93,7 @@ itWithCaptureCapability(
       ),
     ).toBe(true);
     expect(capture.manifest.comparison_contract).toMatchObject({
-      port_normalization_version: "contextual-endpoints-v2",
+      port_normalization_version: "contextual-endpoints-v3",
       rendered_line_format: "trailing-spaces-trimmed-v1",
     });
     expect(capture.manifest.comparison_contract).not.toHaveProperty(

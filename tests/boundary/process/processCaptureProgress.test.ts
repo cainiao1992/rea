@@ -273,7 +273,10 @@ itWithCaptureCapability(
     expect(Math.max(...elapsed) - Math.min(...elapsed)).toBeGreaterThanOrEqual(
       1_000,
     );
-    expect(running.every(({ details }) => details.frames <= 2)).toBe(true);
+    expect(
+      running.every(({ details }) => details.frames <= 2),
+      `running progress details: ${JSON.stringify(running.map(({ details }) => details))}`,
+    ).toBe(true);
     expect(updates.at(-1)).toMatchObject({
       phase: "cleanup",
       terminal: true,

@@ -161,6 +161,9 @@ providers need not expose identical state machines.
   Shared command owners must retain the observed cancellation reason separately
   from physical failures and cleanup ownership. Carry that fact through failure
   wrapping so adapters can preserve the exact reason without interpreting it.
+  ZIP member streams retain the exact signal reason; hdiutil wrappers consume
+  the command owner's typed cancellation record and keep physical command
+  failures separate, even if a host error is named `AbortError`.
   Client cancellation alone does not prove native work stopped.
   For atomic publication, document the cancellation cutoff and preserve any
   committed output's publication receipt.

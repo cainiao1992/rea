@@ -19,6 +19,7 @@ import {
 } from "../filesystem/RegularFile.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import {
+  ExecFileOutputCancelledError,
   execFileOutput,
   execFileOutputFailure,
 } from "../process/ExecFileOutput.js";
@@ -73,6 +74,7 @@ class NativeDmgCommandFailure extends ArtifactReaderFailure {
     readonly stdout: string,
     options?: {
       readonly cause?: unknown;
+      readonly cancellation?: { readonly reason: unknown };
       readonly processNotStarted?: boolean;
       readonly exitCode?: number;
     },
@@ -80,7 +82,14 @@ class NativeDmgCommandFailure extends ArtifactReaderFailure {
     super(
       failure.reason,
       message,
-      options?.cause === undefined ? undefined : { cause: options.cause },
+      options === undefined
+        ? undefined
+        : {
+            ...(options.cause === undefined ? {} : { cause: options.cause }),
+            ...(options.cancellation === undefined
+              ? {}
+              : { cancellation: options.cancellation }),
+          },
     );
     this.processNotStarted = options?.processNotStarted ?? false;
     this.verifyDiagnostic = failure.verifyDiagnostic;
@@ -108,12 +117,12 @@ const createSystemHost = (
       return { stdout, stderr, exitCode: 0 };
     } catch (cause: unknown) {
       const output = execFileOutputFailure(cause);
-      if (cause instanceof Error && cause.name === "AbortError")
+      if (cause instanceof ExecFileOutputCancelledError)
         throw new NativeDmgCommandFailure(
           { reason: "cancelled" },
           "DMG operation cancelled",
           output?.stdout ?? "",
-          { cause },
+          { cause, cancellation: { reason: cause.cause } },
         );
       const exitCode =
         typeof output?.code === "number" ? output.code : processExitCode(cause);
@@ -665,12 +674,12 @@ const runChecked = async (
     result = await host.run(arguments_, signal, options);
   } catch (cause: unknown) {
     if (cause instanceof ArtifactReaderFailure) throw cause;
-    if (cause instanceof Error && cause.name === "AbortError")
+    if (cause instanceof ExecFileOutputCancelledError)
       throw new NativeDmgCommandFailure(
         { reason: "cancelled" },
         "DMG operation cancelled",
         execFileOutputFailure(cause)?.stdout ?? "",
-        { cause },
+        { cause, cancellation: { reason: cause.cause } },
       );
     const output = execFileOutputFailure(cause);
     throw new NativeDmgCommandFailure(

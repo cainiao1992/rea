@@ -1,3 +1,5 @@
+import { ExecFileOutputCancelledError } from "../process/ExecFileOutput.js";
+import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { build } from "plist";
 import { expect, it } from "vitest";
 import {
@@ -43,4 +45,42 @@ it("retains malformed successful hdiutil inventory output as a typed producer pa
       detail: "hdiutil info -plist returned malformed image inventory",
     },
   });
+});
+
+it("uses the typed command cancellation owner for injected hosts and preserves physical AbortError names", async () => {
+  for (const cancelled of [true, false]) {
+    const reason = { requested: "stop injected verify" };
+    const physical = Object.assign(new Error("physical host failure"), {
+      name: "AbortError",
+      code: "EIO",
+    });
+    const failureCause = cancelled
+      ? new ExecFileOutputCancelledError(reason)
+      : physical;
+    const reader = new NativeDmgArtifactReader(
+      "/fixture/image.dmg",
+      {},
+      {
+        run: async () => {
+          throw failureCause;
+        },
+      },
+    );
+    try {
+      const result = (async () => {
+        for await (const _entry of reader.entries()) {
+          /* consume */
+        }
+      })();
+      const failure: unknown = await result.catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(ArtifactReaderFailure);
+      if (!(failure instanceof ArtifactReaderFailure))
+        throw new Error("Expected typed failure");
+      expect(failure.reason).toBe(cancelled ? "cancelled" : "io");
+      expect(failure.cause).toBe(failureCause);
+      expect(failure.cancellation?.reason).toBe(cancelled ? reason : undefined);
+    } finally {
+      await reader.close();
+    }
+  }
 });

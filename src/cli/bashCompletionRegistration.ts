@@ -16,12 +16,13 @@ export const bashCompletionScript = (name: string): string => {
         return
     fi
     local _nospace=false
+    local _nospace_marker=$'\\001'
     local _c
     COMPREPLY=()
     for _c in "\${_completions[@]}"; do
-        if [[ "$_c" == *$'\\001' ]]; then
+        if [[ "$_c" == *"$_nospace_marker" ]]; then
             _nospace=true
-            COMPREPLY+=("\${_c%$'\\001'}")
+            COMPREPLY+=("\${_c%"$_nospace_marker"}")
         else
             COMPREPLY+=("$_c")
         fi

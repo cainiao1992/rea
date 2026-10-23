@@ -21,8 +21,44 @@ import { ManagedStaticProvider } from "../../../src/dotnet/ManagedStaticProvider
 import { createServer } from "../../../src/server/createServer.js";
 import { buildManagedPeFixture } from "../../../src/dotnet/ManagedPe.fixture.js";
 import { elf } from "../../../src/domain/binaryTarget.fixture.js";
+import { managedMemberInspectionSchema } from "../../../src/domain/managed/managedArtifact.js";
 
 type ManagedOutputAssertion = Awaited<ReturnType<typeof createOutputAssertion>>;
+
+const fieldTokenFixture = (): Buffer => {
+  const il = Buffer.from([0xd0, 1, 0, 0, 0x0a, 0x26, 0x2a]);
+  return buildManagedPeFixture({
+    targetFramework: null,
+    memberRefName: "Counter",
+    memberRefParentRaw: 8,
+    memberRefSignature: Buffer.from([0x06, 0x08]),
+    ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+  });
+};
+
+const assertFieldMemberRefToken = async (
+  client: Client,
+  path: string,
+): Promise<void> => {
+  const fieldToken = structured(
+    await client.callTool({
+      name: "inspect_managed_members",
+      arguments: { path },
+    }),
+  );
+  const inspection = managedMemberInspectionSchema.parse(
+    fieldToken.normalized_result,
+  );
+  expect(inspection.member_refs[0]?.signature).toMatchObject({
+    kind: "field",
+    parse_status: "decoded",
+  });
+  expect(inspection.methods[0]?.body.anchors[0]).toMatchObject({
+    opcode: "ldtoken",
+    operand_kind: "field",
+    operand: "0x0a000001",
+  });
+};
 
 it("runs every managed static inspection independently of an active native target", async () => {
   const directory = await createTestTempDirectory(
@@ -31,6 +67,7 @@ it("runs every managed static inspection independently of an active native targe
   const path = join(directory, "fixture.dll");
   const otherPath = join(directory, "other-fixture.dll");
   const partialPath = join(directory, "partial-method.dll");
+  const fieldTokenPath = join(directory, "field-token.dll");
   await writeFile(path, buildManagedPeFixture());
   await writeFile(otherPath, buildManagedPeFixture({ methodName: "Other" }));
   await writeFile(
@@ -40,6 +77,7 @@ it("runs every managed static inspection independently of an active native targe
       ilBody: Buffer.from([0x06, 0x2a]),
     }),
   );
+  await writeFile(fieldTokenPath, fieldTokenFixture());
   const session = composeBinarySession(new AnalysisProviderRegistry([]), [
     new ManagedStaticProvider(),
   ]);
@@ -161,6 +199,7 @@ it("runs every managed static inspection independently of an active native targe
         coverage: { state: "partial" },
       },
     });
+    await assertFieldMemberRefToken(client, fieldTokenPath);
   } finally {
     await Promise.all([client.close(), server.close()]);
     await session.close();

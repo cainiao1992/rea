@@ -9,8 +9,15 @@ import {
   parseExceptionRegions,
 } from "./ManagedMemberInstructionDecoder.js";
 import { validateExceptionRegionRanges } from "./ManagedExceptionRegionValidation.js";
-import { sha256Bytes } from "./ManagedMetadataHeaps.js";
+import {
+  metadataRowCursor,
+  readMetadataBlob,
+  sha256Bytes,
+} from "./ManagedMetadataHeaps.js";
+import { validateLocalSignature } from "./ManagedMemberInspectorCore.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
+import type { ManagedMetadataLayout } from "./ManagedMetadataLayout.js";
+import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 
 const bodyStatus = (
   decodedIssue: string | null,
@@ -66,34 +73,51 @@ const readMethodBodyHeader = (
   };
 };
 
+export interface MethodBodyContext {
+  readonly implementation: {
+    readonly implFlags: number;
+    readonly flags: number;
+  };
+  readonly budget: ManagedDecodeBudget;
+  readonly metadataLayout: ManagedMetadataLayout;
+  readonly methodToken: string;
+  readonly memberRefKinds: ReadonlyMap<string, "field" | "method">;
+}
+
 /** Decode admitted managed CIL, retaining unavailable implementation metadata as partial. */
 export const methodBody = (
   bytes: Buffer,
   pe: ManagedPeLayout,
   rva: number,
-  implementation: { readonly implFlags: number; readonly flags: number } = {
-    implFlags: 0,
-    flags: 0,
-  },
-  budget?: ManagedDecodeBudget,
+  context: MethodBodyContext,
 ): {
   readonly body: ManagedMethodBody;
+  readonly issues: readonly ManagedParseIssue[];
   /**
    * Whether every CIL instruction was decoded, independent of exception-region
    * validity. A body with no CIL, absent or native, has nothing left unscanned.
    */
   readonly scanned: boolean;
 } => {
+  const issues: ManagedParseIssue[] = [];
   // Without CIL there is nothing left unscanned.
   if (rva === 0)
-    return { body: emptyMethodBody(rva, "absent", null), scanned: true };
+    return {
+      body: emptyMethodBody(rva, "absent", null),
+      scanned: true,
+      issues,
+    };
   const native =
-    (implementation.implFlags & 7) !== 0 ||
-    (implementation.flags & 0x2000) !== 0;
+    (context.implementation.implFlags & 7) !== 0 ||
+    (context.implementation.flags & 0x2000) !== 0;
   if (native) {
     const issue =
       "CIL decoding is unavailable for native, runtime, unmanaged, or P/Invoke implementations";
-    return { body: emptyMethodBody(rva, "partial", issue), scanned: true };
+    return {
+      body: emptyMethodBody(rva, "partial", issue),
+      scanned: true,
+      issues,
+    };
   }
   try {
     const offset = pe.rvaToOffset(rva, 1, "method.body");
@@ -113,9 +137,8 @@ export const methodBody = (
     // separate instruction for every byte. Retained output is charged below.
     const decoded = decodeInstructions(
       il,
-      budget === undefined
-        ? undefined
-        : (start) => budget.admitTransient(256, ilOffset + start),
+      (start) => context.budget.admitTransient(256, ilOffset + start),
+      (token) => context.memberRefKinds.get(token),
     );
     const opcodeCounts: Record<string, number> = {};
     for (const instruction of decoded.parsed)
@@ -148,17 +171,75 @@ export const methodBody = (
               bytes,
               sectionOffset,
               offset + methodExtent,
-              budget,
+              context.budget,
             ),
             header.ilSize,
             decoded.instructionStarts,
           )
         : null;
-    const status = bodyStatus(
-      decoded.issue,
-      decoded.truncated,
-      exceptionRegions,
-    );
+    let localSigIssue: string | null = null;
+    let localSigFailure: "malformed" | "partial" | null = null;
+    if (header.localSig !== 0) {
+      const table = header.localSig >>> 24;
+      const row = header.localSig & 0x00ff_ffff;
+      const rows = context.metadataLayout.table(17)?.rowCount ?? 0;
+      if (table !== 17 || row === 0 || row > rows) {
+        localSigIssue = `LocalVarSigTok 0x${header.localSig.toString(16).padStart(8, "0")} does not name an existing StandAloneSig row`;
+        localSigFailure = "malformed";
+        issues.push({
+          code: "invalid-row",
+          scope: `MethodDef:${context.methodToken}.body.local_var_sig_token`,
+          offset: offset + 8,
+          detail: localSigIssue,
+        });
+      } else {
+        const signatureScope = `metadata.StandAloneSig:0x${header.localSig.toString(16).padStart(8, "0")}.signature`;
+        try {
+          const cursor = metadataRowCursor(
+            bytes,
+            context.metadataLayout,
+            17,
+            row,
+          );
+          const blob = readMetadataBlob(
+            bytes,
+            context.metadataLayout,
+            cursor.readIndex(context.metadataLayout.blobIndexSize),
+            context.metadataLayout.blob.size,
+          );
+          const signatureIssue = validateLocalSignature(
+            context.metadataLayout,
+            blob,
+            {
+              scope: signatureScope,
+              blobOffset: blob.byteOffset - bytes.byteOffset,
+            },
+            context.budget,
+          );
+          if (signatureIssue !== null) {
+            localSigIssue = signatureIssue.detail;
+            localSigFailure =
+              signatureIssue.code === "unsupported-signature"
+                ? "partial"
+                : "malformed";
+            issues.push(signatureIssue);
+          }
+        } catch (cause: unknown) {
+          if (
+            cause instanceof ManagedReaderFailure &&
+            cause.issue.code === "resource-limit"
+          )
+            throw cause;
+          if (!(cause instanceof ManagedReaderFailure)) throw cause;
+          localSigIssue = cause.issue.detail;
+          localSigFailure = "malformed";
+          issues.push({ ...cause.issue, scope: signatureScope });
+        }
+      }
+    }
+    const status =
+      localSigFailure ??
+      bodyStatus(decoded.issue, decoded.truncated, exceptionRegions);
     const body: ManagedMethodBody = {
       status,
       header_format: header.format,
@@ -181,6 +262,7 @@ export const methodBody = (
       anchors,
       exception_regions: exceptionRegions?.regions ?? [],
       issue:
+        localSigIssue ??
         decoded.issue ??
         (exceptionRegions?.status === "malformed"
           ? exceptionRegions.issue
@@ -190,8 +272,9 @@ export const methodBody = (
           : null),
     };
     return {
-      body: budget === undefined ? body : admitManagedProjection(body, budget),
+      body: admitManagedProjection(body, context.budget),
       scanned: decoded.issue === null && decoded.truncated === 0,
+      issues,
     };
   } catch (cause: unknown) {
     if (
@@ -211,10 +294,11 @@ export const methodBody = (
         cause instanceof Error ? cause.message : "Method body parse failed",
       ),
       scanned: false,
+      issues,
     };
   } finally {
     // IL and exception-section bookkeeping coexist until the body is built.
-    budget?.releaseTransient();
+    context.budget.releaseTransient();
   }
 };
 

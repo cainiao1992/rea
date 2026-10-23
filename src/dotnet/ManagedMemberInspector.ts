@@ -283,6 +283,14 @@ export const inspectManagedMembersBytes = (
       pe,
       ranges,
       signatureTypeName,
+      memberRefKinds: new Map(
+        memberRefs.refs.flatMap((memberRef) =>
+          memberRef.signature.kind === "field" ||
+          memberRef.signature.kind === "method"
+            ? [[memberRef.token, memberRef.signature.kind] as const]
+            : [],
+        ),
+      ),
       memberLists,
       selected,
       methodOffset,

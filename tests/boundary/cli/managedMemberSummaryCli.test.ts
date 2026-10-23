@@ -84,6 +84,39 @@ cliTest(
 );
 
 cliTest(
+  "classifies a field MemberRef loaded by ldtoken in the CLI inspection",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-managed-ldtoken-cli-");
+    const path = join(root, "field-token.dll");
+    const il = Buffer.from([0xd0, 1, 0, 0, 0x0a, 0x26, 0x2a]);
+    await writeFile(
+      path,
+      buildManagedPeFixture({
+        targetFramework: null,
+        memberRefName: "Counter",
+        memberRefParentRaw: 8,
+        memberRefSignature: Buffer.from([0x06, 0x08]),
+        ilBody: Buffer.concat([Buffer.from([(il.length << 2) | 2]), il]),
+      }),
+    );
+    const inspected = await cli.run({
+      arguments: ["inspect-managed-members", path, "--json"],
+    });
+    expect(inspected.exitCode).toBe(0);
+    const evidence = parseEvidence(inspected.json);
+    const result = managedMemberInspectionSchema.parse(
+      evidence.normalized_result,
+    );
+    expect(result.member_refs[0]?.signature.kind).toBe("field");
+    expect(result.methods[0]?.body.anchors[0]).toMatchObject({
+      opcode: "ldtoken",
+      operand_kind: "field",
+      operand: "0x0a000001",
+    });
+  },
+);
+
+cliTest(
   "retains complete member Evidence for exact CLI pages after process exit and target removal",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-member-summary-cli-");
@@ -368,6 +401,39 @@ cliTest(
     );
     expect(summary.summary.coverage).toEqual(report.coverage);
     expect(summary.limitations).toEqual(report.limitations);
+  },
+);
+
+cliTest(
+  "preserves decoded CIL and reports invalid LocalVarSigTok through CLI Evidence",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-member-locals-token-");
+    const path = join(root, "fixture.dll");
+    const body = Buffer.alloc(13);
+    body.writeUInt16LE(0x3003, 0);
+    body.writeUInt16LE(8, 2);
+    body.writeUInt32LE(1, 4);
+    body.writeUInt32LE(0x06000001, 8);
+    body[12] = 0x2a;
+    await writeFile(path, buildManagedPeFixture({ ilBody: body }));
+
+    const result = await cli.run({
+      arguments: ["inspect-managed-members", path, "--json"],
+    });
+    expect(result.exitCode).toBe(0);
+    const evidence = parseEvidence(result.json);
+    const inspection = managedMemberInspectionSchema.parse(
+      evidence.normalized_result,
+    );
+    expect(inspection.methods[0]?.body).toMatchObject({
+      status: "malformed",
+      local_var_sig_token: "0x06000001",
+      anchors: [expect.objectContaining({ opcode: "ret" })],
+    });
+    expect(inspection.coverage).toMatchObject({
+      state: "partial",
+      issues: [expect.objectContaining({ code: "invalid-row" })],
+    });
   },
 );
 

@@ -73,10 +73,16 @@ const methodDimensions = (
       right.body[field] !== null &&
       left.body[field] !== right.body[field],
   );
+  const localsPresenceChanged =
+    left.body.status === "present" &&
+    right.body.status === "present" &&
+    (left.body.local_var_sig_token !== null) !==
+      (right.body.local_var_sig_token !== null);
   if (
     left.flags !== right.flags ||
     left.impl_flags !== right.impl_flags ||
-    headerChanged
+    headerChanged ||
+    localsPresenceChanged
   )
     dimensions.push("metadata");
   if (signatureIdentity(left.signature) !== signatureIdentity(right.signature))

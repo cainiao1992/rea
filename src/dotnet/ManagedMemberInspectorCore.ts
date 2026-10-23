@@ -9,7 +9,10 @@ import type {
   ManagedMemberInspection,
   ManagedParseIssue,
 } from "../domain/managed/managedArtifact.js";
-import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
+import {
+  managedDecodeBudget,
+  type ManagedDecodeBudget,
+} from "./ManagedDecodeBudget.js";
 import {
   readManagedTypeNesting,
   type ManagedTypeNesting,
@@ -455,7 +458,13 @@ const arrayShape = (
 };
 
 /** Grammar position of the element being decoded (ECMA-335 II.23.2). */
-type SignaturePosition = "field" | "return" | "parameter" | "type" | "pointee";
+type SignaturePosition =
+  | "field"
+  | "local"
+  | "return"
+  | "parameter"
+  | "type"
+  | "pointee";
 
 // Custom modifiers do not change the position they precede.
 const currentPosition = (
@@ -470,13 +479,13 @@ const currentPosition = (
   return "type";
 };
 
-// VOID is a RetType or a pointee; TYPEDBYREF is a RetType or Param; BYREF
-// prefixes a RetType, Param, or (since ref fields) a field type.
+// VOID is a RetType or a pointee; TYPEDBYREF is a RetType, Param, or local;
+// BYREF prefixes a RetType, Param, local, or (since ref fields) a field type.
 const POSITION_ELEMENTS: ReadonlyMap<number, readonly SignaturePosition[]> =
   new Map([
     [0x01, ["return", "pointee"]],
-    [0x16, ["return", "parameter"]],
-    [0x10, ["return", "parameter", "field"]],
+    [0x16, ["return", "parameter", "local"]],
+    [0x10, ["return", "parameter", "local", "field"]],
   ]);
 
 /** Decode a type operand once; spec callers also validate its metadata coordinate. */
@@ -531,6 +540,7 @@ const readTypeSignature = (
 ): { readonly value: string; readonly next: number } => {
   const stack: TypeContinuation[] = [];
   let cursor = offset;
+  let pinned = false;
   for (;;) {
     let value: string | undefined;
     const kind = blob[cursor];
@@ -545,6 +555,26 @@ const readTypeSignature = (
         `element type 0x${kind.toString(16)} is not valid in a ${currentPosition(stack, base)} position`,
         cursor,
       );
+    if (kind === 0x45) {
+      if (base !== "local")
+        throw managedFailure(
+          "unsupported-signature",
+          "signature",
+          "unsupported element type 0x45",
+          cursor,
+        );
+      if (
+        pinned ||
+        stack.some(({ kind: frameKind }) => frameKind !== "modifiers")
+      )
+        return malformedSignature(
+          "PINNED is not valid in this type position",
+          cursor,
+        );
+      pinned = true;
+      cursor += 1;
+      continue;
+    }
     const named = ELEMENT_TYPES.get(kind);
     if (named !== undefined) {
       value = named;
@@ -554,6 +584,11 @@ const readTypeSignature = (
       stack.push({ kind: "suffix", suffix });
       cursor += 1;
     } else if (kind === 0x1f || kind === 0x20) {
+      if (pinned && currentPosition(stack, base) === "local")
+        return malformedSignature(
+          "custom modifier follows the LocalVarSig PINNED constraint",
+          cursor,
+        );
       const token = readTypeOperand(blob, cursor + 1, layout);
       operands?.push({ offset: cursor + 1, ...token });
       const modifier = `${kind === 0x1f ? "modreq" : "modopt"}:${String(token.value)}`;
@@ -573,6 +608,11 @@ const readTypeSignature = (
       value = `${kind === 0x1e ? "mvar" : "var"}:${String(variable.value)}`;
       cursor = variable.next;
     } else if (kind === 0x16) {
+      if (pinned && currentPosition(stack, base) === "local")
+        return malformedSignature(
+          "TYPEDBYREF cannot have a LocalVarSig PINNED constraint",
+          cursor,
+        );
       value = "typedbyref";
       cursor += 1;
     } else if (kind === 0x14) {
@@ -650,6 +690,53 @@ const readTypeSignature = (
         }
       }
     }
+  }
+};
+
+/** Validate a StandAloneSig LocalVarSig without projecting local type identities. */
+export const validateLocalSignature = (
+  layout: ManagedMetadataLayout,
+  blob: Buffer,
+  {
+    scope,
+    blobOffset,
+  }: { readonly scope: string; readonly blobOffset: number },
+  budget: ManagedDecodeBudget,
+): ManagedParseIssue | null => {
+  budget.admitTransient(blob.length * 256, blobOffset);
+  try {
+    if (blob[0] !== 0x07)
+      malformedSignature("StandAloneSig row does not contain a LocalVarSig", 0);
+    const count = readCompressed(blob, 1);
+    if (count.value === 0 || count.value > 0xfffe)
+      malformedSignature(
+        `LocalVarSig local count ${String(count.value)} is outside the ECMA-335 range`,
+        1,
+      );
+    let cursor = count.next;
+    for (let index = 0; index < count.value; index += 1) {
+      const local = readTypeSignature(blob, cursor, "local", { layout });
+      cursor = local.next;
+    }
+    if (cursor !== blob.length)
+      malformedSignature("Trailing LocalVarSig data", cursor);
+    return null;
+  } catch (cause: unknown) {
+    if (
+      !(cause instanceof ManagedReaderFailure) ||
+      (cause.issue.code !== "invalid-blob" &&
+        cause.issue.code !== "invalid-row" &&
+        cause.issue.code !== "unsupported-signature")
+    )
+      throw cause;
+    return {
+      ...cause.issue,
+      scope,
+      offset:
+        cause.issue.offset === null
+          ? blobOffset
+          : blobOffset + cause.issue.offset,
+    };
   }
 };
 
@@ -745,8 +832,12 @@ type DecodedSignature = Omit<
  */
 const decodeSignature = (
   blob: Buffer,
+  layout?: ManagedMetadataLayout,
   operands: TypeOperand[] = [],
+  issueSink?: (issue: ManagedParseIssue) => void,
+  scope = "signature",
 ): DecodedSignature => {
+  let kind: DecodedSignature["kind"] = "unknown";
   try {
     if (blob.length === 0)
       throw managedFailure("invalid-blob", "signature", "empty signature", 0);
@@ -754,7 +845,11 @@ const decodeSignature = (
     // FieldSig (II.23.2.4) is exactly FIELD; a flagged FIELD header is not a
     // method header either, so it is malformed below.
     if (first === 0x06) {
-      const fieldType = readTypeSignature(blob, 1, "field", { operands });
+      kind = "field";
+      const fieldType = readTypeSignature(blob, 1, "field", {
+        operands,
+        ...(layout === undefined ? {} : { layout }),
+      });
       return {
         kind: "field",
         parse_status: fieldType.next === blob.length ? "decoded" : "partial",
@@ -769,14 +864,17 @@ const decodeSignature = (
       };
     }
     const header = readMethodSignatureHeader(blob, 0, "member");
+    kind = "method";
     const returnType = readTypeSignature(blob, header.next, "return", {
       operands,
+      ...(layout === undefined ? {} : { layout }),
     });
     let offset = returnType.next;
     const parameters: string[] = [];
     for (let index = 0; index < header.parameterCount; index += 1) {
       const parameter = readTypeSignature(blob, offset, "parameter", {
         operands,
+        ...(layout === undefined ? {} : { layout }),
       });
       parameters.push(parameter.value);
       offset = parameter.next;
@@ -796,11 +894,14 @@ const decodeSignature = (
     if (!(cause instanceof ManagedReaderFailure)) throw cause;
     if (
       cause.issue.code !== "invalid-blob" &&
+      cause.issue.code !== "invalid-row" &&
       cause.issue.code !== "unsupported-signature"
     )
       throw cause;
+    if (cause.issue.code === "invalid-row")
+      issueSink?.({ ...cause.issue, scope });
     return {
-      kind: "unknown",
+      kind: cause.issue.code === "invalid-row" ? kind : "unknown",
       parse_status:
         cause.issue.code === "unsupported-signature"
           ? "unsupported"
@@ -883,20 +984,64 @@ const resolvedSha256 = (
   return hash.digest("hex");
 };
 
+const projectSignature = (
+  blob: Buffer,
+  rawSha256: string | undefined,
+  typeName: SignatureTypeName,
+  decoded: DecodedSignature,
+  operands: readonly TypeOperand[],
+): ManagedSignature => {
+  return {
+    raw_length: blob.length,
+    raw_sha256: rawSha256 ?? sha256Bytes(blob),
+    resolved_sha256:
+      decoded.kind === "unknown" || decoded.parse_status === "malformed"
+        ? null
+        : resolvedSha256(blob, operands, typeName),
+    ...decoded,
+  };
+};
+
+/** Standalone signature decoding used by tests and signature identity utilities. */
 export const signature = (
   blob: Buffer,
   rawSha256?: string,
   typeName: SignatureTypeName = () => null,
 ): ManagedSignature => {
   const operands: TypeOperand[] = [];
-  const decoded = decodeSignature(blob, operands);
-  return {
-    raw_length: blob.length,
-    raw_sha256: rawSha256 ?? sha256Bytes(blob),
-    resolved_sha256:
-      decoded.kind === "unknown"
-        ? null
-        : resolvedSha256(blob, operands, typeName),
-    ...decoded,
-  };
+  return projectSignature(
+    blob,
+    rawSha256,
+    typeName,
+    decodeSignature(blob, undefined, operands),
+    operands,
+  );
+};
+
+/** Decode a metadata-owned signature while validating referenced table rows. */
+export const metadataSignature = (
+  blob: Buffer,
+  {
+    rawSha256,
+    typeName,
+    layout,
+    issues,
+    scope,
+  }: {
+    readonly rawSha256: string;
+    readonly typeName: SignatureTypeName;
+    readonly layout: ManagedMetadataLayout;
+    readonly issues: ManagedParseIssue[];
+    readonly scope: string;
+  },
+): ManagedSignature => {
+  const operands: TypeOperand[] = [];
+  const decoded = decodeSignature(
+    blob,
+    layout,
+    operands,
+    (issue) => issues.push(issue),
+    scope,
+  );
+  return projectSignature(blob, rawSha256, typeName, decoded, operands);
 };

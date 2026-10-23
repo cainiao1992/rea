@@ -241,15 +241,13 @@ const OPCODES = new Map<
 ]);
 
 const tokenKind = (token: string): ManagedInstructionAnchor["operand_kind"] => {
-  if (
-    token.startsWith("0x06") ||
-    token.startsWith("0x0a") ||
-    token.startsWith("0x2b")
-  )
-    return "method";
+  if (token.startsWith("0x06") || token.startsWith("0x2b")) return "method";
   if (token.startsWith("0x04")) return "field";
   if (token.startsWith("0x70")) return "string";
   if (token.startsWith("0x11")) return "signature";
+  // MemberRef rows can name either fields or methods; the table alone cannot
+  // establish the kind. Callers with parsed metadata may supply that fact.
+  if (token.startsWith("0x0a")) return "token";
   if (
     token.startsWith("0x01") ||
     token.startsWith("0x02") ||
@@ -413,6 +411,7 @@ const readOperand = (
   il: Buffer,
   offset: number,
   kind: string,
+  memberRefKind?: (token: string) => "field" | "method" | undefined,
 ): OperandResult => {
   const fixedOperand = FIXED_OPERAND_READERS.get(kind);
   if (fixedOperand !== undefined) return fixedOperand.read(il, offset);
@@ -430,7 +429,10 @@ const readOperand = (
   const token = `0x${raw.toString(16).padStart(8, "0")}`;
   return {
     next: offset + TOKEN_OPERAND_WIDTH,
-    anchorKind: TOKEN_OPERAND_KINDS.get(kind) ?? tokenKind(token),
+    anchorKind:
+      TOKEN_OPERAND_KINDS.get(kind) ??
+      (kind === "token" ? memberRefKind?.(token) : undefined) ??
+      tokenKind(token),
     value: token,
   };
 };
@@ -438,6 +440,7 @@ const readOperand = (
 export const decodeInstructions = (
   il: Buffer,
   admitInstruction?: (offset: number) => void,
+  memberRefKind?: (token: string) => "field" | "method" | undefined,
 ): {
   readonly parsed: readonly ParsedInstruction[];
   readonly instructionStarts: readonly number[];
@@ -473,7 +476,12 @@ export const decodeInstructions = (
         issue = `Instruction ${descriptor.name} at IL offset ${String(start)} leaves method body`;
         break;
       }
-      const operand = readOperand(il, offset, descriptor.operand);
+      const operand = readOperand(
+        il,
+        offset,
+        descriptor.operand,
+        memberRefKind,
+      );
       // Charge each actual instruction before growing the decoded arrays.
       // A multi-byte operand must not consume a full record per raw IL byte.
       admitInstruction?.(start);

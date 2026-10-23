@@ -519,6 +519,19 @@ CLI `#GUID` heap values retain their exact 16-byte GUID text. REA does not impos
 RFC 4122 UUID version or variant bits on MVID, EncId, or EncBaseId because
 ECMA-335 metadata does not require those bit patterns. Tokens and RVAs are
 build-local coordinates, not durable cross-build identities or native addresses.
+Field and method signatures validate embedded TypeDefOrRefOrSpec operands
+against the artifact's metadata tables. An invalid operand leaves the member
+name and raw signature digest available while marking that signature malformed
+and coverage partial.
+A fat method header's nonzero LocalVarSigTok must name an existing StandAloneSig
+row whose blob is a structurally valid LocalVarSig. REA validates its local
+types and exact blob coverage but does not project their identities. An invalid
+token or malformed signature leaves decoded CIL anchors intact but marks the
+body malformed and coverage partial. Unsupported local type encodings retain
+the readable body with partial coverage. Zero continues to mean no locals
+signature. Comparison detects whether a locals declaration is present, but raw
+table tokens are not cross-build identities and local type contents are not
+compared.
 
 ## Decoded-CIL fingerprint
 
@@ -543,6 +556,10 @@ Tuple operands use these exact projections:
 - `switch`: the case count as a decimal string, without target offsets;
 - signed integer and variable operands: decimal strings; floating-point
   operands: JavaScript's `String` representation of the decoded IEEE value.
+
+For `ldtoken` MemberRef operands, `operand_kind` follows the parsed member
+signature (`field` or `method`); if that signature does not establish the kind,
+the anchor keeps the generic `token` classification.
 
 Opcode names retain short/long forms and prefix opcodes. This makes the value a
 reproducible decoded-tuple fingerprint, not a canonical semantic CIL identity:
@@ -712,6 +729,10 @@ Managed member comparisons report a `metadata` dimension when an observed
 MethodDef flags or implementation flags value differs, including accessibility
 or synchronization changes. Observed method-body `init_locals` and `max_stack`
 differences also contribute to `metadata`, even when CIL decoding is incomplete.
+For complete bodies, presence or absence of a locals signature also contributes;
+the locals table token is build-local and is not compared. Local type contents
+are not currently compared, so this facet does not establish equivalent locals
+declarations.
 An unavailable header value keeps body coverage unknown rather than establishing
 equality or a difference. These comparisons are separate from the CIL/signature
 matching tiers: identical instructions do not establish unchanged method metadata.

@@ -102,6 +102,44 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       expect(result.graph.limitations).toEqual(
         expect.arrayContaining([...inventory.limitations]),
       );
+      const unavailableScopes = result.graph.nodes
+        .filter(({ kind }) => kind === "unknown")
+        .flatMap(({ observations }) => observations)
+        .filter(
+          ({ properties }) =>
+            properties.path === "closed.js" &&
+            properties.operation === "analyze-javascript-source",
+        );
+      expect(unavailableScopes).toHaveLength(1);
+      expect(unavailableScopes[0]).toMatchObject({
+        properties: {
+          source_bytes_available: false,
+          inventory_occurrence_id: inventory.occurrences.find(
+            ({ logical_path }) => logical_path === "closed.js",
+          )?.occurrence_id,
+        },
+        evidence: {
+          authority: "ast-static-analysis",
+          state: "unavailable",
+          artifact: { available: true, sha256: result.root_artifact_sha256 },
+        },
+      });
+      const unavailableEntry = result.graph.nodes.find(
+        ({ identity }) =>
+          identity.strategy === "canonical-path" &&
+          identity.path === "closed.js",
+      );
+      expect(unavailableEntry).toMatchObject({
+        kind: "artifact",
+        observations: [
+          expect.objectContaining({
+            properties: expect.objectContaining({ content_available: false }),
+            evidence: expect.objectContaining({
+              operation: "inventory-unavailable-entry",
+            }),
+          }),
+        ],
+      });
       expect(
         result.semantic_graph.nodes.some(
           ({ identity }) => identity.module_path === "good.js",

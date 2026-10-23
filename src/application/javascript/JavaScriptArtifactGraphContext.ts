@@ -216,7 +216,10 @@ export interface RoleAssetLinkInput {
 
 /** An explicit processing/selection gap with the applicable phase's authority. */
 export interface UnavailableParseInput {
-  readonly file: JavaScriptArtifactFile;
+  /** Missing source bytes are anchored to their observed inventory container. */
+  readonly file: Pick<JavaScriptArtifactFile, "path" | "container_sha256"> & {
+    readonly sha256: string | null;
+  };
   readonly asset: ApplicationNode;
   readonly operation: string;
   readonly authority: JavaScriptArtifactAnalysisScope["authority"];
@@ -319,10 +322,11 @@ export const addUnavailableStaticParseScope = (
   context: JavaScriptArtifactGraphContext,
   input: UnavailableParseInput,
 ): void => {
+  const artifactSha256 = input.file.sha256 ?? input.file.container_sha256;
   const node = context.accumulator.addNode({
     kind: "unknown",
     identity: artifactLocalIdentity(
-      input.file.sha256,
+      artifactSha256,
       "static-parse-scope",
       `${input.operation}:${input.file.path}`,
     ),
@@ -335,13 +339,16 @@ export const addUnavailableStaticParseScope = (
           path: input.file.path,
           operation: input.operation,
           limitation: input.limitation,
+          ...(input.file.sha256 === null
+            ? { source_bytes_available: false }
+            : {}),
           ...(input.failure === undefined
             ? {}
             : { analysis_failure: input.failure }),
         },
         evidence: unavailableStaticEvidence({
           authority: input.authority,
-          sha256: input.file.sha256,
+          sha256: artifactSha256,
           path: input.file.path,
           operation: input.operation,
           coverage:
@@ -362,7 +369,7 @@ export const addUnavailableStaticParseScope = (
     relation: "contains",
     properties: { scope: "unavailable-static-analysis" },
     evidence: artifactObservationEvidence({
-      sha256: input.file.sha256,
+      sha256: artifactSha256,
       path: input.file.path,
       operation: "associate-unavailable-parse-scope",
       coverage: completeApplicationCoverage(),

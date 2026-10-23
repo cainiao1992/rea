@@ -118,6 +118,9 @@ descendant omission. Readable sources remain available; application coverage is
 partial and retains those inventory limitations. An unreadable selected root
 remains an error. Explicit readers that require selected child bytes keep their
 access errors rather than treating denied paths as absent.
+Unavailable source files also retain their applicable per-file processing gap
+in the application graph. Their container inventory identity anchors that gap;
+REA does not invent a content digest for bytes it could not read.
 Incomplete traversal also qualifies negative path and package-metadata lookups:
 an unobserved earlier loader candidate cannot be skipped in favor of a later
 observed candidate. An explicit source selection whose discovery is unknown

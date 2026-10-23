@@ -91,6 +91,12 @@ Kernel representations have different meanings:
   remain available when pointer qualifiers are understood or an unsupported
   qualifier prevents layout decoding. A pointer's `.align` describes the
   pointed-to memory and does not change parameter layout alignment.
+  Parameter names and following declarations are retained when an array
+  extent uses a parenthesized expression or when dimensions are
+  multidimensional, even though those forms do not currently yield a layout.
+  PTX target selection uses the highest-numbered module-scope `.target`
+  directive, including directives after entry declarations; unsupported or
+  conflicting target profiles leave the effective target unknown.
   Scalar register declarations count each bare or percent-prefixed name and
   each parameterized range. Unsupported declaration forms or overflowing totals
   retain an unknown count and partial decoding coverage. Unsupported parameter

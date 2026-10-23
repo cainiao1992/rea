@@ -45,11 +45,11 @@ import {
   readAmdElfMetadata,
   type AmdElfMetadata,
 } from "./GpuElfKernels.js";
-import { readPtxKernels, readPtxTarget } from "./PtxKernels.js";
-
-/** PTX calls compute_XX a synonym for the corresponding sm_XX target. */
-const targetIdentity = (target: string): string =>
-  target.replace(/^compute_(\d+[a-z]?)$/u, "sm_$1");
+import {
+  ptxTargetIdentity,
+  readPtxKernels,
+  readPtxTarget,
+} from "./PtxKernels.js";
 
 /** File declarations only. Every child range stays in its named parent coordinate space. */
 export class GpuInventory {
@@ -234,21 +234,28 @@ export class GpuInventory {
     }
     // PTX is positively identified by its directives, never by extension or arbitrary embedded text.
     let probe = await source.read(0, Math.min(source.size, 64 * 1024));
-    let target = readPtxTarget(probe.toString("utf8"));
-    if (
-      target === null &&
-      probe.length < Math.min(source.size, GPU_REPORT_BYTES)
-    ) {
+    let targetFacts = readPtxTarget(probe.toString("utf8"));
+    if (probe.length < Math.min(source.size, GPU_REPORT_BYTES)) {
       probe = await source.read(0, Math.min(source.size, GPU_REPORT_BYTES));
-      target = readPtxTarget(probe.toString("utf8"));
+      targetFacts = readPtxTarget(probe.toString("utf8"));
     }
-    if (target !== null) {
+    if (targetFacts.recognized) {
+      const target = probe.length === source.size ? targetFacts.target : null;
+      const limitation =
+        probe.length < source.size
+          ? "PTX target scan reached the 16 MiB text budget before all module directives were examined."
+          : targetFacts.limitation;
       const row = gpuObject(source, {
         offset: 0,
         size: source.size,
         kind: "ptx",
       });
       row.target = target;
+      if (limitation !== null) {
+        row.inspection = "partial";
+        row.limitations.push(limitation);
+        this.discovery = "partial";
+      }
       this.#add(row);
       await this.#payload(
         probe.length === source.size
@@ -357,9 +364,12 @@ export class GpuInventory {
         }
         const target = readPtxTarget(text);
         const conflict = this.#target(row, {
-          value: target,
-          key: target,
+          value: target.target,
+          key: target.target,
           scope: "exact",
+          ...(target.limitation === null
+            ? {}
+            : { limitation: target.limitation }),
         });
         if (conflict !== undefined) coverage = "partial";
         const parsed = readPtxKernels(text, row.id);
@@ -407,7 +417,7 @@ export class GpuInventory {
         const inner = /^sm_([0-9]+)$/u.exec(payload.key)?.[1];
         if (base !== undefined && inner !== undefined)
           state = base === inner ? "base-only" : "conflict";
-      } else if (targetIdentity(outer) === targetIdentity(payload.key))
+      } else if (ptxTargetIdentity(outer) === ptxTargetIdentity(payload.key))
         state = "consistent";
       else if (
         row.kind === "amdgpu" &&
@@ -432,7 +442,8 @@ export class GpuInventory {
       state === "conflict"
         ? `Conflicting target declarations: inventory ${outer}; payload ${payload.value}. Target agreement is not established.`
         : payload.limitation!;
-    this.#objectLimitations(row, [message]);
+    if (!row.limitations.includes(message))
+      this.#objectLimitations(row, [message]);
     return message;
   }
   async #amdPayload(

@@ -496,6 +496,17 @@ it.each(["whitespace", "comment"] as const)(
     );
   },
 );
+it("uses a later module target when selecting standalone PTX", async () => {
+  const bytes = Buffer.from(
+    ".version 8.8\n.target sm_80\n.entry first() { ret; }\n.target sm_90\n",
+  );
+  const inventory = await inspect(bytes, { analysis: "inventory" });
+  const selected = await inspect(bytes, { targets: ["sm_90"] });
+  if (!inventory.ok) throw inventory.error;
+  if (!selected.ok) throw selected.error;
+  expect(inventory.value.objects[0]!.target).toBe("sm_90");
+  expect(selected.value.kernels.map(({ name }) => name)).toEqual(["first"]);
+});
 it.each(["truncated", "invalid", "extension"] as const)(
   "retains earlier AMD kernel declarations after a later %s note",
   async (kind) => {

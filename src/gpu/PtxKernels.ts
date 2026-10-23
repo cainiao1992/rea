@@ -190,30 +190,30 @@ const declaration = (
         layoutKnown = false;
     } else layoutKnown = false;
   }
-  let nameIndex = values.length - 1;
-  let arrayStart: number | null = null;
-  if (values[nameIndex] === "]") {
-    let depth = 0;
-    for (let index = nameIndex; index >= at; index--) {
-      if (values[index] === "]") depth++;
-      else if (values[index] === "[" && --depth === 0) {
-        arrayStart = index;
-        break;
-      }
+  const name = identifier.test(values[at] ?? "") ? values[at]! : null;
+  if (name === null) layoutKnown = false;
+  let cursor = at + (name === null ? 0 : 1);
+  const dimensions: string[][] = [];
+  while (values[cursor] === "[") {
+    const start = ++cursor;
+    let parentheses = 0;
+    while (cursor < values.length) {
+      const value = values[cursor]!;
+      if (value === "(") parentheses++;
+      else if (value === ")") {
+        if (parentheses === 0) break;
+        parentheses--;
+      } else if (value === "]" && parentheses === 0) break;
+      cursor++;
     }
-    if (arrayStart !== null) nameIndex = arrayStart - 1;
-  } else {
-    const opening = values.indexOf("[", at);
-    if (opening >= 0) {
-      arrayStart = opening;
-      nameIndex = opening - 1;
+    if (values[cursor] !== "]" || parentheses !== 0) {
       layoutKnown = false;
+      break;
     }
+    dimensions.push(values.slice(start, cursor));
+    cursor++;
   }
-  const name = identifier.test(values[nameIndex] ?? "")
-    ? values[nameIndex]!
-    : null;
-  if (name === null || nameIndex !== at) layoutKnown = false;
+  if (cursor !== values.length || dimensions.length > 1) layoutKnown = false;
   let size = unit === null ? null : unit * vector;
   const type =
     scalar === undefined
@@ -223,20 +223,14 @@ const declaration = (
         : `.v${vector} ${scalar}`;
   const parameterAlignment = explicit ? alignment : size;
   const align = parameterAlignment;
-  if (arrayStart !== null) {
-    const count = integer(values[arrayStart + 1]);
-    if (
-      arrayStart !== nameIndex + 1 ||
-      arrayStart + 2 !== values.length - 1 ||
-      count === null ||
-      size === null ||
-      !Number.isSafeInteger(count * size)
-    )
+  if (dimensions.length === 1) {
+    const dimension = dimensions[0]!,
+      count = dimension.length === 1 ? integer(dimension[0]) : null;
+    if (count === null || size === null || !Number.isSafeInteger(count * size))
       layoutKnown = false;
     else size *= count;
   }
   if (
-    (arrayStart === null && values.length !== nameIndex + 1) ||
     name === null ||
     align === null ||
     align <= 0 ||
@@ -326,8 +320,21 @@ export function* readPtxKernels(
     };
     let t = next();
     if (t.value === "(") {
-      for (t = next(); t.value !== ")"; t = next()) {
-        if (t.value === ",") flush();
+      let parentheses = 0,
+        brackets = 0;
+      while (true) {
+        t = next();
+        if (t.value === "(") parentheses++;
+        else if (t.value === ")") {
+          if (parentheses > 0) parentheses--;
+          else if (brackets === 0) break;
+          else rejectGpu("Malformed PTX parameter dimension");
+        } else if (t.value === "[") brackets++;
+        else if (t.value === "]") {
+          if (brackets === 0) rejectGpu("Malformed PTX parameter dimension");
+          brackets--;
+        }
+        if (t.value === "," && parentheses === 0 && brackets === 0) flush();
         else part.push(t.value);
         if (part.length > 128)
           throw new BinaryResourceFailure(
@@ -515,36 +522,90 @@ export function* readPtxKernels(
   if (outerDepth !== 0) rejectGpu("Unbalanced PTX body");
 }
 
-/** Positive PTX header recognition uses the same lexer as kernel extraction. */
-export const readPtxTarget = (text: string): string | null => {
+export interface PtxTargetFacts {
+  readonly recognized: boolean;
+  readonly target: string | null;
+  readonly limitation: string | null;
+}
+
+/** PTX's compute spelling is an alias for the corresponding baseline SM target. */
+export const ptxTargetIdentity = (target: string): string =>
+  target.replace(/^compute_(\d+[a-z]?)$/u, "sm_$1");
+
+/** Resolve all module-scope targets through the highest numbered architecture. */
+export const readPtxTarget = (text: string): PtxTargetFacts => {
   const stream = tokens(text);
   let version = false,
-    target: string | null = null;
+    depth = 0,
+    target: string | null = null,
+    targetIdentity: string | null = null,
+    targetArchitecture = -1,
+    ambiguous = false,
+    unsupported = false,
+    malformed = false;
   try {
     for (const token of stream) {
-      if (
-        token.value === ".entry" ||
-        token.value === ".func" ||
-        token.value === "{"
-      )
-        break;
+      if (token.value === "{") {
+        depth++;
+        continue;
+      }
+      if (token.value === "}") {
+        if (depth > 0) depth--;
+        continue;
+      }
+      if (depth !== 0) continue;
       if (token.value === ".version") {
         const value = stream.next();
         version = !value.done && ptxVersion(value.value.value) !== null;
+        continue;
       }
-      if (token.value === ".target") {
-        const value = stream.next();
-        target =
-          !value.done &&
-          /^(?:sm_[0-9]+(?:a|f)?|compute_[0-9]+)$/u.test(value.value.value)
-            ? value.value.value
-            : null;
+      if (token.value !== ".target" || !version) continue;
+      const value = stream.next();
+      if (value.done) {
+        unsupported = true;
+        continue;
       }
-      if (version && target !== null) return target;
+      const spelling = value.value.value,
+        match = /^(?:sm_|compute_)([0-9]+)(?:a|f)?$/u.exec(spelling);
+      if (match === null) {
+        unsupported = true;
+        continue;
+      }
+      const architecture = Number(match[1]);
+      if (!Number.isSafeInteger(architecture)) {
+        unsupported = true;
+        continue;
+      }
+      const identity = ptxTargetIdentity(spelling);
+      if (architecture > targetArchitecture) {
+        target = spelling;
+        targetIdentity = identity;
+        targetArchitecture = architecture;
+        ambiguous = false;
+      } else if (
+        architecture === targetArchitecture &&
+        targetIdentity !== identity
+      ) {
+        ambiguous = true;
+      }
     }
   } catch (cause) {
     if (!(cause instanceof BinaryFormatFailure)) throw cause;
-    // A malformed quote/comment before both directives does not establish PTX identity.
+    malformed = true;
   }
-  return null;
+  const recognized = version && target !== null;
+  const limitation = !recognized
+    ? null
+    : unsupported
+      ? "Unsupported PTX target directives leave the effective target unknown."
+      : ambiguous
+        ? "Same-generation PTX target profiles cannot be represented by one effective target."
+        : malformed
+          ? "Malformed PTX text prevents complete target discovery."
+          : null;
+  return {
+    recognized,
+    target: limitation === null ? target : null,
+    limitation,
+  };
 };

@@ -132,6 +132,8 @@ export const parsePeResources = async (
     examined += count;
     relative(at, 16 + 8 * count);
     const directory = {
+      path,
+      entry_locations: entryLocations,
       location: recordRange(header, 16 + 8 * count, "directory"),
       characteristics: bytes.readUInt32LE(header),
       timestamp: bytes.readUInt32LE(header + 4),

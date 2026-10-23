@@ -858,7 +858,7 @@ it.each([false, true])(
     );
     await writeFile(
       join(root, "app", "main.cjs"),
-      'const {BrowserWindow} = require("electron"); const w = new BrowserWindow(); w.loadFile("generated.html"); w.loadFile("./generated.html");',
+      'const {BrowserWindow} = require("electron"); const w = new BrowserWindow(); w.loadFile("generated.html"); const other = new BrowserWindow(); other.loadFile("./generated.html");',
     );
     if (present)
       await writeFile(join(root, "app", "generated.html"), "generated page");

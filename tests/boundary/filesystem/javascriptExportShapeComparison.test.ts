@@ -121,6 +121,39 @@ describe("JavaScript export return-shape comparison", () => {
     );
   });
 
+  it("preserves independent implicit invocation unknowns through retained export Evidence", async () => {
+    const [left, right] = await analyzeSources({
+      left: `export default function observe() {
+        const getter = { value: 1, get trigger() { this.value = 2; return 0; } };
+        const copy = { ...getter };
+        const coercion = { [Symbol.toPrimitive]() { this.value = 2; return "key"; }, value: 1 };
+        const keyed = { [coercion]: 0 };
+        const disposal = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+        { using owned = disposal; }
+        return { type: "event", getter: getter.value, coercion: coercion.value, disposal: disposal.value, stable: "kept" };
+      }`,
+      right: `export default function observe() {
+        return { type: "event", getter: 2, coercion: 2, disposal: 2, stable: "kept" };
+      }`,
+    });
+    const result = compare(left, right);
+    expect(result.changes).toHaveLength(3);
+    expect(result.changes).toEqual(
+      expect.arrayContaining(
+        ["/getter", "/coercion", "/disposal"].map((path) =>
+          expect.objectContaining({
+            path,
+            status: "unknown",
+            left: expect.objectContaining({ availability: "unknown" }),
+            right: { availability: "literal", value: 2 },
+          }),
+        ),
+      ),
+    );
+    expect(result.coverage.status).toBe("partial");
+    expect(inventoryProperties(result, "left", 0)).toContain("/stable");
+  });
+
   it("keeps additions unknown when spread coverage is incomplete", async () => {
     const [left, right] = await analyzeSources({
       left: `

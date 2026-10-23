@@ -401,12 +401,15 @@ export const expandSemanticGetterResult = (
 
 /** Project an effect operand through the same local aliases and `this` owner as getter results. */
 export const semanticGetterReceiverPaths = (
-  getter: t.ObjectMethod,
+  getter: t.ObjectMethod | t.ClassMethod,
   operand: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ): readonly PropertyPath[] => {
-  const owner = state.parentsByNode.get(getter);
-  if (!t.isObjectExpression(owner)) return [];
+  const parent = state.parentsByNode.get(getter);
+  const owner = t.isClassBody(parent)
+    ? state.parentsByNode.get(parent)
+    : parent;
+  if (!t.isObjectExpression(owner) && !t.isClass(owner)) return [];
   const query = new SemanticGetterQuery(state);
   const references = query.run(
     () => {
@@ -419,7 +422,7 @@ export const semanticGetterReceiverPaths = (
         query,
         {
           objectReferences: (_receiver, path) => [{ node: getter, path }],
-          classReferences: () => [],
+          classReferences: (_lookup, path) => [{ node: getter, path }],
           privateReceiver: () => false,
           bases: () => [],
           containerReferences: (node, path) =>

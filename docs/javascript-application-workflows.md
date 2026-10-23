@@ -23,6 +23,11 @@ artifact digest and structural graph ID. Semantic tracing requires the semantic
 relation graph and reports when it is unavailable rather than treating missing
 data as an empty graph.
 
+Worker progress reports the source path and last observed parse, static,
+semantic, projection or transfer stage. These notifications do not measure
+stage CPU/time or establish the root cause of a slow or incomplete analysis.
+Semantic projection limits bound retained output, not upstream analysis work.
+
 Explicit TypeScript `import type` and `export type` declarations remain source
 facts and do not create runtime import or export relationships. Type export names
 are reported separately from value export names. Inline `type` specifiers can
@@ -431,14 +436,22 @@ used by returned references. Reads of another selected getter continue that
 effect walk. A receiver reached by these effects becomes uncertain on an
 ordinary or optional read, compound assignment or update. A simple assignment
 or deletion does not invoke the getter. Selected setters invalidate
-the receiver on assignment, including through known array and prototype paths.
-Inert getters and ordinary data slots retain their supported precision.
+the receiver and its shared children on assignment, including through known
+array and prototype paths. Supported class descriptors use the same inherited
+field and own-property shadowing rules as class reference selection. Inert
+getters and ordinary data slots retain their supported precision.
 
-These are conservative source-derived effects, not execution results. The
-analysis does not establish general accessor purity, model every class or
-reflectively installed descriptor, or cover getter reads introduced by object
-spread/destructuring and all implicit coercion or disposal invocations. Absence of a later explicit write does not establish getter purity;
-unsupported invocation forms can still retain stale receiver-field facts.
+Object spreads, rest copies and destructuring obtain their property reads from
+the shared pattern-source owner. Copies read own enumerable properties;
+ordinary destructuring can invoke an inherited getter. Operations requiring
+primitive conversion conservatively expose their conversion operands, including
+computed keys, arithmetic and untagged template interpolation. `using` and
+`await using` expose the retained resource at its lexical scope exit; earlier
+scalar reads retain their capture timing. These are source-derived effects,
+not execution results or proofs of accessor purity. Reflectively installed
+descriptors remain opaque; their setup calls retain ordinary argument/receiver
+escape uncertainty. External prototype changes and unsupported runtime protocols
+remain unknown rather than supplying exact post-invocation values.
 Nested callable returns are not assigned to their parent callable. Projected
 graph observations carry source ranges but never source text.
 

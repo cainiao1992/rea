@@ -156,6 +156,39 @@ export const semanticTopLevelEffectFollowsCapture = (
   return expressionEvaluationOrder(capture, effect, parents) === "before";
 };
 
+const scopeExitMarkers = new WeakMap<t.Node, t.EmptyStatement>();
+const scopeExitOwners = new WeakMap<t.Node, t.Node>();
+
+/** A derived scope-end effect keeps disposal separate from initializer evaluation. */
+export const semanticScopeExitEffect = (scope: t.Node): t.Node => {
+  const cached = scopeExitMarkers.get(scope);
+  if (cached !== undefined) return cached;
+  const marker = t.emptyStatement();
+  marker.start = scope.end;
+  marker.end = scope.end;
+  if (scope.loc != null)
+    marker.loc = { ...scope.loc, start: scope.loc.end, end: scope.loc.end };
+  scopeExitMarkers.set(scope, marker);
+  scopeExitOwners.set(marker, scope);
+  return marker;
+};
+
+const withinScopeExit = (
+  reference: t.Node,
+  scope: t.Node,
+  parents: WeakMap<t.Node, t.Node>,
+): boolean => {
+  for (
+    let node: t.Node | undefined = reference;
+    node !== undefined;
+    node = parents.get(node)
+  ) {
+    if (node === scope) return true;
+    if (t.isFunction(node)) return false;
+  }
+  return false;
+};
+
 /** Include expression order when a write operation contains the read site. */
 export const semanticEffectFollowsReference = (
   reference: t.Node,
@@ -163,6 +196,11 @@ export const semanticEffectFollowsReference = (
   parents: WeakMap<t.Node, t.Node>,
 ): boolean => {
   if (reference === effect) return false;
+  const exit = effect === undefined ? undefined : scopeExitOwners.get(effect);
+  if (exit !== undefined) {
+    if (withinScopeExit(reference, exit, parents)) return true;
+    effect = exit;
+  }
   let current: t.Node | undefined = reference;
   let child: t.Node | undefined;
   while (current !== undefined && current !== effect) {
@@ -210,6 +248,11 @@ export const semanticEffectTiming = (
   state: JavaScriptSemanticAnalysisState,
 ): JavaScriptSemanticEffectTiming => {
   if (effect === undefined) return "unknown";
+  const exit = scopeExitOwners.get(effect);
+  if (exit !== undefined) {
+    if (withinScopeExit(site, exit, state.parentsByNode)) return "after";
+    effect = exit;
+  }
   // Invocation receives arguments after their values have been selected.
   if (
     site === effect &&

@@ -1,0 +1,149 @@
+import { expect, it } from "vitest";
+import { analyzeJavaScriptSemantics } from "./javascriptSemanticAnalysis.js";
+import { onlyCallable } from "./javascriptSemanticAnalysis.fixture.js";
+
+const returned = (body: string) =>
+  onlyCallable(
+    analyzeJavaScriptSemantics(`export function observe() { ${body} }`),
+    "observe",
+  ).returnSites[0]?.value;
+
+it.each([
+  "const copy = { ...state };",
+  "const { trigger } = state;",
+  "let trigger; ({ trigger } = state);",
+  "const { ...copy } = state;",
+  "const outer = { state }; const { state: { trigger } } = outer;",
+])(
+  "indexes implicit getter invocation through the shared pattern/copy owner: %s",
+  (read) => {
+    expect(
+      returned(`
+    const state = { value: 1, get trigger() { this.value = 2; return 0; } };
+    ${read}
+    return state.value;
+  `)?.status,
+    ).toBe("unknown");
+  },
+);
+
+it("keeps copied own data properties separate from inherited getters and excluded rest keys", () => {
+  expect(
+    returned(`
+    const state = { __proto__: { get trigger() { this.value = 2; return 0; } }, value: 1 };
+    const copy = { ...state };
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+  expect(
+    returned(`
+    const state = { value: 1, get trigger() { return 0; } };
+    const { trigger, ...copy } = state;
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+});
+
+it.each([
+  "const key = { [state]: 0 };",
+  "const result = state + '';",
+  "const result = +state;",
+  "const result = `${state}`;",
+])(
+  "retains receiver uncertainty after implicit primitive conversion: %s",
+  (operation) => {
+    expect(
+      returned(`
+    const state = { [Symbol.toPrimitive]() { this.value = 2; return 'key'; }, value: 1 };
+    ${operation}
+    return state.value;
+  `)?.status,
+    ).toBe("unknown");
+  },
+);
+
+it("keeps noncoercing operations and primitive operands precise", () => {
+  expect(
+    returned(`
+    const state = { [Symbol.toPrimitive]() { this.value = 2; return 'key'; }, value: 1 };
+    const same = state === state;
+    const truthy = !state;
+    const primitive = 2 + 3;
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+});
+
+it.each(["using", "await using"])(
+  "retains %s disposal effects at lexical scope exit",
+  (kind) => {
+    const source = `${kind === "await using" ? "async " : ""}function observe() {
+    const state = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+    { ${kind} owned = state; }
+    return state.value;
+  }`;
+    const ir = analyzeJavaScriptSemantics(source);
+    expect(onlyCallable(ir, "observe").returnSites[0]?.value.status).toBe(
+      "unknown",
+    );
+  },
+);
+
+it("preserves scalar snapshots selected before disposal", () => {
+  expect(
+    returned(`
+    const state = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+    const snapshot = state.value;
+    { using owned = state; }
+    return snapshot;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+  expect(
+    returned(`
+    const state = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+    using owned = state;
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+});
+
+it("keeps the disposer receiver captured before an outer binding replacement", () => {
+  expect(
+    returned(`
+    let state = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+    const original = state;
+    { using owned = state; state = { value: 3 }; }
+    return original.value;
+  `)?.status,
+  ).toBe("unknown");
+  expect(
+    returned(`
+    const state = { [Symbol.dispose]() { this.value = 2; }, value: 1 };
+    { using nothing = null; }
+    return state.value;
+  `),
+  ).toEqual({ status: "literal", value: 1 });
+});
+
+it("projects supported class getter effects through inherited receiver fields", () => {
+  expect(
+    returned(`
+    const shared = { value: 1 };
+    class Base { get trigger() { this.state.value = 2; return 0; } }
+    class Box extends Base { state = shared; }
+    new Box().trigger;
+    return shared.value;
+  `)?.status,
+  ).toBe("unknown");
+});
+
+it("retains shared child effects from selected setters", () => {
+  expect(
+    returned(`
+    const shared = { value: 1 };
+    const box = { shared, set trigger(value) { this.shared.value = value; } };
+    box.trigger = 2;
+    return shared.value;
+  `)?.status,
+  ).toBe("unknown");
+});

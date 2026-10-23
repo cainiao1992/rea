@@ -340,7 +340,7 @@ describe("ELF version requirements", () => {
     });
   });
 
-  it("keeps conflicting names for one version index unknown", () => {
+  it("uses a definition name when a requirement shares its index", () => {
     const result = parse(
       elfExportImage({
         symbols: [{ name: "ambiguous", version: 2 }],
@@ -350,10 +350,13 @@ describe("ELF version requirements", () => {
     );
 
     expect(result.exports).toMatchObject([
-      { name: "ambiguous", version: { index: 2, name: null, hidden: false } },
+      {
+        name: "ambiguous",
+        version: { index: 2, name: "DEFINITION", hidden: false },
+      },
     ]);
-    expect(result.coverage.status).toBe("partial");
-    expect(result.issues).toMatchObject([{ code: "version_unresolved" }]);
+    expect(result.coverage.status).toBe("complete");
+    expect(result.issues).toEqual([]);
   });
 
   it("retains exports and reports a truncated version-requirement chain", () => {

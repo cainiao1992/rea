@@ -290,76 +290,8 @@ const readVersionNames = (
 ): Map<number, string | null> => {
   const namesByIndex = new Map<number, string | null>();
   const addName = (index: number, name: string): void => {
-    const previous = namesByIndex.get(index);
-    if (previous === undefined) namesByIndex.set(index, name || null);
-    else if (previous !== name) namesByIndex.set(index, null);
+    namesByIndex.set(index, name || null);
   };
-  const verdef = sections.find(({ type }) => type === SHT_GNU_VERDEF);
-  if (verdef !== undefined) {
-    try {
-      const { table, names } = versionSectionData(
-        reader,
-        sections,
-        verdef,
-        "Version definitions",
-      );
-      let offset = 0;
-      for (let index = 0; index < verdef.info; index++) {
-        if (offset + 20 > table.size)
-          throw new BinaryFormatFailure(
-            "malformed",
-            "Version definition chain leaves its section",
-          );
-        const at = table.offset + offset;
-        const versionIndex = reader.u16(at + 4) & 0x7fff;
-        const aux = reader.u32(at + 12);
-        const next = reader.u32(at + 16);
-        const auxiliaryCount = reader.u16(at + 6);
-        if (auxiliaryCount === 0 || aux < 20 || offset + aux + 8 > table.size)
-          throw new BinaryFormatFailure(
-            "malformed",
-            "Version definition name entry leaves its section",
-          );
-        let auxiliary = offset + aux;
-        const versionName = readElfString(
-          names,
-          reader.u32(table.offset + auxiliary),
-        );
-        addName(versionIndex, versionName);
-        for (let item = 0; item < auxiliaryCount; item++) {
-          if (auxiliary + 8 > table.size)
-            throw new BinaryFormatFailure(
-              "malformed",
-              "Version definition auxiliary chain leaves its section",
-            );
-          if (item + 1 < auxiliaryCount) {
-            const auxiliaryNext = reader.u32(table.offset + auxiliary + 4);
-            if (auxiliaryNext < 8)
-              throw new BinaryFormatFailure(
-                "malformed",
-                "Version definition auxiliary chain ends before its declared count",
-              );
-            auxiliary += auxiliaryNext;
-          }
-        }
-        if (index + 1 < verdef.info) {
-          if (next < 20)
-            throw new BinaryFormatFailure(
-              "malformed",
-              "Version definition chain ends before its declared count",
-            );
-          offset += next;
-        }
-      }
-    } catch (cause) {
-      issues.push({
-        code: "version_unresolved",
-        location: hex(verdef.offset),
-        message: `Version definitions: ${failureMessage(cause)}`,
-      });
-    }
-  }
-
   const verneed = sections.find(({ type }) => type === SHT_GNU_VERNEED);
   if (verneed !== undefined) {
     try {
@@ -430,6 +362,73 @@ const readVersionNames = (
       });
     }
   }
+  // GNU lookup installs requirement names first, then definition names.
+  const verdef = sections.find(({ type }) => type === SHT_GNU_VERDEF);
+  if (verdef !== undefined) {
+    try {
+      const { table, names } = versionSectionData(
+        reader,
+        sections,
+        verdef,
+        "Version definitions",
+      );
+      let offset = 0;
+      for (let index = 0; index < verdef.info; index++) {
+        if (offset + 20 > table.size)
+          throw new BinaryFormatFailure(
+            "malformed",
+            "Version definition chain leaves its section",
+          );
+        const at = table.offset + offset;
+        const versionIndex = reader.u16(at + 4) & 0x7fff;
+        const aux = reader.u32(at + 12);
+        const next = reader.u32(at + 16);
+        const auxiliaryCount = reader.u16(at + 6);
+        if (auxiliaryCount === 0 || aux < 20 || offset + aux + 8 > table.size)
+          throw new BinaryFormatFailure(
+            "malformed",
+            "Version definition name entry leaves its section",
+          );
+        let auxiliary = offset + aux;
+        const versionName = readElfString(
+          names,
+          reader.u32(table.offset + auxiliary),
+        );
+        addName(versionIndex, versionName);
+        for (let item = 0; item < auxiliaryCount; item++) {
+          if (auxiliary + 8 > table.size)
+            throw new BinaryFormatFailure(
+              "malformed",
+              "Version definition auxiliary chain leaves its section",
+            );
+          if (item + 1 < auxiliaryCount) {
+            const auxiliaryNext = reader.u32(table.offset + auxiliary + 4);
+            if (auxiliaryNext < 8)
+              throw new BinaryFormatFailure(
+                "malformed",
+                "Version definition auxiliary chain ends before its declared count",
+              );
+            auxiliary += auxiliaryNext;
+          }
+        }
+        if (index + 1 < verdef.info) {
+          if (next < 20)
+            throw new BinaryFormatFailure(
+              "malformed",
+              "Version definition chain ends before its declared count",
+            );
+          offset += next;
+        }
+      }
+    } catch (cause) {
+      issues.push({
+        code: "version_unresolved",
+        location: hex(verdef.offset),
+        message: `Version definitions: ${failureMessage(cause)}`,
+      });
+    }
+  }
+
   return namesByIndex;
 };
 

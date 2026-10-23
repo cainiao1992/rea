@@ -62,6 +62,7 @@ export class CdpCaptureCompleteness {
     if (POLICY_REASONS.has(reason)) this.#policyFiltered.add(section);
     if (
       reason === "provider_unavailable" ||
+      reason === "unattributed_target" ||
       reason === "invalid_protocol_value"
     )
       this.#unavailable.add(section);

@@ -412,6 +412,11 @@ Frames, resources, scripts, events, and workers outside the selected origin scop
 Retained workers include validated opener-target and parent-frame IDs when CDP
 provides them; these relationships do not expand the exact-origin boundary or
 prove static module ownership.
+Workers without either relationship are withheld with an `unattributed_target`
+exclusion and `workers` in `unavailable_sections`: a same-origin URL does not
+establish which page owns a worker. A supplied relationship to another target or
+frame remains `out_of_target_scope`. Missing ownership also remains unknown when
+the worker URL is empty; withheld target details are not returned.
 
 ## Completeness and limits
 

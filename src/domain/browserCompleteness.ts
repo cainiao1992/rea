@@ -36,6 +36,7 @@ const browserExclusionReasonSchema = z.enum([
   "unattributed_origin",
   "not_approved",
   "out_of_target_scope",
+  "unattributed_target",
   "provider_unavailable",
   "invalid_protocol_value",
   "resource_budget_exhausted",

@@ -87,6 +87,11 @@ target, frame, script, and resource, a worker URL must resolve to a local
 file before it is retained. Relationship IDs improve
 attribution but do not prove which static module started a worker or that its
 work completed.
+Missing opener and parent relationships leave worker ownership unknown. Such
+targets are withheld with an `unattributed_target` exclusion and unavailable
+`workers` coverage, even when their URL names a local file. Explicit foreign
+relationships remain `out_of_target_scope`; malformed supplied relationship IDs
+are `invalid_protocol_value`.
 
 Inspection does not retain DOM values, execute renderer code, navigate, click,
 invoke Electron IPC, close a target, or terminate the application.

@@ -257,12 +257,12 @@ export const evaluateSemanticExpression = (
     dependence: { lowest: CALLER_INDEPENDENT },
     memo: createEvaluationMemo(state),
   };
-  return evaluateExpression(
-    node,
-    capturePoint === undefined
-      ? context
-      : (captureContextAt(capturePoint, context) ?? context),
-  );
+  return capturePoint === undefined
+    ? evaluateCapturedExpression(node, context)
+    : evaluateExpression(
+        node,
+        captureContextAt(capturePoint, context) ?? context,
+      );
 };
 
 /** Resolve an expression using the same alias and module provenance owner. */

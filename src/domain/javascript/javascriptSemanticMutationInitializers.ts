@@ -1000,7 +1000,7 @@ const retainedInitializerOrigins = (
   };
 };
 
-/** Locate a capture only in an unconditional declaration or literal initializer. */
+/** Locate an initializer or completed return-expression capture in its body. */
 export const semanticCapturePosition = (
   node: t.Node,
   parents: WeakMap<t.Node, t.Node>,
@@ -1010,6 +1010,8 @@ export const semanticCapturePosition = (
     const direct = directInitializerPosition(current, parents);
     if (direct !== null) return direct;
     const parent = parents.get(current);
+    if (t.isReturnStatement(parent) && parent.argument === current)
+      return statementPosition(parent, parents);
     if (
       t.isObjectProperty(parent) &&
       parent.value === current &&

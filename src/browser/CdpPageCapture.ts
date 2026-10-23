@@ -20,7 +20,7 @@ import {
   type DomCapture,
   mainFrameUrl,
 } from "./CdpCaptureDocuments.js";
-import { capturedSvgNodeKind } from "./CdpCaptureDomSvg.js";
+import { capturedSvgNodeKind } from "./CdpCaptureDomNamespaces.js";
 import {
   allowedSanitizedUrl,
   delayWithCancellation,

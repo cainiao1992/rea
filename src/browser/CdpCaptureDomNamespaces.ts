@@ -6,20 +6,23 @@ import type {
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
+export const XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 type DomSnapshotNodes = Pick<
   SnapshotDocumentNodes,
   "nodeTypes" | "nodeNames" | "parents" | "attributes"
 >;
 
-interface XmlSvgLink {
+interface XmlElementNamespace {
   readonly svgElement: boolean;
+  readonly elementNamespace: string | undefined;
+  readonly localName: string | undefined;
   readonly xlinkHref: string | undefined;
 }
 
-interface DocumentSvgAncestry {
+interface DocumentNamespaceAncestry {
   readonly xml: boolean | undefined;
-  readonly xmlLinks: Map<number, XmlSvgLink>;
+  readonly xmlElements: Map<number, XmlElementNamespace>;
 }
 
 export interface DomSvgNodeQuery {
@@ -47,9 +50,11 @@ export const capturedSvgNodeKind = (
       : undefined;
 };
 
-interface DomSvgLink {
+interface DomXmlElement {
   readonly svgElement: boolean;
   readonly xmlDocument: boolean | undefined;
+  readonly elementNamespace: string | undefined;
+  readonly localName: string | undefined;
   readonly xlinkHref: string | undefined;
 }
 
@@ -82,24 +87,26 @@ const xmlDocument = (nodes: DomSnapshotNodes): boolean | undefined => {
   return false;
 };
 
-export const createDocumentSvgAncestry = (
+export const createDocumentNamespaceAncestry = (
   nodes: DomSnapshotNodes,
-): DocumentSvgAncestry => {
+): DocumentNamespaceAncestry => {
   const xml = xmlDocument(nodes);
   return {
     xml,
-    xmlLinks: xml === true ? resolveXmlElements(nodes) : new Map(),
+    xmlElements: xml === true ? resolveXmlElements(nodes) : new Map(),
   };
 };
 
-export const domSvgLink = (
-  ancestry: DocumentSvgAncestry,
+export const domXmlElement = (
+  ancestry: DocumentNamespaceAncestry,
   index: number,
-): DomSvgLink => {
+): DomXmlElement => {
   if (ancestry.xml === false) {
     return {
       svgElement: false,
       xmlDocument: false,
+      elementNamespace: undefined,
+      localName: undefined,
       xlinkHref: undefined,
     };
   }
@@ -107,20 +114,26 @@ export const domSvgLink = (
     return {
       svgElement: false,
       xmlDocument: undefined,
+      elementNamespace: undefined,
+      localName: undefined,
       xlinkHref: undefined,
     };
   }
-  const resolved = ancestry.xmlLinks.get(index);
+  const resolved = ancestry.xmlElements.get(index);
   if (resolved === undefined) {
     return {
       svgElement: false,
       xmlDocument: undefined,
+      elementNamespace: undefined,
+      localName: undefined,
       xlinkHref: undefined,
     };
   }
   return {
     svgElement: resolved.svgElement,
     xmlDocument: true,
+    elementNamespace: resolved.elementNamespace,
+    localName: resolved.localName,
     xlinkHref: resolved.xlinkHref,
   };
 };
@@ -139,7 +152,7 @@ type XmlWalkStep =
 // on the active path are retained, rather than cumulative maps at every node.
 const resolveXmlElements = (
   nodes: DomSnapshotNodes,
-): Map<number, XmlSvgLink> => {
+): Map<number, XmlElementNamespace> => {
   const children = new Map<number, number[]>();
   const pending: XmlWalkStep[] = [];
   for (let node = 0; node < nodes.nodeNames.length; node += 1) {
@@ -153,7 +166,7 @@ const resolveXmlElements = (
     }
   }
   const bindings = new Map<string, string>();
-  const resolved = new Map<number, XmlSvgLink>();
+  const resolved = new Map<number, XmlElementNamespace>();
   while (pending.length > 0) {
     const step = pending.pop();
     if (step === undefined) break;
@@ -169,11 +182,13 @@ const resolveXmlElements = (
     if (source === undefined) continue;
     const attributes = source.attributes;
     const restore = applyDeclarations(bindings, attributes);
+    const expandedName = elementExpandedName(source.nodeName, bindings);
     const svgElement =
-      source.nodeType === 1 &&
-      elementNamespace(source.nodeName, bindings) === SVG_NAMESPACE;
+      source.nodeType === 1 && expandedName?.namespace === SVG_NAMESPACE;
     resolved.set(node, {
       svgElement,
+      elementNamespace: expandedName?.namespace,
+      localName: expandedName?.localName,
       xlinkHref: svgElement ? xlinkHrefValue(attributes, bindings) : undefined,
     });
     pending.push({ restore });
@@ -211,13 +226,14 @@ const xmlnsPrefix = (name: string | undefined): string | undefined => {
   return prefix;
 };
 
-const elementNamespace = (
+const elementExpandedName = (
   nodeName: string | undefined,
   bindings: ReadonlyMap<string, string>,
-): string => {
-  if (nodeName === undefined) return "";
+): { readonly namespace: string; readonly localName: string } | undefined => {
+  if (nodeName === undefined) return undefined;
   const colon = nodeName.indexOf(":");
-  if (colon < 0) return bindings.get("") ?? "";
+  if (colon < 0)
+    return { namespace: bindings.get("") ?? "", localName: nodeName };
   const prefix = nodeName.slice(0, colon);
   const local = nodeName.slice(colon + 1);
   if (
@@ -226,8 +242,9 @@ const elementNamespace = (
     local.includes(":") ||
     prefix === "xmlns"
   )
-    return "";
-  return bindings.get(prefix) ?? "";
+    return undefined;
+  const namespace = bindings.get(prefix);
+  return namespace === undefined ? undefined : { namespace, localName: local };
 };
 
 // First prefixed href bound to the XLink namespace. Duplicate names keep the

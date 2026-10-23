@@ -25,10 +25,11 @@ import type { BrowserExclusionReason } from "../domain/browserCompleteness.js";
 import { exclusionReasonForUrl } from "./CdpCaptureEventHelpers.js";
 import type { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import {
-  createDocumentSvgAncestry,
-  domSvgLink,
+  createDocumentNamespaceAncestry,
+  domXmlElement,
   type DomSvgNodeQuery,
-} from "./CdpCaptureDomSvg.js";
+  XHTML_NAMESPACE,
+} from "./CdpCaptureDomNamespaces.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 export type CapturedResource = Omit<
@@ -339,7 +340,7 @@ export function* captureDom(
       );
     const baseIndex = total;
     total += nodeTypes.length;
-    const ancestry = createDocumentSvgAncestry(documentNodes);
+    const ancestry = createDocumentNamespaceAncestry(documentNodes);
     const pendingMetadata: PendingDomMetadata[] = [];
     for (let index = 0; index < nodeTypes.length; index += 1) {
       const admitted = snapshotNodeAt(documentNodes, index);
@@ -351,12 +352,12 @@ export function* captureDom(
         admitted.value;
       const nodeIndex = baseIndex + index;
       const attributeNames = [...new Set(attributes.map(([name]) => name))];
-      const svgLink = domSvgLink(ancestry, index);
-      if (svgLink.xmlDocument === undefined)
+      const domElement = domXmlElement(ancestry, index);
+      if (domElement.xmlDocument === undefined)
         completeness?.exclude("metadata", "invalid_protocol_value");
       let svgQuery: DomSvgNodeQuery | null | undefined;
       if (
-        svgLink.xmlDocument === false &&
+        domElement.xmlDocument === false &&
         nodeType === 1 &&
         attributeNames.includes("xlink:href") &&
         !attributeNames.includes("href")
@@ -383,7 +384,7 @@ export function* captureDom(
           nodeIndex,
           nodeName,
           allowedOrigins,
-          ...svgLink,
+          ...domElement,
         },
       });
       if (
@@ -674,6 +675,8 @@ interface DomMetadataOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   readonly svgElement: boolean;
   readonly xmlDocument: boolean | undefined;
+  readonly elementNamespace: string | undefined;
+  readonly localName: string | undefined;
   readonly xlinkHref: string | undefined;
 }
 
@@ -704,6 +707,9 @@ const domMetadata = (
     nodeIndex,
     nodeName,
     allowedOrigins,
+    xmlDocument,
+    elementNamespace,
+    localName,
   } = options;
   const pairs = new Map<string, string>();
   for (const [name, value] of attributes) {
@@ -714,7 +720,12 @@ const domMetadata = (
   for (const attribute of domUrlAttributes) {
     const value = hrefAttributeValue(pairs, attribute, options);
     if (value === undefined) continue;
-    const tagName = nodeName.toLowerCase();
+    const tagName =
+      xmlDocument === false
+        ? nodeName.toLowerCase()
+        : xmlDocument === true && elementNamespace === XHTML_NAMESPACE
+          ? (localName ?? "")
+          : "";
     // Chrome strips HTML whitespace for FORM.action, while submit controls
     // use the document URL only for an exactly empty formaction attribute.
     const usesDocumentUrl =

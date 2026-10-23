@@ -1,15 +1,18 @@
-import type { ProviderIdentity } from "../AnalysisProvider.js";
+import {
+  createEvidence,
+  type Evidence,
+  type EvidenceProvider,
+} from "../evidence.js";
 import type {
   ModelArtifact,
-  ModelArtifactPartial,
   ModelArtifactInput,
-} from "../../domain/model/modelArtifact.js";
-import { createEvidence, type Evidence } from "../../domain/evidence.js";
+  ModelArtifactPartial,
+} from "./modelArtifact.js";
 
 /** One Evidence interpretation for success and observations retained by file finalization failures. */
 export const createModelArtifactEvidence = (
   report: ModelArtifact,
-  provider: ProviderIdentity,
+  provider: EvidenceProvider,
   parameters: ModelArtifactInput,
 ): Evidence => {
   const source = report.artifact;
@@ -37,7 +40,7 @@ export const createModelArtifactEvidence = (
 /** Evidence for completed GGUF facts retained before final identity verification. */
 export const createModelArtifactPartialEvidence = (
   partial: ModelArtifactPartial,
-  provider: ProviderIdentity,
+  provider: EvidenceProvider,
   parameters: ModelArtifactInput,
 ): Evidence =>
   createEvidence(undefined, provider, {

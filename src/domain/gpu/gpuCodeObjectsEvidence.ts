@@ -1,10 +1,13 @@
-import type { ProviderIdentity } from "../AnalysisProvider.js";
+import {
+  createEvidence,
+  type Evidence,
+  type EvidenceProvider,
+} from "../evidence.js";
 import type {
   GpuCodeObjects,
   GpuCodeObjectsInput,
   GpuCodeObjectsPartial,
-} from "../../domain/gpu/gpuCodeObjects.js";
-import { createEvidence, type Evidence } from "../../domain/evidence.js";
+} from "./gpuCodeObjects.js";
 
 const gpuParameters = (parameters: GpuCodeObjectsInput) => ({
   path: parameters.path,
@@ -17,10 +20,11 @@ const gpuParameters = (parameters: GpuCodeObjectsInput) => ({
     ? {}
     : { expected_sha256: parameters.expected_sha256 }),
 });
+
 /** One Evidence interpretation for success and observations retained by file finalization failures. */
 export const createGpuCodeObjectsEvidence = (
   report: GpuCodeObjects,
-  provider: ProviderIdentity,
+  provider: EvidenceProvider,
   parameters: GpuCodeObjectsInput,
 ): Evidence =>
   createEvidence(
@@ -42,7 +46,7 @@ export const createGpuCodeObjectsEvidence = (
 
 export const createGpuCodeObjectsPartialEvidence = (
   report: GpuCodeObjectsPartial,
-  provider: ProviderIdentity,
+  provider: EvidenceProvider,
   parameters: GpuCodeObjectsInput,
 ): Evidence =>
   createEvidence(undefined, provider, {

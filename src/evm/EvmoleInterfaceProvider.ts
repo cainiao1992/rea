@@ -37,7 +37,7 @@ import {
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import { evmInterfaceEvidence } from "../application/evm/EvmInterfaceEvidence.js";
+import { evmInterfaceEvidence } from "../domain/evm/evmInterfaceEvidence.js";
 import {
   DEFAULT_EVM_TIMEOUT_MS,
   type InspectEvmInterfaceInput,

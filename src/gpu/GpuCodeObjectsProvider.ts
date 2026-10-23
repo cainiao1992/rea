@@ -3,7 +3,7 @@ import type { GpuCodeObjectsPort } from "../application/gpu/GpuCodeObjectsPort.j
 import {
   createGpuCodeObjectsEvidence,
   createGpuCodeObjectsPartialEvidence,
-} from "../application/gpu/GpuCodeObjectsEvidence.js";
+} from "../domain/gpu/gpuCodeObjectsEvidence.js";
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import type {
   GpuCodeObjects,

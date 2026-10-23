@@ -1,11 +1,25 @@
-import { createEvidence } from "../../domain/evidence.js";
-import type { InspectEvmInterfaceInput } from "../../domain/evm/evmInterface.js";
-import type { EvmInterfaceExecution } from "./EvmInterfacePort.js";
+import {
+  createEvidence,
+  type EvidenceLocation,
+  type EvidenceProvider,
+  type EvidenceSubjectTarget,
+} from "../evidence.js";
+import type { InspectEvmInterfaceInput } from "./evmInterface.js";
+import type { JsonValue } from "../jsonValue.js";
+
+interface EvmInterfaceObservation {
+  readonly subject: EvidenceSubjectTarget & { readonly format: "file" };
+  readonly provider: EvidenceProvider;
+  readonly result: JsonValue;
+  readonly rawResult: JsonValue | null;
+  readonly locations: readonly EvidenceLocation[];
+  readonly limitations: readonly string[];
+}
 
 /** Preserve the same validated inference and provenance on success and failed finalization. */
 export const evmInterfaceEvidence = (
   input: InspectEvmInterfaceInput,
-  execution: EvmInterfaceExecution,
+  execution: EvmInterfaceObservation,
 ) =>
   createEvidence(execution.subject, execution.provider, {
     operation: "inspect_evm_interface",

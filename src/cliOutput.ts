@@ -3,6 +3,11 @@ export {
   splitIncurBuiltinArguments,
   type IncurBuiltinArgumentSplit,
 } from "./cliBuiltinArguments.js";
+import {
+  declaredSensitiveValues,
+  splitIncurBuiltinArguments,
+} from "./cliBuiltinArguments.js";
+import { redactExplicitText } from "./domain/explicitSensitiveValues.js";
 import { formatCliOutput } from "./cli/cliOutputFormatter.js";
 
 import { jsonOutputParts } from "./cli/jsonOutput.js";
@@ -124,7 +129,15 @@ export const parseCliOutputArguments = (
       formatExplicit,
       fullOutput,
       missingValue,
-      invalidValue,
+      invalidValue:
+        invalidValue === undefined
+          ? undefined
+          : redactExplicitText(
+              invalidValue,
+              declaredSensitiveValues(
+                splitIncurBuiltinArguments(arguments_).command,
+              ),
+            ),
       tokenCount,
       tokenWindow:
         !parseError && (tokenLimit !== undefined || tokenOffset !== undefined),

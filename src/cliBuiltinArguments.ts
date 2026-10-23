@@ -122,3 +122,32 @@ export const productionMcpDoctorArguments = (
   );
   return normalized.filter((_, index) => index !== mcp && index !== doctor);
 };
+
+/** Incur accepts the schema key and its kebab-case spelling. */
+const FLAGS = ["--sensitive-value", "--sensitiveValue"] as const;
+
+/**
+ * Read declarations from the tokens Incur leaves for command parsing. Incur
+ * rejects a malformed token before it reaches later declarations, so this scan
+ * is independent of parse success. A token following a declaration flag counts
+ * as declared even where the command parser would bind it to another option.
+ */
+export const declaredSensitiveValues = (
+  command: IncurBuiltinArgumentSplit["command"],
+): readonly string[] => {
+  const values = new Set<string>();
+  for (let index = 0; index < command.length; index += 1) {
+    const token = command[index]!;
+    const flag = FLAGS.find(
+      (candidate) => token === candidate || token.startsWith(`${candidate}=`),
+    );
+    if (flag === undefined) continue;
+    if (token !== flag) values.add(token.slice(flag.length + 1));
+    else if (index + 1 < command.length) {
+      values.add(command[index + 1]!);
+      index += 1;
+    }
+  }
+  values.delete("");
+  return [...values];
+};

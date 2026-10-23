@@ -116,6 +116,22 @@ describe("CLI output value admission", () => {
     },
   );
 
+  it("excludes explicitly declared literals from early output diagnostics", () => {
+    const validation = parseCliOutputArguments([
+      "--format",
+      "private-marker",
+      "--sensitive-value=private-marker",
+      "--json",
+    ]).validation;
+    expect(validation).toMatchObject({
+      ok: false,
+      format: "json",
+      code: "INVALID_OUTPUT_VALUE",
+      message: expect.stringContaining("[REDACTED]"),
+    });
+    expect(JSON.stringify(validation)).not.toContain("private-marker");
+  });
+
   it("retains valid output selections on either side of a malformed value", () => {
     for (const arguments_ of [
       ["--json", "--format", "invalid"],

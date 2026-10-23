@@ -235,7 +235,7 @@ export const parsePythonPyc = (
     marshal,
     mapped.code_layout,
     input,
-    mapped.python_version !== "3.7",
+    mapped.negative_code_fields === "rejected",
   );
   const root = reader.readObject(0);
   if (reader.offset !== marshal.length)
@@ -268,6 +268,12 @@ export const parsePythonPyc = (
         ? "source_hash_hex is the PEP 552 header field; the original .py is not read."
         : "source_mtime and source_size are header fields; they do not prove a matching .py is present.",
       "python_version is the pinned CPython magic table for this header, not a runtime interpreter.",
+      ...(mapped.negative_code_fields === "revision-dependent" &&
+      codeObjects.some((code) => code.stacksize < 0 || code.flags < 0)
+        ? [
+            "Magic 3410 is shared by CPython revisions with different negative co_stacksize/co_flags constructor checks; these raw values are preserved, but this header cannot establish constructor acceptance.",
+          ]
+        : []),
       ...(unknownFlags === 0
         ? []
         : [
@@ -323,7 +329,7 @@ class MarshalReader {
     readonly bytes: Buffer,
     readonly layout: PythonPycCodeLayout,
     readonly input: InspectPythonPycInput,
-    readonly rejectNegativeCodeFlags: boolean,
+    readonly rejectNegativeCodeFields: boolean,
   ) {}
 
   readObject(depth: number): MarshalValue {
@@ -437,9 +443,11 @@ class MarshalReader {
     const kwonlyargcount = this.nonNegativeInt32("co_kwonlyargcount");
     const nlocals =
       this.layout === "py311" ? null : this.nonNegativeInt32("co_nlocals");
-    const stacksize = this.nonNegativeInt32("co_stacksize");
+    const stacksize = this.i32();
+    if (this.rejectNegativeCodeFields && stacksize < 0)
+      malformed("co_stacksize is negative.");
     const flags = this.i32();
-    if (this.rejectNegativeCodeFlags && flags < 0)
+    if (this.rejectNegativeCodeFields && flags < 0)
       malformed("co_flags is negative.");
     const bytecode = asBytes(this.readObject(depth + 1), "co_code");
     // 3.11+ `_PyCode_Validate` rejects a length that is not a whole code unit.
@@ -1501,7 +1509,7 @@ class MarshalReader {
     return value;
   }
 
-  /** CPython `r_long` int fields must not be negative in a code object. */
+  /** CPython `r_long` count fields that its constructors require non-negative. */
   nonNegativeInt32(field: string): number {
     const value = this.i32();
     if (value < 0) malformed(`${field} is negative.`);

@@ -78,10 +78,24 @@ and a null dictionary value ends the dict without that entry.
 The selected file is limited to 16 MiB by default (64 MiB maximum). Marshal
 object count, nesting depth, and per-string size are bounded; exceeding a
 budget fails without partial success. Argument counts, positional-only counts,
-keyword-only counts, local counts, and stack size are signed CPython fields; a
-negative encoding is malformed. Code `flags` preserve signed `co_flags` values;
-CPython 3.8+ rejects negative flags, while 3.7 accepts them. On the 3.11+
-layout, `co_code` must cover a
+keyword-only counts, and local counts must be non-negative. `co_stacksize` and
+`co_flags` are retained as signed 32-bit source fields when the selected CPython
+constructor accepted them. CPython 3.7 and 3.8 alpha constructors through
+3.8.0a4 did not reject negative stack sizes or flags; the check was added by
+[CPython commit a9f05d69](https://github.com/python/cpython/commit/a9f05d69ccbf3c75cdd604c25094282697789a62).
+Magic 3410 is ambiguous: 3.8.0a4 and 3.8.0b1 both use it, but they are on
+opposite sides of that constructor change. Negative values under magic 3410
+are preserved with an explicit limitation because the header cannot identify
+which constructor revision produced them. Magic 3411 and later 3.8 magics were
+introduced after that change, so their constructors reject negative values.
+The pinned magic entries distinguish these cases; see the CPython
+[3.7.0 constructor](https://github.com/python/cpython/blob/v3.7.0/Objects/codeobject.c),
+[3.8.0a4 constructor](https://github.com/python/cpython/blob/v3.8.0a4/Objects/codeobject.c),
+[3.8.0b1 constructor](https://github.com/python/cpython/blob/v3.8.0b1/Objects/codeobject.c),
+and [3.8.0b2 magic table](https://github.com/python/cpython/blob/v3.8.0b2/Lib/importlib/_bootstrap_external.py).
+Complete marshal coverage means all fields in the selected file were decoded;
+it does not establish that CPython will accept or execute the code object. On
+the 3.11+ layout, `co_code` must cover a
 whole number of code units. Every layout rejects argument counts that do not
 fit the local table CPython checks (`co_varnames`, including `*args` /
 `**kwargs`, or fast locals on 3.11+). Those files are malformed, so the

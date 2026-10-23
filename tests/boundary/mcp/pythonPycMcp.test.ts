@@ -101,7 +101,7 @@ mcpTest("requires an absolute path for inspect_python_pyc", async ({ mcp }) => {
 });
 
 mcpTest(
-  "advertised pyc output schema accepts signed legacy flags and positive unknown flags",
+  "advertised pyc output schema preserves historical signed fields",
   async ({ mcp }) => {
     const { client, session } = await connect(mcp);
     try {
@@ -118,15 +118,29 @@ mcpTest(
           name: "legacy-negative",
           magic: 3394,
           layout: "py37" as const,
-          rawFlags: 0x80000000,
-          expectedFlags: -0x80000000,
+          fields: { stacksize: 0xffffffff },
+          expected: { stacksize: -1, flags: 0 },
+        },
+        {
+          name: "alpha-3401-negative-flags",
+          magic: 3401,
+          layout: "py37" as const,
+          fields: { flags: 0x80000000 },
+          expected: { stacksize: 1, flags: -0x80000000 },
+        },
+        {
+          name: "ambiguous-3410-negative-fields",
+          magic: 3410,
+          layout: "py38" as const,
+          fields: { stacksize: 0xffffffff, flags: 0x80000000 },
+          expected: { stacksize: -1, flags: -0x80000000 },
         },
         {
           name: "unknown-positive",
           magic: 3531,
           layout: "py311" as const,
-          rawFlags: 0x40000000,
-          expectedFlags: 0x40000000,
+          fields: { flags: 0x40000000 },
+          expected: { flags: 0x40000000 },
         },
       ]) {
         const path = join(root, `${testCase.name}.pyc`);
@@ -134,7 +148,7 @@ mcpTest(
           path,
           Buffer.concat([
             pythonPycHeader(testCase.magic),
-            marshalCode(testCase.layout, { flags: testCase.rawFlags }),
+            marshalCode(testCase.layout, testCase.fields),
           ]),
         );
         const response = await client.callTool({
@@ -151,9 +165,62 @@ mcpTest(
           ajv.validate(outputSchema, response.structuredContent),
           JSON.stringify(ajv.errors),
         ).toBe(true);
-        expect(evidence.normalized_result.code_objects[0]?.flags).toBe(
-          testCase.expectedFlags,
+        expect(evidence.normalized_result.code_objects[0]).toMatchObject(
+          testCase.expected,
         );
+        if (testCase.magic === 3410)
+          expect(evidence.normalized_result.limitations).toEqual(
+            expect.arrayContaining([
+              expect.stringContaining("Magic 3410 is shared"),
+            ]),
+          );
+      }
+    } finally {
+      await session.close();
+    }
+  },
+);
+
+mcpTest(
+  "rejects negative code fields for magics after constructor validation was added",
+  async ({ mcp }) => {
+    const { client, session } = await connect(mcp);
+    try {
+      const root = await createTestTempDirectory("rea-python-pyc-mcp-signed-");
+      for (const { name, fields, message } of [
+        {
+          name: "negative-stacksize",
+          fields: { stacksize: 0xffffffff },
+          message: "co_stacksize is negative",
+        },
+        {
+          name: "negative-flags",
+          fields: { flags: 0x80000000 },
+          message: "co_flags is negative",
+        },
+      ]) {
+        const path = join(root, `${name}.pyc`);
+        await writeFile(
+          path,
+          Buffer.concat([pythonPycHeader(3411), marshalCode("py38", fields)]),
+        );
+        const response = await client.callTool({
+          name: "inspect_python_pyc",
+          arguments: { path },
+        });
+        expect(response.isError).toBe(true);
+        expect(parseMcpToolError(response).error).toMatchObject({
+          code: "invalid_request",
+          details: {
+            operation: "inspect_python_pyc",
+            issues: [
+              {
+                reason: "invalid_format",
+                message: expect.stringContaining(message),
+              },
+            ],
+          },
+        });
       }
     } finally {
       await session.close();

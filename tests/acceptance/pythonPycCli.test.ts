@@ -126,84 +126,130 @@ cliTest(
 );
 
 cliTest(
-  "rejects constructor-invalid signed code flags and preserves unknown positive flags",
+  "preserves historical signed code fields and reports the ambiguous 3410 constructor revision",
   async ({ cli }) => {
-    const root = await createTestTempDirectory("rea-python-pyc-flags-");
-    for (const { name, magic, layout, flags, expected, valid } of [
+    const root = await createTestTempDirectory("rea-python-pyc-signed-fields-");
+    for (const { name, magic, layout, fields, expected } of [
       {
         name: "zero",
         magic: 3531,
         layout: "py311",
-        flags: 0,
-        expected: 0,
-        valid: true,
+        fields: { flags: 0 },
+        expected: { stacksize: 1, flags: 0 },
       },
       {
-        name: "unknown-positive",
+        name: "unknown-positive-flags",
         magic: 3531,
         layout: "py311",
-        flags: 0x40000000,
-        expected: 0x40000000,
-        valid: true,
+        fields: { flags: 0x40000000 },
+        expected: { stacksize: 1, flags: 0x40000000 },
       },
       {
-        name: "negative-py311",
-        magic: 3531,
-        layout: "py311",
-        flags: 0x80000000,
-        expected: -0x80000000,
-        valid: false,
-      },
-      {
-        name: "negative-plus-one-py311",
-        magic: 3531,
-        layout: "py311",
-        flags: 0x80000001,
-        expected: -0x7fffffff,
-        valid: false,
-      },
-      {
-        name: "negative-py37",
+        name: "negative-stacksize-py37",
         magic: 3394,
         layout: "py37",
-        flags: 0x80000000,
-        expected: -0x80000000,
-        valid: true,
+        fields: { stacksize: 0xffffffff },
+        expected: { stacksize: -1, flags: 0 },
+      },
+      {
+        name: "negative-flags-py38-alpha",
+        magic: 3401,
+        layout: "py37",
+        fields: { flags: 0x80000000 },
+        expected: { stacksize: 1, flags: -0x80000000 },
+      },
+      {
+        name: "negative-stack-and-flags-py38-ambiguous",
+        magic: 3410,
+        layout: "py38",
+        fields: { stacksize: 0xffffffff, flags: 0x80000000 },
+        expected: { stacksize: -1, flags: -0x80000000 },
       },
     ] as const) {
       const path = join(root, `${name}.pyc`);
       await writeFile(
         path,
-        Buffer.concat([pythonPycHeader(magic), marshalCode(layout, { flags })]),
+        Buffer.concat([pythonPycHeader(magic), marshalCode(layout, fields)]),
       );
       const result = await cli.run({
         arguments: ["inspect-python-pyc", path, "--json"],
       });
-      if (valid) {
-        expect(result.exitCode, result.stderr).toBe(0);
-        const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-          result.json,
+      expect(result.exitCode, result.stderr).toBe(0);
+      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
+        result.json,
+      );
+      expect(evidence.normalized_result.code_objects[0]).toMatchObject(
+        expected,
+      );
+      if (magic === 3410)
+        expect(evidence.normalized_result.limitations).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("Magic 3410 is shared"),
+          ]),
         );
-        expect(evidence.normalized_result.code_objects[0]?.flags).toBe(
-          expected,
-        );
-      } else {
-        expect(result.exitCode).toBe(1);
-        expect(result.json).toMatchObject({
-          code: "invalid_request",
-          category: "invalid_input",
-          details: {
-            operation: "inspect_python_pyc",
-            issues: [
-              {
-                reason: "invalid_format",
-                message: expect.stringContaining("co_flags is negative"),
-              },
-            ],
-          },
-        });
-        expect(result.json).not.toHaveProperty("normalized_result");
-      }
+    }
+  },
+);
+
+cliTest(
+  "rejects negative code fields after the pinned constructor validation transition",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-python-pyc-signed-rejection-",
+    );
+    for (const { name, magic, layout, fields, message } of [
+      {
+        name: "negative-stacksize-py38-b2",
+        magic: 3411,
+        layout: "py38",
+        fields: { stacksize: 0xffffffff },
+        message: "co_stacksize is negative",
+      },
+      {
+        name: "negative-flags-py38-b2",
+        magic: 3411,
+        layout: "py38",
+        fields: { flags: 0x80000000 },
+        message: "co_flags is negative",
+      },
+      {
+        name: "negative-stacksize-py311",
+        magic: 3531,
+        layout: "py311",
+        fields: { stacksize: 0xffffffff },
+        message: "co_stacksize is negative",
+      },
+      {
+        name: "negative-flags-py311",
+        magic: 3531,
+        layout: "py311",
+        fields: { flags: 0x80000000 },
+        message: "co_flags is negative",
+      },
+    ] as const) {
+      const path = join(root, `${name}.pyc`);
+      await writeFile(
+        path,
+        Buffer.concat([pythonPycHeader(magic), marshalCode(layout, fields)]),
+      );
+      const result = await cli.run({
+        arguments: ["inspect-python-pyc", path, "--json"],
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.json).toMatchObject({
+        code: "invalid_request",
+        category: "invalid_input",
+        details: {
+          operation: "inspect_python_pyc",
+          issues: [
+            {
+              reason: "invalid_format",
+              message: expect.stringContaining(message),
+            },
+          ],
+        },
+      });
+      expect(result.json).not.toHaveProperty("normalized_result");
     }
   },
 );

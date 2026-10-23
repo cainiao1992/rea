@@ -112,6 +112,71 @@ const analyzeImage = async (bytes: Buffer, operation: FlutterOperation) => {
   return result.value;
 };
 
+it.each([false, true])(
+  "qualifies unified snapshot exports without aliasing legacy sources (text=%s)",
+  async (includeText) => {
+    const symbols = [
+      { name: "_kDartSnapshotData", value: 0x1000, size: 52 },
+      ...(includeText
+        ? [{ name: "_kDartSnapshotText", value: 0x1100, size: 16 }]
+        : []),
+    ];
+    const image = Buffer.alloc(0x1110);
+    buildElf64Image(symbols).copy(image);
+    const data = snapshotSection(REFERENCE_HASH);
+    data.writeBigUInt64LE(2n, 12); // Pinned unified producer enum; support is not inferred.
+    data.copy(image, 0x1000);
+    const path = await buildApk("unified.apk", [
+      { path: "lib/arm64-v8a/libapp.so", bytes: image },
+    ]);
+    const provider = new FlutterBuildProvider();
+    onTestFinished(() => provider.close());
+    const inspected = await provider.execute({
+      operation: "inspect_dart_aot",
+      input: { path },
+    });
+    expect(inspected.ok).toBe(false);
+    if (inspected.ok)
+      throw new Error("Unified profile was admitted as split VM/isolate");
+    expect(projectAnalysisError(inspected.error)).toMatchObject({
+      code: "target_unavailable",
+      category: "unsupported_target",
+      details: {
+        diagnostics: {
+          supported_profile: "dart-2.14-split-full-aot",
+          observed_exports: symbols.map(({ name, value, size }) => ({
+            name,
+            offset: value,
+            size,
+          })),
+          abi: "arm64-v8a",
+          libapp_bytes: image.length,
+          libapp_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        },
+      },
+    });
+    const identified = await provider.execute({
+      operation: "identify_flutter_build",
+      input: { path },
+    });
+    if (!identified.ok) throw identified.error;
+    const value = flutterResultSchemas.identify_flutter_build.parse(
+      identified.value.result,
+    );
+    expect(value.coverage).toBe("partial");
+    expect(value.abis[0]?.libapp).toMatchObject({
+      snapshot_hash: REFERENCE_HASH,
+      snapshot_hash_sources: 1,
+    });
+    expect(identified.value.limitations.join(" ")).toContain(
+      "supported legacy split VM/isolate profile",
+    );
+    expect(identified.value.limitations.join(" ")).not.toContain(
+      "library is truncated",
+    );
+  },
+);
+
 it.each([32, 64] as const)(
   "reads only ELF-owned notes in an ELF%s engine",
   async (bits) => {

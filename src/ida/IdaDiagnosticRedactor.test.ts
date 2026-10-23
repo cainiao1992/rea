@@ -62,6 +62,21 @@ describe("IDA diagnostic credential redaction", () => {
     const message = "Failed at /caller/input \t with ordinary whitespace";
     expect(redact(message)).toBe(message);
   });
+  it.each(["X-Caller-Value", "Authorization"])(
+    "redacts explicitly marked whitespace in %s independently of HTTP authentication",
+    (name) => {
+      const redact = createIdaDiagnosticRedactor({
+        url: "http://127.0.0.1:12345/mcp",
+        headers: { [name]: "\t" },
+        sensitive: { headers: [name.toLowerCase()], env: [] },
+        mode: "attached",
+        timeoutMs: 1000,
+      }).text;
+      expect(redact("input\tvalue")).toBe(
+        "input[redacted transport credential]value",
+      );
+    },
+  );
   it("does not reprocess the replacement marker as another credential", () => {
     const redact = createIdaDiagnosticRedactor({
       url: "http://127.0.0.1:12345/mcp",

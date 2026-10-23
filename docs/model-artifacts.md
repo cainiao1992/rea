@@ -79,7 +79,9 @@ GGUF supports zero extents and scalar shapes, with at most four dimensions;
 known quantized types still require complete blocks in the first dimension.
 
 MCP defaults to a compact summary with counts, selected short headline metadata,
-chat-template presence and derived totals. The full type histogram and all rows
+chat-template presence (default or named template content) and derived totals.
+A names-only `tokenizer.chat_templates` inventory does not establish template
+content. The full type histogram and all rows
 remain in complete Evidence. Headline metadata uses short keys/types and scalar
 values; long or compound values remain available through explicit metadata
 queries. Use the returned `parent_evidence_id`:

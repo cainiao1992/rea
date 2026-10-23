@@ -100,7 +100,11 @@ const summarizeModel = (
         }) => row,
       ),
     chat_template_present: metadata.some(
-      (row) => row.key === "tokenizer.chat_template",
+      (row) =>
+        row.type === "STRING" &&
+        typeof row.value === "string" &&
+        (row.key === "tokenizer.chat_template" ||
+          row.key.startsWith("tokenizer.chat_template.")),
     ),
   };
 };

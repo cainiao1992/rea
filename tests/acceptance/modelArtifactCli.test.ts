@@ -19,6 +19,65 @@ import { ggufFixture, safetensorsFixture } from "../fixtures/model/model.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
+it.each(["named", "default", "inventory-only", "absent"] as const)(
+  "reports actual chat-template presence in summaries and page context (%s)",
+  async (kind) => {
+    const root = await createTestTempDirectory("rea-model-templates-");
+    const path = join(root, "model.gguf");
+    const { text, u32, u64 } = ggufFixture();
+    const names = {
+      key: "tokenizer.chat_templates",
+      type: 9,
+      value: Buffer.concat([u32(8), u64(1n), text("tool_use")]),
+    };
+    const template = {
+      key:
+        kind === "default"
+          ? "tokenizer.chat_template"
+          : "tokenizer.chat_template.tool_use",
+      type: 8,
+      value: text("{{ messages }}"),
+    };
+    const metadata =
+      kind === "named"
+        ? [names, template]
+        : kind === "default"
+          ? [template]
+          : kind === "inventory-only"
+            ? [names]
+            : [];
+    await writeFile(path, ggufFixture({ metadata }).bytes);
+    const { call } = await connectLocalToolsMcp();
+    const response = await call("inspect_model_artifact", { path });
+    expect(response.isError, JSON.stringify(response)).not.toBe(true);
+    const summary = modelArtifactSummaryViewResultSchema.parse(
+      parseEvidence(response.structuredContent).normalized_result,
+    );
+    const present = kind === "named" || kind === "default";
+    expect(summary.summary.chat_template_present).toBe(present);
+    const pageResponse = await call("inspect_analysis_view", {
+      source: {
+        kind: "retained-evidence",
+        evidence_id: summary.parent_evidence_id,
+      },
+      view: {
+        kind: "model-artifact",
+        collection: "metadata",
+        fields: ["key", "value"],
+      },
+    });
+    expect(pageResponse.isError, JSON.stringify(pageResponse)).not.toBe(true);
+    const page = analysisViewResultSchema.parse(
+      parseEvidence(pageResponse.structuredContent).normalized_result,
+    );
+    if (page.kind !== "model-artifact") throw new Error("Incorrect model view");
+    expect(page.model.chat_template_present).toBe(present);
+    expect(
+      page.items.map((row) => ("key" in row ? row.key : undefined)),
+    ).toEqual(metadata.map((row) => row.key));
+  },
+);
+
 it("keeps generated headline keys and imported compound metadata out of compact summaries", async () => {
   const root = await createTestTempDirectory("rea-model-headlines-");
   const path = join(root, "model");

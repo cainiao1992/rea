@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { open, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { byteEntropySchema } from "../../../src/domain/native/byteEntropy.js";
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { parseEvidence, type Evidence } from "../../../src/domain/evidence.js";
 import { TOOL_EFFECTS } from "../../../src/contracts/toolEffects.js";
 import {
   advertisedMcpToolSchemas,
@@ -12,9 +12,17 @@ import {
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it, onTestFinished } from "vitest";
 import { BinaryLayoutService } from "../../../src/application/binaryDiagnostics/BinaryLayoutService.js";
+import { ByteEntropyService } from "../../../src/application/binaryDiagnostics/ByteEntropyService.js";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { ok } from "../../../src/domain/result.js";
 import { createServer } from "../../../src/server/createServer.js";
+import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
+import { registerByteEntropyTool } from "../../../src/server/registerByteEntropyTool.js";
+import { registerAnalysisViewTool } from "../../../src/server/registerAnalysisViewTool.js";
+import { createToolResultDelivery } from "../../../src/server/toolResult.js";
+import { withAdmittedAnalysis } from "../../../src/server/analysisAdmission.js";
+import { silentLogger } from "../../../src/logger.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import {
   binaryLayoutFixture,
@@ -22,6 +30,129 @@ import {
 } from "../../fixtures/binaryDiagnostics/layout.js";
 import { elfExportImage } from "../../fixtures/binaryDiagnostics/nativeExports.js";
 import { parseNativeExports } from "../../../src/native/exports/NativeExportParser.js";
+
+it.each([false, true])(
+  "preserves a completed byte report through MCP cleanup failure and retry (retained=%s)",
+  async (retained) => {
+    const root = await createTestTempDirectory("rea-entropy-mcp-cleanup-");
+    const path = join(root, "bytes.bin");
+    const bytes = Buffer.alloc(512);
+    await writeFile(path, bytes);
+    let failClose = true;
+    let closes = 0;
+    const service = new ByteEntropyService({
+      stat,
+      open: async (...args) => {
+        const file = await open(...args);
+        const close = file.close.bind(file);
+        file.close = async () => {
+          closes++;
+          if (failClose) throw new Error("injected descriptor close failure");
+          await close();
+        };
+        return file;
+      },
+    });
+    const session = createTestBinarySession(() => {
+      throw new Error("deep provider must not start");
+    });
+    const recordEvidence = retained
+      ? (evidence: Evidence) => session.recordEvidence(evidence)
+      : undefined;
+    const evidenceById = (id: string) => session.evidenceById(id);
+    const admission = withAdmittedAnalysis({ kind: "session", session });
+    const server = new EvidenceMcpServer(
+      { name: "entropy-cleanup", version: "1" },
+      {},
+      recordEvidence,
+      createToolResultDelivery(undefined),
+    );
+    registerByteEntropyTool(
+      server,
+      service,
+      silentLogger,
+      recordEvidence,
+      evidenceById,
+      admission,
+    );
+    registerAnalysisViewTool(
+      server,
+      silentLogger,
+      evidenceById,
+      recordEvidence,
+      admission,
+    );
+    const client = new Client({ name: "entropy-cleanup-client", version: "1" });
+    onTestFinished(async () => {
+      failClose = false;
+      try {
+        await service.close();
+      } finally {
+        await client.close();
+        await server.close();
+        await session.close();
+      }
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const response = await client.callTool({
+      name: "inspect_byte_entropy",
+      arguments: { path, block_size: 256 },
+    });
+    const failure = parseMcpToolError(response).error;
+    expect(failure).toMatchObject({
+      code: "cleanup_incomplete",
+      retryable: false,
+      details: { cleanup: "incomplete" },
+    });
+    expect(closes).toBe(1);
+    const partial = failure.details?.partial_observation;
+    let evidence;
+    if (retained) {
+      expect(partial).toEqual({
+        kind: "retained-evidence",
+        evidence_id: expect.any(String),
+      });
+      const reference = partial as { evidence_id: string };
+      evidence = parseEvidence(evidenceById(reference.evidence_id));
+      const viewed = await client.callTool({
+        name: "inspect_analysis_view",
+        arguments: { source: partial, view: { kind: "summary" } },
+      });
+      expect(viewed.isError).not.toBe(true);
+      expect(
+        parseEvidence(viewed.structuredContent).normalized_result,
+      ).toMatchObject({
+        kind: "summary",
+        parent_evidence_id: evidence.evidence_id,
+      });
+      expect(closes).toBe(1);
+    } else {
+      evidence = parseEvidence(partial);
+      expect(evidenceById(evidence.evidence_id)).toBeUndefined();
+    }
+    expect(evidence.operation).toBe("inspect_byte_entropy");
+    expect(byteEntropySchema.parse(evidence.normalized_result)).toMatchObject({
+      artifact: {
+        path,
+        bytes: 512,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      },
+      window: { offset: 0, length: 512 },
+      file_entropy: 0,
+      blocks: [
+        { offset: 0, length: 256, entropy: 0 },
+        { offset: 256, length: 256, entropy: 0 },
+      ],
+    });
+    failClose = false;
+    await service.close();
+    expect(closes).toBe(2);
+    if (retained) expect(evidenceById(evidence.evidence_id)).toEqual(evidence);
+  },
+);
 
 it("advertises exact valid schemas and records inline layout without a binary target", async () => {
   const value = binaryLayoutFixture();

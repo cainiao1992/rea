@@ -9,6 +9,7 @@ import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import type { Logger } from "pino";
+import { deliverEvidenceResult } from "./contractToolHandler.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
@@ -54,13 +55,11 @@ export const registerByteEntropyTool = (
                 : inspected;
             },
           );
-          if (!result.ok)
-            return server.delivery.toCallToolResult(result, contract);
-          const recorded = recordEvidence?.(result.value);
-          return server.delivery.toEvidenceToolResult(
-            result.value,
+          return deliverEvidenceResult(
+            server,
+            result,
             contract,
-            recorded,
+            recordEvidence,
           );
         },
       ),

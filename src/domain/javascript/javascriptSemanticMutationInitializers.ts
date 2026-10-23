@@ -1016,6 +1016,12 @@ export const semanticCapturePosition = (
       semanticStaticPropertyKey(parent.key, parent.computed) !== null
     )
       current = parent;
+    else if (
+      t.isSpreadElement(parent) &&
+      parent.argument === current &&
+      t.isObjectExpression(parents.get(parent))
+    )
+      current = parent;
     else if (t.isObjectExpression(parent) || t.isArrayExpression(parent))
       current = parent;
     else return null;
@@ -1069,6 +1075,8 @@ export const semanticEscapeFollowsCapture = (
     !semanticBindingPrecedesCapture(binding, capture, parents)
   )
     return false;
+  if (scopeExitOwners.has(escape))
+    return semanticEffectFollowsReference(capture, escape, parents);
   // A literal allocates here. Aliases are evaluated at the same capture point,
   // so an outer/persistent origin still receives all of its own escape effects.
   const origin = unwrapJavaScriptExpression(initializer.node).node;

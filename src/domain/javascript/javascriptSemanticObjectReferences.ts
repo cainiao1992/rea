@@ -1,4 +1,5 @@
 import * as t from "@babel/types";
+import { semanticKnownSymbolKey } from "./javascriptSemanticPropertyKeys.js";
 import {
   resolveSemanticBindingState,
   type JavaScriptSemanticAnalysisState,
@@ -120,6 +121,12 @@ const instanceFieldReferences = (
         : current.klass.body.body.slice(0, before);
     for (const member of [...members].reverse()) {
       if (!isRuntimeJavaScriptClassProperty(member) || member.static) continue;
+      if (
+        propertyName !== null &&
+        member.computed &&
+        semanticKnownSymbolKey(member.key, state)
+      )
+        continue;
       const key = semanticStaticPropertyKey(member.key, member.computed);
       if (key !== null && shadowed.has(key)) continue;
       if (key !== null) shadowed.add(key);
@@ -155,6 +162,7 @@ const classPropertyDescriptors = (
   klass: t.ClassDeclaration | t.ClassExpression,
   propertyName: string | null,
   kind: ClassPropertyLookup["kind"],
+  state: JavaScriptSemanticAnalysisState,
   initializedBefore?: t.ClassProperty,
   accessor: "get" | "set" = "get",
 ) => {
@@ -171,6 +179,13 @@ const classPropertyDescriptors = (
       ? -1
       : klass.body.body.indexOf(initializedBefore);
   klass.body.body.forEach((member, index) => {
+    if (
+      (t.isClassMethod(member) || t.isClassProperty(member)) &&
+      propertyName !== null &&
+      member.computed &&
+      semanticKnownSymbolKey(member.key, state)
+    )
+      return;
     if (
       before >= 0 &&
       index >= before &&
@@ -334,6 +349,7 @@ class ClassReferenceWalk {
       klass,
       this.#name,
       this.lookup.kind,
+      this.state,
       this.lookup.initializedBefore,
       this.context.accessor,
     );
@@ -795,6 +811,14 @@ class ObjectReferenceWalk {
       this.#spread(property);
       return;
     }
+    if (
+      property.computed &&
+      this.#key !== undefined &&
+      this.#key !== null &&
+      typeof this.#key !== "object" &&
+      semanticKnownSymbolKey(property.key, this.query.state)
+    )
+      return;
     const name = semanticStaticPropertyKey(property.key, property.computed);
     if (this.#prototype(property, name)) return;
     const kind =

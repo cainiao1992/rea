@@ -252,3 +252,30 @@ it("keeps same-receiver equality in an inert getter precise", () => {
   `),
   ).toEqual({ status: "literal", value: 1 });
 });
+
+it("keeps intrinsic symbol keys separate from string overwrites without claiming complete inventory", () => {
+  expect(
+    returned(
+      `const state={value:1,[Symbol.toPrimitive](){return 0;}};return state.value;`,
+    ),
+  ).toEqual({ status: "literal", value: 1 });
+  const ir = analyzeJavaScriptSemantics(
+    `const state={value:1,[Symbol.toPrimitive](){return 0;}};`,
+  );
+  expect(ir.bindings.find(({ name }) => name === "state")?.value).toMatchObject(
+    { status: "object", unknownProperties: true, omittedProperties: 1 },
+  );
+  expect(
+    returned(
+      `const Symbol={toPrimitive:"value"};const state={value:1,[Symbol.toPrimitive]:2};return state.value;`,
+    )?.status,
+  ).toBe("unknown");
+});
+
+it("exposes shared fields when a constructed receiver is passed to an opaque call", () => {
+  expect(
+    returned(
+      `const shared={value:1};class Box{state=shared;} const box=new Box(); unknown(box);return shared.value;`,
+    )?.status,
+  ).toBe("unknown");
+});

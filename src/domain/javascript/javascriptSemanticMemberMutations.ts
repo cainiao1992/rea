@@ -1,4 +1,5 @@
 import * as t from "@babel/types";
+import { semanticKnownSymbolKey } from "./javascriptSemanticPropertyKeys.js";
 import {
   createAmbientPathResolver,
   retainSemanticAmbientEffect,
@@ -1231,7 +1232,7 @@ export function* collectSemanticMemberMutationsSteps(
         const value = evaluateSemanticExpression(operand, state, node);
         return value.status === "object" || value.status === "array";
       }))
-        markEscaped(operand, node);
+        if (!semanticKnownSymbolKey(operand, state)) markEscaped(operand, node);
       if (t.isTemplateLiteral(node) && !t.isTaggedTemplateExpression(parent))
         for (const expression of node.expressions)
           markEscaped(expression, node);
@@ -1558,10 +1559,13 @@ const constructedReferenceValues = (
   state: JavaScriptSemanticAnalysisState,
   widenedGetterResult: boolean,
 ): readonly ReferencedValue[] => {
-  // Only retry results lost a suffix that could reach any constructed field.
-  // Preserve that reachability through aliases and nested allocations, without
-  // broadening ordinary whole-receiver escapes.
-  const [key = widenedGetterResult ? null : undefined, ...remaining] = path;
+  // Exposing a constructed receiver also exposes its retained field references,
+  // just as exposing an object literal exposes its children. Widened results
+  // retain that reachability after a suffix was lost.
+  const [
+    key = effect === "escape" || widenedGetterResult ? null : undefined,
+    ...remaining
+  ] = path;
   // Replacing a receiver property does not mutate the object it previously held.
   if (key === undefined || (effect === "write" && remaining.length === 0))
     return [];

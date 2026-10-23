@@ -468,7 +468,9 @@ or deletion does not invoke the getter. Selected setters invalidate
 the receiver and its shared children on assignment, including through known
 array and prototype paths. Supported class descriptors use the same inherited
 field and own-property shadowing rules as class reference selection. Inert
-getters and ordinary data slots retain their supported precision.
+getters and ordinary data slots retain their supported precision. Exposing a
+constructed receiver also exposes its retained shared field references, using
+the same reference owner as selected getter effects.
 
 Object spreads, rest copies and destructuring obtain their property reads from
 the shared pattern-source owner. Copies read own enumerable properties;
@@ -476,11 +478,15 @@ ordinary destructuring can invoke an inherited getter. Operations requiring
 primitive conversion conservatively expose their conversion operands, including
 computed keys, arithmetic and untagged template interpolation. `using` and
 `await using` expose the retained resource at its lexical scope exit; earlier
-scalar reads retain their capture timing. Repeated loop iterations can expose
+scalar reads retain their capture timing, including reads before a later scope's
+disposal. Repeated loop iterations can expose
 a previous disposal and therefore retain uncertainty. Private getter fields
 retain their parsed initializer references; `super` reads use the selected
 receiver conservatively, including superclass reads whose lookup and receiver
 authority differ. Custom `instanceof` hooks expose their receiver and argument.
+Known unmodified intrinsic Symbol keys cannot overwrite string properties or
+invoke primitive conversion; their omitted symbol-slot inventory stays partial.
+Shadowed or visibly replaced Symbol references retain unknown key effects.
 These are source-derived effects,
 not execution results or proofs of accessor purity. Reflectively installed
 descriptors remain opaque; their setup calls retain ordinary argument/receiver

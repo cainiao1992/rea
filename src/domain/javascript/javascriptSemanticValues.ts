@@ -4,6 +4,7 @@ import {
   semanticOpaqueBindingReadMayHaveChanged,
 } from "./javascriptSemanticOpaqueEffects.js";
 import * as t from "@babel/types";
+import { semanticKnownSymbolKey } from "./javascriptSemanticPropertyKeys.js";
 import { logicalRightOperand } from "./javascriptSymbolicControlFlow.js";
 
 import {
@@ -862,6 +863,16 @@ const evaluateObject = (
         omittedProperties = null;
         invalidateEarlierProperties();
       }
+      continue;
+    }
+    if (
+      property.computed &&
+      semanticKnownSymbolKey(property.key, context.state)
+    ) {
+      // The string-slot lattice omits symbol names, but they cannot overwrite
+      // established string fields. Keep the omitted inventory explicit.
+      unknownProperties = true;
+      if (omittedProperties !== null) omittedProperties += 1;
       continue;
     }
     const name = semanticStaticPropertyKey(property.key, property.computed);

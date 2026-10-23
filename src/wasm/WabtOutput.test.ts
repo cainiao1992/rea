@@ -421,11 +421,58 @@ it("matches a CLI-selected ./ module exactly against its glue reference", () => 
   ]);
 });
 
+it.each(["\n", "\r", "\r\n", "\u2028", "\u2029"])(
+  "retains complete .wasm query and fragment literals containing %j",
+  (separator) => {
+    const candidates = ["/artifacts/module.wasm", "/other/module.wasm"];
+    for (const qualifier of ["?query=", "#fragment="]) {
+      const value = `https://example.invalid/module.wasm${qualifier}a${separator}b`;
+      const result = associateWasmGlue(
+        `fetch(${JSON.stringify(value)});`,
+        "/artifacts/glue.js",
+        candidates,
+      );
+      expect(result).toEqual({
+        parse_status: "complete",
+        references: [
+          {
+            value,
+            line: 1,
+            column: 6,
+            candidate_paths: candidates,
+            association: "basename-candidates",
+            evidence_kind: "static-literal",
+          },
+        ],
+      });
+    }
+  },
+);
+
+it.each(["\n", "\r", "\r\n", "\u2028", "\u2029"])(
+  "does not accept a path-ending separator without a query or fragment: %j",
+  (separator) => {
+    const value = `https://example.invalid/module.wasm${separator}`;
+    expect(
+      associateWasmGlue(`fetch(${JSON.stringify(value)});`, "/glue.js", []),
+    ).toEqual({ parse_status: "complete", references: [] });
+  },
+);
+
 it("tests long multi-line glue literals for a .wasm suffix in linear time", () => {
-  const value = `${".wasm".repeat(32_000)}\nend`;
+  const value = `${".wasm#".repeat(32_000)}\nend`;
   const started = performance.now();
+  const result = associateWasmGlue(
+    `const s = ${JSON.stringify(value)};`,
+    "/glue.js",
+    [],
+  );
+  expect(result.parse_status).toBe("complete");
+  expect(result.references).toHaveLength(1);
+  expect(result.references[0]?.value).toBe(value);
+  const negative = `${".wasm!".repeat(32_000)}\nend`;
   expect(
-    associateWasmGlue(`const s = ${JSON.stringify(value)};`, "/glue.js", []),
+    associateWasmGlue(`const s = ${JSON.stringify(negative)};`, "/glue.js", []),
   ).toEqual({ parse_status: "complete", references: [] });
   expect(performance.now() - started).toBeLessThan(1_000);
   expect(
@@ -451,25 +498,6 @@ it("retains earlier module names for objdump framing when a later optional subse
   ).toHaveLength(7);
 });
 
-it.each(["\n", "\r", "\u2028", "\u2029"])(
-  "retains glue references with a line separator in a query or fragment: %j",
-  (separator) => {
-    for (const delimiter of ["?", "#"]) {
-      const value = `https://example.test/module.wasm${delimiter}before${separator}after`;
-      expect(
-        associateWasmGlue(`fetch(${JSON.stringify(value)});`, "/glue.js", [
-          "/module.wasm",
-        ]).references,
-      ).toMatchObject([
-        {
-          value,
-          candidate_paths: ["/module.wasm"],
-          association: "basename-candidates",
-        },
-      ]);
-    }
-  },
-);
 it.each([
   'import source module from "./module.wasm";',
   'const module = await import.source("./module.wasm");',

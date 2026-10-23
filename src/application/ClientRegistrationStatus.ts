@@ -11,8 +11,6 @@ import { lstat } from "node:fs/promises";
 import { err, ok, type Result } from "../domain/result.js";
 import { isAbsolute } from "node:path";
 
-import { valid } from "semver";
-
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
@@ -24,8 +22,8 @@ import {
   type McpToolTimeoutInputs,
 } from "../mcpStartupPolicy.js";
 import {
-  clientRegistrationPackageReference,
-  classifyClientRegistrationCommand,
+  inspectClientRegistrationCommand,
+  type ClientRegistrationCommandFacts,
   packageRunnerRegistrationCommand,
 } from "./ClientRegistrationIdentity.js";
 import {
@@ -279,16 +277,21 @@ export const readClientRegistrationInspections = async (
         registration.command,
         ...registration.args,
       ];
-      const packageReference = clientRegistrationPackageReference(command);
+      const commandFacts = inspectClientRegistrationCommand(
+        command,
+        currentCommandPath,
+      );
+      const packageReference = commandFacts.package?.reference;
       const activation = registrationActivation(registration, client, parsed);
-      const packageVersion = exactRegisteredPackageVersion(packageReference);
+      const packageVersion = commandFacts.package?.exactVersion;
       const packageVersionDrift =
         packageVersion !== undefined &&
         packageVersion !== PRODUCT_IDENTITY.packageVersion;
       const alignment = registrationAligned({
         registration,
         client: effectiveClient,
-        currentCommandPath,
+        command,
+        commandFacts,
         platform: options.platform ?? process.platform,
         kimiInputSchemaProfileSelected:
           registrationEnvironment?.ok === true &&
@@ -373,21 +376,19 @@ const registrationActivation = (
 const registrationAligned = ({
   registration,
   client,
-  currentCommandPath,
+  command,
+  commandFacts,
   platform,
   kimiInputSchemaProfileSelected,
 }: {
   readonly registration: ClientRegistration;
   readonly client: SetupClient;
-  readonly currentCommandPath: string | undefined;
+  readonly command: readonly string[];
+  readonly commandFacts: ClientRegistrationCommandFacts;
   readonly platform: NodeJS.Platform;
   readonly kimiInputSchemaProfileSelected: boolean;
 }): "aligned" | "stale" | "unknown" => {
-  const command = [registration.command, ...registration.args];
-  const identity = classifyClientRegistrationCommand(
-    command,
-    currentCommandPath,
-  );
+  const { identity } = commandFacts;
   if (identity === "unknown") return "unknown";
   if (identity === "foreign") return "stale";
   if (
@@ -427,7 +428,7 @@ const registrationAligned = ({
   )
     return "aligned";
   // Other owned package references remain stale until pinned to this version.
-  if (clientRegistrationPackageReference(command) !== undefined) return "stale";
+  if (commandFacts.package !== undefined) return "stale";
   // The identity owner already established an exact direct launcher match.
   // A bare command still depends on the client's PATH, so cannot prove alignment.
   return isAbsolute(command[0] ?? "") ? "aligned" : "stale";
@@ -503,16 +504,6 @@ const timeoutAdvisory = (
     ? `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs)} ms`
     : `${String(MCP_STARTUP_POLICY.toolOperationHeadroomMs / 1000)} seconds`;
   return `The configured ${setting} (${currentValue}) is shorter than REA's known provider allowance (${String(providerAllowance)} ms), so provider startup or an upstream request may exceed this client deadline. REA recommends ${setting} = ${recommendedValue} to cover that allowance plus ${headroom} of operation headroom; this additional headroom is a recommendation, not a guarantee for every analysis.`;
-};
-
-const exactRegisteredPackageVersion = (
-  packageReference: string | undefined,
-): string | undefined => {
-  if (packageReference === undefined) return undefined;
-  const prefix = `${PRODUCT_IDENTITY.packageName}@`;
-  if (!packageReference.startsWith(prefix)) return undefined;
-  const version = packageReference.slice(prefix.length);
-  return valid(version) === version ? version : undefined;
 };
 
 const packageVersionRemediation = (

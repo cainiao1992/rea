@@ -190,6 +190,7 @@ it("counts examined slots and reports an unresolved async slot", () => {
       legacyRebaseStreams: 0,
       legacyBindStreams: 0,
       unreadRebaseBytes: 0,
+      hasUnresolvedLegacyBytes: () => false,
     },
     declarations: {
       facet: "swift_declarations",
@@ -328,6 +329,7 @@ describe("Swift vtable coverage facts: unsupported pointer fixup coverage", () =
         legacyRebaseStreams: 0,
         legacyBindStreams: 0,
         unreadRebaseBytes: 0,
+        hasUnresolvedLegacyBytes: () => false,
       },
       declarations: {
         facet: "swift_declarations",

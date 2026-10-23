@@ -11,6 +11,7 @@ import {
 import { fixedAllowanceOptions } from "../../domain/fixedAllowanceRemediation.js";
 import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
+import { streamChunkToBuffer } from "../StreamBytes.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { ArtifactResourceScope } from "../ArtifactResourceScope.js";
 import { translateArtifactFailure } from "../ArtifactOperationFailure.js";
@@ -489,7 +490,7 @@ const digestBounded = async (
         "Asset catalog inspection cancelled",
         { cause: signal.reason },
       );
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    const bytes = streamChunkToBuffer(chunk);
     length += bytes.length;
     if (length > MAX_CATALOG_BYTES)
       throw new ArtifactReaderFailure(

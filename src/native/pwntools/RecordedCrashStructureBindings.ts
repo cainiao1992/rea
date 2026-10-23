@@ -2,15 +2,57 @@ import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import {
   RECORDED_LINUX_CORE_PROFILES,
   type RecordedCrash,
+  type RecordedCrashArchitecture,
 } from "../../domain/native/recordedCrash.js";
+
+// Pinned pyelftools 0.33 display projections depend on the machine. Validate
+// them separately from the original numeric p_type identity bound below.
+const baseSegmentKinds = new Map([
+  [0, "PT_NULL"],
+  [1, "PT_LOAD"],
+  [2, "PT_DYNAMIC"],
+  [3, "PT_INTERP"],
+  [4, "PT_NOTE"],
+  [5, "PT_SHLIB"],
+  [6, "PT_PHDR"],
+  [7, "PT_TLS"],
+  [0x60000000, "PT_LOOS"],
+  [0x6fffffff, "PT_HIOS"],
+  [0x6474e550, "PT_GNU_EH_FRAME"],
+  [0x6474e551, "PT_GNU_STACK"],
+  [0x6474e552, "PT_GNU_RELRO"],
+  [0x6474e553, "PT_GNU_PROPERTY"],
+]);
+const segmentKinds: Readonly<
+  Record<RecordedCrashArchitecture, ReadonlyMap<number, string>>
+> = {
+  "x86_64-little-endian": baseSegmentKinds,
+  "aarch64-little-endian": new Map([
+    ...baseSegmentKinds,
+    [0x70000000, "PT_AARCH64_ARCHEXT"],
+    [0x70000001, "PT_AARCH64_UNWIND"],
+  ]),
+};
+const matchesKind = (
+  raw: number,
+  reported: string | number,
+  kinds: ReadonlyMap<number, string>,
+): boolean => {
+  const known = kinds.get(raw);
+  return typeof reported === "string"
+    ? reported === known
+    : known === undefined && reported === raw;
+};
 
 const segmentMatches = (
   segment: RecordedCrash["segments"][number],
   raw: Buffer,
+  kinds: ReadonlyMap<number, string>,
 ): boolean => {
   const type = raw.readUInt32LE(0);
   return (
     type === segment.type_id &&
+    matchesKind(type, segment.type, kinds) &&
     BigInt(segment.flags) === BigInt(raw.readUInt32LE(4)) &&
     segment.file_backing ===
       (type === 0 || raw.readBigUInt64LE(32) === 0n ? "none" : "file") &&
@@ -78,7 +120,8 @@ export function validateRecordedCrashStructure(
     )
       fail();
     const raw = bytesAt(offset, entryBytes);
-    if (!segmentMatches(segment, raw)) fail();
+    if (!segmentMatches(segment, raw, segmentKinds[report.architecture]))
+      fail();
   }
   for (const note of report.notes) {
     const raw = bytesAt(BigInt(note.location.offset), 12);

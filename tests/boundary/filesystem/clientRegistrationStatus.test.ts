@@ -7,6 +7,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { clearClientLocationEnvironment } from "../../fixtures/clientEnvironment.js";
 
 import { readClientRegistrationStatuses } from "../../../src/application/ClientRegistrationStatus.js";
+import { classifyClientRegistrationCommand } from "../../../src/application/ClientRegistrationIdentity.js";
 import { existingMaintenanceScope } from "../../../src/application/UpdateMaintenance.js";
 import { PRODUCT_IDENTITY } from "../../../src/identity.js";
 
@@ -229,31 +230,51 @@ describe("client registration launcher identity", () => {
     });
   });
 
-  it("reports the exact requested package version when it differs from this CLI", async () => {
-    const home = await createTestTempDirectory(
-      "rea-registration-version-drift-",
-    );
-    await mkdir(join(home, ".codex"));
-    const command = ["npx", "-y", "rea-agents@4.1.0", "mcp"];
-    await writeFile(
-      join(home, ".codex/config.toml"),
-      `[mcp_servers.rea]\ncommand = "${command[0]}"\nargs = ["${command[1]}", "${command[2]}", "${command[3]}"]\n`,
-    );
+  it.each([
+    ["4.1.0", true],
+    ["v4.1.0", false],
+  ] as const)(
+    "preserves package version %s ownership with canonical-only drift reporting",
+    async (version, reportsDrift) => {
+      const home = await createTestTempDirectory(
+        "rea-registration-version-drift-",
+      );
+      await mkdir(join(home, ".codex"));
+      const reference = `rea-agents@${version}`;
+      const command = ["npx", "-y", reference, "mcp"];
+      await writeFile(
+        join(home, ".codex/config.toml"),
+        `[mcp_servers.rea]\ncommand = "${command[0]}"\nargs = ["${command[1]}", "${command[2]}", "${command[3]}"]\n`,
+      );
 
-    const [status] = await readClientRegistrationStatuses(home);
+      const [status] = await readClientRegistrationStatuses(home);
 
-    expect(status).toMatchObject({
-      client: "codex",
-      command,
-      package_reference: "rea-agents@4.1.0",
-      state: "stale",
-      remediation: expect.stringContaining(
-        `current REA CLI package is ${PRODUCT_IDENTITY.packageVersion}`,
-      ),
-    });
-    expect(status?.remediation).toContain("does not resolve package-runner");
-    expect(status?.remediation).toContain("rea setup --client codex");
-  });
+      expect(classifyClientRegistrationCommand(command, undefined)).toBe(
+        "owned",
+      );
+      expect(status).toMatchObject({
+        client: "codex",
+        command,
+        package_reference: reference,
+        state: "stale",
+      });
+      if (reportsDrift) {
+        expect(status?.remediation).toContain(
+          `current REA CLI package is ${PRODUCT_IDENTITY.packageVersion}`,
+        );
+        expect(status?.remediation).toContain(
+          "does not resolve package-runner",
+        );
+        expect(status?.remediation).toContain("rea setup --client codex");
+      } else {
+        expect(status?.remediation).not.toContain("current REA CLI package");
+        expect(status?.remediation).not.toContain(
+          "does not resolve package-runner",
+        );
+      }
+      expect(status?.remediation).toContain("rea setup");
+    },
+  );
 });
 
 describe("commandcode registration status", () => {

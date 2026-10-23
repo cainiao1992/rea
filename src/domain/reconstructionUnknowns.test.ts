@@ -71,3 +71,32 @@ it("keeps explicit dependencies while excluding unrelated scoped unknowns", () =
     other.unknown_id,
   ]);
 });
+
+it("aggregates constituent unknowns without importing another comparison's scope", () => {
+  const scoped = (comparisonId: string) =>
+    createResidualUnknown(
+      {
+        ...base,
+        question: "Unresolved pseudocode",
+        comparison_conclusion_scope: {
+          comparison_evidence_id: comparisonId,
+          dimensions: ["pseudocode"],
+        },
+        relationships: [],
+      },
+      ev("c"),
+      null,
+    );
+  const own = scoped(ev("a"));
+  const foreign = scoped(ev("b"));
+  const heads = new Map([
+    [own.unknown_id, own],
+    [foreign.unknown_id, foreign],
+  ]);
+  expect(
+    reconstructionClaimUnknowns(heads, ev("a"), [ev("b")], ["overall"]),
+  ).toEqual([own]);
+  expect(
+    reconstructionClaimUnknowns(heads, ev("a"), [ev("b")], ["assembly"]),
+  ).toEqual([]);
+});

@@ -84,8 +84,8 @@ export const registerModelCommands = (
             run: () =>
               service.inspect(
                 {
-                  path: absoluteCallerPath(args.path),
-                  hash: options.hash,
+                  path: selected.data.path,
+                  hash: selected.data.hash,
                   detail: "complete",
                 },
                 { signal },

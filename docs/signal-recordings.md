@@ -40,20 +40,24 @@ unrelated producer warnings do not change request status.
 Omitting `input_format` requests sigrok's autodetection. REA uses an immutable
 private copy whose filename retains the selected recording's final suffix,
 including a dotfile basename such as `.csv`. Filename-based format detection
-receives that hint without exposing the
-caller's directory to sigrok. The operand is an explicit relative path, so a
-recording named `-` still selects the private file rather than sigrok stdin.
-Omitting `annotations`
-retains every annotation class. Both omitted selections are recorded as null.
+receives that hint without exposing the caller's directory to sigrok. The
+input operand is an explicit relative path within the private workspace,
+so a recording named `-` is opened as a file rather than
+[sigrok's stdin operand](https://github.com/sigrokproject/sigrok-cli/blob/sigrok-cli-0.7.2/input.c#L49-L75).
+Omitting `annotations` retains every annotation class. Both omitted selections
+are recorded as null.
 If sigrok reports an explicitly selected input format as unknown, REA returns
 `invalid_request` for `input_format`, retains the producer diagnostic, and
-advises correcting the format or omitting it for autodetection. An explicit
-`Unknown keyword` refusal naming a caller-selected format option also returns
-`invalid_request` for `input_format`, even when sigrok exits zero and produces
-fallback output. Output and diagnostics remain in `captured_output`; unrelated
-warnings remain diagnostics. A completed nonzero `--version` probe is a
-configuration refusal with its captured output and the selected sigrok/prlimit
-configuration guidance. See the
+advises correcting the format or omitting it for autodetection. The
+[tagged option parser](https://github.com/sigrokproject/sigrok-cli/blob/sigrok-cli-0.7.2/parsers.c#L387-L404)
+warns when an option key is unknown. When that diagnostic's key exactly matches
+a selected `input_format` option, REA returns `invalid_request`, even on exit zero.
+Fallback output and the diagnostic remain in `captured_output`; unrelated
+option warnings stay visible without rejecting the request. Matching keeps
+the complete diagnostic caption, including an LF inside a selected key;
+embedded warning substrings do not establish a refusal. A completed nonzero
+`--version` probe is a configuration refusal with its captured output and the
+selected sigrok/prlimit configuration guidance. See the
 [upstream manual](https://sigrok.org/wiki/Sigrok-cli) for formats, decoder
 stacking and annotation selectors. No arbitrary command flags are accepted.
 

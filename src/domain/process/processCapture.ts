@@ -92,7 +92,7 @@ export type FileState = FileStateIdentity &
 export interface ProcessFilesystemSnapshot {
   readonly files: readonly FileState[];
   readonly truncated: boolean;
-  /** Root aliases whose path enumeration was exhausted, regardless of hash coverage. */
+  /** Physical root enumeration exhausted; unfollowed symlink scopes remain unknown. */
   readonly completeRoots: readonly string[];
   readonly coverage: FilesystemCoverage;
 }

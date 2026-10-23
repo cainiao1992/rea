@@ -541,7 +541,7 @@ const registerSignatureInputAdmissionCases = () => {
     if (!damaged.ok) {
       expect(damaged.error._tag).toBe("AnalysisInputError");
       expect(JSON.stringify(damaged.error)).toContain(
-        "malformed Zip64 EOCD record",
+        "invalid Zip64 EOCD signature",
       );
     }
   });

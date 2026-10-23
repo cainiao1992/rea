@@ -80,7 +80,7 @@ const unwrapCmdCommand = (command: readonly string[]): readonly string[] => {
 };
 
 /** Preserve the package argument from a supported package-runner command. */
-export const clientRegistrationPackageReference = (
+const clientRegistrationPackageReference = (
   command: readonly string[],
 ): string | undefined => {
   const arguments_ = unwrapCmdCommand(command);
@@ -98,20 +98,6 @@ export const clientRegistrationPackageReference = (
   )
     return arguments_[1];
   return undefined;
-};
-
-const isOwnedPackageReference = (packageReference: string): boolean => {
-  if (
-    packageReference === PRODUCT_IDENTITY.packageName ||
-    packageReference === PRODUCT_IDENTITY.packageSpecifier ||
-    packageReference === PRODUCT_IDENTITY.registrationPackageSpecifier
-  )
-    return true;
-  const versionPrefix = `${PRODUCT_IDENTITY.packageName}@`;
-  return (
-    packageReference.startsWith(versionPrefix) &&
-    valid(packageReference.slice(versionPrefix.length)) !== null
-  );
 };
 
 /** Check that one parsed command points to REA's MCP entry point. */
@@ -182,69 +168,110 @@ export const equivalentClientRegistrationCommands = (
     previous.every((value, index) => value === requested[index])
   )
     return true;
-  const entrypoint = (command: readonly string[]): string | undefined => {
-    if (
-      command.length === 2 &&
-      command[1] === "mcp" &&
-      isAbsolute(command[0] ?? "")
-    )
-      return command[0];
-    if (
-      command.length === 3 &&
-      command[2] === "mcp" &&
-      isAbsolute(command[1] ?? "") &&
-      entrypointIdentity(command[0] ?? "", process.execPath) === "owned"
-    )
-      return normalizeEntrypointPath(command[1]);
-    return undefined;
-  };
-  const current = entrypoint(requested);
-  return (
-    current !== undefined &&
-    entrypoint(previous) !== undefined &&
-    classifyClientRegistrationCommand(previous, current) === "owned"
-  );
+  const current = inspectClientRegistrationCommand(
+    requested,
+    undefined,
+  ).entrypoint;
+  if (current === undefined) return false;
+  const prior = inspectClientRegistrationCommand(previous, current);
+  return prior.entrypoint !== undefined && prior.identity === "owned";
 };
 
-/** Classify the command once; uncertainty never grants positive ownership. */
+export interface ClientRegistrationCommandFacts {
+  readonly identity: ClientRegistrationCommandIdentity;
+  /** Selected absolute launcher/script path; excludes package and unresolved PATH commands. */
+  readonly entrypoint: string | undefined;
+  readonly package:
+    | {
+        readonly reference: string;
+        readonly exactVersion: string | undefined;
+      }
+    | undefined;
+}
+
+/** Parse package identity once, retaining exact source spelling and version facts. */
+export const inspectClientRegistrationCommand = (
+  command: readonly string[],
+  currentCommandPath: string | undefined,
+): ClientRegistrationCommandFacts => {
+  const reference = clientRegistrationPackageReference(command);
+  if (reference !== undefined) {
+    const prefix = `${PRODUCT_IDENTITY.packageName}@`;
+    const version = reference.startsWith(prefix)
+      ? reference.slice(prefix.length)
+      : undefined;
+    const normalized = version === undefined ? null : valid(version);
+    const owned =
+      reference === PRODUCT_IDENTITY.packageName ||
+      reference === PRODUCT_IDENTITY.packageSpecifier ||
+      reference === PRODUCT_IDENTITY.registrationPackageSpecifier ||
+      normalized !== null;
+    return {
+      identity: owned ? "owned" : "foreign",
+      entrypoint: undefined,
+      package: {
+        reference,
+        exactVersion: normalized === version ? version : undefined,
+      },
+    };
+  }
+  return inspectDirectRegistrationCommand(command, currentCommandPath);
+};
+
+/** Ownership-only consumers share the same parsed command facts. */
 export const classifyClientRegistrationCommand = (
   command: readonly string[],
   currentCommandPath: string | undefined,
-): ClientRegistrationCommandIdentity => {
-  const packageReference = clientRegistrationPackageReference(command);
-  if (packageReference !== undefined)
-    return isOwnedPackageReference(packageReference) ? "owned" : "foreign";
+): ClientRegistrationCommandIdentity =>
+  inspectClientRegistrationCommand(command, currentCommandPath).identity;
+
+const inspectDirectRegistrationCommand = (
+  command: readonly string[],
+  currentCommandPath: string | undefined,
+): ClientRegistrationCommandFacts => {
   const currentPathAvailable =
     currentCommandPath !== undefined && currentCommandPath.length > 0;
   if (command.length === 3 && command[2] === "mcp") {
     const interpreter = command[0] ?? "";
     const entrypoint = command[1] ?? "";
-    if (
-      !isAbsolute(interpreter) ||
-      !isAbsolute(entrypoint) ||
-      !currentPathAvailable
-    )
-      return "unknown";
+    if (!isAbsolute(interpreter) || !isAbsolute(entrypoint))
+      return { identity: "unknown", entrypoint: undefined, package: undefined };
     const interpreterIdentity = entrypointIdentity(
       interpreter,
       process.execPath,
     );
-    if (interpreterIdentity !== "owned") return interpreterIdentity;
+    if (interpreterIdentity !== "owned")
+      return {
+        identity: currentPathAvailable ? interpreterIdentity : "unknown",
+        entrypoint: undefined,
+        package: undefined,
+      };
     // Node selects its script from normalized argv; executable paths use native
     // traversal semantics, where symlink/.. can denote a different file.
     const selectedEntrypoint = normalizeEntrypointPath(entrypoint);
-    return selectedEntrypoint === undefined
-      ? "unknown"
-      : entrypointIdentity(selectedEntrypoint, currentCommandPath);
+    return {
+      identity:
+        selectedEntrypoint === undefined || !currentPathAvailable
+          ? "unknown"
+          : entrypointIdentity(selectedEntrypoint, currentCommandPath),
+      entrypoint: selectedEntrypoint,
+      package: undefined,
+    };
   }
   if (command.length === 2 && command[1] === "mcp") {
     const executable = command[0] ?? "";
-    if (executable === PRODUCT_IDENTITY.cliBinary) return "owned";
+    if (executable === PRODUCT_IDENTITY.cliBinary)
+      return { identity: "owned", entrypoint: undefined, package: undefined };
     if (isAbsolute(executable))
-      return currentPathAvailable
-        ? directEntrypointIdentity(executable, currentCommandPath)
-        : "unknown";
-    if (/[./\\]/u.test(executable)) return "unknown";
+      return {
+        identity: currentPathAvailable
+          ? directEntrypointIdentity(executable, currentCommandPath)
+          : "unknown",
+        entrypoint: executable,
+        package: undefined,
+      };
+    if (/[./\\]/u.test(executable))
+      return { identity: "unknown", entrypoint: undefined, package: undefined };
   }
-  return "foreign";
+  return { identity: "foreign", entrypoint: undefined, package: undefined };
 };

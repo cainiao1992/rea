@@ -1,11 +1,6 @@
 import type { Il2cppMethodAddress } from "../domain/il2cpp/il2cppMetadata.js";
 import { Il2cppBinaryFormatFailure } from "./Il2cppBinaryFormat.js";
-import {
-  openImageSteps,
-  readPointer,
-  readSlot,
-  isExecutable,
-} from "./Il2cppBinaryImage.js";
+import { openImageSteps, readSlot, isExecutable } from "./Il2cppBinaryImage.js";
 import {
   findModules,
   findCodeRegistration,
@@ -180,8 +175,13 @@ export function* linkIl2cppBinarySteps(
       );
     // 27.0/27.1 and 27.2 share header version 27 but place byref differently.
     if (version === 27) return { type, name: null };
-    const address =
-      readPointer(image, registration.types + BigInt(type * 8)) ?? 0n;
+    const address = readSlot(image, registration.types + BigInt(type * 8));
+    if (address === "unknown") return { type, name: null };
+    if (address === null)
+      throw new Il2cppBinaryFormatFailure(
+        "invalid-type",
+        `type ${type} has no mapped type-table slot`,
+      );
     if (address === 0n)
       throw new Il2cppBinaryFormatFailure(
         "invalid-type",

@@ -24,6 +24,7 @@ import type {
 } from "./ManagedMetadataLayout.js";
 import {
   metadataRowCursor,
+  readManagedCompressedUnsigned,
   decodeMetadataCodedIndex,
   metadataCodedIndexCoordinate,
   type MetadataCodedIndexCoordinate,
@@ -286,36 +287,17 @@ export const readCompressed = (
   bytes: Buffer,
   offset: number,
 ): { readonly value: number; readonly next: number } => {
-  const first = bytes[offset];
-  if (first === undefined)
+  const decoded = readManagedCompressedUnsigned(bytes, offset);
+  if (!decoded.ok)
     throw managedFailure(
       "invalid-blob",
       "signature",
-      "truncated compressed integer",
+      decoded.error.kind === "truncated"
+        ? "truncated compressed integer"
+        : "reserved compressed integer",
       offset,
     );
-  if ((first & 0x80) === 0) return { value: first, next: offset + 1 };
-  const width =
-    (first & 0xc0) === 0x80 ? 2 : (first & 0xe0) === 0xc0 ? 4 : null;
-  if (width !== null) {
-    if (offset > bytes.length - width)
-      throw managedFailure(
-        "invalid-blob",
-        "signature",
-        "truncated compressed integer",
-        offset,
-      );
-    let value = first & (width === 2 ? 0x3f : 0x1f);
-    for (let index = 1; index < width; index += 1)
-      value = value * 256 + bytes[offset + index]!;
-    return { value, next: offset + width };
-  }
-  throw managedFailure(
-    "invalid-blob",
-    "signature",
-    "reserved compressed integer",
-    offset,
-  );
+  return { value: decoded.value.value, next: offset + decoded.value.width };
 };
 
 const ELEMENT_TYPES = new Map<number, string>([

@@ -76,7 +76,7 @@ export interface NativeImage {
   readonly imageBase: bigint;
   readonly unresolvedPointerSlots: ReadonlyMap<bigint, number>;
   readonly zeroFillPointers: ReadonlyMap<bigint, bigint>;
-  /** Mach-O loader fixups, owned by every pointer interpretation. */
+  /** Mach-O loader fixups shared by every native pointer consumer. */
   readonly machoPointerFixups?: PointerFixups;
 }
 
@@ -191,10 +191,8 @@ export function* openImageSteps(
   };
 }
 
-const readRawPointer = (image: NativeImage, address: bigint): bigint | null => {
-  if (hasUnresolvedPointer(image, address)) return null;
-  const virtual = image.zeroFillPointers.get(address);
-  if (virtual !== undefined) return virtual;
+/** Stored bytes only; loader interpretation belongs to readSlot. */
+const readStoredWord = (image: NativeImage, address: bigint): bigint | null => {
   try {
     const offset = mappedFileOffset(
       image.container.mappings,
@@ -213,8 +211,12 @@ const readRawPointer = (image: NativeImage, address: bigint): bigint | null => {
 export const readUInt32 = (
   image: NativeImage,
   address: bigint,
-): number | null => {
-  if (hasUnresolvedPointer(image, address, 4)) return null;
+): number | "unknown" | null => {
+  if (
+    hasUnresolvedElfBytes(image, address, 4) ||
+    image.machoPointerFixups?.hasUnresolvedLegacyBytes(address, 4) === true
+  )
+    return "unknown";
   const virtual = image.zeroFillPointers.get(address);
   if (virtual !== undefined) return Number(virtual & 0xffffffffn);
   try {
@@ -326,7 +328,7 @@ export const isExecutable = (image: NativeImage, address: bigint): boolean => {
   }
 };
 
-const hasUnresolvedPointer = (
+const hasUnresolvedElfBytes = (
   image: NativeImage,
   address: bigint,
   size = 8,
@@ -343,13 +345,13 @@ export const readSlot = (
   image: NativeImage,
   address: bigint,
 ): bigint | "unknown" | null => {
-  if (hasUnresolvedPointer(image, address)) return "unknown";
+  if (hasUnresolvedElfBytes(image, address)) return "unknown";
   try {
     const virtual = image.zeroFillPointers.get(address);
     let raw: bigint | null;
     if (virtual !== undefined) raw = virtual;
     else if (isZeroFilled(image, address, 8)) raw = 0n;
-    else raw = readRawPointer(image, address);
+    else raw = readStoredWord(image, address);
     if (raw === null) return null;
     if (image.machoPointerFixups !== undefined) {
       const resolution = image.machoPointerFixups.decode(address, raw);
@@ -370,11 +372,11 @@ export const readSlot = (
   }
 };
 
-/** Resolve a pointer through the same loader interpretation as method slots. */
+/** Require an observed resolved pointer; unknown and unmapped slots stay null. */
 export const readPointer = (
   image: NativeImage,
   address: bigint,
 ): bigint | null => {
-  const slot = readSlot(image, address);
-  return typeof slot === "bigint" ? slot : null;
+  const value = readSlot(image, address);
+  return typeof value === "bigint" ? value : null;
 };

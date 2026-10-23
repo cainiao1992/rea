@@ -540,7 +540,11 @@ it.skipIf(process.platform === "win32")(
     await writeFile(join(target, "created.txt"), "unobserved change");
     const after = await snapshotRoots(scenario);
     expect(before.files).toEqual(after.files);
-    expect(after.coverage.enumeration_truncated).toBe(false);
+    expect(after.coverage.enumeration_truncated).toBe(true);
+    expect(after.coverage.enumeration_omissions).toEqual([
+      { path: "root_0:.", reason: "symlink_not_followed", system_code: null },
+    ]);
+    expect(after.completeRoots).toEqual([]);
     expect(after.coverage.unobserved_subtrees).toEqual([
       { path: "root_0:.", reason: "symlink_not_followed" },
     ]);

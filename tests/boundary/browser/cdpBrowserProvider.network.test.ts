@@ -8,7 +8,7 @@ import { trackBrowser } from "./cdpBrowserProvider.support.js";
 it.each([
   ["related", { openerId: "allowed-page" }, 1, null],
   ["foreign", { openerId: "other-page" }, 0, "out_of_target_scope"],
-  ["unknown", {}, 0, "unknown_target_relationship"],
+  ["unknown", {}, 0, "unattributed_target"],
 ] as const)(
   "keeps %s worker ownership separate from attachment state",
   async (_relation, ownership, count, exclusion) => {

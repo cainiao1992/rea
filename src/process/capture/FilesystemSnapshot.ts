@@ -7,6 +7,7 @@ import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
 import type { Stats } from "node:fs";
 import { err, ok, type Result } from "../../domain/result.js";
+import { AnalysisAccessDeniedError } from "../../domain/analysisErrorCore.js";
 import type {
   FileState,
   ProcessFilesystemSnapshot,
@@ -26,7 +27,6 @@ import {
   withProcessCaptureFile,
   type ProcessCaptureCleanupRetainer,
 } from "./ProcessCaptureRead.js";
-import { AnalysisAccessDeniedError } from "../../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 
@@ -121,21 +121,6 @@ type PathLookup =
       readonly cause: unknown;
     };
 
-const rootAdmissionFailure = (
-  path: string,
-  lookup: Exclude<PathLookup, { readonly state: "present" }>,
-): unknown =>
-  lookup.system_code === "EACCES" || lookup.system_code === "EPERM"
-    ? new AnalysisAccessDeniedError(
-        "capture_process",
-        path,
-        lookup.system_code,
-        {
-          cause: lookup.cause,
-        },
-      )
-    : lookup.cause;
-
 /**
  * Look up one path without following its final component. ENOENT and ENOTDIR
  * both prove that no entry exists at the path; other unavailable lookups leave
@@ -180,7 +165,6 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
   readonly snapshot: ProcessFilesystemSnapshot | undefined;
   readonly cleanupLeases: readonly AnalysisCleanupLease[];
   readonly readFailures: readonly ProcessCaptureReadFailure<unknown>[];
-  readonly primaryFailure: AnalysisAccessDeniedError | undefined;
 
   constructor(options: {
     readonly cause: unknown;
@@ -228,6 +212,9 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
       "snapshot handle cleanup failed";
     super(message, {
       cause: primary,
+      ...(options.cause instanceof AnalysisAccessDeniedError
+        ? { cleanupPrimary: options.cause }
+        : {}),
       ...(cancellation
         ? { userCategory: "cancelled" as const, reason: "cancelled" as const }
         : {}),
@@ -249,24 +236,21 @@ export class ProcessCaptureSnapshotFailure extends ProcessCaptureError {
     this.snapshot = options.snapshot;
     this.cleanupLeases = cleanupLeases;
     this.readFailures = readFailures;
-    this.primaryFailure =
-      options.cause instanceof AnalysisAccessDeniedError
-        ? options.cause
-        : undefined;
     if (cleanupLeases.length > 0)
       new AnalysisCleanupLeaseGroup(this, cleanupLeases);
   }
 
   /** The snapshot owns observations; the admitted read owns its failure identity. */
   failureForCaller(): AnalysisError {
-    if (this.primaryFailure === undefined) return this;
+    const primary = this.cleanupPrimary;
+    if (!(primary instanceof AnalysisAccessDeniedError)) return this;
     return this.cleanupIncomplete
       ? analysisErrorWithCleanupFailure(
-          this.primaryFailure,
+          primary,
           this,
           "capture_process",
-        ).bindCleanupDependencies([this.primaryFailure, this])
-      : this.primaryFailure;
+        ).bindCleanupDependencies([primary, this])
+      : primary;
   }
 }
 
@@ -527,7 +511,16 @@ export const snapshotRoots = async (
         path: `${rootAlias}:${relativePath}`,
         reason: "symlink_not_followed",
       });
-      return true;
+      truncated = true;
+      enumerationReasons.add("symlink_not_followed");
+      enumerationOmissions.push({
+        path: `${rootAlias}:${relativePath}`,
+        reason: "symlink_not_followed",
+        system_code: null,
+      });
+      // A link leaves its descendants unknown, while a physically enumerated
+      // parent still proves absence of unrelated sibling names.
+      return depth > 0;
     }
     if (stats.isFile()) {
       if (remainingBytes < stats.size) {
@@ -677,7 +670,8 @@ export const snapshotRoots = async (
       files_limit: scenario.limits.files,
       depth_limit: scenario.limits.filesystem_depth,
       enumeration_truncated:
-        completeRoots.length !== scenario.filesystem_observation_paths.length,
+        completeRoots.length !== scenario.filesystem_observation_paths.length ||
+        enumerationOmissions.length > 0,
       enumeration_reasons: [...enumerationReasons],
       enumeration_omissions: enumerationOmissions,
       unobserved_subtrees: unobservedSubtrees,
@@ -695,8 +689,24 @@ export const snapshotRoots = async (
       const alias = `root_${String(index)}`;
       const lookup = await lookupPath(root, signal);
       if (lookup.state !== "present") {
-        if (admission === undefined && lookup.system_code !== "ENOENT")
-          throw rootAdmissionFailure(root, lookup);
+        if (admission === undefined && lookup.system_code !== "ENOENT") {
+          if (
+            lookup.system_code === "EACCES" ||
+            lookup.system_code === "EPERM"
+          ) {
+            omitEntry(`${alias}:.`, {
+              reason: "entry_unavailable",
+              system_code: lookup.system_code,
+            });
+            throw new AnalysisAccessDeniedError(
+              "capture_process_scenario",
+              root,
+              lookup.system_code,
+              { cause: lookup.cause },
+            );
+          }
+          throw lookup.cause;
+        }
         if (lookup.state === "absent") completeRoots.push(alias);
         else
           omitEntry(`${alias}:.`, {

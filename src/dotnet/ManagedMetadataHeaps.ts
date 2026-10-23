@@ -1,5 +1,6 @@
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import { createHash } from "node:crypto";
+import { err, ok, type Result } from "../domain/result.js";
 
 import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
 
@@ -55,6 +56,39 @@ export class MetadataRowCursor {
   }
 }
 
+interface ManagedCompressedUnsigned {
+  readonly value: number;
+  readonly width: 1 | 2 | 4;
+  readonly minimal: boolean;
+}
+
+type ManagedCompressedUnsignedFailure =
+  | { readonly kind: "truncated"; readonly width: 1 | 2 | 4 }
+  | { readonly kind: "reserved" };
+
+/** ECMA-335 unsigned encoding facts, without heap or signature admission policy. */
+export const readManagedCompressedUnsigned = (
+  bytes: Buffer,
+  offset: number,
+): Result<ManagedCompressedUnsigned, ManagedCompressedUnsignedFailure> => {
+  const first = bytes[offset];
+  if (first === undefined) return err({ kind: "truncated", width: 1 });
+  if ((first & 0x80) === 0)
+    return ok({ value: first, width: 1, minimal: true });
+  const width =
+    (first & 0xc0) === 0x80 ? 2 : (first & 0xe0) === 0xc0 ? 4 : null;
+  if (width === null) return err({ kind: "reserved" });
+  if (offset > bytes.length - width) return err({ kind: "truncated", width });
+  const value =
+    width === 2
+      ? ((first & 0x3f) << 8) | (bytes[offset + 1] ?? 0)
+      : (first & 0x1f) * 0x01_00_00_00 +
+        (bytes[offset + 1] ?? 0) * 0x01_00_00 +
+        (bytes[offset + 2] ?? 0) * 0x0100 +
+        (bytes[offset + 3] ?? 0);
+  return ok({ value, width, minimal: value >= (width === 2 ? 0x80 : 0x4000) });
+};
+
 // Issue code and label for the heap item a compressed length prefixes.
 const PREFIXED_ITEMS = {
   blob: { code: "invalid-blob", label: "Metadata blob" },
@@ -73,38 +107,21 @@ const compressedLength = (
   readonly minimal: boolean;
 } => {
   const { code, label } = PREFIXED_ITEMS[item];
-  const requirePrefix = (size: number): void => {
-    if (offset < 0 || offset > bytes.length - size)
-      throw managedFailure(
-        code,
-        scope,
-        `${label} length prefix leaves the artifact byte range`,
-        offset >= 0 ? offset : null,
-      );
+  const decoded = readManagedCompressedUnsigned(bytes, offset);
+  if (!decoded.ok)
+    throw managedFailure(
+      code,
+      scope,
+      decoded.error.kind === "truncated"
+        ? `${label} length prefix leaves the artifact byte range`
+        : `${label} uses a reserved compressed-length prefix`,
+      offset >= 0 ? offset : null,
+    );
+  return {
+    length: decoded.value.value,
+    prefix: decoded.value.width,
+    minimal: decoded.value.minimal,
   };
-  requirePrefix(1);
-  const first = bytes[offset] ?? 0;
-  if ((first & 0x80) === 0) return { length: first, prefix: 1, minimal: true };
-  if ((first & 0xc0) === 0x80) {
-    requirePrefix(2);
-    const length = ((first & 0x3f) << 8) | (bytes[offset + 1] ?? 0);
-    return { length, prefix: 2, minimal: length >= 0x80 };
-  }
-  if ((first & 0xe0) === 0xc0) {
-    requirePrefix(4);
-    const length =
-      (first & 0x1f) * 0x01_00_00_00 +
-      (bytes[offset + 1] ?? 0) * 0x01_00_00 +
-      (bytes[offset + 2] ?? 0) * 0x0100 +
-      (bytes[offset + 3] ?? 0);
-    return { length, prefix: 4, minimal: length >= 0x4000 };
-  }
-  throw managedFailure(
-    code,
-    scope,
-    `${label} uses a reserved compressed-length prefix`,
-    offset,
-  );
 };
 
 /** Read one UTF-8 value from #Strings within its PE/CLI stream extent. */

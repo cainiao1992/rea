@@ -34,6 +34,7 @@ import {
   createElfFixture,
   createIl2cppBinaryFixture,
   createIl2cppDyldBindFixture,
+  createIl2cppRegistrationTailFixture,
   createUniversalFixture,
   FIXTURE_BINARY_BASE,
   FIXTURE_METHOD_ADDRESSES,
@@ -894,6 +895,136 @@ cliTest(
     expect(
       parseCliMetadata(response.structuredContent).method_addresses,
     ).toEqual(report.method_addresses);
+    await client.ping();
+  },
+  30000,
+);
+
+cliTest(
+  "retains unknown dyld-bound type names and source identity through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-il2cpp-type-bind-");
+    const path = join(root, "global-metadata.dat");
+    const binaryPath = join(root, "GameAssembly.dylib");
+    await writeFile(path, createLinkedIl2cppMetadataFixture().bytes);
+    const inspect = async (bytes: Buffer) => {
+      await writeFile(binaryPath, bytes);
+      const output = await runFileCli(cli, {
+        arguments: [
+          "inspect-il2cpp-metadata",
+          path,
+          "--binary",
+          binaryPath,
+          "--json",
+        ],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      const report = parseCliMetadata(output.json);
+      expect(report.binary?.artifact).toEqual({
+        path: binaryPath,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        bytes: bytes.length,
+      });
+      expect(await readFile(binaryPath)).toEqual(bytes);
+      return report;
+    };
+    const control = await inspect(createIl2cppBinaryFixture());
+    expect(control.return_types[0]?.name).toBe(FIXTURE_RETURN_TYPE_NAME);
+    const { client, call } = await connectLocalToolsMcp();
+    for (const raw of [
+      0n,
+      FIXTURE_BINARY_BASE + 0x980n,
+      FIXTURE_BINARY_BASE + 0x9b0n,
+    ]) {
+      const report = await inspect(createIl2cppDyldBindFixture(raw, 0x900));
+      for (const collection of [
+        "return_types",
+        "field_types",
+        "parameter_types",
+      ] as const)
+        expect(report[collection]).toEqual(
+          control[collection].map((row) =>
+            row.type === 0 ? { ...row, name: null } : row,
+          ),
+        );
+      expect(report.methods).toEqual(control.methods);
+      expect(report.method_addresses).toEqual(control.method_addresses);
+      expect(report.limitations).toContainEqual(
+        expect.stringContaining("unresolved type-table slot"),
+      );
+      // One transport round trip covers the nullable name contract; all stored
+      // placeholder variants above cross the real CLI workflow.
+      if (raw === 0n) {
+        const response = await call("inspect_il2cpp_metadata", {
+          path,
+          binary_path: binaryPath,
+          detail: "complete",
+        });
+        expect(response.isError, JSON.stringify(response)).not.toBe(true);
+        expect(parseCliMetadata(response.structuredContent)).toEqual(report);
+      }
+    }
+    await client.ping();
+  },
+  30000,
+);
+
+cliTest(
+  "links ABI count padding and declared zero-fill registration tails through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-il2cpp-registration-layout-",
+    );
+    const path = join(root, "global-metadata.dat");
+    await writeFile(path, createLinkedIl2cppMetadataFixture().bytes);
+    const { client, call } = await connectLocalToolsMcp();
+    for (const tailBytes of [0, 8, 16] as const) {
+      const bytes = createIl2cppRegistrationTailFixture(tailBytes);
+      bytes.fill(0xff, 0x604, 0x608);
+      const binaryPath = join(root, `registration-${tailBytes}.dylib`);
+      await writeFile(binaryPath, bytes);
+      const output = await runFileCli(cli, {
+        arguments: [
+          "inspect-il2cpp-metadata",
+          path,
+          "--binary",
+          binaryPath,
+          "--json",
+        ],
+      });
+      expect(output.exitCode, output.stderr).toBe(0);
+      const report = parseCliMetadata(output.json);
+      expect(report.binary).toMatchObject({
+        code_gen_modules_field: "0x100000600",
+        types_field: "0x100000fb0",
+        types_count: 4,
+        artifact: {
+          path: binaryPath,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          bytes: bytes.length,
+        },
+      });
+      expect(report.return_types.map((row) => row.name)).toEqual(
+        Array.from({ length: 5 }, () => FIXTURE_RETURN_TYPE_NAME),
+      );
+      expect(report.method_addresses.map((row) => row.state)).toEqual([
+        "code",
+        "code",
+        "code",
+        "code",
+        "no-body",
+      ]);
+      if (tailBytes === 16) {
+        const response = await call("inspect_il2cpp_metadata", {
+          path,
+          binary_path: binaryPath,
+          detail: "complete",
+        });
+        expect(response.isError, JSON.stringify(response)).not.toBe(true);
+        expect(parseCliMetadata(response.structuredContent)).toEqual(report);
+      }
+      expect(await readFile(binaryPath)).toEqual(bytes);
+    }
     await client.ping();
   },
   30000,

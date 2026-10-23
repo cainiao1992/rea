@@ -64,3 +64,17 @@ fails closure even when another proof passes; unknown, unsupported or skipped
 applicable outcomes keep it unknown. The result cites all applicable outcomes.
 Proof array order does not establish freshness or supersession. A proof for
 unrelated artifact digests does not contradict the selected boundary.
+
+## Function reconstruction claims
+
+`verify_reconstruction` evaluates declared claims over retained comparison
+Evidence. An `overall` function claim includes active residual unknowns scoped
+to any of that comparison's dimensions. For example, an open pseudocode
+question keeps the overall claim `unknown` and retains its unknown ID and
+recommended probe; an independent assembly claim can still pass. An unknown
+scoped only to `overall` does not block every individual dimension.
+
+Selection uses each unknown's latest revision, its comparison identity and
+Evidence references. Explicit unknown dependencies remain relevant across
+dimensions. Unknowns for another comparison and resolved heads do not become
+blockers merely because their source Evidence overlaps.

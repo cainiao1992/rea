@@ -1,3 +1,4 @@
+import { readMethodDefinitionRow } from "./ManagedMethodDefinitionRows.js";
 import { createHash } from "node:crypto";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import {
@@ -157,22 +158,20 @@ const methodSignatureBlob = (
   token: string,
 ): Buffer => {
   const table = Number.parseInt(token.slice(2, 4), 16);
-  const cursor = metadataRowCursor(
-    bytes,
-    layout,
-    table,
-    Number.parseInt(token.slice(4), 16),
-  );
+  const row = Number.parseInt(token.slice(4), 16);
+  let signatureIndex: number;
   if (table === 6) {
-    cursor.readUInt32();
-    cursor.readUInt16();
-    cursor.readUInt16();
-  } else cursor.readIndex(layout.codedIndexSize("MemberRefParent"));
-  cursor.readIndex(layout.stringIndexSize);
+    signatureIndex = readMethodDefinitionRow(bytes, layout, row).signatureIndex;
+  } else {
+    const cursor = metadataRowCursor(bytes, layout, table, row);
+    cursor.readIndex(layout.codedIndexSize("MemberRefParent"));
+    cursor.readIndex(layout.stringIndexSize);
+    signatureIndex = cursor.readIndex(layout.blobIndexSize);
+  }
   return readMetadataBlob(
     bytes,
     layout,
-    cursor.readIndex(layout.blobIndexSize),
+    signatureIndex,
     layout.blob?.size ?? 0,
   );
 };

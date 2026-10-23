@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { JsonValue } from "../../domain/jsonValue.js";
+import type { FieldRule } from "../../domain/analysisView/environmentStateWriteRules.js";
 import { compareAnswers } from "./environmentCompareDiff.js";
 import { IdMap, learnIds } from "./environmentCompareIds.js";
 
@@ -9,11 +10,13 @@ const compare = (
   env: unknown,
   map = new IdMap(),
   status: [number, number] = [200, 200],
+  rules: readonly FieldRule[] = [],
 ) =>
   compareAnswers(
     { status: status[0], body: { kind: "json", value: live as JsonValue } },
     { status: status[1], body: { kind: "json", value: env as JsonValue } },
     map,
+    { rules },
   );
 
 describe("early-year clock formats", () => {
@@ -31,8 +34,27 @@ describe("early-year clock formats", () => {
   );
 });
 
-const registerValueComparisonCases = () => {
-  it("normalizes mapped ids and clocks while comparing unproven generated-looking values literally", () => {
+const registerGeneratedValueComparisonCases = () => {
+  it.each([
+    {
+      name: "normalizes mapped ids and clocks while comparing unproven generated-looking values literally",
+      rules: [],
+      generated: 0,
+      differences: [
+        ["value", "/token"],
+        ["value", "/uuid"],
+      ],
+    },
+    {
+      name: "agrees on mapped ids, clocks and confirmed generated values, and counts each",
+      rules: [
+        { field: "token", rule: "identity", generator: "token" },
+        { field: "uuid", rule: "unique" },
+      ],
+      generated: 2,
+      differences: [],
+    },
+  ] as const)("$name", ({ rules, generated, differences }) => {
     const map = new IdMap();
     map.learn(101, 1);
     const result = compare(
@@ -49,17 +71,16 @@ const registerValueComparisonCases = () => {
         uuid: "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
       },
       map,
+      [200, 200],
+      rules,
     );
     expect(
       result.differences.map(({ category, pointer }) => [category, pointer]),
-    ).toEqual([
-      ["value", "/token"],
-      ["value", "/uuid"],
-    ]);
+    ).toEqual(differences);
     expect(result.normalised).toEqual({
       ids: 1,
       clocks: 1,
-      generated: 0,
+      generated,
       large_bodies: 0,
       unobserved_bodies: 0,
     });
@@ -69,20 +90,24 @@ const registerValueComparisonCases = () => {
     const result = compareAnswers(
       {
         status: 201,
-        body: { kind: "json", value: { token: "live-token", sku: "product2" } },
+        body: { kind: "json", value: { token: "token00001", sku: "product2" } },
       },
       {
         status: 201,
-        body: { kind: "json", value: { token: "env-token", sku: "product1" } },
+        body: { kind: "json", value: { token: "token00002", sku: "product1" } },
       },
       new IdMap(),
-      { generatedFields: new Set(["token"]) },
+      { rules: [{ field: "token", rule: "identity", generator: "token" }] },
     );
     expect(result.differences).toMatchObject([
       { category: "value", pointer: "/sku" },
     ]);
     expect(result.normalised.generated).toBe(1);
   });
+};
+
+describe("compareAnswers", () => {
+  registerGeneratedValueComparisonCases();
 
   it("categorises status, missing and extra fields, values and clock formats", () => {
     const result = compare(
@@ -129,9 +154,9 @@ const registerValueComparisonCases = () => {
       ),
     ).toEqual(["value"]);
   });
-};
+});
 
-const registerMappedIdentityComparisonCases = () => {
+describe("mapped fields and literal collections", () => {
   it("compares an object keyed by mapped ids under the environment's keys", () => {
     const map = new IdMap();
     map.learn("liveTable", "envTable");
@@ -193,7 +218,7 @@ const registerMappedIdentityComparisonCases = () => {
     ).toEqual([]);
   });
 
-  it("reports scalar reordering and keeps unnamed epoch-shaped array measurements literal", () => {
+  it("reports a reordered set of scalars as order alone and keeps nested numeric measurements literal", () => {
     expect(
       compare(
         { access: ["a", "b", "c"] },
@@ -203,13 +228,224 @@ const registerMappedIdentityComparisonCases = () => {
     expect(
       compare({ stats: [[1792450800, 3]] }, { stats: [[1792285200, 3]] })
         .differences,
-    ).toMatchObject([{ category: "value", pointer: "/stats/0/0" }]);
+    ).toEqual([
+      {
+        category: "value",
+        pointer: "/stats/0/0",
+        live: "1792450800",
+        env: "1792285200",
+      },
+    ]);
   });
-};
+});
 
-describe("compareAnswers", () => {
-  registerValueComparisonCases();
-  registerMappedIdentityComparisonCases();
+describe("normalization context", () => {
+  it.each([
+    { live: 1800000000, env: 1700000000, pointer: "" },
+    { live: [1800000000], env: [1700000000], pointer: "/0" },
+    {
+      live: { samples: [1800000000] },
+      env: { samples: [1700000000] },
+      pointer: "/samples/0",
+    },
+    {
+      live: { updated_at: [{ samples: 1800000000 }] },
+      env: { updated_at: [{ samples: 1700000000 }] },
+      pointer: "/updated_at/0/samples",
+    },
+  ])(
+    "keeps epoch-shaped numbers literal at $pointer without a time field",
+    ({ live, env, pointer }) => {
+      const result = compare(live, env);
+      expect(result.differences).toEqual([
+        { category: "value", pointer, live: "1800000000", env: "1700000000" },
+      ]);
+      expect(result.normalised.clocks).toBe(0);
+    },
+  );
+
+  it("preserves the time field through nested numeric clock arrays", () => {
+    const result = compare(
+      { updated_at: [[1700000000]] },
+      { updated_at: [[1800000000]] },
+    );
+    expect(result.differences).toEqual([]);
+    expect(result.normalised.clocks).toBe(1);
+  });
+
+  it.each([
+    ["product1", "product2"],
+    ["product1", "productX"],
+    ["3f2a9c8d7e", "9b8e7d6c5a"],
+    [
+      "6f1c2b9e-2a3d-4f5e-8a9b-0c1d2e3f4a5b",
+      "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
+    ],
+  ])(
+    "keeps literal business strings %s versus %s without generation facts",
+    (live, env) => {
+      const result = compare(
+        { sku: live, items: [live] },
+        { sku: env, items: [env] },
+      );
+      expect(
+        result.differences.map(({ category, pointer }) => [category, pointer]),
+      ).toEqual([
+        ["value", "/sku"],
+        ["value", "/items/0"],
+      ]);
+      expect(result.normalised.generated).toBe(0);
+    },
+  );
+
+  it("scopes confirmed renewal rules to their response entity and exact array pointers", () => {
+    const first = "6f1c2b9e-2a3d-4f5e-8a9b-0c1d2e3f4a5b";
+    const second = "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d";
+    const answer = (token: string) => ({
+      status: 200,
+      body: {
+        kind: "json" as const,
+        value: {
+          data: { values: [{ token, sku: token }] },
+          values: [{ token }],
+        },
+      },
+    });
+    const result = compareAnswers(answer(first), answer(second), new IdMap(), {
+      at: "/data",
+      rules: [{ field: "values", rule: "renewed", pointers: ["/*/token"] }],
+    });
+    expect(result.normalised.generated).toBe(1);
+    expect(
+      result.differences.map(({ category, pointer }) => [category, pointer]),
+    ).toEqual([
+      ["value", "/data/values/0/sku"],
+      ["value", "/values/0/token"],
+    ]);
+  });
+
+  it("does not extend generated-string normalization to numeric sequences", () => {
+    const result = compare(
+      { code: 17 },
+      { code: 18 },
+      new IdMap(),
+      [200, 200],
+      [{ field: "code", rule: "sequence", scope: "type" }],
+    );
+    expect(result.differences).toEqual([
+      { category: "value", pointer: "/code", live: "17", env: "18" },
+    ]);
+    expect(result.normalised.generated).toBe(0);
+  });
+});
+
+describe("generated response identities", () => {
+  const first = "6f1c2b9e-2a3d-4f5e-8a9b-0c1d2e3f4a5b";
+  const second = "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d";
+  const fresh = "123e4567-e89b-42d3-a456-426614174000";
+  const other = "223e4567-e89b-42d3-a456-426614174000";
+  const rules: readonly FieldRule[] = [
+    { field: "left", rule: "renewed", pointers: ["/*"] },
+    { field: "right", rule: "renewed", pointers: ["/*"] },
+  ];
+  const answer = (left: string, right: string) => ({
+    status: 200,
+    body: { kind: "json" as const, value: { left: [left], right: [right] } },
+  });
+
+  it.each([
+    {
+      name: "consistent fresh renaming",
+      liveLeft: fresh,
+      liveRight: fresh,
+      envLeft: first,
+      envRight: first,
+      differs: false,
+      generated: 2,
+    },
+    {
+      name: "case-equivalent UUID aliases",
+      liveLeft: fresh.toUpperCase(),
+      liveRight: fresh,
+      envLeft: first,
+      envRight: first.toUpperCase(),
+      differs: false,
+      generated: 2,
+    },
+    {
+      name: "split alias",
+      liveLeft: fresh,
+      liveRight: other,
+      envLeft: first,
+      envRight: first,
+      differs: true,
+      generated: 1,
+    },
+    {
+      name: "merged identities",
+      liveLeft: fresh,
+      liveRight: fresh,
+      envLeft: first,
+      envRight: second,
+      differs: true,
+      generated: 1,
+    },
+    {
+      name: "split after an unchanged array",
+      liveLeft: first,
+      liveRight: fresh,
+      envLeft: first,
+      envRight: first,
+      differs: true,
+      generated: 0,
+    },
+    {
+      name: "merge after an unchanged array",
+      liveLeft: first,
+      liveRight: first,
+      envLeft: first,
+      envRight: second,
+      differs: true,
+      generated: 0,
+    },
+  ])(
+    "preserves $name within one confirmed renewal response",
+    ({ liveLeft, liveRight, envLeft, envRight, differs, generated }) => {
+      const result = compareAnswers(
+        answer(liveLeft, liveRight),
+        answer(envLeft, envRight),
+        new IdMap(),
+        { rules },
+      );
+      expect(result.normalised.generated).toBe(generated);
+      expect(result.differences).toEqual(
+        differs
+          ? [
+              {
+                category: "value",
+                pointer: "/right/0",
+                live: JSON.stringify(liveRight),
+                env: JSON.stringify(envRight),
+              },
+            ]
+          : [],
+      );
+    },
+  );
+
+  it("retains order-only comparison for reordered generated scalar sets", () => {
+    const result = compare(
+      { left: [first, second] },
+      { left: [second, first] },
+      new IdMap(),
+      [200, 200],
+      rules,
+    );
+    expect(result.differences).toEqual([
+      { category: "order", pointer: "/left" },
+    ]);
+    expect(result.normalised.generated).toBe(0);
+  });
 });
 
 describe("clock field names", () => {
@@ -347,6 +583,32 @@ describe("identity responses two collections reuse", () => {
 });
 
 describe("wrapped answers", () => {
+  it("keeps collection identity context separate from a wrapped array's clock field context", () => {
+    const map = new IdMap();
+    map.learn(101, 1, "/api/books");
+    map.learn(101, 2, "/api/authors");
+    const result = compareAnswers(
+      {
+        status: 200,
+        body: {
+          kind: "json",
+          value: { data: [{ id: 101, updated_at: [1700000000] }] },
+        },
+      },
+      {
+        status: 200,
+        body: {
+          kind: "json",
+          value: { data: [{ id: 2, updated_at: [1800000000] }] },
+        },
+      },
+      map,
+      { scope: "/api/authors", at: "/data" },
+    );
+    expect(result.differences).toEqual([]);
+    expect(result.normalised).toMatchObject({ ids: 1, clocks: 1 });
+  });
+
   it("compares the identity of an entity inside an envelope within the call's collection", () => {
     const map = new IdMap();
     map.learn(101, 1, "/api/books");

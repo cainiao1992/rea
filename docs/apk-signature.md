@@ -221,9 +221,9 @@ Not yet read: v4 `.apk.idsig` (a sibling file), verity (`0x0421`/`0x0423`/`0x042
 ## Bounds and errors
 
 The archive is read once, bounded at 512 MiB, without following symlinks and
-with change detection. Every size and offset in the ZIP tail and signing block
-is checked against its containing section before use, including the complete
-central-directory extent before ZIP end records. A process-wide queue permits
+with change detection. ZIP tail offsets, the central-directory size and signing
+block spans used by the reader are checked against their containing sections,
+including the complete central-directory extent before ZIP end records. A process-wide queue permits
 one active whole-file inspection and eight pending scans across provider
 instances; pending scans retain no APK bytes and can be cancelled with their
 original reason. Further requests receive a capacity error. The active slot
@@ -250,8 +250,17 @@ A file that is not a ZIP is refused as an unsupported target. A damaged ZIP
 (local headers but no end-of-central-directory), a central directory that
 cannot be walked or whose declared record count does not account for all of
 its bytes, or a malformed signing block or signer is an input error naming the
-scheme and reason. Signer framing includes signature records, the public-key
-field and matching signed/outer v3 SDK ranges. Suffix bytes beyond known
+offset or scheme and reason. Zip64 tail damage includes a missing required
+locator, an impossible locator disk/count pair, a fixed end record that does
+not fit before its locator, or an incorrect end-record signature. These are
+input errors, not evidence of an unsupported format. Coherent multi-disk
+locator metadata and 64-bit offsets/counts/sizes beyond the reader's safe
+integer range remain unsupported. The locator offset is disk-relative, so
+multi-disk metadata is checked before applying local file bounds. This follows
+the record fields in [PKWARE APPNOTE 6.3.10, sections 4.3.14–4.3.15](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT);
+it does not establish full validation of Zip64 versions or extensible data.
+Signer framing includes signature records, the public-key field and matching
+signed/outer v3 SDK ranges. Suffix bytes beyond known
 fields are counted as uninterpreted, as Android readers may ignore extensions;
 their presence does not establish malformed signing.
 When the central directory is not immediately followed by

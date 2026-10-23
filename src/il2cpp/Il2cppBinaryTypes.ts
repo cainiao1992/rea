@@ -1,6 +1,6 @@
 import { Il2cppBinaryFormatFailure } from "./Il2cppBinaryFormat.js";
 import {
-  readPointer,
+  readSlot,
   readUInt32,
   isMapped,
   type NativeImage,
@@ -46,12 +46,26 @@ export const createTypeNamer = (
   const fail = (message: string): never => {
     throw new Il2cppBinaryFormatFailure("invalid-type", message);
   };
-  const pointer = (address: bigint, label: string) =>
-    readPointer(image, address) ??
-    fail(`${label} at 0x${address.toString(16)} is not file mapped`);
-  const u32 = (address: bigint, label: string) =>
-    readUInt32(image, address) ??
-    fail(`${label} at 0x${address.toString(16)} is not file mapped`);
+  const unresolved = (address: bigint, label: string): never => {
+    throw new Il2cppBinaryFormatFailure(
+      "unsupported-pointer-encoding",
+      `${label} at 0x${address.toString(16)} is loader-unresolved; its stored bytes are not a resolved type value`,
+    );
+  };
+  const pointer = (address: bigint, label: string): bigint => {
+    const value = readSlot(image, address);
+    if (value === "unknown") return unresolved(address, label);
+    return (
+      value ?? fail(`${label} at 0x${address.toString(16)} is not file mapped`)
+    );
+  };
+  const u32 = (address: bigint, label: string): number => {
+    const value = readUInt32(image, address);
+    if (value === "unknown") return unresolved(address, label);
+    return (
+      value ?? fail(`${label} at 0x${address.toString(16)} is not file mapped`)
+    );
+  };
   let cachedBytes = 0;
   let work = 0;
   const guard = (bytes: number) => {

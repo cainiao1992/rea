@@ -23,6 +23,10 @@ import { inspectElfNotesInputSchema } from "../domain/native/elfNotes.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
+import {
+  analysisEvidenceDeliveryOptions,
+  deliverCliAnalysisEvidence,
+} from "./analysisEvidenceDelivery.js";
 
 /** Inspect operator-selected files through the same shared workflow as MCP. */
 export const registerBinaryDiagnosticsCommands = (
@@ -173,6 +177,7 @@ export const registerBinaryDiagnosticsCommands = (
     args: z.object({ path: z.string().describe("Local PE or ELF image") }),
     options: z.object({
       maxFileBytes: inspectNativeExportsInputSchema.shape.max_file_bytes,
+      ...analysisEvidenceDeliveryOptions,
     }),
     run: ({ args, options }) =>
       withCommandCancellation(async (signal) => {
@@ -181,8 +186,8 @@ export const registerBinaryDiagnosticsCommands = (
           logger,
           CLI_COMMANDS.inspectNativeExports,
           async () =>
-            finishAnalysisCommand(
-              () =>
+            deliverCliAnalysisEvidence({
+              run: () =>
                 exports.inspect(
                   {
                     path: absoluteCallerPath(args.path),
@@ -190,11 +195,13 @@ export const registerBinaryDiagnosticsCommands = (
                   },
                   { signal },
                 ),
-              exports,
-              "rea-native-exports",
-              "inspect_native_exports",
+              service: exports,
+              providerId: "rea-native-exports",
+              operation: "inspect_native_exports",
               signal,
-            ),
+              detail: options.detail,
+              evidenceOutput: options.evidence_output,
+            }),
         );
       }),
   });

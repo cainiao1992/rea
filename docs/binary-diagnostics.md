@@ -340,7 +340,48 @@ rea inspect-native-exports ./runtimes/linux-x64/native/libexample.so --json
 ```
 
 The complete Evidence identifies the stable artifact snapshot by path, byte
-count and SHA-256.
+count and SHA-256. Complete delivery remains the default. For a small initial
+MCP reply, select `detail: "summary"`; this retains the complete Evidence and
+returns artifact identity, table coverage and row counts. Use its
+`normalized_result.parent_evidence_id` with `inspect_analysis_view`:
+
+```json
+{
+  "source": {
+    "kind": "retained-evidence",
+    "evidence_id": "ev_<parent digest>"
+  },
+  "view": {
+    "kind": "native-exports",
+    "collection": "exports",
+    "names": ["selected_name"],
+    "fields": ["name"],
+    "offset": 0,
+    "limit": 32
+  }
+}
+```
+
+Names match exactly and preserve every same-name version or alias. Optional
+`indices` selects original row positions, intersecting a name filter when both
+are supplied; empty filters select nothing. `source_index` always remains and,
+with the parent ID, identifies the original export or issue row. Fields default
+to the complete row; an empty field list returns only its identity. ELF `name`
+selection also returns raw-byte and encoding qualifications. Fields from the
+other format are rejected. `collection: "issues"` pages the complete diagnostic
+records, with optional original indices. Offset and limit default to 0 and 64
+and apply to matching rows in original order.
+
+View `coverage` describes the selected page; `summary.coverage` or
+`exports.coverage` preserves source-table coverage. An exhausted or empty page
+does not make a partial source complete. Retained views never reopen the file.
+The CLI uses the same projector and requires a durable bundle for a summary:
+
+```sh
+rea inspect-native-exports ./libexample.so --detail summary --evidence_output ./exports.bundle.json --json
+# Pass the summary's parent ID and the same view as JSON to inspect-analysis-view,
+# together with --evidence-bundle ./exports.bundle.json.
+```
 
 - PE rows reproduce the export directory: each used export-address-table slot
   with its biased `ordinal` (`OrdinalBase` plus the slot index), one row per

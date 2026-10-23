@@ -940,6 +940,106 @@ describe("managed MethodSpec call targets", () => {
   });
 });
 
+describe("managed MethodDef heap admission", () => {
+  it("keeps names from unpaged methods without reading their signatures or bodies", () => {
+    const bytes = buildMultiMethodManagedPeFixture({
+      methods: [
+        { name: "Outside", body: tokenBody([]) },
+        { name: "Caller", body: tokenBody([[call, 0x06000001]]) },
+      ],
+    });
+    const pe = readManagedPeLayout(bytes);
+    if (pe.cli === null) throw new Error("fixture has no CLI header");
+    const { rva, size } = pe.cli.metadata;
+    const layout = readManagedMetadataLayout(
+      bytes,
+      pe.rvaToOffset(rva, size, "metadata"),
+      size,
+    );
+    const row = metadataRowOffset(layout, 6, 1);
+    bytes.writeUInt32LE(0xffffffff, row);
+    const signatureOffset = row + 8 + layout.stringIndexSize;
+    if (layout.blobIndexSize === 2)
+      bytes.writeUInt16LE(0xffff, signatureOffset);
+    else bytes.writeUInt32LE(0xffffffff, signatureOffset);
+
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+      {
+        methodOffset: 1,
+        methodLimit: 1,
+      },
+    );
+
+    expect(result.methods).toMatchObject([
+      { token: "0x06000002", name: "Caller" },
+    ]);
+    expect(result.call_edges).toMatchObject([
+      { target_token: "0x06000001", target_name: "Outside" },
+    ]);
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
+  });
+
+  it.each([
+    {
+      name: "valid instantiation",
+      instantiation: [0x0a, 1, 0x0e],
+      code: "invalid-heap-index",
+      scope: "metadata.#Blob",
+    },
+    {
+      name: "malformed instantiation",
+      instantiation: [0x0a, 0],
+      code: "invalid-blob",
+      scope: "metadata.MethodSpec:0x2b000001",
+    },
+  ])(
+    "reads an unpaged MethodDef signature only after a $name",
+    ({ instantiation, code, scope }) => {
+      const bytes = buildManagedPeFixture({
+        methodRowCount: 2,
+        methodSignature: genericDef,
+        methodSpecMethods: [2 << 1],
+        methodSpecInstantiation: Buffer.from(instantiation),
+        ilBody: tokenBody([[call, 0x2b000001]]),
+      });
+      const pe = readManagedPeLayout(bytes);
+      if (pe.cli === null) throw new Error("fixture has no CLI header");
+      const { rva, size } = pe.cli.metadata;
+      const layout = readManagedMetadataLayout(
+        bytes,
+        pe.rvaToOffset(rva, size, "metadata"),
+        size,
+      );
+      const signatureOffset =
+        metadataRowOffset(layout, 6, 2) + 8 + layout.stringIndexSize;
+      if (layout.blobIndexSize === 2)
+        bytes.writeUInt16LE(0xffff, signatureOffset);
+      else bytes.writeUInt32LE(0xffffffff, signatureOffset);
+
+      const result = inspectManagedMembersBytes(
+        bytes,
+        managedPeFixtureTarget(bytes),
+        {
+          methodLimit: 1,
+        },
+      );
+
+      expect(result.methods).toMatchObject([
+        { token: "0x06000001", name: "Main" },
+      ]);
+      expect(result.call_edges).toMatchObject([
+        { target_token: "0x2b000001", target_name: "Main" },
+      ]);
+      expect(result.coverage).toMatchObject({
+        state: "partial",
+        issues: [{ code, scope }],
+      });
+    },
+  );
+});
+
 describe("managed nested types", () => {
   const inspectNested = (
     options: Parameters<typeof buildManagedNestedTypeFixture>[0] = {},
@@ -2064,6 +2164,72 @@ it.each([
       parse_status: "malformed",
       kind: "unknown",
     });
+  },
+);
+
+it.each([
+  [[], "truncated compressed integer"],
+  [[0x80], "truncated compressed integer"],
+  [[0xc0, 0, 0], "truncated compressed integer"],
+  [[0xe0], "reserved compressed integer"],
+] as const)(
+  "retains TypeSpec prefix failure %j at its owning row",
+  (prefix, issue) => {
+    const bytes = buildManagedPeFixture({
+      typeSpecSignatures: [Buffer.from([0x12, ...prefix])],
+      memberRefParentRaw: (1 << 3) | 4,
+    });
+    const pe = readManagedPeLayout(bytes);
+    if (pe.cli === null) throw new Error("fixture has no CLI header");
+    const { rva, size } = pe.cli.metadata;
+    const layout = readManagedMetadataLayout(
+      bytes,
+      pe.rvaToOffset(rva, size, "metadata"),
+      size,
+    );
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.member_refs[0]?.parent_name).toBeNull();
+    expect(result.coverage.issues).toContainEqual({
+      code: "invalid-blob",
+      scope: "metadata.TypeSpec:0x1b000001",
+      offset: metadataRowOffset(layout, 27, 1),
+      detail: issue,
+    });
+  },
+);
+
+it.each([
+  [[0x01], -64],
+  [[0x80, 0x01], -8192],
+  [[0xc0, 0x00, 0x00, 0x01], -268435456],
+] as const)(
+  "preserves compressed signed width for array bound %j",
+  (bound, lower) => {
+    const bytes = buildManagedPeFixture({
+      fieldSignature: Buffer.from([
+        0x06,
+        0x14,
+        0x08,
+        0x01,
+        0x00,
+        0x01,
+        ...bound,
+      ]),
+    });
+    const result = inspectManagedMembersBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+
+    expect(result.fields[0]?.signature).toMatchObject({
+      parse_status: "decoded",
+      field_type: `i4[${lower}...]`,
+    });
+    expect(result.coverage).toEqual({ state: "complete", issues: [] });
   },
 );
 

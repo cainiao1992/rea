@@ -108,6 +108,7 @@ it.each([
   { command: LC.VERSION_MIN_IPHONEOS, cpu: CPU.i386, platform: 7 },
   { command: LC.VERSION_MIN_IPHONEOS, cpu: CPU.x86_64, platform: 7 },
   { command: LC.VERSION_MIN_IPHONEOS, cpu: CPU.arm64, platform: 2 },
+  { command: LC.VERSION_MIN_TVOS, cpu: CPU.i386, platform: 3 },
   { command: LC.VERSION_MIN_TVOS, cpu: CPU.x86_64, platform: 8 },
   { command: LC.VERSION_MIN_TVOS, cpu: CPU.arm64, platform: 3 },
   { command: LC.VERSION_MIN_WATCHOS, cpu: CPU.i386, platform: 9 },

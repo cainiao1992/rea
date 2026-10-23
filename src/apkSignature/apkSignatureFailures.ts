@@ -44,6 +44,12 @@ export const mapApkBlockError = (
         `The selected file is not a ZIP/APK (${error.detail}).`,
         { remediationAction: "Select a local .apk/.zip/.aab archive." },
       );
+    case "zip64-unsupported":
+      return new AnalysisUnsupportedTargetError(
+        OPERATION,
+        path,
+        `This archive uses a Zip64 structure this reader does not decode (${error.detail}).`,
+      );
     case "malformed-zip":
       return inputError(
         `Damaged ZIP/APK at byte ${String(error.offset)}: ${error.detail}.`,

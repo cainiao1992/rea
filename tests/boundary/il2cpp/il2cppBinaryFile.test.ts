@@ -1,4 +1,8 @@
 import { Il2cppBinaryFormatFailure } from "../../../src/il2cpp/Il2cppBinaryFormat.js";
+import {
+  openImageSteps,
+  readUInt32,
+} from "../../../src/il2cpp/Il2cppBinaryImage.js";
 import { expect, it } from "vitest";
 import {
   linkIl2cppBinary,
@@ -9,6 +13,7 @@ import {
   createElfFixture,
   createIl2cppBinaryFixture,
   createIl2cppDyldBindFixture,
+  createIl2cppRegistrationTailFixture,
   createUniversalFixture,
   createSplitPointerPeFixture,
   FIXTURE_BINARY_BASE,
@@ -593,6 +598,71 @@ it("keeps unbound Mach-O method words classified from their values", () => {
   expect(linked.method_addresses[1]).toEqual(expectedAddresses[1]);
   expect(linked.method_addresses[4]).toEqual(expectedAddress("no-body"));
 });
+it("refuses an unresolved inner type value instead of rendering its stored placeholder", () => {
+  expect(
+    failure(createIl2cppDyldBindFixture(FIXTURE_BINARY_BASE + 0x990n, 0x980)),
+  ).toEqual({
+    reason: "unsupported-pointer-encoding",
+    kind: "unsupported",
+  });
+});
+it.each([
+  [0x600, 2n, "code-registration-not-found"],
+  [0x408, 3n, "code-gen-modules-not-found"],
+  [0x850, 4n, "metadata-registration-not-found"],
+  [0x860, 4n, "metadata-registration-not-found"],
+  [0x988, 0x001d0000n, "unsupported-pointer-encoding"],
+] as const)("does not trust a dyld-owned scalar at %s", (slot, raw, reason) => {
+  expect(failure(createIl2cppDyldBindFixture(raw, slot)).reason).toBe(reason);
+});
+it.each([
+  [0x5f8, 0n, 2],
+  [0x5fc, 2n << 32n, "unknown"],
+  [0x600, 2n, "unknown"],
+  [0x604, 0n, 2],
+] as const)(
+  "uses the four-byte count span for a dyld bind at %s",
+  (slot, raw, expected) => {
+    const steps = openImageSteps(
+      createIl2cppDyldBindFixture(raw, slot),
+      undefined,
+    );
+    let step = steps.next();
+    while (!step.done) step = steps.next();
+    expect(readUInt32(step.value, FIXTURE_BINARY_BASE + 0x600n)).toBe(expected);
+  },
+);
+it.each([
+  [0x400, "code-gen-modules-not-found"],
+  [0x410, "code-gen-modules-not-found"],
+  [0x500, "code-registration-not-found"],
+  [0x608, "code-registration-not-found"],
+  [0x838, "metadata-registration-not-found"],
+] as const)(
+  "does not nominate a registration from dyld-owned word at %s",
+  (slot, reason) => {
+    const raw = createIl2cppBinaryFixture().readBigUInt64LE(slot);
+    expect(failure(createIl2cppDyldBindFixture(raw, slot)).reason).toBe(reason);
+  },
+);
+it.each([1, 0xff])(
+  "ignores ABI count padding byte %d without accepting a changed count",
+  (padding) => {
+    const bytes = createIl2cppBinaryFixture();
+    bytes.fill(padding, 0x604, 0x608);
+    expect(link(bytes)).toEqual(link(createIl2cppBinaryFixture()));
+    bytes.writeUInt32LE(3, 0x600);
+    expect(failure(bytes).reason).toBe("code-registration-not-found");
+  },
+);
+it.each([8, 16] as const)(
+  "rejects %d absent registration bytes without declared zero-fill",
+  (tailBytes) => {
+    expect(
+      failure(createIl2cppRegistrationTailFixture(tailBytes, false)).reason,
+    ).toBe("metadata-registration-not-found");
+  },
+);
 
 it.each([
   ["PC32", 2],
@@ -702,15 +772,27 @@ it.each([0, 8, 16])(
 );
 
 it.each([0n, FIXTURE_BINARY_BASE + 0x980n, FIXTURE_BINARY_BASE + 0x9b0n])(
-  "refuses dyld-bound type placeholders regardless of raw word %s",
+  "retains unknown dyld-bound type names regardless of raw word %s",
   (raw) => {
-    const bytes = createIl2cppDyldBindFixture(0n);
-    bytes.writeBigUInt64LE(raw, 0x900);
-    bytes.writeUInt32LE(7, 88);
-    bytes.writeUInt32LE(7, 92);
-    const offset = 0xf00 + 2 + Buffer.byteLength("_FixtureMethod\0") + 2;
-    bytes[offset] = 0x80;
-    bytes[offset + 1] = 0x12; // ULEB128 0x900: type-table slot, not method slot.
-    expect(failure(bytes).reason).toBe("invalid-type");
+    const control = link(createIl2cppBinaryFixture());
+    expect(control.return_types[0]).toEqual({
+      type: 0,
+      name: FIXTURE_RETURN_TYPE_NAME,
+    });
+    expect(control.method_addresses).toEqual(expectedAddresses);
+    const bytes = createIl2cppDyldBindFixture(raw, 0x900);
+    const linked = link(bytes);
+    for (const collection of [
+      "return_types",
+      "field_types",
+      "parameter_types",
+    ] as const)
+      expect(linked[collection]).toEqual(
+        control[collection].map((row) =>
+          row.type === 0 ? { type: row.type, name: null } : row,
+        ),
+      );
+    expect(linked.method_addresses).toEqual(control.method_addresses);
+    expect(bytes.readBigUInt64LE(0x900)).toBe(raw);
   },
 );

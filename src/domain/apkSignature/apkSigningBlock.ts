@@ -38,6 +38,7 @@ export const APK_BLOCK_ID = {
 
 export type ApkSigningBlockError =
   | { readonly kind: "not-a-zip"; readonly detail: string }
+  | { readonly kind: "zip64-unsupported"; readonly detail: string }
   | {
       /** A ZIP whose end-of-central-directory is damaged or inconsistent. */
       readonly kind: "malformed-zip";
@@ -142,23 +143,48 @@ const centralDirectoryOffset = (
       return ok({ offset, size, entries, end: eocdOffset });
     return err({
       kind: "malformed-zip",
-      offset: Math.max(0, locator),
+      offset: eocdOffset,
       detail: "missing Zip64 EOCD locator",
     });
   }
-  const recordOffset = u64(dv, locator + 8);
-  if (
-    recordOffset === null ||
-    recordOffset + 56 > locator ||
-    dv.getUint32(recordOffset, true) !== ZIP64_EOCD_SIGNATURE
-  )
+  // APPNOTE 6.3.10 §4.3.15 makes the record offset relative to its disk.
+  // A selected file cannot resolve another disk's offset as a local span.
+  const recordDisk = dv.getUint32(locator + 4, true);
+  const totalDisks = dv.getUint32(locator + 16, true);
+  if (totalDisks === 0)
     return err({
       kind: "malformed-zip",
-      offset:
-        recordOffset !== null && recordOffset <= bytes.length
-          ? recordOffset
-          : locator,
-      detail: "malformed Zip64 EOCD record",
+      offset: locator + 16,
+      detail: "Zip64 locator declares zero disks",
+    });
+  if (recordDisk >= totalDisks)
+    return err({
+      kind: "malformed-zip",
+      offset: locator + 4,
+      detail: "Zip64 EOCD disk is outside the declared disk count",
+    });
+  if (totalDisks > 1)
+    return err({
+      kind: "zip64-unsupported",
+      detail: "multi-disk Zip64 archives are not supported",
+    });
+  const recordOffset = u64(dv, locator + 8);
+  if (recordOffset === null)
+    return err({
+      kind: "zip64-unsupported",
+      detail: "Zip64 EOCD offset exceeds safe range",
+    });
+  if (recordOffset + 56 > locator)
+    return err({
+      kind: "malformed-zip",
+      offset: locator + 8,
+      detail: "Zip64 EOCD record extends beyond its locator",
+    });
+  if (dv.getUint32(recordOffset, true) !== ZIP64_EOCD_SIGNATURE)
+    return err({
+      kind: "malformed-zip",
+      offset: recordOffset,
+      detail: "invalid Zip64 EOCD signature",
     });
   const z64Offset = u64(dv, recordOffset + 48);
   const z64Size = u64(dv, recordOffset + 40);
@@ -166,9 +192,8 @@ const centralDirectoryOffset = (
   const z64Entries = u64(dv, recordOffset + 32);
   if (z64Offset === null || z64Size === null || z64Entries === null)
     return err({
-      kind: "malformed-zip",
-      offset: recordOffset,
-      detail: "Zip64 sizes cannot describe the supplied archive extent",
+      kind: "zip64-unsupported",
+      detail: "Zip64 sizes exceed safe range",
     });
   return ok({
     offset: z64Offset,

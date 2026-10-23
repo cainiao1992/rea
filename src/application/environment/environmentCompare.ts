@@ -1,4 +1,5 @@
 import { decodedSegment } from "../../domain/analysisView/environmentStateRules.js";
+import type { FieldRule } from "../../domain/analysisView/environmentStateWriteRules.js";
 import { fromJsonSchema } from "@modelcontextprotocol/server";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
@@ -139,22 +140,37 @@ const entityOf = (
   run: ProbeRun,
   tool: EnvironmentManifestTool,
   segments: readonly string[],
+  answer: ReplayResult,
 ): {
   readonly scope: string;
   readonly at: string;
   readonly identity: boolean;
+  readonly rules: readonly FieldRule[];
 } => {
   const view = run.store?.state.views.get(tool.name);
   const plan = run.store?.state.writes.get(tool.name);
   const response = plan?.response;
   const scope = collectionScope(tool, segments);
   if (view?.shape === "item" || view?.shape === "list")
-    return { scope, at: view.pointer, identity: false };
+    return { scope, at: view.pointer, identity: false, rules: [] };
   const identity = response?.shape === "identity";
   const at = identity
     ? (response.pointer ?? "")
     : (response?.pointer ?? plan?.observation?.pointer ?? "");
-  return { scope, at, identity };
+  const provenance = (answer as Partial<StateAnswer>).state;
+  const renderedWrite =
+    provenance?.source === "state" &&
+    (provenance.view === "create" ||
+      provenance.view === "update" ||
+      provenance.view === "document-write" ||
+      provenance.view === "delete");
+  // A missing target replays a recorded absence with state provenance too;
+  // only an applied write can render the plan's entity response.
+  const rules =
+    plan?.served === true && response?.shape === "entity" && renderedWrite
+      ? plan.rules
+      : [];
+  return { scope, at, identity, rules };
 };
 
 const fromState = (answer: ReplayResult): boolean => {
@@ -353,7 +369,7 @@ const compareStep = (
     status: answered.value.status,
     body: envBody(run, answered.value),
   };
-  const entity = entityOf(run, call.tool, liveSegments);
+  const entity = entityOf(run, call.tool, liveSegments, answered.value);
   // Another call's recording holds other entities, whose ids would map wrongly and, the first pairing winning, for good.
   if (answersCall(run, call, args, answered.value))
     learnIds(identityValue(live.body), identityValue(env.body), run.map, {
@@ -362,21 +378,7 @@ const compareStep = (
       entityAt: entity.at,
       identity: entity.identity,
     });
-  const plan = run.store?.state.writes.get(call.tool.name);
-  const generatedFields = new Set(
-    fromState(answered.value) && plan?.served === true
-      ? plan.rules.flatMap((rule) =>
-          rule.rule === "unique" ||
-          (rule.rule === "identity" && rule.generator !== "sequence")
-            ? [rule.field]
-            : [],
-        )
-      : [],
-  );
-  const compared = compareAnswers(live, env, run.map, {
-    ...entity,
-    generatedFields,
-  });
+  const compared = compareAnswers(live, env, run.map, entity);
   for (const key of NORMALISED_KEYS)
     run.normalised[key] += compared.normalised[key];
   const differences = [...compared.differences];

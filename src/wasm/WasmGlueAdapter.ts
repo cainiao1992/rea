@@ -4,7 +4,10 @@ import { parseJavaScriptSource } from "../domain/javascript/javascriptSourcePars
 import { traverseJavaScriptAst } from "../domain/javascript/javascriptSemanticTraversal.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 
-/** Query/fragment contents do not change the path suffix; one bounded scan is enough. */
+/**
+ * Only the path before the first query/fragment delimiter determines the suffix.
+ * Query/fragment content can contain any line terminator; one bounded scan suffices.
+ */
 const endsWithWasmReference = (value: string): boolean => {
   const delimiter = value.search(/[?#]/u);
   return /\.wasm$/iu.test(delimiter < 0 ? value : value.slice(0, delimiter));

@@ -52,6 +52,11 @@ preparation. Check the rendered image for readable text and spacing before
 publishing. The build uses DejaVu Sans for consistent typography; only the SVG
 source is committed. Metadata and build instructions are in the website README.
 
+The card and `public/assets/favicon.svg` each carry a dark
+`prefers-color-scheme` block for people who open the SVG directly or use a dark
+browser tab strip. CairoSVG ignores it, so the PNG that link previews fetch
+stays light.
+
 ## Beginner homepage and dinosaur reconstruction
 
 The manual/agent comparison and Calculator percentage controls are semantic

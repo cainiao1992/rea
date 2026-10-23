@@ -246,7 +246,12 @@ A missing entry proves creation or deletion only when the corresponding
 observation root's path enumeration was exhausted. Otherwise its effect has
 `status: "unknown"`, the available before/after state, and a reason; a null
 state in this variant means unobserved. Paths below symlinks that REA did not
-follow also remain unknown. Partial enumeration of one root does not erase
+follow also remain unknown. Each observed symlink records a
+`symlink_not_followed` enumeration omission with a null system code, including
+a stable selected root. The link's own metadata can remain unchanged while
+descendant coverage and filesystem comparison remain unknown. Physical
+parent-directory enumeration still proves unrelated sibling absence.
+Partial enumeration of one root does not erase
 known effects in another, and unavailable content hashes do not by themselves
 make path absence unknown.
 
@@ -274,6 +279,12 @@ reports a missing path or a non-directory ancestor is an observed absence. A
 denied or otherwise unavailable lookup records an `entry_unavailable` omission
 for that path instead, and its root stays incomplete. Cancellation and
 unexpected I/O failures still stop capture.
+
+An initial selected-root permission denial returns `access_denied` with the
+selected path, native `EACCES` or `EPERM`, and filesystem-read recovery. Capture
+does not launch the target. Earlier snapshot facts and the denied root's
+omission remain in the partial observation; unresolved read cleanup retains its
+own classification until its exact resources are released.
 
 Terminal frame `data` is the comparison text after the selected normalization.
 New captures also preserve `raw_data` when normalization changes a PTY chunk;

@@ -141,7 +141,7 @@ it("retains replay and live subframe tools without claiming replay covered older
   expect(result.value.completeness.attach_limited_sections).toContain(
     "webmcp_tools",
   );
-  expect(result.value.limitations).toContain(
+  expect(result.value.limitations).toContainEqual(
     expect.stringContaining("pre-existing subframe registrations"),
   );
 });

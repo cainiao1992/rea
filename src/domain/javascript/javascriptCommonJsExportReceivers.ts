@@ -248,7 +248,13 @@ const commonJsAssignedExports = (
   node: t.Node,
   state: JavaScriptSemanticAnalysisState,
 ):
-  | { readonly receiver: t.Node; readonly sources: readonly (t.Node | null)[] }
+  | {
+      readonly receiver: t.Node;
+      readonly sources: readonly {
+        readonly value: t.Node | null;
+        readonly iterationSource?: t.Node;
+      }[];
+    }
   | undefined => {
   if (!t.isCallExpression(node)) return undefined;
   const invocation = commonJsExportInvocation(node, state);
@@ -270,11 +276,14 @@ const commonJsAssignedExports = (
     return undefined;
   return {
     receiver,
-    sources: sources.map((source) =>
+    sources: sources.map((source) => ({
       // The invocation owner expands only proven argument positions. An
       // unresolved spread is a sequence of sources, not one array source.
-      t.isExpression(source) ? source : null,
-    ),
+      value: t.isExpression(source) ? source : null,
+      ...(t.isSpreadElement(source)
+        ? { iterationSource: source.argument }
+        : {}),
+    })),
   };
 };
 
@@ -285,6 +294,8 @@ export const commonJsRuntimeExportValues = (
 ): readonly {
   readonly exportedName: string;
   readonly value: t.Node | null;
+  /** Retained input to unresolved iteration; never a selected yielded value. */
+  readonly iterationSource?: t.Node;
   /** Own enumerable fields copied at this source, after later-source overwrites. */
   readonly projection?: JavaScriptSemanticPropertyPath;
   readonly ownEnumerable?: true;
@@ -301,9 +312,13 @@ export const commonJsRuntimeExportValues = (
       [];
     const overwritten = new Set<string>();
     for (let index = assigned.sources.length - 1; index >= 0; index--) {
-      const value = assigned.sources[index]!;
+      const { value, iterationSource } = assigned.sources[index]!;
       if (value === null) {
-        exported.push({ exportedName: "*", value: null });
+        exported.push({
+          exportedName: "*",
+          value: null,
+          ...(iterationSource === undefined ? {} : { iterationSource }),
+        });
         continue;
       }
       const fields = copiedOwnFields(value, state);

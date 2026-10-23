@@ -666,6 +666,15 @@ error's reported resources.
 
 ## Transports
 
+The eager stdio runtime owns SIGINT, SIGTERM and stdin EOF before opening an
+initial target or loading optional providers. Shutdown cancels the initial open,
+waits for late startup handles, and closes them through the same retryable owner
+as a running server, retaining provider documents. Incoming stdio bytes during
+startup are staged without parsing, within the installed SDK's stdio buffer
+capacity, then handed unchanged to its single framing owner. Exceeding that
+startup capacity ends startup with a transport resource constraint; it has no
+runtime override. HTTP startup never reads stdin.
+
 stdio is the default transport and the only one that client registrations,
 `rea mcp doctor` and the MCP registry entry describe. `rea mcp --http [--host H]
 [--port N]` is an opt-in alternative that serves the same catalog over the

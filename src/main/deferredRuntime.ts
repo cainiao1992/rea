@@ -79,6 +79,9 @@ const initializeRuntime = async (
   const result = await runEager(
     {
       ...dependencies,
+      // The outer SDK transport already owns and frames this stream. Eager
+      // materialization owns providers only, never another copy of raw input.
+      stdin: undefined,
       registerShutdown: () => () => undefined,
       captureShutdown: (close) => {
         shutdown = close;

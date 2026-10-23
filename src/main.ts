@@ -29,6 +29,7 @@ import {
 
 const runtimeDependencies = (): RuntimeDependencies => ({
   env: process.env,
+  stdin: process.stdin,
   serve: serveStdio,
   writeStderr: (text) => process.stderr.write(text),
   setExitCode: (code) => {

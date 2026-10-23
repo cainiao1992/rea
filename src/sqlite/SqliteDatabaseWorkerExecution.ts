@@ -46,6 +46,7 @@ const replySchema = z.union([
       "format",
       "selection",
       "column-selection",
+      "row-evaluation",
       "unsupported",
       "unavailable",
       "output-limit",
@@ -109,6 +110,19 @@ const rejectedReply = (
       },
     );
   }
+  if (reply.reason === "row-evaluation")
+    return new AnalysisCapabilityUnavailableError(
+      "sqlite",
+      operation,
+      reply.message,
+      {
+        capturedOutput,
+        userMessage: reply.message,
+        diagnostics: { selected_path: selectedPath },
+        remediationAction:
+          "SQLite read the selected schema but could not prepare or evaluate the requested rows. REA's private connection loads no extensions, application functions or application collations. The SQLite reason may identify a missing dependency; an unidentified query failure does not establish database corruption. Omit table and use schema_scope: database to inspect stored declarations. Obtaining the requested values may require the application's supported consistent export. Do not repeat the unchanged row request.",
+      },
+    );
   if (reply.reason === "memory")
     return new AnalysisResourceConstraintError(
       operation,

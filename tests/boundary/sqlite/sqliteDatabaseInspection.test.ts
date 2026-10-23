@@ -1,7 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, it as nativeTest, onTestFinished } from "vitest";
-import { SQLITE_NATIVE_LIMITS_AVAILABLE } from "../../fixtures/sqlite/database.js";
+import {
+  createSqliteApplicationCollationFixture,
+  SQLITE_NATIVE_LIMITS_AVAILABLE,
+} from "../../fixtures/sqlite/database.js";
 import { inspectSqliteDatabaseSnapshot } from "../../../src/sqlite/SqliteDatabaseInspection.js";
 import { SqliteInspectionFailure } from "../../../src/sqlite/SqliteDatabaseLimits.js";
 import {
@@ -681,3 +684,45 @@ it("classifies SQLite's result-column capacity refusal without blaming the datab
     }),
   );
 });
+
+it.each(["inventory", "selected_table", "database"] as const)(
+  "keeps unavailable row sources separate from generated expressions in %s scope",
+  async (schema_scope) => {
+    const workspace = await createTestWorkspace("rea-sqlite-collation-");
+    onTestFinished(() => removeTestWorkspace(workspace.root));
+    const path = createSqliteApplicationCollationFixture(workspace.root);
+    const before = await readFile(path);
+    const schema = inspectSqliteDatabaseSnapshot(path, {
+      path,
+      schema_scope: "database",
+    });
+    expect(schema.rows).toBeNull();
+    expect(schema.schema.tables[0]).toMatchObject({
+      name: "items",
+      without_rowid: true,
+      sql: expect.stringContaining("COLLATE APPLICATION_COLLATION"),
+      columns: [
+        expect.objectContaining({ name: "name", hidden: 0 }),
+        expect.objectContaining({ name: "value", hidden: 0 }),
+        expect.objectContaining({ name: "generated_value", hidden: 2 }),
+      ],
+    });
+    for (const columns of [undefined, ["value"], ["generated_value"]])
+      expect(() =>
+        inspectSqliteDatabaseSnapshot(path, {
+          path,
+          table: "items",
+          schema_scope,
+          ...(columns === undefined ? {} : { columns }),
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          reason: "row-evaluation",
+          message: expect.stringMatching(
+            /rows of table "items".*(?:no query solution|no such collation sequence)/,
+          ),
+        }),
+      );
+    expect(await readFile(path)).toEqual(before);
+  },
+);

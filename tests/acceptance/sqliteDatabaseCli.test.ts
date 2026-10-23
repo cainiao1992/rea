@@ -19,11 +19,14 @@ import {
   toolAvailabilityInventory,
 } from "../../src/contracts/toolOutputSchemaPrimitives.js";
 
-import { SQLITE_NATIVE_LIMITS_AVAILABLE } from "../fixtures/sqlite/database.js";
+import {
+  createSqliteApplicationCollationFixture,
+  SQLITE_NATIVE_LIMITS_AVAILABLE,
+} from "../fixtures/sqlite/database.js";
 import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
-import { cliTest } from "../support/cli/cliFixture.js";
+import { cliTest, runFileCli } from "../support/cli/cliFixture.js";
 
 const digest = (bytes: Buffer): string =>
   createHash("sha256").update(bytes).digest("hex");
@@ -794,6 +797,186 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
         JSON.stringify(input),
       ).toBe(true);
     }
+  },
+);
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "reports inventory projections beyond SQLite bind capacity through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory(
+      "rea-sqlite-inventory-capacity-",
+    );
+    const path = join(root, "selected.db");
+    const producer = new DatabaseSync(path);
+    let selectedColumns: number;
+    let engineColumnLimit: number;
+    try {
+      producer.exec(
+        "CREATE TABLE records(value TEXT); INSERT INTO records VALUES ('retained');",
+      );
+      engineColumnLimit = producer.limits.column;
+      selectedColumns =
+        Math.max(producer.limits.variableNumber, engineColumnLimit) + 1;
+    } finally {
+      producer.close();
+    }
+    const before = await sourceState(path);
+    const { call } = await connectLocalToolsMcp();
+    const control = await cli.run({
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--schema-scope",
+        "inventory",
+        "--table",
+        "records",
+        "--column",
+        "value",
+        "--row-limit",
+        "1",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    expect(control.exitCode, control.stdout + control.stderr).toBe(0);
+    expect(control.json).toMatchObject({
+      normalized_result: {
+        schema: { scope: "inventory" },
+        rows: {
+          columns: ["value"],
+          returned_rows: 1,
+          values: [[{ type: "text", value: "retained" }]],
+        },
+      },
+    });
+    const columns = Array.from({ length: selectedColumns }, () => "value");
+    // The framed fixture executes the compiled public CLI without the host's
+    // process-argument ceiling rejecting this many repeated flags first.
+    const result = await runFileCli(cli, {
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--schema-scope",
+        "inventory",
+        "--table",
+        "records",
+        ...columns.flatMap((column) => ["--column", column]),
+        "--row-limit",
+        "1",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    const response = await call("inspect_sqlite_database", {
+      path,
+      schema_scope: "inventory",
+      table: "records",
+      columns,
+      row_limit: 1,
+    });
+    const expectedError = {
+      code: "resource_constraint",
+      category: "resource_constraint",
+      retryable: false,
+      details: {
+        resource: "capacity",
+        diagnostics: { selected_path: path },
+        reported_limits: {
+          selected_result_columns: selectedColumns,
+          engine_result_column_limit: engineColumnLimit,
+        },
+      },
+    };
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.json).toMatchObject(expectedError);
+    expect(parseMcpToolError(response).error).toMatchObject(expectedError);
+    expect(await sourceState(path)).toEqual(before);
+  },
+);
+
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
+  "reports unavailable application-collation rows with schema-only recovery through CLI and MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-sqlite-collation-public-");
+    const path = createSqliteApplicationCollationFixture(root);
+    const before = await sourceState(path);
+    const { call } = await connectLocalToolsMcp();
+    const schema = await cli.run({
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--schema-scope",
+        "database",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    const schemaResponse = await call("inspect_sqlite_database", {
+      path,
+      schema_scope: "database",
+    });
+    const expectedSchema = {
+      subject: { local_path: path, digest: { sha256: digest(before.bytes) } },
+      normalized_result: {
+        rows: null,
+        schema: {
+          tables: [
+            {
+              name: "items",
+              without_rowid: true,
+              sql: expect.stringContaining("COLLATE APPLICATION_COLLATION"),
+              columns: [
+                { name: "name", hidden: 0 },
+                { name: "value", hidden: 0 },
+                { name: "generated_value", hidden: 2 },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    expect(schema.exitCode, schema.stdout + schema.stderr).toBe(0);
+    expect(schema.json).toMatchObject(expectedSchema);
+    expect(schemaResponse.isError).not.toBe(true);
+    expect(schemaResponse.structuredContent).toMatchObject(expectedSchema);
+
+    const result = await cli.run({
+      arguments: [
+        "inspect-sqlite-database",
+        path,
+        "--table",
+        "items",
+        "--json",
+      ],
+      environment: { REA_LOG_LEVEL: "silent" },
+    });
+    const response = await call("inspect_sqlite_database", {
+      path,
+      table: "items",
+    });
+    const expectedError = {
+      code: "capability_unavailable",
+      retryable: false,
+      message: expect.stringMatching(
+        /rows of table "items".*(?:no query solution|no such collation sequence)/,
+      ),
+      details: {
+        provider_id: "sqlite",
+        operation: "inspect_sqlite_database",
+        diagnostics: { selected_path: path },
+      },
+      remediation: {
+        action: expect.stringContaining("schema_scope: database"),
+      },
+    };
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.json).toMatchObject(expectedError);
+    const error = parseMcpToolError(response).error;
+    expect(error).toMatchObject(expectedError);
+    expect(error.remediation.action).not.toContain(
+      "Select columns whose values were read",
+    );
+    expect(await sourceState(path)).toEqual(before);
   },
 );
 

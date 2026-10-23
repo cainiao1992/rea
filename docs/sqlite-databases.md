@@ -72,6 +72,15 @@ each failing selected column with SQLite's message, and recommends only columns
 whose sampled values were read; stored and other generated cells stay readable. Malformed column-name bytes
 cause a format refusal when all columns are requested. In inventory scope, an explicit valid subset can
 still be sampled without decoding unrelated malformed column names.
+
+An unavailable row source, including a `WITHOUT ROWID` primary key requiring an
+application collation, is also refused as `capability_unavailable`. The error
+retains the selected table and SQLite's reason without identifying unproven
+dependencies or diagnosing file corruption. Such a source does not provide
+readable-column recommendations. Omit `table` and select `schema_scope: "database"`
+to read stored declarations without requesting rows; the application's supported
+consistent export may be needed to obtain those values.
+
 Column selection requires a
 table and at least one name; empty-string identifiers are valid. SQLite counts
 every projected name, including a repeated name, against its native

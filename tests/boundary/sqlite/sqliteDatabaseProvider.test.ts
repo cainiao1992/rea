@@ -15,6 +15,7 @@ import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
 import { waitForProviderProcessReady } from "../../fixtures/providerProcess.js";
 import {
   createSqliteDatabaseFixture,
+  createSqliteApplicationCollationFixture,
   SQLITE_NATIVE_LIMITS_AVAILABLE,
 } from "../../fixtures/sqlite/database.js";
 import {
@@ -848,6 +849,102 @@ it("reports a projection above SQLite's result-column capacity as capacity, not 
     },
   });
   expect(JSON.stringify(projection)).not.toContain("invalid_format");
+});
+
+it("attributes inventory selections beyond metadata bind capacity to result-column capacity", async () => {
+  const { database } = await createFixture();
+  const reader = new DatabaseSync(database.path, { readOnly: true });
+  let selectedColumns: number;
+  let engineColumnLimit: number;
+  try {
+    engineColumnLimit = reader.limits.column;
+    selectedColumns =
+      Math.max(reader.limits.variableNumber, engineColumnLimit) + 1;
+  } finally {
+    reader.close();
+  }
+  const provider = createProvider();
+  onTestFinished(() => provider.close());
+  const original = await readFile(database.path);
+  const control = await provider.inspect({
+    path: database.path,
+    table: "records",
+    schema_scope: "inventory",
+    columns: ["text_value", "text_value"],
+    row_limit: 1,
+  });
+  if (!control.ok) throw control.error;
+  expect(control.value.result).toMatchObject({
+    rows: {
+      columns: ["text_value", "text_value"],
+      returned_rows: 1,
+    },
+  });
+  const result = await provider.inspect({
+    path: database.path,
+    table: "records",
+    schema_scope: "inventory",
+    columns: Array.from({ length: selectedColumns }, () => "text_value"),
+    row_limit: 1,
+  });
+  if (result.ok) throw new Error("Expected result-column capacity refusal");
+  const projected = projectAnalysisError(result.error);
+  expect(projected).toMatchObject({
+    code: "resource_constraint",
+    details: {
+      resource: "capacity",
+      reported_limits: {
+        selected_result_columns: selectedColumns,
+        engine_result_column_limit: engineColumnLimit,
+      },
+    },
+  });
+  expect(JSON.stringify(projected)).not.toContain("invalid_format");
+  expect(await readFile(database.path)).toEqual(original);
+});
+
+it("reports application-collation row failures as unavailable while retaining schema-only recovery", async () => {
+  const workspace = await createTestWorkspace("rea-sqlite-collation-");
+  onTestFinished(() => removeTestWorkspace(workspace.root));
+  const path = createSqliteApplicationCollationFixture(workspace.root);
+  const original = await readFile(path);
+  const provider = createProvider();
+  onTestFinished(() => provider.close());
+  const schema = await provider.inspect({ path, schema_scope: "database" });
+  if (!schema.ok) throw schema.error;
+  expect(schema.value.result).toMatchObject({
+    schema: {
+      tables: [
+        {
+          name: "items",
+          sql: expect.stringContaining("COLLATE APPLICATION_COLLATION"),
+        },
+      ],
+    },
+    rows: null,
+  });
+  for (const columns of [undefined, ["value"], ["generated_value"]]) {
+    const result = await provider.inspect({
+      path,
+      table: "items",
+      ...(columns === undefined ? {} : { columns }),
+    });
+    if (result.ok)
+      throw new Error("Expected unavailable application collation");
+    const projected = projectAnalysisError(result.error);
+    expect(projected).toMatchObject({
+      code: "capability_unavailable",
+      message: expect.stringContaining('rows of table "items"'),
+      remediation: {
+        action: expect.stringContaining("schema_scope: database"),
+      },
+    });
+    expect(JSON.stringify(projected)).not.toContain("invalid_format");
+    expect(projected.remediation.action).not.toContain(
+      "Select columns whose values were read",
+    );
+  }
+  expect(await readFile(path)).toEqual(original);
 });
 
 it("rejects malformed databases without altering the selected file", async () => {

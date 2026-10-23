@@ -273,10 +273,14 @@ describe("managed member comparison", () => {
 
     expect(result.matching.exact_il_signature).toBe(0);
     expect(result.matching.exact_signature).toBe(1);
+    expect(right.result.call_edges[0]).toMatchObject({
+      target_name: null,
+      target_declaring_type: null,
+    });
     expect(result.methods[0]).toMatchObject({
       status: "changed",
       match: { status: "matched", basis: "exact-signature" },
-      dimensions: ["cil"],
+      dimensions: ["cil", "availability"],
     });
   });
 
@@ -1879,7 +1883,7 @@ describe("managed member comparison across builds", () => {
     expect(result.methods).toEqual([
       expect.objectContaining({
         status: "changed",
-        dimensions: ["cil"],
+        dimensions: ["cil", "availability"],
         match: expect.objectContaining({ basis: "exact-signature" }),
       }),
     ]);
@@ -2376,6 +2380,10 @@ const withTwin = (
     declaring_type: types[row - 2]!.full_name,
     declaring_type_token: types[row - 2]!.token,
   });
+  const caller = (row: number) => ({
+    caller_token: `0x0600000${String(row)}`,
+    caller: `${twin(row).declaring_type}.${method.name}`,
+  });
   return {
     ...inspected,
     result: {
@@ -2396,6 +2404,22 @@ const withTwin = (
           ...twin(row),
           token: `0x0400000${String(row)}`,
         })),
+      ],
+      call_edges: [
+        ...inspected.result.call_edges,
+        ...rows.flatMap((row) =>
+          source.result.call_edges
+            .filter((edge) => edge.caller_token === method.token)
+            .map((edge) => ({ ...edge, ...caller(row) })),
+        ),
+      ],
+      field_accesses: [
+        ...inspected.result.field_accesses,
+        ...rows.flatMap((row) =>
+          source.result.field_accesses
+            .filter((edge) => edge.caller_token === method.token)
+            .map((edge) => ({ ...edge, ...caller(row) })),
+        ),
       ],
     },
   };

@@ -410,13 +410,11 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
       });
       outcome = ok(javascriptRuntimeObservationSchema.parse(result));
     } catch (cause: unknown) {
-      let error = providerError(cause, "observe_javascript_runtime");
+      const error = providerError(cause, "observe_javascript_runtime");
       if (
         state !== undefined &&
         discovery !== undefined &&
-        target !== undefined &&
-        (cause instanceof BrowserObservationError ||
-          cause instanceof AnalysisCancelledError)
+        target !== undefined
       ) {
         try {
           const partialObservation = await finalizeInspectorCapture({
@@ -427,35 +425,19 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
             state,
             locationMode: "reported",
           });
-          if (cause instanceof AnalysisCancelledError) {
-            cause.retainPartialObservation(partialObservation);
-            error = cause;
-          } else {
-            error = new BrowserObservationError(
-              "observe_javascript_runtime",
-              cause.reason,
-              {
-                cause: error,
-                ...(error.userMessage === undefined
-                  ? {}
-                  : { detail: error.userMessage }),
-                partialObservation,
-              },
-            );
-          }
+          error.retainPartialObservation(partialObservation);
         } catch (projectionFailure: unknown) {
-          if (!(cause instanceof AnalysisCancelledError))
-            error = new ProviderAdapterError(
+          error.retainSecondaryFailure(
+            new ProviderAdapterError(
               V8_INSPECTOR_PROVIDER_IDENTITY.id,
               "observe_javascript_runtime",
               {
-                cause: new AggregateError(
-                  [error, projectionFailure],
-                  "Inspector failure and partial-observation projection both failed",
-                ),
-                userMessage: `${error.message} Partial observations could not be projected.`,
+                cause: projectionFailure,
+                userMessage:
+                  "Inspector partial observations could not be projected.",
               },
-            );
+            ),
+          );
         }
       }
       outcome = err(error);

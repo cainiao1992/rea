@@ -147,6 +147,10 @@ Inspector does not authenticate the operating-system PID or distinguish an
 Electron role, so Evidence records the role authority as
 `caller-declared-unverified`.
 
+If final script-location authorization fails, collected script and context facts
+remain available in the typed failure with explicitly unverified locations.
+Descriptor cleanup status and its retry owner remain independent of that capture.
+
 Electron main, preload, and renderer behavior can therefore be observed only
 as separate Inspector targets. The provider does not infer that two
 targets belong to the same Electron application.

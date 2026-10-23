@@ -73,6 +73,10 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { CdpElectronProvider } from "./CdpElectronProvider.js";
+import { V8InspectorProvider } from "../inspector/V8InspectorProvider.js";
+import { observeJavaScriptRuntime } from "../application/javascript/JavaScriptRuntimeObservationService.js";
+import { startFakeV8Inspector } from "../../tests/fixtures/inspector/fakeV8Inspector.js";
+import { prependAsarJsonWhitespace } from "../../tests/fixtures/asarHeader.js";
 import {
   authorizedElectronFile,
   mapElectronFileAuthorizationFailure,
@@ -119,6 +123,50 @@ const asarPage = async (): Promise<string> => {
   handleState.archive = archive;
   return pathToFileURL(join(archive, "index.html")).href;
 };
+
+it("retains Inspector scripts and contexts when final ASAR authorization cannot close its descriptor", async () => {
+  const scriptUrl = await asarPage();
+  const archive = handleState.archive;
+  if (archive === undefined) throw new Error("Missing fixture ASAR");
+  const inspector = await startFakeV8Inspector({
+    targetUrl: "https://example.test/entry.js",
+    scriptUrls: [scriptUrl],
+  });
+  const provider = new V8InspectorProvider();
+  const input = {
+    inspector_endpoint: inspector.endpoint,
+    target_id: inspector.targetId,
+    observation_ms: 0,
+  };
+  try {
+    const control = await observeJavaScriptRuntime(provider, input);
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw control.error;
+    expect(control.value.normalized_result).toMatchObject({
+      scripts: { observed_total: 1 },
+      execution_contexts: [{ name: "main" }],
+    });
+    await prependAsarJsonWhitespace(archive, " ");
+    handleState.failCloseCount = 1;
+    const result = await observeJavaScriptRuntime(provider, input);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected descriptor close failure");
+    expect(result.error.cleanupIncomplete).toBe(true);
+    expect(result.error.partialObservation).toMatchObject({
+      scripts: {
+        observed_total: 1,
+        items: [{ location: { kind: "unresolved", reported_url: scriptUrl } }],
+      },
+      execution_contexts: [{ name: "main" }],
+    });
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+  } finally {
+    handleState.failCloseCount = 0;
+    await provider.close();
+    await inspector.close();
+  }
+});
 
 it("retains a failed ASAR close through denial and retries before reopening", async () => {
   const location = await asarPage();

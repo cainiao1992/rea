@@ -25,6 +25,7 @@ import type {
   ProviderProcessHandle,
   SpawnedOwnedProviderProcess,
 } from "../../../src/process/ProviderProcess.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { stopOwnedDebuggerProcess } from "../../../src/process/ownedDebuggerSession.js";
 import { parseLinuxProcessStat } from "../../../src/process/LinuxProcessStat.js";
 import { expectGdbSessionStarted } from "./gdbTestHelpers.js";
@@ -1592,6 +1593,18 @@ it("rejects a pre-cancelled GDB start and an unconfigured executable", async () 
   if (!missing.ok) {
     expect(missing.error._tag).toBe("AnalysisCapabilityUnavailableError");
     expect(missing.error.message).toContain("does-not-exist-gdb");
+    expect(projectAnalysisError(missing.error)).toMatchObject({
+      code: "capability_unavailable",
+      message: expect.stringContaining("does-not-exist-gdb"),
+      remediation: { action: expect.stringContaining("REA_GDB_COMMAND") },
+      details: {
+        diagnostics: {
+          boundary: "provider-launch",
+          command: join(tmpdir(), "does-not-exist-gdb"),
+          system_code: "ENOENT",
+        },
+      },
+    });
   }
 });
 

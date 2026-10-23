@@ -59,6 +59,23 @@ const copiedTimeoutGuidance = (
     ? {}
     : { remediationAction: cause.remediationAction }),
 });
+/** A host executable refusal cannot be repaired by changing MI dialect. */
+class GdbExecutableRefusal extends AnalysisCapabilityUnavailableError {
+  constructor(command: string, systemCode: string, cause: Error) {
+    super("gdb", "start_gdb_session", cause.message, {
+      cause,
+      userMessage: `Could not launch the selected GDB executable ${JSON.stringify(command)} (${systemCode}).`,
+      remediationAction:
+        "Set REA_GDB_COMMAND to an installed executable GDB command, or make that command available on PATH. Check execute permission on the command and search permission on its parent directories before retrying.",
+      diagnostics: {
+        boundary: "provider-launch",
+        command,
+        system_code: systemCode,
+      },
+    });
+  }
+}
+
 const MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024;
 const MAX_COMMAND_OUTPUT_RECORDS = 16_384;
 const MAX_MI_LINE_BYTES = 16 * 1024 * 1024;
@@ -728,7 +745,10 @@ export class GdbSessionManager {
       signal,
       options.inferiorTty,
     );
-    return mi3.ok || signal.aborted || this.#sessions.has(id)
+    return mi3.ok ||
+      signal.aborted ||
+      this.#sessions.has(id) ||
+      mi3.error instanceof GdbExecutableRefusal
       ? mi3
       : this.#startProtocol(
           id,
@@ -768,11 +788,22 @@ export class GdbSessionManager {
         cause instanceof AnalysisCancelledError
       )
         return err(new AnalysisCancelledError("start_gdb_session", { cause }));
+      const code: unknown =
+        cause instanceof Error && "code" in cause ? cause.code : undefined;
+      if (
+        cause instanceof Error &&
+        typeof code === "string" &&
+        ["ENOENT", "EACCES", "EPERM", "ENOEXEC", "ENOTDIR", "EISDIR"].includes(
+          code,
+        )
+      )
+        return err(new GdbExecutableRefusal(this.#command, code, cause));
       return err(
         new AnalysisCapabilityUnavailableError(
           "gdb",
           "start_gdb_session",
           cause instanceof Error ? cause.message : "Unable to start GDB",
+          { cause },
         ),
       );
     }

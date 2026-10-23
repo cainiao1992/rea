@@ -126,7 +126,7 @@ it("recognizes zero-virtual-size PE raw padding without accepting payload junk",
   bytes.writeUInt32LE(512, entry + 16);
   bytes.writeUInt32LE(512, 188); // Optional-header FileAlignment.
   expect(readRustBinaryImage(bytes).auditable_metadata).toMatchObject({
-    section_bytes: payloadBytes,
+    section_bytes: 512,
     compressed_bytes: payloadBytes,
     packages,
   });

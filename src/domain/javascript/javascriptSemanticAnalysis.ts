@@ -100,6 +100,7 @@ import {
 import { semanticResourceLimitReason } from "./javascriptSemanticResourceLimits.js";
 import {
   javaScriptRuntimeContext,
+  javaScriptProgramStrictness,
   parseJavaScriptSource,
   type ParsedJavaScriptSource,
 } from "./javascriptSourceParser.js";
@@ -1799,15 +1800,7 @@ const semanticStrictnessAt = (
       current.body.directives.some(({ value }) => value.value === "use strict")
     )
       return "strict";
-    if (t.isProgram(current)) {
-      if (current.sourceType === "module") return "strict";
-      if (current.directives.some(({ value }) => value.value === "use strict"))
-        return "strict";
-      const runtimeContext = javaScriptRuntimeContext(current);
-      if (runtimeContext === "module") return "strict";
-      if (runtimeContext === "commonjs") return "sloppy";
-      return "unknown";
-    }
+    if (t.isProgram(current)) return javaScriptProgramStrictness(current);
   }
   return "unknown";
 };

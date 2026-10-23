@@ -1,4 +1,5 @@
 import * as t from "@babel/types";
+import { javaScriptProgramStrictness } from "./javascriptSourceParser.js";
 import { unwrapJavaScriptExpression } from "./javascriptAstValues.js";
 import { createAmbientPathResolver } from "./javascriptSemanticAmbientWrites.js";
 import { createSemanticModuleInterop } from "./javascriptModuleInterop.js";
@@ -238,11 +239,13 @@ const strictEval = (
     node !== undefined;
     node = state.parentsByNode.get(node)
   ) {
-    if (t.isClass(node) || (t.isProgram(node) && node.sourceType === "module"))
+    if (
+      t.isClass(node) ||
+      (t.isProgram(node) && javaScriptProgramStrictness(node) === "strict")
+    )
       return true;
-    const directives = t.isProgram(node)
-      ? node.directives
-      : t.isFunction(node) && t.isBlockStatement(node.body)
+    const directives =
+      t.isFunction(node) && t.isBlockStatement(node.body)
         ? node.body.directives
         : [];
     if (directives.some(({ value }) => value.value === "use strict"))

@@ -227,8 +227,23 @@ try {
     const candidate = join(candidateRoot, "module.wasm");
     await writeFile(join(candidateRoot, "source.wat"), "(module (memory 2))");
     await tool("wat2wasm", ["source.wat", "-o", "module.wasm"], candidateRoot);
-    const glueSource =
-      'fetch("./module.wasm"); new URL("https://example.invalid/module.wasm?version=1", import.meta.url);';
+    const glueValues = [
+      "./module.wasm",
+      "https://example.invalid/module.wasm?version=1",
+      ...["\n", "\r", "\r\n", "\u2028", "\u2029"].flatMap((separator) => [
+        `https://example.invalid/module.wasm?query=a${separator}b`,
+        `https://example.invalid/module.wasm#fragment=a${separator}b`,
+      ]),
+    ];
+    const glueLiterals = glueValues.map((value) =>
+      JSON.stringify(value)
+        .replace(/\u2028/gu, "\\u2028")
+        .replace(/\u2029/gu, "\\u2029"),
+    );
+    const glueSource = [
+      `fetch(${glueLiterals[0]}); new URL(${glueLiterals[1]}, import.meta.url);`,
+      ...glueLiterals.slice(2).map((literal) => `fetch(${literal});`),
+    ].join("\n");
     const glueSources = [
       glueSource,
       `\uFEFF${glueSource}`,
@@ -284,20 +299,31 @@ try {
       assert.equal(await readFile(gluePaths[index], "utf8"), source);
       assert.equal(observed.parse_status, "complete");
       assert.deepEqual(
+        observed.references.map(({ value }) => value),
+        glueValues,
+      );
+      assert.deepEqual(
         observed.references.map(({ candidate_paths }) => candidate_paths),
-        [[path], [path, candidate]],
+        glueValues.map((_, index) =>
+          index === 0 ? [path] : [path, candidate],
+        ),
+      );
+      assert.deepEqual(
+        observed.references.map(({ association }) => association),
+        glueValues.map((_, index) =>
+          index === 0 ? "local-path-candidate" : "basename-candidates",
+        ),
       );
       assert.deepEqual(
         observed.references.map(({ line, column }) => ({ line, column })),
-        ["./module.wasm", "https://example.invalid/module.wasm?version=1"].map(
-          (value) => {
-            const offset = source.indexOf(`"${value}"`);
-            return {
-              line: source.slice(0, offset).split("\n").length,
-              column: offset - source.lastIndexOf("\n", offset) - 1,
-            };
-          },
-        ),
+        glueLiterals.map((literal) => {
+          const offset = source.indexOf(literal);
+          assert.notEqual(offset, -1);
+          return {
+            line: source.slice(0, offset).split("\n").length,
+            column: offset - source.lastIndexOf("\n", offset) - 1,
+          };
+        }),
       );
     }
     assert.notEqual(report.candidates[0].sha256, report.candidates[1].sha256);

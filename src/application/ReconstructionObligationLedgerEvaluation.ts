@@ -19,7 +19,8 @@ import {
 } from "../domain/reconstructionObligationLedgerIntegrity.js";
 import type { ReconstructionObligationCandidate } from "./ReconstructionObligationCandidates.js";
 import {
-  evidenceAuthoritySupportsProof,
+  parseReconstructionProofEvidence,
+  qualifyReconstructionProof,
   evidenceSupportsOriginalAuthority,
   proofAuthoritySatisfies,
 } from "./ReconstructionObligationAuthority.js";
@@ -43,6 +44,10 @@ type Binding = NonNullable<ReconstructionObligation["binding"]>;
 interface EvaluationContext {
   readonly candidates: ReadonlyMap<string, ReconstructionObligationCandidate>;
   readonly evidence: ReadonlyMap<string, Evidence>;
+  readonly proofs: ReadonlyMap<
+    string,
+    ReturnType<typeof parseReconstructionProofEvidence>
+  >;
   readonly bindings: ReadonlyMap<string, readonly Binding[]>;
   readonly contradictions: ReturnType<typeof groupManifestContradictions>;
 }
@@ -118,6 +123,12 @@ const createEvaluationContext = (
     candidates.map((candidate) => [candidate.obligation_id, candidate]),
   ),
   evidence,
+  proofs: new Map(
+    [...evidence].map(([id, record]) => [
+      id,
+      parseReconstructionProofEvidence(record),
+    ]),
+  ),
   bindings: groupManifestBindings(manifest),
   contradictions: groupManifestContradictions(manifest),
 });
@@ -272,30 +283,51 @@ const evaluateBinding = (
       );
       continue;
     }
+    const qualifications = fixtures.map((fixture) => ({
+      authoritySatisfied: proofAuthoritySatisfies(
+        fixture.authority,
+        candidate.required_fixture_authority,
+      ),
+      proofs: fixture.evidence_ids.map((id) => {
+        const proof = context.proofs.get(id);
+        return proof === undefined
+          ? ({ ok: false, error: "missing-evidence" } as const)
+          : qualifyReconstructionProof(proof, fixture.authority, {
+              kind: "fixture",
+              obligationId: candidate.obligation_id,
+              obligationVersion: candidate.obligation_version,
+              ownerSha256: binding.owner.owner_sha256,
+              fixtureId: fixture.fixture_id,
+              caseKind: fixture.case_kind,
+            });
+      }),
+    }));
     if (
-      !fixtures.some(
-        (fixture) =>
-          proofAuthoritySatisfies(
-            fixture.authority,
-            candidate.required_fixture_authority,
-          ) &&
-          fixture.evidence_ids.every((id) => {
-            const evidence = context.evidence.get(id);
-            return (
-              evidence !== undefined &&
-              evidenceAuthoritySupportsProof(evidence, fixture.authority, {
-                obligationId: candidate.obligation_id,
-                fixtureId: fixture.fixture_id,
-                caseKind: fixture.case_kind,
-              })
-            );
-          }),
+      qualifications.some(
+        ({ authoritySatisfied, proofs }) =>
+          authoritySatisfied && proofs.every((proof) => proof.ok),
       )
+    )
+      continue;
+    const failures = qualifications.flatMap(({ proofs }) =>
+      proofs.flatMap((proof) => (proof.ok ? [] : [proof.error])),
+    );
+    if (
+      qualifications.some(({ authoritySatisfied }) => !authoritySatisfied) ||
+      failures.includes("insufficient-authority")
     )
       addDiagnostic(
         diagnostics,
         "weak-fixture-authority",
-        `${caseKind} fixture lacks ${candidate.required_fixture_authority} authority or authenticated Evidence.`,
+        `${caseKind} fixture lacks ${candidate.required_fixture_authority} authority.`,
+      );
+    if (failures.length > 0)
+      addDiagnostic(
+        diagnostics,
+        failures.includes("failed-proof")
+          ? "fixture-failed"
+          : "inapplicable-fixture-proof",
+        `${caseKind} fixture proof qualification: ${[...new Set(failures)].sort().join(", ")}.`,
       );
   }
   evaluateVerifier(candidate, binding, context, diagnostics);
@@ -333,23 +365,42 @@ const evaluateVerifier = (
     !proofAuthoritySatisfies(
       verifier.authority,
       candidate.required_verifier_authority,
-    ) ||
-    (resultEvidence !== undefined &&
-      !evidenceAuthoritySupportsProof(resultEvidence, verifier.authority, {
-        obligationId: candidate.obligation_id,
-        verifierId: verifier.verifier_id,
-        claimId: verifier.claim_id,
-      }))
+    )
   )
     addDiagnostic(
       diagnostics,
       "weak-verifier-authority",
       `Verifier authority does not satisfy ${candidate.required_verifier_authority}.`,
     );
+  const proof = context.proofs.get(verifier.result_evidence_id);
+  if (proof !== undefined) {
+    const qualification = qualifyReconstructionProof(
+      proof,
+      verifier.authority,
+      {
+        kind: "verifier",
+        obligationId: candidate.obligation_id,
+        obligationVersion: candidate.obligation_version,
+        ownerSha256: binding.owner.owner_sha256,
+        verifierId: verifier.verifier_id,
+        claimId: verifier.claim_id,
+      },
+    );
+    if (!qualification.ok)
+      addDiagnostic(
+        diagnostics,
+        qualification.error === "failed-proof"
+          ? "verifier-failed"
+          : qualification.error === "insufficient-authority"
+            ? "weak-verifier-authority"
+            : "inapplicable-verifier-proof",
+        `Verifier proof qualification: ${qualification.error}.`,
+      );
+  }
   if (verifier.status !== "pass")
     addDiagnostic(
       diagnostics,
-      "verifier-failed",
+      verifier.status === "fail" ? "verifier-failed" : "verifier-unavailable",
       `Latest verifier status is ${verifier.status}.`,
     );
 };

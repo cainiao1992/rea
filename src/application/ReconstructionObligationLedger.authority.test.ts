@@ -61,8 +61,8 @@ describe("reconstruction obligation ledger", () => {
 
     expect(result.obligations[0]?.diagnostics.map(({ code }) => code)).toEqual(
       expect.arrayContaining([
-        "weak-fixture-authority",
-        "weak-verifier-authority",
+        "inapplicable-fixture-proof",
+        "inapplicable-verifier-proof",
       ]),
     );
   });
@@ -72,11 +72,25 @@ describe("reconstruction obligation ledger", () => {
     const evidence = boundProofEvidence(
       "fixture-chain",
       {
-        obligation_ids: ids,
-        fixture_ids: ids.map((id) => `fixture.${id}`),
-        case_kinds: ["positive"],
-        verifier_ids: ids.map((id) => `verifier.${id}`),
-        claim_ids: ids.map((id) => `claim.${id}`),
+        bindings: ids.map((id) => ({
+          obligation_id: id,
+          obligation_version: 1,
+          owner_sha256: "6".repeat(64),
+          fixtures: [
+            {
+              fixture_id: `fixture.${id}`,
+              case_kind: "positive" as const,
+              passed: true,
+            },
+          ],
+          verifiers: [
+            {
+              verifier_id: `verifier.${id}`,
+              claim_id: `claim.${id}`,
+              passed: true,
+            },
+          ],
+        })),
       },
       "shipped-artifact",
     );

@@ -1,3 +1,4 @@
+import { reconstructionProofApplicabilityCases } from "../../fixtures/reconstructionProofApplicability.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFile } from "node:fs/promises";
@@ -308,3 +309,51 @@ cliTest(
       ).toBe(true);
   },
 );
+
+describe("reconstruction proof applicability through CLI", () => {
+  for (const {
+    name,
+    input,
+    status,
+    reason,
+    codes,
+  } of reconstructionProofApplicabilityCases())
+    it(
+      name,
+      async () => {
+        const { stdout } = await execute(
+          process.execPath,
+          [
+            "scripts/rea.mjs",
+            "build-reconstruction-obligation-ledger",
+            JSON.stringify(input),
+            "--json",
+          ],
+          {
+            cwd: process.cwd(),
+            env: process.env,
+            maxBuffer: 16 * 1_024 * 1_024,
+          },
+        );
+        const ledger = reconstructionObligationLedgerSchema.parse(
+          JSON.parse(stdout).normalized_result,
+        );
+        expect(ledger.status).toBe(status);
+        const obligation = ledger.obligations[0]!;
+        expect(obligation.status).toBe(
+          status === "ready" ? "verified" : "implemented",
+        );
+        expect(obligation.diagnostics.map(({ code }) => code).sort()).toEqual(
+          [...codes].sort(),
+        );
+        if (reason === null) expect(obligation.diagnostics).toEqual([]);
+        else
+          expect(
+            obligation.diagnostics.some(({ detail }) =>
+              detail.includes(reason),
+            ),
+          ).toBe(true);
+      },
+      20_000,
+    );
+});

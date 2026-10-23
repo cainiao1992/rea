@@ -17,10 +17,9 @@ input Evidence bundle. Contradictions, duplicate definitions or owners,
 residual unknowns, missing dependencies, and unavailable authority keep closure
 open or failed.
 
-Current proof qualification does not bind a passing record to the owner's
-implementation digest or obligation revision. Read the
-[proof applicability limitation](#proof-applicability) before relying on
-`verified` or `ready` after either changes.
+Every fixture and verifier proof must bind its outcome to the exact owner
+implementation digest and obligation revision being evaluated. See
+[proof applicability](#proof-applicability) for the caller-produced contract.
 
 ## Complete CLI request
 
@@ -343,16 +342,63 @@ Keep three checks separate:
 - **Applicability:** the proof describes the implementation and obligation
   revision currently being evaluated.
 
-Current qualification checks authority, passing status and enumerated IDs, but
-does not compare proof identity with `owner_sha256` or `obligation_version`.
-Changing those fields while retaining old proof can therefore leave the result
-`verified` and `ready` ([#6854](https://github.com/morluto/rea/issues/6854)).
-Until that binding is enforced, clear the manifest binding's `verifier` after
-an implementation or requirement revision changes and replace stale fixture
-and verifier Evidence with proof for the new inputs. With `verifier: null`, the
-required obligation cannot be verified and carries `missing-verifier`; an
-authenticated old record alone does not establish applicability to the changed
-implementation.
+Proof producers supply observed Evidence with predicate type
+`rea.reconstruction-proof`, operation `verify_reconstruction_obligations`, and
+the following `normalized_result` shape, defined by
+`reconstructionObligationProofSchema`. REA evaluates retained results; this
+operation label does not expose a proof executor or run the manifest command.
+
+```json
+{
+  "bindings": [
+    {
+      "obligation_id": "protocol.rpc.cancel",
+      "obligation_version": 1,
+      "owner_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "fixtures": [
+        {
+          "fixture_id": "fixture.cancel.positive",
+          "case_kind": "positive",
+          "passed": true
+        }
+      ],
+      "verifiers": [
+        {
+          "verifier_id": "verifier.cancel",
+          "claim_id": "claim.cancel",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+`owner_sha256` is the same lowercase 64-hex SHA-256 commitment supplied by the
+implementation owner in the manifest. The proof producer computes it from the
+same documented inputs and canonicalization described above; REA compares the
+commitments and does not recompute them. The proof's `obligation_version` must
+exactly equal the evaluated obligation version, including for generated
+obligations. Increase that version when revising a reviewed requirement.
+
+Within one matching obligation/owner/revision binding, fixture proof must name
+the exact `(fixture_id, case_kind)` pair, and verifier proof the exact
+`(verifier_id, claim_id)` pair. Every selected claim must report `passed: true`;
+a matching failed claim cannot be hidden by a duplicate passing claim.
+Claims may share a record, but identities or outcomes from different bindings
+are never joined. Fixture and verifier Evidence authority must also satisfy the
+existing authority requirements.
+
+Changing the owner digest or obligation version makes retained proof
+inapplicable. Missing identity, including legacy ID-array proof records, keeps
+the ledger open with `inapplicable-fixture-proof` or
+`inapplicable-verifier-proof`; details distinguish malformed or missing metadata
+(`invalid-proof`), `owner-mismatch`, `revision-mismatch`, and `claim-mismatch`.
+An applicable false outcome produces `fixture-failed` or `verifier-failed` and
+a failed required ledger. An unknown, unsupported, or skipped verifier declaration
+produces `verifier-unavailable` and keeps closure open. Replace fixture and
+verifier Evidence after implementation or requirement changes. Old Evidence
+remains valid provenance and cannot establish current applicability.
 
 The `summary` counts obligations. `by_status`, `by_application_layer`, and
 `by_source_state` place each obligation in exactly one bucket.
@@ -364,8 +410,8 @@ obligation's `source_state` do not affect its authority bucket.
 The tool returns every obligation inline. Its `ledger_id` and `closure_digest`
 identify the complete result, including summaries, reports, ownership and
 dependency graphs, Evidence links, and limitations. A new `closure_digest`
-identifies a changed ledger; it does not establish that a verifier ran again or
-that retained proof applies to the new owner or obligation revision.
+identifies a changed ledger; it does not establish that a verifier ran again.
+Applicability is checked against the retained proof's explicit bindings.
 
 For named boundaries with explicit verifier contracts and package-proof kinds,
 see [reconstruction coverage](reconstruction-coverage.md).

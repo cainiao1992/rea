@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   analysisViewCaptureEvidence,
@@ -181,6 +181,23 @@ describe("confirmed write response bodies", () => {
       expect(read.value.body).toEqual({ theme: "blue", lang: "en" });
     },
   );
+});
+
+it("refuses an unrepresentable generated clock without changing the held state", () => {
+  const books = servedFrom();
+  const pending = books.store.pendingWrite();
+  const pendingWrite = books.store.pendingWrite.bind(books.store);
+  vi.spyOn(books.store, "pendingWrite").mockImplementation(() => ({
+    ...pendingWrite(),
+    clockMs: Date.parse("0000-01-01T00:00:00+01:00"),
+  }));
+  const before = books.snapshot();
+  const refusal = books.refusal("post_books", CREATE_NEW_BOOK);
+  expect(JSON.stringify(refusal)).toContain(
+    "outside its recorded four-digit year format",
+  );
+  expect(books.snapshot()).toBe(before);
+  expect(books.store.pendingWrite().count).toBe(pending.count);
 });
 
 describe("served creates", () => {

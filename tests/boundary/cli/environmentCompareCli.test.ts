@@ -1,13 +1,18 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect } from "vitest";
 
-import { timedCaptureEvidence } from "../../fixtures/analysisView.js";
+import {
+  analysisViewCaptureEvidence,
+  environmentManifestCaptureFixture,
+  timedCaptureEvidence,
+} from "../../fixtures/analysisView.js";
 import { environmentStateServeFixture } from "../../fixtures/environmentServe.js";
 import {
   BOOK_NOT_FOUND,
   BOOK_ROWS,
+  FIRST_BOOK,
   book,
 } from "../../fixtures/environmentStateWrites.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -34,7 +39,133 @@ const writeCompareFiles = async (root: string) => {
   return paths;
 };
 
+/** The exact chronology and clock-format probes share one unchanged source capture. */
+const writeExactClockFiles = async (
+  root: string,
+): Promise<Map<string, string>> => {
+  const capture = timedCaptureEvidence([
+    ["GET", "/api/books", [FIRST_BOOK]],
+    ["GET", "/api/books/1", FIRST_BOOK],
+    ["DELETE", "/api/books/1", "", 204],
+    ["GET", "/api/books/1", BOOK_NOT_FOUND, 404],
+  ]);
+  const fixture = environmentStateServeFixture(capture);
+  const ordered = analysisViewCaptureEvidence(
+    environmentManifestCaptureFixture([
+      {
+        startedDateTime: "0001-01-01T00:00:00.0000000002Z",
+        request: { method: "GET", url: "http://app.example/api/books/1" },
+        response: {
+          status: 404,
+          content: {
+            mimeType: "application/json",
+            text: JSON.stringify(BOOK_NOT_FOUND),
+          },
+        },
+      },
+      {
+        startedDateTime: "0001-01-01T01:00:00.0000000001+01:00",
+        request: {
+          method: "DELETE",
+          url: "http://app.example/api/books/1",
+        },
+        response: {
+          status: 204,
+          content: { mimeType: "application/json", text: "" },
+        },
+      },
+    ]),
+  );
+  const clocks = timedCaptureEvidence([
+    [
+      "GET",
+      "/api/books/1",
+      { ...FIRST_BOOK, created_at: "0001-01-01 00:00:00.000Z" },
+    ],
+  ]);
+  const originals = new Map<string, string>();
+  for (const [name, value] of [
+    ["manifest.json", fixture.manifest],
+    ["capture.json", capture],
+    ["order.json", ordered],
+    ["clocks.json", clocks],
+  ] as const) {
+    const path = join(root, name);
+    const text = JSON.stringify(value);
+    originals.set(path, text);
+    await writeFile(path, text);
+  }
+  return originals;
+};
+
 describe("rea environment-compare", () => {
+  cliTest(
+    "preserves exact probe chronology and first-century clock-format differences",
+    async ({ cli }) => {
+      const root = await createTestTempDirectory(
+        "rea-environment-exact-clock-",
+      );
+      const originals = await writeExactClockFiles(root);
+      const result = await cli.run({
+        arguments: [
+          "environment-compare",
+          join(root, "manifest.json"),
+          "--evidence",
+          join(root, "capture.json"),
+          "--probe",
+          join(root, "order.json"),
+          "--probe",
+          join(root, "clocks.json"),
+          "--json",
+        ],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.json).toMatchObject({
+        status: "complete",
+        environment: { state: "served" },
+        summary: { probes: 2, steps: 3, equal: 2 },
+        probes: [
+          {
+            label: "order.json",
+            results: [
+              {
+                ordinal: 1,
+                method: "DELETE",
+                live_status: 204,
+                env_status: 204,
+                equal: true,
+              },
+              {
+                ordinal: 0,
+                method: "GET",
+                live_status: 404,
+                env_status: 404,
+                equal: true,
+              },
+            ],
+          },
+          {
+            label: "clocks.json",
+            results: [
+              {
+                categories: ["clock-format"],
+                differences: [
+                  {
+                    category: "clock-format",
+                    pointer: "/created_at",
+                    live: '"0001-01-01 00:00:00.000Z"',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      for (const [path, text] of originals)
+        expect(await readFile(path, "utf8")).toBe(text);
+    },
+  );
+
   cliTest(
     "compares the served environment with a probe of the re-seeded application and prints the report",
     async ({ cli }) => {

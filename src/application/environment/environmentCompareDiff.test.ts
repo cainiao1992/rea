@@ -16,6 +16,21 @@ const compare = (
     map,
   );
 
+describe("early-year clock formats", () => {
+  it.each(["0000", "0001", "0099", "0100"])(
+    "classifies a year-%s clock spelling difference by format",
+    (year) => {
+      const result = compare(
+        { created_at: `${year}-01-01T00:00:00Z` },
+        { created_at: `${year}-01-01 00:00:00.000Z` },
+      );
+      expect(
+        result.differences.map(({ category, pointer }) => [category, pointer]),
+      ).toEqual([["clock-format", "/created_at"]]);
+    },
+  );
+});
+
 describe("compareAnswers", () => {
   it("agrees on mapped ids, clocks of one format and generated values, and counts each", () => {
     const map = new IdMap();

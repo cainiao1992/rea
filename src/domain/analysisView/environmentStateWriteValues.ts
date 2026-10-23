@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import type { JsonValue } from "../jsonValue.js";
+import {
+  offsetDateTimeSchema,
+  parseOffsetDateTimeInstant,
+} from "../offsetDateTime.js";
 
 /** How a recorded clock value is spelled: ISO-8601 with its separator, fraction digits and zone, or an epoch number. */
 export type ClockFormat =
@@ -19,7 +23,7 @@ interface ClockReading {
 }
 
 const ISO_INSTANT =
-  /^(\d{4})-(\d{2})-(\d{2})([T ])(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$/u;
+  /^\d{4}-\d{2}-\d{2}([T ])\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$/u;
 const MINUTE_MS = 60_000;
 
 /** Minutes east of UTC that a zone suffix names; none and `Z` are UTC. */
@@ -49,34 +53,22 @@ const zoneMinutesForFormat = (zone: string): number => {
 const readIsoClock = (value: string): ClockReading | undefined => {
   const match = ISO_INSTANT.exec(value);
   if (match === null) return undefined;
-  const [year, month, day, separator, hour, minute, second] = match
-    .slice(1, 8)
-    .map((part) => (part === "T" || part === " " ? part : Number(part)));
-  const fraction = match[8] ?? "";
-  const zone = match[9] ?? "";
-  const offsetMinutes = zoneMinutes(zone);
-  if (offsetMinutes === undefined) return undefined;
-  const local = Date.UTC(
-    year as number,
-    (month as number) - 1,
-    day as number,
-    hour as number,
-    minute as number,
-    second as number,
-    Number(`${fraction}000`.slice(0, 3)),
+  const [, separator, fraction = "", zone = ""] = match;
+  // Clock spelling also permits a space, compact offsets and implicit UTC.
+  // Normalize those spellings before the shared owner validates the calendar.
+  const offset =
+    zone === ""
+      ? "Z"
+      : zone === "Z" || zone.includes(":")
+        ? zone
+        : `${zone.slice(0, 3)}:${zone.slice(3)}`;
+  const timestamp = offsetDateTimeSchema.safeParse(
+    `${value.slice(0, 10)}T${value.slice(11, 19)}${fraction === "" ? "" : `.${fraction}`}${offset}`,
   );
-  // Date.UTC rolls invalid fields over; the round trip refuses them.
-  const rolled = new Date(local);
-  if (
-    rolled.getUTCFullYear() !== year ||
-    rolled.getUTCMonth() !== (month as number) - 1 ||
-    rolled.getUTCDate() !== day ||
-    rolled.getUTCHours() !== hour ||
-    rolled.getUTCMinutes() !== minute
-  )
-    return undefined;
+  if (!timestamp.success) return undefined;
+  const instant = parseOffsetDateTimeInstant(timestamp.data);
   return {
-    ms: local - offsetMinutes * MINUTE_MS,
+    ms: instant.epochSecond * 1000 + Number(`${fraction}000`.slice(0, 3)),
     subMillisecond: Number(fraction.padEnd(9, "0").slice(3)),
     format: {
       kind: "iso",
@@ -118,11 +110,17 @@ const isoText = (
   separator: string,
   digits: string,
   zone: string,
-): string =>
-  `${pad(at.getUTCFullYear(), 4)}-${pad(at.getUTCMonth() + 1, 2)}-${pad(at.getUTCDate(), 2)}${separator}${pad(at.getUTCHours(), 2)}:${pad(at.getUTCMinutes(), 2)}:${pad(at.getUTCSeconds(), 2)}${digits === "" ? "" : `.${digits}`}${zone}`;
+): string | undefined => {
+  const year = at.getUTCFullYear();
+  if (!Number.isInteger(year) || year < 0 || year > 9999) return undefined;
+  return `${pad(year, 4)}-${pad(at.getUTCMonth() + 1, 2)}-${pad(at.getUTCDate(), 2)}${separator}${pad(at.getUTCHours(), 2)}:${pad(at.getUTCMinutes(), 2)}:${pad(at.getUTCSeconds(), 2)}${digits === "" ? "" : `.${digits}`}${zone}`;
+};
 
-/** An instant spelled in a recorded clock format; fraction digits past milliseconds are zeros. */
-export const formatClock = (ms: number, format: ClockFormat): JsonValue => {
+/** An instant in a recorded format; undefined outside its four-digit ISO year range. Fraction digits past milliseconds are zeros. */
+export const formatClock = (
+  ms: number,
+  format: ClockFormat,
+): JsonValue | undefined => {
   if (format.kind === "epoch")
     return format.unit === "s" ? Math.floor(ms / 1000) : ms;
   const at = new Date(ms + zoneMinutesForFormat(format.zone) * MINUTE_MS);
@@ -144,7 +142,7 @@ export const respellClock = (
 ): JsonValue => {
   const clock = readClock(value);
   if (clock === undefined) return value;
-  if (format.kind === "epoch") return formatClock(clock.ms, format);
+  if (format.kind === "epoch") return formatClock(clock.ms, format) ?? value;
   const millis = ((clock.ms % 1000) + 1000) % 1000;
   // An epoch value's fraction is its milliseconds, without trailing zeros.
   const digits =
@@ -157,11 +155,13 @@ export const respellClock = (
   const at = new Date(
     clock.ms - millis + zoneMinutesForFormat(format.zone) * MINUTE_MS,
   );
-  return isoText(
-    at,
-    format.separator,
-    digits.padEnd(format.fraction, "0"),
-    format.zone,
+  return (
+    isoText(
+      at,
+      format.separator,
+      digits.padEnd(format.fraction, "0"),
+      format.zone,
+    ) ?? value
   );
 };
 

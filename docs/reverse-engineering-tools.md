@@ -135,6 +135,9 @@ block new commands until they can be retried successfully. Status proof failures
 identify `cutter_command` and retain `status` in
 `details.diagnostics.auxiliary_operation`; malformed proof still blocks dispatch.
 Descriptor failures likewise retain the requesting operation through cleanup.
+If a completion-proof read fails while an earlier command is unresolved, retry
+admission preserves both errors and their independently owned resources. Releasing
+one owner does not settle the other, and the command is not replayed to recover proof.
 Command admission reports typed cancellation and treats the caller's abort reason
 as opaque metadata, without inferring cleanup ownership from it. A generation
 mismatch is an input correction only when the authenticated reply confirms

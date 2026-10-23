@@ -73,7 +73,15 @@ export class CutterBridgeService {
         requestId,
         pending.completionToken,
       );
-      if (!receipt.ok || !receipt.value) return err(pending.failure);
+      if (!receipt.ok)
+        return err(
+          analysisErrorWithCleanupFailure(
+            pending.failure,
+            receipt.error,
+            "cutter_command",
+          ).bindCleanupDependencies([pending.failure, receipt.error]),
+        );
+      if (!receipt.value) return err(pending.failure);
       const { failure } = pending;
       failure.resolveCleanup();
       this.#pendingCleanup.delete(requestId);

@@ -51,8 +51,15 @@ it.each(["unknown", "unavailable", "partial"] as const)(
           truncated: true,
           limits: [{ name: "nodes", value: 1, unit: "items" }],
         },
+        limitations: [
+          "Authored truncation tests status and omission coupling.",
+        ],
       }),
-    ).toThrow(/Truncated semantic graph coverage/u);
+    ).toThrow(
+      status === "partial"
+        ? "Truncated semantic graph coverage must acknowledge omitted facts"
+        : "Truncated semantic graph coverage must be partial",
+    );
   },
 );
 
@@ -69,6 +76,7 @@ it("accepts truncated partial coverage with unknown omission extents", () => {
         omitted_relations: null,
         limits: [{ name: "nodes", value: 1, unit: "items" }],
       },
+      limitations: ["Node ceiling left semantic omission extents unknown."],
     }).coverage,
   ).toMatchObject({ status: "partial", truncated: true });
 });
@@ -92,6 +100,7 @@ it("accepts omitted unknown occurrences as the reason for semantic truncation", 
           : coverage,
       ),
     },
+    limitations: ["Unknown ceiling omitted one resource-limit occurrence."],
   });
   expect(graph.coverage).toMatchObject({
     truncated: true,

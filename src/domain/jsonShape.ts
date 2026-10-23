@@ -43,13 +43,21 @@ interface ShapeNode {
   children?: Map<string | typeof arrayElementKey, ShapeNode>;
 }
 
-/** Parse approved JSON and immediately discard values after iterative shape inference. */
-export const inferJsonShape = (text: string): JsonShape | null => {
+/** Parse approved JSON text or exact UTF-8 bytes, then discard values after shape inference. */
+export const inferJsonShape = (
+  source: string | Uint8Array,
+): JsonShape | null => {
   let root: unknown;
   try {
+    const text =
+      typeof source === "string"
+        ? source
+        : new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+            source,
+          );
     root = JSON.parse(text);
   } catch (cause: unknown) {
-    // Invalid JSON is represented by the null return.
+    // Invalid JSON or non-UTF-8 bytes cannot establish a shape.
     void cause;
     return null;
   }

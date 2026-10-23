@@ -21,9 +21,7 @@ export const ingestResponseBodyShape = (
     invalidResponseBodyShape(state, requestId);
     return;
   }
-  const decoded = base64Encoded
-    ? decodePaddedBase64(body)?.toString("utf8")
-    : body;
+  const decoded = base64Encoded ? decodePaddedBase64(body) : body;
   if (decoded === undefined) {
     invalidResponseBodyShape(state, requestId);
     return;

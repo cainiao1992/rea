@@ -358,6 +358,9 @@ it("distinguishes unsupported containers from malformed recognized images", () =
     /truncated/i,
   );
   const pe = createGoBinaryFixture({ format: "pe" });
+  expect(() => readGoBinaryImage(pe.bytes.subarray(0, 144))).toThrowError(
+    /range|truncated/i,
+  );
   pe.bytes.writeUInt32LE(0xfffffff0, 60);
   expect(() => readGoBinaryImage(pe.bytes)).toThrowError(
     /MZ Windows new-header candidate is unresolved/i,

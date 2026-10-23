@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { posix, win32 } from "node:path";
 
 import type { JsonValue } from "../../domain/jsonValue.js";
@@ -13,7 +14,7 @@ import {
 } from "../../domain/process/processEvidenceProvider.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 import {
-  parseProcessCapture,
+  safeParseProcessCapture,
   type ProcessCapture,
 } from "../../domain/process/processCaptureParsing.js";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
@@ -26,7 +27,7 @@ const PROCESS_CAPTURE_EVIDENCE = {
 
 /** Semantic rejection facts; CLI and MCP retain their own error projections. */
 export type ProcessCaptureEvidenceFailure =
-  | { readonly kind: "invalid-evidence"; readonly cause: unknown }
+  | { readonly kind: "invalid-evidence"; readonly cause: z.ZodError }
   | {
       readonly kind: "wrong-workflow";
       readonly expected: typeof PROCESS_CAPTURE_EVIDENCE;
@@ -39,7 +40,7 @@ export type ProcessCaptureEvidenceFailure =
       readonly kind: "unsupported-provider";
       readonly provider: EvidenceProvider;
     }
-  | { readonly kind: "invalid-capture"; readonly cause: unknown };
+  | { readonly kind: "invalid-capture"; readonly cause: z.ZodError };
 
 /** Authenticate capture Evidence before admitting its workflow, provider and payload. */
 export const parseProcessCaptureEvidence = (
@@ -52,7 +53,9 @@ export const parseProcessCaptureEvidence = (
   try {
     record = parseEvidence(input);
   } catch (cause: unknown) {
-    return err({ kind: "invalid-evidence", cause });
+    if (cause instanceof z.ZodError)
+      return err({ kind: "invalid-evidence", cause });
+    throw cause;
   }
   if (
     record.operation !== PROCESS_CAPTURE_EVIDENCE.operation ||
@@ -65,14 +68,10 @@ export const parseProcessCaptureEvidence = (
     });
   if (!isProcessEvidenceProvider(record.provider))
     return err({ kind: "unsupported-provider", provider: record.provider });
-  try {
-    return ok({
-      record,
-      capture: parseProcessCapture(record.normalized_result),
-    });
-  } catch (cause: unknown) {
-    return err({ kind: "invalid-capture", cause });
-  }
+  const parsedCapture = safeParseProcessCapture(record.normalized_result);
+  return parsedCapture.success
+    ? ok({ record, capture: parsedCapture.data })
+    : err({ kind: "invalid-capture", cause: parsedCapture.error });
 };
 
 /** Project one process scenario into secret-free Evidence parameters. */

@@ -6,6 +6,7 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
+import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
 import {
   createResidualUnknown,
   recordUnknownInputSchema,
@@ -15,6 +16,7 @@ import { createServer } from "../../../src/server/createServer.js";
 import {
   MIXED_AUTHORITY_SUMMARY,
   mixedAuthorityRequest,
+  processEvidence,
   reviewedObligation,
 } from "../../../src/application/ReconstructionObligationLedger.fixture.js";
 import { observed } from "../../fixtures/analysisExecution.js";
@@ -164,6 +166,66 @@ describe("reconstruction obligation ledger residual graph input", () => {
         );
         expect(result.isError).toBe(true);
         expect(parseMcpToolError(result)).toMatchObject(integrityError(reason));
+      });
+    },
+  );
+});
+
+describe("reconstruction obligation ledger process provider admission", () => {
+  it.each([
+    ["current provider", PROCESS_PROVIDER, true],
+    [
+      "supported legacy name",
+      { ...PROCESS_PROVIDER, name: "REA deterministic process harness" },
+      true,
+    ],
+    ["foreign id", { ...PROCESS_PROVIDER, id: "foreign-process" }, false],
+    ["unsupported version", { ...PROCESS_PROVIDER, version: "4" }, false],
+    [
+      "unsupported name",
+      { ...PROCESS_PROVIDER, name: "Other provider" },
+      false,
+    ],
+  ] as const)(
+    "preserves process provider admission for %s",
+    async (_, provider, admitted) => {
+      const source = processEvidence();
+      const record = createEvidence(undefined, provider, {
+        predicateType: source.predicate_type,
+        operation: source.operation,
+        parameters: source.parameters,
+        result: source.normalized_result,
+        confidence: source.confidence,
+        authority: source.authority,
+      });
+      await withLedgerClient(async (request) => {
+        const response = await request(createEvidenceBundle([record]));
+        expect(response.isError).not.toBe(true);
+        expect(response.structuredContent).toMatchObject({
+          normalized_result: {
+            status: admitted ? "open" : "unknown",
+            summary: { total: admitted ? 1 : 0 },
+            obligations: admitted
+              ? [
+                  {
+                    family: "packaged-process-lifecycle",
+                    target: { artifact_sha256: "0".repeat(64) },
+                    authority_references: [
+                      {
+                        evidence_id: record.evidence_id,
+                        authority: record.authority,
+                      },
+                    ],
+                  },
+                ]
+              : [],
+            limitations: admitted
+              ? expect.any(Array)
+              : expect.arrayContaining([
+                  `Process Evidence ${record.evidence_id} has an unsupported provider; process lifecycle candidates remain unknown.`,
+                ]),
+          },
+        });
       });
     },
   );

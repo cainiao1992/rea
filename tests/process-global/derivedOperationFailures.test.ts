@@ -26,9 +26,11 @@ import { managedMemberComparisonResultSchema } from "../../src/domain/managed/ma
 import { managedNativeVerificationResultSchema } from "../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { managedReconstructionImportResultSchema } from "../../src/domain/managed/managedReconstruction.js";
 
+import { captureProcessScenarioFile } from "../../src/application/process/ProcessCli.js";
 import { compareManagedMemberPaths } from "../../src/application/managed/ManagedMemberComparisonService.js";
 import { buildManagedPeFixture } from "../../src/dotnet/ManagedPe.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { ProcessCaptureError } from "../../src/process/capture/ProcessCaptureError.js";
 
 import { reconstructionObligationLedgerSchema } from "../../src/domain/reconstructionObligationLedgerSchemas.js";
 import {
@@ -664,13 +666,13 @@ describe("ledger generation failure ownership through the public SDK", () => {
     },
   );
 
-  it.each(unexpectedResultFailures.filter(([kind]) => kind !== "ZodError"))(
+  it.each(unexpectedResultFailures)(
     "preserves an unexpected %s while deriving process candidates",
     async (_label, createFailure) => {
       await withSdk(async ({ client, session }) => {
         const input = ledgerRequest([processEvidence()]);
         const failure = createFailure();
-        vi.spyOn(processCaptureSchema, "parse").mockImplementation(() => {
+        vi.spyOn(processCaptureSchema, "safeParse").mockImplementation(() => {
           throw failure;
         });
         const response = await client.callTool({
@@ -679,6 +681,87 @@ describe("ledger generation failure ownership through the public SDK", () => {
         });
         expectUnexpectedToolFailure(response, failure);
         expect(session.exportEvidenceBundle().records).toEqual([]);
+      });
+    },
+  );
+});
+
+describe("process capture CLI cleanup failure projection", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("preserves sanitized unknown-process IDs and reasons through the capture CLI boundary", async () => {
+    const root = await createTestTempDirectory("rea-process-cli-cleanup-");
+    const scenario = join(root, "scenario.json");
+    await writeFile(
+      scenario,
+      JSON.stringify({ executable: process.execPath, arguments: [] }),
+    );
+    const reason =
+      "process ownership token could not be read for 1 live process(es): environment_unavailable=1; live candidates 900=environment_unavailable";
+    const failure = new ProcessCaptureError("cleanup incomplete", {
+      reason: "cleanup_incomplete",
+      cleanup: { reason, resources: ["owned_process_group"] },
+      cleanupReport: {
+        owned_process_group: {
+          state: "unverified",
+          reason,
+          unverified_processes: [
+            { pid: 900, reason: "environment_unavailable" },
+          ],
+        },
+        terminal_renderer: { state: "cleaned", reason: null },
+        temporary_root: { state: "cleaned", reason: null },
+      },
+    });
+    const processHarness =
+      await import("../../src/process/capture/ProcessHarness.js");
+    vi.spyOn(processHarness, "captureProcessScenario").mockResolvedValue({
+      ok: false,
+      error: failure,
+    });
+
+    const projected = await captureProcessScenarioFile(scenario);
+
+    expect(projected).toMatchObject({
+      error: "Process command failed",
+      code: "cleanup_incomplete",
+      details: {
+        cleanup_report: {
+          owned_process_group: {
+            reason,
+            unverified_processes: [
+              { pid: 900, reason: "environment_unavailable" },
+            ],
+          },
+        },
+      },
+    });
+  });
+});
+
+describe("process comparison Evidence authentication failures through the public SDK", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(unexpectedResultFailures.filter(([kind]) => kind !== "ZodError"))(
+    "preserves an unexpected %s without retaining Evidence",
+    async (_label, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const input = {
+          left: processEvidence(),
+          right: processEvidence(),
+        };
+        const failure = createFailure();
+        const evidenceModule = await import("../../src/domain/evidence.js");
+        vi.spyOn(evidenceModule, "parseEvidence").mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: "compare_process_captures",
+          arguments: input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+        expect(session.exportEvidenceBundle().unknowns).toEqual([]);
       });
     },
   );

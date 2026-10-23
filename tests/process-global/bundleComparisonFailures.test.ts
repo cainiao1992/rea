@@ -7,11 +7,43 @@ import { z } from "zod";
 import { createCli } from "../../src/cli.js";
 import { compareEvidenceBundlesCommand } from "../../src/application/EvidenceBundleCommands.js";
 import { bundleComparisonResultSchema } from "../../src/domain/bundleComparison.js";
+import { processEvidence } from "../../src/application/ReconstructionObligationLedger.fixture.js";
+import { processCaptureSchema } from "../../src/domain/process/processCapture.js";
 import {
   createEvidenceBundle,
   serializeEvidenceBundle,
 } from "../../src/domain/evidenceBundle.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+
+it.each([
+  new TypeError("capture validation implementation failed"),
+  new Error("capture validator failed"),
+  new z.ZodError([
+    { code: "custom", path: [], message: "capture refinement failed" },
+  ]),
+])(
+  "preserves unexpected process validation failures while reading a bundle: $name",
+  async (failure) => {
+    const directory = await createTestTempDirectory(
+      "rea-bundle-capture-failure-",
+    );
+    const path = join(directory, "bundle.json");
+    await writeFile(
+      path,
+      serializeEvidenceBundle(createEvidenceBundle([processEvidence()])),
+    );
+    const validator = vi
+      .spyOn(processCaptureSchema, "safeParse")
+      .mockImplementation(() => {
+        throw failure;
+      });
+    onTestFinished(() => validator.mockRestore());
+
+    await expect(
+      compareEvidenceBundlesCommand({ leftPath: path, rightPath: path }),
+    ).rejects.toBe(failure);
+  },
+);
 
 it.each([
   new TypeError("comparison output invariant failed"),

@@ -216,8 +216,7 @@ const isProcessCaptureEvidence = (evidence: Evidence): boolean => {
       return false;
     case "invalid-evidence":
     case "invalid-capture":
-      if (parsed.error.cause instanceof z.ZodError) return false;
-      throw parsed.error.cause;
+      return false;
   }
 };
 

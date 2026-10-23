@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import {
@@ -173,13 +171,11 @@ const parseCaptureEvidence = (input: unknown, side: "left" | "right") => {
   const failure = parsed.error;
   switch (failure.kind) {
     case "invalid-evidence":
-      if (failure.cause instanceof z.ZodError)
-        throw new AnalysisInputError(
-          "compare_process_captures",
-          { cause: failure.cause },
-          projectInputIssues(failure.cause.issues, input),
-        );
-      throw invalidCaptureEvidence(failure.cause, side);
+      throw new AnalysisInputError(
+        "compare_process_captures",
+        { cause: failure.cause },
+        projectInputIssues(failure.cause.issues, input),
+      );
     case "wrong-workflow":
       throw processInputFailure(
         "compare_process_captures",
@@ -273,7 +269,7 @@ export const PROCESS_UNEXPECTED_FAILURE_REMEDIATION =
   "Do not repeat this command. Tell the user the process command could not complete and ask them to check the input files, then run `rea doctor`.";
 
 /** Preserve typed failures and local diagnostics at the process CLI boundary. */
-export const projectProcessCliError = (
+const projectProcessCliError = (
   cause: unknown,
   operation: "capture_process_scenario" | "compare_process_captures",
 ): ProcessCliErrorOutput => {

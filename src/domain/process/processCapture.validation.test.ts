@@ -1,8 +1,12 @@
-import { expect, it } from "vitest";
+import { expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import { digestProcessCommitment } from "./processScenario.js";
-import { parseProcessCapture } from "./processCaptureParsing.js";
+import {
+  parseProcessCapture,
+  type ProcessCapture,
+} from "./processCaptureParsing.js";
+import type { UnverifiedProcessCapture } from "./processCapture.js";
 import { partialProcessCaptureObservationSchema } from "./processCapture.js";
 import { FINALIZED_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
 import { finalizationConsistencyIssue } from "./processCaptureValidation.js";
@@ -12,6 +16,8 @@ import {
   emptyUnverifiedProcessCapture as emptyCapture,
   processCaptureIssues,
 } from "./processCapture.fixture.js";
+
+expectTypeOf<UnverifiedProcessCapture>().not.toExtend<ProcessCapture>();
 
 /** Name every rejected field reported by the production parser. */
 const rejectedPaths = (input: unknown): readonly string[] => {

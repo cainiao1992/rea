@@ -17,7 +17,7 @@ import {
   AnalysisCancelledError,
   type AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
-import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
+import { safeParseProcessCapture } from "../domain/process/processCaptureParsing.js";
 import {
   bufferedJsonParts,
   canonicalJsonParts,
@@ -103,13 +103,12 @@ const readBundle = async (
   }
   for (const record of bundle.records) {
     if (record.predicate_type !== "rea.process-capture") continue;
-    try {
-      parseProcessCapture(record.normalized_result);
-    } catch (cause: unknown) {
+    const parsedCapture = safeParseProcessCapture(record.normalized_result);
+    if (!parsedCapture.success) {
       return err(
         new EvidenceIntegrityError("Evidence bundle validation failed", {
-          cause,
-          userMessage: `Process capture record ${record.evidence_id} has an invalid normalized_result (${describeValidationFailure(cause)}). Recreate or re-export the bundle, then try again.`,
+          cause: parsedCapture.error,
+          userMessage: `Process capture record ${record.evidence_id} has an invalid normalized_result (${describeValidationFailure(parsedCapture.error)}). Recreate or re-export the bundle, then try again.`,
         }),
       );
     }

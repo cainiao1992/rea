@@ -166,7 +166,15 @@ fully qualified message type. All imports must be included. REA never fetches
 schemas or executes the selected application. Descriptor identity and parser
 version remain in the body facts. Scalars, repeated numeric packing and nested
 messages are interpreted alongside the unchanged wire facts; disagreements
-remain explicit. Map semantics, extensions and required-field validation are
+remain explicit. Descriptor admission rejects duplicate field numbers within
+each message, including nested messages and oneof fields, before schema
+annotation. This does not reject repeated occurrences in captured wire bytes
+or reuse of a number in a different message. Fully qualified message, enum,
+service and extension names must also identify one declaration across the
+descriptor set, including nested and synthetic map-entry messages. Different
+packages or enclosing messages may reuse a local type name. Schema-admission
+failures retain the partial capture Evidence and its original artifact identity.
+Map semantics, extensions and required-field validation are
 unsupported. A supplied schema does not establish the sender's actual schema.
 An invalid nested interpretation records `schema_status: "invalid-message"`
 and `schema_error` locally; later outer fields remain available. Valid string

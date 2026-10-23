@@ -1,12 +1,15 @@
 import { canonicalJson } from "./comparisonSemantics.js";
-import { compareFunctionReferences } from "./functionReferenceComparison.js";
+import {
+  compareFunctionRelationships,
+  type FunctionRelationshipComparison,
+} from "./functionRelationshipComparison.js";
 import { diffLines } from "diff";
 
 import type { FunctionSnapshot } from "./functionDossierEvidence.js";
 import {
   commentProjection,
   identityProjection,
-  isAutoName,
+  hasStableFunctionName,
   nameAndSwiftProjection,
   normalizeCfg,
   referencedStringProjection,
@@ -33,6 +36,7 @@ export const compareDimensions = (
   right: FunctionSnapshot,
   context: ComparisonContext,
 ): FunctionDimension[] => {
+  const relationships = compareFunctionRelationships(left, right);
   return [
     compareIdentity(left, right, context),
     compareText(
@@ -48,8 +52,8 @@ export const compareDimensions = (
       context,
     ),
     compareComments(left, right, context),
-    compareCalls(left, right, context),
-    compareReferences(left, right, context),
+    compareCalls(left, right, relationships.calls, context),
+    compareReferences(relationships.references, context),
     compareStringsAndNames(left, right, context),
     compareCfg(left, right, context),
   ].map((result) => {
@@ -521,11 +525,9 @@ const swiftLiteralCoverage = (
       : "complete";
 
 const compareReferences = (
-  left: FunctionSnapshot,
-  right: FunctionSnapshot,
+  compared: FunctionRelationshipComparison,
   context: ComparisonContext,
 ): FunctionDimension => {
-  const compared = compareFunctionReferences(left, right);
   if (compared.status === "unknown")
     return unresolvedDimension({
       dimension: "references",
@@ -548,8 +550,8 @@ const compareIdentity = (
   context: ComparisonContext,
 ): FunctionDimension => {
   if (
-    isAutoName(left.dossier.procedure.name) ||
-    isAutoName(right.dossier.procedure.name)
+    !hasStableFunctionName(left.dossier.procedure.name) ||
+    !hasStableFunctionName(right.dossier.procedure.name)
   )
     return unresolvedDimension({
       dimension: "identity",
@@ -557,7 +559,7 @@ const compareIdentity = (
       leftCount: null,
       rightCount: null,
       limitations: [
-        "Address-derived function names are not stable cross-version identity.",
+        "Empty or address-derived function names are not stable cross-version identity.",
       ],
     });
   return compareValues(
@@ -571,10 +573,9 @@ const compareIdentity = (
 const compareCalls = (
   left: FunctionSnapshot,
   right: FunctionSnapshot,
+  comparison: FunctionRelationshipComparison,
   context: ComparisonContext,
 ): FunctionDimension => {
-  const leftValues = callProjection(left);
-  const rightValues = callProjection(right);
   const coverageLimitations = [
     ...left.callCoverageBlockers.map((reason) => `Left: ${reason}`),
     ...right.callCoverageBlockers.map((reason) => `Right: ${reason}`),
@@ -587,40 +588,26 @@ const compareCalls = (
     return unresolvedDimension({
       dimension: "calls",
       links: context.links,
-      leftCount: leftValues.length,
-      rightCount: rightValues.length,
+      leftCount: comparison.leftCount,
+      rightCount: comparison.rightCount,
       limitations: [...coverageLimitations, ...coverageDiagnostics],
     });
-  if ([...leftValues, ...rightValues].some(({ name }) => isAutoName(name)))
+  if (comparison.status === "unknown")
     return unresolvedDimension({
       dimension: "calls",
       links: context.links,
-      leftCount: leftValues.length,
-      rightCount: rightValues.length,
-      limitations: [
-        "Address-derived callee or caller names cannot be matched safely.",
-        ...coverageDiagnostics,
-      ],
+      leftCount: comparison.leftCount,
+      rightCount: comparison.rightCount,
+      limitations: [...comparison.limitations, ...coverageDiagnostics],
     });
-  return compareValues(
-    "calls",
-    sorted(leftValues),
-    sorted(rightValues),
-    context,
-    coverageDiagnostics,
-  );
+  return dimensionResult({
+    dimension: "calls",
+    ...comparison,
+    ...context,
+    textDelta: null,
+    limitations: [...comparison.limitations, ...coverageDiagnostics],
+  });
 };
-
-const callProjection = (snapshot: FunctionSnapshot) => [
-  ...snapshot.dossier.callers.map(({ name }) => ({
-    direction: "in" as const,
-    name,
-  })),
-  ...snapshot.dossier.callees.map(({ name }) => ({
-    direction: "out" as const,
-    name,
-  })),
-];
 
 const compareCfg = (
   left: FunctionSnapshot,

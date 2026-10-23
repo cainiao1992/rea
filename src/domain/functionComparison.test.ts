@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../contracts/functionComparisonExample.js";
 import { enhancedInputSchemas } from "../contracts/enhancedInputs.js";
 import { functionComparisonResultSchema } from "./functionComparisonSchemas.js";
+import { createFunctionCoordinateContext } from "./native/functionCoordinateContext.js";
+import { createAnalysisProfile } from "./analysisProfile.js";
 import { createEvidence, type Evidence } from "./evidence.js";
 import { functionDossierSchema } from "./hopperValues.js";
 import { canonicalJson } from "./comparisonSemantics.js";
@@ -115,10 +117,26 @@ const observe = (
       path: `/tmp/function-${digit}`,
       sha256: digit.repeat(64),
       format: "mach-o",
+      architecture: "arm64",
     },
     { id: providerId, name: providerId, version: "1" },
     {
       operation: "analyze_function",
+      analysisProfile: createAnalysisProfile(
+        { id: providerId, name: providerId, version: "1" },
+        {
+          architecture: "arm64",
+          loader: "auto-from-header",
+          function_coordinate_context: createFunctionCoordinateContext({
+            loader: "auto-from-header",
+            language_id: "auto-from-header",
+            compiler_spec_id: "auto-default",
+            load_segment: null,
+            address_coordinates: null,
+            entry_point: null,
+          }),
+        },
+      ),
       parameters: enhancedInputSchemas.analyze_function.parse({
         procedure: "main",
       }),
@@ -338,7 +356,7 @@ describe("function comparison address-derived call names", () => {
         expect(calls).toMatchObject({
           status: "unknown",
           limitations: expect.arrayContaining([
-            "Address-derived callee or caller names cannot be matched safely.",
+            "Unnamed relationship endpoints and generated procedure names have no stable identity outside a common executable coordinate context.",
             `Right: ${diagnostic}`,
           ]),
         });
@@ -494,7 +512,12 @@ describe("function collection collation ties", () => {
       (name, index) => procedure(`0x${(0x2000 + index).toString(16)}`, name),
     );
     const canonicalProjection = callees
-      .map(({ name }) => ({ direction: "out", name }))
+      .map(({ name }) => ({
+        direction: "out",
+        source: null,
+        target: { kind: "name", name, ambiguous: false },
+        kind: null,
+      }))
       .sort((left, right) =>
         compareUnicodeCodePoints(canonicalJson(left), canonicalJson(right)),
       );
@@ -612,17 +635,21 @@ describe("function comparison ordering controls", () => {
       functionSnapshotFixture(makeEvidence("e", rightWithoutNativeApi)),
     );
 
-    for (const dimension of ["calls", "strings_names"] as const)
+    for (const dimension of ["strings_names"] as const)
       expect(
         comparison.dimensions.find((item) => item.dimension === dimension),
       ).toMatchObject({ status: "unchanged" });
+    // Reference and call facets report the same name at different entries.
+    expect(
+      comparison.dimensions.find((item) => item.dimension === "calls"),
+    ).toMatchObject({ status: "unknown" });
     // Unnamed endpoints in different artifacts have no stable identity.
     expect(
       comparison.dimensions.find((item) => item.dimension === "references"),
     ).toMatchObject({
       status: "unknown",
       limitations: expect.arrayContaining([
-        expect.stringContaining("Unnamed reference endpoints"),
+        expect.stringContaining("Unnamed relationship endpoints"),
       ]),
     });
     expect(comparison.status).toBe("unknown");

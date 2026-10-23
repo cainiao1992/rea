@@ -2,7 +2,7 @@ import type { Evidence } from "../evidence.js";
 import type { FunctionDossier } from "../hopperValues.js";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import {
-  isAutoName,
+  hasStableFunctionName,
   normalizeCfg,
 } from "../functionComparisonNormalization.js";
 import { assessFunctionCallCoverage } from "../functionCallCoverage.js";
@@ -29,9 +29,7 @@ export const functionStructuralCandidate = (
   if (
     cfg === null ||
     cfg.length === 0 ||
-    dossier.callees.some(
-      (callee) => isAutoName(callee.name) || callee.name.length === 0,
-    )
+    dossier.callees.some((callee) => !hasStableFunctionName(callee.name))
   )
     return null;
   const calls = dossier.callees

@@ -1,7 +1,12 @@
 import type { Client } from "@modelcontextprotocol/client";
 import { expect, it, onTestFinished } from "vitest";
 
+import { createFunctionCoordinateContext } from "../../../src/domain/native/functionCoordinateContext.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../../../src/contracts/functionComparisonExample.js";
+import {
+  createAnalysisProfile,
+  type AnalysisProfileCommitment,
+} from "../../../src/domain/analysisProfile.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { functionComparisonResultSchema } from "../../../src/domain/functionComparisonSchemas.js";
 import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
@@ -12,6 +17,20 @@ import { createTestBinarySession } from "../../fixtures/binarySession.js";
 
 const example = FUNCTION_COMPARISON_EXAMPLE.left;
 const dossier = functionDossierSchema.parse(example.normalized_result);
+const provider = { ...example.provider, version: "1" };
+const mapping = {
+  loader: "auto-from-header",
+  language_id: "auto-from-header",
+  compiler_spec_id: "auto-default",
+  load_segment: null,
+  address_coordinates: null,
+  entry_point: null,
+};
+const profile = createAnalysisProfile(provider, {
+  architecture: "arm64",
+  ...mapping,
+  function_coordinate_context: createFunctionCoordinateContext(mapping),
+});
 type Reference = (typeof dossier.outgoing_references)[number];
 type Classification = "call" | "data" | "unknown";
 
@@ -90,17 +109,28 @@ const evidence = (
     readonly incoming?: readonly Reference[];
     readonly procedureAddress?: string;
     readonly procedureName?: string;
+    readonly architecture?: "arm64" | "x86_64" | null;
+    readonly format?: "mach-o" | "mach-o-universal";
+    readonly profile?: AnalysisProfileCommitment | null;
+    readonly callees?: readonly ReturnType<typeof procedure>[];
+    readonly callers?: readonly ReturnType<typeof procedure>[];
   } = {},
 ) =>
   createEvidence(
     {
       path: `/fixture/function-reference/${id}`,
       sha256: digest.repeat(64),
-      format: "mach-o",
+      format: options.format ?? "mach-o",
+      ...(options.architecture === null
+        ? {}
+        : { architecture: options.architecture ?? "arm64" }),
     },
-    example.provider,
+    provider,
     {
       operation: "analyze_function",
+      ...(options.profile === null
+        ? {}
+        : { analysisProfile: options.profile ?? profile }),
       parameters: { ...example.parameters, observation: id },
       result: jsonValueSchema.parse({
         ...dossier,
@@ -109,6 +139,8 @@ const evidence = (
           address: options.procedureAddress ?? dossier.procedure.address,
           name: options.procedureName ?? dossier.procedure.name,
         },
+        callees: [...(options.callees ?? [])],
+        callers: [...(options.callers ?? [])],
         incoming_references: [...(options.incoming ?? [])],
         outgoing_references: [...outgoing],
       }),
@@ -163,8 +195,9 @@ const verifyReferences = async (
   client: Client,
   comparisonEvidenceId: string,
   status: "pass" | "fail" | "unknown",
+  dimension: "references" | "calls" | "identity" = "references",
 ) => {
-  const claimId = `references-${comparisonEvidenceId}`;
+  const claimId = `${dimension}-${comparisonEvidenceId}`;
   const response = await client.callTool({
     name: "verify_reconstruction",
     arguments: {
@@ -176,7 +209,7 @@ const verifyReferences = async (
             claim_id: claimId,
             title: "Reference facts agree",
             comparison_evidence_id: comparisonEvidenceId,
-            dimension: "references",
+            dimension,
           },
         ],
       },
@@ -508,4 +541,230 @@ it("keeps ambiguous duplicate edge kinds unknown independent of input order", as
     ),
   );
   expectReferences(changed, "changed");
+});
+
+it("uses shared endpoint identity for selected calls and references claims", async () => {
+  const { client } = await createHarness();
+  const observed = (
+    id: string,
+    digest: string,
+    target: string,
+    name = "helper",
+    options: Parameters<typeof evidence>[3] = {},
+  ) =>
+    evidence(
+      id,
+      digest,
+      [reference("0x1000", target, "call", { targetName: name })],
+      {
+        callees: [procedure(target, name)],
+        ...options,
+      },
+    );
+  const baseline = observed("identity-baseline", "a", "0x1010");
+  const cases = [
+    {
+      name: "retarget",
+      right: observed("identity-retarget", "a", "0x1020"),
+      expected: "fail",
+    },
+    {
+      name: "rename",
+      right: observed("identity-rename", "a", "0x1010", "renamed"),
+      expected: "pass",
+    },
+    {
+      name: "relocated-symbol",
+      right: observed("identity-relocated", "b", "0x2020"),
+      expected: "pass",
+    },
+    {
+      name: "different-slice",
+      right: observed("identity-slice", "a", "0x1010", "helper", {
+        architecture: "x86_64",
+        profile: createAnalysisProfile(provider, {
+          ...profile.parameters,
+          architecture: "x86_64",
+        }),
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "unknown-architecture",
+      right: observed("identity-no-arch", "a", "0x1010", "helper", {
+        architecture: null,
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "rename-without-mapping",
+      right: observed("identity-rename-no-profile", "a", "0x1010", "renamed", {
+        profile: null,
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "unknown-mapping",
+      right: observed("identity-no-profile", "a", "0x1010", "helper", {
+        profile: null,
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "unrelated-analysis-options",
+      right: observed("identity-options", "a", "0x1010", "helper", {
+        profile: createAnalysisProfile(provider, {
+          ...profile.parameters,
+          analysis_options: {
+            disabled_analyzers: ["Decompiler Switch Analysis"],
+          },
+        }),
+      }),
+      expected: "pass",
+    },
+    {
+      name: "different-mapping",
+      right: observed("identity-mapping", "a", "0x1010", "helper", {
+        profile: createAnalysisProfile(provider, {
+          architecture: "arm64",
+          ...mapping,
+          function_coordinate_context: createFunctionCoordinateContext({
+            ...mapping,
+            load_segment: "0x2000",
+          }),
+        }),
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "duplicate-name",
+      right: observed("identity-duplicate", "b", "0x1010", "helper", {
+        callees: [procedure("0x1010", "helper")],
+        incoming: [
+          reference("0x3030", "0x1000", "call", {
+            sourceName: "helper",
+            targetName: "main",
+          }),
+        ],
+      }),
+      expected: "unknown",
+    },
+    {
+      name: "empty-name",
+      right: observed("identity-empty", "b", "0x1010", ""),
+      expected: "unknown",
+    },
+  ] as const;
+  for (const scenario of cases) {
+    const comparison = await compare(client, baseline, scenario.right);
+    for (const dimension of ["calls", "references"] as const) {
+      // The duplicate-name reference also adds an edge, a known multiplicity change.
+      const expected =
+        scenario.name === "duplicate-name" && dimension === "references"
+          ? "fail"
+          : scenario.expected;
+      await verifyReferences(
+        client,
+        comparison.evidence.evidence_id,
+        expected,
+        dimension,
+      );
+    }
+  }
+});
+
+it("keeps empty function labels ambiguous and selected identity unknown", async () => {
+  const { client } = await createHarness();
+  const comparison = await compare(
+    client,
+    evidence("empty-function-left", "a", [], { procedureName: "" }),
+    evidence("empty-function-right", "b", [], { procedureName: "" }),
+  );
+  expect(comparison.result.function_match.status).toBe("ambiguous");
+  expect(
+    comparison.result.dimensions.find(
+      ({ dimension }) => dimension === "identity",
+    ),
+  ).toMatchObject({ status: "unknown" });
+  await verifyReferences(
+    client,
+    comparison.evidence.evidence_id,
+    "unknown",
+    "identity",
+  );
+});
+
+it("retains caller entries and independent contradictions beside unknown endpoints", async () => {
+  const { client } = await createHarness();
+  const left = evidence("caller-left", "a", [], {
+    callers: [procedure("0x1010", "caller")],
+  });
+  const right = evidence("caller-right", "a", [], {
+    callers: [procedure("0x1020", "caller")],
+  });
+  const retargeted = await compare(client, left, right);
+  await verifyReferences(
+    client,
+    retargeted.evidence.evidence_id,
+    "fail",
+    "calls",
+  );
+
+  const knownAndUnknown = (id: string, digest: string, name: string) =>
+    evidence(id, digest, [], {
+      callees: [
+        procedure("0x1010", name),
+        procedure("0x1010", name),
+        procedure("0x1020", "sub_1020"),
+      ],
+    });
+  const mixed = await compare(
+    client,
+    knownAndUnknown("calls-mixed-left", "a", "known_left"),
+    knownAndUnknown("calls-mixed-right", "b", "known_right"),
+  );
+  await verifyReferences(client, mixed.evidence.evidence_id, "fail", "calls");
+});
+
+it("keeps equal coordinates in distinct same-architecture universal slices unknown", async () => {
+  const { client } = await createHarness();
+  const selection = {
+    kind: "macho-selected-image-v1" as const,
+    container: "fat" as const,
+    offset: 4096,
+    byte_length: 256,
+    cpu_type: 0x0100000c,
+    cpu_subtype: 0,
+    container_table_sha256: "c".repeat(64),
+  };
+  const atSlice = (id: string, selected: typeof selection) =>
+    evidence(id, "a", [reference("0x1000", "0x1010")], {
+      format: "mach-o-universal",
+      callees: [procedure("0x1010", "helper")],
+      profile: createAnalysisProfile(provider, {
+        architecture: "arm64",
+        function_coordinate_context: createFunctionCoordinateContext(
+          { loader_arguments: ["-l", "Mach-O", "--aarch64"] },
+          selected,
+        ),
+      }),
+    });
+  const left = atSlice("slice-arm64-left", selection);
+  for (const [id, selected, expected] of [
+    ["same", selection, "pass"],
+    ["different", { ...selection, offset: 8192, cpu_subtype: 2 }, "unknown"],
+  ] as const) {
+    const comparison = await compare(
+      client,
+      left,
+      atSlice(`slice-arm64-${id}`, selected),
+    );
+    for (const dimension of ["calls", "references"] as const)
+      await verifyReferences(
+        client,
+        comparison.evidence.evidence_id,
+        expected,
+        dimension,
+      );
+  }
 });

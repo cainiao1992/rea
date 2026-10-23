@@ -6,6 +6,7 @@ import type {
   RetainedResourceScope,
   ProviderIdentity,
 } from "../application/AnalysisProvider.js";
+import { createFunctionCoordinateContext } from "../domain/native/functionCoordinateContext.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import {
   isMachOFormat,
@@ -136,6 +137,16 @@ const resolveHopperAnalysisProfileInScope = async (
   };
   return ok({
     profile: createAnalysisProfile(provider, {
+      ...(target.kind === "executable" &&
+      options.loaderArgsOverride.length === 0 &&
+      (machoContainer === undefined || targetSelection !== undefined)
+        ? {
+            function_coordinate_context: createFunctionCoordinateContext(
+              { loader_arguments: [...loaderArgs] },
+              targetSelection ?? null,
+            ),
+          }
+        : {}),
       target_kind: target.kind,
       target_format: target.format,
       function_dossier_coverage: "observed-facets-and-call-relationships-v1",

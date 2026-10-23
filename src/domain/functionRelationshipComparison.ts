@@ -1,6 +1,11 @@
+import { functionCoordinateContextsEqual } from "./native/functionCoordinateContext.js";
 import { canonicalJson } from "./comparisonSemantics.js";
 import type { FunctionSnapshot } from "./functionDossierEvidence.js";
-import { isAutoName, sorted } from "./functionComparisonNormalization.js";
+import {
+  hasStableFunctionName,
+  isAutoName,
+  sorted,
+} from "./functionComparisonNormalization.js";
 import {
   referenceFactsCompatible,
   type ReferenceCompatibilityRow,
@@ -21,19 +26,23 @@ type Endpoint =
     }
   | {
       readonly kind: "unknown";
-      readonly reason: "unparsed_address" | "missing_name" | "generated_name";
+      readonly reason:
+        | "unparsed_address"
+        | "missing_name"
+        | "generated_name"
+        | "coordinate_context";
       readonly reported_address: string;
       readonly reported_name: string | null;
     };
 
-interface ReferenceFact {
+interface RelationshipFact {
   readonly direction: "in" | "out";
-  readonly source: Endpoint;
+  readonly source: Endpoint | null;
   readonly target: Endpoint;
   readonly kind: KnownKind | null;
 }
 
-type ReferenceComparison = {
+export type FunctionRelationshipComparison = {
   readonly leftCount: number;
   readonly rightCount: number;
   readonly limitations: readonly string[];
@@ -41,8 +50,8 @@ type ReferenceComparison = {
   | { readonly status: "unknown" }
   | {
       readonly status: "changed" | "unchanged";
-      readonly left: readonly ReferenceFact[];
-      readonly right: readonly ReferenceFact[];
+      readonly left: readonly RelationshipFact[];
+      readonly right: readonly RelationshipFact[];
     }
 );
 
@@ -66,6 +75,11 @@ const ambiguousProcedureNames = (
       entries.set(procedure.name, address.data);
     };
     observe(snapshot.dossier.procedure);
+    for (const procedure of [
+      ...snapshot.dossier.callers,
+      ...snapshot.dossier.callees,
+    ])
+      observe(procedure);
     for (const edge of snapshot.dossier.incoming_references) {
       observe(edge.source_procedure);
       observe(edge.target_procedure);
@@ -81,10 +95,10 @@ const ambiguousProcedureNames = (
 const endpoint = (
   procedure: Reference["source_procedure"],
   address: string,
-  sameArtifact: boolean,
+  coordinateContext: "common" | "cross-artifact" | "unknown",
   ambiguousNames: ReadonlySet<string>,
 ): Endpoint => {
-  if (sameArtifact) {
+  if (coordinateContext === "common") {
     const parsed = nativeAddressInputSchema.safeParse(address);
     if (parsed.success) return { kind: "address", address: parsed.data };
     return {
@@ -94,11 +108,14 @@ const endpoint = (
       reported_name: procedure?.name ?? null,
     };
   }
-  if (
-    procedure === null ||
-    procedure.name.length === 0 ||
-    isAutoName(procedure.name)
-  )
+  if (coordinateContext === "unknown")
+    return {
+      kind: "unknown",
+      reason: "coordinate_context",
+      reported_address: address,
+      reported_name: procedure?.name ?? null,
+    };
+  if (procedure === null || !hasStableFunctionName(procedure.name))
     return {
       kind: "unknown",
       reason:
@@ -117,10 +134,30 @@ const endpoint = (
 
 const project = (
   snapshot: FunctionSnapshot,
-  sameArtifact: boolean,
+  coordinateContext: "common" | "cross-artifact" | "unknown",
   ambiguousNames: ReadonlySet<string>,
-): ReferenceFact[] => {
-  const facts: ReferenceFact[] = [];
+  dimension: "calls" | "references",
+): RelationshipFact[] => {
+  const facts: RelationshipFact[] = [];
+  if (dimension === "calls") {
+    for (const [direction, procedures] of [
+      ["in", snapshot.dossier.callers],
+      ["out", snapshot.dossier.callees],
+    ] as const)
+      for (const procedure of procedures)
+        facts.push({
+          direction,
+          source: null,
+          target: endpoint(
+            procedure,
+            procedure.address,
+            coordinateContext,
+            ambiguousNames,
+          ),
+          kind: null,
+        });
+    return facts;
+  }
   const collect = (
     references: readonly Reference[],
     direction: "in" | "out",
@@ -140,13 +177,13 @@ const project = (
         source: endpoint(
           edge.source_procedure,
           edge.source_address,
-          sameArtifact,
+          coordinateContext,
           ambiguousNames,
         ),
         target: endpoint(
           edge.target_procedure,
           edge.target_address,
-          sameArtifact,
+          coordinateContext,
           ambiguousNames,
         ),
         kind,
@@ -159,8 +196,8 @@ const project = (
 };
 
 /** Ambiguity blocks equality, but a known label can still contradict another label. */
-const endpointKey = (value: Endpoint): string | null => {
-  if (value.kind === "unknown") return null;
+const endpointKey = (value: Endpoint | null): string | null => {
+  if (value === null || value.kind === "unknown") return null;
   return canonicalJson(
     value.kind === "address"
       ? { address: value.address }
@@ -169,7 +206,7 @@ const endpointKey = (value: Endpoint): string | null => {
 };
 
 const constraints = (
-  facts: readonly ReferenceFact[],
+  facts: readonly RelationshipFact[],
 ): ReferenceCompatibilityRow[] =>
   facts.map((fact) => ({
     direction: fact.direction,
@@ -179,39 +216,71 @@ const constraints = (
   }));
 
 /** Compare parsed endpoint and kind facts without replacing partial knowledge with absence. */
-export const compareFunctionReferences = (
+export const compareFunctionRelationships = (
   left: FunctionSnapshot,
   right: FunctionSnapshot,
-): ReferenceComparison => {
+): {
+  readonly calls: FunctionRelationshipComparison;
+  readonly references: FunctionRelationshipComparison;
+} => {
+  // Provider coordinate commitments own loader/slice semantics. Missing context is not equality.
   const sameArtifact =
     left.subject.digest.sha256 === right.subject.digest.sha256;
-  const ambiguousNames = sameArtifact
-    ? new Set<string>()
-    : ambiguousProcedureNames([left, right]);
-  const leftFacts = project(left, sameArtifact, ambiguousNames);
-  const rightFacts = project(right, sameArtifact, ambiguousNames);
+  const coordinateContext = !sameArtifact
+    ? "cross-artifact"
+    : left.subject.format === right.subject.format &&
+        left.subject.architecture !== null &&
+        left.subject.architecture === right.subject.architecture &&
+        functionCoordinateContextsEqual(
+          left.evidence.analysis_profile,
+          right.evidence.analysis_profile,
+        )
+      ? "common"
+      : "unknown";
+  const ambiguousNames = ambiguousProcedureNames([left, right]);
+  const compare = (dimension: "calls" | "references") =>
+    compareRelationshipFacts(
+      project(left, coordinateContext, ambiguousNames, dimension),
+      project(right, coordinateContext, ambiguousNames, dimension),
+      dimension,
+      coordinateContext,
+    );
+  return { calls: compare("calls"), references: compare("references") };
+};
+
+const compareRelationshipFacts = (
+  leftFacts: readonly RelationshipFact[],
+  rightFacts: readonly RelationshipFact[],
+  dimension: "calls" | "references",
+  coordinateContext: "common" | "cross-artifact" | "unknown",
+): FunctionRelationshipComparison => {
   let unknownIdentity = false;
   let ambiguousIdentity = false;
   let unknownKinds = false;
   for (const facts of [leftFacts, rightFacts]) {
     for (const fact of facts) {
-      unknownKinds ||= fact.kind === null;
+      unknownKinds ||= dimension === "references" && fact.kind === null;
       for (const value of [fact.source, fact.target]) {
-        unknownIdentity ||= value.kind === "unknown";
-        ambiguousIdentity ||= value.kind === "name" && value.ambiguous;
+        unknownIdentity ||= value !== null && value.kind === "unknown";
+        ambiguousIdentity ||=
+          value !== null && value.kind === "name" && value.ambiguous;
       }
     }
   }
   const limitations: string[] = [];
-  if (unknownIdentity)
+  if (unknownIdentity && coordinateContext !== "unknown")
     limitations.push(
-      sameArtifact
-        ? "Reference endpoint coordinates could not be parsed, so their identity remains unknown."
-        : "Unnamed reference endpoints and generated procedure names have no stable identity across different artifacts.",
+      coordinateContext === "common"
+        ? "Relationship endpoint coordinates could not be parsed, so their identity remains unknown."
+        : "Unnamed relationship endpoints and generated procedure names have no stable identity outside a common executable coordinate context.",
+    );
+  if (coordinateContext === "unknown" && (unknownIdentity || ambiguousIdentity))
+    limitations.push(
+      "A common executable coordinate context is not established: artifact format, known architecture and provider coordinate commitments must agree.",
     );
   if (ambiguousIdentity)
     limitations.push(
-      "A reference name does not uniquely identify an observed procedure entry, so matching names do not establish equal endpoints.",
+      "A relationship name cannot establish a unique comparable procedure entry, so matching names do not establish equal endpoints.",
     );
   if (unknownKinds)
     limitations.push(
@@ -231,7 +300,7 @@ export const compareFunctionReferences = (
       left: sorted(leftFacts),
       right: sorted(rightFacts),
       limitations: [
-        "Known reference facts cannot be paired without contradicting an endpoint or reference kind.",
+        "Known relationship facts cannot be paired without contradicting an endpoint or reference kind.",
         ...limitations,
       ],
     };

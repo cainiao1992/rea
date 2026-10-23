@@ -22,7 +22,8 @@ import type { FridaInstrumentationPort } from "./application/frida/FridaInstrume
 import { Cli } from "incur";
 import { normalizeCliArguments } from "./cliOutput.js";
 
-import { createLogger, parseLogLevel } from "./logger.js";
+import { createLogger } from "./logger.js";
+import { parseLogLevel } from "./config/processStart.js";
 import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
 import { npxRegistrationCommand } from "./application/ClientRegistrationIdentity.js";
@@ -67,7 +68,7 @@ export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis
 
 /**
  * Describe CLI settings that are invalid before any command runs, as MCP does.
- * Keep this aligned with PROCESS_START_CONFIGURATION_SETTINGS.
+ * CLI, MCP and Doctor share the process-start configuration contract.
  */
 export const cliConfigurationError = (
   selectedEnvironment: Readonly<Record<string, string | undefined>>,

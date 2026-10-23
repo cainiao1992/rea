@@ -1,4 +1,4 @@
-import type { LogLevel } from "../logger.js";
+import type { LogLevel } from "./processStart.js";
 import type { ReferenceSourcePolicy } from "../domain/referenceSourcePolicy.js";
 import type { AnalysisProviderSelector } from "../contracts/providerSelection.js";
 

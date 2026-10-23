@@ -2,6 +2,7 @@ import { posix } from "node:path";
 
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import type { NextAppSourceContext } from "../../domain/javascript/javascriptRoutePaths.js";
+import { compositeKey } from "../../domain/unicodeCodePointOrder.js";
 import type { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 
 /** Package declarations and inventoried directories own source-router applicability. */
@@ -15,7 +16,10 @@ export const createJavaScriptNextAppContext = (
   const packages = new Map(
     files
       .filter(({ kind }) => kind === "package-json")
-      .map((file) => [posix.dirname(file.path), file]),
+      .map((file) => [
+        compositeKey([file.container_sha256, posix.dirname(file.path)]),
+        file,
+      ]),
   );
   const roots = new Map<JavaScriptArtifactFile, string | null>();
   return (file) => {
@@ -24,11 +28,10 @@ export const createJavaScriptNextAppContext = (
       ;
       directory = posix.dirname(directory)
     ) {
-      const manifest = packages.get(directory);
-      if (
-        manifest !== undefined &&
-        manifest.container_sha256 === file.container_sha256
-      ) {
+      const manifest = packages.get(
+        compositeKey([file.container_sha256, directory]),
+      );
+      if (manifest !== undefined) {
         const identity = {
           path: manifest.path,
           sha256: manifest.sha256,

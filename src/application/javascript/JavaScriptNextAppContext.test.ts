@@ -15,6 +15,30 @@ const file = (path: string, text = ""): JavaScriptArtifactFile => ({
   text: { included: true, value: text },
 });
 
+it("keeps package applicability and its root cache scoped to the source container", () => {
+  const manifest = file("package.json", '{"dependencies":{"next":"16.4.2"}}');
+  const foreign = {
+    ...file("package.json", '{"name":"plain"}'),
+    container_sha256: "c".repeat(64),
+  };
+  const page = file("app/page.js");
+  const foreignPage = { ...page, container_sha256: foreign.container_sha256 };
+  const context = createJavaScriptNextAppContext(
+    [manifest, foreign, page, foreignPage],
+    new JavaScriptJsonDocuments(),
+    new Set(["app"]),
+  );
+  expect(context(page)).toMatchObject({
+    kind: "app-directory",
+    package: { container_sha256: manifest.container_sha256 },
+  });
+  expect(context(foreignPage)).toMatchObject({
+    kind: "unknown",
+    package: { container_sha256: foreign.container_sha256 },
+  });
+  expect(context(page).kind).toBe("app-directory");
+});
+
 it("uses the nearest declared Next package and root directory precedence", () => {
   const files = [
     file("package.json", '{"dependencies":{"next":"16.4.2"}}'),

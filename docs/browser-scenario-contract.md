@@ -217,8 +217,9 @@ validation.
 
 Cookies are installed before the initial navigation. Local storage entries are
 seeded once per browser storage partition; session storage entries are seeded
-once per origin in each top-level browsing context. Seeding occurs before the
-first document scripts for that area. An origin first reached by a later action
+once per origin in each instrumented top-level browsing context. Seeding occurs
+before the first document scripts for the selected page and its instrumented
+frames. An origin first reached by a later action
 receives its seed on that first visit. Application updates, deletions, and
 empty values then persist across later navigations in the same area; a new
 scenario starts with its own seeds. Partitioned frames can receive separate
@@ -231,6 +232,12 @@ that exact frame's reported security origin before selecting a seed. It does
 not infer the origin from a frame URL or serialized storage key. Unresolved
 frame identity or security origin fails initialization rather than silently
 running with an unknown initial state.
+Popup discovery does not establish that its first script was paused by the
+selected page's storage instrumentation. When non-cookie seeds are declared
+and a popup is discovered, the capture retains completed observations and
+marks `storage` coverage missing, with equality ineligible. This applies even
+if popup lifecycle events were not selected. Popup first-script storage
+initialization is not currently guaranteed.
 
 The result is Evidence with an initial state followed by one record per
 declared action. Each step reports action status, elapsed time, sanitized URLs,

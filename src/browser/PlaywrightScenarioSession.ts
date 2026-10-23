@@ -425,6 +425,10 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     return this.eventCapture.limitations();
   }
 
+  storageLimitations(): readonly string[] {
+    return this.storage?.limitations() ?? [];
+  }
+
   async perform(
     action: BrowserScenarioAction,
     signal?: AbortSignal,

@@ -242,6 +242,7 @@ const globalCompleteness = (
   );
   if (session.mode === "connect") missing.push("events");
   if ((session.eventLimitations?.().length ?? 0) > 0) missing.push("events");
+  if ((session.storageLimitations?.().length ?? 0) > 0) missing.push("storage");
   return classifyBrowserScenarioCompleteness(missing, truncated);
 };
 

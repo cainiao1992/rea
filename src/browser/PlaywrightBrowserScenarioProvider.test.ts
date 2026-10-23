@@ -128,6 +128,7 @@ class FakeSession implements BrowserScenarioSessionPort {
   onPerform: (() => void) | undefined;
   onClose: (() => void) | undefined;
   eventGaps: readonly string[] = [];
+  storageGaps: readonly string[] = [];
   eventItems: readonly BrowserScenarioEvent[] = [];
 
   constructor(
@@ -170,6 +171,10 @@ class FakeSession implements BrowserScenarioSessionPort {
 
   eventLimitations(): readonly string[] {
     return this.eventGaps;
+  }
+
+  storageLimitations(): readonly string[] {
+    return this.storageGaps;
   }
 
   async perform(_action: BrowserScenarioAction, signal?: AbortSignal) {
@@ -314,6 +319,28 @@ describe("PlaywrightBrowserScenarioProvider", () => {
       missing_sections: ["events"],
     });
     expect(result.value.limitations).toContain(session.eventGaps[0]);
+  });
+
+  it("retains completed observations while popup initial-storage coverage remains unknown", async () => {
+    const session = new FakeSession("launch");
+    session.storageGaps = [
+      "First-script seed coverage is unknown for popup top-level contexts",
+    ];
+    const provider = new PlaywrightBrowserScenarioProvider(() =>
+      Promise.resolve(session),
+    );
+    const result = await provider.captureScenario(scenario());
+    if (!result.ok) throw result.error;
+    expect(result.value.completeness).toMatchObject({
+      status: "incomplete",
+      equality_eligible: false,
+      missing_sections: ["storage"],
+    });
+    expect(result.value.steps.map(({ status }) => status)).toEqual([
+      "completed",
+      "completed",
+    ]);
+    expect(result.value.limitations).toContain(session.storageGaps[0]);
   });
 
   it("returns an initial state and every step beyond the former action ceiling", async () => {

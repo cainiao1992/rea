@@ -149,6 +149,7 @@ export class PlaywrightScenarioStorage {
   #closed = false;
   #cleanupCompleted = false;
   #loadingStopped = false;
+  #popupSeedCoverageUnknown = false;
   #failure: BrowserObservationError | undefined;
   #closePromise: Promise<PlaywrightScenarioStorageCleanup> | undefined;
   #detachPromise: Promise<void> | undefined;
@@ -160,6 +161,7 @@ export class PlaywrightScenarioStorage {
     private readonly cdp: CDPSession,
     private readonly signal: AbortSignal | undefined,
     private readonly commandTimeoutMs: number,
+    private readonly ownsContext: boolean,
   ) {}
 
   static async create(
@@ -227,7 +229,12 @@ export class PlaywrightScenarioStorage {
       }
       throw cause;
     }
-    const owner = new PlaywrightScenarioStorage(cdp, signal, commandTimeoutMs);
+    const owner = new PlaywrightScenarioStorage(
+      cdp,
+      signal,
+      commandTimeoutMs,
+      scenario.browser.mode === "launch",
+    );
     owner.addSeeds(scenario.storage.local_storage, "local", secrets);
     owner.addSeeds(scenario.storage.session_storage, "session", secrets);
     return owner;
@@ -298,10 +305,19 @@ export class PlaywrightScenarioStorage {
     page.on("close", detached);
     context.on("close", detached);
     browser?.on("disconnected", detached);
+    // Discovery is later than the first popup script. It cannot establish
+    // that root-session instrumentation controlled this top-level context.
+    const popup = (opened: Page): void => {
+      if (opened !== page) this.#popupSeedCoverageUnknown = true;
+    };
+    if (this.ownsContext) context.on("page", popup);
+    else page.on("popup", popup);
     this.#removeListeners = () => {
       page.off("close", detached);
       context.off("close", detached);
       browser?.off("disconnected", detached);
+      if (this.ownsContext) context.off("page", popup);
+      else page.off("popup", popup);
     };
     for (const method of [
       "Runtime.executionContextCreated",
@@ -318,6 +334,14 @@ export class PlaywrightScenarioStorage {
       this.#listeners.push({ method, listener });
       this.cdp.on(method, listener);
     }
+  }
+
+  limitations(): readonly string[] {
+    return this.#popupSeedCoverageUnknown
+      ? [
+          "Declared non-cookie storage seeds were controlled for the selected page's instrumented frames; initialization before the first script is unknown for discovered popup top-level contexts.",
+        ]
+      : [];
   }
 
   private createTarget(

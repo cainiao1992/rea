@@ -327,6 +327,48 @@ it("leaves a known unseeded frame origin unchanged", async () => {
   await owner?.close();
 });
 
+it.each(["launch", "connect"] as const)(
+  "retains unknown popup seed coverage in %s mode without claiming root failure",
+  async (mode) => {
+    const cdp = new FakeCdp();
+    const { page, contextApi } = fixture(cdp);
+    const input = browserScenarioSchema.parse({
+      ...scenario(),
+      ...(mode === "connect"
+        ? {
+            browser: {
+              mode: "connect",
+              cdp_endpoint: "http://127.0.0.1:9222",
+              target_id: "root-target",
+            },
+          }
+        : {}),
+    });
+    const owner = await createInitializedStorage(contextApi, page, input);
+    emitSeedPause(cdp);
+    await owner?.settle();
+    expect(owner?.limitations()).toEqual([]);
+    if (mode === "connect") {
+      contextApi.emit("page", new EventEmitter());
+      expect(owner?.limitations()).toEqual([]);
+      page.emit("popup", new EventEmitter());
+    } else {
+      contextApi.emit("page", page);
+      expect(owner?.limitations()).toEqual([]);
+      contextApi.emit("page", new EventEmitter());
+    }
+    expect(owner?.limitations()).toEqual([
+      expect.stringContaining(
+        "unknown for discovered popup top-level contexts",
+      ),
+    ]);
+    await owner?.close();
+    expect(owner?.limitations()).toHaveLength(1);
+    expect(contextApi.listenerCount("page")).toBe(0);
+    expect(page.listenerCount("popup")).toBe(0);
+  },
+);
+
 it("seeds session storage once per namespace and StorageKey", async () => {
   const cdp = new FakeCdp();
   const { page, contextApi } = fixture(cdp);

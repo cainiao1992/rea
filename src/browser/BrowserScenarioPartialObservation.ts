@@ -49,6 +49,7 @@ const browserScenarioLimitations = (
           "Non-cookie storage seeds use CDP pre-script instrumentation; only pauses in the scenario's private seed script are resumed by this observer.",
         ]),
     ...(session.eventLimitations?.() ?? []),
+    ...(session.storageLimitations?.() ?? []),
     ...(session.mode === "connect"
       ? [
           "CDP attachment cannot recover pre-attach events or guarantee launch-time context options.",

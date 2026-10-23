@@ -53,6 +53,35 @@ const put = async (root: string, path: string, bytes: Buffer | string) => {
   await writeFile(destination, bytes);
 };
 
+it.skipIf(process.platform !== "linux")(
+  "keeps desktop sibling files with partial coverage for invalid UTF-8 names",
+  async () => {
+    const root = await createTestTempDirectory("rea-desktop-filename-bytes-");
+    const rawName = Buffer.from([
+      0x62, 0x61, 0x64, 0xff, 0x2e, 0x74, 0x78, 0x74,
+    ]);
+    const rawPath = Buffer.concat([Buffer.from(`${root}/`), rawName]);
+    await Promise.all([
+      writeFile(rawPath, "RAW_FILE"),
+      writeFile(join(root, "bad\ufffd.txt"), "UNICODE_FILE"),
+      writeFile(join(root, "good.txt"), "GOOD_FILE"),
+    ]);
+
+    const { report } = await inspect(root);
+    expect(report.coverage).toMatchObject({
+      status: "partial",
+      entries_examined: 3,
+    });
+    expect(
+      report.files.filter(({ path }) => path === "bad\ufffd.txt"),
+    ).toHaveLength(1);
+    expect(report.files.map(({ path }) => path)).toContain("good.txt");
+    expect(report.limitations.join(" ")).toContain(
+      `First raw basename bytes: ${rawName.toString("hex")}`,
+    );
+  },
+);
+
 it("joins real PE/CLI reference facts and independent engine markers without picking a winner", async () => {
   const root = await createTestTempDirectory("rea-desktop-mixed-");
   await put(

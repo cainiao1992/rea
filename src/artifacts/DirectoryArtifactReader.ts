@@ -132,6 +132,7 @@ export class DirectoryArtifactReader implements ArtifactReader {
     if (unrepresentableNameCount > 0)
       options?.onCoverage?.({
         status: "unknown",
+        examinedEntries: examined,
         limitations: [
           `Directory contains ${String(unrepresentableNameCount)} entry name(s) that are not valid UTF-8; no filesystem operations were performed for them. First raw basename bytes: ${firstUnrepresentableNameHex ?? "unknown"}.`,
         ],

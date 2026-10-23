@@ -155,6 +155,8 @@ export interface ArtifactTraversalOmission {
 export interface ArtifactReaderTraversal {
   readonly status: ArtifactInventoryCoverage["status"];
   readonly limitations: readonly string[];
+  /** Number of directory entries examined, including names omitted before decoding. */
+  readonly examinedEntries?: number;
 }
 
 /** Per-iterator observation sink; adapters report intentional omissions without shared state. */

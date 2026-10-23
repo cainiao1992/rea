@@ -271,6 +271,12 @@ const scanDirectory = async (
           kind: omission.kind,
         });
       },
+      onCoverage: (coverage) => {
+        if (coverage.examinedEntries !== undefined)
+          entries = coverage.examinedEntries;
+        if (coverage.status !== "complete") partial = true;
+        limitations.push(...coverage.limitations);
+      },
     })) {
       entries++;
       abortIfNeeded(signal);

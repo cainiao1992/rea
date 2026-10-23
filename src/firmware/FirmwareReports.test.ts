@@ -382,7 +382,7 @@ describe("firmware producer chunk failures", () => {
   });
 });
 
-describe("firmware producer error severity", () => {
+const registerFirmwareIndependentFailureCases = () => {
   it.each(["chunk", "multi-file"] as const)(
     "retains independent failure kinds at one %s owner",
     (owner) => {
@@ -465,7 +465,9 @@ describe("firmware producer error severity", () => {
       }
     },
   );
+};
 
+const registerFirmwareDiagnosticOutcomeCases = () => {
   const outcomes = [
     {
       name: "task exception",
@@ -575,6 +577,11 @@ describe("firmware producer error severity", () => {
       }
     },
   );
+};
+
+describe("firmware producer error severity", () => {
+  registerFirmwareIndependentFailureCases();
+  registerFirmwareDiagnosticOutcomeCases();
 });
 
 describe("firmware task dependency failures", () => {

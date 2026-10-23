@@ -31,7 +31,7 @@ describe("early-year clock formats", () => {
   );
 });
 
-describe("compareAnswers", () => {
+const registerValueComparisonCases = () => {
   it("normalizes mapped ids and clocks while comparing unproven generated-looking values literally", () => {
     const map = new IdMap();
     map.learn(101, 1);
@@ -129,7 +129,9 @@ describe("compareAnswers", () => {
       ),
     ).toEqual(["value"]);
   });
+};
 
+const registerMappedIdentityComparisonCases = () => {
   it("compares an object keyed by mapped ids under the environment's keys", () => {
     const map = new IdMap();
     map.learn("liveTable", "envTable");
@@ -203,6 +205,11 @@ describe("compareAnswers", () => {
         .differences,
     ).toMatchObject([{ category: "value", pointer: "/stats/0/0" }]);
   });
+};
+
+describe("compareAnswers", () => {
+  registerValueComparisonCases();
+  registerMappedIdentityComparisonCases();
 });
 
 describe("clock field names", () => {

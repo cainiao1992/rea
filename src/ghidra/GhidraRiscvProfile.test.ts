@@ -97,7 +97,7 @@ afterAll(async () => {
 const ghidra = (environment: Record<string, string> = {}) =>
   new GhidraProvider(configOf(installDir, environment), silentLogger, {}, host);
 
-describe("bounded Ghidra RISC-V admission", () => {
+const registerRiscvLanguageCommitmentCases = () => {
   it("pins the generic language per width instead of accepting the header guess", async () => {
     const provider = ghidra();
     const rv64 = target();
@@ -155,7 +155,9 @@ describe("bounded Ghidra RISC-V admission", () => {
       ).toBe(true);
     }
   });
+};
 
+const registerRiscvAdmissionAndCapabilityCases = () => {
   it.each([
     [{ byteOrder: "big" }, "little-endian"],
     [{ type: 3 }, "fixed-address ET_EXEC only"],
@@ -262,4 +264,9 @@ describe("bounded Ghidra RISC-V admission", () => {
     const ida = new IdaProvider(configOf("/ida"), {});
     expect(ida.inspectTargetSupport(target()).status).toBe("unsupported");
   });
+};
+
+describe("bounded Ghidra RISC-V admission", () => {
+  registerRiscvLanguageCommitmentCases();
+  registerRiscvAdmissionAndCapabilityCases();
 });

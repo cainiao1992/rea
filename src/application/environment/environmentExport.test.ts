@@ -114,7 +114,7 @@ describe("readEnvironmentExportInputs", () => {
   });
 });
 
-describe("exportEnvironmentBundle", () => {
+const registerBundlePublicationCases = () => {
   it("writes the bundle into an absent directory with the read bytes copied unchanged", async () => {
     const { root, files, input, directory } = await prepare(
       "rea-environment-export-",
@@ -189,7 +189,9 @@ describe("exportEnvironmentBundle", () => {
       await readFile(join(directory, "envs/replay-copy/Dockerfile"), "utf8"),
     ).toContain("COPY rea-agents.tgz /tmp/");
   });
+};
 
+const registerBundleDestinationAdmissionCases = () => {
   it("refuses a non-empty directory, a file path and a missing tarball before writing anything", async () => {
     const { root, input, directory } = await prepare(
       "rea-environment-export-refusals-",
@@ -287,6 +289,11 @@ describe("exportEnvironmentBundle", () => {
     expect(exported.ok).toBe(true);
     expect(await listFiles(directory)).toHaveLength(7);
   });
+};
+
+describe("exportEnvironmentBundle", () => {
+  registerBundlePublicationCases();
+  registerBundleDestinationAdmissionCases();
 });
 
 describe("exportEnvironmentBundle file modes", () => {

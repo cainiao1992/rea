@@ -451,7 +451,7 @@ describe("ApkSignatureProvider v1 signers", () => {
   });
 });
 
-describe("ApkSignatureProvider failure surfaces", () => {
+const registerSignatureInputAdmissionCases = () => {
   it("keeps only a non-regular path as input; reader I/O and defects are adapter errors", () => {
     const tagOf = (cause: unknown): string =>
       apkSignatureFailure(cause, "/x.apk")._tag;
@@ -545,7 +545,9 @@ describe("ApkSignatureProvider failure surfaces", () => {
       );
     }
   });
+};
 
+const registerSigningStructureFailureCases = () => {
   it("reports a malformed signing block as an input error", async () => {
     const result = await provider.inspect({
       path: await write(
@@ -660,6 +662,11 @@ describe("ApkSignatureProvider failure surfaces", () => {
     expect(result.error._tag).toBe("AnalysisResourceConstraintError");
     expect(result.error.message).toContain("output budget");
   });
+};
+
+describe("ApkSignatureProvider failure surfaces", () => {
+  registerSignatureInputAdmissionCases();
+  registerSigningStructureFailureCases();
 });
 
 describe("ApkSignatureProvider output budget", () => {

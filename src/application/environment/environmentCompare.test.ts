@@ -757,7 +757,7 @@ describe("probe request chronology", () => {
   );
 });
 
-describe("what a probe did not observe", () => {
+const registerProbeCoverageCases = () => {
   it("compares an unrecorded body by status only and lists the records it could not compare", () => {
     const report = run(
       analysisViewCaptureEvidence(
@@ -834,7 +834,9 @@ describe("what a probe did not observe", () => {
     ]);
     expect(report.value.summary).toMatchObject({ steps: 2, equal: 2 });
   });
+};
 
+const registerProbeOrderingAndCaptureCases = () => {
   it("keeps the recorded order when a record has no start time, as state extraction does", () => {
     const { startedDateTime: _undated, ...read } = {
       ...exchange(1, "GET", "http://app.example/api/books/2", 404),
@@ -918,4 +920,9 @@ describe("what a probe did not observe", () => {
       "probe-1: a browser probe needs capture.network.response_body selected",
     );
   });
+};
+
+describe("what a probe did not observe", () => {
+  registerProbeCoverageCases();
+  registerProbeOrderingAndCaptureCases();
 });

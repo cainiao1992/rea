@@ -63,7 +63,7 @@ class Captures extends NativeFixtureRunner {
   }
 }
 
-describe("native signature target identity", () => {
+const registerSignatureObservationCases = () => {
   it("inspects an unchanged registered executable", async () => {
     const { target } = await fixture();
     const captures: (readonly string[])[] = [];
@@ -133,7 +133,9 @@ describe("native signature target identity", () => {
     );
     expect(await readFile(path, "utf8")).toBe(CONTENT);
   });
+};
 
+const registerSignatureIdentityGuardCases = () => {
   it.each(["changed", "missing", "directory", "symlink"] as const)(
     "rejects a %s target before commands run",
     async (replacement) => {
@@ -232,6 +234,11 @@ describe("native signature target identity", () => {
       }
     },
   );
+};
+
+describe("native signature target identity", () => {
+  registerSignatureObservationCases();
+  registerSignatureIdentityGuardCases();
 });
 
 it.each([

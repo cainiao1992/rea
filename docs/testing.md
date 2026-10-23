@@ -236,7 +236,13 @@ instrumentation remains equivalent.
 
 ## Choose verification for the change
 
-| Change or claim                           | First check                                                   | Additional coverage                                         |
+`test:local` is fast source-level feedback. For the strongest practical
+regression, prefer a real public CLI/MCP workflow, then production-boundary
+integration, then a producer golden; use the table to select quick feedback and
+claim-specific additional evidence. Provider-behavior claims require the
+matching real-provider lane.
+
+| Change or claim                           | Fast feedback                                                 | Claim-specific coverage                                     |
 | ----------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
 | Source semantics                          | `npm run test:local -- PATH...`                               | Relevant boundary cases when the behavior crosses a port    |
 | CLI/MCP workflow                          | `npm run test:focused -- PATH...`                             | Actual public calls; an injected provider has limited scope |

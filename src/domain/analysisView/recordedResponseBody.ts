@@ -3,8 +3,10 @@ import type { WebNetworkCaptureRecord } from "../webNetworkCapture.js";
 
 /** One record's retained response text, as replay and state extraction both read it. */
 export interface RecordedResponseBody {
-  /** Producer-decoded response text, or null when the record retained none. */
+  /** Producer-decoded response text, or null when absent or decoding is unavailable. */
   readonly bodyText: string | null;
+  /** A retained representation whose declared encoding this reader cannot decode. */
+  readonly unsupportedEncoding?: string;
   /** Set when the retained bytes are not UTF-8, so `bodyText` holds their base64 rather than a lossy decoding. */
   readonly bodyEncoding?: "base64";
   /** Set when only a prefix of a large base64 body was decoded. */
@@ -37,7 +39,14 @@ export const readRecordedResponseBody = (
   if (!content.success) return { bodyText: null };
   const { text, encoding } = content.data.response.content;
   if (typeof text !== "string") return { bodyText: null };
-  if (encoding !== "base64") return { bodyText: text };
+  if (encoding === undefined) return { bodyText: text };
+  if (encoding !== "base64")
+    return {
+      bodyText: null,
+      ...(typeof encoding === "string"
+        ? { unsupportedEncoding: encoding }
+        : {}),
+    };
   const binary = record.binary_fields.find(
     (field) =>
       field.pointer === "/response/content/text" && field.state === "retained",

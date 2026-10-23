@@ -1,11 +1,130 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
+import { readRecordedResponseBody } from "../../domain/analysisView/recordedResponseBody.js";
 import {
   historicalHar,
   harWithContainerLookalikes,
 } from "../../../tests/fixtures/historicalHar.js";
 import { decodeCaptureText } from "./CaptureJson.js";
 import { decodeHarCapture } from "./HarCapture.js";
+
+it.each([
+  ["null timing object", { timings: null }, "/timings"],
+  ["array timing object", { timings: [] }, "/timings"],
+  ["missing required phase", { timings: { send: 0, receive: 0 } }, "/timings"],
+  [
+    "negative required phase",
+    { timings: { send: 0, wait: -2, receive: 0 } },
+    "/timings/wait",
+  ],
+  [
+    "unknown required phase",
+    { timings: { send: -1, wait: 0, receive: 0 } },
+    "/timings/send",
+  ],
+  [
+    "fractional negative optional phase",
+    { timings: { send: 0, wait: 0, receive: 0, dns: -0.5 } },
+    "/timings/dns",
+  ],
+  ["negative total", { time: -1 }, "/time"],
+] as const)(
+  "refuses HAR %s before publishing records",
+  (_name, edited, pointer) => {
+    const fixture = historicalHar();
+    const first = fixture.log.entries[0]!;
+    const text = JSON.stringify({
+      log: { ...fixture.log, entries: [{ ...first, ...edited }] },
+    });
+    for (const sensitive of [[], ["entries"]])
+      expect(() => decodeHarCapture(text, sensitive)).toThrowError(
+        expect.objectContaining({
+          reason: "format",
+          pointer: `/log/entries/0${pointer}`,
+        }),
+      );
+  },
+);
+
+it("retains supported HAR phase sentinels and fractional elapsed times", () => {
+  const fixture = historicalHar();
+  const timings = { send: 0, wait: 1.25, receive: 0, dns: -1, ssl: -1 };
+  const decoded = decodeHarCapture(
+    JSON.stringify({
+      log: {
+        ...fixture.log,
+        entries: [{ ...fixture.log.entries[0]!, time: 1.25, timings }],
+      },
+    }),
+    [],
+  );
+  expect(decoded.records[0]?.reported).toMatchObject({ time: 1.25, timings });
+});
+
+it.each([-2, -0.5, null])("refuses invalid HAR page timing %s", (onLoad) => {
+  const fixture = historicalHar();
+  const text = JSON.stringify({
+    log: {
+      ...fixture.log,
+      pages: [
+        {
+          id: "page",
+          title: "Page",
+          startedDateTime: fixture.log.entries[0]!.startedDateTime,
+          pageTimings: { onLoad },
+        },
+      ],
+    },
+  });
+  expect(() => decodeHarCapture(text, [])).toThrowError(
+    expect.objectContaining({
+      reason: "format",
+      pointer: "/log/pages/0/pageTimings/onLoad",
+    }),
+  );
+});
+
+it.each([
+  [undefined, "hello", { bodyText: "hello" }],
+  ["base64", "aGVsbG8=", { bodyText: "hello" }],
+  ["hex", "68656c6c6f", { bodyText: null, unsupportedEncoding: "hex" }],
+  [
+    "base64url",
+    "aGVsbG8",
+    { bodyText: null, unsupportedEncoding: "base64url" },
+  ],
+] as const)(
+  "keeps HAR body encoding %s distinct from decoded text",
+  (encoding, text, expected) => {
+    const fixture = historicalHar();
+    const first = fixture.log.entries[0]!;
+    const content = {
+      size: 5,
+      mimeType: "text/plain",
+      text,
+      ...(encoding === undefined ? {} : { encoding }),
+    };
+    const decoded = decodeHarCapture(
+      JSON.stringify({
+        log: {
+          ...fixture.log,
+          entries: [{ ...first, response: { ...first.response, content } }],
+        },
+      }),
+      [],
+    );
+    const record = decoded.records[0]!;
+    expect(record.reported).toMatchObject({
+      response: {
+        content: {
+          ...(encoding === undefined ? {} : { encoding }),
+          ...(encoding === "base64" ? {} : { text }),
+        },
+      },
+    });
+    expect(readRecordedResponseBody(record, 262_144)).toEqual(expected);
+  },
+);
 
 it("interprets HTTP fields only within HAR entries, preserving document lookalikes", () => {
   const fixture = harWithContainerLookalikes();

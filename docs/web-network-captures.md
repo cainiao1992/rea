@@ -63,7 +63,7 @@ redaction, and its live status clears only after a confirmed retry.
 
 ## Formats and upstream profiles
 
-HAR uses unchanged `har-schema@2.0.0` draft-06 schemas, `ajv@8.20.0`,
+HAR uses `har-schema@2.0.0` draft-06 schemas, `ajv@8.20.0`,
 `ajv-formats@3.0.1`, `jsonc-parser@3.3.1` JSON visitor, and
 `lossless-json@4.3.1` numeric representations, pinned in the npm lockfile.
 Only the HAR 1.2 profile is supported. Unknown extensions remain reported
@@ -71,6 +71,14 @@ evidence. Duplicate object keys, including equal values and escaped spellings,
 are rejected before materialization. Prototype-named members such as
 `__proto__` are preserved as ordinary own JSON members without prototype
 mutation. Original capture files remain unchanged.
+REA supplements the pinned schema's missing timing constraints: `timings` must
+be an object with nonnegative `send`, `wait`, and `receive`; optional timing
+phases and page timings may be nonnegative or exactly `-1` for unavailable.
+Total request time must be nonnegative. Invalid timing fields refuse the entire
+capture, even when the affected records would be redacted or unselected.
+Body readers decode plain text and supported `base64` representations. Other
+declared encodings remain preserved in reported Evidence, but decoded body
+content is unavailable; their encoded characters are never treated as text.
 The observed mitmproxy 12.2.3 `SaveHar` profile can emit `postData.text: null`
 for a missing request body. REA preserves that reported null, omitting the
 optional field only from its validation copy for this exact producer profile;
@@ -261,8 +269,8 @@ not register or wrap the Fiddler MCP server.
 - `numeric_literals` preserve HAR number lexemes and native integer/float
   representations, including unsafe integers and non-finite native floats.
   Values that cannot be safely represented as JSON numbers are `null` in the
-  reported view. Unsafe standard HAR numeric fields fail schema validation;
-  unsafe extension numbers remain available through their sidecars.
+  reported view, including otherwise valid standard HAR numeric fields;
+  their exact source values remain available through the numeric sidecars.
 - `binary_fields` retain exposed bytes, base64 and SHA-256 independently of
   declared sizes. Valid HAR `content.encoding: "base64"` is decoded exactly;
   producer-decoded Unicode text, missing text and unknown encodings do not

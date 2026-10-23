@@ -911,3 +911,8 @@ filename escapes once, including dots within filenames; forbidden whole segments
 and encoded separators remain rejected. ESM local-path classification uses the
 authored request before URL whitespace preprocessing, so leading whitespace
 cannot turn a bare request into a relative file dependency.
+For example, a leading tab or newline before `./dep.mjs` remains a bare
+package request; Node's later package-URL normalization can resolve it under
+`node_modules`, independently of a same-named file beside the importer. Resolver
+qualification checks the exact path and file existence: [`import.meta.resolve()`](https://github.com/nodejs/node/blob/v24.22.1/doc/api/esm.md#importmetaresolvespecifier)
+alone can return a URL for a missing file.

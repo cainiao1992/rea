@@ -21,8 +21,14 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       "#encoded": "local.file.mjs",
       "./dep.mjs ": "dep.mjs",
       "./de\np.mjs": "dep.mjs",
+      "\n./dep.mjs": "node_modules/dep.mjs",
+      "\t./dep.mjs": "node_modules/dep.mjs",
+      "\r./dep.mjs": "node_modules/dep.mjs",
     };
-    const invalid = [" ./dep.mjs", "\n./dep.mjs", "\t./dep.mjs", ".\n/dep.mjs"];
+    const rejected = {
+      " ./dep.mjs": "ERR_MODULE_NOT_FOUND",
+      ".\n/dep.mjs": "ERR_INVALID_MODULE_SPECIFIER",
+    };
     await writeFixtureFiles(root, {
       "package.json": JSON.stringify({
         type: "module",
@@ -30,7 +36,8 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       }),
       "main.mjs": [
         ...Object.keys(valid),
-        ...invalid,
+        ...Object.keys(rejected),
+        "./absent.mjs",
         "mapped/missing",
         "mapped/invalid",
         "./dep.d.ts",
@@ -55,6 +62,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       "only.d.ts": "export declare const value: number;",
       "dep.mjs": 'throw new Error("must never load");',
       "local.file.mjs": 'throw new Error("must never load");',
+      "node_modules/dep.mjs": 'throw new Error("must never load");',
       "node_modules/legacy/package.json": '{"type":"module"}',
       "node_modules/legacy/x.y.js": 'throw new Error("must never load");',
       "node_modules/mapped/package.json": JSON.stringify({
@@ -68,11 +76,31 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
       }),
       "node_modules/mapped/x.y.js": 'throw new Error("must never load");',
       "node_modules/mapped/x%2Ey.js": 'throw new Error("must never load");',
-      "oracle.mjs": `import {fileURLToPath} from "node:url"; import {relative} from "node:path"; const valid = ${JSON.stringify(Object.keys(valid))}; const invalid = ${JSON.stringify(invalid)}; console.log(JSON.stringify({ valid: valid.map(request => relative(process.cwd(), fileURLToPath(import.meta.resolve(request)))), invalid: invalid.map(request => { try { import.meta.resolve(request); return false; } catch { return true; } }) }));`,
+      "oracle.mjs": `
+import { fileURLToPath } from "node:url";
+import { relative } from "node:path";
+import { existsSync } from "node:fs";
+const valid = ${JSON.stringify(Object.keys(valid))};
+const rejected = ${JSON.stringify(Object.keys(rejected))};
+const resolveFile = request => {
+  const path = fileURLToPath(import.meta.resolve(request));
+  return { path: relative(process.cwd(), path), exists: existsSync(path) };
+};
+console.log(JSON.stringify({
+  valid: valid.map(resolveFile),
+  rejected: rejected.map(request => {
+    try { return { resolved: resolveFile(request) }; }
+    catch (error) { return { code: error.code }; }
+  }),
+  missing: resolveFile("./absent.mjs"),
+}));`,
     });
+    // import.meta.resolve returns missing file URLs. A nonthrowing call alone
+    // establishes neither file existence nor relative-versus-package identity.
     expect(await runNodeJsonControl(root, join(root, "oracle.mjs"))).toEqual({
-      valid: Object.values(valid),
-      invalid: invalid.map(() => true),
+      valid: Object.values(valid).map((path) => ({ path, exists: true })),
+      rejected: Object.values(rejected).map((code) => ({ code })),
+      missing: { path: "absent.mjs", exists: false },
     });
     const result = await analyzeJavaScriptDirectory(surface, cli, root);
     expect(result.statistics.parse_failures).toBe(0);
@@ -91,7 +119,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
           resolved_path: target,
         });
     }
-    for (const specifier of invalid) {
+    for (const specifier of Object.keys(rejected)) {
       const matches = edges(specifier);
       expect(matches.length, specifier).toBeGreaterThan(0);
       for (const edge of matches)
@@ -108,6 +136,7 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
     }
     for (const [specifier, status] of [
       ["./only.js", "unavailable"],
+      ["./absent.mjs", "not-found"],
       ["mapped/missing", "not-found"],
       ["mapped/invalid", "rejected"],
     ] as const) {

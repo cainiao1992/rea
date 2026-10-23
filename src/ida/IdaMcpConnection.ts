@@ -28,6 +28,7 @@ import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   AnalysisTimeoutError,
+  AnalysisCancelledError,
   AnalysisProtocolError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
@@ -39,9 +40,15 @@ export interface IdaMcpConnection {
   call(
     name: string,
     args: Readonly<Record<string, JsonValue>>,
-    options?: { readonly timeoutMs?: number | undefined },
+    options?: {
+      readonly timeoutMs?: number | undefined;
+      readonly signal?: AbortSignal | undefined;
+    },
   ): Promise<JsonValue>;
-  readResource?(uri: string): Promise<JsonValue>;
+  readResource?(
+    uri: string,
+    options?: { readonly signal?: AbortSignal | undefined },
+  ): Promise<JsonValue>;
   serverInfo(): JsonValue;
   close(): Promise<void>;
   /**
@@ -351,6 +358,47 @@ export const createIdaMcpConnection = (
   )(config);
   let stderr = Buffer.alloc(0);
   let stderrBytes = 0;
+  const capturedTransportOutput = () => {
+    let start = 0;
+    if (stderrBytes > stderr.length)
+      while (start < stderr.length && (stderr[start]! & 0xc0) === 0x80) start++;
+    return {
+      stdout: "",
+      stderr: redactor.blocks([stderr.subarray(start).toString("utf8")]),
+      truncated: stderrBytes > stderr.length - start,
+      stdout_bytes: 0,
+      stderr_bytes: stderrBytes,
+    };
+  };
+  // SDK 2.3.1 returns an SdkError abort reason by identity. A fresh private
+  // reason distinguishes this caller abort from an already established failure.
+  const requestWithCallerSignal = async <Value>(
+    operation: string,
+    signal: AbortSignal | undefined,
+    request: (requestSignal: AbortSignal | undefined) => Promise<Value>,
+  ): Promise<Value> => {
+    if (signal === undefined) return request(undefined);
+    const controller = new AbortController();
+    const cancellation = new SdkError(
+      SdkErrorCode.RequestTimeout,
+      "REA caller cancelled this IDA MCP request",
+    );
+    const abort = () => controller.abort(cancellation);
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+    try {
+      return await request(controller.signal);
+    } catch (cause: unknown) {
+      if (cause === cancellation)
+        throw new AnalysisCancelledError(operation, {
+          cause: signal.reason,
+          capturedOutput: capturedTransportOutput(),
+        });
+      throw cause;
+    } finally {
+      signal.removeEventListener("abort", abort);
+    }
+  };
   const transportFailure = (
     cause: unknown,
     operation = "ida_mcp_response",
@@ -387,16 +435,7 @@ export const createIdaMcpConnection = (
         cause: retainedTransportCause(cause, safeMessage),
       });
     }
-    let start = 0;
-    if (stderrBytes > stderr.length)
-      while (start < stderr.length && (stderr[start]! & 0xc0) === 0x80) start++;
-    const capturedOutput = {
-      stdout: "",
-      stderr: redactor.blocks([stderr.subarray(start).toString("utf8")]),
-      truncated: stderrBytes > stderr.length - start,
-      stdout_bytes: 0,
-      stderr_bytes: stderrBytes,
-    };
+    const capturedOutput = capturedTransportOutput();
     if (cause instanceof SdkError && cause.code === SdkErrorCode.RequestTimeout)
       throw new AnalysisTimeoutError(operation, requestTimeoutMs, {
         cause: failure,
@@ -475,21 +514,38 @@ export const createIdaMcpConnection = (
         options?.timeoutMs ?? config.timeoutMs,
       );
       return decodeIdaToolResult(
-        await client
-          .callTool({ name, arguments: args }, { timeout: requestTimeoutMs })
-          .catch((cause: unknown) =>
-            transportFailure(cause, name, requestTimeoutMs),
+        await requestWithCallerSignal(name, options?.signal, (signal) =>
+          client.callTool(
+            { name, arguments: args },
+            {
+              timeout: requestTimeoutMs,
+              ...(signal === undefined ? {} : { signal }),
+            },
           ),
+        ).catch((cause: unknown) => {
+          if (cause instanceof AnalysisCancelledError) throw cause;
+          return transportFailure(cause, name, requestTimeoutMs);
+        }),
         config.protocol,
         redactor,
       );
     },
-    async readResource(uri) {
-      const response = await client
-        .readResource({ uri }, { timeout: config.timeoutMs })
-        .catch((cause: unknown) =>
-          transportFailure(cause, "ida_mcp_read_resource"),
-        );
+    async readResource(uri, options) {
+      const response = await requestWithCallerSignal(
+        "ida_mcp_read_resource",
+        options?.signal,
+        (signal) =>
+          client.readResource(
+            { uri },
+            {
+              timeout: config.timeoutMs,
+              ...(signal === undefined ? {} : { signal }),
+            },
+          ),
+      ).catch((cause: unknown) => {
+        if (cause instanceof AnalysisCancelledError) throw cause;
+        return transportFailure(cause, "ida_mcp_read_resource");
+      });
       return decodeIdaJsonResource(uri, response);
     },
     serverInfo: () => jsonValueSchema.parse(client.getServerVersion() ?? null),

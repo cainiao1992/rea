@@ -1,5 +1,9 @@
 import { inspect } from "node:util";
-import { SdkErrorCode, SdkHttpError } from "@modelcontextprotocol/client";
+import {
+  Client,
+  SdkErrorCode,
+  SdkHttpError,
+} from "@modelcontextprotocol/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createIdaMcpConnection,
@@ -7,7 +11,10 @@ import {
   decodeIdaJsonResource,
 } from "./IdaMcpConnection.js";
 import { createIdaDiagnosticRedactor } from "./IdaDiagnosticRedactor.js";
-import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisTimeoutError,
+} from "../domain/analysisErrorCore.js";
 import { readSettledHealth } from "./IdaBusyHealth.js";
 
 describe("upstream IDA tool result decoding", () => {
@@ -540,4 +547,99 @@ it("keeps JSON resource identity, media type and JSON parsing strict", () => {
     resource("ida://idb/metadata", "application/json", "not JSON"),
   ])
     expect(() => decodeIdaJsonResource("ida://idb/metadata", reply)).toThrow();
+});
+
+it("uses the actual SDK abort outcome to preserve the caller reason", async () => {
+  let started!: () => void;
+  const requestStarted = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  mockedHttpBoundary({
+    serverName: "ida-abort-fixture",
+    tools: [],
+    call: (_request, signal) => {
+      started();
+      return stalledResponse(signal);
+    },
+  });
+  const connection = createIdaMcpConnection(
+    {
+      url: "http://127.0.0.1:12345/mcp",
+      headers: {},
+      mode: "attached",
+      timeoutMs: 1000,
+    },
+    {},
+  );
+  const controller = new AbortController();
+  const reason = { caller: "exact opaque reason" };
+  try {
+    await connection.connect();
+    const pending = connection
+      .call("decompile", {}, { signal: controller.signal })
+      .catch((cause: unknown) => cause);
+    await requestStarted;
+    controller.abort(reason);
+    const failure = await pending;
+    expect(failure).toBeInstanceOf(AnalysisCancelledError);
+    if (!(failure instanceof AnalysisCancelledError))
+      throw new Error("Expected SDK-owned cancellation");
+    expect(failure.operation).toBe("decompile");
+    expect(failure.cause).toBe(reason);
+    expect(failure.capturedOutput).toMatchObject({
+      stderr: "",
+      truncated: false,
+    });
+  } finally {
+    await connection.close();
+  }
+});
+
+it("keeps a real SDK physical failure when abort arrives during its outer unwind", async () => {
+  const controller = new AbortController();
+  const reason = { caller: "late abort" };
+  mockedHttpBoundary({
+    serverName: "ida-failure-first-fixture",
+    tools: [],
+    call: (request) =>
+      jsonRpcResponse({
+        jsonrpc: "2.0",
+        id: request.id,
+        error: { code: -32000, message: "established producer failure" },
+      }),
+  });
+  const callTool = Client.prototype.callTool;
+  const spy = vi
+    .spyOn(Client.prototype, "callTool")
+    .mockImplementation(function (this: Client, params, options) {
+      return callTool.call(this, params, options).catch((cause: unknown) => {
+        // The SDK has already rejected this request. Delay only its outer unwind.
+        queueMicrotask(() => controller.abort(reason));
+        throw cause;
+      });
+    });
+  const connection = createIdaMcpConnection(
+    {
+      url: "http://127.0.0.1:12345/mcp",
+      headers: {},
+      mode: "attached",
+      timeoutMs: 1000,
+    },
+    {},
+  );
+  try {
+    await connection.connect();
+    const failure = await connection
+      .call("decompile", {}, { signal: controller.signal })
+      .catch((cause: unknown) => cause);
+    expect(controller.signal.aborted).toBe(true);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(AnalysisCancelledError);
+    expect(failure).toMatchObject({
+      message: expect.stringContaining("established producer failure"),
+    });
+  } finally {
+    spy.mockRestore();
+    await connection.close();
+  }
 });

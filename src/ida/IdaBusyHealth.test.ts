@@ -148,7 +148,8 @@ it("reports the busy tool of the last observation", async () => {
 it("rejects without another read when the signal aborts after the pause has fulfilled", async () => {
   const controller = new AbortController();
   const { connection, reads } = scripted([busy("config_json_get")]);
-  const { clock } = virtualClock(() => controller.abort());
+  const reason = { caller: "busy-health cancellation" };
+  const { clock } = virtualClock(() => controller.abort(reason));
 
   const failure = await readSettledHealth(connection, {
     database: "db",
@@ -159,6 +160,9 @@ it("rejects without another read when the signal aborts after the pause has fulf
 
   expect(reads.length, "the abort wins over the next read").toBe(1);
   expect(failure, "the abort is surfaced, not a timeout").toMatchObject({
-    name: "AbortError",
+    _tag: "AnalysisCancelledError",
+    operation: "server_health",
+    cause: reason,
   });
+  expect(failure instanceof Error && failure.cause).toBe(reason);
 });

@@ -188,3 +188,10 @@ diagnostics. Ordinary fields such as `IDADIR` and noncredential headers remain
 part of analysis identity. Credential rotation does not change that public
 identity; each newly resolved client factory still captures its own complete
 transport registration and creates a fresh connection.
+
+Caller cancellation is classified at the MCP request boundary using the installed
+SDK's exact abort outcome. A later abort during error unwinding does not replace
+an established provider failure. Cancellation retains the caller's original reason
+and collected diagnostics; metadata timeouts name the requested analysis operation
+while retaining the resource-read failure as their cause. This request cancellation
+does not authorize saving or closing an attached GUI database.

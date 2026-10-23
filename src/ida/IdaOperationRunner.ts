@@ -120,12 +120,20 @@ export class IdaOperationRunner {
     tool: string,
     args: Readonly<Record<string, JsonValue>>,
   ): Promise<JsonValue> {
-    if (this.options.signal?.aborted) throw new AnalysisCancelledError(tool);
+    if (this.options.signal?.aborted)
+      throw new AnalysisCancelledError(tool, {
+        cause: this.options.signal.reason,
+      });
     const scoped =
       this.database === undefined ? args : { ...args, database: this.database };
-    const result = await this.connection.call(tool, scoped);
+    const result = await this.connection.call(tool, scoped, {
+      signal: this.options.signal,
+    });
     this.raw.push({ tool, arguments: scoped, result });
-    if (this.options.signal?.aborted) throw new AnalysisCancelledError(tool);
+    if (this.options.signal?.aborted)
+      throw new AnalysisCancelledError(tool, {
+        cause: this.options.signal.reason,
+      });
     return result;
   }
 

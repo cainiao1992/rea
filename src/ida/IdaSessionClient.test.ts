@@ -6,6 +6,7 @@ import {
   createIdaTarget,
   RecordingIdaMcp,
 } from "../../tests/fixtures/idaMcp.js";
+import { nativeTools } from "./IdaNativeProtocol.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
 import {
   DEFAULT_REGEX_MATCHING_DEADLINE,
@@ -16,6 +17,8 @@ import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import {
   AnalysisProtocolError,
   AnalysisResourceConstraintError,
+  AnalysisCancelledError,
+  AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
@@ -1896,7 +1899,8 @@ it("retains transport diagnostics on a cancellation regardless of stderr", async
   producer.beforeCall = async (name) => {
     if (name === "list_functions") {
       controller.abort();
-      throw new ProviderAdapterError("ida", "transport", {
+      throw new AnalysisCancelledError("list_functions", {
+        cause: controller.signal.reason,
         diagnostics: { reason: "upstream closed after cancellation" },
         capturedOutput: {
           stdout: "",
@@ -1949,3 +1953,91 @@ it.each([false, null] as const)(
     await expectCleanClose(producer, client);
   },
 );
+
+it.each([false, true])(
+  "preserves an established IDA provider failure with late abort=%s",
+  async (lateAbort) => {
+    const { producer, client } = await fixture("attached");
+    expect((await client.execute("health", {})).ok).toBe(true);
+    const controller = new AbortController();
+    const failure = new ProviderAdapterError("ida", "transport", {
+      diagnostics: { reason: "upstream closed before cancellation" },
+    });
+    producer.beforeCall = async (name) => {
+      if (name !== "list_functions") return;
+      if (lateAbort) queueMicrotask(() => controller.abort({ caller: "late" }));
+      throw failure;
+    };
+    const result = await client.execute(
+      "list_procedures",
+      {},
+      { signal: controller.signal },
+    );
+    if (result.ok) throw new Error("Expected provider failure");
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "execution_failure",
+      details: {
+        operation: "list_procedures",
+        diagnostics: { reason: "upstream closed before cancellation" },
+      },
+    });
+    expect(result.error.cause).toBe(failure);
+    await expectCleanClose(producer, client);
+  },
+);
+
+it.each(["before", "during"] as const)(
+  "preserves the exact caller abort reason %s an IDA operation",
+  async (phase) => {
+    const { producer, client } = await fixture(
+      phase === "before" ? "attached" : "headless",
+    );
+    const controller = new AbortController();
+    const reason = { caller: "selected opaque cancellation" };
+    if (phase === "before") controller.abort(reason);
+    else
+      producer.beforeCall = async (name) => {
+        if (name === "list_funcs") controller.abort(reason);
+      };
+    const result = await client.execute(
+      "list_procedures",
+      {},
+      { signal: controller.signal },
+    );
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(reason);
+    if (phase === "before") expect(producer.connects).toBe(0);
+    else
+      expect(result.error.partialObservation).toMatchObject({
+        operation: "list_procedures",
+      });
+    await expectCleanClose(producer, client);
+  },
+);
+
+it("attributes native IDA metadata timeout to the requested analysis operation", async () => {
+  const { producer, client } = await fixture("attached", 1000, "native");
+  producer.tools = [...nativeTools];
+  const timeout = new AnalysisTimeoutError("ida_mcp_read_resource", 40, {
+    diagnostics: { uri: "ida://idb/metadata" },
+  });
+  producer.readResource = async () => {
+    throw timeout;
+  };
+  const result = await client.execute("procedure_pseudo_code", {
+    procedure: "main",
+  });
+  if (result.ok) throw new Error("Expected metadata timeout");
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "provider_timeout",
+    details: {
+      operation: "procedure_pseudo_code",
+      timeout_ms: 40,
+      diagnostics: { uri: "ida://idb/metadata" },
+    },
+    recovery: { operation: "procedure_pseudo_code" },
+  });
+  expect(result.error.cause).toBe(timeout);
+  await expectCleanClose(producer, client);
+});

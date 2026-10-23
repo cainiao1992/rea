@@ -228,7 +228,11 @@ export class IdaSessionClient implements AnalysisClient {
     const call = this.#tail.then(() => {
       if (!this.#ready || this.#closed || this.#closing) return undefined;
       if (wasCancelled(options))
-        return err(new AnalysisCancelledError(operation));
+        return err(
+          new AnalysisCancelledError(operation, {
+            cause: options?.signal?.reason,
+          }),
+        );
       return this.#execute(operation, parameters, options, true);
     });
     this.#tail = call.then(
@@ -237,7 +241,11 @@ export class IdaSessionClient implements AnalysisClient {
     );
     const result = await waitForAbortable(call, options?.signal);
     return result === ABORTED
-      ? err(new AnalysisCancelledError(operation))
+      ? err(
+          new AnalysisCancelledError(operation, {
+            cause: options?.signal?.reason,
+          }),
+        )
       : result;
   }
 
@@ -254,7 +262,11 @@ export class IdaSessionClient implements AnalysisClient {
         ),
       );
     if (wasCancelled(options))
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, {
+          cause: options?.signal?.reason,
+        }),
+      );
     if (operation !== "health" && !isIdaOperation(operation))
       return err(
         new AnalysisCapabilityUnavailableError(
@@ -320,7 +332,10 @@ export class IdaSessionClient implements AnalysisClient {
       if (!readyOnly) await this.#start(operation);
       const before = await this.#observe(options);
       failureContext.metadataBefore = before;
-      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
+      if (wasCancelled(options))
+        throw new AnalysisCancelledError(operation, {
+          cause: options?.signal?.reason,
+        });
       if (operation === "health") return this.#health(before);
       if (!isIdaOperation(operation))
         throw new AnalysisProtocolError(
@@ -329,14 +344,20 @@ export class IdaSessionClient implements AnalysisClient {
       const runner = this.#runner(options);
       failureContext.runner = runner;
       const result = await runner.run(operation, parameters);
-      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
+      if (wasCancelled(options))
+        throw new AnalysisCancelledError(operation, {
+          cause: options?.signal?.reason,
+        });
       failureContext.postOperationIdentityCheck = "started";
       const after = await this.#observe(
         options,
         (observed) => (failureContext.metadataAfter = observed),
       );
       failureContext.postOperationIdentityCheck = "verified";
-      if (wasCancelled(options)) throw new AnalysisCancelledError(operation);
+      if (wasCancelled(options))
+        throw new AnalysisCancelledError(operation, {
+          cause: options?.signal?.reason,
+        });
       return ok(
         createAnalysisExecution(result, IDA_PROVIDER_IDENTITY, {
           rawResult: {
@@ -411,29 +432,40 @@ export class IdaSessionClient implements AnalysisClient {
     context: IdaOperationFailureContext,
   ) {
     let failure: AnalysisError;
-    if (wasCancelled(options)) {
+    if (cause instanceof AnalysisCancelledError) {
       failure = new AnalysisCancelledError(operation, {
+        cause:
+          cause.cause === undefined ? options?.signal?.reason : cause.cause,
+        capturedOutput: cause.capturedOutput,
+        diagnostics: cause.diagnostics,
+        partialObservation: cause.partialObservation,
+        cleanup:
+          cause.cleanup ??
+          (cause.cleanupIncomplete
+            ? { reason: cause.message, resources: cause.cleanupResources }
+            : undefined),
+      })
+        .bindCleanupDependencies([cause])
+        .bindCleanupResourceOwner(cause);
+    } else if (
+      cause instanceof AnalysisTimeoutError &&
+      cause.operation !== operation
+    ) {
+      failure = new AnalysisTimeoutError(operation, cause.timeoutMs, {
         cause,
-        ...(cause instanceof AnalysisError
-          ? {
-              capturedOutput: cause.capturedOutput,
-              diagnostics: cause.diagnostics,
-              partialObservation: cause.partialObservation,
-              cleanup:
-                cause.cleanup ??
-                (cause.cleanupIncomplete
-                  ? {
-                      reason: cause.message,
-                      resources: cause.cleanupResources,
-                    }
-                  : undefined),
-            }
-          : {}),
-      });
-      if (cause instanceof AnalysisError)
-        failure
-          .bindCleanupDependencies([cause])
-          .bindCleanupResourceOwner(cause);
+        capturedOutput: cause.capturedOutput,
+        diagnostics: cause.diagnostics,
+        partialObservation: cause.partialObservation,
+        cleanup: cause.cleanup,
+        ...(cause.userMessage === undefined
+          ? {}
+          : { userMessage: cause.userMessage }),
+        ...(cause.remediationAction === undefined
+          ? {}
+          : { remediationAction: cause.remediationAction }),
+      })
+        .bindCleanupDependencies([cause])
+        .bindCleanupResourceOwner(cause);
     } else if (
       cause instanceof ProviderAdapterError &&
       cause.operation === "transport"
@@ -684,12 +716,12 @@ export class IdaSessionClient implements AnalysisClient {
     this.#ready = true;
   }
 
-  async #nativeMetadata(): Promise<JsonValue> {
+  async #nativeMetadata(signal?: AbortSignal): Promise<JsonValue> {
     if (this.connection.readResource === undefined)
       throw new AnalysisProtocolError(
         "Native IDA MCP requires resources/read for recorded input metadata.",
       );
-    return this.connection.readResource("ida://idb/metadata");
+    return this.connection.readResource("ida://idb/metadata", { signal });
   }
 
   async #observe(
@@ -700,8 +732,12 @@ export class IdaSessionClient implements AnalysisClient {
     if (this.config.mode === "attached") {
       const raw =
         this.config.protocol === "native"
-          ? await this.#nativeMetadata()
-          : await this.connection.call("get_metadata", {});
+          ? await this.#nativeMetadata(options?.signal)
+          : await this.connection.call(
+              "get_metadata",
+              {},
+              { signal: options?.signal },
+            );
       const metadata = legacyMetadataSchema.parse(raw);
       this.#metadata = raw;
       onObserved?.(raw);

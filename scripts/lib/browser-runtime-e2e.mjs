@@ -274,7 +274,11 @@ async function executionCli(entrypoint, input, env, action, isolatedContext) {
   });
   try {
     const [code] = await once(child, "close");
-    assert.equal(code, 0, stderr);
+    assert.equal(
+      code,
+      0,
+      `observe-web-execution exited ${String(code)} (signal ${String(child.signalCode)})\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+    );
     assert.ok(actionPromise, "CLI did not report an actual armed point");
     await actionPromise;
     return stdout;

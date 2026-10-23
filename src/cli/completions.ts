@@ -11,10 +11,10 @@ import {
 } from "../cliBuiltinArguments.js";
 import { CLI_OUTPUT_FORMATS, parseCliOutputArguments } from "../cliOutput.js";
 import { bashCompletionScript } from "./bashCompletionRegistration.js";
-import type { CliInstance } from "./types.js";
 
 type Commands = Parameters<typeof Completions.complete>[0];
-type ServeOptions = NonNullable<Parameters<CliInstance["serve"]>[1]>;
+type CompletionCli = Parameters<typeof Cli.toCommands.get>[0];
+type ServeOptions = NonNullable<Parameters<CompletionCli["serve"]>[1]>;
 const ROOT_FLAGS = new Set(["--mcp", "--update", "--version"]);
 
 const standardGlobals = (root: boolean): z.ZodObject =>
@@ -42,7 +42,7 @@ const standardGlobals = (root: boolean): z.ZodObject =>
   );
 
 /** Pinned Incur builtins are not exported in its registered command map. */
-const completionCommands = (cli: CliInstance): Commands => {
+const completionCommands = (cli: CompletionCli): Commands => {
   const commands: Commands = new Map(Cli.toCommands.get(cli));
   commands.set("mcp", {
     _group: true,
@@ -77,7 +77,7 @@ const completionCommands = (cli: CliInstance): Commands => {
 
 /** One tree owns command scope; the framework retains option/enum binding and shell formatting. */
 export const createCliCompletions = (
-  cli: CliInstance,
+  cli: CompletionCli,
   environment: Readonly<NodeJS.ProcessEnv>,
 ) => {
   const script = (shell: (typeof CLI_COMPLETION_SHELLS)[number]) =>

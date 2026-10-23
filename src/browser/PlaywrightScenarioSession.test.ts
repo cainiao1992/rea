@@ -1,4 +1,5 @@
 import { AnalysisCleanupLeaseGroup } from "../artifacts/AnalysisCleanupLease.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { PlaywrightBrowserScenarioProvider } from "./PlaywrightBrowserScenarioProvider.js";
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
@@ -1481,6 +1482,80 @@ it.each(["launch", "connect"] as const)(
     } finally {
       await cleanup.cleanupLease.release();
       vi.useRealTimers();
+    }
+  },
+);
+
+it.each([false, true])(
+  "checks attached worker policy after final artifacts, worker takeover=%s",
+  async (takeover) => {
+    const { page, cleanup } = fixture();
+    let controlled = false;
+    let captures = 0;
+    Object.assign(page, {
+      waitForTimeout: vi.fn(async () => undefined),
+      content: vi.fn(async () => {
+        captures += 1;
+        controlled = takeover && captures === 2;
+        return controlled ? "<worker-response/>" : "<uncontrolled-response/>";
+      }),
+    });
+    page.evaluate.mockImplementation(async (script: unknown) =>
+      controlled &&
+      typeof script === "string" &&
+      script.includes("serviceWorker.controller")
+        ? "service_worker_blocked"
+        : null,
+    );
+    const input = browserScenarioSchema.parse({
+      ...connectedScenario("block"),
+      capture: { after_each_step: ["dom"], at_end: ["dom"], events: [] },
+    });
+    const provider = new PlaywrightBrowserScenarioProvider(
+      (scenario, options) =>
+        PlaywrightScenarioSession.open(scenario, {}, options),
+    );
+    try {
+      const result = await provider.captureScenario(input, {});
+      expect(captures).toBe(2);
+      expect(cleanup.browserClosed).toBe(true);
+      if (takeover) {
+        if (result.ok)
+          throw new Error("Expected final worker policy rejection");
+        expect(projectAnalysisError(result.error)).toMatchObject({
+          details: {
+            diagnostics: {
+              collected_artifacts: {
+                dom: { value: { text: "<worker-response/>" } },
+              },
+            },
+          },
+        });
+        expect(result.error).toMatchObject({
+          reason: "service_worker_blocked",
+          cleanupIncomplete: false,
+          diagnostics: {
+            collected_artifacts: {
+              dom: { state: "captured", value: { text: "<worker-response/>" } },
+            },
+          },
+          partialObservation: {
+            capture: {
+              browser: { cleanup: "disconnected-external" },
+              steps: [{ action: "goto_start" }],
+            },
+          },
+        });
+      } else {
+        if (!result.ok) throw result.error;
+        expect(result.value.steps).toHaveLength(2);
+        expect(result.value.steps[1]).toMatchObject({
+          status: "completed",
+          completeness: { status: "complete", equality_eligible: true },
+        });
+      }
+    } finally {
+      await provider.close();
     }
   },
 );

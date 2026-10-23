@@ -6,6 +6,9 @@ import type { BrowserContext } from "playwright-core";
 
 import type { BrowserScenario } from "../domain/browserScenario.js";
 import type { BrowserScenarioAction } from "../domain/browserScenarioValues.js";
+import { jsonValueSchema } from "../domain/jsonValue.js";
+import { PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY } from "./providerIdentities.js";
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import type { BrowserScenarioSessionPort } from "./BrowserScenarioSessionPort.js";
@@ -459,7 +462,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
       undefined,
       signal,
     );
-    return withPlaywrightExecutionBoundary(
+    const artifacts = await withPlaywrightExecutionBoundary(
       () =>
         capturePlaywrightStepArtifacts({
           context: this.opened.context,
@@ -470,6 +473,27 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
       undefined,
       signal,
     );
+    try {
+      await withPlaywrightExecutionBoundary(
+        () => this.serviceWorkers?.assertBlocked() ?? Promise.resolve(),
+        undefined,
+        signal,
+      );
+    } catch (cause: unknown) {
+      const failure =
+        cause instanceof AnalysisError
+          ? cause
+          : new ProviderAdapterError(
+              PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY.id,
+              OPERATION,
+              { cause },
+            );
+      failure.retainDiagnostics({
+        collected_artifacts: jsonValueSchema.parse(artifacts),
+      });
+      throw failure;
+    }
+    return artifacts;
   }
 
   async close(stopLoading = this.signal?.aborted === true) {

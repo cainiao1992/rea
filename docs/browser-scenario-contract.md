@@ -17,7 +17,11 @@ final sanitized URL capture are supplied by default. Set
 `environment.service_workers` to `allow` when the application requires them.
 For attached browsers, `block` rejects captures when the selected page or its
 frames are controlled by a service worker or already have a registration,
-including after navigation. Existing caller registrations are never removed.
+including after navigation. Policy checks bracket each artifact capture, including
+the final step. If an external worker takes control while artifacts are being
+captured, REA rejects the capture and retains the completed artifacts in
+`details.diagnostics.collected_artifacts`; they do not establish policy-compliant
+completion. Existing caller registrations are never removed.
 Navigation can run destination code before a newly discovered worker is rejected;
 that rejection does not roll back browser effects. REA removes its owned
 future-document scripts, restores live frame methods, then disconnects.

@@ -1,0 +1,126 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { expect, it } from "vitest";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { execFileOutput } from "../../../src/process/ExecFileOutput.js";
+import { importReferenceSource } from "../../support/referenceSourceResourceScope.js";
+
+const importTree = async (root: string) => {
+  const result = await importReferenceSource({
+    root,
+    caller: "ignore-policy-test",
+    policy: { secretPatterns: [] },
+  });
+  if (!result.ok) throw result.error;
+  return result.value;
+};
+
+it("scopes nested ignore rules and negations like Git while preserving mandatory exclusions", async () => {
+  const root = await createTestTempDirectory("rea-reference-scoped-policy-");
+  await execFileOutput("git", ["init", "--initial-branch=main", root]);
+  await execFileOutput("git", [
+    "-C",
+    root,
+    "config",
+    "core.ignorecase",
+    "false",
+  ]);
+  await mkdir(join(root, "packages", "widget", "blocked"), { recursive: true });
+  await mkdir(join(root, "packages", "widget", "node_modules"));
+  await mkdir(join(root, "sibling"));
+  await writeFile(join(root, ".gitignore"), "*.tmp\nblocked/\n");
+  await writeFile(
+    join(root, "packages", "widget", ".gitignore"),
+    "/local.js\n!keep.tmp\n!node_modules/\n",
+  );
+  await writeFile(
+    join(root, "packages", "widget", "blocked", ".gitignore"),
+    "!inside.js\n",
+  );
+  const excluded = [
+    "drop.tmp",
+    "packages/widget/local.js",
+    "packages/widget/blocked/inside.js",
+  ];
+  const included = [
+    "packages/widget/keep.tmp",
+    "packages/widget/main.js",
+    "sibling/local.js",
+  ];
+  for (const path of [
+    ...excluded,
+    ...included,
+    "packages/widget/node_modules/dependency.js",
+  ])
+    await writeFile(join(root, path), "export const value = 1;\n");
+  const oracle = await execFileOutput("git", [
+    "-C",
+    root,
+    "check-ignore",
+    "--no-index",
+    ...excluded,
+    ...included,
+  ]);
+  expect(oracle.stdout.trim().split(/\r?\n/u)).toEqual(excluded);
+  const graph = await importTree(root);
+  const files = graph.entries
+    .filter(({ kind }) => kind === "file")
+    .map(({ path }) => path);
+  for (const path of included) expect(files).toContain(path);
+  for (const path of [
+    ...excluded,
+    "packages/widget/node_modules/dependency.js",
+  ])
+    expect(files).not.toContain(path);
+  expect(graph.exclusions).toContainEqual({
+    path: "packages/widget/local.js",
+    entry_kind: "file",
+    reason: "project-ignored",
+    pattern: "/local.js",
+  });
+  expect(graph.exclusions).toContainEqual({
+    path: "packages/widget/node_modules",
+    entry_kind: "directory",
+    reason: "default-ignored",
+    pattern: "node_modules/",
+  });
+  expect(
+    await readFile(join(root, "packages", "widget", "keep.tmp"), "utf8"),
+  ).toBe("export const value = 1;\n");
+});
+
+it.each([false, true])(
+  "honors local core.ignorecase=%s against Git's check-ignore oracle",
+  async (ignoreCase) => {
+    const root = await createTestTempDirectory("rea-reference-ignore-case-");
+    await execFileOutput("git", ["init", "--initial-branch=main", root]);
+    await execFileOutput("git", [
+      "-C",
+      root,
+      "config",
+      "core.ignorecase",
+      String(ignoreCase),
+    ]);
+    await writeFile(join(root, ".gitignore"), "*.TMP\n");
+    await writeFile(join(root, "upper.TMP"), "upper\n");
+    await writeFile(join(root, "lower.tmp"), "lower\n");
+    const oracle = await execFileOutput("git", [
+      "-C",
+      root,
+      "check-ignore",
+      "--no-index",
+      "upper.TMP",
+      "lower.tmp",
+    ]);
+    const expected = oracle.stdout.trim().split(/\r?\n/u);
+    const graph = await importTree(root);
+    expect(
+      graph.exclusions
+        .filter(({ reason }) => reason === "project-ignored")
+        .map(({ path }) => path),
+    ).toEqual([...expected].sort());
+    expect(graph.entries.some(({ path }) => path === "lower.tmp")).toBe(
+      !ignoreCase,
+    );
+  },
+);

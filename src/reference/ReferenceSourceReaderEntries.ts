@@ -65,6 +65,11 @@ export const traverseDirectory = async (
     recordDirectoryFailure(state, current.path, before.code, before.message);
     return { ok: true, value: undefined };
   }
+  const policy = await state.beforeDirectory?.(
+    pathFromRoot(state.root, current.path),
+  );
+  if (policy !== undefined && !policy.ok) return policy;
+  if (isAborted(state.signal)) return err(cancelled());
   const directories: PendingDirectory[] = [];
   let readFailure: string | undefined;
   let unrepresentableNameCount = 0;

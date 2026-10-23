@@ -60,6 +60,9 @@ const readSource = async (
     ...(options.shouldExclude === undefined
       ? {}
       : { shouldExclude: options.shouldExclude }),
+    ...(options.beforeDirectory === undefined
+      ? {}
+      : { beforeDirectory: options.beforeDirectory }),
     entries: [],
     exclusions: [],
     pending: [{ path: canonicalRoot }],

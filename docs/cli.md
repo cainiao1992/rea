@@ -407,8 +407,17 @@ other facts. No fixed output-size or runtime improvement is promised.
 The import records hashes and metadata for the supplied files, separately
 from observations of the current app. For a directory inside a Git checkout,
 it records the HEAD of the nearest enclosing repository; whether the working
-tree matches that commit remains unknown. It honors the source tree's `.gitignore`
-and applies default exclusions for common generated and dependency paths such
+tree matches that commit remains unknown. Root selection follows filesystem
+symlink/parent semantics before canonical identity is derived. It honors
+`.gitignore` files at the selected root and in traversed child directories,
+with patterns relative to their containing directory and deeper negations
+applied only when the parent was not excluded. Matching uses the nearest
+repository's local `core.ignorecase` setting (false when unset), including the
+shared configuration of linked worktrees. Policy and Git metadata reads retain
+their descriptor cleanup under the import's resource owner; unreadable policy
+is a typed failure, not an empty policy. Above-root `.gitignore` files, global
+excludes, `.git/info/exclude`, config includes and worktree-specific config are
+not loaded. The import also applies default exclusions for common generated and dependency paths such
 as `node_modules/`, `dist/`, and `*.log`. Pattern-based exclusions record the
 matched pattern and whether it came from project, default, caller, or sensitive
 path policy. Links into excluded paths retain their internal target metadata;

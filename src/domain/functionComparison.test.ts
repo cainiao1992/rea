@@ -175,14 +175,20 @@ const keepsGeneratedNamesAmbiguous = (): void => {
       ...dossier("return 0;", base),
       procedure: {
         ...procedure(base, name),
-        symbol: null,
         signature: "int helper(void)",
         locals: [],
       },
     });
+  const unknownOrigin = (base: "0x1000" | "0x2000", name: string) => {
+    const value = named(base, name);
+    return functionDossierSchema.parse({
+      ...value,
+      procedure: { ...value.procedure, symbol: null },
+    });
+  };
   const generated = compareFunctions(
-    functionSnapshotFixture(observe("1", named("0x1000", "sub_1000"))),
-    functionSnapshotFixture(observe("2", named("0x2000", "sub_2000"))),
+    functionSnapshotFixture(observe("1", unknownOrigin("0x1000", "sub_1000"))),
+    functionSnapshotFixture(observe("2", unknownOrigin("0x2000", "sub_2000"))),
   );
   expect(generated.function_match.status).toBe("ambiguous");
   expect(generated.status).toBe("unknown");
@@ -392,7 +398,7 @@ describe("function comparison address-derived call names", () => {
         expect(calls).toMatchObject({
           status: "unknown",
           limitations: expect.arrayContaining([
-            "Unnamed relationship endpoints and generated procedure names have no stable identity outside a common executable coordinate context.",
+            "Unnamed relationship endpoints, generated symbols and unknown symbol origins have no stable identity outside a common executable coordinate context.",
             `Right: ${diagnostic}`,
           ]),
         });

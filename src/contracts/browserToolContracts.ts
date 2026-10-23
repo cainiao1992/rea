@@ -143,8 +143,17 @@ const exampleScenarioCapture = () => ({
       network_transaction_range: null,
     },
   },
-  completeness: scenarioCompleteness,
-  limitations: [],
+  completeness: {
+    status: "incomplete",
+    equality_eligible: false,
+    missing_sections: ["events"],
+    truncated_sections: [],
+  },
+  limitations: [
+    "CDP attachment cannot recover pre-attach events or guarantee launch-time context options.",
+    "Attached locale en-US applies to Intl formatting only; navigator.language(s) and Accept-Language remain caller-controlled. Use launch mode for matching page and request languages.",
+    "Detaching a CDP page session may clear caller-owned navigator.platform emulation. REA cannot snapshot the caller's complete user-agent/client-hint state before attachment; use launch mode to avoid mutating that external browser.",
+  ],
 });
 
 /** Passive browser reverse-engineering contracts. */

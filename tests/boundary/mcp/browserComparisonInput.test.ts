@@ -56,7 +56,7 @@ async function capturePassivePair(
 }
 
 describe("browser comparison input boundary", () => {
-  it("advertises complete producer captures and agrees with SDK validation on both comparison families", async () => {
+  it("advertises producer captures and agrees with SDK validation on both comparison families", async () => {
     const browser = await startFakeCdpBrowser({ sensitiveShapes: true });
     const server = new McpServer({ name: "capture-input", version: "0" });
     const client = new Client({ name: "capture-input", version: "0" });
@@ -172,6 +172,10 @@ describe("browser comparison input boundary", () => {
         });
         expect(calls - beforeCalls).toBe(runtimeValid ? 1 : 0);
         expect(result.isError === true).toBe(!runtimeValid);
+        if (input === scenario)
+          expect(result.structuredContent).toMatchObject({
+            normalized_result: { overall_status: "unknown" },
+          });
         if (runtimeValid)
           expect(result.structuredContent).toMatchObject({
             operation: contract.name,

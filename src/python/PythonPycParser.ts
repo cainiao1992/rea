@@ -151,6 +151,8 @@ const containerChildren = (value: MarshalValue): readonly MarshalValue[] => {
  */
 type CodeEquality = {
   readonly consts: readonly MarshalValue[];
+  /** The co_consts tuple itself, which may be a reference to an unfinished tuple. */
+  readonly constsTuple: MarshalValue;
   readonly effectiveFlags: number;
   readonly linetable: string;
   readonly exceptiontable: string;
@@ -295,6 +297,10 @@ class MarshalReader {
   readonly #codeKeys = new WeakMap<CodeNode, string>();
   readonly #codeIdentities = new WeakMap<CodeNode, number>();
   readonly #codeEquality = new WeakMap<CodeNode, CodeEquality>();
+  /** Python hashability per code object. False while that check is in progress. */
+  readonly #codeHashable = new WeakMap<CodeNode, boolean>();
+  /** Tuples whose items are still being read; CPython cannot hash them yet. */
+  readonly #readingTuples = new WeakSet<MarshalValue>();
   /** Code objects whose const summaries wait until the graph is fully decoded. */
   readonly #codes: CodeNode[] = [];
   /**
@@ -433,7 +439,8 @@ class MarshalReader {
     // 3.7–3.10 constructors do not, so an odd `co_code` stays readable there.
     if (this.layout === "py311" && bytecode.length % 2 !== 0)
       malformed("co_code is malformed.");
-    const consts = asTuple(this.readObject(depth + 1), "co_consts");
+    const constsTuple = this.readObject(depth + 1);
+    const consts = asTuple(constsTuple, "co_consts");
     this.#chargeConsts(consts.length);
     const names = this.#nameTable(
       asTuple(this.readObject(depth + 1), "co_names"),
@@ -531,6 +538,7 @@ class MarshalReader {
           : flags & ~CO_NOFREE;
     this.#codeEquality.set(node, {
       consts,
+      constsTuple,
       effectiveFlags,
       linetable: `${linetable.length}:${sha256(linetable)}`,
       exceptiontable: `${exceptiontable.length}:${sha256(exceptiontable)}`,
@@ -834,12 +842,14 @@ class MarshalReader {
     const value: MarshalValue =
       kind === "tuple" ? { kind: "tuple", items } : { kind: "list", items };
     this.#publish(slot, value);
+    if (kind === "tuple") this.#readingTuples.add(value);
     for (let index = 0; index < count; index += 1) {
       const item = this.readObject(depth + 1);
       if (item.kind === "null")
         malformed("NULL object in marshal data for sequence.");
       items.push(item);
     }
+    this.#readingTuples.delete(value);
     return value;
   }
 
@@ -953,6 +963,9 @@ class MarshalReader {
       this.#takeKeyStep();
       const frame = frames[frames.length - 1];
       if (frame === undefined) break;
+      // A tuple still being read has missing items; CPython cannot hash it.
+      if (mode === "hash" && this.#readingTuples.has(frame.value))
+        frame.failed = true;
       const items =
         frame.value.kind === "tuple" || frame.value.kind === "frozenset"
           ? frame.value.items
@@ -1107,6 +1120,7 @@ class MarshalReader {
         return `${prefix}${value.value.length}:${value.value.toString("hex")}`;
       }
       case "code":
+        if (mode === "hash" && !this.#isCodeHashable(value.value)) return null;
         return this.#codeKey(value.value);
       default:
         return mode === "const" ? this.#identity(value) : null;
@@ -1205,6 +1219,23 @@ class MarshalReader {
     );
     this.#codeKeys.set(node, key);
     return key;
+  }
+
+  /**
+   * CPython hashes the consts tuple itself, so one unhashable const makes the
+   * code unhashable. A const that leads back to the same code counts as
+   * unhashable instead of recursing.
+   */
+  #isCodeHashable(node: CodeNode): boolean {
+    const known = this.#codeHashable.get(node);
+    if (known !== undefined) return known;
+    this.#codeHashable.set(node, false);
+    const material =
+      this.#codeEquality.get(node) ??
+      malformed("Code object is missing equality material.");
+    const hashable = this.#equalityKey(material.constsTuple, "hash") !== null;
+    this.#codeHashable.set(node, hashable);
+    return hashable;
   }
 
   #codeIdentity(node: CodeNode): number {

@@ -65,8 +65,8 @@ is that marshal length. Integer consts report `bits`; their decimal `value` is
 `-inf`, and `nan` spellings. Dictionary and set lengths follow CPython:
 unhashable keys and members fail the walk, equal set members count once, equal
 dictionary keys keep the first key object and replace only its value, code
-objects are valid keys and members, and a null dictionary value ends the dict
-without that entry.
+objects are valid keys and members only when all of their consts are hashable,
+and a null dictionary value ends the dict without that entry.
 
 ## Limits and failures
 

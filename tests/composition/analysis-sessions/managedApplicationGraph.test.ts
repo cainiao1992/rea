@@ -209,7 +209,7 @@ describe("managed application graph projection", () => {
       true,
     );
     if (!trace.ok) throw new Error("trace failed");
-    expect(trace.value.normalized_result).toMatchObject({
+    expect(trace.value.result).toMatchObject({
       source_evidence_id: parsed.evidence_id,
       summary: { matched_seeds: 1 },
     });

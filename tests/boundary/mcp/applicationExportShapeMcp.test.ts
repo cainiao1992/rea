@@ -9,7 +9,6 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { analyzeJavaScriptApplication } from "../../support/javascriptApplicationScope.js";
 import { compareJavaScriptExportShapesEvidence } from "../../../src/application/javascript/JavaScriptApplicationWorkflowService.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
-import { javaScriptExportShapeComparisonResultSchema } from "../../../src/domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
 import { APPLICATION_TOOL_CONTRACTS } from "../../../src/contracts/applicationToolContracts.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
@@ -516,7 +515,5 @@ const compareEvidence = (
     right_export_name: "default",
   });
   if (!compared.ok) throw compared.error;
-  return javaScriptExportShapeComparisonResultSchema.parse(
-    compared.value.normalized_result,
-  );
+  return compared.value.result;
 };

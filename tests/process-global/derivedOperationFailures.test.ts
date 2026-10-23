@@ -39,6 +39,16 @@ import { processCaptureSchema } from "../../src/domain/process/processCapture.js
 import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { javaScriptSemanticQueryResultSchema } from "../../src/domain/javascript/javascriptSemanticQuerySchemas.js";
+import {
+  JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
+  JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
+  SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
+} from "../../src/contracts/javascript/javascriptApplicationWorkflowExamples.js";
+import { JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE } from "../../src/contracts/javascript/javascriptExportShapeComparisonExample.js";
+import { applicationFeatureTraceResultSchema } from "../../src/domain/javascript/javascriptFeatureTraceSchemas.js";
+import { ownedApplicationVersionComparisonResultSchema } from "../../src/domain/javascript/javascriptApplicationVersionComparisonSchemas.js";
+import { javaScriptExportShapeComparisonResultSchema } from "../../src/domain/javascript/javascriptExportShapeComparisonSchemas.js";
+import { sourceToBundleComparisonResultSchema } from "../../src/domain/javascript/sourceToBundleComparisonSchemas.js";
 
 import { nativeFunctionMatchingSchema } from "../../src/domain/native/functionMatching.js";
 import { FunctionByteCoverage } from "../../src/domain/native/functionByteCoverage.js";
@@ -71,6 +81,50 @@ const unexpectedResultFailures = [
     },
   ],
 ] as const;
+
+describe.each([
+  {
+    name: "trace_application_feature",
+    input: JAVASCRIPT_FEATURE_TRACE_EXAMPLE,
+    result: applicationFeatureTraceResultSchema,
+  },
+  {
+    name: "compare_application_versions",
+    input: JAVASCRIPT_APPLICATION_VERSION_COMPARISON_EXAMPLE,
+    result: ownedApplicationVersionComparisonResultSchema,
+  },
+  {
+    name: "compare_javascript_export_shapes",
+    input: JAVASCRIPT_EXPORT_SHAPE_COMPARISON_EXAMPLE,
+    result: javaScriptExportShapeComparisonResultSchema,
+  },
+  {
+    name: "compare_source_to_bundle",
+    input: SOURCE_TO_BUNDLE_COMPARISON_EXAMPLE,
+    result: sourceToBundleComparisonResultSchema,
+  },
+])("$name output failures through the public SDK", (workflow) => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(unexpectedResultFailures)(
+    "preserves an unexpected %s without recording sources or derived Evidence",
+    async (_kind, createFailure) => {
+      await withSdk(async ({ client, session }) => {
+        const failure = createFailure();
+        vi.spyOn(workflow.result, "parse").mockImplementation(() => {
+          throw failure;
+        });
+        const response = await client.callTool({
+          name: workflow.name,
+          arguments: workflow.input,
+        });
+        expectUnexpectedToolFailure(response, failure);
+        expect(session.exportEvidenceBundle().records).toEqual([]);
+        expect(session.exportEvidenceBundle().unknowns).toEqual([]);
+      });
+    },
+  );
+});
 
 const invalidFunctionOperationEvidence = () => {
   const left = FUNCTION_COMPARISON_EXAMPLE.left;

@@ -1,11 +1,9 @@
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
-import { resolvePairedEvidenceRequest } from "../../application/EvidenceInputResolver.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
-import { compareApplicationVersionsEvidenceValidated } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
+import { compareApplicationVersionsEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
-import { applicationVersionComparisonResultSchema } from "../../domain/javascript/javascriptApplicationVersionComparisonSchemas.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
@@ -28,43 +26,27 @@ export const registerCompareApplicationVersionsTool = (
         compareContract.name,
         context.mcpReq.signal,
         async () => {
-          const resolved = resolvePairedEvidenceRequest(
-            input,
-            options.evidenceById,
-          );
-          if (!resolved.ok)
-            return server.delivery.toCallToolResult(resolved, compareContract);
-          const parsed = resolved.value;
           const result = await logToolExecution(
             options.logger,
             compareContract.name,
             () =>
               Promise.resolve(
-                compareApplicationVersionsEvidenceValidated(parsed),
+                compareApplicationVersionsEvidence(input, options.evidenceById),
               ),
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, compareContract);
-          const sources = [
-            parsed.left,
-            parsed.right,
-            ...parsed.left_native_observations,
-            ...parsed.right_native_observations,
-          ];
           const recorded = recordSessionEvidenceSources(
             options.recordEvidence,
-            sources,
+            result.value.sources,
           );
           if (!recorded.ok)
             return server.delivery.toCallToolResult(recorded, compareContract);
-          const comparison = applicationVersionComparisonResultSchema.parse(
-            result.value.normalized_result,
-          );
-          const unknown = comparison.summary.unknown > 0;
+          const unknown = result.value.result.summary.unknown > 0;
           return recordResult(
             { ...options, delivery: server.delivery },
             compareContract,
-            result.value,
+            result.value.evidence,
             unknown ? "application-version-comparison" : undefined,
           );
         },

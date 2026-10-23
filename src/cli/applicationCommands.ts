@@ -8,11 +8,8 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { Logger } from "pino";
-import { traceApplicationFeatureInputSchema } from "../domain/javascript/javascriptFeatureTraceSchemas.js";
 import { traceJavaScriptSemanticsInputSchema } from "../domain/javascript/javascriptSemanticTraceSchemas.js";
-import { compareApplicationVersionsInputSchema } from "../domain/javascript/javascriptApplicationVersionComparisonSchemas.js";
 import { registerSourceToBundleCommand } from "./sourceToBundleCommand.js";
-import { compareJavaScriptExportShapesInputSchema } from "../domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 
 type CliInstance = ReturnType<typeof Cli.create>;
@@ -28,11 +25,12 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.traceApplicationFeature,
     description:
       "Trace a typed seed through authenticated application Evidence JSON",
-    inputSchema: traceApplicationFeatureInputSchema,
+    inputSchema: z.unknown(),
     workflow: async (input) => {
-      const { traceApplicationFeatureEvidenceValidated } =
+      const { traceApplicationFeatureEvidence } =
         await import("../application/javascript/JavaScriptApplicationWorkflowService.js");
-      return traceApplicationFeatureEvidenceValidated(input);
+      const result = traceApplicationFeatureEvidence(input);
+      return result.ok ? { ok: true, value: result.value.evidence } : result;
     },
   });
   registerJsonCommand({
@@ -54,11 +52,12 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.compareApplicationVersions,
     description:
       "Compare two authenticated JavaScript Application Graph versions",
-    inputSchema: compareApplicationVersionsInputSchema,
+    inputSchema: z.unknown(),
     workflow: async (input) => {
-      const { compareApplicationVersionsEvidenceValidated } =
+      const { compareApplicationVersionsEvidence } =
         await import("../application/javascript/JavaScriptApplicationWorkflowService.js");
-      return compareApplicationVersionsEvidenceValidated(input);
+      const result = compareApplicationVersionsEvidence(input);
+      return result.ok ? { ok: true, value: result.value.evidence } : result;
     },
   });
   registerSourceToBundleCommand(cli, logger);
@@ -68,11 +67,12 @@ export const registerApplicationCommands = (
     name: CLI_COMMANDS.compareJavaScriptExportShapes,
     description:
       "Compare exact static JavaScript export return shapes without execution",
-    inputSchema: compareJavaScriptExportShapesInputSchema,
+    inputSchema: z.unknown(),
     workflow: async (input) => {
-      const { compareJavaScriptExportShapesEvidenceValidated } =
+      const { compareJavaScriptExportShapesEvidence } =
         await import("../application/javascript/JavaScriptApplicationWorkflowService.js");
-      return compareJavaScriptExportShapesEvidenceValidated(input);
+      const result = compareJavaScriptExportShapesEvidence(input);
+      return result.ok ? { ok: true, value: result.value.evidence } : result;
     },
   });
   registerObligationLedgerCommand(cli, logger);

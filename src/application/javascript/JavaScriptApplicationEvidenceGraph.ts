@@ -320,7 +320,7 @@ const requireProvider = (
     );
 };
 
-/** Parse unique, artifact-bound Evidence that may extend a native handoff. */
+/** Authenticate artifact-bound Evidence that may extend a native handoff. */
 export const parseNativeApplicationEvidence = (
   inputs: readonly unknown[],
   path: readonly (string | number)[] = [],
@@ -335,13 +335,6 @@ export const parseNativeApplicationEvidence = (
         [...path, withoutSubject],
         "subject",
         "Native handoff Evidence requires an artifact subject.",
-      );
-    const ids = parsed.map(({ evidence_id: id }) => id);
-    if (new Set(ids).size !== ids.length)
-      throw invalidEvidence(
-        path,
-        "evidence_id",
-        "Native handoff Evidence must be unique.",
       );
     return parsed;
   });

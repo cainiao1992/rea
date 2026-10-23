@@ -198,9 +198,7 @@ describe("complete comparison projections", () => {
     ]);
     const compared = compareApplicationVersionsEvidence({ left, right });
     if (!compared.ok) throw compared.error;
-    const result = applicationVersionComparisonResultSchema.parse(
-      compared.value.normalized_result,
-    );
+    const result = compared.value.result;
     expectFullComparisonResultSchema(result);
     const modules = result.items.filter(
       ({ node_kind: kind }) => kind === "javascript-module",
@@ -261,9 +259,7 @@ describe("complete comparison projections", () => {
     ]);
     const compared = compareApplicationVersionsEvidence({ left, right });
     if (!compared.ok) throw compared.error;
-    const result = applicationVersionComparisonResultSchema.parse(
-      compared.value.normalized_result,
-    );
+    const result = compared.value.result;
     expect(result.items).toContainEqual(
       expect.objectContaining({
         node_kind: "source-module",

@@ -202,10 +202,7 @@ try {
     direction: "incoming",
   });
   assert.equal(applicationTrace.ok, true);
-  assert.equal(
-    applicationTrace.value.normalized_result.summary.matched_seeds,
-    1,
-  );
+  assert.equal(applicationTrace.value.result.summary.matched_seeds, 1);
 
   const readyToRun = await fixture("r2r-x64.exe", {
     machine: 0x8664,

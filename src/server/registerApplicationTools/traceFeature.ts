@@ -1,9 +1,8 @@
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
-import { resolveApplicationEvidenceRequest } from "../../application/EvidenceInputResolver.js";
 import { recordSessionEvidenceSources } from "../sessionEvidence.js";
 
-import { traceApplicationFeatureEvidenceValidated } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
+import { traceApplicationFeatureEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
 import { applicationToolContract } from "../../contracts/applicationToolContracts.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
@@ -27,32 +26,26 @@ export const registerTraceFeatureTool = (
         traceContract.name,
         context.mcpReq.signal,
         async () => {
-          const resolved = resolveApplicationEvidenceRequest(
-            input,
-            options.evidenceById,
-          );
-          if (!resolved.ok)
-            return server.delivery.toCallToolResult(resolved, traceContract);
-          const parsed = resolved.value;
           const result = await logToolExecution(
             options.logger,
             traceContract.name,
             () =>
-              Promise.resolve(traceApplicationFeatureEvidenceValidated(parsed)),
+              Promise.resolve(
+                traceApplicationFeatureEvidence(input, options.evidenceById),
+              ),
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, traceContract);
-          const sources = [parsed.application, ...parsed.native_observations];
           const recorded = recordSessionEvidenceSources(
             options.recordEvidence,
-            sources,
+            result.value.sources,
           );
           if (!recorded.ok)
             return server.delivery.toCallToolResult(recorded, traceContract);
           return recordResult(
             { ...options, delivery: server.delivery },
             traceContract,
-            result.value,
+            result.value.evidence,
           );
         },
       ),

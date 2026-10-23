@@ -8,7 +8,11 @@ import {
   rustcCommitSchema,
   type RustBinary,
 } from "../rust/rustBinary.js";
-import { isImmutableJsonSnapshot } from "../immutableJson.js";
+import {
+  canBorrowParsedJsonSnapshot,
+  freezeOwnedJsonTreeSnapshot,
+  isImmutableJsonSnapshot,
+} from "../immutableJson.js";
 import { err, ok, type Result } from "../result.js";
 import type {
   AnalysisViewParent,
@@ -75,9 +79,14 @@ const parseReport = (
   if (known !== undefined) return ok(known);
   const parsed = parseAnalysisViewResult(rustBinarySchema, parent);
   if (!parsed.ok) return parsed;
-  const report = reusable ? (key as RustBinary) : parsed.value;
-  if (reusable) checkedReports.set(key, report);
-  return ok(report);
+  if (reusable) {
+    const report = canBorrowParsedJsonSnapshot(key, parsed.value)
+      ? key
+      : freezeOwnedJsonTreeSnapshot(parsed.value);
+    checkedReports.set(key, report);
+    return ok(report);
+  }
+  return parsed;
 };
 
 const summarize = (

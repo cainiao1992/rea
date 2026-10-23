@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { createEvidence } from "../evidence.js";
+import { freezeJsonSnapshot } from "../immutableJson.js";
 import type { RustBinary } from "../rust/rustBinary.js";
 import {
   projectAnalysisView,
@@ -77,29 +78,36 @@ it("revalidates mutable and merely frozen Rust imports despite a claimed seal", 
   ).toBe(false);
 });
 
-it("pages retained Rust rows from before feature metadata was added as unknown", () => {
-  const previous = structuredClone(report);
-  const metadata = previous.auditable_metadata;
-  if (metadata === null) throw new Error("Expected Rust metadata");
-  const legacy = {
-    ...previous,
-    auditable_metadata: {
-      ...metadata,
-      packages: metadata.packages.map(({ features: _features, ...pkg }) => pkg),
-    },
-  } as unknown as RustBinary;
-  const result = projectAnalysisView(parent(legacy), {
-    kind: "rust",
-    collection: "packages",
-    fields: ["features"],
-    offset: 0,
-    limit: 10,
-  });
-  if (!result.ok) throw result.error;
-  expect(result.value).toMatchObject({
-    page: { rows: [{ index: 0, features: null }] },
-  });
-});
+it.each([false, true])(
+  "pages historical Rust feature omissions with a sealed source: %s",
+  (sealed) => {
+    const previous = structuredClone(report);
+    const metadata = previous.auditable_metadata;
+    if (metadata === null) throw new Error("Expected Rust metadata");
+    const legacy = {
+      ...previous,
+      auditable_metadata: {
+        ...metadata,
+        packages: metadata.packages.map(
+          ({ features: _features, ...pkg }) => pkg,
+        ),
+      },
+    } as unknown as RustBinary;
+    if (sealed) freezeJsonSnapshot(legacy);
+    const input = { ...parent(legacy), sealedResult: sealed };
+    const result = projectAnalysisView(input, {
+      kind: "rust",
+      collection: "packages",
+      fields: ["features"],
+      offset: 0,
+      limit: 10,
+    });
+    if (!result.ok) throw result.error;
+    expect(result.value).toMatchObject({
+      page: { rows: [{ index: 0, features: null }] },
+    });
+  },
+);
 
 it("checks exact artifact identity and subject architecture for every Rust view", () => {
   for (const changed of [

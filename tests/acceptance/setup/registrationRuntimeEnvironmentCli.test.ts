@@ -272,7 +272,11 @@ for (const scenario of scenarios)
         const server = {
           command: "stale-launcher",
           args: ["mcp"],
-          env: { CALLER_SETTING: "keep exactly", ...env },
+          env: {
+            CALLER_SETTING: "keep exactly",
+            ["__proto__"]: "retain caller key",
+            ...env,
+          },
         };
         return scenario.client === "dsh"
           ? stringify([
@@ -350,7 +354,11 @@ for (const scenario of scenarios)
       const text = await readFile(config, "utf8");
       const parsed = parseClientConfiguration(text, scenario.format);
       expect(effectiveClientServer(parsed, "rea")).toMatchObject({
-        env: { CALLER_SETTING: "keep exactly", ...scenario.repaired },
+        env: {
+          CALLER_SETTING: "keep exactly",
+          ["__proto__"]: "retain caller key",
+          ...scenario.repaired,
+        },
       });
       expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(repaired);
       const repeated = await run([

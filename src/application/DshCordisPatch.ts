@@ -223,7 +223,7 @@ export class DshCordisDocument {
       return err(
         new ConfigurationError("Cordis server environment must be a mapping"),
       );
-    const literals: Record<string, string> = {};
+    const literals: Record<string, string> = Object.create(null);
     const unresolvedSettings = new Set<string>();
     for (const [key, value] of Object.entries(
       mergeEnvironmentOverrides<unknown>(raw ?? {}, overrides, platform),
@@ -246,8 +246,7 @@ export class DshCordisDocument {
         );
       literals[key] = value;
     }
-    const environment = literals;
-    const runtimeEnvironment = snapshotEnvironment(environment, platform);
+    const runtimeEnvironment = snapshotEnvironment(literals, platform);
     const unresolved = new Set(
       Object.keys(
         snapshotEnvironment(
@@ -260,7 +259,7 @@ export class DshCordisDocument {
       validation === "fragment"
         ? parseEnvironmentValues(runtimeEnvironment, unresolved)
         : parseEnvironment(runtimeEnvironment, unresolved);
-    return validated.ok ? ok(environment) : validated;
+    return validated.ok ? ok(literals) : validated;
   }
 
   desired(

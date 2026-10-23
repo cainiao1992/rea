@@ -363,12 +363,17 @@ it.each([
       REA_GHIDRA_LANGUAGE_ID: "x86:LE:32:default",
       REA_GHIDRA_COMPILER_SPEC_ID: "borlandcpp",
       CALLER_SETTING: "preserve exactly",
+      ["__proto__"]: "caller prototype setting",
+      constructor: "caller constructor setting",
+      toString: "caller string setting",
     };
     const serialized = serializeClientConfiguration(
       {
+        ["__proto__"]: { caller: "retain root value" },
         [serversKey]: {
           rea: clientRegistrationEntry(format, ["rea-old", "mcp"], custom),
           other: clientRegistrationEntry(format, ["other"], { OTHER: "keep" }),
+          ["__proto__"]: clientRegistrationEntry(format, ["peer"], {}),
         },
       },
       format,
@@ -386,6 +391,14 @@ it.each([
     ).toMatchObject({ status: "configured" });
     const configured = await readFile(configPath, "utf8");
     const parsed = parseClientConfiguration(configured, format);
+    expect(Object.hasOwn(parsed.document, "__proto__")).toBe(true);
+    expect(parsed.document["__proto__"]).toEqual({
+      caller: "retain root value",
+    });
+    expect(Object.hasOwn(parsed.servers, "__proto__")).toBe(true);
+    expect(effectiveClientServer(parsed, "__proto__")).toEqual(
+      clientRegistrationEntry(format, ["peer"], {}),
+    );
     expect(effectiveClientServer(parsed, "rea")).toHaveProperty(
       environmentKey,
       { ...custom, ...providers },
@@ -409,6 +422,63 @@ it.each([
     expect(await readFile(configPath, "utf8")).toBe(configured);
   },
 );
+
+it.each(["linux", "win32"] as const)(
+  "retains every literal Cordis environment key for %s",
+  (platform) => {
+    const source = `- insert:
+    - id: rea-mcp
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: rea
+        transport: stdio
+        command: rea
+        args: [mcp]
+        env:
+          "__proto__": selected
+          constructor: caller
+          CUSTOM: !!js caller.custom
+`;
+    const details = clientRegistrationEnvironmentDetails(
+      parseClientConfiguration(source, "dsh"),
+      {},
+      "effective",
+      platform,
+    );
+    expect(details.ok).toBe(true);
+    if (!details.ok) throw details.error;
+    expect(Object.entries(details.value.values)).toEqual([
+      ["__proto__", "selected"],
+      ["constructor", "caller"],
+    ]);
+  },
+);
+
+it("rejects a non-string caller environment key before editing configuration", async () => {
+  const root = await createTestTempDirectory("rea-invalid-own-environment-");
+  const configPath = join(root, "config.json");
+  const source =
+    '{"mcpServers":{"rea":{"command":"old-rea","args":["mcp"],"env":{"__proto__":123}}}}';
+  await writeFile(configPath, source);
+  const details = clientRegistrationEnvironmentDetails(
+    parseClientConfiguration(source, "json"),
+  );
+  expect(details).toMatchObject({
+    ok: false,
+    error: { settings: [{ setting: "env.__proto__" }] },
+  });
+  expect(
+    await configureClientConfiguration(
+      { name: "cursor", format: "json", configPath },
+      {},
+      ["rea", "mcp"],
+    ),
+  ).toMatchObject({ status: "failed" });
+  expect(await readFile(configPath, "utf8")).toBe(source);
+  await expect(access(`${configPath}.rea.backup`)).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
 
 it("retains legacy OpenCode environment when migrating into a native server table", async () => {
   const root = await createTestTempDirectory("rea-opencode-environment-");

@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import {
   parseEnvironment,
   parseEnvironmentValues,
@@ -8,6 +6,7 @@ import { ConfigurationError } from "../domain/configurationErrors.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   effectiveClientServer,
+  clientConfigurationRecordSchema,
   type ClientConfigurationDocument,
 } from "./ClientConfigurationDocument.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
@@ -29,6 +28,22 @@ export interface ClientRegistrationEnvironmentDetails {
   readonly values: Readonly<Record<string, string>>;
   readonly timeoutInputs: McpToolTimeoutInputs;
 }
+
+const environmentSchema = clientConfigurationRecordSchema.transform(
+  (values, context) => {
+    const entries: [string, string][] = [];
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value === "string") entries.push([key, value]);
+      else
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Environment values must be strings",
+        });
+    }
+    return Object.fromEntries(entries);
+  },
+);
 
 /** Read explicit REA overrides without dropping peers when one value is invalid. */
 export const clientRegistrationEnvironment = (
@@ -80,9 +95,7 @@ export const clientRegistrationEnvironmentDetails = (
     typeof registration === "object" && registration !== null
       ? Reflect.get(registration, key)
       : undefined;
-  const existing = z
-    .record(z.string(), z.string())
-    .safeParse(raw === undefined ? {} : raw);
+  const existing = environmentSchema.safeParse(raw === undefined ? {} : raw);
   if (!existing.success)
     return err(
       new ConfigurationError("Invalid REA server environment", {

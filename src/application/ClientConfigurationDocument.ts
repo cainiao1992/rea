@@ -17,7 +17,6 @@ import {
   createScanner,
   format as formatJson,
   getNodeValue,
-  parse as parseJsonc,
   parseTree,
   printParseErrorCode,
   type Edit,
@@ -58,7 +57,14 @@ export interface ClientConfigurationDocument {
   readonly legacyServers: Record<string, unknown>;
 }
 
-const objectSchema = z.record(z.string(), z.unknown());
+/** Admit source mappings without Zod's record clone dropping caller keys. */
+export const clientConfigurationRecordSchema = z
+  .custom<Record<string, unknown>>((value) => {
+    if (typeof value !== "object" || value === null) return false;
+    const prototype: unknown = Object.getPrototypeOf(value);
+    return prototype === null || prototype === Object.prototype;
+  })
+  .transform((value) => Object.fromEntries(Object.entries(value)));
 
 /** Compare parsed configuration values without depending on parser prototypes. */
 export const clientConfigurationValuesEqual = (
@@ -171,24 +177,27 @@ const parseDocument = (
   const errors: ParseError[] = [];
   // Accept a UTF-8 BOM without shifting diagnostics or editing the original text.
   const jsonText = text.startsWith("\uFEFF") ? ` ${text.slice(1)}` : text;
-  const document = parseJsonc(jsonText, errors, { allowTrailingComma: true });
+  const root = parseTree(jsonText, errors, { allowTrailingComma: true });
   const firstError = errors[0];
   if (firstError !== undefined)
     throw new SyntaxError(
       `Invalid JSON/JSONC at offset ${firstError.offset}: ${printParseErrorCode(firstError.error)}`,
     );
-  return requireObject(document, "The configuration root");
+  return requireObject(
+    root === undefined ? undefined : getNodeValue(root),
+    "The configuration root",
+  );
 };
 
 /** A parsed configuration whose structure, not its syntax, cannot hold MCP servers. */
 export class ClientConfigurationShapeError extends TypeError {}
 
-/** Validate and copy own properties, excluding non-record YAML values and parser-injected prototypes. */
+/** Validate source mappings and copy their own properties without rewriting values. */
 const requireObject = (
   value: unknown,
   description: string,
 ): Record<string, unknown> => {
-  const parsed = objectSchema.safeParse(value);
+  const parsed = clientConfigurationRecordSchema.safeParse(value);
   if (parsed.success) return parsed.data;
   throw new ClientConfigurationShapeError(`${description} must be an object`, {
     cause: parsed.error,
@@ -283,7 +292,9 @@ export const effectiveClientServer = (
 ): unknown =>
   Object.hasOwn(parsed.servers, name)
     ? parsed.servers[name]
-    : parsed.legacyServers[name];
+    : Object.hasOwn(parsed.legacyServers, name)
+      ? parsed.legacyServers[name]
+      : undefined;
 
 /**
  * Return `parsed.document` with `servers` at its server table. A legacy OpenCode
@@ -299,7 +310,9 @@ export const withClientServers = (
     return Object.hasOwn(servers, PRODUCT_IDENTITY.mcpServerKey)
       ? editDshDocument(
           parsed,
-          objectSchema.parse(servers[PRODUCT_IDENTITY.mcpServerKey]),
+          clientConfigurationRecordSchema.parse(
+            servers[PRODUCT_IDENTITY.mcpServerKey],
+          ),
         )
       : editDshDocument(parsed);
   const [key = "", nested] = parsed.serversPath;
@@ -308,7 +321,9 @@ export const withClientServers = (
   // ZCode `config.json` without an `mcp` object), so treat absence as empty.
   const outerValue = parsed.document[key];
   const outer =
-    outerValue === undefined ? {} : { ...objectSchema.parse(outerValue) };
+    outerValue === undefined
+      ? {}
+      : clientConfigurationRecordSchema.parse(outerValue);
   if (
     parsed.dialect === "opencode_v2" &&
     removeLegacy !== undefined &&
@@ -325,7 +340,7 @@ const valueAt = (
 ): unknown => {
   let current: unknown = document;
   for (const key of path) {
-    const object = objectSchema.safeParse(current);
+    const object = clientConfigurationRecordSchema.safeParse(current);
     if (!object.success || !Object.hasOwn(object.data, key)) return undefined;
     current = object.data[key];
   }
@@ -1181,7 +1196,9 @@ const tomlServerEntry = (
   document: Record<string, unknown>,
   serverKey: string,
 ): unknown => {
-  const servers = objectSchema.safeParse(document.mcp_servers);
+  const servers = clientConfigurationRecordSchema.safeParse(
+    document.mcp_servers,
+  );
   if (!servers.success || !Object.hasOwn(servers.data, serverKey))
     return undefined;
   return servers.data[serverKey];
@@ -1255,7 +1272,9 @@ const serializeGrokConfiguration = (
 const withoutEmptyServerTable = (
   document: Record<string, unknown>,
 ): Record<string, unknown> => {
-  const servers = objectSchema.safeParse(document.mcp_servers);
+  const servers = clientConfigurationRecordSchema.safeParse(
+    document.mcp_servers,
+  );
   if (!servers.success || Object.keys(servers.data).length > 0) return document;
   const { mcp_servers: empty, ...rest } = document;
   void empty;
@@ -1291,7 +1310,9 @@ const tomlTextHolds = (
 ): boolean => {
   try {
     return clientConfigurationValuesEqual(
-      withoutEmptyServerTable(objectSchema.parse(parseClientToml(text))),
+      withoutEmptyServerTable(
+        clientConfigurationRecordSchema.parse(parseClientToml(text)),
+      ),
       withoutEmptyServerTable(document),
     );
   } catch (cause: unknown) {

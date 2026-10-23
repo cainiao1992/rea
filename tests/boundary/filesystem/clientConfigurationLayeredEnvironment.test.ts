@@ -152,8 +152,16 @@ it("rejects a companion absent from the complete layered environment", async () 
 
 it("keeps higher-priority values and does not copy inherited settings into the write layer", async () => {
   const fixture = await layered(
-    { REA_GHIDRA_LANGUAGE_ID: language, HOPPER_LOADER_ARGS_JSON: '["lower"]' },
-    { REA_GHIDRA_COMPILER_SPEC_ID: compiler, HOPPER_LOADER_ARGS_JSON: '[""]' },
+    {
+      REA_GHIDRA_LANGUAGE_ID: language,
+      HOPPER_LOADER_ARGS_JSON: '["lower"]',
+      ["__proto__"]: "lower caller value",
+    },
+    {
+      REA_GHIDRA_COMPILER_SPEC_ID: compiler,
+      HOPPER_LOADER_ARGS_JSON: '[""]',
+      ["__proto__"]: "selected caller value",
+    },
   );
   expect(
     await configureClientConfiguration(
@@ -173,6 +181,7 @@ it("keeps higher-priority values and does not copy inherited settings into the w
       REA_GHIDRA_COMPILER_SPEC_ID: compiler,
       HOPPER_LOADER_ARGS_JSON: '[""]',
       REA_LOG_LEVEL: "debug",
+      ["__proto__"]: "selected caller value",
     },
   );
   expect(
@@ -185,6 +194,31 @@ it("keeps higher-priority values and does not copy inherited settings into the w
   expect(
     await configureClientConfiguration(fixture.client, {}, command),
   ).toEqual({ status: "unchanged" });
+});
+
+it("merges caller server names as own keys without inventing absent registrations", () => {
+  const lower = parseClientConfiguration(
+    '{"mcp":{"__proto__":{"type":"local","command":["peer"],"environment":{"LOWER":"retained"}}}}',
+    "opencode",
+  );
+  const upper = parseClientConfiguration(
+    '{"mcp":{"__proto__":{"environment":{"UPPER":"selected"}}}}',
+    "opencode",
+  );
+  expect(effectiveClientServer(lower, "constructor")).toBeUndefined();
+  const effective = effectiveClientConfiguration([
+    { ...lower, sourcePath: "lower.json" },
+    { ...upper, sourcePath: "upper.json" },
+  ]);
+  expect(effective).toBeDefined();
+  if (effective === undefined) throw new Error("missing layered configuration");
+  expect(Object.keys(effective.servers)).toEqual(["__proto__"]);
+  expect(effectiveClientServer(effective, "__proto__")).toEqual({
+    type: "local",
+    command: ["peer"],
+    environment: { LOWER: "retained", UPPER: "selected" },
+  });
+  expect(effectiveClientServer(effective, "toString")).toBeUndefined();
 });
 
 it.each([

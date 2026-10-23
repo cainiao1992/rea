@@ -164,7 +164,7 @@ export const effectiveClientConfiguration = (
   const last = documents.at(-1);
   if (last === undefined) return undefined;
   if (documents.length === 1) return last;
-  const servers: Record<string, unknown> = {};
+  const servers: Record<string, unknown> = Object.create(null);
   for (const document of documents) {
     const names = new Set([
       ...Object.keys(document.legacyServers),

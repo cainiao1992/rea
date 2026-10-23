@@ -379,10 +379,12 @@ export class SafeOutputTree {
         handles.push(directory);
         await assertHandleIdentity(directory.handle, identity, path);
         await directory.handle.sync();
+        abortIfNeeded(signal);
         await this.#closeHandle(directory);
         handles.pop();
       }
       await parent.handle.sync();
+      abortIfNeeded(signal);
       await this.#assertExactEntries();
       abortIfNeeded(signal);
       this.#published = true;

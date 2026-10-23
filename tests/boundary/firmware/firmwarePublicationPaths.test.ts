@@ -35,7 +35,12 @@ it.each(["existing", "missing-parent", "relative"] as const)(
         ok: false,
         error: {
           _tag: "AnalysisInputError",
-          issues: [{ path: ["output_directory"], reason: "invalid_value" }],
+          issues: [
+            {
+              path: ["output_directory"],
+              reason: kind === "relative" ? "invalid_format" : "invalid_value",
+            },
+          ],
         },
       });
       expect(launcher).not.toHaveBeenCalled();

@@ -70,6 +70,7 @@ const failureForPrimary = (
   path: string,
   field: "path" | "binary_path" = "path",
   maximum = INPUT_BYTES,
+  metadataPath = path,
 ): AnalysisError => {
   if (cause instanceof AnalysisError) return cause;
   if (cause instanceof Il2cppBinaryFormatFailure && cause.kind === "capacity")
@@ -91,8 +92,11 @@ const failureForPrimary = (
     cause instanceof Il2cppMetadataFormatFailure
   ) {
     const binary = cause instanceof Il2cppBinaryFormatFailure;
+    // Metadata names are read on demand while linking, so a metadata failure
+    // can surface while path still names the binary.
+    const target = binary ? path : metadataPath;
     return cause.kind === "unsupported"
-      ? new AnalysisUnsupportedTargetError(OPERATION, path, cause.message, {
+      ? new AnalysisUnsupportedTargetError(OPERATION, target, cause.message, {
           cause,
         })
       : new AnalysisInputError(OPERATION, { cause }, [
@@ -100,8 +104,8 @@ const failureForPrimary = (
             path: [binary ? field : "path"],
             reason: "invalid_format",
             message: binary
-              ? `Selected binary ${path} does not link to the metadata: ${cause.message}`
-              : `Selected artifact ${path} is corrupt: ${cause.message}`,
+              ? `Selected binary ${target} does not link to the metadata: ${cause.message}`
+              : `Selected artifact ${target} is corrupt: ${cause.message}`,
           },
         ]);
   }
@@ -166,12 +170,14 @@ const failureFor = (
   path: string,
   field: "path" | "binary_path" = "path",
   maximum = INPUT_BYTES,
+  metadataPath = path,
 ): AnalysisError => {
   const primary = failureForPrimary(
     artifactFilePrimaryFailure(cause),
     path,
     field,
     maximum,
+    metadataPath,
   );
   if (
     cause instanceof ArtifactReaderFailure &&
@@ -505,6 +511,7 @@ export class Il2cppMetadataProvider implements Il2cppMetadataPort {
               binaryPath,
               "binary_path",
               BINARY_BYTES,
+              input.path,
             );
             failure.partialObservation = metadataSourceEvidence(
               artifact,

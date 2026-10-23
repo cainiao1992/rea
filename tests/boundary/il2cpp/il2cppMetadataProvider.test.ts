@@ -575,3 +575,54 @@ it("retains both observed file identities and the selected architecture when nat
     await provider.close();
   }
 });
+
+it("names the metadata, not the binary, when linking reads a malformed metadata name", async () => {
+  const root = await createTestTempDirectory("rea-il2cpp-link-metadata-name-");
+  const path = join(root, "global-metadata.dat"),
+    binaryPath = join(root, "GameAssembly.dylib");
+  const fixture = createIl2cppMetadataFixture({ version: 39 });
+  // One generic parameter whose name index points past the string table;
+  // only native linking reads it, through a field typed as that parameter.
+  const parameterAt = fixture.bytes.length;
+  const metadata = Buffer.concat([fixture.bytes, Buffer.alloc(13)]);
+  metadata.writeInt32LE(fixture.section("strings").size, parameterAt + 1);
+  metadata.writeInt32LE(parameterAt, 8 + 12 * 12);
+  metadata.writeInt32LE(13, 8 + 12 * 12 + 4);
+  metadata.writeInt32LE(1, 8 + 12 * 12 + 8);
+  metadata.writeUInt8(2, fixture.section("fields").offset + 4);
+  const binary = Buffer.from(createIl2cppBinaryFixture());
+  binary.writeBigUInt64LE(0n, 0x980 + 32);
+  binary.writeUInt32LE(0x13 << 16, 0x980 + 32 + 8);
+  await writeFile(path, metadata);
+  await writeFile(binaryPath, binary);
+  const provider = new Il2cppMetadataProvider();
+  try {
+    const result = await provider.inspect({ path, binary_path: binaryPath });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the metadata name to be refused");
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisInputError",
+      issues: [
+        {
+          path: ["path"],
+          reason: "invalid_format",
+          message: expect.stringContaining(
+            `Selected artifact ${path} is corrupt: invalid-string:`,
+          ),
+        },
+      ],
+    });
+
+    const corrected = Buffer.from(metadata);
+    corrected.writeInt32LE(
+      fixture.stringOffset("Player") - fixture.section("strings").offset,
+      parameterAt + 1,
+    );
+    await writeFile(path, corrected);
+    expect((await provider.inspect({ path, binary_path: binaryPath })).ok).toBe(
+      true,
+    );
+  } finally {
+    await provider.close();
+  }
+});

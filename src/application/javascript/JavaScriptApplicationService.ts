@@ -12,7 +12,10 @@ import {
   type JavaScriptApplicationAnalysisResult,
   parseOwnedJavaScriptApplicationAnalysisSteps,
 } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisAccessDeniedError,
+  AnalysisOutputError,
+} from "../../domain/analysisErrorCore.js";
 import { ArtifactOperationError } from "../../domain/artifactOperationError.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Evidence } from "../../domain/evidence.js";
@@ -170,8 +173,32 @@ export const analyzeJavaScriptApplicationValidated = async (
       "code" in cause &&
       typeof cause.code === "string" &&
       FILESYSTEM_ERROR_CODES.has(cause.code)
-    )
-      return err(new ArtifactOperationError(OPERATION, "io"));
+    ) {
+      const path: unknown = Reflect.get(cause, "path");
+      const syscall: unknown = Reflect.get(cause, "syscall");
+      const diagnostics = {
+        input_path: input.input_path,
+        system_code: cause.code,
+        ...(typeof path === "string" ? { path } : {}),
+        ...(typeof syscall === "string" ? { syscall } : {}),
+      };
+      return err(
+        cause.code === "EACCES" || cause.code === "EPERM"
+          ? new AnalysisAccessDeniedError(
+              OPERATION,
+              input.input_path,
+              cause.code,
+              { cause, diagnostics },
+            )
+          : new ArtifactOperationError(
+              OPERATION,
+              "io",
+              undefined,
+              cause.message,
+              { cause, diagnostics },
+            ),
+      );
+    }
     return err(
       new ProviderAdapterError(JAVASCRIPT_APPLICATION_PROVIDER.id, OPERATION, {
         cause,

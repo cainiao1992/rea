@@ -1,7 +1,7 @@
 import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -154,17 +154,32 @@ describe("JavaScript application input selection", () => {
     },
   );
 
-  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
-    "reports an unreadable selected directory as a host access denial",
-    async () => {
+  it
+    .skipIf(process.platform === "win32" || process.getuid?.() === 0)
+    .each([0o000, 0o400])(
+    "reports denied selected-directory read/search access as a host denial (mode %s)",
+    async (mode) => {
       const { directory } = await application();
-      await chmod(directory, 0o000);
-      onTestFinished(() => chmod(directory, 0o700));
-
-      expect(await analyzeFailure({ input_path: directory })).toMatchObject({
-        code: "access_denied",
-        details: { path: directory, system_code: "EACCES" },
-      });
+      expect(
+        (await analyzeJavaScriptApplication({ input_path: directory })).ok,
+      ).toBe(true);
+      await chmod(directory, mode);
+      try {
+        expect(await analyzeFailure({ input_path: directory })).toMatchObject({
+          code: "access_denied",
+          category: "unavailable",
+          details: {
+            path: directory,
+            system_code: "EACCES",
+            boundary: "filesystem-read",
+          },
+        });
+      } finally {
+        await chmod(directory, 0o700);
+      }
+      expect(
+        (await analyzeJavaScriptApplication({ input_path: directory })).ok,
+      ).toBe(true);
     },
   );
 });

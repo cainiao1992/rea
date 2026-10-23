@@ -60,6 +60,11 @@ The result retains the canonical local path, root artifact digest, artifact
 manifest and graph commitments, JavaScript Application Graph, static
 Electron summary, reconstruction statistics, and explicit limitations. It does
 not require a live Hopper, Ghidra, browser, or Electron process.
+Selected directories require read and search access. A denied root remains a
+typed host access failure; omission handling for denied descendants does not
+make an inaccessible selected root analyzable. Other host filesystem failures
+retain the selected input, reported errno and syscall/path when supplied, and
+the original diagnostic separately from artifact-format failures.
 
 The application graph selects the shallowest `package.json` outside
 `node_modules` as its package root, breaking equal-depth ties by Unicode

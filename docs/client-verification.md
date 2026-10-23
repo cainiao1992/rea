@@ -149,6 +149,12 @@ REA_VERIFY_COPILOT_MODEL=gpt-4.1 REA_VERIFY_COPILOT_SCHEMA_PROFILE=compact npm r
 REA_VERIFY_COPILOT_MODEL=gpt-4.1 REA_VERIFY_COPILOT_SCHEMA_PROFILE=compact npm run verify:copilot-client -- call
 ```
 
+The verifier explicitly writes either selected profile into its disposable
+registration and compares the input schemas forwarded by Copilot with that
+profile's advertised schemas. A run must not infer `full` from an unset setting:
+REA's runtime default is now `compact`. The recorded client results above remain
+scoped to their executed revisions; this verifier correction is not a new client run.
+
 Both native workflows passed with the complete tool inventory. The verifier selects the
 profile only in its disposable Copilot registration and records it in the
 receipt. Compact advertisements can reduce nested validation structure; the

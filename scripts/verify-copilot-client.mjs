@@ -9,6 +9,9 @@ import {
   TOOL_CONTRACTS,
   toolContract,
 } from "../dist/contracts/toolContracts.js";
+import { advertisedInputJsonSchema } from "../dist/contracts/toolSchemaMetadata.js";
+import { presentAdvertisedInputSchema } from "../dist/contracts/compactInputSchema.js";
+import { compactPresentationForMcpInputSchemaProfile } from "../dist/config/mcpInputSchemaProfile.js";
 import { exec } from "./lib/verify-package-core.mjs";
 import { assertJavaScriptApplicationInputPaths } from "./lib/javascript-application-paths.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
@@ -160,6 +163,16 @@ const fixture = await createOpenAiModelFixture({
         assert(
           schemaValidator.validateSchema(tool.parameters),
           `${tool.name}: invalid input schema: ${JSON.stringify(schemaValidator.errors)}`,
+        );
+        assert.deepEqual(
+          tool.parameters,
+          presentAdvertisedInputSchema(
+            advertisedInputJsonSchema(
+              toolContract(tool.name.slice(prefix.length)),
+            ),
+            compactPresentationForMcpInputSchemaProfile(inputSchemaProfile),
+          ),
+          `${tool.name}: Copilot must forward the selected ${inputSchemaProfile} input schema`,
         );
         schemasChecked++;
       }
@@ -327,16 +340,15 @@ try {
   assert.deepEqual(JSON.parse(repeated.stdout).appliedActions, []);
   assert.equal(await readFile(configPath, "utf8"), configured);
   assert.equal(await readFile(`${configPath}.rea.backup`, "utf8"), original);
-  if (inputSchemaProfile === "compact") {
-    // Select the existing presentation in this disposable native-client profile.
-    const customized = JSON.parse(configured);
-    assert(customized.mcpServers.rea);
-    customized.mcpServers.rea.env = {
-      ...customized.mcpServers.rea.env,
-      REA_MCP_INPUT_SCHEMA_PROFILE: inputSchemaProfile,
-    };
-    await writeFile(configPath, JSON.stringify(customized, null, 2));
-  }
+  // Bind both choices explicitly: the server's default can change independently
+  // of the profile this verifier promises to exercise and records in its receipt.
+  const customized = JSON.parse(configured);
+  assert(customized.mcpServers.rea);
+  customized.mcpServers.rea.env = {
+    ...customized.mcpServers.rea.env,
+    REA_MCP_INPUT_SCHEMA_PROFILE: inputSchemaProfile,
+  };
+  await writeFile(configPath, JSON.stringify(customized, null, 2));
   const installedSkill = await readFile(
     join(skillDirectory, "SKILL.md"),
     "utf8",
@@ -451,7 +463,7 @@ try {
     capacityBoundary:
       inputSchemaProfile === "compact"
         ? "Explicit compact profile: complete inventory and canonical server validation; advertised schemas may be reduced. This does not fix the full-profile gpt-4.1 context boundary."
-        : "Complete canonical input and output schemas. Client model ID and wire model are recorded separately; effective token capacity and live provider compatibility remain unknown.",
+        : "Full advertised input schemas, checked at the client request boundary. Client model ID and wire model are recorded separately; effective token capacity and live provider compatibility remain unknown.",
     catalogSize,
     schemasChecked,
     spillReadRequested,

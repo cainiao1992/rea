@@ -769,6 +769,9 @@ verified, the result or error preserves that uncertainty. The result reports:
 Launch errors keep the fact that LLDB created a process separate from whether
 it remains alive. An exited `SBProcess` is reported as exited only after LLDB
 confirms that state; unresolved ownership remains retained for cleanup retry.
+An invalid process returned by `Launch`, including a rejected working directory,
+reports explicit no-process creation. With no target PID or other retained
+resource, REA releases that runtime and admits the next observation.
 Cancellation observed while output and Evidence are finalized returns partial
 cancellation Evidence, even if the target has already exited.
 

@@ -842,6 +842,70 @@ describe("LLDB late timeout publication", () => {
 });
 
 describe("LLDB pre-target phase proof", () => {
+  it("releases an invalid-process launch failure and permits the next complete observation", async () => {
+    let launches = 0;
+    const runtimes: string[] = [];
+    const tracer = new LldbCallTracer(
+      {},
+      async (_executable, arguments_) => {
+        const { config } = await configFromArguments(arguments_);
+        launches += 1;
+        runtimes.push(dirname(config.result_path));
+        await writeFile(config.observation_path, "");
+        await writeFile(config.stdout_capture_path, "");
+        await writeFile(config.stderr_capture_path, "");
+        await writeFile(
+          config.result_path,
+          JSON.stringify(
+            launches === 1
+              ? {
+                  status: "launch-error",
+                  error: "No such file or directory: fixture/absent",
+                  target_process_created: false,
+                }
+              : successfulTracerOutput,
+          ),
+        );
+        return {
+          kind: "exited",
+          exitCode: launches === 1 ? 1 : 0,
+          output: "",
+          targetLaunched: launches === 1,
+          targetIdentity: undefined,
+          cleanupFailure: undefined,
+        };
+      },
+      async () => ok(fakeTool),
+    );
+    try {
+      const rejected = await tracer.trace(request);
+      expect(rejected.ok).toBe(false);
+      if (rejected.ok) throw new Error("Expected launch refusal");
+      expect(projectAnalysisError(rejected.error)).toMatchObject({
+        code: "capability_unavailable",
+        details: {
+          reason: "launch-failed: No such file or directory: fixture/absent",
+        },
+      });
+      expect(rejected.error.cleanupIncomplete).toBe(false);
+      expect(rejected.error.cleanupResources).toEqual([]);
+      await expect(access(runtimes[0]!)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      const completed = await tracer.trace(request);
+      expect(completed.ok).toBe(true);
+      if (!completed.ok) throw completed.error;
+      expect(completed.value.run).toMatchObject(successfulTracerOutput);
+      expect(launches).toBe(2);
+      await expect(access(runtimes[1]!)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect((await tracer.close()).ok).toBe(true);
+    } finally {
+      await tracer.close();
+    }
+  });
+
   it("releases a proven pre-target integrity rejection and allows tracer reuse", async () => {
     let launches = 0;
     let firstRuntime: string | undefined;

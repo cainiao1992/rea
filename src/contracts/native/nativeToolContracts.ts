@@ -108,7 +108,7 @@ export const NATIVE_TOOL_CONTRACTS = [
   ),
   native(
     "inspect_signature",
-    "Inspect the active Mach-O executable's code-signing identity, hashes, authorities, requirements, entitlements, hardened-runtime state, and exact command provenance. native_command_timeout_ms is each codesign command's wall clock (omitted means 60000 ms). It does not raise the fixed 67108864-byte output allowance.",
+    "Inspect the selected Mach-O architecture's code-signing identity, hashes, authorities, designated requirement, entitlements and hardened-runtime state from a temporary digest-verified byte snapshot. Other slices are checked for unsigned state, with their metadata coverage stated separately. Exact command provenance is retained. native_command_timeout_ms is each codesign command's wall clock (omitted means 60000 ms). It does not raise the fixed 67108864-byte output allowance.",
     z.object({
       native_command_timeout_ms: nativeCommandTimeoutField,
     }),

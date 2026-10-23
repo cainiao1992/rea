@@ -240,3 +240,11 @@ describe("tool effects", () => {
       );
   });
 });
+
+it("advertises signature inspection's temporary snapshot filesystem writes", () => {
+  expect(TOOL_EFFECTS.inspect_signature).toMatchObject({
+    writesFilesystem: true,
+    mutatesTarget: false,
+    launchesProcess: true,
+  });
+});

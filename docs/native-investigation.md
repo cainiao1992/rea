@@ -505,7 +505,11 @@ complete observation.
   still identify the original serialized bytes. Bundle resolution reports
   malformed bytes and unsupported encodings against the original plist path
   before looking up the executable. Interface Builder decoding
-  limits aggregate input archives to 32 MiB.
+  accepts recognized NSKeyedArchiver or ibtool document structures and native
+  NIBArchive records; an ordinary plist renamed `.nib` remains undecoded with
+  partial `archive_decode` coverage. An explicitly empty ibtool object document
+  remains a recognized empty document. The decoder limits aggregate input
+  archives to 32 MiB.
   Before decoding, it also bounds the serialized structure: expanded binary
   plist references, NIB table records, XML elements and text, plus their
   projected representations must fit the 256 MiB aggregate decode budget.
@@ -556,6 +560,14 @@ complete observation.
   examined type records and fully decoded declarations. Class vtable recovery
   reads the same descriptors, so an unreadable type record also keeps
   `swift_class_vtable_descriptors` partial.
+  Nominal declarations, conformance type references and class vtables share one
+  snapshot-scoped name/context reader. Conformance `type_name` and dispatch
+  `owner` retain enclosing named types; conformances carry the known module.
+  Unresolved parents preserve the leaf name and a partial identity reason,
+  while independently readable witness implementations remain available.
+  Protocol instance properties use the same property-list reader as classes.
+  Unreadable instance properties and unimplemented class-property lists keep
+  the protocol's methods and record with partial protocol coverage.
   The `swift_class_vtable_descriptors` coverage counters count examined vtable
   slots and successfully decoded slots, rather than type-section entries.
   The `objc_class_method_ivar_metadata` counters count admitted class and
@@ -794,6 +806,13 @@ macOS ARM64 is the real host verified during this implementation. Admission of
 macOS Intel does not claim an Intel verification run. Unsupported metadata and
 unresolved runtime/value semantics remain visible in results.
 
+Signature inspection requests the selected architecture explicitly for identity,
+hashes, designated requirements, entitlements and runtime flags. For universal
+inputs, other slices receive signing-state probes; their detailed metadata is
+not included in the selected result, and coverage states that boundary. The
+digest-verified temporary snapshot writes to the filesystem; discovery declares
+that effect even though the selected artifact is unchanged.
+
 ## Interface Builder hierarchy coverage
 
 Bundle archive selection preserves directory traversal uncertainty, including
@@ -804,6 +823,12 @@ omissions. Either gap makes `archive_decode` partial and the graph truncated
 while preserving decoded documents. Its `examined` count remains actual decode
 attempts, and asset-catalog UI joins retain their existing incomplete-graph
 qualification.
+
+UI dispatch joins use the authored receiver's class independently of its
+presentation kind (controller, view, control or another object). An unresolved
+action receiver remains an examined, unresolved dispatch relationship and makes
+`ui_to_objc_dispatch` partial. Graph object limits retain their own cause in
+connection coverage, rather than being attributed to a connection budget.
 
 A document's `hierarchy_complete` flag follows its own hierarchy coverage.
 If graph limits omit a hierarchy source or destination, or prevent a hierarchy

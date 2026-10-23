@@ -515,6 +515,8 @@ const parseField = (rawLine: string): readonly [string, string] | undefined => {
   // exactly, including surrounding spaces, under otool's ordinal label.
   const option = /^\s*(string #[1-9]\d*)(?: (.*))?$/u.exec(rawLine);
   if (option?.[1] !== undefined) return [option[1], option[2] ?? ""];
+  const fixedName = /^\s*(segname|sectname) (.*)$/u.exec(rawLine);
+  if (fixedName?.[1] !== undefined) return [fixedName[1], fixedName[2] ?? ""];
   const line = rawLine.trim();
   // These are the compound field labels used by otool. Keeping this list
   // explicit prevents a one-word field value such as `sectname version` from

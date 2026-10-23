@@ -114,9 +114,11 @@ it("reports unsigned slices when a universal Mach-O has mixed signatures", async
       designated_requirement: null,
       entitlements: { "com.apple.security.app-sandbox": true },
       limitations: expect.arrayContaining([
-        "Partial signature coverage: aggregate signing metadata describes codesign’s default slice; Mach-O slices have mixed signing states.",
+        expect.stringContaining(
+          "signature identity, hashes, designated requirement",
+        ),
         "Unsigned Mach-O slices: x86_64.",
-        "The aggregate designated requirement is unavailable because Mach-O slices have mixed signing states.",
+        "The designated requirement for the requested architecture is unavailable because codesign reported it unsigned.",
       ]),
       provenance: expect.arrayContaining([
         expect.objectContaining({
@@ -176,12 +178,14 @@ it.each([
     entitlements: await fixture("entitlements.xml"),
     unsignedHeader: true,
   });
+  let captureCount = 0;
   const runner: NativeCommandRunner = {
     async run(tool, args, options) {
+      captureCount += 1;
       const result = await replay.run(tool, args, options);
       if (!result.ok) return result;
       if (kind === "later slice diagnostic") {
-        if (!args.includes("arm64")) return result;
+        if (captureCount <= 3 || !args.includes("arm64")) return result;
         const stderr = "later architecture probe failed\n";
         return ok({
           ...result.value,
@@ -191,7 +195,7 @@ it.each([
         });
       }
       if (result.value.exitCode === 0) return result;
-      const isSlice = args.includes("-a");
+      const isSlice = captureCount > 3;
       if ((kind === "slice diagnostic") !== isSlice) return result;
       const stderr =
         kind === "foreign executable"
@@ -238,7 +242,7 @@ it.each([
       expect(partial.limitations).toEqual(
         expect.arrayContaining([
           "Unsigned Mach-O slices: x86_64.",
-          "The aggregate designated requirement is unavailable because Mach-O slices have mixed signing states.",
+          "The designated requirement for the requested architecture is unavailable because codesign reported it unsigned.",
         ]),
       );
       expect(partial.provenance[4]).toMatchObject({
@@ -527,12 +531,17 @@ it("retains symbol names containing spaces in dyld inventory rows", () => {
   ]);
 });
 
-it("preserves numeric-looking segment and section identifiers from otool", () => {
-  const parsed = parseOtoolLoadCommands(
-    withOtoolMachHeader(`Load command 0
+it.each([
+  ["0001", "0002"],
+  [" seg ", " sec "],
+])(
+  "preserves exact segment %j and section %j names from otool",
+  (segment, section) => {
+    const parsed = parseOtoolLoadCommands(
+      withOtoolMachHeader(`Load command 0
       cmd LC_SEGMENT_64
   cmdsize 152
-  segname 0001
+  segname ${segment}
    vmaddr 0x0000000000004000
    vmsize 0x0000000000004000
   fileoff 16384
@@ -542,8 +551,8 @@ it("preserves numeric-looking segment and section identifiers from otool", () =>
    nsects 1
     flags 0x4
 Section
-  sectname 0002
-   segname 0001
+  sectname ${section}
+   segname ${segment}
       addr 0x0000000000004000
       size 0x0000000000000008
     offset 16384
@@ -554,13 +563,14 @@ Section
  reserved1 0
  reserved2 0
 `),
-  );
-  expect(parsed.segments[0]).toMatchObject({
-    name: "0001",
-    file_offset: 16384,
-    sections: [{ segment: "0001", name: "0002", size: 8 }],
-  });
-});
+    );
+    expect(parsed.segments[0]).toMatchObject({
+      name: segment,
+      file_offset: 16384,
+      sections: [{ segment, name: section, size: 8 }],
+    });
+  },
+);
 
 const signatureRunner = (outputs: {
   readonly signed: string;
@@ -900,3 +910,51 @@ it("reruns nm with its dyld-info pass when a dyld_info export row is unreadable"
     ["-gjU", "-arch"],
   ]);
 });
+
+it.each(["arm64", "x86_64"] as const)(
+  "binds every signature facet to the requested %s slice when all slices are signed",
+  async (architecture) => {
+    const registered = await signatureTarget();
+    const display = (await fixture("codesign.txt")).replace(
+      /^Format=.*$/mu,
+      "Format=Mach-O universal (x86_64 arm64)",
+    );
+    const calls: (readonly string[])[] = [];
+    const runner: NativeCommandRunner = {
+      run(tool, args, options) {
+        calls.push(args);
+        const selected = args[args.indexOf("-a") + 1];
+        const output = args.includes("-r-")
+          ? `designated => identifier com.example.${selected}\n`
+          : args.includes("--entitlements")
+            ? `<?xml version="1.0"?><plist><dict><key>slice</key><string>${selected}</string></dict></plist>`
+            : display.replace(
+                /^Identifier=.*$/mu,
+                `Identifier=com.example.${selected}`,
+              );
+        return new FixtureRunner({ codesign: output }).run(tool, args, options);
+      },
+    };
+    const result = await new NativeMacOSProvider({}, runner, "darwin")
+      .createClient({ ...registered, architecture })
+      .execute("inspect_signature", {});
+    if (!result.ok) throw result.error;
+    expect(result.value.result).toMatchObject({
+      identifier: `com.example.${architecture}`,
+      designated_requirement: `identifier com.example.${architecture}`,
+      entitlements: { slice: architecture },
+      limitations: expect.arrayContaining([
+        expect.stringContaining(`requested ${architecture} architecture`),
+      ]),
+    });
+    expect(
+      calls
+        .slice(0, 3)
+        .every((args) => args[args.indexOf("-a") + 1] === architecture),
+    ).toBe(true);
+    expect(calls.slice(3).map((args) => args[args.indexOf("-a") + 1])).toEqual([
+      "x86_64",
+      "arm64",
+    ]);
+  },
+);

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import { err, ok, type Result } from "../../domain/result.js";
+import type { NativeCommandCapture } from "../CommandRunner.js";
 import { machoCpuSubtypeBase } from "../../domain/apple/machoCpuIdentity.js";
 
 const architectureSchema = z.object({
@@ -133,6 +136,38 @@ export const parseLipoOutput = (
     hiddenArchitectureCount,
     architectures,
   };
+};
+
+/** The producing parser owns malformed tool-output classification for every adapter. */
+export const parseLipoCapture = (
+  capture: NativeCommandCapture,
+  operation: "inspect_macho" | "list_architectures",
+  operandPath: string,
+): Result<LipoOutput, AnalysisOutputError> => {
+  try {
+    return ok(parseLipoOutput(capture.stdout, operandPath));
+  } catch (cause) {
+    if (!(cause instanceof TypeError) && !(cause instanceof z.ZodError))
+      throw cause;
+    return err(
+      new AnalysisOutputError(
+        operation,
+        "lipo did not produce readable architecture records",
+        {
+          cause,
+          capturedOutput: {
+            stdout: capture.stdout,
+            stderr: capture.stderr,
+            truncated: false,
+            stdout_bytes: capture.stdoutBytes,
+            stderr_bytes: capture.stderrBytes,
+            exit_code: capture.exitCode,
+            signal: capture.signal,
+          },
+        },
+      ),
+    );
+  }
 };
 
 const integer = (value: string | undefined): number | null => {

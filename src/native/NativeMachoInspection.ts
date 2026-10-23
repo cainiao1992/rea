@@ -14,7 +14,7 @@ import {
   selectMachoArchitectureName,
 } from "./MachoArchitectureSelection.js";
 import { parseDyldExports, parseDyldImports } from "./parsers/dyldInfo.js";
-import { parseLipoOutput, type LipoArchitecture } from "./parsers/lipo.js";
+import { parseLipoCapture, type LipoArchitecture } from "./parsers/lipo.js";
 import { withoutEchoedPathHeader } from "./parsers/echoedPath.js";
 import { parseOtoolLoadCommands } from "./parsers/otool.js";
 import { reconcileMachoUuid } from "./parsers/machoUuid.js";
@@ -81,10 +81,13 @@ export const inspectNativeMacho = async (
   }
   const lipo = captures.find(({ tool }) => tool === "lipo");
   if (lipo === undefined) throw new TypeError("Missing lipo capture");
-  const { format, architectures } = parseLipoOutput(
-    lipo.stdout,
+  const parsedLipo = parseLipoCapture(
+    lipo,
+    "inspect_macho",
     context.target.path,
   );
+  if (!parsedLipo.ok) return parsedLipo;
+  const { format, architectures } = parsedLipo.value;
   const selection = selectArchitecture(context.target, architectures);
   if (selection.status === "absent")
     return err(

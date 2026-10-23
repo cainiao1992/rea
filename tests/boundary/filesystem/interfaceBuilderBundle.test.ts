@@ -2139,3 +2139,29 @@ describe.skipIf(process.platform !== "darwin")(
     );
   },
 );
+
+it("reports a plain plist named nib as undecoded while retaining a valid empty archive", async () => {
+  const bundle = await createTestTempDirectory("rea-ib-archive-recognition-");
+  await writeFile(
+    join(bundle, "Plain.nib"),
+    buildBinary({ CFBundleIdentifier: "sample" }),
+  );
+  await writeFile(
+    join(bundle, "Empty.nib"),
+    buildBinary({ "com.apple.ibtool.document.objects": {} }),
+  );
+  const result = await analyzeInterfaceBuilderBundle({
+    bundlePath: bundle,
+    targetSha256: "a".repeat(64),
+  });
+  expect(result.documents.map(({ relative_path }) => relative_path)).toEqual([
+    "Empty.nib",
+  ]);
+  expect(
+    result.graph.coverage.find(({ facet }) => facet === "archive_decode"),
+  ).toMatchObject({
+    status: "partial",
+    examined: 2,
+    reason: "one_or_more_archives_invalid",
+  });
+});

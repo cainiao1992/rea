@@ -115,7 +115,7 @@ import {
 } from "./SignatureTargetBinding.js";
 import { parseCodeSignature } from "./parsers/codesign.js";
 import { parseDemangledSymbols } from "./parsers/demangle.js";
-import { parseLipoOutput } from "./parsers/lipo.js";
+import { parseLipoCapture } from "./parsers/lipo.js";
 import {
   parsePlistJson,
   parsePlistBinary,
@@ -664,10 +664,13 @@ class NativeMacOSClient implements AnalysisClient {
     );
     if (!capture.ok) return capture;
     const provenance = [invocation(capture.value, this.target.path)];
-    const { architectures } = parseLipoOutput(
-      capture.value.stdout,
+    const parsed = parseLipoCapture(
+      capture.value,
+      "list_architectures",
       this.target.path,
     );
+    if (!parsed.ok) return parsed;
+    const { architectures } = parsed.value;
     const result = listArchitecturesSchema.parse({
       architectures: {
         items: architectures,
@@ -757,13 +760,24 @@ class NativeMacOSClient implements AnalysisClient {
     signal: AbortSignal | undefined,
     timeoutMs: number,
   ): Promise<Result<InspectSignature, AnalysisError>> {
+    const architecture =
+      this.target.kind === "executable" ? this.target.architecture : undefined;
+    if (architecture === undefined)
+      return err(
+        new AnalysisCapabilityUnavailableError(
+          IDENTITY.id,
+          "inspect_signature",
+          "No executable architecture is selected.",
+        ),
+      );
+    const selectedArchitecture = architecture === "x86" ? "i386" : architecture;
     const executablePaths = [
       binding.snapshotPath,
       ...(await canonicalPath(binding.snapshotPath)),
     ];
     const display = await this.#captureSignature(
       binding,
-      ["-d", "--verbose=4"],
+      ["-d", "-a", selectedArchitecture, "--verbose=4"],
       signal,
       timeoutMs,
     );
@@ -781,7 +795,7 @@ class NativeMacOSClient implements AnalysisClient {
     if (displayFailure !== null) return err(displayFailure);
     const requirements = await this.#captureSignature(
       binding,
-      ["-d", "-r-"],
+      ["-d", "-a", selectedArchitecture, "-r-"],
       signal,
       timeoutMs,
     );
@@ -794,7 +808,7 @@ class NativeMacOSClient implements AnalysisClient {
     if (requirementsFailure !== null) return err(requirementsFailure);
     const entitlements = await this.#captureSignature(
       binding,
-      ["-d", "--entitlements", ":-"],
+      ["-d", "-a", selectedArchitecture, "--entitlements", ":-"],
       signal,
       timeoutMs,
     );
@@ -827,18 +841,33 @@ class NativeMacOSClient implements AnalysisClient {
             `Entitlements: ${omittedPrototypeKeysLimitation(entitlementValue.omittedPrototypeKeys)}`,
           ]),
     ];
-    const mixedSigning =
+    const architectures = codeSignArchitectures(parsed.format, this.target);
+    if (architectures.length > 1)
+      limitations.push(
+        `Partial signature coverage: signature identity, hashes, designated requirement, entitlements and runtime state describe the requested ${selectedArchitecture} architecture; other slices' metadata is not returned.`,
+      );
+    if (
       !unsigned &&
-      (isNonzeroUnsignedObservation(
+      isNonzeroUnsignedObservation(
         requirements.value,
         binding.snapshotPath,
         executablePaths,
-      ) ||
-        isNonzeroUnsignedObservation(
-          entitlements.value,
-          binding.snapshotPath,
-          executablePaths,
-        ));
+      )
+    )
+      limitations.push(
+        "The designated requirement for the requested architecture is unavailable because codesign reported it unsigned.",
+      );
+    if (
+      !unsigned &&
+      isNonzeroUnsignedObservation(
+        entitlements.value,
+        binding.snapshotPath,
+        executablePaths,
+      )
+    )
+      limitations.push(
+        "The entitlements for the requested architecture are unavailable because codesign reported it unsigned.",
+      );
     const observation = () =>
       inspectSignatureSchema.parse({
         ...parsed,
@@ -849,19 +878,12 @@ class NativeMacOSClient implements AnalysisClient {
         ),
         limitations,
       });
-    if (mixedSigning) {
-      limitations.push(
-        "Partial signature coverage: aggregate signing metadata describes codesign’s default slice; Mach-O slices have mixed signing states.",
-      );
-      const slices = await this.#inspectMixedSignatureSlices(
+    if (architectures.length > 1) {
+      const slices = await this.#inspectSignatureSliceStates(
         binding,
         parsed.format,
         executablePaths,
         { captures, limitations },
-        {
-          requirements: requirements.value.exitCode,
-          entitlements: entitlements.value.exitCode,
-        },
         signal,
         timeoutMs,
       );
@@ -878,32 +900,17 @@ class NativeMacOSClient implements AnalysisClient {
     return ok(observation());
   }
 
-  async #inspectMixedSignatureSlices(
+  async #inspectSignatureSliceStates(
     binding: SignatureTargetBinding,
     format: string | null,
     executablePaths: readonly string[],
     observation: { captures: NativeCommandCapture[]; limitations: string[] },
-    aggregateExits: Readonly<{
-      requirements: number | null;
-      entitlements: number | null;
-    }>,
     signal: AbortSignal | undefined,
     timeoutMs: number,
   ): Promise<Result<void, AnalysisError>> {
     const { captures, limitations } = observation;
     const unsigned: string[] = [];
-    const unsignedNote = limitations.length;
-    limitations.push(
-      "One or more Mach-O slices are unsigned, but their architectures could not be classified.",
-    );
-    if (aggregateExits.requirements !== 0)
-      limitations.push(
-        "The aggregate designated requirement is unavailable because Mach-O slices have mixed signing states.",
-      );
-    if (aggregateExits.entitlements !== 0)
-      limitations.push(
-        "The aggregate entitlements are unavailable because Mach-O slices have mixed signing states.",
-      );
+    let unsignedNote: number | undefined;
     for (const architecture of codeSignArchitectures(format, this.target)) {
       const slice = await this.#captureSignature(
         binding,
@@ -921,6 +928,10 @@ class NativeMacOSClient implements AnalysisClient {
       );
       if (failure !== null) return err(failure);
       unsigned.push(architecture);
+      if (unsignedNote === undefined) {
+        unsignedNote = limitations.length;
+        limitations.push("");
+      }
       limitations[unsignedNote] =
         `Unsigned Mach-O slices: ${unsigned.join(", ")}.`;
     }
@@ -1562,11 +1573,10 @@ const codeSignArchitectures = (
   if (universal !== undefined) {
     const architectures = universal
       .split(/\s+/u)
-      .filter((architecture) =>
-        /^(?:i386|x86_64|armv7|arm64|arm64e)$/u.test(architecture),
-      );
+      .filter((architecture) => /^[A-Za-z][A-Za-z0-9_.]*$/u.test(architecture));
     if (architectures.length > 0) return [...new Set(architectures)];
   }
+  if (format?.startsWith("Mach-O thin ") === true) return [];
   if (target.kind !== "executable" || !isMachOFormat(target.format)) return [];
   return target.availableArchitectures.map((architecture) =>
     architecture === "x86" ? "i386" : architecture,

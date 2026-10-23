@@ -66,10 +66,23 @@ class Captures extends NativeFixtureRunner {
 describe("native signature target identity", () => {
   it("inspects an unchanged registered executable", async () => {
     const { target } = await fixture();
-    const result = await new NativeMacOSProvider({}, new Captures(), "darwin")
+    const captures: (readonly string[])[] = [];
+    const result = await new NativeMacOSProvider(
+      {},
+      new Captures(async (args) => {
+        captures.push(args);
+      }),
+      "darwin",
+    )
       .createClient(target)
       .execute("inspect_signature", {});
     if (!result.ok) throw result.error;
+    expect(captures).toHaveLength(3);
+    expect(
+      captures.every(
+        (args) => args[args.indexOf("-a") + 1] === target.architecture,
+      ),
+    ).toBe(true);
     expect(result.value.result).toMatchObject({
       signed: true,
       identifier: "com.example.fixture",

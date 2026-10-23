@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { RizinDebugSessionManager } from "./RizinDebugSessionManager.js";
-import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
+import { RizinDebugSessionManager } from "../../../src/rizin/RizinDebugSessionManager.js";
+import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 it.skipIf(process.platform === "win32")(
   "identifies the rejected TTY field and physical reason before spawning Rizin",

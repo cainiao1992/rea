@@ -355,7 +355,18 @@ it.skipIf(process.platform === "win32").each([false, true])(
       },
     });
     const { manager, started } = await startInjected(injected.spawnProcess, {
-      stopProcess: stopOwnedDebuggerProcess,
+      // The injected stream has no OS process identity. Exercise protocol detach
+      // here; real debugger process ownership is covered by process boundaries.
+      stopProcess: async (session) => {
+        if (session.exited) return { status: "already_exited" };
+        try {
+          await session.detachInferior?.();
+          injected.control.exit();
+          return { status: "stopped" };
+        } catch (cause) {
+          return { status: "incomplete", reason: String(cause) };
+        }
+      },
       maxCommandOutputBytes: 8,
     });
     if (!started.ok) throw started.error;
@@ -374,6 +385,8 @@ it.skipIf(process.platform === "win32").each([false, true])(
       expect(result.error.cleanupIncomplete).toBe(false);
     }
     expect(writes.some((text) => text.startsWith("olj\n"))).toBe(true);
+    if (!retry)
+      expect((await manager.close(started.value.session_id)).ok).toBe(true);
     expect(manager.status(started.value.session_id)).toBeUndefined();
   },
 );

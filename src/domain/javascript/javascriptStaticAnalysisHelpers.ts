@@ -725,11 +725,7 @@ export const calleeName = (node: t.Node): string => {
     if (!t.isNode(node.object)) break;
     node = unwrapJavaScriptExpression(node.object).node;
   }
-  const base = t.isIdentifier(node)
-    ? node.name
-    : t.isImport(node)
-      ? "import"
-      : "";
+  const base = t.isIdentifier(node) ? node.name : "";
   segments.push(base);
   segments.reverse();
   const first = segments.findIndex((segment) => segment !== "");

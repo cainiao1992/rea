@@ -3,7 +3,6 @@ import type {
   File,
   ImportExpression,
   Node,
-  StringLiteral,
 } from "@babel/types";
 import { traverseJavaScriptAst } from "./javascript/javascriptSemanticTraversal.js";
 import { readExactJavaScriptLiteral } from "./javascript/javascriptAstValues.js";
@@ -20,7 +19,6 @@ import {
   isCallExpression,
   isExportAllDeclaration,
   isExportNamedDeclaration,
-  isImport,
   isImportDeclaration,
   isImportExpression,
   isStringLiteral,
@@ -94,31 +92,6 @@ const resolveSpecifier = (
   )
     return "internal";
   return "external";
-};
-
-const isModuleExpression = (
-  expression: Node | null | undefined,
-): expression is StringLiteral | CallExpression =>
-  isStringLiteral(expression) || isCallExpression(expression);
-
-const moduleSpecifierFromExpression = (
-  expression: Node | null | undefined,
-):
-  | { specifier: string; parseState: ReferenceSourceImportParseState }
-  | undefined => {
-  const specifier = exactStringModuleName(expression);
-  if (specifier !== undefined) return { specifier, parseState: "parsed" };
-  if (
-    isCallExpression(expression) &&
-    isImport(expression.callee) &&
-    expression.arguments.length > 0
-  ) {
-    const nestedSpecifier = exactStringModuleName(expression.arguments[0]);
-    return nestedSpecifier === undefined
-      ? { specifier: "<dynamic-import>", parseState: "partial" }
-      : { specifier: nestedSpecifier, parseState: "parsed" };
-  }
-  return undefined;
 };
 
 const appendRelationship = (
@@ -276,14 +249,14 @@ const extractRequireAndDynamicImports = (
     // admits quoted and expression-free template spellings alike.
     const requireCall = requireCalls.get(call);
     if (requireCall !== undefined) {
-      const result = moduleSpecifierFromExpression(requireCall.arguments?.[0]);
-      if (result !== undefined) {
+      const specifier = exactStringModuleName(requireCall.arguments?.[0]);
+      if (specifier !== undefined) {
         const uncertainResolution = requireCall.resolutionBase === "unknown";
         appendRelationship(relationships, limitations, {
           fromPath: from_path,
-          to: result.specifier,
+          to: specifier,
           kind: "requires",
-          parseState: uncertainResolution ? "partial" : result.parseState,
+          parseState: uncertainResolution ? "partial" : "parsed",
           ...(uncertainResolution ? { resolution: "unknown" } : {}),
           ...(uncertainResolution
             ? {}
@@ -293,20 +266,6 @@ const extractRequireAndDynamicImports = (
                 resolutionBasePath: requireCall.resolutionBase.path,
               }
             : {}),
-        });
-      }
-      continue;
-    }
-
-    const first = call.arguments[0];
-    if (isImport(call.callee) && isModuleExpression(first)) {
-      const result = moduleSpecifierFromExpression(first);
-      if (result !== undefined) {
-        appendRelationship(relationships, limitations, {
-          fromPath: from_path,
-          to: result.specifier,
-          kind: "imports",
-          parseState: result.parseState,
         });
       }
     }

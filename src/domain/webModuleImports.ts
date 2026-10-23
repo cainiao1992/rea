@@ -75,12 +75,6 @@ export const collectWebModuleImports = (
         add("re-export", node.source);
       } else if (node.type === "ImportExpression")
         add("dynamic-import", node.source);
-      else if (
-        node.type === "CallExpression" &&
-        node.callee.type === "Import" &&
-        node.arguments[0] !== undefined
-      )
-        add("dynamic-import", node.arguments[0]);
     },
   });
   imports.sort((a, b) => a.start.offset - b.start.offset);

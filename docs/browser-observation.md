@@ -12,6 +12,13 @@ For request/response bodies and traffic debugging, see
 [Fiddler Everywhere captures and MCP](web-network-captures.md#reading-fiddler-captures-saz).
 Inspect native SAZ or HAR 1.2 offline with REA, or connect Everywhere's separate MCP server.
 
+HTTP discovery and browser WebSocket inputs require an explicit port. An
+explicit default `:80` remains valid and is retained in the canonical endpoint;
+omitting the port remains invalid. HTTP `/json/list` discovery preserves usable
+siblings when optional metadata is malformed: attachment becomes unknown and
+row/field diagnostics appear in `limitations`. Target identity and socket
+authority are validated independently before selection and connection.
+
 ## Shipped surfaces
 
 - `list_browser_targets` / `rea list-browser-targets` discovers all eligible page targets at the endpoint by default, with an optional exact-origin filter.

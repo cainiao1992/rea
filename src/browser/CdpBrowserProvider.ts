@@ -151,6 +151,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
           targets: selected.allowed,
           excluded: selected.excluded,
           limitations: [
+            ...(discovery.limitations ?? []),
             input.allowed_origins.length === 0
               ? "All page targets with supported HTTP(S) URLs are listed."
               : "Only page targets whose current URL matches an explicitly requested exact origin are listed.",

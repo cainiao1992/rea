@@ -44,10 +44,18 @@ launch does not, by itself, show that fuse.
 
 The caller supplies the literal-loopback HTTP endpoint directly. Selecting an endpoint exposes all targets it serves and their local script locations or renderer origins. A target must match the exact requested target ID and expose a same-port WebSocket reported by that endpoint. Targets explicitly marked attached are rejected rather than displacing another debugger. Node's `/json/list` omits attachment state, so REA preserves it as `null` (unknown), reports that limitation, and permits observation unless the endpoint explicitly reports `attached: true`. Local paths are canonicalized after symlink resolution.
 
-The `attached` field in JavaScript runtime and browser target results is nullable: `true` and `false` are reported only when discovery supplied a boolean; `null` means the endpoint omitted or could not report the state. CDP `TargetInfo` worker records require an `attached` boolean; REA excludes a worker record with a missing or malformed value as an invalid protocol value.
+The `attached` field in JavaScript runtime and browser target results is nullable: `true` and `false` are reported only when discovery supplied a boolean; `null` means the endpoint omitted or could not report the state. HTTP `/json/list` discovery parses target rows independently. Malformed optional attachment metadata becomes `null` with a row and field diagnostic in `limitations`; usable siblings remain available. Rows with malformed target identity are excluded with diagnostics, and socket authority is still validated before connection. CDP `TargetInfo` worker records require an `attached` boolean; REA excludes a worker record with a missing or malformed value as an invalid protocol value.
 
 `list_javascript_runtime_targets` returns every available target in one inline
 array.
+
+Attachment refusals identify `attached: true` and ask the caller to disconnect
+the other debugger or select another target. A declared-role mismatch names
+`runtime_kind` and the target protocol type; correct the role or omit it to
+retain an unknown role. A role-only disagreement in supplied runtime Evidence
+is attributed to `parameters.runtime_kind`, separately from a target-ID
+disagreement. Partial-capture warnings count retained distinct script records;
+`observed_total` retains the raw script-event count before deduplication.
 
 For the MCP follow-up call, pass the same literal-loopback endpoint and the selected target ID to `observe_javascript_runtime`. REA rediscovers targets and validates the ID against the live endpoint before observation.
 

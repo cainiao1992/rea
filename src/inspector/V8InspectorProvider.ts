@@ -275,17 +275,23 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
           runtime: discovery.runtime,
           targets: allowed.map(projectTarget),
           excluded: { ...excluded, unconnectable },
-          limitations: describeInspectorTargetLimitations(
-            allowed.some((target) => target.attached === null),
-          ),
+          limitations: [
+            ...discovery.limitations,
+            ...describeInspectorTargetLimitations(
+              allowed.some((target) => target.attached === null),
+            ),
+          ],
         }),
       );
     } catch (cause: unknown) {
       if (cause instanceof AnalysisCancelledError && discovery !== undefined) {
         const complete = targetsExamined === discovery.targets.length;
-        const limitations = describeInspectorTargetLimitations(
-          allowed.some((target) => target.attached === null),
-        );
+        const limitations = [
+          ...discovery.limitations,
+          ...describeInspectorTargetLimitations(
+            allowed.some((target) => target.attached === null),
+          ),
+        ];
         return err(
           new AnalysisCancelledError("list_javascript_runtime_targets", {
             cause: cause.cause,
@@ -390,6 +396,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
       const result = await finalizeInspectorCapture({
         input,
         runtime: discovery.runtime,
+        discoveryLimitations: discovery.limitations,
         target,
         state: captureState,
         authorizeLocation: (rawUrl, signal) =>
@@ -415,6 +422,7 @@ export class V8InspectorProvider implements JavaScriptRuntimeObservationPort {
           const partialObservation = await finalizeInspectorCapture({
             input,
             runtime: discovery.runtime,
+            discoveryLimitations: discovery.limitations,
             target,
             state,
             locationMode: "reported",
@@ -538,14 +546,26 @@ const authorizedTarget = async (
     asarHeaderAdmission,
   );
   throwIfRuntimeObservationCancelled(signal);
-  if (
-    target.attached === true ||
-    !decision.allowed ||
-    decision.location.kind === "builtin"
-  )
+  if (target.attached === true)
     throw new BrowserObservationError(
       "observe_javascript_runtime",
       "target_not_allowed",
+      {
+        detail: `Inspector target ${target.id} reports attached: true; REA will not displace its debugger.`,
+        diagnostics: { target_id: target.id, attached: true },
+        remediationAction:
+          "Disconnect the other debugger or select an unattached target, refresh list_javascript_runtime_targets, and retry with its exact target ID.",
+      },
+    );
+  if (!decision.allowed || decision.location.kind === "builtin")
+    throw new BrowserObservationError(
+      "observe_javascript_runtime",
+      "target_not_allowed",
+      {
+        detail: `Inspector target ${target.id} has no supported observable target location.`,
+        remediationAction:
+          "Select a target with a supported file or HTTP(S) location from list_javascript_runtime_targets.",
+      },
     );
   if (target.webSocketUrl === null)
     throw new BrowserObservationError(
@@ -578,6 +598,16 @@ const assertRuntimeKind = (
     throw new BrowserObservationError(
       "observe_javascript_runtime",
       "target_not_allowed",
+      {
+        detail: `Declared runtime_kind ${String(kind)} is incompatible with Inspector target ${target.id} protocol type ${target.type}.`,
+        diagnostics: {
+          target_id: target.id,
+          protocol_type: target.type,
+          runtime_kind: kind ?? null,
+        },
+        remediationAction:
+          "Correct runtime_kind to match the selected target's protocol type (node for Node or Electron main, page for Electron renderer or preload), or omit runtime_kind to retain an unknown role. The declared role is not authenticated by Inspector.",
+      },
     );
 };
 

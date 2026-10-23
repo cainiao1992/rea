@@ -85,6 +85,7 @@ export const capturePage = async (
     events,
     allowedOrigins,
     limitations: [
+      ...(context.discovery.limitations ?? []),
       "Observation starts when REA attaches; prior network and console activity is unavailable.",
       "Worker targets are a final inventory snapshot, not worker-session observation. Their attached flag describes any debugging client; this page-session collector does not observe worker network, console, or script events, and short-lived workers may be absent from the snapshot.",
       "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",

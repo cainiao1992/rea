@@ -292,14 +292,18 @@ const assertV8RuntimeParameters = (
     evidence.parameters,
     [...path, "parameters"],
   );
-  if (
-    parameters.target_id !== result.target.target_id ||
-    (parameters.runtime_kind !== undefined &&
-      parameters.runtime_kind !== result.target.runtime_kind)
-  )
+  if (parameters.target_id !== result.target.target_id)
     throw invalidInput(
       [...path, "parameters", "target_id"],
-      "Runtime Evidence target or declared role disagrees with its result",
+      "Runtime Evidence target disagrees with its result",
+    );
+  if (
+    parameters.runtime_kind !== undefined &&
+    parameters.runtime_kind !== result.target.runtime_kind
+  )
+    throw invalidInput(
+      [...path, "parameters", "runtime_kind"],
+      "Runtime Evidence declared role disagrees with its result",
     );
   if (
     result.target.location.kind === "builtin" &&

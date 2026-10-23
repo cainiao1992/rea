@@ -71,9 +71,8 @@ before asking for a restart. Read that guide before a second repair attempt.
 
 REA setup never installs or upgrades Node.js, npm, Homebrew, Java, Ghidra, IDA,
 JADX, Kuna, Binwalk, or Unblob. Use existing prerequisites; do not install unrelated
-software to repair
-MCP registration. For an unsupported client, use manual stdio registration
-with a version-pinned `rea-agents` package or continue through the CLI.
+software to repair MCP registration. For an unsupported client, use manual stdio
+registration with a version-pinned `rea-agents` package or continue through the CLI.
 
 A concrete CLI fallback for an operator-supplied JavaScript tree or ASAR is:
 
@@ -89,8 +88,7 @@ Prefer an existing `rea` CLI. When none is installed and REA package acquisition
 is within the authorized scope, use `npx -y rea-agents@latest` in its place.
 Configuration repair starts with a read-only setup plan; show paths, backups and
 skill replacement before applying authorized changes. Preserve existing approval
-and target-execution boundaries. REA setup never installs or upgrades unrelated
-software, including Node.js, npm, Homebrew, Java, Ghidra, IDA, JADX, Kuna, Binwalk or Unblob.
+and target-execution boundaries.
 
 ## Route the target first
 

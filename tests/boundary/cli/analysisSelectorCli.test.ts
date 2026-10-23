@@ -1,6 +1,6 @@
 import { describe, expect } from "vitest";
 
-import { cliTest } from "../../support/cli/cliFixture.js";
+import { cliTest, runFileCli } from "../../support/cli/cliFixture.js";
 
 const selectors = [
   ["function", "procedure", "analyze_function"],
@@ -45,10 +45,10 @@ describe("CLI analysis selector boundaries", () => {
       });
     },
   );
-  cliTest(
-    "rejects missing and conflicting selectors before opening a target",
-    async ({ cli }) => {
-      for (const [command, option, operation] of selectors) {
+  for (const [command, option, operation] of selectors) {
+    cliTest(
+      `rejects missing and conflicting ${command} selectors before opening a target`,
+      async ({ cli }) => {
         for (const [selection, reason] of [
           [[], "missing_argument"],
           [["first", `--${option}=-second`], "invalid_value"],
@@ -69,14 +69,11 @@ describe("CLI analysis selector boundaries", () => {
             details: { operation, issues: [{ path: [option], reason }] },
           });
         }
-      }
-    },
-  );
-
-  cliTest(
-    "keeps named dash values out of global-option parsing",
-    async ({ cli }) => {
-      for (const [command, option] of selectors) {
+      },
+    );
+    cliTest(
+      `keeps named ${command} dash values out of global-option parsing`,
+      async ({ cli }) => {
         const result = await cli.run({
           arguments: [
             command,
@@ -89,6 +86,35 @@ describe("CLI analysis selector boundaries", () => {
         });
         expect(result.exitCode).not.toBe(0);
         expect(result.json).toMatchObject({ code: "target_unavailable" });
+      },
+    );
+  }
+
+  cliTest(
+    "admits positional, named, and identical selectors before opening a missing target",
+    async ({ cli }) => {
+      for (const [command, option] of selectors) {
+        for (const selection of [
+          ["selector"],
+          [`--${option}=selector`],
+          ["selector", `--${option}=selector`],
+        ]) {
+          const label = `${command} ${selection.join(" ")}`;
+          const result = await runFileCli(cli, {
+            arguments: [
+              command,
+              "does-not-exist",
+              ...selection,
+              "--format",
+              "json",
+            ],
+            environment: { REA_LOG_LEVEL: "silent" },
+          });
+          expect(result.exitCode, label).not.toBe(0);
+          expect(result.json, label).toMatchObject({
+            code: "target_unavailable",
+          });
+        }
       }
     },
   );

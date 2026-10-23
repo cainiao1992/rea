@@ -494,6 +494,11 @@ it.each([
     "Provide exactly one of --script or --script-file.",
   ],
   [
+    ["attach", "71", "--script", "send(1)", "--script-file", "source.js"],
+    "script",
+    "Provide exactly one of --script or --script-file.",
+  ],
+  [
     ["attach", "71", "--script", "send(1)", "--argument", "ignored"],
     "argument",
     "--argument is only valid in spawn mode; remove it when attaching to a process.",
@@ -526,3 +531,55 @@ it.each([
     expect(starts).toBe(0);
   },
 );
+
+it("advances each Frida script source to the attach target error without attaching or spawning", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "rea-frida-script-source-"));
+  const scriptPath = join(directory, "source.js");
+  try {
+    await writeFile(scriptPath, "send(1);\n");
+    for (const scriptArguments of [
+      ["--script", "send(1)"],
+      ["--script-file", scriptPath],
+    ]) {
+      let starts = 0;
+      const provider = {
+        async startSession() {
+          starts += 1;
+          throw new Error("Frida must not attach or spawn for an invalid PID");
+        },
+      } as unknown as FridaInstrumentationPort;
+      let stdout = "";
+      await createCli({}, undefined, provider).serve(
+        [
+          "instrument-with-frida",
+          "attach",
+          "abc",
+          ...scriptArguments,
+          "--json",
+        ],
+        {
+          env: {},
+          exit: () => undefined,
+          stdout: (text) => {
+            stdout += text;
+          },
+        },
+      );
+      expect(JSON.parse(stdout)).toMatchObject({
+        code: "invalid_request",
+        details: {
+          issues: [
+            {
+              path: ["target"],
+              reason: "invalid_value",
+              message: "attach mode needs a positive integer process ID.",
+            },
+          ],
+        },
+      });
+      expect(starts).toBe(0);
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

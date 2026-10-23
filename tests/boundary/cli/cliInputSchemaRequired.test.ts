@@ -1,5 +1,6 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { Cli, z } from "incur";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createCli } from "../../../src/cli.js";
@@ -370,4 +371,345 @@ describe("reference-source outline-depth input schema", () => {
     expect(validate({ outlineDepth: 2 })).toBe(true);
   });
 });
-import { resolve } from "node:path";
+
+const atLeastOneSelector = (alternatives: string): string =>
+  `Supply at least one of ${alternatives}.`;
+const ADDRESS_OR_PROCEDURE = atLeastOneSelector(
+  "the positional address or --procedure",
+);
+const DECOMPILE_SELECTORS = `${ADDRESS_OR_PROCEDURE} Alternatively, use --file-offset alone.`;
+const NAMED_ADDRESS = atLeastOneSelector("the positional address or --address");
+const QUERY_SELECTOR = atLeastOneSelector("the positional query or --query");
+const PATTERN_SELECTOR = atLeastOneSelector(
+  "the positional pattern or --pattern",
+);
+const EXACTLY_ONE_SCRIPT = "Provide exactly one of --script or --script-file.";
+const TARGET = "target.bin";
+
+interface SelectorRequest {
+  readonly args: Record<string, unknown>;
+  readonly options: Record<string, unknown>;
+}
+
+interface SelectorField {
+  readonly group: "args" | "options";
+  readonly name: string;
+  readonly preserved?: readonly string[];
+}
+
+interface SelectorDiscovery {
+  readonly command: string;
+  readonly guidance: string;
+  readonly choice: "at least one" | "exactly one";
+  readonly fields: readonly SelectorField[];
+  /** Each side is valid alone, including when the other group omits its selector. */
+  readonly representable: readonly SelectorRequest[];
+  /** Cross-group omission stays valid because the schemas are separate. */
+  readonly omitted: SelectorRequest;
+  readonly rejected: readonly {
+    readonly args?: Record<string, unknown>;
+    readonly options?: Record<string, unknown>;
+  }[];
+}
+
+const selectorDiscovery: readonly SelectorDiscovery[] = [
+  {
+    command: "inspect-native-api",
+    guidance: ADDRESS_OR_PROCEDURE,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "address" },
+      {
+        group: "options",
+        name: "procedure",
+        preserved: ["symbols beginning with a dash"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, address: "main" }, options: {} },
+      { args: { path: TARGET }, options: { procedure: "--help" } },
+      {
+        args: { path: TARGET, address: "main" },
+        options: { procedure: "main" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, address: 1 } },
+      { options: { procedure: 1 } },
+    ],
+  },
+  {
+    command: "function",
+    guidance: ADDRESS_OR_PROCEDURE,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "address" },
+      {
+        group: "options",
+        name: "procedure",
+        preserved: ["use --procedure=<value> for leading dashes"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, address: "main" }, options: {} },
+      { args: { path: TARGET }, options: { procedure: "--help" } },
+      {
+        args: { path: TARGET, address: "main" },
+        options: { procedure: "main" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, address: "" } },
+      { options: { procedure: "" } },
+    ],
+  },
+  {
+    command: "instructions",
+    guidance: ADDRESS_OR_PROCEDURE,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "address" },
+      {
+        group: "options",
+        name: "procedure",
+        preserved: ["use --procedure=<value> for leading dashes"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, address: "main" }, options: {} },
+      { args: { path: TARGET }, options: { procedure: "--help" } },
+      {
+        args: { path: TARGET, address: "main" },
+        options: { procedure: "main" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, address: "" } },
+      { options: { procedure: "" } },
+    ],
+  },
+  {
+    command: "decompile",
+    guidance: DECOMPILE_SELECTORS,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "address" },
+      {
+        group: "options",
+        name: "procedure",
+        preserved: ["use --procedure=<value> for leading dashes"],
+      },
+      {
+        group: "options",
+        name: "file-offset",
+        preserved: [
+          "Ghidra source-file byte offset",
+          "mapped internally to an analysis address",
+        ],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, address: "0x140001010" }, options: {} },
+      { args: { path: TARGET }, options: { procedure: "--help" } },
+      { args: { path: TARGET }, options: { "file-offset": "0x210" } },
+      {
+        args: { path: TARGET, address: "0x140001010" },
+        options: { procedure: "0x140001010" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, address: "" } },
+      { options: { procedure: "" } },
+      { options: { "file-offset": "210" } },
+      { options: { "file-offset": "0x" } },
+    ],
+  },
+  {
+    command: "xrefs",
+    guidance: NAMED_ADDRESS,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "address" },
+      {
+        group: "options",
+        name: "address",
+        preserved: ["use --address=<value> for leading dashes"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, address: "main" }, options: {} },
+      { args: { path: TARGET }, options: { address: "--help" } },
+      {
+        args: { path: TARGET, address: "main" },
+        options: { address: "main" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, address: "" } },
+      { options: { address: "" } },
+    ],
+  },
+  {
+    command: "trace",
+    guidance: QUERY_SELECTOR,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "query" },
+      {
+        group: "options",
+        name: "query",
+        preserved: ["use --query=<value> for leading dashes"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, query: "feature" }, options: {} },
+      { args: { path: TARGET }, options: { query: "--help" } },
+      {
+        args: { path: TARGET, query: "feature" },
+        options: { query: "feature" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, query: "" } },
+      { options: { query: "" } },
+    ],
+  },
+  {
+    command: "search",
+    guidance: PATTERN_SELECTOR,
+    choice: "at least one",
+    fields: [
+      { group: "args", name: "pattern" },
+      {
+        group: "options",
+        name: "pattern",
+        preserved: ["use --pattern=<value> for leading dashes"],
+      },
+    ],
+    representable: [
+      { args: { path: TARGET, pattern: "text" }, options: {} },
+      { args: { path: TARGET }, options: { pattern: "--help" } },
+      {
+        args: { path: TARGET, pattern: "text" },
+        options: { pattern: "text" },
+      },
+    ],
+    omitted: { args: { path: TARGET }, options: {} },
+    rejected: [
+      { args: { path: TARGET, pattern: "" } },
+      { options: { pattern: "" } },
+    ],
+  },
+  {
+    command: "instrument-with-frida",
+    guidance: EXACTLY_ONE_SCRIPT,
+    choice: "exactly one",
+    fields: [
+      { group: "options", name: "script" },
+      { group: "options", name: "scriptFile" },
+    ],
+    representable: [
+      {
+        args: { mode: "attach", target: "71" },
+        options: { script: "send(1)" },
+      },
+      {
+        args: { mode: "attach", target: "71" },
+        options: { scriptFile: "source.js" },
+      },
+      {
+        args: { mode: "attach", target: "71" },
+        options: { script: "send(1)", scriptFile: "source.js" },
+      },
+    ],
+    omitted: { args: { mode: "attach", target: "71" }, options: {} },
+    rejected: [
+      { args: { mode: "attach", target: "" } },
+      { args: { mode: "debug", target: "71" } },
+      { options: { scriptFile: "" } },
+    ],
+  },
+];
+
+const propertyDescription = (property: unknown, label: string): string => {
+  expect(property, label).toMatchObject({
+    description: expect.any(String),
+  });
+  if (
+    typeof property !== "object" ||
+    property === null ||
+    !("description" in property) ||
+    typeof property.description !== "string"
+  )
+    throw new Error(`${label} description was not on the schema property`);
+  return property.description;
+};
+
+describe("required CLI selector discovery", () => {
+  it.each(selectorDiscovery)(
+    "$command names every permitted selector alternative in schema, help, and the full LLM manifest",
+    async (entry) => {
+      const cli = createCli({});
+      const advertised = await advertisedSchema(cli, entry.command);
+      const otherChoice =
+        entry.choice === "at least one" ? "exactly one" : "at least one";
+      for (const field of entry.fields) {
+        const label = `${entry.command} ${field.group}.${field.name}`;
+        const description = propertyDescription(
+          advertised[field.group]?.properties[field.name],
+          label,
+        );
+        expect(description, label).toContain(entry.guidance);
+        expect(description, label).toContain(entry.choice);
+        expect(description, label).not.toContain(otherChoice);
+        for (const preserved of field.preserved ?? [])
+          expect(description, label).toContain(preserved);
+        expect(advertised[field.group]?.required ?? [], label).not.toContain(
+          field.name,
+        );
+      }
+
+      const help = await serve(cli, [entry.command, "--help"]);
+      const manifest = await serve(cli, [entry.command, "--llms-full"]);
+      expect(help.exitCode, entry.command).toBe(0);
+      expect(manifest.exitCode, entry.command).toBe(0);
+      for (const surface of [help.stdout, manifest.stdout]) {
+        expect(surface).toContain(entry.guidance);
+        expect(surface).toContain(entry.choice);
+        expect(surface).not.toContain(otherChoice);
+        for (const field of entry.fields)
+          for (const preserved of field.preserved ?? [])
+            expect(surface).toContain(preserved);
+      }
+
+      const ajv = new Ajv2020({ strict: false });
+      expect(advertised.args, entry.command).toBeDefined();
+      expect(advertised.options, entry.command).toBeDefined();
+      const validateArgs = ajv.compile(advertised.args ?? {});
+      const validateOptions = ajv.compile(advertised.options ?? {});
+      expect(validateArgs({}), entry.command).toBe(false);
+      for (const request of [...entry.representable, entry.omitted]) {
+        expect(
+          validateArgs(request.args),
+          `${entry.command} args ${JSON.stringify(validateArgs.errors)}`,
+        ).toBe(true);
+        expect(
+          validateOptions(request.options),
+          `${entry.command} options ${JSON.stringify(validateOptions.errors)}`,
+        ).toBe(true);
+      }
+      for (const request of entry.rejected) {
+        if (request.args !== undefined)
+          expect(validateArgs(request.args), entry.command).toBe(false);
+        if (request.options !== undefined)
+          expect(validateOptions(request.options), entry.command).toBe(false);
+      }
+    },
+  );
+});

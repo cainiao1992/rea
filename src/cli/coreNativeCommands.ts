@@ -1,6 +1,10 @@
 import { nativeDispatchMetadataInputSchema } from "../domain/native/objcSwiftMetadata.js";
 import { z } from "incur";
-import { resolveCliAnalysisSelector } from "./analysisSelector.js";
+import {
+  addressOrProcedureGuidance,
+  equalSelectorGuidance,
+  resolveCliAnalysisSelector,
+} from "./analysisSelector.js";
 
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
@@ -357,17 +361,20 @@ const registerNativeApiCommand = (
   runDirectAnalysis: DirectAnalysis["runDirectAnalysis"],
 ): void => {
   cli.command(CLI_COMMANDS.inspectNativeApi, {
-    description: "Reconstruct one native function API boundary with evidence",
+    description: `Reconstruct one native function API boundary with evidence. ${addressOrProcedureGuidance} ${equalSelectorGuidance}`,
     args: z.object({
       path: z.string().describe("App or program path"),
-      address: z.string().optional().describe("Procedure name or address"),
+      address: z
+        .string()
+        .optional()
+        .describe(`Procedure name or address. ${addressOrProcedureGuidance}`),
     }),
     options: z.object({
       procedure: z
         .string()
         .optional()
         .describe(
-          "Procedure selector; use this option for symbols beginning with a dash",
+          `Procedure selector; use this option for symbols beginning with a dash. ${addressOrProcedureGuidance}`,
         ),
       snapshot: snapshotSelectionOption,
       ...nativeOpenOptionFields,

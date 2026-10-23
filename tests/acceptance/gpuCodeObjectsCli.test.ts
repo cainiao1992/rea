@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import { gpuCodeObjectsSchema } from "../../src/domain/gpu/gpuCodeObjects.js";
 import {
@@ -21,6 +22,7 @@ import {
   cubinFixture,
   hipFixture,
   elfFixture,
+  llvmBitcodeFixture,
 } from "../fixtures/gpu/codeObjects.js";
 
 cliTest(
@@ -62,6 +64,148 @@ cliTest(
       expect(report.kernels[0]!.parameter_bytes).toBe(12);
       expect(report.coverage.payloads).toBe("complete");
     }
+  },
+);
+
+cliTest(
+  "inventories a complete CCOB stream containing ordinary CCOB payload text",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-ccob-embedded-marker-");
+    const bundle = hipFixture(
+        Buffer.from("ordinary CCOB marker"),
+        "host-other",
+      ),
+      compressed = deflateSync(bundle, { level: 0 });
+    expect(compressed.indexOf("CCOB")).toBeGreaterThan(0);
+    for (const version of [1, 2] as const) {
+      const width = version === 1 ? 20 : 24,
+        header = Buffer.from(
+          ccobFixture(version, "zlib", bundle).subarray(0, width),
+        );
+      if (version === 2) header.writeUInt32LE(width + compressed.length, 8);
+      const bytes = Buffer.concat([header, compressed]),
+        path = join(root, `v${version}`);
+      await writeFile(path, bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          "inventory",
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const evidence = parseEvidence(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ),
+      );
+      const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+      expect(report.coverage).toMatchObject({
+        discovery: "complete",
+        payloads: "not-requested",
+      });
+      expect(report.objects).toHaveLength(3);
+      expect(report.objects[0]).toMatchObject({
+        kind: "hip-bundle",
+        inspection: "complete",
+        encoded_size: compressed.length,
+        decoded_size: bundle.length,
+        sha256: createHash("sha256").update(bundle).digest("hex"),
+        location: { offset: width, size: compressed.length },
+      });
+      expect(
+        report.objects
+          .slice(1)
+          .map(({ bundle_id, inspection }) => [bundle_id, inspection]),
+      ).toEqual([
+        ["host-x86_64-unknown-linux", "complete"],
+        ["host-other", "complete"],
+      ]);
+    }
+  },
+);
+
+cliTest(
+  "distinguishes unsupported HIP bitcode from corrupted ELF through the public CLI",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-hip-bitcode-cli-"),
+      bitcode = llvmBitcodeFixture(),
+      corruptedElf = amdFixture(),
+      bundleId = "hip-amdgcn-amd-amdhsa--gfx900";
+    corruptedElf.writeBigUInt64LE(BigInt(corruptedElf.length + 1), 40);
+    for (const [name, payload, analysis, inspection] of [
+      ["inventory", bitcode, "inventory", "inventory"],
+      ["bitcode", bitcode, "kernels", "unsupported"],
+      ["corrupt-elf", corruptedElf, "kernels", "malformed"],
+    ] as const) {
+      const bytes = hipFixture(payload, bundleId),
+        path = join(root, name);
+      await writeFile(path, bytes);
+      const response = await cli.run({
+        arguments: [
+          "inspect-gpu-code-objects",
+          path,
+          "--analysis",
+          analysis,
+          "--targets",
+          '["gfx900"]',
+          "--detail",
+          "complete",
+          "--json",
+        ],
+      });
+      expect(response.exitCode, response.stderr).toBe(0);
+      const evidence = parseEvidence(
+        toolContract("inspect_gpu_code_objects").outputSchema.parse(
+          response.json,
+        ),
+      );
+      const report = gpuCodeObjectsSchema.parse(evidence.normalized_result);
+      const row = report.objects.find(({ kind }) => kind === "amdgpu")!;
+      expect(row).toMatchObject({
+        bundle_id: bundleId,
+        target: "gfx900",
+        payload_target: null,
+        inspection,
+        encoded_size: payload.length,
+        location: {
+          container_id: null,
+          offset: bytes.length - payload.length,
+          size: payload.length,
+        },
+        sha256:
+          analysis === "inventory"
+            ? null
+            : createHash("sha256").update(payload).digest("hex"),
+      });
+      expect(report.coverage.payloads).toBe(
+        analysis === "inventory" ? "not-requested" : "partial",
+      );
+      expect(report.kernels).toEqual([]);
+      if (name === "bitcode") {
+        expect(row.limitations.join(" ")).toContain("LLVM bitcode");
+        expect(row.limitations.join(" ")).toContain(
+          "validity and inner target were not inspected",
+        );
+      }
+    }
+    const path = join(root, "raw-bitcode");
+    await writeFile(path, bitcode);
+    const raw = await cli.run({
+      arguments: [
+        "inspect-gpu-code-objects",
+        path,
+        "--analysis",
+        "kernels",
+        "--json",
+      ],
+    });
+    expect(raw.exitCode).toBe(1);
+    expect(raw.json).toMatchObject({ code: "unsupported_target" });
   },
 );
 

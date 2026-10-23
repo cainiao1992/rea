@@ -118,8 +118,8 @@ export const readCcobHeader = (bytes: Buffer, remaining: number) => {
   return { version, method, width, total, decoded, hash };
 };
 
-/** Legacy v1 has no size field; LLVM finds the next CCOB magic as its boundary. */
-export const readLegacyCcobTotal = async (
+/** After failed/unsupported v1 decoding only: a marker is an uncertain recovery candidate. */
+export const findLegacyCcobRecoveryTotal = async (
   source: GpuSource,
   base: number,
 ): Promise<number> => {

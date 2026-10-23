@@ -3689,7 +3689,7 @@ const issueOutput = [
   "\tat ghidra.app.plugin.core.analysis.GolangSymbolAnalyzer$PropagateRttiBackgroundCommand.applyTo",
 ].join("\n");
 
-describe("Ghidra OOME error projection", () => {
+describe("Ghidra exit-signal evidence", () => {
   it("preserves observed SIGKILL without guessing its cause or installation recovery", async () => {
     const projected = await projectFailure("process", {
       exit_code: null,
@@ -3720,7 +3720,9 @@ describe("Ghidra OOME error projection", () => {
     expect(projected.message).toContain("Java heap space");
     expect(projected.remediation.action).toContain("GHIDRA_HEADLESS_MAXMEM");
   });
+});
 
+describe("Ghidra OOME error projection", () => {
   it("recognizes the headless analyzer's real detail-before-class output", async () => {
     const projected = await projectFailure("process", {
       stdout: output(issueOutput),

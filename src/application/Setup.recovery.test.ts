@@ -43,7 +43,11 @@ describe("setup workflow", () => {
     host.clientResults.set("third", { status: "failed", reason: "readback" });
 
     const result = await runSetup(
-      { ...options(true), clientIds: ["first", "second", "third"] },
+      {
+        ...options(true),
+        clientIds: ["first", "second", "third"],
+        installSkill: false,
+      },
       host,
     );
 

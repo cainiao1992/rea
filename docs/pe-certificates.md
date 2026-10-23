@@ -52,5 +52,13 @@ share a 64 KiB budget per PKCS#7 payload. Unsupported certificate name
 encodings, including TeletexString (T.61) and GeneralString, fail explicitly
 rather than returning names decoded with an assumed character set.
 
+The structural CMS reader accepts definite lengths and BER indefinite lengths
+for constructed values, including the outer `ContentInfo` sequence. Primitive
+values must have definite lengths. Embedded X.509 certificates and signed
+attributes must also use definite length encoding, as required by their DER
+profiles. This is a bounded structural subset: it does not implement every BER
+string form or validate DER canonical encoding, and it does not verify
+signatures.
+
 This workflow does not verify signatures, certificate chains, timestamps, or
 Authenticode digest coverage of image bytes.

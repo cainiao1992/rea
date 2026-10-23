@@ -8,8 +8,8 @@ import { peCertificateTypeName } from "../../domain/native/peCertificates.js";
 import {
   oidName,
   parsePkcs7SignedData,
-  PeCertificateDerFailure,
-} from "./PeCertificateDer.js";
+  PeCertificateAsn1Failure,
+} from "./PeCertificateAsn1.js";
 import { readPeHeaders } from "./PeResourceLayout.js";
 
 const fail = (message: string): never => {
@@ -158,7 +158,7 @@ export const parsePeCertificates = (
           })),
         };
       } catch (cause) {
-        if (cause instanceof PeCertificateDerFailure)
+        if (cause instanceof PeCertificateAsn1Failure)
           fail(`PKCS#7 signedData is malformed: ${cause.message}`);
         throw cause;
       }

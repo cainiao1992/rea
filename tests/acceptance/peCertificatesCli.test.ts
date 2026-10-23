@@ -6,6 +6,7 @@ import {
   peCertificateFixture,
   peWithoutCertificateTableFixture,
   pkcs7SignedDataFixture,
+  pkcs7SignedDataIndefiniteEnvelopeFixture,
 } from "../../src/native/pe/PeCertificates.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
@@ -26,6 +27,31 @@ cliTest(
     expect(
       evidence.normalized_result.entries[0]?.pkcs7?.certificates[0]?.serial_hex,
     ).toBe("11223344");
+  },
+);
+
+cliTest(
+  "inspects SignedData with an indefinite constructed ContentInfo envelope",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pe-cert-ber-cli-");
+    const path = join(root, "ber-signed.exe");
+    const payload = pkcs7SignedDataIndefiniteEnvelopeFixture();
+    await writeFile(path, peCertificateFixture(false, payload));
+
+    const result = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const evidence = toolContract("inspect_pe_certificates").outputSchema.parse(
+      result.json,
+    );
+    const entry = evidence.normalized_result.entries[0];
+    expect(entry?.pkcs7?.certificates[0]).toMatchObject({
+      serial_hex: "11223344",
+    });
+    expect(entry?.payload.bytes).toBe(payload.length);
+    expect(entry?.pkcs7?.certificates[0]?.location.bytes).toBeGreaterThan(0);
   },
 );
 

@@ -104,6 +104,22 @@ export const pkcs7SignedDataFixture = (
   return seq(SIGNED_DATA, context(0, signedData));
 };
 
+/** Same CMS fields with a BER indefinite-length outer ContentInfo SEQUENCE. */
+export const pkcs7SignedDataIndefiniteEnvelopeFixture = (): Buffer => {
+  const definite = pkcs7SignedDataFixture();
+  const firstLength = definite[1];
+  if (firstLength === undefined) throw new Error("Missing ContentInfo length");
+  let contentOffset = 2;
+  if ((firstLength & 0x80) !== 0) contentOffset += firstLength & 0x7f;
+  if (contentOffset > definite.length)
+    throw new Error("Invalid fixture ContentInfo length");
+  return Buffer.concat([
+    Buffer.from([0x30, 0x80]),
+    definite.subarray(contentOffset),
+    Buffer.from([0, 0]),
+  ]);
+};
+
 /** Minimal PE32/PE32+ image with an overlay IMAGE_DIRECTORY_ENTRY_SECURITY table. */
 export const peCertificateFixture = (
   plus = false,

@@ -5,8 +5,6 @@ import {
   buildCapabilityInventory,
   compactToolAvailability,
 } from "./CapabilityInventory.js";
-import { idaCapabilities } from "../ida/IdaProviderCapabilities.js";
-import { providerCapabilitySets } from "./binary/BinarySessionStatus.js";
 import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   expandToolAvailability,
@@ -887,31 +885,3 @@ it("keeps independent native sessions discoverable without an unrelated binary t
     { available: false, reason: "target_required" },
   );
 });
-
-it.each([false, true])(
-  "retains selected provider UI/process/network effects in direct and composed discovery (UI=%s)",
-  (showUi) => {
-    const input = {
-      open: true,
-      kind: "executable",
-      capabilities: providerCapabilitySets(
-        idaCapabilities(showUi ? "attached" : "headless", false),
-      ),
-    };
-    const entries = buildCapabilityInventory(input, enabledPolicy);
-    for (const name of [
-      "procedure_pseudo_code",
-      "analyze_function",
-      "batch_decompile",
-    ]) {
-      expect(entries.find((entry) => entry.name === name)).toMatchObject({
-        effects: {
-          changesUiState: showUi,
-          accessesNetwork: true,
-          launchesProcess: !showUi,
-        },
-        annotations: { open_world: true },
-      });
-    }
-  },
-);

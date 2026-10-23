@@ -60,3 +60,26 @@ it("rejects a marshal type outside the subset", () => {
   if (parsed.ok) return;
   expect(parsed.error.reason).toBe("format");
 });
+
+it.each([
+  ["string", "73ffffffff"],
+  ["list", "5bffffffff"],
+  ["tuple", "28ffffffff"],
+])("classifies a negative marshal %s size as malformed", (_kind, hex) => {
+  const parsed = readMarshalSubset(bytes(hex));
+  expect(parsed).toMatchObject({
+    ok: false,
+    error: { reason: "format" },
+  });
+});
+
+it.each([
+  ["string", "7301000100"],
+  ["list", "5ba1860100"],
+])("keeps positive marshal %s budget refusals as limits", (_kind, hex) => {
+  const parsed = readMarshalSubset(bytes(hex));
+  expect(parsed).toMatchObject({
+    ok: false,
+    error: { reason: "limit" },
+  });
+});

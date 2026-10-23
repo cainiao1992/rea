@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -23,6 +24,7 @@ const onefile = async (
   magic = PYTHON_39_MAGIC,
   marker = false,
   compressPyz = false,
+  pyzToc?: Buffer,
 ): Promise<string> => {
   const directory = await createTestTempDirectory("rea-pyinstaller-cli-");
   const path = join(directory, "hello");
@@ -63,6 +65,12 @@ const onefile = async (
           compress: true,
         },
         {
+          name: "healthy.txt",
+          typeCode: "x",
+          payload: Buffer.from("healthy sibling"),
+          compress: false,
+        },
+        {
           name: "PYZ.pyz",
           typeCode: "z",
           payload: pyzArchive({
@@ -70,6 +78,7 @@ const onefile = async (
             modules: [
               { name: "app", typeCode: 0, body: Buffer.from("app-body") },
             ],
+            ...(pyzToc === undefined ? {} : { toc: pyzToc }),
           }),
           compress: compressPyz,
         },
@@ -199,5 +208,87 @@ it("reports unknown traversal through the CLI for an opaque PYZ", async () => {
     pyz_status: "opaque",
     encryption_source: "carchive-marker",
     compression_flag: 1,
+  });
+});
+
+it.each([
+  ["negative string length", "5b0100000073ffffffff"],
+  ["negative list count", "5bffffffff"],
+  ["negative tuple count", "28ffffffff"],
+  ["truncated string", "5b010000007301000000"],
+  ["unsupported marshal type", "5b010000004e"],
+])(
+  "keeps healthy CArchive siblings when the PYZ table has %s",
+  async (_description, tocHex) => {
+    const path = await onefile(
+      PYTHON_39_MAGIC,
+      false,
+      false,
+      Buffer.from(tocHex, "hex"),
+    );
+    const result = await execute(process.execPath, [
+      cli,
+      "inspect-artifact",
+      path,
+      "--json",
+    ]);
+    const inspection = artifactInspectionResultSchema.parse(
+      parseEvidence(JSON.parse(result.stdout)).normalized_result,
+    );
+    const inventory = inspection.substeps[0]?.evidence.normalized_result;
+    expect(inventory?.coverage.status).toBe("unknown");
+    expect(inventory?.occurrences.map((item) => item.logical_path)).toEqual(
+      expect.arrayContaining(["hello", "healthy.txt", "PYZ.pyz"]),
+    );
+    const healthySibling = inventory?.occurrences.find(
+      (item) => item.logical_path === "healthy.txt",
+    );
+    expect(healthySibling).toMatchObject({
+      hash_status: "verified",
+      artifact_id: expect.any(String),
+    });
+    expect(
+      inventory?.nodes.find(
+        (node) => node.artifact_id === healthySibling?.artifact_id,
+      ),
+    ).toMatchObject({
+      sha256: createHash("sha256")
+        .update(Buffer.from("healthy sibling"))
+        .digest("hex"),
+      size: Buffer.byteLength("healthy sibling"),
+    });
+    expect(
+      inventory?.occurrences.find((item) => item.logical_path === "PYZ.pyz"),
+    ).toMatchObject({
+      format_metadata: { pyz_status: "opaque" },
+    });
+  },
+);
+
+it("keeps positive over-budget PYZ sizes as resource refusals", async () => {
+  const path = await onefile(
+    PYTHON_39_MAGIC,
+    false,
+    false,
+    Buffer.from("7301000100", "hex"),
+  );
+  let failure: { code: unknown; stdout: string } | undefined;
+  try {
+    await execute(process.execPath, [cli, "inspect-artifact", path, "--json"]);
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      "stdout" in error &&
+      typeof error.stdout === "string"
+    )
+      failure = { code: error.code, stdout: error.stdout };
+    else throw error;
+  }
+  expect(failure?.code).toBe(1);
+  expect(JSON.parse(failure?.stdout ?? "null")).toMatchObject({
+    code: "truncated",
+    details: { reason: "limit" },
   });
 });

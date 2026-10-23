@@ -688,7 +688,7 @@ export function* collectSemanticMemberMutationsSteps(
             current.path.map((key) =>
               key === null || typeof key === "object" ? null : String(key),
             ),
-          ))
+          ).paths)
             if (retainSemanticAmbientEffect(state, effect, path, mutation)) {
               recordedEffectCount += 1;
               clearSemanticValueCaches(state);
@@ -1810,7 +1810,7 @@ const observableMutationPaths = (
             ["globalThis", "global", "window", "self"].includes(expression.name)
           )
             (observer.origins ??= new Set()).add("ambient");
-          else if (ambientPaths(expression).length > 0)
+          else if (ambientPaths(expression).paths.length > 0)
             (observer.origins ??= new Set()).add("opaque");
         } else if (
           t.isMemberExpression(expression) ||

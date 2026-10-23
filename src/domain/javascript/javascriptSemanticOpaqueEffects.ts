@@ -63,7 +63,7 @@ export const createSemanticOpaqueGlobalObserver = (
   let invocationSite: t.Node | undefined;
   const interop = createSemanticModuleInterop(state, {
     intrinsicPath: (node) => {
-      const paths = ambientPaths(node, invocationSite);
+      const paths = ambientPaths(node, invocationSite).paths;
       const path = paths.find((path) => path[1] === "eval") ?? paths[0];
       if (path?.[0] !== "global" || path.some((key) => key === null))
         return undefined;

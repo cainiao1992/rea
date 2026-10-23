@@ -283,7 +283,7 @@ const visitSemanticReferenceEffectsAtSite = (
   } else if (lookup.kind === "ambient" || lookup.kind === "uncertain-ambient") {
     for (const node of state.ambientBindingWrites.get(root.name) ?? [])
       if (!retain("ambient-write", node)) return metadata;
-    const ambientRoots = createAmbientPathResolver(state, false)(root);
+    const ambientRoots = createAmbientPathResolver(state, false)(root).paths;
     for (const ambientRoot of ambientRoots) {
       const selectedPath = [...ambientRoot, ...path];
       for (const [kind, effects] of [

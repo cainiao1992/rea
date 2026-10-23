@@ -75,10 +75,17 @@ selected byte identity and tool provenance.
 Core validation remains authoritative when an optional custom section cannot
 be interpreted. WABT warning output is preserved in `custom_section_warnings`;
 `debug_name_metadata` reports whether the optional name section was absent,
-fully interpreted, or uninterpretable. Older portable reports retain their
-original strict command profile; missing metadata coverage is `unknown` and
-missing warning history is `null`. The raw custom section remains in the
-decoded WAT. An uninterpretable name section leaves debug module names unknown.
+fully interpreted, uninterpretable, or unknown. WABT custom-section warnings
+whose section attribution is unknown prevent a complete debug-name claim, even
+when module names were decoded. They do not establish that the name section is
+malformed. Exact warnings retain their producing tool and text. Older portable
+reports retain their original strict command profile; missing metadata coverage
+is `unknown` and missing warning history is `null`. The raw custom section
+remains in the decoded WAT. An uninterpretable name section leaves complete
+debug-name coverage unknown. Module names decoded before a later metadata
+failure remain available for exact objdump framing, including names containing
+newlines or NUL; those partial observations do not establish complete optional
+metadata.
 
 The tool profile preserves upstream release/source identity, resolved executable
 paths, executable digests, exact banners and arguments. Executable digests are

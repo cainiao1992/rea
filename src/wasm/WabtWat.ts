@@ -1,8 +1,18 @@
 import { parseWabtInterface } from "./WabtInterface.js";
 import { watString, watStringEnd } from "./WabtString.js";
+import { err, ok, type Result } from "../domain/result.js";
+
+interface WabtNameMetadataFailure {
+  readonly _tag: "WabtNameMetadataFailure";
+  readonly reason: string;
+  /** Names WABT already observed before rejecting the remaining metadata. */
+  readonly partial: readonly string[];
+}
 
 /** Read only module-name metadata from WABT's preserved name-section payload. */
-const moduleNames = (bytes: Uint8Array): string[] | null => {
+const moduleNames = (
+  bytes: Uint8Array,
+): Result<readonly string[], WabtNameMetadataFailure> => {
   const names: string[] = [];
   let offset = 0;
   const uint32 = (end: number): number => {
@@ -17,28 +27,41 @@ const moduleNames = (bytes: Uint8Array): string[] | null => {
     throw new Error("Incomplete WABT name-section metadata.");
   };
   try {
+    let previousType = -1;
     while (offset < bytes.length) {
       const type = uint32(bytes.length);
+      if (type <= previousType)
+        throw new Error("Duplicate or out-of-order WABT name subsection.");
+      previousType = type;
       const size = uint32(bytes.length);
       const end = offset + size;
       if (end > bytes.length)
         throw new Error("Incomplete WABT name-section metadata.");
       if (type === 0 && size !== 0) {
         const length = uint32(end);
-        if (offset + length !== end)
+        const nameEnd = offset + length;
+        if (nameEnd > end)
           throw new Error("Incomplete WABT module-name metadata.");
         names.push(
           new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-            bytes.subarray(offset, end),
+            bytes.subarray(offset, nameEnd),
           ),
         );
+        // WABT calls OnModuleName before rejecting trailing subsection bytes.
+        if (nameEnd !== end)
+          throw new Error("Unfinished WABT module-name subsection.");
       }
       offset = end;
     }
-  } catch {
-    return null;
+  } catch (cause) {
+    if (!(cause instanceof Error)) throw cause;
+    return err({
+      _tag: "WabtNameMetadataFailure",
+      reason: cause.message,
+      partial: names,
+    });
   }
-  return names;
+  return ok(names);
 };
 
 /** Extract exact top-level WABT WAT forms; no raw WASM decoding or import/export name unescaping. */
@@ -133,12 +156,15 @@ export const parseWabtWat = (text: string) => {
               nameString.end + payloadPrefix[0].length,
             );
             const names = moduleNames(payload.bytes);
-            if (names === null) {
+            // Framing needs every observed display, even when optional
+            // metadata coverage is incomplete in this or an earlier section.
+            debugModuleNames.push(
+              ...(names.ok ? names.value : names.error.partial),
+            );
+            if (!names.ok) {
               debugNameMetadata = "uninterpretable";
-              debugModuleNames.length = 0;
             } else if (debugNameMetadata !== "uninterpretable") {
               debugNameMetadata = "complete";
-              debugModuleNames.push(...names);
             }
           }
         }

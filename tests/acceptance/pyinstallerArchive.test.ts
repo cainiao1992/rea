@@ -360,6 +360,13 @@ it("extracts CArchive members through extract-artifact", async () => {
   const extracted = artifactExtractionResultSchema.parse(
     parseEvidence(JSON.parse(result.stdout)).normalized_result,
   );
+  expect(extracted.limitations).toContain(
+    "PYZ.pyz/app.pyc: Python bytecode header was reconstructed from the archive Python magic; this digest covers the derived file.",
+  );
+  expect(extracted.coverage).toEqual({
+    scope: "container-entries",
+    status: "complete",
+  });
   const hello = extracted.artifacts.find(
     (artifact) => artifact.relative_path === "hello",
   );

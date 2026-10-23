@@ -86,6 +86,13 @@ export const expectArmSliceExtraction = async (
 ) => {
   const extracted = artifactExtractionResultSchema.parse(value);
   expect(extracted.containment_verified).toBe(true);
+  // Inventory and materialization each acquire their own lipo observation.
+  expect(extracted.provenance).toHaveLength(2);
+  expect(extracted.provenance).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ tool: "lipo", effects: ["read"] }),
+    ]),
+  );
   expect(extracted.artifacts).toHaveLength(fixture.slices.length);
   for (const slice of fixture.slices) {
     const relativePath = `slices/${slice.name}`;

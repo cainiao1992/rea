@@ -6,6 +6,16 @@ MCP. They read archive bytes without launching the application. Bytecode
 source decompilation, encrypted PYZ recovery, zipapp and PEX analysis are outside
 this capability.
 
+`extract_artifact.coverage` preserves the inventory producer's source traversal
+scope and certainty. Successful publication proves that the selected inventoried
+regular files were written and verified; it does not prove that every source
+entry was representable or every embedded payload was decoded. For example, a
+directory containing an invalid UTF-8 filename can publish its representable
+files successfully while coverage remains `unknown`. Extraction retains the
+inventory's command provenance and limitations, plus the selected occurrences'
+path-qualified derivation notices. A reconstructed `.pyc` header therefore stays
+identified as derived bytes in the extraction result.
+
 ## Facts and focused queries
 
 The root occurrence's `format_metadata` records the CArchive layout (2.0 or

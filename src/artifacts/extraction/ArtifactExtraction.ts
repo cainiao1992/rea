@@ -16,6 +16,7 @@ import {
   ArtifactReaderFailure,
   type ArtifactEntry,
   type ArtifactReader,
+  type ArtifactReaderTraversal,
 } from "../ArtifactReader.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
@@ -30,9 +31,9 @@ import {
   artifactExtractionResultSchema,
   type ArtifactExtractionResult,
   type ArtifactGraphManifest,
+  type ArtifactCommand,
   type ArtifactNode,
   type ArtifactOccurrence,
-  type IntegrityContradiction,
 } from "../../domain/artifactGraph.js";
 import { AnalysisUnsupportedTargetError } from "../../domain/analysisErrorCore.js";
 import type {
@@ -142,21 +143,12 @@ const materializeArtifactInventoryInScope = async (
     }
     return true;
   });
-  const selectedIds = new Set(
-    activeOccurrences.map(({ occurrence_id: id }) => id),
-  );
   const neededNodes = new Set(
     activeOccurrences.map(({ artifact_id: id }) => id),
   );
   const nodes = new Map<string, ArtifactNode>();
   for (const node of snapshot.nodes)
     if (neededNodes.has(node.artifact_id)) nodes.set(node.artifact_id, node);
-  const inventory: ExtractionInventory = {
-    manifest: snapshot.manifest,
-    integrityContradictions: snapshot.integrity_contradictions.filter(
-      ({ occurrence_id: id }) => selectedIds.has(id),
-    ),
-  };
   const selected = activeOccurrences.map((occurrence) => {
     // REA never decrypts archive entries, so an encrypted entry makes the
     // complete extraction unsupported rather than the archive invalid.
@@ -204,7 +196,7 @@ const materializeArtifactInventoryInScope = async (
   return materializeSelection({
     input,
     sourcePath,
-    inventory,
+    inventory: snapshot,
     selected,
     signal,
   });
@@ -232,7 +224,7 @@ const materializeSelection = async ({
 }: {
   readonly input: ArtifactExtractionInput;
   readonly sourcePath: string;
-  readonly inventory: ExtractionInventory;
+  readonly inventory: ArtifactInventorySnapshot;
   readonly selected: readonly SelectedOccurrence[];
   readonly signal: AbortSignal | undefined;
 }): Promise<ArtifactExtractionResult> => {
@@ -269,7 +261,13 @@ const materializeSelection = async ({
       if (cause instanceof SafeOutputTreeCreationFailure) output = cause.tree;
       throw cause;
     }
-    await writeSelectedEntries({ reader, output, byPath, extracted, signal });
+    const traversal = await writeSelectedEntries({
+      reader,
+      output,
+      byPath,
+      extracted,
+      signal,
+    });
     localReaderOwner = undefined;
     const closeAttempt = await input.resourceScope.release(readerOwner);
     if (closeAttempt.kind === "failed")
@@ -279,7 +277,14 @@ const materializeSelection = async ({
     extracted.sort((left, right) =>
       compareUnicodeCodePoints(left.relative_path, right.relative_path),
     );
-    completed = createExtractionResult(input, inventory, selected, extracted);
+    completed = createExtractionResult(
+      input,
+      inventory,
+      selected,
+      extracted,
+      traversal,
+      reader.provenance(),
+    );
     await output.commit(signal);
     return completed;
   } catch (cause: unknown) {
@@ -316,9 +321,22 @@ const writeSelectedEntries = async ({
   readonly byPath: Map<string, SelectedOccurrence>;
   readonly extracted: ExtractedOccurrence[];
   readonly signal: AbortSignal | undefined;
-}): Promise<void> => {
+}): Promise<ArtifactReaderTraversal> => {
   const registry = new ArtifactPathRegistry();
-  for await (const entry of reader.entries(signal)) {
+  let status: ArtifactReaderTraversal["status"] = "complete";
+  const limitations: string[] = [];
+  for await (const entry of reader.entries(signal, {
+    onCoverage: (coverage) => {
+      if (coverage.status !== "complete") status = coverage.status;
+      limitations.push(...coverage.limitations);
+    },
+    onOmission: ({ path, kind }) => {
+      status = "unknown";
+      limitations.push(
+        `Materialization traversal omitted ${kind} at ${JSON.stringify(path)}.`,
+      );
+    },
+  })) {
     const path = normalizeArtifactPath(entry.path);
     registry.add(path, entry.kind);
     // Logical declarations may share a query path with a real file. They do
@@ -356,6 +374,7 @@ const writeSelectedEntries = async ({
       "integrity",
       `Inventoried regular artifact entries were not materialized: ${[...byPath.keys()].sort(compareUnicodeCodePoints).join(", ")}`,
     );
+  return { status, limitations };
 };
 
 const releaseExtractionOwners = async (
@@ -386,10 +405,18 @@ const releaseExtractionOwners = async (
 
 const createExtractionResult = (
   input: ArtifactExtractionInput,
-  inventory: ExtractionInventory,
+  inventory: ArtifactInventorySnapshot,
   selected: readonly SelectedOccurrence[],
   extracted: readonly ExtractedOccurrence[],
+  traversal: ArtifactReaderTraversal,
+  materializationProvenance: readonly ArtifactCommand[],
 ): ArtifactExtractionResult => {
+  const selectedIds = new Set(
+    selected.map(({ occurrence }) => occurrence.occurrence_id),
+  );
+  const integrityContradictions = inventory.integrity_contradictions.filter(
+    ({ occurrence_id: id }) => selectedIds.has(id),
+  );
   const extractionSemantic = {
     source_manifest_id: inventory.manifest.manifest_id,
     selected_occurrence_ids: selected
@@ -408,23 +435,35 @@ const createExtractionResult = (
     artifacts: extracted,
     containment_verified: true,
     cleanup: { attempted: false, verified: true, residual_paths: [] },
-    provenance: [],
-    integrity_contradictions: inventory.integrityContradictions,
+    provenance: [...inventory.provenance, ...materializationProvenance],
+    coverage: {
+      ...inventory.coverage,
+      status:
+        inventory.coverage.status === "complete" &&
+        traversal.status === "complete"
+          ? "complete"
+          : "unknown",
+    },
+    integrity_contradictions: integrityContradictions,
     limitations: [
-      "All regular files in the active artifact were materialized; nested archive contents remain represented by their containing file.",
-      ...(inventory.integrityContradictions.length === 0
+      ...inventory.limitations,
+      ...traversal.limitations.filter(
+        (limitation) => !inventory.limitations.includes(limitation),
+      ),
+      ...selected.flatMap(({ occurrence }) =>
+        occurrence.limitations.map(
+          (limitation) => `${occurrence.logical_path}: ${limitation}`,
+        ),
+      ),
+      "All selected inventoried regular files exposed by the active reader were materialized; nested archive contents remain represented by their containing file. Publication does not establish complete source traversal or content decoding.",
+      ...(integrityContradictions.length === 0
         ? []
         : [
-            `${String(inventory.integrityContradictions.length)} extracted file(s) contradict declared integrity metadata; their bytes are observed-untrusted.`,
+            `${String(integrityContradictions.length)} extracted file(s) contradict declared integrity metadata; their bytes are observed-untrusted.`,
           ]),
     ],
   });
 };
-
-interface ExtractionInventory {
-  readonly manifest: ArtifactGraphManifest;
-  readonly integrityContradictions: readonly IntegrityContradiction[];
-}
 
 /**
  * Refuse a format without an extraction reader before inventory work starts.

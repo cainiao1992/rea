@@ -324,7 +324,7 @@ const readSchema = (
   // Names bound eventual output only when the whole catalog is requested.
   // Selected scope retains one table and at most one possible shadow parent;
   // unrelated names are examined without retaining them or charging the reply.
-  const metadataBudget = new OutputBudget();
+  const catalogNameBudget = new OutputBudget();
   for (const raw of db
     .prepare(
       "SELECT schema, name AS display_name, CAST(name AS BLOB) AS name, type, ncol, wr, strict FROM temp.pragma_table_list WHERE schema = 'main'",
@@ -333,7 +333,11 @@ const readSchema = (
     const value = tableRow.parse(raw);
     const nameKey = sqliteNameBytesKey(value.name);
     if (selectedName === undefined) {
-      metadataBudget.retain(nameKey);
+      // The private hex key grows with the database encoding, but is never
+      // returned. Admit catalog names by their decoded JSON representation;
+      // display text is used only for this lower bound, never for identity.
+      // Stored schema bytes still undergo strict decoding below.
+      catalogNameBudget.retain(value.display_name);
       metadata.set(nameKey, value);
     } else if (nameKey === selectedKey) {
       metadata.set(nameKey, value);

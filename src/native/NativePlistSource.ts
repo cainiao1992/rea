@@ -260,6 +260,14 @@ export const nativePlistFailure = (
       cause,
       capturedOutput,
     });
+  if (code === "ELOOP" || code === "ENAMETOOLONG")
+    return unreadablePlist(
+      selection,
+      code === "ELOOP"
+        ? "symbolic-link traversal looped or exceeded the host limit (ELOOP)"
+        : "the path exceeds the host path or component length limit (ENAMETOOLONG)",
+      { cause, capturedOutput },
+    );
   if (code === "EACCES" || code === "EPERM")
     return new BinaryTargetError(
       path,

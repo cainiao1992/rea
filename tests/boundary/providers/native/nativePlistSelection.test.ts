@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.js";
@@ -86,6 +86,62 @@ it.each(["missing", "directory"] as const)(
         ],
       },
     });
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "reports selected and default plist path-resolution failures as selection failures",
+  async () => {
+    const root = await createTestTempDirectory("rea-plist-origin-resolve-");
+    const loop = join(root, "Loop.plist");
+    await symlink("Loop.plist", loop);
+    const long = join(root, `${"x".repeat(300)}.plist`);
+    const program = join(root, "program");
+    await writeFile(program, "fixture program");
+    await mkdir(join(root, "Contents"));
+    await symlink("Info.plist", join(root, "Contents/Info.plist"));
+    const failure = async (
+      target: Parameters<NativeMacOSProvider["createClient"]>[0],
+    ) => {
+      const client = new NativeMacOSProvider(
+        {},
+        new NativeFixtureRunner(),
+        "darwin",
+      ).createClient(target);
+      onTestFinished(async () => {
+        await client.close();
+      });
+      const result = await client.execute("inspect_plist", {});
+      if (result.ok) throw new Error("Expected plist refusal");
+      return projectAnalysisError(result.error);
+    };
+    for (const [path, code] of [
+      [loop, "ELOOP"],
+      [long, "ENAMETOOLONG"],
+    ] as const)
+      expect(
+        await failure({
+          kind: "artifact",
+          format: "plist",
+          path,
+          sha256: "0".repeat(64),
+        }),
+      ).toMatchObject({
+        code: "invalid_request",
+        details: {
+          issues: [
+            {
+              path: ["path"],
+              reason: "invalid_value",
+              message: expect.stringContaining(`(${code})`),
+            },
+          ],
+        },
+      });
+    const fallback = await failure(nativeMachoTarget(program));
+    expect(fallback).toMatchObject({ code: "capability_unavailable" });
+    expect(fallback.message).toContain("no readable default plist");
+    expect(fallback.message).toContain("(ELOOP)");
   },
 );
 

@@ -110,6 +110,76 @@ for (const little of [true, false]) {
       /Symbol-bearing R_MIPS_REL32/u,
     );
   });
+
+  it.each([false, true])(
+    `leaves RELR dynamic declarations unverified with existing REL=%s (${little ? "LE" : "BE"})`,
+    async (withRel) => {
+      const bytes = fixture(little);
+      const write = (value: number, offset: number) =>
+        little
+          ? bytes.writeUInt32LE(value, offset)
+          : bytes.writeUInt32BE(value, offset);
+      const start = withRel ? 280 : 256;
+      write(35, start); // DT_RELRSZ
+      write(4, start + 4);
+      write(36, start + 8); // DT_RELR
+      write(2048, start + 12);
+      write(37, start + 16); // DT_RELRENT
+      write(4, start + 20);
+      write(0, start + 24);
+      write(64, 100);
+      write(64, 104);
+      const target = await resolve(bytes);
+      assert.equal(target.mips.sharedLoad?.status, "unavailable");
+      assert.match(ghidraMipsUnsupportedReason(target) ?? "", /RELR/u);
+    },
+  );
+
+  it(`does not ignore an isolated zero-valued RELR declaration (${little ? "LE" : "BE"})`, async () => {
+    const bytes = fixture(little);
+    if (little) bytes.writeUInt32LE(37, 280);
+    else bytes.writeUInt32BE(37, 280);
+    if (little) {
+      bytes.writeUInt32LE(40, 100);
+      bytes.writeUInt32LE(40, 104);
+    } else {
+      bytes.writeUInt32BE(40, 100);
+      bytes.writeUInt32BE(40, 104);
+    }
+    const target = await resolve(bytes);
+    assert.equal(target.mips.sharedLoad?.status, "unavailable");
+    assert.match(ghidraMipsUnsupportedReason(target) ?? "", /RELR/u);
+  });
+
+  it.each([false, true])(
+    `includes SHT_RELR in source coverage with existing REL=%s (${little ? "LE" : "BE"})`,
+    async (withRel) => {
+      const bytes = fixture(little);
+      const write = (value: number, offset: number) =>
+        little
+          ? bytes.writeUInt32LE(value, offset)
+          : bytes.writeUInt32BE(value, offset);
+      if (!withRel) write(0, 256);
+      write(1024, 32);
+      if (little) {
+        bytes.writeUInt16LE(40, 46);
+        bytes.writeUInt16LE(2, 48);
+      } else {
+        bytes.writeUInt16BE(40, 46);
+        bytes.writeUInt16BE(2, 48);
+      }
+      write(19, 1068); // SHT_RELR
+      write(2048, 1080);
+      write(4, 1084);
+      write(4, 1100);
+      const target = await resolve(bytes);
+      assert.equal(target.mips.sharedLoad?.status, "unavailable");
+      assert.match(
+        ghidraMipsUnsupportedReason(target) ?? "",
+        /section relocation declarations/u,
+      );
+    },
+  );
 }
 
 it("examines relocation records beyond a read chunk before deciding completeness", async () => {

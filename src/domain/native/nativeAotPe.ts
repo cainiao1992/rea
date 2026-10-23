@@ -13,7 +13,7 @@ export const NATIVE_AOT_MAX_WORK_UNITS = 64 * 1024 * 1024;
 export const NATIVE_AOT_MAX_WORKING_MEMORY_BYTES = 64 * 1024 * 1024;
 /** Version of the built-in read-only PE metadata interpretation in profiles. */
 export const NATIVE_AOT_PROFILE_CONTRACT_REVISION =
-  "rtr-9.1-x64-pe-read-only-v6";
+  "rtr-9.1-x64-pe-read-only-v7";
 
 export type NativeAotParserLimits = {
   readonly sourceBytes: number;
@@ -832,31 +832,40 @@ const findDirectory = (
   };
 };
 
+/** One discovery owner counts only entries the validator actually examines. */
 const parseMethodTable = (
   image: PeImage,
   address: bigint,
-  remainingValidationItems: number,
+  budget: NativeAotParserBudget,
+  validation: { itemsExamined: number },
 ): MethodTable | null => {
-  const header = image.read(address, 16);
+  const header = image.read(address, 24);
   if (header === null) return null;
   const flags = header.readUInt32LE(0),
     baseSize = header.readUInt32LE(4),
     related = header.readBigUInt64LE(8);
-  const counts = image.read(address + 16n, 4);
-  if (counts === null) return null;
-  const slotsCount = counts.readUInt16LE(0),
-    interfacesCount = counts.readUInt16LE(2);
-  if (baseSize > 0x10000000 || (baseSize !== 0 && baseSize < 16)) return null;
-  const itemCount = slotsCount + interfacesCount;
-  if (itemCount > remainingValidationItems) return null;
-  const tableBytes = 24 + itemCount * 8;
+  const elementType = (flags & 0x7c000000) >>> 26;
+  if (
+    (elementType !== 0x14 && elementType !== 0x15) ||
+    baseSize < 16 ||
+    baseSize > 0x10000000 ||
+    (related !== 0n && image.read(related, 24) === null)
+  )
+    return null;
+  const slotsCount = header.readUInt16LE(16),
+    interfacesCount = header.readUInt16LE(18);
+  const tableBytes = 24 + (slotsCount + interfacesCount) * 8;
   const table = image.read(address, tableBytes);
   if (table === null) return null;
   for (let slot = 0; slot < slotsCount; slot++) {
+    if (!budget.consumeWork(8)) return null;
+    validation.itemsExamined++;
     const target = table.readBigUInt64LE(24 + slot * 8);
     if (target !== 0n && !image.isExecutable(target)) return null;
   }
   for (let index = 0; index < interfacesCount; index++) {
+    if (!budget.consumeWork(8)) return null;
+    validation.itemsExamined++;
     const iface = table.readBigUInt64LE(24 + (slotsCount + index) * 8);
     if (iface !== 0n && image.read(iface, 20) === null) return null;
   }
@@ -1097,7 +1106,6 @@ const discoverTables = (
   scanBytesExamined: number;
   scanBytesOmitted: number;
   methodTableValidationItemsExamined: number;
-  workBytesExamined: number;
   truncated: boolean;
 } => {
   const ranges: { start: bigint; end: bigint }[] = [];
@@ -1147,9 +1155,8 @@ const discoverTables = (
   let pointerCount = 0,
     pointerSlotsExamined = 0,
     scanBytesExamined = 0,
-    validationItems = 0,
-    workBytesExamined = 0,
     truncated = false;
+  const validation = { itemsExamined: 0 };
   const candidates = new MethodTableIndex(budget);
   scan: for (const range of merged) {
     let address = (range.start + 7n) & ~7n;
@@ -1159,48 +1166,27 @@ const discoverTables = (
         break scan;
       }
       const value = readU64(image.read(address, 8));
+      if (budget.truncationReason !== undefined) {
+        truncated = true;
+        break scan;
+      }
       pointerSlotsExamined++;
       scanBytesExamined += 8;
-      workBytesExamined += 8;
       if (value !== null && value !== 0n) pointerCount++;
       const candidateAddress = address - 8n;
-      const header =
-        candidateAddress >= image.imageBase
-          ? image.read(candidateAddress, 24)
-          : null;
-      if (header !== null) {
-        const flags = header.readUInt32LE(0);
-        const elementType = (flags & 0x7c000000) >>> 26;
-        const baseSize = header.readUInt32LE(4);
-        const related = header.readBigUInt64LE(8);
-        const plausibleHeader =
-          (elementType === 0x14 || elementType === 0x15) &&
-          baseSize >= 16 &&
-          baseSize <= 0x10000000 &&
-          (related === 0n || image.read(related, 24) !== null);
-        if (!plausibleHeader) {
-          address += 8n;
-          continue;
-        }
-        const counts = image.read(candidateAddress + 16n, 4);
-        if (counts === null) {
-          address += 8n;
-          continue;
-        }
-        const itemCount = counts.readUInt16LE(0) + counts.readUInt16LE(2);
-        if (!budget.consumeWork(itemCount * 8)) {
-          truncated = true;
-          break scan;
-        }
-        validationItems += itemCount;
-        workBytesExamined += itemCount * 8;
-        const candidate = parseMethodTable(image, candidateAddress, itemCount);
-        if (candidate !== null) {
-          if (!candidates.append(candidate)) {
-            truncated = true;
-            break scan;
-          }
-        }
+      const candidate = parseMethodTable(
+        image,
+        candidateAddress,
+        budget,
+        validation,
+      );
+      if (budget.truncationReason !== undefined) {
+        truncated = true;
+        break scan;
+      }
+      if (candidate !== null && !candidates.append(candidate)) {
+        truncated = true;
+        break scan;
       }
       address += 8n;
     }
@@ -1232,6 +1218,7 @@ const discoverTables = (
       objectCount++;
     }
   });
+  truncated ||= budget.truncationReason !== undefined;
   if (objectCount !== 1 || objectRoot < 0 || truncated)
     return {
       tables: candidates,
@@ -1239,8 +1226,7 @@ const discoverTables = (
       pointerSlotsExamined,
       scanBytesExamined,
       scanBytesOmitted: Math.max(0, totalScanBytes - scanBytesExamined),
-      methodTableValidationItemsExamined: validationItems,
-      workBytesExamined,
+      methodTableValidationItemsExamined: validation.itemsExamined,
       truncated,
     };
   truncated = !candidates.includeReachable(objectRoot, image);
@@ -1250,8 +1236,7 @@ const discoverTables = (
     pointerSlotsExamined,
     scanBytesExamined,
     scanBytesOmitted: Math.max(0, totalScanBytes - scanBytesExamined),
-    methodTableValidationItemsExamined: validationItems,
-    workBytesExamined,
+    methodTableValidationItemsExamined: validation.itemsExamined,
     truncated,
   };
 };

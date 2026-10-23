@@ -125,11 +125,15 @@ budget is spent, including later sections that were never visited. MethodTable
 closure indexes each validated table's related pointer once and visits a work
 queue for inheritance and interface reachability. Its temporary index and queue
 consume the existing working-memory budget; the parser does not increase its
-work limit. Discovery still must finish before claiming a unique System.Object
+work limit. Candidate headers/counts are parsed once; unmapped table bodies are
+rejected before charging table entries, and validation charges only each slot or
+interface pointer actually examined. Declared counts and unvisited tails do not
+become examined coverage. Discovery still must finish before claiming a unique System.Object
 root, so a discovery budget stop can return zero recovered tables without
 establishing their absence. Performance on the large bflat report has not been
-measured; this change removes repeated closure scans rather than resolving
-that separate discovery limitation.
+measured. Indexed closure and candidate validation avoid separate repeated or
+unperformed work, but do not establish that the fixed discovery budget admits
+that artifact. Budget stops remain partial results with unknown type absence.
 
 If captured snapshot bytes no longer match their admitted digest, the parser
 retains both digests and the Ghidra owner reports `artifact_changed`, with the

@@ -1579,12 +1579,13 @@ describe("managed derived edges", () => {
       token: "0x06000001",
       declaring_type: "T".repeat(2000),
       name: "m",
-      body: { anchors: Array.from({ length: 40_000 }, () => anchor) },
+      body: { anchors: Array.from({ length: 16 }, () => anchor) },
     } as unknown as ManagedMethod;
 
-    expect(() => edges([method], new Map(), new ManagedDecodeBudget())).toThrow(
-      ManagedReaderFailure,
-    );
+    const budget = new ManagedDecodeBudget();
+    // Exercise the same capacity boundary without constructing 64 MiB of edges.
+    budget.reserve(64 * 1024 * 1024 - 16 * 1024, null);
+    expect(() => edges([method], new Map(), budget)).toThrow(ManagedReaderFailure);
   });
 });
 
@@ -1593,7 +1594,7 @@ describe("managed derived caller names", () => {
     let built = false;
     // A string-like type name records whether the caller was interpolated.
     const declaringType = {
-      length: 70 * 1024 * 1024,
+      length: 2048,
       charCodeAt: () => 0x54,
       toString: () => {
         built = true;
@@ -1616,9 +1617,10 @@ describe("managed derived caller names", () => {
       },
     } as unknown as ManagedMethod;
 
-    expect(() => edges([method], new Map(), new ManagedDecodeBudget())).toThrow(
-      ManagedReaderFailure,
-    );
+    const budget = new ManagedDecodeBudget();
+    // Only the remaining capacity matters to refusal before interpolation.
+    budget.reserve(64 * 1024 * 1024 - 1024, null);
+    expect(() => edges([method], new Map(), budget)).toThrow(ManagedReaderFailure);
     expect(built).toBe(false);
   });
 });

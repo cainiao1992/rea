@@ -41,7 +41,7 @@ const entryBaseShape = {
   classifications: z.array(classificationSchema).min(1),
   limitations: z.array(boundedTextSchema),
   // Host presentation is retained evidence, separate from relocatable semantics.
-  local_diagnostics: z.array(boundedTextSchema).optional(),
+  local_diagnostics: z.array(boundedTextSchema).exactOptional(),
 };
 
 const sourceFileBaseShape = {

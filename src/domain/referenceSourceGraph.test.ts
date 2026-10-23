@@ -131,6 +131,25 @@ describe("historical source graph", () => {
     ).toThrow(/Unicode code point/u);
   });
 
+  it("omits absent local diagnostics and rejects explicitly undefined non-JSON metadata", () => {
+    const input = graphInput();
+    const graph = createHistoricalSourceGraph(input);
+    expect(
+      graph.entries.every(
+        (entry) => !Object.hasOwn(entry, "local_diagnostics"),
+      ),
+    ).toBe(true);
+    expect(() =>
+      createHistoricalSourceGraph({
+        ...input,
+        entries: input.entries.map((entry) => ({
+          ...entry,
+          local_diagnostics: undefined,
+        })),
+      }),
+    ).toThrow();
+  });
+
   it("builds and verifies internal root and manifest commitments", () => {
     const graph = createHistoricalSourceGraph(graphInput());
     const first = createHistoricalSourceManifest(graph);

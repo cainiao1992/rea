@@ -321,11 +321,11 @@ it("charges long digits to the string budget and keeps large previews bounded", 
 
 it("decodes marshal strings with CPython surrogatepass rules", () => {
   const report = parse(
-    withConsts([marshalUnicode(Buffer.from([0x73, 0xed, 0xa0, 0x80]))]),
+    withConsts([marshalUnicode(Buffer.from("efbbbf73eda080efbbbf", "hex"))]),
   );
   expect(root(report).consts[0]).toMatchObject({
     kind: "str",
-    value: "s\ud800",
+    value: "\ufeffs\ud800\ufeff",
   });
   expect(() =>
     parse(withConsts([marshalUnicode(Buffer.from([0xf0, 0x90, 0x80]))])),

@@ -12,9 +12,12 @@ import { scanCanonicalArtifactInventory } from "../../../tests/fixtures/artifact
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import { PyInstallerArtifactReader } from "../PyInstallerArtifactReader.js";
 import { reconstructedPycHeader } from "./PythonBytecode.js";
+import { parsePythonPyc } from "../../python/PythonPycParser.js";
+import { inspectPythonPycInputSchema } from "../../domain/python/pythonPyc.js";
 import {
   PYTHON_39_MAGIC,
   cArchiveExecutable,
+  cArchiveBytecodeExecutable,
   cookieRangeOutsideFile,
   pyzArchive,
   type CArchiveFixtureMember,
@@ -92,6 +95,54 @@ const sampleMembers = (
     compress: false,
   },
 ];
+
+it("preserves legacy pyc bytes and derives only modern headerless CArchive bytecode", async () => {
+  const fixture = cArchiveBytecodeExecutable();
+  const path = await writeArchive("bytecode-layouts", fixture.archive);
+  const reader = new PyInstallerArtifactReader(path);
+  try {
+    const entries = [];
+    for await (const entry of reader.entries()) entries.push(entry);
+    for (const module of fixture.modules) {
+      const entry = entries.find((item) => item.path === module.name)!;
+      expect(entry.formatMetadata).toMatchObject({
+        bytecode_header: module.derived ? "derived" : "unknown",
+        bytecode_magic: module.derived ? "6f0d0d0a" : null,
+      });
+      const bytes = await buffer(await reader.open(entry));
+      expect(bytes).toEqual(module.bytes);
+      expect(
+        parsePythonPyc(
+          bytes,
+          { path: module.name, bytes: bytes.length, sha256: sha256(bytes) },
+          inspectPythonPycInputSchema.parse({ path: module.name }),
+        ).coverage.status,
+      ).toBe("complete");
+      expect(await buffer(await reader.open(entry))).toEqual(module.bytes);
+    }
+  } finally {
+    await reader.close();
+  }
+  const snapshot = await scanCanonicalArtifactInventory(path);
+  for (const module of fixture.modules) {
+    const occurrence = snapshot.occurrences.find(
+      (row) => row.logical_path === module.name,
+    )!;
+    expect(
+      snapshot.nodes.find(
+        (node) => node.artifact_id === occurrence.artifact_id,
+      ),
+    ).toMatchObject({
+      sha256: sha256(module.bytes),
+      size: module.bytes.length,
+    });
+    expect(
+      snapshot.edges.find(
+        (edge) => edge.occurrence_id === occurrence.occurrence_id,
+      )?.relation,
+    ).toBe(module.derived ? "derived-from" : "contains");
+  }
+});
 
 it("inventories a 2.1 archive, nested PYZ modules, and derived bytecode", async () => {
   const script = Buffer.from("print('hi')");

@@ -530,6 +530,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     pathDialect: CarrierPathDialect,
     signal: AbortSignal | undefined,
   ): Promise<PyInstallerMember[]> {
+    const handle = await this.#openHandle(signal);
     const members: PyInstallerMember[] = [];
     const append = (member: PyInstallerMember): void => {
       this.#reservePathComponents(member.entry.path);
@@ -553,8 +554,20 @@ export class PyInstallerArtifactReader implements ArtifactReader {
       abortIfNeeded(signal);
       const image = entry.typeCode === "z" ? images.get(entry) : undefined;
       if (image === undefined) {
+        const bytecode = await this.#pyzStore.bytecodeHeader(
+          handle,
+          cookie.archiveStart,
+          entry,
+          magic,
+          signal,
+        );
         append(
-          projectStoredMember(entry, cookie.archiveStart, magic, pathDialect),
+          projectStoredMember(
+            entry,
+            cookie.archiveStart,
+            bytecode,
+            pathDialect,
+          ),
         );
         continue;
       }

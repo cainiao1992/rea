@@ -17,10 +17,18 @@ import {
 } from "../ArtifactResourceScope.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { readArtifactFileChunks } from "../readArtifactFileChunks.js";
-import { pyInstallerMemberStream } from "./PyInstallerMemberStream.js";
+import {
+  pyInstallerMemberStream,
+  readPyInstallerMemberPrefix,
+} from "./PyInstallerMemberStream.js";
 import type { CArchiveEntry } from "./CArchiveLayout.js";
 import type { PyInstallerMember } from "./CArchiveMembers.js";
 import { pyInstallerFileAdmissionFailure } from "./PyInstallerFileAdmission.js";
+import {
+  reconstructedPycHeader,
+  isHeaderlessPythonCode,
+  type CArchiveBytecodeHeader,
+} from "./PythonBytecode.js";
 
 // Each outer-compressed image retains one inode and its identity until close.
 // This is a per-reader filesystem capacity budget, independent of byte budgets.
@@ -54,6 +62,50 @@ export class PyInstallerPyzStore {
         "PyInstaller compressed PYZ images exceed the 128-file private storage budget",
         { boundary: "capacity" },
       );
+  }
+
+  async bytecodeHeader(
+    handle: FileHandle,
+    archiveStart: number,
+    entry: CArchiveEntry,
+    magic: Buffer | undefined,
+    signal?: AbortSignal,
+  ): Promise<CArchiveBytecodeHeader> {
+    const unchanged = { header: undefined, limitation: undefined };
+    if (magic === undefined) return unchanged;
+    if (entry.typeCode === "s")
+      return { header: reconstructedPycHeader(magic), limitation: undefined };
+    if (entry.typeCode !== "m" && entry.typeCode !== "M") return unchanged;
+    const prefix = await readPyInstallerMemberPrefix(
+      async (active) =>
+        (
+          await this.memberSource(
+            {
+              kind: "carchive",
+              archiveStart,
+              source: entry,
+              header: undefined,
+            },
+            handle,
+            active,
+          )
+        ).source,
+      {
+        sourceBytes: entry.compressedSize,
+        compressed: entry.compressionFlag === 1,
+        expectedBytes: entry.uncompressedSize,
+        maxBytes: entry.uncompressedSize,
+        signal: signal ?? new AbortController().signal,
+      },
+      4,
+    );
+    return isHeaderlessPythonCode(prefix)
+      ? { header: reconstructedPycHeader(magic), limitation: undefined }
+      : {
+          header: undefined,
+          limitation:
+            "CArchive module is not identified as headerless marshal code; its original bytes are preserved without reconstructing a Python bytecode header.",
+        };
   }
 
   async spool(

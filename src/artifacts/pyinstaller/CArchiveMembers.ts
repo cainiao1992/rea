@@ -5,6 +5,7 @@ import type { PyzArchive, PyzEntry } from "./PyzArchive.js";
 import {
   RECONSTRUCTED_PYTHON_HEADER_LIMITATION,
   reconstructedPycHeader,
+  type CArchiveBytecodeHeader,
 } from "./PythonBytecode.js";
 import {
   cArchiveEntryMetadata,
@@ -60,7 +61,7 @@ export const hasEncryptionMarker = (
 export const projectStoredMember = (
   entry: CArchiveEntry,
   archiveStart: number,
-  pythonMagic: Buffer | undefined,
+  bytecode: CArchiveBytecodeHeader,
   pathDialect: CarrierPathDialect,
 ): PyInstallerMember => {
   if (isCArchiveDeclaration(entry))
@@ -82,16 +83,14 @@ export const projectStoredMember = (
       }),
       read: undefined,
     };
-  const header =
-    pythonMagic !== undefined && isBytecodeType(entry.typeCode)
-      ? reconstructedPycHeader(pythonMagic)
-      : undefined;
+  const { header } = bytecode;
   const path = canonicalMemberPath(entry.name, pathDialect);
   const symlink = entry.typeCode === "n";
   const limitations: string[] = [];
   if (symlink) limitations.push("PyInstaller symlink target was not read.");
   if (header !== undefined)
     limitations.push(RECONSTRUCTED_PYTHON_HEADER_LIMITATION);
+  if (bytecode.limitation !== undefined) limitations.push(bytecode.limitation);
   const declaredSize = entry.uncompressedSize;
   return {
     entry: fileEntry({
@@ -321,9 +320,6 @@ const pyzMemberPath = (
   if (item.package) return `${container}/${dotted}/__init__.pyc`;
   return `${container}/${dotted}.pyc`;
 };
-
-const isBytecodeType = (typeCode: string): boolean =>
-  typeCode === "s" || typeCode === "m" || typeCode === "M";
 
 const fileEntry = (input: {
   readonly path: string;

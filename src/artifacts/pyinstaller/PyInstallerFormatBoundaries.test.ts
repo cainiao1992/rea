@@ -2,6 +2,7 @@ import { buffer } from "node:stream/consumers";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { deflateSync } from "node:zlib";
+import { randomBytes } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { withPyInstallerReader } from "../../../tests/fixtures/pyinstallerReader.js";
 import {
@@ -11,10 +12,12 @@ import {
 } from "../../../tests/fixtures/artifactInventory.js";
 import {
   cArchiveExecutable,
+  cArchiveBytecodeExecutable,
   pyzArchive,
   PYTHON_39_MAGIC,
 } from "./CArchive.fixture.js";
 import { readPyzArchive } from "./PyzArchive.js";
+import { marshalCode } from "../../python/PythonPyc.fixture.js";
 import { createEvidence } from "../../domain/evidence.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 import { parseArtifactInventoryEvidence } from "../../domain/artifactInventoryEvidence.js";
@@ -22,6 +25,157 @@ import {
   ArtifactReaderFailure,
   type ArtifactEntry,
 } from "../ArtifactReader.js";
+
+it.each([
+  ["empty", Buffer.alloc(0)],
+  ["short", Buffer.from("630000", "hex")],
+  ["unrecognized", Buffer.from("not marshal")],
+  [
+    "unknown magic resembling TYPE_CODE",
+    Buffer.from("e30d0d0a000000000000000000000000", "hex"),
+  ],
+])(
+  "preserves a CArchive module with %s prefix despite known sibling magic",
+  async (_description, payload) => {
+    await withPyInstallerReader(
+      cArchiveExecutable({
+        layout: "2.1",
+        pythonVersion: 309,
+        members: [
+          { name: "module", typeCode: "m", payload, compress: true },
+          {
+            name: "PYZ.pyz",
+            typeCode: "z",
+            payload: pyzArchive({ magic: PYTHON_39_MAGIC, modules: [] }),
+            compress: false,
+          },
+        ],
+      }),
+      async (reader) => {
+        const entries = [];
+        for await (const entry of reader.entries()) entries.push(entry);
+        const module = entries.find((entry) => entry.path === "module")!;
+        expect(module.formatMetadata).toMatchObject({
+          bytecode_header: "unknown",
+          bytecode_magic: null,
+        });
+        expect(module.limitations.join(" ")).toContain(
+          "original bytes are preserved",
+        );
+        expect(await buffer(await reader.open(module))).toEqual(payload);
+      },
+    );
+  },
+);
+
+it("fills short descriptor reads when distinguishing both CArchive module layouts", async () => {
+  const fixture = cArchiveBytecodeExecutable();
+  await withPyInstallerReader(fixture.archive, async (reader, handle) => {
+    const read = handle.read;
+    const spy = vi.spyOn(handle, "read").mockImplementation(function (
+      this: unknown,
+      ...args: unknown[]
+    ) {
+      if (typeof args[2] === "number" && args[2] > 1) args[2] = 1;
+      return Reflect.apply(read, this, args);
+    });
+    try {
+      const entries = [];
+      for await (const entry of reader.entries()) entries.push(entry);
+      for (const module of fixture.modules) {
+        const entry = entries.find((item) => item.path === module.name)!;
+        expect(await buffer(await reader.open(entry))).toEqual(module.bytes);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+it.each(["unused compressed input", "wrong declared size"])(
+  "keeps %s as an integrity failure after CArchive module prefix inspection",
+  async (fault) => {
+    const payload = marshalCode("py38", {
+      bytecode: randomBytes(256 * 1024),
+    });
+    await withPyInstallerReader(
+      cArchiveExecutable({
+        layout: "2.1",
+        pythonVersion: 309,
+        members: [
+          {
+            name: "module",
+            typeCode: "m",
+            payload,
+            compress: true,
+            ...(fault === "unused compressed input"
+              ? { compressedSuffix: Buffer.from("junk") }
+              : { declaredUncompressedSize: payload.length + 1 }),
+          },
+          {
+            name: "PYZ.pyz",
+            typeCode: "z",
+            payload: pyzArchive({ magic: PYTHON_39_MAGIC, modules: [] }),
+            compress: false,
+          },
+        ],
+      }),
+      async (reader) => {
+        const entries = [];
+        for await (const entry of reader.entries()) entries.push(entry);
+        const module = entries.find((entry) => entry.path === "module")!;
+        expect(module.formatMetadata).toMatchObject({
+          bytecode_header: "derived",
+        });
+        await expect(buffer(await reader.open(module))).rejects.toMatchObject({
+          reason: "integrity",
+          message: expect.stringContaining(
+            fault === "unused compressed input"
+              ? "complete declared source span"
+              : "size disagrees",
+          ),
+        });
+      },
+    );
+  },
+);
+
+it.each(["malformed zlib", "declared plaintext overrun"] as const)(
+  "preserves %s discovered before a CArchive module prefix is accepted",
+  async (fault) => {
+    const payload = cArchiveBytecodeExecutable().modules[1]!.bytes;
+    const bytes = cArchiveExecutable({
+      layout: "2.1",
+      pythonVersion: 310,
+      members: [
+        {
+          name: "module",
+          typeCode: "m",
+          payload,
+          compress: true,
+          ...(fault === "declared plaintext overrun"
+            ? { declaredUncompressedSize: 2 }
+            : {}),
+        },
+        {
+          name: "PYZ.pyz",
+          typeCode: "z",
+          payload: pyzArchive({ magic: payload.subarray(0, 4), modules: [] }),
+          compress: false,
+        },
+      ],
+    });
+    if (fault === "malformed zlib") bytes[64] = 0; // First member follows the ELF prefix.
+    await withPyInstallerReader(bytes, async (reader) => {
+      const list = async () => {
+        for await (const entry of reader.entries()) void entry;
+      };
+      await expect(list()).rejects.toMatchObject({
+        reason: fault === "malformed zlib" ? "format" : "limit",
+      });
+    });
+  },
+);
 
 it("keeps compressed source locations unknown when stored and decoded lengths coincide", async () => {
   const payload = Buffer.alloc(11, 0x61);

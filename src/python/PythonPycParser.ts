@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { decodeMarshalUtf8 } from "../domain/python/marshalUtf8.js";
 import {
   PYTHON_PYC_CHECK_SOURCE,
   PYTHON_PYC_CONST_PREVIEW_LIMIT,
@@ -1463,9 +1464,11 @@ class MarshalReader {
         raw: bytes,
       };
     }
+    const decoded = decodeMarshalUtf8(bytes);
+    if (!decoded.ok) return malformed("Marshal string is not valid UTF-8.");
     return {
       kind: "str",
-      value: decodeSurrogatePass(bytes),
+      value: decoded.value,
       bytes: length,
       raw: bytes,
     };
@@ -1542,64 +1545,6 @@ class MarshalReader {
     return value;
   }
 }
-
-/**
- * Decode marshal UTF-8 the way CPython does (`surrogatepass`): encoded lone
- * surrogates are kept, every other ill-formed sequence is rejected.
- */
-const decodeSurrogatePass = (bytes: Buffer): string => {
-  const units: number[] = [];
-  let text = "";
-  for (let index = 0; index < bytes.length;) {
-    const lead = bytes[index] ?? 0;
-    let codePoint: number;
-    let width: number;
-    if (lead < 0x80) {
-      codePoint = lead;
-      width = 1;
-    } else if (lead >= 0xc2 && lead <= 0xdf) {
-      codePoint = lead & 0x1f;
-      width = 2;
-    } else if (lead >= 0xe0 && lead <= 0xef) {
-      codePoint = lead & 0x0f;
-      width = 3;
-    } else if (lead >= 0xf0 && lead <= 0xf4) {
-      codePoint = lead & 0x07;
-      width = 4;
-    } else {
-      return malformed("Marshal string is not valid UTF-8.");
-    }
-    if (index + width > bytes.length)
-      return malformed("Marshal string is not valid UTF-8.");
-    for (let offset = 1; offset < width; offset += 1) {
-      const next = bytes[index + offset] ?? 0;
-      if ((next & 0xc0) !== 0x80)
-        return malformed("Marshal string is not valid UTF-8.");
-      codePoint = (codePoint << 6) | (next & 0x3f);
-    }
-    if (
-      (width === 3 && codePoint < 0x800) ||
-      (width === 4 && (codePoint < 0x10000 || codePoint > 0x10ffff))
-    )
-      return malformed("Marshal string is not valid UTF-8.");
-    units.push(codePoint);
-    index += width;
-    if (units.length === 4096) {
-      text += codePointsToString(units);
-      units.length = 0;
-    }
-  }
-  return text + codePointsToString(units);
-};
-
-const codePointsToString = (codePoints: readonly number[]): string =>
-  codePoints
-    .map((codePoint) =>
-      codePoint >= 0xd800 && codePoint <= 0xdfff
-        ? String.fromCharCode(codePoint)
-        : String.fromCodePoint(codePoint),
-    )
-    .join("");
 
 /** JSON has no non-finite numbers; keep CPython's repr for them. */
 const jsonFloat = (value: number): number | "inf" | "-inf" | "nan" =>

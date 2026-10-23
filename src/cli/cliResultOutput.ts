@@ -20,6 +20,7 @@ import { jsonLinesErrorRecord } from "./jsonLines.js";
 import { writeCliJsonLines } from "./jsonLinesOutput.js";
 import {
   jsonOutputParts,
+  isTerminalOutput,
   writeJsonOutput,
   writeOutputText,
 } from "./jsonOutput.js";
@@ -346,55 +347,6 @@ export const createCliResultOutput = (
       }
       return true;
     }
-    if (options.tokenCount) {
-      // Incur/tokenx materialize JSON. Measure its UTF-16 expansion before
-      // allowing that allocation, independently of UTF-8 bytes. Other formats
-      // retain Incur's materializing behavior.
-      const tokenValue = failure ?? filtered;
-      let characters = 0;
-      if (
-        tokenValue !== undefined &&
-        tokenValue !== null &&
-        typeof tokenValue !== "function" &&
-        typeof tokenValue !== "symbol"
-      ) {
-        if (format === "json") {
-          for (const part of jsonOutputParts(
-            tokenValue,
-            format,
-            format === "json",
-          ))
-            characters += part.length;
-          characters = Math.max(0, characters - 1);
-        }
-      }
-      if (characters <= constants.MAX_STRING_LENGTH) {
-        const count = estimateTokenCount(formatCliOutput(tokenValue, format));
-        handled = true;
-        try {
-          await writeOutputText(destination, `${count}\n`);
-          return true;
-        } catch (cause: unknown) {
-          failed = true;
-          throw cause;
-        }
-      }
-      error = projectAnalysisError(
-        new AnalysisResourceConstraintError(
-          metadata.command,
-          "memory",
-          "Token counting requires a formatted string larger than the runtime permits.",
-          {
-            formatted_characters: characters,
-            max_string_characters: constants.MAX_STRING_LENGTH,
-          },
-          {
-            remediationAction:
-              "Remove --token-count to stream the complete JSON result, or narrow it with --filter-output.",
-          },
-        ),
-      );
-    }
     const meta = {
       command: metadata.command,
       duration: metadata.duration,
@@ -422,6 +374,66 @@ export const createCliResultOutput = (
           typeof filtered === "symbol"
         ? {}
         : filtered;
+    if (options.tokenCount) {
+      // Incur/tokenx materialize JSON. Measure its UTF-16 expansion before
+      // allowing that allocation, independently of UTF-8 bytes. Other formats
+      // retain Incur's materializing behavior.
+      const tokenValue = document;
+      let characters = 0;
+      if (
+        tokenValue !== undefined &&
+        tokenValue !== null &&
+        typeof tokenValue !== "function" &&
+        typeof tokenValue !== "symbol"
+      ) {
+        if (format === "json" || format === "jsonl") {
+          for (const part of jsonOutputParts(
+            tokenValue,
+            format,
+            isTerminalOutput(destination),
+          ))
+            characters += part.length;
+        }
+      }
+      if (characters <= constants.MAX_STRING_LENGTH) {
+        let formatted: string;
+        if (format === "json" || format === "jsonl") {
+          // Reuse the writer's exact representation after its capacity admission.
+          // tokenx requires one string; retain only this bounded formatted value.
+          formatted = "";
+          for (const part of jsonOutputParts(
+            tokenValue,
+            format,
+            isTerminalOutput(destination),
+          ))
+            formatted += part;
+        } else formatted = formatCliOutput(tokenValue, format);
+        const count = estimateTokenCount(formatted);
+        handled = true;
+        try {
+          await writeOutputText(destination, `${count}\n`);
+          return true;
+        } catch (cause: unknown) {
+          failed = true;
+          throw cause;
+        }
+      }
+      error = projectAnalysisError(
+        new AnalysisResourceConstraintError(
+          metadata.command,
+          "memory",
+          "Token counting requires a formatted string larger than the runtime permits.",
+          {
+            formatted_characters: characters,
+            max_string_characters: constants.MAX_STRING_LENGTH,
+          },
+          {
+            remediationAction:
+              "Remove --token-count to stream the complete JSON result, or narrow it with --filter-output.",
+          },
+        ),
+      );
+    }
     if (ownsSuccessfulTokenWindow) {
       const formatted = formatCliOutput(filtered, format);
       const window = sliceTextByTokenWindow(
@@ -435,7 +447,7 @@ export const createCliResultOutput = (
         return false;
 
       const sliced = window.truncated
-        ? `${window.text}\n[truncated: showing tokens ${options.tokenOffset ?? 0}–${window.end} of ${window.total}]`
+        ? `${window.text}\n[truncated: showing tokens ${window.start}–${window.end} of ${window.total}]`
         : formatted;
       const outputDocument = options.fullOutput
         ? formatCliOutput(
@@ -526,7 +538,7 @@ const fullFailureEnvelope = (
   const nextOffset = window.end < window.total ? window.end : undefined;
   return {
     ok: false,
-    error: `${window.text}\n[truncated: showing tokens ${offset}–${window.end} of ${window.total}]`,
+    error: `${window.text}\n[truncated: showing tokens ${window.start}–${window.end} of ${window.total}]`,
     meta: { ...meta, ...(nextOffset === undefined ? {} : { nextOffset }) },
   };
 };

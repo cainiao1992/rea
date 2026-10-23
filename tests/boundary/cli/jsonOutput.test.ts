@@ -2,7 +2,7 @@ import { constants } from "node:buffer";
 import { createHash } from "node:crypto";
 import { Writable } from "node:stream";
 
-import { Cli, Formatter } from "incur";
+import { Cli } from "incur";
 import { estimateTokenCount } from "tokenx";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
@@ -473,20 +473,88 @@ describe("full-output token counts", () => {
       destination,
     );
     if (output === undefined) throw new Error("Missing JSON output surface");
-    const cli = Cli.create("rea-output-test", { sync: false });
-    registerManagedCommands(cli, silentLogger, async () => failure);
-    streamCliCommandResults(cli, output);
-    const previousExitCode = process.exitCode;
-    try {
-      await cli.serve(argv, { stdout: () => undefined });
-      expect(process.exitCode).toBe(1);
-    } finally {
-      process.exitCode = previousExitCode;
-    }
+    await output.write(failure, {
+      command: "inspect-managed-artifact",
+      duration: "0ms",
+      format: "json",
+    });
     expect(output.handled).toBe(true);
     expect(Buffer.concat(chunks).toString("utf8")).toBe(
-      `${estimateTokenCount(Formatter.format(failure, "json"))}\n`,
+      `${estimateTokenCount(JSON.stringify({ ok: false, error: failure, meta: { command: "inspect-managed-artifact", duration: "0ms" } }) + "\n")}\n`,
     );
+  });
+  it("counts the exact emitted JSON representation and selected document", async () => {
+    const metadata = { command: "fixture", duration: "0ms", format: "json" };
+    for (const terminal of [false, true]) {
+      for (const flags of [
+        [],
+        ["--full-output"],
+        ["--filter-output", "missing"],
+        ["--format", "jsonl"],
+      ]) {
+        const argv = ["fixture", "--json", ...flags];
+        const render = async (count: boolean) => {
+          const chunks: Buffer[] = [];
+          const destination = new Writable({
+            write(chunk: Buffer, _encoding, callback) {
+              chunks.push(chunk);
+              callback();
+            },
+          });
+          Object.defineProperty(destination, "isTTY", { value: terminal });
+          const output = createCliResultOutput(
+            parseCliOutputArguments([
+              ...argv,
+              ...(count ? ["--token-count"] : []),
+            ]),
+            destination,
+          );
+          if (output === undefined) throw new Error("Missing output surface");
+          await output.write({ value: ["hello", "雪😀"] }, metadata);
+          return Buffer.concat(chunks).toString("utf8");
+        };
+        expect(Number((await render(true)).trim())).toBe(
+          estimateTokenCount(await render(false)),
+        );
+      }
+    }
+  });
+
+  it("normalizes exhausted failure window display coordinates", async () => {
+    const chunks: Buffer[] = [];
+    const destination = new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        chunks.push(chunk);
+        callback();
+      },
+    });
+    const output = createCliResultOutput(
+      parseCliOutputArguments([
+        "fixture",
+        "--format",
+        "toon",
+        "--full-output",
+        "--token-offset",
+        "100000",
+        "--token-limit",
+        "3",
+      ]),
+      destination,
+    );
+    if (output === undefined) throw new Error("Missing output surface");
+    await output.write(
+      {
+        code: "target_unavailable",
+        category: "unavailable",
+        message: "Missing target",
+        retryable: false,
+      },
+      { command: "fixture", duration: "0ms", format: "toon" },
+    );
+    const text = Buffer.concat(chunks).toString("utf8");
+    expect(text).toMatch(/showing tokens (\d+)–\1 of \1/);
+    expect(text).not.toContain("nextOffset");
+    expect(text).toContain("ok: false");
   });
 });
 
@@ -612,7 +680,8 @@ describe("CLI result output surface", () => {
     });
     expect(exitCode).toBe(1);
     expect(fallbackBytes).toBe(0);
-    expect(JSON.parse(Buffer.concat(chunks).toString("utf8"))).toMatchObject({
+    const report = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    expect(report).toMatchObject({
       ok: false,
       error: {
         code: "resource_constraint",
@@ -621,7 +690,11 @@ describe("CLI result output surface", () => {
         },
         details: {
           reported_limits: {
-            formatted_characters: expectedCharacters - 1,
+            formatted_characters:
+              expectedCharacters +
+              JSON.stringify({ ok: true, data: null, meta: report.meta })
+                .length -
+              4,
             max_string_characters: constants.MAX_STRING_LENGTH,
           },
         },

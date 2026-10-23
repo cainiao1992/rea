@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { access } from "node:fs/promises";
 import { expect, it, vi } from "vitest";
+import { AnalysisInputError } from "../../../src/domain/analysisErrorCore.js";
 import { SourceMapDecoder } from "../../../src/javascript/sourceMaps/SourceMapDecoder.js";
 import {
   SOURCE_MAP_CODEC_MEMORY_LIMIT_BYTES,
@@ -138,6 +139,47 @@ it.each([
   const response = await realDecoder().trace({ ...input, text });
   if (response.ok) throw new Error("expected failed map");
   expect(response.error._tag).toBe(tag);
+});
+
+it("keeps indexed section overlap typed as a malformed source map", async () => {
+  const text = JSON.stringify({
+    version: 3,
+    sections: [
+      {
+        offset: { line: 0, column: 0 },
+        map: {
+          version: 3,
+          sources: ["a.js"],
+          sourcesContent: ["x();"],
+          names: [],
+          mappings: "AAAA,EAAA",
+        },
+      },
+      {
+        offset: { line: 0, column: 1 },
+        map: {
+          version: 3,
+          sources: ["b.js"],
+          sourcesContent: ["y();"],
+          names: [],
+          mappings: "AAAA",
+        },
+      },
+    ],
+  });
+  const response = await realDecoder().trace({ ...input, text });
+  if (response.ok) throw new Error("expected overlapping map rejection");
+  expect(response.error).toBeInstanceOf(AnalysisInputError);
+  if (!(response.error instanceof AnalysisInputError))
+    throw new Error("expected malformed source-map input error");
+  expect(response.error.issues).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        reason: "invalid_format",
+        message: expect.stringContaining("overlap"),
+      }),
+    ]),
+  );
 });
 it("reports cleanup failure with the actual owning operation", async () => {
   const response = await realDecoder({

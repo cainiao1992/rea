@@ -22,10 +22,7 @@ import {
   SourceMapFormatFailure,
   type SourceMapSourceDeclaration,
 } from "./SourceMapFormat.js";
-import {
-  decodeValidatedSourceMapLeaves,
-  isBeforeSourceMapLeafStop,
-} from "./DecodedSourceMap.js";
+import { decodeValidatedSourceMapLeaves } from "./DecodedSourceMap.js";
 
 /** Decode with the pinned upstream codec; preserve every equal-position candidate. */
 export const traceSourceMap = (
@@ -35,14 +32,6 @@ export const traceSourceMap = (
 ): WebSourceMapReport => {
   const inspected = inspectSourceMap(text);
   const decodedLeaves = decodeValidatedSourceMapLeaves(inspected.leaves, url);
-  for (const { leaf, rows } of decodedLeaves)
-    for (const [line, row] of rows.entries())
-      for (const segment of row)
-        if (!isBeforeSourceMapLeafStop(leaf, line, segment[0]))
-          throw new SourceMapFormatFailure(
-            "format",
-            "Embedded source-map mappings overlap the following section boundary.",
-          );
   let map: TraceMap;
   if (inspected.format === "regular") {
     const decoded = decodedLeaves[0];

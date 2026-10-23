@@ -1,8 +1,5 @@
 import * as t from "@babel/types";
-import {
-  decodeValidatedSourceMapLeaves,
-  isBeforeSourceMapLeafStop,
-} from "../javascript/sourceMaps/DecodedSourceMap.js";
+import { decodeValidatedSourceMapLeaves } from "../javascript/sourceMaps/DecodedSourceMap.js";
 
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
@@ -653,7 +650,6 @@ const normalizeSourceMap = (
       for (const [line, row] of rows.entries()) {
         if ((line & 255) === 0) check();
         for (const segment of row) {
-          if (!isBeforeSourceMapLeafStop(leaf, line, segment[0])) continue;
           if (segment.length === 1) continue;
           const rawSource = leaf.map.sources[segment[1]];
           if (rawSource === undefined) continue;
@@ -741,7 +737,10 @@ const normalizeSourceMap = (
     return emptySourceMapItem(
       request,
       "invalid",
-      "Source-map JSON mappings could not be decoded safely.",
+      cause instanceof SourceMapFormatFailure &&
+        cause.reason === "section-overlap"
+        ? cause.message
+        : "Source-map JSON mappings could not be decoded safely.",
       fetchedUrl,
     );
   }

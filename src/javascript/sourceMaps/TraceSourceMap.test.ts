@@ -310,7 +310,7 @@ describe("source-map layout admission", () => {
           { offset: { line: 0, column: 5 }, map: leaf },
         ],
       }),
-    ).toThrow(/overlap/u);
+    ).toThrow(expect.objectContaining({ reason: "section-overlap" }));
   });
   it("accepts absent optional names and null contents without changing reported identity", () => {
     expect(

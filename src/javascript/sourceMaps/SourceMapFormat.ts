@@ -55,7 +55,7 @@ export interface SourceMapStructureOptions {
 /** A decoder-profile failure with an actionable producer constraint. */
 export class SourceMapFormatFailure extends Error {
   constructor(
-    readonly reason: "format" | "unsupported" | "limit",
+    readonly reason: "format" | "unsupported" | "limit" | "section-overlap",
     message: string,
   ) {
     super(message);

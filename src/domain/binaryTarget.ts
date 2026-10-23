@@ -11,6 +11,7 @@ import type {
 import { err, ok, type Result } from "./result.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
 import {
+  mzWindowsHeaderLayoutLimitation,
   parseMzHeaderEvidence,
   type MzWindowsHeaderSignatureEvidence,
 } from "./dosMz.js";
@@ -453,7 +454,9 @@ const parseMz = (
     return err("MZ Windows new-header candidate is unresolved");
   if (windowsHeader.state === "declared") {
     const { offset } = windowsHeader;
-    if (offset < 64 || offset > bytes.length - 24)
+    const limitation = mzWindowsHeaderLayoutLimitation(windowsHeader);
+    if (limitation !== undefined) return err(limitation);
+    if (offset > bytes.length - 24)
       return err("invalid or truncated Windows executable header in MZ image");
     if (["NE", "LE", "LX"].includes(windowsHeader.signature))
       return err(

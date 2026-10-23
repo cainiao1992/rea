@@ -1139,6 +1139,23 @@ describe("binary Info.plist app bundle targets", () => {
 });
 
 describe("DOS binary target I/O", () => {
+  it("retains the declared PE signature when its overlapping layout is unsupported", async () => {
+    const directory = await createTestTempDirectory("rea-overlapping-pe-");
+    const path = join(directory, "overlap.exe");
+    await writeFile(path, pe(0x014c, 4));
+    const result = await parseBinaryTarget(path);
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        reason: expect.stringContaining("Unsupported overlapping PE header"),
+        diagnostics: {
+          unsupported_layout: true,
+          mz_windows_header: { state: "declared", offset: 4, signature: "PE" },
+        },
+      },
+    });
+  });
+
   it("retains valid DOS facts while refusing automatic selection for an unresolved pointer", async () => {
     const directory = await createTestTempDirectory("rea-ambiguous-mz-target-");
     const path = join(directory, "legacy.exe");

@@ -1,5 +1,8 @@
 import { readPeSectionHeader } from "./NativeSectionDirectory.js";
-import { parseMzHeaderEvidence } from "../../domain/dosMz.js";
+import {
+  mzWindowsHeaderLayoutLimitation,
+  parseMzHeaderEvidence,
+} from "../../domain/dosMz.js";
 import {
   declaredFileRange,
   BinaryFormatFailure,
@@ -27,11 +30,9 @@ const peHeaderOffset = (reader: BinaryReader): number => {
     );
   }
   const { offset: pe } = windowsHeader;
-  if (pe < 64)
-    throw new BinaryFormatFailure(
-      "malformed",
-      "PE signature overlaps the DOS header",
-    );
+  const limitation = mzWindowsHeaderLayoutLimitation(windowsHeader);
+  if (limitation !== undefined)
+    throw new BinaryFormatFailure("unsupported", limitation);
   reader.range(pe, 24, "PE signature and COFF header");
   if (["NE", "LE", "LX"].includes(windowsHeader.signature))
     throw new BinaryFormatFailure(

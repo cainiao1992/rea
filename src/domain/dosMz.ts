@@ -45,6 +45,14 @@ export interface MzWindowsHeaderSignatureEvidence {
   readonly bytes: Buffer;
 }
 
+/** A reader's layout limitation does not invalidate a recognized Windows signature. */
+export const mzWindowsHeaderLayoutLimitation = (
+  header: Extract<MzWindowsHeaderObservation, { state: "declared" }>,
+): string | undefined =>
+  header.offset < 64
+    ? `Unsupported overlapping ${header.signature} header at file offset ${String(header.offset)}; this reader requires the Windows header outside the 64-byte DOS header`
+    : undefined;
+
 /**
  * Observe the Windows new-header pointer without mistaking short DOS module
  * bytes for e_lfanew. A nonzero pointer in a complete DOS header is only a

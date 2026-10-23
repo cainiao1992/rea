@@ -968,6 +968,13 @@ dossiers, instructions, recovered data types, measured load mappings, loaded
 memory bytes, and observed file offsets. Independent load-image attestation
 supports DOS MZ, explicitly selected COM, and explicit raw-binary imports;
 PE returns measurements with an unsupported attestation status.
+Target admission preserves recognized PE/NE/LE/LX signatures separately from
+reader layout support. A Windows header overlapping the first 64 DOS-header
+bytes remains an unsupported layout in this release; it is not reported as an
+invalid offset. Tiny PE files with short optional headers have additional
+unverified loader requirements. Unconfirmed nonzero DOS padding remains an
+unresolved Windows-header candidate, with independently validated DOS facts in
+the target error diagnostics; those facts do not prove a Windows header absent.
 On Linux and macOS, `annotate_native_function` also edits a function name and/or
 entry comments atomically and returns refreshed analysis, and `set_address_name`
 and `set_addresses_names` name a function entry or any other mapped address

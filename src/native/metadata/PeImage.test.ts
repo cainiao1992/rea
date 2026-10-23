@@ -1,10 +1,23 @@
 import { expect, it } from "vitest";
 import { readGoBinaryImage } from "../../go/GoBinaryImage.js";
 import { readPeImage } from "./PeImage.js";
+import { pe } from "../../domain/binaryTarget.fixture.js";
+import { BinaryFormatFailure } from "./BinaryContainer.js";
 import {
   createGoBinaryFixture,
   setGoPeVirtualSize,
 } from "../../../tests/fixtures/go/image.js";
+
+it("classifies a confirmed overlapping PE as an unsupported layout", () => {
+  try {
+    readPeImage(pe(0x014c, 4));
+    throw new Error("Expected an unsupported PE layout");
+  } catch (cause) {
+    expect(cause).toBeInstanceOf(BinaryFormatFailure);
+    expect(cause).toMatchObject({ kind: "unsupported" });
+    expect((cause as Error).message).toContain("overlapping PE header");
+  }
+});
 
 it("keeps a DOS-valid but unsigned Windows-header candidate unresolved", () => {
   const bytes = Buffer.alloc(128);

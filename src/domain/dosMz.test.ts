@@ -167,6 +167,20 @@ describe("DOS MZ load-module validation", () => {
 });
 
 describe("MZ Windows header observations", () => {
+  it("keeps a confirmed overlapping PE distinct from malformed header offsets", () => {
+    const bytes = pe(0x014c, 4);
+    expect(observeMzWindowsHeader(bytes)).toEqual({
+      state: "declared",
+      offset: 4,
+      signature: "PE",
+    });
+    expect(parseExecutableHeader(bytes, "x64")).toEqual({
+      ok: false,
+      error:
+        "Unsupported overlapping PE header at file offset 4; this reader requires the Windows header outside the 64-byte DOS header",
+    });
+  });
+
   it.each(["NE", "LE", "LX"])(
     "distinguishes unsupported %s from DOS",
     (signature) => {

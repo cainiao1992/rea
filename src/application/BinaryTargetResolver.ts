@@ -45,6 +45,7 @@ import {
 } from "../domain/rawBinary.js";
 import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
 import {
+  mzWindowsHeaderLayoutLimitation,
   observeMzWindowsHeader,
   parseMzHeaderEvidence,
   type DosMzHeader,
@@ -786,8 +787,15 @@ const readExecutableMetadata = async (
     }
     const { windowsHeader } = evidence;
     if (windowsHeader.state === "declared") {
-      if (windowsHeader.offset < 64)
-        return err("invalid Windows new-header offset in MZ image");
+      const limitation = mzWindowsHeaderLayoutLimitation(windowsHeader);
+      if (limitation !== undefined)
+        return err({
+          reason: limitation,
+          diagnostics: {
+            unsupported_layout: true,
+            mz_windows_header: { ...windowsHeader },
+          },
+        });
       return readPeMetadata(
         handle,
         windowsHeader.offset,

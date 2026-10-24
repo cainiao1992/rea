@@ -37,5 +37,7 @@ export const translateArtifactFailure = (
   }
   // Keep typed Evidence and other analysis failures instead of reducing them to I/O.
   if (cause instanceof AnalysisError) return cause;
-  return new ArtifactOperationError(operation, "io");
+  return new ArtifactOperationError(operation, "io", undefined, undefined, {
+    cause,
+  });
 };

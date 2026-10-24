@@ -256,6 +256,10 @@ File-error wrappers retain the format owner's specific diagnostic and recovery
 text. Strict JSON file input, for example, keeps the byte-order-mark explanation
 and UTF-8 recovery through CLI/MCP projection rather than replacing it with
 generic invalid-file advice. Consumers do not classify parser message text.
+When an artifact boundary falls back to an I/O error, retain the original cause
+on the typed error so provider callers can inspect its filesystem evidence.
+Keep public error fields under the canonical projector's ownership; retaining
+a cause does not require exposing it in transport output.
 
 Update canonical contracts, output schemas, examples, generated artifacts, and
 relevant docs together. Verify converted advertised schemas and success,

@@ -8,7 +8,7 @@ import { captureProcessScenario } from "../../../src/process/capture/ProcessHarn
 import { createProcessCaptureEvidence } from "../../../src/application/process/ProcessEvidence.js";
 import {
   digestProcessCommitment,
-  parseProcessScenario,
+  processScenarioSchema,
 } from "../../../src/domain/process/processScenario.js";
 import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
@@ -37,7 +37,7 @@ itWithCaptureCapability(
     const command = "selected\\node";
     const selected = join(bin, command);
     await symlink(process.execPath, selected);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: command,
       working_directory: root,
       environment: { PATH: bin },
@@ -69,7 +69,7 @@ itWithCaptureCapability(
       score: 20,
     });
     const original = `${report}\nlisten:8080\n`;
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       arguments: ["-e", `process.stdout.write(${JSON.stringify(original)})`],
@@ -119,7 +119,7 @@ itWithCaptureCapability.each([
   "preserves literal replacement $replacement and rejects legacy comparison semantics",
   async ({ pattern, replacement, expected }) => {
     const root = await createTestTempDirectory("rea-process-literal-");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       arguments: ["-e", 'process.stdout.write("AB")'],
       working_directory: root,
@@ -173,7 +173,7 @@ itWithLinuxCaptureCapability.each([false, true])(
   async (pids) => {
     const root = await createTestTempDirectory("rea-process-identifiers-");
     const identityPath = join(root, "identity.json");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       arguments: [processFixture, identityPath],
       working_directory: root,
@@ -241,7 +241,7 @@ itWithCaptureCapability(
     await symlink(process.execPath, executable);
     await mkdir(observed);
     const original = `${executable}\n${observed}/result\n${root}/log`;
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable,
       working_directory: root,
       filesystem_observation_paths: [observed],
@@ -317,7 +317,7 @@ itWithCaptureCapability(
     await mkdir(join(root, "original"), { recursive: true });
     await symlink(process.execPath, executable);
     const sibling = `${executable}-helper`;
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable,
       working_directory: root,
       arguments: ["-e", `process.stdout.write(${JSON.stringify(sibling)})`],
@@ -339,7 +339,7 @@ itWithCaptureCapability.each([false, true])(
   "normalizes a sampled child in raw and rendered terminal projections, pids=%s",
   async (pids) => {
     const root = await createTestTempDirectory("rea-sampled-terminal-pids-");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       arguments: [

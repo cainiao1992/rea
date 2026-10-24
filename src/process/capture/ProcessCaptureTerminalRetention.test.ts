@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { IPty } from "@lydell/node-pty";
 
-import { parseProcessScenario } from "../../domain/process/processScenario.js";
+import { processScenarioSchema } from "../../domain/process/processScenario.js";
 import { AnalysisResourceConstraintError } from "../../domain/analysisErrorCore.js";
 import { createProcessIdentifierLookup } from "./ProcessNormalization.js";
 import type {
@@ -19,7 +19,7 @@ it("omits an expanding chunk whole and retains a later smaller normalized chunk"
       return { dispose: () => undefined };
     },
   } as unknown as IPty;
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: "unused",
     limits: { output_bytes: 1_000 },
     normalization: {
@@ -78,7 +78,7 @@ it.each([false, true])(
         return { dispose: () => undefined };
       },
     } as unknown as IPty;
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: "unused",
       limits: { output_bytes: overBudget ? 4 : 1000 },
       normalization: {
@@ -147,7 +147,7 @@ it("retains PTY chunk boundaries when two output messages arrive fragmented", ()
       return { dispose: () => undefined };
     },
   } as unknown as IPty;
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: "unused",
     normalization: { paths: false, pids: false, ports: false },
   });

@@ -19,7 +19,7 @@ import {
   resolveExecutable,
   resolveProcessScenarioRuntimePaths,
 } from "./ProcessScenarioRuntimeValidation.js";
-import { parseProcessScenario } from "../../domain/process/processScenario.js";
+import { processScenarioSchema } from "../../domain/process/processScenario.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 
 it.skipIf(process.platform === "win32")(
@@ -33,7 +33,7 @@ it.skipIf(process.platform === "win32")(
     await symlink(process.execPath, selected);
     await expect(resolveExecutable(command, root, bin)).resolves.toBe(selected);
     const resolved = await resolveProcessScenarioRuntimePaths(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: command,
         working_directory: root,
         environment: { PATH: bin },
@@ -64,7 +64,7 @@ it("resolves a Windows executable through the canonical PATH spelling", async ()
     await mkdir(ambient);
     await writeFile(join(selected, "tool.exe"), "");
     await chmod(join(selected, "tool.exe"), 0o644);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: "tool.exe",
       working_directory: root,
       environment: { Path: selected },
@@ -200,12 +200,10 @@ const deniedFixture = async () => {
   return { root, denied, tool };
 };
 
-const runtimePathOutcome = async (
-  scenario: Parameters<typeof parseProcessScenario>[0],
-): Promise<unknown> => {
+const runtimePathOutcome = async (scenario: unknown): Promise<unknown> => {
   try {
     return await resolveProcessScenarioRuntimePaths(
-      parseProcessScenario(scenario),
+      processScenarioSchema.parse(scenario),
     );
   } catch (cause: unknown) {
     return cause;
@@ -291,11 +289,13 @@ it.skipIf(SKIP_PERMISSIONS)(
 );
 
 const runtimePathFailure = async (
-  scenario: Parameters<typeof parseProcessScenario>[0],
+  scenario: unknown,
 ): Promise<AnalysisInputError> => {
   let failure: unknown;
   try {
-    await resolveProcessScenarioRuntimePaths(parseProcessScenario(scenario));
+    await resolveProcessScenarioRuntimePaths(
+      processScenarioSchema.parse(scenario),
+    );
   } catch (cause: unknown) {
     failure = cause;
   }

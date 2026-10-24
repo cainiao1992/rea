@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import {
-  parseProcessScenario,
+  processScenarioSchema,
   processScenarioCommitment,
   processComparisonContract,
   digestProcessCommitment,
@@ -332,7 +332,7 @@ it.each([
 
 it("refuses mixed terminal observation versions even with PID and port rules disabled", () => {
   const base = emptyCapture();
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: "/usr/bin/true",
     normalization: { pids: false, ports: false },
   });

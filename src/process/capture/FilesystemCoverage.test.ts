@@ -10,7 +10,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { parseProcessScenario } from "../../domain/process/processScenario.js";
+import { processScenarioSchema } from "../../domain/process/processScenario.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import { snapshotRoots } from "./FilesystemSnapshot.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
@@ -27,7 +27,7 @@ it.each(["after", "before"] as const)(
     await writeFile(join(root, "a1.txt"), "first");
     await writeFile(join(root, "a2.txt"), "second");
     await writeFile(join(root, "z.txt"), "target");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -68,7 +68,7 @@ it("preserves proven deletion in an exhausted root while another root is partial
   await writeFile(join(complete, "removed.txt"), "removed");
   await writeFile(join(partial, "first.txt"), "first");
   await writeFile(join(partial, "second.txt"), "second");
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: process.execPath,
     working_directory: root,
     filesystem_observation_paths: [complete, partial],
@@ -88,7 +88,7 @@ it("preserves proven deletion in an exhausted root while another root is partial
 it("distinguishes unavailable content hashes from completed path enumeration", async () => {
   const root = await createTestTempDirectory("rea-fs-hash-coverage-");
   await writeFile(join(root, "removed.txt"), "larger than the byte budget");
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: process.execPath,
     working_directory: root,
     filesystem_observation_paths: [root],
@@ -115,7 +115,7 @@ it.skipIf(process.platform === "win32")(
     await writeFile(visible, "visible");
     await mkdir(blocked);
     await chmod(blocked, 0);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -155,7 +155,7 @@ it.skipIf(process.platform === "win32")(
     await writeFile(unreadable, "permission denied");
     await writeFile(readable, "still observed");
     await chmod(unreadable, 0);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -219,7 +219,7 @@ it.each([
     const file = join(root, "b.txt");
     await writeFile(file, "before");
     if (beforeOmitted) await writeFile(budgetFile, "budget");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -255,7 +255,7 @@ it("preserves observed content and metadata changes without treating missing has
   const root = await createTestTempDirectory("rea-fs-observed-changes-");
   for (const name of ["changed", "stable", "unhashed", "retyped"])
     await writeFile(join(root, name), "before");
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: process.execPath,
     working_directory: root,
     filesystem_observation_paths: [root],
@@ -276,7 +276,7 @@ it("preserves observed content and metadata changes without treating missing has
   expect(effects.find(({ path }) => path === "root_0:retyped")?.status).toBe(
     "modified",
   );
-  const noHashes = parseProcessScenario({
+  const noHashes = processScenarioSchema.parse({
     ...scenario,
     limits: { file_bytes: 1 },
   });
@@ -300,7 +300,7 @@ it.skipIf(process.platform === "win32")(
     const root = await createTestTempDirectory("rea-fs-mode-change-");
     const file = join(root, "file");
     await writeFile(file, "before", { mode: 0o600 });
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [file],
@@ -324,7 +324,7 @@ it.skipIf(process.platform === "win32")(
     await writeFile(join(root, "b.txt"), "unused");
     await symlink("a.txt", join(root, "stable-link"));
     await symlink("a.txt", join(root, "moved-link"));
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -355,7 +355,7 @@ it.skipIf(process.platform === "win32")(
     // Equal length, so only the target spelling distinguishes the links;
     // "bbb" does not exist, so the replacement link is broken.
     await symlink("aaa/../target", join(root, "link"));
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -381,7 +381,7 @@ it.skipIf(process.platform === "win32")(
 it("preserves creation when the selected root was observed missing before capture", async () => {
   const root = await createTestTempDirectory("rea-fs-missing-root-");
   const file = join(root, "created.txt");
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: process.execPath,
     working_directory: root,
     filesystem_observation_paths: [file],
@@ -410,7 +410,7 @@ it.skipIf(process.platform === "win32")(
     await mkdir(join(root, "denied"));
     await chmod(join(root, "denied"), 0);
     const scenarioFor = (path: string) =>
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         working_directory: root,
         filesystem_observation_paths: [path],
@@ -480,7 +480,7 @@ it.skipIf(process.platform === "win32")(
     await writeFile(join(listed, "child.txt"), "child");
     // Read without search permission: names enumerate, lookups are denied.
     await chmod(listed, 0o444);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [root],
@@ -509,7 +509,7 @@ it.skipIf(process.platform === "win32")(
   "keeps an admitted root behind a symlink loop unobserved",
   async () => {
     const root = await createTestTempDirectory("rea-fs-root-loop-");
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       working_directory: root,
       filesystem_observation_paths: [join(root, "loop", "child")],
@@ -532,7 +532,7 @@ it.skipIf(process.platform === "win32")(
     const link = join(root, "link");
     await mkdir(target);
     await symlink(target, link);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       filesystem_observation_paths: [link],
     });
@@ -561,7 +561,7 @@ it.skipIf(process.platform === "win32")(
 
 it("allocates the observer directory before baseline and excludes it before entry accounting", async () => {
   const root = await createTestTempDirectory("rea-observer-filesystem-");
-  const scenario = parseProcessScenario({
+  const scenario = processScenarioSchema.parse({
     executable: process.execPath,
     filesystem_observation_paths: [root],
     limits: { files: 1 },
@@ -611,7 +611,7 @@ it.skipIf(process.platform === "win32")(
       "target",
     );
     await symlink(physicalParent, alias);
-    const scenario = parseProcessScenario({
+    const scenario = processScenarioSchema.parse({
       executable: process.execPath,
       filesystem_observation_paths: [join(alias, "root")],
     });

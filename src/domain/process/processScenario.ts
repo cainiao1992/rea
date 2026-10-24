@@ -347,7 +347,3 @@ const eventsOutOfOrder = (
 
 /** Parsed instructions and resource bounds for one process experiment. */
 export type ProcessScenario = z.infer<typeof processScenarioSchema>;
-
-/** Parse untrusted process scenario input and apply safe default budgets. */
-export const parseProcessScenario = (input: unknown): ProcessScenario =>
-  processScenarioSchema.parse(input);

@@ -16,7 +16,7 @@ import { analysisCliErrorEnvelopeSchema } from "../../../src/contracts/errorSche
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
 import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
-import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
+import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
 import { FINALIZED_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -207,7 +207,7 @@ it("documents a finalization scenario and exit record that match the contract", 
     throw new Error("Missing finalization examples");
 
   expect(
-    parseProcessScenario(JSON.parse(scenario)).finalization_ms,
+    processScenarioSchema.parse(JSON.parse(scenario)).finalization_ms,
     "the documented scenario is accepted and carries the interval",
   ).toBe(1_500);
   expect(
@@ -225,7 +225,7 @@ itWithCaptureCapability.each(["cli", "mcp"] as const)(
       ?.match(/```json\n([\s\S]*?)\n```/u)?.[1];
     if (example === undefined)
       throw new Error("Missing report capture example");
-    const scenario = parseProcessScenario(JSON.parse(example));
+    const scenario = processScenarioSchema.parse(JSON.parse(example));
     const root = await createTestTempDirectory("rea-full-report-adapter-");
     const evidence = await (adapter === "cli" ? captureViaCli : captureViaMcp)({
       ...scenario,

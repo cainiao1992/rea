@@ -29,7 +29,7 @@ import {
   observeLaunchedExecutable,
   observeSelectedExecutable,
 } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
-import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
+import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
 import { emptyProcessCapture } from "../../../src/domain/process/processCapture.fixture.js";
 import { processSourceTruncated } from "../../../src/domain/process/processCaptureCoverage.js";
 import type { ProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
@@ -140,7 +140,7 @@ itWithCaptureCapability(
     await mkdir(join(root, "reports"));
     await writeFile(join(root, "reports", "final.json"), payload);
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [
           "-e",
@@ -187,7 +187,7 @@ itWithCaptureCapability(
     }, 10_000);
     try {
       const result = await captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable: process.execPath,
           arguments: [processFixture, "hang"],
           working_directory: dirname(processFixture),
@@ -226,7 +226,7 @@ itWithCaptureCapability(
     vi.setSystemTime(new Date("2026-01-02T00:00:00.000Z"));
     try {
       const result = await captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable: process.execPath,
           arguments: [processFixture, "partial"],
           working_directory: dirname(processFixture),
@@ -282,7 +282,7 @@ itWithCaptureCapability(
     let unownedPid: number | undefined;
     try {
       const result = await captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable: process.execPath,
           arguments: [processFixture, "detached-cleanup", pidMarker],
           working_directory: root,
@@ -374,7 +374,7 @@ itWithCaptureCapability(
         rm(path, { recursive: true, force: true }),
     };
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "partial"],
         working_directory: dirname(processFixture),
@@ -492,7 +492,7 @@ itWithCaptureCapability(
       .digest("hex");
     try {
       const capturePromise = captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable,
           arguments: [processFixture, "ready-hang", readyMarker],
           working_directory: root,
@@ -541,7 +541,7 @@ itWithCaptureCapability(
     await symlink("/etc/passwd", join(root, "escape"));
     try {
       const result = await captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable: "/usr/bin/true",
           working_directory: root,
           filesystem_observation_paths: [root],
@@ -578,7 +578,7 @@ itWithCaptureCapability(
   "distinguishes timeout from cancellation and cleans both runs",
   async () => {
     const timedOut = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "hang"],
         working_directory: dirname(processFixture),
@@ -606,7 +606,7 @@ itWithCaptureCapability(
     const controller = new AbortController();
     let reachedRunning = false;
     const cancelled = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "hang"],
         working_directory: dirname(processFixture),
@@ -665,7 +665,7 @@ const captureFinalizationFixture = async (
 ): Promise<{ readonly result: CaptureRun; readonly root: string }> => {
   const root = await createTestTempDirectory("rea-finalization-");
   const result = await captureProcessScenario(
-    parseProcessScenario({
+    processScenarioSchema.parse({
       executable: process.execPath,
       arguments: [finalizationFixture, mode, root],
       working_directory: root,
@@ -958,7 +958,7 @@ itWithCaptureCapability(
     };
     const root = await createTestTempDirectory("rea-finalization-host-");
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [finalizationFixture, "ignoring", root],
         working_directory: root,
@@ -1032,7 +1032,7 @@ itWithCaptureCapability(
     });
 
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         working_directory: root,
         filesystem_observation_paths: [path],
@@ -1066,7 +1066,7 @@ itWithCaptureCapability(
       return snapshot;
     };
     const resultPromise = captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [snapshotCancellationFixture, root],
         working_directory: dirname(snapshotCancellationFixture),
@@ -1116,7 +1116,7 @@ itWithCaptureCapability(
     };
 
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         working_directory: root,
         filesystem_observation_paths: [join(obstruction, "child")],
@@ -1139,7 +1139,7 @@ itWithCaptureCapability(
   "captures input, Unicode, and resize across PTY startup",
   async () => {
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "interactive"],
         working_directory: dirname(processFixture),
@@ -1177,7 +1177,7 @@ itWithCaptureCapability(
   "dispatches an external signal without depending on child startup output",
   async () => {
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "hang"],
         working_directory: dirname(processFixture),
@@ -1202,7 +1202,7 @@ itWithCaptureCapability(
   "buffers newline input until a silent PTY fixture is ready to read it",
   async () => {
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "silent-interactive"],
         working_directory: dirname(processFixture),
@@ -1238,7 +1238,7 @@ itWithCaptureCapability(
   "samples and cleans a source-owned child and grandchild process tree",
   async () => {
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: [processFixture, "tree"],
         working_directory: dirname(processFixture),

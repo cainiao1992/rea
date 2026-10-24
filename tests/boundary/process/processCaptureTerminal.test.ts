@@ -5,13 +5,13 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
 import { captureProcessScenario } from "../../../src/process/capture/ProcessHarness.js";
-import { parseProcessScenario } from "../../../src/domain/process/processScenario.js";
+import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
 
 itWithCaptureCapability(
   "normalizes wide terminal cells without inventing blank cells",
   async () => {
     const result = await captureProcessScenario(
-      parseProcessScenario({
+      processScenarioSchema.parse({
         executable: process.execPath,
         arguments: ["-e", 'process.stdout.write("界")'],
         terminal: { columns: 4, rows: 1, scrollback: 0 },
@@ -54,7 +54,7 @@ itWithCaptureCapability(
     );
     try {
       const result = await captureProcessScenario(
-        parseProcessScenario({
+        processScenarioSchema.parse({
           executable: process.execPath,
           arguments: [script],
           working_directory: root,

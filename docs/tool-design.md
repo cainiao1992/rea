@@ -85,6 +85,17 @@ satisfy. A plan without execution does not establish runtime behavior.
 
 ### Interpret boundary facts once
 
+The format or protocol reader owns interpretation. Pass its parsed facts and
+explicit uncertainty to consumers; do not make adapters reparse display text,
+reconstruct omitted values, or infer success from missing diagnostics.
+
+A completed read can establish byte identity even when decoding or format
+validation fails. State which representation a digest identifies, such as file
+bytes, Fetch response-body bytes, or UTF-8 text. Preserve admitted source values
+separately from normalized lookup and display values. When the retention
+contract keeps only a digest and size, state that the bytes or text are
+unavailable; the digest does not establish format validity.
+
 Comparison needs separate proofs for lookup, correspondence, content, and
 coverage. A hash cannot supply the proof that two retained values belong to
 corresponding objects.
@@ -102,10 +113,6 @@ corresponding objects.
 Complete traversal or inventory does not make unavailable values equal. A
 partial aggregate fingerprint difference cannot establish modification when
 omissions alone explain it; independently proven differences still survive.
-
-The format or protocol reader owns interpretation. Pass its parsed facts and
-explicit uncertainty to consumers; do not make adapters reparse display text,
-reconstruct omitted values, or infer success from missing diagnostics.
 
 Keep format recognition separate from provider admission. A recognizable header
 can supply useful observations while later structure remains unresolved or a
@@ -132,6 +139,12 @@ For tools that acquire resources, identify the owner and the observations that
 establish each transition. Include temporary files and one-shot commands, as
 well as persistent engine sessions. Use the existing provider contracts;
 providers need not expose identical state machines.
+
+In multi-stage work, retain each completed, admitted observation before awaiting
+the next stage. Later reads, validation, cancellation, or finalization can fail
+without erasing those facts. Carry them through typed failure outcomes with
+explicit coverage of unperformed work; do not construct a successful result for
+stages that never ran.
 
 - Keep target admission, provider readiness, active work, observed process exit,
   and resource release separate. A valid process handle, successful launcher,
@@ -258,6 +271,12 @@ serialization expansion, and temporary-file growth separately. Derive facet
 completeness from examined records and exhaustiveness, rather than diagnostic
 prose or an empty failure list. Preserve observations independently of cleanup
 success.
+
+Price mutually exclusive success and failure representations separately.
+Replace a reserved failure envelope when pricing success, and release discarded
+decoding state from retained-output accounting. Retaining additional failed-body
+text changes the capacity available to later results; treat that as a contract
+change and cover its effect on later valid items.
 
 For example, if ten applicable records are discovered, eight are examined, and
 five are returned, the five returned records do not establish complete coverage

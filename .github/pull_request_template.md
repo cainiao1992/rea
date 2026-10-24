@@ -68,6 +68,10 @@ source, link, or rendered-document checks. -->
 - User-visible CLI/MCP output (if applicable):
 - Remaining proof gaps:
 
+For boundary fixes, identify the applicable [boundary regressions](https://github.com/morluto/rea/blob/main/docs/testing.md#boundary-regressions)
+and [lifecycle regressions](https://github.com/morluto/rea/blob/main/docs/testing.md#lifecycle-regressions)
+covered by the evidence above, and explain relevant gaps.
+
 For evidence-bearing changes:
 
 - [ ] Observed, derived, and inferred claims remain distinguishable.

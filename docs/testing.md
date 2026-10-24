@@ -200,6 +200,10 @@ work from fixture generation, schema compilation, subprocess startup and cleanup
 Choose elapsed, CPU and process-family memory limits before the run; a worker
 count or test timeout alone does not enforce those limits.
 
+Keep capacity fixtures intact when diagnosing a test failure. For byte equality
+of large buffers, use `Buffer.equals` or `Buffer.compare`; a generic structural
+diff can allocate far more than the production operation.
+
 Remove demonstrated repeated work while preserving distinct assertions and
 resource ownership. Share immutable fixture preparation where safe; keep fresh
 sessions when lifecycle or concurrency is the behavior under test. Compare the
@@ -334,6 +338,30 @@ reports. A fixture accepted by REA proves its reader behavior; it does not prove
 that a real loader accepts the artifact. If multiple producer revisions share a
 format identifier but differ in behavior, record that ambiguity rather than
 using one installed version as an oracle for all of them.
+
+### Boundary regressions
+
+For parser, inventory, snapshot, or projection fixes, select the applicable
+cases below. Assert the producing boundary's facts and their meaning in affected
+consumers. Add [lifecycle regressions](#lifecycle-regressions) when resource
+ownership or finalization changes; a single malformed fixture cannot establish
+the whole contract.
+
+| Failure class                         | Regression that catches it                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Format assumptions                    | Pair valid padding, offsets, or names containing delimiters with malformed input. Identify the producer revision when behavior varies by version; an unrelated runtime API's range is not an on-disk format limit.                                                                                                                                 |
+| Raw identity and normalization        | Exercise allowed empty or unusual source names/metadata keys and values that normalize to one lookup or display value. Preserve admitted raw spelling under the existing redactions for transport credentials and explicitly marked sensitive values. Distinguish local paths, file URLs and HTTP paths; assert source identity through consumers. |
+| Missing, empty, and unknown values    | Distinguish omitted, null, empty, zero, and false where the format admits them. Pair a malformed optional field with usable sibling facts; assert uncertainty without inventing absence or discarding the row.                                                                                                                                     |
+| Completed work followed by failure    | Complete one input, then fail or cancel a later input. Assert earlier digests, metadata, and parsed facts survive with the later failure reason and accurate processed/unprocessed coverage. For cancellation, assert the exact caller abort reason; where a primary failure was already produced, assert it survives.                             |
+| Independent limits and failures       | Trigger a sample/output limit alongside a read or parse failure. Assert both dimensions survive; reaching a limit does not erase sampling failures or prove complete coverage.                                                                                                                                                                     |
+| Representation expansion and capacity | Keep a valid set near the limit and a large malformed input followed by a valid input. Cover JSON escaping, expanded paths or decoded rows as applicable. Assert serialized bounds, retained identities, later valid results, and unknown omissions without charging discarded interpretations as retained output.                                 |
+| Snapshots, caches, and comparison     | Vary metadata that affects the result while keeping payload bytes equal. Exercise historical records with newly introduced fields omitted, current caller inputs on replay, and reuse across differing selections. Assert correct invalidation or unknown coverage, current request provenance, and unchanged saved Evidence and IDs.              |
+| Public success and error delivery     | Exercise affected public CLI/MCP paths, including partial Evidence on failure. Assert retained facts and named contracts; retrieve partial Evidence when MCP returns a reference. If SDK cancellation suppresses the reply, check server settlement and any retained Evidence. An error-code assertion alone misses lost observations.             |
+
+When producer order is unspecified, synchronize fixtures on the observed request
+or completion event. A filename, generated key, or fixed delay does not prove
+which item completed before cancellation. Preserve real producer ordering and
+use a controlled seam for the phase that needs deterministic failure.
 
 Packed bridge validation uses Python's standard-library AST and tar readers
 with `-I -S`: caller-local modules, `PYTHONPATH`, and site startup hooks must

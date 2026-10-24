@@ -92,7 +92,10 @@ const classSummary = async (
       { cause: summary.error },
     );
   const value = summary.data;
-  if (value.full_name !== request.input.class_name)
+  if (
+    value.full_name !== request.input.class_name &&
+    value.raw_name !== request.input.class_name
+  )
     inputFailure(
       request,
       "class_name",
@@ -240,7 +243,7 @@ const inspectMethod = async (
     );
   const body = jadxMethodSchema.parse(
     await tools.json("get_method_body", {
-      class_name: summary.full_name,
+      class_name: request.input.class_name,
       method_name: request.input.method_name,
       overload_index: index,
       smali_fallback: true,
@@ -334,7 +337,7 @@ const traceReferences = async (
     await tools.json(
       methodName === undefined ? "get_xrefs_to_class" : "get_xrefs_to_method",
       {
-        class_name: summary.full_name,
+        class_name: request.input.class_name,
         ...(methodName === undefined
           ? {}
           : { method_name: methodName, overload_index: index }),

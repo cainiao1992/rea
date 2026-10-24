@@ -158,6 +158,7 @@ register("list_classes", ({ offset, limit, query = "" }) => {
 register("get_class_summary", () =>
   json({
     full_name: mode === "wrong-class" ? "fixture.Other" : "fixture.Target",
+    raw_name: mode === "wrong-class" ? "fixture.Other" : "fixture.Target",
     name: "Target",
     method_count: mode === "summary-error" ? -1 : methods.length,
     field_count: 0,

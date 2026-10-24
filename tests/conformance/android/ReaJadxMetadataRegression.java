@@ -158,6 +158,32 @@ public class ReaJadxMetadataRegression {
     return value;
   }
 
+  private static void verifyRawClassSelectors(Method handle, Object bridge, JadxDecompiler decompiler)
+      throws Exception {
+    List<JavaClass> classes = decompiler.getClassesWithInners();
+    JavaClass nested = classes.stream()
+        .filter(cls -> cls.getRawName().contains("$") && !cls.getRawName().equals(cls.getFullName()))
+        .filter(cls -> classes.stream().filter(other ->
+            other.getFullName().equals(cls.getFullName()) || other.getRawName().equals(cls.getFullName()))
+            .count() == 1)
+        .findFirst().orElseThrow(() -> new AssertionError("Fixture has no unambiguous nested class"));
+    JsonObject raw = arguments(nested.getRawName());
+    JsonObject display = arguments(nested.getFullName());
+    JsonObject summary = call(handle, bridge, "get_class_summary", raw);
+    require(summary.get("raw_name").getAsString().equals(nested.getRawName()),
+        "Class summary discarded original binary identity");
+    require(summary.get("full_name").getAsString().equals(nested.getFullName()),
+        "Class summary replaced the displayed name with the selector");
+    require(summary.equals(call(handle, bridge, "get_class_summary", display)),
+        "Raw and displayed selectors resolved different class metadata");
+    JsonObject references = call(handle, bridge, "get_xrefs_to_class", raw);
+    require(references.get("target").getAsString().equals(nested.getFullName()),
+        "Reference target mixed its lookup selector with its displayed identity");
+    require(references.equals(call(handle, bridge, "get_xrefs_to_class", display)),
+        "Raw and displayed selectors resolved different incoming class references");
+    System.out.println("RAW_CLASS_SELECTOR_REGRESSION_PASS nested=true metadata=true references=true");
+  }
+
   private static void verifyClassPages(Method handle, Object bridge, List<String> inventory)
       throws Exception {
     int pages = 0;
@@ -553,6 +579,7 @@ public class ReaJadxMetadataRegression {
       Method handle = bridgeType.getDeclaredMethod("handle", String.class, kotlinx.serialization.json.JsonObject.class);
       handle.setAccessible(true);
       verifyClassPages(handle, bridge, session.getClassFqns());
+      verifyRawClassSelectors(handle, bridge, decompiler);
       JsonObject apiArgs = arguments("io.appium.android.apis.ApiDemos");
       JsonObject apiSummary = call(handle, bridge, "get_class_summary", apiArgs);
       for (var entry : states.entrySet()) require(entry.getKey().getState() == entry.getValue(),

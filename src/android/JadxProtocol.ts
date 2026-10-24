@@ -80,7 +80,8 @@ export const parseJadxClassPage = (value: JsonValue): JadxClassPage => {
 };
 
 export const jadxClassSchema = z.object({
-  full_name: z.string(),
+  full_name: z.string().min(1),
+  raw_name: z.string().min(1),
   name: z.string(),
   method_count: count,
   field_count: count,

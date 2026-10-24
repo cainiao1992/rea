@@ -1002,6 +1002,16 @@ application execution is required. The lane compares real CLI/MCP package,
 class search, class inventory, method decompilation and incoming references.
 See [Android analysis](android-analysis.md) for boundaries and resource budgets.
 
+The **Real Android metadata bridge** workflow compiles the Java bridge and runs
+its metadata regressions against the same checksum-pinned engine and public APK.
+It runs on branch pushes affecting its bridge, fixture or engine inputs, and can
+also be dispatched manually or called by another workflow. It uses the runner's
+JDK with two active processors and a 512 MiB heap; it needs no npm dependency
+installation. This lane checks exact raw/display class selectors and the existing
+cold-metadata regressions. It does not establish CLI/MCP parity or application
+execution behavior. The broader `verify:android` lane checks CLI/MCP parity;
+neither lane runs the APK.
+
 `verify:jeb` requires a caller-started JEB client serving MCP at
 `REA_JEB_MCP_URL` (default `http://127.0.0.1:8425/mcp`) with a project
 already open, and exercises shared application/provider client inspection, unit listing coverage,

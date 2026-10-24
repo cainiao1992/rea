@@ -240,6 +240,13 @@ the same source byte limit and explicit truncation reporting.
   full reported display types, fields and inner class names. Synthetic members
   that code generation hides can appear in the inventory; it stays consistent
   after method decompilation within the retained session.
+  Class and method inspection and reference tracing accept either the exact
+  reported class name or its original binary name, including `$` in nested and
+  anonymous classes. The bridge keeps both identities from JADX; it does not
+  replace separators or guess suffix matches. Ambiguous selectors are refused.
+  Follow-up calls preserve the selected name, while results report the frozen
+  JADX display name. Quote `$` names in the shell, for example
+  `'com.example.Manager$WorkerThread'`.
   Exact DEX prototypes are reported from frozen JADX method metadata as
   `dex_descriptor`, for example `(I)V`. Display names can be JADX aliases;
   the descriptor alone is not a complete raw DEX method ID. Overload indices

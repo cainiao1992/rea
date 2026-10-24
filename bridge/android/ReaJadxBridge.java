@@ -269,12 +269,16 @@ class ReaJadxBridge {
                   "type", field.getType().toString(), "def_pos", 0)).toList();
           List<String> inner = node.getInnerClasses().stream().map(ClassNode::getFullName).toList();
           Map<String, Object> summary = Map.of(
-              "full_name", cls.getFullName(), "name", cls.getName(),
+              "full_name", cls.getFullName(), "raw_name", cls.getRawName(), "name", cls.getName(),
               "method_count", methods.size(), "field_count", fields.size(),
               "inner_class_count", inner.size(), "inner_classes", inner,
               "methods", methods.stream().map(MethodSnapshot::summary).toList(), "fields", fields);
-          index.computeIfAbsent(cls.getFullName(), ignored -> new ArrayList<>())
-              .add(new ClassSnapshot(cls, methods, summary));
+          ClassSnapshot snapshot = new ClassSnapshot(cls, methods, summary);
+          index.computeIfAbsent(cls.getFullName(), ignored -> new ArrayList<>()).add(snapshot);
+          // Keep the binary identity supplied by JADX; '$' can also be a literal
+          // name character, so replacing separators would invent lookup aliases.
+          if (!cls.getRawName().equals(cls.getFullName()))
+            index.computeIfAbsent(cls.getRawName(), ignored -> new ArrayList<>()).add(snapshot);
         }
       }
       classes = Collections.unmodifiableMap(index);
@@ -454,7 +458,7 @@ class ReaJadxBridge {
           "markers", code.getMarkers(), "body", code.getText()));
     }
     List<JavaNode> uses;
-    String target = string(args, "class_name");
+    String target = (String) cls.summary().get("full_name");
     MethodSnapshot selectedMethod = null;
     int overloadIndex = 0;
     if (name.equals("get_xrefs_to_class")) uses = cls.node().getUseIn();
@@ -522,7 +526,7 @@ class ReaJadxBridge {
     SessionHolder holder = new SessionHolder(defaults);
     ServerCapabilities capabilities = new ServerCapabilities(
         new ServerCapabilities.Tools(null), null, null, null, null, null, null, Map.of());
-    Server server = new Server(new Implementation("rea-jadx-bridge", "5", null, null, null),
+    Server server = new Server(new Implementation("rea-jadx-bridge", "6", null, null, null),
         new ServerOptions(capabilities), "", ignored -> Unit.INSTANCE);
     SessionToolsKt.registerSessionTools(server, holder);
     ClassToolsKt.registerClassTools(server, holder);

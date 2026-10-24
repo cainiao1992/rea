@@ -7,8 +7,12 @@ import { afterEach, expect, it, vi } from "vitest";
 import * as evidenceInputResolver from "../../src/application/EvidenceInputResolver.js";
 import { WasmArtifactService } from "../../src/application/wasm/WasmArtifactService.js";
 import { registerAnalysisViewCommands } from "../../src/cli/analysisViewCommands.js";
+import { registerCutterCommands } from "../../src/cli/cutterCommands.js";
 import { registerWasmCommands } from "../../src/cli/wasmCommands.js";
 import { wasmArtifactModule } from "../../src/composition/wasm.js";
+import { analysisErrorProjectionSchema } from "../../src/contracts/errorSchemas.js";
+import { toolContract } from "../../src/contracts/toolContracts.js";
+import { CutterBridgeService } from "../../src/cutter/CutterBridgeService.js";
 import { AnalysisOutputError } from "../../src/domain/analysisErrorCore.js";
 import * as analysisView from "../../src/domain/analysisView/analysisView.js";
 import { parseEvidence } from "../../src/domain/evidence.js";
@@ -57,6 +61,186 @@ afterEach(() => {
   vi.restoreAllMocks();
   host.listeners.clear();
 });
+
+const cutterDiscoveryFixture = () =>
+  toolContract("list_cutter_sessions").outputSchema.parse({
+    sessions: [
+      {
+        session_id: "00000000-0000-4000-8000-000000000001",
+        pid: 41,
+        document_generation: 7,
+        current_file: "C:\\Caller files\\token=literal%2F.bin",
+        cutter_version: "2.3.4",
+        identity_status: "partial",
+      },
+      {
+        session_id: "00000000-0000-4000-8000-000000000002",
+        pid: 42,
+        document_generation: 0,
+        current_file: null,
+        cutter_version: null,
+        identity_status: "partial",
+      },
+    ],
+    bridge_directory: "/caller/Cutter bridge/token=literal%2F/证据",
+    discovery_status: "sessions_found",
+    bridge_directory_security: "unverified_platform_acl",
+  });
+
+const finalCloseGate = () => {
+  let enter!: () => void;
+  let release!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { enter, release, entered, pending };
+};
+
+it.each([
+  "control",
+  "cleanup-failure",
+  "interrupt",
+  "interrupt-cleanup-failure",
+  "queued-interrupt",
+] as const)(
+  "retains registered Cutter discovery through final close: %s",
+  async (scenario) => {
+    const discoverySchema = toolContract("list_cutter_sessions").outputSchema;
+    const discovery = cutterDiscoveryFixture();
+    const cleanup = new ProviderCleanupError(
+      "cutter",
+      [],
+      { reason: "controlled discovery close failure" },
+      { operation: "list_cutter_sessions" },
+    );
+    const failsCleanup =
+      scenario === "cleanup-failure" ||
+      scenario === "interrupt-cleanup-failure";
+    const expectsInterrupt =
+      scenario === "interrupt" ||
+      scenario === "interrupt-cleanup-failure" ||
+      scenario === "queued-interrupt";
+    const gate = finalCloseGate();
+    let closed = false;
+    let interruptHandled = false;
+    let queuedInterrupt: Promise<void> | undefined;
+    const interrupt = () => {
+      const listener = host.listeners.get("SIGINT");
+      interruptHandled = listener !== undefined;
+      listener?.();
+    };
+    const list = vi
+      .spyOn(CutterBridgeService.prototype, "listSessions")
+      .mockResolvedValue(ok(discovery));
+    const close = vi
+      .spyOn(CutterBridgeService.prototype, "close")
+      .mockImplementation(async () => {
+        gate.enter();
+        await gate.pending;
+        if (
+          scenario === "interrupt" ||
+          scenario === "interrupt-cleanup-failure"
+        )
+          interrupt();
+        if (scenario === "queued-interrupt")
+          queuedInterrupt = new Promise<void>((resolve) => {
+            setImmediate(() => {
+              interrupt();
+              resolve();
+            });
+          });
+        closed = true;
+        if (failsCleanup) throw cleanup;
+      });
+    const cli = Cli.create("cutter-discovery-finalization-test", {
+      sync: false,
+    });
+    registerCutterCommands(cli, silentLogger, {});
+    let output = "";
+    let settled = false;
+    let pending: Promise<void> | undefined;
+    const previousExitCode = process.exitCode;
+    let exitCode: typeof process.exitCode;
+    try {
+      process.exitCode = undefined;
+      pending = cli
+        .serve(["list-cutter-sessions", "--json"], {
+          stdout: (part) => {
+            expect(closed).toBe(true);
+            output += part;
+          },
+          exit: () => {},
+        })
+        .then(() => {
+          settled = true;
+        });
+      await Promise.race([gate.entered, pending]);
+      expect(close).toHaveBeenCalledOnce();
+      expect(settled).toBe(false);
+      expect(output).toBe("");
+      gate.release();
+      await pending;
+      await queuedInterrupt;
+      exitCode = process.exitCode;
+    } finally {
+      gate.release();
+      try {
+        try {
+          await pending;
+        } finally {
+          await queuedInterrupt;
+        }
+      } finally {
+        process.exitCode = previousExitCode;
+      }
+    }
+
+    expect(list).toHaveBeenCalledOnce();
+    expect(list).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
+    expect(close).toHaveBeenCalledOnce();
+    expect(closed).toBe(true);
+    expect(interruptHandled).toBe(expectsInterrupt);
+    expect(host.listeners.size).toBe(0);
+    expect(exitCode).toBe(
+      expectsInterrupt ? 130 : failsCleanup ? 1 : undefined,
+    );
+    const result: unknown = JSON.parse(output);
+    if (scenario === "control") {
+      expect(result).toEqual(discovery);
+      return;
+    }
+
+    const error = analysisErrorProjectionSchema.parse(result);
+    expect(error.code).toBe(failsCleanup ? "cleanup_incomplete" : "cancelled");
+    expect(error.details?.partial_observation).toEqual(discovery);
+    expect(discoverySchema.parse(error.details?.partial_observation)).toEqual(
+      discovery,
+    );
+    if (expectsInterrupt) expect(error.category).toBe("cancelled");
+    if (failsCleanup) expect(error.details?.resources).toEqual([]);
+    if (scenario === "cleanup-failure")
+      expect(error.details?.diagnostics).toEqual({
+        reason: "controlled discovery close failure",
+      });
+    if (scenario === "interrupt-cleanup-failure")
+      expect(error.details?.diagnostics).toMatchObject({
+        primary_error: {
+          code: "cancelled",
+          details: { operation: "list_cutter_sessions" },
+        },
+        cleanup_error: {
+          code: "cleanup_incomplete",
+          details: {
+            resources: [],
+            diagnostics: { reason: "controlled discovery close failure" },
+          },
+        },
+      });
+  },
+);
 
 it.each([
   "control",

@@ -29,6 +29,11 @@ import {
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import {
+  cutterSessionSchema,
+  type CutterBridgeDiscovery,
+  type CutterBridgeSession,
+} from "../domain/cutterDiscovery.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { cutterBridgeMac } from "./cutterBridgeMac.js";
 import { CutterBridgeResponseFrames } from "./cutterAuthenticatedResponse.js";
@@ -44,15 +49,10 @@ import {
 } from "../config/bridgeMaxRequestBytes.js";
 
 const descriptorSchema = z.object({
-  session_id: z.string().uuid(),
-  pid: z.int().positive(),
+  ...cutterSessionSchema.shape,
   host: z.literal("127.0.0.1"),
   port: z.int().min(1).max(65535),
   token: z.string().min(20),
-  document_generation: z.int().nonnegative(),
-  current_file: z.string().nullable(),
-  cutter_version: z.string().nullable(),
-  identity_status: z.literal("partial"),
   max_request_bytes: z.int().positive().optional(),
 });
 
@@ -255,26 +255,6 @@ export interface WindowsCutterDescriptorReader {
 interface CutterBridgeClientOptions {
   readonly platform?: NodeJS.Platform;
   readonly windowsPrivateReader?: WindowsCutterDescriptorReader;
-}
-
-export type CutterBridgeSession = Omit<
-  z.infer<typeof descriptorSchema>,
-  "token" | "host" | "port" | "max_request_bytes"
->;
-export interface CutterBridgeDiscovery {
-  readonly sessions: readonly CutterBridgeSession[];
-  readonly bridge_directory: string;
-  readonly discovery_status:
-    | "sessions_found"
-    | "no_live_bridge_found"
-    | "bridge_directory_unavailable"
-    | "bridge_directory_insecure"
-    | "bridge_directory_capacity_exceeded";
-  readonly bridge_directory_security:
-    | "private_verified"
-    | "not_private"
-    | "unverified_platform_acl"
-    | "not_checked";
 }
 
 /** Discovers and communicates with REA Python bridge plugins in live Cutter processes. */

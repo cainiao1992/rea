@@ -174,7 +174,7 @@ cliTest(
       edge_count: 0,
     });
     expect(inventory.limitations).toEqual([
-      "Artifact has no child container entries.",
+      "Inventory covers root bytes only; child container entries were not examined.",
     ]);
     const equal = await compare(left, right);
     expect(equal.normalized_result).toMatchObject({
@@ -182,8 +182,8 @@ cliTest(
       summary: { unchanged: 1, unknown: 0 },
       changes: [],
       limitations: [
-        "Left: Artifact has no child container entries.",
-        "Right: Artifact has no child container entries.",
+        "Left: Inventory covers root bytes only; child container entries were not examined.",
+        "Right: Inventory covers root bytes only; child container entries were not examined.",
       ],
     });
     const behavior = await call("find_changed_behavior", {

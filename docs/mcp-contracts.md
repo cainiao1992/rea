@@ -68,11 +68,14 @@ byte correspondence or decode the map's original source paths.
 Artifact inventories declare `coverage.scope` (`root` or `container-entries`)
 and `coverage.status` (`complete` or `unknown`) independently of diagnostic
 wording. Comparison requires matching scopes, complete graph members and complete
-traversal coverage before concluding equality. A fully observed root without
-container children can be `unchanged`; its scope notice stays in `limitations`
-without creating a gap. Content and executable metadata changes still produce
-root deltas. Missing graph members yield `truncated`; unknown traversal coverage
-or unavailable occurrence hashes retain uncertainty. Integrity mismatches remain
+traversal coverage before concluding equality. Fully observed roots can be
+`unchanged` within root scope; their scope notice stays in `limitations` without
+creating a gap. Root-scoped equality establishes equality of the observed root
+bytes. Child-container presence and unexamined format details remain unresolved,
+including when the root format is `unknown`. Content and executable metadata
+changes still produce root deltas. Missing graph members yield `truncated`;
+unknown traversal coverage or unavailable occurrence hashes retain uncertainty.
+Integrity mismatches remain
 contradictions. Static artifact equality does not establish unchanged runtime
 behavior.
 Source-map relation deltas include the content identity of the mapped source,

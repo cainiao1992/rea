@@ -106,6 +106,8 @@ export const inventoryCoverage = (
     };
   return {
     coverage: { scope: "root", status: "complete" },
-    limitations: ["Artifact has no child container entries."],
+    limitations: [
+      "Inventory covers root bytes only; child container entries were not examined.",
+    ],
   };
 };

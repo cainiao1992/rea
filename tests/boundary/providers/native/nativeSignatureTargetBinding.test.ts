@@ -414,7 +414,9 @@ it("does not classify an unrelated path-echo diagnostic as an unsigned observati
       snapshotPath = args.at(-1);
       if (snapshotPath === undefined)
         throw new Error("Expected the bound snapshot as the codesign operand");
-      expect(await readFile(snapshotPath)).toEqual(Buffer.from(CONTENT));
+      expect(
+        Buffer.compare(await readFile(snapshotPath), Buffer.from(CONTENT)),
+      ).toBe(0);
       return new NativeFixtureRunner(
         { codesign: `${snapshotPath}: No such file or directory\n` },
         1,
@@ -475,7 +477,7 @@ it.skipIf(process.platform !== "darwin")(
       ok: false,
       error: { _tag: "AnalysisArtifactChangedError" },
     });
-    expect(await readFile(path)).toEqual(originalBytes);
+    expect(Buffer.compare(await readFile(path), originalBytes)).toBe(0);
     if (snapshotPath === undefined)
       throw new Error("Expected codesign capture");
     await expect(lstat(dirname(snapshotPath))).rejects.toMatchObject({
@@ -569,7 +571,9 @@ it("copies and hashes the same bytes across multiple snapshot chunks", async () 
     target,
     new ArtifactResourceScope(),
     async (binding) => {
-      expect(await readFile(binding.snapshotPath)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(binding.snapshotPath), bytes)).toBe(
+        0,
+      );
       const verified = await verifySignatureTarget(target, binding);
       return verified.ok ? ok(signatureInspectionFixture()) : verified;
     },
@@ -658,9 +662,12 @@ it.skipIf(process.platform !== "darwin")(
         await rename(selected, saved);
         await rename(replacement, selected);
         try {
-          expect(await readFile(path)).not.toEqual(
-            await readFile(join(saved, "program")),
-          );
+          expect(
+            Buffer.compare(
+              await readFile(path),
+              await readFile(join(saved, "program")),
+            ),
+          ).not.toBe(0);
           return await real.run(tool, args, options);
         } finally {
           await rename(selected, replacement);

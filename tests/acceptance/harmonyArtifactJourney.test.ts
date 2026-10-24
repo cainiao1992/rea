@@ -188,7 +188,7 @@ test("preserves Harmony archive formats through the public CLI/MCP lifecycle", a
       expect(empty.structuredContent).toMatchObject({
         result: { open: false },
       });
-      expect(await readFile(path)).toEqual(Buffer.from(bytes));
+      expect(Buffer.compare(await readFile(path), Buffer.from(bytes))).toBe(0);
     }
   } finally {
     await client.close();

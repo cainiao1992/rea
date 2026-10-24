@@ -289,16 +289,29 @@ cliTest(
     );
     try {
       expect(
-        await readFile(join(result.output_root, "pkg", "data.bin")),
-      ).toEqual(stored);
+        Buffer.compare(
+          await readFile(join(result.output_root, "pkg", "data.bin")),
+          stored,
+        ),
+      ).toBe(0);
       expect(
-        await readFile(join(result.output_root, "PYZ.pyz", "res", "icon.bin")),
-      ).toEqual(icon);
+        Buffer.compare(
+          await readFile(
+            join(result.output_root, "PYZ.pyz", "res", "icon.bin"),
+          ),
+          icon,
+        ),
+      ).toBe(0);
       expect(
-        (
-          await readFile(join(result.output_root, "PYZ.pyz", "pkg", "mod.pyc"))
-        ).subarray(16),
-      ).toEqual(module);
+        Buffer.compare(
+          (
+            await readFile(
+              join(result.output_root, "PYZ.pyz", "pkg", "mod.pyc"),
+            )
+          ).subarray(16),
+          module,
+        ),
+      ).toBe(0);
     } finally {
       await rm(result.output_root, { recursive: true, force: true });
     }
@@ -321,9 +334,12 @@ it("extracts legacy and modern CArchive modules with one pyc header through the 
   );
   try {
     for (const module of fixture.modules) {
-      expect(await readFile(join(extraction.output_root, module.name))).toEqual(
-        module.bytes,
-      );
+      expect(
+        Buffer.compare(
+          await readFile(join(extraction.output_root, module.name)),
+          module.bytes,
+        ),
+      ).toBe(0);
       expect(
         extraction.artifacts.find((item) => item.relative_path === module.name),
       ).toMatchObject({
@@ -465,9 +481,12 @@ it("extracts CArchive members through extract-artifact", async () => {
   expect(
     await readFile(join(extracted.output_root, "PYZ.pyz", "app.pyc")),
   ).toHaveLength(16 + Buffer.from("app-body").length);
-  expect(await readFile(join(extracted.output_root, "hello"))).toEqual(
-    Buffer.from("print('hi')"),
-  );
+  expect(
+    Buffer.compare(
+      await readFile(join(extracted.output_root, "hello")),
+      Buffer.from("print('hi')"),
+    ),
+  ).toBe(0);
   expect(await readdir(extracted.output_root)).not.toContain("__pyinstaller__");
   expect(
     extracted.artifacts.some((item) =>
@@ -564,11 +583,17 @@ it("preserves a PYZ namespace declaration beside a physical CArchive file at the
       expect.arrayContaining(["PYZ.pyz/ns", "healthy.txt"]),
     );
     expect(
-      await readFile(join(extracted.output_root, "PYZ.pyz", "ns")),
-    ).toEqual(Buffer.from("outer data"));
-    expect(await readFile(join(extracted.output_root, "healthy.txt"))).toEqual(
-      Buffer.from("healthy sibling"),
-    );
+      Buffer.compare(
+        await readFile(join(extracted.output_root, "PYZ.pyz", "ns")),
+        Buffer.from("outer data"),
+      ),
+    ).toBe(0);
+    expect(
+      Buffer.compare(
+        await readFile(join(extracted.output_root, "healthy.txt")),
+        Buffer.from("healthy sibling"),
+      ),
+    ).toBe(0);
   } finally {
     await rm(extracted.output_root, { recursive: true, force: true });
   }

@@ -255,9 +255,10 @@ it("does not assign a peer's later cancellation to a descriptor that already fai
         error.cause.errors[0] instanceof AnalysisCancelledError,
     );
     expect(cancelled).toHaveLength(1);
-    expect((cancelled[0]?.cause as AggregateError).errors[0].cause).toBe(
-      reason,
-    );
+    const cancelledCause = cancelled[0]?.cause;
+    if (!(cancelledCause instanceof AggregateError))
+      throw new Error("Expected descriptor cancellation failure");
+    expect(cancelledCause.errors[0].cause).toBe(reason);
     expect(failure.cleanupIncomplete).toBe(true);
     fault.blocked.clear();
     await client.close();

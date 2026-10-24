@@ -277,7 +277,7 @@ it("does not activate an abort-bound source during awaited destination setup", a
   await expect(access(join(root, "published"))).rejects.toMatchObject({
     code: "ENOENT",
   });
-  expect(await readFile(source)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(source), bytes)).toBe(0);
 });
 
 it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(

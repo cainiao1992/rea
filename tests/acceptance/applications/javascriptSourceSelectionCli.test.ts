@@ -92,7 +92,9 @@ cliTest.for([
       expect(properties?.parse_status).toBe(
         path === "main.mjs" ? "complete" : null,
       );
-      expect(await readFile(join(directory, path))).toEqual(bytes);
+      expect(Buffer.compare(await readFile(join(directory, path)), bytes)).toBe(
+        0,
+      );
     }
     const fullResponse = await cli.run({
       arguments: [command, input, "--format", "json"],

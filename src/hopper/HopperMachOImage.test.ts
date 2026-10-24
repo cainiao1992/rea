@@ -385,7 +385,7 @@ it("copies exactly the selected FAT32 slice bytes and verifies the source", asyn
     arm64eOffset,
     arm64eOffset + FAT32_SLICE_SIZE,
   );
-  expect(await readFile(destination)).toEqual(copied);
+  expect(Buffer.compare(await readFile(destination), copied)).toBe(0);
 });
 
 it("retains the caller reason when a FAT copy is cancelled after its final write", async () => {
@@ -421,12 +421,15 @@ it("retains the caller reason when a FAT copy is cancelled after its final write
   expect(prepared.error._tag).toBe("HopperCancelledError");
   expect(prepared.error.cause).toBe(reason);
   // The private session directory remains the owner of partial output.
-  await expect(readFile(destination)).resolves.toEqual(
-    fixture.container.subarray(
-      fixture.sliceOffsets[0],
-      fixture.sliceOffsets[0]! + FAT32_SLICE_SIZE,
+  expect(
+    Buffer.compare(
+      await readFile(destination),
+      fixture.container.subarray(
+        fixture.sliceOffsets[0],
+        fixture.sliceOffsets[0]! + FAT32_SLICE_SIZE,
+      ),
     ),
-  );
+  ).toBe(0);
 });
 
 it("retains a failed prepared-image close through launcher cleanup and blocks another launch", async () => {
@@ -522,9 +525,12 @@ it("retains a failed prepared-image close through launcher cleanup and blocks an
   expect(initial.error.cleanupIncomplete).toBe(false);
   expect(blocked.error.cleanupIncomplete).toBe(false);
   expect(cleanupPending.error.cleanupIncomplete).toBe(false);
-  await expect(
-    readFile(join(sessionDirectory, "image.macho")),
-  ).resolves.toEqual(bytes);
+  expect(
+    Buffer.compare(
+      await readFile(join(sessionDirectory, "image.macho")),
+      bytes,
+    ),
+  ).toBe(0);
 });
 
 it("observes caller cancellation that arrives during final source-handle cleanup", async () => {
@@ -574,9 +580,9 @@ it("observes caller cancellation that arrives during final source-handle cleanup
   if (prepared.ok) throw new Error("Finalization cancellation was ignored");
   expect(prepared.error._tag).toBe("HopperCancelledError");
   expect(prepared.error.cause).toBe(reason);
-  await expect(readFile(join(directory, "image.macho"))).resolves.toEqual(
-    bytes,
-  );
+  expect(
+    Buffer.compare(await readFile(join(directory, "image.macho")), bytes),
+  ).toBe(0);
 });
 
 it("rejects FAT32 preparation when the source table changed after resolution", async () => {
@@ -646,7 +652,7 @@ it("copies an admitted thin Mach-O through the owned verified-image path", async
   );
   if (!prepared.ok) throw new Error(prepared.error.userMessage);
   expect(prepared.value).toBe(destination);
-  expect(await readFile(destination)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(destination), bytes)).toBe(0);
   expect(target.path).toBe(path);
 });
 
@@ -777,6 +783,6 @@ it("retains an owned partial thin image and exact cancellation reason after a wr
   if (prepared.ok) throw new Error("Cancelled partial copy was accepted");
   expect(prepared.error._tag).toBe("HopperCancelledError");
   expect(prepared.error.cause).toBe(reason);
-  await expect(readFile(destination)).resolves.toEqual(partial);
+  expect(Buffer.compare(await readFile(destination), partial)).toBe(0);
   await expect(access(destination)).resolves.toBeUndefined();
 });

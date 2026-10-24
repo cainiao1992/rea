@@ -78,7 +78,7 @@ cliTest(
       });
       expect(response.isError).not.toBe(true);
       expect(parseCliMetadata(response.structuredContent)).toEqual(report);
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     }
     for (const [records, declaredCount, declaredBytes] of [
       [0, 1, 0],
@@ -123,7 +123,7 @@ cliTest(
       });
       expect(response.isError).toBe(true);
       expect(parseMcpToolError(response).error).toMatchObject(expected);
-      expect(await readFile(path)).toEqual(fixture.bytes);
+      expect(Buffer.compare(await readFile(path), fixture.bytes)).toBe(0);
     }
   },
   30000,
@@ -682,7 +682,7 @@ cliTest(
     const before = await readFile(bundle);
     const overwrite = await runFileCli(cli, { arguments: args });
     expect(overwrite.exitCode).toBe(1);
-    expect(await readFile(bundle)).toEqual(before);
+    expect(Buffer.compare(await readFile(bundle), before)).toBe(0);
     const saved = await readEvidenceBundle(bundle);
     if (!saved.ok) throw saved.error;
     const evidence = saved.value.records[0];
@@ -928,7 +928,7 @@ cliTest(
         sha256: createHash("sha256").update(bytes).digest("hex"),
         bytes: bytes.length,
       });
-      expect(await readFile(binaryPath)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(binaryPath), bytes)).toBe(0);
       return report;
     };
     const control = await inspect(createIl2cppBinaryFixture());
@@ -1026,7 +1026,7 @@ cliTest(
         expect(response.isError, JSON.stringify(response)).not.toBe(true);
         expect(parseCliMetadata(response.structuredContent)).toEqual(report);
       }
-      expect(await readFile(binaryPath)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(binaryPath), bytes)).toBe(0);
     }
     await client.ping();
   },

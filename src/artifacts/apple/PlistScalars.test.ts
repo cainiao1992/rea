@@ -321,9 +321,12 @@ describe("binary plist number rewriting", () => {
         uidOffsetsToNormalize: [],
       }),
     ).toBe(bytes);
-    expect(bytes.subarray(13, 30)).toEqual(
-      Buffer.from([0x14, ...Array<number>(16).fill(0xff)]),
-    );
+    expect(
+      Buffer.compare(
+        bytes.subarray(13, 30),
+        Buffer.from([0x14, ...Array<number>(16).fill(0xff)]),
+      ),
+    ).toBe(0);
   });
 
   it("does not rewrite a wide integer when a date aliases its payload", () => {
@@ -362,7 +365,7 @@ describe("binary plist number rewriting", () => {
       },
       { $plist_type: "date", iso8601: null },
     ]);
-    expect(bytes).toEqual(original);
+    expect(Buffer.compare(bytes, original)).toBe(0);
     expect(bytes[11]).toBe(0x14);
     expect(bytes[18]).toBe(0x33);
   });
@@ -424,7 +427,7 @@ describe("binary plist shared object-table entries", () => {
     expect(numbers.limitations().join("\n")).not.toContain(
       "could not be completely observed",
     );
-    expect(bytes).toEqual(original);
+    expect(Buffer.compare(bytes, original)).toBe(0);
   });
 
   it("rewrites a shared 16-byte integer once for every entry", () => {
@@ -450,7 +453,7 @@ describe("binary plist shared object-table entries", () => {
       { $plist_type: "integer", decimal: "18446744073709551618" },
       { $plist_type: "integer", decimal: "1152921504606846979" },
     ]);
-    expect(bytes).toEqual(original);
+    expect(Buffer.compare(bytes, original)).toBe(0);
   });
 
   it("records a shared date once and keeps its sibling exact", () => {

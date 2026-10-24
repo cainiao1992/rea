@@ -328,9 +328,12 @@ it("preserves every equal-content occurrence and copies a nested ASAR as its con
     extracted.artifacts[2]?.artifact_id,
   );
   for (const path of ["a.txt", "b.txt", "app.asar"])
-    expect(await readFile(join(output, path))).toEqual(
-      await readFile(join(source, path)),
-    );
+    expect(
+      Buffer.compare(
+        await readFile(join(output, path)),
+        await readFile(join(source, path)),
+      ),
+    ).toBe(0);
 });
 
 it("ignores unavailable members of a nested ASAR but refuses them as active entries", async () => {
@@ -358,9 +361,12 @@ it("ignores unavailable members of a nested ASAR but refuses them as active entr
   expect(
     nestedExtraction.artifacts.map(({ relative_path }) => relative_path),
   ).toEqual(["app.asar"]);
-  expect(await readFile(join(nestedOutput, "app.asar"))).toEqual(
-    await readFile(archive),
-  );
+  expect(
+    Buffer.compare(
+      await readFile(join(nestedOutput, "app.asar")),
+      await readFile(archive),
+    ),
+  ).toBe(0);
 
   const activeOutput = join(root, "active-output");
   const activeResult = await extract(archive, activeOutput);

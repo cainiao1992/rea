@@ -88,9 +88,13 @@ cliTest(
     expect(files).toEqual(await listFiles(join(root, "three-step")));
     expect(files).toHaveLength(7);
     for (const file of files)
-      expect(await readFile(join(root, "built", file)), file).toEqual(
-        await readFile(join(root, "three-step", file)),
-      );
+      expect(
+        Buffer.compare(
+          await readFile(join(root, "built", file)),
+          await readFile(join(root, "three-step", file)),
+        ),
+        file,
+      ).toBe(0);
     expect(built.json).toMatchObject({
       tool_count: (exported.json as { tool_count: number }).tool_count,
       files: (exported.json as { files: unknown[] }).files,

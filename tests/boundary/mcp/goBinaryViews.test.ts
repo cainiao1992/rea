@@ -183,7 +183,7 @@ goViewTest(
         },
       },
     });
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     await unlink(path);
     const source = {
       kind: "retained-evidence",

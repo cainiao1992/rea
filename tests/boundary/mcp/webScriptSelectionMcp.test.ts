@@ -189,10 +189,13 @@ it("publishes script bytes and retains the returned Evidence without starting an
   if (exported.analysis_input === null)
     throw new Error("published script bytes have no analysis input root");
   expect(
-    await readFile(
-      join(exported.analysis_input.input_path, content.relative_path),
+    Buffer.compare(
+      await readFile(
+        join(exported.analysis_input.input_path, content.relative_path),
+      ),
+      bytes,
     ),
-  ).toEqual(bytes);
+  ).toBe(0);
   expect(
     JSON.parse(await readFile(exported.manifest.path, "utf8")),
   ).toMatchObject({

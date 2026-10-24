@@ -371,7 +371,7 @@ describe("MachOSliceArtifactReader", () => {
     const verifiedRead = await reader.open(verifiedArmEntry);
     for await (const chunk of verifiedRead)
       verifiedChunks.push(Buffer.from(chunk));
-    expect(Buffer.concat(verifiedChunks)).toEqual(arm);
+    expect(Buffer.compare(Buffer.concat(verifiedChunks), arm)).toBe(0);
 
     const truncatedController = new AbortController();
     const truncated = await reader.open(

@@ -62,7 +62,7 @@ cliTest(
         action: "Evidence file already exists. Choose another output path.",
       },
     });
-    expect(await readFile(output)).toEqual(before);
+    expect(Buffer.compare(await readFile(output), before)).toBe(0);
     const next = await cli.run({
       arguments: [
         "inspect-artifact",

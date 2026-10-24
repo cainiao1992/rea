@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
@@ -151,6 +151,9 @@ it("excludes translation staging while retaining authored website errors", async
   const root = await fixture();
   for (const name of [".gitignore", ".oxlintrc.json"])
     await writeFile(join(root, name), await readFile(join(repository, name)));
+  await cp(join(repository, "scripts/lint"), join(root, "scripts/lint"), {
+    recursive: true,
+  });
   const authored = "website/public/assets/authored.js";
   const staged =
     "website/.i18n-regression/site/examples/notes-electron/main.js";
@@ -163,7 +166,7 @@ it("excludes translation staging while retaining authored website errors", async
     );
   }
 
-  const result = invoke(root, "lint");
+  const result = invoke(root, "lint", "website");
   expect(result.error).toBeUndefined();
   expect(result.status).toBe(1);
   expect(result.stdout).toContain("1 errors, 0 warnings");

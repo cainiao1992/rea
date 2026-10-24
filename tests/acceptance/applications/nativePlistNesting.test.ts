@@ -89,7 +89,7 @@ describe.skipIf(process.platform !== "darwin")(
             environment,
           });
           const response = await call("inspect_plist", { path });
-          expect(await readFile(path)).toEqual(bytes);
+          expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
           if (depth === 999) {
             expect(output.exitCode, output.stderr).toBe(1);
             const expectedFailure = {

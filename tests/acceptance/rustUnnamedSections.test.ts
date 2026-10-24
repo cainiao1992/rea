@@ -52,7 +52,7 @@ cliTest(
       const response = await call("inspect_rust_binary", { path });
       expect(response.isError, JSON.stringify(response)).not.toBe(true);
       expect(response.structuredContent).toEqual(evidence);
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     }
     await client.ping();
   },

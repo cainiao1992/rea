@@ -51,7 +51,7 @@ cliTest(
       expect(evidence.normalized_result.entries[0]?.gnu?.build_id_hex).toBe(
         "0123456789abcdef0123456789abcdef01234567",
       );
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     }
   },
 );
@@ -82,7 +82,7 @@ cliTest(
       examined_tables: 1,
       examined_entries: 1,
     });
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   },
 );
 
@@ -138,7 +138,7 @@ cliTest(
         "Compressed ELF note sections are unsupported",
       ),
     });
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   },
 );
 

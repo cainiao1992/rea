@@ -106,7 +106,7 @@ const parseWithoutMutatingSource = (bytes: Buffer) => {
   const parsed = parsePlistBinary(bytes);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) throw parsed.error;
-  expect(bytes).toEqual(original);
+  expect(Buffer.compare(bytes, original)).toBe(0);
   return parsed.value;
 };
 

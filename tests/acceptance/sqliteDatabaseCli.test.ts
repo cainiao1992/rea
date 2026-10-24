@@ -322,7 +322,7 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       { path, table: "selected", columns: ["ID"] },
     ])
       expect((await call("inspect_sqlite_database", input)).isError).toBe(true);
-    expect(await readFile(path)).toEqual(before);
+    expect(Buffer.compare(await readFile(path), before)).toBe(0);
   },
 );
 
@@ -632,7 +632,7 @@ cliTest
     });
     expect(response.isError, JSON.stringify(response)).not.toBe(true);
     expect(response.structuredContent).toEqual(result.json);
-    expect(await readFile(path)).toEqual(original);
+    expect(Buffer.compare(await readFile(path), original)).toBe(0);
   },
 );
 
@@ -1074,7 +1074,7 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
         },
       },
     });
-    expect(await readFile(path)).toEqual(before);
+    expect(Buffer.compare(await readFile(path), before)).toBe(0);
   },
 );
 
@@ -1136,7 +1136,7 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       expect(response.isError, JSON.stringify(response)).not.toBe(true);
       expect(response.structuredContent).toEqual(result.json);
     }
-    expect(await readFile(path)).toEqual(original);
+    expect(Buffer.compare(await readFile(path), original)).toBe(0);
   },
 );
 
@@ -1338,7 +1338,7 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       const response = await call("inspect_sqlite_database", { path });
       expect(response.isError, JSON.stringify(response)).not.toBe(true);
       expect(response.structuredContent).toEqual(result.json);
-      expect(await readFile(path)).toEqual(original);
+      expect(Buffer.compare(await readFile(path), original)).toBe(0);
     }
   },
 );

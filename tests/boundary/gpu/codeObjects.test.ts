@@ -1021,7 +1021,9 @@ it("preserves standalone PTX BOM and trailing NUL bytes in the retained text art
   const bytes = Buffer.from("\uFEFF" + ptxFixture + "\0");
   const result = await inspect(bytes);
   if (!result.ok) throw result.error;
-  expect(Buffer.from(result.value.ptx_artifacts[0]!.text)).toEqual(bytes);
+  expect(
+    Buffer.compare(Buffer.from(result.value.ptx_artifacts[0]!.text), bytes),
+  ).toBe(0);
   expect(result.value.ptx_artifacts[0]!.byte_length).toBe(bytes.length);
 });
 it("rejects a changed full-file identity before applying positional object selection", async () => {

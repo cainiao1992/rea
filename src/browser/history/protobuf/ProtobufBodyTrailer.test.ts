@@ -51,7 +51,9 @@ it("rejects forbidden trailer controls while retaining valid earlier trailers", 
     expect(result.frames[0]?.trailers).toEqual([
       { name: "grpc-message", value: "kept" },
     ]);
-    expect(input.subarray(5)).toEqual(Buffer.from(text, "utf8"));
+    expect(Buffer.compare(input.subarray(5), Buffer.from(text, "utf8"))).toBe(
+      0,
+    );
   }
 });
 
@@ -116,7 +118,7 @@ it.each(["grpc-web", "grpc-web-text"] as const)(
       ],
     });
     expect(result.examined_bytes).toBe(binary.length);
-    expect(binary.subarray(-trailer.length)).toEqual(trailer);
+    expect(Buffer.compare(binary.subarray(-trailer.length), trailer)).toBe(0);
   },
 );
 

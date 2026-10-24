@@ -150,9 +150,13 @@ const sameTree = async (left: string, right: string): Promise<number> => {
   const files = await listFiles(left);
   expect(await listFiles(right)).toEqual(files);
   for (const file of files)
-    expect(await readFile(join(left, file)), file).toEqual(
-      await readFile(join(right, file)),
-    );
+    expect(
+      Buffer.compare(
+        await readFile(join(left, file)),
+        await readFile(join(right, file)),
+      ),
+      file,
+    ).toBe(0);
   return files.length;
 };
 

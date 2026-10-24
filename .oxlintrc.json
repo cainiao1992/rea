@@ -1,7 +1,13 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "import", "unicorn", "oxc"],
+  "jsPlugins": [{ "name": "rea", "specifier": "./scripts/lint/index.mjs" }],
   "rules": {
+    "rea/no-buffer-deep-equality": "error",
+    "rea/cancellation-cause": "error",
+    "no-async-promise-executor": "error",
+    "no-unreachable": "error",
+    "no-unsafe-optional-chaining": "error",
     "complexity": ["warn", 20],
     "max-depth": ["warn", 4],
     "max-lines": [

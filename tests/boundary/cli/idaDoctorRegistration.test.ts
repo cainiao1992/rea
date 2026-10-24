@@ -82,7 +82,9 @@ cliTest.skipIf(process.platform !== "darwin").for([true, false])(
         }),
       ]),
     });
-    expect(await readFile(registration)).toEqual(registrationBytes);
+    expect(
+      Buffer.compare(await readFile(registration), registrationBytes),
+    ).toBe(0);
     expect(await readdir(physical)).toEqual(before);
     if (usable) {
       expect(await readdir(parent)).toEqual([]);

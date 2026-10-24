@@ -96,10 +96,18 @@ describe.each(["vscode", "copilot_cli", "opencode", "commandcode"])(
             status: "unchanged",
           },
         );
-        expect(await readFile(client.configPath)).toEqual(Buffer.from(updated));
-        expect(await readFile(`${client.configPath}.rea.backup`)).toEqual(
-          Buffer.from(original),
-        );
+        expect(
+          Buffer.compare(
+            await readFile(client.configPath),
+            Buffer.from(updated),
+          ),
+        ).toBe(0);
+        expect(
+          Buffer.compare(
+            await readFile(`${client.configPath}.rea.backup`),
+            Buffer.from(original),
+          ),
+        ).toBe(0);
       },
     );
   },
@@ -125,7 +133,9 @@ it.each(['\uFEFF{"servers": {"rea": @}}', '\uFEFF{"setting":\uFEFFtrue}'])(
     expect(
       await configureClientConfiguration(client, {}, ["rea", "mcp"]),
     ).toEqual({ status: "failed", reason: "readback" });
-    expect(await readFile(configPath)).toEqual(Buffer.from(original));
+    expect(
+      Buffer.compare(await readFile(configPath), Buffer.from(original)),
+    ).toBe(0);
     expect(await readdir(home)).toEqual(["mcp.json"]);
   },
 );
@@ -171,9 +181,12 @@ it("preserves BOM-prefixed JSONC values and comments through update and removal"
   expect(parseClientConfiguration(removed, client.format).document).toEqual(
     parseClientConfiguration(original, client.format).document,
   );
-  expect(await readFile(`${client.configPath}.rea.backup`)).toEqual(
-    Buffer.from(original),
-  );
+  expect(
+    Buffer.compare(
+      await readFile(`${client.configPath}.rea.backup`),
+      Buffer.from(original),
+    ),
+  ).toBe(0);
 });
 
 it.each(["", "\n  \n", "\uFEFF"])(

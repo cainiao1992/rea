@@ -134,7 +134,7 @@ describe("MCP snapshot lifecycle ordering", () => {
         })
       ).isError,
     ).toBe(true);
-    expect(await readFile(snapshotPath)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(snapshotPath), bytes)).toBe(0);
     expect(
       (
         await mcp.callTool({

@@ -56,7 +56,7 @@ cliTest(
       const response = await call("inspect_go_binary", { path });
       expect(response.isError, JSON.stringify(response)).not.toBe(true);
       expect(response.structuredContent).toEqual(evidence);
-      expect(await readFile(path)).toEqual(fixture.bytes);
+      expect(Buffer.compare(await readFile(path), fixture.bytes)).toBe(0);
     }
 
     const damaged = createGoCrossLoadPointerFixture("contents");

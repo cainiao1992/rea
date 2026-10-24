@@ -186,7 +186,7 @@ const connectGhidra = async () => {
       }
     }
     for (const launched of launcher.launches) await expectReleased(launched);
-    expect(await readFile(target)).toEqual(source);
+    expect(Buffer.compare(await readFile(target), source)).toBe(0);
   };
   try {
     await server.connect(serverTransport);

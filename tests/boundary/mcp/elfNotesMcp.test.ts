@@ -103,7 +103,7 @@ mcpTest(
         examined_tables: 1,
         examined_entries: 1,
       });
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     } finally {
       await session.close();
     }
@@ -130,7 +130,7 @@ mcpTest(
           "Compressed ELF note sections are unsupported",
         ),
       });
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     } finally {
       await session.close();
     }

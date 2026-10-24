@@ -166,7 +166,7 @@ for (const scenario of cases)
       });
       if (!("syntax" in scenario))
         expect(uninstall.stdout).not.toContain("not valid JSON");
-      expect(await readFile(config)).toEqual(original);
+      expect(Buffer.compare(await readFile(config), original)).toBe(0);
       expect(await readdir(dirname(config))).toEqual([
         scenario.path.split("/").at(-1),
       ]);

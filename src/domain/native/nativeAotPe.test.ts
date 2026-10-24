@@ -64,7 +64,7 @@ describe("NativeAOT indexed MethodTable closure", () => {
         "0x1400022c0",
         ...expected,
       ]);
-      expect(bytes).toEqual(before);
+      expect(Buffer.compare(bytes, before)).toBe(0);
     },
   );
 
@@ -91,7 +91,7 @@ describe("read-only NativeAOT PE parser", () => {
       SUMMARY_BUDGET,
       "0x140000000",
     );
-    expect(bytes).toEqual(before);
+    expect(Buffer.compare(bytes, before)).toBe(0);
     expect(parsed.summary).toMatchObject({
       format: "dotnet-nativeaot",
       status: "complete",
@@ -227,7 +227,7 @@ describe("read-only NativeAOT PE parser", () => {
       nativeAotPeDigest(bytes),
       SUMMARY_BUDGET,
     );
-    expect(bytes).toEqual(before);
+    expect(Buffer.compare(bytes, before)).toBe(0);
     expect(parsed.summary).toMatchObject({
       status: "partial",
       derived_overlay: null,

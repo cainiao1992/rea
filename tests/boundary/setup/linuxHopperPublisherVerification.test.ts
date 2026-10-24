@@ -525,7 +525,9 @@ linux(
         ok: false,
         error: { reason: "verification_unavailable" },
       });
-      expect(await readFile(join(f.cache, "release.json"))).toEqual(metadata);
+      expect(
+        Buffer.compare(await readFile(join(f.cache, "release.json")), metadata),
+      ).toBe(0);
       expect(
         (await readdir(f.publisher.cacheRoot)).some((name) =>
           name.includes(".backup-"),

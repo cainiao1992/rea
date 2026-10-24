@@ -572,7 +572,9 @@ for (const typeCode of ["o", "d"] as const) {
           path,
           inventory,
         );
-        expect(await readFile(join(output, realPath))).toEqual(payload);
+        expect(
+          Buffer.compare(await readFile(join(output, realPath)), payload),
+        ).toBe(0);
       },
     );
   });
@@ -795,8 +797,11 @@ it.each(["x", "s", "empty-module"])(
           inventory,
         );
         expect(
-          (await readFile(join(output, "PYZ.pyz/app.pyc"))).subarray(16),
-        ).toEqual(Buffer.from("readable module"));
+          Buffer.compare(
+            (await readFile(join(output, "PYZ.pyz/app.pyc"))).subarray(16),
+            Buffer.from("readable module"),
+          ),
+        ).toBe(0);
       },
     );
   },
@@ -1380,7 +1385,9 @@ it.each([true, false])(
           source,
           inventory,
         );
-        expect(await readFile(join(output, path))).toEqual(file.payload);
+        expect(
+          Buffer.compare(await readFile(join(output, path)), file.payload),
+        ).toBe(0);
       },
     );
   },

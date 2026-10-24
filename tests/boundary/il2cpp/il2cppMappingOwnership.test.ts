@@ -96,7 +96,7 @@ it("links one code-loaded type table among short runs across many mappings", () 
   expect(result.types_field).toBeNull();
   expect(result.types_count).toBe(4);
   expect(result.return_types.every((row) => row.name === "int")).toBe(true);
-  expect(bytes).toEqual(snapshot);
+  expect(Buffer.compare(bytes, snapshot)).toBe(0);
 });
 
 it.each([183, 62])(
@@ -110,7 +110,7 @@ it.each([183, 62])(
     ]);
     const snapshot = Buffer.from(split);
     expect(link(split)).toEqual(link(original));
-    expect(split).toEqual(snapshot);
+    expect(Buffer.compare(split, snapshot)).toBe(0);
   },
 );
 
@@ -136,7 +136,7 @@ it.each([false, true])(
         ),
       }),
     );
-    expect(bytes).toEqual(snapshot);
+    expect(Buffer.compare(bytes, snapshot)).toBe(0);
   },
 );
 
@@ -169,7 +169,7 @@ it("refuses an unresolved count relocation with conflicting file/zero-fill owner
       message: expect.stringContaining("ambiguous file and zero-fill mappings"),
     }),
   );
-  expect(bytes).toEqual(snapshot);
+  expect(Buffer.compare(bytes, snapshot)).toBe(0);
 });
 
 it("clears a file-backed unresolved count before scanning registration candidates", () => {
@@ -184,7 +184,7 @@ it("clears a file-backed unresolved count before scanning registration candidate
   expect(() => link(bytes)).toThrow(
     expect.objectContaining({ reason: "code-registration-not-found" }),
   );
-  expect(bytes).toEqual(snapshot);
+  expect(Buffer.compare(bytes, snapshot)).toBe(0);
 });
 
 it.each([false, true])(

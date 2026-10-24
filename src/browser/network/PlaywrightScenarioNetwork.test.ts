@@ -401,13 +401,16 @@ it("preserves duplicate headers and binary bytes, redacting credentials and decl
   );
   if (content?.kind !== "network-content" || content.body.state !== "captured")
     throw new Error("Missing response");
-  expect(Buffer.from(content.body.content, "base64")).toEqual(
-    Buffer.concat([
-      Buffer.from([0xff, 0x00]),
-      Buffer.from("[REDACTED:declared]"),
-      Buffer.from([0xfe]),
-    ]),
-  );
+  expect(
+    Buffer.compare(
+      Buffer.from(content.body.content, "base64"),
+      Buffer.concat([
+        Buffer.from([0xff, 0x00]),
+        Buffer.from("[REDACTED:declared]"),
+        Buffer.from([0xfe]),
+      ]),
+    ),
+  ).toBe(0);
   expect(content.body.redacted).toBe(true);
   expect(content.headers).toEqual({
     state: "captured",

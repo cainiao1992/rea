@@ -346,7 +346,7 @@ cliTest(
       expect(result.json).not.toHaveProperty("evidence_id");
       expect(result.json).not.toHaveProperty("normalized_result");
     }
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     expect(await readdir(root)).toEqual(["fixture.dll"]);
   },
 );

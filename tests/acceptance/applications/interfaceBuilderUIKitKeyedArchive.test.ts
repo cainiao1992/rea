@@ -243,7 +243,7 @@ cliTest.for(["xml", "binary"] as const)(
       }),
     );
     expect(report.graph.truncated).toBe(false);
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   },
 );
 

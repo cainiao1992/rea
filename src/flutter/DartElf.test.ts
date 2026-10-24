@@ -112,7 +112,7 @@ describe("readElfSymbol", () => {
       const image = strippedImageWithSections([[tag, 0xffffffffffffffffn]]);
       const original = Buffer.from(image);
       expect(await readElfSymbols(image, names)).toEqual(control);
-      expect(image).toEqual(original);
+      expect(Buffer.compare(image, original)).toBe(0);
     },
   );
 
@@ -202,7 +202,7 @@ describe("dynamic symbols without a SHT_DYNSYM section", () => {
       expect(control.symbols).toHaveLength(2);
       const before = Buffer.from(image);
       expect(await readElfSymbols(image, names)).toEqual(control);
-      expect(image).toEqual(before);
+      expect(Buffer.compare(image, before)).toBe(0);
     },
   );
 

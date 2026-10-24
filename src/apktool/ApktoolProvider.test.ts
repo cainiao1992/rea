@@ -250,7 +250,7 @@ sdkInfo:
       coverage: "complete",
     },
   });
-  expect(await readFile(apk.path)).toEqual(original);
+  expect(Buffer.compare(await readFile(apk.path), original)).toBe(0);
 });
 
 it.each([

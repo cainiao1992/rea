@@ -143,7 +143,7 @@ it("publishes the writer's normalized path while retaining source spelling and u
     ]);
     const published = result.files[0];
     if (published === undefined) throw new Error("Expected published child");
-    expect(await readFile(published.path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(published.path), bytes)).toBe(0);
     expect(result).toMatchObject({
       coverage: "partial",
       extraction_gaps: [

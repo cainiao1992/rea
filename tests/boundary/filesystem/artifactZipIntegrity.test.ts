@@ -83,7 +83,7 @@ for (const zip64 of [false, true]) {
       expect(extraction.artifacts).toEqual([]);
       expect(extraction.containment_verified).toBe(true);
       expect(await readdir(extraction.output_root)).toEqual([]);
-      expect(await readFile(archive)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(archive), bytes)).toBe(0);
     },
   );
 }

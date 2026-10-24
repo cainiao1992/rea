@@ -524,7 +524,7 @@ const registerSignatureInputAdmissionCases = () => {
     corrupt.writeUInt32LE(0x06064b51, endOffset);
     const restored = Buffer.from(corrupt);
     restored.writeUInt32LE(0x06064b50, endOffset);
-    expect(restored).toEqual(valid);
+    expect(Buffer.compare(restored, valid)).toBe(0);
     for (const [name, bytes] of [
       ["valid", valid],
       ["restored", restored],

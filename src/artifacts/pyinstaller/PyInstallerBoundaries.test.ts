@@ -656,7 +656,9 @@ for (const cancel of [false, true]) {
           } else {
             expect(result.ok).toBe(true);
             if (!result.ok) throw result.cause;
-            expect(result.value.subarray(16)).toEqual(Buffer.from("body"));
+            expect(
+              Buffer.compare(result.value.subarray(16), Buffer.from("body")),
+            ).toBe(0);
           }
           await reader.close();
           expect(attempts).toBe(failClose ? 2 : 1);

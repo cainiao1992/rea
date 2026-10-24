@@ -327,7 +327,9 @@ it.each([
       expect(report.tool_profile.commands[0]?.arguments).toContain(
         "--ignore-custom-section-errors",
       );
-      expect(await readFile(fixture.path)).toEqual(fixture.bytes);
+      expect(Buffer.compare(await readFile(fixture.path), fixture.bytes)).toBe(
+        0,
+      );
       expect(report.headers).toBe(
         dump.slice(0, dump.indexOf("Section Details:\n")),
       );
@@ -722,7 +724,12 @@ const launchWabtOutcome = async (
   const { bytes, dump, controller } = fixture;
   const version = input.arguments[0] === "--version";
   if (!version) {
-    expect(await readFile(join(input.cwd ?? "", "module.wasm"))).toEqual(bytes);
+    expect(
+      Buffer.compare(
+        await readFile(join(input.cwd ?? "", "module.wasm")),
+        bytes,
+      ),
+    ).toBe(0);
     if (mode === "changed-snapshot") {
       const snapshot = join(input.cwd ?? "", "module.wasm");
       await chmod(snapshot, 0o600);
@@ -821,7 +828,7 @@ it("enforces a selected command deadline and completes a corrected retry after c
   const report = wasmArtifactSchema.parse(corrected.value.result);
   expect(report.tool_profile.timeout_ms).toBe(2_000);
   expect(report.limitations.join(" ")).not.toContain("30-second");
-  await expect(readFile(fixture.path)).resolves.toEqual(fixture.bytes);
+  expect(Buffer.compare(await readFile(fixture.path), fixture.bytes)).toBe(0);
 });
 
 const glueSourcesForOutcome = (mode: OutcomeMode) => {
@@ -1006,7 +1013,7 @@ const runOwnedArtifactOutcome = async (
     );
   await assertSnapshotCleanupOutcome(mode, result, provider, runtimePath);
   await expect(access(runtimePath)).rejects.toMatchObject({ code: "ENOENT" });
-  expect(await readFile(path)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   if (acquiredPid !== undefined) {
     const pid = acquiredPid;
     expect(() => process.kill(pid, 0)).toThrow();

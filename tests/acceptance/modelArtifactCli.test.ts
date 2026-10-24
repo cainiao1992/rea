@@ -163,7 +163,7 @@ cliTest(
         coverage,
       });
       expect(summary.summary.limitations).toContainEqual(limitation);
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
       await unlink(path);
 
       const source = {
@@ -419,7 +419,7 @@ cliTest(
           reason.includes("have released") || reason.includes("has released"),
       ))
         expect(summary.summary.limitations).toContain(limitation);
-      expect(await readFile(path)).toEqual(fixture.bytes);
+      expect(Buffer.compare(await readFile(path), fixture.bytes)).toBe(0);
       await unlink(path);
       await assertRetainedLayoutViews(
         call,

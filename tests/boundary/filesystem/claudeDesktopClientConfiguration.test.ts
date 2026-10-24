@@ -484,7 +484,7 @@ describe("MSIX Claude Desktop registration lifecycle", () => {
           throw new Error("Expected a blocked update");
         expect(failedConfigurationMessage(result)).toContain(privateConfig);
         expect(failedConfigurationMessage(result)).toContain("Repair access");
-        expect(await readFile(appDataConfig)).toEqual(original);
+        expect(Buffer.compare(await readFile(appDataConfig), original)).toBe(0);
         expect(await readdir(dirname(appDataConfig))).toEqual([CONFIG]);
       } finally {
         await chmod(privateDirectory, mode);

@@ -373,14 +373,19 @@ it("extracts derived members into the safe output tree", async () => {
     path,
     snapshot,
   );
-  expect(await readFile(join(output, "hello"))).toEqual(derived(script));
+  expect(
+    Buffer.compare(await readFile(join(output, "hello")), derived(script)),
+  ).toBe(0);
   expect(
     extracted.artifacts.find((artifact) => artifact.relative_path === "hello")
       ?.sha256,
   ).toBe(sha256(derived(script)));
-  expect(await readFile(join(output, "PYZ.pyz", "app.pyc"))).toEqual(
-    derived(Buffer.from("app-body")),
-  );
+  expect(
+    Buffer.compare(
+      await readFile(join(output, "PYZ.pyz", "app.pyc")),
+      derived(Buffer.from("app-body")),
+    ),
+  ).toBe(0);
 });
 
 it("reports encrypted PYZ entries and refuses to extract them", async () => {
@@ -509,7 +514,9 @@ it.each([false, true])(
       path,
       snapshot,
     );
-    expect(await readFile(join(outputRoot, "PYZ.pyz"))).toEqual(payload);
+    expect(
+      Buffer.compare(await readFile(join(outputRoot, "PYZ.pyz")), payload),
+    ).toBe(0);
   },
 );
 
@@ -808,7 +815,9 @@ it("projects CArchive type n entries as symlinks", async () => {
   await expect(readFile(join(output, "libfoo.so"))).rejects.toMatchObject({
     code: "ENOENT",
   });
-  expect(await readFile(join(output, "data.bin"))).toEqual(payload);
+  expect(
+    Buffer.compare(await readFile(join(output, "data.bin")), payload),
+  ).toBe(0);
 });
 
 it.each([false, true])(
@@ -948,10 +957,15 @@ it("inventories and extracts a Windows member name under its canonical path", as
     path,
     snapshot,
   );
-  expect(await readFile(join(output, "pkg", "data.bin"))).toEqual(payload);
-  expect(await readFile(join(output, "PYZ.pyz", "res", "icon.bin"))).toEqual(
-    icon,
-  );
+  expect(
+    Buffer.compare(await readFile(join(output, "pkg", "data.bin")), payload),
+  ).toBe(0);
+  expect(
+    Buffer.compare(
+      await readFile(join(output, "PYZ.pyz", "res", "icon.bin")),
+      icon,
+    ),
+  ).toBe(0);
 });
 
 it("preserves distinct POSIX backslash and slash member paths", async () => {
@@ -1008,8 +1022,15 @@ it("preserves distinct POSIX backslash and slash member paths", async () => {
     path,
     snapshot,
   );
-  expect(await readFile(join(output, backslashName))).toEqual(backslashPayload);
-  expect(await readFile(join(output, "a", "b.txt"))).toEqual(slashPayload);
+  expect(
+    Buffer.compare(
+      await readFile(join(output, backslashName)),
+      backslashPayload,
+    ),
+  ).toBe(0);
+  expect(
+    Buffer.compare(await readFile(join(output, "a", "b.txt")), slashPayload),
+  ).toBe(0);
 });
 
 it("reads a PE signature beyond the carrier prefix before projecting paths", async () => {
@@ -1304,7 +1325,9 @@ it("uses known PYZ magic for separate CArchive scripts when the marshal table st
     path,
     snapshot,
   );
-  expect(await readFile(join(output, "hello"))).toEqual(derived(script));
+  expect(
+    Buffer.compare(await readFile(join(output, "hello")), derived(script)),
+  ).toBe(0);
 });
 
 it("retains colliding CArchive rows and PYZ children but refuses extraction", async () => {

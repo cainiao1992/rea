@@ -408,8 +408,11 @@ it("extracts the main script and assets without executing them", async () => {
       await readFile(join(extracted.output_root, "assets/message.txt"), "utf8"),
     ).toBe("hello");
     expect(
-      await readFile(join(extracted.output_root, "__node_sea__/code-cache")),
-    ).toEqual(Buffer.from("cache"));
+      Buffer.compare(
+        await readFile(join(extracted.output_root, "__node_sea__/code-cache")),
+        Buffer.from("cache"),
+      ),
+    ).toBe(0);
     const extractedInventory = await scanCanonicalArtifactInventory(
       extracted.output_root,
     );

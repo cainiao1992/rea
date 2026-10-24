@@ -161,9 +161,12 @@ it.each(["bin", "hop"])(
     });
     await client.ping();
     expect(createClient).not.toHaveBeenCalled();
-    expect(await readFile(path)).toEqual(
-      Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]),
-    );
+    expect(
+      Buffer.compare(
+        await readFile(path),
+        Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]),
+      ),
+    ).toBe(0);
   },
 );
 

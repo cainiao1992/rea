@@ -39,9 +39,12 @@ const extendedFirstAtomLength = (): Buffer => {
   const payloadOffset = chunkOffset + 8;
   const payloadSize = control.readUInt32BE(chunkOffset + 4);
   const payloadEnd = payloadOffset + payloadSize;
-  expect(control.subarray(payloadOffset + 4, payloadOffset + 6)).toEqual(
-    Buffer.from([0x08, 0x10]),
-  );
+  expect(
+    Buffer.compare(
+      control.subarray(payloadOffset + 4, payloadOffset + 6),
+      Buffer.from([0x08, 0x10]),
+    ),
+  ).toBe(0);
   const payload = Buffer.concat([
     control.subarray(payloadOffset, payloadOffset + 4),
     Buffer.from([0x18, 0x00, 0x10]),
@@ -153,7 +156,7 @@ cliTest(
           }),
         }),
       );
-      expect(await readFile(path)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
     }
   },
 );

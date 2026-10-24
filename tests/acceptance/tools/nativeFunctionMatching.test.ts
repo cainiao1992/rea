@@ -162,7 +162,7 @@ const verifyPortableCli = async (
   expect(ids.has(dependency.evidence_id)).toBe(true);
   expect(ids.has(unrelated.evidence_id)).toBe(false);
   expect(ids.has(evidenceId)).toBe(true);
-  expect(await readFile(bundlePath)).toEqual(original);
+  expect(Buffer.compare(await readFile(bundlePath), original)).toBe(0);
   const incomplete = await cli.run({
     arguments: [
       "match-native-functions",

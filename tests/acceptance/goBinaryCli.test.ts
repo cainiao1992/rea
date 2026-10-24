@@ -550,8 +550,11 @@ for (const format of ["elf", "pe", "macho"] as const) {
             .toString("utf8"),
         ).toBe(report.build_info.go_version);
         expect(
-          fixture.bytes.subarray(module.offset, module.offset + module.bytes),
-        ).toEqual(Buffer.from(report.build_info.module_bytes_base64, "base64"));
+          Buffer.compare(
+            fixture.bytes.subarray(module.offset, module.offset + module.bytes),
+            Buffer.from(report.build_info.module_bytes_base64, "base64"),
+          ),
+        ).toBe(0);
       },
     );
   }

@@ -207,7 +207,7 @@ cliTest.for(fixtures)(
           mode === "files" ? childPackages : [],
         );
       }
-      expect(await readFile(path)).toEqual(Buffer.from(bytes));
+      expect(Buffer.compare(await readFile(path), Buffer.from(bytes))).toBe(0);
     }
   },
 );
@@ -351,7 +351,7 @@ cliTest.for([
           }
       }
       if (encrypted) expect(Object.values(graph.components).flat()).toEqual([]);
-      expect(await readFile(path)).toEqual(Buffer.from(bytes));
+      expect(Buffer.compare(await readFile(path), Buffer.from(bytes))).toBe(0);
     }
   },
 );

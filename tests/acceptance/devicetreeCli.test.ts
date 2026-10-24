@@ -38,7 +38,7 @@ cliTest("inspects a relative DTB and preserves the source", async ({ cli }) => {
     summary: { model: "Test board" },
     coverage: { examined_nodes: 5 },
   });
-  expect(await readFile(path)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
 });
 cliTest(
   "does not resolve through a legacy phandle when the canonical value is malformed",

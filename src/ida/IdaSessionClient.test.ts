@@ -1147,7 +1147,9 @@ describe("headless IDA session ownership and cleanup", () => {
     });
     if (!result.ok) throw result.error;
     expect(producer.inputPath).not.toBe(target.path);
-    expect(await readFile(producer.inputPath)).toEqual(original);
+    expect(Buffer.compare(await readFile(producer.inputPath), original)).toBe(
+      0,
+    );
     expect(
       functionDossierSchema
         .parse(result.value.result)
@@ -1167,7 +1169,7 @@ describe("headless IDA session ownership and cleanup", () => {
       producer.calls.find(({ name }) => name === "idb_close")?.args.save,
     ).toBe(false);
     expect(await readdir(root)).toEqual(["target.elf"]);
-    expect(await readFile(target.path)).toEqual(original);
+    expect(Buffer.compare(await readFile(target.path), original)).toBe(0);
   });
   it("retains the private workspace and reports cleanup failure when worker release is unverified", async () => {
     const { producer, client, root } = await fixture("headless");

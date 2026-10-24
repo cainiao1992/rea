@@ -205,7 +205,9 @@ it("accepts a literal UTF-8 replacement character without changing its value", a
     ["rea", "mcp"],
   );
   expect(result.status).toBe("configured");
-  expect(await readFile(`${configPath}.rea.backup`)).toEqual(original);
+  expect(
+    Buffer.compare(await readFile(`${configPath}.rea.backup`), original),
+  ).toBe(0);
   expect(JSON.parse(await readFile(configPath, "utf8")).label).toBe("\uFFFD");
 });
 

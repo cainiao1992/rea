@@ -343,7 +343,7 @@ cliTest(
     );
     const before = await readFile(bundle);
     expect((await cli.run({ arguments: args })).exitCode).toBe(1);
-    expect(await readFile(bundle)).toEqual(before);
+    expect(Buffer.compare(await readFile(bundle), before)).toBe(0);
     await unlink(source);
     const query = join(root, "query.json");
     await writeFile(

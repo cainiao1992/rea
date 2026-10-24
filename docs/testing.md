@@ -146,6 +146,27 @@ boundaries and architecture guards enforce their declared import and source
 rules. Passing them does not prove that two parsers agree, a wrapper is still
 needed at runtime, or cleanup has one owner.
 
+The lint gate treats `no-async-promise-executor`, `no-unreachable`, and
+`no-unsafe-optional-chaining` as errors. These catch lost async executor failures,
+dead code, and unsafe uses of optional-chain results. `no-unsafe-finally` remains
+a warning because cleanup paths can deliberately throw aggregated failures;
+review whether they preserve the primary failure. Two local rules
+cover narrower observed failures: `rea/no-buffer-deep-equality` flags Vitest
+deep comparisons of Buffers from recognized constructors and file reads,
+including simple `const` aliases; `rea/cancellation-cause` requires an explicit
+cause when a directly checked caller `AbortSignal` is converted to an
+`AnalysisCancelledError`. The rules do not infer arbitrary Buffer types,
+follow indirect cancellation helpers, or prove that an explicit cause equals
+the caller's reason. Keep focused boundary and lifecycle tests for those facts.
+
+Type-aware linting remains outside the routine gate: a full source, test, and
+script scan exceeded the bounded process-family memory envelope, including
+with Go runtime limits. Future scoped evaluation can consider
+`typescript/no-floating-promises`, `typescript/return-await` with
+`error-handling-correctness-only`, `typescript/no-misused-promises`, and
+`typescript/switch-exhaustiveness-check`. None replaces behavioral checks for
+source identity, omission versus unknown, or Evidence provenance.
+
 Routine iterations and rebases need focused regressions and relevant checks.
 Before handing off a PR, run `npm run check` and generated-document checks when
 applicable; CI owns the full suite and coverage. Use the full local gate for

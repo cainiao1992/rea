@@ -102,7 +102,7 @@ it("enforces a selected worker budget and completes the corrected same-database 
     schema: { completeness: "complete" },
   });
   await expectPrivateRootRemoved(root);
-  expect(await readFile(database.path)).toEqual(original);
+  expect(Buffer.compare(await readFile(database.path), original)).toBe(0);
 });
 
 nativeTest(
@@ -179,7 +179,7 @@ nativeTest(
     ).toHaveLength(2);
     expect(result.error.cleanupResources).toEqual([]);
     await expectPrivateRootRemoved(root);
-    expect(await readFile(database.path)).toEqual(original);
+    expect(Buffer.compare(await readFile(database.path), original)).toBe(0);
   },
 );
 
@@ -504,7 +504,7 @@ it.each(["late-cancellation", "cleanup-failure", "cancelled cleanup-failure"])(
       await provider.close();
       await expectPrivateRootRemoved(root.path);
     }
-    expect(await readFile(database.path)).toEqual(original);
+    expect(Buffer.compare(await readFile(database.path), original)).toBe(0);
   },
 );
 
@@ -586,7 +586,9 @@ it("inspects committed WAL schema and rows while preserving every source artifac
     },
   });
   for (const artifact of original) {
-    expect(await readFile(artifact.path)).toEqual(artifact.bytes);
+    expect(Buffer.compare(await readFile(artifact.path), artifact.bytes)).toBe(
+      0,
+    );
     const after = await lstat(artifact.path);
     expect({
       ino: after.ino,
@@ -901,7 +903,7 @@ it("attributes inventory selections beyond metadata bind capacity to result-colu
     },
   });
   expect(JSON.stringify(projected)).not.toContain("invalid_format");
-  expect(await readFile(database.path)).toEqual(original);
+  expect(Buffer.compare(await readFile(database.path), original)).toBe(0);
 });
 
 it("reports application-collation row failures as unavailable while retaining schema-only recovery", async () => {
@@ -945,7 +947,7 @@ it("reports application-collation row failures as unavailable while retaining sc
       "Select columns whose values were read",
     );
   }
-  expect(await readFile(path)).toEqual(original);
+  expect(Buffer.compare(await readFile(path), original)).toBe(0);
 });
 
 it("rejects malformed databases without altering the selected file", async () => {
@@ -961,7 +963,7 @@ it("rejects malformed databases without altering the selected file", async () =>
     ok: false,
     error: { _tag: "AnalysisInputError" },
   });
-  expect(await readFile(path)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
 });
 
 nativeTest.runIf(process.platform !== "win32")(
@@ -997,8 +999,8 @@ nativeTest(
         ok: false,
         error: { _tag: "AnalysisInputError" },
       });
-      expect(await readFile(database.path)).toEqual(main);
-      expect(await readFile(journalPath)).toEqual(journal);
+      expect(Buffer.compare(await readFile(database.path), main)).toBe(0);
+      expect(Buffer.compare(await readFile(journalPath), journal)).toBe(0);
     } finally {
       writer.exec("ROLLBACK");
       writer.close();
@@ -1217,7 +1219,7 @@ it("retains an unavailable virtual module definition without executing it", asyn
   expect(
     await provider.inspect({ path, table: "optional_search" }),
   ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
-  expect(await readFile(path)).toEqual(bytes);
+  expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
 });
 
 nativeTest(

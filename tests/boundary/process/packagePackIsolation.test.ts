@@ -83,6 +83,6 @@ process.stdout.write(JSON.stringify({ failure }));
 
   expect(JSON.parse(stdout)).toEqual({ failure: expectedFailure });
   expect((await readdir(packageRoot)).sort()).toEqual(packageContentsBefore);
-  expect(await readFile(archivePath)).toEqual(sentinel);
+  expect(Buffer.compare(await readFile(archivePath), sentinel)).toBe(0);
   await expect(access(workspace)).rejects.toMatchObject({ code: "ENOENT" });
 });

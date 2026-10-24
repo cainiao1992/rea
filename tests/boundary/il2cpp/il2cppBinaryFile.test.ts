@@ -232,7 +232,7 @@ it.each(["thin", "universal"] as const)(
     expect(linked.return_types).toEqual(
       link(createIl2cppBinaryFixture()).return_types,
     );
-    expect(bytes).toEqual(original);
+    expect(Buffer.compare(bytes, original)).toBe(0);
   },
 );
 
@@ -387,7 +387,7 @@ it("reads a PE pointer array across file bytes and the declared zero-fill tail",
   const bytes = createSplitPointerPeFixture();
   const original = Buffer.from(bytes);
   expect(link(bytes).method_addresses).toEqual(expectedAddresses);
-  expect(bytes).toEqual(original);
+  expect(Buffer.compare(bytes, original)).toBe(0);
   expect(failure(createSplitPointerPeFixture(false)).reason).toBe(
     "code-gen-modules-not-found",
   );

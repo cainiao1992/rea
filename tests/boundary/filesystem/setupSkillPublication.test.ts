@@ -87,14 +87,16 @@ describe("skill publication ownership", () => {
         expect.objectContaining({ path: manifest }),
       ]);
       const expected = change === "mode" ? published : userBytes;
-      expect(await readFile(manifest)).toEqual(expected);
+      if (expected === undefined)
+        throw new Error("Expected published skill bytes");
+      expect(Buffer.compare(await readFile(manifest), expected)).toBe(0);
       if (existing)
         expect(await readFile(`${manifest}.rea.backup`, "utf8")).toBe(
           "original instructions\n",
         );
       else expect(result.error.recoveryBackupPaths).toEqual([]);
       expect(await result.error.retryCleanup()).toEqual([]);
-      expect(await readFile(manifest)).toEqual(expected);
+      expect(Buffer.compare(await readFile(manifest), expected)).toBe(0);
     },
   );
 
@@ -156,8 +158,10 @@ describe("skill publication recovery", () => {
       if (result.ok) throw new Error("Expected readback failure");
       expect(result.error.stage).toBe("readback");
       expect(result.error.reason).toBe("readback unavailable");
-      expect(await readFile(manifest)).toEqual(bytes);
-      expect(await readFile(`${manifest}.rea.backup`)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(manifest), bytes)).toBe(0);
+      expect(
+        Buffer.compare(await readFile(`${manifest}.rea.backup`), bytes),
+      ).toBe(0);
       if (process.platform !== "win32")
         expect((await stat(manifest)).mode & 0o777).toBe(0o640);
       expect(

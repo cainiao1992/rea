@@ -353,7 +353,7 @@ it.each(["seed", "extension"] as const)(
         cleanupIncomplete: true,
         cleanupResources: [output],
       });
-      expect(await readFile(output)).toEqual(bytes);
+      expect(Buffer.compare(await readFile(output), bytes)).toBe(0);
       allowClose = true;
       await resources.retryCleanup();
       expect(error).toMatchObject({ cleanupIncomplete: false });

@@ -84,7 +84,7 @@ cliTest.skipIf(process.platform === "win32")(
           "Contents/Resources/Panel.nib: Symlink target was not followed or disclosed.",
         );
     }
-    expect(await readFile(link)).toEqual(fixture.nib);
+    expect(Buffer.compare(await readFile(link), fixture.nib)).toBe(0);
   },
 );
 

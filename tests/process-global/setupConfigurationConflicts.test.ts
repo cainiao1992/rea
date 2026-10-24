@@ -111,7 +111,7 @@ it.each(["before", "after"] as const)(
         format: "json",
       }),
     ).toMatchObject({ status: "failed", reason: "conflict" });
-    expect(await readFile(path)).toEqual(changed);
+    expect(Buffer.compare(await readFile(path), changed)).toBe(0);
     expect(await readFile(`${path}.rea.backup`, "utf8")).toBe(original);
     expect(await readdir(root)).toEqual([
       "config.json",

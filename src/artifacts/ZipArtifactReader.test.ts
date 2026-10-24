@@ -103,7 +103,9 @@ describe("ZipArtifactReader positional reads", () => {
       const chunks: Buffer[] = [];
       for await (const chunk of await reader.open(entry))
         chunks.push(Buffer.from(chunk));
-      expect(Buffer.concat(chunks)).toEqual(Buffer.from(fixture.content));
+      expect(
+        Buffer.compare(Buffer.concat(chunks), Buffer.from(fixture.content)),
+      ).toBe(0);
       expect(reads.mock.calls.length).toBeGreaterThan(3);
     } finally {
       reads.mockRestore();

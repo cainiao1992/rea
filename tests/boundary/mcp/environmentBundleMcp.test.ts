@@ -118,9 +118,13 @@ it("writes the bundle environment-build writes from retained capture Evidence", 
   const files = await listFiles(input.output_directory);
   expect(files).toEqual(await listFiles(join(root, "reference")));
   for (const path of files)
-    expect(await readFile(join(input.output_directory, path)), path).toEqual(
-      await readFile(join(root, "reference", path)),
-    );
+    expect(
+      Buffer.compare(
+        await readFile(join(input.output_directory, path)),
+        await readFile(join(root, "reference", path)),
+      ),
+      path,
+    ).toBe(0);
   expect(report.coverage).toEqual(reference.value.coverage);
 });
 
@@ -154,8 +158,11 @@ it("copies a capture Evidence file byte for byte and plans without writing on a 
   });
   expect(built.isError).not.toBe(true);
   expect(
-    await readFile(join(root, "built/envs/grafana-example/evidence.json")),
-  ).toEqual(await readFile(path));
+    Buffer.compare(
+      await readFile(join(root, "built/envs/grafana-example/evidence.json")),
+      await readFile(path),
+    ),
+  ).toBe(0);
 });
 
 it("refuses an existing or parentless output directory and leaves it as it was", async () => {

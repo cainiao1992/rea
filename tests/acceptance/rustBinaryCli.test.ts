@@ -586,7 +586,7 @@ cliTest(
       { stage: "denied", handleId: 0, open: true },
       { stage: "released", handleId: 0, fd: -1 },
     ]);
-    expect(await readFile(path)).toEqual(bytes);
+    expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   },
 );
 

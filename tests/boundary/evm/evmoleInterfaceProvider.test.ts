@@ -894,7 +894,7 @@ it
     expect(evidence.subject?.digest.sha256).toBe(
       createHash("sha256").update(source).digest("hex"),
     );
-    expect(await readFile(path)).toEqual(source);
+    expect(Buffer.compare(await readFile(path), source)).toBe(0);
     expect(evidence).toMatchObject({
       operation: "inspect_evm_interface",
       parameters: { path, encoding: "hex" },

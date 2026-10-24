@@ -323,11 +323,7 @@ read the list after each create (the create's response or the list shows the
 new entity), and record updates and deletes in a second scenario that reads
 the first one's objects by id before editing them, or make them through the
 UI. The environment coverage view names each
-write it withholds and what to record next. A scenario records no request
-times, so the state learns no clock: an update whose response changes a
-timestamp the server sets, such as a modification time, is withheld as
-`unexplained-change` however it is recorded, and the coverage view says so; a
-HAR of the same session times its entries and can serve it. A scenario with write requests
+write it withholds and what to record next. A scenario with write requests
 changes the application's data: record against an instance whose data may
 change.
 
@@ -347,6 +343,15 @@ change.
   "expected_status": [200, 201]
 }
 ```
+
+Each record takes its start and duration from the browser's timing (the time
+the scenario observed the request where the browser reported no start), so the
+state orders and overlaps
+records as it does a HAR's and learns a write clock: an update the application
+stamps with a modification time can be served. A scenario captured before
+these times were recorded has none; its records keep request order and the
+state learns no clock, so such updates stay `unexplained-change` until it is
+recorded again.
 
 ## What a manifest is
 

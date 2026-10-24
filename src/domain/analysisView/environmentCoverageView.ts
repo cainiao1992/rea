@@ -174,7 +174,7 @@ export const projectEnvironmentCoverageView = (
       "Coverage summarizes the environment-state view an environment derives at startup; it does not run the environment. An environment whose served catalog exceeds the discovery budget, or whose state exceeds what data/add loads, serves replay instead, which this view does not check. Hints are advice about what to record next.",
       ...(state.timeline === "record-order"
         ? [
-            "Not every record carries a start time (browser scenario captures carry none), so the state learns no clock: a write whose response changes a timestamp the server sets, such as a modification time, is withheld as unexplained-change however often it is recorded.",
+            "Not every record carries a start time, so the state learns no clock: a write whose response changes a timestamp the server sets, such as a modification time, is withheld as unexplained-change however often it is recorded.",
           ]
         : []),
     ],

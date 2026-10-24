@@ -186,10 +186,11 @@ withheld with its hint:
 
 Use new scratch names on each attempt; the first attempt's objects may still
 exist.
-A browser scenario carries no request times, so the coverage limitations say
-the state learns no clock: an update the application stamps with a
-modification time stays `unexplained-change` however it is recorded. Report
-it rather than re-recording for it.
+New browser scenario captures include request times, so a fully timed capture
+can learn a write clock and serve updates that stamp modification times. Older
+captures or ones missing a request start keep record order and learn no clock.
+When coverage reports that limitation, record again with the current version
+before concluding that the timestamp change cannot be served.
 
 ## Export and hand off
 

@@ -131,6 +131,7 @@ export const BROWSER_SCENARIO_BUILT_IN_NORMALIZATION_RULES = [
   "compare_normalized_text_content",
   "compare_storage_entries_as_unordered_collection",
   "ignore_capture_local_network_transaction_ids",
+  "ignore_network_request_timing",
   "attribute_network_transactions_to_request_step",
   "compare_network_transactions_as_unordered_collection",
   "preserve_redirect_transaction_ancestry",

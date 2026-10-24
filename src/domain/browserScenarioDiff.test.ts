@@ -584,6 +584,116 @@ describe("browser scenario network comparison stability", () => {
   });
 });
 
+describe("browser scenario network request times", () => {
+  /** A two-request capture whose `a` request finished and whose `b` request failed with `failure`. */
+  const ended = (failure = "net::ERR_ABORTED"): BrowserScenarioCapture => {
+    const capture = concurrentCapture(["a", "b"], { a: 200, b: 404 });
+    let sequence = Math.max(...capture.events.items.map((e) => e.sequence));
+    const terminal = capture.events.items.flatMap((event) =>
+      event.kind === "request"
+        ? [
+            event.url.url.endsWith("/a.js")
+              ? {
+                  ...event,
+                  sequence: ++sequence,
+                  kind: "request-finished" as const,
+                }
+              : {
+                  ...event,
+                  sequence: ++sequence,
+                  kind: "request-failed" as const,
+                  failure,
+                },
+          ]
+        : [],
+    );
+    return browserScenarioCaptureSchema.parse({
+      ...capture,
+      events: {
+        ...capture.events,
+        retained: capture.events.items.length + terminal.length,
+        items: [...capture.events.items, ...terminal],
+      },
+    });
+  };
+
+  /** The same capture with every request observed, started and timed `offset` ms later. */
+  const timed = (
+    capture: BrowserScenarioCapture,
+    offset: number,
+  ): BrowserScenarioCapture =>
+    browserScenarioCaptureSchema.parse({
+      ...capture,
+      events: {
+        ...capture.events,
+        items: capture.events.items.map((event) =>
+          event.kind === "request"
+            ? {
+                ...event,
+                observed_at: new Date(
+                  Date.parse("2026-10-24T05:00:00.000Z") + offset,
+                ).toISOString(),
+              }
+            : event.kind === "request-finished" ||
+                event.kind === "request-failed"
+              ? {
+                  ...event,
+                  started_at: new Date(
+                    Date.parse("2026-10-24T04:59:59.990Z") + offset,
+                  ).toISOString(),
+                  elapsed_ms: 3 + offset,
+                }
+              : event,
+        ),
+      },
+    });
+
+  const compare = (
+    before: BrowserScenarioCapture,
+    after: BrowserScenarioCapture,
+  ) =>
+    compareBrowserScenarios(
+      compareBrowserScenariosInputSchema.parse({
+        before_scenario: before,
+        after_scenario: after,
+      }),
+    );
+
+  it("ignores when requests were observed, started and how long they took", () => {
+    const early = timed(ended(), 0);
+    const late = timed(ended(), 7_000);
+    const terminal = early.events.items.filter(
+      (event) =>
+        event.kind === "request-finished" || event.kind === "request-failed",
+    );
+    expect(terminal.map(({ kind }) => kind).sort()).toEqual([
+      "request-failed",
+      "request-finished",
+    ]);
+    for (const event of terminal)
+      expect(event).toMatchObject({
+        started_at: expect.any(String),
+        elapsed_ms: expect.any(Number),
+      });
+    const compared = compare(early, late);
+    expect(compared.overall_status).toBe("unchanged");
+    expect(compared.normalization.built_in_rules).toContain(
+      "ignore_network_request_timing",
+    );
+    // A capture made before request times were recorded compares with a timed one.
+    expect(compare(ended(), late).overall_status).toBe("unchanged");
+  });
+
+  it("still compares the rest of a timed completion event", () => {
+    expect(
+      compare(
+        timed(ended(), 0),
+        timed(ended("net::ERR_CONNECTION_RESET"), 7_000),
+      ).overall_status,
+    ).toBe("changed");
+  });
+});
+
 describe("scenario comparison recovery guidance", () => {
   it("retains network guidance beside a changed console event", () => {
     const before = scenarioCapture({});

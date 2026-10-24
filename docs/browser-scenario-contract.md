@@ -465,6 +465,17 @@ and unfinished-request metadata. Select content independently:
 All three options default to `false`. Any selected network content also enables
 network metadata observation; listing `network` in `events` is then optional.
 Each observed request object receives a capture-scoped `transaction_id`.
+Each `request` event carries `observed_at`, the wall-clock time REA observed the
+request start. Playwright reports the browser's own start only once a request
+ends, so each `request-finished` or `request-failed` event carries `started_at`,
+the browser's wall-clock start, and `elapsed_ms`, its time from that start to
+the end of the response, when the browser reports them. The environment views
+time scenario records from these, as HAR entries are timed: the browser's start
+where it reported one, else `observed_at`, which trails it by up to tens of
+milliseconds while REA reads other responses, and a duration of 0 where the
+browser reported none. Captures made before these fields existed lack them and
+are read in record order. REA versions before them refuse captures that carry
+them. Scenario comparisons ignore all three (`ignore_network_request_timing`).
 Requests sharing a URL remain distinct. Redirects link to the preceding
 transaction only when it was observed; a null predecessor does not establish
 that no earlier hop existed. Request events require both transaction fields;
@@ -562,8 +573,8 @@ and compared as an unordered collection after caller rules apply, because
 concurrent responses arrive in any order and can land in a later step; a
 redirect retains the complete predecessor ancestry, including each hop's own
 request, response outcome, and selected network content. Each transaction's
-capture-local IDs, sequence/index fields, and content source-sequence anchor
-are removed. Caller rules normalize retained strings before hashing. The
+capture-local IDs, sequence/index fields, content source-sequence anchor and
+request times (`observed_at`, `started_at`, `elapsed_ms`) are removed. Caller rules normalize retained strings before hashing. The
 `preserve_redirect_transaction_ancestry` built-in rule fingerprints each hop
 as canonical SHA-256 of `{ events, redirected_from }`: `events` is the sorted
 list of its normalized event SHA-256 digests, and `redirected_from` is its
@@ -584,7 +595,10 @@ scope/flags, value fingerprints, and duplicate entries even when redaction or
 literal rules make names collide. Captured storage arrays retain their original
 order. The `compare_storage_entries_as_unordered_collection` built-in rule
 participates in the normalization commitment; new storage comparison digests
-therefore differ from earlier order-sensitive comparisons.
+therefore differ from earlier order-sensitive comparisons. The
+`ignore_network_request_timing` built-in rule likewise joins the commitment, so
+normalization digests differ from comparisons made before it, though captures
+with and without request times compare alike.
 
 Each aligned step reports changed, unchanged, or unknown. Changed and unknown
 action, screenshot, DOM, accessibility, URL, history, storage, and event

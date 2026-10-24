@@ -226,17 +226,43 @@ const members = async (path: string) => {
 
 describe("ZIP archives after leading bytes", () => {
   it.each([
-    { style: "offsets that include the leading bytes", adjust: true },
-    { style: "offsets written before the bytes were prepended", adjust: false },
+    {
+      style: "offsets that include the leading bytes",
+      adjust: true,
+      comment: false,
+    },
+    {
+      style: "offsets written before the bytes were prepended",
+      adjust: false,
+      comment: false,
+    },
+    {
+      style: "included leading bytes and an EOCD-like comment",
+      adjust: true,
+      comment: true,
+    },
+    {
+      style: "prepended leading bytes and an EOCD-like comment",
+      adjust: false,
+      comment: true,
+    },
   ])(
     "admits a ZIP after an unclaimed script stub with $style",
-    async ({ adjust }) => {
+    async ({ adjust, comment }) => {
       const root = await createTestTempDirectory("rea-zip-leading-");
       const plain = join(root, "plain.zip");
       const prefixed = join(root, "installer.bin");
       const zip = await memberZip();
+      let prefixedBytes = withLeadingBytes(zip, SCRIPT_STUB, adjust);
+      if (comment) {
+        const payload = Buffer.alloc(22);
+        payload.writeUInt32LE(0x06054b50, 0);
+        // A comment may contain an EOCD signature without declaring another archive.
+        prefixedBytes.writeUInt16LE(payload.length, prefixedBytes.length - 2);
+        prefixedBytes = Buffer.concat([prefixedBytes, payload]);
+      }
       await writeFile(plain, zip);
-      await writeFile(prefixed, withLeadingBytes(zip, SCRIPT_STUB, adjust));
+      await writeFile(prefixed, prefixedBytes);
 
       expect(
         (await classifyAndHashRoot(prefixed, false, await lstat(prefixed)))

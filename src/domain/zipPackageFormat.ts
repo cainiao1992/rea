@@ -58,46 +58,43 @@ export const locateTrailingZipArchive = async (
   );
   const tail = Buffer.from(await read(tailStart, size - tailStart));
   if (tail.length !== size - tailStart) return undefined;
-  // The record's comment must end exactly at end of file.
-  let record = -1;
-  for (let at = tail.length - END_RECORD_BYTES; at >= 0; at -= 1)
+  // A comment may contain EOCD-like bytes; validate each candidate's directory.
+  for (let record = tail.length - END_RECORD_BYTES; record >= 0; record -= 1) {
     if (
-      tail.readUInt32LE(at) === END_OF_CENTRAL_DIRECTORY &&
-      at + END_RECORD_BYTES + tail.readUInt16LE(at + 20) === tail.length
-    ) {
-      record = at;
-      break;
-    }
-  if (record < 0) return undefined;
-  const entriesOnDisk = tail.readUInt16LE(record + 8);
-  const directoryBytes = tail.readUInt32LE(record + 12);
-  const declaredDirectory = tail.readUInt32LE(record + 16);
-  if (
-    tail.readUInt16LE(record + 4) !== 0 ||
-    tail.readUInt16LE(record + 6) !== 0 ||
-    entriesOnDisk === 0 ||
-    entriesOnDisk === 0xffff ||
-    entriesOnDisk !== tail.readUInt16LE(record + 10) ||
-    directoryBytes === 0xffffffff ||
-    declaredDirectory === 0xffffffff
-  )
-    return undefined;
-  const directory = tailStart + record - directoryBytes;
-  // Offsets written before leading bytes were prepended are shifted by them.
-  const shift = directory - declaredDirectory;
-  if (directory < 0 || shift < 0) return undefined;
-  const header = Buffer.from(await read(directory, CENTRAL_HEADER_BYTES));
-  if (
-    header.length !== CENTRAL_HEADER_BYTES ||
-    header.readUInt32LE(0) !== CENTRAL_DIRECTORY_HEADER
-  )
-    return undefined;
-  const firstLocal = header.readUInt32LE(42) + shift;
-  if (firstLocal === 0 || firstLocal >= directory) return undefined;
-  const local = Buffer.from(await read(firstLocal, 4));
-  return local.length === 4 && local.readUInt32LE(0) === LOCAL_FILE_HEADER
-    ? { leadingBytes: firstLocal }
-    : undefined;
+      tail.readUInt32LE(record) !== END_OF_CENTRAL_DIRECTORY ||
+      record + END_RECORD_BYTES + tail.readUInt16LE(record + 20) !== tail.length
+    )
+      continue;
+    const entriesOnDisk = tail.readUInt16LE(record + 8);
+    const directoryBytes = tail.readUInt32LE(record + 12);
+    const declaredDirectory = tail.readUInt32LE(record + 16);
+    if (
+      tail.readUInt16LE(record + 4) !== 0 ||
+      tail.readUInt16LE(record + 6) !== 0 ||
+      entriesOnDisk === 0 ||
+      entriesOnDisk === 0xffff ||
+      entriesOnDisk !== tail.readUInt16LE(record + 10) ||
+      directoryBytes === 0xffffffff ||
+      declaredDirectory === 0xffffffff
+    )
+      continue;
+    const directory = tailStart + record - directoryBytes;
+    // Offsets written before leading bytes were prepended are shifted by them.
+    const shift = directory - declaredDirectory;
+    if (directory < 0 || shift < 0) continue;
+    const header = Buffer.from(await read(directory, CENTRAL_HEADER_BYTES));
+    if (
+      header.length !== CENTRAL_HEADER_BYTES ||
+      header.readUInt32LE(0) !== CENTRAL_DIRECTORY_HEADER
+    )
+      continue;
+    const firstLocal = header.readUInt32LE(42) + shift;
+    if (firstLocal === 0 || firstLocal >= directory) continue;
+    const local = Buffer.from(await read(firstLocal, 4));
+    if (local.length === 4 && local.readUInt32LE(0) === LOCAL_FILE_HEADER)
+      return { leadingBytes: firstLocal };
+  }
+  return undefined;
 };
 
 /**

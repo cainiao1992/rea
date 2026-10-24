@@ -262,9 +262,11 @@ cliTest.for([
     for (const encrypted of [false, true]) {
       const writer = new ZipWriter(new Uint8ArrayWriter());
       for (const member of fixture.paths)
-        await writer.add(member, new TextReader("opaque fixture content"), {
-          ...(encrypted ? { password: "fixture-only" } : {}),
-        });
+        await writer.add(
+          member,
+          new TextReader("opaque fixture content"),
+          encrypted ? { password: "fixture-only" } : {},
+        );
       const bytes = await writer.close();
       const path = join(root, `${encrypted}.${fixture.extension}`);
       await writeFile(path, bytes);

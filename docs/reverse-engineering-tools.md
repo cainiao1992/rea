@@ -94,6 +94,14 @@ Captured stdout and stderr are retained up to a 16 MiB combined limit; `output_t
 ## Cutter bridge
 
 Cutter commands use the local REA Python bridge and authenticated loopback messages.
+Discovery reads the session descriptors that the plugin publishes in the bridge
+directory. Set `REA_CUTTER_BRIDGE_DIR` in both REA's environment and the environment
+that starts Cutter to select a custom directory. Both expand `~` and `~/` paths
+against the current user's home, including `~\` paths on Windows. By default,
+they use `%LOCALAPPDATA%\REA\CutterBridge` on Windows when `LOCALAPPDATA` is set,
+and `~/.cache/rea/cutter-bridge` otherwise. The two processes must resolve the
+same directory for discovery to find the published sessions.
+
 The client and plugin must support the current v2 handshake; older peers are
 rejected before dispatch because they cannot preserve cross-caller recovery proof.
 The client checks the final encoded request against

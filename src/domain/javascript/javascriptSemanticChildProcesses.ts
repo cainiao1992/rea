@@ -25,7 +25,7 @@ import {
   type JavaScriptSemanticBindingState,
 } from "./javascriptSemanticState.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import { traverseJavaScriptValueAst } from "./javascriptSemanticTraversal.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { semanticBindingAtRead } from "./javascriptSemanticMutationInitializers.js";
 import {
@@ -94,7 +94,7 @@ const collectSpawns = (
   );
   const callableStack = createSemanticCallableIdStack(admittedCallables);
   const ancestors: t.Node[] = [];
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, state.erasedSyntaxNodes, {
     enter: (node, parent) => {
       callableStack.enter(node, parent);
       if (t.isCallExpression(node) || t.isOptionalCallExpression(node)) {
@@ -179,7 +179,7 @@ const collectInteractions = (
     spawnByNode,
     spawnsByBinding,
   };
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, state.erasedSyntaxNodes, {
     enter: (node, parent) => {
       callableStack.enter(node, parent);
       if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))

@@ -1,6 +1,7 @@
 import * as t from "@babel/types";
 import { isIntrinsicMapLookup } from "./javascriptSemanticMapOperations.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import { traverseJavaScriptValueAst } from "./javascriptSemanticTraversal.js";
+import { semanticIdentifierRole } from "./javascriptSemanticProjection.js";
 
 import { htmlUrlText, stripQueryAndFragment } from "../artifactPathSyntax.js";
 import { sanitizeEndpointCandidate } from "../browserObservation.js";
@@ -397,9 +398,10 @@ type ViteMapDepsFunction =
 /** Index the canonical Vite helper's cache initializer from parsed syntax. */
 export const indexVitePreloadDependencyTable = (
   program: t.Program,
+  erasedSyntaxNodes: WeakSet<t.Node>,
 ): readonly (string | undefined)[] | null => {
   const helpers: ViteMapDepsFunction[] = [];
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, erasedSyntaxNodes, {
     enter: (node) => {
       if (t.isFunctionDeclaration(node) && node.id?.name === "__vite__mapDeps")
         helpers.push(node);
@@ -422,7 +424,7 @@ export const indexVitePreloadDependencyTable = (
     : mapParameter;
   if (!t.isIdentifier(mapIdentifier)) return [];
   const tables: t.ArrayExpression[] = [];
-  traverseJavaScriptAst(helper, {
+  traverseJavaScriptValueAst(helper, erasedSyntaxNodes, {
     skip: (node) => t.isFunction(node),
     enter: (node) => {
       if (
@@ -454,17 +456,13 @@ export const indexVitePreloadDependencyTable = (
       : stringValue(element),
   );
   let escapedOrMutated = false;
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, erasedSyntaxNodes, {
     skip: (node) => node === helper,
-    enter: (node, parent) => {
-      if (!t.isIdentifier(node, { name: "__vite__mapDeps" })) return;
+    enter: (node, parent, readAncestors) => {
       if (
-        (parent === helper &&
-          t.isFunctionDeclaration(parent) &&
-          parent.id === node) ||
-        (t.isVariableDeclarator(parent) &&
-          parent.init === helper &&
-          parent.id === node)
+        !t.isIdentifier(node, { name: "__vite__mapDeps" }) ||
+        parent === null ||
+        semanticIdentifierRole(node, parent, readAncestors) === null
       )
         return;
       if (

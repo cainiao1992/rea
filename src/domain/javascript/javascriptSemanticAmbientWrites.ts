@@ -600,6 +600,7 @@ export function* indexJavaScriptAmbientWritesSteps(
   });
   yield* collectJavaScriptIdentityWritesSteps(
     program,
+    state.erasedSyntaxNodes,
     (root, kind, writeSite) => {
       if (kind === "opaque-call") return [];
       observeWriteSite?.(writeSite);

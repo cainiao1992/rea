@@ -325,12 +325,8 @@ describe("JavaScript semantic analysis: class member keys", () => {
         marker(value?: number) {}
       }
     `);
-    // Only the computed abstract key evaluates the outer binding.
-    expect(
-      ir.references
-        .filter(({ name }) => name === "marker")
-        .map(({ role, location }) => `${role}@${location.start.line}`),
-    ).toEqual(["read@6"]);
+    // Abstract signatures, including computed keys, are erased.
+    expect(ir.references.filter(({ name }) => name === "marker")).toEqual([]);
   });
 
   it("does not capture an outer binding through a noncomputed method name", () => {

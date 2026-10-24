@@ -26,7 +26,7 @@ import {
   parameterBindings,
   resolveLocalCallables,
 } from "./javascriptSemanticCallResolution.js";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import { traverseJavaScriptValueAst } from "./javascriptSemanticTraversal.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { semanticCallableResultKind } from "./javascriptSemanticCallableResults.js";
 import { assignedSemanticResultBindings } from "./javascriptSemanticDataEffectHelpers.js";
@@ -93,7 +93,7 @@ export const collectJavaScriptSemanticCalls = (
   const callableStack = createSemanticCallableStack((callableId) =>
     callableById.get(callableId),
   );
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, state.erasedSyntaxNodes, {
     enter: (node, parent) => {
       callableStack.enter(node, parent);
       const owner = enclosingFunction(callableStack.callables);

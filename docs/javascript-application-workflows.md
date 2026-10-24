@@ -510,8 +510,13 @@ escape uncertainty. External prototype changes and unsupported runtime protocols
 remain unknown rather than supplying exact post-invocation values.
 Identifier references and closure captures share Babel syntax-role facts plus
 explicit binding/write roles; noncomputed declaration keys and import/meta names
-are not lexical reads. Provenance-only expression-depth omissions enter the same typed source coverage
-as value-evaluation bounds and remain visible in retained application Evidence.
+are not lexical reads. TypeScript type positions, including `typeof` type queries
+and computed keys in erased signatures, do not evaluate JavaScript bindings or
+create runtime calls or captures. Decorators on declared class fields can still
+run when the class is defined, and a decorated declared or abstract field can
+evaluate its computed key. Provenance-only expression-depth omissions enter
+the same typed source coverage as value-evaluation bounds and remain visible in
+retained application Evidence.
 Immediate synchronous function results also share the loader reference owner.
 An expression arrow returning the retained CommonJS `require` can preserve that
 loader identity. Possible loader results with opaque alternatives or block

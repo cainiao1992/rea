@@ -80,7 +80,7 @@ import {
 } from "./javascriptSemanticPropertyPaths.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import {
-  traverseJavaScriptAstSteps,
+  traverseJavaScriptValueAstSteps,
   childNodes,
 } from "./javascriptSemanticTraversal.js";
 import {
@@ -1482,7 +1482,7 @@ export function* collectSemanticMemberMutationsSteps(
         );
   };
   const writeOnlyMembers = new WeakSet<t.Node>();
-  yield* traverseJavaScriptAstSteps(program, {
+  yield* traverseJavaScriptValueAstSteps(program, state.erasedSyntaxNodes, {
     enter: (node, parent, readAncestors) => {
       const writeTarget = semanticWriteSiteTarget(node);
       if (writeTarget !== null && !semanticWriteSiteReadsFirst(node))

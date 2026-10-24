@@ -734,6 +734,29 @@ it("resolves an arrow handler in place when its inherited this is module scope",
       ]),
   ).toEqual([["ch", "wrapper-substitution"]]);
 });
+it.each(["interface Shape { marker(): void }", "type Shape = typeof marker;"])(
+  "does not give a handler invocation identity through erased syntax: %s",
+  (declaration) => {
+    const result = analyzeJavaScriptStaticSource(`
+    const { contextBridge, ipcRenderer } = require("electron");
+    const CH = "ch";
+    function register(marker) {
+      const handler = () => { ${declaration} };
+      ipcRenderer.on(CH, handler);
+    }
+    contextBridge.exposeInMainWorld("api", { on: () => register("unused") });
+  `);
+    expect(
+      result.electron.ipc
+        .filter(({ mode }) => mode === "listen")
+        .map(({ channel, resolution_basis }) => [
+          channel,
+          resolution_basis ?? "direct",
+        ]),
+    ).toEqual([["ch", "wrapper-substitution"]]);
+    expect(result.parse_status).toBe("complete");
+  },
+);
 it("resolves a handler a module-level factory call created once in place", () => {
   const result = analyzeJavaScriptStaticSource(`
     const { ipcMain } = require("electron");

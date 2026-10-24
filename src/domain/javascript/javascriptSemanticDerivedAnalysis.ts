@@ -16,7 +16,7 @@ import { collectJavaScriptSemanticResources } from "./javascriptSemanticResource
 import type { JavaScriptSemanticAnalysisState } from "./javascriptSemanticState.js";
 
 import { createSemanticCallableIdStack } from "./javascriptSemanticCallableStack.js";
-import { traverseJavaScriptAstSteps } from "./javascriptSemanticTraversal.js";
+import { traverseJavaScriptValueAstSteps } from "./javascriptSemanticTraversal.js";
 import { range } from "./javascriptStaticAnalysisHelpers.js";
 import { unwrapJavaScriptExpression } from "./javascriptAstValues.js";
 
@@ -94,6 +94,7 @@ export function* collectJavaScriptDerivedSemanticsSteps(
   yield;
   const assignmentFlows = yield* collectAssignmentFlowsSteps(
     program,
+    state,
     callables,
   );
   const functionFingerprints =
@@ -126,13 +127,14 @@ export function* collectJavaScriptDerivedSemanticsSteps(
 /** Keep assignment syntax in the IR so graph consumers never reparse source. */
 function* collectAssignmentFlowsSteps(
   program: t.Program,
+  state: JavaScriptSemanticAnalysisState,
   callables: readonly JavaScriptSemanticCallable[],
 ): Generator<void, JavaScriptSemanticIr["assignmentFlows"]> {
   const flows: JavaScriptSemanticIr["assignmentFlows"][number][] = [];
   const stack = createSemanticCallableIdStack(
     new Set(callables.map((item) => item.callableId)),
   );
-  yield* traverseJavaScriptAstSteps(program, {
+  yield* traverseJavaScriptValueAstSteps(program, state.erasedSyntaxNodes, {
     enter: (node, parent) => {
       stack.enter(node, parent);
       if (!t.isAssignmentExpression(node)) return;

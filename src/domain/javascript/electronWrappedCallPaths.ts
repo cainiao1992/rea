@@ -14,6 +14,7 @@ import {
   semanticResolutionBlocked,
   type JavaScriptSemanticAnalysisState,
 } from "./javascriptSemanticState.js";
+import { semanticIdentifierRole } from "./javascriptSemanticProjection.js";
 import type { JavaScriptElectronIdentity } from "./javascriptSemanticAnalysis.js";
 import type { JavaScriptAnalysisAccumulator } from "./javascriptStaticAnalysisState.js";
 import type {
@@ -35,7 +36,7 @@ import {
 import { argumentNode } from "./javascriptStaticAnalysisHelpers.js";
 import {
   childNodes,
-  traverseJavaScriptAst,
+  traverseJavaScriptValueAst,
 } from "./javascriptSemanticTraversal.js";
 import { range, calleeName } from "./javascriptStaticAnalysisHelpers.js";
 import { ipcDescriptor } from "./electronStaticAnalysisIpc.js";
@@ -440,28 +441,33 @@ export const collectElectronWrappedCallPaths = (
     if (activatedScopes === 0) return { captures: false, traceDependent };
     const scopes = new Set(enclosing.slice(0, activatedScopes));
     let captures = false;
-    t.traverseFast(fn.node, (node) => {
-      if (captures) return;
-      if (
-        t.isThisExpression(node) ||
-        t.isSuper(node) ||
-        (t.isMetaProperty(node) && node.meta.name === "new")
-      ) {
+    traverseJavaScriptValueAst(fn.node, state.erasedSyntaxNodes, {
+      enter: (node, parent, readAncestors) => {
+        if (captures) return;
+        if (
+          t.isThisExpression(node) ||
+          t.isSuper(node) ||
+          (t.isMetaProperty(node) && node.meta.name === "new")
+        ) {
+          captures =
+            contextOwnerActivated && inheritsFunctionContext(node, fn.node);
+          return;
+        }
+        if (!t.isIdentifier(node)) return;
+        if (
+          parent !== null &&
+          semanticIdentifierRole(node, parent, readAncestors) === null
+        )
+          return;
+        const binding = resolveSemanticBindingState(state, node, node.name);
         captures =
-          contextOwnerActivated && inheritsFunctionContext(node, fn.node);
-        return;
-      }
-      if (!t.isIdentifier(node)) return;
-      const parent = state.parentsByNode.get(node);
-      if (parent !== undefined && !t.isReferenced(node, parent)) return;
-      const binding = resolveSemanticBindingState(state, node, node.name);
-      captures =
-        binding === undefined
-          ? (node.name === "arguments" &&
-              contextOwnerActivated &&
-              inheritsFunctionContext(node, fn.node)) ||
-            semanticResolutionBlocked(state, node, node.name)
-          : scopes.has(binding.scopeId);
+          binding === undefined
+            ? (node.name === "arguments" &&
+                contextOwnerActivated &&
+                inheritsFunctionContext(node, fn.node)) ||
+              semanticResolutionBlocked(state, node, node.name)
+            : scopes.has(binding.scopeId);
+      },
     });
     return { captures, traceDependent };
   };
@@ -1136,6 +1142,7 @@ export const collectElectronWrappedCallPaths = (
     env: SymbolicEnvironment,
     context: PathContext,
   ): void {
+    if (state.erasedSyntaxNodes.has(node)) return;
     if (--remainingVisits < 0 || t.isFunction(node) || t.isClass(node)) return;
     if (t.isBlockStatement(node)) {
       let next = context;
@@ -1187,7 +1194,7 @@ export const collectElectronWrappedCallPaths = (
       call(node, env, context);
     for (const child of childNodes(node)) walk(child, env, context);
   }
-  traverseJavaScriptAst(program, {
+  traverseJavaScriptValueAst(program, state.erasedSyntaxNodes, {
     enter: (node) => {
       if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))
         return;

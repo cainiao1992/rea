@@ -135,6 +135,8 @@ export interface JavaScriptSemanticAnalysisState {
   /** Callee sites whose possible local returns needed a broader projection. */
   readonly returnedReferenceWidenings: Set<t.Node>;
   readonly parentsByNode: WeakMap<t.Node, t.Node>;
+  /** TypeScript syntax omitted from JavaScript value evaluation. */
+  readonly erasedSyntaxNodes: WeakSet<t.Node>;
   readonly scopes: JavaScriptSemanticScopeState[];
   readonly scopesById: Map<string, JavaScriptSemanticScopeState>;
   /** Scope boundaries and descendant scopes resolved on demand. */

@@ -7,7 +7,7 @@ import {
   type SemanticCapturedSelection,
 } from "./javascriptSemanticProjectedSources.js";
 import * as t from "@babel/types";
-import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
+import { traverseJavaScriptValueAst } from "./javascriptSemanticTraversal.js";
 
 import { BUILTIN_RESOURCE_METHODS } from "./javascriptBuiltinResourceMethods.js";
 import { javaScriptRuntimeContext } from "./javascriptSourceParser.js";
@@ -1404,7 +1404,7 @@ const writesModuleRequire = (
     // Only a retained module identity can revoke the host delegate. Escaping
     // an unrelated local table is not evidence that it became the host module.
     isCommonJsModuleObject(node, state, false);
-  traverseJavaScriptAst(state.program, {
+  traverseJavaScriptValueAst(state.program, state.erasedSyntaxNodes, {
     enter: (node) => {
       const target = t.isAssignmentExpression(node)
         ? node.left

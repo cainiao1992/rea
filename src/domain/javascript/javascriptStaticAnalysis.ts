@@ -113,7 +113,10 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
       isElectronRendererLoad(callee, site, findings, index),
     source,
     accumulator,
-    vitePreloadDependencyTable: indexVitePreloadDependencyTable(file.program),
+    vitePreloadDependencyTable: indexVitePreloadDependencyTable(
+      file.program,
+      bindings.erasedSyntaxNodes,
+    ),
     openReceiverFacts: receivers.openReceivers,
     electronBindings: electronIdentity.bindings,
     electronExportIntact: electronIdentity.intactExport,
@@ -167,7 +170,8 @@ function* traverseStaticSourceSteps(
     enter: (node, parent) => {
       findings.accumulator.visitedNodes += 1;
       routeScan.inspect(node, parent);
-      inspectNode(node, findings, bindings);
+      if (!bindings.erasedSyntaxNodes.has(node))
+        inspectNode(node, findings, bindings);
       return undefined;
     },
   });

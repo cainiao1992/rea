@@ -58,7 +58,9 @@ import {
 } from "./javascriptSemanticState.js";
 import {
   completeSemanticSteps,
+  isErasedJavaScriptValueChild,
   traverseJavaScriptAstSteps,
+  traverseJavaScriptValueAstSteps,
 } from "./javascriptSemanticTraversal.js";
 import {
   semanticRequireOrigin,
@@ -690,7 +692,7 @@ function* classifyDefinitionReceiversSteps(
     );
     if (aliasFact !== undefined) facts.set(node.start ?? -1, aliasFact);
   };
-  yield* traverseJavaScriptAstSteps(program, {
+  yield* traverseJavaScriptValueAstSteps(program, state.erasedSyntaxNodes, {
     enter: (node) => {
       classifyRpcRoot(node);
       classifyOpenReceiver(node);
@@ -897,6 +899,7 @@ export function* indexJavaScriptElectronIdentitySteps(
   };
   yield* collectJavaScriptIdentityWritesSteps(
     program,
+    state.erasedSyntaxNodes,
     (node, kind) => {
       if (kind === "opaque-call") return [interop.opaqueMutationPath(node)];
       const { root, members } = electronMemberPath(node);
@@ -922,7 +925,7 @@ export function* indexJavaScriptElectronIdentitySteps(
   const intactExport = (path: readonly (string | null)[]): boolean =>
     ELECTRON_MODULE.test(path[0] ?? "") &&
     !writes.covers(["electron", ...path.slice(1)]);
-  yield* traverseJavaScriptAstSteps(program, {
+  yield* traverseJavaScriptValueAstSteps(program, state.erasedSyntaxNodes, {
     enter: (node) => {
       if (
         !t.isCallExpression(node) &&
@@ -1052,6 +1055,7 @@ const createState = (
     getterResourceLimits: new Set(),
     returnedReferenceWidenings: new Set(),
     parentsByNode: new WeakMap(),
+    erasedSyntaxNodes: new WeakSet(),
     scopes: [root],
     scopesById: new Map([[root.scopeId, root]]),
     scopeByNode: new WeakMap([[program, root]]),
@@ -1124,6 +1128,13 @@ function* collectDefinitionsSteps(
   yield* traverseJavaScriptAstSteps(program, {
     enter: (node, parent, readAncestors) => {
       if (parent !== null) state.parentsByNode.set(node, parent);
+      if (
+        (parent !== null && state.erasedSyntaxNodes.has(parent)) ||
+        isErasedJavaScriptValueChild(node, parent)
+      ) {
+        state.erasedSyntaxNodes.add(node);
+        return;
+      }
       if (
         t.isWithStatement(node) ||
         t.isForInStatement(node) ||
@@ -1438,7 +1449,7 @@ function* indexPrototypeUncertaintySteps(
     "defineProperties",
     "setPrototypeOf",
   ]);
-  yield* traverseJavaScriptAstSteps(program, {
+  yield* traverseJavaScriptValueAstSteps(program, state.erasedSyntaxNodes, {
     enter: (node, parent) => {
       const write = semanticWriteSiteTarget(node);
       if (write !== null) {

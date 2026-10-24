@@ -27,7 +27,7 @@ import {
 } from "./javascriptStaticAnalysisHelpers.js";
 import {
   completeSemanticSteps,
-  traverseJavaScriptAst,
+  traverseJavaScriptValueAst,
 } from "./javascriptSemanticTraversal.js";
 
 /** Loader bindings and literal externals proven for one standalone bootstrap. */
@@ -188,6 +188,7 @@ const canonicalWebpackInteropBindings = (
   completeSemanticSteps(
     collectJavaScriptIdentityWritesSteps(
       state.program,
+      state.erasedSyntaxNodes,
       (root, kind) => {
         return kind === "member" && loaderMayOwnReference(root)
           ? [["loader"]]
@@ -266,7 +267,7 @@ const isInstalledBeforeEntryDispatch = (
   for (let index = 0; index < body.body.length; index += 1) {
     const topLevel = body.body[index];
     if (topLevel === undefined) continue;
-    traverseJavaScriptAst(topLevel, {
+    traverseJavaScriptValueAst(topLevel, state.erasedSyntaxNodes, {
       enter: (node, _parent, ancestors) => {
         if (
           entryIndex < 0 &&

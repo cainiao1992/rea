@@ -4,7 +4,6 @@ import { createCli } from "../../../src/cli.js";
 import { createCliInventory } from "../../../scripts/lib/catalog-cli.mjs";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 import {
-  CLI_COMMAND_ALIASES,
   CLI_COMMAND_NAMES,
   CLI_COMMAND_TOOL_ALIASES,
   MCP_TOOLS_WITHOUT_DEDICATED_CLI,
@@ -25,8 +24,6 @@ describe("CLI canonical tool coverage", () => {
       for (const name of names) cliToolNames.add(name);
     }
     for (const command of CLI_COMMAND_NAMES)
-      expect(registeredCommandNames.has(command)).toBe(true);
-    for (const command of CLI_COMMAND_ALIASES)
       expect(registeredCommandNames.has(command)).toBe(true);
     const intentionalMcpOnly = new Set<string>(MCP_TOOLS_WITHOUT_DEDICATED_CLI);
     expect(

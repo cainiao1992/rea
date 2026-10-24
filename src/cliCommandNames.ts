@@ -175,9 +175,6 @@ export const CLI_COMMANDS = Object.freeze({
 /** Ordered primary CLI inventory; aliases are intentionally excluded. */
 export const CLI_COMMAND_NAMES = Object.freeze(Object.values(CLI_COMMANDS));
 
-/** Command aliases registered on top of the primary CLI command inventory. */
-export const CLI_COMMAND_ALIASES = Object.freeze(["compare-bundles"]);
-
 /** Canonical MCP operations reached by CLI commands with different names. */
 export const CLI_COMMAND_TOOL_ALIASES = Object.freeze({
   analyze: ["binary_overview"],
@@ -189,16 +186,9 @@ export const CLI_COMMAND_TOOL_ALIASES = Object.freeze({
   search: ["search_strings", "search_procedures"],
   "capture-process": ["capture_process_scenario"],
   "compare-bundles": ["compare_bundles"],
-  "list-cutter-sessions": ["list_cutter_sessions"],
-  "cutter-command": ["cutter_command"],
-  "inspect-with-objdump": ["inspect_with_objdump"],
   "list-objdump-architectures": ["inspect_with_objdump"],
-  "execute-rizin-command": ["execute_rizin_command"],
   "debug-with-gdb": ["gdb_console"],
   "debug-with-rizin": ["rizin_debug_command"],
-  "list-frida-devices": ["list_frida_devices"],
-  "list-frida-processes": ["list_frida_processes"],
-  "instrument-with-frida": ["instrument_with_frida"],
 });
 
 /** MCP operations without a dedicated CLI command or direct command alias. */

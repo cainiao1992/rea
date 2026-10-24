@@ -56,6 +56,7 @@ export const targetFormatSchema = z.enum([
   "dos-mz",
   "dos-com",
   "raw-binary",
+  "gamecube-dol",
   ...ZIP_PACKAGE_FORMATS,
   "asar",
   "godot-pck",

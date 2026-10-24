@@ -33,6 +33,10 @@ export const nativeLoadImageObservationSchema = z.strictObject({
       initialized: z.boolean(),
       loaded: z.boolean(),
       overlay: z.boolean(),
+      // Optional so inspection snapshots saved before permissions were measured still parse.
+      readable: z.boolean().optional(),
+      writable: z.boolean().optional(),
+      executable: z.boolean().optional(),
       length: integer.min(1),
       source_file_index: integer.nullable(),
       file_offset: integer.nullable(),
@@ -117,6 +121,32 @@ export const nativeLoadImageSchema = z.union([
     entry: z.strictObject({
       address: nativeAddressObservationSchema,
       file_offset: z.literal(0),
+    }),
+    observations: nativeLoadImageObservationSchema,
+    checks: z.array(nativeLoadImageCheckSchema),
+    limitations: z.array(z.string().min(1)),
+  }),
+  z.strictObject({
+    status: z.enum(["verified", "mismatch"]),
+    format: z.literal("gamecube-dol"),
+    target_sha256: digest,
+    architecture: z.literal("powerpc"),
+    language_id: z.string().min(1),
+    compiler_spec_id: z.string().min(1),
+    file_bytes: integer.min(1),
+    entry: z.strictObject({ address: nativeAddressObservationSchema }),
+    sections: z.array(
+      z.strictObject({
+        kind: z.enum(["text", "data"]),
+        index: integer,
+        file_offset: nativeAddressObservationSchema,
+        address: nativeAddressObservationSchema,
+        size: nativeAddressObservationSchema,
+      }),
+    ),
+    bss: z.strictObject({
+      address: nativeAddressObservationSchema,
+      size: nativeAddressObservationSchema,
     }),
     observations: nativeLoadImageObservationSchema,
     checks: z.array(nativeLoadImageCheckSchema),

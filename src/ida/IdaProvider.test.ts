@@ -84,6 +84,36 @@ it("keeps a selected valid registration distinct from a live IDA connection", as
 });
 
 describe("IDA provider target support", () => {
+  it("declines caller-selected gamecube-dol targets", () => {
+    const config = parseConfig({});
+    if (!config.ok) throw new Error("expected valid configuration");
+    const provider = new IdaProvider(config.value, {});
+    expect(
+      provider.inspectTargetSupport({
+        path: "/tmp/game.dol",
+        sha256: "a".repeat(64),
+        kind: "executable",
+        format: "gamecube-dol",
+        architecture: "powerpc",
+        availableArchitectures: ["powerpc"],
+        byteOrder: "big",
+        bits: 32,
+        entryPoint: "0x80003100",
+        entryPointSource: "dol-header",
+        dol: {
+          sections: [],
+          bss: { address: 0, size: 0 },
+          bssOverlaps: [],
+          bssGaps: [],
+          entryPoint: 0x8000_3100,
+        },
+      }),
+    ).toMatchObject({
+      status: "unsupported",
+      code: "target_format_unsupported",
+      reason: expect.stringContaining("DOL"),
+    });
+  });
   it("declines headerless raw-binary targets", () => {
     const config = parseConfig({});
     if (!config.ok) throw new Error("expected valid configuration");

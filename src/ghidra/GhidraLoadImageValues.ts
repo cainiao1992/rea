@@ -287,9 +287,17 @@ const checkMappings = (
   check(
     "initialized_unbacked_mappings",
     [],
-    observations.mappings.filter(
-      (mapping) => mapping.initialized && mapping.source_file_index === null,
-    ),
+    observations.mappings
+      .filter(
+        (mapping) => mapping.initialized && mapping.source_file_index === null,
+      )
+      // Unmeasured permissions serialize as null so the observed value stays JSON.
+      .map((mapping) => ({
+        ...mapping,
+        readable: mapping.readable ?? null,
+        writable: mapping.writable ?? null,
+        executable: mapping.executable ?? null,
+      })),
   );
 };
 

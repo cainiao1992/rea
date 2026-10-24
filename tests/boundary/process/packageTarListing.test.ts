@@ -21,6 +21,7 @@ const members = [
   "package/bridge/ghidra/ReaGhidraExtensions.java",
   "package/bridge/ghidra/ReaGhidraPrepareCom.java",
   "package/bridge/ghidra/ReaGhidraPrepareRaw.java",
+  "package/bridge/ghidra/ReaGhidraPrepareDol.java",
   "package/bridge/ghidra/ReaGhidraApplySeeds.java",
   "package/bridge/ghidra/ReaGhidraAnalysisOptions.java",
   "package/bridge/ghidra/ReaGhidraNoReturnFix.java",

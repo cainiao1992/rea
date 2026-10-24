@@ -619,6 +619,15 @@ const inspectWindowsP0TargetSupport = (
   // The raw 6502 lane uses the same immutable snapshot and native ownership boundary.
   if (target.format === "raw-binary" && target.architecture === "6502")
     return { status: "supported", code: null, reason: null, diagnostics };
+  // DOL is verified on POSIX hosts only; Windows P0 does not admit it, like the other non-PE lanes.
+  if (target.format === "gamecube-dol")
+    return {
+      status: "unsupported",
+      code: "target_format_unsupported",
+      reason:
+        "GameCube DOL analysis is not part of Windows Ghidra P0; it is verified on POSIX hosts only.",
+      diagnostics,
+    };
   if (target.format !== "pe")
     return {
       status: "unsupported",

@@ -375,7 +375,7 @@ Run `rea --help` or a command's `--help` for arguments and output options.
 The [generated catalog](mcp-contracts.md#generated-catalog) lists all CLI commands and MCP
 tools. Provider-specific target support is described in the
 [native guide](native-investigation.md), [DOS guide](ghidra-dos.md),
-[raw binary guide](raw-binary.md), and
+[raw binary guide](raw-binary.md), [GameCube DOL guide](ghidra-dol.md), and
 [Windows Ghidra guide](windows-ghidra-p0.md).
 
 ## Choose a provider

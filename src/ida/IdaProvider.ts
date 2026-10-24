@@ -235,6 +235,14 @@ export class IdaProvider implements AnalysisProviderCandidate {
       target_kind: target.kind,
       target_format: target.format,
     };
+    if (target.format === "gamecube-dol")
+      return {
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "IDA does not admit caller-selected GameCube DOL images. Open the target with Ghidra and select format gamecube-dol.",
+        diagnostics,
+      };
     if (
       target.kind === "executable" &&
       (isElfMetadataArchitecture(target.architecture) ||

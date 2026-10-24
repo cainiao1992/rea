@@ -157,6 +157,14 @@ export class HopperProvider implements AnalysisProviderCandidate {
         reason: null,
         diagnostics,
       };
+    if (target.format === "gamecube-dol")
+      return {
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "GameCube DOL analysis requires the Ghidra adapter with a caller-selected gamecube-dol format.",
+        diagnostics,
+      };
     if (isHopperDeclinedArchitecture(target.architecture))
       return {
         status: "unsupported",

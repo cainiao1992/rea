@@ -222,6 +222,12 @@ export interface GhidraHeadlessLauncherOptions {
     readonly compilerSpecId: string;
     readonly baseAddr: string;
   };
+  /** GameCube DOL import: committed language and the canonical section table text. */
+  readonly gamecubeDol?: {
+    readonly languageId: string;
+    readonly compilerSpecId?: string;
+    readonly sectionFile: string;
+  };
   /** Explicit import language committed by the analysis profile. */
   readonly languageOverride?: GhidraLanguageOverride;
   /** Auto-analyzers disabled before default auto-analysis, as configured. */
@@ -309,6 +315,7 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         this.options.configurationDirectoryName,
       );
       let seedPath: string | undefined;
+      let gamecubeDolSectionPath: string | undefined;
       let extensions: readonly GhidraExtension[] = [];
       if (
         this.options.analysisSeeds !== undefined ||
@@ -353,6 +360,17 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         })}\n`,
         platform,
       );
+      if (this.options.gamecubeDol !== undefined) {
+        gamecubeDolSectionPath = join(
+          dirname(paths.descriptorPath),
+          "gamecube-dol-sections.txt",
+        );
+        await writeGhidraRuntimeFile(
+          gamecubeDolSectionPath,
+          this.options.gamecubeDol.sectionFile,
+          platform,
+        );
+      }
       if (isAborted(options.signal))
         return err(
           new AnalysisCancelledError("open_binary", {
@@ -380,6 +398,20 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         ...(this.options.rawBinary === undefined
           ? {}
           : { rawBinary: this.options.rawBinary }),
+        ...(this.options.gamecubeDol === undefined ||
+        gamecubeDolSectionPath === undefined
+          ? {}
+          : {
+              gamecubeDol: {
+                languageId: this.options.gamecubeDol.languageId,
+                ...(this.options.gamecubeDol.compilerSpecId === undefined
+                  ? {}
+                  : {
+                      compilerSpecId: this.options.gamecubeDol.compilerSpecId,
+                    }),
+                sectionFilePath: gamecubeDolSectionPath,
+              },
+            }),
         ...(this.options.languageOverride === undefined
           ? {}
           : { languageOverride: this.options.languageOverride }),
@@ -701,6 +733,11 @@ export interface GhidraHeadlessArgumentOptions {
     readonly compilerSpecId: string;
     readonly baseAddr: string;
   };
+  readonly gamecubeDol?: {
+    readonly languageId: string;
+    readonly compilerSpecId?: string;
+    readonly sectionFilePath: string;
+  };
   readonly languageOverride?: GhidraLanguageOverride;
   /** Auto-analyzers disabled by the pre-analysis options script. */
   readonly disabledAnalyzers?: readonly string[];
@@ -719,6 +756,19 @@ export const ghidraHeadlessArguments = (
   const bridgeDirectory = scriptPath.dirname(options.bridgeScriptPath);
   const override = options.languageOverride;
   const rawBinary = options.rawBinary;
+  const gamecubeDol = options.gamecubeDol;
+  if (
+    gamecubeDol !== undefined &&
+    (options.psp === true ||
+      options.dosMz === true ||
+      options.dosCom === true ||
+      options.mipsSoftFloat === true ||
+      rawBinary !== undefined ||
+      override !== undefined)
+  )
+    throw new Error(
+      "A GameCube DOL import cannot be combined with another loader, language override, or analysis lane; its language is committed in the gamecubeDol option.",
+    );
   if (
     options.psp === true &&
     (options.dosMz === true ||
@@ -765,55 +815,68 @@ export const ghidraHeadlessArguments = (
     "rea-project",
     "-import",
     options.targetPath,
-    ...(options.dosMz === true
+    ...(gamecubeDol !== undefined
       ? [
+          // One BinaryLoader block at file offset 0; the pre-script rebuilds the DOL section map.
           "-loader",
-          "MzLoader",
+          "BinaryLoader",
+          "-loader-baseAddr",
+          "0x0",
           "-processor",
-          "x86:LE:16:Real Mode",
-          "-cspec",
-          "default",
+          gamecubeDol.languageId,
+          ...(gamecubeDol.compilerSpecId === undefined
+            ? []
+            : ["-cspec", gamecubeDol.compilerSpecId]),
         ]
-      : options.dosCom === true
+      : options.dosMz === true
         ? [
             "-loader",
-            "BinaryLoader",
-            "-loader-baseAddr",
-            "1000:0100",
+            "MzLoader",
             "-processor",
             "x86:LE:16:Real Mode",
             "-cspec",
             "default",
           ]
-        : rawBinary === undefined
-          ? options.psp === true
-            ? [
-                "-loader",
-                "PspElfLoader",
-                "-processor",
-                "Allegrex:LE:32:default",
-                "-cspec",
-                "default",
-              ]
-            : override !== undefined
-              ? [
-                  "-processor",
-                  override.languageId,
-                  ...(override.compilerSpecId === undefined
-                    ? []
-                    : ["-cspec", override.compilerSpecId]),
-                ]
-              : []
-          : [
+        : options.dosCom === true
+          ? [
               "-loader",
               "BinaryLoader",
               "-loader-baseAddr",
-              rawBinary.baseAddr,
+              "1000:0100",
               "-processor",
-              rawBinary.languageId,
+              "x86:LE:16:Real Mode",
               "-cspec",
-              rawBinary.compilerSpecId,
-            ]),
+              "default",
+            ]
+          : rawBinary === undefined
+            ? options.psp === true
+              ? [
+                  "-loader",
+                  "PspElfLoader",
+                  "-processor",
+                  "Allegrex:LE:32:default",
+                  "-cspec",
+                  "default",
+                ]
+              : override !== undefined
+                ? [
+                    "-processor",
+                    override.languageId,
+                    ...(override.compilerSpecId === undefined
+                      ? []
+                      : ["-cspec", override.compilerSpecId]),
+                  ]
+                : []
+            : [
+                "-loader",
+                "BinaryLoader",
+                "-loader-baseAddr",
+                rawBinary.baseAddr,
+                "-processor",
+                rawBinary.languageId,
+                "-cspec",
+                rawBinary.compilerSpecId,
+              ]),
     "-readOnly",
     "-deleteProject",
     "-log",
@@ -835,6 +898,13 @@ export const ghidraHeadlessArguments = (
           scriptPath.join(bridgeDirectory, GHIDRA_BRIDGE_SOURCES.prepareRaw),
           rawBinary.languageId,
           rawBinary.baseAddr,
+        ]),
+    ...(gamecubeDol === undefined
+      ? []
+      : [
+          "-preScript",
+          scriptPath.join(bridgeDirectory, GHIDRA_BRIDGE_SOURCES.prepareDol),
+          gamecubeDol.sectionFilePath,
         ]),
     // Seeds follow any loader preparation and precede default auto-analysis.
     ...(options.seedPath === undefined

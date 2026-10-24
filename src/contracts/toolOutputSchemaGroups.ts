@@ -212,7 +212,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
     containingProcedureResolutionSchema,
   ),
   search_procedures: analysisDetailOutputSchemaOf(
-    z.array(z.object({ address: z.string(), value: z.string() })),
+    nativeInventoryRowsSchemas.names,
     nativeInventorySummaryViewResultSchema.extend({
       parent_operation: z.literal("search_procedures"),
     }),
@@ -500,7 +500,7 @@ const lifecycleTargetFields = {
 };
 const detectedLifecycleTargetSchema = z.object({
   ...lifecycleTargetFields,
-  format: targetFormatSchema.exclude(["raw-binary"]),
+  format: targetFormatSchema.exclude(["raw-binary", "gamecube-dol"]),
   architecture: z
     .enum(BINARY_ARCHITECTURES)
     .exclude([...RAW_ONLY_ARCHITECTURES])
@@ -515,14 +515,30 @@ const rawLifecycleTargetSchema = z.object({
     "Canonical caller-selected address where raw file offset 0 is mapped and execution is seeded.",
   ),
 });
+const dolLifecycleTargetSchema = z.object({
+  ...lifecycleTargetFields,
+  format: z.literal("gamecube-dol"),
+  kind: z.literal("executable"),
+  architecture: z.literal("powerpc"),
+  entry_point: rawBinaryEntryPointSchema.describe(
+    "Canonical entry address taken from the caller-selected DOL header.",
+  ),
+});
+
+/**
+ * Every open-target variant. open_binary and binary_session share this list so
+ * a target that open_binary returns is always valid in binary_session status.
+ */
+const openLifecycleTargetVariants = [
+  detectedLifecycleTargetSchema,
+  rawLifecycleTargetSchema,
+  dolLifecycleTargetSchema,
+] as const;
 
 /** Exact structured-content schemas for target lifecycle operations. */
 export const sessionOutputSchemas = {
   open_binary: lifecycleResultOf(
-    z.discriminatedUnion("format", [
-      detectedLifecycleTargetSchema,
-      rawLifecycleTargetSchema,
-    ]),
+    z.discriminatedUnion("format", [...openLifecycleTargetVariants]),
   ),
   open_bundle_resources: lifecycleResultOf(bundleResourceRootSchema),
   close_binary: lifecycleResultOf(
@@ -556,14 +572,9 @@ export const sessionOutputSchemas = {
         session_kind: z.literal("bundle_resources"),
         resource_root: bundleResourceRootSchema,
       }),
-      sessionProvider.extend({
-        open: z.literal(true),
-        ...detectedLifecycleTargetSchema.shape,
-      }),
-      sessionProvider.extend({
-        open: z.literal(true),
-        ...rawLifecycleTargetSchema.shape,
-      }),
+      ...openLifecycleTargetVariants.map((variant) =>
+        sessionProvider.extend({ open: z.literal(true), ...variant.shape }),
+      ),
     ]),
   ),
   export_evidence_bundle: lifecycleResultOf(

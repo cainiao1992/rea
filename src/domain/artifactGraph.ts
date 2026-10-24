@@ -70,6 +70,7 @@ const artifactFormatSchema = z.enum([
   "dos-mz",
   "dos-com",
   "raw-binary",
+  "gamecube-dol",
   "hopper",
   "analysis-database",
   "ipa",

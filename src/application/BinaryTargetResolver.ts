@@ -44,6 +44,8 @@ import {
   admitRawBinary,
   rawBinarySelectionError,
 } from "../domain/rawBinary.js";
+import { admitGamecubeDol } from "../domain/gamecubeDolAdmission.js";
+import { DOL_HEADER_SIZE } from "../domain/gamecubeDol.js";
 import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
 import {
   mzWindowsHeaderLayoutLimitation,
@@ -289,6 +291,49 @@ const readOpenedBinaryTarget = async (
         constraint: "load_selection_rejected",
       }),
     );
+  if (formatHint === "gamecube-dol") {
+    if (targetKind !== undefined && targetKind !== "executable")
+      return err(
+        new BinaryTargetError(
+          path,
+          "gamecube-dol format requires an executable target kind",
+          { constraint: "load_selection_rejected" },
+        ),
+      );
+    // Only the fixed header is parsed; section bounds use the file size from metadata.
+    const headerBytes = await readLeadingBytes(
+      handle,
+      Math.min(metadata.size, DOL_HEADER_SIZE),
+      path,
+      signal,
+    );
+    const admitted = admitGamecubeDol({
+      bytes: headerBytes,
+      fileSize: metadata.size,
+      entryPoint,
+    });
+    if (!admitted.ok)
+      return err(
+        new BinaryTargetError(path, admitted.error.reason, {
+          constraint: admitted.error.constraint,
+        }),
+      );
+    return ok({
+      path,
+      sourcePath,
+      ...bundle,
+      sha256: await sha256Handle(handle, path, metadata, signal),
+      kind: "executable",
+      format: "gamecube-dol",
+      architecture: admitted.value.architecture,
+      availableArchitectures: [admitted.value.architecture],
+      byteOrder: "big",
+      bits: 32,
+      entryPoint: admitted.value.entryPoint,
+      entryPointSource: admitted.value.entryPointSource,
+      dol: admitted.value.header,
+    });
+  }
   if (formatHint === "dos-com") {
     if (targetKind !== undefined && targetKind !== "executable")
       return err(
@@ -584,6 +629,7 @@ const detectArtifactFormat = async (
       | "dos-mz"
       | "dos-com"
       | "raw-binary"
+      | "gamecube-dol"
     >
   | undefined
 > => {
@@ -682,6 +728,7 @@ const isArchiveFormat = (
     | "dos-mz"
     | "dos-com"
     | "raw-binary"
+    | "gamecube-dol"
   >,
 ): format is Extract<BinaryTarget, { kind: "archive" }>["format"] =>
   isZipPackageFormat(format) ||
@@ -710,6 +757,30 @@ const readHandleRange = async (
   const observed = await handle.read(bytes, 0, length, position);
   throwIfTargetResolutionCancelled(signal);
   return bytes.subarray(0, observed.bytesRead);
+};
+
+/** Read exactly `size` bytes by offset; a short read means the file changed or ended early. */
+const readLeadingBytes = async (
+  handle: FileHandle,
+  size: number,
+  path: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> => {
+  const bytes = Buffer.allocUnsafe(size);
+  let position = 0;
+  while (position < size) {
+    throwIfTargetResolutionCancelled(signal);
+    const observed = await handle.read(
+      bytes,
+      position,
+      size - position,
+      position,
+    );
+    if (observed.bytesRead === 0)
+      throw new BinaryTargetError(path, "target changed while being read");
+    position += observed.bytesRead;
+  }
+  return bytes;
 };
 
 const sha256Handle = async (

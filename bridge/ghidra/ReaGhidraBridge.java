@@ -643,6 +643,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 mapping.addProperty("initialized", block.isInitialized());
                 mapping.addProperty("loaded", block.isLoaded());
                 mapping.addProperty("overlay", block.isOverlay());
+                mapping.addProperty("readable", block.isRead());
+                mapping.addProperty("writable", block.isWrite());
+                mapping.addProperty("executable", block.isExecute());
                 mapping.addProperty("length", source.getLength());
                 FileBytes backing = source.getFileBytes().orElse(null);
                 int sourceIndex = backing == null ? -1 : files.indexOf(backing);

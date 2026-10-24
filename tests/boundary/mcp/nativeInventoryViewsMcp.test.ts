@@ -25,6 +25,31 @@ const procedureRows = [
     procedure: { external: false, thunk: false, thunk_target: null },
   },
 ];
+// Ghidra 12.1.4 search_procedures capture from the source-owned PowerPC DOL.
+const searchProcedureRows = [
+  {
+    address: "0x80003100",
+    value: "FUN_80003100",
+    symbol: {
+      primary: true,
+      dynamic: false,
+      external: false,
+      type: "function",
+      source: "default",
+    },
+  },
+  {
+    address: "0x80003130",
+    value: "__start",
+    symbol: {
+      primary: true,
+      dynamic: false,
+      external: false,
+      type: "function",
+      source: "user_defined",
+    },
+  },
+];
 const stringRows = [
   {
     address: "0x3000",
@@ -55,9 +80,7 @@ it("shares complete/summary source identity and advertised contracts across all 
     "native-inventory-views",
     (operation) => {
       if (operation === "search_procedures")
-        return Promise.resolve(
-          ok(procedureRows.map(({ address, value }) => ({ address, value }))),
-        );
+        return Promise.resolve(ok(searchProcedureRows));
       if (operation === "search_strings")
         return Promise.resolve(
           ok(stringRows.map(({ address, value }) => ({ address, value }))),
@@ -107,6 +130,8 @@ it("shares complete/summary source identity and advertised contracts across all 
     );
     if (!Array.isArray(complete.normalized_result))
       throw new Error("Expected complete row array");
+    if (operation === "search_procedures")
+      expect(complete.normalized_result).toEqual(searchProcedureRows);
     expect(complete.parameters).not.toHaveProperty("detail");
     const summaryReply = await harness.mcp.callTool({
       name: operation,

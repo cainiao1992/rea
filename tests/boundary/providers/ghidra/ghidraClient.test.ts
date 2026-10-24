@@ -448,6 +448,35 @@ it.each([false, true])(
   },
 );
 
+it("hashes snapshot section ranges in the same pass as the whole-file digest", async () => {
+  const client = clientFor(new FixtureLauncher());
+  const started = await client.start();
+  if (!started.ok) throw started.error;
+  onTestFinished(async () => {
+    await client.close();
+  });
+  const bytes = readFileSync(fixturePath);
+  const digest = (chunk: Buffer): string =>
+    createHash("sha256").update(chunk).digest("hex");
+  const result = await client.hashTargetSnapshotRanges([
+    { start: 0, end: 4 },
+    { start: 4, end: bytes.length },
+    { start: 2, end: 2 },
+  ]);
+  expect(result).toEqual({
+    ok: true,
+    value: {
+      sha256: digest(bytes),
+      bytes: bytes.length,
+      rangeSha256: [
+        digest(bytes.subarray(0, 4)),
+        digest(bytes.subarray(4)),
+        digest(Buffer.alloc(0)),
+      ],
+    },
+  });
+});
+
 it("reports snapshot descriptor cleanup immediately and resolves its exact error on retry", async () => {
   const client = clientFor(new FixtureLauncher());
   const started = await client.start();

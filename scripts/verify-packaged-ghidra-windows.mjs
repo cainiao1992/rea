@@ -200,6 +200,7 @@ try {
     "ReaGhidraBridge.java",
     "ReaGhidraNoReturnFix.java",
     "ReaGhidraPrepareCom.java",
+    "ReaGhidraPrepareDol.java",
     "ReaGhidraPrepareRaw.java",
   ];
   await mkdir(callerDirectory);

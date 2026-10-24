@@ -132,10 +132,12 @@ it("returns exact stdout for clean exit one and rejects exit two", async () => {
   expect(second).toEqual({
     ok: false,
     cause: expect.objectContaining({
-      name: "PackageCommandExitError",
+      name: "VerifierCommandExitError",
       code: 2,
-      stdout: "exit two stdout",
-      stderr: "exit two diagnostics",
+      snapshot: expect.objectContaining({
+        stdout: expect.objectContaining({ text: "exit two stdout" }),
+        stderr: expect.objectContaining({ text: "exit two diagnostics" }),
+      }),
     }),
   });
 });
@@ -382,7 +384,7 @@ it("retains the same adopted capability and workspace after failed close, then r
     expect(outcome).toEqual({
       ok: false,
       cause: expect.objectContaining({
-        message: "Package command owner is closed",
+        message: "Verifier command owner is closed",
       }),
     });
 });

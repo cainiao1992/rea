@@ -10,10 +10,8 @@ import {
   type VerifierTerminalOptions,
   type VerifierTerminalResult,
 } from "../../../scripts/lib/owned-verifier-terminal.mjs";
-import {
-  createPackageVerifierCommands,
-  type PackageCleanupOwner,
-} from "../../../scripts/lib/verify-package-commands.mjs";
+import { createPackageVerifierCommands } from "../../../scripts/lib/verify-package-commands.mjs";
+import type { VerifierCleanupOwner } from "../../../scripts/lib/verifier-command-owner.mjs";
 import {
   cleanupOwnedProcessGroup,
   type PersistentOwnedProcessGroup,
@@ -78,7 +76,7 @@ const terminalFixture = async () => {
       },
     },
   });
-  const adopted: PackageCleanupOwner[] = [];
+  const adopted: VerifierCleanupOwner[] = [];
   const options: Omit<VerifierTerminalOptions, "args"> = {
     commands: {
       adopt(owner, resource) {
@@ -121,11 +119,11 @@ const expectReleased = (
   expect(fixture.rootsAtRemoval).toEqual([true]);
 };
 
-const observeClose = (owner: PackageCleanupOwner) => {
+const observeClose = (owner: VerifierCleanupOwner) => {
   const entered = deferred();
   const original = owner.close;
   const spy = vi.spyOn(owner, "close").mockImplementation(function (
-    this: PackageCleanupOwner,
+    this: VerifierCleanupOwner,
   ) {
     const closing = original.call(this);
     entered.resolve();

@@ -19,16 +19,16 @@ import { ProviderStartupDeadline } from "../../src/process/ProviderDeadline.js";
 import { processCaptureOwnershipUnavailableReason } from "../../src/process/capture/ProcessCaptureCapability.js";
 import { retainOwnedCommandCleanup } from "../../src/providers/OwnedCommandCleanup.js";
 import type {
-  PackageCleanupOwner,
-  PackageVerifierCommands,
-} from "./package-command-owner.mjs";
+  VerifierCleanupOwner,
+  VerifierCommands,
+} from "./verifier-command-owner.mjs";
 import {
   closeVerifierResources,
   withVerifierCleanup,
 } from "./verifier-cleanup.mjs";
 
 export interface VerifierTerminalOptions {
-  readonly commands: Pick<PackageVerifierCommands, "adopt">;
+  readonly commands: Pick<VerifierCommands, "adopt">;
   readonly command: string;
   readonly args: readonly string[];
   readonly cwd: string;
@@ -79,7 +79,7 @@ export class VerifierTerminalCleanupFailure extends Error {
   readonly reason = "cleanup_incomplete";
 
   constructor(
-    readonly cleanupOwner: PackageCleanupOwner,
+    readonly cleanupOwner: VerifierCleanupOwner,
     readonly output: string,
     message: string,
     options?: ErrorOptions,
@@ -102,7 +102,7 @@ const decodedPrefix = (text: string, capacity: number): string => {
   return text.slice(0, end);
 };
 
-class VerifierTerminalOwner implements PackageCleanupOwner {
+class VerifierTerminalOwner implements VerifierCleanupOwner {
   readonly #controller = new AbortController();
   readonly #runId = randomUUID();
   readonly #evidence = new ProcessOwnershipEvidenceOwner();
@@ -409,7 +409,7 @@ export async function runOwnedVerifierTerminal(
       "Verifier terminal output capacity must be a non-negative safe integer",
     );
   const owner = new VerifierTerminalOwner(options, dependencies);
-  options.commands.adopt(owner);
+  options.commands.adopt(owner, `verifier terminal ${options.command}`);
   owner.start();
   let release: Promise<void> | undefined;
   const finish = (): Promise<void> => (release ??= owner.release());

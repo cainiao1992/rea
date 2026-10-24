@@ -6,7 +6,6 @@ import { toolContract } from "../contracts/toolContracts.js";
 import { createEvidence } from "../domain/evidence.js";
 import { parseFunctionEvidence } from "../domain/functionDossierEvidence.js";
 import { FUNCTION_COMPARISON_PROVIDER } from "../domain/comparisonEvidenceIdentity.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
@@ -84,7 +83,7 @@ export const registerFunctionComparisonTool = (
                 left_evidence_id: leftEvidence.evidence_id,
                 right_evidence_id: rightEvidence.evidence_id,
               },
-              result: jsonValueSchema.parse(comparison),
+              result: comparison,
               confidence: "derived",
               authority: "analyst-inference",
               limitations: comparison.limitations,

@@ -11,7 +11,6 @@ import {
   javascriptRecoveryInputSchema,
   javascriptRecoveryResultSchema,
 } from "../../domain/javascript/javascriptRecovery.js";
-import { jsonObjectSchema, jsonValueSchema } from "../../domain/jsonValue.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { err, type Result } from "../../domain/result.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
@@ -115,8 +114,8 @@ export class JavaScriptRecoveryService {
       execution.value.provider,
       {
         operation: OPERATION,
-        parameters: jsonObjectSchema.parse(parsed.data),
-        result: jsonValueSchema.parse(result.data),
+        parameters: parsed.data,
+        result: result.data,
         rawResult: execution.value.rawResult,
         locations: execution.value.locations,
         limitations: execution.value.limitations,

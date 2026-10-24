@@ -23,7 +23,6 @@ import {
 } from "../../domain/sqlite/sqliteDatabase.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import { jsonValueSchema } from "../../domain/jsonValue.js";
 
 const OPERATION = "inspect_sqlite_database";
 
@@ -115,7 +114,7 @@ export class SqliteDatabaseService {
       createEvidence(execution.subject, execution.provider, {
         operation: OPERATION,
         parameters: sqliteInspectionParameters(input.data),
-        result: jsonValueSchema.parse(report.data),
+        result: report.data,
         ...(execution.rawResult === null
           ? {}
           : { rawResult: execution.rawResult }),

@@ -4,7 +4,6 @@ import {
   type Evidence,
   type EvidenceObservation,
 } from "../domain/evidence.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import type {
   InspectWebPageInput,
@@ -77,7 +76,7 @@ export const createBrowserEvidence = (
     predicateType: browserPredicate(operation),
     operation,
     parameters: browserParameters(input, result),
-    result: jsonValueSchema.parse(result),
+    result,
     confidence: "observed",
     authority: "external-service",
     environment:

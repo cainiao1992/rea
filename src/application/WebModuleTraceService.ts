@@ -261,7 +261,7 @@ export class WebModuleTraceService {
       },
       {
         operation: OPERATION,
-        parameters: jsonObjectSchema.parse(input),
+        parameters: input,
         result: normalized.data,
         rawResult: resolution?.rawResult ?? null,
         confidence: "derived",

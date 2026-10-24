@@ -3,7 +3,6 @@ import { access, stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
-import { jsonObjectSchema, jsonValueSchema } from "../../domain/jsonValue.js";
 import {
   resolvedAnalysisError,
   type AnalysisError,
@@ -458,8 +457,8 @@ const fridaEvidence = (
     {
       predicateType: "rea.frida.instrumentation-observation",
       operation,
-      parameters: jsonObjectSchema.parse(parameters),
-      result: jsonValueSchema.parse(result),
+      parameters,
+      result,
       ...(script?.sourceRepresentation === undefined
         ? {}
         : {

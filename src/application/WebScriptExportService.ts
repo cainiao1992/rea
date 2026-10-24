@@ -21,7 +21,6 @@ import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -136,7 +135,7 @@ export const exportWebScriptsValidated = async (
             capture_path: input.capture_path,
             output_directory: input.output_directory,
           },
-          result: jsonValueSchema.parse(result),
+          result,
           rawResult: null,
           confidence: "derived",
           authority: "historical-reference",

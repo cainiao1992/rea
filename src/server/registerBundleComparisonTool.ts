@@ -5,7 +5,6 @@ import { readImmutableEvidenceBundle } from "../application/EvidenceBundleFiles.
 import { toolContract } from "../contracts/toolContracts.js";
 import { compareBundles } from "../domain/bundleComparison.js";
 import { createEvidence } from "../domain/evidence.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
 import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
 import { BUNDLE_COMPARISON_PROVIDER } from "../domain/investigationProviders.js";
@@ -82,7 +81,7 @@ export const registerBundleComparisonTool = (
                 right_bundle_sha256: comparison.right_bundle_sha256,
                 record_pairs: input.record_pairs,
               },
-              result: jsonValueSchema.parse(comparison),
+              result: comparison,
               confidence: "derived",
               authority: "analyst-inference",
               limitations: comparison.limitations,

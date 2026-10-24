@@ -7,7 +7,7 @@ import {
   type EvidenceSubjectTarget,
 } from "./evidence.js";
 import type { AnalysisProfileCommitment } from "./analysisProfile.js";
-import { jsonObjectSchema, type JsonValue } from "./jsonValue.js";
+import type { JsonValue } from "./jsonValue.js";
 import type { RelationshipCoverage } from "./relationshipCoverage.js";
 
 /** Provider observations that can be committed to Evidence. */
@@ -44,7 +44,7 @@ export const createAnalysisExecutionEvidence = (
     execution.provider,
     {
       operation,
-      parameters: jsonObjectSchema.parse(input),
+      parameters: input,
       result: execution.result,
       rawResult: execution.rawResult,
       limitations: execution.limitations,

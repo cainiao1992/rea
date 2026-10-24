@@ -6,7 +6,6 @@ import { compareArtifacts } from "../domain/artifactComparison.js";
 import { ARTIFACT_COMPARISON_PROVIDER } from "../domain/comparisonEvidenceIdentity.js";
 import { createEvidence } from "../domain/evidence.js";
 import { readEvidence } from "../domain/evidenceValidation.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
 import { resolveArtifactComparisonEvidence } from "../application/artifacts/ArtifactComparisonEvidence.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
@@ -78,7 +77,7 @@ export const registerArtifactComparisonTool = (
                 left_evidence_ids: leftEvidenceIds,
                 right_evidence_ids: rightEvidenceIds,
               },
-              result: jsonValueSchema.parse(comparison),
+              result: comparison,
               confidence: "derived",
               authority: "analyst-inference",
               limitations: comparison.limitations,

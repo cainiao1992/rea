@@ -7,7 +7,6 @@ import {
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { createEvidence, type Evidence } from "../domain/evidence.js";
-import { jsonObjectSchema } from "../domain/jsonValue.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
@@ -162,7 +161,7 @@ export class WebRuntimeService {
       createEvidence(undefined, this.provider.identity(), {
         predicateType: `rea.${operation.replaceAll("_", "-")}`,
         operation,
-        parameters: jsonObjectSchema.parse(input),
+        parameters: input,
         result,
         confidence: "observed",
         authority: "external-service",

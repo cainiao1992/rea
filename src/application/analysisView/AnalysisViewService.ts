@@ -2,7 +2,6 @@ import { setImmediate } from "node:timers/promises";
 import { dispatchQueuedInterrupts } from "../../process/queuedInterrupts.js";
 import { readImmutableEvidenceBundle } from "../EvidenceBundleFiles.js";
 import { INSPECT_ANALYSIS_VIEW_OPERATION } from "../../domain/analysisView/analysisViewErrors.js";
-import { jsonValueSchema } from "../../domain/jsonValue.js";
 
 import { ANALYSIS_VIEW_PROVIDER } from "../../domain/investigationProviders.js";
 import type { EvidenceLookup } from "../EvidenceInputResolver.js";
@@ -346,9 +345,9 @@ const createAnalysisViewEvidence = (
       operation: INSPECT_ANALYSIS_VIEW_OPERATION,
       parameters: {
         parent_evidence_id: parent.evidence_id,
-        view: jsonValueSchema.parse(input.view),
+        view: input.view,
       },
-      result: jsonValueSchema.parse(result),
+      result,
       rawResult: null,
       confidence:
         // Grouping is whole-capture, so any templated group or parameter makes the result inferred;

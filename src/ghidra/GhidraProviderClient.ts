@@ -39,6 +39,7 @@ import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
   AnalysisTimeoutError,
+  resourceConstraintRecovery,
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
@@ -349,6 +350,7 @@ export const createGhidraProviderClient = (input: {
     );
   const client = clientFactory({
     startupTimeoutMs: config.ghidraStartupTimeoutMs,
+    bridgeMaxRequestBytes: config.bridgeMaxRequestBytes,
     platform: installation.platform,
     launcher: new GhidraHeadlessLauncher({
       environment: input.environment,
@@ -897,6 +899,17 @@ const projectPrimarySessionError = (
   const { cause: physicalCause, origin } = artifactFilePrimaryFacts(
     failure.cause,
   );
+  // A client-side ceiling refusal travels as the cause; re-attribute it to this
+  // operation so callers see a typed resource constraint rather than a generic
+  // session failure, matching how Hopper and Cutter report the same ceiling.
+  if (physicalCause instanceof AnalysisResourceConstraintError)
+    return new AnalysisResourceConstraintError(
+      operation,
+      physicalCause.resource,
+      physicalCause.reason,
+      physicalCause.reportedLimits,
+      { ...context, ...resourceConstraintRecovery(physicalCause) },
+    );
   if (
     origin === "owned-or-classified" &&
     physicalCause instanceof AnalysisAccessDeniedError

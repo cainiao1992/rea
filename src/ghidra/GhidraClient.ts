@@ -40,6 +40,7 @@ import {
   ProviderProcessSupervisor,
 } from "../process/ProviderProcess.js";
 import { DEFAULT_GHIDRA_STARTUP_TIMEOUT_MS } from "../config/providerStartupTimeout.js";
+import { DEFAULT_BRIDGE_MAX_REQUEST } from "../config/bridgeMaxRequestBytes.js";
 import type {
   GhidraClientOptions,
   GhidraRequestOptions,
@@ -199,6 +200,8 @@ export class GhidraClient {
       pending: this.#pending,
       logger: this.#logger,
       failure: this.#failure,
+      bridgeMaxRequestBytes:
+        options.bridgeMaxRequestBytes ?? DEFAULT_BRIDGE_MAX_REQUEST,
     });
     this.#requestQueue = new GhidraRequestQueue(
       async (method, parameters, requestOptions) => {

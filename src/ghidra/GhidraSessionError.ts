@@ -20,6 +20,7 @@ const MAX_COMMAND_OUTPUT_BYTES = 8 * 1024;
 
 /** Stable failure phase for one private Ghidra headless session. */
 export type GhidraSessionFailureKind =
+  | "admission"
   | "cancelled"
   | "timeout"
   | "start"

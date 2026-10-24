@@ -38,7 +38,7 @@ export const resolveProcessScenarioRuntimePaths = async (
       hostAccessDenial(selectedWorkingDirectory, cause) ??
       invalidScenarioPath(
         "working_directory",
-        `working directory could not be inspected: ${workingDirectory}${osFailure(cause)}`,
+        `working directory could not be inspected: ${selectedWorkingDirectory}${osFailure(cause)}`,
         cause,
       )
     );
@@ -46,7 +46,7 @@ export const resolveProcessScenarioRuntimePaths = async (
   if (!workingDirectoryStat.isDirectory())
     throw invalidScenarioPath(
       "working_directory",
-      `working directory is not a directory: ${workingDirectory}`,
+      `working directory is not a directory: ${selectedWorkingDirectory}`,
     );
   const executable = await resolveExecutable(
     scenario.executable,

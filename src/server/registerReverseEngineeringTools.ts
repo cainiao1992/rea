@@ -12,7 +12,6 @@ import {
 } from "../application/reverse/ReverseEngineeringService.js";
 import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
-import type { Evidence } from "../domain/evidence.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import type { ToolContract } from "../contracts/toolContractTypes.js";
 import { logToolExecution } from "./toolLogging.js";
@@ -65,10 +64,9 @@ export const registerReverseEngineeringTools = (
             ),
           );
           if (!result.ok)
-            return deliverFailure(
+            return delivery.toPartialErrorToolResult(
               result.error,
-              objdump,
-              delivery,
+              objdump.returnsTargetContent,
               recordEvidence,
             );
           return delivery.toEvidenceToolResult(
@@ -87,7 +85,11 @@ export const registerReverseEngineeringTools = (
       if (parsed.ok && withAdmittedExternalMutation !== undefined) {
         const cleanup = await service.retryCleanup(rizin.name);
         if (!cleanup.ok)
-          return deliverFailure(cleanup.error, rizin, delivery, recordEvidence);
+          return delivery.toPartialErrorToolResult(
+            cleanup.error,
+            rizin.returnsTargetContent,
+            recordEvidence,
+          );
         const admitted = await withAdmittedExternalMutation(
           parsed.value.path,
           context.mcpReq.signal,
@@ -124,15 +126,18 @@ export const registerReverseEngineeringTools = (
           },
         );
         if (!admitted.ok)
-          return deliverFailure(
+          return delivery.toPartialErrorToolResult(
             admitted.error,
-            rizin,
-            delivery,
+            rizin.returnsTargetContent,
             recordEvidence,
           );
         const result = admitted.value;
         if (!result.ok)
-          return deliverFailure(result.error, rizin, delivery, recordEvidence);
+          return delivery.toPartialErrorToolResult(
+            result.error,
+            rizin.returnsTargetContent,
+            recordEvidence,
+          );
         return delivery.toEvidenceToolResult(
           result.value,
           rizin,
@@ -155,10 +160,9 @@ export const registerReverseEngineeringTools = (
               : Promise.resolve(parsed),
           );
           if (!result.ok)
-            return deliverFailure(
+            return delivery.toPartialErrorToolResult(
               result.error,
-              rizin,
-              delivery,
+              rizin.returnsTargetContent,
               recordEvidence,
             );
           return delivery.toEvidenceToolResult(
@@ -189,26 +193,3 @@ const runAdmitted = async (
     ? admitted.value
     : delivery.toErrorToolResult(admitted.error, contract.returnsTargetContent);
 };
-
-const deliverFailure = (
-  error: import("../domain/analysisErrorBase.js").AnalysisError,
-  contract: ToolContract,
-  delivery: ToolResultDelivery,
-  recordEvidence?: EvidenceWriter["recordEvidence"],
-) => {
-  const partial = error.partialObservation;
-  if (isEvidence(partial) && recordEvidence !== undefined)
-    return delivery.toRecordedPartialErrorToolResult(
-      error,
-      partial.evidence_id,
-      recordEvidence(partial),
-      contract.returnsTargetContent,
-    );
-  return delivery.toErrorToolResult(error, contract.returnsTargetContent);
-};
-
-const isEvidence = (value: unknown): value is Evidence =>
-  typeof value === "object" &&
-  value !== null &&
-  "evidence_id" in value &&
-  typeof value.evidence_id === "string";

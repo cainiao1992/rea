@@ -73,12 +73,12 @@ it("retains completed Android Evidence through the MCP cancellation delivery pat
   expect(controlReply.isError).not.toBe(true);
   const control = parseEvidence(controlReply.structuredContent);
   const delivered = createDeferred<CallToolResult>();
-  const deliver = server.delivery.toRecordedPartialErrorToolResult.bind(
+  const deliver = server.delivery.toPartialErrorToolResult.bind(
     server.delivery,
   );
   vi.spyOn(
     ToolResultDelivery.prototype,
-    "toRecordedPartialErrorToolResult",
+    "toPartialErrorToolResult",
   ).mockImplementation((...args) => {
     const result = deliver(...args);
     delivered.resolve(result);

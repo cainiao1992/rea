@@ -31,24 +31,12 @@ export const deliverEvidenceResult = (
   contract: ToolContract,
   recordEvidence?: EvidenceWriter["recordEvidence"],
 ): CallToolResult => {
-  if (!result.ok) {
-    const partial = result.error.partialObservation;
-    if (
-      partial !== undefined &&
-      "evidence_id" in partial &&
-      typeof partial.evidence_id === "string"
-    ) {
-      const recorded = recordEvidence?.(partial);
-      if (recorded !== undefined)
-        return server.delivery.toRecordedPartialErrorToolResult(
-          result.error,
-          partial.evidence_id,
-          recorded,
-          contract.returnsTargetContent,
-        );
-    }
-    return server.delivery.toCallToolResult(result, contract);
-  }
+  if (!result.ok)
+    return server.delivery.toPartialErrorToolResult(
+      result.error,
+      contract.returnsTargetContent,
+      recordEvidence,
+    );
   const recorded = recordEvidence?.(result.value);
   return server.delivery.toEvidenceToolResult(result.value, contract, recorded);
 };

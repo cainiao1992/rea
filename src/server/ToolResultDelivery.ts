@@ -2,7 +2,8 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 import { STDIO_DEFAULT_MAX_BUFFER_SIZE } from "@modelcontextprotocol/server";
 
 import type { ToolContract } from "../contracts/toolContractTypes.js";
-import type { Evidence } from "../domain/evidence.js";
+import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
+import { evidenceSchema, type Evidence } from "../domain/evidence.js";
 import {
   projectAnalysisError,
   type AnalysisErrorProjection,
@@ -146,13 +147,17 @@ export class ToolResultDelivery {
     );
   }
 
-  /** Deliver the original failure with the producer-acknowledged partial Evidence reference. */
-  toRecordedPartialErrorToolResult(
+  /** Retain valid partial Evidence and reference it only after recording succeeds. */
+  toPartialErrorToolResult(
     error: AnalysisError,
-    evidenceId: string,
-    recorded: Result<unknown, AnalysisError>,
     targetContent: boolean,
+    recordEvidence?: EvidenceWriter["recordEvidence"],
   ): CallToolResult {
+    if (recordEvidence === undefined)
+      return this.toErrorToolResult(error, targetContent);
+    const partial = evidenceSchema.safeParse(error.partialObservation);
+    if (!partial.success) return this.toErrorToolResult(error, targetContent);
+    const recorded = recordEvidence(partial.data);
     if (!recorded.ok) return this.toErrorToolResult(error, targetContent);
     const projected = projectAnalysisError(error);
     return this.projectedErrorResult(
@@ -162,7 +167,7 @@ export class ToolResultDelivery {
           ...projected.details,
           partial_observation: {
             kind: "retained-evidence",
-            evidence_id: evidenceId,
+            evidence_id: partial.data.evidence_id,
           },
         },
       },

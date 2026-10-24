@@ -12,6 +12,8 @@ export interface CdpCaptureEventsState {
   rejectedSourceMapMetadataBudgetCount: number;
   readonly scriptMetadataBytesById: Map<string, number>;
   retainedScriptMetadataBytes: number;
+  /** Console-entry and websocket-frame bytes admitted against the shared retained-event budget. */
+  retainedEventBytes: number;
   readonly executionContextFrames: Map<string, string>;
   readonly network: Map<string, NetworkState>;
   readonly networkRequestTimestamps: Map<string, number>;

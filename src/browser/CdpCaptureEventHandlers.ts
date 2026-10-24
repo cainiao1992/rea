@@ -2,6 +2,7 @@ import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
 import { inferJsonShape } from "../domain/jsonShape.js";
 import { paddedBase64ByteLength } from "../domain/paddedBase64.js";
+import { WEB_RUNTIME_LIMITS } from "../domain/webRuntime.js";
 import { safeResponseMetadata } from "./CdpSafeMetadata.js";
 import {
   allowedSanitizedUrl,
@@ -150,6 +151,13 @@ const scriptMetadataStringBytes = (script: {
 
 const stringByteLength = (value: string | null): number =>
   value === null ? 0 : Buffer.byteLength(value, "utf8");
+
+/** Approximate fixed bytes of one retained console entry or frame object, so a
+ * stream of minimal entries cannot admit millions of objects into the budget. */
+const RETAINED_EVENT_ENTRY_OVERHEAD_BYTES = 64;
+/** Approximate fixed bytes of one captured console text value wrapper beyond
+ * its retained text. */
+const RETAINED_EVENT_TEXT_VALUE_BYTES = 32;
 
 const sourceMapForScript = (
   value: unknown,
@@ -473,15 +481,38 @@ export const handleConsoleAPICalled = (
     argumentTypes.includes(undefined)
   )
     state.completeness.exclude("console_events", "invalid_protocol_value");
+  const type = cdpStringValue(params.type) ?? "unknown";
+  const textCapture = captureConsoleText(state, arguments_);
+  // The shared retained-event budget bounds the whole console inventory, so a
+  // page cannot grow the capture without limit; a refused entry stays counted
+  // as a dropped event instead of vanishing.
+  const entryBytes =
+    RETAINED_EVENT_ENTRY_OVERHEAD_BYTES +
+    stringByteLength(type) +
+    stringByteLength(source.url) +
+    (argumentTypes ?? []).reduce(
+      (sum, argumentType) => sum + stringByteLength(argumentType ?? "unknown"),
+      0,
+    ) +
+    textCapture.retained_bytes +
+    textCapture.values.length * RETAINED_EVENT_TEXT_VALUE_BYTES;
+  if (
+    entryBytes >
+    WEB_RUNTIME_LIMITS.retainedEventBytes - state.retainedEventBytes
+  ) {
+    state.completeness.drop("console_events");
+    return;
+  }
+  state.retainedEventBytes += entryBytes;
   state.console.push({
-    type: cdpStringValue(params.type) ?? "unknown",
+    type,
     timestamp: timestamp ?? null,
     argument_types:
       argumentTypes?.map((argumentType) => argumentType ?? "unknown") ?? null,
     url: source.url,
     line: integerOrNull(frame.lineNumber),
     column: integerOrNull(frame.columnNumber),
-    text_capture: captureConsoleText(state, arguments_),
+    text_capture: textCapture,
   });
 };
 
@@ -551,11 +582,29 @@ export const handleWebSocketFrame = (
         : (paddedBase64ByteLength(payload) ?? null);
   if (opcode === null || payloadBytes === null)
     state.completeness.exclude("websocket_frames", "invalid_protocol_value");
+  const payloadShape = captureWebSocketShape(state, payload, opcode);
+  // The frame retains its shape summary, not the payload, and the shape grows
+  // with the payload's own keys; the shared retained-event budget bounds the
+  // retained frames and a refused frame stays counted as a dropped event.
+  const entryBytes =
+    RETAINED_EVENT_ENTRY_OVERHEAD_BYTES +
+    stringByteLength(direction) +
+    (payloadShape === null
+      ? 0
+      : Buffer.byteLength(JSON.stringify(payloadShape), "utf8"));
+  if (
+    entryBytes >
+    WEB_RUNTIME_LIMITS.retainedEventBytes - state.retainedEventBytes
+  ) {
+    state.completeness.drop("websocket_frames");
+    return;
+  }
+  state.retainedEventBytes += entryBytes;
   connection.events.push({
     direction,
     opcode,
     payload_bytes: payloadBytes,
-    payload_shape: captureWebSocketShape(state, payload, opcode),
+    payload_shape: payloadShape,
   });
 };
 

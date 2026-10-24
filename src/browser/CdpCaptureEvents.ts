@@ -26,6 +26,7 @@ export class CdpCaptureEvents implements CdpCaptureEventsState {
   rejectedSourceMapMetadataBudgetCount = 0;
   readonly scriptMetadataBytesById = new Map<string, number>();
   retainedScriptMetadataBytes = 0;
+  retainedEventBytes = 0;
   readonly executionContextFrames = new Map<string, string>();
   readonly network = new Map<string, NetworkState>();
   readonly networkRequestTimestamps = new Map<string, number>();
@@ -72,6 +73,7 @@ export class CdpCaptureEvents implements CdpCaptureEventsState {
     this.rejectedSourceMapMetadataBudgetCount = 0;
     this.scriptMetadataBytesById.clear();
     this.retainedScriptMetadataBytes = 0;
+    this.retainedEventBytes = 0;
     this.#scriptMetadataBudgetExclusionsRecorded = false;
     this.executionContextFrames.clear();
     this.network.clear();

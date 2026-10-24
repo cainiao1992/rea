@@ -649,6 +649,14 @@ complete observation.
   registries use paired keys and parents; objects paired with `NSRoot` are
   top-level, while nested objects keep their recorded parent. Conflicting or
   unreadable registry pairs remain incomplete hierarchy evidence.
+  `NSString` objects with the [recognized `NS.bytes` representation](https://github.com/swiftlang/swift-corelibs-foundation/blob/main/Sources/Foundation/NSString.swift#L201-L215) are decoded
+  as UTF-8 without substituting malformed bytes. A failed conversion retains
+  the source string object ID and `nibValues.NS.bytes` base64 data; dependent
+  authored classes, titles and selectors remain unknown, and object, class,
+  connection and archive-decode coverage is partial. Other decoded objects and
+  connections remain available. Genuine U+FFFD and leading U+FEFF characters in
+  valid UTF-8 retain their identity; opaque data fields are not interpreted as
+  strings. This does not establish support for other NSString representations.
   Embedded `UINib` archive data remains retained and undecoded; affected
   object, connection, class and hierarchy coverage is partial. Recognized
   `UIStoryboardShowSegueTemplate` source records similarly qualify connection
@@ -708,13 +716,18 @@ complete observation.
 
   [dyld symbol names are byte strings](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/mach_o/BindOpcodes.cpp#L203-L208),
   compared with [`strcmp`](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/mach_o/BindOpcodes.cpp#L42-L56).
-  When a name has no lossless UTF-8 text
+  Dependent library install names likewise originate as
+  [load-command byte strings](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/mach_o/Header.cpp#L1278-L1298)
+  and are [compared byte for byte](https://github.com/apple-oss-distributions/dyld/blob/dyld-1330/dyld/DyldAPIs.cpp#L607-L618).
+  When a symbol or applicable library name has no lossless UTF-8 text
   projection, the affected binding remains unresolved and pointer-fixup
   coverage is partial; later readable bindings and other metadata survive.
   The internal fixup reader retains the exact name bytes and parsed binding
   fields, while public Objective-C and Swift results retain the unresolved
-  reason instead of publishing a guessed symbol or class name. A literal
-  U+FFFD in valid UTF-8 remains a known symbol character.
+  reason instead of publishing a guessed symbol, library or class name. A literal
+  U+FFFD or leading BOM in valid UTF-8 remains part of the name. Legacy
+  weak-bind lookup has no library-name scope, so an opaque dependency name
+  does not prevent decoding an otherwise readable weak binding.
 
   A Swift conformance whose type or protocol reference is an external bind
   keeps its name as `null` and carries the raw dyld identity in

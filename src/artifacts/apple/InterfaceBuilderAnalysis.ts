@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { TextDecoder } from "node:util";
 import { parseBinary } from "plist";
 
 import { appleResourceKeyFields } from "../../domain/apple/appleAssetCatalog.js";
@@ -638,6 +639,7 @@ const projectNibArchive = (
     return normalized;
   };
   const decodedStrings = new Map<number, string | null>();
+  const unavailableStringIds = new Set<number>();
   const decodedString = (
     objectId: number,
     object: NibArchiveDocument["objects"][number],
@@ -658,7 +660,18 @@ const projectNibArchive = (
       64 + encoded.length * 2,
       "NIBArchive string projection exceeds the aggregate Interface Builder decode budget",
     );
-    const value = Buffer.from(encoded, "base64").toString("utf8");
+    let value: string;
+    try {
+      // NSString's NS.bytes representation is UTF-8. A failed conversion
+      // does not establish a replacement-character class, title or selector.
+      value = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+        Buffer.from(encoded, "base64"),
+      );
+    } catch {
+      unavailableStringIds.add(objectId);
+      decodedStrings.set(objectId, null);
+      return null;
+    }
     decodedStrings.set(objectId, value);
     return value;
   };
@@ -754,6 +767,58 @@ const projectNibArchive = (
     runtimeClasses.set(objectId, resolvedClass);
     return resolvedClass;
   };
+  const projectObject = (
+    object: NibArchiveDocument["objects"][number],
+  ): readonly [string, JsonValue] => {
+    const className =
+      runtimeClass(object.id) ?? normalizeClassName(object.class_name);
+    budget.reserveJsonStringOccurrence(className);
+    let name = className;
+    for (const [key, value] of Object.entries(object.values)) {
+      if (!/(?:title|label|identifier|accessibility|name|contents)/iu.test(key))
+        continue;
+      const resolved = dereference(value);
+      if (typeof resolved !== "string") continue;
+      name = resolved;
+      break;
+    }
+    budget.reserveJsonStringOccurrence(name);
+    const nibValues = Object.fromEntries(
+      Object.entries(projectedValues.get(object.id) ?? {}).map(
+        ([key, value]) => {
+          budget.reserveJsonPropertyNameOccurrence(key);
+          return [key, dereference(value) ?? null];
+        },
+      ),
+    );
+    // Normalize only recognized scalar fields at the format owner. A keyed
+    // archive's authored nibValues dictionary must not gain this meaning.
+    const resourceFields = appleResourceKeyFields(nibValues);
+    for (const [field, value] of resourceFields) {
+      budget.reserveJsonPropertyNameOccurrence(field);
+      budget.reserveJsonStringOccurrence(value);
+    }
+    return [
+      String(object.id),
+      {
+        customClass: className,
+        label: name,
+        objectID: String(object.id),
+        nibValues,
+        ...(projectedRepeatedValues.has(object.id)
+          ? { nibRepeatedValues: projectedRepeatedValues.get(object.id)! }
+          : {}),
+        ...(className === normalizeClassName(object.class_name)
+          ? {}
+          : {
+              interface_builder_archived_class_name: normalizeClassName(
+                object.class_name,
+              ),
+            }),
+        ...Object.fromEntries(resourceFields),
+      },
+    ];
+  };
   const objects = Object.fromEntries(
     archive.objects
       .filter((object) => {
@@ -764,60 +829,7 @@ const projectNibArchive = (
           ) && !isUIKitRuntimeConnectionClass(name)
         );
       })
-      .map((object) => {
-        const className =
-          runtimeClass(object.id) ?? normalizeClassName(object.class_name);
-        budget.reserveJsonStringOccurrence(className);
-        let name = className;
-        for (const [key, value] of Object.entries(object.values)) {
-          if (
-            !/(?:title|label|identifier|accessibility|name|contents)/iu.test(
-              key,
-            )
-          )
-            continue;
-          const resolved = dereference(value);
-          if (typeof resolved !== "string") continue;
-          name = resolved;
-          break;
-        }
-        budget.reserveJsonStringOccurrence(name);
-        const nibValues = Object.fromEntries(
-          Object.entries(projectedValues.get(object.id) ?? {}).map(
-            ([key, value]) => {
-              budget.reserveJsonPropertyNameOccurrence(key);
-              return [key, dereference(value) ?? null];
-            },
-          ),
-        );
-        // Normalize only recognized scalar fields at the format owner. A keyed
-        // archive's authored nibValues dictionary must not gain this meaning.
-        const resourceFields = appleResourceKeyFields(nibValues);
-        for (const [field, value] of resourceFields) {
-          budget.reserveJsonPropertyNameOccurrence(field);
-          budget.reserveJsonStringOccurrence(value);
-        }
-        return [
-          String(object.id),
-          {
-            customClass: className,
-            label: name,
-            objectID: String(object.id),
-            nibValues,
-            ...(projectedRepeatedValues.has(object.id)
-              ? { nibRepeatedValues: projectedRepeatedValues.get(object.id)! }
-              : {}),
-            ...(className === normalizeClassName(object.class_name)
-              ? {}
-              : {
-                  interface_builder_archived_class_name: normalizeClassName(
-                    object.class_name,
-                  ),
-                }),
-            ...Object.fromEntries(resourceFields),
-          },
-        ];
-      }),
+      .map(projectObject),
   );
   const connections: Record<string, JsonValue[]> = {};
   const hierarchy: NibHierarchyNode[] = [];
@@ -903,6 +915,21 @@ const projectNibArchive = (
       });
     }
   }
+  // Retain only string sources whose shared lazy interpretation failed.
+  // Reuse the ordinary projection and graph admission for their raw bytes.
+  for (const id of unavailableStringIds) {
+    const object = byId.get(id);
+    if (object !== undefined) {
+      const [key, value] = projectObject(object);
+      objects[key] = value;
+    }
+  }
+  if (unavailableStringIds.size > 0)
+    unexaminedSources.push({
+      reason: "nib_string_utf8_unavailable",
+      facets: ["objects", "connections", "classes"],
+      description: `NSString NS.bytes is not valid UTF-8 for ${unavailableStringIds.size} source objects; their bytes and object IDs are retained, while dependent class names, titles and selectors remain unknown.`,
+    });
   let hierarchyOmitted = 0;
   let hierarchyNodeCount = 0;
   const hierarchyFor = (

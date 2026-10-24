@@ -479,6 +479,57 @@ describe("Imported class symbol byte identities", () => {
   );
 });
 
+describe("Imported library byte identities", () => {
+  it.each(["invalid bytes", "literal replacement character"] as const)(
+    "keeps Swift and Objective-C library identity distinct for %s",
+    (nameKind) => {
+      const bytes = swiftExternalSwiftBindingImage("objc-class");
+      const nameAt = 32 + 232 + 48 + 24;
+      bytes.fill(0, nameAt, nameAt + 32);
+      const name =
+        nameKind === "invalid bytes"
+          ? Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x80])
+          : Buffer.from("/lib�");
+      name.copy(bytes, nameAt);
+      const result = decodeAppleDispatchMetadata(
+        bytes,
+        100,
+        provenance,
+        "arm64",
+        ["0x100000b00"],
+      );
+      expect(result.swift_conformances).toMatchObject([
+        {
+          protocol_name: "Equatable",
+          type_binding:
+            nameKind === "invalid bytes"
+              ? null
+              : { symbol: "_OBJC_CLASS_$_NSObject", library: "/lib�" },
+          decode: { status: "partial" },
+        },
+      ]);
+      expect(result.objc_class_import_bindings).toEqual(
+        nameKind === "invalid bytes"
+          ? []
+          : [expect.objectContaining({ library: "/lib�" })],
+      );
+      expect(result.objc_class_import_binding_coverage).toMatchObject({
+        status: nameKind === "invalid bytes" ? "partial" : "complete",
+      });
+      expect(
+        result.coverage.find(({ facet }) => facet === "pointer_fixups"),
+      ).toMatchObject({
+        status: nameKind === "invalid bytes" ? "partial" : "complete",
+      });
+      expect(result.objc_classes[0]?.name).toBe("Fixture");
+      if (nameKind === "invalid bytes")
+        expect(result.objc_class_import_binding_coverage?.reason).toContain(
+          "install-name bytes",
+        );
+    },
+  );
+});
+
 describe("Swift imported protocol references", () => {
   it("preserves bind identity without reading VM address zero and marks coverage partial", () => {
     const result = decodeAppleDispatchMetadata(

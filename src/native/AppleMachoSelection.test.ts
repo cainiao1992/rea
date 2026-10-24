@@ -274,4 +274,34 @@ describe("native Mach-O fixup load command boundaries", () => {
     // machoImage includes zero padding after sizeofcmds; it is outside this command.
     expect(() => decode(unterminated)).toThrow(/Unterminated dylib/u);
   });
+
+  it("preserves distinct opaque install-name bytes and literal Unicode names", () => {
+    const commands = [0x80, 0x81].map((byte) => {
+      const command = Buffer.from(dylibCommand(LC.LOAD_DYLIB, "/lib?"));
+      command[28] = byte;
+      return command;
+    });
+    commands.push(
+      Buffer.from(dylibCommand(LC.LOAD_DYLIB, "/lib�")),
+      Buffer.from(dylibCommand(LC.LOAD_DYLIB, "\ufeff/libé")),
+    );
+    const layout = parseMachoLayout(
+      Buffer.from(machoImage({ commands })),
+      "arm64",
+    );
+    expect(layout.fixups.dylibs).toEqual([
+      {
+        bytes_base64: Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x80]).toString(
+          "base64",
+        ),
+      },
+      {
+        bytes_base64: Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x81]).toString(
+          "base64",
+        ),
+      },
+      "/lib�",
+      "\ufeff/libé",
+    ]);
+  });
 });

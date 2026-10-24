@@ -155,6 +155,120 @@ const SEGMENTS: Segment[] = [
 ];
 
 it.each([1, 2, 3] as const)(
+  "preserves opaque chained library identity and readable siblings for import format %i",
+  (format) => {
+    const data = chainedData(format);
+    const libraryBytes = Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x80]).toString(
+      "base64",
+    );
+    data.writeBigUInt64LE(
+      field(1n, 63) | field(2n, 51) | field(3n, 24),
+      0x4008,
+    );
+    data.writeBigUInt64LE(1n | field(1n, 63), 0x4010);
+    const fixups = parsePointerFixups(
+      data,
+      {
+        chained: { offset: 0, size: 180 },
+        binds: [],
+        rebases: [],
+        dylibs: [{ bytes_base64: libraryBytes }, "/library-2"],
+      },
+      SEGMENTS,
+      BASE,
+    );
+    expect(
+      fixups.decode(BASE + 0x4008n, data.readBigUInt64LE(0x4008)),
+    ).toMatchObject({
+      kind: "unsupported",
+      reason: expect.stringContaining("install-name bytes"),
+      binding: {
+        symbol: "_OBJC_CLASS_$_NSObject",
+        binding_source: "chained",
+        library_ordinal: 1,
+        library: null,
+        library_bytes_base64: libraryBytes,
+        weak: false,
+        addend: 3n,
+      },
+    });
+    expect(
+      fixups.decode(BASE + 0x4010n, data.readBigUInt64LE(0x4010)),
+    ).toMatchObject({ kind: "bind", symbol: "_free", library: "/library-2" });
+    expect(fixups.issues).toContainEqual(
+      expect.objectContaining({
+        code: "chained_pointer_decode_failed",
+        location: "0x100004008",
+      }),
+    );
+  },
+);
+
+it.each(["bind", "weak", "lazy"] as const)(
+  "retains opaque library facts for %s without changing weak lookup scope",
+  (stream) => {
+    const libraryBytes = Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x80]).toString(
+      "base64",
+    );
+    const opcodes = Buffer.from([
+      0x11,
+      0x40,
+      ...Buffer.from("_first\0"),
+      0x71,
+      0x08,
+      0x90,
+      0x12,
+      0x40,
+      ...Buffer.from("_second\0"),
+      0x90,
+      0,
+    ]);
+    const data = Buffer.alloc(0x8000);
+    opcodes.copy(data);
+    const fixups = parsePointerFixups(
+      data,
+      {
+        chained: null,
+        rebases: [],
+        binds: [{ offset: 0, size: opcodes.length, stream }],
+        dylibs: [{ bytes_base64: libraryBytes }, "/library-2"],
+      },
+      SEGMENTS,
+      BASE,
+    );
+    expect(fixups.decode(BASE + 0x4008n, 0n)).toMatchObject(
+      stream === "weak"
+        ? { kind: "bind", symbol: "_first", library: null }
+        : {
+            kind: "unsupported",
+            binding: {
+              symbol: "_first",
+              library_ordinal: 1,
+              library: null,
+              library_bytes_base64: libraryBytes,
+            },
+          },
+    );
+    expect(fixups.decode(BASE + 0x4010n, 0n)).toMatchObject({
+      kind: "bind",
+      symbol: "_second",
+      library: stream === "weak" ? null : "/library-2",
+    });
+    expect(fixups.decoded).toBe(1);
+    expect(fixups.issues).toEqual(
+      stream === "weak"
+        ? []
+        : [
+            expect.objectContaining({
+              code: "bind_library_text_unavailable",
+              location: "0x100004008",
+            }),
+          ],
+    );
+  },
+);
+
+it.each([1, 2, 3] as const)(
   "preserves non-UTF-8 chained symbol bytes without inventing class identity for import format %i",
   (format) => {
     const data = chainedData(format);

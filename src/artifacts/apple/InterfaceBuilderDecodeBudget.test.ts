@@ -195,6 +195,17 @@ it("retains explicit date uncertainty for an overlapping binary plist object", a
   bytes.writeDoubleBE(0.0005, date.offset + 1);
   bytes[date.offset + 2] = 0x40;
   writeBinaryPlistObjectOffset(bytes, table, dataObjectId, date.offset + 2);
+  expect(readBinaryPlistObjectOffset(bytes, table, dataObjectId)).toBe(
+    date.offset + 2,
+  );
+  expect(
+    preflightPropertyListDecode(bytes, 1024 * 1024, undefined, {
+      numberProjection: true,
+    }),
+  ).toMatchObject({
+    datePrecisionOverlapCount: 1,
+    reachableDateOffsets: [date.offset],
+  });
   await writeFile(join(bundle, "Panel.nib"), bytes);
 
   const result = await analyzeInterfaceBuilderBundle({
@@ -211,8 +222,11 @@ it("retains explicit date uncertainty for an overlapping binary plist object", a
   expect(
     result.graph.nodes.find(
       ({ attributes }) => attributes.interface_builder_object_id === "button",
-    )?.attributes.date,
-  ).toEqual({ $plist_type: "date", iso8601: null });
+    )?.attributes,
+  ).toMatchObject({
+    date: { $plist_type: "date", iso8601: null },
+    data: { $plist_type: "data", base64: "" },
+  });
   expect(result.limitations).toContainEqual(
     expect.stringContaining(
       "Panel.nib: 1 date value(s) are reported with unknown timestamps because their sub-millisecond source records overlap",

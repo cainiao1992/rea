@@ -1,6 +1,7 @@
 import type { Segment } from "./AppleMachoSelection.js";
 import { issue } from "./AppleDispatchDecodeFacts.js";
 import type { DecodeIssue } from "./AppleDispatchDecodeFacts.js";
+import { decodeMachoName, type MachoName } from "./AppleMachoNames.js";
 
 /** Where a Mach-O stores pointer fixups, from its load commands. */
 export interface FixupCommands {
@@ -17,8 +18,8 @@ export interface FixupCommands {
     readonly size: number;
     readonly stream: "bind" | "weak" | "lazy";
   }[];
-  /** Install names of dependent dylibs, in library-ordinal order. */
-  readonly dylibs: readonly string[];
+  /** Lossless install names of dependent dylibs, in library-ordinal order. */
+  readonly dylibs: readonly MachoName[];
 }
 
 /** One decoded pointer: a rebase to an in-image address or a bind to a symbol. */
@@ -38,8 +39,8 @@ export type DecodedPointer =
   | {
       readonly kind: "unsupported";
       readonly reason: string;
-      /** Source bind facts survive when its byte name has no lossless text projection. */
-      readonly binding?: Import & { readonly symbol: null };
+      /** Source bind facts survive when a byte name has no lossless text projection. */
+      readonly binding?: Import;
     };
 
 /** Pointer-slot outcome, including whether a rebase was actually applied. */
@@ -65,7 +66,7 @@ export interface PointerFixups {
   readonly examined: number;
   /** Chained segments without observed decode failures, plus structurally parsed
    * legacy opcode streams, in the same units as `examined`. Legacy location
-   * coverage survives unavailable symbol text, which is qualified by `issues`.
+   * coverage survives unavailable name text, which is qualified by `issues`.
    */
   readonly decoded: number;
   /** Declared legacy opcode streams examined by this owner. */
@@ -99,13 +100,17 @@ type SymbolName =
   | { readonly symbol: string }
   | { readonly symbol: null; readonly symbol_bytes_base64: string };
 
-type Import = SymbolName & {
-  readonly binding_source: "chained" | "bind" | "weak" | "lazy";
-  readonly library_ordinal: number;
-  readonly library: string | null;
-  readonly weak: boolean;
-  readonly addend: bigint;
-};
+type LibraryName =
+  | { readonly library: string | null; readonly library_bytes_base64?: never }
+  | { readonly library: null; readonly library_bytes_base64: string };
+
+type Import = SymbolName &
+  LibraryName & {
+    readonly binding_source: "chained" | "bind" | "weak" | "lazy";
+    readonly library_ordinal: number;
+    readonly weak: boolean;
+    readonly addend: bigint;
+  };
 
 interface BindRun {
   readonly start: bigint;
@@ -125,15 +130,15 @@ interface BindFacts {
   readonly issues: readonly DecodeIssue[];
   readonly examined: number;
   readonly decoded: number;
-  /** All opcode locations are known, independently of symbol text availability. */
+  /** All opcode locations are known, independently of name text availability. */
   readonly complete: boolean;
 }
 
 /** Resolve only valid dylib ordinals; preserve special scopes as raw ordinals. */
-const libraryName = (
+const libraryFacts = (
   ordinal: number,
-  dylibs: readonly string[],
-): string | null => {
+  dylibs: FixupCommands["dylibs"],
+): LibraryName => {
   if (!Number.isSafeInteger(ordinal) || ordinal < -3)
     throw new RangeError(`Unsupported dylib ordinal ${String(ordinal)}`);
   if (ordinal > 0) {
@@ -142,22 +147,19 @@ const libraryName = (
       throw new RangeError(
         `Dylib ordinal ${ordinal} exceeds the ${dylibs.length} declared dependencies`,
       );
-    return name;
+    return typeof name === "string"
+      ? { library: name }
+      : { library: null, library_bytes_base64: name.bytes_base64 };
   }
-  return null;
+  return { library: null };
 };
 
 /** dyld names are NUL-terminated bytes; text projection must never replace their identity. */
 const symbolName = (bytes: Buffer): SymbolName => {
-  try {
-    return {
-      symbol: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-        bytes,
-      ),
-    };
-  } catch {
-    return { symbol: null, symbol_bytes_base64: bytes.toString("base64") };
-  }
+  const name = decodeMachoName(bytes);
+  return typeof name === "string"
+    ? { symbol: name }
+    : { symbol: null, symbol_bytes_base64: name.bytes_base64 };
 };
 
 const cString = (bytes: Buffer, offset: number, end: number): SymbolName => {
@@ -171,11 +173,13 @@ const resolvedBind = (
   imported: Import,
   addend: bigint,
 ): Exclude<DecodedPointer, { readonly kind: "rebase" }> =>
-  imported.symbol === null
+  imported.symbol === null || imported.library_bytes_base64 !== undefined
     ? {
         kind: "unsupported",
         reason:
-          "Fixup symbol bytes cannot be represented losslessly as UTF-8 text",
+          imported.symbol === null
+            ? "Fixup symbol bytes cannot be represented losslessly as UTF-8 text"
+            : "Dylib install-name bytes cannot be represented losslessly as UTF-8 text",
         binding: { ...imported, addend: imported.addend + addend },
       }
     : { kind: "bind", ...imported, addend: imported.addend + addend };
@@ -188,6 +192,7 @@ const sameImport = (left: Import, right: Import): boolean =>
   left.binding_source === right.binding_source &&
   left.library_ordinal === right.library_ordinal &&
   left.library === right.library &&
+  left.library_bytes_base64 === right.library_bytes_base64 &&
   left.weak === right.weak &&
   left.addend === right.addend;
 
@@ -196,7 +201,7 @@ const readImport = (
     readonly bytes: Buffer;
     readonly base: number;
     readonly end: number;
-    readonly dylibs: readonly string[];
+    readonly dylibs: FixupCommands["dylibs"];
   },
   header: {
     readonly offset: number;
@@ -231,7 +236,7 @@ const readImport = (
       ),
       binding_source: "chained",
       library_ordinal: ordinal,
-      library: libraryName(ordinal, dylibs),
+      ...libraryFacts(ordinal, dylibs),
       weak: bits(word, 16, 1) === 1n,
       addend: bytes.readBigInt64LE(at + 8),
     };
@@ -244,7 +249,7 @@ const readImport = (
     ...cString(bytes, base + header.symbols + (word >>> 9), end),
     binding_source: "chained",
     library_ordinal: ordinal,
-    library: libraryName(ordinal, dylibs),
+    ...libraryFacts(ordinal, dylibs),
     weak: ((word >>> 8) & 1) === 1,
     addend: header.format === 2 ? BigInt(bytes.readInt32LE(at + 4)) : 0n,
   };
@@ -296,7 +301,7 @@ export const decodeChainedPointer = (
 interface FixupImage {
   readonly bytes: Buffer;
   readonly segments: readonly Segment[];
-  readonly dylibs: readonly string[];
+  readonly dylibs: FixupCommands["dylibs"];
   readonly baseAddress: bigint;
 }
 
@@ -1094,13 +1099,13 @@ const readBindStream = (
     try {
       if (state.ordinalFailure !== null)
         throw new RangeError(state.ordinalFailure);
-      const resolvedLibrary = libraryName(state.ordinal, image.dylibs);
+      const resolvedLibrary = libraryFacts(state.ordinal, image.dylibs);
       const decoded = resolvedBind(
         {
           ...state.symbol,
           binding_source: range.stream,
           library_ordinal: state.ordinal,
-          library: range.stream === "weak" ? null : resolvedLibrary,
+          ...(range.stream === "weak" ? { library: null } : resolvedLibrary),
           weak: state.weak,
           addend: state.addend,
         },
@@ -1228,7 +1233,9 @@ const parseLegacyBinds = (
     issues.push(
       issue(
         "pointer_fixups",
-        "bind_symbol_text_unavailable",
+        run.binding.binding.symbol === null
+          ? "bind_symbol_text_unavailable"
+          : "bind_library_text_unavailable",
         run.binding.reason,
         `0x${run.start.toString(16)}`,
       ),

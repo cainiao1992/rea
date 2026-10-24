@@ -2,6 +2,7 @@ import { MachoLoadCommandCursor } from "../domain/apple/machoLoadCommands.js";
 import { createHash } from "node:crypto";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
+import { decodeMachoName } from "./AppleMachoNames.js";
 import {
   MACHO_ARCHITECTURE_POLICIES,
   machoSubtypeRank,
@@ -293,7 +294,7 @@ interface LayoutState {
   readonly sliceEnd: number;
   readonly segments: Segment[];
   readonly sections: Section[];
-  readonly dylibs: string[];
+  readonly dylibs: FixupCommands["dylibs"][number][];
   readonly binds: FixupCommands["binds"][number][];
   readonly rebases: FixupCommands["rebases"][number][];
   chained: FixupCommands["chained"];
@@ -388,6 +389,8 @@ const collectFixupCommand = (
     const end = bytes.indexOf(0, cursor + nameOffset);
     if (end < 0 || end >= cursor + size)
       throw new RangeError("Unterminated dylib install name");
-    state.dylibs.push(bytes.toString("utf8", cursor + nameOffset, end));
+    state.dylibs.push(
+      decodeMachoName(bytes.subarray(cursor + nameOffset, end)),
+    );
   }
 };

@@ -290,6 +290,17 @@ embedded X.509 serial, issuer, subject, and validity fields. A missing security
 directory is observed absence of that table. See
 [PE Authenticode certificate tables](pe-certificates.md).
 
+Inspect PE import and delay-load tables without executing the image:
+
+```bash
+rea inspect-pe-imports /absolute/path/to/application.exe --json
+```
+
+The workflow reports DLL names, named and ordinal functions, delay-load
+descriptors, and a pefile-compatible import hash of the standard import table.
+A missing import directory is observed absence of that table. See
+[PE import and delay-load tables](pe-imports.md).
+
 Inspect ELF PT_NOTE and SHT_NOTE tables without executing the image:
 
 ```bash

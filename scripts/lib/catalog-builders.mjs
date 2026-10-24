@@ -261,6 +261,13 @@ export const providerCatalog = (sources) => {
         ),
     },
     {
+      identity: sources.artifactProviders.PE_IMPORTS_PROVIDER,
+      contracts:
+        sources.binaryDiagnosticsContracts.BINARY_DIAGNOSTICS_TOOL_CONTRACTS.filter(
+          ({ name }) => name === "inspect_pe_imports",
+        ),
+    },
+    {
       identity: sources.artifactProviders.ELF_NOTES_PROVIDER,
       contracts:
         sources.binaryDiagnosticsContracts.BINARY_DIAGNOSTICS_TOOL_CONTRACTS.filter(

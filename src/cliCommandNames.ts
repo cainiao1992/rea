@@ -71,6 +71,7 @@ export const CLI_COMMANDS = Object.freeze({
   inspectErlangBeam: "inspect-erlang-beam",
   inspectPeResources: "inspect-pe-resources",
   inspectPeCertificates: "inspect-pe-certificates",
+  inspectPeImports: "inspect-pe-imports",
   inspectNativeExports: "inspect-native-exports",
   inspectElfNotes: "inspect-elf-notes",
   inspectAnalysisView: "inspect-analysis-view",

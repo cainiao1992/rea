@@ -61,8 +61,29 @@ const optionalHeaderMagic = (
   return reader.u16(offset);
 };
 
+/** Declared PE fields retained by their parsing owner for format consumers. */
+export type PeImageSection = Extract<
+  ImageSection,
+  { readonly format: "pe" }
+> & {
+  readonly raw_offset: number;
+};
+
+export type PeImage = BinaryContainer & {
+  readonly format: "pe";
+  readonly image_base: bigint;
+  readonly pe_machine: number;
+  readonly pe_section_alignment: number;
+  readonly pe_file_alignment: number;
+  readonly pe_header_mapping: FileMapping;
+  readonly pe_data_directories: NonNullable<
+    BinaryContainer["pe_data_directories"]
+  >;
+  readonly sections: readonly PeImageSection[];
+};
+
 /** Read PE32/PE32+ native image mappings and section facts. */
-export const readPeImage = (bytes: Buffer): BinaryContainer => {
+export const readPeImage = (bytes: Buffer): PeImage => {
   const reader = new BinaryReader(bytes, true);
   const pe = peHeaderOffset(reader);
   const optional = pe + 24;
@@ -107,7 +128,7 @@ export const readPeImage = (bytes: Buffer): BinaryContainer => {
   const mappings: FileMapping[] = [];
   const executableMappings: FileMapping[] = [];
   const zeroFills: ZeroFillMapping[] = [];
-  const sections: ImageSection[] = [];
+  const sections: PeImageSection[] = [];
   for (let index = 0; index < count; index++) {
     const entry = start + index * 40;
     const {
@@ -167,6 +188,9 @@ export const readPeImage = (bytes: Buffer): BinaryContainer => {
   return {
     format: "pe",
     image_base: imageBase,
+    pe_machine: machine,
+    pe_section_alignment: reader.u32(optional + 32),
+    pe_file_alignment: fileAlignment,
     pe_data_directories: dataDirectories,
     pe_header_mapping: headerMapping,
     architecture: names.get(machine) ?? `pe-machine-${machine}`,
@@ -199,7 +223,7 @@ const peImageSection = ({
   readonly virtualSize: number;
   readonly rawSize: number;
   readonly fileAlignment: number;
-}): ImageSection => {
+}): PeImageSection => {
   const range = declaredFileRange(
     reader.bytes.length,
     BigInt(offset),
@@ -217,6 +241,7 @@ const peImageSection = ({
     virtual_address: virtualAddress,
     virtual_size: virtualSize,
     raw_size: rawSize,
+    raw_offset: offset,
     file_alignment: fileAlignment,
     characteristics,
     ...range,

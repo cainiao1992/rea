@@ -32,6 +32,7 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
   inspect_desktop_application:
     "states that directory triage performs no target execution",
   inspect_pe_certificates: "states that it does not execute the image",
+  inspect_pe_imports: "states that it does not execute the image",
   inspect_go_binary: "reads embedded metadata without executing the target",
   inspect_rust_binary:
     "reads an embedded dependency list without executing the target",

@@ -8,6 +8,8 @@ import { PeResourcesService } from "../application/binaryDiagnostics/PeResources
 import { PeResourcesProvider } from "../native/pe/PeResourcesProvider.js";
 import { PeCertificatesService } from "../application/binaryDiagnostics/PeCertificatesService.js";
 import { PeCertificatesProvider } from "../native/pe/PeCertificatesProvider.js";
+import { PeImportsService } from "../application/binaryDiagnostics/PeImportsService.js";
+import { PeImportsProvider } from "../native/pe/PeImportsProvider.js";
 import { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import { ElfNotesProvider } from "../native/elf/ElfNotesProvider.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
@@ -23,6 +25,10 @@ export const createPeResourcesService = (): PeResourcesService =>
 /** Portable Authenticode table inspection with no engine or catalog verification. */
 export const createPeCertificatesService = (): PeCertificatesService =>
   new PeCertificatesService(new PeCertificatesProvider());
+
+/** Portable PE import-table inspection with no engine or catalog verification. */
+export const createPeImportsService = (): PeImportsService =>
+  new PeImportsService(new PeImportsProvider());
 
 /** Portable PE/ELF export tables with no engine, toolchain or target acquisition. */
 export const createNativeExportsService = (): NativeExportsService =>

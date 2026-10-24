@@ -33,6 +33,13 @@ export const PE_CERTIFICATES_PROVIDER = Object.freeze({
   version: "1",
 } as const);
 
+/** Provider identity for portable, execution-free PE import-table decoding. */
+export const PE_IMPORTS_PROVIDER = Object.freeze({
+  id: "rea-pe-imports",
+  name: "REA PE import parser",
+  version: "1",
+} as const);
+
 /** Provider identity for portable, execution-free ELF note-table decoding. */
 export const ELF_NOTES_PROVIDER = Object.freeze({
   id: "rea-elf-notes",

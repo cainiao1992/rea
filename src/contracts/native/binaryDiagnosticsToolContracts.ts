@@ -33,6 +33,10 @@ import {
   peCertificatesSchema,
 } from "../../domain/native/peCertificates.js";
 import {
+  inspectPeImportsInputSchema,
+  peImportsSchema,
+} from "../../domain/native/peImports.js";
+import {
   inspectElfNotesInputSchema,
   elfNotesSchema,
 } from "../../domain/native/elfNotes.js";
@@ -105,6 +109,21 @@ export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
     examples: [
       {
         title: "Inspect PE Authenticode certificate identities",
+        input: { path: "/artifacts/application.exe" },
+      },
+    ],
+  },
+  {
+    name: "inspect_pe_imports",
+    ...toolContractMetadata("inspect_pe_imports"),
+    kind: "native-provider",
+    description:
+      "Inspect one explicit local PE32/PE32+ image's IMAGE_DIRECTORY_ENTRY_IMPORT and delay-load tables without executing it or opening a disassembler. Returns DLL names, named and ordinal functions, ILT/IAT RVAs, delay-load descriptors, and the pefile import hash of the standard import table, withheld with a reason when that table is partial or pefile would hash a different row sequence. A missing import directory is observed absence of that table, not proof the image never imported APIs through another table or overlay. Bound snapshots, loaded IAT contents and export-forward resolution remain unobserved. Reads a stable regular file; malformed PE headers and exhausted DLL or function budgets return no partial success. Unreadable names or thunks and descriptors missing a required table are reported as partial coverage with issues. Portable on supported Node hosts; no Windows SDK or engine installation required.",
+    inputSchema: inspectPeImportsInputSchema,
+    outputSchema: evidenceResultOf(peImportsSchema),
+    examples: [
+      {
+        title: "Inspect PE import and delay-load identities",
         input: { path: "/artifacts/application.exe" },
       },
     ],

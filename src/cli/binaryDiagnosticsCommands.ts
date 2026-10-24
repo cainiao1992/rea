@@ -7,6 +7,7 @@ import {
   createElfNotesService,
   createPeResourcesService,
   createPeCertificatesService,
+  createPeImportsService,
   createNativeExportsService,
 } from "../composition/binaryDiagnostics.js";
 import { CLI_COMMANDS } from "../cliCommandNames.js";
@@ -18,6 +19,7 @@ import { inspectBinaryLayoutInputSchema } from "../domain/native/binaryLayout.js
 import { inspectRecordedCrashInputSchema } from "../domain/native/recordedCrash.js";
 import { inspectPeResourcesInputSchema } from "../domain/native/peResources.js";
 import { inspectPeCertificatesInputSchema } from "../domain/native/peCertificates.js";
+import { inspectPeImportsInputSchema } from "../domain/native/peImports.js";
 import { inspectNativeExportsInputSchema } from "../domain/native/nativeExports.js";
 import { inspectElfNotesInputSchema } from "../domain/native/elfNotes.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
@@ -138,6 +140,41 @@ export const registerBinaryDiagnosticsCommands = (
               pe,
               "rea-pe-certificates",
               "inspect_pe_certificates",
+              signal,
+            ),
+        );
+      }),
+  });
+  cli.command(CLI_COMMANDS.inspectPeImports, {
+    description:
+      "Inspect PE import and delay-load table identities without executing the image",
+    args: z.object({ path: z.string().describe("Local PE32/PE32+ image") }),
+    options: z.object({
+      maxFileBytes: inspectPeImportsInputSchema.shape.max_file_bytes,
+      maxDlls: inspectPeImportsInputSchema.shape.max_dlls,
+      maxFunctions: inspectPeImportsInputSchema.shape.max_functions,
+    }),
+    run: ({ args, options }) =>
+      withCommandCancellation(async (signal) => {
+        const pe = createPeImportsService();
+        return await logCliCommand(
+          logger,
+          CLI_COMMANDS.inspectPeImports,
+          async () =>
+            finishAnalysisCommand(
+              () =>
+                pe.inspect(
+                  {
+                    path: absoluteCallerPath(args.path),
+                    max_file_bytes: options.maxFileBytes,
+                    max_dlls: options.maxDlls,
+                    max_functions: options.maxFunctions,
+                  },
+                  { signal },
+                ),
+              pe,
+              "rea-pe-imports",
+              "inspect_pe_imports",
               signal,
             ),
         );

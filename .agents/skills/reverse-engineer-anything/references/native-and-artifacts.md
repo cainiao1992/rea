@@ -112,6 +112,19 @@ not proof the image is unsigned in every catalog or overlay sense. Signatures,
 chains, timestamps, and Authenticode digest coverage remain unobserved. See
 [PE Authenticode certificate tables](https://github.com/morluto/rea/blob/main/docs/pe-certificates.md).
 
+## PE import and delay-load tables
+
+Use `inspect_pe_imports` for an explicit local PE32/PE32+ image when the
+question concerns imported DLL and function names, ordinals, delay-load
+descriptors, or the pefile import hash. No `open_binary`, Windows SDK, or
+target execution is required. The CLI equivalent is `inspect-pe-imports PATH`.
+Preserve artifact SHA-256, directory file ranges, original DLL spellings, and
+ILT/IAT RVAs. A missing `IMAGE_DIRECTORY_ENTRY_IMPORT` directory is observed
+absence of that table, not proof the image never imported APIs through another
+table or overlay. Bound snapshots, loaded IAT contents, and export-forward
+resolution remain unobserved. See
+[PE import and delay-load tables](https://github.com/morluto/rea/blob/main/docs/pe-imports.md).
+
 ## ELF note tables
 
 Use `inspect_elf_notes` for an explicit local ELF32/ELF64 image when the

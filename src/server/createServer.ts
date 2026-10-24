@@ -109,7 +109,6 @@ import type { CompactInputSchemaPresentation } from "./EvidenceMcpServer.js";
 import { isAbsolute } from "node:path";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
-import { investigationEvidenceLookup } from "../application/investigation/InvestigationEvidence.js";
 import type { BrowserObservationPort } from "../application/BrowserObservationPort.js";
 import type { BrowserScenarioCapturePort } from "../application/BrowserScenarioCapturePort.js";
 import type { ElectronActiveObservationPort } from "../application/javascript/ElectronActiveObservationPort.js";
@@ -1157,7 +1156,9 @@ const createSessionRecorders = (
   session: BinarySessionPort | undefined,
 ) => ({
   evidenceById:
-    session === undefined ? undefined : investigationEvidenceLookup(session),
+    session === undefined
+      ? undefined
+      : session.evidenceForAnalysis.bind(session),
   activeTarget:
     session === undefined ? undefined : () => session.activeTarget(),
   recordEvidence:

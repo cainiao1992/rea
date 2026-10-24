@@ -11,7 +11,6 @@ import { currentMcpRequestSignal } from "./EvidenceMcpServerCore.js";
 import { parseArtifactInventoryEvidence } from "../domain/artifactInventoryEvidence.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
 import type { Evidence } from "../domain/evidence.js";
-import { investigationEvidenceBundle } from "../application/investigation/InvestigationEvidence.js";
 
 const documentListSchema = z.array(z.string().min(1));
 const procedureInventorySchema = z.array(
@@ -172,7 +171,7 @@ const evidenceCandidates = (
 ): readonly string[] => {
   if (session === undefined) return [];
   const candidates: string[] = [];
-  for (const evidence of investigationEvidenceBundle(session).records)
+  for (const evidence of session.immutableEvidenceBundle().records)
     candidates.push(...evidenceValues(kind, evidence));
   return candidates;
 };

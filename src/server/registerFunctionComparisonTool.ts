@@ -17,7 +17,6 @@ import { runAdmittedToolOperation } from "./admittedToolOperation.js";
 
 import { compareFunctions } from "../domain/functionComparison.js";
 import { uniqueSorted } from "../domain/canonicalOrdering.js";
-import { investigationEvidenceLookup } from "../application/investigation/InvestigationEvidence.js";
 /** Register explicit Evidence-backed function comparison. */
 export const registerFunctionComparisonTool = (
   server: EvidenceMcpServer,
@@ -37,7 +36,7 @@ export const registerFunctionComparisonTool = (
         async () => {
           const resolved = resolvePairedEvidenceRequest(
             input,
-            investigationEvidenceLookup(session),
+            session.evidenceForAnalysis.bind(session),
           );
           if (!resolved.ok)
             return server.delivery.toCallToolResult(resolved, contract);

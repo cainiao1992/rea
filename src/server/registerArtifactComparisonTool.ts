@@ -8,7 +8,6 @@ import { createEvidence } from "../domain/evidence.js";
 import { readEvidence } from "../domain/evidenceValidation.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { resolveArtifactComparisonEvidence } from "../application/artifacts/ArtifactComparisonEvidence.js";
-import { investigationEvidenceLookup } from "../application/investigation/InvestigationEvidence.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
@@ -24,7 +23,7 @@ export const registerArtifactComparisonTool = (
   contract: ReturnType<typeof toolContract<"compare_artifacts">>,
 ): void => {
   const admission = withAdmittedAnalysis({ kind: "session", session });
-  const evidenceById = investigationEvidenceLookup(session);
+  const evidenceById = session.evidenceForAnalysis.bind(session);
   server.registerTool(
     contract.name,
     toolRegistrationOptions(contract),

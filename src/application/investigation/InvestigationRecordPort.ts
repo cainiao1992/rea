@@ -16,10 +16,10 @@ import type { Result } from "../../domain/result.js";
 export interface EvidenceReader {
   hasEvidence(evidenceId: string): boolean;
   evidenceById(evidenceId: string): Evidence | undefined;
-  /** Optional immutable analysis read; older adapters can keep detached reads. */
-  evidenceForAnalysis?(evidenceId: string): Evidence | undefined;
-  /** Optional immutable bundle snapshot for read-only workflows and serialization. */
-  immutableEvidenceBundle?(): EvidenceBundle;
+  /** Borrow an immutable authenticated record for read-only application workflows. */
+  evidenceForAnalysis(evidenceId: string): Evidence | undefined;
+  /** Borrow an immutable bundle snapshot for read-only workflows and serialization. */
+  immutableEvidenceBundle(): EvidenceBundle;
   exportEvidenceBundle(): EvidenceBundle;
 }
 
@@ -77,7 +77,7 @@ export interface UnknownRegistryPort {
   >;
 }
 
-/** Compatibility record surface; binary execution and snapshots remain separate. */
+/** Investigation record surface; binary execution and snapshots remain separate. */
 export interface InvestigationRecordPort
   extends
     EvidenceReader,

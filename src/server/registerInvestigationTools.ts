@@ -1,7 +1,4 @@
-import {
-  investigationEvidenceBundle,
-  resolveInvestigationEvidenceClosure,
-} from "../application/investigation/InvestigationEvidence.js";
+import { resolveInvestigationEvidenceClosure } from "../application/investigation/InvestigationEvidence.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";
@@ -289,7 +286,7 @@ const registerReconstruction = (
         contract.name,
         context.mcpReq.signal,
         async () => {
-          const owned = investigationEvidenceBundle(session);
+          const owned = session.immutableEvidenceBundle();
           const computed = await runDerivedOperation(
             context,
             contract.name,

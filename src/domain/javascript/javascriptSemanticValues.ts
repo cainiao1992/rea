@@ -1192,16 +1192,7 @@ const provenanceForBindingInitializers = (
         : "Catch binding provenance depends on the thrown value.",
     );
   if (binding.directOrigins.length > 0)
-    return binding.kind === "import" &&
-      !binding.runtimeImport &&
-      binding.directOrigins.every(
-        ({ resolutionMode }) => resolutionMode !== "require",
-      )
-      ? semanticAmbiguousProvenance(
-          binding.directOrigins,
-          "A type-only import does not establish a runtime module value.",
-        )
-      : semanticOriginsProvenance(binding.directOrigins);
+    return semanticOriginsProvenance(binding.directOrigins);
   if (binding.initializers.length === 0) return semanticLocalProvenance();
   if (binding.initializers.length > 1)
     return semanticAmbiguousProvenance(

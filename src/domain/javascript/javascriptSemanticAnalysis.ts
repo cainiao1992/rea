@@ -80,6 +80,8 @@ import {
 } from "./javascriptSemanticAmbientWrites.js";
 import {
   hasUncertainTypeOnlyModuleSideEffect,
+  isTypeOnlyImportDeclaration,
+  isTypeOnlyImportSpecifier,
   semanticImportEqualsSpecifier,
 } from "./javascriptModuleDeclaration.js";
 import {
@@ -2038,7 +2040,10 @@ const bindImports = (
   scope: JavaScriptSemanticScopeState,
   state: JavaScriptSemanticAnalysisState,
 ): void => {
+  if (isTypeOnlyImportDeclaration(node)) return;
   for (const specifier of node.specifiers) {
+    if (t.isImportSpecifier(specifier) && isTypeOnlyImportSpecifier(specifier))
+      continue;
     const importedPath = t.isImportDefaultSpecifier(specifier)
       ? ["default"]
       : t.isImportNamespaceSpecifier(specifier)
@@ -2053,12 +2058,7 @@ const bindImports = (
       definitionNode: specifier.local,
       initializer: null,
       directOrigin: { specifier: node.source.value, importedPath },
-      runtimeImport:
-        node.importKind !== "type" &&
-        node.importKind !== "typeof" &&
-        (!t.isImportSpecifier(specifier) ||
-          (specifier.importKind !== "type" &&
-            specifier.importKind !== "typeof")),
+      runtimeImport: true,
     });
   }
 };

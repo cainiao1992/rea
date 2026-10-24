@@ -114,7 +114,9 @@ describe("Electron constant option evidence", () => {
       ]);
     },
   );
+});
 
+describe("Electron option captures and initialization", () => {
   it.each([
     ["inner.current = second;", [true, false], ["object-literal", "dynamic"]],
     [

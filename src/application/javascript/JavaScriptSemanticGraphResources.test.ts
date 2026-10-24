@@ -1,3 +1,4 @@
+import { javaScriptSemanticQueryInputSchema } from "../../domain/javascript/javascriptSemanticQuerySchemas.js";
 import { expect, it } from "vitest";
 
 import { graphForJavaScript as graphFor } from "../../../tests/fixtures/javascriptSemanticGraph.js";
@@ -287,10 +288,13 @@ it("projects literal seeds and static object flow", () => {
         kind === "property-slot" && properties.name === "token",
     ),
   ).toBeDefined();
-  const literal = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-  });
+  const literal = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: "TOKEN" },
+      direction: "forward-influence",
+    }),
+  );
   expect(literal.status).toBe("ambiguous");
   const targetName = (targetId: string): string => {
     const target = graph.nodes.find(({ node_id }) => node_id === targetId);
@@ -320,10 +324,13 @@ it("projects literal seeds and static object flow", () => {
     "token",
   ]);
   expect(literal.summary.total_seed_matches).toBe(literalTargets.length);
-  const property = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "property", name: "token" },
-    direction: "forward-influence",
-  });
+  const property = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "property", name: "token" },
+      direction: "forward-influence",
+    }),
+  );
   expect(property.status).toBe("ambiguous");
   expect(property.seed_node_ids.map(targetName).sort()).toEqual([
     "copy.token",
@@ -366,10 +373,13 @@ it("does not promote transformed return expressions to resolved aliases", () => 
   );
   if (output === undefined || input === undefined)
     throw new Error("Expected caller bindings");
-  const strict = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "semantic-node", node_id: output.node_id },
-    direction: "backward-provenance",
-  });
+  const strict = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "semantic-node", node_id: output.node_id },
+      direction: "backward-provenance",
+    }),
+  );
   expect(strict.nodes.map(({ node_id }) => node_id)).not.toContain(
     input.node_id,
   );

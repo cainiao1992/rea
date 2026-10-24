@@ -1,3 +1,4 @@
+import { javaScriptSemanticQueryInputSchema } from "../../domain/javascript/javascriptSemanticQuerySchemas.js";
 import { expect, it } from "vitest";
 
 import { graphForJavaScript } from "../../../tests/fixtures/javascriptSemanticGraph.js";
@@ -18,10 +19,13 @@ it.each([
         properties.property_path.at(-1) === "speed",
     );
     expect(accesses.length).toBeGreaterThan(0);
-    const trace = queryJavaScriptSemanticGraph(graph, {
-      seed: { kind: "property", name: "speed" },
-      direction: "forward-influence",
-    });
+    const trace = queryJavaScriptSemanticGraph(
+      graph,
+      javaScriptSemanticQueryInputSchema.parse({
+        seed: { kind: "property", name: "speed" },
+        direction: "forward-influence",
+      }),
+    );
     expect(trace.seed_node_ids).toEqual(
       accesses.map(({ node_id }) => node_id).sort(),
     );
@@ -33,10 +37,13 @@ it.each([
       expect.arrayContaining(relevant.map(({ unknown_id }) => unknown_id)),
     );
     expect(
-      queryJavaScriptSemanticGraph(graph, {
-        seed: { kind: "property", name: "absent" },
-        direction: "forward-influence",
-      }).seed_node_ids,
+      queryJavaScriptSemanticGraph(
+        graph,
+        javaScriptSemanticQueryInputSchema.parse({
+          seed: { kind: "property", name: "absent" },
+          direction: "forward-influence",
+        }),
+      ).seed_node_ids,
     ).toEqual([]);
   },
 );
@@ -45,10 +52,13 @@ it("keeps resolved property seeds on their slot without duplicating access occur
   const graph = graphForJavaScript(
     "const state = { speed: 1 }; const result = state.speed;",
   );
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "property", name: "speed" },
-    direction: "backward-provenance",
-  });
+  const trace = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "property", name: "speed" },
+      direction: "backward-provenance",
+    }),
+  );
   expect(trace.seed_node_ids).toHaveLength(1);
   expect(
     graph.nodes.find(({ node_id }) => node_id === trace.seed_node_ids[0])?.kind,
@@ -59,10 +69,13 @@ it("queries an empty event name as an exact retained event identity", () => {
   const graph = graphForJavaScript(
     'const { EventEmitter } = require("node:events"); const bus = new EventEmitter(); bus.on("", function emptyListener() {}); bus.on("data", function dataListener() {});',
   );
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "event", name: "" },
-    direction: "forward-influence",
-  });
+  const trace = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "event", name: "" },
+      direction: "forward-influence",
+    }),
+  );
   expect(trace.seed_node_ids.length).toBeGreaterThan(0);
   expect(
     trace.nodes

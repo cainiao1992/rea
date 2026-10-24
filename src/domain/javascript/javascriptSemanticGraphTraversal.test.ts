@@ -25,10 +25,7 @@ import type {
   JavaScriptSemanticGraphNode,
   JavaScriptSemanticGraphRelation,
 } from "./javascriptSemanticGraphSchemas.js";
-import {
-  queryJavaScriptSemanticGraph,
-  queryJavaScriptSemanticGraphValidated,
-} from "./javascriptSemanticQuery.js";
+import { queryJavaScriptSemanticGraph } from "./javascriptSemanticQuery.js";
 import { javaScriptSemanticQueryInputSchema } from "./javascriptSemanticQuerySchemas.js";
 import type { JsonValue } from "../jsonValue.js";
 
@@ -124,10 +121,13 @@ it("returns every relevant unknown inline", () => {
   const graph = semanticFixtureGraph(true);
   const callable = graph.nodes.find(({ kind }) => kind === "function");
   if (callable === undefined) throw new Error("Expected callable node");
-  const result = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "semantic-node", node_id: callable.node_id },
-    direction: "forward-influence",
-  });
+  const result = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "semantic-node", node_id: callable.node_id },
+      direction: "forward-influence",
+    }),
+  );
   expect(result).toMatchObject({
     summary: { relevant_unknowns: 1 },
   });
@@ -135,10 +135,13 @@ it("returns every relevant unknown inline", () => {
 });
 
 it("does not admit a semantic-node seed absent from the graph", () => {
-  const result = queryJavaScriptSemanticGraph(semanticFixtureGraph(), {
-    seed: { kind: "semantic-node", node_id: `jsrg_node_${"f".repeat(64)}` },
-    direction: "forward-influence",
-  });
+  const result = queryJavaScriptSemanticGraph(
+    semanticFixtureGraph(),
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "semantic-node", node_id: `jsrg_node_${"f".repeat(64)}` },
+      direction: "forward-influence",
+    }),
+  );
 
   expect(result).toMatchObject({
     status: "no-match",
@@ -155,7 +158,10 @@ it("returns the complete deterministic forward influence result inline", () => {
     direction: "forward-influence" as const,
     expected: { role: "sink" as const, classes: ["request" as const] },
   };
-  const first = queryJavaScriptSemanticGraph(graph, input);
+  const first = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse(input),
+  );
   expect(first).toMatchObject({
     status: "found",
     summary: { traversed_nodes: 4, traversed_relations: 3 },
@@ -167,10 +173,13 @@ it("returns the complete deterministic forward influence result inline", () => {
 
 it("returns only the referenced evidence contexts with resolvable trace facts", () => {
   const graph = semanticFixtureGraph();
-  const result = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-  });
+  const result = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: "TOKEN" },
+      direction: "forward-influence",
+    }),
+  );
   const expectedContextIds = [
     ...new Set([
       ...result.nodes.map(({ evidence }) => evidence.context_id),
@@ -228,10 +237,13 @@ it("traverses paths beyond the former fixed depth ceiling", () => {
     },
   });
 
-  const result = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-  });
+  const result = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: "TOKEN" },
+      direction: "forward-influence",
+    }),
+  );
 
   expect(result.summary.traversed_nodes).toBe(74);
   expect(result.nodes).toHaveLength(74);
@@ -253,10 +265,13 @@ it("accepts deeply nested semantic properties", () => {
 });
 
 it("keeps relevant dynamic frontiers unknown", () => {
-  const result = queryJavaScriptSemanticGraph(semanticFixtureGraph(true), {
-    seed: { kind: "literal", value: "TOKEN" },
-    direction: "forward-influence",
-  });
+  const result = queryJavaScriptSemanticGraph(
+    semanticFixtureGraph(true),
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: "TOKEN" },
+      direction: "forward-influence",
+    }),
+  );
   expect(result.status).toBe("found");
   expect(result.coverage.status).toBe("partial");
   expect(result.unknowns).toMatchObject([
@@ -271,14 +286,17 @@ it("excludes candidate edges unless the caller explicitly opts in", () => {
     direction: "forward-influence" as const,
     allowed_relations: ["supplies-request-field" as const],
   };
-  const conservative = queryJavaScriptSemanticGraphValidated(
+  const conservative = queryJavaScriptSemanticGraph(
     graph,
     javaScriptSemanticQueryInputSchema.parse(input),
   );
-  const optedIn = queryJavaScriptSemanticGraph(graph, {
-    ...input,
-    include_ambiguous_dynamic_edges: true,
-  });
+  const optedIn = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      ...input,
+      include_ambiguous_dynamic_edges: true,
+    }),
+  );
   expect(conservative.summary.traversed_relations).toBe(0);
   expect(optedIn.summary.traversed_relations).toBe(1);
   expect(conservative.status).toBe("ambiguous");
@@ -289,9 +307,9 @@ it("excludes candidate edges unless the caller explicitly opts in", () => {
   ]);
 });
 
-it("rejects an empty relation selection at the raw query boundary", () => {
+it("rejects an empty relation selection at the query schema boundary", () => {
   expect(() =>
-    queryJavaScriptSemanticGraph(graphWithCandidateEdge(), {
+    javaScriptSemanticQueryInputSchema.parse({
       seed: { kind: "literal", value: "TOKEN" },
       direction: "forward-influence",
       allowed_relations: [],
@@ -456,10 +474,10 @@ it.each([
     const nodes = [seed, reached, other];
     const control = queryJavaScriptSemanticGraph(
       directionalGraph(nodes, [resolved], evidenceContexts),
-      {
+      javaScriptSemanticQueryInputSchema.parse({
         seed: { kind: "semantic-node", node_id: seed.node_id },
         direction,
-      },
+      }),
     );
     expect(control).toMatchObject({
       status: "found",
@@ -468,11 +486,11 @@ it.each([
     for (const include of [false, true]) {
       const result = queryJavaScriptSemanticGraph(
         directionalGraph(nodes, [resolved, candidate], evidenceContexts),
-        {
+        javaScriptSemanticQueryInputSchema.parse({
           seed: { kind: "semantic-node", node_id: seed.node_id },
           direction,
           include_ambiguous_dynamic_edges: include,
-        },
+        }),
       );
       expect(result).toMatchObject({
         status: relevant ? "ambiguous" : "found",
@@ -510,11 +528,11 @@ it("excludes explicitly filtered candidates without hiding partial graph coverag
   for (const partial of [false, true]) {
     const result = queryJavaScriptSemanticGraph(
       directionalGraph([seed, other], [candidate], evidenceContexts, partial),
-      {
+      javaScriptSemanticQueryInputSchema.parse({
         seed: { kind: "semantic-node", node_id: seed.node_id },
         direction: "forward-influence",
         allowed_relations: ["calls"],
-      },
+      }),
     );
     expect(result).toMatchObject({
       status: "found",
@@ -545,11 +563,11 @@ it("keeps candidate uncertainty at the end of a long reachable path", () => {
   for (const include of [false, true]) {
     const result = queryJavaScriptSemanticGraph(
       directionalGraph(chain, relations, evidenceContexts),
-      {
+      javaScriptSemanticQueryInputSchema.parse({
         seed: { kind: "semantic-node", node_id: seed.node_id },
         direction: "forward-influence",
         include_ambiguous_dynamic_edges: include,
-      },
+      }),
     );
     expect(result).toMatchObject({
       status: "ambiguous",

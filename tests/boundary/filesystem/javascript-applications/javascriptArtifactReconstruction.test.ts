@@ -50,8 +50,9 @@ import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domai
 import {
   createJavaScriptSemanticGraph,
   isValidatedImmutableJavaScriptSemanticGraph,
+  javaScriptSemanticGraphSchema,
+  type JavaScriptSemanticGraph,
 } from "../../../../src/domain/javascript/javascriptSemanticGraph.js";
-import { parseJavaScriptSemanticGraph } from "../../../../src/domain/javascript/javascriptSemanticGraphSerialization.js";
 import { writeJavaScriptArtifactFixture } from "../../../fixtures/javascriptArtifactApplication.js";
 import { writeFixtureFiles } from "../../../support/javascriptApplicationFixture.js";
 
@@ -625,7 +626,7 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
         .find(({ file }) => file.path === "exports.mjs")
         ?.semantic?.ir.callables.map(({ name }) => name),
     ).toContain("unexported");
-    expect(parseJavaScriptSemanticGraph(semantic)).toEqual(semantic);
+    expect(javaScriptSemanticGraphSchema.parse(semantic)).toEqual(semantic);
     const transferred = createJavaScriptSemanticGraphProjection();
     const wireRoot = await createTestTempDirectory("rea-javascript-transfer-");
     const decodedModules = new Map<string, JavaScriptModuleSemanticIr>();
@@ -810,7 +811,9 @@ it("reconstructs package, Electron roles, Webpack/Rspack modules, and cross-laye
     input_path: root,
   });
   const graph = parseJavaScriptApplicationGraph(result.graph);
-  const semanticGraph = parseJavaScriptSemanticGraph(result.semantic_graph);
+  const semanticGraph = javaScriptSemanticGraphSchema.parse(
+    result.semantic_graph,
+  );
 
   expect(Reflect.get(globalThis, "__rea_bundle_executed")).toBeUndefined();
   expect(result.input_path).toBe(root);
@@ -1119,7 +1122,7 @@ it("recurses into filesystem-backed ASAR containers without losing container-rel
 const assertSemanticLinks = (
   result: Awaited<ReturnType<typeof reconstructJavaScriptArtifact>>,
   graph: ReturnType<typeof parseJavaScriptApplicationGraph>,
-  semanticGraph: ReturnType<typeof parseJavaScriptSemanticGraph>,
+  semanticGraph: JavaScriptSemanticGraph,
 ) => {
   expect(semanticGraph.application_graph_id).toBe(graph.graph_id);
   const { graph_id: _semanticGraphId, ...semanticGraphInput } = semanticGraph;

@@ -1,3 +1,4 @@
+import { javaScriptSemanticQueryInputSchema } from "../../domain/javascript/javascriptSemanticQuerySchemas.js";
 import { expect, it } from "vitest";
 import { graphForJavaScript } from "../../../tests/fixtures/javascriptSemanticGraph.js";
 import { queryJavaScriptSemanticGraph } from "../../domain/javascript/javascriptSemanticQuery.js";
@@ -17,11 +18,14 @@ it.each([
     const state = { speed: 6 };
     export function update() { ${body} }
   `);
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: 0.001 },
-    direction: "forward-influence",
-    include_ambiguous_dynamic_edges: true,
-  });
+  const trace = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: 0.001 },
+      direction: "forward-influence",
+      include_ambiguous_dynamic_edges: true,
+    }),
+  );
   expect(trace.nodes.map((node) => node.label)).toContain(reached);
   expect(trace.nodes.map((node) => node.label)).toContain("return");
   expect(
@@ -37,11 +41,14 @@ it("does not attribute deferred callback reads to an enclosing assignment", () =
     let callback;
     callback = () => accel;
   `);
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: 0.001 },
-    direction: "forward-influence",
-    include_ambiguous_dynamic_edges: true,
-  });
+  const trace = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: 0.001 },
+      direction: "forward-influence",
+      include_ambiguous_dynamic_edges: true,
+    }),
+  );
   expect(
     graph.relations.filter(
       (edge) => edge.properties.assignment_operator !== undefined,
@@ -88,10 +95,13 @@ it("reaches a property write by default and keeps uncertain later reads opt-in",
   const graph = graphForJavaScript(
     "const accel = 0.001; const state = {speed: 6}; function update() { state.speed += accel; return state.speed; }",
   );
-  const trace = queryJavaScriptSemanticGraph(graph, {
-    seed: { kind: "literal", value: 0.001 },
-    direction: "forward-influence",
-  });
+  const trace = queryJavaScriptSemanticGraph(
+    graph,
+    javaScriptSemanticQueryInputSchema.parse({
+      seed: { kind: "literal", value: 0.001 },
+      direction: "forward-influence",
+    }),
+  );
   expect(
     trace.nodes.some(
       (node) => node.kind === "property-slot" && node.label === "speed",
@@ -128,11 +138,14 @@ it.each([
         nodes.get(edge.target_node_id)?.label === "speed",
     );
     expect(assignment).toBeDefined();
-    const trace = queryJavaScriptSemanticGraph(graph, {
-      seed: { kind: "literal", value: 0.001 },
-      direction: "forward-influence",
-      include_ambiguous_dynamic_edges: true,
-    });
+    const trace = queryJavaScriptSemanticGraph(
+      graph,
+      javaScriptSemanticQueryInputSchema.parse({
+        seed: { kind: "literal", value: 0.001 },
+        direction: "forward-influence",
+        include_ambiguous_dynamic_edges: true,
+      }),
+    );
     expect(trace.nodes.map((node) => node.label)).toContain("return");
   },
 );

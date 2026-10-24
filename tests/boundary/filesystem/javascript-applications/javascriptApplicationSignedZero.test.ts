@@ -1,3 +1,4 @@
+import { javaScriptSemanticQueryInputSchema } from "../../../../src/domain/javascript/javascriptSemanticQuerySchemas.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -43,11 +44,14 @@ it.each([
           );
     if (node === undefined)
       throw new Error("Expected the selected semantic node");
-    const query = queryJavaScriptSemanticGraph(analysis.semantic_graph, {
-      seed: { kind: "semantic-node", node_id: node.node_id },
-      direction: "backward-provenance",
-      allowed_relations: ["defines"],
-    });
+    const query = queryJavaScriptSemanticGraph(
+      analysis.semantic_graph,
+      javaScriptSemanticQueryInputSchema.parse({
+        seed: { kind: "semantic-node", node_id: node.node_id },
+        direction: "backward-provenance",
+        allowed_relations: ["defines"],
+      }),
+    );
     const transportedQuery = javaScriptSemanticQueryResultSchema.parse(
       JSON.parse(JSON.stringify(query)),
     );

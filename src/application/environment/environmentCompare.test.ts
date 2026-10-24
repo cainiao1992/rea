@@ -36,7 +36,7 @@ import {
   parameterScopes,
 } from "./environmentCompareMatch.js";
 import type { EnvironmentManifestTool } from "./environmentSource.js";
-import { isCut, probeRequests } from "./environmentCompareProbe.js";
+import { probeRequests } from "./environmentCompareProbe.js";
 import { parseCaptureEvidence } from "./environmentSource.js";
 
 const fixture = environmentStateServeFixture(timedCaptureEvidence(BOOK_ROWS));
@@ -408,12 +408,6 @@ describe("what the comparison translates and learns", () => {
       compareExtra([["POST", "/api/tags/search", [{ id: 102 }], 200]])
         .ids_mapped,
     ).toBe(0);
-  });
-
-  it("compares a large binary body only by status, as it does large text", () => {
-    expect(isCut({ kind: "base64", encoded: "AAAA", whole: false })).toBe(true);
-    expect(isCut({ kind: "base64", encoded: "AAAA", whole: true })).toBe(false);
-    expect(isCut({ kind: "cut", text: "a" })).toBe(true);
   });
 
   it("translates mapped ids in query values except those that page a list", () => {

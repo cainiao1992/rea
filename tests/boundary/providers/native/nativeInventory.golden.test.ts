@@ -663,7 +663,9 @@ Load command 1
     );
     expect(parsed.commands[0]?.fields.name).toBe(`${installName} (offset 24)`);
     expect(parsed.dependencies).toEqual([]);
-    expect(parsed.uuid).toBe("01234567-89AB-CDEF-0123-456789ABCDEF");
+    expect(parsed.commands[1]?.fields.uuid).toBe(
+      "01234567-89AB-CDEF-0123-456789ABCDEF",
+    );
   },
 );
 it.each(["weak-def", "absolute", "literal suffix"])(

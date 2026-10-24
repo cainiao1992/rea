@@ -50,15 +50,6 @@ import {
   type ArtifactInventoryOptions,
 } from "./types.js";
 
-export const scanCanonicalArtifactInventory = async (
-  path: string,
-  options: ArtifactInventoryOptions,
-  readerFactory: typeof createReader = createReader,
-): Promise<ArtifactInventorySnapshot> =>
-  options.resourceScope.run(() =>
-    scanCanonicalArtifactInventoryInScope(path, options, readerFactory),
-  );
-
 export const scanCanonicalArtifactInventoryInScope = async (
   path: string,
   options: ArtifactInventoryOptions,

@@ -4,9 +4,9 @@ import { ArtifactReaderFailure } from "../../src/artifacts/ArtifactReader.js";
 import { classifyAndHashRoot as classifyAndHashRootOwned } from "../../src/artifacts/inventory/classify.js";
 import {
   inventoryArtifact as inventoryArtifactOwned,
-  scanArtifactInventory as scanArtifactInventoryOwned,
+  scanArtifactInventoryInScope,
 } from "../../src/artifacts/inventory/ArtifactInventory.js";
-import { scanCanonicalArtifactInventory as scanCanonicalArtifactInventoryOwned } from "../../src/artifacts/inventory/scanCanonical.js";
+import { scanCanonicalArtifactInventoryInScope } from "../../src/artifacts/inventory/scanCanonical.js";
 import type { createReader } from "../../src/artifacts/inventory/reader.js";
 import {
   materializeArtifactInventory as materializeArtifactInventoryOwned,
@@ -43,7 +43,9 @@ export const scanArtifactInventory = (
   options: InventoryOptions = {},
 ) =>
   withArtifactResourceScope((resourceScope) =>
-    scanArtifactInventoryOwned(path, { ...options, resourceScope }),
+    resourceScope.run(() =>
+      scanArtifactInventoryInScope(path, { ...options, resourceScope }),
+    ),
   );
 
 export const scanCanonicalArtifactInventory = (
@@ -52,10 +54,12 @@ export const scanCanonicalArtifactInventory = (
   readerFactory?: typeof createReader,
 ) =>
   withArtifactResourceScope((resourceScope) =>
-    scanCanonicalArtifactInventoryOwned(
-      path,
-      { ...options, resourceScope },
-      readerFactory,
+    resourceScope.run(() =>
+      scanCanonicalArtifactInventoryInScope(
+        path,
+        { ...options, resourceScope },
+        readerFactory,
+      ),
     ),
   );
 

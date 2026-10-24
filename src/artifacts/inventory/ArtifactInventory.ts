@@ -14,18 +14,11 @@ export const inventoryArtifact = async (
   inputPath: string,
   options: ArtifactInventoryOptions,
 ): Promise<ArtifactInventoryResult> => {
-  const snapshot = await scanArtifactInventory(inputPath, options);
-  return artifactInventoryResultSchema.parse(snapshot);
-};
-
-/** Scan an artifact once and retain the complete immutable graph for projection. */
-export const scanArtifactInventory = async (
-  inputPath: string,
-  options: ArtifactInventoryOptions,
-): Promise<ArtifactInventorySnapshot> =>
-  options.resourceScope.run(() =>
+  const snapshot = await options.resourceScope.run(() =>
     scanArtifactInventoryInScope(inputPath, options),
   );
+  return artifactInventoryResultSchema.parse(snapshot);
+};
 
 export const scanArtifactInventoryInScope = async (
   inputPath: string,

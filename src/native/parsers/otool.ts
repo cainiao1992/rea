@@ -45,7 +45,6 @@ interface ParsedLoadCommands {
     sdk: string | null;
     tools: Array<{ name: string; version: string }>;
   }>;
-  uuid: string | null;
   readonly flags: Set<string>;
   readonly omittedDependencyCommands: string[];
 }
@@ -158,7 +157,6 @@ export const parseOtoolLoadCommands = (raw: string) => {
     endian: header.cpuType === null ? null : cpuEndian(header.cpuType),
     fileType: header.fileType,
     flags: [...state.flags].sort(),
-    uuid: state.uuid,
     commands: state.commands,
     segments: state.segments,
     dependencies: state.dependencies,
@@ -286,7 +284,6 @@ const createLoadCommandState = (
   dependencies: [],
   entrypoints: [],
   builds: [],
-  uuid: null,
   flags: new Set(headerFlags ?? []),
   omittedDependencyCommands: [],
 });
@@ -310,7 +307,6 @@ const parseLoadCommand = (block: string, state: ParsedLoadCommands): void => {
     kind,
     fields,
   });
-  collectUuid(kind, fields, state);
   collectEntrypoint(kind, fields, state);
   collectBuild(kind, block, fields, state);
   collectDependency(kind, fields, state);
@@ -377,15 +373,6 @@ const scalarFields = (kind: string): readonly string[] => {
       "flags",
     ];
   return common;
-};
-
-const collectUuid = (
-  kind: string,
-  fields: Readonly<Record<string, string | number | null>>,
-  state: ParsedLoadCommands,
-): void => {
-  if (kind === "LC_UUID")
-    state.uuid = stringField(fields, "uuid") ?? state.uuid;
 };
 
 const collectEntrypoint = (

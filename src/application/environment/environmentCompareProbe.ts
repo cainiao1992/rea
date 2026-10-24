@@ -93,10 +93,6 @@ export const requestBody = (
     : text;
 };
 
-/** A replay body the server cut at its size limit. */
-export const isCut = (body: ReplayedBody): boolean =>
-  body.kind === "cut" || (body.kind === "base64" && !body.whole);
-
 /** The application's answer as an environment answer carries it: JSON, text, or null when it is empty; a body the probe did not record is marked. */
 const liveAnswer = (
   method: string,

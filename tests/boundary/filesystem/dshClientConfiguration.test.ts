@@ -1788,8 +1788,9 @@ describe("DeepSeek Harness runtime environment validation", () => {
         { HOPPER_LOADER_ARGS_JSON: "{" },
         command,
       ),
-    ).rejects.toMatchObject({
-      settings: [{ setting: "HOPPER_LOADER_ARGS_JSON" }],
+    ).resolves.toMatchObject({
+      status: "invalid",
+      remediation: expect.stringContaining("HOPPER_LOADER_ARGS_JSON"),
     });
     await expect(
       inspectClientConfiguration(
@@ -1797,8 +1798,8 @@ describe("DeepSeek Harness runtime environment validation", () => {
         { REA_GHIDRA_LANGUAGE_ID: "" },
         command,
       ),
-    ).rejects.toMatchObject({
-      settings: [{ setting: "REA_GHIDRA_LANGUAGE_ID" }],
+    ).resolves.toMatchObject({
+      status: "invalid",
     });
     expect(
       await inspectClientConfiguration(

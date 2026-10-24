@@ -66,14 +66,6 @@ export const clientRegistrationEnvironment = (
   validation: "fragment" | "effective" = "effective",
   platform: NodeJS.Platform = process.platform,
 ): Result<Readonly<Record<string, string>>, ConfigurationError> => {
-  if (parsed?.dialect === "dsh") {
-    const environment = dshDocument(parsed.document).environment(
-      overrides,
-      validation,
-      platform,
-    );
-    return environment.ok ? ok(environment.value.values) : environment;
-  }
   const details = clientRegistrationEnvironmentDetails(
     parsed,
     overrides,

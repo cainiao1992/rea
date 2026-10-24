@@ -1490,6 +1490,51 @@ describe("application workflow CLI and MCP capture lifetimes", () => {
 });
 
 describe("application workflow CLI export Evidence", () => {
+  it("compares primitive changes through local spread copies with CLI and stdio MCP", async () => {
+    const root = await createTestTempDirectory("rea-spread-copy-comparison-");
+    const [left, right] = await analyzeComparisonSources(root, [
+      `export default () => {
+        const o = { a: 1, b: 2 }; const box = { ...o };
+        return { type: "x", a: box.a, b: box.b };
+      };`,
+      `export default () => {
+        const o = { a: 9, b: 2 }; const box = { ...o };
+        return { type: "x", a: box.a, b: box.b };
+      };`,
+    ]);
+    const input = {
+      left,
+      right,
+      left_module_path: "parser.mjs",
+      left_export_name: "default",
+      right_module_path: "parser.mjs",
+      right_export_name: "default",
+    };
+    const expected = {
+      operation: "compare_javascript_export_shapes",
+      normalized_result: {
+        summary: { added: 0, removed: 0, changed: 1, unknown: 0 },
+        coverage: { status: "complete-within-inputs" },
+        changes: [
+          expect.objectContaining({
+            path: "/a",
+            status: "changed",
+            left: { availability: "literal", value: 1 },
+            right: { availability: "literal", value: 9 },
+          }),
+        ],
+      },
+    };
+    expect(
+      await runCliWithRequestFile(
+        root,
+        "compare-javascript-export-shapes",
+        input,
+      ),
+    ).toMatchObject(expected);
+    expect(await compareThroughStdioMcp(input)).toMatchObject(expected);
+  }, 20_000);
+
   it("preserves uncertainty after a helper can mutate an awaited return object", async () => {
     const root = await createTestTempDirectory("rea-awaited-export-shape-cli-");
     const sources = [

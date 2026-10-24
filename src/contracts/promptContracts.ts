@@ -203,7 +203,7 @@ export const PROMPT_CONTRACTS = [
       {
         tools: ["open_binary", "analyze_function", "compare_functions"],
         instruction:
-          "When code-level localization is needed, analyze corresponding functions on both targets and compare their Evidence.",
+          "When code-level localization is needed, analyze corresponding functions on both targets and compare their complete dossiers: pass each summary's parent_evidence_id as a retained-evidence reference, or request detail complete.",
       },
       {
         tools: ["compare_process_captures", "find_changed_behavior"],
@@ -297,7 +297,7 @@ export const PROMPT_CONTRACTS = [
           "analyze_function",
         ],
         instruction:
-          "Resolve crash text or addresses to function dossiers; do not infer a source location from symbol similarity alone.",
+          "Resolve crash text or addresses to function dossiers, requesting detail complete when build_call_path will consume them; do not infer a source location from symbol similarity alone.",
       },
       {
         tools: ["xrefs", "procedure_callers", "build_call_path"],

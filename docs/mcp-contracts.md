@@ -21,10 +21,23 @@ as an upstream tool's original report, and is `null` when there is none. The sam
 record is retained in the session bundle. `analysis_profile` is always present:
 a concrete profile object or `null`; either value participates in semantic
 identity. Records omitting this field are rejected. Pass the returned Evidence
-directly to a compatible comparison tool: `analyze_function` Evidence can be passed
-directly to `compare_functions`, and `inspect_artifact` Evidence to
-`compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
+directly to a compatible comparison tool: complete `analyze_function` Evidence
+can be passed directly to `compare_functions`, and `inspect_artifact` Evidence
+to `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
+
+`analyze_function` does not deliver its complete record by default. Without
+`detail`, it retains the complete dossier in the session and returns
+`inspect_analysis_view` summary Evidence whose
+`normalized_result.parent_evidence_id` names that dossier; see
+[retained analysis Evidence](#retained-application-evidence-inputs). Page the
+dossier with `inspect_analysis_view`. Tools that consume function dossiers
+reject the summary record. Give `compare_functions` the retained dossier as
+`{"kind": "retained-evidence", "evidence_id": "<parent_evidence_id>"}`; give
+`match_native_functions` the same reference inside `left_observations` or
+`right_observations`, since its `left` and `right` take `list_procedures`
+Evidence. Request `detail: "complete"` for `build_call_path`, which accepts
+only inline complete dossiers.
 
 Saved records from the pre-6.6 identity projection that omitted
 `relationship_coverage: null` from its digest remain incompatible, even when
@@ -346,11 +359,13 @@ after target content was read.
 ## Retained application Evidence inputs
 
 `analyze_javascript_application`, `inspect_binary_layout`, `inspect_artifact`,
-`inspect_wasm_artifact`, `inspect_macho`, and `decode_interface_builder`
-accept `detail`:
-`complete` (default) returns the complete analysis Evidence; `summary` records
+`inspect_wasm_artifact`, `inspect_macho`, `decode_interface_builder`, and
+`analyze_function` accept `detail`:
+`complete` returns the complete analysis Evidence; `summary` records
 that complete Evidence in the session and returns the derived
-`inspect_analysis_view` summary Evidence instead. Its
+`inspect_analysis_view` summary Evidence instead. `complete` is the default
+except for `analyze_function`, whose dossier can reach several megabytes of
+value flow and references, so it defaults to `summary`. Its
 `normalized_result.parent_evidence_id` and `evidence_links` name the retained
 analysis, so later views and application workflows read it without repeating
 analysis or moving the complete record through the response. A server without

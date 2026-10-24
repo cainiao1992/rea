@@ -333,7 +333,7 @@ it.each([
       expect(opened.isError, JSON.stringify(opened)).not.toBe(true);
       const analyzed = await client.callTool({
         name: "analyze_function",
-        arguments: { procedure: "0x1000" },
+        arguments: { procedure: "0x1000", detail: "complete" },
       });
       expect(analyzed.isError, JSON.stringify(analyzed)).not.toBe(true);
       const dossier = inlineEvidence(analyzed.structuredContent);

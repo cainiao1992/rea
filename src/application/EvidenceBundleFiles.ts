@@ -6,7 +6,6 @@ import {
   safeParseImmutableEvidenceBundle,
   safeParseEvidenceBundle,
   type EvidenceBundle,
-  type EvidenceBundleFailure,
 } from "../domain/evidenceBundle.js";
 import {
   EvidenceFileError,
@@ -42,7 +41,7 @@ export const readEvidenceBundle = (
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
-  readBundle(path, safeParseEvidenceBundle, signal, resources, operation);
+  readBundle(path, false, signal, resources, operation);
 
 /** Read an authenticated immutable snapshot for a subsequent session import. */
 export const readImmutableEvidenceBundle = (
@@ -51,19 +50,11 @@ export const readImmutableEvidenceBundle = (
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
-  readBundle(
-    path,
-    safeParseImmutableEvidenceBundle,
-    signal,
-    resources,
-    operation,
-  );
+  readBundle(path, true, signal, resources, operation);
 
 const readBundle = async (
   path: string,
-  parseBundle: (
-    input: unknown,
-  ) => Result<EvidenceBundle, EvidenceBundleFailure>,
+  immutable: boolean,
   signal?: AbortSignal,
   resources?: ArtifactResourceScope,
   operation = "import_evidence_bundle",
@@ -82,14 +73,30 @@ const readBundle = async (
         cause: signal.reason,
       }),
     );
-  const headroom = requireAuthenticationHeadroom(loaded.value, {
+  return authenticateEvidenceBundleValue(loaded.value, path, {
+    operation,
+    immutable,
+  });
+};
+
+/** Authenticate a loaded bundle once, preserving file-reader failure and process-capture semantics. */
+export const authenticateEvidenceBundleValue = (
+  value: unknown,
+  path: string,
+  options: { readonly operation: string; readonly immutable?: boolean },
+): Result<EvidenceBundle, EvidenceReadFailure> => {
+  const { operation } = options;
+  const headroom = requireAuthenticationHeadroom(value, {
     operation,
     path: absoluteCallerPath(path),
     description:
       "Insufficient heap headroom to authenticate the Evidence bundle",
   });
   if (!headroom.ok) return headroom;
-  const parsed = parseBundle(loaded.value);
+  const parsed =
+    options.immutable === true
+      ? safeParseImmutableEvidenceBundle(value)
+      : safeParseEvidenceBundle(value);
   if (!parsed.ok) {
     const failure = parsed.error;
     if (failure.kind === "single-record")

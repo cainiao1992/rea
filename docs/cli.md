@@ -339,6 +339,16 @@ rea trace /absolute/path/to/program "search" --provider ghidra --json
 a function dossier; `decompile` returns pseudocode. For assembly instructions
 alone, use `rea instructions`. A macOS `.app` bundle can be supplied directly.
 
+A complete dossier can reach several megabytes of value-flow and references.
+`rea function ... --detail summary --evidence_output /absolute/path/dossier.json` returns the
+compact summary and saves the complete dossier as an Evidence bundle, never
+overwriting an existing file. Page that bundle without reanalysis by naming it
+as an `inspect-analysis-view` source, selecting the summary's
+`normalized_result.parent_evidence_id` when the bundle holds several records:
+`{"source": {"kind": "evidence-file", "path": "/absolute/path/dossier.json", "evidence_id": "ev_…"}, "view": {"kind": "native", "facet": "pseudocode", "offset": 0, "limit": 4096}}`.
+MCP `analyze_function` defaults to the same summary and retains the complete
+dossier in the session for `inspect_analysis_view`.
+
 Run `rea --help` or a command's `--help` for arguments and output options.
 The [generated catalog](mcp-contracts.md#generated-catalog) lists all CLI commands and MCP
 tools. Provider-specific target support is described in the

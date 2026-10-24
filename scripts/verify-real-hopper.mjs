@@ -203,7 +203,7 @@ const verifyCurrentTarget = async (client, options) => {
       await client.callTool(
         {
           name: "analyze_function",
-          arguments: { procedure: firstAddress },
+          arguments: { procedure: firstAddress, detail: "complete" },
         },
         options,
       ),

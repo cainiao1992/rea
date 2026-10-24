@@ -48,7 +48,9 @@ or absence:
 - `compare_artifacts` compares inventory pages by occurrence path, content,
   metadata, and graph relations.
 - `compare_functions` compares explicit function Evidence, not fuzzy
-  whole-binary matches.
+  whole-binary matches. It rejects an `analyze_function` summary reply; pass
+  the summary's `parent_evidence_id` as a `retained-evidence` reference or
+  the complete dossier.
 - `compare_bundles` compares canonical bundle membership and unknown history.
 - `find_changed_behavior` combines existing comparisons; static differences
   remain candidates, not causal proof.

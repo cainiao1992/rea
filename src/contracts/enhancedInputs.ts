@@ -52,6 +52,7 @@ export const enhancedInputSchemas = {
   }),
   find_xrefs_to_name: z.strictObject({ name: z.string() }),
   binary_overview: z.strictObject({}),
+  // Provider input excludes delivery detail, which belongs to the MCP tool contract.
   analyze_function: nativeProcedureInputSchema,
   inspect_native_api: nativeProcedureInputSchema,
   trace_feature: traceLiteralInputSchema,

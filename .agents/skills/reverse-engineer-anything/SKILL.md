@@ -354,7 +354,13 @@ Start with the default result and use its inline Evidence and graph context.
 For a JavaScript application or ELF layout whose size is unknown or large,
 call `analyze_javascript_application` or `inspect_binary_layout` with
 `"detail": "summary"`, then inspect the retained `parent_evidence_id` with
-`inspect_analysis_view`.
+`inspect_analysis_view`. Over MCP, `analyze_function` is summary-first without
+a flag: its default reply is the summary, and the complete dossier stays
+retained under `parent_evidence_id` for facet paging. Pass that ID as a
+`retained-evidence` reference to `compare_functions`, or inside
+`match_native_functions` `left_observations`/`right_observations`; request
+`"detail": "complete"` only when the dossier must travel inline, as
+`build_call_path` requires.
 Page module identities and select the returned `node_id` before requesting an
 item; a single file path can represent several graph roles. Do not repeat an
 identical analysis or rejected call without a changed input or resolved blocker.

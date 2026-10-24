@@ -331,7 +331,7 @@ export const analyzeFixtureProcedure = async (
   const reply = await client.callTool(
     {
       name: "analyze_function",
-      arguments: { procedure: procedure.address },
+      arguments: { procedure: procedure.address, detail: "complete" },
     },
     options,
   );

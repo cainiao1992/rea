@@ -213,7 +213,10 @@ try {
     const resolved = await call("procedure_address", { procedure });
     assert.equal(resolved, procedure, "Flat address round-trip drifted");
     const info = await call("procedure_info", { procedure });
-    const dossierResult = await evidenceCall("analyze_function", { procedure });
+    const dossierResult = await evidenceCall("analyze_function", {
+      procedure,
+      detail: "complete",
+    });
     const dossier = functionDossierSchema.parse(
       dossierResult.normalized_result,
     );

@@ -275,7 +275,8 @@ describe("enhanced MCP tools", () => {
       ["analyze_swift_types", { category: "classes", pattern: "Fixture" }],
       ["find_xrefs_to_name", { name: "entry" }],
       ["binary_overview", {}],
-      ["analyze_function", { procedure: "0x1" }],
+      // This server retains no Evidence, so the complete dossier is the deliverable shape.
+      ["analyze_function", { procedure: "0x1", detail: "complete" }],
       ["inspect_native_api", { procedure: "0x1" }],
       ["trace_feature", { query: "hello" }],
       ["trace_call_path", { start: "0x1", goal: "0x2" }],

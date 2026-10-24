@@ -5,6 +5,8 @@ import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.
 import { nativeFunctionMatchingSummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
 import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
 import { analysisDetailOutputSchemaOf } from "./analysisDetail.js";
+import { nativeFunctionSummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
+import { functionDossierSchema } from "../domain/hopperValues.js";
 import { nativeInventorySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
 import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
 import { z } from "zod";
@@ -404,7 +406,10 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
       string_count: z.int().min(0),
     }),
   ),
-  analyze_function: functionDossierOutput,
+  analyze_function: analysisDetailOutputSchemaOf(
+    functionDossierSchema,
+    nativeFunctionSummaryViewResultSchema,
+  ),
   inspect_native_api: evidenceResultOf(nativeApiInspectionResultSchema),
   trace_feature: literalTraceOutput,
   trace_call_path: callPathTraceOutput,

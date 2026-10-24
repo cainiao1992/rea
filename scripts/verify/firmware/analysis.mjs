@@ -351,6 +351,7 @@ async function stageGhidra(mcpFiles) {
 
   const dossierRaw = await callTool("analyze_function", {
     procedure: "firmware_probe",
+    detail: "complete",
   });
   const dossier = parseEvidence(dossierRaw);
   assert.equal(

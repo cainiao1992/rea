@@ -71,7 +71,7 @@ it.each([
     try {
       const analyzed = await harness.mcp.callTool({
         name: "analyze_function",
-        arguments: { procedure: dossier.procedure.address },
+        arguments: { procedure: dossier.procedure.address, detail: "complete" },
       });
       expect(analyzed.isError).not.toBe(true);
       const evidence = sessionEvidence(
@@ -172,7 +172,7 @@ it("retains terminal-call qualifications across function views and snapshot repl
         name,
         arguments:
           name === "analyze_function"
-            ? { procedure: identity.address }
+            ? { procedure: identity.address, detail: "complete" }
             : { procedure: identity.address, document: "fixture" },
       };
       const reply = await harness.mcp.callTool(request);
@@ -464,7 +464,7 @@ describe("Ghidra MCP evidence parity", () => {
         (
           await mcp.callTool({
             name: "analyze_function",
-            arguments: { procedure: "fixture_main" },
+            arguments: { procedure: "fixture_main", detail: "complete" },
           })
         ).structuredContent,
       );

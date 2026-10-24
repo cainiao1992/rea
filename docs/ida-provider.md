@@ -140,7 +140,7 @@ Add the registration path to the **REA** MCP entry's environment, keeping the up
 }
 ```
 
-Use a package version that actually includes this adapter; repository main can be ahead of the npm release. After reconnecting, call:
+Use a package version that actually includes this adapter; repository main can be ahead of the npm release. After reconnecting, call the sequence below; the default `analyze_function` reply is a summary that retains the dossier, so add `"detail":"complete"` when the dossier itself must come back inline:
 
 ```json
 {"name":"open_binary","arguments":{"path":"/absolute/path/to/program","provider_id":"ida"}}

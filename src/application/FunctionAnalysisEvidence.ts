@@ -12,7 +12,11 @@ import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js"
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { completeProviderEvidence } from "./ProviderOperationExecution.js";
 
-/** Preserve the provider's observations when presenting a validated function dossier. */
+/**
+ * Preserve the provider's observations when presenting a validated function
+ * dossier. Parameters are the provider input only: adapters separate delivery
+ * options such as MCP detail before calling.
+ */
 export const executeFunctionAnalysisEvidence = async (
   analysis: AnalysisOperationPort,
   parameters: Readonly<Record<string, JsonValue>>,

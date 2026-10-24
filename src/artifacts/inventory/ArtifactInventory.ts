@@ -5,7 +5,11 @@ import {
   type ArtifactInventoryResult,
 } from "../../domain/artifactGraph.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
-import { scanCanonicalArtifactInventoryInScope } from "./scanCanonical.js";
+import {
+  scanCanonicalArtifactInventoryInScope,
+  scanCanonicalArtifactInventoryForExtractionInScope,
+  type TransferredZipInventorySource,
+} from "./scanCanonical.js";
 import type { ArtifactInventoryOptions } from "./types.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 
@@ -27,4 +31,16 @@ export const scanArtifactInventoryInScope = async (
   abortIfNeeded(options.signal);
   const path = await realpath(inputPath);
   return scanCanonicalArtifactInventoryInScope(path, options);
+};
+
+export const scanArtifactInventoryForExtractionInScope = async (
+  inputPath: string,
+  options: ArtifactInventoryOptions,
+): Promise<{
+  readonly snapshot: ArtifactInventorySnapshot;
+  readonly zipSource: TransferredZipInventorySource | undefined;
+}> => {
+  abortIfNeeded(options.signal);
+  const path = await realpath(inputPath);
+  return scanCanonicalArtifactInventoryForExtractionInScope(path, options);
 };

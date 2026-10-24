@@ -198,7 +198,7 @@ export class ArtifactReaderFailure extends Error {
   readonly cancellation: { readonly reason: unknown } | undefined;
   readonly cleanup: AnalysisCleanupObservation | undefined;
   readonly cleanupLeases: readonly AnalysisCleanupLease[] | undefined;
-  readonly partialObservation: AnalysisPartialObservation | undefined;
+  partialObservation: AnalysisPartialObservation | undefined;
   /** The constrained bound for a `limit` reason, when the reader knows it. */
   readonly boundary: ArtifactLimitBoundary | undefined;
   /** Named admission for a limit whose public recovery is owned by the producer. */
@@ -229,6 +229,12 @@ export class ArtifactReaderFailure extends Error {
     this.partialObservation = options?.partialObservation;
     this.boundary = options?.boundary;
     this.admission = options?.admission;
+  }
+
+  /** Retain completed facts when a later artifact step fails. */
+  retainPartialObservation(observation: AnalysisPartialObservation): this {
+    this.partialObservation ??= observation;
+    return this;
   }
 
   /** Preserve the primary failure and observation. Supplied leases must cover all merged cleanup. */

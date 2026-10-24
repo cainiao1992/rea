@@ -406,6 +406,11 @@ owned cleanup seams while preserving real cleanup where feasible. Check server
 settlement and retained resources even if the MCP SDK rejects the client promise
 before the handler finishes. A cancellation during active execution does not
 cover cancellation during final cleanup.
+For ZIP extraction, replace the pathname after inventory reader close while the
+admitted root descriptor remains owned. Verify that identical member bytes in a
+different carrier, a directory, or a missing pathname cannot switch the
+materialized source. Exercise descriptor close failure and retry before output
+publication.
 Use explicit abort reasons and assert their identity at admission and after
 provider completion, alongside retained observations and cleanup state.
 

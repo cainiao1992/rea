@@ -6,6 +6,7 @@ import { AsarArtifactReader } from "../AsarArtifactReader.js";
 import { lstat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type { RootInventorySource } from "./classify.js";
+import { isZipPackageFormat } from "../../domain/zipPackageFormat.js";
 
 import {
   ArtifactReaderFailure,
@@ -50,11 +51,36 @@ import {
   type ArtifactInventoryOptions,
 } from "./types.js";
 
+export interface TransferredZipInventorySource {
+  readonly source: RootInventorySource;
+  readonly owner: ArtifactResourceOwner;
+}
+
 export const scanCanonicalArtifactInventoryInScope = async (
   path: string,
   options: ArtifactInventoryOptions,
   readerFactory: typeof createReader = createReader,
-): Promise<ArtifactInventorySnapshot> => {
+): Promise<ArtifactInventorySnapshot> =>
+  (await scanCanonical(path, options, readerFactory, "release")).snapshot;
+
+/** Keep the admitted ZIP descriptor alive for extraction of this inventory. */
+export const scanCanonicalArtifactInventoryForExtractionInScope = async (
+  path: string,
+  options: ArtifactInventoryOptions,
+): Promise<{
+  readonly snapshot: ArtifactInventorySnapshot;
+  readonly zipSource: TransferredZipInventorySource | undefined;
+}> => scanCanonical(path, options, createReader, "transfer-zip");
+
+const scanCanonical = async (
+  path: string,
+  options: ArtifactInventoryOptions,
+  readerFactory: typeof createReader,
+  rootDisposition: "release" | "transfer-zip",
+): Promise<{
+  readonly snapshot: ArtifactInventorySnapshot;
+  readonly zipSource: TransferredZipInventorySource | undefined;
+}> => {
   const integrity = options.integrity ?? STRICT_INTEGRITY_POLICY;
   const metadata = await lstat(path);
   const {
@@ -189,16 +215,23 @@ export const scanCanonicalArtifactInventoryInScope = async (
       };
     }
   }
-  const cleanupFailure = await cleanupInventoryOwners({
+  const cleanup = await cleanupInventoryOwners({
     path,
     options,
     rootSource,
     ownedReaders,
     outcome,
+    rootDisposition:
+      rootDisposition === "transfer-zip" &&
+      outcome.kind === "completed" &&
+      rootSource !== undefined &&
+      isZipPackageFormat(rootFormat)
+        ? "transfer"
+        : "release",
   });
-  if (cleanupFailure !== undefined) throw cleanupFailure;
+  if (cleanup.failure !== undefined) throw cleanup.failure;
   if (outcome.kind === "failed") throw outcome.cause;
-  return outcome.snapshot;
+  return { snapshot: outcome.snapshot, zipSource: cleanup.transferred };
 };
 
 type InventoryScanOutcome =
@@ -214,28 +247,35 @@ const cleanupInventoryOwners = async ({
   rootSource,
   ownedReaders,
   outcome,
+  rootDisposition,
 }: {
   readonly path: string;
   readonly options: ArtifactInventoryOptions;
   readonly rootSource: RootInventorySource | undefined;
   readonly ownedReaders: readonly ArtifactReader[];
   readonly outcome: InventoryScanOutcome;
-}): Promise<ArtifactReaderFailure | undefined> => {
+  readonly rootDisposition: "release" | "transfer";
+}): Promise<{
+  readonly failure: ArtifactReaderFailure | undefined;
+  readonly transferred: TransferredZipInventorySource | undefined;
+}> => {
   let cleanupFailure: ArtifactReaderFailure | undefined;
-  const owners: ArtifactResourceOwner[] = [...ownedReaders]
+  const readerOwners: ArtifactResourceOwner[] = [...ownedReaders]
     .reverse()
     .map((reader) => ({
       kind: "reader" as const,
       reader,
       resource: `artifact reader for ${path}`,
     }));
-  if (rootSource !== undefined)
-    owners.push({
-      kind: "file-handle",
-      handle: rootSource.owner,
-      resource: `root artifact descriptor for ${path}`,
-    });
-  for (const owner of owners) {
+  const rootOwner: ArtifactResourceOwner | undefined =
+    rootSource === undefined
+      ? undefined
+      : {
+          kind: "file-handle",
+          handle: rootSource.owner,
+          resource: `root artifact descriptor for ${path}`,
+        };
+  for (const owner of readerOwners) {
     const attempt = await options.resourceScope.release(owner);
     if (attempt.kind === "released") continue;
     cleanupFailure = options.resourceScope.cleanupFailure(
@@ -248,7 +288,30 @@ const cleanupInventoryOwners = async ({
         : undefined,
     );
   }
-  return cleanupFailure;
+  if (
+    rootDisposition === "transfer" &&
+    cleanupFailure === undefined &&
+    rootSource !== undefined &&
+    rootOwner !== undefined
+  )
+    return {
+      failure: undefined,
+      transferred: { source: rootSource, owner: rootOwner },
+    };
+  if (rootOwner !== undefined) {
+    const attempt = await options.resourceScope.release(rootOwner);
+    if (attempt.kind === "failed")
+      cleanupFailure = options.resourceScope.cleanupFailure(
+        cleanupFailure === undefined
+          ? outcome
+          : { kind: "failed", cause: cleanupFailure },
+        [attempt],
+        outcome.kind === "completed"
+          ? { kind: "artifact-inventory", inventory: outcome.snapshot }
+          : undefined,
+      );
+  }
+  return { failure: cleanupFailure, transferred: undefined };
 };
 
 interface SnapshotBuildInput {

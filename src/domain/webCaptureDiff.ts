@@ -168,6 +168,12 @@ const storageDimension = (
     before.storage,
     after.storage,
   );
+  const indexedDbVersionCovered = [before.storage, after.storage].every(
+    (storage) =>
+      storage.content_fingerprints
+        .filter(({ scope }) => scope === "indexed_db_schema")
+        .every(({ projection_version }) => projection_version === 2),
+  );
   return compareDimension(
     storageMap(
       before.storage,
@@ -181,8 +187,12 @@ const storageDimension = (
       usageComplete,
       comparableFingerprints,
     ),
-    storageComparable(before, after, keysComplete, usageComplete),
-    "Storage fingerprints, inventories, usage, or quota were unavailable or truncated in at least one observation.",
+    keysComplete &&
+      usageComplete &&
+      indexedDbVersionCovered &&
+      before.storage.fingerprints_complete &&
+      after.storage.fingerprints_complete,
+    "Storage fingerprints, inventories, usage, quota, or IndexedDB schema version coverage were unavailable or truncated in at least one observation.",
     keysComplete,
   );
 };
@@ -1159,17 +1169,6 @@ const accessibilityProjection = (
 const storageKeysComparable = (inspection: WebPageInspection): boolean =>
   sectionsComplete(inspection, ["storage_keys"]);
 
-const storageComparable = (
-  before: WebPageInspection,
-  after: WebPageInspection,
-  keysComplete: boolean,
-  usageComplete: boolean,
-): boolean =>
-  keysComplete &&
-  usageComplete &&
-  before.storage.fingerprints_complete &&
-  after.storage.fingerprints_complete;
-
 const storageMap = (
   storage: WebPageInspection["storage"],
   includeKeys: boolean,
@@ -1219,23 +1218,41 @@ const storageFingerprintIdentities = (
 ): ReadonlySet<string> => {
   const beforeComplete = completeStorageFingerprints(before);
   const afterComplete = completeStorageFingerprints(after);
-  if (before.fingerprints_complete && after.fingerprints_complete)
-    return new Set([...beforeComplete.keys(), ...afterComplete.keys()]);
+  const bothComplete =
+    before.fingerprints_complete && after.fingerprints_complete;
+  const candidates = bothComplete
+    ? new Set([...beforeComplete.keys(), ...afterComplete.keys()])
+    : new Set(
+        [...beforeComplete.keys()].filter((identity) =>
+          afterComplete.has(identity),
+        ),
+      );
   return new Set(
-    [...beforeComplete.keys()].filter((identity) =>
-      afterComplete.has(identity),
-    ),
+    [...candidates].filter((identity) => {
+      const beforeSchema = beforeComplete.get(identity);
+      const afterSchema = afterComplete.get(identity);
+      if ((beforeSchema ?? afterSchema)?.scope !== "indexed_db_schema")
+        return true;
+      return (
+        beforeSchema === undefined ||
+        afterSchema === undefined ||
+        beforeSchema.projection_version === afterSchema.projection_version
+      );
+    }),
   );
 };
 
 const completeStorageFingerprints = (
   storage: WebPageInspection["storage"],
-): ReadonlyMap<string, string | null> =>
+): ReadonlyMap<
+  string,
+  WebPageInspection["storage"]["content_fingerprints"][number]
+> =>
   new Map(
     storage.content_fingerprints
       .filter(({ complete }) => complete)
-      .map(({ scope, identity_sha256, value_sha256 }) => [
-        `${scope}:${identity_sha256}`,
-        value_sha256,
+      .map((fingerprint) => [
+        `${fingerprint.scope}:${fingerprint.identity_sha256}`,
+        fingerprint,
       ]),
   );

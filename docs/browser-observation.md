@@ -94,6 +94,14 @@ content. Actual JSON properties with those names remain content. Reference-only
 objects, unsupported values, and opaque cookie partition identities remain
 incomplete. Previously exported fingerprints are not recomputed; recapture both
 sides when comparing captures produced across this decoder change.
+IndexedDB schema fingerprints with `projection_version: 2` include the observed
+database version and object-store definitions. A missing, malformed, or imprecise
+version leaves the schema fingerprint incomplete while retaining observed store
+facts. Historical fingerprints without this marker covered object stores only:
+matching historical hashes cannot establish unchanged database versions, and a
+historical hash is not compared with a version-bearing hash. Recapture both
+sides for a complete IndexedDB version comparison; other proven storage changes
+remain reportable.
 
 Script comparison groups observations by reported URL and compares unordered
 content samples. Producer inventory keys include optional metadata, so a changed

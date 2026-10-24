@@ -327,6 +327,12 @@ export const webPageInspectionSchema = z.object({
             .string()
             .regex(/^[a-f0-9]{64}$/u)
             .nullable(),
+          projection_version: z
+            .literal(2)
+            .optional()
+            .describe(
+              "IndexedDB schema projection including database version; absent on historical store-only fingerprints.",
+            ),
           complete: z.boolean(),
         }),
       )

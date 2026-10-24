@@ -190,11 +190,28 @@ const addIndexedDb = async (
     const stores = recordsValue(database.objectStores);
     if (stores.length !== database.objectStores.length)
       run.state.complete = false;
+    const version =
+      typeof database.version === "number" &&
+      Number.isSafeInteger(database.version) &&
+      database.version >= 0
+        ? database.version
+        : undefined;
+    if (version === undefined) {
+      const limitation =
+        "An IndexedDB schema fingerprint is incomplete because its database version is unavailable, invalid, or outside exact integer precision.";
+      if (!run.limitations.includes(limitation))
+        run.limitations.push(limitation);
+    }
     addFingerprint(run.state, {
       scope: "indexed_db_schema",
       identity: databaseName,
-      value: stores.map(indexedDbStoreSchema),
+      value: {
+        version: version ?? null,
+        object_stores: stores.map(indexedDbStoreSchema),
+      },
+      projectionVersion: 2,
       complete:
+        version !== undefined &&
         stores.length === database.objectStores.length &&
         indexedDbSchemaComplete(stores),
     });
@@ -427,12 +444,16 @@ const addFingerprint = (
     readonly identity: unknown;
     readonly value: unknown;
     readonly complete: boolean;
+    readonly projectionVersion?: 2;
   },
 ): void => {
   state.items.push({
     scope: input.scope,
     identity_sha256: digest(input.identity),
     value_sha256: input.value === undefined ? null : digest(input.value),
+    ...(input.projectionVersion === undefined
+      ? {}
+      : { projection_version: input.projectionVersion }),
     complete:
       input.complete &&
       stableValueComplete(input.identity) &&

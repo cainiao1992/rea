@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import type { JsonValue } from "../jsonValue.js";
-import {
-  offsetDateTimeSchema,
-  parseOffsetDateTimeInstant,
-} from "../offsetDateTime.js";
+import { readRecordedDateTime } from "../offsetDateTime.js";
 
 /** How a recorded clock value is spelled: ISO-8601 with its separator, fraction digits and zone, or an epoch number. */
 export type ClockFormat =
@@ -28,8 +25,6 @@ export const compareClockInstants = (
   right: Pick<ClockReading, "ms" | "subMillisecond">,
 ): number => left.ms - right.ms || left.subMillisecond - right.subMillisecond;
 
-const ISO_INSTANT =
-  /^\d{4}-\d{2}-\d{2}([T ])\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$/u;
 const MINUTE_MS = 60_000;
 
 /** Minutes east of UTC that a zone suffix names; none and `Z` are UTC. */
@@ -57,30 +52,23 @@ const zoneMinutesForFormat = (zone: string): number => {
 
 /** The instant of an ISO-8601 date-time and how it is spelled, or undefined when it is not one. */
 const readIsoClock = (value: string): ClockReading | undefined => {
-  const match = ISO_INSTANT.exec(value);
-  if (match === null) return undefined;
-  const [, separator, fraction = "", zone = ""] = match;
-  // Clock spelling also permits a space, compact offsets and implicit UTC.
-  // Normalize those spellings before the shared owner validates the calendar.
-  const offset =
-    zone === ""
-      ? "Z"
-      : zone === "Z" || zone.includes(":")
-        ? zone
-        : `${zone.slice(0, 3)}:${zone.slice(3)}`;
-  const timestamp = offsetDateTimeSchema.safeParse(
-    `${value.slice(0, 10)}T${value.slice(11, 19)}${fraction === "" ? "" : `.${fraction}`}${offset}`,
-  );
-  if (!timestamp.success) return undefined;
-  const instant = parseOffsetDateTimeInstant(timestamp.data);
+  const reading = readRecordedDateTime(value);
+  if (
+    reading === undefined ||
+    !reading.spelling.secondsPresent ||
+    reading.spelling.fractionDigits > 9
+  )
+    return undefined;
+  const { instant, spelling } = reading;
   return {
-    ms: instant.epochSecond * 1000 + Number(`${fraction}000`.slice(0, 3)),
-    subMillisecond: Number(fraction.padEnd(9, "0").slice(3)),
+    ms:
+      instant.epochSecond * 1000 + Number(`${instant.fraction}000`.slice(0, 3)),
+    subMillisecond: Number(instant.fraction.padEnd(9, "0").slice(3)),
     format: {
       kind: "iso",
-      separator: separator as "T" | " ",
-      fraction: fraction.length,
-      zone,
+      separator: spelling.separator,
+      fraction: spelling.fractionDigits,
+      zone: spelling.zone,
     },
   };
 };

@@ -15,8 +15,7 @@ import type { JsonValue } from "../../domain/jsonValue.js";
 import {
   compareOffsetDateTimeInstants,
   offsetDateTimeInstantFromEpochMilliseconds,
-  offsetDateTimeSchema,
-  parseOffsetDateTimeInstant,
+  readRecordedDateTime,
   type OffsetDateTimeInstant,
 } from "../../domain/offsetDateTime.js";
 import type { WebNetworkCaptureRecord } from "../../domain/webNetworkCapture.js";
@@ -58,10 +57,16 @@ const startedInstant = (
 ): OffsetDateTimeInstant | undefined => {
   const started = startedSchema.safeParse(record.reported);
   if (!started.success) return undefined;
-  const timestamp = offsetDateTimeSchema.safeParse(
-    started.data.startedDateTime,
-  );
-  if (timestamp.success) return parseOffsetDateTimeInstant(timestamp.data);
+  const reading = readRecordedDateTime(started.data.startedDateTime);
+  if (reading !== undefined) {
+    const { spelling } = reading;
+    const offsetTimestamp =
+      spelling.separator === "T" &&
+      (spelling.zone === "Z" || spelling.zone.includes(":"));
+    const clockTimestamp =
+      spelling.secondsPresent && spelling.fractionDigits <= 9;
+    if (offsetTimestamp || clockTimestamp) return reading.instant;
+  }
   // Preserve native-Date admission for legacy spellings, at its original precision.
   const ms = Date.parse(started.data.startedDateTime);
   return Number.isFinite(ms)
@@ -153,16 +158,16 @@ export const probeRequests = (
   const origin = probeOrigin(lines);
   for (const record of ordered) {
     const line = lines.get(record.ordinal);
-    const exchange = recordedExchange(record);
     const { ordinal } = record;
     if (line?.kind === "line" && line.origin !== origin)
       unobserved.push({ ordinal, reason: "other-origin" });
-    else if (line?.kind !== "line" || exchange === undefined)
+    else if (line?.kind !== "line")
       unobserved.push({
         ordinal,
         reason: line?.kind === "excluded" ? line.reason : "request-unavailable",
       });
     else {
+      const exchange = recordedExchange(record, line);
       const request = {
         method: line.method,
         path: exchange.path,

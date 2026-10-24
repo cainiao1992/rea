@@ -121,6 +121,7 @@ const registerElectronActiveCommand = (
             const input = await parseCliJsonInput(
               args.inputJson,
               "capture_electron_scenario",
+              signal,
             );
             if (!input.ok) return input.error;
             const parsed = electronActiveObservationInputSchema.safeParse(

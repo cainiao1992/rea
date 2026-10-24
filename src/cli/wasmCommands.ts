@@ -38,6 +38,7 @@ export const registerWasmCommands = (
           const input = await parseCliJsonInput(
             args.input,
             "compare_wasm_interfaces",
+            signal,
           );
           if (!input.ok) return input.error;
           const result = await compareWasmInterfaces(input.value, { signal });

@@ -41,7 +41,11 @@ export const registerBrowserScenarioCommands = (
     run: ({ args }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.captureBrowserScenario, async () => {
-          const input = await parseCliJsonInput(args.inputJson, OPERATION);
+          const input = await parseCliJsonInput(
+            args.inputJson,
+            OPERATION,
+            signal,
+          );
           if (!input.ok) return input.error;
           const scenario = browserScenarioSchema.safeParse(
             resolveCliJsonPaths(input.value, [["browser", "executable_path"]]),

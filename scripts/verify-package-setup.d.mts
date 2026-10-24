@@ -7,12 +7,12 @@ export function assertClientConfig(
   original: Uint8Array,
 ): Promise<void>;
 
-/** Return true only when stty output positively reports canonical input and echo. */
-export function terminalModesRestored(termios: unknown): boolean;
-
 /** Verify setup using the parent's explicit command owner. */
 export function verifyPackageSetup(input: {
-  readonly commands: Pick<PackageVerifierCommands, "run" | "runWithStatus">;
+  readonly commands: Pick<
+    PackageVerifierCommands,
+    "run" | "runWithStatus" | "adopt"
+  >;
   readonly cli: string;
   readonly packageRunnerCli: string;
   readonly environment: NodeJS.ProcessEnv;

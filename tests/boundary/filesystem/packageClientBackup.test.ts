@@ -2,10 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 
-import {
-  assertClientConfig,
-  terminalModesRestored,
-} from "../../../scripts/verify-package-setup.mjs";
+import { assertClientConfig } from "../../../scripts/verify-package-setup.mjs";
+import { terminalModesRestored } from "../../../scripts/lib/verify-setup-terminal.mjs";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 it("requires positive canonical-input and echo terminal mode tokens", () => {

@@ -17,6 +17,7 @@ import {
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import { err, ok } from "../domain/result.js";
 import { passiveNetworkCapture } from "../../tests/fixtures/passiveNetworkCapture.js";
+import { analyzeWebBundleFixture } from "../../tests/support/browser/analyzeWebBundleFixture.js";
 import { inspectWebPage } from "./BrowserObservationService.js";
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import { inspectWebPageInputSchema } from "../domain/browserObservation.js";
@@ -163,11 +164,9 @@ it("retains captured page Evidence when bundle analysis fails after capture", as
 });
 
 it("retains completed bundle facts as bundle Evidence after cancellation", async () => {
-  const { analyzeCapturedWebBundle } =
-    await import("../domain/webBundleAnalyzer.js");
   const { AnalysisCancelledError } =
     await import("../domain/analysisErrorCore.js");
-  const bundle = analyzeCapturedWebBundle(passiveNetworkCapture());
+  const bundle = analyzeWebBundleFixture(passiveNetworkCapture());
   const reason = { requested: "stop after completed script" };
   const failure = new AnalysisCancelledError("analyze_web_bundle", {
     cause: reason,

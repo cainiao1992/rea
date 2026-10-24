@@ -237,7 +237,11 @@ cliTest(
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-evidence-markdown-cells-");
     const path = join(root, "bundle.json");
-    const result = { text: "left|right\\tail\nnext" };
+    const result = {
+      text: "left|right\\tail\nnext",
+      type: "List<string>",
+      literal: "&copy; <br>",
+    };
     const record = createEvidence(
       undefined,
       { id: "fixture", name: "Fixture", version: "1" },
@@ -257,9 +261,13 @@ cliTest(
     const json = await cli.run({ arguments: [...base, "--json"] });
     expect(json.exitCode, json.stderr).toBe(0);
     expect(json.stdout).toContain(JSON.stringify(result.text));
+    expect(json.stdout).toContain(JSON.stringify(result.type));
+    expect(json.stdout).toContain(JSON.stringify(result.literal));
     const markdown = await cli.run({ arguments: [...base, "--format", "md"] });
     expect(markdown.exitCode, markdown.stderr).toBe(0);
     expect(markdown.stdout).toContain("left\\|right\\\\tail<br>next");
+    expect(markdown.stdout).toContain("List&lt;string&gt;");
+    expect(markdown.stdout).toContain("&amp;copy; &lt;br&gt;");
   },
 );
 

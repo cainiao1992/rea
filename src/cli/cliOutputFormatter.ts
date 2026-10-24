@@ -44,6 +44,9 @@ const isObjectArray = (value: unknown): value is Record<string, unknown>[] =>
 
 const escapeTableCell = (value: string): string =>
   value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
     .replace(/\\/g, "\\\\")
     .replace(/\|/g, "\\|")
     .replace(/\r\n|\r|\n/g, "<br>");

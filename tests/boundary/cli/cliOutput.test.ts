@@ -26,6 +26,14 @@ describe("CLI output argument boundary", () => {
     expect(JSON.parse(renderCliDocument(value, "json", false))).toEqual(value);
   });
 
+  it("preserves literal HTML and entity text in Markdown table headers and cells", () => {
+    const value = [{ "List<T>": "&copy; <br>\r\nnext" }];
+    const markdown = renderCliDocument(value, "md", false);
+    expect(markdown).toContain("List&lt;T&gt;");
+    expect(markdown).toContain("&amp;copy; &lt;br&gt;<br>next");
+    expect(JSON.parse(renderCliDocument(value, "json", false))).toEqual(value);
+  });
+
   it("rejects token windows that would corrupt structured output", () => {
     for (const format of ["json", "jsonl", "yaml"] as const) {
       const validation = parseCliOutputArguments([

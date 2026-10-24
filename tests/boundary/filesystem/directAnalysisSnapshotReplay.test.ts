@@ -46,6 +46,7 @@ import {
   CAPABILITIES as GHIDRA_CAPABILITIES,
   GHIDRA_PROVIDER_IDENTITY,
 } from "../../../src/ghidra/GhidraProviderCapabilities.js";
+import { nativeInventoryRowsSchemas } from "../../../src/domain/native/nativeInventory.js";
 import { APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE } from "../../../src/native/NativeMacOSProviderMetadata.js";
 
 const IDENTITY = {
@@ -209,7 +210,9 @@ const makeProvider = (
             list_procedures: ["0x1000"],
             list_strings: { "0x1000": "fixture" },
             analyze_function: functionDossier,
-            list_names: [{ address: "0x1000", name: "fixture" }],
+            list_names: [
+              { address: "0x1000", value: "fixture" },
+            ] satisfies z.infer<typeof nativeInventoryRowsSchemas.names>,
             search_strings: [{ address: "0x1000", value: "fixture" }],
             search_procedures: [{ address: "0x1000", value: "fixture" }],
             xrefs: [],
@@ -659,6 +662,7 @@ describe("direct analysis composed snapshot replay", () => {
         scenario.arguments,
         { snapshotPath: fixture.snapshotPath },
       );
+      expect(first).toMatchObject({ operation: scenario.tool });
       const callsAfterFirst = [...fixture.calls];
       const startsAfterFirst = [...fixture.starts];
       const loaded = await readAnalysisSnapshot(fixture.snapshotPath);

@@ -59,6 +59,7 @@ import {
   AnalysisInputError,
   AnalysisOutputError,
   AnalysisUnsupportedTargetError,
+  type AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import {
   DEFAULT_NATIVE_COMMAND_TIMEOUT_MS,
@@ -113,10 +114,13 @@ import { parseDemangledSymbols } from "./parsers/demangle.js";
 import { parseLipoCapture } from "./parsers/lipo.js";
 import {
   readPlistJson,
+  readPlistJsonSource,
   parsePlistBinary,
   parsePlistXml,
+  parsePlistXmlSource,
   type ParsedPlist,
 } from "./parsers/plist.js";
+import { XmlPlistTextDecodeError } from "../domain/propertyListXmlText.js";
 import {
   architectureLocations,
   inspectNativeMacho,
@@ -1011,7 +1015,22 @@ class NativeMacOSClient implements AnalysisClient {
             classified.value,
           );
           if (binary !== undefined) return binary;
-          return await this.#inspectConvertedPlist(fileInput, classified.value);
+          const format = await plistSourceFormat(
+            classified.value.stdout,
+            fileInput,
+          );
+          if (!format.ok) return format;
+          const source = await this.#inspectTextPlist(
+            fileInput,
+            classified.value,
+            format.value,
+          );
+          if (source !== undefined) return source;
+          return await this.#inspectConvertedPlist(
+            fileInput,
+            classified.value,
+            format.value,
+          );
         } catch (cause: unknown) {
           // Producer failures stay opaque; only scope admission failures reach the file mapper.
           return err(nativeOutputFailure("inspect_plist", cause));
@@ -1063,9 +1082,60 @@ class NativeMacOSClient implements AnalysisClient {
     );
   }
 
+  async #inspectTextPlist(
+    fileInput: NativePlistReadContext,
+    classified: NativeCommandCapture,
+    format: z.infer<typeof inspectPlistSchema>["format"],
+  ): Promise<Result<NativeObservation, AnalysisError> | undefined> {
+    const source = await readNativePlistBytes(fileInput);
+    if (!source.ok) return source;
+    let parsed: ReturnType<typeof parsePlistXmlSource>;
+    if (format === "xml") {
+      parsed = parsePlistXmlSource(source.value);
+      if (
+        !parsed.ok &&
+        parsed.error instanceof XmlPlistTextDecodeError &&
+        parsed.error.reason === "unsupported-encoding"
+      )
+        return undefined;
+    } else {
+      const json = readPlistJsonSource(source.value);
+      if (
+        json === undefined ||
+        json.rootKind === "invalid" ||
+        (json.rootKind !== "container" && format !== "json") ||
+        json.needsNumberTypes ||
+        json.nonFiniteNumberObserved
+      )
+        return undefined;
+      parsed = json.project();
+    }
+    if (!parsed.ok)
+      return parsed.error instanceof AnalysisOutputError ||
+        parsed.error instanceof XmlPlistTextDecodeError
+        ? err(
+            unreadablePlist(fileInput.selection, parsed.error.message, {
+              cause: parsed.error,
+            }),
+          )
+        : err(parsed.error);
+    return ok(
+      nativePlistObservation({
+        parsed: parsed.value,
+        format,
+        path: fileInput.selection.path,
+        resourceRoot: this.bundleResourceRoot,
+        provenance: [
+          invocation(classified, fileInput.selection.path, "$PLIST"),
+        ],
+      }),
+    );
+  }
+
   async #inspectConvertedPlist(
     fileInput: NativePlistReadContext,
     classified: NativeCommandCapture,
+    format: z.infer<typeof inspectPlistSchema>["format"],
   ): Promise<Result<NativeObservation, AnalysisError>> {
     const { path } = fileInput.selection;
     const { signal, timeoutMs } = fileInput;
@@ -1084,7 +1154,10 @@ class NativeMacOSClient implements AnalysisClient {
       ? readPlistJson(json.value.stdout)
       : undefined;
     let xml: NativeCommandCapture | undefined;
-    let parsed: Result<ParsedPlist, AnalysisOutputError>;
+    let parsed: Result<
+      ParsedPlist,
+      AnalysisOutputError | AnalysisResourceConstraintError
+    >;
     if (jsonAttempt === undefined || jsonAttempt.needsNumberTypes) {
       const converted = await this.#run(
         "inspect_plist",
@@ -1127,24 +1200,10 @@ class NativeMacOSClient implements AnalysisClient {
       json.value,
       ...(xml === undefined ? [] : [xml]),
     ].map((item) => invocation(item, path, "$PLIST"));
-    const converted = xml ?? json.value;
-    const format = await plistSourceFormat(classified.stdout, {
-      ...fileInput,
-      capturedOutput: {
-        stdout: converted.stdout,
-        stderr: converted.stderr,
-        truncated: false,
-        stdout_bytes: converted.stdoutBytes,
-        stderr_bytes: converted.stderrBytes,
-        exit_code: converted.exitCode,
-        signal: converted.signal,
-      },
-    });
-    if (!format.ok) return format;
     return ok(
       nativePlistObservation({
         parsed: parsed.value,
-        format: format.value,
+        format,
         path,
         resourceRoot: this.bundleResourceRoot,
         provenance,

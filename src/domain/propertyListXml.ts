@@ -5,6 +5,7 @@ import { readXmlPlistSource } from "./propertyListXmlSource.js";
 
 import { createPlistNumberCollector } from "./apple/plistNumbers.js";
 import { UnknownPlistScalar } from "./apple/unknownPlistScalar.js";
+import { MAX_PLIST_DEPTH } from "./apple/plistValue.js";
 import {
   decodeXmlPlistDateLiteral,
   parseXmlPlistIntegerLiteral,
@@ -12,8 +13,11 @@ import {
 } from "./propertyListXmlScalar.js";
 
 /** Own source interpretation, depth, values and numeric facts together. */
-export const decodeXmlPropertyList = (text: string) => {
-  const source = readXmlPlistSource(text);
+export const decodeXmlPropertyList = (
+  text: string,
+  maximumDepth = MAX_PLIST_DEPTH,
+) => {
+  const source = readXmlPlistSource(text, maximumDepth);
   const document = source.document;
   const root = document.documentElement;
   if (root?.nodeName !== "plist")

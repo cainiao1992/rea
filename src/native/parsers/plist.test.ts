@@ -1,16 +1,105 @@
 import { expect, it } from "vitest";
-import { buildBinary } from "plist";
+import { buildBinary, type PlistValue } from "plist";
+import { MAX_JSON_DEPTH, jsonValueSchema } from "../../domain/jsonValue.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import {
   decodeBinaryPlistScalars,
   scanBinaryPlistScalars,
+  UnsupportedBinaryPlistUidError,
 } from "../../artifacts/apple/PlistScalars.js";
 
-import { parsePlistBinary, readPlistJson, parsePlistXml } from "./plist.js";
+import {
+  parsePlistBinary,
+  readPlistJson,
+  parsePlistXml,
+  parsePlistXmlSource,
+} from "./plist.js";
 import { estimateBinaryPlistExpansion } from "../../artifacts/apple/PropertyListDecodeBudget.js";
 import {
   binaryPlistObjectTable,
   binaryPlistWithOverlappingDateAndData,
 } from "../../../tests/fixtures/binaryPlistObjectTable.js";
+
+it.each([
+  "binary data",
+  "XML data",
+  "JSON integer",
+  "JSON unsafe integer",
+] as const)(
+  "bounds ordinary %s by the projected JSON capacity, including scalar wrappers",
+  (encoding) => {
+    // One level for typed scalar fields and one for normalized_result.value.
+    const maximum = MAX_JSON_DEPTH - 2;
+    for (const depth of [maximum, maximum + 1]) {
+      let binary: PlistValue = Buffer.from([0, 1]);
+      if (encoding === "binary data")
+        for (let level = 0; level < depth; level += 1) binary = [binary];
+      const parsed =
+        encoding === "binary data"
+          ? parsePlistBinary(Buffer.from(buildBinary(binary)))
+          : encoding === "XML data"
+            ? parsePlistXml(
+                `<plist>${"<array>".repeat(depth)}<data>AAE=</data>${"</array>".repeat(depth)}</plist>`,
+              )
+            : readPlistJson(
+                "[".repeat(depth) +
+                  (encoding === "JSON unsafe integer"
+                    ? "9007199254740993"
+                    : "1") +
+                  "]".repeat(depth),
+              ).project(
+                encoding === "JSON unsafe integer"
+                  ? `<plist>${"<array>".repeat(depth)}<integer>9007199254740993</integer>${"</array>".repeat(depth)}</plist>`
+                  : undefined,
+              );
+      if (depth > maximum) {
+        expect(parsed.ok).toBe(false);
+        if (parsed.ok) throw new Error("Expected nesting refusal");
+        if (parsed.error instanceof UnsupportedBinaryPlistUidError)
+          throw parsed.error;
+        const failure = projectAnalysisError(parsed.error);
+        expect(failure).toMatchObject({
+          code: "resource_constraint",
+          retryable: false,
+          details: { reported_limits: { maximum_nesting_depth: maximum } },
+        });
+        expect(failure.remediation.action).toContain(
+          `${maximum}-level native plist nesting allowance (no runtime override)`,
+        );
+      } else {
+        if (!parsed.ok) throw parsed.error;
+        expect(() =>
+          jsonValueSchema.parse({ value: parsed.value.value }),
+        ).not.toThrow();
+        let leaf: unknown = parsed.value.value;
+        for (let level = 0; level < depth; level += 1) {
+          expect(Array.isArray(leaf)).toBe(true);
+          leaf = (leaf as unknown[])[0];
+        }
+        expect(leaf).toEqual(
+          encoding === "JSON unsafe integer"
+            ? { $plist_type: "integer", decimal: "9007199254740993" }
+            : encoding === "JSON integer"
+              ? 1
+              : { $plist_type: "data", base64: "AAE=" },
+        );
+      }
+    }
+  },
+);
+
+it.each(["<bogus/>", "<plist><data>ＡＡＥ=</data></plist>"])(
+  "keeps malformed XML conversion %s separate from nesting refusal",
+  (source) => {
+    const parsed = parsePlistXml(source);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) throw new Error("Expected malformed conversion failure");
+    expect(projectAnalysisError(parsed.error)).toMatchObject({
+      code: "unreadable_output",
+      details: { reason: "plutil XML conversion was not a readable plist" },
+    });
+  },
+);
 
 const parseWithoutMutatingSource = (bytes: Buffer) => {
   const original = Buffer.from(bytes);
@@ -20,6 +109,15 @@ const parseWithoutMutatingSource = (bytes: Buffer) => {
   expect(bytes).toEqual(original);
   return parsed.value;
 };
+
+it("keeps malformed XML source structure separate from retained unknown scalars", () => {
+  const parsed = parsePlistXmlSource(
+    Buffer.from("<plist><dict><key>missing</key></dict></plist>"),
+  );
+  expect(parsed.ok).toBe(false);
+  if (parsed.ok) throw new Error("Expected malformed source structure");
+  expect(parsed.error.message).toContain("Missing value for key");
+});
 
 const binaryPlistWithNegativeZero = (): Buffer => {
   const bytes = Buffer.from(

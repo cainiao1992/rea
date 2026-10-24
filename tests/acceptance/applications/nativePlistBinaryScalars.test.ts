@@ -171,12 +171,8 @@ describe.skipIf(process.platform !== "darwin")(
             separators: "a\u0085b\u2028c\u2029d",
             payload: { $plist_type: "data", base64: "AAEC" },
           },
-          provenance: [
-            { tool: "file" },
-            { command: expect.arrayContaining(["json"]), exit: { code: 1 } },
-            { command: expect.arrayContaining(["xml1"]), exit: { code: 0 } },
-          ],
-          limitations: [expect.stringContaining("XML conversion")],
+          provenance: [{ tool: "file" }],
+          limitations: [],
         });
         expect(await readFile(binaryPath)).toEqual(binaryBytes);
         expect(await readFile(xmlPath)).toEqual(xmlBytes);

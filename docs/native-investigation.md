@@ -453,17 +453,35 @@ markup, including UTF-8 and BOM-marked UTF-16 sources. Unidentified text and
 OpenStep plists, including a data-only value such as `<deadbeef>`, report
 `unknown` even when plutil decodes their values through an XML conversion.
 
-Binary plist inspection reads the original bytes through an owned file descriptor,
-so conversion cannot erase control characters, fractional dates, negative zero,
-or the high word of a 128-bit integer. It accepts at most 64 MiB of input and
-reserves an estimated 64 MiB decode budget before parsing; this estimate is not
-a hard process-memory bound. A refused input reports non-retryable
-`resource_constraint` with `reported_limits.maximum_input_bytes`,
-`maximum_decoded_bytes` or, for nesting deeper than 128 levels,
-`maximum_nesting_depth`. These are fixed allowances: worker limits and host
-memory do not raise them, and the unchanged request fails the same way.
-Binary-source provenance records the `file` classification without claiming a
-`plutil` conversion.
+Plist inspection reads bounded original bytes through an owned file descriptor.
+Binary and UTF-8/BOM-marked UTF-16 XML sources decode directly, retaining scalar
+facts without a mandatory `plutil` conversion. UTF-8 JSON containers also decode
+directly when their number facts need no further classification; explicitly
+identified JSON sources can have scalar roots. Unidentified primitive text keeps
+its existing conversion route, so OpenStep `123` remains a string. OpenStep,
+unsupported XML encodings such as UTF-32 and declared legacy encodings, and JSON
+numbers requiring XML type facts retain the `plutil` route. Invalid UTF-8 and
+encoding-declaration mismatches remain explicit failures. Direct-source
+provenance records `file` without claiming conversion; conversion limitations
+and invocations appear only when conversion actually ran.
+Malformed XML structure remains an input failure; malformed scalar literals
+retain their exact source text, reason and counted unknown-scalar limitation,
+using the same scalar interpretation as archive readers.
+
+Source input is limited to 64 MiB. Binary and direct XML decoding reserve an
+estimated 64 MiB decode budget before parsing; this is not a hard process-memory
+bound. JSON decode memory has not been measured and has no equivalent decode
+estimate. A refused input reports non-retryable `resource_constraint` with
+`reported_limits.maximum_input_bytes` or `maximum_decoded_bytes` as applicable.
+Ordinary direct-source inspection admits 998 source nesting levels, derived from
+the existing 1000-level JSON result capacity by reserving one level for typed
+scalar fields and one for the result's `value` field. Deeper input reports
+`resource_constraint` with `reported_limits.maximum_nesting_depth: 998` and names
+the fixed nesting allowance. Compatibility conversions can encounter an earlier
+native utility refusal; their diagnostics remain explicit. Archive and Interface
+Builder decoding retain their separate 128-level allowance. Worker limits and
+host memory do not raise these fixed allowances, and the unchanged request fails
+the same way.
 
 A plist explicitly selected through the path input or as the active plist target
 reports an unreadable or malformed selection as `invalid_request`. A missing or

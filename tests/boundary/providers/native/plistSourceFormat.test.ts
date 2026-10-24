@@ -68,6 +68,7 @@ it.for<PlistSourceCase>([
     contents: JSON.stringify(VALUE),
     expected: "json",
     xmlFallback: false,
+    expectedTools: ["file"],
   },
   ...["<deadbeef>\n", "<de ad\nbe ef>\n", "<>\n"].map((contents) => ({
     description: "ASCII text\n",
@@ -86,12 +87,16 @@ it.for<PlistSourceCase>([
     contents: `﻿ \n${XML}`,
     expected: "xml",
     xmlFallback: true,
+    expectedTools: ["file"],
+    expectedLimitations: [],
   },
   {
     description: "ASCII text\n",
     contents: `<!-- source plist -->\n${XML}`,
     expected: "xml",
     xmlFallback: true,
+    expectedTools: ["file"],
+    expectedLimitations: [],
   },
   ...[false, true].map((bigEndian) => ({
     description: `Unicode text, UTF-16, ${bigEndian ? "big" : "little"}-endian text\n`,
@@ -100,6 +105,8 @@ it.for<PlistSourceCase>([
       : Buffer.from(`\uFEFF${XML}`, "utf16le"),
     expected: "xml",
     xmlFallback: true,
+    expectedTools: ["file"],
+    expectedLimitations: [],
   })),
   { description: "ASCII text\n", expected: "unknown", xmlFallback: true },
   {
@@ -109,14 +116,20 @@ it.for<PlistSourceCase>([
   },
   {
     description: "XML 1.0 document text, ASCII text\n",
+    contents: XML,
     expected: "xml",
     xmlFallback: false,
+    expectedValue: { ...VALUE, Blob: DATA },
+    expectedTools: ["file"],
   },
   {
     description:
       "XML 1.0 document text, Unicode text, UTF-16, big-endian text\n",
+    contents: Buffer.from("\uFEFF" + XML, "utf16le").swap16(),
     expected: "xml",
     xmlFallback: true,
+    expectedTools: ["file"],
+    expectedLimitations: [],
   },
   {
     description: "Apple binary property list\n",
@@ -149,6 +162,8 @@ it.for<PlistSourceCase>([
     xmlFallback: true,
     convertedXml:
       "<plist><dict><key>nel</key><string>a\u0085b</string><key>ls</key><string>a\u2028b</string><key>ps</key><string>a\u2029b</string><key>lf</key><string>a\nb</string><key>payload</key><data>AA==</data></dict></plist>",
+    expectedTools: ["file"],
+    expectedLimitations: [],
     expectedValue: {
       nel: "a\u0085b",
       ls: "a\u2028b",

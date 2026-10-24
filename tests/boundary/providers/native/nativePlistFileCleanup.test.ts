@@ -151,11 +151,12 @@ it.for(["path-input", "target"] as const)(
       read.mockRestore();
       await release?.();
     });
-    const client = new NativeMacOSProvider(
-      {},
-      new NativeFixtureRunner({ file: "ASCII text", plutil: '"value"' }),
-      "darwin",
-    ).createClient(
+    const runner = new NativeFixtureRunner({
+      file: "ASCII text",
+      plutil: '"value"',
+    });
+    const commands = vi.spyOn(runner, "run");
+    const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
       selection === "target"
         ? { kind: "artifact", format: "plist", path, sha256: "0".repeat(64) }
         : nativeMachoTarget(join(root, "target")),
@@ -174,11 +175,9 @@ it.for(["path-input", "target"] as const)(
       operation: "inspect_plist",
     });
     expect(result.error.cleanupResources).toContain(path);
-    expect(result.error.capturedOutput?.stdout).toBe('"value"');
+    expect(result.error.capturedOutput).toBeUndefined();
     const projected = projectAnalysisError(result.error);
-    expect(JSON.stringify(projected).match(/captured_output/gu)).toHaveLength(
-      1,
-    );
+    expect(JSON.stringify(projected)).not.toContain("captured_output");
     expect(result.error.cause).toBeInstanceOf(ArtifactFileCleanupFailure);
     const failure = result.error.cause as ArtifactFileCleanupFailure;
     expect(failure.fileCleanupFailure.outcome).toEqual({
@@ -194,9 +193,8 @@ it.for(["path-input", "target"] as const)(
     expect(attempts).toBe(3);
     expect(result.error.cleanupIncomplete).toBe(false);
     expect(resolvedAnalysisError(result.error).cause).toBe(primary);
-    expect(resolvedAnalysisError(result.error).capturedOutput?.stdout).toBe(
-      '"value"',
-    );
+    expect(resolvedAnalysisError(result.error).capturedOutput).toBeUndefined();
+    expect(commands.mock.calls.map(([tool]) => tool)).toEqual(["file"]);
     if (!first.ok) expect(first.error.cleanupIncomplete).toBe(false);
   },
 );

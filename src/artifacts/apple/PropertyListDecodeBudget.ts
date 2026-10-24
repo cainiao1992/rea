@@ -155,6 +155,8 @@ const propertyListDecodeBudgetFailure = (
 
 /** How a caller names and reports binary plist expansion failures. */
 export interface BinaryPlistExpansionOptions {
+  /** Source-value depth; archive consumers retain the default 128-level allowance. */
+  readonly maximumDepth?: number;
   /** Include original number metadata and exact-integer attribute projection. */
   readonly numberProjection?: boolean;
   /** Retain typed UID locations for Foundation archive interpretation. */
@@ -247,6 +249,7 @@ export const estimateBinaryPlistExpansion = (
     bounds = "strict",
     numberProjection = false,
     uidProjection = false,
+    maximumDepth = MAX_BINARY_PLIST_NESTING_DEPTH,
   }: BinaryPlistExpansionOptions = {},
 ): PlistDecodePreflight => {
   if (bytes.length < 40)
@@ -380,7 +383,7 @@ export const estimateBinaryPlistExpansion = (
       continue;
     }
     pendingObjectCount -= 1;
-    if (entry.depth > MAX_BINARY_PLIST_NESTING_DEPTH)
+    if (entry.depth > maximumDepth)
       throw fail("depth", `binary plist nesting exceeds ${budget}`);
     if (active.has(entry.object))
       throw fail("cycle", `binary plist reference cycle exceeds ${budget}`);

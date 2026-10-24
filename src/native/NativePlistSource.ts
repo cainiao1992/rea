@@ -9,7 +9,6 @@ import type { ResolvedAppBundleResourceRoot } from "../application/AppBundleExec
 import type {
   AnalysisError,
   AnalysisErrorOptions,
-  AnalysisCapturedOutput,
 } from "../domain/analysisErrorBase.js";
 import {
   AnalysisArtifactChangedError,
@@ -138,14 +137,12 @@ interface PlistFileInput {
   readonly selection: NativePlistSelection;
   readonly resources: ArtifactResourceScope;
   readonly signal: AbortSignal | undefined;
-  readonly capturedOutput?: AnalysisCapturedOutput;
 }
 
 /** Translate only physical file outcomes, never a later signal or arbitrary abort value. */
 export const nativePlistFailure = (
   cause: unknown,
   selection: NativePlistSelection | undefined,
-  capturedOutput?: AnalysisCapturedOutput,
 ): AnalysisError => {
   if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined) {
     const physical =
@@ -154,66 +151,41 @@ export const nativePlistFailure = (
         : undefined;
     const previous =
       physical?.outcome.kind === "failed"
-        ? nativePlistPrimaryFailure(
-            artifactFilePrimaryFacts(cause),
-            selection,
-            capturedOutput,
-          )
+        ? nativePlistPrimaryFailure(artifactFilePrimaryFacts(cause), selection)
         : physical?.completionCancellation === undefined
           ? undefined
           : new AnalysisCancelledError("inspect_plist", {
               cause: physical.completionCancellation.reason,
-              capturedOutput,
             });
     const previousProjection =
       previous === undefined ? null : projectAnalysisError(previous);
-    // The top-level capture owns the output once; this snapshot keeps the primary reason.
-    const previousDetails = previousProjection?.details;
-    const { captured_output: _capture, ...reasonDetails } =
-      previousDetails ?? {};
-    const previousError =
-      previousProjection === null
-        ? null
-        : {
-            ...previousProjection,
-            ...(previousDetails === undefined
-              ? {}
-              : { details: reasonDetails }),
-          };
     const failure = new ProviderCleanupError(
       IDENTITY.id,
       cause.cleanup.resources,
       {
         reason: cause.cleanup.reason,
-        previous_error: previousError,
+        previous_error: previousProjection,
       },
       {
         operation: "inspect_plist",
         cause,
         cleanupPrimary: previous,
-        capturedOutput,
       },
     );
     bindArtifactFileCleanup(cause, failure);
     return failure;
   }
-  return nativePlistPrimaryFailure(
-    artifactFilePrimaryFacts(cause),
-    selection,
-    capturedOutput,
-  );
+  return nativePlistPrimaryFailure(artifactFilePrimaryFacts(cause), selection);
 };
 
 const nativePlistPrimaryFailure = (
   { cause, origin }: ArtifactFilePrimaryFacts,
   selection: NativePlistSelection | undefined,
-  capturedOutput: AnalysisCapturedOutput | undefined,
 ): AnalysisError => {
   if (origin === "owned-or-classified") {
     if (cause instanceof ArtifactReaderFailure && cause.reason === "cancelled")
       return new AnalysisCancelledError("inspect_plist", {
         cause: artifactFileCancellationCause(cause),
-        capturedOutput,
       });
     if (
       cause instanceof ArtifactReaderFailure &&
@@ -223,7 +195,7 @@ const nativePlistPrimaryFailure = (
         IDENTITY.id,
         "inspect_plist",
         cause.message,
-        { cause, capturedOutput },
+        { cause },
       );
     if (
       selection !== undefined &&
@@ -234,7 +206,7 @@ const nativePlistPrimaryFailure = (
         "inspect_plist",
         selection.path,
         cause.message,
-        { cause, capturedOutput },
+        { cause },
       );
     if (cause instanceof ArtifactReaderFailure && cause.reason === "limit") {
       const resource = cause.boundary ?? "memory";
@@ -246,7 +218,6 @@ const nativePlistPrimaryFailure = (
             { maximum_input_bytes: MAX_NATIVE_PLIST_BYTES },
             {
               cause,
-              capturedOutput,
               ...fixedAllowanceOptions(NATIVE_PLIST_INPUT_ALLOWANCE, "input"),
             },
           )
@@ -255,14 +226,13 @@ const nativePlistPrimaryFailure = (
             resource,
             cause.message,
             null,
-            { cause, capturedOutput, retryable: false },
+            { cause, retryable: false },
           );
     }
   }
   if (selection === undefined)
     return new ProviderAdapterError(IDENTITY.id, "inspect_plist", {
       cause,
-      capturedOutput,
       diagnostics: {
         phase: "plist-scope",
         reason: cause instanceof Error ? cause.message : String(cause),
@@ -274,12 +244,10 @@ const nativePlistPrimaryFailure = (
   if (code === "ENOENT" || code === "ENOTDIR")
     return unreadablePlist(selection, "no file exists there", {
       cause,
-      capturedOutput,
     });
   if (code === "EISDIR" || code === "ENOTFILE")
     return unreadablePlist(selection, "it is not a regular file", {
       cause,
-      capturedOutput,
     });
   if (code === "ELOOP" || code === "ENAMETOOLONG")
     return unreadablePlist(
@@ -287,17 +255,16 @@ const nativePlistPrimaryFailure = (
       code === "ELOOP"
         ? "symbolic-link traversal looped or exceeded the host limit (ELOOP)"
         : "the path exceeds the host path or component length limit (ENAMETOOLONG)",
-      { cause, capturedOutput },
+      { cause },
     );
   if (code === "EACCES" || code === "EPERM")
     return new BinaryTargetError(
       path,
       `permission denied while reading plist (${code})`,
-      { cause, capturedOutput },
+      { cause },
     );
   return new ProviderAdapterError(IDENTITY.id, "inspect_plist", {
     cause,
-    capturedOutput,
     diagnostics: {
       path,
       phase: "plist-file",
@@ -321,9 +288,7 @@ const readPlistFile = async <Value>(
       ),
     );
   } catch (cause: unknown) {
-    return err(
-      nativePlistFailure(cause, input.selection, input.capturedOutput),
-    );
+    return err(nativePlistFailure(cause, input.selection));
   }
 };
 

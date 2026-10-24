@@ -29,6 +29,7 @@ import {
   environmentManifestCaptureFixture,
   environmentStateCaptureFixture,
 } from "../../fixtures/analysisView.js";
+import { binaryLayoutFixture } from "../../fixtures/binaryDiagnostics/layout.js";
 import {
   createEvidence,
   parseEvidence,
@@ -733,6 +734,79 @@ cliTest(
         kind: "item",
         parent_evidence_id: parent.evidence_id,
         item: { name: { display: ".data" } },
+      },
+    });
+  },
+);
+
+cliTest(
+  "reports empty retained layout collections without invented index bounds",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-empty-layout-view-cli-");
+    const empty = analysisViewLayoutEvidence(binaryLayoutFixture());
+    for (const collection of ["sections", "symbols"] as const) {
+      const result = await cli.run({
+        arguments: [
+          "inspect-analysis-view",
+          JSON.stringify({
+            source: { kind: "inline", evidence: empty },
+            view: { kind: "item", collection, selector: { index: 0 } },
+          }),
+          "--json",
+        ],
+        environment: {
+          HOME: root,
+          XDG_CONFIG_HOME: root,
+          XDG_CACHE_HOME: root,
+        },
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.json).toMatchObject({
+        code: "invalid_request",
+        details: {
+          issues: [
+            {
+              path: ["view", "selector", "index"],
+              reason: "invalid_value",
+              message: expect.stringContaining(`No retained ${collection}`),
+            },
+          ],
+        },
+      });
+      expect(result.json).not.toHaveProperty("details.issues.0.minimum");
+      expect(result.json).not.toHaveProperty("details.issues.0.maximum");
+    }
+    const populated = await cli.run({
+      arguments: [
+        "inspect-analysis-view",
+        JSON.stringify({
+          source: { kind: "inline", evidence: analysisViewLayoutEvidence() },
+          view: {
+            kind: "item",
+            collection: "sections",
+            selector: { index: 3 },
+          },
+        }),
+        "--json",
+      ],
+      environment: {
+        HOME: root,
+        XDG_CONFIG_HOME: root,
+        XDG_CACHE_HOME: root,
+      },
+    });
+    expect(populated.exitCode).toBe(1);
+    expect(populated.json).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          {
+            path: ["view", "selector", "index"],
+            reason: "out_of_range",
+            minimum: 0,
+            maximum: 2,
+          },
+        ],
       },
     });
   },

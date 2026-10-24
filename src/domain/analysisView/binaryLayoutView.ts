@@ -91,14 +91,24 @@ const selectIndexed = <Row>(
 ): Result<Row, AnalysisError> => {
   const row = rows[index];
   if (row !== undefined) return ok(row);
+  if (rows.length === 0)
+    return err(
+      inputError([
+        {
+          path: ["view", "selector", "index"],
+          reason: "invalid_value",
+          message: `No retained ${collection} entries can be selected by index.`,
+        },
+      ]),
+    );
   return err(
     inputError([
       {
         path: ["view", "selector", "index"],
         reason: "out_of_range",
-        message: `${collection} index ${String(index)} is outside 0..${String(Math.max(0, rows.length - 1))} (${String(rows.length)} entries).`,
+        message: `${collection} index ${String(index)} is outside 0..${String(rows.length - 1)} (${String(rows.length)} entries).`,
         minimum: 0,
-        maximum: Math.max(0, rows.length - 1),
+        maximum: rows.length - 1,
       },
     ]),
   );

@@ -79,6 +79,9 @@ export class LocalWebScriptArtifacts implements WebScriptArtifactPort {
             },
           ),
         );
+      // The index has selected a script. Its source metadata belongs to the
+      // manifest, rather than to the caller's index or file selection.
+      callerSelected = false;
       const portable = normalizeArtifactPath(selected.content.relative_path);
       if (portable !== selected.content.relative_path)
         throw new ArtifactReaderFailure(
@@ -91,7 +94,6 @@ export class LocalWebScriptArtifacts implements WebScriptArtifactPort {
           `Windows source path cannot contain backslashes as literal name characters: ${JSON.stringify(portable)}`,
         );
       const selectedParent = dirname(input.manifest_path);
-      callerSelected = false;
       targetPath = selectedParent;
       const root = await realpath(selectedParent);
       const sourcePath = join(root, "files", portable);

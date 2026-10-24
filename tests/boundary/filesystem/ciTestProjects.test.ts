@@ -143,6 +143,20 @@ describe("canonical test-project ownership", () => {
 });
 
 describe("test module isolation", () => {
+  it.each([
+    ["src/application/EvidenceBundleFiles.test.ts", "adapters", "source"],
+    [
+      "tests/boundary/mcp/javascriptAnalysisCancellation.test.ts",
+      "process-global",
+      "built",
+    ],
+  ])(
+    "keeps %s isolated without changing its preparation group",
+    (path, name, group) => {
+      expect(projectForTest(path)).toMatchObject({ name, group });
+    },
+  );
+
   it("keeps module mocks out of projects that share one module graph", async () => {
     // A mock registered after another file in the same worker loaded the
     // module never applies, so the test's outcome depends on file scheduling.

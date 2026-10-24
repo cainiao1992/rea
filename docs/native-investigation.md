@@ -511,6 +511,16 @@ to the linked Mach-O. This classification requires both the recognized native
 refusal and an independently parsed dSYM Mach header; other tool failures keep
 their failure outcome.
 
+Observed `dyld_info` diagnostics include `unknown mh.filetype 4` and
+`unknown filetype 4` for `MH_CORE`, and the corresponding `3` spellings for
+`MH_FVMLIB`. These refusals report `unsupported_target` when the independently
+parsed Mach header confirms the reported file type. The error retains the exact
+native diagnostic and recommends a linked Mach-O executable or relocatable
+object. This classifies the selected target's refusal; it does not establish
+support for core-dump analysis, historical FVMLIB layouts, or unobserved native
+diagnostic spellings. Unknown or contradictory header values and signalled
+commands remain failures.
+
 `inspect_macho.selected_architecture` identifies the exact selected lipo slice
 and its `container_file_offset` in the input file. A thin Mach-O has a known
 offset of zero; an unknown universal-slice offset stays null. The Evidence

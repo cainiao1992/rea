@@ -28,6 +28,7 @@ import {
   isUnbackedTextDyldFailure,
   nativeMachoCapturedOutput,
   missingUuidLimitation,
+  parseDyldFileTypeRefusal,
   unusableNativeCommandOutput,
 } from "./NativeMachoCommandDiagnostics.js";
 
@@ -118,7 +119,8 @@ export const inspectNativeMacho = async (
       tool === "dyld_info"
         ? (capture) =>
             isMissingUuidDyldFailure(capture) ||
-            isUnbackedTextDyldFailure(capture)
+            isUnbackedTextDyldFailure(capture) ||
+            parseDyldFileTypeRefusal(capture) !== null
         : undefined,
     );
   // vtool knows no variant subtypes, so no spelling selects an arm64e.x1 slice.
@@ -139,7 +141,8 @@ export const inspectNativeMacho = async (
     if (
       (captured.value.exitCode !== 0 || captured.value.signal !== null) &&
       !isMissingUuidDyldFailure(captured.value) &&
-      !isUnbackedTextDyldFailure(captured.value)
+      !isUnbackedTextDyldFailure(captured.value) &&
+      parseDyldFileTypeRefusal(captured.value) === null
     )
       return err(unusableNativeCommandOutput(captured.value));
     captures.push(captured.value);
@@ -157,17 +160,6 @@ export const inspectNativeMacho = async (
   const dyldExports = captures.filter(({ tool }) => tool === "dyld_info")[1];
   if (nmIndex < 0 || dyldExports === undefined)
     throw new TypeError("Missing nm or dyld_info export capture");
-  // A stripped symbol table (strip -T) can omit names the export trie keeps.
-  // Only then does llvm-nm's dyld-info pass add names, and its exact names
-  // disambiguate dyld_info rows, so rerun it rather than lose them.
-  if (
-    !isMissingUuidDyldFailure(dyldExports) &&
-    !namesEveryExport(captures[nmIndex]!.stdout, dyldExports)
-  ) {
-    const withDyldInfo = await runSliceCommand(DYLD_INFO_EXPORTS);
-    if (!withDyldInfo.ok) return err(withDyldInfo.error);
-    captures[nmIndex] = withDyldInfo.value;
-  }
   const otool = captures.find(({ tool }) => tool === "otool");
   if (otool === undefined) throw new TypeError("Missing otool capture");
   let load: ReturnType<typeof parseOtoolLoadCommands>;
@@ -202,12 +194,43 @@ export const inspectNativeMacho = async (
       ),
     );
   }
+  for (const fileTypeFailure of captures) {
+    const refusal = parseDyldFileTypeRefusal(fileTypeFailure);
+    if (refusal === null) continue;
+    const { fileType, diagnostic } = refusal;
+    const typeName = fileType === "4" ? "CORE" : "FVMLIB";
+    if (![fileType, typeName, `MH_${typeName}`].includes(load.fileType ?? ""))
+      return err(unusableNativeCommandOutput(fileTypeFailure));
+    return err(
+      new AnalysisUnsupportedTargetError(
+        "inspect_macho",
+        context.target.path,
+        `dyld_info refused the selected Mach-O file type MH_${typeName} (${fileType}): ${diagnostic}`,
+        {
+          capturedOutput: nativeMachoCapturedOutput(fileTypeFailure),
+          remediationAction:
+            "Select a linked Mach-O executable or relocatable object for native inspection; dyld_info refused the selected file type.",
+        },
+      ),
+    );
+  }
   const uuidlessDyldFailure = captures.find(isMissingUuidDyldFailure);
   if (
     uuidlessDyldFailure !== undefined &&
     load.commands.some(({ kind }) => kind === "LC_UUID")
   )
     return err(conflictingUuidCommandEvidence(uuidlessDyldFailure));
+  // A stripped symbol table (strip -T) can omit names the export trie keeps.
+  // Only then does llvm-nm's dyld-info pass add names, and its exact names
+  // disambiguate dyld_info rows. Refusals above are not export rows.
+  if (
+    !isMissingUuidDyldFailure(dyldExports) &&
+    !namesEveryExport(captures[nmIndex]!.stdout, dyldExports)
+  ) {
+    const withDyldInfo = await runSliceCommand(DYLD_INFO_EXPORTS);
+    if (!withDyldInfo.ok) return err(withDyldInfo.error);
+    captures[nmIndex] = withDyldInfo.value;
+  }
   const selectedArchitectureName =
     selectedArchitecture ??
     (architectures.length === 1 ? (architectures[0]?.name ?? null) : null);

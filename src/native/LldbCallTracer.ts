@@ -691,22 +691,68 @@ export class LldbCallTracer implements NativeCallTracer {
         ? "cancelled"
         : exited.kind === "timeout"
           ? "timeout"
-          : exited.cleanupFailure !== undefined
+          : lifecycleCleanup !== undefined
             ? "cleanup-failure"
             : "tracer-failure";
-    const getPartialObservation = (
+    const readCompletedCaptures = async (
+      run: z.infer<typeof tracedSchema>,
+    ) => ({
+      stdout: await capturedOutput(
+        paths.stdoutCapture,
+        run.target_output.stdout_bytes,
+        run.target_output.stdout_truncated,
+        run.target_output.stdout_complete,
+        retained.files,
+      ),
+      stderr: await capturedOutput(
+        paths.stderrCapture,
+        run.target_output.stderr_bytes,
+        run.target_output.stderr_truncated,
+        run.target_output.stderr_complete,
+        retained.files,
+      ),
+    });
+    const getPartialObservation = async (
       reason: NativeCallPartialObservation["coverage"]["reason"] = partialReason,
-    ): Promise<PartialNativeObservationRead> =>
-      partialNativeObservation({
+    ): Promise<PartialNativeObservationRead> => {
+      // Cleanup uncertainty does not invalidate a completed, validated result.
+      // Keep host termination proof separate from the bridge's reported facts.
+      if (output?.status === "traced") {
+        const { stdout, stderr } = await readCompletedCaptures(output);
+        return {
+          observation: projectPartialNativeCalls(
+            {
+              path: request.executable,
+              sha256: request.expectedSha256,
+              architecture: request.architecture,
+            },
+            request.input,
+            {
+              debugger: { ...lldb, version: output.version },
+              run: output,
+              stdout: stdout.ok ? stdout.value : (stdout.partial ?? null),
+              stderr: stderr.ok ? stderr.value : (stderr.partial ?? null),
+              terminated,
+            },
+            reason,
+          ),
+          readFailures: [
+            ...(stdout.ok ? [] : [stdout.error]),
+            ...(stderr.ok ? [] : [stderr.error]),
+          ],
+        };
+      }
+      return partialNativeObservation({
         request,
         files: retained.files,
         pidPath: paths.pid,
         stdoutPath: paths.stdoutCapture,
         stderrPath: paths.stderrCapture,
         observationPath: paths.observations,
-        version: output?.status === "traced" ? output.version : null,
+        version: null,
         reason,
       });
+    };
     const failureWithPartial = async <Failure extends AnalysisError>(
       createFailure: (observation: NativeCallPartialObservation) => Failure,
       reason?: NativeCallPartialObservation["coverage"]["reason"],
@@ -818,20 +864,7 @@ export class LldbCallTracer implements NativeCallTracer {
               : { cleanup: lifecycleCleanup }),
           }),
       );
-    const stdout = await capturedOutput(
-      paths.stdoutCapture,
-      output.target_output.stdout_bytes,
-      output.target_output.stdout_truncated,
-      output.target_output.stdout_complete,
-      retained.files,
-    );
-    const stderr = await capturedOutput(
-      paths.stderrCapture,
-      output.target_output.stderr_bytes,
-      output.target_output.stderr_truncated,
-      output.target_output.stderr_complete,
-      retained.files,
-    );
+    const { stdout, stderr } = await readCompletedCaptures(output);
     if (!stdout.ok || !stderr.ok) {
       return err(
         new ProviderAdapterError(PROVIDER, OPERATION, {

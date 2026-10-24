@@ -8,6 +8,7 @@ import {
   stat,
   type FileHandle,
 } from "node:fs/promises";
+import { ChildProcess } from "node:child_process";
 import { dirname } from "node:path";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -20,6 +21,7 @@ import {
   AnalysisCapabilityUnavailableError,
   AnalysisTimeoutError,
 } from "../../../../src/domain/analysisErrorCore.js";
+import { ProviderCleanupError } from "../../../../src/domain/providerCleanupError.js";
 import { EvidenceIntegrityError } from "../../../../src/domain/evidenceErrors.js";
 import { ArtifactFileCleanupFailure } from "../../../../src/artifacts/ArtifactFileOperation.js";
 import { resolvedAnalysisError } from "../../../../src/domain/analysisErrorBase.js";
@@ -276,6 +278,255 @@ describe("LLDB completed trace retention through finalization", () => {
       "Captured output byte counts are observed lower bounds because LLDB did not report final stream counters.",
     );
   });
+});
+
+const expectCompletedCleanupFacts = (
+  partial: ReturnType<typeof nativeCallPartialObservationSchema.parse>,
+  completed: typeof successfulTracerOutput,
+) => {
+  expect(partial.debugger).toEqual({
+    ...fakeTool,
+    version: completed.version,
+  });
+  expect(partial.target.launch_identity).toEqual(completed.target_identity);
+  expect(partial.events).toEqual(completed.events);
+  expect(partial.breakpoints).toEqual([
+    {
+      ...completed.breakpoints[0],
+      request: { kind: "function", name: "main", module: null },
+    },
+  ]);
+  expect(partial.limitations).not.toContain(
+    "The LLDB run did not produce a complete native call observation result.",
+  );
+  expect(partial.limitations).not.toContain(
+    "Captured output byte counts are observed lower bounds because LLDB did not report final stream counters.",
+  );
+};
+
+describe("LLDB completed trace retention after process cleanup", () => {
+  it.each([
+    "clean",
+    "group-cleanup",
+    "target-uncertain",
+    "target-uncertain-limit",
+    "group-capture-failure",
+  ] as const)("retains validated completed facts with %s", async (phase) => {
+    let runtime: string | undefined;
+    let launches = 0;
+    let releaseGroup = false;
+    const targetUncertain = phase.startsWith("target-");
+    const groupFailure = phase.startsWith("group-");
+    const captureFailure = phase === "group-capture-failure";
+    // This handle is never spawned. The production supervisor owns only the
+    // synthetic launcher's injected cleanup receipt, not an OS process.
+    const child = new ChildProcess();
+    const cleanup = vi.fn(async () =>
+      releaseGroup
+        ? { cleaned: true as const, signaled: false }
+        : { cleaned: false as const, reason: "fixture group cleanup failed" },
+    );
+    const supervisor = new ProviderProcessSupervisor({
+      process: child,
+      ownsProcessLifetime: true,
+      cleanup,
+    });
+    child.emit("exit", 0, null);
+    child.emit("close", 0, null);
+    const completed = {
+      ...successfulTracerOutput,
+      ...(phase === "target-uncertain-limit"
+        ? { outcome: "duration-elapsed", terminated: false, killed: true }
+        : {}),
+      target_output: {
+        stdout_bytes: 4096,
+        stderr_bytes: 2,
+        stdout_truncated: true,
+        stderr_truncated: false,
+        stdout_complete: true,
+        stderr_complete: true,
+      },
+    };
+    const tracer = new LldbCallTracer(
+      {},
+      async (_executable, arguments_) => {
+        launches += 1;
+        const { config } = await configFromArguments(arguments_);
+        runtime = dirname(config.result_path);
+        // A shorter journal must not replace the validated completed result.
+        await writeFile(config.observation_path, "");
+        if (!captureFailure) await writeFile(config.stdout_capture_path, "abc");
+        await writeFile(config.stderr_capture_path, "ok");
+        await writeFile(config.result_path, JSON.stringify(completed));
+        return {
+          kind: "exited",
+          targetLaunched: targetUncertain,
+          exitCode: 0,
+          output: "",
+          targetIdentity: undefined,
+          cleanupFailure: groupFailure
+            ? "fixture group cleanup failed"
+            : undefined,
+          ...(groupFailure ? { cleanupOwner: supervisor } : {}),
+        };
+      },
+      async () => ok(fakeTool),
+    );
+    try {
+      const result = await tracer.trace(request);
+      if (runtime === undefined) throw new Error("fixture did not launch");
+      const stdout = {
+        text: "abc",
+        bytes: 4096,
+        truncated: true,
+        complete: false,
+      };
+      const stderr = {
+        text: "ok",
+        bytes: 2,
+        truncated: false,
+        complete: true,
+      };
+      if (phase === "clean") {
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw result.error;
+        expect(result.value.run).toEqual(completed);
+        expect(result.value.stdout).toEqual(stdout);
+        expect(result.value.stderr).toEqual(stderr);
+        await expect(access(runtime)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        return;
+      }
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected cleanup failure");
+      expect(result.error).toBeInstanceOf(ProviderCleanupError);
+      expect(result.error.cleanupIncomplete).toBe(true);
+      expect(result.error.cleanupResources).toContain(runtime);
+      await access(runtime);
+      const retry = await tracer.trace(request);
+      expect(retry.ok).toBe(false);
+      expect(launches).toBe(1);
+      expect((await tracer.close()).ok).toBe(false);
+      const partial = nativeCallPartialObservationSchema.parse(
+        result.error.partialObservation,
+      );
+      expect(partial.coverage.reason).toBe("cleanup-failure");
+      expect(partial.process).toEqual({
+        pid: completed.pid,
+        outcome: completed.outcome,
+        exit_status: completed.exit_status,
+        exit_description: completed.exit_description,
+        // Producer termination does not establish independent host cleanup.
+        terminated: !targetUncertain,
+        elapsed_ms: completed.elapsed_ms,
+        stdout: captureFailure ? null : stdout,
+        stderr,
+        other_stops: completed.other_stops,
+      });
+      expectCompletedCleanupFacts(partial, completed);
+      if (phase === "target-uncertain-limit") {
+        expect(partial.limitations.join(" ")).not.toContain("was killed");
+        expect(partial.limitations.join(" ")).toContain(
+          "termination was requested but could not be confirmed",
+        );
+      }
+      if (captureFailure) {
+        expect(result.error.secondaryFailures).toHaveLength(1);
+        expect(result.error.secondaryFailures[0]?.cause).toMatchObject({
+          code: "ENOENT",
+        });
+        expect(partial.limitations).toContain(
+          "One or more target output captures were unavailable.",
+        );
+      }
+      if (groupFailure) {
+        releaseGroup = true;
+        expect((await tracer.close()).ok).toBe(true);
+        expect(cleanup).toHaveBeenCalled();
+        expect(result.error.cleanupIncomplete).toBe(false);
+        await expect(access(runtime)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      }
+    } finally {
+      releaseGroup = true;
+      await tracer.close();
+      supervisor.dispose();
+      // No target was launched; only the synthetic unknown-target fixture
+      // needs test-owned removal after proving production retains ownership.
+      if (runtime !== undefined)
+        await rm(runtime, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("LLDB cleanup without a validated completed trace", () => {
+  it.each(["missing", "invalid"] as const)(
+    "keeps journal-only fallback when the completed result is %s",
+    async (resultKind) => {
+      let runtime: string | undefined;
+      const tracer = new LldbCallTracer(
+        {},
+        async (_executable, arguments_) => {
+          const { config } = await configFromArguments(arguments_);
+          runtime = dirname(config.result_path);
+          await writeFile(
+            config.observation_path,
+            `${JSON.stringify({ kind: "event", event: EVENT })}\n`,
+          );
+          await writeFile(config.stdout_capture_path, "abc");
+          await writeFile(config.stderr_capture_path, "");
+          if (resultKind === "invalid")
+            await writeFile(
+              config.result_path,
+              JSON.stringify({ status: "traced", outcome: "exited" }),
+            );
+          return {
+            kind: "exited",
+            targetLaunched: true,
+            exitCode: 0,
+            output: "",
+            targetIdentity: undefined,
+            cleanupFailure: undefined,
+          };
+        },
+        async () => ok(fakeTool),
+      );
+      try {
+        const result = await tracer.trace(request);
+        if (result.ok) throw new Error("expected cleanup failure");
+        expect(result.error).toBeInstanceOf(ProviderCleanupError);
+        expect(result.error.cleanupIncomplete).toBe(true);
+        const partial = nativeCallPartialObservationSchema.parse(
+          result.error.partialObservation,
+        );
+        expect(partial.coverage.reason).toBe("cleanup-failure");
+        expect(partial.events).toEqual([EVENT]);
+        expect(partial.process.stdout).toEqual({
+          text: "abc",
+          bytes: 3,
+          truncated: true,
+          complete: false,
+        });
+        expect(partial.process.outcome).toBeUndefined();
+        expect(partial.process.exit_status).toBeUndefined();
+        expect(partial.process.terminated).toBeUndefined();
+        expect(partial.process.elapsed_ms).toBeUndefined();
+        expect(partial.target.launch_identity).toBeUndefined();
+        expect(partial.breakpoints).toBeUndefined();
+        expect(partial.debugger.version).toBeNull();
+        expect(partial.limitations).toContain(
+          "Captured output byte counts are observed lower bounds because LLDB did not report final stream counters.",
+        );
+        expect((await tracer.close()).ok).toBe(false);
+      } finally {
+        // The launcher never created a target; remove only its synthetic files.
+        if (runtime !== undefined)
+          await rm(runtime, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("LLDB failure retention through the production tracer", () => {

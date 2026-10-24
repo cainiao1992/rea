@@ -75,11 +75,17 @@ import {
   type ExecutableMetadata,
 } from "../domain/binaryTarget.js";
 import {
+  classifyFatContainerIdentity,
   readFatContainerHeader,
   readMachoHeaderPrefixFacts,
   type FatSliceHeaderEvidence,
   type MachoHeaderPrefixFacts,
 } from "../domain/apple/machoContainer.js";
+import {
+  isJvmClassFile,
+  MAX_JVM_CLASS_IDENTITY_BYTES,
+  JVM_CLASS_IDENTITY_LIMIT_REASON,
+} from "../domain/apple/jvmClassFile.js";
 import {
   MachoLoadCommandCursor,
   readMachoLoadCommandTableHeader,
@@ -865,12 +871,32 @@ const readExecutableMetadata = async (
     signal,
   });
   if (thin !== null) return thin;
+  const hasJvmMagic = bytes.length >= 4 && bytes.readUInt32BE(0) === 0xcafebabe;
+  if (
+    hasJvmMagic &&
+    fileSize > bytes.length &&
+    fileSize <= MAX_JVM_CLASS_IDENTITY_BYTES
+  ) {
+    const complete = await readHandleRange(handle, 0, fileSize, signal);
+    if (complete.byteLength === fileSize && isJvmClassFile(complete))
+      return err("unsupported binary format");
+  }
   const fatEvidence = await readFatSliceHeaderEvidence(
     handle,
     bytes,
     fileSize,
     signal,
   );
+  if (
+    hasJvmMagic &&
+    fileSize > MAX_JVM_CLASS_IDENTITY_BYTES &&
+    fatEvidence !== undefined &&
+    classifyFatContainerIdentity(
+      fatEvidence.header,
+      (offset) => fatEvidence.sliceHeadersByOffset.get(offset)?.magic,
+    ).state === "malformed"
+  )
+    return err(JVM_CLASS_IDENTITY_LIMIT_REASON);
   const parsed = parseExecutableHeader(
     bytes,
     hostArchitecture,

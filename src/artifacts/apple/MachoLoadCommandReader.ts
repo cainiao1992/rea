@@ -1,4 +1,8 @@
 import { MachoLoadCommandCursor } from "../../domain/apple/machoLoadCommands.js";
+import {
+  MAX_JVM_CLASS_IDENTITY_BYTES,
+  JVM_CLASS_IDENTITY_LIMIT_REASON,
+} from "../../domain/apple/jvmClassFile.js";
 import type {
   MachoDependency,
   MachoImageFacts,
@@ -139,7 +143,7 @@ export const readMachoImage = async (
     const view = viewOf(head);
     const magic = view.getUint32(0, false);
     let header: ReturnType<typeof readFatContainerHeader>;
-    if (magic === FAT_MAGIC && size <= MAX_LOAD_COMMAND_BYTES) {
+    if (magic === FAT_MAGIC && size <= MAX_JVM_CLASS_IDENTITY_BYTES) {
       const complete = await readAt(0, size);
       header =
         complete.byteLength === size
@@ -177,10 +181,10 @@ export const readMachoImage = async (
         // A large CAFEBABE input whose bounded prefix resembles an invalid
         // known-CPU FAT table remains unknown until its JVM identity can be
         // checked; do not turn the resource limit into a malformed claim.
-        if (magic === FAT_MAGIC && size > MAX_LOAD_COMMAND_BYTES)
+        if (magic === FAT_MAGIC && size > MAX_JVM_CLASS_IDENTITY_BYTES)
           throw new MachoFormatIssue(
             "unsupported",
-            "FAT/JVM identity is unresolved because the class identity scan exceeds the 16 MiB limit",
+            JVM_CLASS_IDENTITY_LIMIT_REASON,
           );
         throw new MachoFormatIssue(identity.category, identity.reason);
       }

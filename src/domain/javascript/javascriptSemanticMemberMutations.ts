@@ -1085,9 +1085,9 @@ export function* collectSemanticMemberMutationsSteps(
                   current.capturedSelections,
                 )
               : undefined;
-          // A defined owner result already includes every eligible initializer;
-          // replaying them separately duplicates selection/capture histories.
-          retainsInitializers = receiver === undefined;
+          // Stored receiver projections preserve their raw capture authority.
+          // Initializer origins retain the normalized mutation traversal below.
+          retainsInitializers = receiver?.retainsOrigin !== false;
           if (effect === "escape")
             binding.escapedPaths.push({
               path,
@@ -1115,7 +1115,7 @@ export function* collectSemanticMemberMutationsSteps(
           // the final written slot. The source owner preserves replacements
           // and captures; a local container does not isolate its children.
           if (receiver !== undefined) {
-            for (const source of receiver.sources)
+            for (const source of receiver.storedSources)
               enqueue({
                 node: source.node,
                 path: [...source.path, current.path.at(-1)!],

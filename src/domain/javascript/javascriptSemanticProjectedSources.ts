@@ -194,6 +194,9 @@ export function semanticProjectedSourceFactsAtRead(
       readonly sources: readonly (Omit<ProjectedSource, "path"> & {
         readonly path: JavaScriptSemanticPropertyPath;
       })[];
+      readonly storedSources: readonly (Omit<ProjectedSource, "path"> & {
+        readonly path: JavaScriptSemanticPropertyPath;
+      })[];
       readonly retainsOrigin: boolean;
     }
   | undefined;
@@ -218,6 +221,7 @@ const projectedSourceFactsAtRead = (
 ):
   | {
       readonly sources: readonly ProjectedSource[];
+      readonly storedSources: readonly ProjectedSource[];
       readonly retainsOrigin: boolean;
     }
   | undefined => {
@@ -405,8 +409,9 @@ const projectedSourceFactsAtRead = (
       }
     }
   }
+  const storedSources = [...sources];
   if (!retainEligibility && replacement !== undefined)
-    return { sources, retainsOrigin: false };
+    return { sources, storedSources, retainsOrigin: false };
   for (const initializer of read.binding.initializers) {
     if (semanticReferenceIterationUnknown(initializer, state)) return undefined;
     if (semanticReferenceSourcesInactive(initializer, state)) continue;
@@ -446,5 +451,5 @@ const projectedSourceFactsAtRead = (
         });
     }
   }
-  return { sources, retainsOrigin: true };
+  return { sources, storedSources, retainsOrigin: true };
 };

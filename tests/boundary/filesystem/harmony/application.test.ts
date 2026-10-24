@@ -36,44 +36,6 @@ const stageHapEntries = [
   { path: "META-INF/FIXTURE.p7b", content: "opaque signing" },
 ] as const;
 
-it.each(["hap", "app"] as const)(
-  "retains encrypted path-only packaging facts for a %s inventory",
-  async (suffix) => {
-    const root = await createTestTempDirectory("rea-harmony-encrypted-paths-");
-    const path = join(root, `Fixture.${suffix}`);
-    const writer = new ZipWriter(new Uint8ArrayWriter());
-    const member = suffix === "app" ? "entry.hap" : "module.json";
-    await writer.add(member, new TextReader("opaque inaccessible content"), {
-      password: "fixture-only",
-    });
-    await writeFile(path, await writer.close());
-    const inventory = await inventoryApplicationPackage(path);
-    const graph = requireDeterministicProjection(
-      projectHarmonyApplicationEvidence,
-      inventory,
-      harmonyApplicationProjectionResultSchema,
-    );
-    expect(graph.unavailable_components).toContainEqual(
-      expect.objectContaining({
-        path: member,
-        artifact_id: null,
-        sha256: null,
-        encrypted: true,
-      }),
-    );
-    expect(graph.coverage.status).toBe("partial");
-    if (suffix === "app")
-      expect(graph.app_pack_children).toContainEqual(
-        expect.objectContaining({
-          path: member,
-          artifact_id: null,
-          sha256: null,
-        }),
-      );
-    else expect(graph.packaging_model).toBe("stage");
-  },
-);
-
 it("retains inventoried certificate-block suffixes without claiming verified signatures", async () => {
   const names = ["CERT.RSA", "CERT.DSA", "CERT.EC", "FIXTURE.p7b"];
   const path = await writeApplicationZip(

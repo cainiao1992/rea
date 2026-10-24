@@ -105,6 +105,96 @@ for (const [version, keyStyle] of [
 }
 
 cliTest(
+  "Hermes setup preserves an existing tool allowlist and client-owned policy",
+  async ({ cli }) => {
+    const home = await createTestTempDirectory("rea-hermes-tool-policy-");
+    const profile = join(home, "hermes");
+    const config = join(profile, "config.yaml");
+    const original = [
+      "# Caller configuration",
+      "mcp_servers:",
+      "  rea:",
+      "    command: rea-old",
+      "    args: [mcp]",
+      "    env:",
+      "      CALLER_SETTING: keep exactly",
+      "    # Curated for this client.",
+      "    tools:",
+      "      include: [open_binary, binary_overview]",
+      "      future_option:",
+      "        selected: caller choice",
+      "    future_policy:",
+      "      review: required",
+      "",
+    ].join("\n");
+    await mkdir(profile);
+    await writeFile(config, original);
+    const run = (arguments_: readonly string[]) =>
+      cli.run({
+        arguments: arguments_,
+        cwd: home,
+        environment: { USERPROFILE: home, HERMES_HOME: profile },
+        timeoutMs: 20_000,
+      });
+    const setup = ["setup", "--client", "hermes", "--skill=false", "--json"];
+    const preview = await run([...setup, "--dry-run"]);
+    expect(preview.exitCode, preview.stdout).toBe(0);
+    expect(preview.json).toMatchObject({
+      status: "planned",
+      plannedActions: expect.arrayContaining([
+        expect.objectContaining({ target: config }),
+      ]),
+    });
+    expect(await readFile(config, "utf8")).toBe(original);
+    await expect(access(`${config}.rea.backup`)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const applied = await run([...setup, "--yes"]);
+    expect(applied.exitCode, applied.stdout).toBe(0);
+    expect(applied.json).toMatchObject({
+      status: "ready",
+      clients: { hermes: { status: "configured" } },
+    });
+    const configured = await readFile(config, "utf8");
+    expect(parse(configured)).toMatchObject({
+      mcp_servers: {
+        rea: {
+          command: expect.stringMatching(/\S/u),
+          args: expect.arrayContaining(["mcp"]),
+          enabled: true,
+          env: { CALLER_SETTING: "keep exactly" },
+          tools: {
+            include: ["open_binary", "binary_overview"],
+            future_option: { selected: "caller choice" },
+          },
+          future_policy: { review: "required" },
+        },
+      },
+    });
+    expect(parse(configured)).not.toMatchObject({
+      mcp_servers: { rea: { command: "rea-old" } },
+    });
+    expect(configured).toContain("# Curated for this client.");
+    expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(original);
+    expect(
+      (await run(["doctor", "--client", "hermes", "--skill=false", "--json"]))
+        .json,
+    ).toMatchObject({
+      identity: { registrations: [{ client: "hermes", state: "aligned" }] },
+    });
+    const repeated = await run([...setup, "--yes"]);
+    expect(repeated.exitCode, repeated.stdout).toBe(0);
+    expect(repeated.json).toMatchObject({
+      status: "ready",
+      appliedActions: [],
+    });
+    expect(await readFile(config, "utf8")).toBe(configured);
+    expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(original);
+  },
+);
+
+cliTest(
   "Hermes setup, doctor and uninstall use the expanded profile and its personal skill",
   async ({ cli }) => {
     const home = await createTestTempDirectory("rea-hermes-cli-");

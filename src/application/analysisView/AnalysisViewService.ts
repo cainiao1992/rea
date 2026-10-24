@@ -16,7 +16,12 @@ import {
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { safeParseEvidence } from "../../domain/evidenceValidation.js";
-import { createEvidence, type Evidence } from "../../domain/evidence.js";
+import {
+  createEvidence,
+  rebindEvidenceToTargetPath,
+  type Evidence,
+  type EvidenceSubjectTarget,
+} from "../../domain/evidence.js";
 import {
   inspectAnalysisViewInputSchema,
   prepareAnalysisViewProjection,
@@ -179,7 +184,20 @@ export const inspectAnalysisViewValidated = (
   }
   const resolved = resolveAnalysisViewSource(input.source, lookup);
   if (!resolved.ok) return resolved;
-  const parent = resolved.value;
+  return projectResolvedAnalysisView(input, projection, resolved.value);
+};
+
+/** Keep payload ownership separate from this delivery's display-only subject. */
+const projectResolvedAnalysisView = (
+  input: ReadyAnalysisViewInput,
+  projection: ReturnType<typeof prepareAnalysisViewProjection>,
+  parent: Evidence,
+  selectedTarget?: EvidenceSubjectTarget,
+): Result<Evidence, AnalysisError> => {
+  const presentation =
+    selectedTarget === undefined
+      ? parent
+      : rebindEvidenceToTargetPath(parent, selectedTarget);
   const projected = projection.project({
     evidenceId: parent.evidence_id,
     operation: parent.operation,
@@ -190,15 +208,15 @@ export const inspectAnalysisViewValidated = (
       parent.normalized_result,
     // Sealing an Evidence root deep-freezes it; only the root is registered.
     sealedResult: isImmutableJsonSnapshot(parent),
-    subject: parent.subject,
+    subject: presentation.subject,
     limitations: parent.limitations,
     parameters: parent.parameters,
     artifact:
-      parent.subject === null
+      presentation.subject === null
         ? null
         : {
-            path: parent.subject.local_path,
-            sha256: parent.subject.digest.sha256,
+            path: presentation.subject.local_path,
+            sha256: presentation.subject.digest.sha256,
           },
   });
   if (!projected.ok) return projected;
@@ -211,7 +229,7 @@ export const inspectAnalysisViewValidated = (
         `Parent subject SHA-256 ${parent.subject.digest.sha256} differs from analysis artifact SHA-256 ${projected.value.artifact?.sha256 ?? "unknown"}.`,
       ),
     );
-  return ok(createAnalysisViewEvidence(input, parent, projected.value));
+  return ok(createAnalysisViewEvidence(input, presentation, projected.value));
 };
 
 /** Session Evidence ownership required to deliver a view instead of a complete record. */
@@ -254,7 +272,7 @@ export const requireAnalysisViewRetention = (
 
 /**
  * Retain complete analysis Evidence in the session, then project its summary
- * view from the retained record. Callers page or select the rest through
+ * with this observation's subject path. Callers page or select the rest through
  * inspect_analysis_view with the view's parent Evidence ID.
  */
 export const summarizeRetainedAnalysis = (
@@ -273,12 +291,29 @@ export const projectRetainedAnalysis = (
   if (!ready.ok) return ready;
   const recorded = ready.value.recordEvidence(evidence);
   if (!recorded.ok) return recorded;
-  return inspectAnalysisViewValidated(
-    {
-      source: { kind: "retained-evidence", evidence_id: evidence.evidence_id },
-      view,
-    },
-    ready.value.evidenceById,
+  const source = {
+    kind: "retained-evidence" as const,
+    evidence_id: evidence.evidence_id,
+  };
+  const retained = resolveEvidenceInput(source, ready.value.evidenceById);
+  if (!retained.ok) return retained;
+  // Duplicate semantic records retain their original ledger metadata. Detail
+  // selection changes presentation, not the historical lookup or payload owner.
+  const subject = evidence.subject;
+  return projectResolvedAnalysisView(
+    { source, view },
+    prepareAnalysisViewProjection(view),
+    retained.value,
+    subject === null
+      ? undefined
+      : {
+          path: subject.local_path,
+          sha256: subject.digest.sha256,
+          format: subject.format,
+          ...(subject.architecture === null
+            ? {}
+            : { architecture: subject.architecture }),
+        },
   );
 };
 

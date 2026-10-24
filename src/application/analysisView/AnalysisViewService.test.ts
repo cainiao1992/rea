@@ -11,7 +11,11 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../contracts/javascript/javascriptRuntimeReconciliationExample.js";
-import { createEvidence, parseEvidence } from "../../domain/evidence.js";
+import {
+  createEvidence,
+  parseEvidence,
+  rebindEvidenceToTargetPath,
+} from "../../domain/evidence.js";
 import { inspectAnalysisViewInputSchema } from "../../domain/analysisView/analysisView.js";
 import { functionDossierSchema } from "../../domain/hopperValues.js";
 import { ghidraFunctionDossier } from "../../domain/ghidraValues.fixture.js";
@@ -24,6 +28,7 @@ import {
   inspectAnalysisView,
   inspectAnalysisViewValidated,
   summarizeRetainedAnalysis,
+  projectRetainedAnalysis,
 } from "./AnalysisViewService.js";
 import type { Evidence } from "../../domain/evidence.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
@@ -38,6 +43,84 @@ import {
   scenarioCaptureFixture,
 } from "../../../tests/fixtures/browserScenarioCapture.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+
+it.each([false, true])(
+  "summarizes the selected observation path rather than older retained display metadata (history=%s)",
+  (history) => {
+    const makeParent = (path: string) =>
+      createEvidence(
+        { path, format: "pe", sha256: "c".repeat(64) },
+        { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+        {
+          operation: "analyze_function",
+          parameters: {},
+          result: functionDossierSchema.parse(ghidraFunctionDossier()),
+        },
+      );
+    const previous = makeParent("/old/fixture.exe");
+    const selected = makeParent("/selected/fixture.exe");
+    expect(selected.evidence_id).toBe(previous.evidence_id);
+    const ledger = new EvidenceLedger();
+    if (history) expect(ledger.record(previous).ok).toBe(true);
+    const summary = summarizeRetainedAnalysis(selected, {
+      recordEvidence: (evidence) => ledger.record(evidence),
+      evidenceById: (id) => ledger.forAnalysis(id),
+    });
+    if (!summary.ok) throw summary.error;
+    expect(summary.value.evidence_links).toEqual([selected.evidence_id]);
+    expect(summary.value.subject?.local_path).toBe(
+      selected.subject?.local_path,
+    );
+    expect(ledger.get(selected.evidence_id)?.subject?.local_path).toBe(
+      history ? previous.subject?.local_path : selected.subject?.local_path,
+    );
+  },
+);
+
+it("keeps retained admission and payload ownership for a large capture when only its display path changes", async () => {
+  const parent = analysisViewCaptureEvidence(
+    analysisViewObjectDenseCapture(40_000),
+  );
+  const ledger = new EvidenceLedger();
+  expect(ledger.record(parent).ok).toBe(true);
+  const retained = ledger.forAnalysis(parent.evidence_id)!;
+  const payload = retained.normalized_result;
+  const subject = retained.subject!;
+  const selected = rebindEvidenceToTargetPath(retained, {
+    path: "/selected/capture.har",
+    sha256: subject.digest.sha256,
+    format: subject.format,
+    ...(subject.architecture === null
+      ? {}
+      : { architecture: subject.architecture }),
+  });
+  const retention = {
+    recordEvidence: (evidence: Evidence) => ledger.record(evidence),
+    evidenceById: (id: string) => ledger.forAnalysis(id),
+  };
+  const view = inspectAnalysisViewInputSchema.parse({
+    source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+    view: { kind: "api-surface" },
+  }).view;
+  for (const evidence of [retained, selected]) {
+    const result = projectRetainedAnalysis(evidence, retention, view);
+    if (!result.ok) throw result.error;
+    expect(result.value.subject?.local_path).toBe(evidence.subject?.local_path);
+    expect(result.value.evidence_links).toEqual([parent.evidence_id]);
+  }
+  expect(ledger.forAnalysis(parent.evidence_id)).toBe(retained);
+  expect(retained.normalized_result).toBe(payload);
+  expect(retained.subject?.local_path).toBe(parent.subject?.local_path);
+  expect(
+    await inspectAnalysisView({
+      source: { kind: "inline", evidence: selected },
+      view: { kind: "api-surface" },
+    }),
+  ).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisResourceConstraintError", resource: "memory" },
+  });
+});
 
 it.each(["layout", "javascript"])(
   "carries the retained %s source snapshot into repeatable shared views",
@@ -409,6 +492,23 @@ describe("summarizeRetainedAnalysis", () => {
         evidenceById: () => parent,
       }),
     ).toEqual(err(conflict));
+  });
+
+  it("still rejects missing or mismatched retained identities after a successful writer reply", () => {
+    for (const [retained, reason] of [
+      [undefined, "missing"],
+      [analysisViewLayoutEvidence(), "identity_mismatch"],
+    ] as const) {
+      expect(
+        summarizeRetainedAnalysis(parent, {
+          recordEvidence: () => ok("added"),
+          evidenceById: () => retained,
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: { _tag: "EvidenceIntegrityError", reason },
+      });
+    }
   });
 });
 

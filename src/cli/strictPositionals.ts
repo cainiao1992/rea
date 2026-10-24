@@ -62,20 +62,25 @@ export const rejectSurplusCliArguments = (
     if (final !== undefined && tokenType(final) instanceof z.ZodArray) return;
     let tail = "__rea_unbound_positionals";
     while (Object.hasOwn(fields, tail)) tail += "_";
-    const args = z.object({
-      ...Object.fromEntries(
-        entries.map(([name]) => [name, z.unknown().optional()]),
-      ),
-      [tail]: z.array(z.string()).optional(),
-    });
-    const options =
-      command.options instanceof z.ZodObject
-        ? optionTokenShape(command.options)
-        : undefined;
+    const optionsSchema =
+      command.options instanceof z.ZodObject ? command.options : undefined;
     command.middleware = [
       async (context, next) => {
         const tokens = invocation.getStore();
         if (tokens !== undefined) {
+          // Only the resolved command needs an inert token-binding schema.
+          // Keep the original schema references, but do not prepare every
+          // registered command for each one-shot invocation.
+          const args = z.object({
+            ...Object.fromEntries(
+              entries.map(([name]) => [name, z.unknown().optional()]),
+            ),
+            [tail]: z.array(z.string()).optional(),
+          });
+          const options =
+            optionsSchema === undefined
+              ? undefined
+              : optionTokenShape(optionsSchema);
           // Incur supplies the invoked path, including aliases, after resolving
           // groups. No second router decides which command receives the tokens.
           const parsed = Parser.parse(

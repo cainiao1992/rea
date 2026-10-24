@@ -37,6 +37,8 @@ import {
   CPU,
   fatImage,
   machoImage,
+  rpathCommand,
+  codeSignatureCommand,
 } from "../../../src/artifacts/apple/MachoImage.fixture.js";
 
 it.each([4000, 9000])(
@@ -777,9 +779,11 @@ describe("binary target I/O: explicit kinds and executable headers", () => {
   it("checks Mach-O load commands against the whole file beyond the probe", async () => {
     const directory = await createTestTempDirectory("rea-target-");
     const path = join(directory, "large-commands");
-    const header = thinMach(0xcffaedfe, 0x0100000c);
-    header.writeUInt32LE(8192, 20);
-    await writeFile(path, Buffer.concat([header, Buffer.alloc(8192)]));
+    const firstCommand = rpathCommand("@loader_path/" + "a".repeat(8192));
+    const bytes = Buffer.from(
+      machoImage({ commands: [firstCommand, codeSignatureCommand()] }),
+    );
+    await writeFile(path, bytes);
     const result = await parseBinaryTarget(path, {
       cwd: directory,
       hostArchitecture: "arm64",
@@ -787,6 +791,22 @@ describe("binary target I/O: explicit kinds and executable headers", () => {
     expect(result.ok && result.value).toMatchObject({
       format: "mach-o",
       architecture: "arm64",
+    });
+
+    // The second command's header lies beyond the initial 4096-byte probe.
+    // Corrupting it must fail admission even though the prefix is unchanged.
+    bytes.writeUInt32LE(0, 32 + firstCommand.length + 4);
+    await writeFile(path, bytes);
+    const malformed = await parseBinaryTarget(path, {
+      cwd: directory,
+      hostArchitecture: "arm64",
+    });
+    expect(malformed).toMatchObject({
+      ok: false,
+      error: {
+        path,
+        reason: `load command 1 at offset ${firstCommand.length} has invalid cmdsize 0`,
+      },
     });
   });
 });

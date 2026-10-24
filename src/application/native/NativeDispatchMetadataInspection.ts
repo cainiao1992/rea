@@ -1,5 +1,4 @@
-import { z } from "zod";
-import { addressedValueSchema } from "../../domain/native/nativeInventory.js";
+import { nativeInventoryRowsSchemas } from "../../domain/native/nativeInventory.js";
 import {
   nativeDispatchMetadataResultSchema,
   inspectNativeDispatchMetadata,
@@ -9,6 +8,10 @@ import { jsonValueSchema } from "../../domain/jsonValue.js";
 import { err, ok } from "../../domain/result.js";
 import type { AnalysisOperationPort } from "../AnalysisProvider.js";
 import type { EnhancedResult } from "../EnhancedToolTypes.js";
+
+const dispatchNameInventorySchema = nativeInventoryRowsSchemas.names.element
+  .strict()
+  .array();
 
 /** Source operations for this workflow, shared with capability discovery. */
 export const NATIVE_DISPATCH_METADATA_SOURCES = {
@@ -64,17 +67,7 @@ export const inspectNativeDispatch = async (
     signal === undefined ? {} : { signal },
   );
   if (!execution.ok) return err(execution.error);
-  const names = z
-    .array(
-      z.union([
-        addressedValueSchema.strict(),
-        addressedValueSchema
-          .omit({ value: true })
-          .extend({ name: z.string() })
-          .strict(),
-      ]),
-    )
-    .safeParse(execution.value.result);
+  const names = dispatchNameInventorySchema.safeParse(execution.value.result);
   if (!names.success)
     return err(
       new AnalysisOutputError(
@@ -85,7 +78,7 @@ export const inspectNativeDispatch = async (
   const result = inspectNativeDispatchMetadata(
     names.data.map((entry) => ({
       address: entry.address,
-      name: "value" in entry ? entry.value : entry.name,
+      name: entry.value,
     })),
     maxRecords,
   );

@@ -200,7 +200,7 @@ const testAnalysis = (
         });
       case "list_names":
         return execution(operation, [
-          { address: "0x1000", name: "-[BuildViewController buildTapped:]" },
+          { address: "0x1000", value: "-[BuildViewController buildTapped:]" },
         ]);
       case "procedure_callees":
         return execution(
@@ -535,10 +535,6 @@ describe("native dispatch inventory", () => {
   it.each([
     { label: "plain value", entry: { address: "0x1000", value: methodName } },
     { label: "value with symbol facts", entry: methodInventoryEntry },
-    {
-      label: "legacy name with symbol facts",
-      entry: { address: "0x1000", name: methodName, symbol: methodSymbol },
-    },
   ])(
     "binds $label inventory to the target without overstating dispatch coverage",
     async ({ entry }) => {
@@ -583,6 +579,10 @@ describe("native dispatch inventory", () => {
   );
 
   it.each([
+    {
+      label: "legacy name with symbol facts",
+      entry: { address: "0x1000", name: methodName, symbol: methodSymbol },
+    },
     {
       label: "malformed symbol flag",
       entry: {
@@ -836,11 +836,11 @@ describe("native UI trace boundaries", () => {
   it("matches handlers after the dispatch inventory's former default limit", async () => {
     const names = Array.from({ length: 5_000 }, (_, index) => ({
       address: `0x${(index + 1).toString(16)}`,
-      name: `unrelated_symbol_${index}`,
+      value: `unrelated_symbol_${index}`,
     }));
     names.push({
       address: "0x2000",
-      name: "-[BuildViewController buildTapped:]",
+      value: "-[BuildViewController buildTapped:]",
     });
     const result = await new EnhancedTools(
       testAnalysis({ list_names: () => execution("list_names", names) }),

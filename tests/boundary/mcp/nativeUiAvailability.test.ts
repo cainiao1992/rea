@@ -64,11 +64,12 @@ const controllerName = "BuildViewController";
 const selector = "buildTapped:";
 const handlerAddress = "0x1000";
 const calleeAddress = "0x2000";
-const dispatchMetadata = inspectNativeDispatchMetadata([
-  { address: handlerAddress, name: `-[${controllerName} ${selector}]` },
-]);
+const dispatchMetadata = inspectNativeDispatchMetadata(
+  [{ address: handlerAddress, name: `-[${controllerName} ${selector}]` }],
+  1,
+);
 const symbolInventory = [
-  { address: handlerAddress, name: `-[${controllerName} ${selector}]` },
+  { address: handlerAddress, value: `-[${controllerName} ${selector}]` },
 ];
 const interfaceBuilderFor = (targetSha256: string) =>
   buildInterfaceBuilderAnalysis({

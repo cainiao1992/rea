@@ -474,7 +474,7 @@ export const nativeDispatchMetadataResultSchema = z.strictObject({
 /** Decode only facts visible in a provider's existing name inventory. */
 export const inspectNativeDispatchMetadata = (
   names: readonly { readonly address: string; readonly name: string }[],
-  maxRecords = DEFAULT_DISPATCH_METADATA_RECORDS,
+  maxRecords: number,
 ): ObjcSwiftMetadata => {
   const symbolEvidence = (
     entry: (typeof names)[number],

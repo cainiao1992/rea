@@ -20,9 +20,10 @@ describe("symbol-only Objective-C implementation identity", () => {
   ])(
     "preserves $source without inventing a numeric method identity",
     ({ source, canonical, numeric }) => {
-      const result = inspectNativeDispatchMetadata([
-        { address: source, name: "-[StoreController buildTapped:]" },
-      ]);
+      const result = inspectNativeDispatchMetadata(
+        [{ address: source, name: "-[StoreController buildTapped:]" }],
+        1,
+      );
       expect(result.objc_classes[0]?.methods[0]?.address).toBe(numeric);
       expect(result.objc_dispatch_implementations[0]).toMatchObject({
         implementation_address: canonical,
@@ -34,10 +35,13 @@ describe("symbol-only Objective-C implementation identity", () => {
 
   it("retains unparseable symbol coordinates as reported evidence, without claiming a location", () => {
     const source = "invalid::0x2000";
-    const result = inspectNativeDispatchMetadata([
-      { address: source, name: "-[StoreController buildTapped:]" },
-      { address: source, name: "$s5Store7launchyyF" },
-    ]);
+    const result = inspectNativeDispatchMetadata(
+      [
+        { address: source, name: "-[StoreController buildTapped:]" },
+        { address: source, name: "$s5Store7launchyyF" },
+      ],
+      2,
+    );
     expect(result.objc_dispatch_implementations[0]).toMatchObject({
       implementation_address: null,
       location: { address: null },
@@ -57,6 +61,7 @@ describe("symbol-only Objective-C implementation identity", () => {
           address,
           name: "-[StoreController buildTapped:]",
         })),
+        ordered.length,
       );
       expect(result.objc_dispatch_implementations).toHaveLength(1);
       expect(result.objc_dispatch_implementations[0]).toMatchObject({
@@ -87,6 +92,7 @@ describe("symbol-only Objective-C implementation identity", () => {
           address,
           name: "-[StoreController buildTapped:]",
         })),
+        2,
       );
       expect(result.objc_dispatch_implementations).toHaveLength(2);
       expect(result.objc_classes[0]?.methods).toEqual([
@@ -176,11 +182,14 @@ describe("ObjC/Swift metadata", () => {
   });
 
   it("retains unlocated Swift and Objective-C symbols with explicit unknown addresses and source evidence", () => {
-    const result = inspectNativeDispatchMetadata([
-      { name: "$s4Test7MyClassC", address: "" },
-      { name: "-[StoreController buildTapped:]", address: "" },
-      { name: "$s5Store7launchyyF", address: "ram:0x3000" },
-    ]);
+    const result = inspectNativeDispatchMetadata(
+      [
+        { name: "$s4Test7MyClassC", address: "" },
+        { name: "-[StoreController buildTapped:]", address: "" },
+        { name: "$s5Store7launchyyF", address: "ram:0x3000" },
+      ],
+      3,
+    );
     expect(result.swift_symbols).toMatchObject([
       {
         mangled_name: "$s4Test7MyClassC",
@@ -226,6 +235,7 @@ it("derives classes only from complete class symbol leaves", () => {
       "_OBJC_METACLASS_$_Local",
       "OwnController::viewDidLoad",
     ].map((name, index) => ({ address: `0x${String(index + 1)}`, name })),
+    7,
   );
   expect(result.objc_classes.map(({ name }) => name)).toEqual([
     "Local",

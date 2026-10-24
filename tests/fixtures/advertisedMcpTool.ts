@@ -6,7 +6,7 @@ import { parseEvidence } from "../../src/domain/evidence.js";
 import type { BinarySession } from "../../src/application/binary/BinarySession.js";
 
 interface AdvertisedSchemaAssertions {
-  readonly errors: unknown;
+  readonly errors?: unknown;
   validateSchema(schema: Record<string, unknown>): boolean | Promise<unknown>;
   validate(
     schema: Record<string, unknown>,

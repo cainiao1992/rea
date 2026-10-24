@@ -21,22 +21,36 @@ const tomlTimeoutSchema = z.union([
   z.bigint().positive(),
 ]);
 
-/** Common launcher facts, without assigning a shared meaning to client policy. */
-const registrationSchema = z
+const launcherSchema = z
   .object({
     command: z.string().min(1),
     args: z.array(z.string()).default([]),
-    startup_timeout_sec: tomlTimeoutSchema.optional(),
-    tool_timeout_sec: tomlTimeoutSchema.optional(),
-    startupTimeoutMs: z.number().positive().optional(),
-    toolTimeoutMs: z.number().positive().optional(),
-    type: z.string().optional(),
-    transport: z.string().optional(),
-    serverName: z.string().optional(),
-    disabled: z.boolean().optional(),
-    enabled: z.boolean().optional(),
   })
   .passthrough();
+const opencodeLauncherSchema = z
+  .object({
+    type: z.literal("local"),
+    command: z.array(z.string()).min(1),
+  })
+  .passthrough();
+const normalizeOpencodeLauncher = (
+  entry: z.output<typeof opencodeLauncherSchema>,
+): z.output<typeof launcherSchema> => {
+  const [command = "", ...args] = entry.command;
+  return { ...entry, command, args };
+};
+
+const registrationSchema = launcherSchema.extend({
+  startup_timeout_sec: tomlTimeoutSchema.optional(),
+  tool_timeout_sec: tomlTimeoutSchema.optional(),
+  startupTimeoutMs: z.number().positive().optional(),
+  toolTimeoutMs: z.number().positive().optional(),
+  type: z.string().optional(),
+  transport: z.string().optional(),
+  serverName: z.string().optional(),
+  disabled: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+});
 
 export type ClientRegistration = z.output<typeof registrationSchema>;
 
@@ -76,6 +90,22 @@ const registrationError = (error: z.ZodError): ConfigurationError =>
     })),
   });
 
+/** Launcher identity remains usable when unrelated readiness settings are invalid. */
+export const parseClientRegistrationLauncher = (
+  value: unknown,
+  client: SetupClient,
+): Result<{ command: string; args: string[] }, ConfigurationError> => {
+  const parsed =
+    client.format === "opencode"
+      ? opencodeLauncherSchema
+          .transform(normalizeOpencodeLauncher)
+          .safeParse(value)
+      : launcherSchema.safeParse(value);
+  return parsed.success
+    ? ok({ command: parsed.data.command, args: parsed.data.args })
+    : err(registrationError(parsed.error));
+};
+
 /** Policy belongs to the client dialect, and is validated before refresh writes. */
 const validateClientPolicy = (
   value: unknown,
@@ -109,17 +139,14 @@ export const parseClientRegistration = (
       : err(registrationError(parsed.error));
   }
   if (client.format === "opencode") {
-    const entry = z
-      .object({
-        type: z.literal("local"),
-        command: z.array(z.string()).min(1),
+    const entry = opencodeLauncherSchema
+      .extend({
         environment: z.record(z.string(), z.string()).optional(),
       })
-      .passthrough()
+      .transform(normalizeOpencodeLauncher)
       .safeParse(value);
     if (!entry.success) return err(registrationError(entry.error));
-    const [command = "", ...args] = entry.data.command;
-    value = { ...entry.data, command, args };
+    value = entry.data;
   }
   const parsed = registrationSchema.safeParse(value);
   if (!parsed.success) return err(registrationError(parsed.error));
@@ -182,7 +209,7 @@ export const refreshClientRegistration = (
   const existing = source.success ? source.data : {};
   const policy = validateClientPolicy(existing, client);
   if (!policy.ok) return policy;
-  const prior = parseClientRegistration(existing, client);
+  const prior = parseClientRegistrationLauncher(existing, client);
   const priorCommand = prior.ok
     ? [prior.value.command, ...prior.value.args]
     : undefined;

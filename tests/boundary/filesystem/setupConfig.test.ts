@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse as parseToml } from "smol-toml";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -65,6 +66,57 @@ it.skipIf(process.platform === "win32")(
     expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
       mcpServers: { rea: { command: other, future_policy: { retain: true } } },
     });
+    expect(await readFile(`${configPath}.rea.backup`, "utf8")).toBe(original);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "repairs a Codex timeout without replacing an equivalent caller launcher alias",
+  async () => {
+    const home = await createTestTempDirectory(
+      "rea-config-timeout-launcher-alias-",
+    );
+    const real = join(home, "rea-current");
+    const alias = join(home, "rea-alias");
+    await writeFile(real, "current launcher\n");
+    await symlink(real, alias);
+    await mkdir(join(home, ".codex"));
+    const configPath = join(home, ".codex", "config.toml");
+    const original = [
+      "[mcp_servers.rea]",
+      `command = ${JSON.stringify(alias)}`,
+      'args = ["mcp"]',
+      "startup_timeout_sec = 0",
+      "tool_timeout_sec = 450",
+      "future_policy = { retain = true }",
+      "",
+      "[mcp_servers.rea.env]",
+      'CALLER_SETTING = "keep exactly"',
+      "",
+    ].join("\n");
+    await writeFile(configPath, original);
+    const client = { name: "codex", format: "toml", configPath } as const;
+    expect(
+      await configureClientConfiguration(client, {}, [real, "mcp"]),
+    ).toMatchObject({ status: "configured" });
+    const configured = await readFile(configPath, "utf8");
+    expect(parseToml(configured)).toMatchObject({
+      mcp_servers: {
+        rea: {
+          command: alias,
+          args: ["mcp"],
+          startup_timeout_sec: 30,
+          tool_timeout_sec: 450,
+          future_policy: { retain: true },
+          env: { CALLER_SETTING: "keep exactly" },
+        },
+      },
+    });
+    expect(await readFile(`${configPath}.rea.backup`, "utf8")).toBe(original);
+    expect(
+      await configureClientConfiguration(client, {}, [real, "mcp"]),
+    ).toEqual({ status: "unchanged" });
+    expect(await readFile(configPath, "utf8")).toBe(configured);
     expect(await readFile(`${configPath}.rea.backup`, "utf8")).toBe(original);
   },
 );

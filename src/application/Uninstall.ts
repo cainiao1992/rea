@@ -22,7 +22,7 @@ import { defaultKunaCacheDirectory } from "../config/kunaCacheDirectory.js";
 import { linuxHopperReleaseCacheDirectory } from "./LinuxHopperCacheDirectory.js";
 
 import { ClientConfigurationPublication } from "./ClientConfigurationPublication.js";
-import { z } from "zod";
+import { parseClientRegistrationLauncher } from "./ClientRegistration.js";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
 import {
@@ -734,21 +734,9 @@ const resolveUninstallConfigPath = async (
 
 /** Ownership rule for persistent MCP registrations created by REA setup. */
 const isOwnedRegistration = (value: unknown, client: SetupClient): boolean => {
-  if (client.format === "opencode") {
-    const parsed = z
-      .object({ type: z.literal("local"), command: z.array(z.string()).min(1) })
-      .passthrough()
-      .safeParse(value);
-    if (!parsed.success) return false;
-    const command = parsed.data.command;
-    return (
-      classifyClientRegistrationCommand(command, CURRENT_ENTRYPOINT_PATH) ===
-      "owned"
-    );
-  }
-  const parsed = registrationSchema.safeParse(value);
-  if (!parsed.success) return false;
-  const { command, args } = parsed.data;
+  const parsed = parseClientRegistrationLauncher(value, client);
+  if (!parsed.ok) return false;
+  const { command, args } = parsed.value;
   return (
     classifyClientRegistrationCommand(
       [command, ...args],
@@ -1183,8 +1171,5 @@ const uninstallStatusPriority = (status: UninstallItem["status"]): number => {
     }
   }
 };
-const registrationSchema = z
-  .object({ command: z.string(), args: z.array(z.string()) })
-  .passthrough();
 const isMissing = (cause: unknown): boolean =>
   cause instanceof Error && "code" in cause && cause.code === "ENOENT";

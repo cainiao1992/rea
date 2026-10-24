@@ -1055,6 +1055,7 @@ const createState = (
     ambientBindingWrites: new Map(),
     ambientWrites: new SemanticPropertyPathCoverage(),
     escapingReferenceStores: new WeakSet(),
+    retainedGlobalCallReceivers: new WeakSet(),
     ambientEscapes: new SemanticPropertyPathCoverage(),
     ambientEscapeEffects: [],
     ambientWriteEffects: [],

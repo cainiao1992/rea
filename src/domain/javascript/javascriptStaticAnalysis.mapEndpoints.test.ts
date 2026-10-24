@@ -34,6 +34,7 @@ it.each([
   'function inspect() { const records = new Map(); return records.get("/accounts"); }',
   'const inspect = () => { const records = new Map(); const alias = records; return alias.delete("/accounts"); }',
   'const browser = window; browser.open("about:blank"); new Map().get("/accounts")',
+  'const records = new Map(); const browser = window; browser.open("about:blank"); records.get("/accounts")',
   'const box = {}; box.value = { name: "Alice" }; inspect(box); new Map().get("/accounts")',
   'patch(() => ({ name: "Alice" })); new Map().get("/accounts")',
   'const box = {}; box.prototype = Map.prototype; new Map().get("/accounts")',
@@ -54,6 +55,8 @@ it.each([
 
 it.each([
   'client.get("/accounts")',
+  'const records = new Map(); const browser = window; browser.open(window); records.get("/accounts")',
+  'const records = new Map(); function invoke() { window.open(); } window.open = patch; invoke(); records.get("/accounts")',
   'Object.getPrototypeOf = () => Map.prototype; Object.getPrototypeOf({}).get = fetch; new Map().get("/accounts")',
   'Reflect.getPrototypeOf = () => Map.prototype; Reflect.getPrototypeOf({}).get = fetch; new Map().get("/accounts")',
   'const records = new Map(); records.get = request; records.get("/accounts")',

@@ -1445,8 +1445,9 @@ export function* collectSemanticMemberMutationsSteps(
     )
       return;
     if (
-      t.isMemberExpression(expression) ||
-      t.isOptionalMemberExpression(expression)
+      (t.isMemberExpression(expression) ||
+        t.isOptionalMemberExpression(expression)) &&
+      !state.retainedGlobalCallReceivers.has(expression.object)
     )
       markEscaped(expression.object, mutation);
   };

@@ -8,6 +8,46 @@ import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
+import { javaScriptSourcePathsSchema } from "../domain/javascript/javascriptSourceSelection.js";
+import { parseCliJsonInput } from "../cliJsonInput.js";
+
+const OPERATION = "analyze_javascript_application";
+
+/**
+ * Combine repeated `--source-path` values with `--source-paths-json`, an inline
+ * JSON array or a JSON file. A file keeps large selections below the host
+ * command-line limit; entries remain exact application-relative paths and are
+ * not resolved against the working directory.
+ */
+export const cliJavaScriptSourcePaths = async (
+  sourcePath: readonly string[] | undefined,
+  sourcePathsJson: string | undefined,
+  signal?: AbortSignal,
+): Promise<
+  | { readonly ok: true; readonly value: readonly string[] | undefined }
+  | { readonly ok: false; readonly error: JsonValue }
+> => {
+  if (sourcePathsJson === undefined) return { ok: true, value: sourcePath };
+  const input = await parseCliJsonInput(sourcePathsJson, OPERATION, signal);
+  if (!input.ok) return input;
+  const parsed = javaScriptSourcePathsSchema.safeParse(input.value);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: cliError(
+        analysisInputErrorFromIssues(
+          OPERATION,
+          parsed.error.issues.map((issue) => ({
+            ...issue,
+            path: ["source_paths_json", ...issue.path],
+          })),
+          { source_paths_json: input.value },
+        ),
+      ),
+    };
+  return { ok: true, value: [...(sourcePath ?? []), ...parsed.data] };
+};
 
 /**
  * One scope for every JavaScript analysis in this process. A healthy worker

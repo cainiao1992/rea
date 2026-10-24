@@ -18,7 +18,10 @@ import {
   snapshotSelectionOption,
 } from "./options.js";
 import type { CliInstance } from "./types.js";
-import { runCliJavaScriptApplicationAnalysis } from "./javascriptApplicationAnalysis.js";
+import {
+  cliJavaScriptSourcePaths,
+  runCliJavaScriptApplicationAnalysis,
+} from "./javascriptApplicationAnalysis.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import {
   analysisEvidenceDeliveryOptions,
@@ -98,6 +101,7 @@ const registerOverviewCommands = (
     options: overviewOptions.extend({
       integrityPolicy: laneIntegrityPolicy,
       sourcePath: javascriptApplicationOptions.shape.sourcePath,
+      sourcePathsJson: javascriptApplicationOptions.shape.sourcePathsJson,
     }),
     run: async ({ args, options }) => {
       // Route JavaScript targets exactly like analyze-javascript-application,
@@ -105,23 +109,32 @@ const registerOverviewCommands = (
       // code is not replaced by the logged failure status.
       if (await routesToJavaScriptAnalysis(args.path, options))
         return withCommandCancellation((signal) =>
-          logCliCommand(logger, "analyze", () =>
-            runCliJavaScriptApplicationAnalysis(
+          logCliCommand(logger, "analyze", async () => {
+            const sourcePaths = await cliJavaScriptSourcePaths(
+              options.sourcePath,
+              options.sourcePathsJson,
+              signal,
+            );
+            if (!sourcePaths.ok) return sourcePaths.error;
+            return runCliJavaScriptApplicationAnalysis(
               {
                 input_path: absoluteCallerPath(args.path),
                 integrity_policy:
                   options.integrityPolicy ?? defaultIntegrityPolicy,
-                ...(options.sourcePath === undefined
+                ...(sourcePaths.value === undefined
                   ? {}
-                  : { source_paths: options.sourcePath }),
+                  : { source_paths: sourcePaths.value }),
               },
               environment,
               signal,
-            ),
-          ),
+            );
+          }),
         );
       return logCliCommand(logger, "analyze", () => {
-        if (options.sourcePath !== undefined)
+        if (
+          options.sourcePath !== undefined ||
+          options.sourcePathsJson !== undefined
+        )
           throw new AnalysisInputError(
             "analyze_javascript_application",
             undefined,

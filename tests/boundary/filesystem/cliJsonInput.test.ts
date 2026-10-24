@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createCli } from "../../../src/cli.js";
 import { parseCliJsonInput } from "../../../src/cliJsonInput.js";
+import { cliJavaScriptSourcePaths } from "../../../src/cli/javascriptApplicationAnalysis.js";
 import { readJsonInputFile } from "../../../src/application/JsonInputFile.js";
 import { analysisCliErrorEnvelopeSchema } from "../../../src/contracts/errorSchemas.js";
 import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../../../src/application/Utf8JsonInput.js";
@@ -306,4 +307,42 @@ describe("CLI JSON input", () => {
       });
     },
   );
+});
+
+describe("CLI JSON file cancellation", () => {
+  const writeSelection = async (): Promise<string> => {
+    const root = await createTestTempDirectory("rea-json-input-cancel-");
+    const path = join(root, "paths.json");
+    await writeFile(path, JSON.stringify(["main.js", "package.json"]));
+    return path;
+  };
+
+  it("reports a cancelled file read as cancellation, not a file failure", async () => {
+    const path = await writeSelection();
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await parseCliJsonInput(path, "test-input", controller.signal),
+    ).toMatchObject({ ok: false, error: { code: "cancelled" } });
+  });
+
+  it("reports cancellation through --source-paths-json selection", async () => {
+    const path = await writeSelection();
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await cliJavaScriptSourcePaths(["index.js"], path, controller.signal),
+    ).toMatchObject({ ok: false, error: { code: "cancelled" } });
+  });
+
+  it("still reads the selection when the signal is not aborted", async () => {
+    const path = await writeSelection();
+    expect(
+      await cliJavaScriptSourcePaths(
+        ["index.js"],
+        path,
+        new AbortController().signal,
+      ),
+    ).toEqual({ ok: true, value: ["index.js", "main.js", "package.json"] });
+  });
 });

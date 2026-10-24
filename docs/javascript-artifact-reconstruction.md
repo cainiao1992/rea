@@ -101,6 +101,18 @@ caller's request and first-occurrence priority, analyzing the file once.
 Omit the selection for the existing complete
 application workflow.
 
+For a long selection, pass the paths as a JSON array with
+`--source-paths-json`, either inline or as a JSON file path. A file keeps the
+command below host command-line limits, such as the 8,191-character limit of
+the `cmd.exe` shim that `npx` uses on Windows. Its entries follow any
+`--source-path` values and stay artifact-relative; they are not resolved
+against the working directory:
+
+```bash
+rea analyze-javascript-application /absolute/path/to/app.asar \
+  --source-paths-json /absolute/path/to/paths.json --json
+```
+
 The result and summary retain `source_selection.requested_paths` and
 `source_selection.unselected_files`. Selecting every relevant file leaves this
 count at zero and adds no unselected-source caveat. Every relevant file keeps its
@@ -109,8 +121,8 @@ original inventory identity; unselected files report `text_status:
 coverage is partial while any file remains outside scope. Selection does not
 claim whole-application completeness or change integrity policy. Summary detail
 only reduces delivery; source selection reduces text acquisition and analysis.
-Explicit native provider or snapshot routing rejects `--source-path` rather
-than ignoring it.
+Explicit native provider or snapshot routing rejects `--source-path` and
+`--source-paths-json` rather than ignoring them.
 
 For directory input, a permission-denied child file remains an unavailable
 inventory occurrence, and an unreadable child directory records an unknown

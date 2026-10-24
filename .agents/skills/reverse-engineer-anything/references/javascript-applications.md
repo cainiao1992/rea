@@ -17,9 +17,10 @@ the complete artifact inventory and identity but reads source text and analyzes
 only selected files. The result and summary record `source_selection`; files
 outside scope and their relationships remain unknown, so partial application
 coverage does not mean the selected source failed. Use repeated `--source-path`
-on either static application CLI route. Omit the selection when the question
-requires complete application analysis; `source_paths: []` is invalid, not an
-unfiltered request. `detail: "summary"` reduces delivery
+on either static application CLI route, or `--source-paths-json` with a JSON
+file for selections too long for one command line. Omit the selection when the
+question requires complete application analysis; `source_paths: []` is invalid,
+not an unfiltered request. `detail: "summary"` reduces delivery
 and does not by itself reduce analysis work.
 
 ASAR header/index admission defaults to 16 MiB / 16777216 bytes;

@@ -22,7 +22,10 @@ import {
   javascriptApplicationOptions,
   selectedCommandTimeout,
 } from "../cliObservationOptions.js";
-import { runCliJavaScriptApplicationAnalysis } from "./javascriptApplicationAnalysis.js";
+import {
+  cliJavaScriptSourcePaths,
+  runCliJavaScriptApplicationAnalysis,
+} from "./javascriptApplicationAnalysis.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
@@ -322,6 +325,12 @@ const registerJavaScriptApplicationCommand = (
               options,
             );
             if (!delivery.ok) return projectAnalysisError(delivery.error);
+            const sourcePaths = await cliJavaScriptSourcePaths(
+              options.sourcePath,
+              options.sourcePathsJson,
+              signal,
+            );
+            if (!sourcePaths.ok) return sourcePaths.error;
             return runCliJavaScriptApplicationAnalysis(
               {
                 // An empty path names no file; leave it for input validation.
@@ -347,9 +356,9 @@ const registerJavaScriptApplicationCommand = (
                       max_semantic_unknowns_per_file:
                         options.maxSemanticUnknownsPerFile,
                     }),
-                ...(options.sourcePath === undefined
+                ...(sourcePaths.value === undefined
                   ? {}
-                  : { source_paths: options.sourcePath }),
+                  : { source_paths: sourcePaths.value }),
                 ...(options.maxHeapMb === undefined
                   ? {}
                   : { max_heap_mb: options.maxHeapMb }),

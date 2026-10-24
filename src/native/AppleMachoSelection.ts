@@ -11,6 +11,7 @@ import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
   readFatSliceDeclarations,
   validateFatSlice,
+  validateFatSliceIdentity,
   type FatSliceDeclaration,
 } from "../domain/apple/machoContainer.js";
 
@@ -34,15 +35,7 @@ export interface MachoSlice {
   slice: number;
   sliceEnd: number;
   /** FAT table identity, absent for a thin image. */
-  fatDeclaration?: {
-    offset: number;
-    size: number;
-    cpuType: number;
-    cpuSubtype: number;
-    alignmentExponent: number;
-    index: number;
-    tableEnd: number;
-  };
+  fatDeclaration?: FatSliceDeclaration & { readonly tableEnd: number };
 }
 
 /** Parsed little-endian 64-bit Mach-O layout for the selected architecture slice. */
@@ -193,7 +186,7 @@ export const parseMachoLayout = (
   const cpuSubtype = readHeaderUInt32(slice + 8);
   const fat = selection.fatDeclaration;
   if (fat !== undefined) {
-    const issue = validateFatSlice(fat, bytes.length, fat.tableEnd, {
+    const issue = validateFatSliceIdentity(fat, {
       cpuType,
       cpuSubtype,
     });

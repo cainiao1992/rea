@@ -70,6 +70,25 @@ const registerThinCpuFamilyControls = (): void => {
   });
 };
 
+it.each([false, true])(
+  "retains the shared FAT declaration without imposing Hopper policy (wide=%s)",
+  (wide) => {
+    const thin = machoImage({ cpu: CPU.arm64e });
+    const fat = Buffer.from(fatImage([{ cpu: CPU.arm64e, bytes: thin }], wide));
+    if (wide) fat.writeUInt32BE(0x89abcdef, 8 + 28);
+    expect(selectMachoSlice(fat, "arm64").fatDeclaration).toEqual({
+      index: 0,
+      offset: 4096,
+      size: thin.byteLength,
+      cpuType: CPU.arm64e.type,
+      cpuSubtype: CPU.arm64e.subtype,
+      alignmentExponent: 12,
+      reserved: wide ? 0x89abcdef : null,
+      tableEnd: 8 + (wide ? 32 : 20),
+    });
+  },
+);
+
 describe("native Mach-O slice selection", () => {
   it("rejects misaligned load commands", () => {
     expect(() =>

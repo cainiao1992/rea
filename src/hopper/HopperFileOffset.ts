@@ -25,10 +25,12 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { FileOffsetPartialObservation } from "../domain/native/fileOffsetPartialObservation.js";
 import {
+  findOverlappingFatSlices,
   readFatSliceDeclarations,
   readMachoHeaderPrefixFacts,
   type FatSliceDeclaration,
   validateFatSlice,
+  validateFatSliceIdentity,
 } from "../domain/apple/machoContainer.js";
 import { err, ok, type Result } from "../domain/result.js";
 
@@ -351,17 +353,11 @@ function fatLayout(prefix: Buffer): Result<FatLayout | null, string> {
   const table = prefix.subarray(8, tableEnd);
   const parsed = readFatSliceDeclarations(table, { count, wide, littleEndian });
   if (parsed.status !== "parsed") return err(parsed.reason);
-  if (wide) {
-    for (const slice of parsed.slices)
-      if (
-        (littleEndian
-          ? table.readUInt32LE(slice.index * 32 + 28)
-          : table.readUInt32BE(slice.index * 32 + 28)) !== 0
-      )
-        return err(
-          `FAT64 architecture ${slice.index} has a nonzero reserved field`,
-        );
-  }
+  for (const slice of parsed.slices)
+    if (slice.reserved !== null && slice.reserved !== 0)
+      return err(
+        `FAT64 architecture ${slice.index} has a nonzero reserved field`,
+      );
   return ok({ slices: parsed.slices, tableEnd });
 }
 
@@ -436,17 +432,8 @@ function originalOffset(
       "Hopper did not expose the loaded Mach-O header needed to identify its FAT slice",
     );
   const matches = [];
-  const ranges = [...layout.value.slices].sort((a, b) => a.offset - b.offset);
-  for (let index = 1; index < ranges.length; index++) {
-    const previous = ranges[index - 1];
-    const current = ranges[index];
-    if (
-      previous !== undefined &&
-      current !== undefined &&
-      current.offset < previous.offset + previous.size
-    )
-      return err("Original FAT slices overlap");
-  }
+  if (findOverlappingFatSlices(layout.value.slices) !== null)
+    return err("Original FAT slices overlap");
   for (const slice of layout.value.slices) {
     const reason = validateFatSlice(slice, size, layout.value.tableEnd);
     if (reason !== null) return err(reason);
@@ -460,12 +447,7 @@ function originalOffset(
       return err(
         `FAT architecture ${slice.index} does not contain a Mach-O image`,
       );
-    const identityError = validateFatSlice(
-      slice,
-      size,
-      layout.value.tableEnd,
-      embeddedIdentity,
-    );
+    const identityError = validateFatSliceIdentity(slice, embeddedIdentity);
     if (identityError !== null) return err(identityError);
     if (
       slice.cpuType === loadedIdentity.cpuType &&

@@ -411,12 +411,11 @@ export class FlutterBuildProvider {
       // stops the write promptly instead of draining the whole file.
       let source: OwnedFileHandle;
       try {
-        source = this.ownResource(
-          root,
-          new OwnedFileHandle(
-            await openRegularFile(path, { symlinks: "follow", signal }),
-          ),
-        );
+        const { handle } = await openRegularFile(path, {
+          symlinks: "follow",
+          signal,
+        });
+        source = this.ownResource(root, new OwnedFileHandle(handle));
       } catch (cause) {
         if (cause instanceof RegularFileAdmissionFailure) {
           this.ownResource(root, cause.owner);

@@ -898,8 +898,7 @@ export class CutterBridgeClient {
               join(this.#directory, entry),
               this.#descriptorResources,
               signal,
-              async (file) => {
-                const info = await file.stat();
+              async ({ handle: file, initial: info }) => {
                 if (
                   info.size > MAX_DESCRIPTOR_BYTES ||
                   info.uid !== currentUid ||

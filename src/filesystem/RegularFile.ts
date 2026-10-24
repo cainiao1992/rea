@@ -90,14 +90,14 @@ export interface StableRegularFileDescriptor {
   readonly initial: Stats;
 }
 
-/** Open and verify the selected file descriptor without blocking on pipes. */
+/** Admit a non-blocking regular-file descriptor with its validated initial facts. */
 export const openRegularFile = async (
   path: string,
   options: {
     readonly symlinks: "follow" | "reject";
     readonly signal?: AbortSignal | undefined;
   },
-): Promise<FileHandle> => {
+): Promise<StableRegularFileDescriptor> => {
   assertRegularFileActive(options.signal);
   const handle = await open(
     path,
@@ -131,7 +131,7 @@ export const openRegularFile = async (
         throw new RegularFileChangedError(path);
       assertRegularFileActive(options.signal);
     }
-    return handle;
+    return { handle, initial: metadata };
   } catch (cause: unknown) {
     try {
       await owner.close();

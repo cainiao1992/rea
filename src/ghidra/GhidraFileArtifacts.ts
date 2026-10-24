@@ -35,7 +35,7 @@ export const readGhidraProfileArtifact = <Value>(
   signal: AbortSignal | undefined,
   interpret: (bytes: Buffer) => Value,
 ): Promise<Value> =>
-  withArtifactRegularFile(path, resources, signal, async (file) => {
+  withArtifactRegularFile(path, resources, signal, async ({ handle: file }) => {
     const bytes = await readStableFileBytes(file, path, maximumBytes, {
       symlinks: "reject",
       ...(signal === undefined ? {} : { signal }),

@@ -92,15 +92,15 @@ export const classifyAndHashRootForInventory = async (
 ): Promise<RootInventoryClassification> => {
   if (directory)
     return { format: "directory", digest: null, rootSource: undefined };
-  const ownedHandle = await openRootArtifact(
+  const source = await openRootArtifact(
     path,
     options.resourceScope,
     options.signal,
   );
-  const handle = ownedHandle.handle;
+  const { handle, initial } = source;
   const owner: ArtifactResourceOwner = {
     kind: "file-handle",
-    handle: ownedHandle,
+    handle: source.owner,
     resource: `root artifact descriptor for ${path}`,
   };
   let outcome:
@@ -110,7 +110,6 @@ export const classifyAndHashRootForInventory = async (
       }
     | { readonly kind: "failed"; readonly cause: unknown };
   try {
-    const initial = await handle.stat();
     if (!sameRegularFileState(expectedMetadata, initial))
       throw new ArtifactReaderFailure(
         "integrity",
@@ -139,9 +138,7 @@ export const classifyAndHashRootForInventory = async (
       value: {
         format,
         digest,
-        rootSource: retainSource
-          ? { handle, initial, owner: ownedHandle }
-          : undefined,
+        rootSource: retainSource ? source : undefined,
       },
     };
   } catch (cause: unknown) {

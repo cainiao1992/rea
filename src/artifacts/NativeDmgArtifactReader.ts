@@ -597,10 +597,10 @@ export class NativeDmgArtifactReader implements ArtifactReader {
   ): Promise<boolean> {
     let handle: FileHandle;
     try {
-      handle = await openRegularFile(this.path, {
+      ({ handle } = await openRegularFile(this.path, {
         symlinks: "follow",
         ...(signal === undefined ? {} : { signal }),
-      });
+      }));
     } catch (cause: unknown) {
       if (cause instanceof RegularFileAdmissionFailure) {
         this.#verificationProbeHandle = cause.owner;

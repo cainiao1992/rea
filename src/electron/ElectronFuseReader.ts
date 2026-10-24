@@ -151,7 +151,7 @@ export const readElectronFuseImage = async (
     path,
     options?.resources ?? new ArtifactResourceScope(),
     signal,
-    async (owned) => {
+    async ({ handle: owned }) => {
       const opened = await owned.stat({ bigint: true });
       if (!sameRegularFileState(before, opened))
         throw new RegularFileChangedError(path);

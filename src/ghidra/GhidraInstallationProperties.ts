@@ -40,7 +40,7 @@ export const readGhidraInstallationProperties = async (
             ),
         },
         options.signal,
-        async (file) =>
+        async ({ handle: file }) =>
           (
             await readStableFileBytes(
               file,

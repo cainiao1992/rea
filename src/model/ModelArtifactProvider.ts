@@ -103,7 +103,7 @@ export class ModelArtifactProvider implements ModelArtifactPort {
             input.path,
             this.#resources,
             options?.signal,
-            (file) =>
+            ({ handle: file }) =>
               this.#read(file, input, options?.signal, (progress) => {
                 partialProgress = progress;
               }),

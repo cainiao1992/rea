@@ -341,7 +341,7 @@ const requireEngineArchive = async (
             ),
         },
         options.signal,
-        async (handle) => {
+        async ({ handle, initial }) => {
           try {
             // Metadata enumeration borrows this descriptor. The file workflow
             // alone owns admission, final close, cancellation and failed retry.
@@ -349,7 +349,7 @@ const requireEngineArchive = async (
               jar,
               "zip",
               JAR_METADATA_READ_MAX_BYTES,
-              { handle, initial: await handle.stat() },
+              { handle, initial },
             );
             const missing = new Set([
               "com/atxx/jhmcp/JadxSession.class",

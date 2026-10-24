@@ -62,7 +62,9 @@ const admittedZip = async () => {
   const writer = new ZipWriter(new Uint8ArrayWriter());
   await writer.add("member.txt", new TextReader(content));
   await writeFile(path, await writer.close());
-  const handle = await openRegularFile(path, { symlinks: "reject" });
+  const { handle, initial } = await openRegularFile(path, {
+    symlinks: "reject",
+  });
   // Keep the actual descriptor, but select the positional overload used by
   // the ZIP adapter so the spy does not infer FileHandle.read's options form.
   const positional: {
@@ -73,7 +75,7 @@ const admittedZip = async () => {
       position: number,
     ): Promise<{ bytesRead: number; buffer: Buffer }>;
   } = handle;
-  return { path, content, handle, positional, initial: await handle.stat() };
+  return { path, content, handle, positional, initial };
 };
 
 describe("ZipArtifactReader positional reads", () => {

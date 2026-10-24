@@ -1463,10 +1463,11 @@ it.each(["EACCES", "EPERM"] as const)(
       const admitted = vi
         .spyOn(regularFile, "openRegularFile")
         .mockImplementation(async (...args) => {
-          const handle = await original(...args);
+          const descriptor = await original(...args);
+          const { handle } = descriptor;
           if (stage === "read")
             vi.spyOn(handle, "read").mockRejectedValueOnce(cause);
-          return handle;
+          return descriptor;
         });
       const pathStat =
         stage === "revalidate"
@@ -1498,21 +1499,23 @@ it("detects same-size source rewrites with restored mtime through the opened des
   const admitted = vi
     .spyOn(regularFile, "openRegularFile")
     .mockImplementation(async (...args) => {
-      const handle = await nativeAdmission(...args);
-      // Admission returns an open descriptor; mutate its file before the final
-      // descriptor stat, preserving the size and restoring the visible mtime.
-      const nativeStat = handle.stat.bind(handle);
-      let calls = 0;
-      vi.spyOn(handle, "stat").mockImplementation(async (...statArgs) => {
-        calls += 1;
-        if (calls === 2) {
+      const descriptor = await nativeAdmission(...args);
+      const { handle } = descriptor;
+      // Rewrite after a real descriptor read. The retained admission snapshot
+      // remains the baseline for final verification, including ctime.
+      const nativeRead = handle.read.bind(handle);
+      let rewritten = false;
+      vi.spyOn(handle, "read").mockImplementation(async (...readArgs) => {
+        const result = await nativeRead(...readArgs);
+        if (!rewritten) {
+          rewritten = true;
           await new Promise((resolve) => setTimeout(resolve, 10));
           await writeFile(path, content);
           await utimes(path, before.atime, before.mtime);
         }
-        return nativeStat(...statArgs);
+        return result;
       });
-      return handle;
+      return descriptor;
     });
   onTestFinished(() => admitted.mockRestore());
   const provider = new FlutterBuildProvider();
@@ -1560,14 +1563,15 @@ it("stops a cancelled descriptor copy before writing its next chunk and releases
   const admitted = vi
     .spyOn(regularFile, "openRegularFile")
     .mockImplementation(async (...args) => {
-      const handle = await nativeAdmission(...args);
+      const descriptor = await nativeAdmission(...args);
+      const { handle } = descriptor;
       const nativeRead = handle.read.bind(handle);
       vi.spyOn(handle, "read").mockImplementation(async (...readArgs) => {
         const result = await nativeRead(...readArgs);
         controller.abort(new Error("cancelled while copy read was pending"));
         return result;
       });
-      return handle;
+      return descriptor;
     });
   onTestFinished(() => admitted.mockRestore());
   const removeRoot = vi.fn((root: string) =>

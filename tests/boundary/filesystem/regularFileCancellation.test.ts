@@ -359,7 +359,7 @@ it.each([false, true])(
           return withOwnedRegularFile(
             path,
             { signal: inner.signal },
-            async (nested) => {
+            async ({ handle: nested }) => {
               innerHandle = nested;
               const value = await nested.readFile();
               const close = nested.close.bind(nested);
@@ -500,7 +500,7 @@ it.each(["completed", "failed"] as const)(
             signal: controller.signal,
             retainFailedClose: (owner) => retained.push(owner),
           },
-          async (handle) => {
+          async ({ handle }) => {
             const bytes = await handle.readFile();
             if (outcome === "failed") throw primary;
             return bytes;

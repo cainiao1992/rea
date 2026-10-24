@@ -26,7 +26,10 @@ import {
 import { extname } from "node:path";
 
 import { BinaryTargetError } from "../domain/configurationErrors.js";
-import { sameRegularFileState } from "../filesystem/RegularFile.js";
+import {
+  sameRegularFileState,
+  type StableRegularFileDescriptor,
+} from "../filesystem/RegularFile.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -153,10 +156,10 @@ export const parseBinaryTarget = async (
         symlinks: "reject",
         ...(signal === undefined ? {} : { signal }),
       },
-      async (handle) => {
+      async (source) => {
         try {
           return await readOpenedBinaryTarget(
-            handle,
+            source,
             { path, sourcePath, ...bundle },
             options,
           );
@@ -232,7 +235,7 @@ type TargetResolution = Result<
 
 /** Classify and hash the one descriptor admitted by the lifetime owner. */
 const readOpenedBinaryTarget = async (
-  handle: FileHandle,
+  source: StableRegularFileDescriptor,
   selected: {
     readonly path: string;
     readonly sourcePath: string;
@@ -240,12 +243,11 @@ const readOpenedBinaryTarget = async (
   },
   options: BinaryTargetResolverOptions,
 ): Promise<TargetResolution> => {
+  const { handle, initial: metadata } = source;
   const { path, sourcePath, bundleInfoPlist } = selected;
   const bundle = bundleInfoPlist === undefined ? {} : { bundleInfoPlist };
   const hostArchitecture = options.hostArchitecture ?? process.arch;
   const { targetKind, formatHint, signal, architecture, entryPoint } = options;
-  throwIfTargetResolutionCancelled(signal);
-  const metadata = await handle.stat();
   throwIfTargetResolutionCancelled(signal);
   if (formatHint === "raw-binary") {
     if (targetKind !== undefined && targetKind !== "executable")
@@ -366,7 +368,7 @@ const readOpenedBinaryTarget = async (
   const artifactFormat =
     targetKind === "database"
       ? undefined
-      : await detectArtifactFormat(path, handle, signal);
+      : await detectArtifactFormat(path, source, signal);
   if (
     targetKind === "database" ||
     (targetKind === undefined && path.toLowerCase().endsWith(".hop"))
@@ -389,7 +391,7 @@ const readOpenedBinaryTarget = async (
       : ok({ ...identity, kind: "artifact", format: artifactFormat });
   }
   const detected = await readExecutableMetadata(
-    handle,
+    source,
     hostArchitecture,
     signal,
   );
@@ -616,7 +618,7 @@ const throwIfTargetResolutionCancelled = (signal?: AbortSignal): void => {
 
 const detectArtifactFormat = async (
   path: string,
-  handle: FileHandle,
+  source: StableRegularFileDescriptor,
   signal?: AbortSignal,
 ): Promise<
   | Exclude<
@@ -633,6 +635,7 @@ const detectArtifactFormat = async (
     >
   | undefined
 > => {
+  const { handle, initial } = source;
   throwIfTargetResolutionCancelled(signal);
   const lower = path.toLowerCase();
   const magic = Buffer.alloc(4096);
@@ -664,8 +667,7 @@ const detectArtifactFormat = async (
     return "pkg";
   if (lower.endsWith(".dmg")) {
     throwIfTargetResolutionCancelled(signal);
-    const size = (await handle.stat()).size;
-    throwIfTargetResolutionCancelled(signal);
+    const size = initial.size;
     if (size >= 512) {
       const trailer = Buffer.alloc(4);
       const read = await handle.read(trailer, 0, trailer.length, size - 512);
@@ -696,7 +698,7 @@ const detectArtifactFormat = async (
     if (xmlState === "matched") return "plist";
   }
   if (bytesRead === MAX_XML_PLIST_PROBE_BYTES) {
-    const { size } = await handle.stat();
+    const { size } = initial;
     throwIfTargetResolutionCancelled(signal);
     if (size > bytesRead)
       throw new BinaryTargetError(
@@ -837,10 +839,11 @@ const resolveAppBundle = async (
 };
 
 const readExecutableMetadata = async (
-  handle: FileHandle,
+  source: StableRegularFileDescriptor,
   hostArchitecture: NodeJS.Architecture,
   signal?: AbortSignal,
 ): Promise<Result<ExecutableMetadata, ExecutableMetadataFailure>> => {
+  const { handle, initial } = source;
   throwIfTargetResolutionCancelled(signal);
   const prefix = Buffer.alloc(4096);
   const prefixRead = await handle.read(prefix, 0, prefix.length, 0);
@@ -848,8 +851,7 @@ const readExecutableMetadata = async (
   const bytes = prefix.subarray(0, prefixRead.bytesRead);
   // Header commitments such as Mach-O load commands and FAT slices are
   // checked against the whole file, not the probed prefix.
-  const fileSize = (await handle.stat()).size;
-  throwIfTargetResolutionCancelled(signal);
+  const fileSize = initial.size;
   if (bytes.length >= 2 && bytes[0] === 0x4d && bytes[1] === 0x5a) {
     let evidence = parseMzHeaderEvidence(bytes, fileSize);
     let signatureEvidence:

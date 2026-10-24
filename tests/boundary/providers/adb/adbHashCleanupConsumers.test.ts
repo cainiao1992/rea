@@ -183,12 +183,13 @@ for (const closeFails of [false, true]) {
       let opened: FileHandle | undefined;
       vi.spyOn(regularFile, "openRegularFile").mockImplementation(
         async (selected, options) => {
-          const file = await nativeOpen(selected, options);
+          const descriptor = await nativeOpen(selected, options);
+          const { handle: file } = descriptor;
           if (selected === path) {
             opened = file;
             vi.spyOn(file, "read").mockRejectedValueOnce(primary);
           }
-          return file;
+          return descriptor;
         },
       );
       const nativeClose = OwnedFileHandle.prototype.close;
@@ -246,9 +247,10 @@ for (const closeFails of [false, true]) {
       let opened: FileHandle | undefined;
       vi.spyOn(regularFile, "openRegularFile").mockImplementation(
         async (selected, options) => {
-          const handle = await nativeOpen(selected, options);
+          const descriptor = await nativeOpen(selected, options);
+          const { handle } = descriptor;
           if (selected === path) opened = handle;
-          return handle;
+          return descriptor;
         },
       );
       const nativeClose = OwnedFileHandle.prototype.close;

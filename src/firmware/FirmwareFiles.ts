@@ -93,7 +93,7 @@ export class FirmwareFileAccess {
       path,
       this.#resources,
       signal,
-      async (handle) => {
+      async ({ handle }) => {
         const hash = createHash("sha256");
         for await (const chunk of readArtifactFileChunks(handle, { signal })) {
           assertArtifactReadActive(signal);
@@ -125,8 +125,7 @@ export class FirmwareFileAccess {
       source,
       this.#resources,
       signal,
-      async (handle) => {
-        const stat = await handle.stat();
+      async ({ handle, initial: stat }) => {
         sourceAdmitted = true;
         if (stat.size === 0 || stat.size > FIRMWARE_LIMITS.inputBytes)
           throw firmwareInputFailure(request.operation);
@@ -179,7 +178,7 @@ export class FirmwareFileAccess {
         fullPath,
         this.#resources,
         signal,
-        async (handle) => {
+        async ({ handle }) => {
           await pipeline(
             readArtifactFileChunks(handle, {
               start: offset,
@@ -213,20 +212,24 @@ export class FirmwareFileAccess {
     signal: AbortSignal,
   ) {
     return this.#resources.run(() =>
-      withArtifactRegularFile(entry.path, this.#resources, signal, (handle) =>
-        tree.write(
-          entry.relativePath,
-          // SafeOutputTree awaits destination setup before consuming. Defer
-          // the abort-bound descriptor stream until it has a consumer.
-          Readable.from(
-            (async function* () {
-              assertArtifactReadActive(signal);
-              yield* readArtifactFileChunks(handle, { signal });
-            })(),
+      withArtifactRegularFile(
+        entry.path,
+        this.#resources,
+        signal,
+        ({ handle }) =>
+          tree.write(
+            entry.relativePath,
+            // SafeOutputTree awaits destination setup before consuming. Defer
+            // the abort-bound descriptor stream until it has a consumer.
+            Readable.from(
+              (async function* () {
+                assertArtifactReadActive(signal);
+                yield* readArtifactFileChunks(handle, { signal });
+              })(),
+            ),
+            { sha256, bytes: entry.size },
+            signal,
           ),
-          { sha256, bytes: entry.size },
-          signal,
-        ),
       ),
     );
   }
@@ -242,36 +245,41 @@ export class FirmwareFileAccess {
     signal?: AbortSignal,
   ): Promise<unknown> {
     return this.#resources.run(() =>
-      withArtifactRegularFile(path, this.#resources, signal, async (handle) => {
-        const bytes = await readBoundedFileBytes(
-          handle,
-          FIRMWARE_LIMITS.reportBytes,
-        );
-        if (bytes === undefined)
-          throw firmwareReportFailure(
-            operation,
-            "oversized",
-            `Report exceeded ${FIRMWARE_LIMITS.reportBytes} bytes`,
+      withArtifactRegularFile(
+        path,
+        this.#resources,
+        signal,
+        async ({ handle }) => {
+          const bytes = await readBoundedFileBytes(
+            handle,
+            FIRMWARE_LIMITS.reportBytes,
           );
-        assertArtifactReadActive(signal);
-        if (bytes.length === 0)
-          throw firmwareReportFailure(operation, "empty", "Report is empty");
-        try {
-          const value: unknown = JSON.parse(
-            new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-              bytes,
-            ),
-          );
-          return value;
-        } catch (cause: unknown) {
-          throw firmwareReportFailure(
-            operation,
-            "invalid_json",
-            "Tool report is not valid complete JSON",
-            cause,
-          );
-        }
-      }).catch((cause: unknown) => {
+          if (bytes === undefined)
+            throw firmwareReportFailure(
+              operation,
+              "oversized",
+              `Report exceeded ${FIRMWARE_LIMITS.reportBytes} bytes`,
+            );
+          assertArtifactReadActive(signal);
+          if (bytes.length === 0)
+            throw firmwareReportFailure(operation, "empty", "Report is empty");
+          try {
+            const value: unknown = JSON.parse(
+              new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+                bytes,
+              ),
+            );
+            return value;
+          } catch (cause: unknown) {
+            throw firmwareReportFailure(
+              operation,
+              "invalid_json",
+              "Tool report is not valid complete JSON",
+              cause,
+            );
+          }
+        },
+      ).catch((cause: unknown) => {
         throw mapArtifactFileFailure(cause, (primary) =>
           primary instanceof NonRegularFileReadError
             ? firmwareReportFailure(

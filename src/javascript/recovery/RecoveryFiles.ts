@@ -65,9 +65,8 @@ const scanRecoveryFile = async (
       path,
       resources ?? new ArtifactResourceScope(),
       signal,
-      async (handle) => {
+      async ({ handle, initial: before }) => {
         const hash = createHash("sha256");
-        const before = await handle.stat();
         if (before.size > maximum)
           throw new RecoveryFileSizeError(
             `Expected a regular file no larger than ${String(maximum)} bytes: ${path}`,

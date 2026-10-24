@@ -306,8 +306,8 @@ describe("MachOSliceArtifactReader", () => {
         { cpu: CPU.arm64, bytes: arm },
       ]),
     );
-    const handle = await openRegularFile(binary, { symlinks: "reject" });
-    const source = { handle, initial: await handle.stat() };
+    const source = await openRegularFile(binary, { symlinks: "reject" });
+    const { handle } = source;
     const runner: NativeCommandRunner = {
       run: () =>
         Promise.resolve(

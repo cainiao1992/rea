@@ -156,28 +156,12 @@ export class ArtifactFileSource {
           handle: this.admitted.handle,
           initial: this.admitted.initial,
         };
-      const handle = await openRegularFile(this.path, {
+      const source = await openRegularFile(this.path, {
         symlinks: "reject",
         signal,
       });
-      const owner = new OwnedFileHandle(handle);
-      this.#owner = owner;
-      try {
-        return { handle, initial: await handle.stat() };
-      } catch (cause: unknown) {
-        try {
-          await owner.close();
-          this.#owner = undefined;
-        } catch (cleanupCause: unknown) {
-          throw new RegularFileAdmissionFailure(
-            this.path,
-            cause,
-            cleanupCause,
-            owner,
-          );
-        }
-        throw cause;
-      }
+      this.#owner = new OwnedFileHandle(source.handle);
+      return source;
     } catch (cause: unknown) {
       if (cause instanceof RegularFileAdmissionFailure)
         this.#owner = cause.owner;

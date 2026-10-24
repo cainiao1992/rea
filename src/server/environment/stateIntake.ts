@@ -175,7 +175,7 @@ const readStateFile = async (
                 handle: owner,
               }),
           },
-          (handle) =>
+          ({ handle }) =>
             readStableFileBytes(handle, path, STATE_INTAKE_LIMIT_BYTES, {
               symlinks: "follow",
             }),

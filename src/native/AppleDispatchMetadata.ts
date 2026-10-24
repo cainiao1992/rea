@@ -364,8 +364,7 @@ export const inspectAppleDispatchMetadata = async (
     target.path,
     resources,
     signal,
-    async (handle) => {
-      const before = await handle.stat();
+    async ({ handle, initial: before }) => {
       if (before.size > maximumBytes)
         throw inputBudgetExceeded(admission, before.size);
       if (signal?.aborted) throw cancelled();

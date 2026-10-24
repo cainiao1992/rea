@@ -554,8 +554,8 @@ const requireExtractableFormat = async (
       path,
       input.resourceScope,
       signal,
-      async (handle) => {
-        const size = (await handle.stat()).size;
+      async ({ handle, initial }) => {
+        const size = initial.size;
         if (await locateGodotPck(handle, size, signal)) return true;
         if (format !== "elf" && format !== "pe" && format !== "mach-o")
           return false;

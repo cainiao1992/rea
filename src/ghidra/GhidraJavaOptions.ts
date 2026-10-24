@@ -141,7 +141,7 @@ const readArgumentFile = (
     path,
     resources,
     signal,
-    async (file) => {
+    async ({ handle: file }) => {
       const data = await readBoundedFileBytes(file, remainingBytes, {
         signal,
         cancellationFailure: (reason) =>

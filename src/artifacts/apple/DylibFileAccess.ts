@@ -89,7 +89,7 @@ export class DylibFileAccess {
         path,
         this.resources,
         this.signal,
-        async (file) => {
+        async ({ handle: file }) => {
           const initial = await file.stat({ bigint: true });
           assertArtifactReadActive(this.signal);
           const result = await operation(file, initial);

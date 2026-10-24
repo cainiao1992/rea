@@ -283,7 +283,7 @@ const readPlistFile = async <Value>(
         input.selection.path,
         input.resources,
         input.signal,
-        read,
+        ({ handle }) => read(handle),
         "follow",
       ),
     );

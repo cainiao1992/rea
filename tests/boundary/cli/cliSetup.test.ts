@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { parse as parseToml } from "smol-toml";
 
+import type { SetupResult } from "../../../src/application/SetupTypes.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
@@ -492,6 +493,43 @@ describe("interactive setup completion", () => {
       );
     },
   );
+  it("prints retained cleanup resources without relying on paths in remediation", async () => {
+    const resources = ["/fixture/owned backup", "/fixture/临时目录"];
+    const result: SetupResult = {
+      status: "needs_human",
+      code: "cleanup_failed",
+      plannedActions: [],
+      appliedActions: [],
+      clients: {},
+      clientStates: [],
+      doctor: {
+        healthy: true,
+        environment_healthy: true,
+        availableProviders: [],
+        scope: {
+          mode: "explicit",
+          clients: [],
+          providers: [],
+          skill: false,
+          target: null,
+        },
+      },
+      remediation: "Owned descriptor remains busy",
+      cleanup: { reason: "Owned descriptor remains busy", resources },
+    };
+    const { stderr } = await execute(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        'import { renderInteractiveSetupResult } from "./dist/cli/interactiveSetup.js";\n' +
+          `renderInteractiveSetupResult(${JSON.stringify(result)}, {});`,
+      ],
+      { cwd: process.cwd(), env: { ...process.env, NO_COLOR: "1" } },
+    );
+    expect(stderr).toContain(result.remediation);
+    for (const resource of resources) expect(stderr).toContain(resource);
+  });
 });
 
 interface JourneyStep {

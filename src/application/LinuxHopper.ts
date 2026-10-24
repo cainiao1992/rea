@@ -1,3 +1,4 @@
+import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
 import type { HopperInstallFailureReason } from "./SetupInstallFailure.js";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -268,7 +269,7 @@ export class LinuxHopperTemporaryCleanupOwner {
 
   async retry(
     cleanup: (path: string) => Promise<void>,
-  ): Promise<string | undefined> {
+  ): Promise<AnalysisCleanupObservation | undefined> {
     const failures: string[] = [];
     for (const path of this.pending.keys()) {
       try {
@@ -281,7 +282,12 @@ export class LinuxHopperTemporaryCleanupOwner {
         );
       }
     }
-    return failures.length === 0 ? undefined : failures.join("; ");
+    return failures.length === 0
+      ? undefined
+      : {
+          reason: failures.join("; "),
+          resources: [...this.pending.keys()],
+        };
   }
 }
 

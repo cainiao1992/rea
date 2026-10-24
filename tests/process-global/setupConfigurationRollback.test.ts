@@ -151,6 +151,7 @@ import { RegularFileCleanupFailure } from "../../src/filesystem/OwnedRegularFile
 import { OwnedFileHandle } from "../../src/filesystem/OwnedFileHandle.js";
 import type { DoctorHost } from "../../src/application/Doctor.js";
 import { systemSetupHost } from "../../src/application/SetupHost.js";
+import { AnalysisError } from "../../src/domain/analysisErrorBase.js";
 import { systemUninstallHost } from "../../src/application/Uninstall.js";
 import { ConfigurationError } from "../../src/domain/configurationErrors.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
@@ -1315,7 +1316,16 @@ it.each(["setup", "uninstall"] as const)(
           ).status,
         ).toBe("failed");
       }
-      expect(await host.close?.()).toContain("cleanup");
+      const cleanupFailure = await host.close?.();
+      if (operation === "setup") {
+        expect(cleanupFailure).toBeInstanceOf(AnalysisError);
+        const retainedRoots = (await fs.readdir(root))
+          .filter((name) => name.startsWith(".rea-config-"))
+          .map((name) => join(root, name));
+        expect((cleanupFailure as AnalysisError).cleanupResources).toEqual(
+          retainedRoots,
+        );
+      } else expect(cleanupFailure).toContain("cleanup");
       expect(
         (await fs.readdir(root)).filter((name) =>
           name.startsWith(".rea-config-"),
@@ -1323,6 +1333,8 @@ it.each(["setup", "uninstall"] as const)(
       ).toHaveLength(1);
       state.rejectStageRemoval = false;
       expect(await host.close?.()).toBeUndefined();
+      if (cleanupFailure instanceof AnalysisError)
+        expect(cleanupFailure.cleanupIncomplete).toBe(false);
       expect(
         (await fs.readdir(root)).filter((name) =>
           name.startsWith(".rea-config-"),

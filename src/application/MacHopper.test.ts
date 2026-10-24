@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   installMacHopper,
-  installMacHopperBundle,
   type MacHopperBundleVerification,
   type MacHopperBundleInstallResult,
   type MacHopperInstallHost,
@@ -232,4 +231,33 @@ it("reports an unresolved destination probe without claiming an existing install
   );
   expect(host.installs).toBe(0);
   expect(host.unmounts).toBe(0);
+});
+
+it("retains the exact DMG temporary root with its retry capability", async () => {
+  const host = new FakeMacHopperHost();
+  const retained: {
+    close: () => Promise<void>;
+    resources: readonly string[];
+  }[] = [];
+  let allowCleanup = false;
+  const result = await installMacHopper(
+    {},
+    {
+      ...host,
+      cleanup: async () => {
+        if (!allowCleanup) throw new Error("DMG root busy");
+      },
+      retainCleanup: (close, resources) => {
+        retained.push({ close, resources });
+      },
+    },
+  );
+  expect(result).toMatchObject({
+    status: "installed",
+    cleanupFailure: expect.stringContaining("DMG root busy"),
+  });
+  expect(retained).toHaveLength(1);
+  expect(retained[0]?.resources).toEqual(["/tmp/rea-hopper-test"]);
+  allowCleanup = true;
+  await expect(retained[0]!.close()).resolves.toBeUndefined();
 });

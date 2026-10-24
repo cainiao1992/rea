@@ -82,6 +82,7 @@ export abstract class AnalysisError extends Error {
   cleanupIncomplete: boolean;
   #ownedCleanupResources: readonly string[];
   #cleanupResourceOwner: AnalysisCleanupResourceOwner | undefined;
+  #cleanupCompletionOwner: AnalysisCleanupResourceOwner | undefined;
   #secondaryFailures: AnalysisError[] = [];
   constructor(message: string, options?: AnalysisErrorOptions) {
     super(message, options);
@@ -132,9 +133,24 @@ export abstract class AnalysisError extends Error {
     ];
   }
 
+  /** Whether cleanup follows an explicit owner or dependent errors. */
+  get hasCleanupOwner(): boolean {
+    return (
+      this.#cleanupResourceOwner !== undefined ||
+      this.#cleanupCompletionOwner !== undefined ||
+      this.#cleanupDependencies !== undefined
+    );
+  }
+
   /** Bind attribution only to the producer that owns the complete cleanup set. */
   bindCleanupResourceOwner(owner: AnalysisCleanupResourceOwner): this {
     this.#cleanupResourceOwner = owner;
+    return this;
+  }
+
+  /** Observe exact completion without replacing the producer's resource facts. */
+  bindCleanupCompletionOwner(owner: AnalysisCleanupResourceOwner): this {
+    this.#cleanupCompletionOwner = owner;
     return this;
   }
 

@@ -193,12 +193,17 @@ export type ProviderProcessDiagnostic =
       readonly cause?: Error;
     };
 
+/** Aggregate byte budget, or independent retained stdout and stderr byte budgets. */
+export type ProcessDiagnosticBudget =
+  | number
+  | { readonly stdout: number; readonly stderr: number };
+
 /** Options for process lifecycle diagnostics. */
 export interface ProviderProcessSupervisorOptions {
   /** Retain stdout for diagnostics; disable when it carries a parsed protocol. Defaults to true. */
   readonly captureStdout?: boolean;
-  /** Aggregate retained stdout/stderr byte budget; overflow is drained and reported, not retained. */
-  readonly maxDiagnosticBytes?: number;
+  /** Retained output budget; overflow is drained and reported, not retained. */
+  readonly maxDiagnosticBytes?: ProcessDiagnosticBudget;
   /**
    * Single-line token ending at a non-ASCII-word byte or EOF, located before retention
    * applies, so its latest occurrence survives an exhausted budget.
@@ -395,7 +400,10 @@ export class ProviderProcessSupervisor {
   #stopPromise: Promise<ProviderProcessStopResult> | undefined;
   #stopRequested = false;
   #disposed = false;
-  #maxDiagnosticBytes: number | undefined;
+  #maxAggregateDiagnosticBytes: number | undefined;
+  readonly #maxStreamDiagnosticBytes:
+    | Exclude<ProcessDiagnosticBudget, number>
+    | undefined;
   #outputEpoch = 0;
 
   constructor(
@@ -403,7 +411,13 @@ export class ProviderProcessSupervisor {
     options: ProviderProcessSupervisorOptions = {},
   ) {
     this.#options = options;
-    this.#maxDiagnosticBytes = options.maxDiagnosticBytes;
+    const budget = options.maxDiagnosticBytes;
+    if (typeof budget === "number") this.#maxAggregateDiagnosticBytes = budget;
+    else if (budget !== undefined)
+      this.#maxStreamDiagnosticBytes = {
+        stdout: budget.stdout,
+        stderr: budget.stderr,
+      };
     this.#resetMarkers();
     if (options.captureStdout !== false)
       this.#attach(launch.process.stdout, "stdout");
@@ -593,10 +607,10 @@ export class ProviderProcessSupervisor {
       Number.MAX_SAFE_INTEGER,
       retained + maxBytes,
     );
-    this.#maxDiagnosticBytes =
-      this.#maxDiagnosticBytes === undefined
+    this.#maxAggregateDiagnosticBytes =
+      this.#maxAggregateDiagnosticBytes === undefined
         ? requestedLimit
-        : Math.min(this.#maxDiagnosticBytes, requestedLimit);
+        : Math.min(this.#maxAggregateDiagnosticBytes, requestedLimit);
   }
 
   /** Unreference inherited output pipes without closing streams shared with descendants. */
@@ -797,14 +811,25 @@ export class ProviderProcessSupervisor {
       this.#stderrMarker?.scan(bytes, this.#stderrObservedBytes);
       this.#stderrObservedBytes += bytes.byteLength;
     }
-    const remaining =
-      this.#maxDiagnosticBytes === undefined
+    const aggregateRemaining =
+      this.#maxAggregateDiagnosticBytes === undefined
         ? bytes.byteLength
         : Math.max(
             0,
-            this.#maxDiagnosticBytes - this.#stdout.bytes - this.#stderr.bytes,
+            this.#maxAggregateDiagnosticBytes -
+              this.#stdout.bytes -
+              this.#stderr.bytes,
           );
-    const retained = Math.min(bytes.byteLength, remaining);
+    const streamLimit = this.#maxStreamDiagnosticBytes?.[stream];
+    const streamRemaining =
+      streamLimit === undefined
+        ? bytes.byteLength
+        : Math.max(0, streamLimit - capture.bytes);
+    const retained = Math.min(
+      bytes.byteLength,
+      aggregateRemaining,
+      streamRemaining,
+    );
     if (retained < bytes.byteLength) this.#diagnosticTruncated = true;
     if (retained > 0) capture.append(bytes.subarray(0, retained));
     this.#options.onDiagnostic?.({

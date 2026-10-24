@@ -1,19 +1,12 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { PrivateRuntimeRoot } from "../dist/process/PrivateRuntimeRoot.js";
-import {
-  OwnedCommandFailure,
-  runOwnedCommand,
-} from "../dist/process/OwnedCommand.js";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
-import { execNpm } from "./lib/verify-package-core.mjs";
+import { createPackageVerifierCommands } from "./lib/verify-package-commands.mjs";
 
 const AGENTENV_VERSION = "0.9.1334";
 const AGENTENV_PIN = `agentenv-framework ${AGENTENV_VERSION}`;
@@ -34,7 +27,6 @@ const TEMPLATE_RULES = [
   "opaque-token",
   "sibling-variance",
 ];
-const execFileAsync = promisify(execFile);
 
 // Both tools are caller-supplied absolute paths, as every real-* lane names its upstream.
 for (const key of ["REA_AGENT_ENV_COMMAND", "REA_DOCKER_COMMAND"])
@@ -62,8 +54,10 @@ const failures = [];
 let cases = 0;
 const receipt = {};
 let knownContainers;
+let commands;
 try {
-  const version = await execFileAsync(agentEnv, ["--version"], {
+  commands = await createPackageVerifierCommands({ workspace: runtime });
+  const version = await commands.exec(agentEnv, ["--version"], {
     env: environment,
     timeout: 10_000,
     maxBuffer: 64 * 1024,
@@ -124,7 +118,7 @@ try {
   await writeFile(capturePath, JSON.stringify(capture));
   await writeFile(manifestPath, JSON.stringify(manifest));
   // The lane proves this checkout, not the registry package: pack it and install the tarball in the image.
-  const { stdout: packed } = await execNpm(
+  const { stdout: packed } = await commands.execNpm(
     ["pack", "--ignore-scripts", "--json", "--pack-destination", runtime.path],
     { cwd: checkout, env: environment, maxBuffer: 16 * 1024 * 1024 },
   );
@@ -179,20 +173,25 @@ try {
     attempts += 1;
     let outcome;
     try {
-      outcome = await runOwnedCommand(
+      const output = await commands.exec(
+        agentEnv,
+        ["run", bundle, "--sandbox", "local"],
         {
-          command: agentEnv,
-          arguments: ["run", bundle, "--sandbox", "local"],
           cwd: runtime.path,
-          runId: `rea-agentenv-run-${randomUUID()}`,
-          hostEnvironment: environment,
+          env: environment,
+          timeout: timeoutMs,
+          diagnosticBytes: 4 * 1024 * 1024,
         },
-        { timeoutMs, diagnosticBytes: 4 * 1024 * 1024 },
       );
+      outcome = {
+        exitCode: 0,
+        signal: null,
+        stdout: { text: output.stdout },
+        stderr: { text: output.stderr },
+      };
       return outcome;
     } catch (cause) {
-      outcome =
-        cause instanceof OwnedCommandFailure ? cause.snapshot : undefined;
+      outcome = cause?.snapshot;
       throw cause;
     } finally {
       // Recorded before the outcome is judged, so a failed receipt still says how the last
@@ -257,7 +256,8 @@ try {
       failures.push(cause);
     }
   try {
-    await runtime.close();
+    if (commands === undefined) await runtime.close();
+    else await commands.close();
   } catch (cause) {
     failures.push(cause);
   }
@@ -299,7 +299,7 @@ console.log(
 );
 
 async function cli(...args) {
-  const { stdout } = await execFileAsync(
+  const { stdout } = await commands.exec(
     process.execPath,
     [entrypoint, ...args, "--json"],
     { env: environment, cwd: runtime.path, maxBuffer: 64 * 1024 * 1024 },
@@ -339,7 +339,7 @@ function packedFilename(report) {
 
 // Containers are not verifier descendants, so leaks are checked by id against the pre-run set.
 async function containers() {
-  const { stdout } = await execFileAsync(
+  const { stdout } = await commands.exec(
     docker,
     ["ps", "-a", "--format", "{{.ID}}\t{{.Names}}"],
     { env: environment },
@@ -355,7 +355,7 @@ async function containers() {
 }
 
 async function imageIds() {
-  const { stdout } = await execFileAsync(docker, ["images", "-q"], {
+  const { stdout } = await commands.exec(docker, ["images", "-q"], {
     env: environment,
   });
   return [...new Set(stdout.split("\n").filter((line) => line.length > 0))];

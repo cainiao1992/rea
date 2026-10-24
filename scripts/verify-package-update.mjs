@@ -1,107 +1,11 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { exec, json } from "./lib/verify-package-core.mjs";
+import { json } from "./lib/verify-package-core.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
-
-/** Keep the live updater owner and its workspace when process cleanup is unproven. */
-export class PackageUpdateCleanupFailure extends AggregateError {
-  constructor(primary, cleanupOwner, result, workspace) {
-    const cleanup = new Error(result.reason);
-    super(
-      primary === undefined ? [cleanup] : [primary, cleanup],
-      `Package updater cleanup incomplete; retained ${workspace}`,
-      { cause: primary },
-    );
-    this.cleanupOwner = cleanupOwner;
-    this.workspace = workspace;
-  }
-}
-
-/** Own the helper and installer descendants until output and process cleanup finish. */
-async function runUpdater({
-  harness,
-  environment,
-  signal,
-  workspace,
-  retainWorkspace,
-}) {
-  // Only updater execution needs built process ownership; importing this fixture
-  // does not make unrelated source-only verifier helpers depend on dist.
-  const { ProviderProcessSupervisor, spawnOwnedProviderProcess } =
-    await import("../dist/process/ProviderProcess.js");
-  const { cleanupOwnedProcessGroup } =
-    await import("../dist/process/ProcessOwnership.js");
-  const launch = await spawnOwnedProviderProcess({
-    command: process.execPath,
-    arguments: [harness],
-    expectedCommand: null,
-    hostEnvironment: environment,
-    cwd: workspace,
-    runId: randomUUID(),
-    sweepTokenOwnedProcesses: true,
-    signal,
-  });
-  let collectionFailure;
-  const supervisor = new ProviderProcessSupervisor(
-    {
-      ...launch,
-      ownsProcessLifetime: true,
-      cleanup:
-        launch.cleanup ?? (() => cleanupOwnedProcessGroup(launch.ownership)),
-    },
-    {
-      maxDiagnosticBytes: 16 * 1024 * 1024,
-      onDiagnostic(event) {
-        if (event.type === "output" && event.truncated)
-          collectionFailure ??= new Error(
-            "Package updater exceeded its diagnostic capacity",
-          );
-        if (event.type === "error")
-          collectionFailure ??= new Error(event.message, {
-            cause: event.cause,
-          });
-      },
-    },
-  );
-  let failure;
-  let stdout;
-  try {
-    while (!(await supervisor.waitForOutputClose(50))) {
-      signal.throwIfAborted();
-      if (collectionFailure !== undefined) throw collectionFailure;
-    }
-    signal.throwIfAborted();
-    if (collectionFailure !== undefined) throw collectionFailure;
-    const snapshot = supervisor.snapshot();
-    if (
-      snapshot.diagnosticTruncated ||
-      snapshot.exitCode !== 0 ||
-      snapshot.signal !== null
-    )
-      throw new Error(
-        `Package updater failed: ${snapshot.stdout.text}\n${snapshot.stderr.text}`,
-      );
-    stdout = snapshot.stdout.text;
-  } catch (cause) {
-    failure = { cause };
-  }
-  const stopped = await supervisor.stop();
-  if (stopped.status === "incomplete") {
-    retainWorkspace?.();
-    throw new PackageUpdateCleanupFailure(
-      failure?.cause,
-      supervisor,
-      stopped,
-      workspace,
-    );
-  }
-  if (failure !== undefined) throw failure.cause;
-  return stdout;
-}
 
 /** Exercise the packaged updater with real npm and a local release registry fixture. */
 export async function verifyPackageUpdate({
@@ -110,7 +14,7 @@ export async function verifyPackageUpdate({
   tarball,
   workspace,
   environment,
-  retainWorkspace,
+  commands,
 }) {
   const metadataPath = join(packageRoot, "package.json");
   const metadata = json(await readFile(metadataPath, "utf8"));
@@ -126,8 +30,8 @@ export async function verifyPackageUpdate({
   const fixture = new AbortController();
   const server = createServer((request, response) => {
     void serveRegistry(request, response).catch((error) => {
-      fixtureFailure ??= error;
-      fixture.abort(fixtureFailure);
+      fixtureFailure ??= { cause: error };
+      fixture.abort(fixtureFailure.cause);
       if (response.headersSent) {
         response.destroy();
         return;
@@ -222,7 +126,7 @@ export async function verifyPackageUpdate({
         npm_config_registry: registry,
       };
       const previous = (
-        await exec(process.execPath, [entry, "--version"], {
+        await commands.exec(process.execPath, [entry, "--version"], {
           env: runtimeEnvironment,
         })
       ).stdout.trim();
@@ -241,13 +145,14 @@ if (result.status === "failed") process.exitCode = 1;
 `,
       );
       const result = json(
-        await runUpdater({
-          harness,
-          environment: runtimeEnvironment,
-          signal: fixture.signal,
-          workspace,
-          retainWorkspace,
-        }),
+        (
+          await commands.exec(process.execPath, [harness], {
+            env: runtimeEnvironment,
+            cwd: workspace,
+            signal: fixture.signal,
+            diagnosticBytes: 16 * 1024 * 1024,
+          })
+        ).stdout,
       );
       if (
         result.status !== "updated" ||
@@ -265,14 +170,14 @@ if (result.status === "failed") process.exitCode = 1;
           "Update applied integration maintenance without approval",
         );
       const current = (
-        await exec(process.execPath, [entry, "--version"], {
+        await commands.exec(process.execPath, [entry, "--version"], {
           env: runtimeEnvironment,
         })
       ).stdout.trim();
       if (current !== metadata.version)
         throw new Error(`Updated executable reported ${current}`);
       const help = (
-        await exec(process.execPath, [entry, "--help"], {
+        await commands.exec(process.execPath, [entry, "--help"], {
           env: runtimeEnvironment,
         })
       ).stdout;
@@ -280,18 +185,15 @@ if (result.status === "failed") process.exitCode = 1;
         throw new Error(
           "Updated CLI did not expose update as its sole maintenance command",
         );
-      if (fixtureFailure !== undefined) throw fixtureFailure;
+      if (fixtureFailure !== undefined) throw fixtureFailure.cause;
       return {
         installed_version: result.installedVersion,
         exact_release: true,
         maintenance_read_only: true,
       };
     } catch (error) {
-      // A retained process owner takes precedence over its triggering fixture
-      // failure; otherwise report the first registry/proxy failure exactly.
-      throw error instanceof PackageUpdateCleanupFailure
-        ? error
-        : (fixtureFailure ?? error);
+      // The registry owns its failure; command cleanup remains with commands.
+      throw fixtureFailure === undefined ? error : fixtureFailure.cause;
     }
   }, [
     async () => {

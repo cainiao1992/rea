@@ -1,3 +1,5 @@
+import type { PackageVerifierCommands } from "./lib/package-command-owner.mjs";
+
 /** Validate a live registration and its byte-identical pre-setup backup. */
 export function assertClientConfig(
   cli: string,
@@ -7,3 +9,21 @@ export function assertClientConfig(
 
 /** Return true only when stty output positively reports canonical input and echo. */
 export function terminalModesRestored(termios: unknown): boolean;
+
+/** Verify setup using the parent's explicit command owner. */
+export function verifyPackageSetup(input: {
+  readonly commands: Pick<PackageVerifierCommands, "run" | "runWithStatus">;
+  readonly cli: string;
+  readonly packageRunnerCli: string;
+  readonly environment: NodeJS.ProcessEnv;
+  readonly home: string;
+  readonly npxLog: string;
+  readonly claudeConfig: string;
+  readonly codexConfig: string;
+  readonly cursorConfig: string;
+  readonly codexTarget: string;
+  readonly cursorTarget: string;
+  readonly supportedSetupHost: boolean;
+  readonly hopperSetupSupported: boolean | undefined;
+  readonly root: string;
+}): Promise<void>;

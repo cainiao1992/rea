@@ -20,9 +20,12 @@ const builtModule = (path: string): string =>
   pathToFileURL(resolve("dist", path)).href;
 
 const PACKAGE_PACK_FIXTURE = `
+import assert from "node:assert/strict";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-export async function verifyPackagePack({ root, workspace }) {
+import { packageCommands } from "./lib/verify-package-commands.mjs";
+export async function verifyPackagePack({ root, workspace, commands }) {
+  assert.equal(commands, packageCommands);
   appendFileSync(process.env.OWNERSHIP_EVENTS, JSON.stringify({ kind: "pack", root, workspace }) + "\\n");
   const tarball = join(workspace, "authored.tgz");
   writeFileSync(tarball, "authored archive boundary");
@@ -30,15 +33,13 @@ export async function verifyPackagePack({ root, workspace }) {
 }
 `;
 
-const PACKAGE_INSTALL_FIXTURE = `
+const NPM_INSTALL_FIXTURE = `
 import assert from "node:assert/strict";
 import { appendFileSync } from "node:fs";
-export async function execNpm(args, { env }) {
-  assert.equal(args[0], "install");
-  assert.ok(args.includes("--ignore-scripts"));
-  appendFileSync(process.env.OWNERSHIP_EVENTS, JSON.stringify({ kind: "install", prefix: args[args.indexOf("--prefix") + 1], home: env.HOME }) + "\\n");
-  return { stdout: "", stderr: "" };
-}
+const args = process.argv.slice(2);
+assert.equal(args[0], "install");
+assert.ok(args.includes("--ignore-scripts"));
+appendFileSync(process.env.OWNERSHIP_EVENTS, JSON.stringify({ kind: "install", prefix: args[args.indexOf("--prefix") + 1], home: process.env.HOME }) + "\\n");
 `;
 
 const PRIVATE_ROOT_OBSERVER = `
@@ -65,15 +66,20 @@ export const PrivateRuntimeRoot = {
 };
 `;
 
-const OWNED_COMMAND_FIXTURE = `
+const PACKAGE_COMMANDS_FIXTURE = `
 import { appendFileSync, existsSync } from "node:fs";
-import { runOwnedCommand as actualRun, OwnedCommandFailure } from ${JSON.stringify(builtModule("process/OwnedCommand.js"))};
+import { fileURLToPath } from "node:url";
+import { createPackageVerifierCommands as createActualCommands } from ${JSON.stringify(pathToFileURL(resolve("scripts/lib/verify-package-commands.mjs")).href)};
 import { spawnOwnedProviderProcess } from ${JSON.stringify(builtModule("process/ProviderProcess.js"))};
 import { cleanupOwnedProcessGroup } from ${JSON.stringify(builtModule("process/ProcessOwnership.js"))};
-export { OwnedCommandFailure };
-export const runOwnedCommand = (spawn, limits) => actualRun(spawn, limits, {
+const nestedVerifier = fileURLToPath(new URL("../verify-wasm-artifact.mjs", import.meta.url));
+export let packageCommands;
+export async function createPackageVerifierCommands(options) {
+packageCommands = await createActualCommands({
+  ...options,
   launcher: async (input) => {
     const acquired = await spawnOwnedProviderProcess(input);
+    if (!input.arguments.includes(nestedVerifier)) return acquired;
     return {
       ...acquired,
       cleanup: async () => {
@@ -85,6 +91,8 @@ export const runOwnedCommand = (spawn, limits) => actualRun(spawn, limits, {
     };
   },
 });
+return packageCommands;
+}
 `;
 
 const NESTED_VERIFIER_FIXTURE = `
@@ -121,29 +129,32 @@ const HARNESS_FIXTURE = `
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { OwnedCommandFailure, prepareOwnedCommand } from ${JSON.stringify(builtModule("process/OwnedCommand.js"))};
+import { prepareOwnedCommand } from ${JSON.stringify(builtModule("process/OwnedCommand.js"))};
 import { systemProcessOwnershipHost } from ${JSON.stringify(builtModule("process/ProcessOwnershipObservation.js"))};
 import { liveProcesses } from ${JSON.stringify(builtModule("process/ProcessOwnershipProcessTree.js"))};
 import { withVerifierCleanup } from "./scripts/lib/verifier-cleanup.mjs";
+import { packageCommands } from "./scripts/lib/verify-package-commands.mjs";
 await prepareOwnedCommand();
 let failure;
 try { await import("./scripts/verify-packaged-wasm-artifact.mjs"); }
 catch (cause) { failure = cause; }
 // Capture actual capabilities before any fixture parsing or assertion can fail.
 const failures = failure instanceof AggregateError ? failure.errors : [failure];
-const primary = failures.find((error) => error instanceof OwnedCommandFailure);
+const primary = failures.find((error) => error !== null && typeof error === "object" &&
+  error.reason === "timeout" && error.snapshot !== null && typeof error.snapshot === "object");
 const cleanup = failures.find((error) => error !== null && typeof error === "object" &&
-  (error.runtimeRoot !== undefined || typeof error.cleanupOwner?.close === "function"));
+  typeof error.cleanupOwner?.close === "function");
 const compositeOwner = typeof cleanup?.cleanupOwner?.close === "function" ? cleanup.cleanupOwner : undefined;
 const retainedProcess = primary?.cleanupOwner;
-const retainedRoot = cleanup?.runtimeRoot;
+const retainedRoot = cleanup?.workspace;
 await withVerifierCleanup(async () => {
 if (process.env.OWNERSHIP_HARNESS_ASSERT === "1") throw new Error("authored harness assertion failure");
 const events = (await readFile(process.env.OWNERSHIP_EVENTS, "utf8")).trim().split("\\n").map(JSON.parse);
 const ready = events.find((entry) => entry.kind === "ready");
 assert.ok(ready, "The actual descendant must acknowledge startup before the command deadline");
-assert.ok(primary instanceof OwnedCommandFailure);
+assert.ok(primary, "The owned nested command must fail with its timeout snapshot");
 assert.equal(primary.reason, "timeout");
+assert.ok(primary.snapshot.stdout.text.includes("nested ready"));
 const pids = [ready.leader, ready.descendant];
 const remaining = async () => liveProcesses(await systemProcessOwnershipHost.listProcesses()).filter(({ pid }) => pids.includes(pid)).map(({ pid }) => pid);
 const result = { reason: primary.reason, runtime: ready.runtime, rootExists: existsSync(ready.runtime), livePids: await remaining(), pids, runId: ready.runId, descendantRunId: ready.descendantRunId };
@@ -151,9 +162,10 @@ if (process.env.OWNERSHIP_DENY === "1") {
   assert.ok(failure instanceof AggregateError);
   assert.equal(failure.cause, primary);
   assert.equal(failure.errors[1], cleanup);
-  assert.equal(cleanup.name, "PackagedWasmCleanupFailure");
-  assert.equal(cleanup.runtimeRoot.path, ready.runtime);
+  assert.equal(cleanup.name, "PackageVerifierCleanupFailure");
+  assert.equal(cleanup.workspace.path, ready.runtime);
   assert.equal(typeof cleanup.cleanupOwner.close, "function");
+  assert.equal(cleanup.cleanupOwner, packageCommands);
   assert.ok(primary.cleanupOwner);
   result.compositeOwner = true;
 }
@@ -207,7 +219,7 @@ const expectHarnessFailureCleanup = async (
     .map((line) => JSON.parse(line));
   const ready = events.find(({ kind }) => kind === "ready");
   expect(ready).toBeDefined();
-  expect(ready.runId).toMatch(/^rea-packaged-wabt-/);
+  expect(ready.runId).toMatch(/^rea-package-command-/);
   expect(ready.descendantRunId).toBe(ready.runId);
   expectRootCleanupAfterProcessExit(events, ready.runtime, [
     ready.leader,
@@ -251,10 +263,10 @@ it.skipIf(process.platform === "win32").each([
       ),
       workspace.write("scripts/verify-package-pack.mjs", PACKAGE_PACK_FIXTURE),
       workspace.write(
-        "scripts/lib/verify-package-core.mjs",
-        PACKAGE_INSTALL_FIXTURE,
+        "scripts/lib/verify-package-commands.mjs",
+        PACKAGE_COMMANDS_FIXTURE,
       ),
-      workspace.write("dist/process/OwnedCommand.js", OWNED_COMMAND_FIXTURE),
+      workspace.write("scripts/npm-fixture.mjs", NPM_INSTALL_FIXTURE),
       workspace.write(
         "scripts/verify-wasm-artifact.mjs",
         NESTED_VERIFIER_FIXTURE,
@@ -279,6 +291,7 @@ it.skipIf(process.platform === "win32").each([
           TMPDIR: runtimeParent,
           TMP: runtimeParent,
           TEMP: runtimeParent,
+          npm_execpath: workspace.path("scripts/npm-fixture.mjs"),
           OWNERSHIP_EVENTS: events,
           OWNERSHIP_REPORT: report,
           OWNERSHIP_ALLOW: allow,
@@ -303,7 +316,7 @@ it.skipIf(process.platform === "win32").each([
       const observed = JSON.parse(await readFile(report, "utf8"));
       expect(observed.reason).toBe("timeout");
       expect(observed.pids).toHaveLength(2);
-      expect(observed.runId).toMatch(/^rea-packaged-wabt-/);
+      expect(observed.runId).toMatch(/^rea-package-command-/);
       expect(observed.descendantRunId).toBe(observed.runId);
       expect(observed.rootExists).toBe(denied);
       expect(observed.livePids.sort()).toEqual(

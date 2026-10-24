@@ -1,8 +1,6 @@
 import { mkdir, mkdtemp, rm, unlink } from "node:fs/promises";
-import { execFile } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 
 import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
@@ -22,6 +20,7 @@ import { verifyPackageSetup } from "./verify-package-setup.mjs";
 import { verifyRepositorySkill } from "./verify-repository-skill.mjs";
 import { verifyManaged } from "./verify-package-managed.mjs";
 import { verifyUnknownProvider } from "./verify-package-unknown-provider.mjs";
+import { createPackageVerifierCommands } from "./lib/verify-package-commands.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 import {
@@ -35,7 +34,6 @@ import {
 } from "./lib/mcp-startup-probe.mjs";
 
 const root = process.cwd();
-const execFileAsync = promisify(execFile);
 const retentionDirectory = process.env.REA_VERIFIED_PACKAGE_DIRECTORY;
 const verifierRun = createVerifierRun();
 const workspace = await mkdtemp(join(tmpdir(), "rea-package-"));
@@ -49,7 +47,11 @@ let repositorySkill;
 let report;
 let retainedPackage;
 let retentionMetadata;
-let updateWorkspaceRetained = false;
+let commands;
+const releaseWorkspace = () =>
+  runStage("workspace cleanup", () =>
+    rm(workspace, { recursive: true, force: true }),
+  );
 
 const runStage = async (name, action) => {
   const started = performance.now();
@@ -62,9 +64,12 @@ const runStage = async (name, action) => {
 };
 
 await withVerifierCleanup(async () => {
+  commands = await createPackageVerifierCommands({
+    workspace: { path: workspace, close: releaseWorkspace },
+  });
   if (retentionDirectory !== undefined && retentionDirectory !== "") {
     const sourceSha = (
-      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })
+      await commands.exec("git", ["rev-parse", "HEAD"], { cwd: root })
     ).stdout.trim();
     retentionMetadata = createVerifiedPackageMetadata({
       sourceSha,
@@ -84,10 +89,10 @@ await withVerifierCleanup(async () => {
     });
   }
   repositorySkill = await runStage("repository skill", () =>
-    verifyRepositorySkill({ root, workspace }),
+    verifyRepositorySkill({ commands, root, workspace }),
   );
   ({ tarball } = await runStage("package archive", () =>
-    verifyPackagePack({ root, workspace }),
+    verifyPackagePack({ commands, root, workspace }),
   ));
   const environmentData = await runStage("package environment", () =>
     verifyPackageEnvironment({
@@ -99,6 +104,7 @@ await withVerifierCleanup(async () => {
   );
   const { cli, packageRunnerCli } = await runStage("package install", () =>
     verifyPackageInstall({
+      commands,
       tarball,
       prefix: environmentData.prefix,
       workspace,
@@ -107,6 +113,7 @@ await withVerifierCleanup(async () => {
   );
   update = await runStage("package update", () =>
     verifyPackageUpdate({
+      commands,
       prefix: environmentData.prefix,
       packageRoot: join(
         environmentData.prefix,
@@ -117,9 +124,6 @@ await withVerifierCleanup(async () => {
       tarball,
       workspace,
       environment: environmentData.environment,
-      retainWorkspace() {
-        updateWorkspaceRetained = true;
-      },
     }),
   );
   mcpStartup = await runStage("MCP startup", () =>
@@ -147,12 +151,14 @@ await withVerifierCleanup(async () => {
     "package discovery",
     () =>
       verifyPackageDiscovery({
+        commands,
         cli,
         environment: environmentData.environment,
       }),
   );
   const { artifactArchive } = await runStage("artifact and Electron CLI", () =>
     verifyPackageArtifactAndElectron({
+      commands,
       cli,
       workspace,
       environment: environmentData.environment,
@@ -160,6 +166,7 @@ await withVerifierCleanup(async () => {
   );
   await runStage("managed analysis CLI", () =>
     verifyManaged({
+      commands,
       cli,
       workspace,
       environment: environmentData.environment,
@@ -167,24 +174,28 @@ await withVerifierCleanup(async () => {
   );
   await runStage("unknown provider CLI", () =>
     verifyUnknownProvider({
+      commands,
       cli,
       environment: environmentData.environment,
     }),
   );
   await runStage("platform CLI", () =>
     verifyPackagePlatform({
+      commands,
       cli,
       environment: environmentData.environment,
     }),
   );
   await runStage("capabilities and search CLI", () =>
     verifyPackageCapabilitiesAndSearch({
+      commands,
       cli,
       environment: environmentData.environment,
     }),
   );
   await runStage("evidence CLI", () =>
     verifyPackageEvidence({
+      commands,
       cli,
       evidenceRoot,
       referenceRoot,
@@ -193,6 +204,7 @@ await withVerifierCleanup(async () => {
   );
   await runStage("setup and uninstall CLI", () =>
     verifyPackageSetup({
+      commands,
       cli,
       packageRunnerCli,
       environment: environmentData.environment,
@@ -210,6 +222,7 @@ await withVerifierCleanup(async () => {
   );
   await runStage("MCP tools and evidence", () =>
     verifyPackageMcp({
+      commands,
       cli,
       environment: environmentData.environment,
       evidenceRoot,
@@ -259,18 +272,7 @@ await withVerifierCleanup(async () => {
       metadata: retentionMetadata,
     });
   }
-}, [
-  async () => {
-    if (updateWorkspaceRetained)
-      process.stderr.write(
-        `Package updater cleanup incomplete; retained ${workspace}\n`,
-      );
-    else
-      await runStage("workspace cleanup", () =>
-        rm(workspace, { recursive: true, force: true }),
-      );
-  },
-]);
+}, [() => (commands === undefined ? releaseWorkspace() : commands.close())]);
 const verifierLineage = await runStage("verifier lineage", () =>
   completeVerifierRun(verifierRun),
 );

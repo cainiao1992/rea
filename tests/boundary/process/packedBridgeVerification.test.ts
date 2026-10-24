@@ -9,16 +9,24 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 
+import {
+  createPackageVerifierCommands,
+  type PackageVerifierCommands,
+} from "../../../scripts/lib/verify-package-commands.mjs";
+import { withVerifierCleanup } from "../../../scripts/lib/verifier-cleanup.mjs";
 import { verifyPackedBridge } from "../../../scripts/verify-packed-bridge.mjs";
 import {
   PrivateRuntimeRoot,
   privateRuntimeRootCapability,
 } from "../../../src/process/PrivateRuntimeRoot.js";
 import { GHIDRA_BRIDGE_SOURCES } from "../../../src/ghidra/GhidraBridgeSources.js";
-import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import {
+  createTestWorkspace,
+  removeTestWorkspace,
+} from "../../support/workspace/workspaceFixture.js";
 
 const exec = promisify(execFile);
 const packedFiles = [
@@ -33,7 +41,15 @@ const validSource =
   '# Unicode source: 雨\nraise RuntimeError("Packed source must never execute")\n';
 
 async function fixture(source: string = validSource, omitHopper = false) {
-  const directory = await createTestTempDirectory("rea-packed-bridge-");
+  const scratch = await createTestWorkspace("rea-packed-bridge-");
+  const directory = scratch.root;
+  let commands: PackageVerifierCommands | undefined;
+  onTestFinished(() =>
+    commands === undefined ? removeTestWorkspace(directory) : commands.close(),
+  );
+  commands = await createPackageVerifierCommands({
+    workspace: { path: directory, close: () => removeTestWorkspace(directory) },
+  });
   const staging = join(directory, "source");
   const workspace = join(directory, "workspace");
   await mkdir(workspace);
@@ -45,7 +61,7 @@ async function fixture(source: string = validSource, omitHopper = false) {
   }
   const tarball = join(directory, "packed bridges.tgz");
   await exec("tar", ["-czf", tarball, "-C", staging, "package"]);
-  return { workspace, tarball, packedFiles };
+  return { workspace, tarball, packedFiles, commands };
 }
 
 it("parses packed Python without executing it or extracting archive members", async () => {
@@ -88,12 +104,20 @@ it.each(["cwd", "pythonpath", "sitecustomize"] as const)(
         "--input-type=module",
         "--eval",
         `import { verifyPackedBridge } from ${JSON.stringify(verifier)};
+import { createPackageVerifierCommands } from ${JSON.stringify(new URL("../../../scripts/lib/verify-package-commands.mjs", import.meta.url).href)};
+import { withVerifierCleanup } from ${JSON.stringify(new URL("../../../scripts/lib/verifier-cleanup.mjs", import.meta.url).href)};
+import { PrivateRuntimeRoot } from ${JSON.stringify(new URL("../../../dist/process/PrivateRuntimeRoot.js", import.meta.url).href)};
+const root = await PrivateRuntimeRoot.create({ prefix: "rea-packed-python-command-" });
+let commands;
+await withVerifierCleanup(async () => {
+commands = await createPackageVerifierCommands({ workspace: root });
 try {
-  await verifyPackedBridge(JSON.parse(process.env.REA_PACKED_VERIFY_INPUT));
+  await verifyPackedBridge({ ...JSON.parse(process.env.REA_PACKED_VERIFY_INPUT), commands });
   console.log(JSON.stringify({ accepted: true }));
 } catch (error) {
   console.log(JSON.stringify({ accepted: false, stderr: String(error.stderr) }));
-}`,
+}
+}, [() => commands === undefined ? root.close() : commands.close()]);`,
       ],
       {
         cwd: kind === "cwd" ? modules : input.workspace,
@@ -105,7 +129,10 @@ try {
           ),
           PYTHONPATH: kind === "cwd" ? "" : modules,
           REA_PACKED_IMPORT_MARKER: marker,
-          REA_PACKED_VERIFY_INPUT: JSON.stringify(input),
+          REA_PACKED_VERIFY_INPUT: JSON.stringify({
+            tarball: input.tarball,
+            packedFiles: input.packedFiles,
+          }),
         },
       },
     );
@@ -160,12 +187,14 @@ it.each(["valid", "invalid"] as const)(
     const root = await PrivateRuntimeRoot.create({
       prefix: "rea-packed-bridge-lease-",
     });
-    try {
+    let commands: PackageVerifierCommands | undefined;
+    await withVerifierCleanup(async () => {
+      commands = await createPackageVerifierCommands({ workspace: root });
       const pack = join(root.path, "pack");
       await mkdir(pack);
       const tarball = join(pack, "packed bridges.tgz");
       await copyFile(input.tarball, tarball);
-      const parsed = verifyPackedBridge({ tarball, packedFiles });
+      const parsed = verifyPackedBridge({ tarball, packedFiles, commands });
       if (kind === "valid") await parsed;
       else
         await expect(parsed).rejects.toMatchObject({
@@ -173,9 +202,7 @@ it.each(["valid", "invalid"] as const)(
         });
       expect(await readdir(root.path)).toEqual(["pack"]);
       expect(await readFile(tarball)).toEqual(await readFile(input.tarball));
-    } finally {
-      await root.close();
-    }
+    }, [() => (commands === undefined ? root.close() : commands.close())]);
     await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
   },
 );

@@ -33,13 +33,9 @@ async function verifyListing(listing: string) {
   const { stdout } = await execFileAsync(process.execPath, [
     "--input-type=module",
     "--eval",
-    `import childProcess from "node:child_process";
-import { syncBuiltinESMExports } from "node:module";
-import { promisify } from "node:util";
-import { FULL_CATALOG_IDENTITY } from ${JSON.stringify(catalogUrl)};
+    `import { FULL_CATALOG_IDENTITY } from ${JSON.stringify(catalogUrl)};
 let bridgeParsed = false;
-childProcess.execFile = () => { throw new Error("Expected promisified execution"); };
-childProcess.execFile[promisify.custom] = async (command, args) => {
+const exec = async (command, args) => {
   let stdout;
   if ((command === "npm" && args[0] === "pack") || (command === process.execPath && args[1] === "pack")) stdout = "fixture.tgz\\n";
   else if (command === "tar" && args[0] === "-tf") stdout = ${JSON.stringify(listing)};
@@ -52,10 +48,10 @@ childProcess.execFile[promisify.custom] = async (command, args) => {
   else throw new Error("Unexpected command: " + command + " " + JSON.stringify(args));
   return { stdout, stderr: "" };
 };
-syncBuiltinESMExports();
+const commands = { exec, execNpm: (args) => exec("npm", args) };
 const { verifyPackagePack } = await import(${JSON.stringify(packerUrl)});
 try {
-  const result = await verifyPackagePack({ root: process.cwd(), workspace: ${JSON.stringify(workspace)} });
+  const result = await verifyPackagePack({ root: process.cwd(), workspace: ${JSON.stringify(workspace)}, commands });
   process.stdout.write(JSON.stringify({ ...result, bridgeParsed }));
 } catch (cause) {
   process.stdout.write(JSON.stringify({ error: cause.message, bridgeParsed }));

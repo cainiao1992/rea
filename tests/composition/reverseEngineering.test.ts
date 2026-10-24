@@ -578,7 +578,7 @@ it("forwards selected and omitted deadlines through the production command runne
   const directory = await mkdtemp(join(tmpdir(), "rea-owned-timeout-"));
   const path = join(directory, "fixture.bin");
   await writeFile(path, "before");
-  const timeouts: number[] = [];
+  const timeouts: (number | null)[] = [];
   const service = new ReverseEngineeringService({
     runOwned: async (_spawn, limits) => {
       timeouts.push(limits.timeoutMs);

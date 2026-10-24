@@ -32,14 +32,23 @@ the signature trailer are not examined.
 `.modinfo` entries stay in file order. Duplicate keys such as `alias` and
 `parm` are preserved. Each entry keeps its key, value, file range, and
 SHA-256. Values are the bytes after the first `=`. NUL padding between
-strings is skipped.
+strings is skipped. Keys and values use a byte-preserving Latin1 projection:
+each source byte becomes the same-numbered Unicode code point. They are not
+decoded as UTF-8. `raw_sha256` hashes the original entry bytes, including its
+terminating NUL when present; `raw_hex` shows those bytes when they fit the
+inline limit.
 
 `__versions` entries are `struct modversion_info`: a 64-byte record whose CRC
 is an `unsigned long` and whose name occupies the remaining bytes. ELF32
 stores a 32-bit CRC and a 60-byte name. ELF64 stores a 64-bit unsigned long
 and a 56-byte name. CRCs are zero-padded lowercase hex, 8 or 16 characters,
 not a JavaScript number. The layout is reported from the ELF class even when
-the section is absent.
+the section is absent. Names use the same byte-preserving Latin1 projection
+as `.modinfo` keys and values. Only this classic `__versions` layout is
+decoded. `versions.status: "absent"` means no `__versions` section was found
+when section names were complete; it does not establish the absence of version
+metadata in `__version_ext_names` and `__version_ext_crcs`, which Linux uses
+with `CONFIG_EXTENDED_MODVERSIONS` and this workflow does not decode.
 
 `.gnu.linkonce.this_module` is reported as present, absent, or unknown.
 `layout` is always `unknown` because `struct module` changes with the kernel
@@ -105,6 +114,8 @@ does not execute the module or validate an appended signature.
 The record layout follows Linux v6.12's
 [`modversion_info`](https://github.com/torvalds/linux/blob/v6.12/include/linux/module.h)
 and [`MAX_PARAM_PREFIX_LEN`](https://github.com/torvalds/linux/blob/v6.12/include/linux/moduleparam.h).
+The [Linux kbuild module versioning guide](https://docs.kernel.org/kbuild/modules.html#module-versioning)
+describes the separate extended version sections.
 Trailer fields and acceptance rules follow
 [`module_signature`](https://github.com/torvalds/linux/blob/v6.12/include/linux/module_signature.h)
 and [`mod_check_sig`](https://github.com/torvalds/linux/blob/v6.12/kernel/module_signature.c).

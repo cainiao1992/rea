@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { expect } from "vitest";
 import { z } from "zod";
 import { toolContract } from "../../src/contracts/toolContracts.js";
-import { devicetreeFixture } from "../../src/firmware/devicetree/Devicetree.fixture.js";
+import {
+  cells,
+  devicetreeFixture,
+} from "../../src/firmware/devicetree/Devicetree.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
@@ -37,6 +40,38 @@ cliTest("inspects a relative DTB and preserves the source", async ({ cli }) => {
   });
   expect(await readFile(path)).toEqual(bytes);
 });
+cliTest(
+  "does not resolve through a legacy phandle when the canonical value is malformed",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-dtb-cli-phandle-");
+    const path = join(root, "board.dtb");
+    await writeFile(
+      path,
+      devicetreeFixture({
+        name: "",
+        children: [
+          {
+            name: "target",
+            properties: { phandle: Buffer.alloc(0), "linux,phandle": cells(3) },
+          },
+          { name: "consumer", properties: { "interrupt-parent": cells(3) } },
+        ],
+      }),
+    );
+    const result = await cli.run({
+      arguments: ["inspect-devicetree", path, "--json"],
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = toolContract("inspect_devicetree").outputSchema.parse(
+      result.json,
+    ).normalized_result;
+    if (!("references" in report)) throw new Error("Expected complete report");
+    expect(report.references).toMatchObject([{ phandle: 3, target: null }]);
+    expect(report.limitations).toContain(
+      "phandle at /target is not a single cell; this node's reference identity remains unresolved.",
+    );
+  },
+);
 cliTest(
   "retains complete DTB Evidence when delivering a summary",
   async ({ cli }) => {

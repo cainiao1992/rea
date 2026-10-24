@@ -28,7 +28,9 @@ directory range when the two differ. Unavailable fields are `null`; a covered ze
 The report includes the security cookie, PE32 SafeSEH table/count, CFG pointers
 and table/count, address-taken IAT and long-jump tables/counts, EH continuation
 table/count, and XFG check pointer. CHPE and dynamic relocation pointers are raw
-values; their targets and mitigation-table entries are not decoded.
+values. The dynamic relocation table offset (DWORD) and section (WORD) are
+reported separately when `Size` covers them, including zero values; REA does
+not infer a VA from that pair or decode the target and mitigation-table entries.
 
 Guard flags retain the raw DWORD, recognized names, unknown bits, and the CFG
 entry stride. Mitigation claims derived from those flags carry
@@ -44,7 +46,8 @@ success is returned. An unmapped callback **target** retains its VA/RVA with an
 unknown file offset. Load-config versions beyond the supported fields remain
 undecoded.
 
-Layout references: [Microsoft PE format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
+Layout references: [Microsoft PE format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format),
+[IMAGE_LOAD_CONFIG_DIRECTORY32](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_load_config_directory32),
 and [IMAGE_LOAD_CONFIG_DIRECTORY64](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_load_config_directory64).
 
 For a real cross-compiled fixture, run `npm run verify:pe:load-config` with Zig

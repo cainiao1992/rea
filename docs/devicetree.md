@@ -30,8 +30,11 @@ bootargs/stdout-path and aliases. An undecodable alias retains its name with a
 null path; it is not silently treated as absent. Single-cell `interrupt-parent`, `remote-endpoint` and `msi-parent`
 references resolve through phandle declarations. Missing or duplicate targets
 have null target paths. A node whose `phandle` and `linux,phandle` disagree
-adds a limitation, and references to either value stay unresolved. Binding-specific reference arrays and overlays are not
-resolved; an empty reference list does not prove absence of hardware links.
+adds a limitation, and references to either value stay unresolved. A present
+`phandle` that is not one cell also adds a limitation; `linux,phandle` cannot
+resolve that node when the canonical declaration is malformed. Binding-specific
+reference arrays and overlays are not resolved; an empty reference list does not
+prove absence of hardware links.
 
 MCP `detail: summary` retains complete Evidence in the session. Follow its
 `parent_evidence_id` with `inspect_analysis_view`:

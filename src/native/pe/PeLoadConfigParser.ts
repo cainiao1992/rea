@@ -22,6 +22,7 @@ import {
   type PeLoadConfigField,
   type PeLoadConfigLocated,
   type PeLoadConfigLocatedField,
+  type PeLoadConfigNumberField,
   type PeLoadConfigRawField,
   type PeLoadConfigTls,
 } from "../../domain/native/peLoadConfig.js";
@@ -419,7 +420,7 @@ const readLoadConfig = ({
   const readField = (name: PeLoadConfigField): bigint | null => {
     if (!loadConfigFieldCovered(bits, size, name)) return null;
     const field = loadConfigFieldLayout(bits, name);
-    return readPointerWidth(
+    return readUnsignedField(
       bytes,
       directory.file_offset + field.offset,
       field.width,
@@ -432,7 +433,9 @@ const readLoadConfig = ({
     const value = readField(name);
     return value === null ? null : locate(value);
   };
-  const count = (name: PeLoadConfigCountField): number | null => {
+  const number = (
+    name: PeLoadConfigCountField | PeLoadConfigNumberField,
+  ): number | null => {
     const value = readField(name);
     if (value === null) return null;
     if (value > BigInt(Number.MAX_SAFE_INTEGER))
@@ -454,13 +457,13 @@ const readLoadConfig = ({
     structure_location: { offset: directory.file_offset, bytes: size },
     security_cookie: located("security_cookie"),
     se_handler_table: located("se_handler_table"),
-    se_handler_count: count("se_handler_count"),
+    se_handler_count: number("se_handler_count"),
     guard_cf_check_function_pointer: located("guard_cf_check_function_pointer"),
     guard_cf_dispatch_function_pointer: located(
       "guard_cf_dispatch_function_pointer",
     ),
     guard_cf_function_table: located("guard_cf_function_table"),
-    guard_cf_function_count: count("guard_cf_function_count"),
+    guard_cf_function_count: number("guard_cf_function_count"),
     guard_flags:
       decoded === null
         ? null
@@ -473,15 +476,21 @@ const readLoadConfig = ({
     guard_address_taken_iat_entry_table: located(
       "guard_address_taken_iat_entry_table",
     ),
-    guard_address_taken_iat_entry_count: count(
+    guard_address_taken_iat_entry_count: number(
       "guard_address_taken_iat_entry_count",
     ),
     guard_long_jump_target_table: located("guard_long_jump_target_table"),
-    guard_long_jump_target_count: count("guard_long_jump_target_count"),
+    guard_long_jump_target_count: number("guard_long_jump_target_count"),
     dynamic_value_reloc_table: raw("dynamic_value_reloc_table"),
     chpe_metadata_pointer: raw("chpe_metadata_pointer"),
+    dynamic_value_reloc_table_offset: number(
+      "dynamic_value_reloc_table_offset",
+    ),
+    dynamic_value_reloc_table_section: number(
+      "dynamic_value_reloc_table_section",
+    ),
     guard_eh_continuation_table: located("guard_eh_continuation_table"),
-    guard_eh_continuation_count: count("guard_eh_continuation_count"),
+    guard_eh_continuation_count: number("guard_eh_continuation_count"),
     guard_xfg_check_function_pointer: located(
       "guard_xfg_check_function_pointer",
     ),
@@ -489,10 +498,14 @@ const readLoadConfig = ({
   };
 };
 
-const readPointerWidth = (
+const readUnsignedField = (
   bytes: Buffer,
   offset: number,
-  width: 4 | 8,
+  width: 2 | 4 | 8,
   readPointer: (offset: number) => bigint,
 ): bigint =>
-  width === 8 ? readPointer(offset) : BigInt(bytes.readUInt32LE(offset));
+  width === 8
+    ? readPointer(offset)
+    : BigInt(
+        width === 4 ? bytes.readUInt32LE(offset) : bytes.readUInt16LE(offset),
+      );

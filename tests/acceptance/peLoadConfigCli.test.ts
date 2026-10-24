@@ -2,7 +2,10 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { toolContract } from "../../src/contracts/toolContracts.js";
-import { peLoadConfigImage } from "../../src/native/pe/PeLoadConfig.fixture.js";
+import {
+  PE_LOAD_CONFIG_FIXTURE,
+  peLoadConfigImage,
+} from "../../src/native/pe/PeLoadConfig.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
@@ -20,6 +23,12 @@ for (const bits of [32, 64] as const) {
     );
     expect(evidence.normalized_result.bits).toBe(bits);
     expect(evidence.normalized_result.tls?.callbacks).toHaveLength(3);
+    expect(evidence.normalized_result.load_config).toMatchObject({
+      dynamic_value_reloc_table_offset:
+        PE_LOAD_CONFIG_FIXTURE.dynamicRelocOffset,
+      dynamic_value_reloc_table_section:
+        PE_LOAD_CONFIG_FIXTURE.dynamicRelocSection,
+    });
     expect(evidence.subject?.local_path).toBe(join(root, "app.exe"));
   });
 }

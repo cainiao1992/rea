@@ -189,6 +189,61 @@ it("leaves conflicting phandle declarations unresolved", () => {
     "phandle at /split conflicts with linux,phandle (0x1 vs 0x2); references to either value are unresolved.",
   ]);
 });
+it.each([
+  ["empty", Buffer.alloc(0)],
+  ["short", Buffer.from([0, 0])],
+  ["multiple cells", cells(1, 2)],
+])(
+  "does not use a legacy phandle when the canonical value is %s",
+  (_name, canonical) => {
+    const r = parse(
+      devicetreeFixture({
+        name: "",
+        children: [
+          {
+            name: "target",
+            properties: { phandle: canonical, "linux,phandle": cells(3) },
+          },
+          { name: "consumer", properties: { "interrupt-parent": cells(3) } },
+        ],
+      }),
+    );
+    expect(r.references).toMatchObject([
+      { source: "/consumer", phandle: 3, target: null },
+    ]);
+    expect(r.nodes[1]?.properties[0]).toMatchObject({
+      name: "phandle",
+      bytes: canonical.length,
+      hex: canonical.toString("hex"),
+      derived: { cells: null },
+    });
+    expect(r.limitations).toContain(
+      "phandle at /target is not a single cell; this node's reference identity remains unresolved.",
+    );
+  },
+);
+it("resolves a legacy phandle only when the canonical property is absent", () => {
+  const r = parse(
+    devicetreeFixture({
+      name: "",
+      children: [
+        { name: "legacy", properties: { "linux,phandle": cells(3) } },
+        { name: "canonical", properties: { phandle: cells(4) } },
+        {
+          name: "consumer",
+          properties: {
+            "interrupt-parent": cells(3),
+            "remote-endpoint": cells(4),
+          },
+        },
+      ],
+    }),
+  );
+  expect(r.references.map((ref) => [ref.phandle, ref.target])).toEqual([
+    [3, "/legacy"],
+    [4, "/canonical"],
+  ]);
+});
 it("rejects unterminated reservations and unknown tokens", () => {
   const reservation = devicetreeFixture();
   reservation.fill(1, 56, 72);

@@ -16,6 +16,7 @@ import { onTestFinished } from "vitest";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import {
+  cells,
   devicetreeFixture,
   dtString,
 } from "../../../src/firmware/devicetree/Devicetree.fixture.js";
@@ -164,6 +165,71 @@ mcpTest(
           kind: "devicetree",
           devicetree: { alias_count: 0, reference_count: 0 },
           items: [{ path: "/" }, { path: "/chosen", property_count: 1 }],
+        },
+      });
+    } finally {
+      await session.close();
+    }
+  },
+  60_000,
+);
+mcpTest(
+  "keeps a malformed canonical phandle unresolved in retained reference pages",
+  async ({ mcp }) => {
+    const session = createTestBinarySession(() => {
+      throw new Error("DTB inspection must not start an engine");
+    });
+    const client = await mcp.connect(createDtbServer(session));
+    try {
+      const root = await createTestTempDirectory("rea-dtb-mcp-phandle-");
+      const path = join(root, "board.dtb");
+      await writeFile(
+        path,
+        devicetreeFixture({
+          name: "",
+          children: [
+            {
+              name: "target",
+              properties: { phandle: cells(1, 2), "linux,phandle": cells(3) },
+            },
+            { name: "consumer", properties: { "interrupt-parent": cells(3) } },
+          ],
+        }),
+      );
+      const response = await client.callTool({
+        name: "inspect_devicetree",
+        arguments: { path, detail: "summary" },
+      });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      const result = toolContract("inspect_devicetree").outputSchema.parse(
+        response.structuredContent,
+      ).normalized_result;
+      if (!("parent_evidence_id" in result))
+        throw new Error("Expected summary view");
+      expect(result.summary.unresolved_reference_count).toBe(1);
+      await unlink(path);
+      const page = await client.callTool({
+        name: "inspect_analysis_view",
+        arguments: {
+          source: {
+            kind: "retained-evidence",
+            evidence_id: result.parent_evidence_id,
+          },
+          view: { kind: "devicetree", collection: "references" },
+        },
+      });
+      expect(page.isError, JSON.stringify(page)).not.toBe(true);
+      expect(page.structuredContent).toMatchObject({
+        normalized_result: {
+          devicetree: { unresolved_reference_count: 1 },
+          items: [
+            {
+              source: "/consumer",
+              property: "interrupt-parent",
+              phandle: 3,
+              target: null,
+            },
+          ],
         },
       });
     } finally {

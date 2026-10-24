@@ -207,13 +207,22 @@ export const PE_LOAD_CONFIG_RAW_FIELDS = [
 ] as const;
 export type PeLoadConfigRawField = (typeof PE_LOAD_CONFIG_RAW_FIELDS)[number];
 
+/** Source values of the dynamic relocation table offset and section slots. */
+export const PE_LOAD_CONFIG_NUMBER_FIELDS = [
+  "dynamic_value_reloc_table_offset",
+  "dynamic_value_reloc_table_section",
+] as const;
+export type PeLoadConfigNumberField =
+  (typeof PE_LOAD_CONFIG_NUMBER_FIELDS)[number];
+
 export type PeLoadConfigField =
   | PeLoadConfigLocatedField
   | PeLoadConfigCountField
   | PeLoadConfigRawField
+  | PeLoadConfigNumberField
   | "guard_flags";
 
-type FieldLayout = { readonly offset: number; readonly width: 4 | 8 };
+type FieldLayout = { readonly offset: number; readonly width: 2 | 4 | 8 };
 
 /**
  * Offsets of IMAGE_LOAD_CONFIG_DIRECTORY32. A field is present when Size
@@ -235,6 +244,8 @@ const PE32_LOAD_CONFIG_FIELDS: Record<PeLoadConfigField, FieldLayout> = {
   guard_long_jump_target_count: { offset: 116, width: 4 },
   dynamic_value_reloc_table: { offset: 120, width: 4 },
   chpe_metadata_pointer: { offset: 124, width: 4 },
+  dynamic_value_reloc_table_offset: { offset: 136, width: 4 },
+  dynamic_value_reloc_table_section: { offset: 140, width: 2 },
   guard_eh_continuation_table: { offset: 164, width: 4 },
   guard_eh_continuation_count: { offset: 168, width: 4 },
   guard_xfg_check_function_pointer: { offset: 172, width: 4 },
@@ -260,6 +271,8 @@ const PE64_LOAD_CONFIG_FIELDS: Record<PeLoadConfigField, FieldLayout> = {
   guard_long_jump_target_count: { offset: 184, width: 8 },
   dynamic_value_reloc_table: { offset: 192, width: 8 },
   chpe_metadata_pointer: { offset: 200, width: 8 },
+  dynamic_value_reloc_table_offset: { offset: 224, width: 4 },
+  dynamic_value_reloc_table_section: { offset: 228, width: 2 },
   guard_eh_continuation_table: { offset: 264, width: 8 },
   guard_eh_continuation_count: { offset: 272, width: 8 },
   guard_xfg_check_function_pointer: { offset: 280, width: 8 },
@@ -355,6 +368,13 @@ const loadConfigSchema = z
     guard_long_jump_target_count: safeCount.nullable(),
     dynamic_value_reloc_table: hexVa.nullable(),
     chpe_metadata_pointer: hexVa.nullable(),
+    dynamic_value_reloc_table_offset: uint.nullable(),
+    dynamic_value_reloc_table_section: z
+      .number()
+      .int()
+      .min(0)
+      .max(0xffff)
+      .nullable(),
     guard_eh_continuation_table: locatedSchema.nullable(),
     guard_eh_continuation_count: safeCount.nullable(),
     guard_xfg_check_function_pointer: locatedSchema.nullable(),
@@ -368,7 +388,7 @@ export const PE_LOAD_CONFIG_LIMITATIONS = [
   "Claims such as CFG instrumentation are inferred from GuardFlags bits and are not observations of instrumented instructions.",
   "A missing TLS or load-config directory is observed absence of that table, not proof the image never registered callbacks or mitigations through another mechanism.",
   "SafeSEH table and count are reported only for PE32. PE32+ struct slots that share those names are not a SafeSEH table.",
-  "CHPE metadata and dynamic value relocation pointers are raw virtual addresses. Their targets are not decoded.",
+  "CHPE metadata and dynamic value relocation pointers are raw virtual addresses. Dynamic relocation table offset and section are separate source values; their target is not derived or decoded.",
   "Load-config fields newer than GuardXFGCheckFunctionPointer stay unread. A Size larger than the fields this version knows does not fail the read.",
 ] as const;
 

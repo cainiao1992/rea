@@ -87,6 +87,8 @@ const baseLimitations = (): Limitations => [
   "This workflow does not execute the module, resolve imported symbols, or validate an appended signature.",
   "struct module in .gnu.linkonce.this_module is kernel-version specific and is not decoded.",
   "__ksymtab entry layout is kernel-version specific and is not decoded.",
+  "Only classic __versions records are decoded. Their absence does not establish the absence of CONFIG_EXTENDED_MODVERSIONS metadata in __version_ext_names and __version_ext_crcs.",
+  "Metadata strings use a byte-preserving Latin1 projection; their original text encoding is unobserved.",
 ];
 
 const headerFacts = (

@@ -169,7 +169,7 @@ it("resolves callback sections in bounded time for the largest section table", a
  */
 const SPEC_FIELDS: Record<
   32 | 64,
-  readonly (readonly [PeLoadConfigField, number, 4 | 8])[]
+  readonly (readonly [PeLoadConfigField, number, 2 | 4 | 8])[]
 > = {
   32: [
     ["security_cookie", 60, 4],
@@ -186,6 +186,8 @@ const SPEC_FIELDS: Record<
     ["guard_long_jump_target_count", 116, 4],
     ["dynamic_value_reloc_table", 120, 4],
     ["chpe_metadata_pointer", 124, 4],
+    ["dynamic_value_reloc_table_offset", 136, 4],
+    ["dynamic_value_reloc_table_section", 140, 2],
     ["guard_eh_continuation_table", 164, 4],
     ["guard_eh_continuation_count", 168, 4],
     ["guard_xfg_check_function_pointer", 172, 4],
@@ -205,6 +207,8 @@ const SPEC_FIELDS: Record<
     ["guard_long_jump_target_count", 184, 8],
     ["dynamic_value_reloc_table", 192, 8],
     ["chpe_metadata_pointer", 200, 8],
+    ["dynamic_value_reloc_table_offset", 224, 4],
+    ["dynamic_value_reloc_table_section", 228, 2],
     ["guard_eh_continuation_table", 264, 8],
     ["guard_eh_continuation_count", 272, 8],
     ["guard_xfg_check_function_pointer", 280, 8],
@@ -215,10 +219,10 @@ const SPEC_FIELDS: Record<
 const LOAD_CONFIG_AT = 0x640;
 
 /** A distinct sentinel per field that fills its whole width. */
-const sentinel = (index: number, width: 4 | 8): bigint =>
+const sentinel = (index: number, width: 2 | 4 | 8): bigint =>
   width === 8
     ? 0x0000_0102_0304_0500n + BigInt(index)
-    : BigInt(0x01020300 + index);
+    : BigInt((width === 4 ? 0x01020300 : 0x1200) + index);
 
 /** Rewrite the struct from spec offsets alone, then declare `size`. */
 const specImage = (bits: 32 | 64, size: number): Buffer => {
@@ -233,7 +237,9 @@ const specImage = (bits: 32 | 64, size: number): Buffer => {
   SPEC_FIELDS[bits].forEach(([, offset, width], index) => {
     const value = sentinel(index, width);
     if (width === 8) bytes.writeBigUInt64LE(value, LOAD_CONFIG_AT + offset);
-    else bytes.writeUInt32LE(Number(value), LOAD_CONFIG_AT + offset);
+    else if (width === 4)
+      bytes.writeUInt32LE(Number(value), LOAD_CONFIG_AT + offset);
+    else bytes.writeUInt16LE(Number(value), LOAD_CONFIG_AT + offset);
   });
   return bytes;
 };
@@ -245,6 +251,11 @@ const expectedField = (name: PeLoadConfigField, value: bigint): unknown => {
   if (name.endsWith("_count")) return Number(value);
   if (name === "dynamic_value_reloc_table" || name === "chpe_metadata_pointer")
     return `0x${value.toString(16)}`;
+  if (
+    name === "dynamic_value_reloc_table_offset" ||
+    name === "dynamic_value_reloc_table_section"
+  )
+    return Number(value);
   return expect.objectContaining({ va: `0x${value.toString(16)}`, rva: null });
 };
 
@@ -282,5 +293,39 @@ describe.each([32, 64] as const)(
         );
       }
     });
+  },
+);
+
+it.each([32, 64] as const)(
+  "PE%s retains dynamic relocation offset and section with a zero pointer",
+  async (bits) => {
+    const pointerOffset = bits === 32 ? 120 : 192;
+    const offsetOffset = bits === 32 ? 136 : 224;
+    const sectionOffset = bits === 32 ? 140 : 228;
+    for (const [offset, section] of [
+      [0, 0],
+      [0x40, 1],
+      [0xffffffff, 0xffff],
+    ] as const) {
+      const bytes = specImage(bits, bits === 32 ? 192 : 320);
+      bytes.fill(
+        0,
+        LOAD_CONFIG_AT + pointerOffset,
+        LOAD_CONFIG_AT + pointerOffset + (bits === 32 ? 4 : 8),
+      );
+      bytes.writeUInt32LE(offset, LOAD_CONFIG_AT + offsetOffset);
+      bytes.writeUInt16LE(section, LOAD_CONFIG_AT + sectionOffset);
+      const report = await parsePeLoadConfig(
+        bytes,
+        { path: "/sample.exe", sha256: "a".repeat(64), bytes: bytes.length },
+        inspectPeLoadConfigInputSchema.parse({ path: "/sample.exe" }),
+      );
+      expect(peLoadConfigSchema.safeParse(report).success).toBe(true);
+      expect(report.load_config).toMatchObject({
+        dynamic_value_reloc_table: "0x0",
+        dynamic_value_reloc_table_offset: offset,
+        dynamic_value_reloc_table_section: section,
+      });
+    }
   },
 );

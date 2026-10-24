@@ -31,6 +31,8 @@ export const PE_LOAD_CONFIG_FIXTURE = {
   callbackRvas: [0x2000, 0x2010, 0x9000],
   chpe: 0x33333333,
   dynamicReloc: 0x22222222,
+  dynamicRelocOffset: 0x40,
+  dynamicRelocSection: 1,
   guardFlags: 0x500,
   sehCount: 2,
   ignoredSeh: 0x44444444,
@@ -275,7 +277,8 @@ const writeLoadConfig = (
         if (field.offset + field.width > written) return;
         const atField = configAt + field.offset;
         if (field.width === 8) bytes.writeBigUInt64LE(value, atField);
-        else bytes.writeUInt32LE(Number(value), atField);
+        else if (field.width === 4) bytes.writeUInt32LE(Number(value), atField);
+        else bytes.writeUInt16LE(Number(value), atField);
       };
       const cookie =
         options.securityCookie === "zero" ? 0n : vaOf(layout.cookieRva);
@@ -306,6 +309,14 @@ const writeLoadConfig = (
       writeField("guard_long_jump_target_count", BigInt(layout.longjmpCount));
       writeField("dynamic_value_reloc_table", BigInt(layout.dynamicReloc));
       writeField("chpe_metadata_pointer", BigInt(layout.chpe));
+      writeField(
+        "dynamic_value_reloc_table_offset",
+        BigInt(layout.dynamicRelocOffset),
+      );
+      writeField(
+        "dynamic_value_reloc_table_section",
+        BigInt(layout.dynamicRelocSection),
+      );
       writeField("guard_eh_continuation_table", vaOf(layout.ehTableRva));
       writeField("guard_eh_continuation_count", BigInt(layout.ehCount));
       writeField("guard_xfg_check_function_pointer", vaOf(layout.xfgRva));

@@ -40,6 +40,8 @@ const legacyX86: PeLoadConfig = {
     guard_long_jump_target_count: null,
     dynamic_value_reloc_table: null,
     chpe_metadata_pointer: null,
+    dynamic_value_reloc_table_offset: null,
+    dynamic_value_reloc_table_section: null,
     guard_eh_continuation_table: null,
     guard_eh_continuation_count: null,
     guard_xfg_check_function_pointer: null,

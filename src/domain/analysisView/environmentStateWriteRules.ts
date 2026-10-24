@@ -4,10 +4,14 @@ import {
   isParam,
   normalizedPath,
   pathSegmentMatches,
+  same,
   segmentsOf,
   type JsonObject,
 } from "./environmentStateRules.js";
-import type { ClockFormat } from "./environmentStateWriteValues.js";
+import {
+  sortedStrings,
+  type ClockFormat,
+} from "./environmentStateWriteValues.js";
 import {
   showsFixedWidth,
   trimmedLike,
@@ -70,7 +74,8 @@ export type GeneratedRule =
 /** How one field of a written entity gets its value; fields no rule names keep the observed value. */
 export type FieldRule =
   | GeneratedRule
-  | { readonly field: string; readonly rule: "echo" }
+  /** The sent member stored as sent, or with its strings in code-point order when `sorted`. */
+  | { readonly field: string; readonly rule: "echo"; readonly sorted?: true }
   | { readonly field: string; readonly rule: "copy"; readonly from: string }
   | { readonly field: string; readonly rule: "path"; readonly from: string }
   | { readonly field: string; readonly rule: "slug"; readonly from: string }
@@ -80,6 +85,14 @@ export type FieldRule =
       readonly field: string;
       readonly rule: "composed";
       readonly parts: ComposedPart[];
+    }
+  /** An object holding `fields` of the entity of `type` the sent `member` names, as the state holds it; absent when the call does not send it. */
+  | {
+      readonly field: string;
+      readonly rule: "reference";
+      readonly member: string;
+      readonly type: string;
+      readonly fields: string[];
     }
   | { readonly field: string; readonly rule: "increment" }
   /** An update stores `value` whenever the call sends the member, as the call that showed it did. */
@@ -143,6 +156,31 @@ export const siblingTrimmedClocks = (
   });
 };
 
+/**
+ * Two calls' rules for a field as one plan holds them: equal, or echoes one of which sorted its strings (a call whose
+ * array was already in order cannot show it), kept sorted unless a call kept strings out of order. Undefined when they
+ * differ otherwise.
+ */
+export const alikeRules = (
+  held: FieldRule,
+  later: FieldRule,
+  kept: ReadonlySet<string> = new Set(),
+): FieldRule | undefined => {
+  if (held.rule !== "echo" || later.rule !== "echo")
+    return same(held, later) ? held : undefined;
+  if ((held.sorted === true) === (later.sorted === true)) return held;
+  if (kept.has(held.field)) return undefined;
+  return held.sorted === true ? held : later;
+};
+
+/** Members a call sent as strings out of code-point order and stored as sent, which shows the application keeps their order. */
+export const keptOrders = (body: JsonObject, stored: JsonObject): string[] =>
+  Object.keys(body).filter(
+    (member) =>
+      sortedStrings(body[member]) !== undefined &&
+      same(stored[member], body[member]),
+  );
+
 /** One part of a composed string: literal text, or another written field as written, slugged, or as a clock's calendar digits. */
 export type ComposedPart =
   | { readonly text: string }
@@ -176,6 +214,10 @@ export interface WriteBody {
   readonly kinds: { readonly member: string; readonly kind: JsonKind }[];
   /** The member a call wraps its object in, as a one-element array. */
   readonly envelope?: string | undefined;
+  /** The value a create stores for an accepted member a call leaves out, as a recorded call that left it out showed. */
+  readonly defaults?:
+    | { readonly member: string; readonly value: JsonValue }[]
+    | undefined;
 }
 
 /**

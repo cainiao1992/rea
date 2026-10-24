@@ -5,6 +5,7 @@ import {
   isObject,
   isParam,
   normalizedPath,
+  same,
   scalarText,
   segmentsOf,
   selectedCollection,
@@ -35,6 +36,7 @@ import {
   callOf,
   clockEvidence,
   fail,
+  referencedIn,
   itemReads,
   refuse,
   requestBodyPlan,
@@ -62,6 +64,7 @@ import {
   type Observed,
 } from "./environmentStateWriteObserve.js";
 import {
+  keptOrders,
   pathValuesOf,
   siblingTrimmedClocks,
   type FieldRule,
@@ -71,6 +74,7 @@ import {
   fittedClockFormat,
   noteFixedWidths,
 } from "./environmentStateWriteClockFormats.js";
+import { mergedCreatePlan } from "./environmentStateWriteCreateCalls.js";
 import {
   containsDelimited,
   generatedIntegerDigits,
@@ -183,40 +187,103 @@ const strandedInteger = (
     );
   });
 
-/** Build a create plan from its exemplar's observation. */
-const buildCreate = (
+/** Whether a created field no rule explains holds a generated value another field links to, or a unique integer another string strands, which serving cannot keep consistent. */
+const linkedUnexplained = (
+  rules: readonly FieldRule[],
+  entity: JsonObject,
+  held: readonly JsonObject[],
+): boolean => {
+  const explained = new Set(rules.map((rule) => rule.field));
+  return (
+    Object.keys(entity).some(
+      (field) => !explained.has(field) && linkedGenerated(field, entity, held),
+    ) || strandedInteger(rules, entity)
+  );
+};
+
+/** Widen a create plan by a later call, when that call explained on its own agrees with it; whether it did. */
+const refineCreate = (
   context: EffectContext,
   draft: WriteDraft,
   step: WriteStep,
-  evidence: {
-    readonly observed: Observed;
-    readonly call: WriteCall & { readonly body: JsonObject };
-    readonly collection: string;
-    readonly envelope: string | undefined;
-  },
+  evidence: CreateCallEvidence,
 ): boolean => {
+  const { explained, held } = explainedCall(context, draft, step, evidence);
+  for (const member of keptOrders(evidence.call.body, evidence.observed.object))
+    draft.kept.add(member);
+  if (
+    (explained.tied && draft.plan.collection === null) ||
+    linkedUnexplained(explained.rules, evidence.observed.object, held)
+  )
+    return false;
+  const merged = mergedCreatePlan(
+    { rules: draft.plan.rules, body: draft.plan.body! },
+    draft.observed!,
+    {
+      entity: evidence.observed.object,
+      body: evidence.call.body,
+      rules: explained.rules,
+      contract: {
+        ...explained.body,
+        ...(evidence.envelope === undefined
+          ? {}
+          : { envelope: evidence.envelope }),
+      },
+    },
+    { kept: draft.kept, clockOf: (field) => clockEvidence(draft, field) },
+  );
+  if (merged === undefined) return false;
+  retainFixed(context, merged.body.fixed.slice(draft.plan.body!.fixed.length));
+  draft.plan.rules = merged.rules;
+  draft.plan.body = merged.body;
+  return true;
+};
+
+type CreateCallEvidence = {
+  readonly observed: Observed;
+  readonly call: WriteCall & { readonly body: JsonObject };
+  readonly collection: string;
+  readonly envelope: string | undefined;
+};
+
+/** Explain one recorded create on its own, against the entities its collection and type held before it. */
+const explainedCall = (
+  context: EffectContext,
+  draft: WriteDraft,
+  step: WriteStep,
+  evidence: CreateCallEvidence,
+) => {
   const type = draft.plan.target!;
-  const idField = context.idField(type);
   const members = fieldsOf(context.state.members(type, evidence.collection));
   const held = fieldsOf(context.state.ofType(type));
   const explained = explainCreate({
     entity: evidence.observed.object,
     call: evidence.call,
-    idField,
+    idField: context.idField(type),
     startMs: startOf(context, step),
     collection: members,
     type: held,
     named: (id) => context.state.named(id),
   });
-  const explainedFields = new Set(explained.rules.map((rule) => rule.field));
-  if (
-    Object.keys(evidence.observed.object).some(
-      (field) =>
-        !explainedFields.has(field) &&
-        linkedGenerated(field, evidence.observed.object, held),
-    ) ||
-    strandedInteger(explained.rules, evidence.observed.object)
-  ) {
+  return { explained, members, held };
+};
+
+/** Build a create plan from its exemplar's observation. */
+const buildCreate = (
+  context: EffectContext,
+  draft: WriteDraft,
+  step: WriteStep,
+  evidence: CreateCallEvidence,
+): boolean => {
+  const type = draft.plan.target!;
+  const idField = context.idField(type);
+  const { explained, members, held } = explainedCall(
+    context,
+    draft,
+    step,
+    evidence,
+  );
+  if (linkedUnexplained(explained.rules, evidence.observed.object, held)) {
     refuse(draft, step, "unexplained-change");
     return false;
   }
@@ -246,6 +313,8 @@ const buildCreate = (
     },
   );
   retainFixed(context, explained.body.fixed);
+  for (const member of keptOrders(evidence.call.body, evidence.observed.object))
+    draft.kept.add(member);
   Object.assign(draft.plan, {
     exemplar_ordinal: step.record.ordinal,
     observation: {
@@ -321,6 +390,30 @@ const followsSequences = (
     );
   });
 
+/** Whether a later call's rules reproduce its observed fields and its omitted members agree with the learned defaults. */
+const agreesLater = (
+  context: EffectContext,
+  draft: WriteDraft,
+  created: Pick<StateEntity, "type" | "collection" | "fields">,
+  call: { readonly body: JsonObject; readonly observed: JsonObject },
+): boolean =>
+  followsCreateRules(context, draft, { ...created, observed: call.observed }) &&
+  !contradictsDefault(draft.plan.rules, call, created.fields);
+
+/** Whether an echoed member the call left out was stored otherwise than its learned default. */
+const contradictsDefault = (
+  rules: readonly FieldRule[],
+  call: { readonly body: JsonObject; readonly observed: JsonObject },
+  written: JsonObject,
+): boolean =>
+  rules.some(
+    (rule) =>
+      rule.rule === "echo" &&
+      !Object.hasOwn(call.body, rule.field) &&
+      Object.hasOwn(call.observed, rule.field) &&
+      !same(call.observed[rule.field], written[rule.field]),
+  );
+
 /** Whether a later create preserves generation shapes and its derived fields reproduce the captured observation. */
 const followsCreateRules = (
   context: EffectContext,
@@ -332,10 +425,11 @@ const followsCreateRules = (
   draft.plan.rules.every((rule) => {
     const value = created.fields[rule.field];
     const exemplar = draft.observed?.[rule.field];
-    if (rule.rule === "composed")
+    if (rule.rule === "composed" || rule.rule === "reference")
       return (
         !Object.hasOwn(created.observed, rule.field) ||
-        value === created.observed[rule.field]
+        value === created.observed[rule.field] ||
+        (rule.rule === "reference" && same(value, created.observed[rule.field]))
       );
     if (rule.rule === "clock")
       return (
@@ -578,25 +672,41 @@ export const applyCreate = (
     pathValues:
       pathValuesOf(step.tool.path_template, collection) ?? call.pathValues,
   };
-  const fields = createdFields(draft.plan, draft.observed!, created, (rule) =>
-    recordedGeneratedValue(
-      rule,
-      draft.observed![rule.field],
-      observed.object[rule.field] ?? null,
-    ),
-  );
+  const fieldsOfCall = () =>
+    createdFields(
+      draft.plan,
+      draft.observed!,
+      created,
+      (rule) =>
+        recordedGeneratedValue(
+          rule,
+          draft.observed![rule.field],
+          observed.object[rule.field] ?? null,
+        ),
+      referencedIn(context),
+    );
+  // A later call that agrees with the plan widens it, as a later update does: to members it alone sent or left out, an
+  // array it showed sorted, or a clock spelling. One that disagrees leaves the plan as it was.
+  if (later)
+    refineCreate(context, draft, step, {
+      observed,
+      call,
+      collection,
+      envelope: request?.envelope,
+    });
+  const fields = fieldsOfCall();
   const id = fields.ok ? scalarText(fields.value[idField]) : undefined;
   if (
     !fields.ok ||
     id === undefined ||
     context.state.entity(type, collection, id) !== undefined ||
     (later &&
-      !followsCreateRules(context, draft, {
-        type,
-        collection,
-        fields: fields.value,
-        observed: observed.object,
-      }))
+      !agreesLater(
+        context,
+        draft,
+        { type, collection, fields: fields.value },
+        { body: call.body, observed: observed.object },
+      ))
   ) {
     refuse(draft, step, "unexplained-change");
     return recorded();

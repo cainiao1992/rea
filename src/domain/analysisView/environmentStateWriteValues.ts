@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { JsonValue } from "../jsonValue.js";
 import { readRecordedDateTime } from "../offsetDateTime.js";
+import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 
 /** How a recorded clock value is spelled: ISO-8601 with its separator, fraction digits and zone, or an epoch number. */
 export type ClockFormat =
@@ -193,6 +194,28 @@ export const generatedIntegerDigits = (
     ? digits
     : undefined;
 };
+
+/** A sent array of strings as an application stores it sorted: in code-point order, when that differs from the sent order and shows two distinct strings. */
+export const sortedStrings = (
+  sent: JsonValue | undefined,
+): string[] | undefined => {
+  if (
+    !Array.isArray(sent) ||
+    !sent.every((item) => typeof item === "string") ||
+    new Set(sent).size < 2
+  )
+    return undefined;
+  const sorted = (sent as string[]).toSorted(compareUnicodeCodePoints);
+  return sorted.some((item, index) => item !== sent[index])
+    ? sorted
+    : undefined;
+};
+
+/** The value an echo rule stores for a sent value: as sent, or its strings sorted. */
+export const echoed = (
+  rule: { readonly sorted?: true },
+  sent: JsonValue,
+): JsonValue => (rule.sorted === true ? (sortedStrings(sent) ?? sent) : sent);
 
 /** Whether a generated integer retains the exemplar's digit count and JSON kind. */
 export const likeGeneratedInteger = (

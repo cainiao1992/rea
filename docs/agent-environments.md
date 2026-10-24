@@ -683,7 +683,12 @@ A view that names a field in `sorted_arrays` lists that string array sorted, as
 a read-back showed the application does, while the state keeps it in the order
 it was written, so a write's own answer echoes it. If a later counted read
 contradicts that ordering, the view stays recorded and its earlier reads no
-longer confirm served writes. Members a view names in
+longer confirm served writes. A view that names a field in `nested_fields`
+always showed that field's objects with the same keys, in any order, and fewer
+than an entity stores, such
+as a list showing a parent without the parent's own nested type; a stored
+object it never recorded, such as a created entity's parent, is rendered with
+those keys. Members a view names in
 `per_response_members`, such as a request id each response mints, keep the
 value its recording carried. A list's `counters` and `query.totals` are
 top-level members or members one level down in a paging object
@@ -721,7 +726,7 @@ every MCP session and `data/get` then see:
 | Effect                    | Call                                                                                                                                                                                                                                                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `create`                  | Adds an entity to the collection the path names, built from the observed entity with each ruled field taken from the call or generated, at the plan's `insert` position. A plan tied to its exemplar's collection writes only there.                                                                                 |
-| `update`                  | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, nested clock, increment, slug, stamp, derived, composed, unique and renewed changes the plan models.                                                                               |
+| `update`                  | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, nested clock, increment, slug, stamp, derived, composed, reference, unique and renewed changes the plan models.                                                                    |
 | `update` (action)         | A `POST`, `PUT` or `PATCH` to an item path plus an action segment (`/{type}/{id}/archive`) sets, on the entity before the segment, each scalar the recorded calls showed the action set (`set`), with any sent members; it is served only when a recorded call found those fields already set, so a toggle never is. |
 | `delete`                  | Removes the entity the path names.                                                                                                                                                                                                                                                                                   |
 | bulk `update` or `delete` | A `DELETE`, `PUT` or `PATCH` at a collection, or a `POST` to it plus `delete`, `remove` or `destroy`, applies its effect to every entity the body names, as recorded: an array of ids or of objects carrying the id field, at the root or as the body's one array member (`{"IDs": […], "Read": true}`).             |

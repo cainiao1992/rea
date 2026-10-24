@@ -53,6 +53,21 @@ export const TAG_ROWS: readonly TimedCaptureRow[] = [
   ["GET", "/api/tags", [FIRST_TAG, SECOND_TAG, HEAVY_TAG, BORROWED_TAG]],
 ];
 
+/** A held tag whose update clock keeps a trailing zero, so the application spells that clock at a fixed width. */
+const FIXED_SECOND_TAG = {
+  ...SECOND_TAG,
+  updatedAt: "2026-10-01T10:00:00.223456790Z",
+};
+
+/** The tag creates beside a held tag that shows the update clock at a fixed width, which the later create's trimmed clock contradicts. */
+export const HELD_FIXED_TAG_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/tags", [FIRST_TAG, FIXED_SECOND_TAG]],
+  ["GET", `/api/tags/${numberedUuid(1)}`, FIRST_TAG],
+  ["GET", `/api/tags/${numberedUuid(2)}`, FIXED_SECOND_TAG],
+  ...TAG_ROWS.slice(3, 7),
+  ["GET", "/api/tags", [FIRST_TAG, FIXED_SECOND_TAG, HEAVY_TAG, BORROWED_TAG]],
+];
+
 /** A later tag create whose update clock Go trims while its creation clock keeps a trailing zero. */
 const FIXED_CREATED_TAG = tag(
   4,
@@ -318,6 +333,215 @@ export const TAG_UPDATE_ROWS: readonly TimedCaptureRow[] = [
     { name: "Outdoor gear" },
   ],
   ["GET", `/api/tags/${numberedUuid(2)}`, RENAMED_SECOND_TAG],
+];
+
+/** A book shelved as the application shelves it, on `general` when the call names no shelf. */
+const shelved = (
+  id: number,
+  name: string,
+  shelf: string,
+  at: string,
+): Entity => ({
+  id,
+  name,
+  shelf,
+  created_at: at,
+});
+
+const SHELVED_SEEDS = [
+  shelved(1, "First Book", "general", "2026-10-01T09:00:00Z"),
+  shelved(2, "Second Book", "general", "2026-10-01T10:00:00Z"),
+];
+
+/** Two book creates, one naming a shelf and one leaving it out, in the order given, each read back. */
+export const shelvedRows = (
+  first: { readonly name: string; readonly shelf?: string },
+  second: { readonly name: string; readonly shelf?: string },
+  stored: (sent: string) => string = (sent) => sent,
+): TimedCaptureRow[] => {
+  const third = shelved(
+    3,
+    first.name,
+    first.shelf === undefined ? "general" : stored(first.shelf),
+    bookClock(3),
+  );
+  const fourth = shelved(
+    4,
+    second.name,
+    second.shelf === undefined ? "general" : stored(second.shelf),
+    bookClock(5),
+  );
+  return [
+    ["GET", "/api/books", SHELVED_SEEDS],
+    ["GET", "/api/books/1", SHELVED_SEEDS[0]!],
+    ["GET", "/api/books/2", SHELVED_SEEDS[1]!],
+    ["POST", "/api/books", third, 201, first],
+    ["GET", "/api/books/3", third],
+    ["POST", "/api/books", fourth, 201, second],
+    ["GET", "/api/books/4", fourth],
+    ["GET", "/api/books", [...SHELVED_SEEDS, third, fourth]],
+  ];
+};
+
+/** The shelved creates, then one that leaves the shelf out yet stores another shelf than the default, shown only in its answer. */
+export const misshelvedRows = (): TimedCaptureRow[] => {
+  const rows = shelvedRows(
+    { name: "Third Book" },
+    { name: "Fourth Book", shelf: "rare" },
+  );
+  const fifth = shelved(5, "Fifth Book", "attic", bookClock(rows.length));
+  return [...rows, ["POST", "/api/books", fifth, 201, { name: "Fifth Book" }]];
+};
+
+const SHELVES = [
+  { id: 1, name: "Main Hall", floor: "ground" },
+  { id: 2, name: "Map Room", floor: "upper" },
+];
+
+/** A book as its item read shows it: its shelf whole, which its list read shows by id and name only. */
+const filed = (
+  id: number,
+  name: string,
+  shelf: number,
+  at: string,
+): Entity => ({
+  id,
+  name,
+  shelf: SHELVES[shelf - 1]!,
+  created_at: at,
+});
+
+const listed = (book: Entity): Entity => {
+  const { id, name } = book["shelf"] as { id: number; name: string };
+  return { ...book, shelf: { id, name } };
+};
+
+const FILED_SEED = filed(1, "Tide Tables", 1, "2026-10-01T09:00:00Z");
+const ATLAS = filed(2, "Coastal Atlas", 2, bookClock(5));
+const CHARTS = filed(3, "Harbour Charts", 1, bookClock(8));
+
+/** Two book creates naming a shelf by `shelf_id`, whose answers and item reads show the shelf whole and whose list shows it by id and name. */
+export const FILED_ROWS: readonly TimedCaptureRow[] = [
+  ["GET", "/api/shelves", SHELVES],
+  ["GET", "/api/shelves/1", SHELVES[0]!],
+  ["GET", "/api/shelves/2", SHELVES[1]!],
+  ["GET", "/api/books", [listed(FILED_SEED)]],
+  ["GET", "/api/books/1", FILED_SEED],
+  ["POST", "/api/books", ATLAS, 201, { name: "Coastal Atlas", shelf_id: 2 }],
+  ["GET", "/api/books/2", ATLAS],
+  ["GET", "/api/books", [listed(FILED_SEED), listed(ATLAS)]],
+  ["POST", "/api/books", CHARTS, 201, { name: "Harbour Charts", shelf_id: 1 }],
+  ["GET", "/api/books/3", CHARTS],
+  ["GET", "/api/books", [listed(FILED_SEED), listed(ATLAS), listed(CHARTS)]],
+];
+
+/** Two creates whose last answer can contradict the named shelf, followed only by a list omitting that field. */
+export const referencedCreateRows = (shelf: JsonValue): TimedCaptureRow[] => {
+  const last = { ...CHARTS, shelf };
+  const summary = ({ id, name }: Entity): Entity => ({ id: id!, name: name! });
+  return [
+    ...FILED_ROWS.filter(([, path]) => path.startsWith("/api/shelves")),
+    ["GET", "/api/books", [summary(FILED_SEED)]],
+    ["GET", "/api/books/1", FILED_SEED],
+    ["POST", "/api/books", ATLAS, 201, { name: "Coastal Atlas", shelf_id: 2 }],
+    ["GET", "/api/books/2", ATLAS],
+    ["GET", "/api/books", [FILED_SEED, ATLAS].map(summary)],
+    ["POST", "/api/books", last, 201, { name: "Harbour Charts", shelf_id: 1 }],
+    ["GET", "/api/books", [FILED_SEED, ATLAS, last].map(summary)],
+  ];
+};
+
+/** A book moved to another shelf by `shelf_id`, then renamed by a call that sends the shelf it already has. */
+export const REFILED_ROWS: readonly TimedCaptureRow[] = (() => {
+  const moved = filed(1, "Tide Tables", 2, "2026-10-01T09:00:00Z");
+  const renamed = { ...moved, name: "Tide Tables, Revised" };
+  return [
+    ...FILED_ROWS.slice(0, 5),
+    ["PATCH", "/api/books/1", moved, 200, { shelf_id: 2 }],
+    ["GET", "/api/books/1", moved],
+    ["GET", "/api/books", [listed(moved)]],
+    [
+      "PATCH",
+      "/api/books/1",
+      renamed,
+      200,
+      { name: "Tide Tables, Revised", shelf_id: 2 },
+    ],
+    ["GET", "/api/books/1", renamed],
+    ["GET", "/api/books", [listed(renamed)]],
+  ];
+})();
+
+/** Two book creates, one naming a shelf by `shelf_id` and one leaving it out, in the order given, each read back and listed. */
+export const optionallyFiledRows = (shelfFirst: boolean): TimedCaptureRow[] => {
+  const unfiled = (id: number, at: string): Entity => ({
+    id,
+    name: "Field Notes",
+    created_at: at,
+  });
+  const [first, second] = shelfFirst
+    ? [filed(2, "Coastal Atlas", 2, bookClock(5)), unfiled(3, bookClock(8))]
+    : [unfiled(2, bookClock(5)), filed(3, "Coastal Atlas", 2, bookClock(8))];
+  const sent = (book: Entity) =>
+    "shelf" in book
+      ? { name: book["name"]!, shelf_id: 2 }
+      : { name: book["name"]! };
+  const shown = (book: Entity) => ("shelf" in book ? listed(book) : book);
+  return [
+    ...FILED_ROWS.slice(0, 5),
+    ["POST", "/api/books", first, 201, sent(first)],
+    ["GET", "/api/books/2", first],
+    ["GET", "/api/books", [listed(FILED_SEED), shown(first)]],
+    ["POST", "/api/books", second, 201, sent(second)],
+    ["GET", "/api/books/3", second],
+    ["GET", "/api/books", [listed(FILED_SEED), shown(first), shown(second)]],
+  ];
+};
+
+const tagged = (
+  id: number,
+  name: string,
+  tags: string[],
+  at: string,
+): Entity => ({
+  id,
+  name,
+  tags,
+  created_at: at,
+});
+
+/** Two book creates sending tags out of order, which the application stores sorted. */
+export const TAGGED_ROWS: readonly TimedCaptureRow[] = [
+  [
+    "GET",
+    "/api/books",
+    [tagged(1, "Tide Tables", ["coast", "tides"], "2026-10-01T09:00:00Z")],
+  ],
+  [
+    "GET",
+    "/api/books/1",
+    tagged(1, "Tide Tables", ["coast", "tides"], "2026-10-01T09:00:00Z"),
+  ],
+  [
+    "POST",
+    "/api/books",
+    tagged(2, "Atlas", ["maps", "zoning"], bookClock(2)),
+    201,
+    { name: "Atlas", tags: ["zoning", "maps"] },
+  ],
+  ["GET", "/api/books/2", tagged(2, "Atlas", ["maps", "zoning"], bookClock(2))],
+  [
+    "POST",
+    "/api/books",
+    tagged(3, "Charts", ["harbour", "sea"], bookClock(4)),
+    201,
+    { name: "Charts", tags: ["sea", "harbour"] },
+  ],
+  [
+    "GET",
+    "/api/books/3",
+    tagged(3, "Charts", ["harbour", "sea"], bookClock(4)),
+  ],
 ];
 
 /** The same renames with an archive the gate does not model before the second, which leaves that tag unknown. */

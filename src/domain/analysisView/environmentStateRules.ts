@@ -120,6 +120,8 @@ interface EntityViewPlan {
   readonly clock_formats?: Readonly<Record<string, ClockFormat>> | undefined;
   /** Fields whose string arrays the view lists in code-point order, whatever order they were written in. */
   readonly sorted_arrays?: string[] | undefined;
+  /** The keys the view shows of object fields it shows with fewer keys than stored. */
+  readonly nested_fields?: Readonly<Record<string, string[]>> | undefined;
   /** Envelope members each response there mints, which checks leave out and serving keeps as recorded. */
   readonly per_response_members?: string[] | undefined;
 }
@@ -660,7 +662,7 @@ export const renderStateEntity = (
   entity: StateEntity,
   view: Pick<
     EntityViewPlan,
-    "tool" | "fields" | "clock_formats" | "sorted_arrays"
+    "tool" | "fields" | "clock_formats" | "sorted_arrays" | "nested_fields"
   >,
   volatileFields: ReadonlySet<string>,
   observed?: JsonObject,
@@ -669,6 +671,7 @@ export const renderStateEntity = (
     entity.view_fields.find((candidate) => candidate.tool === view.tool)
       ?.fields ?? {};
   const formats = view.clock_formats ?? {};
+  const nested = view.nested_fields ?? {};
   const sorted = new Set(view.sorted_arrays);
   return Object.fromEntries(
     view.fields.flatMap((name): [string, JsonValue][] => {
@@ -679,15 +682,29 @@ export const renderStateEntity = (
             ? own
             : entity.fields;
       if (!Object.hasOwn(source, name)) return [];
-      // A stored value the view never recorded, such as a written one, takes the view's spelling.
+      // A stored value the view never recorded, such as a written one, takes the view's spelling and keys.
       const value =
-        source === entity.fields && Object.hasOwn(formats, name)
-          ? respellClock(source[name]!, formats[name]!)
-          : source[name]!;
+        source !== entity.fields
+          ? source[name]!
+          : Object.hasOwn(formats, name)
+            ? respellClock(source[name]!, formats[name]!)
+            : Object.hasOwn(nested, name)
+              ? shownKeys(source[name]!, nested[name]!)
+              : source[name]!;
       return [[name, sorted.has(name) ? inSetOrder(value) : value]];
     }),
   );
 };
+
+/** An object with only the keys a view shows of it, in the view's order; any other value as it is. */
+const shownKeys = (value: JsonValue, keys: readonly string[]): JsonValue =>
+  isObject(value)
+    ? Object.fromEntries(
+        keys.flatMap((key) =>
+          Object.hasOwn(value, key) ? [[key, value[key]!]] : [],
+        ),
+      )
+    : value;
 
 /** Whether a value is an array of strings. */
 export const isStringArray = (value: JsonValue): value is string[] =>

@@ -32,6 +32,7 @@ import {
   observedEntity,
   pathValues,
   unloadable,
+  heldEntity,
   updateTarget,
   writeAnswer,
   type WriteRequest,
@@ -131,6 +132,7 @@ const writtenTargets = (
       { before: entity.fields, observed },
       call,
       values.forTarget(updateTarget(serving, entity, observed)),
+      heldEntity(serving),
     );
     if (!fields.ok) return err(refused(tool, fields.error));
     const field = unloadableMember(fields.value);

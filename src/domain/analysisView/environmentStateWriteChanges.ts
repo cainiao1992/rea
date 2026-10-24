@@ -1,9 +1,19 @@
 import type { JsonValue } from "../jsonValue.js";
-import { isObject, same, type JsonObject } from "./environmentStateRules.js";
+import {
+  isObject,
+  same,
+  type JsonObject,
+  type StateEntity,
+} from "./environmentStateRules.js";
 import type { FieldRule, WriteCall } from "./environmentStateWriteRules.js";
-import { integerOf, readClock } from "./environmentStateWriteValues.js";
+import {
+  integerOf,
+  readClock,
+  sortedStrings,
+} from "./environmentStateWriteValues.js";
 import { freshUuid, renewedRule } from "./environmentStateWriteGenerated.js";
 import { composedChange } from "./environmentStateWriteComposed.js";
+import { referenceRule } from "./environmentStateWriteReferences.js";
 import {
   derivedRule,
   freshToken,
@@ -29,6 +39,10 @@ export interface UpdateEvidence {
   readonly shown?: readonly string[];
   /** An item action, whose unsent changes take the values it showed. */
   readonly action?: boolean;
+  /** The entities of any type the state holds under an id, which an object the update rewrote may repeat. */
+  readonly named?: ((id: string) => readonly StateEntity[]) | undefined;
+  /** The references earlier calls showed, which a call naming the entity a field already repeats keeps. */
+  readonly references?: readonly Extract<FieldRule, { rule: "reference" }>[];
 }
 
 /** The rule a field the update changed without sending follows, if any; `slugs` maps each echoed member's slug to the first such member. */
@@ -48,6 +62,11 @@ export const changeRule = (
   if (freshToken(evidence, field)) return { field, rule: "unique" };
   const nested = nestedClockRule(field, { before, after }, evidence);
   if (nested !== undefined) return nested;
+  const reference =
+    evidence.named === undefined
+      ? undefined
+      : referenceRule(field, after, evidence.call.body, evidence.named);
+  if (reference !== undefined) return reference;
   // Child rows only: a single UUID that changed is a reference or a generated value, judged above.
   const renewed =
     Array.isArray(before) || isObject(before)
@@ -135,6 +154,8 @@ export const sentRule = (
     };
   if (same(evidence.after[member], sent))
     return { field: member, rule: "echo" };
+  if (same(evidence.after[member], sortedStrings(sent)))
+    return { field: member, rule: "echo", sorted: true };
   return freshUuid(evidence, member)
     ? { field: member, rule: "unique" }
     : { field: member, rule: "constant", value: evidence.after[member]! };

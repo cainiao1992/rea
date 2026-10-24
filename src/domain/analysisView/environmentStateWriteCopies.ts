@@ -34,7 +34,7 @@ export const templateRule = (
   return undefined;
 };
 
-/** Body members the entity stores as sent, under their own name (echo) or only another (a copy of the whole member). */
+/** Body members the entity stores as sent, under their own name (echo) or only another (a copy of the whole member), or names an entity by (a reference). */
 export const storedMembers = (
   rules: readonly FieldRule[],
   entity: JsonObject,
@@ -42,6 +42,7 @@ export const storedMembers = (
   new Set(
     rules.flatMap((rule) => {
       if (rule.rule === "echo") return [rule.field];
+      if (rule.rule === "reference") return [rule.member];
       const tokens = rule.rule === "copy" ? pointerTokens(rule.from) : [];
       // A member also stored otherwise under its own name is not stored as sent.
       return tokens.length === 1 && !Object.hasOwn(entity, tokens[0]!)

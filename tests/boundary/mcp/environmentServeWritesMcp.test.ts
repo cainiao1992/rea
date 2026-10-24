@@ -23,6 +23,7 @@ import {
   SECOND_BOOK,
   renamedBook,
 } from "../../fixtures/environmentStateWrites.js";
+import { referencedCreateRows } from "../../fixtures/environmentStateDerivedValues.js";
 import { unsupportedInputLiteralSchemaError } from "../../fixtures/mcpClientSchemaConstraints.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { startListeningProcess } from "../../support/mcp/streamableHttpProcess.js";
@@ -403,6 +404,43 @@ processTest(
       });
       const empty = await client.callTool({ name: "get_books", arguments: {} });
       expect(empty.structuredContent).toMatchObject({ body: [] });
+    } finally {
+      await client.close();
+    }
+  },
+  HTTP_BOUNDARY_TIMEOUT_MS,
+);
+
+processTest(
+  "withholds a create from public tools when its sent reference contradicts the recorded response",
+  async ({ processes }) => {
+    const root = await createTestTempDirectory("rea-create-reference-mcp-");
+    const rows = referencedCreateRows({
+      id: 1,
+      name: "Different Hall",
+      floor: "ground",
+    });
+    const files = await writeEnvironmentServeFiles(
+      root,
+      environmentStateServeFixture(timedCaptureEvidence(rows)),
+    );
+    const started = await startListeningProcess(processes, [
+      "environment-serve",
+      files.manifestPath,
+      "--evidence",
+      files.capturePath,
+      "--port",
+      "0",
+    ]);
+    const client = new Client({
+      name: "contradictory-reference",
+      version: "1",
+    });
+    await client.connect(new StreamableHTTPClientTransport(started.url));
+    try {
+      const { tools } = await client.listTools();
+      expect(tools.map(({ name }) => name)).toContain("get_books");
+      expect(tools.map(({ name }) => name)).not.toContain("post_books");
     } finally {
       await client.close();
     }

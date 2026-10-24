@@ -128,6 +128,12 @@ const entityViewFields = {
     .describe(
       "How the view spells clock fields it always spells otherwise than the entities' stored values; a stored value the view never recorded is spelled this way.",
     ),
+  nested_fields: z
+    .record(z.string(), z.array(z.string()))
+    .optional()
+    .describe(
+      "The keys the view shows of object fields it always shows with fewer keys than an entity stores, such as a parent listed without its own nested type; a stored object the view never recorded shows those keys.",
+    ),
   sorted_arrays: z
     .array(z.string())
     .optional()
@@ -253,7 +259,11 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
     rule: z.literal("held-clock"),
     format: clockFormatSchema,
   }),
-  z.strictObject({ ...ruled, rule: z.literal("echo") }),
+  z.strictObject({
+    ...ruled,
+    rule: z.literal("echo"),
+    sorted: z.literal(true).exactOptional(),
+  }),
   z.strictObject({ ...ruled, rule: z.literal("copy"), from: z.string() }),
   z.strictObject({ ...ruled, rule: z.literal("path"), from: z.string() }),
   z.strictObject({ ...ruled, rule: z.literal("slug"), from: z.string() }),
@@ -277,6 +287,13 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
         ]),
       )
       .min(1),
+  }),
+  z.strictObject({
+    ...ruled,
+    rule: z.literal("reference"),
+    member: z.string(),
+    type: z.string(),
+    fields: z.array(z.string()).min(1),
   }),
   z.strictObject({ ...ruled, rule: z.literal("increment") }),
   z.strictObject({
@@ -360,10 +377,13 @@ const writePlanSchema = z.strictObject({
         }),
       ),
       envelope: z.string().optional(),
+      defaults: z
+        .array(z.strictObject({ member: z.string(), value: jsonValueSchema }))
+        .optional(),
     })
     .nullable()
     .describe(
-      "Body members the application stored as sent (accepted), members accepted only with their recorded value (fixed), members every call sends (required), the JSON type a later call stored an accepted member as when the observation does not show it (kinds), and the member a call wraps its object in as a one-element array (envelope).",
+      "Body members the application stored as sent (accepted), members accepted only with their recorded value (fixed), members every call sends (required), the JSON type a later call stored an accepted member as when the observation does not show it (kinds), the member a call wraps its object in as a one-element array (envelope), and the value a create stores for an accepted member a call leaves out, as a call that left it out showed (defaults).",
     ),
   rules: z
     .array(fieldRuleSchema)

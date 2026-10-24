@@ -26,9 +26,11 @@ import {
   readClock,
   sequenceNumber,
   slugOf,
+  sortedStrings,
   type ClockFormat,
 } from "./environmentStateWriteValues.js";
 import { createdComposer } from "./environmentStateWriteComposed.js";
+import { referenceRule } from "./environmentStateWriteReferences.js";
 import {
   fittedClockFormat,
   showsFixedWidth,
@@ -151,6 +153,8 @@ const requestRule = (
   const { body, pathValues } = evidence.call;
   if (Object.hasOwn(body, field) && same(body[field], value))
     return { field, rule: "echo" };
+  if (Object.hasOwn(body, field) && same(sortedStrings(body[field]), value))
+    return { field, rule: "echo", sorted: true };
   if (typeof value === "string" && value.length >= COPY_MIN_LENGTH) {
     const from = index.copies.get(value);
     if (from !== undefined) return { field, rule: "copy", from };
@@ -257,6 +261,16 @@ const generatedRule = (
   return createdNestedClock(field, value, evidence);
 };
 
+/** Pinned members less those a reference reads: it rebuilds the object they name for any held entity. */
+const unreferenced = (
+  rules: readonly FieldRule[],
+  pinned: Set<string>,
+): Set<string> => {
+  for (const rule of rules)
+    if (rule.rule === "reference") pinned.delete(rule.member);
+  return pinned;
+};
+
 /** Body members the application stored as sent, and the others with what they were sent. */
 const bodyOf = (
   body: JsonObject,
@@ -286,7 +300,10 @@ export const explainCreate = (
   for (const [field, value] of Object.entries(evidence.entity)) {
     const rule =
       requestRule(evidence, index, field, value) ??
-      generatedRule(evidence, field, value);
+      generatedRule(evidence, field, value) ??
+      (evidence.named === undefined
+        ? undefined
+        : referenceRule(field, value, evidence.call.body, evidence.named));
     if (rule === undefined) unexplained.push(field);
     else ruled.push(rule);
   }
@@ -337,10 +354,9 @@ export const explainCreate = (
     ),
     ...instantMembers(evidence.call.body, evidence.entity, constants),
   ]);
-  const pinned = pinnedEchoes(
-    evidence.entity,
-    evidence.call.body,
-    evidence.type,
+  const pinned = unreferenced(
+    rules,
+    pinnedEchoes(evidence.entity, evidence.call.body, evidence.type),
   );
   const stored = storedMembers(
     rules.filter((rule) => !stranded.has(rule.field)),
@@ -377,6 +393,24 @@ const echoedSlugs = (
       slugs.set(slugOf(sent), member);
   }
   return slugs;
+};
+
+/** A reference an earlier call showed for a field this call left as it was, when the call names the entity the field repeats through its member. */
+const keptReference = (
+  evidence: UpdateEvidence,
+  field: string,
+): FieldRule | undefined => {
+  const known = evidence.references?.find((rule) => rule.field === field);
+  if (known === undefined || evidence.named === undefined) return undefined;
+  const shown = referenceRule(
+    field,
+    evidence.after[field],
+    evidence.call.body,
+    evidence.named,
+  );
+  return shown?.member === known.member && shown.type === known.type
+    ? known
+    : undefined;
 };
 
 /** Explain an update: echoed members, fixed members whose stored value is constant, and the changes it made unsent. */
@@ -428,18 +462,25 @@ export const explainUpdate = (
     if (
       Object.hasOwn(body, field) ||
       (!Object.hasOwn(evidence.before, field) &&
-        !(evidence.shown ?? []).includes(field)) ||
-      same(evidence.before[field], evidence.after[field])
+        !(evidence.shown ?? []).includes(field))
     )
       continue;
+    if (same(evidence.before[field], evidence.after[field])) {
+      const kept = keptReference(evidence, field);
+      if (kept !== undefined) rules.push(kept);
+      continue;
+    }
     const rule = changeRule(evidence, field, slugs);
     if (rule === undefined) unexplained.push(field);
     else rules.push(rule);
   }
   rules.push(...pairedStamps(evidence, rules));
+  // A member a reference reads names an entity, which any held one may be.
+  for (const rule of rules)
+    if (rule.rule === "reference") echoed.add(rule.member);
   // Serving renews one UUID alike in every field, so the call must have.
   unexplained.push(...unexplainedRenewals(rules, evidence));
-  const pinned = pinnedEchoes(evidence.after, body);
+  const pinned = unreferenced(rules, pinnedEchoes(evidence.after, body));
   const shaped = bodyOf(
     Object.fromEntries(
       Object.entries(body).filter(([member]) => member !== identity),

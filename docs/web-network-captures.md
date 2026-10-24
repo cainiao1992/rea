@@ -737,14 +737,34 @@ request body must be a usable JSON object (as response bodies are usable), and
 the written entity must show in that call's response or in a later read before
 the next write. Each field of a created entity gets the first rule that
 explains it: generated `identity` (a sequence, UUID or token, by the recorded
-value's shape), `echo` of a body member, `copy` of a body string of 8 or more
-characters, a `path` value, a `slug` of a body member, a `clock` value within 10
+value's shape), `echo` of a body member (`sorted` when the application stored
+its strings in code-point order rather than as sent), `copy` of a body string of
+8 or more characters, a `path` value, a `slug` of a body member, a `clock` value within 10
 minutes of the request in its recorded format, a `sequence` one past the
 largest value of its collection or type, a `unique` UUID, opaque token or
 integer of 10 or more digits that no entity of the type holds (where every one
 holds a distinct integer of the same length, as time-based ids do), a
 `nested-clock` object whose clocks the request stamped, a `template` around
-a generated value, or a `composed` string; other fields keep the observed value.
+a generated value, a `reference` to an entity, or a `composed` string; other
+fields keep the observed value. A `reference` is an object holding fields of the
+entity a sent member names, as the state holds it (a parent beside `parentId`):
+the member is accepted with any value, serving looks the entity up and refuses a
+call naming one the environment does not hold or holds in more than one
+collection, and the field is absent, from the entity and the create's answer,
+when the call does not send the member. An id naming entities of one type in
+several collections teaches no reference. Each later create widens its plan
+when, explained on its own, it agrees with it: both calls show the same fields
+but for a reference whose member a call without it did not send (one an earlier
+create added stays), every field both rule they rule alike (an echo one showed
+sorted stays sorted, unless a call stored its strings out of order as sent),
+and a field neither rules holds one value. Members either call sent are accepted, only those every call sent are
+required, and an echoed member a call left out takes the value that call stored
+(`body.defaults`). A clock rule widens to `trimmed` only when no held entity or
+earlier call showed that clock at a fixed width. A later create that disagrees
+leaves the plan as it was. A create whose observed reference differs from the
+entity the plan rebuilds, whether or not it sent the reference member, is
+`unexplained-change`. So is a create that left out an echoed member yet shows a
+value different from the learned default.
 A `composed` string is literal text and parts read from the fields other rules
 write: a field's value, its slug, or a clock's calendar digits
 (`YYYYMMDDhhmmss`, `YYYYMMDD`, `YYYY-MM-DD` or `YYYY/MM/DD`, in the clock's
@@ -763,7 +783,7 @@ recorded value (`body.fixed`) and stores the value the call that showed it
 recorded (the `value` of its `constant` rule), and a field it changed without
 sending must be a clock, a nested clock, an increment, a slug, a fresh `unique`
 value, a `stamp` of the acting user, a value `derived` from the one member it
-stores nowhere, a `composed` string whose parts read members it stored as sent
+stores nowhere, a `reference` to the entity a sent member names (kept by a call that names the entity the field already repeats), a `composed` string whose parts read members it stored as sent
 or fields it left as they were and spell the value before the call too, or for
 an item action a `set` of a scalar to the value it showed, or the plan is
 `unexplained-change`; an increment, slug, stamp, derived

@@ -10,6 +10,7 @@ import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
 import { CdpConnection } from "./CdpConnection.js";
 import { CdpCaptureEvents } from "./CdpCaptureEvents.js";
 import { authorizedMainFrame } from "./CdpAuthorizedMainFrame.js";
+import { cdpOriginScopeRefusal } from "./CdpOriginScopeError.js";
 import { captureStorage } from "./CdpCaptureStorage.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import { CdpCommandRejection } from "./CdpCommandRejection.js";
@@ -130,6 +131,8 @@ const assertObservedCaptureValid = (
       : state.events.navigationDuringCapture
         ? "target_changed"
         : undefined;
+  if (reason === "target_not_allowed")
+    throw cdpOriginScopeRefusal(state.context.operation, { cause });
   if (reason !== undefined) {
     if (cause instanceof BrowserObservationError && cause.reason === reason)
       throw cause;
@@ -304,8 +307,7 @@ const authorizeObservationWindow = async (
   );
   if (events.unknownRootIdentity)
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
-  if (events.originViolation)
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+  if (events.originViolation) throw cdpOriginScopeRefusal(context.operation);
 };
 
 const capturePageDom = async (state: CaptureState): Promise<DomCapture> => {

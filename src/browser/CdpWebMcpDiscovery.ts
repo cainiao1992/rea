@@ -15,6 +15,7 @@ import type { CdpEndpointDiscovery, CdpEndpointTarget } from "./CdpEndpoint.js";
 import type { CdpConnection, CdpEvent } from "./CdpConnection.js";
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
+import { cdpOriginScopeRefusal } from "./CdpOriginScopeError.js";
 import {
   allowedSanitizedUrl,
   delayWithCancellation,
@@ -377,7 +378,7 @@ const requiredDiscoveryFrameUrl = (
   const observed = observeMainFrameUrl(result);
   const facts = classifyCdpFrameUrl(observed, origins);
   if (facts.scope === "outside_policy" || facts.scope === "unsupported")
-    throw new BrowserObservationError("inspect_web_page", "target_not_allowed");
+    throw cdpOriginScopeRefusal("discover_webmcp_tools");
   if (observed.kind !== "observed")
     throw new BrowserObservationError("inspect_web_page", "protocol_error");
   if (facts.url === undefined)

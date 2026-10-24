@@ -371,9 +371,17 @@ REA establishes a main-frame origin boundary before enabling Runtime, Debugger, 
 An observed navigation also takes precedence over failures from stale
 document reads, such as a script ID invalidated by reload; cancellation remains
 cancellation. Retry after navigation settles, or refresh target discovery if
-the selected page was replaced. Screenshot origin refusals identify the
-current document's permitted-origin scope and direct the caller to select a
-permitted document or explicitly revise `allowed_origins`.
+the selected page was replaced. Origin-scope refusals from page inspection,
+runtime observation, screenshots, and WebMCP discovery explain the permitted
+HTTP(S) origin scope and direct the caller to select a permitted document or
+explicitly revise `allowed_origins`. Page capture also preserves an observed
+main-frame scope violation when a later document read fails. An unresolved
+initial main frame does not establish an origin violation; its bounded startup
+retries retain a distinct refusal.
+
+Screenshot capture requires a valid main-frame identity. Malformed identity
+produces a protocol failure; a readable child frame cannot substitute for the
+main frame.
 
 The web-session timeline uses CDP monotonic seconds where the event producer
 provides a comparable timestamp; absent or invalid timestamps are `null` rather

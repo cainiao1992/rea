@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 
 import { analyzeJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
-import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
 import { resolveArtifactPathByContext } from "../../../../src/application/javascript/JavaScriptArtifactPathResolution.js";
 import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import { scanCanonicalArtifactInventory } from "../../../fixtures/artifactInventory.js";
@@ -46,7 +46,7 @@ it.each(
       expect(
         analysis.packages.find(({ path }) => path === "b/package.json"),
       ).toMatchObject({ main_status: "invalid", main_entrypoint: "" });
-      const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
+      const graph = await immutableArtifactGraph(snapshot, files, analysis);
       const roles = graph.nodes.filter(
         ({ kind }) => kind === "electron-renderer",
       );
@@ -123,7 +123,7 @@ it.each(
         resolution_status: valid ? "resolved" : "unavailable",
         resolved_path: valid ? "b/index.js" : null,
       });
-      const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
+      const graph = await immutableArtifactGraph(snapshot, files, analysis);
       const role = graph.nodes.find(({ kind }) => kind === "electron-renderer");
       expect(role?.observations).toEqual(
         expect.arrayContaining([

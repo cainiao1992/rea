@@ -21,7 +21,7 @@ import {
   analyzeJavaScriptArtifactFiles,
   analyzeAndAdoptJavaScriptArtifactFiles,
 } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
-import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
 import {
   buildJavaScriptSemanticGraph,
   createJavaScriptSemanticGraphProjection,
@@ -212,7 +212,7 @@ it.each([
               },
             ],
           };
-      const graph = buildJavaScriptArtifactGraph(
+      const graph = await immutableArtifactGraph(
         snapshot,
         partial,
         analyzeJavaScriptArtifactFiles(partial),
@@ -288,7 +288,7 @@ it.each(["unselected", "unavailable"] as const)(
                 },
               ],
             };
-      const graph = buildJavaScriptArtifactGraph(
+      const graph = await immutableArtifactGraph(
         snapshot,
         partial,
         analyzeJavaScriptArtifactFiles(partial),
@@ -345,7 +345,7 @@ it("keeps imported loadFile ownership unknown across an application projection o
       ),
     ).toBe(true);
     // Exercise the production omission boundary without bypassing its memory guard.
-    const graph = buildJavaScriptArtifactGraph(snapshot, files, {
+    const graph = await immutableArtifactGraph(snapshot, files, {
       ...analysis,
       files: analysis.files.map((file) =>
         file.file.path === "shared/main.cjs"
@@ -421,7 +421,7 @@ it("keeps a loadFile owner unknown when a sibling manifest is unavailable in the
         },
       ],
     };
-    const graph = buildJavaScriptArtifactGraph(
+    const graph = await immutableArtifactGraph(
       snapshot,
       partial,
       analyzeJavaScriptArtifactFiles(partial),
@@ -491,7 +491,7 @@ it("keeps excluded non-JavaScript files out of both semantic construction paths"
       "package.json",
     ]);
     const analysis = analyzeJavaScriptArtifactFiles(files);
-    const applicationGraph = buildJavaScriptArtifactGraph(
+    const applicationGraph = await immutableArtifactGraph(
       snapshot,
       files,
       analysis,
@@ -597,8 +597,8 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
     }
     if (outcome.interruption !== null) throw outcome.interruption;
     const compact = outcome.analysis;
-    const graph = buildJavaScriptArtifactGraph(snapshot, files, full);
-    expect(buildJavaScriptArtifactGraph(snapshot, files, compact)).toEqual(
+    const graph = await immutableArtifactGraph(snapshot, files, full);
+    expect(await immutableArtifactGraph(snapshot, files, compact)).toEqual(
       graph,
     );
     const semantic = projection.finish(snapshot.manifest.root_sha256, graph);
@@ -672,7 +672,7 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
         rejectedInvalidTransfer = true;
       }
     }
-    const decodedGraph = buildJavaScriptArtifactGraph(snapshot, files, {
+    const decodedGraph = await immutableArtifactGraph(snapshot, files, {
       ...compact,
       files: compact.files.map((analyzed) => {
         const module = decodedModules.get(analyzed.file.path);
@@ -754,7 +754,7 @@ it("reports semantic value resource limits in application graph coverage", async
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
     const analysis = analyzeJavaScriptArtifactFiles(files);
-    const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
+    const graph = await immutableArtifactGraph(snapshot, files, analysis);
 
     expect(graph.coverage).toMatchObject({
       status: "partial",

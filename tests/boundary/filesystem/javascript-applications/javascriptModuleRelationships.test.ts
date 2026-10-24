@@ -14,7 +14,7 @@ import { scanCanonicalArtifactInventory } from "../../../fixtures/artifactInvent
 import { readJavaScriptArtifactFiles } from "../../../support/javascriptApplicationScope.js";
 import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import { analyzeJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
-import { buildJavaScriptArtifactGraph } from "../../../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
 
 import {
   findExportNode,
@@ -29,7 +29,7 @@ const relationshipGraph = async (root: string) => {
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    return buildJavaScriptArtifactGraph(
+    return await immutableArtifactGraph(
       snapshot,
       files,
       analyzeJavaScriptArtifactFiles(files),

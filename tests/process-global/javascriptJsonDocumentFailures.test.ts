@@ -2,7 +2,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 
 import { createJavaScriptArtifactReader } from "../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import { analyzeJavaScriptArtifactFiles } from "../../src/application/javascript/JavaScriptArtifactAnalysis.js";
-import { buildJavaScriptArtifactGraph } from "../../src/application/javascript/JavaScriptArtifactGraphBuilder.js";
+import { immutableArtifactGraph } from "../fixtures/javascriptArtifactGraph.js";
 import type {
   JavaScriptArtifactFile,
   JavaScriptArtifactFileSet,
@@ -121,7 +121,7 @@ it("reuses parsed package and JSON facts while building the public graph", async
       return originalParse(text);
     });
 
-    const graph = buildJavaScriptArtifactGraph(snapshot, files, analysis);
+    const graph = await immutableArtifactGraph(snapshot, files, analysis);
     expect(
       graph.edges.find(
         ({ relation, properties }) =>

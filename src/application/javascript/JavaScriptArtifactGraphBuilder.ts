@@ -1,7 +1,6 @@
 import { ELECTRON_IDENTITY_LIMITATION } from "../../domain/javascript/javascriptElectronMemberWrites.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
 import {
-  createJavaScriptApplicationGraph,
   sealTransferredJavaScriptApplicationGraphSteps,
   type JavaScriptApplicationGraph,
 } from "../../domain/javascript/javascriptApplicationGraph.js";
@@ -50,18 +49,6 @@ import {
   collectElectronIpcRecords,
 } from "./ElectronBoundaryAnalysis.js";
 
-/** Project artifact and AST facts into JavaScript Application Graph. */
-export const buildJavaScriptArtifactGraph = (
-  snapshot: ArtifactInventorySnapshot,
-  fileSet: JavaScriptArtifactFileSet,
-  analysis: JavaScriptModuleArtifactAnalysis,
-): JavaScriptApplicationGraph =>
-  createJavaScriptApplicationGraph(
-    completeSynchronously(
-      buildJavaScriptArtifactGraphInputSteps(snapshot, fileSet, analysis),
-    ),
-  );
-
 /**
  * Build a validated application graph with cooperative immutable ownership.
  * Constructing the graph input also runs in steps: projecting every module
@@ -80,13 +67,6 @@ export function* buildImmutableJavaScriptArtifactGraphSteps(
   // The input was built here and is not retained, so it can be transferred.
   return yield* sealTransferredJavaScriptApplicationGraphSteps(input);
 }
-
-const completeSynchronously = <Value>(steps: Iterator<void, Value>): Value => {
-  for (;;) {
-    const step = steps.next();
-    if (step.done === true) return step.value;
-  }
-};
 
 function* buildJavaScriptArtifactGraphInputSteps(
   snapshot: ArtifactInventorySnapshot,

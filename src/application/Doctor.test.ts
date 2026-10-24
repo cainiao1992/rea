@@ -12,6 +12,16 @@ import { HopperReleaseError } from "./HopperReleaseFeed.js";
 import { MAC_HOPPER_SYSTEM_LAUNCHER } from "./MacHopperPaths.js";
 import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
 
+const configurationHost = (
+  environment: Readonly<NodeJS.ProcessEnv>,
+): DoctorHost => ({
+  ...systemDoctorHost({ environment: { ...environment } }),
+  ...host({
+    installationPaths: () => Promise.resolve([]),
+    clientRegistrations: () => Promise.resolve([]),
+  }),
+});
+
 describe("doctor Hopper startup timeout", () => {
   const timeoutHost = (
     value: string | undefined,
@@ -157,16 +167,6 @@ describe("doctor Hopper startup timeout", () => {
 });
 
 describe("doctor native analysis configuration", () => {
-  const configurationHost = (
-    environment: Readonly<NodeJS.ProcessEnv>,
-  ): DoctorHost => ({
-    ...systemDoctorHost({ environment: { ...environment } }),
-    ...host({
-      installationPaths: () => Promise.resolve([]),
-      clientRegistrations: () => Promise.resolve([]),
-    }),
-  });
-
   it.each([
     ["REA_ANALYSIS_PROVIDER", "Hopper"],
     ["REA_REGEX_MATCHING_DEADLINE_MS", "0"],
@@ -202,8 +202,77 @@ describe("doctor native analysis configuration", () => {
           details: { setting },
         }),
       );
+      expect(
+        result.checks.some(({ name }) => name === "hopper-startup-timeout"),
+      ).toBe(false);
     },
   );
+
+  it.each([
+    ["REA_GHIDRA_STARTUP_TIMEOUT_MS", "abc"],
+    ["HOPPER_LOADER_ARGS_JSON", "{"],
+    ["REA_GHIDRA_COMPILER_SPEC_ID", "gcc"],
+    ["CALLER_SETTING", "private\0value"],
+  ] as const)(
+    "keeps a valid supplied Hopper timeout when %s rejects native admission",
+    async (setting, value) => {
+      const result = await runDoctor(
+        undefined,
+        configurationHost({
+          [setting]: value,
+          REA_HOPPER_STARTUP_TIMEOUT_MS: "120001",
+        }),
+        { providers: ["hopper"] },
+      );
+      expect(result.healthy).toBe(false);
+      expect(result.scope_checks).toContainEqual(
+        expect.objectContaining({
+          name: "hopper-startup-timeout",
+          ok: true,
+          detail: "REA_HOPPER_STARTUP_TIMEOUT_MS=120001",
+        }),
+      );
+      expect(result.scope_checks).toContainEqual(
+        expect.objectContaining({
+          name: `runtime-configuration:${setting}`,
+          ok: false,
+        }),
+      );
+    },
+  );
+
+  it("reports an invalid Hopper timeout alongside an unrelated NUL admission refusal", async () => {
+    const result = await runDoctor(
+      undefined,
+      configurationHost({
+        CALLER_SETTING: "private\0value",
+        REA_HOPPER_STARTUP_TIMEOUT_MS: "0",
+      }),
+      { providers: ["hopper"] },
+    );
+    expect(result.healthy).toBe(false);
+    expect(result.scope_checks).toContainEqual(
+      expect.objectContaining({
+        name: "hopper-startup-timeout",
+        ok: false,
+        detail:
+          "REA_HOPPER_STARTUP_TIMEOUT_MS: must be a positive decimal integer",
+      }),
+    );
+    expect(result.scope_checks).toContainEqual(
+      expect.objectContaining({
+        name: "runtime-configuration:CALLER_SETTING",
+        ok: false,
+        detail: expect.stringContaining("NUL"),
+      }),
+    );
+    expect(
+      result.scope_checks.filter(
+        ({ name }) => name === "hopper-startup-timeout",
+      ),
+    ).toHaveLength(1);
+    expect(JSON.stringify(result.checks)).not.toContain("private");
+  });
 
   it("keeps a lowercase provider preference ready for the selected engine", async () => {
     const result = await runDoctor(
@@ -257,15 +326,6 @@ describe("doctor native analysis configuration", () => {
 });
 
 describe("doctor MCP startup readiness", () => {
-  const configurationHost = (
-    environment: Readonly<NodeJS.ProcessEnv>,
-  ): DoctorHost => ({
-    ...systemDoctorHost({ environment: { ...environment } }),
-    ...host({
-      installationPaths: () => Promise.resolve([]),
-      clientRegistrations: () => Promise.resolve([]),
-    }),
-  });
   const alignedCodex: ClientRegistrationStatus = {
     client: "codex",
     config_path: "/home/user/.codex/config.toml",

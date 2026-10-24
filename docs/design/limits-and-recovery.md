@@ -18,8 +18,10 @@ default, any floor, the maximum, the schema, the parser, and the recovery
 text. Register that schema on `environmentSchema` in
 [`environment.ts`](https://github.com/morluto/rea/blob/main/src/config/environment.ts).
 `parseConfig` calls `parseEnvironment`. Doctor uses that same parser through
-`nativeAnalysisConfigurationError`, so startup and `rea doctor` accept the
-same values. Add the name to `SELECTED_REGISTRATION_SETTINGS` so `rea setup`
+`inspectNativeAnalysisConfiguration`, which also preserves a supplied Hopper
+timeout's parsed diagnostic when another setting is invalid. Startup and
+`rea doctor` accept the same values. Add the name to
+`SELECTED_REGISTRATION_SETTINGS` so `rea setup`
 copies it into the client registration. Unset keeps today's behavior. An
 invalid value is a `ConfigurationError` and projects as `configuration_invalid`.
 Do not fall back to the default.

@@ -1,8 +1,12 @@
 import { accessSync, constants, statSync } from "node:fs";
 
-import type { ConfigurationError } from "../domain/configurationErrors.js";
-import { ok, type Result } from "../domain/result.js";
+import {
+  ConfigurationError,
+  type ConfigurationSettingIssue,
+} from "../domain/configurationErrors.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { parseEnvironment } from "./environment.js";
+import { providerStartupTimeoutSchema } from "./providerStartupTimeout.js";
 import { homeDirectoryFromEnvironment } from "./homeDirectory.js";
 import { DEFAULT_BRIDGE_MAX_REQUEST } from "./bridgeMaxRequestBytes.js";
 import { DEFAULT_REGEX_MATCHING_DEADLINE } from "./regexMatchingDeadline.js";
@@ -48,15 +52,44 @@ const nativeAnalysisEnvironment = (
   return appEnvironment;
 };
 
-/**
- * The configuration error native commands return, without probing launchers.
- * Doctor uses this so readiness and analysis admit the same settings.
- */
-export const nativeAnalysisConfigurationError = (
+/** Native admission issues and an explicitly configured timeout's independent facts. */
+export interface NativeAnalysisConfigurationInspection {
+  readonly issues: readonly ConfigurationSettingIssue[];
+  readonly configuredHopperStartupTimeout?: Result<number, ConfigurationError>;
+}
+
+/** Inspect native admission without probing launchers or losing mixed-invalid diagnostics. */
+export const inspectNativeAnalysisConfiguration = (
   environment: Readonly<Record<string, string | undefined>>,
-): ConfigurationError | undefined => {
+): NativeAnalysisConfigurationInspection => {
   const parsed = parseEnvironment(nativeAnalysisEnvironment(environment));
-  return parsed.ok ? undefined : parsed.error;
+  const issues = parsed.ok ? [] : parsed.error.settings;
+  const configuredTimeout = environment.REA_HOPPER_STARTUP_TIMEOUT_MS;
+  if (configuredTimeout === undefined) return { issues };
+  if (parsed.ok)
+    return {
+      issues,
+      configuredHopperStartupTimeout: ok(
+        parsed.value.REA_HOPPER_STARTUP_TIMEOUT_MS,
+      ),
+    };
+  // Another setting may reject the aggregate before this supplied timeout's
+  // facts are available. Its dedicated diagnostic still uses the same schema.
+  const timeout = providerStartupTimeoutSchema.safeParse(configuredTimeout);
+  return {
+    issues,
+    configuredHopperStartupTimeout: timeout.success
+      ? ok(timeout.data)
+      : err(
+          new ConfigurationError("Invalid REA environment configuration", {
+            cause: timeout.error,
+            settings: timeout.error.issues.map(({ message }) => ({
+              setting: "REA_HOPPER_STARTUP_TIMEOUT_MS",
+              constraint: message,
+            })),
+          }),
+        ),
+  };
 };
 
 /** Parse provider configuration and runtime prerequisites at the composition root. */

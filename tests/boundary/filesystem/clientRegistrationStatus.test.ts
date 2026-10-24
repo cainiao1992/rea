@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { clearClientLocationEnvironment } from "../../fixtures/clientEnvironment.js";
 
-import { readClientRegistrationStatuses } from "../../../src/application/ClientRegistrationStatus.js";
+import {
+  readClientRegistrationInspections,
+  readClientRegistrationStatuses,
+} from "../../../src/application/ClientRegistrationStatus.js";
 import { configureClientConfiguration } from "../../../src/application/SetupClientConfiguration.js";
 import { classifyClientRegistrationCommand } from "../../../src/application/ClientRegistrationIdentity.js";
 import { existingMaintenanceScope } from "../../../src/application/UpdateMaintenance.js";
@@ -180,6 +183,14 @@ describe("client registration launcher identity", () => {
       state: "unknown",
       remediation: expect.stringContaining("registration was retained"),
     });
+    expect(status).not.toHaveProperty("commandIdentity");
+    expect(await readClientRegistrationInspections(home, "")).toEqual([
+      expect.objectContaining({
+        status,
+        activation: "enabled",
+        commandIdentity: "unknown",
+      }),
+    ]);
   });
 
   it("does not use the REA process cwd to resolve a client's relative launcher path", async () => {
@@ -230,7 +241,9 @@ describe("client registration launcher identity", () => {
       state: "unknown",
     });
   });
+});
 
+describe("client registration package version identity", () => {
   it.each([
     ["4.1.0", true],
     ["v4.1.0", false],

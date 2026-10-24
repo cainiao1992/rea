@@ -6,6 +6,7 @@ import { err, ok } from "../../src/domain/result.js";
 import { runUpdate, type UpdateResult } from "../../src/application/Update.js";
 import { PRODUCT_IDENTITY } from "../../src/identity.js";
 import { supportedClients } from "../../src/application/SupportedClients.js";
+import { readClientRegistrationInspections } from "../../src/application/ClientRegistrationStatus.js";
 import {
   existingMaintenanceScope,
   planIntegrationMaintenance,
@@ -238,7 +239,7 @@ describe("maintenance activation and layered configuration", () => {
   });
 });
 
-describe("existing REA integration maintenance", () => {
+describe("registration ownership in maintenance", () => {
   it("selects owned registrations while preserving unconfigured, foreign, and disabled choices", async () => {
     await writeClient("codex", staleCodex);
     await writeClient("claude_code", '{"mcpServers":{}}');
@@ -256,6 +257,40 @@ describe("existing REA integration maintenance", () => {
         servers: { rea: { type: "stdio", command: entryPoint, args: ["mcp"] } },
       }),
     );
+    expect(
+      await readClientRegistrationInspections(home, entryPoint, {
+        environment: process.env,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: expect.objectContaining({ client: "codex", state: "stale" }),
+          activation: "enabled",
+          commandIdentity: "owned",
+        }),
+        expect.objectContaining({
+          status: expect.objectContaining({ client: "cursor", state: "stale" }),
+          activation: "enabled",
+          commandIdentity: "foreign",
+        }),
+        expect.objectContaining({
+          status: expect.objectContaining({
+            client: "opencode",
+            state: "stale",
+          }),
+          activation: "disabled",
+          commandIdentity: "owned",
+        }),
+        expect.objectContaining({
+          status: expect.objectContaining({
+            client: "claude_code",
+            state: "missing",
+          }),
+          activation: "unknown",
+          commandIdentity: "unknown",
+        }),
+      ]),
+    );
     await expect(
       existingMaintenanceScope(home, entryPoint, process.env),
     ).resolves.toEqual({
@@ -264,7 +299,9 @@ describe("existing REA integration maintenance", () => {
       skillDestinations: [],
     });
   });
+});
 
+describe("existing REA integration maintenance", () => {
   it("does not install a missing skill or overwrite an unrelated skill", async () => {
     await expect(
       existingMaintenanceScope(home, entryPoint, process.env),

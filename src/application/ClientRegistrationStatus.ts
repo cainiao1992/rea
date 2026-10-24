@@ -24,6 +24,7 @@ import {
 import {
   inspectClientRegistrationCommand,
   type ClientRegistrationCommandFacts,
+  type ClientRegistrationCommandIdentity,
   packageRunnerRegistrationCommand,
 } from "./ClientRegistrationIdentity.js";
 import {
@@ -94,6 +95,8 @@ interface ClientRegistrationReadOptions {
 export interface ClientRegistrationInspection {
   readonly status: ClientRegistrationStatus;
   readonly activation: "enabled" | "disabled" | "unknown";
+  /** Ownership remains unknown until this inspection has parsed the launcher. */
+  readonly commandIdentity: ClientRegistrationCommandIdentity;
 }
 
 /** Project diagnostics from the same inspection used to select maintenance. */
@@ -118,8 +121,9 @@ export const readClientRegistrationInspections = async (
   const record = (
     status: ClientRegistrationStatus,
     activation: ClientRegistrationInspection["activation"] = "unknown",
+    commandIdentity: ClientRegistrationCommandIdentity = "unknown",
   ): void => {
-    inspections.push({ status, activation });
+    inspections.push({ status, activation, commandIdentity });
   };
   for (const client of supportedClients(
     home,
@@ -330,6 +334,7 @@ export const readClientRegistrationInspections = async (
             : undefined,
         ),
         activation,
+        commandFacts.identity,
       );
     } catch (cause: unknown) {
       if (

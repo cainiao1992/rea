@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { RegularFileCleanupFailure } from "../filesystem/OwnedRegularFile.js";
 
-import { classifyClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
 import {
   readClientRegistrationInspections,
   type ClientRegistrationStatus,
@@ -75,7 +74,11 @@ export const existingMaintenanceScope = async (
   );
   const clients: string[] = [];
   const unresolved: ClientRegistrationStatus[] = [];
-  for (const { status: registration, activation } of registrations) {
+  for (const {
+    status: registration,
+    activation,
+    commandIdentity,
+  } of registrations) {
     if (registration.state === "unknown" || registration.state === "invalid") {
       unresolved.push(registration);
       continue;
@@ -83,8 +86,7 @@ export const existingMaintenanceScope = async (
     if (
       activation !== "enabled" ||
       (registration.state !== "aligned" && registration.state !== "stale") ||
-      classifyClientRegistrationCommand(registration.command, entryPoint) !==
-        "owned"
+      commandIdentity !== "owned"
     )
       continue;
     clients.push(registration.client);

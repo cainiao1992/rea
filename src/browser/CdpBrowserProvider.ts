@@ -17,6 +17,7 @@ import { sourceMapsWithCaptureExclusions } from "../domain/webSourceMapCoverage.
 import type {
   AnalyzeWebBundleInput,
   WebBundleAnalysis,
+  WebSourceMaps,
 } from "../domain/webBundleAnalysis.js";
 import {
   webObservationSessionSchema,
@@ -195,22 +196,43 @@ export class CdpBrowserProvider implements BrowserObservationPort {
     let captured: CapturedPage | undefined;
     try {
       captured = await this.#capture(input, options, "analyze_web_bundle");
-      const sourceMaps = input.fetch_source_maps
-        ? sourceMapsWithCaptureExclusions(
-            await fetchWebSourceMaps(
-              captured.sourceMapRequests,
-              {
-                ...input,
-                allowed_origins:
-                  input.allowed_origins.length > 0
-                    ? input.allowed_origins
-                    : [captured.inspection.target.origin],
-              },
-              options.signal,
-            ),
-            captured.inspection.completeness.excluded,
+      let sourceMaps: WebSourceMaps | undefined;
+      if (input.fetch_source_maps) {
+        const fetched = await fetchWebSourceMaps(
+          captured.sourceMapRequests,
+          {
+            ...input,
+            allowed_origins:
+              input.allowed_origins.length > 0
+                ? input.allowed_origins
+                : [captured.inspection.target.origin],
+          },
+          options.signal,
+        );
+        if (!fetched.ok) {
+          const partial = fetched.error.partialObservation;
+          if (
+            partial !== undefined &&
+            "kind" in partial &&
+            partial.kind === "web-source-map-fetch"
           )
-        : undefined;
+            fetched.error.partialObservation = {
+              kind: "web-bundle-acquisition",
+              inspection: captured.inspection,
+              source_maps: sourceMapsWithCaptureExclusions(
+                partial.source_maps,
+                captured.inspection.completeness.excluded,
+              ),
+              analysis_status: "not_performed",
+            };
+          else fetched.error.retainPartialObservation(captured.inspection);
+          return err(fetched.error);
+        }
+        sourceMaps = sourceMapsWithCaptureExclusions(
+          fetched.value,
+          captured.inspection.completeness.excluded,
+        );
+      }
       return await this.#bundleAnalyzer.analyze(
         captured.inspection,
         sourceMaps ?? {
@@ -223,8 +245,7 @@ export class CdpBrowserProvider implements BrowserObservationPort {
         options.signal,
       );
     } catch (cause: unknown) {
-      // fetchWebSourceMaps rethrows the exact abort reason. Preserve cancellation
-      // even when a caller supplied an AnalysisError as that reason.
+      // Capture and analyzer work can still throw the exact caller reason.
       if (options.signal?.aborted === true && cause === options.signal.reason) {
         return err(
           new AnalysisCancelledError("analyze_web_bundle", {

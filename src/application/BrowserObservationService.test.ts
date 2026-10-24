@@ -163,6 +163,47 @@ it("retains captured page Evidence when bundle analysis fails after capture", as
   }
 });
 
+it("projects completed source-map acquisition without claiming bundle analysis", async () => {
+  const inspection = passiveNetworkCapture();
+  const partial = {
+    kind: "web-bundle-acquisition" as const,
+    inspection,
+    source_maps: {
+      status: "unavailable" as const,
+      requested: 1,
+      processed: 0,
+      items: [],
+      limitation: "One requested source map was not processed.",
+    },
+    analysis_status: "not_performed" as const,
+  };
+  const reason = { requested: "stop after capture" };
+  const failure = new AnalysisCancelledError("analyze_web_bundle", {
+    cause: reason,
+    partialObservation: partial,
+  });
+  const browser: BrowserObservationPort = {
+    ...provider(async () => ok(report)),
+    analyzeBundle: async () => err(failure),
+  };
+  const selected = analyzeWebBundleInputSchema.parse({
+    ...input,
+    cdp_endpoint: input.cdp_endpoint.recorded,
+    target_id: "page",
+    fetch_source_maps: true,
+  });
+  const result = await analyzeWebBundle(browser, selected);
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.error).toBe(failure);
+  expect(result.error.cause).toBe(reason);
+  expect(parseEvidence(result.error.partialObservation)).toMatchObject({
+    operation: "analyze_web_bundle",
+    parameters: expect.objectContaining({ fetch_source_maps: true }),
+    normalized_result: partial,
+  });
+});
+
 it("retains completed bundle facts as bundle Evidence after cancellation", async () => {
   const { AnalysisCancelledError } =
     await import("../domain/analysisErrorCore.js");

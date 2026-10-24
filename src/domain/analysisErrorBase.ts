@@ -268,7 +268,11 @@ import type {
   RecordedCrashPartialObservation,
 } from "./native/recordedCrash.js";
 import type { WebPageInspection } from "./browserObservationSchemas.js";
-import type { WebBundleAnalysis } from "./webBundleAnalysis.js";
+import type {
+  WebBundleAcquisitionPartialObservation,
+  WebBundleAnalysis,
+  WebSourceMapFetchPartialObservation,
+} from "./webBundleAnalysis.js";
 import type { WebExecutionObservation } from "./webExecution.js";
 import type { WebEventListenersObservation } from "./webEventListeners.js";
 
@@ -298,6 +302,8 @@ export type AnalysisPartialObservation =
   | BrowserScenarioPartialObservation
   | WebPageInspection
   | WebBundleAnalysis
+  | WebBundleAcquisitionPartialObservation
+  | WebSourceMapFetchPartialObservation
   | WebExecutionObservation
   | WebEventListenersObservation
   | JavaScriptRuntimeObservation

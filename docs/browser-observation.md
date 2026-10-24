@@ -598,12 +598,39 @@ Network and console coverage starts only after REA attaches and enables the rele
 
 Source maps are not fetched by inspection. Bundle analysis fetches them only when `fetch_source_maps` is selected, with exact-origin redirect checks and no credentials, cookies, or referrer. Each fetch operation uses `source_map_fetch_timeout_ms` (default 30000) and a 64 MiB aggregate streamed-response budget across redirects. The byte budget has no runtime override. A fetch overrun is an item limitation, not a thrown analysis timeout. A deadline or byte-limit failure remains explicitly unavailable and makes bundle completeness partial. Source-map decoding also bounds raw resolved identities to 64 MiB and aggregate inline evidence to 32 MiB. Failed maps preserve their failure context when it fits; if another context cannot fit, collection stops with the full requested count, the returned processed count, and an explicit unknown-results limitation. Retained mappings and original sources are returned inline. See [source-location limits](web-source-location.md) for the structural decoder bounds. Original source artifacts with `.ts`, `.tsx`, `.mts`, or `.cts` suffixes carry `text/typescript`; other source names retain `text/javascript`.
 
+A fully read response that fails UTF-8, JSON, mapping, or structural validation
+retains `artifact: null`, empty original-source, module-edge, and mapping
+arrays, and an explicit failure limitation. Invalid content is `invalid`;
+decoder or structural capacity refusal is `fetch_failed`. Its optional
+`response_identity` records the complete body's SHA-256 digest, byte count,
+and `fetch-response-body-bytes` representation without retaining malformed
+text or charging that text to the 32 MiB output budget. These are bytes
+delivered by Fetch after HTTP content decoding and before UTF-8 decoding, not
+HTTP wire bytes. The identity is absent when the body was not fully read, and
+older observations may omit it. A response whose text cannot fit the existing
+output budget is likewise `fetch_failed` with text omitted and completed-body
+identity; JSON parsing and source-map decoding are not attempted. Successful and partial maps keep their
+full text artifacts. Their original text, including an initial BOM or XSSI
+line, remains distinct from the parsing view that removes that framing.
+Collection reads the body once and does not raise its response or output limits.
+
 When fetching is selected, source-map `excluded` facts preserve the capture
 ledger's reasons and counts for declarations rejected before download. No
 disallowed URL details are retained or fetched. `requested` and `processed`
 count the admitted fetch requests; exclusions are counted separately. Excluded
 declarations make the collection unavailable, or partial when maps were retained.
 An empty collection with no declarations remains `not_requested`.
+
+If the caller cancels while later source maps are being fetched, the failure's
+partial Evidence retains the captured page and every completed map item. Its
+`normalized_result.kind` is `web-bundle-acquisition` and
+`analysis_status` is `not_performed`: no script-analysis result is claimed.
+`source_maps.requested` remains the admitted request count,
+`source_maps.processed` counts completed items, and any unprocessed requests
+have an explicit unknown-results limitation. Capture exclusions remain in the
+same collection. The cancellation error keeps the caller's exact reason;
+an already observed response resource or cleanup failure keeps its own error
+category and cleanup owner.
 
 Source-map items retain the script's `declared_url` separately from the observed
 `effective_url`. Successful maps use the latter as their source-resolution base.

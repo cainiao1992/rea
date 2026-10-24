@@ -3,7 +3,7 @@ import { z } from "zod";
 const addressSchema = z.string().regex(/^0x[0-9a-f]+$/iu);
 const identitySchema = z.object({ address: addressSchema, name: z.string() });
 /** Extract one real procedure address from the complete inline inventory. */
-export const firstProcedureAddress = (input: unknown): string => {
+export const firstProcedureAddress = (input) => {
   const first = z
     .array(z.object({ address: addressSchema }))
     .min(1)
@@ -13,10 +13,7 @@ export const firstProcedureAddress = (input: unknown): string => {
 };
 
 /** Reject empty and success-shaped embedded decompilation failures. */
-export const requirePseudocode = (
-  input: unknown,
-  operation: string,
-): string => {
+export const requirePseudocode = (input, operation) => {
   if (typeof input !== "string" || input.trim().length === 0)
     throw new TypeError(`${operation} returned empty pseudocode`);
   if (input === "No output" || input.startsWith("Error:"))
@@ -25,10 +22,7 @@ export const requirePseudocode = (
 };
 
 /** Validate a complete Hopper function dossier semantically. */
-export const requireFunctionDossier = (
-  input: unknown,
-  expectedAddress: string,
-): Record<string, unknown> => {
+export const requireFunctionDossier = (input, expectedAddress) => {
   const value = objectValue(
     input,
     "analyze_function returned no function dossier",
@@ -40,29 +34,14 @@ export const requireFunctionDossier = (
     throw new TypeError("analyze_function omitted the procedure name");
   requirePseudocode(value.pseudocode, "analyze_function");
   for (const field of COLLECTION_FIELDS) list(value, field);
-  for (const field of ["callers", "callees"] as const)
+  for (const field of ["callers", "callees"])
     z.array(identitySchema).parse(list(value, field));
   validateBlocks(list(value, "basic_blocks"));
   return value;
 };
 
-/** Positive semantic facts required from one source-owned Hopper fixture. */
-export interface FunctionDossierOracle {
-  readonly procedure_address: string;
-  readonly callee_address?: string;
-  readonly caller_address?: string;
-  readonly referenced_string?: string;
-  readonly referenced_name?: string;
-  readonly comment?: string;
-  readonly require_cfg_successor?: boolean;
-  readonly require_assembly?: boolean;
-}
-
 /** Reject a structurally valid dossier that omits fixture-proven semantics. */
-export const requireFunctionDossierOracle = (
-  input: unknown,
-  oracle: FunctionDossierOracle,
-): Record<string, unknown> => {
+export const requireFunctionDossierOracle = (input, oracle) => {
   const value = requireFunctionDossier(input, oracle.procedure_address);
   if (oracle.callee_address !== undefined) {
     const callees = z.array(identitySchema).parse(list(value, "callees"));
@@ -158,12 +137,7 @@ const referenceEdgeSchema = z.object({
   target_address: addressSchema,
 });
 
-const requireReferencedValue = (
-  dossier: Record<string, unknown>,
-  field: "referenced_strings" | "referenced_names",
-  expected: string,
-  normalize: (value: string) => string,
-): void => {
+const requireReferencedValue = (dossier, field, expected, normalize) => {
   const values = z.array(referencedValueSchema).parse(list(dossier, field));
   const references = z
     .array(referenceEdgeSchema)
@@ -183,10 +157,7 @@ const requireReferencedValue = (
 };
 
 /** Require every relationship to be an actual hexadecimal address. */
-export const requireAddressArray = (
-  input: unknown,
-  operation: string,
-): string[] => {
+export const requireAddressArray = (input, operation) => {
   const parsed = z.array(addressSchema).parse(input);
   if (parsed.some((address) => address.length === 0))
     throw new TypeError(`${operation} returned an invalid address list`);
@@ -203,21 +174,17 @@ const COLLECTION_FIELDS = [
   "referenced_strings",
   "referenced_names",
   "basic_blocks",
-] as const;
+];
 
-const list = (value: Record<string, unknown>, field: string): unknown[] =>
-  z.array(z.unknown()).parse(value[field]);
+const list = (value, field) => z.array(z.unknown()).parse(value[field]);
 
-const validateBlocks = (items: readonly unknown[]): void => {
+const validateBlocks = (items) => {
   for (const block of items)
     if (!Array.isArray(objectValue(block, "Invalid basic block").successors))
       throw new TypeError("analyze_function omitted CFG successor evidence");
 };
 
-const objectValue = (
-  input: unknown,
-  message: string,
-): Record<string, unknown> => {
+const objectValue = (input, message) => {
   const parsed = z.record(z.string(), z.unknown()).safeParse(input);
   if (!parsed.success) throw new TypeError(message);
   return parsed.data;

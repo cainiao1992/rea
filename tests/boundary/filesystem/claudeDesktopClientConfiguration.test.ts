@@ -4,7 +4,6 @@ import {
   mkdir,
   readFile,
   readdir,
-  rm,
   stat,
   symlink,
   writeFile,
@@ -37,19 +36,12 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 const command = npxRegistrationCommand("win32");
 const CONFIG = "claude_desktop_config.json";
 
-const roots: string[] = [];
 beforeEach(clearClientLocationEnvironment);
-afterEach(async () => {
-  vi.unstubAllEnvs();
-  await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
+afterEach(() => vi.unstubAllEnvs());
 
 /** A Windows profile with separate roaming and local AppData roots. */
 const windowsProfile = async () => {
   const home = await createTestTempDirectory("rea-claude-desktop-");
-  roots.push(home);
   const env = {
     APPDATA: join(home, "AppData", "Roaming"),
     LOCALAPPDATA: join(home, "AppData", "Local"),

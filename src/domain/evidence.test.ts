@@ -12,6 +12,7 @@ import {
   evidenceSchema,
   parseEvidence,
   immutableEvidence,
+  withEvidenceCallerInputPath,
 } from "./evidence.js";
 import { MAX_JSON_DEPTH, type JsonValue } from "./jsonValue.js";
 import { createEvidenceBundle } from "./evidenceBundle.js";
@@ -151,6 +152,35 @@ it("preserves identity and bytes when reusing an owned immutable result", () => 
   expect(() =>
     parseEvidence({ ...frozen, normalized_result: { changed: true } }),
   ).toThrow("semantic identifier");
+});
+
+it("retains verbatim caller input without changing semantic identity or copying results", () => {
+  const original = createEvidence(TARGET, PROVIDER, {
+    operation: "inspect",
+    parameters: { address: "0x1000" },
+    result: { nested: ["observed"] },
+    rawResult: { source: "provider" },
+  });
+  const first = withEvidenceCallerInputPath(original, "./alias/../selected");
+  const second = withEvidenceCallerInputPath(first, "/another/alias");
+
+  expect(first.caller_input_path).toBe("./alias/../selected");
+  expect(second.caller_input_path).toBe("/another/alias");
+  expect(original.caller_input_path).toBeUndefined();
+  expect(second.evidence_id).toBe(original.evidence_id);
+  expect(second.parameters).toEqual({ address: "0x1000" });
+  expect(second.subject?.local_path).toBe(TARGET.path);
+  expect(second.normalized_result).toBe(first.normalized_result);
+  expect(second.raw_result).toBe(first.raw_result);
+  expect(Object.isFrozen(second)).toBe(true);
+  expect(withEvidenceCallerInputPath(second, "/another/alias")).toBe(second);
+  expect(parseEvidence(JSON.parse(JSON.stringify(second)))).toEqual(second);
+  expect(parseEvidence(JSON.parse(JSON.stringify(original)))).toEqual(original);
+  expect(
+    evidenceSchema.safeParse({ ...original, caller_input_path: undefined })
+      .success,
+  ).toBe(false);
+  expect(() => withEvidenceCallerInputPath(second, "invalid\0path")).toThrow();
 });
 
 it("applies the JSON depth boundary to owned immutable results", () => {

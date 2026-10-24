@@ -12,7 +12,10 @@ import {
 import { AnalysisInputError } from "../../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { UnknownRegistryError } from "../../domain/unknownRegistryError.js";
-import type { Evidence } from "../../domain/evidence.js";
+import {
+  evidenceSemanticContent,
+  type Evidence,
+} from "../../domain/evidence.js";
 import { safeParseImmutableEvidence } from "../../domain/evidenceValidation.js";
 import {
   createResidualUnknown,
@@ -30,9 +33,9 @@ import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.
 type EvidenceLedgerFailure = EvidenceIntegrityError;
 type RecordResult = Result<"added" | "duplicate", EvidenceLedgerFailure>;
 
-/** Same authenticated semantic identity with new subject display metadata. */
-export interface EvidenceDisplayReplacement {
-  readonly kind: "subject-display";
+/** Same authenticated semantic identity with new local display/request metadata. */
+export interface EvidenceMetadataReplacement {
+  readonly kind: "metadata";
   readonly previous: Evidence;
   readonly current: Evidence;
 }
@@ -42,7 +45,7 @@ export interface EvidenceImportDelta {
   readonly recordsAdded: number;
   readonly unknownsAdded: number;
   readonly changed: boolean;
-  readonly replacements: readonly EvidenceDisplayReplacement[];
+  readonly replacements: readonly EvidenceMetadataReplacement[];
 }
 
 type ImportResult = Result<
@@ -103,7 +106,7 @@ export class EvidenceLedger {
     // atomic merge without rebuilding and reparsing the entire ledger.
     if (bundle.unknowns.length === 0) {
       const additions = new Map<string, Evidence>();
-      const replacements: EvidenceDisplayReplacement[] = [];
+      const replacements: EvidenceMetadataReplacement[] = [];
       for (const evidence of bundle.records) {
         const existing = this.#records.get(evidence.evidence_id);
         if (existing !== undefined) {
@@ -111,9 +114,9 @@ export class EvidenceLedger {
             return err(
               new EvidenceIntegrityError("Conflicting evidence record"),
             );
-          if (!displaySubjectsAgree(existing, evidence)) {
+          if (!displayMetadataAgree(existing, evidence)) {
             replacements.push({
-              kind: "subject-display",
+              kind: "metadata",
               previous: existing,
               current: evidence,
             });
@@ -133,14 +136,14 @@ export class EvidenceLedger {
       });
     }
     const pending = new Map(this.#records);
-    const replacements: EvidenceDisplayReplacement[] = [];
+    const replacements: EvidenceMetadataReplacement[] = [];
     for (const evidence of bundle.records) {
       const existing = pending.get(evidence.evidence_id);
       if (existing !== undefined && !recordsAgree(existing, evidence))
         return err(new EvidenceIntegrityError("Conflicting evidence record"));
-      if (existing !== undefined && !displaySubjectsAgree(existing, evidence))
+      if (existing !== undefined && !displayMetadataAgree(existing, evidence))
         replacements.push({
-          kind: "subject-display",
+          kind: "metadata",
           previous: existing,
           current: evidence,
         });
@@ -514,21 +517,10 @@ const unknownRevisionKey = (unknown: ResidualUnknown): string =>
   `${unknown.unknown_id}:${String(unknown.revision)}`;
 
 const recordsAgree = (left: Evidence, right: Evidence): boolean =>
-  canonicalize(withoutLocalPath(left)) ===
-  canonicalize(withoutLocalPath(right));
+  canonicalize(evidenceSemanticContent(left)) ===
+  canonicalize(evidenceSemanticContent(right));
 
-const withoutLocalPath = (evidence: Evidence): Evidence => ({
-  ...evidence,
-  subject:
-    evidence.subject === null
-      ? null
-      : {
-          ...evidence.subject,
-          name: "<non-identity-name>",
-          local_path: "<non-identity-local-path>",
-        },
-});
-
-const displaySubjectsAgree = (left: Evidence, right: Evidence): boolean =>
+const displayMetadataAgree = (left: Evidence, right: Evidence): boolean =>
   left.subject?.name === right.subject?.name &&
-  left.subject?.local_path === right.subject?.local_path;
+  left.subject?.local_path === right.subject?.local_path &&
+  left.caller_input_path === right.caller_input_path;

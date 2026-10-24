@@ -12,7 +12,10 @@ import {
   AnalysisCancelledError,
   AnalysisInputError,
 } from "../domain/analysisErrorCore.js";
-import type { Evidence } from "../domain/evidence.js";
+import {
+  withEvidenceCallerInputPath,
+  type Evidence,
+} from "../domain/evidence.js";
 import {
   createImmutableEvidenceBundle,
   type EvidenceBundle,
@@ -109,10 +112,17 @@ export const deliverAnalysisEvidence = async (
         )
       : ok(evidence);
   if (!delivered.ok) return delivered;
+  // This summary answers the same CLI invocation as its complete parent.
+  // Later inspect_analysis_view requests are separate questions and do not
+  // inherit the parent's selected input path.
+  const selected =
+    detail === "summary" && evidence.caller_input_path !== undefined
+      ? withEvidenceCallerInputPath(delivered.value, evidence.caller_input_path)
+      : delivered.value;
   const published = await publishEvidenceDelivery({
     bundle,
     complete: evidence,
-    delivered: delivered.value,
+    delivered: selected,
     outputPath,
     operation: evidence.operation,
     signal,

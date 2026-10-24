@@ -174,7 +174,7 @@ it.each(["provider", "workflow"] as const)(
     };
     const nameImport = ledger.import(createEvidenceBundle([nameOnly]));
     if (!nameImport.ok) throw nameImport.error;
-    cache.refreshEvidenceDisplay(nameImport.value.replacements);
+    cache.refreshEvidenceMetadata(nameImport.value.replacements);
     expect(cache.entries()).toEqual(before.value.entries);
     expect(cache.workflowEntries()).toEqual(before.value.workflow_entries);
     // A different observation for this exact query is not the entry's dependency.
@@ -201,7 +201,7 @@ it.each(["provider", "workflow"] as const)(
       createEvidenceBundle([relocate(alternative)]),
     );
     if (!foreign.ok) throw foreign.error;
-    cache.refreshEvidenceDisplay(foreign.value.replacements);
+    cache.refreshEvidenceMetadata(foreign.value.replacements);
     expect(cache.entries()).toEqual(before.value.entries);
     expect(cache.workflowEntries()).toEqual(before.value.workflow_entries);
     // A result may cite several observations; updating their envelopes does not change its payload.
@@ -209,13 +209,13 @@ it.each(["provider", "workflow"] as const)(
       createEvidenceBundle(dependencies.map(relocate)),
     );
     if (!dependentImport.ok) throw dependentImport.error;
-    cache.refreshEvidenceDisplay(dependentImport.value.replacements);
+    cache.refreshEvidenceMetadata(dependentImport.value.replacements);
     expect(cache.entries()).toEqual(before.value.entries);
     expect(cache.workflowEntries()).toEqual(before.value.workflow_entries);
     const relocated = relocate(evidence);
     const imported = ledger.import(createEvidenceBundle([relocated]));
     if (!imported.ok) throw imported.error;
-    cache.refreshEvidenceDisplay(imported.value.replacements);
+    cache.refreshEvidenceMetadata(imported.value.replacements);
     const after = cache.export(target, profile, ledger.export());
     if (!after.ok) throw after.error;
     const entries =

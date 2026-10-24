@@ -8,7 +8,11 @@ import type { SessionProviderRoute } from "./binary/SessionProviderRouter.js";
 import type { ResolvedSessionOpen } from "./binary/BinarySessionOpen.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
-import { createEvidence } from "../domain/evidence.js";
+import {
+  createEvidence,
+  withEvidenceCallerInputPath,
+} from "../domain/evidence.js";
+import { createImmutableEvidenceBundle } from "../domain/evidenceBundle.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { NativeToolName } from "../contracts/native/nativeToolContracts.js";
 import {
@@ -209,18 +213,19 @@ export const runProviderAnalysis = async (
       );
       await dispatchQueuedInterrupts();
       if (!original.ok) return cliError(original.error);
+      const evidence = withEvidenceCallerInputPath(original.value, path);
       if (operationSignal.aborted)
         return cliError(
           new AnalysisCancelledError(tool, {
             cause: operationSignal.reason,
-            partialObservation: original.value,
+            partialObservation: evidence,
           }),
         );
       const result =
         delivery?.evidenceBundlePath === undefined
-          ? original
+          ? ok(evidence)
           : await deliverAnalysisEvidence(
-              original.value,
+              evidence,
               delivery.evidenceBundlePath,
               delivery.detail,
               operationSignal,
@@ -342,11 +347,14 @@ const runAnalysis = async (
       const execution = await session.execute(tool, arguments_, { signal });
       if (!execution.ok) return err(execution.error);
       return ok(
-        createAnalysisExecutionEvidence(
-          tool,
-          evidenceParameters,
-          execution.value,
-          "observed",
+        withEvidenceCallerInputPath(
+          createAnalysisExecutionEvidence(
+            tool,
+            evidenceParameters,
+            execution.value,
+            "observed",
+          ),
+          path,
         ),
       );
     }
@@ -411,7 +419,8 @@ const runAnalysis = async (
             : providerIdentityForRoute(route, tool),
           evidenceProfile,
         });
-        if (cached !== undefined) return ok(cached);
+        if (cached !== undefined)
+          return ok(withEvidenceCallerInputPath(cached, path));
       }
     }
     const openOptions = {
@@ -446,8 +455,14 @@ const runAnalysis = async (
       evidenceProfile,
     });
     if (!executed.ok) return executed;
-    const { evidence, cachePolicy } = executed.value;
-    const recorded = session.recordEvidence(evidence);
+    const { cachePolicy } = executed.value;
+    const evidence = withEvidenceCallerInputPath(executed.value.evidence, path);
+    // Provider execution may have already recorded the same semantic Evidence
+    // without this invocation's request path. Import replaces that metadata
+    // while retaining the authenticated result and snapshot binding.
+    const recorded = session.importEvidenceBundle(
+      createImmutableEvidenceBundle([evidence]),
+    );
     if (!recorded.ok)
       return err(recorded.error.retainPartialObservation(evidence));
     if (isWorkflowEvidenceTool(tool)) {

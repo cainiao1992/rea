@@ -27,7 +27,11 @@ import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceSc
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../../../src/filesystem/OwnedStagedOutput.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
-import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
+import {
+  createEvidence,
+  parseEvidence,
+  withEvidenceCallerInputPath,
+} from "../../../src/domain/evidence.js";
 import { writeTextParts } from "../../../src/application/JsonFiles.js";
 import { JSON_BYTE_ORDER_MARK_MESSAGE } from "../../../src/application/Utf8JsonInput.js";
 import { failFileReadAfterAbort } from "../../support/failFileReadAfterAbort.js";
@@ -48,6 +52,30 @@ const bundle = (result = true) =>
       { operation: "health", parameters: {}, result },
     ),
   ]);
+
+it.each([undefined, "../selected-link/./artifact"])(
+  "keeps same-invocation caller input on delivered summary and saved parent (%s)",
+  async (callerInputPath) => {
+    const root = await createTestTempDirectory("rea-delivery-input-path-");
+    const path = join(root, "bundle.json");
+    const original = analysisViewLayoutEvidence();
+    const parent =
+      callerInputPath === undefined
+        ? original
+        : withEvidenceCallerInputPath(original, callerInputPath);
+    const delivered = await deliverAnalysisEvidence(parent, path, "summary");
+    if (!delivered.ok) throw delivered.error;
+    expect(delivered.value.caller_input_path).toBe(callerInputPath);
+    expect(delivered.value.evidence_links).toContain(parent.evidence_id);
+    expect(original.caller_input_path).toBeUndefined();
+    const saved = await readEvidenceBundle(path);
+    if (!saved.ok) throw saved.error;
+    const savedParent = saved.value.records.find(
+      (record) => record.evidence_id === parent.evidence_id,
+    );
+    expect(savedParent?.caller_input_path).toBe(callerInputPath);
+  },
+);
 
 it.each([0, 9 * 1024 * 1024])(
   "preserves the format owner's BOM recovery with %i bytes of padding",

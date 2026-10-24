@@ -44,7 +44,7 @@ it.each(["immutable", "detached"] as const)(
     );
     if (!merged.ok) throw merged.error;
     expect(merged.value.replacements).toEqual([
-      { kind: "subject-display", previous: first, current: replacement },
+      { kind: "metadata", previous: first, current: replacement },
     ]);
     expect(lookup(first.evidence_id)?.subject?.local_path).toBe("/moved");
     expect(

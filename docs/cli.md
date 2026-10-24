@@ -465,7 +465,14 @@ an exact result when the target bytes, operation, parameters, provider and
 settings match. Mutations and cursor-dependent calls are excluded from the
 cache. Snapshot files are local and use owner-only permissions.
 
-Importing an Evidence bundle refreshes retained subject display names and paths.
+One-shot binary CLI Evidence reports the exact path argument in `caller_input_path`,
+including relative spelling and symlink aliases. Its subject identifies the
+inspected artifact; `caller_input_path` does not change the Evidence ID or
+snapshot query. A replay reports the current invocation's path while leaving
+the saved Evidence unchanged. Provider inspections continue to include the
+established `parameters.input_path` field.
+
+Importing an Evidence bundle refreshes retained request and subject display metadata.
 It preserves cached analysis results, including observations for other targets.
 Snapshot bindings that use a replaced record retain its updated display path.
 

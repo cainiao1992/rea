@@ -133,6 +133,7 @@ cliTest(
     const omitted = await cli.run({ arguments: arguments_ });
     expect(omitted.exitCode).toBe(0);
     const complete = parseEvidence(omitted.json);
+    expect(complete.caller_input_path).toBe(path);
     const completeBundlePath = join(root, "complete.json");
     const explicit = await cli.run({
       arguments: [
@@ -144,12 +145,18 @@ cliTest(
       ],
     });
     expect(explicit.exitCode).toBe(0);
-    expect(parseEvidence(explicit.json).evidence_id).toBe(complete.evidence_id);
+    expect(parseEvidence(explicit.json)).toMatchObject({
+      evidence_id: complete.evidence_id,
+      caller_input_path: path,
+    });
     expect(
       parseEvidenceBundle(
         JSON.parse(await readFile(completeBundlePath, "utf8")),
-      ).records[0]?.evidence_id,
-    ).toBe(complete.evidence_id);
+      ).records[0],
+    ).toMatchObject({
+      evidence_id: complete.evidence_id,
+      caller_input_path: path,
+    });
 
     const reply = await cli.run({
       cwd: root,
@@ -163,6 +170,7 @@ cliTest(
     });
     expect(reply.exitCode).toBe(0);
     const receipt = parseEvidence(reply.json);
+    expect(receipt.caller_input_path).toBe(path);
     const summary = managedMemberSummaryViewResultSchema.parse(
       receipt.normalized_result,
     );
@@ -171,11 +179,15 @@ cliTest(
     expect(bundle.records).toHaveLength(1);
     const parent = bundle.records[0]!;
     expect(parent.evidence_id).toBe(complete.evidence_id);
+    expect(parent.caller_input_path).toBe(path);
     expect(parent.normalized_result).toEqual(complete.normalized_result);
     expect(parent.raw_result).toEqual(complete.raw_result);
     expect(parent.subject).toEqual(complete.subject);
     expect(parent.locations).toEqual(complete.locations);
-    expect(parent.parameters).toEqual({ type_names: typeNames });
+    expect(parent.parameters).toEqual({
+      type_names: typeNames,
+      input_path: path,
+    });
     expect(receipt.evidence_links).toEqual([parent.evidence_id]);
     const portable = await inspectAnalysisView({
       source: { kind: "inline", evidence: parent },
@@ -183,6 +195,7 @@ cliTest(
     });
     if (!portable.ok) throw portable.error;
     expect(receipt.evidence_id).toBe(portable.value.evidence_id);
+    expect(portable.value).not.toHaveProperty("caller_input_path");
     expect(receipt.normalized_result).toEqual(portable.value.normalized_result);
     const report = managedMemberInspectionSchema.parse(
       parent.normalized_result,
@@ -238,6 +251,7 @@ cliTest(
         expect(response.exitCode).toBe(0);
         const evidence = parseEvidence(response.json);
         expect(evidence.evidence_links).toEqual([parent.evidence_id]);
+        expect(evidence).not.toHaveProperty("caller_input_path");
         expect(evidence.subject).toEqual(parent.subject);
         const page = analysisViewResultSchema.parse(evidence.normalized_result);
         if (page.kind !== "managed-members") throw new Error("Wrong page kind");

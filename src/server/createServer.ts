@@ -25,6 +25,7 @@ import { captureProviderEnvironment } from "./providerEnvironment.js";
 import {
   createElfNotesService,
   createAppleIpsService,
+  createPeLoadConfigService,
   createPeCertificatesService,
   createPeImportsService,
   createNativeExportsService,
@@ -32,12 +33,14 @@ import {
 } from "../composition/binaryDiagnostics.js";
 import type { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import type { AppleIpsService } from "../application/binaryDiagnostics/AppleIpsService.js";
+import type { PeLoadConfigService } from "../application/binaryDiagnostics/PeLoadConfigService.js";
 import type { PeCertificatesService } from "../application/binaryDiagnostics/PeCertificatesService.js";
 import type { PeImportsService } from "../application/binaryDiagnostics/PeImportsService.js";
 import type { PeResourcesService } from "../application/binaryDiagnostics/PeResourcesService.js";
 import type { NativeExportsService } from "../application/binaryDiagnostics/NativeExportsService.js";
 import { registerElfNotesTool } from "./registerElfNotesTool.js";
 import { registerAppleIpsTool } from "./registerAppleIpsTool.js";
+import { registerPeLoadConfigTool } from "./registerPeLoadConfigTool.js";
 import { registerPeCertificatesTool } from "./registerPeCertificatesTool.js";
 import { registerPeImportsTool } from "./registerPeImportsTool.js";
 import { registerPeResourcesTool } from "./registerPeResourcesTool.js";
@@ -474,6 +477,7 @@ export const createServer = (
   const nativeExports = createNativeExportsService();
   const elfNotes = createElfNotesService();
   const appleIps = createAppleIpsService();
+  const peLoadConfig = createPeLoadConfigService();
   const peCertificates = createPeCertificatesService();
   const peImports = createPeImportsService();
   const electronFuses = options.electronFuses ?? createElectronFuseService();
@@ -587,6 +591,7 @@ export const createServer = (
       nativeExports.close(),
       elfNotes.close(),
       appleIps.close(),
+      peLoadConfig.close(),
       peCertificates.close(),
       peImports.close(),
       electronFuses.close(),
@@ -657,6 +662,7 @@ export const createServer = (
     nativeExports,
     elfNotes,
     appleIps,
+    peLoadConfig,
     peCertificates,
     peImports,
     electronFuses,
@@ -896,6 +902,7 @@ const registerConfiguredAnalysisTools = (
     nativeExports,
     elfNotes,
     appleIps,
+    peLoadConfig,
     peCertificates,
     peImports,
     pythonPyc,
@@ -967,6 +974,13 @@ const registerConfiguredAnalysisTools = (
   registerAppleIpsTool(
     server,
     appleIps,
+    toolLogger,
+    recordEvidence,
+    withAdmittedAnalysis,
+  );
+  registerPeLoadConfigTool(
+    server,
+    peLoadConfig,
     toolLogger,
     recordEvidence,
     withAdmittedAnalysis,
@@ -1142,6 +1156,7 @@ interface ServerToolContext extends ReturnType<typeof createSessionRecorders> {
   readonly nativeExports: NativeExportsService;
   readonly elfNotes: ElfNotesService;
   readonly appleIps: AppleIpsService;
+  readonly peLoadConfig: PeLoadConfigService;
   readonly peCertificates: PeCertificatesService;
   readonly peImports: PeImportsService;
   readonly electronFuses: ElectronFuseService;

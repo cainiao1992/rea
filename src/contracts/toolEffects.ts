@@ -262,6 +262,7 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   inspect_native_exports: evidence,
   inspect_elf_notes: evidence,
   inspect_apple_ips: evidence,
+  inspect_pe_load_config: evidence,
   inspect_analysis_view: evidence,
   inspect_firmware_regions: effects({
     mutatesSession: true,

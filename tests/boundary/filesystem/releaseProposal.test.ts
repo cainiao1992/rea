@@ -373,12 +373,30 @@ it.each([false, true])(
     const full = [];
     for await (const commit of fixture.github.mergeCommitIterator("main"))
       full.push(commit);
-    const omitted = [];
-    for await (const commit of fixture.github.mergeCommitIterator("main", {
+    expect(fixture.pages.length).toBeGreaterThan(0);
+    expect(fixture.pages.every((page) => page.includeFiles === true)).toBe(
+      true,
+    );
+    const fullPageCount = fixture.pages.length;
+    // The runtime patch adds this option after source checks read upstream types.
+    const options = {
       includeFiles: false,
       backfillFiles: true,
-    }))
+    } satisfies NonNullable<
+      Parameters<typeof fixture.github.mergeCommitIterator>[1]
+    > & { includeFiles: boolean };
+    const omitted = [];
+    for await (const commit of fixture.github.mergeCommitIterator(
+      "main",
+      options,
+    ))
       omitted.push(commit);
+    expect(fixture.pages.length).toBeGreaterThan(fullPageCount);
+    expect(
+      fixture.pages
+        .slice(fullPageCount)
+        .every((page) => page.includeFiles === false),
+    ).toBe(true);
     expect(full[0]?.pullRequest?.number).toBe(rebased ? 7 : 42);
     expect(omitted).toEqual(
       full.map(({ files: _files, pullRequest, ...commit }) => ({

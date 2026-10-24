@@ -5,7 +5,7 @@ import { parseEvidence, type Evidence } from "../domain/evidence.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import { ok, type Result } from "../domain/result.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { createEvidenceBundle } from "../domain/evidenceBundle.js";
 import { publishEvidenceDelivery } from "../application/EvidenceBundleCommands.js";
@@ -13,6 +13,8 @@ import { inspectAnalysisViewValidated } from "../application/analysisView/Analys
 import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
+import type { ZodSafeParseResult } from "zod";
 
 export const analysisEvidenceDeliveryOptions = {
   detail: z
@@ -57,6 +59,54 @@ export const cliEvidenceDeliveryInputError = (
         },
       ])
     : undefined;
+
+/** Parse delivery JSON once and enforce its owning schema before opening a target. */
+export const parseCliAnalysisEvidenceDelivery = <
+  Delivery extends {
+    readonly detail: "complete" | "summary";
+    readonly view?: AnalysisViewRequest | undefined;
+  },
+>(
+  operation: string,
+  options: {
+    readonly detail: "complete" | "summary";
+    readonly evidence_output?: string | undefined;
+    readonly view?: string | undefined;
+  },
+  schema: {
+    readonly safeParse: (input: unknown) => ZodSafeParseResult<Delivery>;
+  },
+): Result<
+  Delivery & { readonly evidenceOutput: string | undefined },
+  AnalysisError
+> => {
+  let view: unknown;
+  try {
+    view = options.view === undefined ? undefined : JSON.parse(options.view);
+  } catch (cause) {
+    return err(
+      new AnalysisInputError(operation, { cause }, [
+        {
+          path: ["view"],
+          reason: "invalid_format",
+          message: "view must be valid JSON",
+        },
+      ]),
+    );
+  }
+  const raw = {
+    detail: options.detail,
+    ...(view === undefined ? {} : { view }),
+  };
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success)
+    return err(
+      analysisInputErrorFromIssues(operation, parsed.error.issues, raw),
+    );
+  const value = { ...parsed.data, evidenceOutput: options.evidence_output };
+  const invalid = cliEvidenceDeliveryInputError({ ...value, operation });
+  return invalid === undefined ? ok(value) : err(invalid);
+};
 
 /** One-shot delivery owns report publication; analysis keeps its own cleanup owner. */
 export const deliverCliAnalysisEvidence = async (

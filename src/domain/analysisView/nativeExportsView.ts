@@ -5,11 +5,6 @@ import {
   elfNativeExportsSchema as elf,
   type NativeExports,
 } from "../native/nativeExports.js";
-import {
-  canBorrowParsedJsonSnapshot,
-  freezeOwnedJsonTreeSnapshot,
-  isImmutableJsonSnapshot,
-} from "../immutableJson.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { err, ok, type Result } from "../result.js";
 import type {
@@ -18,7 +13,7 @@ import type {
   UnsignedAnalysisView,
 } from "./analysisView.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import { parseAnalysisViewResult } from "./analysisViewParent.js";
+import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import {
   boundedViewMessages,
   completeWithinViewCoverage,
@@ -83,31 +78,7 @@ export const nativeExportsSummarySchema = z.discriminatedUnion("format", [
   elf.omit({ exports: true, issues: true, limitations: true }).extend(counts),
 ]);
 
-// This validates exact immutable Evidence, never a path or current filesystem state.
-// Weak keys release their parsed representation with the owning retained record.
-const checked = new WeakMap<object, NativeExports>();
-const readReport = (
-  parent: AnalysisViewParent,
-): Result<NativeExports, AnalysisError> => {
-  const source = parent.normalizedResult;
-  const reusable =
-    parent.sealedResult === true &&
-    typeof source === "object" &&
-    source !== null &&
-    isImmutableJsonSnapshot(source);
-  const known = reusable ? checked.get(source) : undefined;
-  if (known !== undefined) return ok(known);
-  const parsed = parseAnalysisViewResult(nativeExportsSchema, parent);
-  if (!parsed.ok) return parsed;
-  if (reusable) {
-    const report = canBorrowParsedJsonSnapshot(source, parsed.value)
-      ? source
-      : freezeOwnedJsonTreeSnapshot(parsed.value);
-    checked.set(source, report);
-    return ok(report);
-  }
-  return parsed;
-};
+const readReport = createAnalysisViewResultReader(nativeExportsSchema);
 
 /** Read selected export facts without reopening the artifact or reinterpreting its tables. */
 export const projectNativeExportsView = (

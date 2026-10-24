@@ -9,6 +9,12 @@ import {
 } from "./apkSignatureView.js";
 import { byteEntropySchema } from "../native/byteEntropy.js";
 import {
+  pythonPycViewRequestSchema,
+  pythonPycViewItemsSchema,
+  pythonPycSummarySchema,
+  projectPythonPycView,
+} from "./pythonPycView.js";
+import {
   nativeExportsViewRequestSchema,
   nativeExportsViewItemsSchema,
   nativeExportsSummarySchema,
@@ -334,6 +340,7 @@ const nativeViewSchema = z.strictObject({
 
 /** Caller-selected projection of already completed analysis Evidence. */
 export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
+  pythonPycViewRequestSchema,
   nativeExportsViewRequestSchema,
   javaScriptRoutesViewRequestSchema,
   nativeFunctionMatchingViewRequestSchema,
@@ -457,6 +464,7 @@ const javascriptSummarySchema = z.strictObject({
 const viewResultBase = {
   parent_evidence_id: prefixedDigestSchema("ev"),
   parent_operation: z.enum([
+    "inspect_python_pyc",
     "inspect_byte_entropy",
     "inspect_native_exports",
     "inspect_binary_layout",
@@ -510,6 +518,21 @@ export const nativeExportsSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.literal("inspect_native_exports"),
   summary: nativeExportsSummarySchema,
+});
+
+export const pythonPycSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_python_pyc"),
+  summary: pythonPycSummarySchema,
+});
+
+export const pythonPycCodeObjectsViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  kind: z.literal("python-pyc"),
+  parent_operation: z.literal("inspect_python_pyc"),
+  view: pythonPycViewRequestSchema,
+  pyc: pythonPycSummarySchema,
+  items: pythonPycViewItemsSchema,
 });
 
 /** Opt-in command delivery keeps output once and retains the complete parent. */
@@ -922,6 +945,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: environmentStateViewRequestSchema,
   }),
   z.discriminatedUnion("parent_operation", [
+    pythonPycSummaryViewResultSchema,
     nativeExportsSummaryViewResultSchema,
     byteEntropySummaryViewResultSchema,
     gdbCommandSummaryViewResultSchema,
@@ -952,6 +976,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     nativeFunctionSummaryViewResultSchema,
     sourceToBundleSummaryViewResultSchema,
   ]),
+  pythonPycCodeObjectsViewResultSchema,
   z.strictObject({
     ...viewResultBase,
     kind: z.literal("native-exports"),
@@ -1219,6 +1244,8 @@ const parentArtifactPath = (parent: AnalysisViewParent): string => {
 
 /** Named source owners for views that need no extra decoder or accumulator. */
 const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
+  ["inspect_native_exports", projectNativeExportsView],
+  ["inspect_python_pyc", projectPythonPycView],
   ["frida_session_status", projectFridaSessionStatusView],
   ["gdb_console", projectCommandObservationView],
   ["inspect_with_objdump", projectCommandObservationView],
@@ -1313,10 +1340,6 @@ export const projectAnalysisView = (
   }
   if (parent.operation === "inspect_pcap_capture") {
     const projected = projectPcapCaptureView(parent, view);
-    return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
-  }
-  if (parent.operation === "inspect_native_exports") {
-    const projected = projectNativeExportsView(parent, view);
     return projected.ok ? ok(sealAnalysisView(projected.value)) : projected;
   }
   if (parent.operation === "inspect_byte_entropy") {

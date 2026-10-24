@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
+import { pythonPycSchema } from "../../src/domain/python/pythonPyc.js";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import {
   marshalCode,
@@ -10,6 +11,10 @@ import {
 } from "../../src/python/PythonPyc.fixture.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
+
+const completePycEvidenceSchema = toolContract(
+  "inspect_python_pyc",
+).outputSchema.safeExtend({ normalized_result: pythonPycSchema });
 
 const marshalUtf8 = (bytes: Buffer): Buffer => {
   const length = Buffer.alloc(4);
@@ -56,9 +61,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(evidence.normalized_result.code_objects[0]?.consts).toContainEqual(
         { kind: "int", bits, value: value.toString() },
       );
@@ -78,9 +81,7 @@ cliTest(
       arguments: ["inspect-python-pyc", ordinaryIntPath, "--json"],
     });
     expect(ordinaryInt.exitCode, ordinaryInt.stderr).toBe(0);
-    const ordinaryEvidence = toolContract(
-      "inspect_python_pyc",
-    ).outputSchema.parse(ordinaryInt.json);
+    const ordinaryEvidence = completePycEvidenceSchema.parse(ordinaryInt.json);
     expect(
       ordinaryEvidence.normalized_result.code_objects[0]?.consts,
     ).toContainEqual({ kind: "int", bits: 6, value: "-42" });
@@ -160,9 +161,7 @@ cliTest(
         result.exitCode,
         `${result.stderr}\n${JSON.stringify(result.json)}`,
       ).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(evidence.normalized_result.code_objects[0]?.consts).toEqual([
         expect.objectContaining({ kind: "frozenset", length: 3 }),
       ]);
@@ -209,9 +208,7 @@ cliTest(
       result.exitCode,
       `${result.stderr}\n${JSON.stringify(result.json)}`,
     ).toBe(0);
-    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completePycEvidenceSchema.parse(result.json);
     const codes = evidence.normalized_result.code_objects;
     expect(codes[1]?.name).toBe(codes[2]?.name);
     expect(codes[0]?.consts).toEqual([
@@ -230,9 +227,7 @@ cliTest(
       arguments: ["inspect-python-pyc", path, "--json"],
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completePycEvidenceSchema.parse(result.json);
     expect(evidence.normalized_result.header.python_version).toBe("3.12");
     expect(evidence.normalized_result.code_objects[1]?.name).toBe("inner");
   },
@@ -275,9 +270,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(evidence.normalized_result.header.magic).toBe(magic);
       expect(evidence.normalized_result.code_objects[0]?.bytecode.bytes).toBe(
         4,
@@ -336,9 +329,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(evidence.normalized_result.code_objects[0]).toMatchObject(
         expected,
       );
@@ -436,9 +427,7 @@ cliTest(
       arguments: ["inspect-python-pyc", path, "--json"],
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completePycEvidenceSchema.parse(result.json);
     expect(evidence.normalized_result.code_objects[0]?.firstlineno).toBe(-1);
     expect(evidence.normalized_result.code_objects[0]?.consts).toContainEqual({
       kind: "code",
@@ -488,9 +477,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(evidence.normalized_result.code_objects[0]?.consts).toMatchObject(
         testCase.expected,
       );
@@ -540,9 +527,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(
         evidence.normalized_result.code_objects[0]?.consts.map((value) =>
           value.kind === "frozenset" || value.kind === "dict"
@@ -623,9 +608,7 @@ cliTest(
         arguments: ["inspect-python-pyc", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        result.json,
-      );
+      const evidence = completePycEvidenceSchema.parse(result.json);
       expect(
         evidence.normalized_result.code_objects[0]?.consts.map((value) =>
           value.kind === "frozenset" || value.kind === "dict"
@@ -656,9 +639,7 @@ cliTest(
         arguments: ["inspect-python-pyc", rawPath, "--json"],
       });
       expect(rawResult.exitCode, rawResult.stderr).toBe(0);
-      const rawEvidence = toolContract("inspect_python_pyc").outputSchema.parse(
-        rawResult.json,
-      );
+      const rawEvidence = completePycEvidenceSchema.parse(rawResult.json);
       expect(rawEvidence.normalized_result.code_objects[0]?.flags).toBe(0x40);
     }
   },
@@ -674,9 +655,7 @@ cliTest(
       cwd: root,
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completePycEvidenceSchema.parse(result.json);
     expect(evidence.normalized_result.header.python_version).toBe("3.7");
     expect(evidence.subject?.local_path).toBe(join(root, "sample.pyc"));
   },
@@ -696,9 +675,7 @@ cliTest.skipIf(process.platform === "win32")(
       cwd: root,
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const evidence = toolContract("inspect_python_pyc").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completePycEvidenceSchema.parse(result.json);
     expect(evidence.normalized_result.header.python_version).toBe("3.7");
     expect(evidence.subject?.local_path).toBe(`${root}/link/../sample.pyc`);
   },
@@ -771,8 +748,9 @@ cliTest(
       arguments: ["inspect-python-pyc", path, "--json"],
     });
     expect(response.exitCode, response.stderr).toBe(0);
-    const contract = toolContract("inspect_python_pyc");
-    const report = contract.outputSchema.parse(response.json).normalized_result;
+    const report = completePycEvidenceSchema.parse(
+      response.json,
+    ).normalized_result;
     expect(report.coverage.status).toBe("complete");
     expect(report.code_objects[0]?.consts).toEqual(
       cases.map((entry) => ({
@@ -787,7 +765,7 @@ cliTest(
     const mcp = await call("inspect_python_pyc", { path });
     expect(mcp.isError).not.toBe(true);
     expect(
-      contract.outputSchema.parse(mcp.structuredContent).normalized_result,
+      completePycEvidenceSchema.parse(mcp.structuredContent).normalized_result,
     ).toEqual(report);
     const toon = await cli.run({
       arguments: ["inspect-python-pyc", path, "--format", "toon"],
@@ -822,8 +800,9 @@ cliTest(
       arguments: ["inspect-python-pyc", path, "--json"],
     });
     expect(response.exitCode, response.stderr).toBe(0);
-    const schema = toolContract("inspect_python_pyc").outputSchema;
-    const report = schema.parse(response.json).normalized_result;
+    const report = completePycEvidenceSchema.parse(
+      response.json,
+    ).normalized_result;
     expect(report.code_objects[0]?.consts).toEqual([
       { kind: "str", value: prefix, bytes: 84, truncated: true },
       { kind: "str", value: prefix + "\ud800", bytes: 86, truncated: true },
@@ -832,8 +811,8 @@ cliTest(
     if (call === undefined) throw new Error("Expected file MCP session");
     const mcp = await call("inspect_python_pyc", { path });
     expect(mcp.isError).not.toBe(true);
-    expect(schema.parse(mcp.structuredContent).normalized_result).toEqual(
-      report,
-    );
+    expect(
+      completePycEvidenceSchema.parse(mcp.structuredContent).normalized_result,
+    ).toEqual(report);
   },
 );

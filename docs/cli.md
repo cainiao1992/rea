@@ -311,6 +311,17 @@ The workflow reports note owners, types, descriptor hashes, and GNU build-id
 or ABI-tag fields when those descriptors match. A missing note table is
 observed absence of those declarations. See [ELF note tables](elf-notes.md).
 
+Inspect an Apple `.ips` crash report without executing a target:
+
+```bash
+rea inspect-apple-ips /absolute/path/to/report.ips --json
+```
+
+The workflow reports first-line metadata, process/exception/termination facts,
+threads, usedImages, lossless integer registers, and documented crash classes
+when `bug_type` is `"309"`. Other DiagnosticReports types return no crash
+result. See [Apple IPS crash reports](apple-ips.md).
+
 Inspect a CPython 3.7–3.13 `.pyc` header and nested marshal code objects
 without executing bytecode or installing Python:
 

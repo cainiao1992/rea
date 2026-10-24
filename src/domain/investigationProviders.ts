@@ -47,6 +47,13 @@ export const ELF_NOTES_PROVIDER = Object.freeze({
   version: "1",
 } as const);
 
+/** Provider identity for portable, execution-free Apple .ips crash-report decoding. */
+export const APPLE_IPS_PROVIDER = Object.freeze({
+  id: "rea-apple-ips",
+  name: "REA Apple IPS parser",
+  version: "1",
+} as const);
+
 /** Provider identity for execution-free Shannon byte-entropy profiling. */
 export const BYTE_ENTROPY_PROVIDER = Object.freeze({
   id: "byte-entropy",

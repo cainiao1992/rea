@@ -265,6 +265,14 @@ explicit path or endpoint and do not need it.
   build-id or ABI-tag fields. A missing table is observed absence of those
   declarations, not proof the image never carried notes. See the
   [ELF notes guide](https://github.com/morluto/rea/blob/main/docs/elf-notes.md).
+- Apple `.ips` crash reports: `inspect_apple_ips` with the explicit local
+  file. This built-in target-free inspection requires no Xcode, atos, or
+  pwntools. Preserve first-line metadata, `bug_type` as a string, process and
+  exception facts, lossless integer registers, usedImages UUIDs, and
+  documented classification matches. Only `bug_type` `"309"` yields a crash
+  body; other types, including `"288"` stackshots, return no crash result.
+  Opened Mach-O and dSYM UUID joins remain unobserved. See the
+  [Apple IPS guide](https://github.com/morluto/rea/blob/main/docs/apple-ips.md).
 - CPython 3.7–3.13 `.pyc` header, nested marshal code objects and bytecode
   identity: `inspect_python_pyc` with the explicit local file. This built-in
   target-free inspection requires no Python installation. Preserve magic,

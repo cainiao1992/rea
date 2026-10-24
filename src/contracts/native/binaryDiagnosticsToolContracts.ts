@@ -40,6 +40,10 @@ import {
   inspectElfNotesInputSchema,
   elfNotesSchema,
 } from "../../domain/native/elfNotes.js";
+import {
+  inspectAppleIpsInputSchema,
+  appleIpsSchema,
+} from "../../domain/native/appleIps.js";
 
 /** Caller-selected delivery of completed binary layout Evidence. */
 export const inspectBinaryLayoutRequestSchema =
@@ -70,6 +74,21 @@ export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
       {
         title: "Inspect ELF GNU build-id and ABI-tag notes",
         input: { path: "/artifacts/program" },
+      },
+    ],
+  },
+  {
+    name: "inspect_apple_ips",
+    ...toolContractMetadata("inspect_apple_ips"),
+    kind: "native-provider",
+    description:
+      "Inspect one explicit local Apple .ips crash report without executing a target, launching atos, or opening a disassembler. Parses the first-line metadata object and, when bug_type is the string 309, the crash body: process identity, exception and termination facts, threads, usedImages, lossless integer registers, and deterministic classification from documented SIGKILL, EXC_GUARD, pointer-authentication and dyld strings. Other bug_type values, including 288 stackshots, return no crash result. A missing or truncated body fails without partial success. Opened Mach-O and dSYM UUID joins remain unobserved. Portable on supported Node hosts; no Xcode or pwntools required.",
+    inputSchema: inspectAppleIpsInputSchema,
+    outputSchema: evidenceResultOf(appleIpsSchema),
+    examples: [
+      {
+        title: "Inspect an Apple .ips crash report",
+        input: { path: "/artifacts/app.ips" },
       },
     ],
   },

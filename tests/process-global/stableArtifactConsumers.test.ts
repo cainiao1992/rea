@@ -96,11 +96,13 @@ import { inspectPythonPycInputSchema } from "../../src/domain/python/pythonPyc.j
 import { PeResourcesProvider } from "../../src/native/pe/PeResourcesProvider.js";
 import { Il2cppMetadataProvider } from "../../src/il2cpp/Il2cppMetadataProvider.js";
 import { ElfNotesProvider } from "../../src/native/elf/ElfNotesProvider.js";
+import { AppleIpsProvider } from "../../src/native/apple/AppleIpsProvider.js";
 import { PeCertificatesProvider } from "../../src/native/pe/PeCertificatesProvider.js";
 import { PeImportsProvider } from "../../src/native/pe/PeImportsProvider.js";
 import { NativeExportsProvider } from "../../src/native/exports/NativeExportsProvider.js";
 import { BeamProvider } from "../../src/erlang/BeamProvider.js";
 import { inspectElfNotesInputSchema } from "../../src/domain/native/elfNotes.js";
+import { inspectAppleIpsInputSchema } from "../../src/domain/native/appleIps.js";
 import { inspectPeCertificatesInputSchema } from "../../src/domain/native/peCertificates.js";
 import { inspectPeImportsInputSchema } from "../../src/domain/native/peImports.js";
 import { inspectNativeExportsInputSchema } from "../../src/domain/native/nativeExports.js";
@@ -856,6 +858,7 @@ it.each([
 const stableArtifactProviders = [
   ...staticProviders,
   ["ELF notes", () => new ElfNotesProvider()],
+  ["Apple IPS", () => new AppleIpsProvider()],
   ["PE certificates", () => new PeCertificatesProvider()],
   ["PE imports", () => new PeImportsProvider()],
   ["native exports", () => new NativeExportsProvider()],
@@ -881,6 +884,11 @@ const inspectFileFailure = (
   if (provider instanceof ElfNotesProvider)
     return provider.inspect(
       inspectElfNotesInputSchema.parse({ path }),
+      options,
+    );
+  if (provider instanceof AppleIpsProvider)
+    return provider.inspect(
+      inspectAppleIpsInputSchema.parse({ path }),
       options,
     );
   if (provider instanceof PeCertificatesProvider)

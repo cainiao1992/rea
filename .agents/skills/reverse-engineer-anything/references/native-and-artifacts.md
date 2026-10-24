@@ -136,6 +136,18 @@ absence of those declarations, not proof the image never carried notes in
 another container. See
 [ELF note tables](https://github.com/morluto/rea/blob/main/docs/elf-notes.md).
 
+## Apple IPS crash reports
+
+Use `inspect_apple_ips` for an explicit local Apple `.ips` file when the
+question concerns crash metadata, exception and termination facts, threads,
+usedImages, lossless registers, or documented crash classes. No `open_binary`,
+Xcode, atos, or target execution is required. The CLI equivalent is
+`inspect-apple-ips PATH`. Preserve artifact SHA-256, `bug_type` as a string,
+uppercase image UUIDs, and integer literals that exceed IEEE-754 range. Only
+`bug_type` `"309"` yields a crash body; other DiagnosticReports types return
+no crash result. Opened Mach-O and dSYM UUID joins remain unobserved. See
+[Apple IPS crash reports](https://github.com/morluto/rea/blob/main/docs/apple-ips.md).
+
 ## CPython pyc files
 
 Use `inspect_python_pyc` for an explicit local CPython 3.7–3.13 `.pyc` when the

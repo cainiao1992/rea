@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { expect, it as nativeTest, onTestFinished } from "vitest";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
+import { SQLITE_DATABASE_LIMITS } from "../../../src/sqlite/SqliteDatabaseLimits.js";
 import { SqliteDatabaseProvider } from "../../../src/sqlite/SqliteDatabaseProvider.js";
 import { inspectSqliteDatabaseSnapshot } from "../../../src/sqlite/SqliteDatabaseInspection.js";
 import { cleanupOwnedProcessGroup } from "../../../src/process/ProcessOwnership.js";
@@ -1266,6 +1267,81 @@ nativeTest(
     if (pid === undefined) throw new Error("SQLite worker not acquired");
     const acquiredPid = pid;
     expect(() => process.kill(acquiredPid, 0)).toThrow();
+    await expectPrivateRootRemoved(ownedRoot);
+  },
+);
+
+nativeTest.each([
+  ["cancelled", "cancelled"],
+  ["output-limit", "unreadable_output"],
+  ["heap-diagnostic", "resource_constraint"],
+] as const)(
+  "preserves the typed %s worker failure through retained cleanup retry",
+  async (scenario, code) => {
+    const { database } = await createFixture();
+    const controller = new AbortController();
+    const reason = { requested: "cancel retained SQLite worker" };
+    let cleanupAllowed = false;
+    let ownedRoot = "";
+    let launches = 0;
+    const provider = new SqliteDatabaseProvider({}, async (spawn) => {
+      launches += 1;
+      ownedRoot = spawn.cwd ?? "";
+      const script =
+        scenario === "heap-diagnostic"
+          ? "process.stderr.write('JavaScript heap out of memory'); process.exitCode = 3"
+          : scenario === "output-limit"
+            ? `process.stdout.write('x'.repeat(${String(SQLITE_DATABASE_LIMITS.diagnosticBytes + 1)})); setInterval(() => {}, 1000)`
+            : "process.stdout.write('ready\\n'); setInterval(() => {}, 1000)";
+      const launched = await spawnOwnedProviderProcess({
+        ...spawn,
+        arguments: ["-e", script],
+      });
+      const cleanupOwned =
+        launched.cleanup ??
+        (() => cleanupOwnedProcessGroup(launched.ownership));
+      if (scenario === "cancelled") {
+        await waitForProviderProcessReady(launched.process);
+        setImmediate(() => controller.abort(reason));
+      }
+      return {
+        ...launched,
+        cleanup: async () => {
+          const cleaned = await cleanupOwned();
+          if (!cleanupAllowed)
+            throw new Error("controlled SQLite worker cleanup refusal");
+          return cleaned;
+        },
+      };
+    });
+    onTestFinished(async () => {
+      cleanupAllowed = true;
+      await provider.close();
+    });
+    const result = await provider.inspect(
+      { path: database.path },
+      { signal: controller.signal },
+    );
+    if (result.ok) throw new Error("Expected retained worker cleanup");
+    expect(projectAnalysisError(result.error).code).toBe("cleanup_incomplete");
+    const primary = result.error.cleanupPrimary;
+    if (primary === undefined) throw new Error("Missing typed worker failure");
+    expect(projectAnalysisError(primary).code).toBe(code);
+    if (scenario === "cancelled")
+      expect(result.error.cleanupPrimary?.cause).toBe(reason);
+    expect(await provider.inspect({ path: database.path })).toMatchObject({
+      ok: false,
+      error: { cleanupIncomplete: true },
+    });
+    expect(launches).toBe(1);
+    await access(ownedRoot);
+    cleanupAllowed = true;
+    await provider.close();
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect(result.error.cleanupResources).toEqual([]);
+    expect(projectAnalysisError(result.error).code).toBe(code);
+    if (scenario === "cancelled")
+      expect(result.error.cleanupPrimary?.cause).toBe(reason);
     await expectPrivateRootRemoved(ownedRoot);
   },
 );

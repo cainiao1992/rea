@@ -204,6 +204,13 @@ those missing bytes. New inventories preserve an ASAR companion declaration as
 unavailable bytes belonged to a companion. See [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
 for the tool-result contract.
 
+JavaScript whose syntax cannot be parsed retains unavailable semantic coverage
+with `incomplete-module` unknowns for each semantic family and unknown omitted
+node and relation extents. The source module is retained when node capacity
+permits. A parser failure alone does not imply resource truncation or a named
+resource limit. Decoding failures and deliberately
+unselected sources retain the same explicit semantic coverage gap.
+
 HTML whose bytes are not valid UTF-8 retains its file observation and an unknown
 `parse-html-script-references` scope with artifact-byte authority. Reference
 discovery was unavailable; zero retained script links does not establish that

@@ -25,7 +25,10 @@ import type {
   JavaScriptArtifactFile,
   JavaScriptArtifactFileSet,
 } from "../../domain/javascript/javascriptArtifactFiles.js";
-import { javaScriptArtifactTextExclusion } from "../../domain/javascript/javascriptArtifactFiles.js";
+import {
+  javaScriptArtifactTextExclusion,
+  javaScriptSemanticSourceExclusion,
+} from "../../domain/javascript/javascriptArtifactFiles.js";
 import type {
   AnalyzedJavaScriptArtifactFile,
   JavaScriptArtifactAnalysisFailure,
@@ -189,11 +192,17 @@ export const analyzeAndAdoptJavaScriptArtifactFiles = async (
               },
             }),
       });
-      if (failure !== undefined && facts.projection === null)
+      const semanticUnavailableReason =
+        failure?.reason ??
+        javaScriptSemanticSourceExclusion(
+          file,
+          facts.javascript?.parse_status ?? null,
+        );
+      if (facts.projection === null && semanticUnavailableReason !== null)
         projection.recordUnavailableFile(
           file,
-          failure.reason,
-          failure.limits,
+          semanticUnavailableReason,
+          failure?.limits ?? null,
           error instanceof AnalysisResourceConstraintError ||
             error instanceof AnalysisTimeoutError
             ? "resource-limit"

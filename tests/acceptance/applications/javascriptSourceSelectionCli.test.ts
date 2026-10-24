@@ -115,6 +115,19 @@ cliTest.for([
           detail.includes("not valid UTF-8"),
       ),
     ).toHaveLength(JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.length);
+    const unparsedModule = full.semantic_graph.nodes.find(
+      ({ kind, identity }) =>
+        kind === "module" && identity.module_path === "vendor.js",
+    );
+    expect(unparsedModule).toBeDefined();
+    expect(
+      full.semantic_graph.unknowns.filter(
+        ({ node_id, detail, reason }) =>
+          node_id === unparsedModule?.node_id &&
+          reason === "incomplete-module" &&
+          detail.includes("syntax could not be parsed"),
+      ),
+    ).toHaveLength(JAVASCRIPT_SEMANTIC_RELATION_FAMILIES.length);
     expect(full.semantic_graph.coverage).toMatchObject({
       status: "partial",
       truncated: false,

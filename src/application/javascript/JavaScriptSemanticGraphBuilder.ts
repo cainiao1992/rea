@@ -20,7 +20,7 @@ import { sourceRangesEqual as rangesEqual } from "../../domain/javascript/javasc
 import type { JavaScriptApplicationGraph } from "../../domain/javascript/javascriptApplicationGraph.js";
 import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import {
-  javaScriptArtifactTextExclusion,
+  javaScriptSemanticSourceExclusion,
   type JavaScriptArtifactFile,
 } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
@@ -160,7 +160,10 @@ export const buildJavaScriptSemanticGraph = ({
         analyzed.javascript?.electron.call_paths,
       );
     else {
-      const reason = javaScriptArtifactTextExclusion(analyzed.file);
+      const reason = javaScriptSemanticSourceExclusion(
+        analyzed.file,
+        analyzed.javascript?.parse_status ?? null,
+      );
       if (reason !== null)
         projection.recordUnavailableFile(
           analyzed.file,

@@ -120,6 +120,123 @@ const fixture = (
 };
 const provenance = { path: "/fixture/app", sha256: "a".repeat(64) };
 
+describe("decoded Objective-C property attributes", () => {
+  it("retains quoted class names, ownership and accessors", () => {
+    const result = decodeAppleDispatchMetadata(
+      machoWithPropertyAttributes(
+        'T@"NSString<NSCopying, NSSecureCoding>",C,N,GcustomTitle,V_title',
+        { firstName: "title" },
+      ),
+      100,
+      provenance,
+    );
+    expect(result.objc_classes[0]?.properties).toEqual(
+      ["title", "second"].map((name) => ({
+        name,
+        type_encoding: '@"NSString<NSCopying, NSSecureCoding>"',
+        atomicity: "nonatomic",
+        attributes: [
+          { name: "T", value: '@"NSString<NSCopying, NSSecureCoding>"' },
+          { name: "C", value: "" },
+          { name: "N", value: "" },
+          { name: "G", value: "customTitle" },
+          { name: "V", value: "_title" },
+        ],
+        is_readonly: false,
+        getter: "customTitle",
+        setter: null,
+      })),
+    );
+    expect(
+      result.coverage.find(
+        ({ facet }) => facet === "objc_properties_categories",
+      ),
+    ).toMatchObject({ status: "complete", reason: null });
+  });
+
+  it.each([
+    ["Tq,R", "q", "atomic"],
+    ["Tq,R,N", "q", "nonatomic"],
+    ["R", null, null],
+  ] as const)(
+    "preserves readonly flags and established atomicity for %s",
+    (attributes, typeEncoding, atomicity) => {
+      const result = decodeAppleDispatchMetadata(
+        machoWithPropertyAttributes(attributes),
+        100,
+        provenance,
+      );
+      expect(result.objc_classes[0]?.properties).toMatchObject(
+        ["first", "second"].map((name) => ({
+          name,
+          type_encoding: typeEncoding,
+          atomicity,
+          is_readonly: true,
+        })),
+      );
+      expect(
+        result.coverage.find(
+          ({ facet }) => facet === "objc_properties_categories",
+        ),
+      ).toMatchObject({ status: "complete", reason: null });
+    },
+  );
+
+  it.each([
+    [
+      "an unfinished quoted class name",
+      'T@"NSString,N,R',
+      '@"NSString,N,R',
+      null,
+      null,
+    ],
+    [
+      "flags before an unfinished quote",
+      'N,R,T@"NSString',
+      '@"NSString',
+      "nonatomic",
+      true,
+    ],
+    [
+      "an unfinished template argument",
+      "T{vector<float, float,N,R",
+      "{vector<float, float,N,R",
+      null,
+      null,
+    ],
+  ] as const)(
+    "retains established flags and reports both properties with %s",
+    (_, attributes, typeEncoding, atomicity, readonly) => {
+      const result = decodeAppleDispatchMetadata(
+        machoWithPropertyAttributes(attributes),
+        100,
+        provenance,
+      );
+      expect(result.objc_classes[0]?.properties).toMatchObject(
+        ["first", "second"].map((name) => ({
+          name,
+          type_encoding: typeEncoding,
+          atomicity,
+          is_readonly: readonly,
+        })),
+      );
+      const coverage = result.coverage.find(
+        ({ facet }) => facet === "objc_properties_categories",
+      );
+      expect(coverage).toMatchObject({ status: "partial" });
+      expect(coverage?.reason).toContain(
+        "property_attributes_incomplete at 0x100000508: Fixture: property first",
+      );
+      expect(coverage?.reason).toContain(
+        "property_attributes_incomplete at 0x100000518: Fixture: property second",
+      );
+      expect(
+        coverage?.reason?.match(/property_attributes_incomplete at /gu),
+      ).toHaveLength(2);
+    },
+  );
+});
+
 it("retains Objective-C++ template commas in decoded property facts", () => {
   const attributes = "T{vector<float, float, float>=},N,V_position";
   const result = decodeAppleDispatchMetadata(

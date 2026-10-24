@@ -4,7 +4,6 @@ import {
   decodeChainedPointer,
   parsePointerFixups,
 } from "./AppleMachoFixups.js";
-import { parsePropertyAttributes } from "./AppleObjcProperties.js";
 import type { Segment } from "./AppleMachoSelection.js";
 
 const BASE = 0x100000000n;
@@ -1682,81 +1681,6 @@ describe("legacy bind operand decoding", () => {
       "bind bind opcodes: Oversized bind opcode operand",
     ]);
     expect(fixups.decode(BASE + 0x4008n, 0n).kind).not.toBe("bind");
-  });
-});
-
-describe("Objective-C property attributes", () => {
-  it("parses type, ownership, accessors and quoted class names", () => {
-    expect(
-      parsePropertyAttributes(
-        "title",
-        'T@"NSString<NSCopying, NSSecureCoding>",C,N,GcustomTitle,V_title',
-      ),
-    ).toEqual({
-      name: "title",
-      type_encoding: '@"NSString<NSCopying, NSSecureCoding>"',
-      atomicity: "nonatomic",
-      attributes: [
-        { name: "T", value: '@"NSString<NSCopying, NSSecureCoding>"' },
-        { name: "C", value: "" },
-        { name: "N", value: "" },
-        { name: "G", value: "customTitle" },
-        { name: "V", value: "_title" },
-      ],
-      is_readonly: false,
-      getter: "customTitle",
-      setter: null,
-    });
-    expect(parsePropertyAttributes("count", "Tq,R")).toMatchObject({
-      type_encoding: "q",
-      is_readonly: true,
-      atomicity: "atomic",
-    });
-    expect(parsePropertyAttributes("count", "Tq,R,N").atomicity).toBe(
-      "nonatomic",
-    );
-    expect(parsePropertyAttributes("count", "").atomicity).toBeNull();
-    expect(parsePropertyAttributes("count", "R").atomicity).toBeNull();
-  });
-
-  it("keeps template argument commas inside an Objective-C++ type", () => {
-    expect(
-      parsePropertyAttributes(
-        "position",
-        "T{vector<float, float, float>=},N,V_position",
-      ),
-    ).toMatchObject({
-      type_encoding: "{vector<float, float, float>=}",
-      atomicity: "nonatomic",
-      attributes: [
-        { name: "T", value: "{vector<float, float, float>=}" },
-        { name: "N", value: "" },
-        { name: "V", value: "_position" },
-      ],
-    });
-  });
-
-  it("establishes no defaults from an unfinished quoted class name", () => {
-    // `,N,R` here lie inside the unterminated quote, so they are not flags.
-    expect(parsePropertyAttributes("title", 'T@"NSString,N,R')).toMatchObject({
-      type_encoding: '@"NSString,N,R',
-      atomicity: null,
-      is_readonly: null,
-    });
-    expect(parsePropertyAttributes("title", 'N,R,T@"NSString')).toMatchObject({
-      atomicity: "nonatomic",
-      is_readonly: true,
-    });
-  });
-
-  it("keeps defaults unknown when a template argument is unfinished", () => {
-    expect(
-      parsePropertyAttributes("position", "T{vector<float, float,N,R"),
-    ).toMatchObject({
-      type_encoding: "{vector<float, float,N,R",
-      atomicity: null,
-      is_readonly: null,
-    });
   });
 });
 

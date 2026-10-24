@@ -126,12 +126,13 @@ export const decodeIdaToolResult = (
     );
   // Native MCP retains the complete JSON text while structuredContent may
   // contain a shortened preview. Parse that producer-owned representation once.
+  const text = blocks.length === 1 ? blocks[0] : undefined;
   if (protocol === "native") {
-    if (blocks.length !== 1)
+    if (text === undefined)
       throw new AnalysisProtocolError(
         "Native IDA MCP omitted its complete JSON text result.",
       );
-    return parseIdaJsonText(blocks[0] ?? "");
+    return parseIdaJsonText(text);
   }
   if (result.structuredContent !== undefined) {
     const value = result.structuredContent;
@@ -141,18 +142,15 @@ export const decodeIdaToolResult = (
         : value,
     );
   }
-  if (blocks.length !== 1)
+  if (text === undefined)
     throw new AnalysisProtocolError(
       "IDA MCP omitted a single structured or text result; unsupported content cannot establish an empty observation.",
     );
-  const values = blocks.map((text): JsonValue => {
-    try {
-      return jsonValueSchema.parse(JSON.parse(text));
-    } catch {
-      return text;
-    }
-  });
-  return values[0] ?? null;
+  try {
+    return jsonValueSchema.parse(JSON.parse(text));
+  } catch {
+    return text;
+  }
 };
 
 // Retain only producer-sanitized JSON diagnostics, never a native parser cause.

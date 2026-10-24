@@ -224,17 +224,23 @@ const addCaptureRecords = (
   return ok(undefined);
 };
 
-/** Project retained request lines, from a HAR or a browser scenario, into a replayable tool surface; templates are inferences. */
-export const projectEnvironmentManifestView = (
-  parent: AnalysisViewParent,
+/** Create the manifest budget with its selected query names and template rules. */
+export const createEnvironmentManifestAccumulator = (
   view: AnalysisViewRequest,
-  accumulator = view.kind === "environment-manifest"
+): EnvironmentManifestAccumulator =>
+  view.kind === "environment-manifest"
     ? new EnvironmentManifestAccumulator(
         undefined,
         view.include_query_parameter_names,
         view.template_rules,
       )
-    : new EnvironmentManifestAccumulator(),
+    : new EnvironmentManifestAccumulator();
+
+/** Project retained request lines, from a HAR or a browser scenario, into a replayable tool surface; templates are inferences. */
+export const projectEnvironmentManifestView = (
+  parent: AnalysisViewParent,
+  view: AnalysisViewRequest,
+  accumulator = createEnvironmentManifestAccumulator(view),
 ): Result<UnsignedAnalysisView, AnalysisError> => {
   if (view.kind !== "environment-manifest")
     return err(

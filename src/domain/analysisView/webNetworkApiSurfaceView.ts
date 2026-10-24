@@ -75,14 +75,21 @@ export const apiSurfaceFields = {
     }),
   ),
 };
+
+/** Create the budget and query-name policy shared by admission and projection. */
+export const createApiSurfaceAccumulator = (
+  view: AnalysisViewRequest,
+): WebNetworkApiSurfaceAccumulator =>
+  new WebNetworkApiSurfaceAccumulator(
+    undefined,
+    view.kind === "api-surface" && view.include_query_parameter_names === true,
+  );
+
 /** Group retained HAR request lines; format matches do not establish handler identity. */
 export const projectWebNetworkApiSurfaceView = (
   parent: AnalysisViewParent,
   view: AnalysisViewRequest,
-  accumulator = new WebNetworkApiSurfaceAccumulator(
-    undefined,
-    view.kind === "api-surface" && view.include_query_parameter_names === true,
-  ),
+  accumulator = createApiSurfaceAccumulator(view),
 ): Result<UnsignedAnalysisView, AnalysisError> => {
   if (view.kind !== "api-surface")
     return err(

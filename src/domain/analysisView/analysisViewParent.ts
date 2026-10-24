@@ -4,7 +4,7 @@ import type { AnalysisError } from "../analysisErrorBase.js";
 import { analysisInputErrorFromIssues } from "../inputIssueProjection.js";
 import { err, ok, type Result } from "../result.js";
 import type { AnalysisViewParent } from "./analysisView.js";
-import type { JsonValue } from "../jsonValue.js";
+import { ownedJsonValueSchema } from "../jsonValue.js";
 import {
   canBorrowParsedJsonSnapshot,
   freezeOwnedJsonTreeSnapshot,
@@ -12,9 +12,7 @@ import {
 } from "../immutableJson.js";
 
 /** One owning schema reuses validated immutable facts for their retained lifetime. */
-export const createAnalysisViewResultReader = <
-  Value extends JsonValue,
->(parser: {
+export const createAnalysisViewResultReader = <Value>(parser: {
   readonly safeParse: (input: unknown) => z.ZodSafeParseResult<Value>;
 }): ((parent: AnalysisViewParent) => Result<Value, AnalysisError>) => {
   const checked = new WeakMap<object, Value>();
@@ -29,11 +27,15 @@ export const createAnalysisViewResultReader = <
     if (known !== undefined) return ok(known);
     const parsed = parseAnalysisViewResult(parser, parent);
     if (!parsed.ok || !reusable) return parsed;
-    const report = canBorrowParsedJsonSnapshot(source, parsed.value)
-      ? source
-      : freezeOwnedJsonTreeSnapshot(parsed.value);
-    checked.set(source, report);
-    return ok(report);
+    if (canBorrowParsedJsonSnapshot(source, parsed.value)) {
+      checked.set(source, source);
+      return ok(source);
+    }
+    const normalized = ownedJsonValueSchema.safeParse(parsed.value);
+    if (!normalized.success) return parsed;
+    freezeOwnedJsonTreeSnapshot(normalized.data);
+    checked.set(source, parsed.value);
+    return parsed;
   };
 };
 

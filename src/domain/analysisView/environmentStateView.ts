@@ -461,11 +461,20 @@ export const environmentStateFields = {
   ),
 };
 
+/** State extraction and coverage share the same budget and template-rule policy. */
+export const createEnvironmentStateAccumulator = (
+  view: Extract<
+    AnalysisViewRequest,
+    { kind: "environment-state" | "environment-coverage" }
+  >,
+): EnvironmentStateAccumulator =>
+  new EnvironmentStateAccumulator(undefined, view.template_rules);
+
 /** Extract the init state a capture's reads observed and each read tool's render plan; types and identity are inferences. */
 export const projectEnvironmentStateView = (
   parent: AnalysisViewParent,
   view: Extract<AnalysisViewRequest, { kind: "environment-state" }>,
-  accumulator = new EnvironmentStateAccumulator(undefined, view.template_rules),
+  accumulator = createEnvironmentStateAccumulator(view),
 ): Result<
   Extract<UnsignedAnalysisView, { kind: "environment-state" }>,
   AnalysisError

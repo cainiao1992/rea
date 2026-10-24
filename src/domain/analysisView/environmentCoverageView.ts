@@ -6,10 +6,10 @@ import type {
   AnalysisViewRequest,
   UnsignedAnalysisView,
 } from "./analysisView.js";
-import { EnvironmentStateAccumulator } from "./EnvironmentStateAccumulator.js";
 import { templateRulesSchema } from "./environmentManifestView.js";
 import type { StateView } from "./environmentStateRules.js";
 import {
+  createEnvironmentStateAccumulator,
   environmentStateFields,
   projectEnvironmentStateView,
 } from "./environmentStateView.js";
@@ -152,7 +152,7 @@ export const summarizeEnvironmentCoverage = (state: {
 export const projectEnvironmentCoverageView = (
   parent: AnalysisViewParent,
   view: Extract<AnalysisViewRequest, { kind: "environment-coverage" }>,
-  accumulator = new EnvironmentStateAccumulator(undefined, view.template_rules),
+  accumulator = createEnvironmentStateAccumulator(view),
 ): Result<UnsignedAnalysisView, AnalysisError> => {
   const projected = projectEnvironmentStateView(
     parent,

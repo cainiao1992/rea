@@ -20,7 +20,7 @@ import { safeParseEvidence } from "../../domain/evidenceValidation.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import {
   inspectAnalysisViewInputSchema,
-  projectAnalysisView,
+  prepareAnalysisViewProjection,
   type AnalysisViewResult,
   type AnalysisViewRequest,
   type InspectAnalysisViewInput,
@@ -30,10 +30,6 @@ import {
   isImmutableJsonSnapshot,
 } from "../../domain/immutableJson.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import { WebNetworkApiSurfaceAccumulator } from "../../domain/analysisView/WebNetworkApiSurfaceAccumulator.js";
-import { EnvironmentManifestAccumulator } from "../../domain/analysisView/EnvironmentManifestAccumulator.js";
-import { EnvironmentStateAccumulator } from "../../domain/analysisView/EnvironmentStateAccumulator.js";
-import { admitAnalysisViewData } from "../../domain/analysisView/analysisViewDataAdmission.js";
 import {
   readEvidenceFileSource,
   type EvidenceFileReadOptions,
@@ -177,67 +173,35 @@ export const inspectAnalysisViewValidated = (
   input: ReadyAnalysisViewInput,
   lookup?: EvidenceLookup,
 ): Result<Evidence, AnalysisError> => {
-  const apiSurfaceAccumulator =
-    input.view.kind === "api-surface"
-      ? new WebNetworkApiSurfaceAccumulator(
-          undefined,
-          input.view.include_query_parameter_names === true,
-        )
-      : undefined;
-  const manifestAccumulator =
-    input.view.kind === "environment-manifest"
-      ? new EnvironmentManifestAccumulator(
-          undefined,
-          input.view.include_query_parameter_names,
-          input.view.template_rules,
-        )
-      : undefined;
-  const stateAccumulator =
-    input.view.kind === "environment-state" ||
-    input.view.kind === "environment-coverage"
-      ? new EnvironmentStateAccumulator(undefined, input.view.template_rules)
-      : undefined;
-  const accumulator =
-    apiSurfaceAccumulator ?? manifestAccumulator ?? stateAccumulator;
+  const projection = prepareAnalysisViewProjection(input.view);
   if (input.source.kind === "inline") {
-    const admitted =
-      accumulator === undefined
-        ? admitAnalysisViewData(input.source.evidence, true)
-        : accumulator.admitInlineEvidence(input.source.evidence);
+    const admitted = projection.admitInlineEvidence(input.source.evidence);
     if (!admitted.ok) return admitted;
   }
   const resolved = resolveAnalysisViewSource(input.source, lookup);
   if (!resolved.ok) return resolved;
   const parent = resolved.value;
-  const projected = projectAnalysisView(
-    {
-      evidenceId: parent.evidence_id,
-      operation: parent.operation,
-      provider: parent.provider,
-      analysisProfileDigest: parent.analysis_profile?.digest ?? null,
-      normalizedResult:
-        immutableJsonSnapshotMember(parent, "normalized_result") ??
-        parent.normalized_result,
-      // Sealing an Evidence root deep-freezes it; only the root is registered.
-      sealedResult: isImmutableJsonSnapshot(parent),
-      subject: parent.subject,
-      limitations: parent.limitations,
-      parameters: parent.parameters,
-      artifact:
-        parent.subject === null
-          ? null
-          : {
-              path: parent.subject.local_path,
-              sha256: parent.subject.digest.sha256,
-            },
-    },
-    input.view,
-    {
-      apiSurface: apiSurfaceAccumulator,
-      manifest: manifestAccumulator,
-      state: stateAccumulator,
-    },
-  );
+  const projected = projection.project({
+    evidenceId: parent.evidence_id,
+    operation: parent.operation,
+    provider: parent.provider,
+    analysisProfileDigest: parent.analysis_profile?.digest ?? null,
+    normalizedResult:
+      immutableJsonSnapshotMember(parent, "normalized_result") ??
+      parent.normalized_result,
+    // Sealing an Evidence root deep-freezes it; only the root is registered.
+    sealedResult: isImmutableJsonSnapshot(parent),
+    subject: parent.subject,
+    limitations: parent.limitations,
+    parameters: parent.parameters,
+    artifact:
+      parent.subject === null
+        ? null
+        : {
+            path: parent.subject.local_path,
+            sha256: parent.subject.digest.sha256,
+          },
+  });
   if (!projected.ok) return projected;
   if (
     parent.subject !== null &&

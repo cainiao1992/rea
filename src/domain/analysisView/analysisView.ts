@@ -172,6 +172,7 @@ import {
 import { projectBinaryLayoutView } from "./binaryLayoutView.js";
 import { projectJavaScriptApplicationView } from "./javascriptApplicationView.js";
 import {
+  createApiSurfaceAccumulator,
   projectWebNetworkApiSurfaceView,
   apiSurfaceFields,
   apiSurfaceViewSchema,
@@ -232,12 +233,15 @@ import {
 import type { WebNetworkApiSurfaceAccumulator } from "./WebNetworkApiSurfaceAccumulator.js";
 import type { EnvironmentManifestAccumulator } from "./EnvironmentManifestAccumulator.js";
 import type { EnvironmentStateAccumulator } from "./EnvironmentStateAccumulator.js";
+import { admitAnalysisViewData } from "./analysisViewDataAdmission.js";
 import {
+  createEnvironmentManifestAccumulator,
   projectEnvironmentManifestView,
   environmentManifestFields,
   environmentManifestViewRequestSchema,
 } from "./environmentManifestView.js";
 import {
+  createEnvironmentStateAccumulator,
   environmentStateFields,
   environmentStateViewRequestSchema,
   projectEnvironmentStateView,
@@ -1338,12 +1342,46 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inventory_artifact", projectArtifactInventoryView],
 ]);
 
-/** Budgets a caller created before admitting the source; each grouping view uses its own. */
+/** Budgets retained across source admission and the selected grouping projection. */
 export interface AnalysisViewAccumulators {
   readonly apiSurface?: WebNetworkApiSurfaceAccumulator | undefined;
   readonly manifest?: EnvironmentManifestAccumulator | undefined;
   readonly state?: EnvironmentStateAccumulator | undefined;
 }
+
+/** Prepare one view's source admission and projection under the same owned budget. */
+export const prepareAnalysisViewProjection = (
+  view: AnalysisViewRequest,
+): {
+  admitInlineEvidence(value: unknown): Result<void, AnalysisError>;
+  project(
+    parent: AnalysisViewParent,
+  ): Result<AnalysisViewResult, AnalysisError>;
+} => {
+  const accumulators: AnalysisViewAccumulators = {
+    apiSurface:
+      view.kind === "api-surface"
+        ? createApiSurfaceAccumulator(view)
+        : undefined,
+    manifest:
+      view.kind === "environment-manifest"
+        ? createEnvironmentManifestAccumulator(view)
+        : undefined,
+    state:
+      view.kind === "environment-state" || view.kind === "environment-coverage"
+        ? createEnvironmentStateAccumulator(view)
+        : undefined,
+  };
+  const accumulator =
+    accumulators.apiSurface ?? accumulators.manifest ?? accumulators.state;
+  return {
+    admitInlineEvidence: (value) =>
+      accumulator === undefined
+        ? admitAnalysisViewData(value, true)
+        : accumulator.admitInlineEvidence(value),
+    project: (parent) => projectAnalysisView(parent, view, accumulators),
+  };
+};
 
 /** Views that group a capture's records into tools. */
 export type GroupingViewKind =

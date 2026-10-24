@@ -1,3 +1,4 @@
+import { inspectDevicetreeInputSchema } from "../domain/firmware/devicetree.js";
 import { inspectPeLoadConfigInputSchema } from "../domain/native/peLoadConfig.js";
 import { inspectByteEntropyInputSchema } from "../domain/native/byteEntropy.js";
 import { z } from "incur";
@@ -7,6 +8,7 @@ import {
   createBinaryLayoutService,
   createElfNotesService,
   createAppleIpsService,
+  createDevicetreeService,
   createKernelModuleService,
   createPeLoadConfigService,
   createPeResourcesService,
@@ -334,6 +336,55 @@ export const registerBinaryDiagnosticsCommands = (
               "inspect_pe_resources",
               signal,
             ),
+        );
+      }),
+  });
+  cli.command(CLI_COMMANDS.inspectDevicetree, {
+    description: "Inspect a flattened devicetree blob without executing it",
+    args: z.object({
+      path: localPathStringSchema.describe("Local flattened devicetree image"),
+    }),
+    options: z.object({
+      maxFileBytes: inspectDevicetreeInputSchema.shape.max_file_bytes.describe(
+        "Maximum FDT file size in bytes (default 4194304)",
+      ),
+      maxNodes: inspectDevicetreeInputSchema.shape.max_nodes.describe(
+        "Maximum number of device-tree nodes (default 8192)",
+      ),
+      maxProperties: inspectDevicetreeInputSchema.shape.max_properties.describe(
+        "Maximum number of device-tree properties (default 32768)",
+      ),
+      maxDepth: inspectDevicetreeInputSchema.shape.max_depth.describe(
+        "Maximum device-tree nesting depth (default 64)",
+      ),
+      ...analysisEvidenceDeliveryOptions,
+    }),
+    run: ({ args, options }) =>
+      withCommandCancellation(async (signal) => {
+        const devicetree = createDevicetreeService();
+        return await logCliCommand(
+          logger,
+          CLI_COMMANDS.inspectDevicetree,
+          async () =>
+            deliverCliAnalysisEvidence({
+              run: () =>
+                devicetree.inspect(
+                  {
+                    path: absoluteCallerPath(args.path),
+                    max_file_bytes: options.maxFileBytes,
+                    max_nodes: options.maxNodes,
+                    max_properties: options.maxProperties,
+                    max_depth: options.maxDepth,
+                  },
+                  { signal },
+                ),
+              service: devicetree,
+              providerId: "rea-devicetree",
+              operation: "inspect_devicetree",
+              signal,
+              detail: options.detail,
+              evidenceOutput: options.evidence_output,
+            }),
         );
       }),
   });

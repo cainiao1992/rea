@@ -268,6 +268,11 @@ interface CaptureFacts {
   readonly scenarioEvents: readonly BrowserScenarioEvent[] | null;
 }
 
+/** Authenticated capture identity and the facts derived from its validated payload. */
+export interface ParsedEnvironmentCapture extends CaptureFacts {
+  readonly evidenceId: string;
+}
+
 /** Issue paths of a capture payload refusal start here. */
 const CAPTURE_PAYLOAD_PATH = ["evidence", "normalized_result"] as const;
 
@@ -365,7 +370,7 @@ export const parseCaptureEvidence = (
   operation: string,
   value: unknown,
   purpose: "manifest" | "replay" = "replay",
-): Result<CaptureFacts & { readonly evidenceId: string }, AnalysisError> => {
+): Result<ParsedEnvironmentCapture, AnalysisError> => {
   const evidence = parseEvidenceFile(operation, "evidence", value);
   if (!evidence.ok) return evidence;
   const normalized = immutableJsonSnapshotMember(
@@ -445,8 +450,20 @@ export const loadEnvironmentSource = (
   if (!manifest.ok) return manifest;
   const capture = parseCaptureEvidence(operation, evidenceValue);
   if (!capture.ok) return capture;
-  const parentId = manifest.value.view.parent_evidence_id;
-  if (parentId !== capture.value.evidenceId)
+  return composeEnvironmentSource(manifest.value, capture.value, operation);
+};
+
+/** Cross-check admitted manifest and capture facts, retaining only the replay source. */
+export const composeEnvironmentSource = (
+  manifest: {
+    readonly view: EnvironmentManifest;
+    readonly evidenceId: string;
+  },
+  capture: ParsedEnvironmentCapture,
+  operation: string = ENVIRONMENT_SERVE_OPERATION,
+): Result<EnvironmentSource, AnalysisError> => {
+  const parentId = manifest.view.parent_evidence_id;
+  if (parentId !== capture.evidenceId)
     return err(
       inputError(
         operation,
@@ -455,18 +472,18 @@ export const loadEnvironmentSource = (
             path: ["evidence", "evidence_id"],
             reason: "invalid_value",
             expected: parentId,
-            message: `The manifest cites parent Evidence ${parentId}; the evidence file is ${capture.value.evidenceId}.`,
+            message: `The manifest cites parent Evidence ${parentId}; the evidence file is ${capture.evidenceId}.`,
           },
         ],
         "The manifest was projected from a different capture than the supplied evidence file.",
       ),
     );
   return ok({
-    manifest: manifest.value.view,
-    manifestEvidenceId: manifest.value.evidenceId,
-    evidenceId: capture.value.evidenceId,
-    captureKind: capture.value.captureKind,
-    captureSha256: capture.value.captureSha256,
-    exchanges: indexExchanges(manifest.value.view, capture.value.records),
+    manifest: manifest.view,
+    manifestEvidenceId: manifest.evidenceId,
+    evidenceId: capture.evidenceId,
+    captureKind: capture.captureKind,
+    captureSha256: capture.captureSha256,
+    exchanges: indexExchanges(manifest.view, capture.records),
   });
 };

@@ -35,9 +35,10 @@ import {
   type WrittenBundleFile,
 } from "./environmentExport.js";
 import {
-  loadEnvironmentSource,
+  composeEnvironmentSource,
   parseCaptureEvidence,
   parseEvidenceFile,
+  parseViewEvidence,
 } from "./environmentSource.js";
 import { prepareServedState } from "./environmentState.js";
 
@@ -288,9 +289,21 @@ export const buildEnvironment = async (
     ENVIRONMENT_BUILD_OPERATION,
   );
   if (!manifest.ok) return manifest;
-  const source = loadEnvironmentSource(
+  const parsedManifest = parseViewEvidence(
+    ENVIRONMENT_BUILD_OPERATION,
+    "manifest",
     manifest.value.value,
+    "environment-manifest",
+  );
+  if (!parsedManifest.ok) return parsedManifest;
+  const recorded = parseCaptureEvidence(
+    ENVIRONMENT_BUILD_OPERATION,
     input.capture.value,
+  );
+  if (!recorded.ok) return recorded;
+  const source = composeEnvironmentSource(
+    parsedManifest.value,
+    recorded.value,
     ENVIRONMENT_BUILD_OPERATION,
   );
   if (!source.ok) return source;
@@ -306,11 +319,6 @@ export const buildEnvironment = async (
     name,
     operation: ENVIRONMENT_EXPORT_OPERATION,
   });
-  const recorded = parseCaptureEvidence(
-    ENVIRONMENT_BUILD_OPERATION,
-    input.capture.value,
-  );
-  if (!recorded.ok) return recorded;
   warnings.push(...credentialScanWarnings(recorded.value));
 
   const packageSource: EnvironmentPackageSource =

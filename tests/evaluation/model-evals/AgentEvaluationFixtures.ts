@@ -4,24 +4,24 @@ import { join } from "node:path";
 
 import { createPackage } from "@electron/asar";
 
-import type { JsonValue } from "../domain/jsonValue.js";
-import { javascriptApplicationAnalysisResultSchema } from "../domain/javascript/javascriptApplicationAnalysis.js";
-import type { ApplicationNode } from "../domain/javascript/javascriptApplicationGraphSchemas.js";
-import { javaScriptExportShapeComparisonResultSchema } from "../domain/javascript/javascriptExportShapeComparisonSchemas.js";
+import type { JsonValue } from "../../../src/domain/jsonValue.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
+import type { ApplicationNode } from "../../../src/domain/javascript/javascriptApplicationGraphSchemas.js";
+import { javaScriptExportShapeComparisonResultSchema } from "../../../src/domain/javascript/javascriptExportShapeComparisonSchemas.js";
 import {
   applicationFeatureTraceResultSchema,
   featureSeedMatchMode,
-} from "../domain/javascript/javascriptFeatureTraceSchemas.js";
-import { javaScriptSemanticTraceResultSchema } from "../domain/javascript/javascriptSemanticTraceSchemas.js";
+} from "../../../src/domain/javascript/javascriptFeatureTraceSchemas.js";
+import { javaScriptSemanticTraceResultSchema } from "../../../src/domain/javascript/javascriptSemanticTraceSchemas.js";
 import {
   managedArtifactInspectionSchema,
   managedMemberInspectionSchema,
-} from "../domain/managed/managedArtifact.js";
+} from "../../../src/domain/managed/managedArtifact.js";
 import {
   managedTokenScopesMatch,
   readManagedInspectionEvidence,
-} from "../domain/managed/managedInspectionEvidence.js";
-import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
+} from "../../../src/domain/managed/managedInspectionEvidence.js";
+import { compareUnicodeCodePoints } from "../../../src/domain/unicodeCodePointOrder.js";
 import type {
   FixtureClaimContext,
   FixtureClaimExpectation,

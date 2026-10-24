@@ -5,8 +5,8 @@ import {
   type KnownAnswerAssessment,
   type ParsedCodexToolCall,
 } from "./KnownAnswerEvaluation.js";
-import { canonicalJson } from "../domain/comparisonSemantics.js";
-import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
+import { canonicalJson } from "../../../src/domain/comparisonSemantics.js";
+import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 
 /** One REA MCP invocation observed in a Codex JSONL transcript. */
 interface CodexMcpCall {

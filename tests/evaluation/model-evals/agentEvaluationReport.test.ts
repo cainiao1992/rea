@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   agentEvaluationPassed,
   summarizeFactualCorrectness,
-} from "../../../src/evaluation/AgentEvaluationReport.js";
+} from "./AgentEvaluationReport.js";
 
 const routingSuccess = {
   exitCode: 0,

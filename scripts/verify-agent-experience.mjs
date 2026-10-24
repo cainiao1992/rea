@@ -11,25 +11,43 @@ import {
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tsImport } from "tsx/esm/api";
 
-import { evaluateCodexEvents } from "../dist/evaluation/CodexAgentEval.js";
-import {
-  MISSING_TARGET_SCENARIO,
-  nativeProviderScenario,
-} from "../dist/evaluation/AgentEvaluationScenarios.js";
-import {
-  createAgentEvaluationFixtures,
-  agentFixtureClaims,
-  agentFixtureAnswerInstructions,
-} from "../dist/evaluation/AgentEvaluationFixtures.js";
-import {
-  agentEvaluationPassed,
-  summarizeFactualCorrectness,
-} from "../dist/evaluation/AgentEvaluationReport.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
 import { createAgentEvaluationCommands } from "./lib/agent-evaluation-commands.mjs";
 import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
+
+const { evaluateCodexEvents } = await tsImport(
+  new URL("../tests/evaluation/model-evals/CodexAgentEval.ts", import.meta.url)
+    .href,
+  import.meta.url,
+);
+const { MISSING_TARGET_SCENARIO, nativeProviderScenario } = await tsImport(
+  new URL(
+    "../tests/evaluation/model-evals/AgentEvaluationScenarios.ts",
+    import.meta.url,
+  ).href,
+  import.meta.url,
+);
+const {
+  createAgentEvaluationFixtures,
+  agentFixtureClaims,
+  agentFixtureAnswerInstructions,
+} = await tsImport(
+  new URL(
+    "../tests/evaluation/model-evals/AgentEvaluationFixtures.ts",
+    import.meta.url,
+  ).href,
+  import.meta.url,
+);
+const { agentEvaluationPassed, summarizeFactualCorrectness } = await tsImport(
+  new URL(
+    "../tests/evaluation/model-evals/AgentEvaluationReport.ts",
+    import.meta.url,
+  ).href,
+  import.meta.url,
+);
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const verifierRun = createVerifierRun();

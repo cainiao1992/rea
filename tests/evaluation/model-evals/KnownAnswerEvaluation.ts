@@ -6,9 +6,12 @@ import {
   evidenceAuthoritySchema,
   evidenceSchema,
   type Evidence,
-} from "../domain/evidence.js";
-import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
-import { canonicalJson } from "../domain/comparisonSemantics.js";
+} from "../../../src/domain/evidence.js";
+import {
+  jsonValueSchema,
+  type JsonValue,
+} from "../../../src/domain/jsonValue.js";
+import { canonicalJson } from "../../../src/domain/comparisonSemantics.js";
 
 /** Only authenticated, successful, non-conflicting transcript deliveries. */
 export interface FixtureClaimContext {

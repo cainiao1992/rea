@@ -5,12 +5,12 @@ import { describe, expect, it } from "vitest";
 import { createPackage } from "@electron/asar";
 
 import { parseEvidence, type Evidence } from "../../../src/domain/evidence.js";
-import { evaluateCodexEvents } from "../../../src/evaluation/CodexAgentEval.js";
+import { evaluateCodexEvents } from "../../evaluation/model-evals/CodexAgentEval.js";
 import {
   createAgentEvaluationFixtures,
   agentFixtureClaims,
-} from "../../../src/evaluation/AgentEvaluationFixtures.js";
-import type { FixtureClaimExpectation } from "../../../src/evaluation/KnownAnswerEvaluation.js";
+} from "../../evaluation/model-evals/AgentEvaluationFixtures.js";
+import type { FixtureClaimExpectation } from "../../evaluation/model-evals/KnownAnswerEvaluation.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 

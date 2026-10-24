@@ -23,7 +23,7 @@ import {
 } from "./PyInstallerMemberStream.js";
 import type { CArchiveEntry } from "./CArchiveLayout.js";
 import type { PyInstallerMember } from "./CArchiveMembers.js";
-import { pyInstallerFileAdmissionFailure } from "./PyInstallerFileAdmission.js";
+import { artifactFileAdmissionFailure } from "../ArtifactFileAdmission.js";
 import {
   reconstructedPycHeader,
   isHeaderlessPythonCode,
@@ -242,7 +242,7 @@ export class PyInstallerPyzStore {
     } catch (cause: unknown) {
       if (cause instanceof RegularFileAdmissionFailure)
         this.#retain(path, cause.owner);
-      throw pyInstallerFileAdmissionFailure(path, cause);
+      throw artifactFileAdmissionFailure(path, "PyInstaller", cause);
     }
   }
 

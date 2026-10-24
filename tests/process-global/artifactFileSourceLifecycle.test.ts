@@ -23,6 +23,7 @@ import { nodeSeaElf } from "../../src/artifacts/nodeSea/NodeSea.fixture.js";
 import type { StableRegularFileDescriptor } from "../../src/filesystem/RegularFile.js";
 import { createDeferred } from "../fixtures/binarySession.js";
 import { buildGodotPck } from "../fixtures/godotPck.js";
+import { awaitAcknowledgement } from "../fixtures/lifecycleAcknowledgement.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 
 interface OpenControl {
@@ -99,34 +100,6 @@ const openedHandle = (): FileHandle => {
   const handle = handles[0];
   if (handle === undefined) throw new Error("Missing admitted descriptor");
   return handle;
-};
-
-const awaitAcknowledgement = async (
-  acknowledgement: Promise<void>,
-  operation: Promise<unknown>,
-  boundary: string,
-): Promise<void> => {
-  let deadline: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const observed = await Promise.race([
-      acknowledgement.then(() => ({ kind: "acknowledged" }) as const),
-      operation.then(
-        (value) => ({ kind: "settled", status: "fulfilled", value }) as const,
-        (cause: unknown) =>
-          ({ kind: "settled", status: "rejected", cause }) as const,
-      ),
-      new Promise<{ readonly kind: "deadline" }>((resolve) => {
-        deadline = setTimeout(() => resolve({ kind: "deadline" }), 2_000);
-      }),
-    ]);
-    if (observed.kind !== "acknowledged")
-      throw new Error(
-        `${boundary} was not acknowledged before ${observed.kind === "deadline" ? "the gate deadline" : "the triggering operation settled"}`,
-        { cause: observed },
-      );
-  } finally {
-    if (deadline !== undefined) clearTimeout(deadline);
-  }
 };
 
 it.each(carriers)(

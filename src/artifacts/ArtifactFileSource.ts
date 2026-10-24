@@ -1,15 +1,15 @@
+import { lstat } from "node:fs/promises";
 import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readFileHandleChunks } from "../filesystem/readFileHandleChunks.js";
 import {
-  NonRegularFileReadError,
   RegularFileAdmissionFailure,
-  RegularFileOperationCancelled,
   openRegularFile,
   sameRegularFileState,
   type StableRegularFileDescriptor,
 } from "../filesystem/RegularFile.js";
 import { assertArtifactReadActive } from "./ArtifactFileOperation.js";
+import { artifactFileAdmissionFailure } from "./ArtifactFileAdmission.js";
 import { hashReadable } from "./ArtifactHash.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
@@ -41,46 +41,76 @@ export class ArtifactFileSource {
     return this.#scope.run(() => this.#verify(signal));
   }
 
+  /** Verify both the descriptor and the file currently at the caller-selected path. */
+  readSelectedPath(signal?: AbortSignal): Promise<StableRegularFileDescriptor> {
+    return this.#scope.run(() => this.#verifySelectedPath(signal));
+  }
+
   /** Bind verified bytes to the inventory's expected whole-carrier identity. */
   bindSha256(expectedSha256: string, signal?: AbortSignal): Promise<void> {
-    return this.#scope.run(async () => {
-      const { handle } = await this.#verify(signal);
-      const observed =
-        this.#boundSha256 ??
-        (
-          await hashReadable(
-            readFileHandleChunks(handle, {
-              signal,
-              cancellationFailure: (reason) =>
-                new ArtifactReaderFailure(
-                  "cancelled",
-                  `${this.diagnosticLabel} verification cancelled`,
-                  { cause: reason },
-                ),
-            }),
-            signal,
-          )
-        ).sha256;
-      await this.#verify(signal);
-      if (observed !== expectedSha256)
-        throw new ArtifactReaderFailure(
-          "integrity",
-          `${this.diagnosticLabel} carrier changed after inventory`,
-          undefined,
-          artifactIntegrityDetails(
-            ".",
-            { algorithm: "sha256", digest: expectedSha256 },
-            observed,
-            false,
-          ),
-        );
-      this.#boundSha256 = observed;
-    });
+    return this.#scope.run(() =>
+      this.#bind(expectedSha256, signal, () => this.#verify(signal)),
+    );
+  }
+
+  /** Bind carrier bytes while the selected pathname continues to name the same source. */
+  bindSelectedPathSha256(
+    expectedSha256: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.#scope.run(() =>
+      this.#bind(
+        expectedSha256,
+        signal,
+        () => this.#verifySelectedPath(signal),
+        () => this.#verifySelectedPath(),
+      ),
+    );
   }
 
   /** Join admitted operations before closing; failed descriptor ownership stays retained. */
   close(): Promise<void> {
     return this.#scope.close();
+  }
+
+  async #bind(
+    expectedSha256: string,
+    signal: AbortSignal | undefined,
+    verify: () => Promise<StableRegularFileDescriptor>,
+    verifyCompletion: () => Promise<StableRegularFileDescriptor> = verify,
+  ): Promise<void> {
+    const { handle } = await verify();
+    const observed =
+      this.#boundSha256 ??
+      (
+        await hashReadable(
+          readFileHandleChunks(handle, {
+            signal,
+            cancellationFailure: (reason) =>
+              new ArtifactReaderFailure(
+                "cancelled",
+                `${this.diagnosticLabel} verification cancelled`,
+                { cause: reason },
+              ),
+          }),
+          signal,
+        )
+      ).sha256;
+    await verifyCompletion();
+    assertArtifactReadActive(signal);
+    if (observed !== expectedSha256)
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `${this.diagnosticLabel} carrier changed after inventory`,
+        undefined,
+        artifactIntegrityDetails(
+          ".",
+          { algorithm: "sha256", digest: expectedSha256 },
+          observed,
+          false,
+        ),
+      );
+    this.#boundSha256 = observed;
   }
 
   async #verify(signal?: AbortSignal): Promise<StableRegularFileDescriptor> {
@@ -97,50 +127,65 @@ export class ArtifactFileSource {
     return source;
   }
 
-  async #admit(signal?: AbortSignal): Promise<StableRegularFileDescriptor> {
-    try {
-      const handle =
-        this.admitted?.handle ??
-        (await openRegularFile(this.path, { symlinks: "reject", signal }));
-      if (this.admitted === undefined)
-        this.#owner = new OwnedFileHandle(handle);
-      const initial = this.admitted?.initial ?? (await handle.stat());
-      return { handle, initial };
-    } catch (cause: unknown) {
-      if (cause instanceof RegularFileAdmissionFailure) {
-        this.#owner = cause.owner;
-        throw ArtifactReaderFailure.withCleanup(
-          this.#admissionFailure(cause.cause),
-          ArtifactReaderFailure.cleanupObservation(
-            cause.cleanupCause,
-            this.path,
-          ),
-        );
-      }
-      throw this.#admissionFailure(cause);
-    }
+  async #verifySelectedPath(
+    signal?: AbortSignal,
+  ): Promise<StableRegularFileDescriptor> {
+    assertArtifactReadActive(signal);
+    this.#opening ??= this.#admit(signal);
+    const source = await this.#opening;
+    const [observed, selected] = await Promise.all([
+      source.handle.stat(),
+      lstat(this.path),
+    ]);
+    if (
+      !sameRegularFileState(source.initial, observed) ||
+      !sameRegularFileState(source.initial, selected)
+    )
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `${this.diagnosticLabel} source identity changed: ${this.path}`,
+      );
+    assertArtifactReadActive(signal);
+    return source;
   }
 
-  #admissionFailure(cause: unknown): ArtifactReaderFailure {
-    if (cause instanceof ArtifactReaderFailure) return cause;
-    if (cause instanceof RegularFileOperationCancelled)
-      return new ArtifactReaderFailure(
-        "cancelled",
-        `${this.diagnosticLabel} admission cancelled`,
-        { cause: cause.reason },
+  async #admit(signal?: AbortSignal): Promise<StableRegularFileDescriptor> {
+    try {
+      if (this.admitted !== undefined)
+        return {
+          handle: this.admitted.handle,
+          initial: this.admitted.initial,
+        };
+      const handle = await openRegularFile(this.path, {
+        symlinks: "reject",
+        signal,
+      });
+      const owner = new OwnedFileHandle(handle);
+      this.#owner = owner;
+      try {
+        return { handle, initial: await handle.stat() };
+      } catch (cause: unknown) {
+        try {
+          await owner.close();
+          this.#owner = undefined;
+        } catch (cleanupCause: unknown) {
+          throw new RegularFileAdmissionFailure(
+            this.path,
+            cause,
+            cleanupCause,
+            owner,
+          );
+        }
+        throw cause;
+      }
+    } catch (cause: unknown) {
+      if (cause instanceof RegularFileAdmissionFailure)
+        this.#owner = cause.owner;
+      throw artifactFileAdmissionFailure(
+        this.path,
+        this.diagnosticLabel,
+        cause,
       );
-    if (cause instanceof NonRegularFileReadError)
-      return new ArtifactReaderFailure(
-        "format",
-        `${this.diagnosticLabel} source is not a regular file: ${this.path}`,
-        { cause },
-      );
-    return new ArtifactReaderFailure(
-      "io",
-      cause instanceof Error
-        ? cause.message
-        : `Cannot admit ${this.diagnosticLabel} source: ${this.path}`,
-      { cause },
-    );
+    }
   }
 }

@@ -152,8 +152,8 @@ export const artifactOccurrenceSchema = z.object({
   unpacked: z.literal(true).exactOptional(),
   hash_status: z.enum(["verified", "mismatched", "not-hashed", "unavailable"]),
   source_location: artifactByteRangeSchema.nullable(),
-  /** Original path within this occurrence's reader when normalization changed its spelling. */
-  source_path: z.string().min(1).exactOptional(),
+  /** Exact reader-source path or opaque key, including an observed empty key. */
+  source_path: z.string().exactOptional(),
   declared_integrity: artifactIntegrityClaimSchema.exactOptional(),
   format_metadata: artifactFormatMetadataSchema.exactOptional(),
   limitations: z.array(z.string()),

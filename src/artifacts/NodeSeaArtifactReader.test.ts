@@ -424,36 +424,110 @@ it("extracts the main script and assets without executing them", async () => {
   }
 });
 
-it.each([
-  { name: "traversal", codePath: "../main.js", assets: [] },
-  {
-    name: "duplicate asset",
-    codePath: "main.js",
-    assets: [
-      { name: "data.txt", body: "a" },
-      { name: "data.txt", body: "b" },
-    ],
-  },
-  {
-    name: "normalized collision",
-    codePath: "main.js",
-    assets: [
-      { name: "a/café.txt", body: "a" },
-      { name: "a/cafe\u0301.txt", body: "b" },
-    ],
-  },
-  {
-    name: "reserved script",
-    codePath: "main.js",
-    assets: [{ name: "main.js", body: "asset" }],
-  },
-])(
-  "rejects $name before inventory can claim readable contents",
-  async ({ codePath, assets }) => {
-    const path = await writeCarrier("unsafe", nodeSeaElf({ codePath, assets }));
-    await expect(scanCanonicalArtifactInventory(path)).rejects.toThrow();
-  },
-);
+it("rejects duplicate raw asset keys", async () => {
+  const path = await writeCarrier(
+    "duplicate-assets",
+    nodeSeaElf({
+      assets: [
+        { name: "data.txt", body: "a" },
+        { name: "data.txt", body: "b" },
+      ],
+    }),
+  );
+  await expect(scanCanonicalArtifactInventory(path)).rejects.toThrow();
+});
+
+it("maps an unsafe main path and opaque asset keys without losing their sources", async () => {
+  const path = await writeCarrier(
+    "opaque-names",
+    nodeSeaElf({
+      codePath: "/absolute/main.js",
+      main: script,
+      assets: [
+        { name: "", body: "empty" },
+        { name: "__node_sea__/snapshot", body: "reserved" },
+        { name: "a/café.txt", body: "composed" },
+        { name: "a/cafe\u0301.txt", body: "decomposed" },
+        { name: "tree", body: "parent" },
+        { name: "tree/child", body: "child" },
+        { name: "__node_sea__", body: "namespace" },
+      ],
+    }),
+  );
+  const graph = await scanCanonicalArtifactInventory(path);
+  const rows = graph.occurrences.filter(
+    (row) => row.format_metadata?.kind === "node-sea-entry",
+  );
+  expect(
+    rows
+      .map((row) => [
+        row.logical_path,
+        row.format_metadata?.kind === "node-sea-entry"
+          ? row.format_metadata.source_path
+          : null,
+      ])
+      .sort(),
+  ).toEqual(
+    [
+      ["__node_sea__/main.cjs", "/absolute/main.js"],
+      ["__node_sea__/assets/0", ""],
+      ["__node_sea__/assets/1", "__node_sea__/snapshot"],
+      ["a/café.txt", "a/café.txt"],
+      ["__node_sea__/assets/3", "a/cafe\u0301.txt"],
+      ["tree", "tree"],
+      ["__node_sea__/assets/5", "tree/child"],
+      ["__node_sea__/assets/6", "__node_sea__"],
+    ].sort(),
+  );
+  expect(rows.map((row) => row.source_path).sort()).toEqual(
+    [
+      "/absolute/main.js",
+      "",
+      "__node_sea__/snapshot",
+      "a/café.txt",
+      "a/cafe\u0301.txt",
+      "tree",
+      "tree/child",
+      "__node_sea__",
+    ].sort(),
+  );
+});
+
+it("maps a script collision and later file-prefix asset collision", async () => {
+  const graph = await scanCanonicalArtifactInventory(
+    await writeCarrier(
+      "collisions",
+      nodeSeaElf({
+        codePath: "main.js",
+        assets: [
+          { name: "main.js", body: "same destination" },
+          { name: "folder/item", body: "first" },
+          { name: "folder", body: "later prefix" },
+        ],
+      }),
+    ),
+  );
+  const rows = graph.occurrences.filter(
+    (row) => row.format_metadata?.kind === "node-sea-entry",
+  );
+  expect(
+    rows
+      .map((row) => [
+        row.logical_path,
+        row.format_metadata?.kind === "node-sea-entry"
+          ? row.format_metadata.source_path
+          : null,
+      ])
+      .sort(),
+  ).toEqual(
+    [
+      ["main.js", "main.js"],
+      ["__node_sea__/assets/0", "main.js"],
+      ["folder/item", "folder/item"],
+      ["__node_sea__/assets/2", "folder"],
+    ].sort(),
+  );
+});
 
 it("retains source asset spelling separately from normalized graph paths", async () => {
   const path = await writeCarrier(

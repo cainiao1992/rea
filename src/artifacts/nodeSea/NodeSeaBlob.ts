@@ -37,8 +37,6 @@ export const NODE_SEA_UNKNOWN_FLAGS =
 export const NODE_SEA_UNKNOWN_EXTENSION =
   "Node SEA exec argv extension is unknown";
 export const NODE_SEA_TRAILING_BYTES = "Node SEA blob has trailing bytes";
-export const NODE_SEA_RESERVED_COLLISION =
-  "Node SEA asset name collides with a reserved entry";
 export const NODE_SEA_DUPLICATE_BLOB =
   "Node SEA blob is declared more than once";
 export const NODE_SEA_ELF_DESCRIPTOR_TRUNCATED =
@@ -56,7 +54,6 @@ export const NODE_SEA_FUSE_UNSET =
 export const NODE_SEA_FUSE_CONFLICT = "Node SEA fuse sentinels disagree";
 export const NODE_SEA_EMPTY_CODE_PATH = "Node SEA code path is empty";
 export const NODE_SEA_INVALID_UTF8 = "Node SEA string is not valid UTF-8";
-export const NODE_SEA_EMPTY_ASSET_NAME = "Node SEA asset name is empty";
 export const NODE_SEA_ASSET_COUNT = `Node SEA asset count exceeds the ${String(MAX_ASSET_COUNT)}-asset bound. ${NO_OVERRIDE}`;
 export const NODE_SEA_ASSET_NAME_BYTES = `Node SEA asset names exceed the ${String(MAX_ASSET_NAME_BYTES)}-byte name budget. ${NO_OVERRIDE}`;
 export const NODE_SEA_EXEC_ARGV_COUNT = `Node SEA exec argv count exceeds the ${String(MAX_EXEC_ARGV)}-argument bound. ${NO_OVERRIDE}`;
@@ -276,7 +273,7 @@ class BlobCursor {
         await setImmediate();
         assertArtifactReadActive(signal);
       }
-      const name = this.text(false, NODE_SEA_EMPTY_ASSET_NAME, charge);
+      const name = this.text(true, NODE_SEA_INVALID_UTF8, charge);
       if (seen.has(name)) throw formatFailure(nodeSeaAssetCollision(name));
       seen.add(name);
       assets.push({ name, range: this.byteRange() });

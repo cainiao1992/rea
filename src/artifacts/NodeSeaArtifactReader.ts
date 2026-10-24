@@ -6,7 +6,10 @@ import { setImmediate } from "node:timers/promises";
 import { artifactExpansionBudgetBytes } from "../domain/artifactExpansionBudget.js";
 import type { NodeSeaMetadata } from "../domain/artifactFormatMetadata.js";
 import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
-import { normalizeArtifactPath } from "./ArtifactPaths.js";
+import {
+  ArtifactPathRegistry,
+  normalizeArtifactPath,
+} from "./ArtifactPaths.js";
 import {
   ArtifactReaderFailure,
   copyArtifactEntry,
@@ -21,9 +24,7 @@ import { assertArtifactReadActive } from "./ArtifactFileOperation.js";
 import {
   NODE_SEA_BLOB_TOO_LARGE,
   NODE_SEA_MAX_BLOB_BYTES,
-  NODE_SEA_RESERVED_COLLISION,
   decodeNodeSeaBlob,
-  nodeSeaAssetCollision,
   type DecodedNodeSeaBlob,
   type NodeSeaByteRange,
 } from "./nodeSea/NodeSeaBlob.js";
@@ -45,6 +46,8 @@ import {
 
 const SNAPSHOT_PATH = "__node_sea__/snapshot";
 const CODE_CACHE_PATH = "__node_sea__/code-cache";
+const MAIN_FALLBACK_PATH = "__node_sea__/main.cjs";
+const ASSET_FALLBACK_PREFIX = "__node_sea__/assets/";
 
 type NodeSeaRole = "main-script" | "snapshot" | "code-cache" | "asset";
 
@@ -311,9 +314,10 @@ export class NodeSeaArtifactReader implements ArtifactReader {
         formatMetadata: {
           kind: "node-sea-entry" as const,
           role: member.role,
-          source_path: member.path,
+          source_path: member.sourcePath,
           index,
         },
+        sourcePath: member.sourcePath,
       } satisfies ArtifactEntry;
       this.#entries.set(entry.adapterKey, entry);
       index += 1;
@@ -369,46 +373,64 @@ export class NodeSeaArtifactReader implements ArtifactReader {
 
 function* seaMembers(decoded: DecodedNodeSeaBlob): Generator<{
   readonly path: string;
+  readonly sourcePath: string;
   readonly role: NodeSeaRole;
   readonly range: NodeSeaByteRange;
 }> {
-  const claimed = new Map<string, NodeSeaRole>();
-  const claim = (path: string, role: NodeSeaRole): string => {
-    const normalized = normalizeArtifactPath(path);
-    const existing = claimed.get(normalized);
-    if (existing !== undefined)
+  const registry = new ArtifactPathRegistry();
+  const claimed = new Set<string>();
+  const reserve = (path: string): string => {
+    if (claimed.has(path))
       throw new ArtifactReaderFailure(
-        "format",
-        role === "asset" && existing === "asset"
-          ? nodeSeaAssetCollision(normalized)
-          : role === "asset" || existing === "asset"
-            ? NODE_SEA_RESERVED_COLLISION
-            : `Node SEA entry path collides: ${normalized}`,
+        "path",
+        `Node SEA entry path collides: ${path}`,
       );
-    claimed.set(normalized, role);
+    registry.add(path, "file");
+    claimed.add(path);
     return path;
+  };
+  const mappedPath = (raw: string, fallback: string): string => {
+    try {
+      const normalized = normalizeArtifactPath(raw);
+      if (
+        normalized !== "__node_sea__" &&
+        !normalized.startsWith("__node_sea__/")
+      )
+        return reserve(normalized);
+    } catch (cause) {
+      if (!(cause instanceof ArtifactReaderFailure) || cause.reason !== "path")
+        throw cause;
+    }
+    return reserve(fallback);
   };
   if (decoded.mainScript !== null)
     yield {
-      path: claim(decoded.codePath, "main-script"),
+      path: mappedPath(decoded.codePath, MAIN_FALLBACK_PATH),
+      sourcePath: decoded.codePath,
       role: "main-script",
       range: decoded.mainScript,
     };
   if (decoded.snapshot !== null)
     yield {
-      path: claim(SNAPSHOT_PATH, "snapshot"),
+      path: reserve(SNAPSHOT_PATH),
+      sourcePath: SNAPSHOT_PATH,
       role: "snapshot",
       range: decoded.snapshot,
     };
   if (decoded.codeCache !== null)
     yield {
-      path: claim(CODE_CACHE_PATH, "code-cache"),
+      path: reserve(CODE_CACHE_PATH),
+      sourcePath: CODE_CACHE_PATH,
       role: "code-cache",
       range: decoded.codeCache,
     };
-  for (const asset of decoded.assets)
+  for (const [ordinal, asset] of decoded.assets.entries())
     yield {
-      path: claim(asset.name, "asset"),
+      path: mappedPath(
+        asset.name,
+        `${ASSET_FALLBACK_PREFIX}${String(ordinal)}`,
+      ),
+      sourcePath: asset.name,
       role: "asset",
       range: asset.range,
     };

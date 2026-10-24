@@ -17,7 +17,7 @@ Summary delivery retains the complete Evidence: use `parent_evidence_id` with
 Extraction returns a fresh `output_root`; analyze that extracted directory with
 `analyze_javascript_application`. Snapshot-only applications have no recovered
 main script and receive no JavaScript next probe. Neither does a main script
-whose code path lacks a JavaScript source suffix, such as `main`, because the
+whose logical path lacks a JavaScript source suffix, such as `main`, because the
 analyzer selects extracted files by suffix.
 
 ## Recognition and evidence
@@ -35,11 +35,18 @@ inventoried once. Native carrier bytes keep their content hash and native
 classification while the root occurrence represents the SEA container.
 
 Root `format_metadata` preserves raw flags, decoded flags, code path, blob
-location, exec arguments and fuse observations. Children retain their role and
-original `source_path`. The main script uses its declared code path; snapshots
-and code caches use `__node_sea__/snapshot` and `__node_sea__/code-cache`.
-Assets retain their names. Extraction applies the shared path-containment and
-collision rules, rejects unsafe names and never overwrites existing files.
+location, exec arguments and fuse observations. Main and asset children retain
+their role and exact declared name in `source_path`. Safe, noncolliding names
+become logical paths after the shared NFC path normalization. Names that are
+unsafe as relative paths, have an exact or file-prefix collision with another
+entry, or occupy the reserved `__node_sea__`
+namespace receive deterministic logical paths: `__node_sea__/main.cjs` for the
+main CommonJS source and `__node_sea__/assets/<ordinal>` for assets, using their
+zero-based order in the blob. The original declared name remains
+in `source_path`, including an empty asset key. Snapshots and code caches use
+`__node_sea__/snapshot` and `__node_sea__/code-cache`. Extraction materializes
+the logical paths through the shared path-containment and collision rules and
+never overwrites existing files.
 
 The fuse scan independently records `set`, `unset`, `absent`, or `conflicting`.
 An unset fuse with a present blob is reported as a limitation. These are static
@@ -56,7 +63,7 @@ including the exec-argument extension byte. Older layouts without that byte,
 Carrier byte order is independent of blob byte order.
 
 Malformed magic, truncation, unknown flags/extensions, invalid UTF-8, duplicate
-asset names and conflicting blob declarations fail closed with named reasons.
+raw asset keys and conflicting blob declarations fail closed with named reasons.
 Zero padding after a complete blob is allowed. The blob read ceiling is 256 MiB;
 PE carriers also use the shared 512 MiB input, 65,536 directory-entry and 8 MiB
 resource-metadata ceilings. The decoder admits at most 100,000 assets whose
@@ -74,7 +81,10 @@ code-cache bytes remain opaque.
 
 Synthetic fixtures cover Mach-O, ELF and PE inventory/extraction, malformed
 blobs, collisions and fuse contradictions. CLI and MCP tests exercise the same
-artifact provider and advertised schemas.
+artifact provider and advertised schemas. A CLI regression also generates a blob
+with the pinned local Node version, an absolute main path and an empty asset
+key, then inventories it inside a synthetic ELF carrier. This verifies the real
+blob producer, not a real injected executable.
 
 The optional real ELF lane uses Docker's official Node v24.10.0 image and pinned
 postject to build a fixture, then verifies inventory and extracted script/asset

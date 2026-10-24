@@ -36,7 +36,7 @@ export interface ArtifactReaderFailureOptions extends ErrorOptions {
 /** Archive-neutral entry metadata. Reader adapters never choose output paths. */
 export interface ArtifactEntry {
   readonly path: string;
-  /** Exact reader-source spelling when its admitted path omits source syntax. */
+  /** Exact reader-source path or opaque key before logical path mapping. */
   readonly sourcePath?: string;
   readonly kind: "file" | "directory" | "symlink" | "slice" | "metadata";
   readonly declaredSize: number | null;
@@ -100,6 +100,7 @@ export const sameArtifactEntry = (
   produced: ArtifactEntry,
 ): boolean =>
   entry.path === produced.path &&
+  entry.sourcePath === produced.sourcePath &&
   entry.kind === produced.kind &&
   entry.declaredSize === produced.declaredSize &&
   entry.compressedSize === produced.compressedSize &&

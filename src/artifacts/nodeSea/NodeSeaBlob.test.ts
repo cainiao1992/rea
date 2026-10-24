@@ -84,6 +84,13 @@ it("rejects colliding asset names", async () => {
   ).rejects.toThrow(nodeSeaAssetCollision("shared"));
 });
 
+it("retains an empty asset key as a raw Node SEA key", async () => {
+  const decoded = await decodeNodeSeaBlob(
+    buildNodeSeaBlob({ assets: [{ name: "", body: "value" }] }),
+  );
+  expect(decoded.assets).toMatchObject([{ name: "", range: { length: 5 } }]);
+});
+
 const limitOf = async (bytes: Buffer): Promise<ArtifactReaderFailure> => {
   try {
     await decodeNodeSeaBlob(bytes);

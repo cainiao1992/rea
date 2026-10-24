@@ -4162,7 +4162,11 @@ describe("Ghidra SIGKILL projection", () => {
   );
 
   it("keeps start-failure SIGKILL cause unknown despite a cgroup OOM delta", async () => {
-    const diagnostics = { ...killed, memory_cgroup: cgroup(1, 3_221_225_472) };
+    const diagnostics = {
+      ...killed,
+      stop_requested: false,
+      memory_cgroup: cgroup(1, 3_221_225_472),
+    };
     const projected = await projectFailure("start", diagnostics);
     expect(projected.code).toBe("execution_failure");
     expect(projected.message).toContain("SIGKILL");
@@ -4172,7 +4176,6 @@ describe("Ghidra SIGKILL projection", () => {
       "host or container termination records",
     );
   });
-
 
   it.each([
     ["without cgroup evidence", {}],

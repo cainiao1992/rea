@@ -36,10 +36,8 @@ import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
 import { registerFridaTools } from "../../../src/server/registerFridaTools.js";
-import {
-  createToolResultDelivery,
-  ToolResultDelivery,
-} from "../../../src/server/toolResult.js";
+import { ToolResultDelivery } from "../../../src/server/ToolResultDelivery.js";
+import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 

@@ -1,4 +1,4 @@
-import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { CallToolResult } from "@modelcontextprotocol/server";
@@ -524,7 +524,7 @@ it("returns exact committed unknown receipts when creation and update replies ov
   const session = createTestBinarySession(providerWithCapabilities([]));
   const server = createServer(
     { kind: "session", session },
-    { delivery: new ToolResultDelivery(8 * 1024) },
+    { delivery: createToolResultDelivery(8 * 1024) },
   );
   const client = new Client({ name: "unknown-overflow-receipt", version: "1" });
   const [ct, st] = InMemoryTransport.createLinkedPair();

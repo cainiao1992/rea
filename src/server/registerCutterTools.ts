@@ -10,7 +10,7 @@ import {
 } from "./externalMutationAdmission.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
-import type { ToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 
 /** Register Cutter discovery and command tools against their named contracts. */
 export const registerCutterTools = (

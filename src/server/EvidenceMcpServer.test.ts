@@ -17,7 +17,7 @@ import {
   EvidenceMcpServer,
   forgetPendingMcpRequest,
 } from "./EvidenceMcpServer.js";
-import { ToolResultDelivery } from "./toolResult.js";
+import { createToolResultDelivery } from "./toolResult.js";
 
 const firstText = (result: {
   readonly content: readonly {
@@ -116,7 +116,7 @@ describe("MCP request bookkeeping", () => {
 describe("Modern protocol error delivery", () => {
   it("preserves the modern wire envelope when replacing an oversized error", async () => {
     const records = new InvestigationRecords();
-    const delivery = new ToolResultDelivery(16384);
+    const delivery = createToolResultDelivery(16384);
     const info = { name: "wire-error-recovery", version: "1" };
     const handler = createMcpHandler(() => {
       const server = new EvidenceMcpServer(
@@ -226,7 +226,7 @@ describe("SDK validation error delivery", () => {
   it.each(["2025-11-25", "2026-07-28"])(
     "bounds and retains errors through the public stdio entry on %s",
     async (revision) => {
-      const delivery = new ToolResultDelivery(4096);
+      const delivery = createToolResultDelivery(4096);
       const records = new InvestigationRecords();
       const server = new EvidenceMcpServer(
         { name: "sdk-validation-budget-test", version: "1" },

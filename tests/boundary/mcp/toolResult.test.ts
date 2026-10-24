@@ -17,7 +17,7 @@ import { err } from "../../../src/domain/result.js";
 import { EvidenceIntegrityError } from "../../../src/domain/evidenceErrors.js";
 import { HopperProcessError } from "../../../src/domain/hopperErrors.js";
 import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
-import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import {
   accountFullyObservedProcessCapture,
@@ -31,7 +31,7 @@ import type {
   IncompleteProcessCaptureObservations,
   ProcessCaptureCleanupReport,
 } from "../../../src/domain/process/processCapture.js";
-const delivery = new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
+const delivery = createToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);
 const UNTRUSTED_TARGET_CONTENT = {
   provenance: { untrusted_content: true, source: "analysis_target" },
 };
@@ -515,7 +515,7 @@ describe("untrusted provenance on failed tool results", () => {
   });
 
   it("marks the response-budget error that replaces an oversized target-content result", () => {
-    const small = new ToolResultDelivery(4096);
+    const small = createToolResultDelivery(4096);
     const result = small.toCallToolResult(
       { ok: true, value: { text: "x".repeat(8192) } },
       toolContract("procedure_pseudo_code"),

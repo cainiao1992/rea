@@ -9,7 +9,7 @@ import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
-import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { ToolResultDelivery } from "../../../src/server/ToolResultDelivery.js";
 import { OwnedFileHandle } from "../../../src/filesystem/OwnedFileHandle.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";

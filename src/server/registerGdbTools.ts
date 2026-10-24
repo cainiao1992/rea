@@ -18,7 +18,7 @@ import {
 } from "./externalMutationAdmission.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
-import type { ToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 
 export type GdbToolManager = Pick<
   GdbSessionManager,

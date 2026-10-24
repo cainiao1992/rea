@@ -5,7 +5,7 @@ import type { BinarySession } from "../application/binary/BinarySession.js";
 import type { Logger } from "pino";
 import { createServer } from "../server/createServer.js";
 import { StreamableHttpListenError } from "../server/http/streamableHttpListenError.js";
-import type { ToolResultDelivery } from "../server/toolResult.js";
+import type { ToolResultDelivery } from "../server/ToolResultDelivery.js";
 import type { McpServerHandle, RuntimeDependencies } from "./types.js";
 import type { OptionalProviderLoadResult } from "../application/OptionalObservationProviders.js";
 import { OwnedMcpServers } from "./OwnedMcpServers.js";

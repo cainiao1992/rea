@@ -7,7 +7,7 @@ import {
   FULL_CATALOG_IDENTITY,
   createCatalogIdentity,
 } from "../catalogIdentity.js";
-import type { ToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import {
   EvidenceMcpServerCore,
   type CompactInputSchemaPresentation,

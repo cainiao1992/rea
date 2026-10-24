@@ -6,7 +6,7 @@ import { z } from "zod";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createServer } from "../../../src/server/createServer.js";
-import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { ToolResultDelivery } from "../../../src/server/ToolResultDelivery.js";
 import { createJadxProtocolFixture } from "../../fixtures/android/jadx.js";
 import {
   createDeferred,

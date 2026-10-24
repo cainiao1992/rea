@@ -11,7 +11,7 @@ import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { logToolExecution } from "./toolLogging.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
-import type { ToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 
 /** Register Frida device discovery and persistent instrumentation operations. */
 export const registerFridaTools = (

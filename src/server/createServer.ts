@@ -97,10 +97,8 @@ import {
 import type { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
 import { createCatalogIdentity } from "../catalogIdentity.js";
 import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
-import {
-  createToolResultDelivery,
-  type ToolResultDelivery,
-} from "./toolResult.js";
+import { createToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import { parseMcpResponseBudget } from "../config/mcpResponseBudget.js";
 import { parseMcpOutputSchemaProfile } from "../config/mcpOutputSchemaProfile.js";
 import {

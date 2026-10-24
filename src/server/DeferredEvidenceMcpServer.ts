@@ -7,7 +7,7 @@ import type {
 } from "@modelcontextprotocol/server";
 import type { PromptCompletionSource } from "./promptCompletion.js";
 import type { RecordedMcpCatalog } from "../recordedMcpCatalog.js";
-import type { ToolResultDelivery } from "./toolResult.js";
+import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import {
   EvidenceMcpServerCore,
   currentMcpRequestSignal,

@@ -16,7 +16,7 @@ import { err, ok } from "../../../src/domain/result.js";
 import { silentLogger } from "../../../src/logger.js";
 import { createEvidenceToolHandler } from "../../../src/server/contractToolHandler.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
-import { ToolResultDelivery } from "../../../src/server/toolResult.js";
+import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 const UNTRUSTED_TARGET_CONTENT = {
@@ -55,7 +55,7 @@ const deliverPartialFailure = async (): Promise<{
     { name: "partial-error-framing-test", version: "1" },
     { capabilities: {} },
     writer.recordEvidence,
-    new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE),
+    createToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE),
   );
   const contract = toolContract("inspect_packet_capture");
   const handler = createEvidenceToolHandler(
@@ -88,7 +88,7 @@ describe("shared Evidence handler target-content framing", () => {
       { name: "inline-partial-error-test", version: "1" },
       { capabilities: {} },
       recordEvidence,
-      new ToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE),
+      createToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE),
     );
     const contract = toolContract("inspect_packet_capture");
     const handler = createEvidenceToolHandler(

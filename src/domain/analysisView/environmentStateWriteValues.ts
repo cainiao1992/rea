@@ -19,12 +19,6 @@ interface ClockReading {
   readonly format: ClockFormat;
 }
 
-/** Compare recorded instants without rounding away their submillisecond digits. */
-export const compareClockInstants = (
-  left: Pick<ClockReading, "ms" | "subMillisecond">,
-  right: Pick<ClockReading, "ms" | "subMillisecond">,
-): number => left.ms - right.ms || left.subMillisecond - right.subMillisecond;
-
 const MINUTE_MS = 60_000;
 
 /** Minutes east of UTC that a zone suffix names; none and `Z` are UTC. */

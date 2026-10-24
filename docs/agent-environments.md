@@ -807,8 +807,14 @@ remain unchanged. Clock-format comparison and respelling recognize four-digit
 ISO years `0000`–`0099` as well as later years, with normal calendar validation.
 Respelling preserves the original value when the target zone would require a year
 outside `0000`–`9999`; generated writes refuse a clock outside that format.
-Capture-state extraction still uses millisecond coordinates for request intervals
-and their ordering, and generated-clock progression compares milliseconds.
+Capture-state start ordering uses the same exact recorded timestamp facts,
+including minute-only times and fractions longer than nine digits. Recorded
+spellings may use `T` or a space, `Z` or an extended/compact offset, or no zone
+(interpreted as UTC). Equal starts use ordinal order; a missing or unreadable
+start makes the capture use record order. Request interval and overlap checks
+still use millisecond coordinates, and generated-clock progression compares
+milliseconds. Derived ISO clock formats still require seconds and at most nine
+fractional digits.
 
 Comparison keeps response representations distinct: JSON values compare structurally, text compares as text, and a
 retained base64 body compares by bytes (including with UTF-8 text carrying those same bytes), never by its base64

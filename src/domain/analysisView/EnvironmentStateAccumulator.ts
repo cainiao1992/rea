@@ -1,12 +1,13 @@
 import { z } from "zod";
-import {
-  compareClockInstants,
-  readClock,
-} from "./environmentStateWriteValues.js";
 import type { ScenarioResponseBodyRetention } from "./scenarioCaptureRecords.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { parseExactJson } from "../exactJsonNumber.js";
 import { MAX_JSON_DEPTH, type JsonValue } from "../jsonValue.js";
+import {
+  compareOffsetDateTimeInstants,
+  readRecordedDateTime,
+  type OffsetDateTimeInstant,
+} from "../offsetDateTime.js";
 import { ok, type Result } from "../result.js";
 import {
   WEB_NETWORK_CAPTURE_LIMITS,
@@ -110,8 +111,8 @@ interface RecordEntry {
   /** Null for a write whose URL was redacted: its target is unknown, so it bounds every type. */
   readonly origin: string | null;
   readonly contentType: string;
-  readonly timed: boolean;
-  readonly subMillisecond: number;
+  /** Exact ordering fact; request interval coordinates remain milliseconds. */
+  readonly startInstant: OffsetDateTimeInstant | undefined;
   readonly record: WebNetworkCaptureRecord;
 }
 
@@ -159,20 +160,40 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       const line = readRecordedRequestLine(record.reported, true, this.scratch);
       if (line === null) return this.overBudget();
       const timing = timingSchema.safeParse(record.reported);
-      const clock = timing.success
-        ? readClock(timing.data.startedDateTime)
+      // Admit normalization and fraction parsing before materializing their strings.
+      if (
+        timing.success &&
+        !this.scratch(
+          RECORD_SCRATCH_BYTES +
+            textBytes(timing.data.startedDateTime.length + 6) * 3,
+        )
+      )
+        return this.overBudget();
+      const startInstant = timing.success
+        ? readRecordedDateTime(timing.data.startedDateTime)?.instant
         : undefined;
-      const start = clock?.ms ?? record.ordinal;
-      const timed = timing.success && clock !== undefined;
+      // Keep the established millisecond interval policy independently of sorting.
+      const start =
+        startInstant === undefined
+          ? record.ordinal
+          : startInstant.epochSecond * 1000 +
+            Number(startInstant.fraction.slice(0, 3).padEnd(3, "0"));
+      // A fraction substring may retain its normalized timestamp's backing store,
+      // including trailing zeroes removed from the exact comparison value.
+      const instantBytes =
+        timing.success && startInstant !== undefined
+          ? ENTRY_BYTES + textBytes(timing.data.startedDateTime.length + 6)
+          : 0;
       if (line.kind === "excluded")
         return line.reason === "url-redacted"
           ? this.#redactedWrite(
               record,
-              timing.success && timed
+              timing.success && startInstant !== undefined
                 ? {
                     start,
                     end: start + timing.data.time,
-                    subMillisecond: clock.subMillisecond,
+                    startInstant,
+                    instantBytes,
                   }
                 : undefined,
             )
@@ -181,6 +202,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       if (
         !this.retain(
           ENTRY_BYTES * 8 +
+            instantBytes +
             textBytes(
               line.method.length +
                 line.origin.length +
@@ -198,13 +220,15 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
           path: line.path,
           query: line.query === "" ? undefined : line.query,
           status: line.status,
-          start: timed ? start : record.ordinal,
-          end: timed ? start + timing.data.time : record.ordinal,
+          start,
+          end:
+            timing.success && startInstant !== undefined
+              ? start + timing.data.time
+              : record.ordinal,
         },
         origin: line.origin,
         contentType: line.rawMime,
-        timed,
-        subMillisecond: clock?.subMillisecond ?? 0,
+        startInstant,
         record,
       });
       return ok(undefined);
@@ -220,7 +244,8 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       | {
           readonly start: number;
           readonly end: number;
-          readonly subMillisecond: number;
+          readonly startInstant: OffsetDateTimeInstant;
+          readonly instantBytes: number;
         }
       | undefined,
   ): Result<void, AnalysisError> {
@@ -237,14 +262,19 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       end: timing?.end ?? record.ordinal,
     };
     if (!isStateWrite(facts)) return ok(undefined);
-    if (!this.retain(ENTRY_BYTES * 8 + textBytes(facts.method.length)))
+    if (
+      !this.retain(
+        ENTRY_BYTES * 8 +
+          textBytes(facts.method.length) +
+          (timing?.instantBytes ?? 0),
+      )
+    )
       return this.overBudget();
     this.#entries.set(record.ordinal, {
       facts,
       origin: null,
       contentType: "",
-      timed: timing !== undefined,
-      subMillisecond: timing?.subMillisecond ?? 0,
+      startInstant: timing?.startInstant,
       record,
     });
     return ok(undefined);
@@ -316,16 +346,17 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       (entry) => entry.origin === null,
     ).length;
     const timeline: StateTimeline =
-      entries.length > 0 && entries.every((entry) => entry.timed)
+      entries.length > 0 &&
+      entries.every((entry) => entry.startInstant !== undefined)
         ? "recorded-start-time"
         : "record-order";
     const records = entries
       .sort((left, right) =>
         timeline === "record-order"
           ? left.facts.ordinal - right.facts.ordinal
-          : compareClockInstants(
-              { ms: left.facts.start, subMillisecond: left.subMillisecond },
-              { ms: right.facts.start, subMillisecond: right.subMillisecond },
+          : compareOffsetDateTimeInstants(
+              left.startInstant!,
+              right.startInstant!,
             ) || left.facts.ordinal - right.facts.ordinal,
       )
       .map((entry) => entry.facts)

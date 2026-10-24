@@ -1100,6 +1100,80 @@ cliTest(
   },
 );
 
+cliTest.for([
+  {
+    spelling: "minute-only offset timestamps",
+    starts: ["2026-10-20T09:00Z", "2026-10-20T09:02Z", "2026-10-20T09:01Z"],
+  },
+  {
+    spelling: "ten-digit fractional timestamps",
+    starts: [
+      "2026-10-20T09:00:00.0000000001Z",
+      "2026-10-20T09:00:00.0000000003Z",
+      "2026-10-20T09:00:00.0000000002Z",
+    ],
+  },
+])(
+  "keeps the pre-write environment state through the compiled CLI for $spelling",
+  async ({ starts }, { cli }) => {
+    const root = await createTestTempDirectory("rea-state-chronology-cli-");
+    const path = join(root, "view.json");
+    const entries = starts.map((startedDateTime, ordinal) => ({
+      startedDateTime,
+      time: 0,
+      request: {
+        method: ordinal === 2 ? "PATCH" : "GET",
+        url: "http://app.example/api/settings",
+        ...(ordinal === 2
+          ? {
+              postData: {
+                mimeType: "application/json",
+                text: '{"theme":"dark"}',
+              },
+            }
+          : {}),
+      },
+      response: {
+        status: 200,
+        content: {
+          mimeType: "application/json",
+          text: ordinal === 0 ? '{"theme":"light"}' : '{"theme":"dark"}',
+        },
+      },
+    }));
+    const parent = analysisViewCaptureEvidence(
+      environmentManifestCaptureFixture(entries),
+    );
+    expect(parent.normalized_result).toMatchObject({
+      records: entries.map((reported, ordinal) => ({ ordinal, reported })),
+    });
+    const request = JSON.stringify({
+      source: { kind: "inline", evidence: parent },
+      view: { kind: "environment-state" },
+    });
+    await writeFile(path, request);
+    const result = await cli.run({
+      arguments: ["inspect-analysis-view", path, "--json"],
+    });
+    expect(result.exitCode, result.stdout).toBe(0);
+    const evidence = parseEvidence(result.json);
+    expect(evidence.evidence_links).toEqual([parent.evidence_id]);
+    expect(evidence.normalized_result).toMatchObject({
+      kind: "environment-state",
+      timeline: "recorded-start-time",
+      documents: [
+        {
+          tool: "get_settings",
+          path: "/api/settings",
+          value: { theme: "light" },
+          record_ordinal: 0,
+        },
+      ],
+    });
+    expect(await readFile(path, "utf8")).toBe(request);
+  },
+);
+
 cliTest(
   "decodes a Grafana-shaped HAR and projects its environment manifest through the compiled workflows",
   async ({ cli }) => {

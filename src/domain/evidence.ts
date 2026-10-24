@@ -26,6 +26,7 @@ import {
   freezeJsonSnapshot,
   freezeOwnedJsonTreeSnapshot,
   canBorrowParsedJsonSnapshot,
+  immutableJsonSnapshotMember,
   isImmutableJsonSnapshot,
 } from "./immutableJson.js";
 import { digestSchema } from "./../domain/digests.js";
@@ -355,11 +356,7 @@ export const rebindEvidenceToTargetPath = (
   // The original authenticated Evidence owns immutable payloads. Only the
   // small display subject and envelope are new, so preserve those payloads
   // without reparsing a potentially large analysis result.
-  Object.freeze(reboundSubject.digest);
-  Object.freeze(reboundSubject);
-  Object.freeze(reboundEvidence);
-  immutableEvidenceSnapshots.set(reboundEvidence, reboundEvidence);
-  return reboundEvidence;
+  return rememberReboundEvidence(evidence, reboundEvidence);
 };
 
 /** Bind the exact selected request path without changing semantic identity or stored history. */
@@ -372,12 +369,23 @@ export const withEvidenceCallerInputPath = (
   if (owned.caller_input_path === callerInputPath) return owned;
   // The authenticated source owns its immutable payloads. Only this small
   // envelope changes, so replay does not copy a document-sized result.
-  const rebound = Object.freeze({
+  const rebound = {
     ...owned,
     caller_input_path: callerInputPath,
-  });
-  immutableEvidenceSnapshots.set(rebound, rebound);
-  return rebound;
+  };
+  return rememberReboundEvidence(owned, rebound);
+};
+
+/** Carry the source's sealing proof before sealing only the changed envelope. */
+const rememberReboundEvidence = (
+  source: Evidence,
+  rebound: Evidence,
+): Evidence => {
+  // Each own member belongs to an authenticated immutable source. Register
+  // these shared roots so sealing the envelope never walks their payloads.
+  for (const key of Object.keys(source))
+    immutableJsonSnapshotMember(source, key);
+  return rememberImmutableEvidence(rebound);
 };
 
 /** Recognize authenticated Evidence whose complete reachable JSON data is immutable. */

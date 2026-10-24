@@ -6,6 +6,7 @@ export const CAPINFOS_OUTPUT = [
   "File type:           Wireshark/tcpdump/... - pcap",
   "File encapsulation:  Ethernet",
   "Packet size limit:   file hdr: 262144 bytes",
+  "Packet size limit:   inferred: 128 bytes - 256 bytes (range)",
   "Number of packets:   3",
   "Capture duration:    0.123 seconds",
   "Earliest packet time: 1791728020.608505",

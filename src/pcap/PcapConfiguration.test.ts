@@ -197,6 +197,22 @@ describe("parseCapinfosOutput", () => {
     });
   });
 
+  it.each(["128 bytes", "128 bytes - 256 bytes (range)"])(
+    "preserves the file-header snapshot limit alongside inferred %s",
+    (inferred) => {
+      const output = REAL_CAPINFOS.replace(
+        "Packet size limit:   file hdr: 262144 bytes",
+        `Packet size limit:   file hdr: 262144 bytes\nPacket size limit:   inferred: ${inferred}`,
+      );
+      expect(parseCapinfosOutput(output).snapshotLength).toBe(262144);
+      expect(
+        parseCapinfosOutput(
+          output.replace("file hdr: 262144 bytes", "file hdr: (not set)"),
+        ).snapshotLength,
+      ).toBeNull();
+    },
+  );
+
   it("retains timestamps from the older capinfos labels", () => {
     const output = REAL_CAPINFOS.replace(
       "Earliest packet time",

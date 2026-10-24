@@ -76,6 +76,10 @@ associations are derivations. Capture Evidence has historical-reference authorit
 nanoseconds). Empty captures, malformed timestamps and instants outside years
 0000–9999 remain `null`; host-local timestamps without a zone are not inferred.
 
+`snapshot_length` is the file-header packet size limit reported by `capinfos`.
+Its separate inferred truncation lengths do not replace that limit; an unset
+file-header limit remains `null`.
+
 Addresses count once per packet, including loopback and nested IP occurrences.
 DNS addresses are associated only with one question in the same response packet;
 additional records may be included, so this does not prove final resolution.

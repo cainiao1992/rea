@@ -73,8 +73,15 @@ export const parseCapinfosOutput = (stdout: string): CapinfosMetadata => {
   const lines = new Map<string, string>();
   for (const line of stdout.split(/\r?\n/u)) {
     const at = line.indexOf(":");
-    if (at >= 0 && !/^\s/u.test(line))
-      lines.set(line.slice(0, at), line.slice(at + 1).trim());
+    if (at >= 0 && !/^\s/u.test(line)) {
+      const key = line.slice(0, at);
+      const value = line.slice(at + 1).trim();
+      // capinfos repeats this label for inferred truncation lengths. They
+      // describe captured packets, not the capture header's snapshot limit.
+      if (key === "Packet size limit" && !value.startsWith("file hdr:"))
+        continue;
+      lines.set(key, value);
+    }
   }
   const fileType = lines.get("File type");
   const encapsulation = lines.get("File encapsulation");

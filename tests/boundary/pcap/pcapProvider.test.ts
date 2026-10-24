@@ -136,6 +136,7 @@ it("inspects a capture with endpoints, DNS, TLS SNI, and HTTP", async () => {
   expect(result.capture_start).toBe("2026-10-11T14:13:40.608505Z");
   expect(result.capture_end).toBe("2026-10-11T14:13:40.981978Z");
   expect(result.packet_count).toBe(3);
+  expect(result.snapshot_length).toBe(262144);
   expect(result.endpoints).toEqual(
     expect.arrayContaining([
       { address: "192.168.1.100", port: null, packet_count: 3 },

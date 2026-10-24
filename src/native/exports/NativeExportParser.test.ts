@@ -342,7 +342,14 @@ describe("ELF export version and name coverage", () => {
     expect(
       result.format === "elf" && result.exports.map(({ version }) => version),
     ).toEqual(["unknown", "unknown"]);
-    expect(result.coverage.status).toBe("partial");
+    expect(result.exports.map(({ name }) => name)).toEqual(["a", "b"]);
+    expect(result.coverage).toMatchObject({
+      status: "partial",
+      examined_entries: 2,
+      exports: 2,
+      reason:
+        "1 export table issue(s) affect reported rows or metadata; see issues",
+    });
     expect(result.issues).toMatchObject([{ code: "version_unresolved" }]);
   });
 
@@ -625,7 +632,14 @@ describe("export inventory review regressions", () => {
       },
     ]);
     expect(result.issues).toMatchObject([{ code: "version_unresolved" }]);
-    expect(result.coverage.status).toBe("partial");
+    expect(result.exports.map(({ name }) => name)).toEqual(["a"]);
+    expect(result.coverage).toMatchObject({
+      status: "partial",
+      examined_entries: 1,
+      exports: 1,
+      reason:
+        "1 export table issue(s) affect reported rows or metadata; see issues",
+    });
   });
 
   it("rejects a dynamic symbol table without its null entry", () => {

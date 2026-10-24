@@ -30,6 +30,11 @@ compression type leaves section names unknown and adds a limitation; note bytes
 remain independently examined. Each `entries[]` item reports owner, type,
 descriptor SHA-256, and a hex preview for descriptors of 64 bytes or less.
 
+A section name also stays null when its offset is outside the declared string
+table or its bytes lack a NUL terminator. A limitation explains that missing
+name. Note coverage remains complete when all declared note tables and entries
+were examined; an unavailable section name does not erase those note facts.
+
 For GNU notes, `gnu.build_id_hex`, `gnu.abi_tag`, or `gnu.gold_version` are
 filled when the descriptor matches that type. Other owners keep `gnu` null.
 

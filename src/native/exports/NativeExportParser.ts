@@ -72,7 +72,7 @@ const coverage = (
     ? { status: "complete", reason: null, examined_entries: examined, exports }
     : {
         status: "partial",
-        reason: `${String(issues.length)} export table issue(s) left entries unreported; see issues`,
+        reason: `${String(issues.length)} export table issue(s) affect reported rows or metadata; see issues`,
         examined_entries: examined,
         exports,
       };

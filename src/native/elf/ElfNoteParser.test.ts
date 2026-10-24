@@ -413,7 +413,14 @@ const unterminatedNoteSections = (
 };
 
 it("bounds repeated scans of an unterminated section name", () => {
-  expect(parse(unterminatedNoteSections(1, 64)).tables[0]?.name).toBeNull();
+  const report = parse(unterminatedNoteSections(2, 64));
+  expect(report.tables.map(({ name }) => name)).toEqual([null, null]);
+  expect(report.coverage.status).toBe("complete");
+  expect(
+    report.limitations.filter((value) => value.includes("not NUL-terminated")),
+  ).toEqual([
+    "ELF section names are incomplete because a name is not NUL-terminated.",
+  ]);
   let failure: unknown;
   try {
     parse(unterminatedNoteSections(3, 400));

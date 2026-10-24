@@ -146,18 +146,34 @@ class ElfReader {
     return this.bytes.subarray(offset, offset + length);
   }
 
-  cString(table: Buffer, offset: number, text: TextBudget): string | null {
-    if (offset < 0 || offset >= table.length) return null;
+  cString(
+    table: Buffer,
+    offset: number,
+    text: TextBudget,
+  ): { name: string | null; limitation: string | null } {
+    if (offset < 0 || offset >= table.length)
+      return {
+        name: null,
+        limitation:
+          "ELF section names are incomplete because a name offset is outside its string table.",
+      };
     const affordable = text.limit - text.used;
     const available = table.length - offset;
     const scanned = Math.min(available, affordable + 1);
     const end = table.subarray(offset, offset + scanned).indexOf(0);
     if (end < 0) {
       chargeText(text, scanned);
-      return null;
+      return {
+        name: null,
+        limitation:
+          "ELF section names are incomplete because a name is not NUL-terminated.",
+      };
     }
     chargeText(text, end);
-    return table.subarray(offset, offset + end).toString("latin1");
+    return {
+      name: table.subarray(offset, offset + end).toString("latin1"),
+      limitation: null,
+    };
   }
 }
 
@@ -348,7 +364,7 @@ export const parseElfNotes = (
     scans: new Map(),
   };
   let shstrtab: Buffer | null = null;
-  let sectionNameLimitation: string | undefined;
+  const sectionNameLimitations = new Set<string>();
   if (shnum !== 0 && shstrndx !== 0) {
     if (shstrndx >= shnum)
       return fail("ELF section name index is out of range.");
@@ -374,14 +390,17 @@ export const parseElfNotes = (
       );
     if (decoded.state === "unsupported") {
       shstrtab = null;
-      sectionNameLimitation = `ELF section names are unavailable because compression type ${String(decoded.compressionType)} is unsupported.`;
+      sectionNameLimitations.add(
+        `ELF section names are unavailable because compression type ${String(decoded.compressionType)} is unsupported.`,
+      );
     } else {
       shstrtab = decoded.bytes;
       if (decoded.compressed) text.limit = bytes.length + shstrtab.length;
     }
   } else if (shnum !== 0) {
-    sectionNameLimitation =
-      "ELF section names are unavailable because no section-name string table is declared.";
+    sectionNameLimitations.add(
+      "ELF section names are unavailable because no section-name string table is declared.",
+    );
   }
   const tables: ElfNotes["tables"] = [];
   const parsed: ReturnType<typeof toEntry>[] = [];
@@ -430,11 +449,16 @@ export const parseElfNotes = (
           "Compressed ELF note sections are unsupported; descriptor file offsets require uncompressed note storage.",
         );
       const alignment = noteAlignment(reader.word(at + (wide ? 48 : 32)));
+      const sectionName =
+        shstrtab === null
+          ? { name: null, limitation: null }
+          : reader.cString(shstrtab, nameOffset, text);
+      if (sectionName.limitation !== null)
+        sectionNameLimitations.add(sectionName.limitation);
       tables.push({
         kind: "section",
         index,
-        name:
-          shstrtab === null ? null : reader.cString(shstrtab, nameOffset, text),
+        name: sectionName.name,
         location: { offset: fileOffset, bytes: fileSize },
         alignment,
       });
@@ -467,7 +491,7 @@ export const parseElfNotes = (
     },
     limitations: [
       ...(absent ? ABSENT_LIMITATIONS : LIMITATIONS),
-      ...(sectionNameLimitation === undefined ? [] : [sectionNameLimitation]),
+      ...sectionNameLimitations,
     ],
   };
 };

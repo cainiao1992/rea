@@ -139,7 +139,7 @@ const coverage = (
       }
     : {
         status: "partial",
-        reason: `${String(issues.length)} import table issue(s) left entries unreported; see issues`,
+        reason: `${String(issues.length)} import table issue(s) affect reported rows or metadata; see issues`,
         examined_dlls: examinedDlls,
         imports,
         delay_imports: delayImports,

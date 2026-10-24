@@ -209,6 +209,23 @@ export const elfNoteFixture = (options: ElfNoteImageOptions = {}): Buffer => {
   return bytes;
 };
 
+/** A valid GNU note whose SHT_NOTE section-name lookup cannot be completed. */
+export const elfNoteWithUnreadableSectionNameFixture = (
+  reason: "outside" | "unterminated",
+): Buffer => {
+  const bytes = elfNoteFixture({
+    ownership: "section",
+    notes: gnuBuildIdNote(),
+  });
+  const noteSection = 64 + 64;
+  const namesSection = 64 + 2 * 64;
+  const namesOffset = Number(bytes.readBigUInt64LE(namesSection + 24));
+  const namesSize = Number(bytes.readBigUInt64LE(namesSection + 32));
+  if (reason === "outside") bytes.writeUInt32LE(namesSize, noteSection);
+  else bytes.fill(0x41, namesOffset + 1, namesOffset + namesSize);
+  return bytes;
+};
+
 /** A non-allocated SHT_NOTE whose stored bytes include an ELF compression header. */
 export const compressedElfNoteSectionFixture = (
   bits: 32 | 64 = 64,

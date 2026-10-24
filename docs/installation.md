@@ -1462,6 +1462,13 @@ setup runs through `bunx`, and pins it to the exact version that performed
 setup. Run current setup to refresh an older registration, then restart the
 client.
 
+Package runners key their package cache by the requested spec, so the entry
+installed for the `@latest` invocation that ran setup cannot serve the pinned
+registration. Setup therefore materializes the pinned entry once, best-effort
+with a bounded timeout, before finishing. When that step cannot run, for
+example offline, the first client start performs the one-time install inside
+the client's MCP startup deadline and may need one more restart.
+
 ## Package runners and global installation
 
 A package-runner invocation can use a REA version installed in the current project. To

@@ -16,6 +16,10 @@ import {
   type PackageRunner,
 } from "./ClientRegistrationIdentity.js";
 import {
+  materializeRegistrationRunnerCache,
+  type SetupRegistrationPrewarm,
+} from "./SetupRegistrationPrewarm.js";
+import {
   SUPPORTED_NODE_VERSION_PROSE,
   supportsNodeVersion,
 } from "../domain/runtimeVersion.js";
@@ -173,6 +177,12 @@ export const systemSetupHost = (
       await linuxHopperHost.close?.();
     },
   };
+  const registration = setupRegistration(platform, homeDirectory, environment);
+  const prewarmRegistrationRunner = (): Promise<SetupRegistrationPrewarm> =>
+    materializeRegistrationRunnerCache(
+      registration.registrationCommand,
+      environment,
+    );
   const cleanup = new SetupCleanupOwner([
     macCleanup,
     {
@@ -194,7 +204,8 @@ export const systemSetupHost = (
       : {}),
     skillDestinations: (clientIds) =>
       skillDestinations(homeDirectory, clientIds, environment, platform),
-    ...setupRegistration(platform, homeDirectory, environment),
+    ...registration,
+    prewarmRegistrationRunner,
     nodeVersion: process.versions.node,
     macosVersion: () => doctorHost.macosVersion(),
     linuxDistribution,

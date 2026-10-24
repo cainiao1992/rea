@@ -53,7 +53,7 @@ export const releaseInventorySchema = z.object({
   pullRequests: z.array(pullRequest),
 });
 
-export async function readReleaseHistory(run, base, target) {
+export async function requireCompleteReleaseHistory(run) {
   if (
     (await run("git", ["rev-parse", "--is-shallow-repository"])).trim() !==
     "false"
@@ -61,6 +61,10 @@ export async function readReleaseHistory(run, base, target) {
     throw new Error(
       "Release inventory requires complete Git history; fetch --unshallow first",
     );
+}
+
+export async function readReleaseHistory(run, base, target) {
+  await requireCompleteReleaseHistory(run);
   const resolve = async (ref) =>
     sha.parse(
       (

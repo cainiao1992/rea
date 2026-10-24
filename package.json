@@ -397,6 +397,7 @@
     "lint-staged": "16.4.0",
     "oxfmt": "0.72.0",
     "oxlint": "1.87.0",
+    "release-please": "17.3.0",
     "rolldown": "1.2.12",
     "tsrs": "0.18.0-ts7.1.0-dev.20260929",
     "tsx": "4.23.15",

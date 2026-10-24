@@ -5,6 +5,13 @@ import type { JsonValue } from "../jsonValue.js";
 import { copyPlistUidIdentity } from "./plistUid.js";
 import { UnknownPlistScalar } from "./unknownPlistScalar.js";
 
+const jsonScalarSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
+
 /**
  * Maximum plist value nesting the JSON projection supports. The XML decode
  * preflight shares this limit so oversized documents are rejected before any
@@ -145,7 +152,7 @@ export const projectPlistValue = (
       copyPlistUidIdentity(item, result);
       return result;
     }
-    return z.union([z.string(), z.number(), z.boolean(), z.null()]).parse(item);
+    return jsonScalarSchema.parse(item);
   };
   const projected = project(value, 0);
   return {

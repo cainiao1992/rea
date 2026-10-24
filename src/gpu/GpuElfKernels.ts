@@ -1,5 +1,6 @@
 import { readCudaTarget } from "./CudaTarget.js";
 import {
+  type AmdGpuTargetIdentity,
   readAmdGpuElfProcessor,
   readAmdGpuNoteTarget,
 } from "./AmdGpuTarget.js";
@@ -359,7 +360,7 @@ const cudaKernels = async (
 };
 export interface AmdElfMetadata {
   readonly target: string | null;
-  readonly target_key: string | null;
+  readonly targetIdentity: AmdGpuTargetIdentity | null;
   readonly limitations: string[];
   readonly notes: {
     section: NativeSection;
@@ -403,10 +404,13 @@ export const readAmdElfMetadata = async (
       limitations.push(limitation);
     const target = conflict ? null : (noteTarget ?? processor);
     // LLVM notes use both the empty and explicit `unknown` environment forms.
-    const target_key = conflict
+    const targetIdentity = conflict
       ? null
-      : (noteIdentity?.key ?? (noteTarget === null ? processor : null));
-    return { target, target_key, limitations, notes };
+      : (noteIdentity ??
+        (noteTarget === null && processor !== null
+          ? { key: processor, processor }
+          : null));
+    return { target, targetIdentity, limitations, notes };
   };
   try {
     if (directory.machine !== 224)
@@ -476,8 +480,8 @@ const amdKernels = (
 ): { limitations: string[]; coverage: "complete" | "partial" } => {
   onTarget?.({
     value: prepared.target,
-    key: prepared.target_key,
-    scope: "exact",
+    identity: prepared.targetIdentity,
+    scope: "amdgpu",
   });
   for (const {
     section,

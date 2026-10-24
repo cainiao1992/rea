@@ -8,7 +8,11 @@ import type {
   WasmArtifactExecution,
   WasmArtifactPort,
 } from "../application/wasm/WasmArtifactPort.js";
-import { readStableArtifact } from "../artifacts/readStableArtifact.js";
+import {
+  completedStableArtifact,
+  readStableArtifact,
+  type StableArtifactSnapshot,
+} from "../artifacts/readStableArtifact.js";
 import {
   ArtifactResourceScope,
   ArtifactResourceRetryFailure,
@@ -36,6 +40,7 @@ import {
   wasmArtifactSchema,
   DEFAULT_WASM_COMMAND_TIMEOUT_MS,
   type InspectWasmArtifactInput,
+  type WasmArtifact,
 } from "../domain/wasm/wasmArtifact.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { runOwnedCommand } from "../process/OwnedCommand.js";
@@ -56,6 +61,13 @@ import { parseWabtWat } from "./WabtWat.js";
 import { associateWasmGlue } from "./WasmGlueAdapter.js";
 
 type Launcher = NonNullable<Parameters<typeof runOwnedCommand>[2]>["launcher"];
+type AcquiredGlue =
+  | WasmArtifact["glue"][number]
+  | {
+      readonly artifact: WasmArtifact["glue"][number]["artifact"];
+      readonly parse_status: "not-performed";
+      readonly references: [];
+    };
 const OPERATION = "inspect_wasm_artifact";
 const digest = (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -122,10 +134,71 @@ export class WabtArtifactProvider implements WasmArtifactPort {
       path: input.path,
       field: ["path"],
     };
+    let toolProfile: WasmArtifact["tool_profile"] | undefined;
+    let artifact: WasmArtifact["artifact"] | undefined;
+    const candidates: WasmArtifact["candidates"] = [];
+    const glue: AcquiredGlue[] = [];
+    let validationState: "unknown" | "valid" = "unknown";
+    const acquiredFacts = () => ({
+      ...(artifact === undefined ? {} : { artifact }),
+      ...(toolProfile === undefined ? {} : { tool_profile: toolProfile }),
+      candidates: [...candidates],
+      glue: [...glue],
+    });
+    const acquiredEvidence = () =>
+      toolProfile === undefined
+        ? undefined
+        : createEvidence(
+            artifact === undefined
+              ? undefined
+              : {
+                  path: artifact.path,
+                  format: "file",
+                  sha256: artifact.sha256,
+                },
+            WABT_PROVIDER_IDENTITY,
+            {
+              operation: OPERATION,
+              parameters: input,
+              result: { ...acquiredFacts(), validation: validationState },
+              confidence: "observed",
+              locations: [{ kind: "artifact-path", path: input.path }],
+              limitations: [
+                artifact === undefined
+                  ? "The selected WASM byte identity was not acquired. The admitted WABT tool profile does not establish module validity or runtime behavior."
+                  : validationState === "valid"
+                    ? "WABT validated the selected module, but inspection did not complete. Acquired file identities and glue references do not establish runtime loading or execution."
+                    : "WABT validation has no completed result. Acquired file identities and glue references do not establish module validity, runtime loading or execution.",
+              ],
+            },
+          );
+    const readSelectedInput = async (
+      path: string,
+      onCompleted: (snapshot: StableArtifactSnapshot) => void,
+    ): Promise<StableArtifactSnapshot> => {
+      try {
+        const snapshot = await readStableArtifact(
+          path,
+          WABT_LIMITS.inputBytes,
+          options?.signal,
+          undefined,
+          this.#resources,
+        );
+        onCompleted(snapshot);
+        return snapshot;
+      } catch (cause: unknown) {
+        const completed = completedStableArtifact(cause);
+        if (completed !== undefined) onCompleted(completed);
+        throw cause;
+      }
+    };
     const commandTimeoutMs =
       input.command_timeout_ms ?? DEFAULT_WASM_COMMAND_TIMEOUT_MS;
     try {
-      if (options?.signal?.aborted) throw new AnalysisCancelledError(OPERATION);
+      if (options?.signal?.aborted)
+        throw new AnalysisCancelledError(OPERATION, {
+          cause: options.signal.reason,
+        });
       const directory = this.environment.REA_WABT_BIN_DIRECTORY ?? "";
       if (!isAbsolute(directory))
         throw new Error(
@@ -268,7 +341,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         versionProbe = undefined;
       }
       // Success and validation failure report the same admitted tool/execution facts.
-      const toolProfile = {
+      toolProfile = {
         source: "https://github.com/WebAssembly/wabt",
         release: WABT_VERSION,
         source_commit: "ff0ef7e0009402740c805a9744c09b05be063e48",
@@ -277,66 +350,70 @@ export class WabtArtifactProvider implements WasmArtifactPort {
         output_budget_bytes: WABT_LIMITS.outputBytes,
       };
       phase = "artifact";
-      const selected = await readStableArtifact(
-        input.path,
-        WABT_LIMITS.inputBytes,
-        options?.signal,
-        undefined,
-        this.#resources,
-      );
-      const artifact = {
-        path: input.path,
-        sha256: selected.sha256,
-        bytes: selected.bytes.length,
-      };
-      const candidates = [];
+      const selected = await readSelectedInput(input.path, (snapshot) => {
+        const observed = {
+          path: input.path,
+          sha256: snapshot.sha256,
+          bytes: snapshot.bytes.length,
+        };
+        artifact = observed;
+        candidates.push(observed);
+      });
       for (const path of new Set([input.path, ...input.candidate_paths])) {
+        if (path === input.path) continue;
         artifactInput = {
           path,
-          field:
-            path === input.path
-              ? ["path"]
-              : ["candidate_paths", input.candidate_paths.indexOf(path)],
+          field: ["candidate_paths", input.candidate_paths.indexOf(path)],
         };
-        const bytes =
-          path === input.path
-            ? selected
-            : await readStableArtifact(
-                path,
-                WABT_LIMITS.inputBytes,
-                options?.signal,
-                undefined,
-                this.#resources,
-              );
-        candidates.push({
+        await readSelectedInput(path, (snapshot) => {
+          candidates.push({
+            path,
+            sha256: snapshot.sha256,
+            bytes: snapshot.bytes.length,
+          });
+        });
+      }
+      for (const [index, path] of input.glue_paths.entries()) {
+        artifactInput = { path, field: ["glue_paths", index] };
+        const glueIndex = glue.length;
+        const bytes = await readSelectedInput(path, (snapshot) => {
+          glue.push({
+            artifact: {
+              path,
+              sha256: snapshot.sha256,
+              bytes: snapshot.bytes.length,
+            },
+            parse_status: "not-performed",
+            references: [],
+          });
+        });
+        const glueArtifact = {
           path,
           sha256: bytes.sha256,
           bytes: bytes.bytes.length,
-        });
-      }
-      const glue = [];
-      for (const [index, path] of input.glue_paths.entries()) {
-        artifactInput = { path, field: ["glue_paths", index] };
-        const bytes = await readStableArtifact(
-          path,
-          WABT_LIMITS.inputBytes,
-          options?.signal,
-          undefined,
-          this.#resources,
-        );
-        // Keep source characters intact so locations match the hashed artifact.
-        const source = new TextDecoder("utf-8", {
-          fatal: true,
-          ignoreBOM: true,
-        }).decode(bytes.bytes);
-        glue.push({
-          artifact: { path, sha256: bytes.sha256, bytes: bytes.bytes.length },
-          ...associateWasmGlue(
-            source,
-            path,
-            candidates.map((candidate) => candidate.path),
-          ),
-        });
+        };
+        try {
+          // Keep source characters intact so locations match the hashed artifact.
+          const source = new TextDecoder("utf-8", {
+            fatal: true,
+            ignoreBOM: true,
+          }).decode(bytes.bytes);
+          glue[glueIndex] = {
+            artifact: glueArtifact,
+            ...associateWasmGlue(
+              source,
+              path,
+              candidates.map((candidate) => candidate.path),
+            ),
+          };
+        } catch (cause: unknown) {
+          glue[glueIndex] = {
+            artifact: glueArtifact,
+            parse_status: "failed",
+            references: [],
+          };
+          throw cause;
+        }
       }
       phase = "producer";
       await writeFile(snapshotPath, selected.bytes, {
@@ -365,9 +442,8 @@ export class WabtArtifactProvider implements WasmArtifactPort {
                 operation: OPERATION,
                 parameters: input,
                 result: {
-                  artifact,
+                  ...acquiredFacts(),
                   validation: "rejected-by-selected-profile",
-                  tool_profile: toolProfile,
                   exit_code: validation.exitCode ?? null,
                   stdout: validation.stdout.text,
                   stderr: validation.stderr.text,
@@ -394,6 +470,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
             },
           ],
         );
+      validationState = "valid";
       const customSectionWarnings: {
         tool: (typeof commands)[number]["tool"];
         text: string;
@@ -473,7 +550,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
       };
       const { sections, headers, details } = parseWabtOutput(
         dump.stdout.text,
-        artifact.bytes,
+        selected.bytes.length,
         customSectionNames,
         debugModuleNames,
       );
@@ -530,6 +607,10 @@ export class WabtArtifactProvider implements WasmArtifactPort {
           ...(versionProbe === undefined ? {} : { versionProbe }),
         },
       );
+      if (failure.partialObservation === undefined) {
+        const partial = acquiredEvidence();
+        if (partial !== undefined) failure.retainPartialObservation(partial);
+      }
       runtime?.retainCommandFailure(cause, failure, this.#resources);
       result = err(
         failure instanceof AnalysisOutputError &&
@@ -540,6 +621,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
               capturedOutput,
               cleanup: failure.cleanup,
               diagnostics: failure.diagnostics,
+              partialObservation: failure.partialObservation,
             }).bindCleanupDependencies([failure])
           : failure,
       );

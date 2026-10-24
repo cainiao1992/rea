@@ -34,6 +34,53 @@ One-shot CLI output remains complete. Older servers require the existing complet
 request after schema discovery. APK authenticity and runtime behavior remain
 unverified.
 
+## Manifest component projection
+
+`inspect_android_package` also returns a static inventory of declared
+activities, aliases, services, receivers and providers from the decoded
+manifest. `declared_name` preserves the source attribute; `name` resolves a
+relative name only when the manifest package is known and the resolved copy
+fits the UTF-8 byte budget. An unresolved package or exhausted name budget
+retains the declared name and marks the inventory partial. Empty component
+names and names with forbidden DEX characters retain their raw spelling and
+are not treated as identities. Valid DEX spaces, including boundary spaces,
+are preserved when resolving component names and matching alias targets.
+Whitespace in the manifest package is rejected by its separate package grammar.
+Component permissions inherit the application
+permission when no component permission is declared, except an activity alias
+with no permission: Android documents that case as requiring no permission
+through the alias. `permission_source` distinguishes a local declaration,
+inherited value, no requirement (including an explicit empty override), and a
+value omitted because its resource/manifest-placeholder token is unresolved
+or the total permission-byte budget was reached. Resource and placeholder
+references are not expanded at this parser boundary. Repeated inherited
+values share one inventory-wide byte budget.
+Provider `android:readPermission` and `android:writePermission` overrides are
+not projected as separate fields; their presence marks the inventory partial
+and is called out in `limitations`. Relative component names are not resolved
+against a manifest package with surrounding whitespace.
+Class-name segments follow DEX `SimpleName` characters, including a leading
+digit or hyphen, rather than Java source identifier rules. Relative-name
+expansion does not prove class existence, DEX-version compatibility or runtime
+loadability. SDK defaults accept JADX's decimal and hexadecimal integer
+spellings; the original SDK declaration strings remain unchanged.
+
+`exported` is the declared literal `true` or `false`, otherwise null.
+`exported_default` is the documented default only where it can be established;
+it remains null for unknown provider target SDKs, nonliteral declarations, or
+components with filters targeting API 31 or later that omit the now-required
+explicit declaration. A limitation records the latter validation error.
+Provider authorities and all inventory dimensions are bounded. `status:
+"partial"` and `limitations` identify omitted declarations or values; a
+capacity limitation appears only when an actual collection limit was reached.
+The projection does not merge manifests, expand resource references, or
+observe runtime enabled/export state.
+
+The service `foreground_service_type` field preserves the declared attribute,
+including an empty value or surrounding spaces; `null` means the attribute is
+absent or the component is not a service. This field does not validate service
+type tokens or establish runtime eligibility.
+
 ## Supply tools
 
 Use a **full JDK 17 or newer** (including its compiler module) and

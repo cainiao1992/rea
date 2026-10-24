@@ -44,6 +44,88 @@ const engine = {
   heap_limit_mib: null,
 };
 
+it.each([
+  ["", "", true, true, null],
+  ["16", "", true, true, null],
+  ["17", "", false, true, null],
+  ["33", "", false, null, null],
+  ["16", "17", false, true, null],
+  ["Preview", "", null, null, null],
+  ["1", "Preview", null, null, null],
+  ["", "", null, null, 'android:targetSdkVersion=""'],
+  ["", "", null, null, 'android:minSdkVersion=""'],
+  [
+    "16",
+    "",
+    null,
+    null,
+    'android:minSdkVersion="16" android:targetSdkVersion=""',
+  ],
+] as const)(
+  "derives export rules from minimum SDK %s and declared target %s",
+  async (minimum, target, providerDefault, activityDefault, sourceSdk) => {
+    const sdk =
+      sourceSdk ??
+      [
+        minimum === "" ? "" : `android:minSdkVersion="${minimum}"`,
+        target === "" ? "" : `android:targetSdkVersion="${target}"`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    const manifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example">${sdk === "" ? "" : `<uses-sdk ${sdk}/>`}<application><provider android:name=".Data"/><activity android:name=".Filtered"><intent-filter><action android:name="example.OPEN"/></intent-filter></activity></application></manifest>`;
+    const tools: JadxToolPort = {
+      json: (name) => {
+        expect(name).toBe("get_app_info");
+        return Promise.resolve({
+          package: "com.example",
+          version_name: "",
+          version_code: "",
+          min_sdk: minimum,
+          target_sdk: target,
+          permissions: [],
+        });
+      },
+      text: (name) => {
+        expect(name).toBe("get_android_manifest");
+        return Promise.resolve(manifest);
+      },
+      listClasses: () => Promise.reject(new Error("Unexpected class query")),
+    };
+    const report = androidResultSchemas.inspect_android_package.parse(
+      await analyzeJadxRequest(
+        tools,
+        {
+          operation: "inspect_android_package",
+          input: { path: "/fixture.apk" },
+        },
+        {
+          state: "LOADED",
+          apk_path: "/snapshot.apk",
+          class_count: 0,
+          resource_count: 1,
+          threads: 1,
+          resources: "full",
+        },
+        engine,
+      ),
+    );
+    expect(report.target_sdk).toBe(target || null);
+    expect(report.min_sdk).toBe(minimum || null);
+    expect(report.components.status).toBe("complete");
+    expect(report.components.items[0]?.exported_default).toBe(providerDefault);
+    expect(report.components.items[1]?.exported_default).toBe(activityDefault);
+    if (sourceSdk !== null || minimum === "Preview" || target === "Preview")
+      expect(report.components.limitations.join(" ")).toContain(
+        "target SDK is unknown",
+      );
+    else if (minimum === "33" && target === "")
+      expect(report.components.limitations.join(" ")).toContain(
+        "requires an explicit value",
+      );
+    else expect(report.components.limitations).toEqual([]);
+  },
+);
+
 it("pages filtered matches independently of the examined inventory and preserves cross-page duplicates", async () => {
   const names = Array.from({ length: 5000 }, (_, i) => `fixture.Target${i}`);
   names[0] = "fixture.TargetDuplicate";

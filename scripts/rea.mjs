@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import { access } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { prepareCliProcessEnvironment } from "./lib/cli-process-environment.mjs";
 
 // Route production MCP before importing Incur. Incur owns registration helpers
 // such as `mcp add`, while the MCP runtime serves the tool catalog over stdio
@@ -11,7 +13,11 @@ const args = process.argv.slice(2);
 const { default: packageJson } = await import("../package.json", {
   with: { type: "json" },
 });
-process.env.REA_PACKAGE_VERSION = packageJson.version;
+prepareCliProcessEnvironment(
+  process.env,
+  process.platform,
+  packageJson.version,
+);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const builtinArgumentRuntime = "dist/cli-runtime/cliBuiltinArguments.js";
 const builtinArguments = (await compiledRuntimeExists([builtinArgumentRuntime]))
@@ -36,26 +42,6 @@ const isMcpHttpMode =
 const SIGPIPE_EXIT_STATUS = 141;
 // Set once the reader of CLI output has closed the pipe.
 let stdoutClosed = false;
-// Windows home lookup throws for an empty USERPROFILE. Dependencies resolve
-// home during import, before REA's own resolver can apply its account fallback.
-if (process.platform === "win32" && process.env.USERPROFILE === "") {
-  delete process.env.USERPROFILE;
-}
-
-// Playwright's registry assumes one of its three desktop host platforms when
-// it chooses the browser cache directory. Termux reports `android`, although
-// its Node runtime and filesystem are POSIX-compatible. Keep the cache path
-// explicit so REA can start on Termux. Browser launch still requires a
-// caller-supplied Android-compatible Chromium executable.
-if (
-  process.platform === "android" &&
-  process.env.PLAYWRIGHT_BROWSERS_PATH === undefined
-) {
-  const cacheRoot =
-    process.env.XDG_CACHE_HOME ?? join(process.env.HOME ?? ".", ".cache");
-  process.env.PLAYWRIGHT_BROWSERS_PATH = join(cacheRoot, "ms-playwright");
-}
-
 const runtimeFiles = [
   builtinArgumentRuntime,
   ...(isMcpMode || isMcpHttpMode

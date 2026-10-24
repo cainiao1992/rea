@@ -1257,6 +1257,16 @@ it.each([
     },
   ],
   [
+    "scripts/lib/cli-process-environment.mjs",
+    {
+      code: true,
+      package: true,
+      runtime: true,
+      javascript_recovery: true,
+      readiness: false,
+    },
+  ],
+  [
     "tests/conformance/readiness/report/reconstructionReadiness.ts",
     {
       code: true,

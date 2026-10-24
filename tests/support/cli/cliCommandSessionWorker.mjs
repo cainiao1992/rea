@@ -1,8 +1,9 @@
 import { Writable } from "node:stream";
 import { access } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { prepareCliProcessEnvironment } from "../../../scripts/lib/cli-process-environment.mjs";
 import {
   createCliSessionFrameReader,
   encodeCliSessionFrame,
@@ -19,23 +20,6 @@ const { default: packageJson } = await import(
   { with: { type: "json" } }
 );
 
-const prepareCliProcess = () => {
-  process.env.REA_PACKAGE_VERSION = packageJson.version;
-  // Windows home lookup throws for an empty USERPROFILE. Dependencies resolve
-  // home during import, before REA's own resolver can apply its account fallback.
-  if (process.platform === "win32" && process.env.USERPROFILE === "") {
-    delete process.env.USERPROFILE;
-  }
-  if (
-    process.platform === "android" &&
-    process.env.PLAYWRIGHT_BROWSERS_PATH === undefined
-  ) {
-    const cacheRoot =
-      process.env.XDG_CACHE_HOME ?? join(process.env.HOME ?? ".", ".cache");
-    process.env.PLAYWRIGHT_BROWSERS_PATH = join(cacheRoot, "ms-playwright");
-  }
-};
-
 const runtimeFiles = [
   "dist/cli-runtime/cli.js",
   "dist/cli-runtime/cliOutput.js",
@@ -43,7 +27,11 @@ const runtimeFiles = [
   "dist/cli-runtime/cliResultOutput.js",
 ];
 
-prepareCliProcess();
+prepareCliProcessEnvironment(
+  process.env,
+  process.platform,
+  packageJson.version,
+);
 if (!(await compiledRuntimeExists(runtimeFiles))) {
   process.stderr.write(
     `REA's compiled runtime is missing. Run \`npm ci && npm run build:cached\` in ${packageRoot} to install dependencies and build REA, then restart it. If this is an installed package, reinstall rea-agents.\n`,
@@ -118,7 +106,11 @@ async function handle(value) {
     }
     for (const key of Object.keys(process.env)) delete process.env[key];
     Object.assign(process.env, request.env);
-    prepareCliProcess();
+    prepareCliProcessEnvironment(
+      process.env,
+      process.platform,
+      packageJson.version,
+    );
     process.chdir(request.cwd);
     const result = await runOneShot(request.arguments);
     await writeFrame({

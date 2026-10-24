@@ -1037,7 +1037,6 @@ describe("DMG attach cancellation and preexisting mounts", () => {
     },
   );
 
-
   it("leaves a preexisting outside-root mount attached", async () => {
     const calls: string[][] = [];
     const host: NativeDmgHost = {

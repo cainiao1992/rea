@@ -112,10 +112,9 @@ import { parseCodeSignature } from "./parsers/codesign.js";
 import { parseDemangledSymbols } from "./parsers/demangle.js";
 import { parseLipoCapture } from "./parsers/lipo.js";
 import {
-  parsePlistJson,
+  readPlistJson,
   parsePlistBinary,
   parsePlistXml,
-  plistJsonNeedsNumberTypes,
   type ParsedPlist,
 } from "./parsers/plist.js";
 import {
@@ -1081,49 +1080,54 @@ class NativeMacOSClient implements AnalysisClient {
     // such plists, so decode its XML conversion instead. JSON also prints an
     // integral <real> like an <integer>, so XML identifies unsafe number types.
     const jsonDecoded = json.value.exitCode === 0;
-    const xml =
-      jsonDecoded && !plistJsonNeedsNumberTypes(json.value.stdout)
-        ? undefined
-        : await this.#run(
-            "inspect_plist",
-            "plutil",
-            ["-convert", "xml1", "-o", "-", "--", path],
-            { signal, acceptNonZero: !jsonDecoded, timeoutMs },
-          );
-    if (xml !== undefined && !xml.ok) return xml;
-    if (xml !== undefined && xml.value.exitCode !== 0) {
-      const capture = failureCapture(xml.value, false);
-      return err(
-        unreadablePlist(
-          fileInput.selection,
-          `plutil could not decode it as a property list (${plutilDiagnostic(capture, path)})`,
-          {
-            capturedOutput: {
-              stdout: capture.stdout,
-              stderr: capture.stderr,
-              truncated: capture.truncated,
-              stdout_bytes: capture.stdoutBytes,
-              stderr_bytes: capture.stderrBytes,
-              exit_code: capture.exitCode,
-              signal: capture.signal,
-            },
-          },
-        ),
+    const jsonAttempt = jsonDecoded
+      ? readPlistJson(json.value.stdout)
+      : undefined;
+    let xml: NativeCommandCapture | undefined;
+    let parsed: Result<ParsedPlist, AnalysisOutputError>;
+    if (jsonAttempt === undefined || jsonAttempt.needsNumberTypes) {
+      const converted = await this.#run(
+        "inspect_plist",
+        "plutil",
+        ["-convert", "xml1", "-o", "-", "--", path],
+        { signal, acceptNonZero: !jsonDecoded, timeoutMs },
       );
+      if (!converted.ok) return converted;
+      xml = converted.value;
+      if (xml.exitCode !== 0) {
+        const capture = failureCapture(xml, false);
+        return err(
+          unreadablePlist(
+            fileInput.selection,
+            `plutil could not decode it as a property list (${plutilDiagnostic(capture, path)})`,
+            {
+              capturedOutput: {
+                stdout: capture.stdout,
+                stderr: capture.stderr,
+                truncated: capture.truncated,
+                stdout_bytes: capture.stdoutBytes,
+                stderr_bytes: capture.stderrBytes,
+                exit_code: capture.exitCode,
+                signal: capture.signal,
+              },
+            },
+          ),
+        );
+      }
+      parsed =
+        jsonAttempt === undefined
+          ? parsePlistXml(xml.stdout)
+          : jsonAttempt.project(xml.stdout);
+    } else {
+      parsed = jsonAttempt.project();
     }
-    const parsed =
-      xml === undefined
-        ? parsePlistJson(json.value.stdout)
-        : jsonDecoded
-          ? parsePlistJson(json.value.stdout, xml.value.stdout)
-          : parsePlistXml(xml.value.stdout);
     if (!parsed.ok) return parsed;
     const provenance = [
       classified,
       json.value,
-      ...(xml === undefined ? [] : [xml.value]),
+      ...(xml === undefined ? [] : [xml]),
     ].map((item) => invocation(item, path, "$PLIST"));
-    const converted = xml?.value ?? json.value;
+    const converted = xml ?? json.value;
     const format = await plistSourceFormat(classified.stdout, {
       ...fileInput,
       capturedOutput: {

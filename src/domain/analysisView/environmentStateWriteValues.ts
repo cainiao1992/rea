@@ -266,9 +266,11 @@ const isAlphanumeric = (character: string | undefined): boolean =>
 const previousCharacter = (text: string, at: number): string | undefined => {
   if (at === 0) return undefined;
   const last = text.charCodeAt(at - 1);
-  return last >= 0xdc00 && last <= 0xdfff && at > 1
-    ? text.slice(at - 2, at)
-    : text[at - 1];
+  if (last >= 0xdc00 && last <= 0xdfff && at > 1) {
+    const first = text.charCodeAt(at - 2);
+    if (first >= 0xd800 && first <= 0xdbff) return text.slice(at - 2, at);
+  }
+  return text[at - 1];
 };
 
 const nextCharacter = (text: string, at: number): string | undefined => {

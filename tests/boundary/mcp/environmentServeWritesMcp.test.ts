@@ -4,7 +4,10 @@ import {
 } from "@modelcontextprotocol/client";
 import { describe, expect } from "vitest";
 
-import { timedCaptureEvidence } from "../../fixtures/analysisView.js";
+import {
+  timedCaptureEvidence,
+  type TimedCaptureRow,
+} from "../../fixtures/analysisView.js";
 import {
   environmentStateServeFixture,
   writeEnvironmentServeFiles,
@@ -88,6 +91,82 @@ describe("rea environment-serve write tools", () => {
           body: BOOK_NOT_FOUND,
           state: { source: "state", view: "missing", id: "3" },
         });
+      } finally {
+        await client.close();
+      }
+    },
+    HTTP_BOUNDARY_TIMEOUT_MS,
+  );
+
+  processTest(
+    "rebuilds ids beside unpaired surrogates while preserving raw UTF-16 through creates and reads",
+    async ({ processes }) => {
+      const captured = (id: number, name: string) => ({
+        ...book(id, name, bookClock(id)),
+        low: `A\uDC00${String(id)}`,
+        high: `A\uD800${String(id)}`,
+        right: `${String(id)}\uDC00A`,
+        word: "𐐀3𐐁",
+        emoji: `😀${String(id)}😀`,
+      });
+      const first = captured(1, "First Book");
+      const second = captured(2, "Second Book");
+      const recorded = captured(3, "Third Book");
+      const rows: readonly TimedCaptureRow[] = [
+        ["GET", "/api/books", [first, second]],
+        ["GET", "/api/books/1", first],
+        ["GET", "/api/books/2", second],
+        ["POST", "/api/books", recorded, 201, { name: "Third Book" }],
+        ["GET", "/api/books/3", recorded],
+      ];
+      const root = await createTestTempDirectory("rea-raw-utf16-writes-mcp-");
+      const files = await writeEnvironmentServeFiles(
+        root,
+        environmentStateServeFixture(timedCaptureEvidence(rows)),
+      );
+      const started = await startListeningProcess(processes, [
+        "environment-serve",
+        files.manifestPath,
+        "--evidence",
+        files.capturePath,
+        "--port",
+        "0",
+      ]);
+      const client = new Client({ name: "raw-utf16-writes", version: "1" });
+      await client.connect(new StreamableHTTPClientTransport(started.url));
+      try {
+        for (const id of [3, 4]) {
+          const name = `Created Book ${String(id)}`;
+          const expected = {
+            id,
+            name,
+            low: `A\uDC00${String(id)}`,
+            high: `A\uD800${String(id)}`,
+            right: `${String(id)}\uDC00A`,
+            word: "𐐀3𐐁",
+            emoji: `😀${String(id)}😀`,
+          };
+          const created = await client.callTool({
+            name: "post_books",
+            arguments: { body: { name } },
+          });
+          expect(created.isError).toBeFalsy();
+          expect(created.structuredContent).toMatchObject({
+            status: 201,
+            body: expected,
+            state: { source: "state", view: "create", id: String(id) },
+          });
+          const read = await client.callTool({
+            name: "get_books_by_id",
+            arguments: { id: String(id) },
+          });
+          expect(read.isError).toBeFalsy();
+          expect(read.structuredContent).toMatchObject({
+            status: 200,
+            body: expected,
+            state: { source: "state", view: "item", id: String(id) },
+          });
+        }
       } finally {
         await client.close();
       }

@@ -120,6 +120,22 @@ it("preserves UTF-16 offsets while accepting emoji as a delimiter", () => {
   expect(replaceDelimited("😀42😀", "42", "43")).toBe("😀43😀");
 });
 
+it.each<[string, number[], string]>([
+  ["A\uDC0042", [2], "A\uDC0043"],
+  ["é\uDFFF42", [2], "é\uDFFF43"],
+  ["\uDC0042", [1], "\uDC0043"],
+  ["A\uDC0042\uD800B", [2], "A\uDC0043\uD800B"],
+  ["A\uD80042", [2], "A\uD80043"],
+  ["42\uDC00A", [0], "43\uDC00A"],
+  ["\uD800\uDC0042", [], "\uD800\uDC0042"],
+])(
+  "classifies only the immediate code point beside raw UTF-16 text %j",
+  (text, offsets, replaced) => {
+    expect(delimitedOffsets(text, "42")).toEqual(offsets);
+    expect(replaceDelimited(text, "42", "43")).toBe(replaced);
+  },
+);
+
 it.each(["0000-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00"])(
   "keeps %s when conversion cannot fit the four-digit year format",
   (value) => {

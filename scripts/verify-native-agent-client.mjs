@@ -9,6 +9,7 @@ import {
   toolContract,
 } from "../dist/contracts/toolContracts.js";
 import { createVerifierCommands } from "./lib/verify-commands.mjs";
+import { saveVerifierCommandOutput } from "./lib/verifier-command-output.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 import { assertJavaScriptApplicationInputPaths } from "./lib/javascript-application-paths.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
@@ -418,36 +419,24 @@ await withVerifierCleanup(async () => {
             "--reasoning",
             "none",
           ];
-    const result = await commands
-      .exec(command, args, {
-        env: {
-          ...environment,
-          OPENAI_API_KEY: "local-fixture-key",
-          OPENAI_BASE_URL: fixture.baseUrl,
-        },
-        cwd: workspace,
-        timeout: 120_000,
-        maxBuffer: 10 * 1024 * 1024,
-        // Pi consumes piped input before its first prompt; an unused open pipe is not EOF.
-        stdin: "closed-pipe",
-      })
-      .catch(async (cause) => {
-        const outputWriters = [];
-        if (typeof cause?.snapshot?.stdout?.text === "string")
-          outputWriters.push(() =>
-            writeFile(join(lab, "client.stdout"), cause.snapshot.stdout.text),
-          );
-        if (typeof cause?.snapshot?.stderr?.text === "string")
-          outputWriters.push(() =>
-            writeFile(join(lab, "client.stderr"), cause.snapshot.stderr.text),
-          );
-        return withVerifierCleanup(() => {
-          throw cause;
-        }, outputWriters);
-      });
-    await withVerifierCleanup(
-      () => writeFile(join(lab, "client.stdout"), result.stdout),
-      [() => writeFile(join(lab, "client.stderr"), result.stderr)],
+    const result = await saveVerifierCommandOutput(
+      () =>
+        commands.exec(command, args, {
+          env: {
+            ...environment,
+            OPENAI_API_KEY: "local-fixture-key",
+            OPENAI_BASE_URL: fixture.baseUrl,
+          },
+          cwd: workspace,
+          timeout: 120_000,
+          maxBuffer: 10 * 1024 * 1024,
+          // Pi consumes piped input before its first prompt; an unused open pipe is not EOF.
+          stdin: "closed-pipe",
+        }),
+      {
+        stdout: join(lab, "client.stdout"),
+        stderr: join(lab, "client.stderr"),
+      },
     );
     assert.equal(fixture.failure, undefined);
     assert(finalSeen);

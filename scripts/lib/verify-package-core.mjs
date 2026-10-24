@@ -1,21 +1,9 @@
-import { execFile } from "node:child_process";
 import { lstat } from "node:fs/promises";
-import { promisify } from "node:util";
 import { Ajv2020 } from "ajv/dist/2020.js";
 
-/**
- * `mcp-verifier-results.mjs` reaches into `dist/` at module load, so eager
- * importing it propagates that build dependency to every consumer in this
- * file. `verifyCompleteToolCatalog` is the only consumer, so we lazy-load
- * the module there and keep the remaining helpers (`exec`, `json`,
- * `pathExists`) usable from `test:fast` callers that only need `dist/`-free
- * utilities — see docs/testing.md § test scripts, which promises `test:fast`
- * runs "without build".
- */
+// Only catalog verification needs built MCP contracts; the other helpers work
+// from source without a runtime build.
 const loadMcpVerifierResults = () => import("./mcp-verifier-results.mjs");
-
-/** Native-client commands expose the live child handle for caller-owned stdin. */
-export const exec = promisify(execFile);
 
 /** Parse JSON from a command output string. */
 export const json = (text) => JSON.parse(text);

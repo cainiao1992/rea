@@ -11,7 +11,7 @@ import { tsImport } from "tsx/esm/api";
 import { toolContract } from "../dist/contracts/toolContracts.js";
 import { parseEvidence } from "../dist/domain/evidence.js";
 import { createEvidenceBundle } from "../dist/domain/evidenceBundle.js";
-import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
+import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 
 const [
   { RECONSTRUCTION_READINESS_EXAMPLE },
@@ -69,8 +69,7 @@ const client = new Client({
 });
 
 let verificationReport;
-let primaryError;
-try {
+await withVerifierCleanup(async () => {
   await client.connect(transport);
   const catalog = await client.listTools();
   const sessionTool = catalog.tools.find(
@@ -149,15 +148,7 @@ try {
     },
     evaluator_conformance: verifySyntheticEvaluator(),
   };
-} catch (cause) {
-  primaryError = cause;
-  throw cause;
-} finally {
-  await closeVerifierResources(
-    [() => client.close(), () => transport.close()],
-    primaryError,
-  );
-}
+}, [() => client.close(), () => transport.close()]);
 
 if (process.env.REA_READINESS_REPORT_PATH !== undefined)
   await writeFile(

@@ -305,7 +305,7 @@ returned `codex-cli 0.161.0`; historical trials retain their original metadata.
 
 Cleanup retains the original `OwnedCommandFailure` or diagnostic-write aggregate,
 its cleanupResult/resources, the unresolved cleanup owner and private workspace.
-Shared `closeVerifierResources` combines a separate root-cleanup failure with
+Shared `withVerifierCleanup` combines a separate root-cleanup failure with
 the primary error. Snapshot diagnostics use actual retained/observed byte counts,
 not nonexistent stream `truncated` fields. Signal handlers remain installed
 through final cleanup; late cancellation preserves completed trial data and

@@ -39,7 +39,7 @@ import {
   verifyScenarioFailureEvidence,
 } from "./lib/browser-scenario-verifier.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
-import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
+import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 import { requireOrdinaryWindowsVerifierCaller } from "./lib/windows-ordinary-user-verifier.mjs";
 import { verifyLargeScreenshotE2e } from "./lib/browser-screenshot-e2e.mjs";
 import { verifyViewportScreenshotE2e } from "./lib/browser-viewport-screenshot-e2e.mjs";
@@ -70,8 +70,7 @@ let site;
 let browser;
 let pageProxy;
 let report;
-let verificationError;
-try {
+await withVerifierCleanup(async () => {
   profile = await mkdtemp(join(tmpdir(), "rea-real-browser-"));
   site = await startBrowserVerifierSite();
   browser = spawn(
@@ -444,40 +443,35 @@ try {
     viewportScreenshot,
     verified: true,
   };
-} catch (cause) {
-  verificationError = cause;
-  throw cause;
-} finally {
-  const cleanup = [];
-  if (pageProxy !== undefined) {
-    cleanup.push(async () => {
+}, [
+  async () => {
+    if (pageProxy !== undefined) {
       process.stderr.write("Browser verifier cleanup: closing page proxy\n");
       await pageProxy.close();
-    });
-  }
-  if (browser !== undefined) {
-    cleanup.push(async () => {
+    }
+  },
+  async () => {
+    if (browser !== undefined) {
       process.stderr.write("Browser verifier cleanup: stopping owned Chrome\n");
       await stopProcess(browser);
-    });
-  }
-  if (site !== undefined) {
-    cleanup.push(async () => {
+    }
+  },
+  async () => {
+    if (site !== undefined) {
       process.stderr.write("Browser verifier cleanup: closing fixture site\n");
       await site.close();
-    });
-  }
-  if (profile !== undefined)
-    cleanup.push(() =>
-      rm(profile, {
+    }
+  },
+  async () => {
+    if (profile !== undefined)
+      await rm(profile, {
         recursive: true,
         force: true,
         maxRetries: 10,
         retryDelay: 100,
-      }),
-    );
-  await closeVerifierResources(cleanup, verificationError);
-}
+      });
+  },
+]);
 process.stdout.write(
   `${JSON.stringify({
     verifier_run: await completeVerifierRun(verifierRun),

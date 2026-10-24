@@ -1,17 +1,57 @@
 #!/usr/bin/env node
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { PrivateRuntimeRoot } from "../dist/process/PrivateRuntimeRoot.js";
-import { closeVerifierResources } from "./lib/verifier-cleanup.mjs";
-import { exec, execNpm } from "./lib/verify-package-core.mjs";
+import {
+  OwnedCommandFailure,
+  runOwnedCommand,
+} from "../dist/process/OwnedCommand.js";
+import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
+import { execNpm } from "./lib/verify-package-core.mjs";
 import { WABT_WORKFLOW_TIMEOUT_MS } from "./lib/wabt-verifier-timeouts.mjs";
 import { verifyPackagePack } from "./verify-package-pack.mjs";
+
+/** Preserve the actual dependent process/root owner across failed cleanup. */
+class PackagedWasmCleanupFailure extends Error {
+  constructor(cause, cleanupOwner, runtimeRoot) {
+    super(
+      `Packaged WASM verifier cleanup incomplete; retained ${runtimeRoot.path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+    this.name = "PackagedWasmCleanupFailure";
+    this.cleanupOwner = cleanupOwner;
+    this.runtimeRoot = runtimeRoot;
+  }
+}
 
 const root = await PrivateRuntimeRoot.create({
   prefix: "rea-wabt-package-verifier-",
 });
-let primaryError;
-try {
+let commandCleanupOwner;
+let closing;
+const cleanupOwner = {
+  close() {
+    if (closing !== undefined) return closing;
+    let attempt;
+    attempt = (async () => {
+      if (commandCleanupOwner !== undefined) {
+        const stopped = await commandCleanupOwner.stop();
+        if (stopped.status === "incomplete")
+          throw new Error(stopped.reason, { cause: stopped });
+        commandCleanupOwner = undefined;
+      }
+      await root.close();
+    })().catch((cause) => {
+      if (closing === attempt) closing = undefined;
+      throw new PackagedWasmCleanupFailure(cause, cleanupOwner, root);
+    });
+    closing = attempt;
+    return attempt;
+  },
+};
+const verifiedOutput = await withVerifierCleanup(async () => {
   const { tarball } = await verifyPackagePack({
     root: process.cwd(),
     workspace: root.path,
@@ -48,19 +88,32 @@ try {
     "scripts",
     "rea.mjs",
   );
-  const verified = await exec(
-    process.execPath,
-    ["scripts/verify-wasm-artifact.mjs", entrypoint, "--require-tools"],
-    {
-      env: environment,
-      timeout: WABT_WORKFLOW_TIMEOUT_MS,
-      maxBuffer: 4 * 1024 * 1024,
-    },
-  );
-  process.stdout.write(verified.stdout);
-} catch (cause) {
-  primaryError = cause;
-  throw cause;
-} finally {
-  await closeVerifierResources([() => root.close()], primaryError);
-}
+  let verified;
+  try {
+    verified = await runOwnedCommand(
+      {
+        command: process.execPath,
+        arguments: [
+          fileURLToPath(new URL("./verify-wasm-artifact.mjs", import.meta.url)),
+          entrypoint,
+          "--require-tools",
+        ],
+        cwd: process.cwd(),
+        hostEnvironment: environment,
+        expectedCommand: process.execPath,
+        runId: `rea-packaged-wabt-${randomUUID()}`,
+        sweepTokenOwnedProcesses: true,
+      },
+      {
+        timeoutMs: WABT_WORKFLOW_TIMEOUT_MS,
+        diagnosticBytes: 4 * 1024 * 1024,
+      },
+    );
+  } catch (cause) {
+    if (cause instanceof OwnedCommandFailure)
+      commandCleanupOwner = cause.cleanupOwner;
+    throw cause;
+  }
+  return verified.stdout.text;
+}, [() => cleanupOwner.close()]);
+process.stdout.write(verifiedOutput);

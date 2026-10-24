@@ -22,6 +22,7 @@ import { verifyPackageSetup } from "./verify-package-setup.mjs";
 import { verifyRepositorySkill } from "./verify-repository-skill.mjs";
 import { verifyManaged } from "./verify-package-managed.mjs";
 import { verifyUnknownProvider } from "./verify-package-unknown-provider.mjs";
+import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 import { completeVerifierRun, createVerifierRun } from "./lib/verifier-run.mjs";
 import {
   createVerifiedPackageMetadata,
@@ -60,7 +61,7 @@ const runStage = async (name, action) => {
   return result;
 };
 
-try {
+await withVerifierCleanup(async () => {
   if (retentionDirectory !== undefined && retentionDirectory !== "") {
     const sourceSha = (
       await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })
@@ -258,16 +259,18 @@ try {
       metadata: retentionMetadata,
     });
   }
-} finally {
-  if (updateWorkspaceRetained)
-    process.stderr.write(
-      `Package updater cleanup incomplete; retained ${workspace}\n`,
-    );
-  else
-    await runStage("workspace cleanup", () =>
-      rm(workspace, { recursive: true, force: true }),
-    );
-}
+}, [
+  async () => {
+    if (updateWorkspaceRetained)
+      process.stderr.write(
+        `Package updater cleanup incomplete; retained ${workspace}\n`,
+      );
+    else
+      await runStage("workspace cleanup", () =>
+        rm(workspace, { recursive: true, force: true }),
+      );
+  },
+]);
 const verifierLineage = await runStage("verifier lineage", () =>
   completeVerifierRun(verifierRun),
 );

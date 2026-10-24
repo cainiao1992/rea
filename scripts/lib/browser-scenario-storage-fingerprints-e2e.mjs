@@ -10,7 +10,7 @@ import {
   runScenarioCli,
   scenarioProfiles,
 } from "./browser-scenario-verifier.mjs";
-import { closeVerifierResources } from "./verifier-cleanup.mjs";
+import { withVerifierCleanup } from "./verifier-cleanup.mjs";
 
 const secretVariable = "REA_BROWSER_FINGERPRINT_VERIFIER_SECRET";
 const secret = "rea-storage-fingerprint-private";
@@ -143,8 +143,7 @@ export async function verifyScenarioStorageFingerprints(executable, origin) {
     name: "browser-storage-fingerprints-e2e",
     version: "1",
   });
-  let failure;
-  try {
+  return withVerifierCleanup(async () => {
     const cli = await verifyValues(
       (value) => runScenarioCli(scenarioFor(executable, origin, value)),
       (before, after) =>
@@ -204,24 +203,18 @@ export async function verifyScenarioStorageFingerprints(executable, origin) {
       retained_evidence: true,
       versionless_captures_unknown: true,
     };
-  } catch (cause) {
-    failure = cause;
-    throw cause;
-  } finally {
-    if (previousSecret === undefined) delete process.env[secretVariable];
-    else process.env[secretVariable] = previousSecret;
-    await closeVerifierResources(
-      [
-        () => client.close(),
-        () => transport.close(),
-        async () =>
-          assert.ok(
-            [...(await scenarioProfiles())].every((profile) =>
-              profilesBefore.has(profile),
-            ),
-          ),
-      ],
-      failure,
-    );
-  }
+  }, [
+    () => {
+      if (previousSecret === undefined) delete process.env[secretVariable];
+      else process.env[secretVariable] = previousSecret;
+    },
+    () => client.close(),
+    () => transport.close(),
+    async () =>
+      assert.ok(
+        [...(await scenarioProfiles())].every((profile) =>
+          profilesBefore.has(profile),
+        ),
+      ),
+  ]);
 }

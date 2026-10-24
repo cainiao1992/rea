@@ -174,6 +174,25 @@ describe("detached provider and target metadata", () => {
   });
 });
 
+it("preserves the exact abort reason before external mutation admission", async () => {
+  const session = createTestBinarySession(() => {
+    throw new Error("Cancelled mutation must not start a provider");
+  });
+  const reason = { request: "cancel before external mutation" };
+  const operation = vi.fn(async () => resultOk(null));
+  const result = await session.withAdmittedExternalMutation(
+    undefined,
+    AbortSignal.abort(reason),
+    operation,
+    (_value, error) => error,
+  );
+  if (result.ok) throw new Error("Expected external mutation cancellation");
+  expect(result.error._tag).toBe("AnalysisCancelledError");
+  expect(result.error.cause).toBe(reason);
+  expect(operation).not.toHaveBeenCalled();
+  await session.close();
+});
+
 it("drains session calls and retires analysis after an admitted external mutation", async () => {
   const [target] = await createBinarySessionTargets();
   const alias = join(dirname(target), "first-alias.hop");
@@ -1097,6 +1116,24 @@ describe("provider health and availability", () => {
   });
 });
 
+it("preserves the exact abort reason before composed admission", async () => {
+  const session = createTestBinarySession(() => {
+    throw new Error("Cancelled admission must not start a provider");
+  });
+  const reason = { request: "cancel before composed admission" };
+  const operation = vi.fn(async () => null);
+  const result = await session.withAdmittedAnalysis(
+    "binary_overview",
+    AbortSignal.abort(reason),
+    operation,
+  );
+  if (result.ok) throw new Error("Expected composed admission cancellation");
+  expect(result.error._tag).toBe("AnalysisCancelledError");
+  expect(result.error.cause).toBe(reason);
+  expect(operation).not.toHaveBeenCalled();
+  await session.close();
+});
+
 describe("typed unavailability without dispatching", () => {
   it("returns typed unavailability without dispatching a partial provider", async () => {
     const [first] = await createBinarySessionTargets();
@@ -1228,18 +1265,26 @@ describe("typed unavailability without dispatching", () => {
         return null;
       },
     );
-    controller.abort();
-    await expect(admitted).resolves.toMatchObject({
-      ok: false,
-      error: {
-        _tag: "AnalysisCancelledError",
-        operation: "binary_overview",
-      },
-    });
-    expect(invoked).toBe(false);
-    health.resolve(ok(null));
-    expect((await opening).ok).toBe(true);
-    await session.close();
+    const reason = { request: "cancel queued composed admission" };
+    controller.abort(reason);
+    try {
+      const result = await admitted;
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "AnalysisCancelledError",
+          operation: "binary_overview",
+        },
+      });
+      if (result.ok) throw new Error("Expected queued admission cancellation");
+      expect(result.error.cause).toBe(reason);
+      expect(invoked).toBe(false);
+    } finally {
+      health.resolve(ok(null));
+      const opened = await opening;
+      await session.close();
+      expect(opened.ok).toBe(true);
+    }
   });
 });
 

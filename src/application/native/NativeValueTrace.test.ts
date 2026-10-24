@@ -110,6 +110,25 @@ const analysis: AnalysisOperationPort = {
   },
 };
 describe("native value trace seed admission", () => {
+  it("preserves the exact abort reason before attempting a seed", async () => {
+    const reason = { request: "cancel before native trace" };
+    const attempted: unknown[] = [];
+    const result = await traceNativeValues(
+      {
+        execute: async (operation, parameters) => {
+          attempted.push([operation, parameters]);
+          return analysis.execute(operation, parameters);
+        },
+      },
+      { procedure: "0x1000" },
+      AbortSignal.abort(reason),
+    );
+    if (result.ok) throw new Error("Expected pre-seed cancellation");
+    expect(result.error._tag).toBe("AnalysisCancelledError");
+    expect(result.error.cause).toBe(reason);
+    expect(attempted).toEqual([]);
+  });
+
   it.each([
     new AnalysisInputError("analyze_function", {
       userMessage: "Unknown selector: missing",

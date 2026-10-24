@@ -125,7 +125,11 @@ const registerImportEvidenceTool = ({
           );
           if (signal.aborted)
             return server.delivery.toCallToolResult(
-              err(new AnalysisCancelledError("import_evidence_bundle")),
+              err(
+                new AnalysisCancelledError("import_evidence_bundle", {
+                  cause: signal.reason,
+                }),
+              ),
               importContract,
             );
           const imported = session.importEvidenceBundle(loaded.value);

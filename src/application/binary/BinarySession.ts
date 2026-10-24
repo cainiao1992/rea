@@ -736,10 +736,14 @@ export class BinarySession
           ),
         );
       if (isAborted(signal))
-        return err(new AnalysisCancelledError(operationName));
+        return err(
+          new AnalysisCancelledError(operationName, { cause: signal?.reason }),
+        );
       await this.#drainCalls(admittedThrough);
       if (isAborted(signal))
-        return err(new AnalysisCancelledError(operationName));
+        return err(
+          new AnalysisCancelledError(operationName, { cause: signal?.reason }),
+        );
 
       if (this.#externalMutationCleanupFailure?.cleanupIncomplete === true) {
         if (cleanupRecovery === undefined)
@@ -1450,14 +1454,18 @@ export class BinarySession
     transition: Promise<void>,
   ): Promise<Result<undefined, AnalysisCancelledError>> {
     if (signal?.aborted === true)
-      return err(new AnalysisCancelledError(operation));
+      return err(
+        new AnalysisCancelledError(operation, { cause: signal.reason }),
+      );
     if (signal === undefined) {
       await transition;
       return ok(undefined);
     }
     return new Promise((resolve) => {
       const onAbort = (): void => {
-        resolve(err(new AnalysisCancelledError(operation)));
+        resolve(
+          err(new AnalysisCancelledError(operation, { cause: signal.reason })),
+        );
       };
       signal.addEventListener("abort", onAbort, { once: true });
       transition.then(
@@ -1465,7 +1473,11 @@ export class BinarySession
           signal.removeEventListener("abort", onAbort);
           resolve(
             signal.aborted
-              ? err(new AnalysisCancelledError(operation))
+              ? err(
+                  new AnalysisCancelledError(operation, {
+                    cause: signal.reason,
+                  }),
+                )
               : ok(undefined),
           );
         },
@@ -1473,7 +1485,11 @@ export class BinarySession
           signal.removeEventListener("abort", onAbort);
           resolve(
             signal.aborted
-              ? err(new AnalysisCancelledError(operation))
+              ? err(
+                  new AnalysisCancelledError(operation, {
+                    cause: signal.reason,
+                  }),
+                )
               : ok(undefined),
           );
         },

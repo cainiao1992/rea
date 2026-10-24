@@ -19,7 +19,6 @@ import {
 import { readPyzArchive } from "./PyzArchive.js";
 import { marshalCode } from "../../python/PythonPyc.fixture.js";
 import { createEvidence } from "../../domain/evidence.js";
-import { jsonValueSchema } from "../../domain/jsonValue.js";
 import { parseArtifactInventoryEvidence } from "../../domain/artifactInventoryEvidence.js";
 import {
   ArtifactReaderFailure,
@@ -365,7 +364,7 @@ it.each([true, false])(
               parameters: { page: index },
               confidence: "observed",
               authority: "shipped-artifact",
-              result: jsonValueSchema.parse({
+              result: {
                 ...inventory,
                 nodes: index === 0 ? inventory.nodes : [],
                 edges: index === 0 ? inventory.edges : [],
@@ -378,7 +377,7 @@ it.each([true, false])(
                         row,
                       ]
                     : [row],
-              }),
+              },
             },
           ),
         );

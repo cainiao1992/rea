@@ -9,7 +9,6 @@ import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarnes
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { compareFunctions } from "../../../src/domain/functionComparison.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../../../src/contracts/functionComparisonExample.js";
@@ -74,7 +73,7 @@ it.each([
         {
           operation: "analyze_function",
           parameters: { procedure: entry },
-          result: jsonValueSchema.parse(value),
+          result: value,
           confidence: "derived",
           relationshipCoverage: { status: "complete" },
         },
@@ -532,14 +531,14 @@ it.each([
     };
     const consistent = createEvidence(undefined, provider, {
       ...observation,
-      result: jsonValueSchema.parse(result),
+      result: result,
     });
     const inconsistent =
       status === "unchanged"
         ? null
         : createEvidence(undefined, provider, {
             ...observation,
-            result: jsonValueSchema.parse({ ...result, status: "unchanged" }),
+            result: { ...result, status: "unchanged" },
           });
     const directory = await createTestTempDirectory("rea-function-status-");
     const path = join(directory, "bundle.json");

@@ -2,7 +2,7 @@ REA npm dependency inventory
 Prepared from the root package-lock.json; refresh this inventory when locked dependencies change.
 License identifiers are upstream lockfile declarations, not a legal assessment.
 Runtime includes transitive and optional platform packages; development includes build, test and website tooling.
-Locked package entries: 956; runtime: 180.
+Locked package entries: 963; runtime: 180.
 Full runtime copyright/license/NOTICE texts: npm-runtime-notices.txt.
 
 @algolia/abtesting@1.25.0 | development | MIT
@@ -1100,6 +1100,36 @@ commander@13.1.0 | runtime | MIT
   Package: https://www.npmjs.com/package/@oxfmt/binding-win32-x64-msvc/v/0.72.0
   Archive: https://registry.npmjs.org/@oxfmt/binding-win32-x64-msvc/-/binding-win32-x64-msvc-0.72.0.tgz
   Integrity: sha512-uhooIN+DCzWX5uH7mQkSVCsODqsGluGJ4n3ch4+mITtWKpESMDjUJUSDBAVFuYQDwqY2McPDKdKJbM0oZVW/Qw==
+@oxlint-tsgolint/darwin-arm64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/darwin-arm64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/darwin-arm64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/darwin-arm64/-/darwin-arm64-7.0.2005.tgz
+  Integrity: sha512-VqDZxcZVjlonNLuuvraVNgDQt+1ndwa4yJo8OqsK4HYh/61ba9IlMStCVfi/aaIqRoDhNbAKC8gdcTrXqnb+Ug==
+@oxlint-tsgolint/darwin-x64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/darwin-x64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/darwin-x64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/darwin-x64/-/darwin-x64-7.0.2005.tgz
+  Integrity: sha512-4kUfLRNYoVpv0Tm3jPYrvxyfOc/LmdvFC3pKZ4tL6K7lA7K/VS81SAtmxRzbYXYSyb3SBWhwsuX+df4neqzxxA==
+@oxlint-tsgolint/linux-arm64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/linux-arm64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/linux-arm64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/linux-arm64/-/linux-arm64-7.0.2005.tgz
+  Integrity: sha512-rhUNcPsBlKvhXtrbhbBUidtRBRdJ8fbEHN9H5Q5N59gby18ruGuDA7KUxl7oRnUzp797uykYQhkBDm+0KpfK/Q==
+@oxlint-tsgolint/linux-x64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/linux-x64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/linux-x64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/linux-x64/-/linux-x64-7.0.2005.tgz
+  Integrity: sha512-tKs9yinDQZOHygM0e8EJnjTU3mzJtdfkOZP6Udu82iLMePUSHOhTJ9zzU/mSd1hQxURI4LTRRiFhfzC+PzwdNA==
+@oxlint-tsgolint/win32-arm64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/win32-arm64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/win32-arm64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/win32-arm64/-/win32-arm64-7.0.2005.tgz
+  Integrity: sha512-VYPnu1gjfbSv+ROhuyNfMs382D4zQU2ZRc8Uc3nuEZo1k2kf+1KfTrg4hrlWh73h9GI+dUWyo+DYCQzUBlPwcQ==
+@oxlint-tsgolint/win32-x64@7.0.2005 | development, optional | MIT
+  Lockfile path: node_modules/@oxlint-tsgolint/win32-x64
+  Package: https://www.npmjs.com/package/@oxlint-tsgolint/win32-x64/v/7.0.2005
+  Archive: https://registry.npmjs.org/@oxlint-tsgolint/win32-x64/-/win32-x64-7.0.2005.tgz
+  Integrity: sha512-ekU89cTGy9fpQzuvxIsFHrnoP8XoFjGIRgPEW6eqgY2NYjGy9pwpjF79o04WXRMJFKRrcaVqkZXUUBdLsqpQDw==
 @oxlint/binding-android-arm-eabi@1.87.0 | development, optional | MIT
   Lockfile path: node_modules/@oxlint/binding-android-arm-eabi
   Package: https://www.npmjs.com/package/@oxlint/binding-android-arm-eabi/v/1.87.0
@@ -3540,6 +3570,11 @@ oxlint@1.87.0 | development | MIT
   Package: https://www.npmjs.com/package/oxlint/v/1.87.0
   Archive: https://registry.npmjs.org/oxlint/-/oxlint-1.87.0.tgz
   Integrity: sha512-drxVlaW7Oqq7wSy1CN25znRu00aRq8n57Q2wniJRxCmtYVz07ufCm7EVDPQFZURrTgQIjzKrVEHAD/HcvJXObg==
+oxlint-tsgolint@7.0.2005 | development | MIT
+  Lockfile path: node_modules/oxlint-tsgolint
+  Package: https://www.npmjs.com/package/oxlint-tsgolint/v/7.0.2005
+  Archive: https://registry.npmjs.org/oxlint-tsgolint/-/oxlint-tsgolint-7.0.2005.tgz
+  Integrity: sha512-6ccPGu4u4J9bwYPHXBFPee3RZrX3BboRdU7k14zRDDB1lvN3O7J/vPRFdaEfa1+CWx4xnQQOp4ctoaF66oO0uw==
 p-limit@2.3.0 | development | MIT
   Lockfile path: node_modules/p-limit
   Package: https://www.npmjs.com/package/p-limit/v/2.3.0

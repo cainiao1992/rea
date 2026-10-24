@@ -12,7 +12,7 @@ import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { ANALYSIS_SNAPSHOT_TARGET } from "../../../src/domain/analysisSnapshot.fixture.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
 import { createServer } from "../../../src/server/createServer.js";
@@ -195,7 +195,7 @@ const createBundleSourceSession = () => {
       predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
-      result: jsonValueSchema.parse(EMPTY_PROCESS_CAPTURE_EXAMPLE),
+      result: EMPTY_PROCESS_CAPTURE_EXAMPLE,
       confidence: "observed",
       authority: "controlled-replay",
     }),

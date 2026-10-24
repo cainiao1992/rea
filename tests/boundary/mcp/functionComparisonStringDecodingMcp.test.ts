@@ -8,7 +8,7 @@ import {
   functionComparisonResultSchema,
   type FunctionComparisonResult as Comparison,
 } from "../../../src/domain/functionComparisonSchemas.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 
@@ -30,7 +30,7 @@ const evidence = (
     {
       operation: "analyze_function",
       parameters: { ...template.parameters, observation: id },
-      result: jsonValueSchema.parse({
+      result: {
         ...base,
         referenced_strings: [...strings],
         swift_string_literals:
@@ -47,7 +47,7 @@ const evidence = (
                 },
               ],
         swift_string_literal_omissions: [],
-      }),
+      },
       confidence: template.confidence,
       authority: template.authority,
       relationshipCoverage: { status: "complete" },

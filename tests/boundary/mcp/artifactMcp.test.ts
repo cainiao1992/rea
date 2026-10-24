@@ -12,7 +12,7 @@ import {
 } from "../../../src/domain/evidence.js";
 import { EvidenceIntegrityError } from "../../../src/domain/evidenceErrors.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { artifactInventoryResultSchema } from "../../../src/domain/artifactGraph.js";
 import {
   artifactEdgeId,
@@ -468,7 +468,7 @@ it("records an explicitly continued mismatch, preserves verified siblings, and n
       {
         operation: "inventory_artifact",
         parameters: {},
-        result: jsonValueSchema.parse(inventoryWithoutCoverage),
+        result: inventoryWithoutCoverage,
       },
     );
     const retainedComparison = await client.callTool({
@@ -913,7 +913,7 @@ const withForeignMetadataAndNestedZipMember = (
       parameters: evidence.parameters,
       confidence: evidence.confidence,
       authority: evidence.authority,
-      result: jsonValueSchema.parse({
+      result: {
         ...inventory,
         occurrences,
         edges,
@@ -924,7 +924,7 @@ const withForeignMetadataAndNestedZipMember = (
           graph_sha256: graphSha256,
           manifest_id: manifestId,
         },
-      }),
+      },
     },
   );
 };

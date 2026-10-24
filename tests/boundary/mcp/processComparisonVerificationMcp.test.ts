@@ -5,7 +5,7 @@ import { expect, it, onTestFinished } from "vitest";
 
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
 import { parseProcessCapture } from "../../../src/domain/process/processCaptureParsing.js";
 import { compareProcessCaptures } from "../../../src/domain/process/processComparison.js";
@@ -48,11 +48,11 @@ it("rejects an inconsistent imported process comparison while retaining its Evid
         left_evidence_id: left.evidence_id,
         right_evidence_id: right.evidence_id,
       },
-      result: jsonValueSchema.parse({
+      result: {
         ...nativeResult,
         [dimension]: "contradiction",
         status,
-      }),
+      },
       confidence: "derived",
       authority: "analyst-inference",
       evidenceLinks: [left.evidence_id, right.evidence_id],

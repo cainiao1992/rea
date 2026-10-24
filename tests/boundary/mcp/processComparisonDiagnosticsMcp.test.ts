@@ -27,7 +27,7 @@ import {
   parseEvidence,
   type EvidenceProvider,
 } from "../../../src/domain/evidence.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { digestProcessCommitment } from "../../../src/domain/process/processScenario.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -45,14 +45,14 @@ const captureEvidence = (
     predicateType: "rea.process-capture",
     operation: "capture_process_scenario",
     parameters: { side },
-    result: jsonValueSchema.parse({
+    result: {
       ...observation,
       manifest: {
         ...observation.manifest,
         comparison_contract: comparisonContract,
         comparison_contract_sha256: digestProcessCommitment(comparisonContract),
       },
-    }),
+    },
     confidence: "observed",
     authority: "controlled-replay",
   });
@@ -523,7 +523,7 @@ it("names the side and constraint when Evidence is not a usable capture", async 
       predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
-      result: jsonValueSchema.parse(result),
+      result: result,
     });
     expect(parseEvidence(invalidResult)).toEqual(invalidResult);
     const malformed = await client.callTool({
@@ -565,7 +565,7 @@ it("keeps structural capture issues alongside semantic ones through MCP and the 
     predicateType: "rea.process-capture",
     operation: "capture_process_scenario",
     parameters: {},
-    result: jsonValueSchema.parse({
+    result: {
       ...rest,
       manifest,
       exit: {
@@ -577,7 +577,7 @@ it("keeps structural capture issues alongside semantic ones through MCP and the 
           ],
         },
       },
-    }),
+    },
   });
   const described =
     "(at manifest.completed_at: Invalid input: expected string, received undefined (1 more issues))";

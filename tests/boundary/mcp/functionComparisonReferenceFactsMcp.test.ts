@@ -11,7 +11,7 @@ import {
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { functionComparisonResultSchema } from "../../../src/domain/functionComparisonSchemas.js";
 import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { reconstructionVerificationResultSchema } from "../../../src/domain/reconstructionVerificationSchemas.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
@@ -147,7 +147,7 @@ const evidence = (
         ? {}
         : { analysisProfile: options.profile ?? profile }),
       parameters: { ...example.parameters, observation: id },
-      result: jsonValueSchema.parse({
+      result: {
         ...dossier,
         procedure: {
           ...dossier.procedure,
@@ -162,7 +162,7 @@ const evidence = (
         callers: [...(options.callers ?? [])],
         incoming_references: [...(options.incoming ?? [])],
         outgoing_references: [...outgoing],
-      }),
+      },
       confidence: "derived",
       authority: "shipped-artifact",
       relationshipCoverage: { status: "complete" },

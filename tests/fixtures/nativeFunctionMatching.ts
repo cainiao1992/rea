@@ -1,5 +1,5 @@
 import { createEvidence, type Evidence } from "../../src/domain/evidence.js";
-import { jsonValueSchema } from "../../src/domain/jsonValue.js";
+
 import { FUNCTION_COMPARISON_EXAMPLE } from "../../src/contracts/functionComparisonExample.js";
 import type { NativeSymbolMetadata } from "../../src/domain/native/nativeSymbol.js";
 import { functionDossierSchema } from "../../src/domain/hopperValues.js";
@@ -24,7 +24,7 @@ export const nativeMatchingInventory = (
   createEvidence(nativeMatchingTarget(side), nativeMatchingProvider, {
     operation: "list_procedures",
     parameters: {},
-    result: jsonValueSchema.parse(entries),
+    result: entries,
     evidenceLinks: [...evidenceLinks],
   });
 /** Explicit imported-origin fixture for tests that select exact-symbol correspondence. */
@@ -97,7 +97,7 @@ export const nativeMatchingDetails = (
     observation = createEvidence(target, nativeMatchingProvider, {
       operation: "analyze_function",
       parameters: { procedure: address },
-      result: jsonValueSchema.parse(value),
+      result: value,
       relationshipCoverage: { status: "complete" },
     });
   } else

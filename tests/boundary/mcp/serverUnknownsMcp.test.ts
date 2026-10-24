@@ -18,7 +18,7 @@ import { createServer } from "../../../src/server/createServer.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { parseEvidenceBundle } from "../../../src/domain/evidenceBundle.js";
 import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
 
 import { processCaptureSchema } from "../../../src/domain/process/processCapture.js";
@@ -153,7 +153,7 @@ it("records capture disagreement as a contradicted unknown", async () => {
       predicateType: "rea.process-capture",
       operation: "capture_process_scenario",
       parameters: {},
-      result: jsonValueSchema.parse(capture),
+      result: capture,
       confidence: "observed",
       authority: "controlled-replay",
     });

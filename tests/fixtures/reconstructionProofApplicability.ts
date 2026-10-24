@@ -1,7 +1,7 @@
 import { readyReviewedLedgerRequest } from "../../src/application/ReconstructionObligationLedger.fixture.js";
 import { createEvidence } from "../../src/domain/evidence.js";
 import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
-import { jsonValueSchema } from "../../src/domain/jsonValue.js";
+
 import { reconstructionObligationProofSchema } from "../../src/domain/reconstructionObligationProof.js";
 import type { ReconstructionObligationLedgerInput } from "../../src/domain/reconstructionObligationLedgerSchemas.js";
 
@@ -16,7 +16,7 @@ const replaceProof = (
     predicateType: original.predicate_type,
     operation: original.operation,
     parameters: original.parameters,
-    result: jsonValueSchema.parse(result),
+    result: result,
     confidence: original.confidence,
     authority: original.authority,
   });

@@ -1,4 +1,4 @@
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { parseEvidence, createEvidence } from "../../../src/domain/evidence.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { expect, it } from "vitest";
@@ -14,18 +14,14 @@ import {
 } from "../../../src/application/AnalysisProvider.js";
 import type { BinarySession } from "../../../src/application/binary/BinarySession.js";
 import { FUNCTION_COMPARISON_EXAMPLE } from "../../../src/contracts/functionComparisonExample.js";
-import { INVESTIGATION_EXAMPLES } from "../../../src/contracts/investigationExamples.js";
 import {
+  INVESTIGATION_EXAMPLES,
   FUNCTION_COMPARISON_EVIDENCE,
   PROCESS_CAPTURE_RECONSTRUCTION,
   PROCESS_CAPTURE_REFERENCE,
   PROCESS_COMPARISON_EVIDENCE,
 } from "../../../src/contracts/investigationExamples.js";
-import { createEvidence } from "../../../src/domain/evidence.js";
-import {
-  jsonObjectSchema,
-  jsonValueSchema,
-} from "../../../src/domain/jsonValue.js";
+import { jsonObjectSchema } from "../../../src/domain/jsonValue.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import type { RelationshipCoverage } from "../../../src/domain/relationshipCoverage.js";
@@ -217,7 +213,7 @@ const dossierWithCallees = (addresses: readonly string[]) => {
       predicateType: base.predicate_type,
       operation: base.operation,
       parameters: base.parameters,
-      result: jsonValueSchema.parse({
+      result: {
         ...jsonObjectSchema.parse(base.normalized_result),
         callees: addresses.map((address) => ({
           address,
@@ -228,7 +224,7 @@ const dossierWithCallees = (addresses: readonly string[]) => {
             reason: "The fixture has no callee body-extent observation.",
           },
         })),
-      }),
+      },
       rawResult: base.raw_result,
       confidence: base.confidence,
       authority: base.authority,

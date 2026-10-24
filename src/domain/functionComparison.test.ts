@@ -664,7 +664,7 @@ describe("function comparison ordering controls", () => {
           parameters: enhancedInputSchemas.analyze_function.parse({
             procedure: "dispatch",
           }),
-          result: jsonValueSchema.parse(result),
+          result,
           confidence: "derived",
           authority: "shipped-artifact",
           relationshipCoverage: { status: "complete" },

@@ -14,7 +14,7 @@ import {
   parseEvidence,
   type Evidence,
 } from "../../../src/domain/evidence.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest, type TestCli } from "../../support/cli/cliFixture.js";
@@ -75,7 +75,7 @@ const assertCoverageControls = async ({
       {
         operation: "inventory_artifact",
         parameters: {},
-        result: jsonValueSchema.parse(result),
+        result: result,
         confidence: "derived",
         authority: "shipped-artifact",
       },

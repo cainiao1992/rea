@@ -10,7 +10,6 @@ import { AnalysisInputError } from "../analysisErrorCore.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import { digestCanonicalValue } from "../canonicalDigest.js";
 import { createEvidence, type Evidence } from "../evidence.js";
-import { jsonValueSchema } from "../jsonValue.js";
 
 type EntryKind = "file" | "directory" | "symlink" | "slice";
 type RootFormat = "ipa" | "zip" | "dmg" | "directory" | "asar";
@@ -136,7 +135,7 @@ const inventoryEvidence = (
       parameters: {},
       confidence: "observed",
       authority: "shipped-artifact",
-      result: jsonValueSchema.parse({
+      result: {
         manifest: {
           manifest_id: `agm_${digestCanonicalValue(
             { root_artifact_id: rootId, graph_sha256: graphSha256 },
@@ -157,7 +156,7 @@ const inventoryEvidence = (
         integrity_contradictions: [],
         coverage: { scope: "container-entries", status: "complete" },
         limitations: [],
-      }),
+      },
     },
   );
 };

@@ -14,7 +14,7 @@ import {
 import { reconcileJavaScriptRuntimeEvidence } from "../../../src/application/javascript/JavaScriptRuntimeReconciliationService.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import { AnalysisInputError } from "../../../src/domain/analysisErrorCore.js";
-import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
+
 import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import {
   applicationVersionComparisonResultSchema,
@@ -377,10 +377,10 @@ describe("Application graph Evidence envelopes", () => {
         predicateType: source.predicate_type,
         operation: source.operation,
         parameters: source.parameters,
-        result: jsonValueSchema.parse({
+        result: {
           ...result,
           evidence_links: [...result.evidence_links, extraLink],
-        }),
+        },
         rawResult: source.raw_result,
         confidence: source.confidence,
         authority: source.authority,
@@ -479,7 +479,7 @@ describe("JavaScript application workflow error diagnostics", () => {
         predicateType: evidence.predicate_type,
         operation: evidence.operation,
         parameters: evidence.parameters,
-        result: jsonValueSchema.parse(malformedResult),
+        result: malformedResult,
         confidence: evidence.confidence,
         authority: evidence.authority,
         limitations: evidence.limitations,

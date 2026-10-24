@@ -14,7 +14,6 @@ import {
   parseArtifactInspectionInventoryResult,
 } from "./artifactInventoryEvidence.js";
 import { createEvidence } from "./evidence.js";
-import { jsonValueSchema } from "./jsonValue.js";
 
 const inventoryEvidence = ARTIFACT_COMPARISON_EXAMPLE.left;
 const target = inventoryEvidence.subject;
@@ -31,7 +30,7 @@ const inspectionEvidence = (result: unknown, subject = target) =>
     {
       operation: "inspect_artifact",
       parameters: {},
-      result: jsonValueSchema.parse(result),
+      result,
       confidence: "observed",
       authority: "shipped-artifact",
     },
@@ -152,12 +151,12 @@ it("keeps a commitment failure discovered across individually incomplete pages a
         parameters: {},
         confidence: "observed",
         authority: "shipped-artifact",
-        result: jsonValueSchema.parse({
+        result: {
           ...complete,
           manifest,
           nodes: includeNodes ? complete.nodes : [],
           occurrences: includeNodes ? [] : complete.occurrences,
-        }),
+        },
       },
     );
   const nodes = page(true);

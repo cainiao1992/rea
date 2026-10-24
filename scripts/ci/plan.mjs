@@ -108,7 +108,7 @@ function classifyPackage(base, head) {
       continue;
     }
     if (
-      /^(test(?::|$)|check(?::|$)|lint(?::|$)|format(?::|$)|knip$|jscpd$)/.test(
+      /^(test(?::|$)|check(?::|$)|lint(?::|$)|format(?::|$)|knip(?::|$)|jscpd$)/.test(
         script,
       )
     )

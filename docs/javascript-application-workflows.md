@@ -427,8 +427,11 @@ value. Earlier `break`/`continue` paths can leave a var initializer unexecuted.
 Legacy non-strict block-function copies are indexed on their outer variable
 owner, while strict/module and lexical-shadowing boundaries keep their values.
 A catch-shadowed var declaration keeps declaration ownership separate from its
-initializer's lexical assignment. Ordinary functions own an implicit arguments
-object; arrows retain lexical arguments lookup. Promise source identity uses
+initializer's lexical assignment, including object and array destructuring slots.
+Projected initializer facts retain their source and alias identity on the lexical
+recipient, so a later mutation through that alias prevents reporting the original
+object field as an unchanged constant. Ordinary functions own an implicit
+arguments object; arrows retain lexical arguments lookup. Promise source identity uses
 the same read-position selection and requires an unmodified intrinsic factory.
 
 Rebound values are evaluated at their read position: saving an incoming parameter

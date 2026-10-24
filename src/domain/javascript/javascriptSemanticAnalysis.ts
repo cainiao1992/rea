@@ -1156,11 +1156,7 @@ function* collectDefinitionsSteps(
         parentScope.kind === "block"
       )
         legacyBlockFunctions.push({ node, scope: parentScope });
-      if (
-        t.isVariableDeclarator(node) &&
-        node.init != null &&
-        t.isIdentifier(node.id)
-      ) {
+      if (t.isVariableDeclarator(node) && node.init != null) {
         const owner = semanticVariableScope(parentScope, parent, state);
         if (owner !== parentScope)
           displacedVarInitializers.push({ node, scope: parentScope, owner });
@@ -1233,30 +1229,68 @@ function* collectDefinitionsSteps(
   // A var declaration is instantiated in its variable environment, while its
   // initializer assigns through the lexical environment at the source site.
   for (const { node, scope, owner } of displacedVarInitializers) {
-    if (!t.isIdentifier(node.id) || node.init == null) continue;
-    const selected = resolveSemanticBindingFromScope(
-      scope,
-      node.id.name,
-      state,
-    );
-    const declared = owner.bindings.get(node.id.name);
-    if (
-      selected === undefined ||
-      selected === declared ||
-      declared === undefined
-    )
-      continue;
-    for (let index = declared.initializers.length - 1; index >= 0; index--)
-      if (declared.initializers[index]?.node === node.init)
-        declared.initializers.splice(index, 1);
-    addAssignment(
-      node.id,
-      node.init,
-      scope,
-      state,
-      state.conditionallySkippedExpressions.has(node.init),
-      node,
-    );
+    for (const identifier of semanticWriteTargets(node.id)) {
+      if (!t.isIdentifier(identifier)) continue;
+      const selected = resolveSemanticBindingFromScope(
+        scope,
+        identifier.name,
+        state,
+      );
+      const declared = owner.bindings.get(identifier.name);
+      if (
+        selected === undefined ||
+        selected === declared ||
+        declared === undefined
+      )
+        continue;
+      // Move the facts already parsed for this slot, including destructuring
+      // projections, defaults and rest copies, without reinterpreting its RHS.
+      const belongsToDeclaration = (value: t.Node): boolean => {
+        let candidate: t.Node | undefined = value;
+        while (candidate !== undefined && candidate !== node)
+          candidate = state.parentsByNode.get(candidate);
+        return candidate === node;
+      };
+      for (let index = 0; index < declared.initializers.length; index++) {
+        const initializer = declared.initializers[index];
+        if (
+          initializer !== undefined &&
+          belongsToDeclaration(initializer.node)
+        ) {
+          declared.initializers.splice(index, 1);
+          index--;
+          selected.initializers.push(initializer);
+        }
+      }
+      for (
+        let index = 0;
+        index < declared.referenceInitializers.length;
+        index++
+      ) {
+        const initializer = declared.referenceInitializers[index];
+        if (
+          initializer !== undefined &&
+          belongsToDeclaration(initializer.node)
+        ) {
+          declared.referenceInitializers.splice(index, 1);
+          index--;
+          selected.referenceInitializers.push({
+            ...initializer,
+            assignment: true,
+          });
+        }
+      }
+      addAssignment(
+        identifier,
+        null,
+        scope,
+        state,
+        node.init !== null &&
+          node.init !== undefined &&
+          state.conditionallySkippedExpressions.has(node.init),
+        node,
+      );
+    }
   }
   for (const { node, ancestors } of thrownValues) {
     let child: t.Node = node;

@@ -123,6 +123,38 @@ it("keeps ordinary arguments local while arrows retain the outer binding", () =>
   ).toBe(false);
 });
 
+it.each([
+  ["object", "{ handler }", "{ handler: state }"],
+  ["array", "[handler]", "[state]"],
+])(
+  "retains mutations through catch-shadowed %s var aliases",
+  (_shape, pattern, value) => {
+    for (const shadowed of [true, false]) {
+      const ir = analyze(`
+        exports.read = function read() {
+          const state = { value: 1 };
+          try { throw 0; } catch (${shadowed ? "handler" : "error"}) {
+            var ${pattern} = ${value};
+            handler.value = 2;
+          }
+          return state.value;
+        };
+      `);
+      expect(ir.coverage.status).toBe("complete");
+      expect(onlyCallable(ir, "read").returnSites[0]?.value).toEqual({
+        status: "unknown",
+        reason: "Own property value is unknown-coverage.",
+      });
+      if (shadowed)
+        expect(
+          ir.bindings.find(
+            ({ name, kind }) => name === "handler" && kind === "variable",
+          )?.value.status,
+        ).toBe("unknown");
+    }
+  },
+);
+
 it("does not resolve Promise sources through a future initializer", () => {
   const early = analyze(
     `

@@ -78,37 +78,33 @@ describe("canonical test-project ownership", () => {
   });
 
   it.each([
-    { flags: [], heap: 384, timeout: 30_000, lines: 68 },
-    { flags: ["--coverage"], heap: 512, timeout: 60_000, lines: 68 },
-    { flags: ["--coverage.enabled"], heap: 512, timeout: 60_000, lines: 68 },
-    { flags: ["--coverage=false"], heap: 384, timeout: 30_000, lines: 68 },
+    { flags: [], timeout: 30_000, lines: 68 },
+    { flags: ["--coverage"], timeout: 60_000, lines: 68 },
+    { flags: ["--coverage.enabled"], timeout: 60_000, lines: 68 },
+    { flags: ["--coverage=false"], timeout: 30_000, lines: 68 },
     {
       flags: ["--coverage.enabled=false"],
-      heap: 384,
       timeout: 30_000,
       lines: 68,
     },
     {
       flags: ["--coverage.provider=v8"],
-      heap: 384,
       timeout: 30_000,
       lines: 68,
     },
     {
       flags: ["--coverage.enabled", "--shard", "1/6"],
-      heap: 512,
       timeout: 60_000,
       lines: 0,
     },
     {
       flags: ["--coverage.enabled=false", "--shard=1/6"],
-      heap: 384,
       timeout: 30_000,
       lines: 0,
     },
   ])(
     "resolves worker resources from actual CLI options: $flags",
-    async ({ flags, heap, timeout, lines }) => {
+    async ({ flags, timeout, lines }) => {
       const root = await createTestTempDirectory("rea-vitest-worker-policy-");
       const script = join(root, "worker-policy.mjs");
       await writeFile(
@@ -134,7 +130,7 @@ describe("canonical test-project ownership", () => {
         },
       );
       expect(JSON.parse(result.stdout)).toEqual({
-        execArgv: [`--max-old-space-size=${String(heap)}`],
+        execArgv: ["--max-old-space-size=512"],
         timeout,
         lines,
       });

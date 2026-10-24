@@ -34,6 +34,21 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
         r = {d() {}};
         r.d(e, { loaderGhost: () => 2 });
         e.afterLoaderReplacement = 3;
+      },
+      31(mod, api, load) {
+        load.d(api, { beforeMethodReplacement: () => 1 });
+        load.other = () => {};
+        load.d(api, { afterUnrelatedWrite: () => 2 });
+        load.d = () => {};
+        load.d(api, { methodGhost: () => 3 });
+        api.afterMethodReplacement = 4;
+      },
+      37(mod, api, load) {
+        load.d(api, { beforeAliasedReplacement: () => 1 });
+        const alias = load;
+        alias.d = () => {};
+        load.d(api, { aliasedMethodGhost: () => 2 });
+        api.afterAliasedReplacement = 3;
       }
       }]);`,
     );
@@ -50,6 +65,18 @@ cliTest.for(["CLI", "stdio MCP"] as const)(
         expect.objectContaining({
           module_key: "23",
           exports: ["afterLoaderReplacement", "alpha"],
+        }),
+        expect.objectContaining({
+          module_key: "31",
+          exports: [
+            "afterMethodReplacement",
+            "afterUnrelatedWrite",
+            "beforeMethodReplacement",
+          ],
+        }),
+        expect.objectContaining({
+          module_key: "37",
+          exports: ["afterAliasedReplacement", "beforeAliasedReplacement"],
         }),
       ]),
     );

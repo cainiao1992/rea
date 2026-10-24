@@ -399,13 +399,19 @@ Bundler adapters own callback roles: Webpack supplies module, exports, then
 loader; esbuild CommonJS supplies exports, then module. Export extraction uses
 those binding identities for assignments and declarations, so renaming either
 parameter does not change the recovered names. Global property-definition
-intrinsics require lexical and visible-write proof. Computed writes through a
-standalone loader's exposed module/cache table use the shared value owner; an
-unknown key invalidates the original-slot proof rather than implying a fresh
-chunk installation. A function stored on a standalone loader member does not
-write the table merely by being defined: the bootstrap owner excludes its
-deferred writes only when that member is unread and the loader namespace stays
-confined. Calls, member aliases, dynamic member reads, namespace escapes, or
+intrinsics require lexical and visible-write proof. Factory export declarations
+also require the loader's `d` member to have no prior or unordered visible
+replacement, including writes through lexical aliases. Unrelated loader members
+do not invalidate declarations. Ordering describes declarations within one factory
+activation; helper integrity on entry, effects of earlier invocations, and
+arbitrary call side effects remain unproven.
+Computed writes through a standalone loader's exposed module/cache table use
+the shared value owner; an unknown key invalidates the original-slot proof
+rather than implying a fresh chunk installation. A function stored on a
+standalone loader member does not write the table merely by being defined:
+the bootstrap owner excludes its deferred writes only when that member is
+unread and the loader namespace stays confined. Calls, member aliases, dynamic
+member reads, namespace escapes, or
 receiver-based access retain uncertainty about those writes. Export names
 describe recognized declarations, not a proof
 of final runtime property lifetime or arbitrary helper behavior.

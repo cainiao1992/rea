@@ -207,6 +207,12 @@ export interface JavaScriptBindingIndex {
     referenceNode: t.Node,
     propertyPath?: JavaScriptSemanticPropertyPath,
   ): JavaScriptSemanticReferenceEffectsAtSite;
+  /** Order declarations within one activation; deferred and repeating effects stay unknown. */
+  effectsForReferenceWithinActivationAt(
+    site: t.Node,
+    referenceNode: t.Node,
+    propertyPath?: JavaScriptSemanticPropertyPath,
+  ): JavaScriptSemanticReferenceEffectsAtSite;
   /** Stop at the first relevant prior/uncertain effect without retaining a report. */
   referenceMayHaveChangedAt(
     site: t.Node,

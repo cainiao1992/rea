@@ -556,6 +556,25 @@ export const semanticDefiniteEffectPrecedesReference = (
   );
 };
 
+/** Order straight-line source effects in one activation, preserving deferred/repeating unknowns. */
+export const semanticEffectTimingWithinActivation = (
+  site: t.Node,
+  effect: t.Node | undefined,
+  state: JavaScriptSemanticAnalysisState,
+): JavaScriptSemanticEffectTiming => {
+  if (effect !== undefined) {
+    if (
+      semanticDefiniteEffectPrecedesReference(site, effect, state.parentsByNode)
+    )
+      return "after";
+    if (
+      semanticDefiniteEffectPrecedesReference(effect, site, state.parentsByNode)
+    )
+      return "before";
+  }
+  return semanticEffectTiming(site, effect, state);
+};
+
 const computeReferenceInitializerPosition = (
   node: t.Node,
   parents: WeakMap<t.Node, t.Node>,

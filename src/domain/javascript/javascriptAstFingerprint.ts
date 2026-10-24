@@ -12,7 +12,7 @@ import { semanticStaticPropertyKey } from "./javascriptAstValues.js";
 import { stringValue } from "./javascriptStaticAnalysisHelpers.js";
 import {
   resolveSemanticBindingState,
-  type JavaScriptSemanticAnalysisState,
+  type JavaScriptBindingIndex,
 } from "./javascriptSemanticState.js";
 
 /** Static CommonJS export names. */
@@ -42,9 +42,17 @@ export interface JavaScriptFactoryExportBindings {
 /** Collect statically declared CommonJS/bundler export names from one factory. */
 export const collectJavaScriptExports = (
   node: t.Node,
-  bindings?: JavaScriptSemanticAnalysisState,
-  roles?: JavaScriptFactoryExportBindings,
+  factory?: {
+    readonly roles: JavaScriptFactoryExportBindings;
+    readonly index: Pick<
+      JavaScriptBindingIndex,
+      "bindings" | "effectsForReferenceWithinActivationAt"
+    >;
+  },
 ): StaticExports => {
+  const roles = factory?.roles;
+  const index = factory?.index;
+  const bindings = index?.bindings;
   const exports = new Set<string>();
   const bindingId = (
     reference: t.Node | null | undefined,
@@ -102,13 +110,22 @@ export const collectJavaScriptExports = (
             "Object",
             "defineProperty",
           ]);
-        collectCallExports(
-          current,
-          exports,
-          receivers,
-          intrinsic,
-          isLoaderAlias,
-        );
+        collectCallExports(current, exports, receivers, intrinsic, (root) => {
+          if (root === null || !isLoaderAlias(root)) return false;
+          if (index === undefined) return true;
+          const facts = index.effectsForReferenceWithinActivationAt(
+            current,
+            root,
+            ["d"],
+          );
+          return (
+            facts.memberEffectsIndexed &&
+            !facts.effects.some(
+              (effect) =>
+                effect.kind === "member-write" && effect.timing !== "after",
+            )
+          );
+        });
       }
       return undefined;
     },

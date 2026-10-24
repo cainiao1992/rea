@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import * as t from "@babel/types";
 import {
   analyzeJavaScriptSemantics,
   indexJavaScriptBindingsWithReceiversSteps,
@@ -7,7 +8,10 @@ import { onlyCallable } from "./javascriptSemanticAnalysis.fixture.js";
 import { semanticResourceLimitReason } from "./javascriptSemanticResourceLimits.js";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
-import { completeSemanticSteps } from "./javascriptSemanticTraversal.js";
+import {
+  completeSemanticSteps,
+  traverseJavaScriptAst,
+} from "./javascriptSemanticTraversal.js";
 
 import {
   joinSemanticPropertyPaths,
@@ -170,4 +174,100 @@ it("keeps a preceding global self-property replacement unresolved", () => {
   expect(
     facts.references.filter(({ kind }) => kind === "worker"),
   ).toMatchObject([{ specifier: null }]);
+});
+
+it.each([
+  [
+    "load",
+    "inspect(load); load.d = replacement; inspect(load);",
+    ["after", "before"],
+  ],
+  [
+    "load",
+    "inspect(load); function later() { load.d = replacement; }",
+    ["unknown"],
+  ],
+  ["load", "inspect(load); if (flag) { load.d = replacement; }", ["unknown"]],
+  [
+    "load",
+    "inspect(load); while (flag) { load.d = replacement; }",
+    ["unknown"],
+  ],
+  [
+    "load",
+    "while (flag) { inspect(load); load.d = replacement; }",
+    ["unknown"],
+  ],
+  ["load, value = (load.d = replacement)", "inspect(load);", ["unknown"]],
+] as const)(
+  "preserves parameter member provenance and activation ordering: (%s) %s",
+  (parameters, body, timing) => {
+    const parsed = parseJavaScriptSource(
+      `function factory(${parameters}) { ${body} }`,
+    );
+    if (parsed === null) throw new Error("Expected parsed source");
+    const index = completeSemanticSteps(
+      indexJavaScriptBindingsWithReceiversSteps(parsed.program),
+    );
+    completeSemanticSteps(index.indexMemberMutationFactsSteps());
+    const sites: t.CallExpression[] = [];
+    traverseJavaScriptAst(parsed.program, {
+      enter: (node) => {
+        if (
+          t.isCallExpression(node) &&
+          t.isIdentifier(node.callee, { name: "inspect" })
+        )
+          sites.push(node);
+      },
+    });
+    const originalTiming: string[] = [];
+    const activationTiming: string[] = [];
+    for (const site of sites) {
+      const reference = site.arguments[0];
+      if (!t.isIdentifier(reference))
+        throw new Error("Expected parameter reference");
+      const binding = index.bindingForReferenceAt(reference);
+      expect(binding?.memberWrites).toEqual([
+        expect.objectContaining({
+          path: ["d"],
+          node: expect.objectContaining({ type: "AssignmentExpression" }),
+        }),
+      ]);
+      for (const [facts, output] of [
+        [index.effectsForReferenceAt(site, reference, ["d"]), originalTiming],
+        [
+          index.effectsForReferenceWithinActivationAt(site, reference, ["d"]),
+          activationTiming,
+        ],
+      ] as const) {
+        const writes = facts.effects.filter(
+          ({ kind }) => kind === "member-write",
+        );
+        expect(writes).toHaveLength(1);
+        output.push(writes[0]!.timing);
+      }
+    }
+    expect(originalTiming).toEqual(timing.map(() => "unknown"));
+    expect(activationTiming).toEqual(timing);
+  },
+);
+
+it("preserves exact member writes through an externally supplied caught value", () => {
+  const parsed = parseJavaScriptSource(`
+    try { throw external; } catch (caught) { caught.d = replacement; }
+  `);
+  if (parsed === null) throw new Error("Expected parsed source");
+  const index = completeSemanticSteps(
+    indexJavaScriptBindingsWithReceiversSteps(parsed.program),
+  );
+  completeSemanticSteps(index.indexMemberMutationFactsSteps());
+  const caught = [...index.bindings.bindingsById.values()].find(
+    ({ name }) => name === "caught",
+  );
+  expect(caught?.memberWrites).toEqual([
+    expect.objectContaining({
+      path: ["d"],
+      node: expect.objectContaining({ type: "AssignmentExpression" }),
+    }),
+  ]);
 });

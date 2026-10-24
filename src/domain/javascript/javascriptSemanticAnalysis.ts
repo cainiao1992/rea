@@ -67,7 +67,10 @@ import {
 } from "./javascriptSemanticRequireOrigin.js";
 import { semanticBundledRequireOrigin } from "./javascriptBundledRequireOrigin.js";
 import { collectSemanticMemberMutationsSteps } from "./javascriptSemanticMemberMutations.js";
-import { semanticEffectTiming } from "./javascriptSemanticMutationInitializers.js";
+import {
+  semanticEffectTiming,
+  semanticEffectTimingWithinActivation,
+} from "./javascriptSemanticMutationInitializers.js";
 import {
   createAmbientPathResolver,
   indexJavaScriptAmbientWritesSteps,
@@ -229,6 +232,7 @@ const visitSemanticReferenceEffectsAtSite = (
     effect: JavaScriptSemanticReferenceEffectsAtSite["effects"][number],
   ) => boolean,
   requestedPath?: JavaScriptSemanticPropertyPath,
+  effectTiming: typeof semanticEffectTiming = semanticEffectTiming,
 ): Omit<JavaScriptSemanticReferenceEffectsAtSite, "effects"> => {
   const { root, path: inferredPath } = semanticReferenceRoot(referenceNode);
   const memberEffectsIndexed = indexedMemberMutationStates.has(state);
@@ -259,7 +263,7 @@ const visitSemanticReferenceEffectsAtSite = (
     return visit({
       kind,
       ...(effectPath === undefined ? {} : { path: effectPath }),
-      timing: semanticEffectTiming(site, node, state),
+      timing: effectTiming(site, node, state),
     });
   };
   if (binding !== undefined) {
@@ -328,6 +332,7 @@ const semanticReferenceEffectsAtSite = (
   site: t.Node,
   referenceNode: t.Node,
   requestedPath?: JavaScriptSemanticPropertyPath,
+  effectTiming: typeof semanticEffectTiming = semanticEffectTiming,
 ): JavaScriptSemanticReferenceEffectsAtSite => {
   const effects: JavaScriptSemanticReferenceEffectsAtSite["effects"][number][] =
     [];
@@ -340,6 +345,7 @@ const semanticReferenceEffectsAtSite = (
       return true;
     },
     requestedPath,
+    effectTiming,
   );
   return { ...metadata, effects };
 };
@@ -552,6 +558,15 @@ export function* indexJavaScriptBindingsWithReceiversSteps(
         site,
         referenceNode,
         propertyPath,
+      );
+    },
+    effectsForReferenceWithinActivationAt(site, referenceNode, propertyPath) {
+      return semanticReferenceEffectsAtSite(
+        state,
+        site,
+        referenceNode,
+        propertyPath,
+        semanticEffectTimingWithinActivation,
       );
     },
     referenceMayHaveChangedAt(site, referenceNode, propertyPath) {

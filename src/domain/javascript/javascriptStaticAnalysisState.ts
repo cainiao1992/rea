@@ -1,4 +1,5 @@
 import type * as t from "@babel/types";
+import type { JavaScriptFactoryExportBindings } from "./javascriptAstFingerprint.js";
 import type { JavaScriptOpenReceiverFact } from "./javascriptSemanticAnalysis.js";
 import type { JavaScriptRpcScan } from "./javascriptRpcEndpoints.js";
 import type { JavaScriptStaticPathIntrinsicQuery } from "./javascriptStaticAnalysisHelpers.js";
@@ -41,6 +42,11 @@ export interface LocatedJavaScriptFinding<Value> {
 
 /** Mutable collections used during one inert AST traversal. */
 export interface JavaScriptAnalysisAccumulator {
+  readonly pendingBundlerExports: {
+    readonly factory: t.Node;
+    readonly roles: JavaScriptFactoryExportBindings;
+    readonly exports: string[];
+  }[];
   readonly pendingModuleRequireCalls: (
     | t.CallExpression
     | t.OptionalCallExpression
@@ -85,6 +91,7 @@ export interface JavaScriptAnalysisAccumulator {
   /** Binding identities proven as third-parameter loaders of recovered factories. */
   readonly factoryRequireBindingIds: Set<string>;
   readonly seen: Set<string>;
+  bundlerExportHelpersObserved: boolean;
   visitedNodes: number;
   unknownFindings: number;
 }
@@ -145,6 +152,7 @@ export interface LocatedJavaScriptFindingInput<
 export const createJavaScriptAnalysisAccumulator = (
   sourceLength: number,
 ): JavaScriptAnalysisAccumulator => ({
+  pendingBundlerExports: [],
   pendingModuleRequireCalls: [],
   appPathChanges: [],
   references: [],
@@ -166,6 +174,7 @@ export const createJavaScriptAnalysisAccumulator = (
   moduleRangeIndex: new JavaScriptModuleRangeIndex(sourceLength),
   factoryRequireBindingIds: new Set(),
   seen: new Set(),
+  bundlerExportHelpersObserved: false,
   visitedNodes: 0,
   unknownFindings: 0,
 });

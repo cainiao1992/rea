@@ -36,6 +36,9 @@ unchecked. Maintainers can help resolve open questions.
 Use "none" or "not applicable" only when established. -->
 
 - Semantic owner and earliest changed stage:
+  <!-- Name the producer of parsed facts or resources and its affected consumers.
+  Summarize superseded paths removed and any distinct policy, lifecycle,
+  lazy-loading, or compatibility responsibility retained. -->
 - Contribution scope fit and linked maintainer decision:
 - CLI and MCP/tool-catalog contract:
 - Provider, bridge, target-format, or platform compatibility:

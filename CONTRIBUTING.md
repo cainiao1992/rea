@@ -25,6 +25,18 @@ acquiring targets; optional adapter failures must preserve successful peers. Run
 `npm run verify:test-discovery` after adding or moving tests. Resolved import
 boundaries are checked by `npm run verify:module-boundaries`, included in lint.
 
+Before retiring an alias or facade, trace runtime registration, dynamic imports,
+JavaScript verifiers, subprocess scripts, and packaged entrypoints as well as
+TypeScript references. Tests may be the last consumers of a superseded internal
+path; migrate their distinct assertions to the current production path before
+removing it. Preserve validation, lazy loading, caller policy, and resource
+acquisition and cleanup supplied by the old boundary. Published APIs, persisted
+formats, and independently versioned bridges require an explicit compatibility
+decision; an internal representation alone does not establish that obligation.
+See [interpreting boundary facts once](docs/tool-design.md#interpret-boundary-facts-once)
+for admission ownership and the distinction between repeated validation and
+independent checks.
+
 For analysis workflows and agent interfaces, follow the
 [performance priorities](AGENTS.md#performance). Explain the selected output
 scope, reuse/cache decisions, and relevant before/after measurements when these
@@ -372,9 +384,17 @@ Real-provider execution is uncached.
 ### Temporary files and diagnostics
 
 Tests use `createTestTempDirectory` from `tests/fixtures/temporaryDirectory.ts`
-for exact-path, awaited cleanup, including failures and timeouts.
+for exact-path, awaited cleanup, including failures and timeouts. It registers
+deletion with Vitest's `onTestFinished`; do not also add its result to a roots
+array or an `afterEach` removal. `createTestWorkspace` from
+`tests/support/workspace/workspaceFixture.ts` leaves cleanup with its caller,
+which must await `removeTestWorkspace`. Keep explicit resource teardown before
+directory deletion, using the case's `finally` or `afterEach`; Vitest runs
+`afterEach` before `onTestFinished` and awaits finish hooks in reverse
+registration order.
 `npm run verify:test-temp-hygiene` runs the suite under a fresh `TMPDIR` and
-rejects remaining REA-owned paths. Never glob-clean shared `/tmp/rea-*` content.
+rejects remaining REA-owned paths. It cannot detect duplicate deletion owners or
+prove resource-close ordering. Never glob-clean shared `/tmp/rea-*` content.
 
 `REA_LOG_LEVEL` selects `trace`, `debug`, `info`, `warn`, `error`, `fatal`, or
 `silent`. Logs go to stderr: MCP defaults to `info`, and one-shot CLI logging

@@ -88,6 +88,10 @@ satisfy. A plan without execution does not establish runtime behavior.
 The format or protocol reader owns interpretation. Pass its parsed facts and
 explicit uncertainty to consumers; do not make adapters reparse display text,
 reconstruct omitted values, or infer success from missing diagnostics.
+Client registration inspections, for example, carry command identity and
+activation independently of readiness. An owned registration may be disabled
+or stale; unresolved ownership remains unknown. Consumers use those facts
+instead of reclassifying the raw command.
 
 A completed read can establish byte identity even when decoding or format
 validation fails. State which representation a digest identifies, such as file
@@ -220,6 +224,12 @@ stages that never ran.
   applies rather than duplicate close/finally handling.
 - Give descriptor-backed reads an owner before opening the file. A rejected
   close must retain the exact handle and preserve any earlier failure.
+  Carry [`openRegularFile`](https://github.com/morluto/rea/blob/main/src/filesystem/RegularFile.ts)'s
+  admitted handle and initial metadata rather than restatting only to rebuild
+  those facts. Keep fresh descriptor and selected-path identity checks after
+  work, comparing against the original baseline instead of replacing it with
+  a later stat. Preserve explicit bigint reads when ordinary admission metadata
+  cannot supply the required size or timestamp precision.
   Stable file reads expose completed values separately from cancellation so
   consumers retain acquired identity facts after successful close or cleanup retry.
   If an abortable caller stops waiting, keep the underlying work in that owner's
@@ -250,9 +260,13 @@ through the producing owner and affected CLI/MCP consumers.
 
 ## Implement and evaluate
 
-Put provider protocols/parsing in adapters and shared CLI/MCP workflows in the
-application layer. Share Evidence provenance, unknown projection, and session
-retention semantics; matching payloads alone do not establish parity.
+Put provider wire-protocol parsing in adapters and shared CLI/MCP workflows in
+the application layer. Reusable format declarations may live in pure domain
+owners: [`peOptionalHeader.ts`](https://github.com/morluto/rea/blob/main/src/domain/peOptionalHeader.ts)
+decodes PE structure, while consumers retain machine admission, directory-address
+interpretation, and file/mapping bounds. Share Evidence provenance, unknown
+projection, and session retention semantics; matching payloads alone do not
+establish parity.
 
 Let `createEvidence` own JSON validation and snapshotting of ordinary observation
 payloads. `EvidenceObservationInput` accepts semantically parsed parameters,
@@ -264,6 +278,20 @@ Evidence envelope.
 `EvidenceObservation` retains the stronger JSON contract used by producer
 helpers and `createImmutableEvidenceSteps`. The cooperative constructor also
 requires an authenticated immutable result; preserve that ownership proof.
+For objects, proof comes from completed sealing by
+[`immutableJson.ts`](https://github.com/morluto/rea/blob/main/src/domain/immutableJson.ts);
+`readonly` or `Object.freeze` alone does not establish it. JSON primitives are
+directly eligible. Seal owned data and complete cooperative sealing before
+reusing its result.
+
+When a failed or cancelled operation retains completed, valid partial Evidence,
+use the shared [`ToolResultDelivery`](https://github.com/morluto/rea/blob/main/src/server/ToolResultDelivery.ts)
+path with the session's Evidence writer. Keep the original failure and the
+named contract's target-content marking; replace the inline partial with a
+retained reference only after recording succeeds. An absent writer or a writer
+returning a failure `Result` leaves the partial inline, as does a partial that
+is not valid Evidence. Unexpected recorder exceptions propagate. An `evidence_id`
+member alone does not establish Evidence validity or retention.
 
 Measure the resource before choosing a budget and enforce it before the costly
 step. Account for value alternatives, trace-frame products, retained records,

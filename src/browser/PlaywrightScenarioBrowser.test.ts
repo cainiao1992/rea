@@ -1109,6 +1109,7 @@ it("applies command_timeout_ms to the primary connect handshake when service wor
     reason: "timeout",
     userMessage: expect.stringContaining("50 ms command_timeout_ms"),
     remediationAction: expect.stringContaining("capture-browser-scenario JSON"),
+    diagnostics: { phase: "handshake", command_timeout_ms: 50 },
   });
   expect(
     (failure as { remediationAction?: string }).remediationAction,
@@ -1201,7 +1202,13 @@ it("closes a context that launches after its deadline before removing the profil
     () => undefined,
     (cause: unknown) => cause,
   );
-  expect(failure).toMatchObject({ reason: "timeout" });
+  expect(failure).toMatchObject({
+    reason: "timeout",
+    userMessage: expect.stringContaining(
+      "Browser launch and persistent-context startup",
+    ),
+    diagnostics: { phase: "launch", command_timeout_ms: 40 },
+  });
   expect(
     (failure as { remediationAction?: string }).remediationAction,
   ).not.toContain("--command-timeout-ms");
@@ -1400,6 +1407,11 @@ it("normalizes a genuine Playwright launch timeout and releases its profile", as
     reason: "timeout",
     userMessage: expect.stringContaining("4321 ms command_timeout_ms"),
     cause: failure,
+    diagnostics: {
+      phase: "launch",
+      command_timeout_ms: 4_321,
+      producer_message: "native launch deadline",
+    },
   });
   expect(profilePath).toBeDefined();
   await expect(access(profilePath!)).rejects.toMatchObject({ code: "ENOENT" });

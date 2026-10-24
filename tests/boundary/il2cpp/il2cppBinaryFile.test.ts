@@ -1,4 +1,5 @@
 import { Il2cppBinaryFormatFailure } from "../../../src/il2cpp/Il2cppBinaryFormat.js";
+import { readBinaryContainer } from "../../../src/native/metadata/readBinaryContainer.js";
 import {
   openImageSteps,
   readUInt32,
@@ -479,6 +480,58 @@ it("links an ELF shared object after applying its RELATIVE relocations", () => {
   const fromMacho = link(createIl2cppBinaryFixture());
   expect(link(elf)).toEqual({ ...fromMacho, format: "elf" });
 });
+
+it.each([183, 62])(
+  "links ELF relocations using the resolved PN_XNUM program count (machine %s)",
+  (machine) => {
+    const original = createElfFixture(createIl2cppBinaryFixture(), { machine });
+    const count = 65536;
+    const table = original.length;
+    const sectionZero = table + count * 56;
+    const extended = Buffer.concat([original, Buffer.alloc(count * 56 + 64)]);
+    // Keep mapped payload bytes untouched; the last declaration is beyond
+    // the raw 0xffff sentinel that the old relocation scan treated as a count.
+    original.copy(extended, table, 64, 120);
+    original.copy(extended, table + (count - 1) * 56, 120, 176);
+    extended.writeBigUInt64LE(BigInt(table), 32);
+    extended.writeBigUInt64LE(BigInt(sectionZero), 40);
+    extended.writeUInt16LE(0xffff, 56);
+    extended.writeUInt16LE(64, 58);
+    extended.writeUInt16LE(1, 60);
+    extended.writeUInt32LE(count, sectionZero + 44);
+    expect(link(extended).method_addresses).toEqual(
+      link(original).method_addresses,
+    );
+  },
+);
+
+it("ignores undefined PT_NULL fields while linking ELF relocations", () => {
+  const original = createElfFixture(createIl2cppBinaryFixture());
+  const bytes = Buffer.from(original);
+  bytes.writeUInt16LE(3, 56);
+  bytes.fill(0xff, 176, 232);
+  bytes.writeUInt32LE(0, 176);
+  expect(link(bytes).method_addresses).toEqual(link(original).method_addresses);
+});
+
+it.each(["outside", "misaligned", "duplicate"] as const)(
+  "refuses a %s dynamic declaration at relocation admission",
+  (shape) => {
+    const bytes = createElfFixture(createIl2cppBinaryFixture());
+    if (shape === "outside") bytes.writeBigUInt64LE(1n << 63n, 128);
+    else if (shape === "misaligned") bytes.writeBigUInt64LE(17n, 152);
+    else {
+      bytes.copy(bytes, 176, 120, 176);
+      bytes.writeUInt16LE(3, 56);
+    }
+    expect(() => readBinaryContainer(bytes)).not.toThrow();
+    expect(() => link(bytes)).toThrow(
+      shape === "duplicate"
+        ? "multiple PT_DYNAMIC segments"
+        : "PT_DYNAMIC is truncated or outside the file",
+    );
+  },
+);
 
 it.each([
   [{ dynamic: false }, "unsupported-container"],

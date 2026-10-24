@@ -2,6 +2,8 @@ import {
   BinaryMappingFailure,
   mappedFileOffset,
   isZeroFilledSpan,
+  type BinaryContainer,
+  type ElfDynamicSegment,
   type FileMapping,
   type ZeroFillMapping,
 } from "../native/metadata/BinaryContainer.js";
@@ -78,31 +80,28 @@ const RELOCATION_KINDS = new Map([
   ],
 ]);
 
-function* dynamicTags(image: Buffer): Generator<void, Map<bigint, bigint>> {
-  if (image.length < 64) throw malformed("ELF header is truncated");
-  const offset = Number(image.readBigUInt64LE(32)),
-    width = image.readUInt16LE(54),
-    count = image.readUInt16LE(56);
-  if (width < 56 || offset + count * width > image.length)
-    throw malformed("ELF program headers extend beyond the file");
-  let dynamic: { offset: number; size: number } | undefined;
-  for (let index = 0; index < count; index++) {
-    if (index % 256 === 0) yield;
-    const at = offset + index * width;
-    if (image.readUInt32LE(at) !== 2) continue;
-    if (dynamic !== undefined) throw malformed("multiple PT_DYNAMIC segments");
-    dynamic = {
-      offset: Number(image.readBigUInt64LE(at + 8)),
-      size: Number(image.readBigUInt64LE(at + 32)),
-    };
-  }
-  if (dynamic === undefined)
+function* dynamicTags(
+  image: Buffer,
+  declarations: readonly ElfDynamicSegment[],
+): Generator<void, Map<bigint, bigint>> {
+  yield;
+  if (declarations.length > 1) throw malformed("multiple PT_DYNAMIC segments");
+  const declaration = declarations[0];
+  if (declaration === undefined)
     throw new Il2cppBinaryFormatFailure(
       "unsupported-container",
       "ELF image has no PT_DYNAMIC segment",
     );
-  if (dynamic.size % 16 !== 0 || dynamic.offset + dynamic.size > image.length)
+  if (
+    declaration.size % 16n !== 0n ||
+    declaration.offset > BigInt(image.length) ||
+    declaration.size > BigInt(image.length) - declaration.offset
+  )
     throw malformed("PT_DYNAMIC is truncated or outside the file");
+  const dynamic = {
+    offset: Number(declaration.offset),
+    size: Number(declaration.size),
+  };
   const tags = new Map<bigint, bigint>();
   const unique = new Set([
     DT_RELA,
@@ -203,17 +202,17 @@ function* applyRelaTable(
 /** Materialize relative pointers in a private copy, preserving unknown and .bss facts. */
 export function* applyElfRelativeRelocationsSteps(
   image: Buffer,
+  elf: Extract<BinaryContainer, { format: "elf" }>["elf"],
   mappings: readonly FileMapping[],
   zeroFills: readonly ZeroFillMapping[],
 ): Generator<void, RelocatedImage> {
-  if (image.length < 64) throw malformed("ELF header is truncated");
-  const kinds = RELOCATION_KINDS.get(image.readUInt16LE(18));
+  const kinds = RELOCATION_KINDS.get(elf.machine);
   if (kinds === undefined)
     throw new Il2cppBinaryFormatFailure(
       "unsupported-container",
       "ELF relocations require AArch64 or x86-64",
     );
-  const tags = yield* dynamicTags(image);
+  const tags = yield* dynamicTags(image, elf.dynamicSegments);
   if (tags.has(0x6000000fn) || tags.has(0x60000011n) || tags.has(17n))
     throw unsupported(
       "Android packed (APS2) or REL relocations are not decoded",

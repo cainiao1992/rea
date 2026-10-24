@@ -462,7 +462,7 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   const dynsym = sections.find(({ type }) => type === SHT_DYNSYM);
   if (
     sections.length === 0 ||
-    (dynsym === undefined && directory.has_dynamic_segment)
+    (dynsym === undefined && directory.programs.some(({ type }) => type === 2))
   )
     return {
       ...result,

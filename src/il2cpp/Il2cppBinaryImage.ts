@@ -128,6 +128,7 @@ export function* openImageSteps(
     if (container.format === "elf")
       relocated = yield* applyElfRelativeRelocationsSteps(
         image,
+        container.elf,
         container.mappings,
         container.zero_fills,
       );

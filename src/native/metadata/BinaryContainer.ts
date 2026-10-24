@@ -101,9 +101,14 @@ export type ImageSection = {
     }
 );
 
+/** Declared PT_DYNAMIC file extent, before consumer-specific admission. */
+export interface ElfDynamicSegment {
+  readonly offset: bigint;
+  readonly size: bigint;
+}
+
 /** Native container facts, without language metadata search policy. */
-export interface BinaryContainer {
-  readonly format: "elf" | "pe" | "macho";
+interface BinaryContainerFacts {
   readonly architecture: string;
   readonly bits: 32 | 64;
   readonly byte_order: "little" | "big";
@@ -130,6 +135,19 @@ export interface BinaryContainer {
   readonly zero_fills: readonly ZeroFillMapping[];
   readonly sections: readonly ImageSection[];
 }
+
+/** ELF identity and dynamic declarations are present only for an ELF container. */
+export type BinaryContainer = BinaryContainerFacts &
+  (
+    | {
+        readonly format: "elf";
+        readonly elf: {
+          readonly machine: number;
+          readonly dynamicSegments: readonly ElfDynamicSegment[];
+        };
+      }
+    | { readonly format: "pe" | "macho" }
+  );
 
 /** All declared file-backed image memory, including PE headers at the image base. */
 export const imageFileMappings = (

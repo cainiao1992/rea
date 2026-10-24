@@ -4,6 +4,7 @@ import {
   BinaryReader,
   BinaryResourceFailure,
   declaredFileRange,
+  type ElfDynamicSegment,
 } from "./BinaryContainer.js";
 import { decodeElfSectionNameTable } from "./ElfSectionNameTable.js";
 
@@ -27,6 +28,18 @@ export interface NativeSection {
   readonly entry_size: bigint;
   readonly file_backed: boolean;
 }
+/** Raw relevant program declarations; consumers own load/dynamic admission. */
+export type ElfProgramDeclaration =
+  | {
+      readonly type: 1;
+      readonly flags: number;
+      readonly file_offset: bigint;
+      readonly file_size: bigint;
+      readonly virtual_address: bigint;
+      readonly memory_size: bigint;
+    }
+  | ({ readonly type: 2 } & ElfDynamicSegment);
+
 export interface NativeSectionDirectory {
   readonly format: "elf" | "pe";
   readonly bits: 32 | 64;
@@ -35,10 +48,7 @@ export interface NativeSectionDirectory {
   readonly elf_os_abi: number | null;
   readonly flags: number;
   readonly section_names_limitation?: string;
-  readonly program_offset: bigint;
-  readonly program_count: number;
-  readonly program_width: number;
-  readonly has_dynamic_segment: boolean;
+  readonly programs: readonly ElfProgramDeclaration[];
   readonly sections: readonly NativeSection[];
 }
 const STRUCTURE_BYTES = 16 * 1024 * 1024;
@@ -96,7 +106,7 @@ export function* readElfSectionDirectory(
     count,
     namesIndex,
   } = sectionTable;
-  let has_dynamic_segment = false;
+  const programDeclarations: ElfProgramDeclaration[] = [];
   if (program_count !== 0) {
     const programs = new BinaryReader(
       yield request(
@@ -106,11 +116,26 @@ export function* readElfSectionDirectory(
       ),
       little,
     );
+    // At most one record per table entry, bounded before allocation by the
+    // existing 16 MiB table allowance and minimum 32/56-byte ELF record width.
     for (let index = 0; index < program_count; index++) {
-      if (programs.u32(index * program_width) === 2) {
-        has_dynamic_segment = true;
-        break;
-      }
+      const at = index * program_width;
+      const type = programs.u32(at);
+      if (type === 1)
+        programDeclarations.push({
+          type,
+          flags: programs.u32(at + (wide ? 4 : 24)),
+          file_offset: programs.word(at + (wide ? 8 : 4), bits),
+          virtual_address: programs.word(at + (wide ? 16 : 8), bits),
+          file_size: programs.word(at + (wide ? 32 : 16), bits),
+          memory_size: programs.word(at + (wide ? 40 : 20), bits),
+        });
+      else if (type === 2)
+        programDeclarations.push({
+          type,
+          offset: programs.word(at + (wide ? 8 : 4), bits),
+          size: programs.word(at + (wide ? 32 : 16), bits),
+        });
     }
   }
   const sections: NativeSection[] = [];
@@ -228,10 +253,7 @@ export function* readElfSectionDirectory(
     ...(section_names_limitation === undefined
       ? {}
       : { section_names_limitation }),
-    program_offset,
-    program_count,
-    program_width,
-    has_dynamic_segment,
+    programs: programDeclarations,
     sections,
   };
 }
@@ -316,10 +338,7 @@ export function* readPeSectionDirectory(
     little: true,
     machine: coff.u16(4),
     flags: coff.u16(22),
-    program_offset: 0n,
-    program_count: 0,
-    program_width: 0,
-    has_dynamic_segment: false,
+    programs: [],
     sections,
   };
 }

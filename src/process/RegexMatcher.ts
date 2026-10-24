@@ -533,7 +533,11 @@ export const matchRegexValues = async (input: {
   const deadline = input.deadline ?? DEFAULT_REGEX_MATCHING_DEADLINE;
   const heapRequest = input.heapRequest ?? DEFAULT_REGEX_WORKER_HEAP_REQUEST;
   if (input.signal?.aborted)
-    return err(new AnalysisCancelledError(input.operation));
+    return err(
+      new AnalysisCancelledError(input.operation, {
+        cause: input.signal.reason,
+      }),
+    );
   let worker: Worker;
   try {
     worker = new Worker(WORKER_SOURCE, {
@@ -563,7 +567,13 @@ export const matchRegexValues = async (input: {
         resolve(result);
       };
       const onAbort = () =>
-        finish(err(new AnalysisCancelledError(input.operation)));
+        finish(
+          err(
+            new AnalysisCancelledError(input.operation, {
+              cause: input.signal?.reason,
+            }),
+          ),
+        );
       const timer = setTimeout(
         () =>
           finish(err(regexMatchingDeadlineError(input.operation, deadline))),

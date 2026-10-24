@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
         settle: ReturnType<typeof vi.fn>;
         limitations: ReturnType<typeof vi.fn>;
         close: ReturnType<typeof vi.fn>;
-        limitations: ReturnType<typeof vi.fn>;
       }
     | undefined,
   finishEvents: vi.fn(),
@@ -223,7 +222,6 @@ const fixture = () => {
     close: vi.fn(async (stopLoading = false) => ({
       loadingStopped: stopLoading,
     })),
-    limitations: vi.fn(() => []),
   };
   return { cleanup, page, storage: mocks.storage };
 };

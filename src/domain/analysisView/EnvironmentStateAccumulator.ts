@@ -3,6 +3,7 @@ import {
   compareClockInstants,
   readClock,
 } from "./environmentStateWriteValues.js";
+import type { ScenarioResponseBodyRetention } from "./scenarioCaptureRecords.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { parseExactJson } from "../exactJsonNumber.js";
 import { MAX_JSON_DEPTH, type JsonValue } from "../jsonValue.js";
@@ -148,8 +149,11 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     return false;
   }
 
-  override add(record: WebNetworkCaptureRecord): Result<void, AnalysisError> {
-    const grouped = super.add(record);
+  override add(
+    record: WebNetworkCaptureRecord,
+    scenarioResponseBody?: ScenarioResponseBodyRetention,
+  ): Result<void, AnalysisError> {
+    const grouped = super.add(record, scenarioResponseBody);
     if (!grouped.ok) return grouped;
     try {
       const line = readRecordedRequestLine(record.reported, true, this.scratch);

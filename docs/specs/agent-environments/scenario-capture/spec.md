@@ -46,7 +46,9 @@ change.
   transactions with a usable request line retained no response body (tools
   citing them replay only the recorded status and content type, either of
   which may be absent) and how many retained response bodies carry redaction
-  markers. A body that redaction emptied, because a declared secret could not
+  markers. Both counts use the same request-line admission as manifest grouping,
+  so unredacted URLs without a usable transport origin and recorded path contribute
+  to neither numerator nor denominator. A body that redaction emptied, because a declared secret could not
   be cut out, is treated as not retained rather than replayed as an empty
   reply.
 - `environment-serve` and `environment-export` authenticate either parent

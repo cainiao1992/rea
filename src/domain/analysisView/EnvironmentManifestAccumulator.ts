@@ -13,6 +13,7 @@ import {
 import { completeWithinViewCoverage } from "./analysisViewCoverage.js";
 import { recordedResponseBodyIsEmpty } from "./recordedResponseBody.js";
 import type { UnsignedAnalysisView } from "./analysisView.js";
+import type { ScenarioResponseBodyRetention } from "./scenarioCaptureRecords.js";
 import { WebNetworkProjectionAccumulator } from "./WebNetworkProjectionAccumulator.js";
 import {
   compareTools,
@@ -227,6 +228,9 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
   readonly #origins = new Map<string, OriginStats>();
   readonly #rules: ReadonlySet<TemplateRule>;
   #unrepresented = 0;
+  #scenarioTransactions = 0;
+  #scenarioWithoutBody = 0;
+  #scenarioRedactedBodies = 0;
   #unrepresentableBodyKey = false;
 
   constructor(
@@ -244,7 +248,10 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     return true;
   }
 
-  add(record: WebNetworkCaptureRecord): Result<void, AnalysisError> {
+  add(
+    record: WebNetworkCaptureRecord,
+    scenarioResponseBody?: ScenarioResponseBodyRetention,
+  ): Result<void, AnalysisError> {
     const limitations = this.addLimitations(record.limitations);
     if (!limitations.ok) return limitations;
     try {
@@ -257,6 +264,13 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
       if (line.kind === "excluded") {
         this.#unrepresented += 1;
         return ok(undefined);
+      }
+      // Coverage uses the same admitted request line as grouping, including origin and raw path.
+      if (scenarioResponseBody !== undefined) {
+        this.#scenarioTransactions += 1;
+        if (scenarioResponseBody === "absent") this.#scenarioWithoutBody += 1;
+        if (scenarioResponseBody === "redacted")
+          this.#scenarioRedactedBodies += 1;
       }
       const route = scanRouteTemplate(line.path, this.scratch);
       if (route === null) return this.overBudget();
@@ -539,6 +553,16 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
           ]
         : []),
       ...this.#segmentLimitLimitations(toolGroups),
+      ...(this.#scenarioWithoutBody > 0
+        ? [
+            `${String(this.#scenarioWithoutBody)} of ${String(this.#scenarioTransactions)} scenario transactions with a usable request line retained no response body; tools citing them replay only the recorded status and content type, either of which may be absent.`,
+          ]
+        : []),
+      ...(this.#scenarioRedactedBodies > 0
+        ? [
+            `${String(this.#scenarioRedactedBodies)} of ${String(this.#scenarioTransactions)} scenario transactions with a usable request line retained a response body with declared secret values replaced by redaction markers; tools citing them replay the redacted bytes.`,
+          ]
+        : []),
       ...(this.#unrepresented > 0
         ? [
             `${String(this.#unrepresented)} retained records without a usable request line are not represented in the manifest.`,

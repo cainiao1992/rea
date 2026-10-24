@@ -9,6 +9,8 @@ import * as processOutput from "../../process/ExecFileOutput.js";
 import { encodeNibArchiveFixture } from "./NibArchive.fixture.js";
 import type { analyzeInterfaceBuilderBundle } from "./InterfaceBuilderAnalysis.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
+import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import {
   analyzeAppleAssetCatalogs,
   collectInterfaceBuilderResourceKeys,
@@ -474,13 +476,20 @@ it.each(["not json", "{}", "[null]"])(
       }),
     ).rejects.toMatchObject({
       _tag: "AnalysisOutputError",
+      reason: expect.stringContaining("Assets.car"),
+      diagnostics: { catalog_path: "Assets.car" },
       capturedOutput: { stdout: output, exit_code: 0 },
     });
   },
 );
-it.each(["ETIMEDOUT", 1] as const)(
+it.each([
+  ["ETIMEDOUT", "AnalysisTimeoutError"],
+  ["ENOENT", "AnalysisCapabilityUnavailableError"],
+  ["ERR_CHILD_PROCESS_STDIO_MAXBUFFER", "AnalysisResourceConstraintError"],
+  [1, "AnalysisOutputError"],
+] as const)(
   "preserves assetutil command failure %s and diagnostics",
-  async (code) => {
+  async (code, tag) => {
     const bundle = await createTestTempDirectory("rea-asset-command-");
     await writeFile(join(bundle, "Assets.car"), "inert catalog");
     const cause = Object.assign(new Error("native refusal"), {
@@ -499,13 +508,119 @@ it.each(["ETIMEDOUT", 1] as const)(
         },
       }),
     ).rejects.toMatchObject({
-      _tag:
-        code === "ETIMEDOUT" ? "AnalysisTimeoutError" : "AnalysisOutputError",
+      _tag: tag,
+      cause,
+      diagnostics: { catalog_path: "Assets.car" },
       capturedOutput: { stderr: "specific catalog diagnostic" },
       ...(code === "ETIMEDOUT" ? { timeoutMs: 60000 } : {}),
     });
   },
 );
+
+it.each(["reported carutil", "observed assetutil"])(
+  "attributes %s rejection of a readable nested catalog as invalid bytes",
+  async (variant) => {
+    const bundle = await createTestTempDirectory("rea-asset-rejected-");
+    const relativePath =
+      "Contents/Resources/Widget bundle/Contents/Resources/Assets.car";
+    const path = join(bundle, relativePath);
+    await mkdir(join(path, ".."), { recursive: true });
+    await writeFile(
+      join(bundle, "Contents/Resources/Assets.car"),
+      "valid control",
+    );
+    await writeFile(path, "truncated catalog");
+    // The carutil variant is reported in #5698. The assetutil variant was
+    // observed with 400 zero bytes and a 400-byte truncation of Calculator's
+    // catalog. This test injects those diagnoses, without running Apple tools.
+    const stderr =
+      "BOMStreamWithFileAndSys: read: Operation not permitted\n" +
+      (variant === "reported carutil"
+        ? `assetutil Error: Unable to read file at '${path}'\n` +
+          `carutil: error:\n    ${path} is not a valid AssetCatalog\n`
+        : `assetutil: file error error exiting: 'can't read from: '${path}' Undefined error: 0' invalid file\n`);
+    const cause = Object.assign(new Error("assetutil exited 1"), {
+      code: 1,
+      stdout: "partial metadata",
+      stderr,
+      signal: null,
+    });
+    const error = await analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      environment: {},
+      runAssetUtil: async (selectedPath) => {
+        if (selectedPath === path) throw cause;
+        return "[]";
+      },
+    }).catch((failure: unknown) => failure);
+    if (!(error instanceof AnalysisError)) throw error;
+    expect(error.cause).toBe(cause);
+    expect(projectAnalysisError(error)).toMatchObject({
+      code: "artifact_operation_failed",
+      message:
+        "Artifact is invalid or has changed. Get a fresh copy and try again.",
+      details: {
+        operation: "inspect_asset_catalog",
+        reason: "format",
+        detail: expect.stringContaining(relativePath),
+        diagnostics: { catalog_path: relativePath },
+        captured_output: {
+          stdout: "partial metadata",
+          stderr,
+          exit_code: 1,
+          signal: null,
+          truncated: false,
+        },
+      },
+    });
+  },
+);
+
+it.each([
+  "unrecognized text",
+  "another catalog",
+  "signal",
+  "truncated capture",
+  "failed capture",
+  "different file-error code",
+  "different file-error text",
+])("keeps the catalog rejection unknown for %s", async (scenario) => {
+  const bundle = await createTestTempDirectory("rea-asset-unknown-rejection-");
+  const path = join(bundle, "Assets.car");
+  await writeFile(path, "readable catalog");
+  const rejectedPath = scenario === "another catalog" ? `${path}.other` : path;
+  const stderr =
+    scenario === "unrecognized text"
+      ? "Operation not permitted; catalog may be invalid"
+      : scenario.startsWith("different file-error")
+        ? `assetutil: file error error exiting: 'can't read from: '${path}' Undefined error: ${scenario === "different file-error code" ? "13" : "0"}' ${scenario === "different file-error text" ? "access denied" : "invalid file"}\n`
+        : `carutil: error:\n    ${rejectedPath} is not a valid AssetCatalog\n`;
+  const cause = Object.assign(new Error("assetutil failed"), {
+    code: 1,
+    stdout: "",
+    stderr,
+    signal: scenario === "signal" ? "SIGTERM" : null,
+    outputTruncated: scenario === "truncated capture",
+    collectionFailure: scenario === "failed capture",
+  });
+  await expect(
+    analyzeAppleAssetCatalogs({
+      bundlePath: bundle,
+      targetSha256: "a".repeat(64),
+      environment: {},
+      runAssetUtil: async () => {
+        throw cause;
+      },
+    }),
+  ).rejects.toMatchObject({
+    _tag: "AnalysisOutputError",
+    reason: expect.stringContaining("Assets.car"),
+    cause,
+    diagnostics: { catalog_path: "Assets.car" },
+    capturedOutput: { stderr },
+  });
+});
 
 it.each(["Toolbar", "MissingToolbar"])(
   "retains AppKit NSCustomResource image key %s with its archive identity",

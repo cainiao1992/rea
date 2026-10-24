@@ -547,7 +547,12 @@ complete observation.
   when either source is incomplete. Resource wrappers retain their serialized
   class and authored runtime class, including AppKit `NSCustomResource` names.
   Invalid producer JSON and subprocess failures retain captured output with
-  their typed failure reason. Catalog-reader cleanup retains the primary
+  their typed failure reason and selected catalog path. A complete normal
+  assetutil exit declaring that exact catalog path `is not a valid AssetCatalog`,
+  or its observed `Undefined error: 0` / `invalid file` rejection, reports an
+  invalid-artifact failure. Other tool failures retain their own
+  classification; unrecognized diagnostics do not establish malformed bytes.
+  Catalog-reader cleanup retains the primary
   integrity, utility or cancellation failure and its cleanup resources; the
   provider retains catalog, Interface Builder and keyed-archive readers until
   cleanup is confirmed. A catalog failure also retains cleanup failures from

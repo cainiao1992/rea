@@ -8,7 +8,10 @@ import type {
   MachoImageFacts,
   MachoSlice,
 } from "../../domain/apple/dylibResolution.js";
-import { machoCpuSubtypeBase } from "../../domain/apple/machoCpuIdentity.js";
+import {
+  machoArchitectureName,
+  machoCpuSubtypeBase,
+} from "../../domain/apple/machoCpuIdentity.js";
 import {
   legacyMachoPlatform,
   type MachoVersionMinPlatform,
@@ -401,7 +404,7 @@ const decodeCommands = (
   readonly maxVmOffset: bigint;
 } => {
   const slice: MachoSlice = {
-    architecture: architectureName(header.cpuType, header.cpuSubtype),
+    architecture: machoArchitectureName(header.cpuType, header.cpuSubtype),
     slice_offset: header.sliceOffset,
     slice_size: header.sliceSize,
     cpu_type: header.cpuType,
@@ -1007,29 +1010,6 @@ const readExact = async (
   if (bytes.byteLength < length)
     throw new MachoFormatIssue("malformed", `${label} is truncated`);
   return bytes;
-};
-
-const CPU_ARCH_ABI64 = 0x01000000;
-const CPU_ARCH_ABI64_32 = 0x02000000;
-const CPU_TYPE_X86 = 7;
-const CPU_TYPE_ARM = 12;
-const CPU_SUBTYPE_ARM64E = 2;
-const CPU_SUBTYPE_ARM64E_X1 = 12;
-const CPU_SUBTYPE_X86_64_H = 8;
-
-const architectureName = (cpuType: number, cpuSubtype: number): string => {
-  const subtype = machoCpuSubtypeBase(cpuSubtype);
-  if (cpuType === (CPU_TYPE_ARM | CPU_ARCH_ABI64))
-    // Both pointer-authentication subtypes belong to the arm64e family.
-    return subtype === CPU_SUBTYPE_ARM64E || subtype === CPU_SUBTYPE_ARM64E_X1
-      ? "arm64e"
-      : "arm64";
-  if (cpuType === (CPU_TYPE_ARM | CPU_ARCH_ABI64_32)) return "arm64_32";
-  if (cpuType === (CPU_TYPE_X86 | CPU_ARCH_ABI64))
-    return subtype === CPU_SUBTYPE_X86_64_H ? "x86_64h" : "x86_64";
-  if (cpuType === CPU_TYPE_X86) return "i386";
-  if (cpuType === CPU_TYPE_ARM) return "arm";
-  return `cpu-${cpuType.toString(16)}`;
 };
 
 const fileTypeName = (fileType: number): MachoSlice["file_type"] =>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { machoArchitectureFamily } from "./machoCpuIdentity.js";
 import { AnalysisCancelledError } from "../analysisErrorCore.js";
 
 import {
@@ -751,7 +752,7 @@ export const traceDylibLoading = async (
     const slices = machoImageSlices(facts).filter(
       ({ architecture }) =>
         request.architecture === undefined ||
-        architecture === request.architecture,
+        machoArchitectureFamily(architecture) === request.architecture,
     );
     if (slices.length === 0) withoutArchitecture.push(root);
     for (const slice of slices) {

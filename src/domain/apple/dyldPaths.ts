@@ -3,7 +3,10 @@ import type {
   DylibTreeView,
   MachoSlice,
 } from "./dylibResolution.js";
-import { machoCpuSubtypeBase } from "./machoCpuIdentity.js";
+import {
+  machoArchitectureFamily,
+  machoCpuSubtypeBase,
+} from "./machoCpuIdentity.js";
 
 const MAX_SYMLINK_HOPS = 32;
 
@@ -155,13 +158,14 @@ export const compatibleSlice = (
     }
     return { kind: "missing" };
   }
-  for (const architecture of COMPATIBLE_ARCHITECTURES[process.architecture] ?? [
-    process.architecture,
+  const processFamily = machoArchitectureFamily(process.architecture);
+  for (const architecture of COMPATIBLE_ARCHITECTURES[processFamily] ?? [
+    processFamily,
   ]) {
     const slice = slices.find(
       (item) =>
-        item.architecture === architecture &&
-        (process.architecture !== "arm64e" ||
+        machoArchitectureFamily(item.architecture) === architecture &&
+        (processFamily !== "arm64e" ||
           (item.cpu_type === process.cpu_type &&
             machoCpuSubtypeBase(item.cpu_subtype) ===
               machoCpuSubtypeBase(process.cpu_subtype))),

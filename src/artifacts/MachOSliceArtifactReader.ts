@@ -13,7 +13,10 @@ import {
   type LipoArchitecture,
 } from "../native/parsers/lipo.js";
 import type { MachoSlice } from "../domain/apple/dylibResolution.js";
-import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
+import {
+  machoArchitectureFamily,
+  machoCpuSubtypeBase,
+} from "../domain/apple/machoCpuIdentity.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readMachoImage, type ReadAt } from "./apple/MachoLoadCommandReader.js";
 import {
@@ -630,10 +633,10 @@ const lipoNameMatches = (reported: string, observed: MachoSlice): boolean => {
       ARM_SUBTYPES[reported] ===
       machoCpuSubtypeBase(observed.fat_cpu_subtype ?? observed.cpu_subtype)
     );
-  // Newer lipo names pointer-auth ABI variants arm64e.<variant>. Their
-  // physical type/subtype, range and alignment are still compared separately.
+  if (reported === machoArchitectureFamily(observed.architecture)) return true;
+  // Retain lipo's capability-variant spelling; physical identity is checked separately.
   return (
-    observed.architecture === "arm64e" &&
+    machoArchitectureFamily(observed.architecture) === "arm64e" &&
     /^arm64e\.[A-Za-z0-9_]+$/u.test(reported)
   );
 };

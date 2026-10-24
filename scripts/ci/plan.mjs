@@ -28,7 +28,6 @@ const FIXTURE_SOURCES = [
   "tests/conformance/swift/**",
   "tests/conformance/versions/**",
 ];
-const READINESS_SOURCES = ["tests/conformance/readiness/**"];
 // These reporters affect CI output only; they do not select a host or provider
 // verification lane when changed on their own.
 const PORTABLE_CI_REPORTERS = new Set([
@@ -281,7 +280,6 @@ if (tier === "reused") {
         selected.fixtures = true;
         selected.readiness = true;
       }
-      if (matchesAny(file, READINESS_SOURCES)) selected.readiness = true;
       if (file.startsWith("tests/")) continue;
       if (
         /^(src\/process\/|src\/filesystem\/|src\/contracts\/tool|src\/server\/createServer|src\/cli\.ts|scripts\/ci\/)/.test(

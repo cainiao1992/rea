@@ -1,15 +1,15 @@
-import { createEvidence } from "../domain/evidence.js";
-import { createEvidenceBundle } from "../domain/evidenceBundle.js";
-import { READINESS_REQUIRED_CHECKS } from "../domain/reconstructionReadinessJourneyFindings.js";
+import { createEvidence } from "../../../../src/domain/evidence.js";
+import { createEvidenceBundle } from "../../../../src/domain/evidenceBundle.js";
+import { READINESS_REQUIRED_CHECKS } from "./reconstructionReadinessJourneyFindings.js";
 import {
   reconstructionObligationLedgerClosureDigest,
   summarizeReconstructionObligations,
-} from "../domain/reconstructionObligationLedgerIntegrity.js";
-import type { ReconstructionObligationLedger } from "../domain/reconstructionObligationLedgerSchemas.js";
+} from "../../../../src/domain/reconstructionObligationLedgerIntegrity.js";
+import type { ReconstructionObligationLedger } from "../../../../src/domain/reconstructionObligationLedgerSchemas.js";
 import {
   readinessStageIdSchema,
   type ReconstructionReadinessInput,
-} from "../domain/reconstructionReadinessSchemas.js";
+} from "./reconstructionReadinessSchemas.js";
 
 const HASH = "a".repeat(64);
 const sourceEvidence = (variant: string) =>
@@ -159,7 +159,7 @@ const READINESS_OBLIGATION_LEDGER = (() => {
   };
 })();
 
-/** Complete synthetic input shared by docs, tests, CLI, MCP, and verifier. */
+/** Complete synthetic input for the repository's evaluator conformance checks. */
 export const RECONSTRUCTION_READINESS_EXAMPLE: ReconstructionReadinessInput = {
   identity: {
     cli_version: "2.4.0",

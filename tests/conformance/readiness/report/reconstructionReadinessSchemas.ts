@@ -1,10 +1,13 @@
 import { z } from "zod";
 
-import { STABLE_IDENTIFIER_PATTERN } from "./stringPatterns.js";
+import { STABLE_IDENTIFIER_PATTERN } from "../../../../src/domain/stringPatterns.js";
 
-import { evidenceBundleSchema } from "./evidenceBundle.js";
-import { reconstructionObligationLedgerSchema } from "./reconstructionObligationLedgerSchemas.js";
-import { digestSchema, prefixedDigestSchema } from "./digests.js";
+import { evidenceBundleSchema } from "../../../../src/domain/evidenceBundle.js";
+import { reconstructionObligationLedgerSchema } from "../../../../src/domain/reconstructionObligationLedgerSchemas.js";
+import {
+  digestSchema,
+  prefixedDigestSchema,
+} from "../../../../src/domain/digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const stableIdSchema = z.string().regex(STABLE_IDENTIFIER_PATTERN);

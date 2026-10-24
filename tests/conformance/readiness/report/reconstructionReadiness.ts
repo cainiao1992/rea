@@ -1,5 +1,5 @@
-import { digestCanonicalValue } from "./canonicalDigest.js";
-import { authenticateParsedEvidenceBundle } from "./evidenceBundle.js";
+import { digestCanonicalValue } from "../../../../src/domain/canonicalDigest.js";
+import { authenticateParsedEvidenceBundle } from "../../../../src/domain/evidenceBundle.js";
 import { readinessFindingOrder } from "./reconstructionReadinessFindingHelpers.js";
 import { readinessJourneyFindings } from "./reconstructionReadinessJourneyFindings.js";
 import { readinessIntegrityFindings } from "./reconstructionReadinessIntegrityFindings.js";
@@ -12,7 +12,7 @@ import {
   type ReconstructionReadinessReport,
 } from "./reconstructionReadinessSchemas.js";
 
-/** Evaluate one public-contract journey into a deterministic fail-closed report. */
+/** Evaluate synthetic conformance observations into a deterministic fail-closed report. */
 export const createReconstructionReadinessReport = (
   inputValue: unknown,
 ): ReconstructionReadinessReport => {

@@ -2,6 +2,10 @@
 // Shared build inputs are classified once in plan.mjs rather than repeated in
 // every workflow.
 export const SCOPES = {
+  readiness: [
+    "tests/conformance/readiness/**",
+    "scripts/verify-reconstruction-readiness.mjs",
+  ],
   reverse_tools: [
     ".github/workflows/mutation.yml",
     "src/application/reverse/**",

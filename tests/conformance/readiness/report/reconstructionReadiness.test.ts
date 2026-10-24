@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { RECONSTRUCTION_READINESS_EXAMPLE } from "../contracts/reconstructionReadinessExample.js";
+import { RECONSTRUCTION_READINESS_EXAMPLE } from "./reconstructionReadinessExample.js";
 import { createReconstructionReadinessReport } from "./reconstructionReadiness.js";
 import {
   reconstructionObligationLedgerClosureDigest,
   reconstructionObligationLedgerStatus,
   reconstructionObligationOwnershipGraph,
   summarizeReconstructionObligations,
-} from "./reconstructionObligationLedgerIntegrity.js";
-import { reconstructionObligationLedgerSchema } from "./reconstructionObligationLedgerSchemas.js";
+} from "../../../../src/domain/reconstructionObligationLedgerIntegrity.js";
+import { reconstructionObligationLedgerSchema } from "../../../../src/domain/reconstructionObligationLedgerSchemas.js";
 import {
   reconstructionReadinessReportSchema,
   reconstructionReadinessInputSchema,

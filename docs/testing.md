@@ -549,12 +549,16 @@ uses the same ownership rule to find retained fixtures under a private temporary
 root. Third-party caches remain outside that ownership rule.
 
 Real Hopper, Ghidra, IDA, browser, package, and managed-code claims belong to their
-explicit `npm run verify:*` lanes. The reconstruction-readiness lane also
-checks deterministic rerun, tamper, and stale-input handling; those checks do
-not execute extracted JavaScript modules. When application runtime behavior is
-needed, exercise the actual target through browser, Electron, or process
-capture. Real model trials are manual; Vitest covers deterministic evaluator
-logic.
+explicit `npm run verify:*` lanes. The reconstruction-readiness lane separates
+observed native CLI inspection and JavaScript/Electron static CLI/MCP analysis
+from synthetic report-evaluator conformance. Its determinism, tamper, and
+stale-source checks concern the synthetic evaluator; they do not execute fixture
+applications or verify runtime authority, cleanup, comparison, or reconstruction
+closure. The evaluator and its semantic tests belong to
+`tests/conformance/readiness/report/`, outside the shipped runtime. When
+application runtime behavior is needed, exercise the actual target through
+browser, Electron, or process capture. Real model trials are manual; Vitest
+covers deterministic evaluator logic.
 
 `verify:managed` runs the portable PE byte-fixture conformance entrypoint under
 `scripts/verify/managed/`, with its byte builder under

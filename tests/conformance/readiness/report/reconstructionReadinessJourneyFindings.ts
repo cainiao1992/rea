@@ -1,4 +1,4 @@
-import { compositeKey } from "./unicodeCodePointOrder.js";
+import { compositeKey } from "../../../../src/domain/unicodeCodePointOrder.js";
 import {
   addMissingEvidenceFindings,
   readinessFinding as finding,

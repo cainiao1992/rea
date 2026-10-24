@@ -12,6 +12,57 @@ export type JavaScriptSemanticPropertyPath = readonly (
   | JavaScriptSemanticPropertySelection
 )[];
 
+/** Join equal-depth may-effect projections without claiming an exact selector. */
+export function joinSemanticPropertyPaths(
+  previous: readonly (string | null)[],
+  incoming: readonly (string | null)[],
+): readonly (string | null)[] | undefined;
+export function joinSemanticPropertyPaths(
+  previous: JavaScriptSemanticPropertyPath,
+  incoming: JavaScriptSemanticPropertyPath,
+): JavaScriptSemanticPropertyPath | undefined;
+export function joinSemanticPropertyPaths(
+  previous: JavaScriptSemanticPropertyPath,
+  incoming: JavaScriptSemanticPropertyPath,
+): JavaScriptSemanticPropertyPath | undefined {
+  if (previous.length !== incoming.length) return undefined;
+  const joined = previous.map((key, index) =>
+    joinPropertySelections(key, incoming[index]!),
+  );
+  return joined.every((key, index) => key === previous[index])
+    ? previous
+    : joined;
+}
+
+const joinPropertySelections = (
+  previous: JavaScriptSemanticPropertyPath[number],
+  incoming: JavaScriptSemanticPropertyPath[number],
+): JavaScriptSemanticPropertyPath[number] => {
+  if (keyCovers(previous, incoming)) return previous;
+  if (keyCovers(incoming, previous)) return incoming;
+  if (previous === null || incoming === null) return null;
+  if (typeof previous !== "object" && typeof incoming !== "object") return null;
+  if (typeof previous === "object" && typeof incoming === "object")
+    return {
+      excludedKeys: previous.excludedKeys.filter((key) =>
+        incoming.excludedKeys.includes(key),
+      ),
+      ...(previous.startIndex === undefined || incoming.startIndex === undefined
+        ? {}
+        : { startIndex: Math.min(previous.startIndex, incoming.startIndex) }),
+    };
+  const selected = typeof previous === "object" ? previous : incoming;
+  const scalar = typeof previous === "object" ? incoming : previous;
+  if (typeof selected !== "object" || typeof scalar === "object") return null;
+  const index = semanticArrayIndex(scalar);
+  return {
+    excludedKeys: selected.excludedKeys.filter((key) => key !== String(scalar)),
+    ...(selected.startIndex === undefined || index === null
+      ? {}
+      : { startIndex: Math.min(selected.startIndex, index) }),
+  };
+};
+
 /** Read only canonical JavaScript array indices, excluding named properties. */
 export const semanticArrayIndex = (key: string | number): number | null => {
   const index = Number(key);

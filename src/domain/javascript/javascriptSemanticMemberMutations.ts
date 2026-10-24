@@ -73,6 +73,7 @@ import {
 } from "./javascriptSemanticReferenceSources.js";
 import {
   semanticArrayIndex,
+  joinSemanticPropertyPaths,
   SemanticPropertyPathCoverage,
   semanticPropertyPathKeyMatches,
   type JavaScriptSemanticPropertyPath,
@@ -661,31 +662,46 @@ export function* collectSemanticMemberMutationsSteps(
     definiteReceiver = true,
     selection?: MutationSelectionContext,
   ): void => {
-    const pending: (ReferencedValue &
+    type JoinedProjection = {
+      readonly path: PropertyPath;
+      readonly definiteReceiver: boolean;
+      scheduled: boolean;
+    };
+    type PendingValue = ReferencedValue &
       MutationSelectionContext & {
         readonly bindings: ReadonlySet<string>;
         readonly originAt: t.Node | undefined;
         readonly definiteReceiver: boolean;
-      })[] = [
-      {
-        node,
-        path,
-        bindings,
-        originAt,
-        definiteReceiver,
-        memberReadAt: selection?.memberReadAt ?? mutation ?? originAt,
-        capturedSelections: selection?.capturedSelections,
-        ...(ownerInitializer === undefined ? {} : { ownerInitializer }),
-      },
-    ];
-    // Visit shallower alias traversals first so their exact prefixes suppress
-    // longer loop paths before those paths enumerate every assignment order.
-    for (let cursor = 0; cursor < pending.length; cursor++) {
-      const candidate = pending[cursor];
-      if (candidate === undefined) break;
-      // A capture deeper than the selected path is no longer applicable. Keeping
-      // it would manufacture new contexts on a repeated source alias cycle.
-      const current = candidate.capturedSelections?.length
+        readonly exactKey?: string;
+        readonly joined?: {
+          readonly key: string;
+          readonly value: JoinedProjection;
+        };
+      };
+    const pending: PendingValue[] = [];
+    // The effect, mutation and assigned sources belong to this invocation.
+    // Alias histories do not select a value: the binding/capture/projection do.
+    // Keep small alternatives exact. Bound additional states across this whole
+    // query before scheduling/projecting or copying capture-history sets, then
+    // visit the complete same-depth may-projection closure with monotone joins.
+    const joinedProjections = new Map<string, JoinedProjection>();
+    const exactProjections = new Map<string, Set<string>>();
+    let additionalAlternatives = 0;
+    let projectionsWidened = false;
+    const nodeIdentities = new WeakMap<t.Node, number>();
+    let nextNodeIdentity = 0;
+    const nodeIdentity = (node: t.Node | undefined): number | null => {
+      if (node === undefined) return null;
+      const prior = nodeIdentities.get(node);
+      if (prior !== undefined) return prior;
+      const identity = nextNodeIdentity++;
+      nodeIdentities.set(node, identity);
+      return identity;
+    };
+    const enqueue = (candidate: PendingValue): void => {
+      // A capture deeper than this projection is no longer applicable. Keep
+      // the canonical context before indexing or scheduling alias histories.
+      const value = candidate.capturedSelections?.length
         ? {
             ...candidate,
             capturedSelections: semanticNormalizeCapturedSelections(
@@ -694,6 +710,101 @@ export function* collectSemanticMemberMutationsSteps(
             ),
           }
         : candidate;
+      const expression = unwrapJavaScriptExpression(value.node).node;
+      const binding = t.isIdentifier(expression)
+        ? resolveBinding(expression, expression.name)
+        : undefined;
+      if (binding === undefined) {
+        pending.push(value);
+        return;
+      }
+      const context = JSON.stringify([
+        binding.bindingId,
+        nodeIdentity(value.originAt),
+        nodeIdentity(value.ownerInitializer),
+        nodeIdentity(value.memberReadAt),
+        value.definiteReceiver,
+        value.path.length,
+        value.widenedGetterResult === true,
+      ]);
+      const captures = value.capturedSelections?.map(
+        ({ at, depth, ownEnumerable }) => [
+          nodeIdentity(at),
+          depth,
+          ownEnumerable === true,
+        ],
+      );
+      // Capture vectors are additional precise states, but distinct captured
+      // reads keep separate may-projection joins after the budget is reached.
+      const key = JSON.stringify([context, captures]);
+      if (!projectionsWidened) {
+        const exact = exactProjections.get(context) ?? new Set<string>();
+        const selection = JSON.stringify([captures, value.path]);
+        if (exact.has(selection)) return;
+        if (
+          exact.size > 0 &&
+          ++additionalAlternatives > SEMANTIC_ALIAS_SELECTION_LIMIT
+        ) {
+          projectionsWidened = true;
+          state.valueResourceLimits.add("alias-selections");
+          exactProjections.clear();
+        } else {
+          exact.add(selection);
+          exactProjections.set(context, exact);
+        }
+      }
+      const prior = joinedProjections.get(key);
+      const path =
+        prior === undefined
+          ? value.path
+          : joinSemanticPropertyPaths(prior.path, value.path);
+      if (path === undefined) throw new Error("Projection depth key mismatch");
+      const definiteReceiver =
+        value.definiteReceiver &&
+        (prior?.definiteReceiver ?? true) &&
+        path.every((key) => key !== null && typeof key !== "object");
+      const joined =
+        prior !== undefined &&
+        path === prior.path &&
+        definiteReceiver === prior.definiteReceiver
+          ? prior
+          : { path, definiteReceiver, scheduled: false };
+      joinedProjections.set(key, joined);
+      if (!projectionsWidened) {
+        pending.push({ ...value, exactKey: key });
+        return;
+      }
+      if (joined.scheduled) return;
+      joined.scheduled = true;
+      pending.push({
+        ...value,
+        path,
+        definiteReceiver,
+        joined: { key, value: joined },
+      });
+    };
+    enqueue({
+      node,
+      path,
+      bindings,
+      originAt,
+      definiteReceiver,
+      memberReadAt: selection?.memberReadAt ?? mutation ?? originAt,
+      capturedSelections: selection?.capturedSelections,
+      ...(ownerInitializer === undefined ? {} : { ownerInitializer }),
+    });
+    // Visit shallower alias traversals first so their exact prefixes suppress
+    // longer loop paths before those paths enumerate every assignment order.
+    for (let cursor = 0; cursor < pending.length; cursor++) {
+      const current = pending[cursor];
+      if (current === undefined) break;
+      if (
+        (current.exactKey !== undefined &&
+          joinedProjections.get(current.exactKey)?.scheduled === true) ||
+        (current.joined !== undefined &&
+          joinedProjections.get(current.joined.key) !== current.joined.value)
+      )
+        continue;
       const expression = unwrapJavaScriptExpression(current.node).node;
       const required = semanticRequireOrigin(expression, state);
       if (required !== undefined) {
@@ -1005,7 +1116,7 @@ export function* collectSemanticMemberMutationsSteps(
           // and captures; a local container does not isolate its children.
           if (receiver !== undefined) {
             for (const source of receiver.sources)
-              pending.push({
+              enqueue({
                 node: source.node,
                 path: [...source.path, current.path.at(-1)!],
                 bindings: nested,
@@ -1024,7 +1135,7 @@ export function* collectSemanticMemberMutationsSteps(
           for (const initializer of retainsInitializers
             ? origins.initializers
             : [])
-            pending.push({
+            enqueue({
               node: initializer.node,
               path: [...initializer.projection, ...path],
               bindings: nested,
@@ -1082,7 +1193,7 @@ export function* collectSemanticMemberMutationsSteps(
           expression.property,
           expression.computed,
         );
-        pending.push({
+        enqueue({
           node: expression.object,
           path: [key, ...current.path],
           bindings: current.bindings,
@@ -1155,7 +1266,7 @@ export function* collectSemanticMemberMutationsSteps(
               ...(mutation === undefined ? {} : { mutation }),
             });
           else
-            pending.push({
+            enqueue({
               ...value,
               bindings: current.bindings,
               definiteReceiver:

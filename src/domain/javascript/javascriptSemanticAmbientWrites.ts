@@ -21,6 +21,7 @@ import {
   semanticIterationSources,
   type SemanticIterationSource,
 } from "./javascriptSemanticIterationSources.js";
+import { joinSemanticPropertyPaths } from "./javascriptSemanticPropertyPaths.js";
 import { createSemanticReturnedReferences } from "./javascriptSemanticReturnedReferences.js";
 import {
   semanticCopiedReferencePath,
@@ -189,10 +190,8 @@ export const createAmbientPathResolver = (
             continue;
           }
           if (suffix !== undefined && previous.length === suffix.length) {
-            const joined: AmbientPath = previous.map((key, index) =>
-              key === suffix?.[index] ? key : null,
-            );
-            if (joined.every((key, index) => key === previous[index])) {
+            const joined = joinSemanticPropertyPaths(previous, suffix);
+            if (joined === previous) {
               resolvedIdentity = true;
               continue;
             }

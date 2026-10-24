@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { beforeAll, expect, it } from "vitest";
+import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -15,6 +15,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
 let upstream: typeof import("release-please");
+let githubRuntime: typeof import("release-please/build/src/github.js");
 const baseline = "a".repeat(40);
 const latest = "b".repeat(40);
 const silent = {
@@ -28,20 +29,58 @@ const silent = {
 beforeAll(async () => {
   await applyReleasePleasePatch();
   upstream = await import("release-please");
+  githubRuntime = require("release-please/build/src/github.js");
 });
 
-function respond(value: unknown) {
+afterEach(() => vi.restoreAllMocks());
+
+function respond(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
-    status: 200,
+    status,
     headers: { "content-type": "application/json" },
   });
 }
 
-type CommitRecord = { sha: string; message: string; files: string[] };
+function associatedPullRequest(number = 42, mergeCommit = latest) {
+  return {
+    number,
+    title: "Original title",
+    baseRefName: "main",
+    headRefName: "feature",
+    body: `BEGIN_COMMIT_OVERRIDE\nfix: attributed override (#${number})\nEND_COMMIT_OVERRIDE`,
+    mergeCommit: { oid: mergeCommit },
+    labels: { nodes: [{ name: "reviewed" }] },
+    files: {
+      nodes: [{ path: "src/feature.ts" }],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+}
+
+type CommitRecord = {
+  sha: string;
+  message: string;
+  files: string[];
+  pullRequests?: ReturnType<typeof associatedPullRequest>[];
+};
+type HistoryVariables = {
+  num: number;
+  cursor?: string | undefined;
+  includeFiles?: boolean | undefined;
+};
+type HistoryFailure = {
+  cursor?: string;
+  errors: { message: string; type?: string }[];
+  status?: number;
+};
+const internalError = {
+  message:
+    "Something went wrong while executing your query on 2026-10-24T08:20:11Z. Please include `fixture:request` when reporting this issue.",
+};
 
 function historyPage(
   commits: CommitRecord[],
-  page: { num: number; cursor?: string | undefined },
+  page: HistoryVariables,
   pullRequest: boolean,
 ) {
   const offset = Number(page.cursor ?? "0");
@@ -56,24 +95,15 @@ function historyPage(
                 sha: commit.sha,
                 message: commit.message,
                 associatedPullRequests: {
-                  nodes:
-                    pullRequest && commit.sha === latest
-                      ? [
-                          {
-                            number: 42,
-                            title: "Original title",
-                            baseRefName: "main",
-                            headRefName: "feature",
-                            body: "BEGIN_COMMIT_OVERRIDE\nfix: attributed override (#42)\nEND_COMMIT_OVERRIDE",
-                            mergeCommit: { oid: latest },
-                            labels: { nodes: [{ name: "reviewed" }] },
-                            files: {
-                              nodes: [{ path: "src/feature.ts" }],
-                              pageInfo: { hasNextPage: false },
-                            },
-                          },
-                        ]
-                      : [],
+                  nodes: (
+                    commit.pullRequests ??
+                    (pullRequest && commit.sha === latest
+                      ? [associatedPullRequest()]
+                      : [])
+                  ).map(({ files, ...metadata }) => ({
+                    ...metadata,
+                    ...(page.includeFiles === false ? {} : { files }),
+                  })),
                 },
               })),
               pageInfo: {
@@ -88,6 +118,40 @@ function historyPage(
   };
 }
 
+function releasePage() {
+  return {
+    data: {
+      repository: {
+        releases: {
+          nodes: [
+            {
+              name: "6.7.0",
+              tag: { name: "rea-agents-6.7.0" },
+              tagCommit: { oid: baseline },
+              description: "",
+              isDraft: false,
+              url: "https://github.com/fixture/rea/releases/tag/rea-agents-6.7.0",
+            },
+          ],
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    },
+  };
+}
+
+const defaultConfiguration = {
+  "release-type": "node",
+  versioning: "always-bump-minor",
+  "include-v-in-tag": false,
+  packages: {
+    ".": {
+      "package-name": "rea-agents",
+      "extra-files": [{ type: "generic", path: "version.txt" }],
+    },
+  },
+};
+
 async function releaseFixture({
   config = {},
   commits = [
@@ -96,26 +160,22 @@ async function releaseFixture({
   ],
   depth = 500,
   pullRequest = false,
+  historyFailures = [],
+  releaseFailures = [],
 }: {
   config?: Record<string, unknown>;
   commits?: CommitRecord[];
   depth?: number;
   pullRequest?: boolean;
+  historyFailures?: HistoryFailure[];
+  releaseFailures?: HistoryFailure["errors"][];
 } = {}) {
   const requests: { method: string; pathname: string }[] = [];
-  const pages: { num: number; cursor?: string | undefined }[] = [];
-  const configuration = {
-    "release-type": "node",
-    versioning: "always-bump-minor",
-    "include-v-in-tag": false,
-    packages: {
-      ".": {
-        "package-name": "rea-agents",
-        "extra-files": [{ type: "generic", path: "version.txt" }],
-      },
-    },
-    ...config,
-  };
+  const pages: HistoryVariables[] = [];
+  const historyQueries: string[] = [];
+  const failures = [...historyFailures];
+  const releaseErrors = [...releaseFailures];
+  const configuration = { ...defaultConfiguration, ...config };
   const github = await upstream.GitHub.create({
     owner: "fixture",
     repo: "rea",
@@ -141,34 +201,31 @@ async function releaseFixture({
             variables: z.object({
               num: z.number(),
               cursor: z.string().optional(),
+              includeFiles: z.boolean().optional(),
             }),
           })
           .parse(JSON.parse(options.body ?? ""));
         if (query.query.includes("query releases(")) {
-          return respond({
-            data: {
-              repository: {
-                releases: {
-                  nodes: [
-                    {
-                      name: "6.7.0",
-                      tag: { name: "rea-agents-6.7.0" },
-                      tagCommit: { oid: baseline },
-                      description: "",
-                      isDraft: false,
-                      url: "https://github.com/fixture/rea/releases/tag/rea-agents-6.7.0",
-                    },
-                  ],
-                  pageInfo: { hasNextPage: false },
-                },
-              },
-            },
-          });
+          const errors = releaseErrors.shift();
+          if (errors) return respond({ errors });
+          return respond(releasePage());
         }
         if (!query.query.includes("query pullRequestsSince(")) {
           throw new Error(`Unexpected GraphQL operation: ${query.query}`);
         }
         pages.push(query.variables);
+        historyQueries.push(query.query);
+        const failure = failures[0];
+        if (failure && failure.cursor === query.variables.cursor) {
+          failures.shift();
+          return respond(
+            {
+              ...historyPage(commits, query.variables, pullRequest),
+              errors: failure.errors,
+            },
+            failure.status,
+          );
+        }
         return respond(historyPage(commits, query.variables, pullRequest));
       }
       const files: Record<string, unknown> = {
@@ -233,7 +290,7 @@ async function releaseFixture({
       logger: silent,
     },
   );
-  return { manifest, github, requests, pages };
+  return { manifest, github, requests, pages, historyQueries };
 }
 
 it("builds the root Node proposal without commit-file lookups and retains extra-file updates", async () => {
@@ -253,6 +310,11 @@ it("builds the root Node proposal without commit-file lookups and retains extra-
     ),
   ).toEqual([]);
   expect(fixture.pages.map((page) => page.num)).toEqual([10]);
+  expect(fixture.pages[0]?.includeFiles).toBe(false);
+  expect(fixture.historyQueries[0]).toContain("$includeFiles: Boolean!");
+  expect(fixture.historyQueries[0]).toContain(
+    "files(first: $maxFilesChanged) @include(if: $includeFiles)",
+  );
   const commits = [];
   for await (const commit of fixture.github.mergeCommitIterator("main", {
     backfillFiles: false,
@@ -278,8 +340,66 @@ it("keeps real associated PR metadata, body overrides and attribution", async ()
     labels: ["reviewed"],
     mergeCommitOid: latest,
     body: expect.stringContaining("BEGIN_COMMIT_OVERRIDE"),
+    files: ["src/feature.ts"],
   });
+  expect(commits[0]?.files).toEqual(["src/feature.ts"]);
+  expect(fixture.pages.at(-1)?.includeFiles).toBe(true);
 });
+
+it.each([false, true])(
+  "preserves associated PR selection with omitted files for rebased=%s",
+  async (rebased) => {
+    const second = "c".repeat(40);
+    const fixture = await releaseFixture({
+      commits: [
+        {
+          sha: latest,
+          message: "fix: first change",
+          files: ["src/first.ts"],
+          pullRequests: [
+            associatedPullRequest(7, baseline),
+            associatedPullRequest(),
+          ],
+        },
+        {
+          sha: second,
+          message: "fix: second change",
+          files: ["src/second.ts"],
+          pullRequests: rebased ? [associatedPullRequest()] : [],
+        },
+        { sha: baseline, message: "chore: release 6.7.0", files: [] },
+      ],
+    });
+    const full = [];
+    for await (const commit of fixture.github.mergeCommitIterator("main"))
+      full.push(commit);
+    const omitted = [];
+    for await (const commit of fixture.github.mergeCommitIterator("main", {
+      includeFiles: false,
+      backfillFiles: true,
+    }))
+      omitted.push(commit);
+    expect(full[0]?.pullRequest?.number).toBe(rebased ? 7 : 42);
+    expect(omitted).toEqual(
+      full.map(({ files: _files, pullRequest, ...commit }) => ({
+        ...commit,
+        ...(pullRequest
+          ? {
+              pullRequest: Object.fromEntries(
+                Object.entries(pullRequest).filter(([key]) => key !== "files"),
+              ),
+            }
+          : {}),
+      })),
+    );
+    expect(omitted.every((commit) => commit.files === undefined)).toBe(true);
+    expect(
+      fixture.requests.filter((request) =>
+        request.pathname.includes("/commits/"),
+      ),
+    ).toEqual([]);
+  },
+);
 
 it.each([
   {
@@ -324,6 +444,7 @@ it.each([
       request.pathname.includes("/commits/"),
     ),
   ).toHaveLength(2);
+  expect(fixture.pages.every((page) => page.includeFiles === true)).toBe(true);
   expect(candidates).toHaveLength(excluded ? 0 : 1);
 });
 
@@ -353,6 +474,131 @@ it("collects beyond 500 commits and rejects an unobserved known release boundary
   );
   expect(
     truncated.requests.every(
+      (request) => request.method === "GET" || request.pathname === "/graphql",
+    ),
+  ).toBe(true);
+});
+
+it.each([
+  {
+    name: "timestamped GraphQL internal error",
+    error: internalError,
+    status: 200,
+  },
+  {
+    name: "GraphQL internal error without timestamp",
+    error: {
+      message:
+        "Something went wrong while executing your query. Please include `fixture:request` when reporting this issue.",
+    },
+    status: 200,
+  },
+  { name: "HTTP 502 error", error: internalError, status: 502 },
+])(
+  "retries the same history cursor after $name and discards partial data",
+  async ({ error, status }) => {
+    const sleep = vi
+      .spyOn(githubRuntime, "sleepInMs")
+      .mockResolvedValue(undefined);
+    const commits = Array.from({ length: 11 }, (_, index) => ({
+      sha: index.toString(16).padStart(40, "0"),
+      message: `fix: unreleased change ${index}`,
+      files: ["src/change.ts"],
+    }));
+    commits.push({ sha: baseline, message: "chore: release 6.7.0", files: [] });
+    const fixture = await releaseFixture({
+      commits,
+      historyFailures: [{ cursor: "10", errors: [error], status }],
+    });
+    const candidates = await fixture.manifest.buildPullRequests();
+    const body = candidates[0]?.body.toString();
+    expect(body?.match(/unreleased change 10/gu)).toHaveLength(1);
+    expect(fixture.pages.map((page) => page.cursor)).toEqual([
+      undefined,
+      "10",
+      "10",
+    ]);
+    expect(fixture.pages[1]).toEqual(fixture.pages[2]);
+    expect(fixture.historyQueries[1]).toBe(fixture.historyQueries[2]);
+    expect(sleep.mock.calls).toEqual([[1000]]);
+  },
+);
+
+it("does not retry canonical internal errors outside commit-history reads", async () => {
+  const sleep = vi
+    .spyOn(githubRuntime, "sleepInMs")
+    .mockResolvedValue(undefined);
+  const fixture = await releaseFixture({ releaseFailures: [[internalError]] });
+  await expect(fixture.manifest.createPullRequests()).rejects.toMatchObject({
+    name: "GraphqlResponseError",
+    errors: [internalError],
+  });
+  expect(fixture.pages).toEqual([]);
+  expect(
+    fixture.requests.filter((request) => request.pathname === "/graphql"),
+  ).toHaveLength(1);
+  expect(sleep).not.toHaveBeenCalled();
+});
+
+it.each([
+  {
+    name: "permission",
+    errors: [{ message: "Resource not accessible", type: "FORBIDDEN" }],
+  },
+  {
+    name: "validation",
+    errors: [
+      { message: "Field does not exist", type: "GRAPHQL_VALIDATION_FAILED" },
+    ],
+  },
+  {
+    name: "mixed",
+    errors: [
+      internalError,
+      { message: "Resource not accessible", type: "FORBIDDEN" },
+    ],
+  },
+  {
+    name: "unrecognized internal",
+    errors: [{ message: "Another server failure", type: "INTERNAL" }],
+  },
+  { name: "empty errors", errors: [] },
+])("does not retry $name GraphQL failures", async ({ errors }) => {
+  const sleep = vi
+    .spyOn(githubRuntime, "sleepInMs")
+    .mockResolvedValue(undefined);
+  const fixture = await releaseFixture({ historyFailures: [{ errors }] });
+  await expect(fixture.manifest.createPullRequests()).rejects.toMatchObject({
+    name: "GraphqlResponseError",
+    errors,
+  });
+  expect(fixture.pages).toHaveLength(1);
+  expect(sleep).not.toHaveBeenCalled();
+  expect(
+    fixture.requests.every(
+      (request) => request.method === "GET" || request.pathname === "/graphql",
+    ),
+  ).toBe(true);
+});
+
+it("exhausts bounded history retries without creating a partial proposal", async () => {
+  const sleep = vi
+    .spyOn(githubRuntime, "sleepInMs")
+    .mockResolvedValue(undefined);
+  const fixture = await releaseFixture({
+    historyFailures: Array.from({ length: 6 }, () => ({
+      errors: [internalError],
+    })),
+  });
+  await expect(fixture.manifest.createPullRequests()).rejects.toMatchObject({
+    name: "GraphqlResponseError",
+    errors: [internalError],
+  });
+  expect(fixture.pages).toHaveLength(6);
+  expect(fixture.pages.every((page) => page.cursor === undefined)).toBe(true);
+  expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [8000], [16000]]);
+  expect(
+    fixture.requests.every(
       (request) => request.method === "GET" || request.pathname === "/graphql",
     ),
   ).toBe(true);

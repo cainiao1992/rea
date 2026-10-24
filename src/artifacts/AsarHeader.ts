@@ -59,7 +59,7 @@ export const asarHeaderAdmissionFailure = (
   });
 
 /** Absolute archive prefix required to inspect a header under this admission. */
-export const asarHeaderProbeBytes = (admission: AsarHeaderAdmission): number =>
+const asarHeaderProbeBytes = (admission: AsarHeaderAdmission): number =>
   admission.maximumBytes + 8;
 
 export interface AsarHeaderExtents {
@@ -113,7 +113,7 @@ export type FinalAsarHeaderProbeObservation = Exclude<
  * observed archive size. This establishes byte extents only; JSON validity and
  * the ASAR header schema belong to the decoder at the interpretation boundary.
  */
-export const parseAsarHeaderExtents = (
+const parseAsarHeaderExtents = (
   prefix: Uint8Array,
   archiveBytes?: number,
 ): Result<Omit<AsarHeaderExtents, "archiveBytes">, ArtifactReaderFailure> => {

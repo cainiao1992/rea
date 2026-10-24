@@ -5,12 +5,7 @@ import {
   acquireOwnedLease,
   type LeaseAcquisition,
   type LeaseFailure,
-  type OwnedLease,
 } from "./OwnedLease.js";
-
-export type HopperTargetLease = OwnedLease;
-
-export type HopperTargetLeaseAcquisition = LeaseAcquisition;
 
 /** Shared private parent of Hopper lease sockets; it outlives individual sessions. */
 export const HOPPER_TARGET_LEASE_DIRECTORY = join(
@@ -25,7 +20,7 @@ export const acquireHopperTargetLease = async (input: {
   readonly loaderArgs: readonly string[];
   readonly runId: string;
   readonly directory?: string;
-}): Promise<HopperTargetLeaseAcquisition> => {
+}): Promise<LeaseAcquisition> => {
   // Canonicalization is required for lease identity. A lexical fallback could
   // let two aliases reserve independent sockets for the same Hopper document.
   let targetPath: string;
@@ -51,7 +46,7 @@ export const acquireHopperTargetLease = async (input: {
 export const acquireLinuxHopperApplicationLease = (input: {
   readonly runId: string;
   readonly directory?: string;
-}): Promise<HopperTargetLeaseAcquisition> =>
+}): Promise<LeaseAcquisition> =>
   acquireLease({ ...input, identity: { application: "linux-hopper-demo" } });
 
 /** Serialize approved publication/repair of one canonical signed-package entry. */
@@ -59,7 +54,7 @@ export const acquireHopperReleaseCacheLease = async (input: {
   readonly cacheDirectory: string;
   readonly launcherSha256: string;
   readonly runId: string;
-}): Promise<HopperTargetLeaseAcquisition> =>
+}): Promise<LeaseAcquisition> =>
   acquireLease({
     runId: input.runId,
     identity: {
@@ -73,7 +68,7 @@ const acquireLease = async (input: {
   readonly identity: Readonly<Record<string, unknown>>;
   readonly runId: string;
   readonly directory?: string;
-}): Promise<HopperTargetLeaseAcquisition> =>
+}): Promise<LeaseAcquisition> =>
   acquireOwnedLease({
     identity: input.identity,
     runId: input.runId,

@@ -384,7 +384,7 @@ export class GodotPckArtifactReader implements ArtifactReader {
 }
 
 /** Decode header fields once; unsupported content does not erase observed headers. */
-export const readGodotPckHeader = async (
+const readGodotPckHeader = async (
   handle: FileHandle,
   size: number,
   signal?: AbortSignal,

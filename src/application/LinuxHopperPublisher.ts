@@ -29,10 +29,8 @@ import { verifyDetachedPgpSignature } from "../process/DetachedPgpSignature.js";
 import { execFileOutput } from "../process/ExecFileOutput.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import { waitForAbortableDelay } from "../process/ProviderDeadline.js";
-import {
-  acquireHopperReleaseCacheLease,
-  type HopperTargetLease,
-} from "../process/HopperLease.js";
+import { acquireHopperReleaseCacheLease } from "../process/HopperLease.js";
+import type { OwnedLease } from "../process/OwnedLease.js";
 import {
   downloadHopperPackage,
   HOPPER_DOWNLOAD_BYTES,
@@ -412,7 +410,7 @@ export class LinuxHopperPublisher {
   async #acquireCacheLease(
     digest: string,
     signal?: AbortSignal,
-  ): Promise<HopperTargetLease> {
+  ): Promise<OwnedLease> {
     const deadline = performance.now() + 120_000;
     const runId = randomUUID();
     let delay = 25;

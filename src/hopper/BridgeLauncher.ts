@@ -49,7 +49,7 @@ import {
   acquireHopperTargetLease,
   acquireLinuxHopperApplicationLease,
 } from "../process/HopperLease.js";
-import type { HopperTargetLease } from "../process/HopperLease.js";
+import type { OwnedLease } from "../process/OwnedLease.js";
 import {
   MAXIMUM_BRIDGE_MAX_REQUEST_BYTES,
   MINIMUM_BRIDGE_MAX_REQUEST_BYTES,
@@ -367,7 +367,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
     readonly bootstrapPath: string;
     readonly loadedPath: string;
     readonly ownsProcessLifetime: boolean;
-    readonly lease: HopperTargetLease | undefined;
+    readonly lease: OwnedLease | undefined;
   }): Promise<
     Result<
       BridgeLaunch,
@@ -497,7 +497,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
 
   async #acquireLaunchLease(
     runId: string,
-  ): Promise<Result<HopperTargetLease | undefined, HopperStartError>> {
+  ): Promise<Result<OwnedLease | undefined, HopperStartError>> {
     const platform = this.dependencies.platform ?? process.platform;
     const applicationLease =
       platform === "linux" && usesLinuxDemo(this.options);

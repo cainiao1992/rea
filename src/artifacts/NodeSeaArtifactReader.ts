@@ -1,11 +1,8 @@
-import type { Stats } from "node:fs";
-import type { FileHandle } from "node:fs/promises";
 import { Readable, Transform, pipeline } from "node:stream";
 import { setImmediate } from "node:timers/promises";
 
 import { artifactExpansionBudgetBytes } from "../domain/artifactExpansionBudget.js";
 import type { NodeSeaMetadata } from "../domain/artifactFormatMetadata.js";
-import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
 import {
   ArtifactPathRegistry,
   normalizeArtifactPath,
@@ -19,7 +16,6 @@ import {
   type ArtifactTraversalOptions,
 } from "./ArtifactReader.js";
 import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
-import { hashReadable } from "./ArtifactHash.js";
 import { assertArtifactReadActive } from "./ArtifactFileOperation.js";
 import {
   NODE_SEA_BLOB_TOO_LARGE,
@@ -33,16 +29,9 @@ import {
   readNodeSeaBlob,
   scanNodeSeaFuse,
 } from "./nodeSea/NodeSeaLocation.js";
-import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readFileHandleChunks } from "../filesystem/readFileHandleChunks.js";
-import {
-  NonRegularFileReadError,
-  RegularFileAdmissionFailure,
-  RegularFileOperationCancelled,
-  openRegularFile,
-  sameRegularFileState,
-  type StableRegularFileDescriptor,
-} from "../filesystem/RegularFile.js";
+import type { StableRegularFileDescriptor } from "../filesystem/RegularFile.js";
+import { ArtifactFileSource } from "./ArtifactFileSource.js";
 
 const SNAPSHOT_PATH = "__node_sea__/snapshot";
 const CODE_CACHE_PATH = "__node_sea__/code-cache";
@@ -57,18 +46,14 @@ export class NodeSeaArtifactReader implements ArtifactReader {
   readonly #scope = new ArtifactResourceScope();
   readonly #entries = new Map<string, ArtifactEntry>();
   readonly #streams = new Set<Readable>();
-  #owner: OwnedFileHandle | undefined;
-  #initial: Stats | undefined;
-  #opening: Promise<FileHandle> | undefined;
+  readonly #source: ArtifactFileSource;
   #prepared: Promise<void> | undefined;
   #header: NodeSeaMetadata | undefined;
   #closing = false;
-  #boundSha256: string | undefined;
 
-  constructor(
-    private readonly path: string,
-    private readonly admitted?: StableRegularFileDescriptor,
-  ) {}
+  constructor(path: string, admitted?: StableRegularFileDescriptor) {
+    this.#source = new ArtifactFileSource(path, "Node SEA", admitted);
+  }
 
   formatMetadata(): NodeSeaMetadata | undefined {
     if (this.#header === undefined) return undefined;
@@ -81,37 +66,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
   ): Promise<void> {
     await this.#scope.run(async () => {
       this.#assertOpen(signal);
-      const handle = await this.#assertStable(signal);
-      const observed =
-        this.#boundSha256 ??
-        (
-          await hashReadable(
-            readFileHandleChunks(handle, {
-              signal,
-              cancellationFailure: (reason) =>
-                new ArtifactReaderFailure(
-                  "cancelled",
-                  "Node SEA verification cancelled",
-                  { cause: reason },
-                ),
-            }),
-            signal,
-          )
-        ).sha256;
-      await this.#assertStable(signal);
-      if (observed !== expectedSha256)
-        throw new ArtifactReaderFailure(
-          "integrity",
-          "Node SEA carrier changed after inventory",
-          undefined,
-          artifactIntegrityDetails(
-            ".",
-            { algorithm: "sha256", digest: expectedSha256 },
-            observed,
-            false,
-          ),
-        );
-      this.#boundSha256 = observed;
+      await this.#source.bindSha256(expectedSha256, signal);
     });
   }
 
@@ -123,7 +78,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
       this.#assertOpen(signal);
       this.#prepared ??= this.#prepare(signal);
       await this.#prepared;
-      await this.#assertStable(signal);
+      await this.#source.read(signal);
     });
     const contradiction = this.#header?.fuse_contradiction;
     if (contradiction !== null && contradiction !== undefined)
@@ -149,7 +104,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
           "integrity",
           "Node SEA entry does not match its owning inventory",
         );
-      const handle = await this.#assertStable(signal);
+      const { handle } = await this.#source.read(signal);
       this.#assertOpen(signal);
       if (stored.byteOffset === null || stored.declaredSize === null)
         throw formatFailure("member has no physical byte range");
@@ -200,10 +155,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
         new ArtifactReaderFailure("unavailable", "Node SEA reader closed"),
       );
     await this.#scope.close();
-    if (this.#owner !== undefined) {
-      await this.#owner.close();
-      this.#owner = undefined;
-    }
+    await this.#source.close();
     this.#entries.clear();
   }
 
@@ -220,56 +172,8 @@ export class NodeSeaArtifactReader implements ArtifactReader {
       );
   }
 
-  #open(signal?: AbortSignal): Promise<FileHandle> {
-    this.#opening ??= this.#admit(signal);
-    return this.#opening;
-  }
-
-  async #admit(signal?: AbortSignal): Promise<FileHandle> {
-    try {
-      const handle =
-        this.admitted?.handle ??
-        (await openRegularFile(this.path, { symlinks: "reject", signal }));
-      if (this.admitted === undefined)
-        this.#owner = new OwnedFileHandle(handle);
-      this.#initial = this.admitted?.initial ?? (await handle.stat());
-      return handle;
-    } catch (cause: unknown) {
-      if (cause instanceof RegularFileAdmissionFailure) {
-        this.#owner = cause.owner;
-        throw ArtifactReaderFailure.withCleanup(
-          admissionFailure(cause.cause, this.path),
-          ArtifactReaderFailure.cleanupObservation(
-            cause.cleanupCause,
-            this.path,
-          ),
-        );
-      }
-      throw admissionFailure(cause, this.path);
-    }
-  }
-
-  async #assertStable(signal?: AbortSignal): Promise<FileHandle> {
-    assertArtifactReadActive(signal);
-    const handle = await this.#open(signal);
-    const observed = await handle.stat();
-    if (
-      this.#initial === undefined ||
-      !sameRegularFileState(this.#initial, observed)
-    )
-      throw new ArtifactReaderFailure(
-        "integrity",
-        `Node SEA source identity changed: ${this.path}`,
-      );
-    assertArtifactReadActive(signal);
-    return handle;
-  }
-
   async #prepare(signal?: AbortSignal): Promise<void> {
-    const handle = await this.#assertStable(signal);
-    const initial = this.#initial;
-    if (initial === undefined)
-      throw formatFailure("source identity was not admitted");
+    const { handle, initial } = await this.#source.read(signal);
     const location = await locateNodeSea(handle, initial.size, signal);
     if (location === undefined) throw formatFailure("blob was not found");
     if (location.blobLength > NODE_SEA_MAX_BLOB_BYTES)
@@ -341,7 +245,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
       fuse_sentinel: fuse.fuseSentinel,
       fuse_contradiction: fuse.fuseContradiction,
     };
-    await this.#assertStable(signal);
+    await this.#source.read(signal);
   }
 
   #memberStream(entry: ArtifactEntry, signal?: AbortSignal): Transform {
@@ -349,7 +253,7 @@ export class NodeSeaArtifactReader implements ArtifactReader {
     const check = async (): Promise<void> => {
       if (bytes !== entry.declaredSize)
         throw formatFailure(`member ended early: ${entry.path}`);
-      await this.#assertStable(signal);
+      await this.#source.read(signal);
     };
     return new Transform({
       transform(chunk: Buffer, _encoding, callback) {
@@ -438,31 +342,3 @@ function* seaMembers(decoded: DecodedNodeSeaBlob): Generator<{
 
 const formatFailure = (detail: string): ArtifactReaderFailure =>
   new ArtifactReaderFailure("format", `Node SEA blob is malformed: ${detail}`);
-
-const admissionFailure = (
-  cause: unknown,
-  path: string,
-): ArtifactReaderFailure => {
-  if (cause instanceof ArtifactReaderFailure) return cause;
-  if (cause instanceof RegularFileOperationCancelled)
-    return new ArtifactReaderFailure(
-      "cancelled",
-      "Node SEA admission cancelled",
-      {
-        cause: cause.reason,
-      },
-    );
-  if (cause instanceof NonRegularFileReadError)
-    return new ArtifactReaderFailure(
-      "format",
-      `Node SEA source is not a regular file: ${path}`,
-      { cause },
-    );
-  return new ArtifactReaderFailure(
-    "io",
-    cause instanceof Error
-      ? cause.message
-      : `Cannot admit Node SEA source: ${path}`,
-    { cause },
-  );
-};

@@ -277,6 +277,32 @@ describe("Linux Hopper installation", () => {
       );
     },
   );
+
+  it.each([true, false])(
+    "keeps installed apt dependencies at their versions while Hopper may upgrade (root: %s)",
+    (isRoot) => {
+      const prefix = isRoot ? [] : ["pkexec"];
+      expect(
+        linuxPackageManagerCommands("deb", "/tmp/Hopper package", isRoot).map(
+          ({ executable, args }) => [executable, ...args],
+        ),
+      ).toEqual([
+        [
+          ...prefix,
+          "apt-get",
+          "install",
+          "-y",
+          "--no-upgrade",
+          "xvfb",
+          "xauth",
+          "python3",
+          "libx11-6",
+          "libxtst6",
+        ],
+        [...prefix, "apt-get", "install", "-y", "/tmp/Hopper package"],
+      ]);
+    },
+  );
 });
 
 describe("Linux Hopper package installation", () => {

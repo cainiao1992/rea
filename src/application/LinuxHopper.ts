@@ -818,7 +818,12 @@ export const linuxPackageManagerCommands = (
         : ["xorg-server-xvfb", "xorg-xauth", "python", "libx11", "libxtst"];
   const commands =
     family === "deb"
-      ? [["apt-get", "install", "-y", archive, ...runtimeDependencies]]
+      ? [
+          // apt-get install upgrades listed packages that are already
+          // installed, so dependencies are not named as upgrade targets.
+          ["apt-get", "install", "-y", "--no-upgrade", ...runtimeDependencies],
+          ["apt-get", "install", "-y", archive],
+        ]
       : family === "rpm"
         ? [["dnf", "install", "-y", archive, ...runtimeDependencies]]
         : [

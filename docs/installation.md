@@ -681,6 +681,12 @@ search permissions (`0700`) on a directory you own before retrying.
 
 On supported Linux distributions, approved setup verifies Hopper's official
 `.deb`, `.rpm`, or Arch package before invoking the native package manager.
+On apt systems, Hopper's runtime dependencies are installed with
+`--no-upgrade` in their own transaction, so setup no longer names an
+already-installed dependency as an upgrade target. apt can still upgrade a
+package that the Hopper package or the Python library repair requires at a
+newer version. Arch's `pacman -S --needed` still updates an outdated
+dependency.
 The official release feed selects the current public demo without a version
 pin. REA verifies the package's detached PGP signature against Hopper's stable
 primary fingerprint `7C2D73BAFAF5B9A710A69DA1A26DF815099B1BCD`, then checks

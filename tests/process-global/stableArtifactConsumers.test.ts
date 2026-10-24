@@ -99,12 +99,14 @@ import { PeResourcesProvider } from "../../src/native/pe/PeResourcesProvider.js"
 import { Il2cppMetadataProvider } from "../../src/il2cpp/Il2cppMetadataProvider.js";
 import { ElfNotesProvider } from "../../src/native/elf/ElfNotesProvider.js";
 import { AppleIpsProvider } from "../../src/native/apple/AppleIpsProvider.js";
+import { KernelModuleProvider } from "../../src/native/elf/KernelModuleProvider.js";
 import { PeCertificatesProvider } from "../../src/native/pe/PeCertificatesProvider.js";
 import { PeImportsProvider } from "../../src/native/pe/PeImportsProvider.js";
 import { NativeExportsProvider } from "../../src/native/exports/NativeExportsProvider.js";
 import { BeamProvider } from "../../src/erlang/BeamProvider.js";
 import { inspectElfNotesInputSchema } from "../../src/domain/native/elfNotes.js";
 import { inspectAppleIpsInputSchema } from "../../src/domain/native/appleIps.js";
+import { inspectKernelModuleInputSchema } from "../../src/domain/native/kernelModule.js";
 import { inspectPeCertificatesInputSchema } from "../../src/domain/native/peCertificates.js";
 import { inspectPeImportsInputSchema } from "../../src/domain/native/peImports.js";
 import { inspectNativeExportsInputSchema } from "../../src/domain/native/nativeExports.js";
@@ -861,6 +863,7 @@ const stableArtifactProviders = [
   ...staticProviders,
   ["ELF notes", () => new ElfNotesProvider()],
   ["Apple IPS", () => new AppleIpsProvider()],
+  ["kernel module", () => new KernelModuleProvider()],
   ["PE certificates", () => new PeCertificatesProvider()],
   ["PE load configuration", () => new PeLoadConfigProvider()],
   ["PE imports", () => new PeImportsProvider()],
@@ -892,6 +895,11 @@ const inspectFileFailure = (
   if (provider instanceof AppleIpsProvider)
     return provider.inspect(
       inspectAppleIpsInputSchema.parse({ path }),
+      options,
+    );
+  if (provider instanceof KernelModuleProvider)
+    return provider.inspect(
+      inspectKernelModuleInputSchema.parse({ path }),
       options,
     );
   if (provider instanceof PeCertificatesProvider)
@@ -955,6 +963,7 @@ it.each(
       expect(result.error._tag).toBe(
         expectedTag ??
           (provider instanceof ElfNotesProvider ||
+          provider instanceof KernelModuleProvider ||
           provider instanceof PeCertificatesProvider ||
           provider instanceof PeResourcesProvider
             ? "ArtifactOperationError"

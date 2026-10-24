@@ -37,6 +37,7 @@ export default defineConfig({
           { text: "PE TLS/load config", link: "/pe-load-config" },
           { text: "ELF notes", link: "/elf-notes" },
           { text: "Apple IPS crash reports", link: "/apple-ips" },
+          { text: "Linux kernel modules", link: "/kernel-modules" },
           { text: "CPython pyc files", link: "/python-pyc" },
           { text: "Erlang BEAM", link: "/erlang-beam" },
           {

@@ -619,8 +619,13 @@ it("runs the real static artifact workflow after deferred initialization", async
 const copyCompiledPackage = async (prefix: string): Promise<string> => {
   const directory = await createTestTempDirectory(prefix);
   await cp(resolve("dist"), join(directory, "dist"), { recursive: true });
-  await mkdir(join(directory, "scripts"));
+  await mkdir(join(directory, "scripts/lib"), { recursive: true });
   await cp(resolve("scripts/rea.mjs"), join(directory, "scripts/rea.mjs"));
+  // The launcher imports its process-environment owner, as the package ships it.
+  await cp(
+    resolve("scripts/lib/cli-process-environment.mjs"),
+    join(directory, "scripts/lib/cli-process-environment.mjs"),
+  );
   await cp(resolve("package.json"), join(directory, "package.json"));
   await symlink(
     resolve("node_modules"),

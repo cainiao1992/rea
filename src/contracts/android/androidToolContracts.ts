@@ -51,7 +51,7 @@ export const ANDROID_TOOL_CONTRACTS = [
     name: "inspect_android_class",
     ...toolContractMetadata("inspect_android_class"),
     description:
-      "Inspect one exact Android class's parsed methods, fields and inner classes, including synthetic members. Returns display signatures and exact DEX prototypes without generating source. A prototype is not a complete raw method ID; overload indices remain consistent within the artifact and engine session.",
+      "Inspect one exact Android class's parsed methods, fields and inner classes, including synthetic members. Returns display signatures, exact DEX prototypes and encoded static final field values without generating source. A prototype is not a complete raw method ID; overload indices remain consistent within the artifact and engine session.",
     kind: "android-provider",
     inputSchema: androidInputSchemas.inspect_android_class,
     outputSchema: evidenceResultOf(androidResultSchemas.inspect_android_class),

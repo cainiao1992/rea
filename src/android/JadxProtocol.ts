@@ -2,7 +2,10 @@ import { z } from "zod";
 import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
-import { dexDescriptorSchema } from "../domain/android/androidAnalysis.js";
+import {
+  dexDescriptorSchema,
+  dexStaticValueSchema,
+} from "../domain/android/androidAnalysis.js";
 
 const count = z.int().nonnegative();
 /** Typed allocation failures authored before upstream erases the JVM exception. */
@@ -96,7 +99,12 @@ export const jadxClassSchema = z.object({
     }),
   ),
   fields: z.array(
-    z.object({ name: z.string(), type: z.string(), def_pos: z.int() }),
+    z.object({
+      name: z.string(),
+      type: z.string(),
+      def_pos: z.int(),
+      dex_static_value: dexStaticValueSchema.optional(),
+    }),
   ),
   inner_classes: z.array(z.string()),
 });

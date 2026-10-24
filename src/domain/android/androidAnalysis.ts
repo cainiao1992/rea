@@ -137,6 +137,51 @@ export const dexDescriptorSchema = z
     /^\((?:\[*(?:[ZBSCIJFD]|L[^;\x28\x29]+;))*\)(?:V|\[*(?:[ZBSCIJFD]|L[^;\x28\x29]+;))$/u,
   );
 
+const integral = <Type extends string>(type: Type, min: number, max: number) =>
+  z.strictObject({
+    type: z.literal(type),
+    value: z.int().min(min).max(max),
+  });
+const LONG_MIN = -(2n ** 63n);
+const LONG_MAX = 2n ** 63n - 1n;
+/** Finite text must name a value of the given width; only zero text may round to zero. */
+const floating = <Type extends "float" | "double">(
+  type: Type,
+  round: (value: number) => number,
+) =>
+  z.strictObject({
+    type: z.literal(type),
+    value: z
+      .string()
+      .regex(/^(?:NaN|-?Infinity|-?\d+\.\d+(?:E-?\d+)?)$/u)
+      .refine((text) => {
+        if (/^(?:NaN|-?Infinity)$/u.test(text)) return true;
+        const rounded = round(Number(text));
+        return (
+          Number.isFinite(rounded) &&
+          (rounded !== 0 || /^-?0\.0+(?:E-?\d+)?$/u.test(text))
+        );
+      }),
+  });
+/** A static final field's DEX static value; wide and floating values keep Java text. */
+export const dexStaticValueSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("boolean"), value: z.boolean() }),
+  integral("byte", -128, 127),
+  integral("short", -32_768, 32_767),
+  integral("char", 0, 65_535),
+  integral("int", -2_147_483_648, 2_147_483_647),
+  z.strictObject({
+    type: z.literal("long"),
+    value: z
+      .string()
+      .regex(/^(?:0|-?[1-9]\d*)$/u)
+      .refine((text) => BigInt(text) >= LONG_MIN && BigInt(text) <= LONG_MAX),
+  }),
+  floating("float", Math.fround),
+  floating("double", (value) => value),
+  z.strictObject({ type: z.literal("string"), value: z.string() }),
+]);
+
 const method = z.strictObject({
   name: z.string(),
   reported_signature: z.string(),
@@ -196,7 +241,12 @@ export const androidResultSchemas = {
     class_name: z.string(),
     methods: z.array(method),
     fields: z.array(
-      z.strictObject({ name: z.string(), reported_type: z.string() }),
+      z.strictObject({
+        name: z.string(),
+        reported_type: z.string(),
+        /** Null unless a static final field encodes a supported non-null value; initializers are not applied. */
+        dex_static_value: dexStaticValueSchema.nullable(),
+      }),
     ),
     inner_classes: z.array(z.string()),
   }),

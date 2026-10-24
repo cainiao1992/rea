@@ -194,6 +194,21 @@ queries accept the same `overload_index`; the bridge resolves the selected
 method node and the result reports its index and displayed signature. These
 indices are tied to the current artifact and engine, not stable across builds.
 
+`inspect_android_class` also reports `dex_static_value` for each `static final`
+field whose class definition encodes a value in its DEX static values, so
+compile-time constants are readable even when the class has no `<clinit>`.
+Each value is typed: `boolean`, `byte`, `short`, `char` (UTF-16 code unit) and
+`int` values are JSON booleans or numbers, while `long`, `float` and `double`
+values are strings holding Java's text for the value, so 64-bit values stay
+exact. The field reports `null` when no value is encoded, the encoded value is
+null or of another kind, or the field is not `static final`. The value is read from parsed
+metadata without generating source, and a static initializer can still assign
+the field; use `inspect_android_method` on `<clinit>` for that evidence.
+Only `inspect_android_class` asks the bridge for these values.
+`inspect_android_method` and `trace_android_references` read the member-only
+class summary, so large encoded strings cannot push their member lookup past
+the 8 MiB protocol frame limit.
+
 Smali fallbacks select one complete block using the original method name and DEX
 descriptor, before applying the source byte limit. This preserves the selected
 overload even when Java code generation renames a method. If the selected Java

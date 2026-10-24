@@ -320,7 +320,7 @@ it("preserves executable arguments through the public runner", async () => {
 
 it("preserves command stderr, warnings and exit status independently of supervisor notices", async () => {
   const directory = await createTestTempDirectory("rea-runner-diagnostics-");
-  const stderr = 'authored command stderr: \"quotes\" & 雪\n';
+  const stderr = 'authored command stderr: "quotes" & 雪\n';
   const result = await execute(directory, process.execPath, [
     "-e",
     `

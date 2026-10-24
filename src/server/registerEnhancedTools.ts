@@ -275,6 +275,9 @@ const executeEnhancedTool = async (
           result: result.value.result,
           upstreamProfile: registration.analysisProfile?.(name),
           upstreamLimitations: result.value.limitations,
+          ...(result.value.evidenceLinks === undefined
+            ? {}
+            : { upstreamEvidenceLinks: result.value.evidenceLinks }),
         });
         const recorded = registration.recordEvidence?.(evidence);
         if (recorded !== undefined && !recorded.ok)

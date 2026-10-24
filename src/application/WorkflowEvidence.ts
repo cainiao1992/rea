@@ -1,3 +1,4 @@
+import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { jsonStringByteLength } from "../domain/jsonStringByteLength.js";
 import { REA_WORKFLOW_PROVIDER } from "../domain/investigationProviders.js";
 import { workflowAnalysisProfile } from "./WorkflowAnalysisProfile.js";
@@ -74,11 +75,13 @@ export const executeComposedWorkflow = async (
       readonly result: JsonValue;
       readonly limitations: readonly string[];
       readonly cachePolicy?: "live";
+      readonly evidenceLinks?: readonly string[];
     },
     AnalysisError
   >
 > => {
   const limitations = new Map<string, SourceLimitation>();
+  const evidenceLinks = new Set<string>();
   const perItemGroups = new Set<string>();
   let perItemBytes = 0;
   let omittedObservations = 0;
@@ -87,6 +90,8 @@ export const executeComposedWorkflow = async (
     resourceScope: analysis.resourceScope,
     execute: async (operation, parameters, options) => {
       const execution = await analysis.execute(operation, parameters, options);
+      if (execution.ok && execution.value.evidenceId !== undefined)
+        evidenceLinks.add(execution.value.evidenceId);
       if (execution.ok && execution.value.cachePolicy === "live")
         cachePolicy = "live";
       if (execution.ok)
@@ -140,6 +145,9 @@ export const executeComposedWorkflow = async (
           ]),
     ],
     ...(cachePolicy === undefined ? {} : { cachePolicy }),
+    ...(evidenceLinks.size === 0
+      ? {}
+      : { evidenceLinks: [...evidenceLinks].sort(compareUnicodeCodePoints) }),
   });
 };
 
@@ -151,6 +159,7 @@ export const createWorkflowEvidence = (input: {
   readonly result: JsonValue;
   readonly upstreamProfile: AnalysisProfileCommitment | undefined;
   readonly upstreamLimitations: readonly string[];
+  readonly upstreamEvidenceLinks?: readonly string[];
 }): Evidence =>
   createEvidence(input.target, REA_WORKFLOW_PROVIDER, {
     operation: input.operation,
@@ -165,6 +174,9 @@ export const createWorkflowEvidence = (input: {
           ),
         }),
     confidence: "derived",
+    ...(input.upstreamEvidenceLinks === undefined
+      ? {}
+      : { evidenceLinks: input.upstreamEvidenceLinks }),
     limitations: [
       "Derived by an REA composed workflow.",
       ...input.upstreamLimitations,

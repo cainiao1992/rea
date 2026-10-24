@@ -96,6 +96,7 @@ export const requiresNativeSourceAdmissionBeforeReplay = (
 /** Bounded in-memory cache for one immutable binary identity. */
 export class AnalysisSnapshotCache {
   readonly #entries = new Map<string, AnalysisSnapshotEntry>();
+  readonly #evidenceIds = new Map<string, string>();
   readonly #workflowEntries = new Map<string, AnalysisSnapshotWorkflowEntry>();
   #target: AnalysisSnapshotTarget | undefined;
   #binding: AnalysisSnapshotBinding | undefined;
@@ -138,10 +139,40 @@ export class AnalysisSnapshotCache {
     this.#target = structuredClone(snapshot.target);
     this.#binding = structuredClone(snapshot.binding);
     let imported = 0;
+    const stagedQueryIds = new Set<string>();
     for (const entry of snapshot.entries) {
       if (!this.#entries.has(entry.query_id) && !this.#hasCapacity()) continue;
       if (!this.#entries.has(entry.query_id)) imported += 1;
       this.#entries.set(entry.query_id, entry);
+      stagedQueryIds.add(entry.query_id);
+      this.#evidenceIds.delete(entry.query_id);
+    }
+    // Snapshot validation authenticated these records. Recover the original
+    // identity before lookup adds replay caveats; do not mint a new record.
+    const evidenceIds = new Map<string, string>();
+    const ambiguous = new Set<string>();
+    for (const evidence of snapshot.evidence_bundle.records) {
+      const queryId = analysisQueryId(
+        snapshot.target,
+        snapshot.binding,
+        evidence.operation,
+        evidence.parameters,
+      );
+      if (!stagedQueryIds.has(queryId)) continue;
+      const entry = this.#entries.get(queryId);
+      if (
+        entry === undefined ||
+        !evidenceMatchesEntry(evidence, entry, snapshot)
+      )
+        continue;
+      const previous = evidenceIds.get(queryId);
+      if (previous !== undefined && previous !== evidence.evidence_id)
+        ambiguous.add(queryId);
+      else evidenceIds.set(queryId, evidence.evidence_id);
+    }
+    for (const [queryId, evidenceId] of evidenceIds) {
+      if (ambiguous.has(queryId)) this.#evidenceIds.delete(queryId);
+      else this.#evidenceIds.set(queryId, evidenceId);
     }
     for (const entry of snapshot.workflow_entries) {
       if (!this.#workflowEntries.has(entry.query_id) && !this.#hasCapacity())
@@ -363,7 +394,9 @@ export class AnalysisSnapshotCache {
             },
             target,
           );
+    const evidenceId = this.#evidenceIds.get(queryId);
     return structuredClone({
+      ...(evidenceId === undefined ? {} : { evidenceId }),
       result: cached.execution.result,
       rawResult: cached.execution.raw_result,
       provider: cached.execution.provider,
@@ -431,6 +464,9 @@ export class AnalysisSnapshotCache {
       },
     });
     this.#entries.set(entry.query_id, entry);
+    if (execution.evidenceId === undefined)
+      this.#evidenceIds.delete(entry.query_id);
+    else this.#evidenceIds.set(entry.query_id, execution.evidenceId);
   }
 
   /** Forget all target-bound entries. */
@@ -442,6 +478,7 @@ export class AnalysisSnapshotCache {
 
   #clearEntries(): void {
     this.#entries.clear();
+    this.#evidenceIds.clear();
     this.#workflowEntries.clear();
   }
 

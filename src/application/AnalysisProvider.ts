@@ -51,6 +51,8 @@ export type AnalysisOperation =
 /** Atomic successful provider observation with exact producing provenance. */
 export interface AnalysisExecution extends AnalysisObservation {
   readonly provider: ProviderIdentity;
+  /** Session-issued identity of the committed record consumed by this execution. */
+  readonly evidenceId?: string;
   /** Result-specific veto of snapshot replay; Evidence remains retainable. */
   readonly cachePolicy?: "live";
   /**

@@ -151,3 +151,32 @@ it("preserves partial request targets through the strict worker schema", () => {
   const serialized = JSON.parse(JSON.stringify(facts)) as unknown;
   expect(javaScriptWorkerStaticAnalysisSchema.parse(serialized)).toEqual(facts);
 });
+
+it("preserves scoped IPC receiver provenance and rejects malformed scope metadata", () => {
+  const facts =
+    analyzeJavaScriptStaticSource(`const {BrowserWindow} = require("electron");
+    const window = new BrowserWindow(); window.webContents.mainFrame.ipc.handle("scoped", () => {});`);
+  expect(facts.electron.ipc).toHaveLength(1);
+  expect(facts.electron.ipc[0]?.receiver?.kind).toBe("main-frame");
+  expect(
+    javaScriptWorkerStaticAnalysisSchema.parse(
+      JSON.parse(JSON.stringify(facts)) as unknown,
+    ),
+  ).toEqual(facts);
+  const finding = facts.electron.ipc[0]!;
+  for (const receiver of [
+    { kind: "global", owner_location: finding.receiver?.owner_location },
+    { kind: "main-frame" },
+    { ...finding.receiver, runtime_frame_id: 42 },
+  ]) {
+    expect(
+      javaScriptWorkerStaticAnalysisSchema.safeParse({
+        ...facts,
+        electron: {
+          ...facts.electron,
+          ipc: [{ ...finding, receiver }],
+        },
+      }).success,
+    ).toBe(false);
+  }
+});

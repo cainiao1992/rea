@@ -67,10 +67,17 @@ const locatedHandler = {
   ]),
   handler_location: range,
 };
+const ipcReceiver = z
+  .strictObject({
+    kind: z.enum(["web-contents", "main-frame"]),
+    owner_location: range,
+  })
+  .exactOptional();
 const ipcChannel = <Shape extends z.ZodRawShape>(shape: Shape) =>
   z.union([
     z.strictObject({
       ...findingContext,
+      receiver: ipcReceiver,
       invocation_location: range.optional(),
       resolution_basis: z.literal("wrapper-substitution").optional(),
       ...shape,
@@ -79,6 +86,7 @@ const ipcChannel = <Shape extends z.ZodRawShape>(shape: Shape) =>
     }),
     z.strictObject({
       ...findingContext,
+      receiver: ipcReceiver,
       invocation_location: range.optional(),
       resolution_basis: z.literal("wrapper-substitution").optional(),
       ...shape,

@@ -54,16 +54,18 @@ export const classifyElectronIpcPairings = (
         ? []
         : handlers.filter(
             (handler) =>
-              handler.finding.channel === transmission.finding.channel &&
+              (handler.finding.channel === transmission.finding.channel ||
+                (handler.finding.receiver !== undefined &&
+                  handler.finding.channel === null)) &&
               compatibleIpcModes(transmission.finding, handler.finding),
           );
     return {
       transmission,
       candidates,
       status:
-        candidates.length === 1
+        candidates.length === 1 && candidates[0]?.finding.receiver === undefined
           ? "paired"
-          : candidates.length > 1
+          : candidates.length > 0
             ? "ambiguous"
             : "unpaired",
     };

@@ -101,6 +101,13 @@ export interface JavaScriptFindingContext {
   /** Native path/URL identities established by shared lexical and mutation owners. */
   readonly pathIntrinsics?: JavaScriptStaticPathIntrinsicQuery;
   readonly electronExportIntact?: (path: readonly string[]) => boolean;
+  readonly browserWindowReceiver?: (
+    node: t.Node,
+    site: t.Node,
+    suffix: readonly string[],
+  ) =>
+    | { readonly owner: t.NewExpression; readonly path: readonly string[] }
+    | undefined;
   readonly rendererLoad?: (callee: t.Node, site: t.Node) => boolean;
   readonly rpcScan: JavaScriptRpcScan;
   /** Shared bounded argv/nullish argument shapes for optional-slot signatures. */

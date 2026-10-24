@@ -14,7 +14,10 @@ import {
   traverseJavaScriptAstSteps,
 } from "./javascriptSemanticTraversal.js";
 
-import { isElectronRendererLoad } from "./electronStaticRenderer.js";
+import {
+  isElectronRendererLoad,
+  resolveElectronBrowserWindowReceiver,
+} from "./electronStaticRenderer.js";
 import { finishElectronNativeBindingsSteps } from "./electronStaticAnalysisNative.js";
 import { inspectElectronStaticNode } from "./electronStaticAnalysis.js";
 import {
@@ -109,6 +112,8 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
   );
   const findings: JavaScriptFindingContext = {
     pathIntrinsics: createStaticPathIntrinsicQuery(index),
+    browserWindowReceiver: (node, site, suffix) =>
+      resolveElectronBrowserWindowReceiver(node, site, suffix, findings, index),
     rendererLoad: (callee, site) =>
       isElectronRendererLoad(callee, site, findings, index),
     source,

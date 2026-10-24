@@ -269,9 +269,9 @@ const selectPackageMain = (
   // package, and a trailing separator does not make the entry a directory.
   if (posix.isAbsolute(manifest.main))
     return { to: posix.normalize(manifest.main), resolution: "unresolved" };
-  const target = posix
-    .normalize(posix.join(packageDirectory, manifest.main))
-    .replace(/(?<=.)\/+$/u, "");
+  // Joining "." strips the trailing separator run with path semantics; a
+  // lookbehind regex kept separators behind line terminators (main "lib\n/").
+  const target = posix.join(posix.join(packageDirectory, manifest.main), ".");
   // Node would load a declared entry outside the imported root.
   if (logicalPathEscapesRoot(target))
     return { to: target, resolution: "unresolved" };
@@ -395,9 +395,15 @@ const resolveInternalSpecifier = (
     return packageMainForDirectory(normalized, context) !== undefined
       ? selectPackageMain(normalized, undefined, context, mode)
       : { to: normalized, resolution: "unresolved" };
+  // posix.normalize preserves the specifier's trailing slash while
+  // dirname(match) never carries one; derive the directory identity with path
+  // semantics (joining "." collapses trailing slashes, including ones a regex
+  // would keep behind a line terminator) so a trailing-slash reference still
+  // reaches package-main selection the same way the plain spelling does.
+  const directory = posix.join(normalized, ".");
   const resolvedThroughIndex =
     posix.basename(match).startsWith("index.") &&
-    posix.dirname(match).normalize("NFC") === normalized.normalize("NFC");
+    posix.dirname(match).normalize("NFC") === directory.normalize("NFC");
   return resolvedThroughIndex
     ? selectPackageMain(posix.dirname(match), match, context, mode)
     : { to: match, resolution: "internal" };

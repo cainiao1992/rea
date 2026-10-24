@@ -94,6 +94,96 @@ describe("version report dispatch", () => {
   );
 });
 
+describe("doctor configuration dispatch", () => {
+  workspaceCliTest(
+    "exempts only the production root doctor tokens from invalid logging configuration",
+    async ({ processes, workspace }) => {
+      const imported = "CLI command runtime imported";
+      await installCliRuntime(
+        workspace,
+        `process.stderr.write(${JSON.stringify(`${imported}\n`)}); export const closeCliJavaScriptResources = () => {}; export const createCli = () => ({ serve: (args, options) => options.stdout(JSON.stringify({ adapter: "cli", args })) });\n`,
+      );
+      // Both token ownership and output/configuration admission use production code.
+      await workspace.write(
+        "dist/cli-runtime/cliOutput.js",
+        `export * from ${JSON.stringify(pathToFileURL(resolve("dist/cli-runtime/cliOutput.js")).href)};\n`,
+      );
+      const invoke = (args: readonly string[], completion = "") =>
+        processes.run(
+          process.execPath,
+          [workspace.path("scripts/rea.mjs"), ...args],
+          {
+            cwd: workspace.root,
+            env: {
+              ...process.env,
+              REA_LOG_LEVEL: "invalid-level",
+              COMPLETE: completion,
+            },
+          },
+        );
+
+      for (const [args, normalized] of [
+        [["doctor"], ["doctor"]],
+        [
+          ["--json", "doctor"],
+          ["--json", "doctor"],
+        ],
+        [
+          ["--format=json", "doctor"],
+          ["--format", "json", "doctor"],
+        ],
+        [
+          ["--filter-output", "healthy", "doctor"],
+          ["--filter-output", "healthy", "doctor"],
+        ],
+        [
+          ["--token-limit", "10", "doctor"],
+          ["--token-limit", "10", "doctor"],
+        ],
+        [
+          ["--token-offset", "1", "doctor"],
+          ["--token-offset", "1", "doctor"],
+        ],
+      ] as const) {
+        const result = await invoke(args);
+        expect(
+          result.exitCode,
+          `${JSON.stringify(args)}: ${result.stderr}`,
+        ).toBe(0);
+        expect(result.stderr).toBe(`${imported}\n`);
+        expect(JSON.parse(result.stdout)).toEqual({
+          adapter: "cli",
+          args: normalized,
+        });
+      }
+
+      for (const args of [
+        ["--filter-output", "doctor", "providers"],
+        ["providers", "doctor"],
+        ["--format", "", "doctor"],
+        ["--filter-output", "", "doctor"],
+        ["--token-limit", "", "doctor"],
+        ["--token-offset", "", "doctor"],
+        ["--unknown", "doctor"],
+        ["--version", "doctor"],
+        ["--", "doctor"],
+      ]) {
+        const result = await invoke(args);
+        expect(result.exitCode, JSON.stringify(args)).toBe(1);
+        expect(result.stdout, JSON.stringify(args)).toBe("");
+        expect(result.stderr, JSON.stringify(args)).toContain("REA_LOG_LEVEL");
+        expect(result.stderr, JSON.stringify(args)).not.toContain(imported);
+      }
+
+      const completion = await invoke(["doctor"], "bash");
+      expect(completion.exitCode).toBe(1);
+      expect(completion.stdout).toBe("");
+      expect(completion.stderr).toContain("REA_LOG_LEVEL");
+      expect(completion.stderr).not.toContain(imported);
+    },
+  );
+});
+
 describe("executable dispatcher", () => {
   workspaceCliTest(
     "does not append recovery output after delegated stdout has begun",

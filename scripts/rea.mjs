@@ -129,7 +129,12 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
   try {
     // Doctor is the readiness report for this failure. Other commands still stop
     // here so they do not run with an unusable log level.
-    if (configurationError !== undefined && !isDoctorCommand(cliArgs)) {
+    if (
+      configurationError !== undefined &&
+      (isShellCompletion ||
+        builtinArguments.splitIncurBuiltinArguments(cliArgs).command[0] !==
+          "doctor")
+    ) {
       process.stderr.write(`${configurationError}\n`);
       process.exitCode = 1;
     } else if (!outputArguments.ok) {
@@ -234,27 +239,6 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
     !(stdoutClosed && dispatchFailure?.code === "EPIPE")
   )
     throw dispatchFailure;
-}
-
-/** True when the first positional command is `doctor`, after global output flags. */
-function isDoctorCommand(arguments_) {
-  const valuedFlags = new Set([
-    "--format",
-    "--filter-output",
-    "--token-limit",
-    "--token-offset",
-  ]);
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index];
-    if (argument === "--") return arguments_[index + 1] === "doctor";
-    if (valuedFlags.has(argument)) {
-      index += 1;
-      continue;
-    }
-    if (argument.startsWith("-")) continue;
-    return argument === "doctor";
-  }
-  return false;
 }
 
 /**

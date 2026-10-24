@@ -39,6 +39,7 @@ const prepareCliProcess = () => {
 const runtimeFiles = [
   "dist/cli-runtime/cli.js",
   "dist/cli-runtime/cliOutput.js",
+  "dist/cli-runtime/cliBuiltinArguments.js",
   "dist/cli-runtime/cliResultOutput.js",
 ];
 
@@ -54,6 +55,8 @@ const { closeCliJavaScriptResources, createCli } =
   await import("../../../dist/cli-runtime/cli.js");
 const { createCliResultOutput } =
   await import("../../../dist/cli-runtime/cliResultOutput.js");
+const { cliCompletionShell, splitIncurBuiltinArguments } =
+  await import("../../../dist/cli-runtime/cliBuiltinArguments.js");
 const {
   cliConfigurationError,
   normalizeCliArguments,
@@ -161,11 +164,18 @@ async function runOneShot(args) {
   process.exitCode = undefined;
   let explicitExit;
   try {
-    const cliArgs = normalizeCliArguments(args);
-    const outputOptions = parseCliOutputArguments(cliArgs);
+    const isShellCompletion = cliCompletionShell(process.env) !== undefined;
+    const cliArgs = isShellCompletion ? args : normalizeCliArguments(args);
+    const outputOptions = parseCliOutputArguments(
+      isShellCompletion ? [] : cliArgs,
+    );
     const outputArguments = outputOptions.validation;
     const configurationError = cliConfigurationError(process.env);
-    if (configurationError !== undefined && !isDoctorCommand(cliArgs)) {
+    if (
+      configurationError !== undefined &&
+      (isShellCompletion ||
+        splitIncurBuiltinArguments(cliArgs).command[0] !== "doctor")
+    ) {
       process.stderr.write(`${configurationError}\n`);
       process.exitCode = 1;
     } else if (!outputArguments.ok) {
@@ -229,26 +239,6 @@ function captureWrite(chunks) {
     if (typeof done === "function") done();
     return true;
   };
-}
-
-function isDoctorCommand(arguments_) {
-  const valuedFlags = new Set([
-    "--format",
-    "--filter-output",
-    "--token-limit",
-    "--token-offset",
-  ]);
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index];
-    if (argument === "--") return arguments_[index + 1] === "doctor";
-    if (valuedFlags.has(argument)) {
-      index += 1;
-      continue;
-    }
-    if (argument.startsWith("-")) continue;
-    return argument === "doctor";
-  }
-  return false;
 }
 
 async function compiledRuntimeExists(paths) {

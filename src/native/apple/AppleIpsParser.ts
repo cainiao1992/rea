@@ -105,10 +105,7 @@ const osVersionOf = (
   read: FieldReader,
 ): AppleIps["process"]["os_version"] => {
   if (value === undefined || value.kind === "null") return null;
-  if (value.kind === "string")
-    return value.value.length === 0
-      ? null
-      : { form: "text", text: value.value };
+  if (value.kind === "string") return { form: "text", text: value.value };
   if (value.kind !== "object") {
     read.mismatch("body.osVersion", "string or object", value);
     return null;
@@ -210,7 +207,7 @@ const imagesOf = (
       base: read.integer(members.base, `${path}.base`),
       size: read.integer(members.size, `${path}.size`),
       uuid: uuid.uuid,
-      uuid_unknown: uuid.unknown || arch === null,
+      uuid_unknown: uuid.unknown || arch === null || arch === "",
       path: read.text(members.path, `${path}.path`),
     };
   });

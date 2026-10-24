@@ -114,41 +114,42 @@ const uuidSchema = z
   .string()
   .regex(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/u);
 
+// Observed IPS strings, including JSON member names, retain empty source text.
 const metadataSchema = z.strictObject({
   bug_type: z.literal("309"),
-  timestamp: z.string().min(1).nullable(),
-  os_version: z.string().min(1).nullable(),
-  bundle_id: z.string().min(1).nullable(),
-  incident_id: z.string().min(1).nullable(),
-  name: z.string().min(1).nullable(),
-  unlisted_keys: z.array(z.string().min(1)),
+  timestamp: z.string().nullable(),
+  os_version: z.string().nullable(),
+  bundle_id: z.string().nullable(),
+  incident_id: z.string().nullable(),
+  name: z.string().nullable(),
+  unlisted_keys: z.array(z.string()),
 });
 
 const exceptionSchema = z
   .strictObject({
-    type: z.string().min(1).nullable(),
-    signal: z.string().min(1).nullable(),
-    subtype: z.string().min(1).nullable(),
-    codes: z.string().min(1).nullable(),
-    message: z.string().min(1).nullable(),
-    unlisted_keys: z.array(z.string().min(1)),
+    type: z.string().nullable(),
+    signal: z.string().nullable(),
+    subtype: z.string().nullable(),
+    codes: z.string().nullable(),
+    message: z.string().nullable(),
+    unlisted_keys: z.array(z.string()),
   })
   .nullable();
 
 const terminationSchema = z
   .strictObject({
-    namespace: z.string().min(1).nullable(),
+    namespace: z.string().nullable(),
     code: recordedIntegerSchema.nullable(),
-    indicator: z.string().min(1).nullable(),
-    reasons: z.array(z.string().min(1)).nullable(),
-    unlisted_keys: z.array(z.string().min(1)),
+    indicator: z.string().nullable(),
+    reasons: z.array(z.string()).nullable(),
+    unlisted_keys: z.array(z.string()),
   })
   .nullable();
 
 const registerSchema = z.strictObject({
-  name: z.string().min(1),
+  name: z.string(),
   value: recordedIntegerSchema,
-  description: z.string().min(1).nullable(),
+  description: z.string().nullable(),
 });
 
 const frameSchema = z.strictObject({
@@ -168,30 +169,30 @@ const frameSchema = z.strictObject({
     "unknown",
   ]),
   inline: z.boolean().nullable(),
-  recorded_symbol: z.string().min(1).nullable(),
+  recorded_symbol: z.string().nullable(),
 });
 
 const threadSchema = z.strictObject({
   index: uint,
   id: recordedIntegerSchema.nullable(),
   triggered: z.boolean().nullable(),
-  name: z.string().min(1).nullable(),
-  queue: z.string().min(1).nullable(),
+  name: z.string().nullable(),
+  queue: z.string().nullable(),
   frames: z.array(frameSchema),
-  state_flavor: z.string().min(1).nullable(),
+  state_flavor: z.string().nullable(),
   registers: z.array(registerSchema),
 });
 
 const imageSchema = z.strictObject({
   index: uint,
-  source: z.string().min(1).nullable(),
+  source: z.string().nullable(),
   source_meaning: z.string().min(1).nullable(),
-  arch: z.string().min(1).nullable(),
+  arch: z.string().nullable(),
   base: recordedIntegerSchema.nullable(),
   size: recordedIntegerSchema.nullable(),
   uuid: uuidSchema.nullable(),
   uuid_unknown: z.boolean(),
-  path: z.string().min(1).nullable(),
+  path: z.string().nullable(),
 });
 
 const classificationMatchSchema = z.strictObject({
@@ -243,14 +244,14 @@ const coverageSchema = z.strictObject({
 
 const osVersionSchema = z
   .discriminatedUnion("form", [
-    z.strictObject({ form: z.literal("text"), text: z.string().min(1) }),
+    z.strictObject({ form: z.literal("text"), text: z.string() }),
     z.strictObject({
       form: z.literal("structured"),
-      train: z.string().min(1).nullable(),
-      build: z.string().min(1).nullable(),
-      release_type: z.string().min(1).nullable(),
+      train: z.string().nullable(),
+      build: z.string().nullable(),
+      release_type: z.string().nullable(),
       is_embedded: z.boolean().nullable(),
-      unlisted_keys: z.array(z.string().min(1)),
+      unlisted_keys: z.array(z.string()),
     }),
   ])
   .nullable();
@@ -264,11 +265,11 @@ export const appleIpsSchema = z.strictObject({
   }),
   metadata: metadataSchema,
   process: z.strictObject({
-    name: z.string().min(1).nullable(),
-    path: z.string().min(1).nullable(),
+    name: z.string().nullable(),
+    path: z.string().nullable(),
     pid: recordedIntegerSchema.nullable(),
-    parent: z.string().min(1).nullable(),
-    cpu_type: z.string().min(1).nullable(),
+    parent: z.string().nullable(),
+    cpu_type: z.string().nullable(),
     translated: z.boolean().nullable(),
     os_version: osVersionSchema,
   }),
@@ -288,7 +289,7 @@ export const appleIpsSchema = z.strictObject({
     }),
   ]),
   coverage: coverageSchema,
-  unlisted_body_keys: z.array(z.string().min(1)),
+  unlisted_body_keys: z.array(z.string()),
   limitations: z.array(z.string().min(1)),
 });
 export type AppleIps = z.infer<typeof appleIpsSchema>;

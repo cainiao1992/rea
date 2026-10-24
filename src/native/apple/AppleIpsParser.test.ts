@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
-import { inspectAppleIpsInputSchema } from "../../domain/native/appleIps.js";
+import {
+  appleIpsSchema,
+  inspectAppleIpsInputSchema,
+} from "../../domain/native/appleIps.js";
 import {
   appleIpsBytes,
   appleIpsMetadataLine,
@@ -240,11 +243,11 @@ it("matches documented watchdog, guard, PAC and dyld rules", () => {
   });
 });
 
-it("treats an empty image path as omitted and accepts CRLF line endings", () => {
+it("retains an empty image path and accepts CRLF line endings", () => {
   const bytes = appleIpsBytes();
   const crlf = Buffer.from(appleIpsReport().replaceAll("\n", "\r\n"), "utf8");
   const report = parseAppleIps(bytes, artifact(bytes), input);
-  expect(report.images[1]?.path).toBeNull();
+  expect(report.images[1]?.path).toBe("");
   const crlfReport = parseAppleIps(crlf, artifact(crlf), input);
   expect(crlfReport.metadata.bug_type).toBe("309");
   expect(crlfReport.threads[0]?.frames[0]?.role).toBe("faulting_instruction");
@@ -276,6 +279,75 @@ const parse = (bytes: Buffer, options: Record<string, number> = {}) =>
 
 const withBody = (body: string): Buffer =>
   Buffer.from(`${appleIpsMetadataLine()}\n${body}`, "utf8");
+
+it("keeps empty observed text and JSON keys distinct from omitted fields", () => {
+  const bytes = Buffer.from(
+    '{"bug_type":"309","":0}\n{"procName":"","osVersion":"","threads":[{"threadState":{"":0},"frames":[{"symbol":""},{}]}],"usedImages":[{"source":"","arch":"","uuid":"","path":""},{}],"":0}',
+  );
+  const parsed = appleIpsSchema.parse(parse(bytes));
+  expect(parsed.metadata.unlisted_keys).toEqual([""]);
+  expect(parsed.unlisted_body_keys).toEqual([""]);
+  expect(parsed.process.name).toBe("");
+  expect(parsed.process.path).toBeNull();
+  expect(parsed.process.os_version).toEqual({ form: "text", text: "" });
+  expect(parsed.threads[0]?.registers[0]).toMatchObject({
+    name: "",
+    value: { decimal: "0", hex: "0x0" },
+  });
+  expect(
+    parsed.threads[0]?.frames.map((frame) => frame.recorded_symbol),
+  ).toEqual(["", null]);
+  expect(parsed.images[0]).toMatchObject({
+    source: "",
+    source_meaning: null,
+    arch: "",
+    uuid: null,
+    uuid_unknown: true,
+    path: "",
+  });
+  expect(parsed.images[1]?.path).toBeNull();
+  expect(parsed.classification.status).toBe("unclassified");
+  expect(parsed.coverage.type_mismatches).toEqual([
+    {
+      path: "body.usedImages[0].uuid",
+      expected: "32 hexadecimal UUID digits with optional canonical hyphens",
+      observed: "malformed UUID string",
+      recorded_value: "",
+    },
+  ]);
+});
+
+it("keeps an empty recorded architecture without claiming a UUID join", () => {
+  const parsed = parse(
+    withBody(
+      '{"threads":[],"usedImages":[{"arch":"","uuid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}',
+    ),
+  );
+  expect(parsed.images[0]).toMatchObject({
+    arch: "",
+    uuid: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA",
+    uuid_unknown: true,
+  });
+  expect(parsed.coverage.status).toBe("complete");
+});
+
+it("does not copy empty source text into classification match fields", () => {
+  const parsed = parse(
+    withBody(
+      '{"threads":[],"usedImages":[],"exception":{"type":"","subtype":"KERN_INVALID_ADDRESS (possible pointer authentication failure)"},"termination":{"namespace":"DYLD","indicator":"","reasons":["Library not loaded: @rpath/missing.dylib"]}}',
+    ),
+  );
+  expect(parsed.exception?.type).toBe("");
+  expect(parsed.termination?.indicator).toBe("");
+  expect(parsed.classification.matches.map((match) => match.rule)).toEqual([
+    "possible_pointer_authentication_failure",
+    "dyld_missing_library",
+  ]);
+  expect(
+    parsed.classification.matches.flatMap((match) => match.fields),
+  ).not.toContainEqual(expect.objectContaining({ value: "" }));
+  expect(appleIpsSchema.safeParse(parsed).success).toBe(true);
+});
 
 const report = (options: Parameters<typeof appleIpsReport>[0]) =>
   parse(appleIpsBytes(options));

@@ -85,6 +85,51 @@ cliTest(
 );
 
 cliTest(
+  "preserves empty IPS source text through CLI and stdio MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-apple-ips-empty-");
+    const path = join(root, "empty.ips");
+    await writeFile(
+      path,
+      '{"bug_type":"309","":0}\n{"procName":"","osVersion":"","threads":[{"threadState":{"":0},"frames":[{"symbol":""}]}],"usedImages":[{"arch":"","uuid":"","path":""}],"":0}',
+    );
+    const cliReply = await cli.run({
+      arguments: ["inspect-apple-ips", path, "--json"],
+    });
+    expect(cliReply.exitCode, cliReply.stderr).toBe(0);
+    const call = await cli.sharedMcpCall?.();
+    if (call === undefined) throw new Error("Expected a stdio MCP session");
+    const mcpReply = await call("inspect_apple_ips", { path });
+    expect(mcpReply.isError, JSON.stringify(mcpReply.content)).not.toBe(true);
+    for (const reply of [cliReply.json, mcpReply.structuredContent]) {
+      const report =
+        toolContract("inspect_apple_ips").outputSchema.parse(
+          reply,
+        ).normalized_result;
+      expect(report.metadata.unlisted_keys).toEqual([""]);
+      expect(report.unlisted_body_keys).toEqual([""]);
+      expect(report.process.name).toBe("");
+      expect(report.process.os_version).toEqual({ form: "text", text: "" });
+      expect(report.threads[0]?.registers[0]?.name).toBe("");
+      expect(report.threads[0]?.frames[0]?.recorded_symbol).toBe("");
+      expect(report.images[0]).toMatchObject({
+        arch: "",
+        uuid: null,
+        uuid_unknown: true,
+        path: "",
+      });
+      expect(report.coverage.type_mismatches).toContainEqual(
+        expect.objectContaining({
+          path: "body.usedImages[0].uuid",
+          recorded_value: "",
+        }),
+      );
+      expect(report.classification.status).toBe("unclassified");
+    }
+  },
+);
+
+cliTest(
   "resolves a relative IPS path against the working directory",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-apple-ips-cli-rel-");

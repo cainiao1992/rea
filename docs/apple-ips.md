@@ -38,9 +38,16 @@ address uses that row's own image base and offset. The recorded `inline` flag
 does not supply a missing offset or authorize borrowing another row's address.
 When `faultingThread` is missing or does not resolve to a recorded thread
 object, row-zero roles are `unknown`; the recorded lookup remains available.
+Observed JSON strings retain `""`; `null` means the field was missing or JSON
+`null`. This includes image paths, frame symbols, process text, and the older
+string `osVersion` form. Unlisted JSON keys and generic register names also
+retain empty spellings. An empty image architecture remains recorded as `""`
+while `uuid_unknown` stays true, since that spelling does not establish an
+architecture. An empty UUID is malformed, so its exact spelling appears in
+`coverage.type_mismatches` and its canonical UUID remains unknown.
 `process.os_version` keeps the producer's dictionary (`train`, `build`,
 `release_type`, `is_embedded`) or the older string form. Image UUIDs are uppercase 8-4-4-4-12; an all-zero UUID
-or a missing `arch` is `uuid_unknown`. Image `source` letters keep their
+or a missing or empty `arch` is `uuid_unknown`. Image `source` letters keep their
 documented meaning (`P` process, `S` shared cache, `C` shared cache library,
 `K` kernel, `U` kernel cache, `T` kernel text exec, `A` absolute). Keys the
 documentation does not list remain in `unlisted_keys` or `unlisted_body_keys`.

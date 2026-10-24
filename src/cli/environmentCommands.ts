@@ -1,7 +1,11 @@
 import { basename } from "node:path";
 import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
-import type { EnvironmentExportResult } from "../application/environment/environmentExport.js";
+import type { EnvironmentBuildCaptureInput } from "../application/environment/environmentBuild.js";
+import type {
+  EnvironmentExportFile,
+  EnvironmentExportResult,
+} from "../application/environment/environmentExport.js";
 import type { EnvironmentSource } from "../application/environment/environmentSource.js";
 import type { ServedState } from "../application/environment/environmentState.js";
 import { z } from "incur";
@@ -21,13 +25,17 @@ import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.
 import type { StreamableHttpListenError } from "../server/http/streamableHttpListenError.js";
 import {
   AnalysisCancelledError,
+  AnalysisInputError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { createLogger } from "../logger.js";
+import { TEMPLATE_RULES } from "../domain/analysisView/environmentManifestRules.js";
+import { inspectWebNetworkCaptureInputSchema } from "../domain/webNetworkCapture.js";
 import { withCommandCancellation } from "./commandCancellation.js";
+import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
 import type { CliInstance } from "./types.js";
 
 /** Same envelope label as the other JSON-input commands and `parseCliJsonInput`. */
@@ -36,8 +44,8 @@ const cliError = (error: AnalysisError): JsonValue => ({
   ...projectAnalysisError(error),
 });
 
-/** The listener announces its URL at info like `rea mcp --http`; an explicit REA_LOG_LEVEL still wins. */
-const listenerLogger = (
+/** The listener announces its URL, and a build its stages, at info like `rea mcp --http`; an explicit REA_LOG_LEVEL still wins. */
+const infoLogger = (
   environment: Readonly<NodeJS.ProcessEnv>,
   logger: Logger,
 ): Logger =>
@@ -178,7 +186,7 @@ const serveEnvironmentCommand = async (
     source,
     served: { state, report },
   } = inputs.value;
-  const commandLogger = listenerLogger(environment, logger);
+  const commandLogger = infoLogger(environment, logger);
   if (!report.served && report.reason === "unavailable")
     commandLogger.warn(
       { code: report.code, error: report.message },
@@ -303,6 +311,240 @@ const exportEnvironmentCommand = async (
   return exported.ok
     ? exportDocument(exported.value)
     : cliError(exported.error);
+};
+
+interface BuildArguments {
+  readonly capture: string;
+  readonly directory?: string | undefined;
+  readonly name?: string | undefined;
+  readonly templateRule?:
+    | readonly (typeof TEMPLATE_RULES)[number][]
+    | undefined;
+  readonly formatRulesOnly: boolean;
+  readonly packageTarball?: string | undefined;
+  readonly dryRun: boolean;
+  readonly captureTimeoutMs?: number | undefined;
+}
+
+const conflictingRules = (): JsonValue =>
+  cliError(
+    new AnalysisInputError(CLI_COMMANDS.environmentBuild, undefined, [
+      {
+        path: ["format_rules_only"],
+        reason: "invalid_value",
+        message:
+          "--format-rules-only applies no opt-in template rules; it cannot be combined with --template-rule.",
+      },
+    ]),
+  );
+
+const isEvidenceValue = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  "evidence_id" in value &&
+  "normalized_result" in value;
+
+/** Inspect a HAR as inspect-web-network-capture does and serialize the Evidence as it prints it; a refusal is the command's output. */
+const inspectBuildHar = async (
+  capturePath: string,
+  captureTimeoutMs: number | undefined,
+  environment: Readonly<NodeJS.ProcessEnv>,
+  signal: AbortSignal,
+): Promise<Result<EnvironmentExportFile, JsonValue>> => {
+  const { createWebNetworkCaptureService } =
+    await import("../composition/webNetworkCaptures.js");
+  const { parseEvidence } = await import("../domain/evidence.js");
+  const { environmentExportEvidenceFile } =
+    await import("../application/environment/environmentExport.js");
+  const { ENVIRONMENT_BUILD_OPERATION } =
+    await import("../application/environment/environmentBuild.js");
+  const service = createWebNetworkCaptureService(environment);
+  const inspected = await finishAnalysisCommand(
+    () =>
+      service.inspect(
+        {
+          capture_path: capturePath,
+          format: "har",
+          ...(captureTimeoutMs === undefined
+            ? {}
+            : { capture_timeout_ms: captureTimeoutMs }),
+        },
+        { signal },
+      ),
+    service,
+    "web-network-capture",
+    "inspect_web_network_capture",
+    signal,
+  );
+  if (!isEvidenceValue(inspected))
+    return err({
+      error: "Application workflow failed",
+      ...(inspected as Record<string, JsonValue>),
+    });
+  const file = await environmentExportEvidenceFile(
+    "evidence",
+    capturePath,
+    parseEvidence(inspected),
+    ENVIRONMENT_BUILD_OPERATION,
+  );
+  return file.ok ? ok(file.value) : err(cliError(file.error));
+};
+
+/** Read the capture once, then build or plan the bundle from it. */
+const buildEnvironmentCommand = async (
+  input: BuildArguments,
+  environment: Readonly<NodeJS.ProcessEnv>,
+  logger: Logger,
+  signal: AbortSignal,
+): Promise<JsonValue> => {
+  if (input.formatRulesOnly && input.templateRule !== undefined)
+    return conflictingRules();
+  const {
+    buildEnvironment,
+    classifyBuildCapture,
+    DEFAULT_BUILD_TEMPLATE_RULES,
+    ENVIRONMENT_BUILD_OPERATION,
+  } = await import("../application/environment/environmentBuild.js");
+  const capturePath = absoluteCallerPath(input.capture);
+  const kind = classifyBuildCapture(capturePath);
+  if (!kind.ok) return cliError(kind.error);
+  if (input.directory === undefined && !input.dryRun)
+    return cliError(
+      new AnalysisInputError(
+        CLI_COMMANDS.environmentBuild,
+        { userMessage: "Name the bundle directory, or pass --dry-run." },
+        [
+          {
+            path: ["directory"],
+            reason: "invalid_value",
+            message: "The bundle directory may be omitted only with --dry-run.",
+          },
+        ],
+      ),
+    );
+  const commandLogger = infoLogger(environment, logger);
+  const progress = (stage: string): void => {
+    commandLogger.info({ stage }, "Building environment");
+  };
+  let capture: EnvironmentExportFile;
+  if (kind.value === "har") {
+    progress("inspect");
+    const inspected = await inspectBuildHar(
+      capturePath,
+      input.captureTimeoutMs,
+      environment,
+      signal,
+    );
+    if (!inspected.ok) return inspected.error;
+    capture = inspected.value;
+  } else {
+    const { readEnvironmentExportFile } =
+      await import("../application/environment/environmentExport.js");
+    const read = await readEnvironmentExportFile(
+      "evidence",
+      capturePath,
+      ENVIRONMENT_BUILD_OPERATION,
+    );
+    if (!read.ok) return cliError(read.error);
+    capture = read.value;
+  }
+  if (signal.aborted)
+    return cliError(new AnalysisCancelledError(CLI_COMMANDS.environmentBuild));
+  const captureInput: EnvironmentBuildCaptureInput = kind.value;
+  const built = await buildEnvironment({
+    capture,
+    captureInput,
+    capturePath,
+    templateRules: input.formatRulesOnly
+      ? []
+      : (input.templateRule ?? DEFAULT_BUILD_TEMPLATE_RULES),
+    directory:
+      input.directory === undefined
+        ? undefined
+        : absoluteCallerPath(input.directory),
+    name: input.name,
+    packageTarball:
+      input.packageTarball === undefined
+        ? undefined
+        : absoluteCallerPath(input.packageTarball),
+    dryRun: input.dryRun,
+    progress,
+    signal,
+  });
+  return built.ok
+    ? (built.value as unknown as JsonValue)
+    : cliError(built.error);
+};
+
+/** Register the one-step build from a recorded capture to a bundle folder. */
+const registerBuildCommand = (
+  cli: CliInstance,
+  logger: Logger,
+  environment: Readonly<NodeJS.ProcessEnv>,
+): void => {
+  cli.command(CLI_COMMANDS.environmentBuild, {
+    description:
+      "Build an agent environment bundle from a recorded capture in one offline step: inspect a HAR (or read capture Evidence), project the environment manifest, derive the state, report which tools the environment answers from state, which replay and why each write is withheld, then write the bundle environment-export writes",
+    args: z.object({
+      capture: localPathStringSchema.describe(
+        "A .har file, or capture Evidence JSON from inspect-web-network-capture (HAR) or capture-browser-scenario",
+      ),
+      directory: localPathStringSchema
+        .optional()
+        .describe(
+          "Bundle directory to create; must be absent or empty, nothing is overwritten; omit only with --dry-run",
+        ),
+    }),
+    options: z.object({
+      name: z
+        .string()
+        .optional()
+        .describe(
+          "Env folder and env id (kebab-case); default the manifest's name, or the capture file's name when the origin is a loopback or IP address",
+        ),
+      templateRule: z
+        .array(z.enum(TEMPLATE_RULES))
+        .optional()
+        .describe(
+          "Opt-in template rule; repeat to select several. Replaces the default after-uid-literal, opaque-token, sibling-variance and prefix-variance",
+        ),
+      formatRulesOnly: z
+        .boolean()
+        .default(false)
+        .describe("Apply only the four format rules, the views' own default"),
+      packageTarball: localPathStringSchema
+        .optional()
+        .describe(
+          "Packed rea-agents tarball (npm pack) copied into the env folder and installed by the Dockerfile instead of the registry package pinned to this version",
+        ),
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe("Run every stage and report, but write nothing"),
+      captureTimeoutMs:
+        inspectWebNetworkCaptureInputSchema.shape.capture_timeout_ms,
+    }),
+    run: ({ args, options }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.environmentBuild, () =>
+          buildEnvironmentCommand(
+            {
+              capture: args.capture,
+              directory: args.directory,
+              name: options.name,
+              templateRule: options.templateRule,
+              formatRulesOnly: options.formatRulesOnly,
+              packageTarball: options.packageTarball,
+              dryRun: options.dryRun,
+              captureTimeoutMs: options.captureTimeoutMs,
+            },
+            environment,
+            logger,
+            signal,
+          ),
+        ),
+      ),
+  });
 };
 
 const manifestArgument = z
@@ -431,6 +673,7 @@ export const registerEnvironmentCommands = (
   logger: Logger,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): void => {
+  registerBuildCommand(cli, logger, environment);
   registerExportCommand(cli, logger);
   registerCompareCommand(cli, logger);
   cli.command(CLI_COMMANDS.environmentServe, {

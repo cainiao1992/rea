@@ -220,6 +220,7 @@
     "verify:frida:bindings": "node scripts/run-typescript.mjs --noEmit -p tsconfig.frida-verification.json",
     "verify:browser:dom": "node scripts/verify-browser-dom-destinations.mjs",
     "verify:browser:network": "npm run build:cached && node scripts/verify-browser-network.mjs",
+    "verify:browser:request": "npm run build:cached && node scripts/verify-browser-request.mjs",
     "verify:electron": "npm run build:cached && node scripts/verify-real-electron.mjs",
     "verify:inspector": "npm run build:cached && node scripts/verify/inspector/runtime-observation.mjs",
     "verify:javascript-runtime": "npm run build:cached && node scripts/verify/javascript/runtime-observation.mjs",

@@ -82,6 +82,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
   readonly version: string;
   readonly initialUrl: string;
   private readonly secrets: BrowserScenarioSecrets;
+  private readonly startOrigin: string;
   private readonly eventCapture: PlaywrightScenarioEvents;
   private readonly storage: PlaywrightScenarioStorage | undefined;
   private readonly serviceWorkers: PlaywrightScenarioServiceWorkers | undefined;
@@ -101,6 +102,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     options: {
       readonly mode: BrowserScenario["browser"]["mode"];
       readonly secrets: BrowserScenarioSecrets;
+      readonly startOrigin: string;
       readonly eventCapture: PlaywrightScenarioEvents;
       readonly storage: PlaywrightScenarioStorage | undefined;
       readonly serviceWorkers: PlaywrightScenarioServiceWorkers | undefined;
@@ -111,6 +113,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     this.processOwnership =
       options.mode === "launch" ? "provider-owned" : "external";
     this.secrets = options.secrets;
+    this.startOrigin = options.startOrigin;
     this.eventCapture = options.eventCapture;
     this.storage = options.storage;
     this.serviceWorkers = options.serviceWorkers;
@@ -327,6 +330,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
       return new PlaywrightScenarioSession(opened, {
         mode: scenario.browser.mode,
         secrets,
+        startOrigin: new URL(scenario.start_url.url).origin,
         eventCapture: events,
         storage,
         serviceWorkers,
@@ -439,6 +443,8 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
           page: this.opened.page,
           action,
           secrets: this.secrets,
+          startOrigin: this.startOrigin,
+          signal,
         }),
       "timeout_ms" in action ? action.timeout_ms : undefined,
       signal,

@@ -82,7 +82,7 @@ describe("environment manifests from capture_browser_scenario parents", () => {
     expect(projectAnalysisError(refused.error)).toMatchObject({
       code: "unsupported_target",
       message: expect.stringContaining(
-        "supports only the environment-manifest and environment-state views",
+        "supports only the environment-manifest, environment-state and environment-coverage views",
       ),
     });
   });

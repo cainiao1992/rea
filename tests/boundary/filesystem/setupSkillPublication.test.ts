@@ -18,6 +18,7 @@ import { SkillFilePublication } from "../../../src/application/SkillFilePublicat
 import {
   canonicalSkillNeedsInstall,
   installCanonicalSkill,
+  MANAGED_SKILL_FILES,
   skillDestinations,
   type SkillInstallFileOperations,
 } from "../../../src/application/SetupSkill.js";
@@ -164,7 +165,9 @@ describe("skill publication recovery", () => {
           reason.includes("First-install skill recovery"),
         ),
       ).toBe(true);
-      expect(result.error.rollbackFailures).toHaveLength(6);
+      expect(result.error.rollbackFailures).toHaveLength(
+        MANAGED_SKILL_FILES.length - 1,
+      );
     },
   );
 
@@ -185,7 +188,9 @@ describe("skill publication recovery", () => {
       },
     });
     if (result.ok) throw new Error("Expected readback failure");
-    expect(result.error.rollbackFailures).toHaveLength(7);
+    expect(result.error.rollbackFailures).toHaveLength(
+      MANAGED_SKILL_FILES.length,
+    );
     expect(
       result.error.rollbackFailures.every(({ reason }) =>
         reason.includes("manual removal"),

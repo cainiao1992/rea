@@ -1,16 +1,20 @@
 # Agent environments from recorded captures
 
-Use `rea environment-serve` to serve an environment manifest as an agent
-environment: an MCP server whose tools answer from what one retained web
-network capture observed, plus the environment card the agentenv framework
-reads to discover it. By default the server derives the
-[state the capture observed](#the-state-a-capture-observed) at startup and
-answers read tools from it, and the write tools whose effect the capture
-confirmed by changing it; `--replay-only` replays the capture's records
+Use `rea environment-build` to turn one recorded capture into an agent
+environment bundle in one offline step: a folder `agent-env run` builds and
+runs, whose MCP server answers from what the capture observed. See
+[Build a bundle in one step](#build-a-bundle-in-one-step).
+
+The steps it composes are separate commands too. `rea environment-serve` serves
+an environment manifest as an agent environment: an MCP server whose tools
+answer from what one retained web network capture observed, plus the
+environment card the agentenv framework reads to discover it. By default the
+server derives the [state the capture observed](#the-state-a-capture-observed)
+at startup and answers read tools from it, and the write tools whose effect the
+capture confirmed by changing it; `--replay-only` replays the capture's records
 instead. Nothing is fetched from the recorded application; every answer comes
 from retained Evidence. `rea environment-export` writes the same pair as a
-bundle folder `agent-env run` builds and runs; see
-[Export a bundle](#export-a-bundle).
+bundle folder; see [Export a bundle](#export-a-bundle).
 
 ```sh
 rea inspect-web-network-capture /absolute/session.har har --format json > capture.json
@@ -36,6 +40,185 @@ The third command serves that manifest from the state it derives from the
 capture; see [Serve from the state](#serve-from-the-state). Both served files
 are complete REA Evidence JSON as the commands write it with `--format json`;
 the `evidence` member of `view.json` is the whole of `capture.json`.
+A `view.json` can also name the capture file as
+`{"kind": "evidence-file", "path": "capture.json"}`, which projects it as
+retained Evidence instead of charging the whole capture as inline input.
+
+## Build a bundle in one step
+
+```sh
+rea environment-build grafana.har ./grafana --json
+agent-env run ./grafana
+```
+
+`rea environment-build <capture> [directory]` takes a `.har` file, or capture
+Evidence JSON from `inspect-web-network-capture` (HAR) or
+`capture-browser-scenario`, and writes the bundle
+[Export a bundle](#export-a-bundle) describes. It inspects a HAR as
+`inspect-web-network-capture` does (Evidence input skips this), projects the
+environment manifest from that Evidence as retained Evidence, authenticates
+the pair, prepares the state the bundle's server derives at startup, and
+writes the bundle with the export. For the same capture path, every file it
+writes is byte-identical to what `inspect-web-network-capture`,
+`inspect-analysis-view` and `environment-export` write, Evidence ids included,
+when `view.json` lists the same rules in the views' order and the export is
+given the build's name. It reads one file and writes one folder: it fetches
+nothing and launches no browser (HAR inspection runs REA's own decoder
+process), so record a browser scenario with `capture-browser-scenario` first
+and pass its Evidence. Other capture formats are refused, as the manifest view
+refuses them, and a HAR document saved as `.json` is refused with a hint to
+name it `.har`.
+
+- `--template-rule <rule>`, repeated, replaces the default opt-in rules
+  `after-uid-literal`, `opaque-token`, `sibling-variance` and
+  `prefix-variance`, the rules the published capture-built environments use;
+  `--format-rules-only` applies none, the views' own default. Rules apply in
+  the views' fixed order, the report lists them, and a repeated rule is
+  refused as the views refuse it.
+- `--name` names the env folder and env id. Without it the name is the
+  manifest's, unless the capture's origin is a loopback name or an IP literal:
+  the capture file then names it (`grafana.har` and `grafana.capture.json`
+  become `grafana`) and a `name-from-file` warning says so. A file name that
+  yields no portable label (kebab-case, at most 64 characters, not a Windows
+  device name) is refused; pass `--name`.
+- `--package-tarball` works as for the export, and `--capture-timeout-ms`
+  as for `inspect-web-network-capture`.
+- `--dry-run` runs every stage and prints the report with `status: "planned"`
+  and the files a build would write, but writes nothing and does not check the
+  directory, which may then be omitted. It reads and hashes a
+  `--package-tarball` as a build does before copying it, so it refuses the
+  tarballs a build refuses, including one whose contents cannot be read.
+
+The directory must be absent or empty, as for the export; the build never
+replaces a folder. A refusal before the write leaves nothing behind. A capture
+Evidence file, an inspected HAR's Evidence and the projected manifest must each
+fit the live heap headroom for parsing and sealing, checked before the file is
+read or the Evidence serialized; one that does not is refused as
+`resource_constraint`. Each
+refusal names its stage: `environment-build` for the build's own checks,
+`inspect_web_network_capture` and `inspect_analysis_view` for inspection and
+projection, `environment-export` for the bundle. SIGINT cancels the build
+(`cancelled`); before the bundle stage nothing is written, and a cancellation
+during the write names the bundle it wrote. Stage progress is logged to stderr
+at info level; the report is the only output on stdout:
+
+```json
+{
+  "status": "built",
+  "directory": "/work/grafana",
+  "name": "grafana",
+  "capture": {
+    "evidence_id": "ev_…",
+    "operation": "inspect_web_network_capture",
+    "records": 105,
+    "input": "har"
+  },
+  "manifest": {
+    "evidence_id": "ev_…",
+    "tools": 48,
+    "excluded_groups": 0,
+    "template_rules": [
+      "after-uid-literal",
+      "opaque-token",
+      "sibling-variance",
+      "prefix-variance"
+    ]
+  },
+  "state": { "served": true, "evidence_id": "ev_…" },
+  "coverage": {
+    "reads": {
+      "state": 36,
+      "recorded": 6,
+      "recorded_reasons": { "query-varies": 3, "…": 1 }
+    },
+    "writes": {
+      "served": [{ "tool": "delete_folders_by_uid", "effect": "delete" }],
+      "withheld": [
+        {
+          "tool": "post_folders",
+          "effect": "create",
+          "reason": "unconfirmed",
+          "hint": "No later read showed the effect. Read the entity and its list after the write.",
+          "exemplar_ordinal": 94,
+          "contradicted_by": null
+        }
+      ]
+    }
+  },
+  "tool_count": 37,
+  "package_source": { "kind": "registry", "specifier": "rea-agents@…" },
+  "files": [{ "path": "README.md", "bytes": 4210 }],
+  "warnings": [{ "code": "name-from-file", "message": "…" }],
+  "next": ["agent-env run /work/grafana"]
+}
+```
+
+`coverage` is the state's read views and write plans summarized, and `null`
+when the state is unavailable and the bundle serves replay. The
+[environment coverage](web-network-captures.md#environment-coverage) view
+reports the same summary for any capture without building, so an agent can
+check it after each recording. The view summarizes the state as derived; it
+does not apply the serve-time admission checks, so for an environment whose
+served catalog exceeds the discovery budget, or whose state exceeds what
+`data/add` loads, it still reports the state while the build reports `coverage:
+null` and the bundle serves replay. Each withheld write carries a hint about
+what to record next; hints never change what is served:
+
+| Reason                | Hint                                                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `no-state-target`     | The write's path names no collection or item the capture reads. Read the collection or item it changes.                                                                                                                                          |
+| `no-call`             | No recorded call of this tool was modelled, for example because every call failed. Record a successful call.                                                                                                                                     |
+| `body-unusable`       | The request body is not a usable JSON object.                                                                                                                                                                                                    |
+| `no-observation`      | Nothing showed the entity or document this write changed. Read a created entity back by id right after the write; for an update or delete the state must already hold the entity, so read it before the write or record the create that made it. |
+| `unexplained-change`  | The write changed fields it did not send, in a way no rule explains. A second, different call of the same tool can show the pattern.                                                                                                             |
+| `contradicted`        | A later read disagreed with the modelled effect. Check the read at contradicted_by.                                                                                                                                                              |
+| `side-effect`         | The write changed something besides its own entity, which the environment does not model.                                                                                                                                                        |
+| `unconfirmed`         | No later read showed the effect. Read the entity and its list after the write.                                                                                                                                                                   |
+| `incomplete-entities` | The write is confirmed, but the views that show its entity cannot render it in full. Read the written entity through every view that lists it.                                                                                                   |
+
+The bundle ships `evidence.json`, the whole capture Evidence, response bodies
+included. Inspection excludes the values of the standard authentication headers
+(`Authorization`, `Cookie` and `Set-Cookie` among them) and URL userinfo; a
+custom key header such as `X-Api-Key`, a token in the query string and tokens
+an application returns in bodies remain. The environment views refuse captures
+inspected with `--sensitive-value`, so scrub a capture before building it. The
+report's `credential-named-members` warning counts recorded header names, query
+parameter names and JSON or form body members whose names look like
+credentials (whole name segments such as `token`, `secret`, `password`,
+`api_key`, `authorization` or `session`) and hold a value, and lists the first
+20 by record and pointer, never by value. A body is read as a form or as JSON by
+its recorded media type, or by its shape when it has none or one naming
+neither. A browser scenario is
+scanned by event (`event 4 response /token` names
+`normalized_result.events.items[4]`): every retained request and response
+content event, including a response whose request began before the browser was
+attached and a transaction no record represents, and each transaction URL's
+query once. Bodies larger than 4 MiB of UTF-8 text are not
+scanned; `credential-scan-incomplete` counts them and lists up to 20 record or
+event pointers, including base64 bodies whose decoded scan was cut. An empty name
+warning does not establish that these bodies were checked. Names do not establish sensitivity,
+so the build never refuses on them. Capture
+
+Evidence also records the capture file's absolute path (`subject.local_path`,
+`parameters.capture_path`, `locations`, `artifact.path`), and the bundle
+carries it: build from a neutral folder when that path should not ship.
+
+Over MCP, `export_environment_bundle` builds the same bundle and returns the
+same report. Its `source` is capture Evidence the session retained
+(`{"kind": "retained-evidence", "evidence_id"}`), such as a
+`capture_browser_scenario` or `inspect_web_network_capture` result, or a
+capture Evidence file (`{"kind": "evidence-file", "path"}`); inspect a HAR with
+`inspect_web_network_capture` first. Retained Evidence is written into the
+bundle as `--format json` writes it, so the bundle is the one
+`environment-build` writes from that file. `output_directory` must be an
+absolute path that does not exist yet, whose parent does; the tool creates it
+and refuses an existing directory, empty or not. `name`, `template_rules`,
+`package_tarball` and `dry_run` work as `--name`, `--template-rule`,
+`--package-tarball` and `--dry-run` do, and retained Evidence has no file to
+name the environment after, so a loopback or IP origin needs `name`. Unlike
+`--dry-run`, `dry_run` still checks `output_directory`. Destination refusals
+name `export_environment_bundle`; the others name their stage as
+`environment-build`'s do.
 
 ## From a browser scenario
 
@@ -124,6 +307,46 @@ application returns in response bodies, such as session tokens, are kept, and
 the replayed body is the bytes the browser exposes for each response, with any
 declared secret replaced by its redaction marker (a body that redaction had to
 empty replays no body).
+
+To record writes, sign in through the UI and then send the application's API
+calls with [request steps](browser-scenario-contract.md#request-steps): each
+sends one request to the start origin through the page's own `fetch`, with the
+session's cookies, and a header can carry the CSRF cookie or stored token the
+application's own requests send. A write is served only when the capture shows
+its effect, so read each collection before writing, read every written entity
+back by id and in its list right after the write, and leave more than a second
+between a create and its first edit. A request step's path is fixed when the
+scenario is written and cannot use a value an earlier response returned, so an
+id must be known before the run: one the caller chooses, such as a `uid` in the
+create body, or one an earlier scenario created. When the server assigns ids,
+read the list after each create (the create's response or the list shows the
+new entity), and record updates and deletes in a second scenario that reads
+the first one's objects by id before editing them, or make them through the
+UI. The environment coverage view names each
+write it withholds and what to record next. A scenario records no request
+times, so the state learns no clock: an update whose response changes a
+timestamp the server sets, such as a modification time, is withheld as
+`unexplained-change` however it is recorded, and the coverage view says so; a
+HAR of the same session times its entries and can serve it. A scenario with write requests
+changes the application's data: record against an instance whose data may
+change.
+
+```json
+{
+  "step_id": "create-folder-1",
+  "action": "request",
+  "method": "POST",
+  "path": "/api/folders",
+  "headers": [
+    {
+      "name": "X-CSRFToken",
+      "value": { "source": "cookie", "name": "csrftoken" }
+    }
+  ],
+  "json": { "title": "Scratch folder 1" },
+  "expected_status": [200, 201]
+}
+```
 
 ## What a manifest is
 

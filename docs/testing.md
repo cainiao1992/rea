@@ -1935,13 +1935,15 @@ would remain after the pause, the verifier waits 90 seconds and runs once more,
 recording `attempts: 2` and `retried_for` in the receipt. Any other failure
 ends the lane at once.
 
-The verifier writes the Grafana-shaped HAR the view tests own, inspects it and
-projects the `environment-manifest` view with all three template rules through
-the built CLI, packs the checkout with `npm pack`, exports the bundle with
-`--package-tarball` so the image installs this checkout rather than the
-registry package, and runs `agent-env run` on the bundle. It checks that the
-export reports the planned file set with the inputs copied byte-exact and a
-bundle served from the derived state, which serves fewer tools than the
+The verifier writes the Grafana-shaped HAR the view tests own, packs the
+checkout with `npm pack`, builds the bundle from the HAR with
+`rea environment-build --package-tarball` through the built CLI, the command
+users run, so the image installs this checkout rather than the registry
+package, and runs `agent-env run` on the bundle. It checks that the build
+reports the 28-record capture, the default template rules, the planned file set
+with the shipped manifest naming the reported capture, a coverage summary whose
+read and served write tools add up to the served tool count, and a bundle
+served from the derived state, which serves fewer tools than the
 manifest because write tools the capture did not confirm are not served, that the runner exits `0` with
 `tasks/smoke.json` reported as passed and the verifier's description naming
 that served tool count, and that no container exists

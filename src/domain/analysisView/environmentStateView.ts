@@ -466,7 +466,10 @@ export const projectEnvironmentStateView = (
   parent: AnalysisViewParent,
   view: Extract<AnalysisViewRequest, { kind: "environment-state" }>,
   accumulator = new EnvironmentStateAccumulator(undefined, view.template_rules),
-): Result<UnsignedAnalysisView, AnalysisError> => {
+): Result<
+  Extract<UnsignedAnalysisView, { kind: "environment-state" }>,
+  AnalysisError
+> => {
   const grouped = groupCaptureRecords(parent, view.kind, view.template_rules, {
     accumulator,
     noun: "state",

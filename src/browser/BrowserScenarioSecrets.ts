@@ -15,6 +15,9 @@ import type { BrowserStorageValueFingerprint } from "../domain/browserScenarioCa
 
 const REDACTION_PREFIX = "[REDACTED:";
 
+/** Page values shorter than this are not redacted: redacting them would rewrite ids, ports and hosts throughout the capture. */
+export const MIN_REDACTED_PAGE_VALUE_LENGTH = 8;
+
 const encodedSecretValues = (secret: string): ReadonlySet<string> =>
   new Set([
     encodeURIComponent(secret),
@@ -227,14 +230,19 @@ const secretNeedles = (
 
 /** Resolved secret values kept only for one in-memory scenario session. */
 export class BrowserScenarioSecrets {
-  private readonly urlPatterns: readonly SecretPattern[];
-  private readonly textPatterns: readonly SecretPattern[];
-  private readonly urlReplacements: readonly SecretReplacement[];
-  private readonly textReplacements: readonly SecretReplacement[];
-  private readonly textNeedles: readonly SecretNeedle[];
-  private readonly redactionCostPerCharacter: number;
+  private urlPatterns: readonly SecretPattern[] = [];
+  private textPatterns: readonly SecretPattern[] = [];
+  private urlReplacements: readonly SecretReplacement[] = [];
+  private textReplacements: readonly SecretReplacement[] = [];
+  private textNeedles: readonly SecretNeedle[] = [];
+  private redactionCostPerCharacter = 8;
 
-  private constructor(private readonly values: ReadonlyMap<string, string>) {
+  private constructor(private readonly values: Map<string, string>) {
+    this.compile();
+  }
+
+  private compile(): void {
+    const values = this.values;
     this.urlPatterns = declaredPatterns(values, "url");
     this.textPatterns = declaredPatterns(values, "text");
     this.urlReplacements = secretReplacements(values, "url");
@@ -253,6 +261,26 @@ export class BrowserScenarioSecrets {
               128) /
               replacement.text.length,
         );
+  }
+
+  /**
+   * Redact a value a request step read from the page, such as a CSRF cookie
+   * or a stored bearer token, from everything recorded after it, as a
+   * declared secret is. The label names it in redaction markers; a value
+   * already redacted keeps its first marker, and a value shorter than
+   * {@link MIN_REDACTED_PAGE_VALUE_LENGTH} is not redacted.
+   */
+  admitPageValue(label: string, value: string): void {
+    // fetch sends a header value without surrounding spaces and tabs, so that is the spelling records hold.
+    const sent = value.replace(/^[\t ]+|[\t ]+$/gu, "");
+    if (sent !== value) this.admitPageValue(label, sent);
+    if (value.length < MIN_REDACTED_PAGE_VALUE_LENGTH) return;
+    for (const held of this.values.values()) if (held === value) return;
+    let id = `page:${label}`;
+    for (let suffix = 2; this.values.has(id); suffix += 1)
+      id = `page:${label}~${String(suffix)}`;
+    this.values.set(id, value);
+    this.compile();
   }
 
   static resolve(

@@ -30,6 +30,12 @@ const BUNDLE_NAME_MAX_LENGTH = 64;
 /** Win32 reserves these device names for files and folders, so the env folder can never take one. */
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/u;
 
+/** Whether a name can be the env folder and env id: the checks the export applies. */
+export const isPortableBundleName = (name: string): boolean =>
+  BUNDLE_NAME.test(name) &&
+  name.length <= BUNDLE_NAME_MAX_LENGTH &&
+  !WINDOWS_RESERVED_NAME.test(name);
+
 /** Where the Dockerfile installs the CLI from. */
 export type EnvironmentPackageSource =
   | { readonly kind: "registry"; readonly specifier: string }
@@ -103,7 +109,7 @@ const reservedNameError = (name: string): AnalysisInputError =>
   new AnalysisInputError(
     ENVIRONMENT_EXPORT_OPERATION,
     {
-      userMessage: `The bundle name ${JSON.stringify(name)} is a device name Windows reserves, so it cannot name the env folder; pass --name with another label.`,
+      userMessage: `The bundle name ${JSON.stringify(name)} is a device name Windows reserves, so it cannot name the env folder; choose another name.`,
     },
     [
       {

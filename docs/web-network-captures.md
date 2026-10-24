@@ -802,6 +802,28 @@ derives it from the capture at startup, serves read tools and the served write
 plans from it and loads replacement states through the AgentEnv data plane, as
 [serve from the state](agent-environments.md#serve-from-the-state) describes.
 
+## Environment coverage
+
+`view: {"kind":"environment-coverage"}` with the same `template_rules` reports
+what the state an environment derives from the parent would serve, without the
+state's entities: `reads.state` counts read tools answered from the state,
+`reads.recorded` those that replay their recordings with
+`reads.recorded_reasons` per view reason, `writes.served` lists the write tools
+whose effect later reads confirmed, and `writes.withheld` lists every other
+write tool with its reason, the record its plan was built from
+(`exemplar_ordinal`), the read that disagreed (`contradicted_by`) and a `hint`
+about what to record next. Hints are advice; they never change what is served.
+The view projects the environment-state view and summarizes it, so it refuses
+every parent that view refuses, with the same errors, and it is always
+inferred. Call it after each recording to see which writes an environment
+built from it would serve. It does not apply the serve-time admission checks:
+an environment whose served catalog exceeds the discovery budget, or whose
+state exceeds what `data/add` loads, serves replay, and `rea environment-build`
+then reports `coverage: null`; otherwise the build prints this summary as its
+`coverage`. See
+[Build a bundle in one step](agent-environments.md#build-a-bundle-in-one-step)
+for the hint per reason.
+
 ## Resource and lifecycle boundaries
 
 Complete evidence has a 32 MiB input, 96 MiB decoder reply and 64-level nesting

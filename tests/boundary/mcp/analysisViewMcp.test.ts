@@ -1428,6 +1428,51 @@ it("extracts an environment state identically from retained, portable and file M
   await client.ping();
 });
 
+it("reports environment coverage identically from retained, portable and file MCP Evidence", async () => {
+  const { client, session } = await connect();
+  const { ajv, inputSchema, outputSchema } = await advertisedMcpToolSchemas(
+    client,
+    "inspect_analysis_view",
+  );
+  const parent = analysisViewCaptureEvidence(environmentStateCaptureFixture());
+  expect(session.recordEvidence(parent).ok).toBe(true);
+  const evidencePath = join(
+    await createTestTempDirectory("rea-coverage-file-mcp-"),
+    "capture.json",
+  );
+  await writeFile(evidencePath, JSON.stringify(parent));
+  const rules = ["after-uid-literal", "opaque-token", "sibling-variance"];
+  const outputs = [];
+  for (const source of [
+    { kind: "inline", evidence: parent },
+    { kind: "retained-evidence", evidence_id: parent.evidence_id },
+    { kind: "evidence-file", path: evidencePath },
+  ]) {
+    const view = { kind: "environment-coverage", template_rules: rules };
+    expect(ajv.validate(inputSchema, { source, view })).toBe(true);
+    const response = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: { source, view },
+    });
+    expect(response.isError).not.toBe(true);
+    expect(
+      ajv.validate(outputSchema, response.structuredContent),
+      JSON.stringify(ajv.errors),
+    ).toBe(true);
+    const evidence = parseEvidence(response.structuredContent);
+    expect(evidence.confidence).toBe("inferred");
+    expect(evidence.normalized_result).toMatchObject({
+      kind: "environment-coverage",
+      reads: { state: expect.any(Number) },
+      writes: { served: expect.any(Array), withheld: expect.any(Array) },
+    });
+    outputs.push(evidence.normalized_result);
+  }
+  expect(outputs[1]).toEqual(outputs[0]);
+  expect(outputs[2]).toEqual(outputs[0]);
+  await client.ping();
+});
+
 it("projects an environment manifest identically from retained, portable and file MCP Evidence", async () => {
   const { client, session } = await connect();
   const { ajv, inputSchema, outputSchema } = await advertisedMcpToolSchemas(

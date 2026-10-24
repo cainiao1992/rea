@@ -746,6 +746,31 @@ like a blank `MCP_HOST`. The bound URL is written to stderr as one JSON log line
 [agent environments](agent-environments.md) for what the state and replay
 return and do not establish.
 
+## Build an environment bundle
+
+`rea environment-build <capture> [dir] [--name <name>] [--template-rule <rule> ...]
+[--format-rules-only] [--package-tarball <path>] [--capture-timeout-ms <ms>] [--dry-run]` builds the bundle
+`environment-export` writes from one recorded capture: a `.har` file, which it
+inspects as `inspect-web-network-capture` does, or capture Evidence JSON from
+`inspect-web-network-capture` (HAR) or `capture-browser-scenario`. It projects
+the environment manifest from the in-memory Evidence with the opt-in rules
+`after-uid-literal`, `opaque-token`, `sibling-variance` and `prefix-variance`
+unless `--template-rule` or `--format-rules-only` selects others, prepares the
+state, and writes the bundle; every file is byte-identical to the three-step
+path's when that path lists the same rules in the views' order and exports
+under the build's name. A loopback or IP-literal capture is named after its file unless `--name`
+is given. It prints one JSON report: the capture and manifest identities, the
+state, a `coverage` summary of which tools answer from the state, which replay
+and why each write is withheld with a hint, the files, warnings and the next
+command. `--dry-run` writes nothing and may omit the directory.
+
+```sh
+rea environment-build grafana.har ./grafana --json
+```
+
+See [agent environments](agent-environments.md#build-a-bundle-in-one-step)
+for the report, the hints and what the bundle ships.
+
 ## Export an environment bundle
 
 `rea environment-export <manifest.json> --evidence <capture.json> <dir>
@@ -921,6 +946,10 @@ server resources. It preserves a primary listener diagnostic, or a
 tool count and Evidence identifiers. The successful `stopped` document is
 returned only after cleanup is confirmed. The same in-process server owner
 retains failed stages for retry; the CLI exposes no separate retry command.
+`rea environment-build` is one-shot too: it prints its report and exits `0`,
+or prints the refusing stage's structured error and exits `1`, writing nothing
+when the refusal comes before the bundle is written. SIGINT cancels it with a
+`cancelled` error; a cancellation before the bundle stage writes nothing.
 `rea environment-export` is one-shot: it prints the written files and exits
 `0`, or prints a structured `invalid_request` error and exits `1` for the same
 pair refusals, a non-empty or file-occupied directory, a missing package

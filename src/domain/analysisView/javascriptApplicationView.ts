@@ -23,6 +23,7 @@ import type {
   AnalysisViewParent,
   AnalysisViewRequest,
   UnsignedAnalysisView,
+  GroupingViewKind,
 } from "./analysisView.js";
 
 const OPERATION = "inspect_analysis_view";
@@ -340,10 +341,7 @@ const selectModule = (
 export const projectJavaScriptApplicationView = (
   parent: AnalysisViewParent,
   analysis: JavaScriptApplicationAnalysisResult,
-  view: Exclude<
-    AnalysisViewRequest,
-    { kind: "api-surface" | "environment-manifest" | "environment-state" }
-  >,
+  view: Exclude<AnalysisViewRequest, { kind: GroupingViewKind }>,
 ): Result<UnsignedAnalysisView, AnalysisError> => {
   if (
     view.kind !== "summary" &&

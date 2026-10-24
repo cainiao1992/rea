@@ -16,6 +16,7 @@ import {
   type RecordedRequestLine,
 } from "../../domain/analysisView/webNetworkRouteTemplates.js";
 import { retainedBrowserScenarioCaptureSchema } from "../../domain/browserScenarioCapture.js";
+import type { BrowserScenarioEvent } from "../../domain/browserScenarioCaptureValues.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   AnalysisInputError,
@@ -263,6 +264,8 @@ interface CaptureFacts {
   readonly responseBodies: boolean;
   /** Whether the capture recorded request bodies, likewise. */
   readonly requestBodies: boolean;
+  /** A browser scenario's retained events, including those no record represents; null for a HAR. */
+  readonly scenarioEvents: readonly BrowserScenarioEvent[] | null;
 }
 
 /** Issue paths of a capture payload refusal start here. */
@@ -297,6 +300,7 @@ const parseScenarioCapture = (
     captureSha256: definition.success ? definition.data.scenario_sha256 : null,
     responseBodies: scenario.data.scenario.network_content.response_body,
     requestBodies: scenario.data.scenario.network_content.request_body,
+    scenarioEvents: scenario.data.events.items,
   });
 };
 
@@ -347,6 +351,7 @@ const parseHarCapture = (
     captureSha256: capture.data.artifact.sha256,
     responseBodies: true,
     requestBodies: true,
+    scenarioEvents: null,
   });
 };
 

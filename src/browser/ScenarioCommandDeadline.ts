@@ -132,7 +132,11 @@ export const withScenarioCommandDeadline = async <T>(
         phase,
         command_timeout_ms: timeoutMs,
         ...(method === undefined ? {} : { method }),
-        ...(cause === undefined ? {} : { producer_message: cause.message }),
+        // Discovered CDP URLs can carry transport userinfo in Playwright's
+        // native message. Preserve that cause without projecting it here.
+        ...(cause === undefined || phase !== "launch"
+          ? {}
+          : { producer_message: cause.message }),
       },
     });
   };

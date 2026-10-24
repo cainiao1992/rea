@@ -1416,3 +1416,51 @@ it("normalizes a genuine Playwright launch timeout and releases its profile", as
   expect(profilePath).toBeDefined();
   await expect(access(profilePath!)).rejects.toMatchObject({ code: "ENOENT" });
 });
+
+it("keeps discovered transport credentials out of projected handshake timeouts", async () => {
+  const { errors } = await import("playwright-core");
+  // A credential-free HTTP endpoint may discover an authenticated WebSocket.
+  // Native Playwright timeout logs include the discovered transport spelling.
+  const native = new errors.TimeoutError(
+    "WebSocket timeout: ws://fixture-user:fixture-password@127.0.0.1:9222/devtools/browser/discovered",
+  );
+  const scenario = browserScenarioSchema.parse({
+    browser: {
+      mode: "connect",
+      cdp_endpoint: "http://127.0.0.1:9222",
+      target_id: "discovered-timeout",
+    },
+    start_url: { url: "https://example.test" },
+    environment: { service_workers: "allow" },
+    command_timeout_ms: 50,
+    actions: scenarioActions,
+  });
+  const failure = await openPlaywrightScenarioBrowser(
+    scenario,
+    {},
+    {
+      launcher: {
+        connectOverCDP: async () => {
+          throw native;
+        },
+        launchPersistentContext: async () => {
+          throw new Error("Unexpected launch");
+        },
+      },
+    },
+  ).then(
+    () => undefined,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toMatchObject({
+    reason: "timeout",
+    cause: native,
+    diagnostics: { phase: "handshake", command_timeout_ms: 50 },
+  });
+  if (!(failure instanceof AnalysisError))
+    throw new Error("Expected typed timeout");
+  expect(failure.diagnostics).not.toHaveProperty("producer_message");
+  const projected = JSON.stringify(projectAnalysisError(failure));
+  expect(projected).not.toContain("fixture-user");
+  expect(projected).not.toContain("fixture-password");
+});

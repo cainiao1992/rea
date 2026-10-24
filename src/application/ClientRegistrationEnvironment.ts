@@ -97,10 +97,7 @@ export const clientRegistrationEnvironmentDetails = (
       ),
     );
   }
-  const key =
-    parsed?.dialect === "opencode" || parsed?.dialect === "opencode_v2"
-      ? "environment"
-      : "env";
+  const key = parsed?.environmentKey ?? "env";
   const registration =
     parsed === undefined
       ? undefined

@@ -208,10 +208,7 @@ export const effectiveClientConfiguration = (
       const previous = servers[name];
       const next = effectiveClientServer(document, name);
       const merged = mergeConfigurationValue(previous, next);
-      const key =
-        document.dialect === "opencode" || document.dialect === "opencode_v2"
-          ? "environment"
-          : "env";
+      const key = document.environmentKey;
       if (
         name === PRODUCT_IDENTITY.mcpServerKey &&
         isObject(merged) &&

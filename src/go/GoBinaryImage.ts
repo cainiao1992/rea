@@ -10,6 +10,8 @@ import {
   type ZeroFillMapping,
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
+import type { GoModuleMetadata } from "../domain/go/goBinary.js";
+import { parseGoModuleBytes, parseGoModuleText } from "./GoModuleText.js";
 import {
   goBuildInfoSearch,
   type GoBuildInfoSearchRange,
@@ -37,6 +39,7 @@ export interface GoBuildInfo {
   readonly module_bytes_base64: string;
   readonly version_location: GoStringLocation;
   readonly module_location: GoStringLocation;
+  readonly module: GoModuleMetadata;
 }
 
 /** Native image identity and optional Go build information; absence is not a language verdict. */
@@ -180,6 +183,7 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
     );
   const goVersion = observedText(version.bytes);
   let moduleText: string | null = "";
+  let moduleBody = module.bytes;
   if (module.bytes.length !== 0) {
     if (
       module.bytes.length < 33 ||
@@ -191,7 +195,8 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
         "malformed",
         "Go module string framing is invalid",
       );
-    moduleText = observedText(module.bytes.subarray(16, -16));
+    moduleBody = module.bytes.subarray(16, -16);
+    moduleText = observedText(moduleBody);
   }
   return {
     format,
@@ -207,6 +212,10 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
       module_bytes_base64: module.bytes.toString("base64"),
       version_location: version.location,
       module_location: module.location,
+      module:
+        moduleText === null
+          ? parseGoModuleBytes(moduleBody)
+          : parseGoModuleText(moduleText),
     },
     ...(sectionNamesLimitation === undefined
       ? {}

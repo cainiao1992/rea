@@ -66,14 +66,14 @@ it.for<TextSourceCase>([
   },
   {
     name: "unknown XML scalar",
-    bytes: Buffer.from("<plist><integer> 42 </integer></plist>"),
+    bytes: Buffer.from("<plist><real>1e999</real></plist>"),
     description: "XML 1.0 document text",
     format: "xml",
     value: {
       $plist_type: "unknown",
-      element: "integer",
-      literal: " 42 ",
-      reason: "invalid-literal",
+      element: "real",
+      literal: "1e999",
+      reason: "unrepresentable",
     },
     limitations: [
       expect.stringContaining("1 XML scalar value(s) could not be established"),
@@ -164,7 +164,14 @@ it.for<TextSourceCase>([
         const conversion = fixture.conversions[conversionIndex++];
         if (conversion === undefined)
           throw new Error("Unexpected conversion of directly supported source");
-        expect(args[1]).toBe(conversion.format);
+        expect(args).toEqual([
+          "-convert",
+          conversion.format,
+          "-o",
+          "-",
+          "--",
+          path,
+        ]);
         return ok({
           ...result.value,
           stdout: conversion.output,

@@ -34,6 +34,7 @@ import {
   projectSemanticRequests,
 } from "./JavaScriptSemanticGraphDataProjection.js";
 import { projectSemanticResources } from "./JavaScriptSemanticGraphResourceProjection.js";
+import { projectSemanticAssignments } from "./JavaScriptSemanticGraphAssignmentProjection.js";
 import { projectSemanticObjects } from "./JavaScriptSemanticGraphObjectProjection.js";
 import { projectSemanticValues } from "./JavaScriptSemanticGraphValueProjection.js";
 import {
@@ -712,6 +713,8 @@ function* projectFileSteps(
     returnSiteNodes,
     argumentNodes: new Map(),
     referenceNodes: [],
+    readNodes: [],
+    writeNodes: [],
     callResolutions: new Map(
       ir.callSites.map((call) => [
         call.callSiteId,
@@ -858,7 +861,11 @@ function* projectDefinitionsAndReferences(
       reference.bindingId === null
         ? undefined
         : context.bindingNodes.get(reference.bindingId);
-    if (expression !== null) context.referenceNodes.push(expression);
+    if (expression !== null) {
+      context.referenceNodes.push(expression);
+      if (reference.role === "read") context.readNodes.push(expression);
+      if (reference.role === "write") context.writeNodes.push(expression);
+    }
     if (binding === undefined || expression === null) continue;
     if (reference.role === "read")
       addRelation(context.state, {
@@ -977,6 +984,7 @@ const FILE_PROJECTION_PASSES: readonly ((
 ) => Iterator<void, void> | void)[] = [
   projectSemanticValues,
   projectSemanticObjects,
+  projectSemanticAssignments,
   projectCalls,
   projectSemanticPromises,
   projectSemanticEvents,

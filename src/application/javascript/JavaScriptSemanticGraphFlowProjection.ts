@@ -29,6 +29,8 @@ export interface SemanticFlowProjectionContext {
   readonly callableNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
   readonly callSiteNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
   readonly returnSiteNodes: ReadonlyMap<string, JavaScriptSemanticGraphNode>;
+  readonly readNodes: JavaScriptSemanticGraphNode[];
+  readonly writeNodes: JavaScriptSemanticGraphNode[];
   readonly referenceNodes: readonly JavaScriptSemanticGraphNode[];
   readonly referenceNodesWithin: (
     range: JavaScriptSourceRange,

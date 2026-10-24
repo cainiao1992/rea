@@ -3,11 +3,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTestTempDirectory } from "../../tests/fixtures/temporaryDirectory.js";
-import { createEvidence } from "../domain/evidence.js";
-import { createEvidenceBundle } from "../domain/evidenceBundle.js";
+import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { createEvidence } from "../../src/domain/evidence.js";
+import { createEvidenceBundle } from "../../src/domain/evidenceBundle.js";
 
-const HEADROOM_MODULE = "./JsonAuthenticationHeadroom.js";
+const HEADROOM_MODULE = "../../src/application/JsonAuthenticationHeadroom.js";
 
 afterEach(() => {
   vi.doUnmock(HEADROOM_MODULE);
@@ -19,7 +19,9 @@ const readerUnderStarvedHeap = async () => {
   vi.resetModules();
   vi.doMock(HEADROOM_MODULE, async (importOriginal) => {
     const actual =
-      await importOriginal<typeof import("./JsonAuthenticationHeadroom.js")>();
+      await importOriginal<
+        typeof import("../../src/application/JsonAuthenticationHeadroom.js")
+      >();
     return {
       ...actual,
       requireAuthenticationHeadroom: (
@@ -32,7 +34,7 @@ const readerUnderStarvedHeap = async () => {
         }),
     };
   });
-  return import("./EvidenceBundleFiles.js");
+  return import("../../src/application/EvidenceBundleFiles.js");
 };
 
 describe("evidence bundle import headroom", () => {

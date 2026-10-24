@@ -11,15 +11,12 @@ export const SOURCE_TEST_PROJECTS = [
     name: "services",
     group: "source",
     include: ["src/application/**/*.test.ts"],
-    exclude: ["src/application/EvidenceBundleFiles.test.ts"],
   },
   {
     name: "adapters",
     group: "source",
     include: [
       "src/*.test.ts",
-      // This application fixture replaces a module and needs a fresh graph.
-      "src/application/EvidenceBundleFiles.test.ts",
       "src/{android,apkSignature,apktool,jeb,adb,artifacts,browser,config,cutter,dotnet,electron,erlang,evm,firmware,flutter,pcap,ghidra,go,gpu,hopper,ida,inspector,javascript,main,native,process,python,reference,rust,server,sqlite,wasm,windows}/**/*.test.ts",
     ],
   },
@@ -69,7 +66,6 @@ export const BUILT_TEST_PROJECTS = [
     name: "mcp-boundary",
     group: "built",
     include: ["tests/boundary/mcp/**/*.test.ts"],
-    exclude: ["tests/boundary/mcp/javascriptAnalysisCancellation.test.ts"],
   },
   {
     name: "acceptance",
@@ -79,10 +75,7 @@ export const BUILT_TEST_PROJECTS = [
   {
     name: "process-global",
     group: "built",
-    include: [
-      "tests/process-global/**/*.test.ts",
-      "tests/boundary/mcp/javascriptAnalysisCancellation.test.ts",
-    ],
+    include: ["tests/process-global/**/*.test.ts"],
   },
 ];
 

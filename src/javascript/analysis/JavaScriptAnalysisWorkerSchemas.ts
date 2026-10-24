@@ -629,6 +629,7 @@ const callable = z.strictObject({
   containerScopeId: z.string(),
   bodyScopeId: z.string().nullable(),
   location: range,
+  computedKeyLocation: range.nullable(),
   returnSites: z.array(
     z.strictObject({
       returnSiteId: z.string(),

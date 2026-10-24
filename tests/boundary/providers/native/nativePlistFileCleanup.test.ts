@@ -15,6 +15,7 @@ import { AnalysisCleanupLease } from "../../../../src/artifacts/AnalysisCleanupL
 import { ArtifactReaderFailure } from "../../../../src/artifacts/ArtifactReader.js";
 import { err, ok } from "../../../../src/domain/result.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
+import { inspectPlistSchema } from "../../../../src/domain/native/nativeInspection.js";
 
 const fixture = async () => {
   const root = await createTestTempDirectory("rea-native-plist-lifetime-");
@@ -332,15 +333,55 @@ it("preserves an opaque cancellation observed during successful prefix close", a
   expect((await client.close()).ok).toBe(true);
 });
 
-it.for(["source", "json", "xml"] as const)(
-  "joins an admitted prefix read and its %s commands when client close starts concurrently",
-  async (route) => {
+it.for([
+  ["prefix", "source"],
+  ["source", "source"],
+  ["prefix", "json"],
+  ["prefix", "xml"],
+] as const)(
+  "joins an admitted %s read and final %s command when client close starts concurrently",
+  async ([phase, route]) => {
     const { client, path, prototype, runner } = await fixture();
     if (route !== "source") await writeFile(path, "{ name = value; }");
+    let enter!: () => void;
+    let resume!: () => void;
+    let enterValidation!: () => void;
+    let resumeValidation!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const validationEntered = new Promise<void>((resolve) => {
+      enterValidation = resolve;
+    });
+    const validationGate = new Promise<void>((resolve) => {
+      resumeValidation = resolve;
+    });
+    const original = prototype.read;
+    let reads = 0;
+    const read = vi.spyOn(prototype, "read").mockImplementation(async function (
+      this: FileHandle,
+      ...args: Parameters<FileHandle["read"]>
+    ) {
+      reads += 1;
+      if (reads === (phase === "prefix" ? 1 : 2)) {
+        enter();
+        await gate;
+      }
+      return Reflect.apply(original, this, args);
+    });
+    let validationStarted = false;
     const run = runner.run.bind(runner);
     const commands = vi
       .spyOn(runner, "run")
       .mockImplementation(async (tool, args, options) => {
+        if (tool === "plutil" && (route !== "xml" || args[1] === "xml1")) {
+          validationStarted = true;
+          enterValidation();
+          await validationGate;
+        }
         const result = await run(tool, args, options);
         if (route !== "xml" || tool !== "plutil" || !result.ok) return result;
         const stdout =
@@ -352,31 +393,16 @@ it.for(["source", "json", "xml"] as const)(
           exitCode: args[1] === "json" ? 1 : 0,
         });
       });
-    onTestFinished(() => commands.mockRestore());
-    let enter!: () => void;
-    let resume!: () => void;
-    const entered = new Promise<void>((resolve) => {
-      enter = resolve;
-    });
-    const gate = new Promise<void>((resolve) => {
-      resume = resolve;
-    });
-    const original = prototype.read;
-    const read = vi
-      .spyOn(prototype, "read")
-      .mockImplementationOnce(async function (
-        this: FileHandle,
-        ...args: Parameters<FileHandle["read"]>
-      ) {
-        enter();
-        await gate;
-        return Reflect.apply(original, this, args);
-      });
     onTestFinished(() => {
       resume();
+      resumeValidation();
       read.mockRestore();
+      commands.mockRestore();
     });
-    const inspecting = client.execute("inspect_plist", { path });
+    const inspecting = client.execute("inspect_plist", {
+      path,
+      native_command_timeout_ms: 1500,
+    });
     await entered;
     let finished = false;
     const closing = client.close().then((result) => {
@@ -385,17 +411,43 @@ it.for(["source", "json", "xml"] as const)(
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(finished).toBe(false);
+    expect(await client.execute("inspect_plist", { path })).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisCapabilityUnavailableError" },
+    });
     resume();
+    await Promise.race([validationEntered, inspecting]);
+    expect(validationStarted).toBe(true);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(finished).toBe(false);
+    resumeValidation();
     const inspected = await inspecting;
-    expect(
-      inspected.ok,
-      inspected.ok ? undefined : inspected.error.message,
-    ).toBe(true);
+    if (!inspected.ok) throw inspected.error;
     expect((await closing).ok).toBe(true);
-    expect(commands.mock.calls.map(([tool, args]) => [tool, args[0]])).toEqual([
-      ["file", "-b"],
-      ["plutil", route === "source" ? "-lint" : "-convert"],
-      ...(route === "xml" ? [["plutil", "-convert"]] : []),
-    ]);
+    const result = inspectPlistSchema.parse(inspected.value.result);
+    expect(result.value).toBe("value");
+    expect(result.source_path).toBe(path);
+    const expectedCommands = [
+      ["file", ["-b", path]],
+      [
+        "plutil",
+        route === "source"
+          ? ["-lint", "--", path]
+          : ["-convert", "json", "-o", "-", "--", path],
+      ],
+      ...(route === "xml"
+        ? [["plutil", ["-convert", "xml1", "-o", "-", "--", path]]]
+        : []),
+    ];
+    expect(commands.mock.calls.map(([tool, args]) => [tool, args])).toEqual(
+      expectedCommands,
+    );
+    expect(result.provenance.map(({ tool }) => tool)).toEqual(
+      expectedCommands.map(([tool]) => tool),
+    );
+    expect(commands.mock.calls.at(-1)?.[2]).toEqual({
+      timeoutMs: 1500,
+      acceptNonZero: true,
+    });
   },
 );

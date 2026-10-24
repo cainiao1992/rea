@@ -335,7 +335,8 @@ const collectCapture = (
     owner.bodyScopeId === null
   )
     return;
-  if (semanticIdentifierRole(node, parent, context.ancestors) === null) return;
+  if (semanticIdentifierRole(node, parent, () => context.ancestors) === null)
+    return;
   const binding = resolveSemanticBindingState(state, node, node.name);
   if (
     binding === undefined ||

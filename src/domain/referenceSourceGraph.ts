@@ -573,9 +573,10 @@ export const parseHistoricalSourceGraph = (
 ): HistoricalSourceGraph => historicalSourceGraphSchema.parse(input);
 
 /** Commit semantic graph facts while retaining host-local diagnostic metadata separately. */
-export const computeHistoricalSourceGraphSha256 = (input: unknown): string => {
-  const graph = parseHistoricalSourceGraph(input);
-  return digestCanonicalValue(
+const computeHistoricalSourceGraphSha256 = (
+  graph: HistoricalSourceGraph,
+): string =>
+  digestCanonicalValue(
     {
       ...graph,
       entries: graph.entries.map(
@@ -584,7 +585,6 @@ export const computeHistoricalSourceGraphSha256 = (input: unknown): string => {
     },
     "Reference source graph",
   );
-};
 
 /** Build a deterministic, relocation-independent manifest for a source graph. */
 export const createHistoricalSourceManifest = (
@@ -604,18 +604,4 @@ export const createHistoricalSourceManifest = (
     ...semantic,
     manifest_id: `hsm_${digestCanonicalValue(semantic, "Reference source graph")}`,
   });
-};
-
-/** Parse and verify a historical source manifest's semantic identifier. */
-export const parseHistoricalSourceManifest = (
-  input: unknown,
-): HistoricalSourceManifest => {
-  const manifest = historicalSourceManifestBaseSchema.parse(input);
-  const { manifest_id: manifestId, ...semantic } = manifest;
-  if (
-    `hsm_${digestCanonicalValue(semantic, "Reference source graph")}` !==
-    manifestId
-  )
-    throw new TypeError("Historical source manifest identifier does not match");
-  return manifest;
 };

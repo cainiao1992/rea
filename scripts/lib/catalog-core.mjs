@@ -130,8 +130,6 @@ const SOURCE_PATHS = {
   v8InspectorProvider: "dist/inspector/providerIdentity.js",
   evidence: "dist/domain/evidence.js",
   evidenceBundle: "dist/domain/evidenceBundle.js",
-  evidenceCompletion: "dist/domain/evidenceCompletionLedger.js",
-  completionGeneration: "dist/domain/completionLedgerGeneration.js",
   processCapture: "dist/domain/process/processCapture.js",
   analysisSnapshot: "dist/domain/analysisSnapshot.js",
   artifactGraph: "dist/domain/artifactGraph.js",

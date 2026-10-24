@@ -226,7 +226,3 @@ export const createCompletionLedgerArtifacts = (
     ),
   };
 };
-
-/** Parse generated completion commitments and reject manual tampering. */
-export const parseCompletionManifest = (input: unknown): CompletionManifest =>
-  completionManifestSchema.parse(input);

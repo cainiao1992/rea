@@ -1,15 +1,17 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { linkIl2cppBinary } from "../../../src/il2cpp/Il2cppBinaryFile.js";
 import {
   isMapped,
   openImageSteps,
   readPointer,
   readSlot,
+  readUInt32,
 } from "../../../src/il2cpp/Il2cppBinaryImage.js";
 import { readIl2cppMetadataForLinking } from "../../../src/il2cpp/Il2cppMetadataFile.js";
 import {
   createElfFixture,
   createIl2cppBinaryFixture,
+  createIl2cppTypeScanFixture,
   FIXTURE_BINARY_BASE,
 } from "../../fixtures/il2cpp/binary.js";
 import { createLinkedIl2cppMetadataFixture } from "../../fixtures/il2cpp/metadata.js";
@@ -60,6 +62,42 @@ const withLoadRanges = (
   result.writeUInt16LE(headers.length, 56);
   return result;
 };
+
+it("reuses admitted mappings for repeated file-backed loader reads", () => {
+  const original = createIl2cppBinaryFixture();
+  const image = open(createElfFixture(original, { zeroFilledTable: true }));
+  const mappings = vi.spyOn(image.container.mappings, Symbol.iterator);
+  const zeroFills = vi.spyOn(image.container.zero_fills, "some");
+  try {
+    for (let index = 0; index < 32; index++) {
+      expect(readSlot(image, FIXTURE_BINARY_BASE + 0x900n)).toBe(
+        original.readBigUInt64LE(0x900),
+      );
+      expect(readUInt32(image, FIXTURE_BINARY_BASE + 0x988n)).toBe(
+        original.readUInt32LE(0x988),
+      );
+      expect(isMapped(image, FIXTURE_BINARY_BASE + 0x980n, 12)).toBe(true);
+    }
+    expect(mappings).not.toHaveBeenCalled();
+    expect(zeroFills).not.toHaveBeenCalled();
+  } finally {
+    mappings.mockRestore();
+    zeroFills.mockRestore();
+  }
+});
+
+it("links one code-loaded type table among short runs across many mappings", () => {
+  const bytes = createIl2cppTypeScanFixture(64, 128);
+  const snapshot = Buffer.from(bytes);
+  const result = linkIl2cppBinary(bytes, metadata, {
+    ...facts,
+    returnTypes: Int32Array.from(facts.returnTypes, () => 3),
+  });
+  expect(result.types_field).toBeNull();
+  expect(result.types_count).toBe(4);
+  expect(result.return_types.every((row) => row.name === "int")).toBe(true);
+  expect(bytes).toEqual(snapshot);
+});
 
 it.each([183, 62])(
   "links agreeing split ELF RELA spans without changing input bytes (machine %s)",

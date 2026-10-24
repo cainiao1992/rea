@@ -554,6 +554,24 @@ it("keeps native summaries bounded while paging selected module facts", () => {
   });
 });
 
+it.each([
+  [
+    "code_gen_modules_field",
+    "Module-array association",
+    "Type-table association",
+  ],
+  ["types_field", "Type-table association", "Module-array association"],
+] as const)(
+  "keeps an inferred %s as its own unknown",
+  (field, present, absent) => {
+    const value = linkedReport();
+    value.binary![field] = null;
+    const unknowns = summarize(parent(value, false)).unknowns.map(String);
+    expect(unknowns.filter((line) => line.startsWith(present))).toHaveLength(1);
+    expect(unknowns.some((line) => line.startsWith(absent))).toBe(false);
+  },
+);
+
 const genericLinked = (): Il2cppMetadata => {
   const linked = linkedReport();
   return {

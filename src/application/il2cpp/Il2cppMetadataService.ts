@@ -240,7 +240,8 @@ export class Il2cppMetadataService {
         confidence:
           value.binary === null
             ? "observed"
-            : value.binary.code_gen_modules_field === null
+            : value.binary.code_gen_modules_field === null ||
+                value.binary.types_field === null
               ? "inferred"
               : "derived",
         limitations: value.limitations,

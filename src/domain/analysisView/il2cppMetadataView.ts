@@ -606,6 +606,11 @@ export const projectIl2cppMetadataView = (
             "Module-array association is inferred from executable byte patterns; instruction boundaries and runtime use remain unverified.",
           ]
         : []),
+      ...(report.binary != null && report.binary.types_field === null
+        ? [
+            "Type-table association and types_count are inferred from executable byte patterns and Il2CppType-shaped records; instruction boundaries and runtime use remain unverified.",
+          ]
+        : []),
       ...[
         ...il2cppMetadataMemberCollections,
         ...il2cppMetadataBinaryCollections,

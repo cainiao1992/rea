@@ -261,13 +261,17 @@ it("closes both ports and keeps combined cleanup incomplete until both owners re
   metadata.resolveCleanup();
   expect(failure.cleanupIncomplete).toBe(false);
 });
-it.each([false, true])(
-  "classifies native association confidence (inferred: %s)",
-  async (inferred) => {
+it.each([
+  ["static", null, "derived"],
+  ["module array", "code_gen_modules_field", "inferred"],
+  ["type table", "types_field", "inferred"],
+] as const)(
+  "classifies native association confidence (%s)",
+  async (_, inferred, confidence) => {
     const value = linkedReport();
-    if (inferred) value.binary!.code_gen_modules_field = null;
+    if (inferred !== null) value.binary![inferred] = null;
     const result = await serviceReturning(value).inspect(selectedPair);
     if (!result.ok) throw result.error;
-    expect(result.value.confidence).toBe(inferred ? "inferred" : "derived");
+    expect(result.value.confidence).toBe(confidence);
   },
 );

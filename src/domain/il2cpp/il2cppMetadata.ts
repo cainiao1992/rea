@@ -288,8 +288,12 @@ export const il2cppBinaryLinkSchema = z.strictObject({
   /** The code-generation module pointer array. */
   code_gen_modules_array: il2cppAddressSchema,
   code_gen_modules: z.array(il2cppCodeGenModuleSchema),
-  /** MetadataRegistration's typesCount field, followed by the types pointer. */
-  types_field: il2cppAddressSchema,
+  /**
+   * MetadataRegistration's typesCount field, followed by the types pointer;
+   * null when no static registration had the counts and executable byte-pattern
+   * candidates identified the type table, whose run length is then types_count.
+   */
+  types_field: il2cppAddressSchema.nullable(),
   types_count: count,
   /** Null unless generic_instances was requested. */
   generic_methods: il2cppGenericMethodLinkSchema.nullable(),

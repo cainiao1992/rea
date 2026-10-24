@@ -144,8 +144,11 @@ without serial scheduling. Pure domain/service, composition, conformance,
 evaluation, CLI boundary, and MCP boundary projects share module graphs. Their
 tests avoid process-global state and keep resource cleanup test-scoped. Each
 MCP session still owns its resources, and CLI cases retain fresh command
-instances or subprocesses. CLI and MCP module mocks belong in `tests/process-global/`
-so they keep per-file isolation. Product catalog verification stays with the
+instances or subprocesses. Fixtures using `vi.mock` or `vi.doMock` need an
+isolated project. CLI/MCP fixtures normally live in `tests/process-global/`.
+When a path must stay, assign it explicitly in `scripts/lib/test-projects.mjs`,
+exclude it from its shared owner, and preserve its source/built group.
+Product catalog verification stays with the
 isolated filesystem boundary tests because it loads both source and compiled
 module graphs. Adapter, other boundary, acceptance, and process-global projects
 retain per-file isolation. See `vitest.config.ts` for current settings.
@@ -155,6 +158,10 @@ mock cannot replace a consumer that was imported earlier. Check these tests
 with the consumer preloaded as well as alone. For simulated protocol traces,
 use an acknowledged event barrier before asserting complete observations;
 a zero-duration capture does not guarantee queued events have arrived.
+
+Focused contract tests should import the named contract family they exercise;
+reserve the full tool catalog for catalog-wide assertions. Resolve contracts by
+operation name rather than array position.
 
 Check advertised schemas after SDK conversion for every supported schema
 profile. Meta-schema validity does not establish client acceptance or useful

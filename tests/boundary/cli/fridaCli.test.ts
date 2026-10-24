@@ -6,7 +6,7 @@ import { expect, it } from "vitest";
 import type { DeviceManager } from "frida";
 
 import { createCli } from "../../../src/cli.js";
-import { toolContract } from "../../../src/contracts/toolContracts.js";
+import { FRIDA_TOOL_CONTRACTS } from "../../../src/contracts/fridaToolContracts.js";
 import type { FridaInstrumentationPort } from "../../../src/application/frida/FridaInstrumentationPort.js";
 import { AnalysisCapabilityUnavailableError } from "../../../src/domain/analysisErrorCore.js";
 import { FridaInstrumentationManager } from "../../../src/frida/FridaInstrumentationManager.js";
@@ -47,9 +47,9 @@ it.each([
   );
   expect(exitCode).toBe(0);
   expect(closed).toBe(true);
-  const output = toolContract("list_frida_devices").outputSchema.parse(
-    JSON.parse(stdout),
-  );
+  const output = FRIDA_TOOL_CONTRACTS.find(
+    (contract) => contract.name === "list_frida_devices",
+  )!.outputSchema.parse(JSON.parse(stdout));
   expect(output).toEqual({
     devices: observation.devices.map(({ deviceId, name, type }) => ({
       device_id: deviceId,
@@ -106,9 +106,9 @@ it.each([false, true])(
       });
     else
       expect(
-        toolContract("list_frida_processes").outputSchema.parse(
-          JSON.parse(stdout),
-        ),
+        FRIDA_TOOL_CONTRACTS.find(
+          (contract) => contract.name === "list_frida_processes",
+        )!.outputSchema.parse(JSON.parse(stdout)),
       ).toEqual(expected);
   },
 );
@@ -214,7 +214,9 @@ it("maps one-shot Frida CLI target, script, duration, and remote options", async
   expect(exitCode).toBe(0);
   const result: unknown = JSON.parse(stdout);
   expect(() =>
-    toolContract("instrument_with_frida").outputSchema.parse(result),
+    FRIDA_TOOL_CONTRACTS.find(
+      (contract) => contract.name === "instrument_with_frida",
+    )!.outputSchema.parse(result),
   ).not.toThrow();
   expect(JSON.stringify(result)).not.toContain("synthetic-secret-token");
   expect(calls).toEqual([

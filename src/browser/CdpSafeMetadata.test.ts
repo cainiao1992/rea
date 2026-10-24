@@ -250,6 +250,37 @@ describe("safe CDP response metadata CSP sources", () => {
     ]);
   });
 
+  it.each(["\n", "\r\n", ", "])(
+    "parses every policy of a repeated CSP field joined by %j",
+    (delimiter) => {
+      const captured = safeResponseMetadata(
+        "request-csp-repeated",
+        `${origin}/api`,
+        {
+          headers: {
+            "Content-Security-Policy": [
+              "default-src 'self'",
+              "script-src https://private.example.test; img-src data:",
+            ].join(delimiter),
+          },
+        },
+        new Set([origin]),
+      );
+
+      expect(captured.response.csp.directives).toEqual([
+        {
+          name: "default-src",
+          sources: [{ kind: "keyword", value: "'self'" }],
+        },
+        {
+          name: "script-src",
+          sources: [{ kind: "external_origin", value: null }],
+        },
+        { name: "img-src", sources: [{ kind: "scheme", value: "data:" }] },
+      ]);
+    },
+  );
+
   it("inherits the protected resource scheme for a scheme-less host source", () => {
     const captured = safeResponseMetadata(
       "request-csp-scheme",
@@ -385,6 +416,9 @@ describe("safe CDP response metadata referrer policy", () => {
     ["future-policy, no-referrer", "no-referrer"],
     ["unsafe-url, NO-REFERRER", "no-referrer"],
     ["origin,, no-referrer", "no-referrer"],
+    // CDP joins repeated field lines with LF.
+    ["no-referrer\nstrict-origin", "strict-origin"],
+    ["no-referrer\r\nfuture-policy", "no-referrer"],
     ["future-policy", null],
     ['unsafe-url, "no-referrer"', null],
     ["no-referrer; report-to=x, origin", null],

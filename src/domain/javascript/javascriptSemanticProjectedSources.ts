@@ -178,10 +178,33 @@ export const semanticProjectedSourceEligibilityAtRead = (
   )?.sources;
 
 /** Keep imported origins subject to the same selected writes as other values. */
-export const semanticProjectedSourceFactsAtRead = (
+// Projection alternatives are introduced by callers. An ordinary property path
+// remains ordinary while the owner selects stored and copied source prefixes.
+export function semanticProjectedSourceFactsAtRead(
+  binding: JavaScriptSemanticBindingState,
+  reference: t.Node,
+  path: JavaScriptSemanticPropertyPath,
+  state: JavaScriptSemanticAnalysisState,
+  includeUnknown: boolean,
+  memberReadAt?: t.Node,
+  capturedSelections?: readonly SemanticCapturedSelection[],
+  retainEligibility?: boolean,
+):
+  | {
+      readonly sources: readonly (Omit<ProjectedSource, "path"> & {
+        readonly path: JavaScriptSemanticPropertyPath;
+      })[];
+      readonly retainsOrigin: boolean;
+    }
+  | undefined;
+export function semanticProjectedSourceFactsAtRead(
   ...arguments_: Parameters<typeof projectedSourceFactsAtRead>
-): ReturnType<typeof projectedSourceFactsAtRead> =>
-  projectedSourceFactsAtRead(...arguments_);
+): ReturnType<typeof projectedSourceFactsAtRead>;
+export function semanticProjectedSourceFactsAtRead(
+  ...arguments_: Parameters<typeof projectedSourceFactsAtRead>
+): ReturnType<typeof projectedSourceFactsAtRead> {
+  return projectedSourceFactsAtRead(...arguments_);
+}
 
 const projectedSourceFactsAtRead = (
   binding: JavaScriptSemanticBindingState,

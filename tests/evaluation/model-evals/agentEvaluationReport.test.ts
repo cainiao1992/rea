@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { parse } from "@babel/parser";
+import * as t from "@babel/types";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -23,6 +24,9 @@ const routingSuccess = {
 describe("agent evaluation release gate", () => {
   it("rejects incorrect fixture claims even when every text heuristic passes", async () => {
     const predicate = await runnerFailurePredicate();
+    expect(predicate({ ...routingSuccess, factualCorrectness: "passed" })).toBe(
+      false,
+    );
     expect(
       predicate({
         exitCode: 0,
@@ -38,42 +42,82 @@ describe("agent evaluation release gate", () => {
       }),
     ).toBe(true);
   });
+
+  it("selects the results gate inside cleanup without using an unrelated filter", async () => {
+    const predicate = await runnerFailurePredicate(`
+      const failed = unrelated.filter(() => true);
+      await withVerifierCleanup(async () => {
+        const failed = results.filter(item => !agentEvaluationPassed(item));
+      });
+    `);
+    expect(predicate({ ...routingSuccess, factualCorrectness: "passed" })).toBe(
+      false,
+    );
+    expect(predicate({ ...routingSuccess, factualCorrectness: "failed" })).toBe(
+      true,
+    );
+  });
+
+  it("rejects a missing results failure gate", async () => {
+    await expect(
+      runnerFailurePredicate("const failed = unrelated.filter(() => false);"),
+    ).rejects.toThrow("Expected one runner failure gate, found 0");
+  });
+
+  it("rejects ambiguous results failure gates", async () => {
+    await expect(
+      runnerFailurePredicate(`
+        function first() { const failed = results.filter(item => !agentEvaluationPassed(item)); }
+        function second() { const failed = results.filter(() => true); }
+      `),
+    ).rejects.toThrow("Expected one runner failure gate, found 2");
+  });
 });
 
-async function runnerFailurePredicate(): Promise<(item: unknown) => unknown> {
-  const source = await readFile("scripts/verify-agent-experience.mjs", "utf8");
+async function runnerFailurePredicate(
+  providedSource?: string,
+): Promise<(item: unknown) => unknown> {
+  const source =
+    providedSource ??
+    (await readFile("scripts/verify-agent-experience.mjs", "utf8"));
   const program = parse(source, { sourceType: "module" }).program;
-  for (const top of program.body) {
-    if (top.type !== "TryStatement") continue;
-    for (const statement of top.block.body) {
-      if (statement.type !== "VariableDeclaration") continue;
-      for (const declaration of statement.declarations) {
-        if (
-          declaration.id.type !== "Identifier" ||
-          declaration.id.name !== "failed"
-        )
-          continue;
-        const initializer = declaration.init;
-        if (initializer?.type !== "CallExpression") continue;
-        const argument = initializer.arguments[0];
-        if (
-          argument?.type !== "ArrowFunctionExpression" ||
-          typeof argument.start !== "number" ||
-          typeof argument.end !== "number"
-        )
-          continue;
-        const factory = new Function(
-          "agentEvaluationPassed",
-          `return (${source.slice(argument.start, argument.end)});`,
-        );
-        const result: unknown = factory(agentEvaluationPassed);
-        if (typeof result !== "function")
-          throw new Error("Runner gate is not callable");
-        return (item) => result(item);
-      }
-    }
-  }
-  throw new Error("Runner failure gate missing");
+  const predicates: { readonly start: number; readonly end: number }[] = [];
+  t.traverseFast(program, (node) => {
+    if (
+      !t.isVariableDeclarator(node) ||
+      !t.isIdentifier(node.id, { name: "failed" })
+    )
+      return;
+    const initializer = node.init;
+    if (
+      !t.isCallExpression(initializer) ||
+      !t.isMemberExpression(initializer.callee) ||
+      initializer.callee.computed ||
+      !t.isIdentifier(initializer.callee.object, { name: "results" }) ||
+      !t.isIdentifier(initializer.callee.property, { name: "filter" })
+    )
+      return;
+    const argument = initializer.arguments[0];
+    if (
+      t.isArrowFunctionExpression(argument) &&
+      typeof argument.start === "number" &&
+      typeof argument.end === "number"
+    )
+      predicates.push({ start: argument.start, end: argument.end });
+  });
+  const [predicate] = predicates;
+  if (predicates.length !== 1 || predicate === undefined)
+    throw new Error(
+      `Expected one runner failure gate, found ${predicates.length}`,
+    );
+  const factory = new Function(
+    "agentEvaluationPassed",
+    `return (${source.slice(predicate.start, predicate.end)});`,
+  );
+  const result: unknown = factory(agentEvaluationPassed);
+  if (typeof result !== "function")
+    throw new Error("Runner gate is not callable");
+  return (item) => result(item);
 }
 
 describe("scoped factual report", () => {

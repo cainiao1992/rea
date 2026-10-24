@@ -313,7 +313,10 @@ Selected bounded text is then parsed as inert data to recover:
 - local HTML script entrypoints;
 - Webpack and Rspack chunk registrations and module factories represented as
   AST literals, plus esbuild `__commonJS` module tables; recovered esbuild
-  CommonJS exports use its factory's `exports`-then-`module` parameter order;
+  CommonJS exports use its factory's `exports`-then-`module` parameter order.
+  Export receivers and loader helpers retain those calling-convention roles only
+  while the binding at the read still holds its original parameter value;
+  replacing a parameter does not give the replacement object that role;
 - static imports, dynamic imports, CommonJS `require` calls, workers, and
   service workers (only `new Worker(new URL(path, import.meta.url))` resolves
   relative to the calling module; string worker and service-worker paths use

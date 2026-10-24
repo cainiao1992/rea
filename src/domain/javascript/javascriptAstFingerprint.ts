@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import * as t from "@babel/types";
 
+import { semanticBindingAtRead } from "./javascriptSemanticMutationInitializers.js";
 import { isUnmodifiedGlobalReference } from "./javascriptSemanticAmbientWrites.js";
 
 import { traverseJavaScriptAst } from "./javascriptSemanticTraversal.js";
@@ -60,7 +61,25 @@ export const collectJavaScriptExports = (
     return (reference: t.Node | null): boolean => {
       if (!t.isIdentifier(reference)) return false;
       if (roles === undefined) return reference.name === fallback;
-      return id !== undefined && bindingId(reference) === id;
+      if (id === undefined || bindings === undefined) return false;
+      const binding = resolveSemanticBindingState(
+        bindings,
+        reference,
+        reference.name,
+      );
+      if (binding?.bindingId !== id) return false;
+      // The calling convention owns the parameter's entry value, not every
+      // later value assigned to the same lexical binding.
+      const read = semanticBindingAtRead(
+        binding,
+        reference,
+        bindings.parentsByNode,
+      );
+      return (
+        read.status === "ordered" &&
+        read.binding.initializers.length === 0 &&
+        read.binding.referenceInitializers.length === 0
+      );
     };
   };
   const isExportsAlias = identity("exports", "exports");

@@ -91,18 +91,7 @@ const extractArtifactInScope = async (
 };
 
 /** Materialize a scanned inventory, verifying every current occurrence against it. */
-export const materializeArtifactInventory = async (
-  input: ArtifactExtractionInput,
-  sourcePath: string,
-  snapshot: ArtifactInventorySnapshot,
-  signal?: AbortSignal,
-): Promise<ArtifactExtractionResult> => {
-  return input.resourceScope.run(() =>
-    materializeArtifactInventoryInScope(input, sourcePath, snapshot, signal),
-  );
-};
-
-const materializeArtifactInventoryInScope = async (
+export const materializeArtifactInventoryInScope = async (
   input: ArtifactExtractionInput,
   sourcePath: string,
   snapshot: ArtifactInventorySnapshot,

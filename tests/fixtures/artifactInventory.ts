@@ -9,7 +9,7 @@ import {
 import { scanCanonicalArtifactInventoryInScope } from "../../src/artifacts/inventory/scanCanonical.js";
 import type { createReader } from "../../src/artifacts/inventory/reader.js";
 import {
-  materializeArtifactInventory as materializeArtifactInventoryOwned,
+  materializeArtifactInventoryInScope,
   type ArtifactExtractionInput,
 } from "../../src/artifacts/extraction/ArtifactExtraction.js";
 import type { ArtifactInventorySnapshot } from "../../src/domain/artifactInventorySnapshot.js";
@@ -70,11 +70,13 @@ export const materializeArtifactInventory = (
   signal?: AbortSignal,
 ) =>
   withArtifactResourceScope((resourceScope) =>
-    materializeArtifactInventoryOwned(
-      { ...input, resourceScope },
-      sourcePath,
-      snapshot,
-      signal,
+    resourceScope.run(() =>
+      materializeArtifactInventoryInScope(
+        { ...input, resourceScope },
+        sourcePath,
+        snapshot,
+        signal,
+      ),
     ),
   );
 

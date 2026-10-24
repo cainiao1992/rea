@@ -89,7 +89,11 @@ Human ownership and review remain required when CI or an automated reviewer
 reports success. Readiness requests maintainer review; it does not grant scope
 approval or permission to merge.
 
-Draft PRs may request early feedback with open questions and incomplete checks.
+Draft status is optional. Draft PRs may request early feedback with open questions
+and incomplete checks. Agents preserve the current draft status unless asked to
+change it; missing readiness declarations or later updates do not require a PR
+to become a draft.
+
 Leave the readiness declaration unchecked until the human owner has completed
 it. The declaration records initial readiness; later pushes do not invalidate
 it or require another human sign-off. Keep the PR description and affected

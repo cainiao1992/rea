@@ -108,10 +108,11 @@ distinguish source-derived conclusions, proposed checks, and unavailable coverag
 Address actionable automated review findings and explain disagreements.
 
 Leave the template's **Author readiness** declarations unchecked for the human
-owner to complete. Never attest to human review on their behalf. Keep the PR in
-draft until the human declares the PR initially ready. Later pushes do not
-invalidate that declaration or require another human sign-off. Keep the PR body
-and affected validation current as work changes. The readiness check validates
+owner to complete. Never attest to human review on their behalf. Draft status
+is optional; preserve the PR's current draft status unless the user asks to change
+it. Later pushes do not invalidate the readiness declaration or require another
+human sign-off. Keep the PR body and affected validation current as work changes.
+The readiness check validates
 the filled declaration; CI and automated review results do not establish that
 human review occurred, maintainer scope approval, or merge permission.
 

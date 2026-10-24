@@ -11,7 +11,7 @@ import {
 } from "../native/metadata/BinaryContainer.js";
 import { readBinaryContainer } from "../native/metadata/readBinaryContainer.js";
 import type { GoModuleMetadata } from "../domain/go/goBinary.js";
-import { parseGoModuleBytes, parseGoModuleText } from "./GoModuleText.js";
+import { parseGoModuleBytes } from "./GoModuleText.js";
 import {
   goBuildInfoSearch,
   type GoBuildInfoSearchRange,
@@ -212,10 +212,7 @@ export const readGoBinaryImage = (bytes: Buffer): GoBinaryImage => {
       module_bytes_base64: module.bytes.toString("base64"),
       version_location: version.location,
       module_location: module.location,
-      module:
-        moduleText === null
-          ? parseGoModuleBytes(moduleBody)
-          : parseGoModuleText(moduleText),
+      module: parseGoModuleBytes(moduleBody),
     },
     ...(sectionNamesLimitation === undefined
       ? {}

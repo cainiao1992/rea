@@ -1,4 +1,7 @@
-import type { SwiftContextReader } from "./AppleSwiftNominalTypes.js";
+import {
+  createSwiftContextReader,
+  type SwiftContextReader,
+} from "./AppleSwiftNominalTypes.js";
 import type { ObjcSwiftMetadata } from "../domain/native/objcSwiftMetadata.js";
 import type { PointerResolution } from "./AppleMachoFixups.js";
 import type { Segment, Section } from "./AppleMachoSelection.js";
@@ -109,13 +112,10 @@ interface SwiftProtocolFacts {
 
 const readSwiftProtocolFacts = (input: {
   readonly target: bigint | null;
-  readonly relative: (
-    field: bigint,
-    kind: SwiftRelativeField,
-  ) => SwiftRelativeValue;
+  readonly contextReader: SwiftContextReader;
   readonly read: SwiftDispatchReaders;
 }): SwiftProtocolFacts => {
-  const { target, relative, read } = input;
+  const { target, read } = input;
   if (target === null)
     return {
       name: null,
@@ -136,24 +136,14 @@ const readSwiftProtocolFacts = (input: {
       readable: false,
       reason: "Unsupported Swift protocol descriptor kind",
     };
-  let nameAddress: bigint;
   try {
-    nameAddress = requiredSwiftRelativeTarget(
-      relative,
-      target + 8n,
-      "protocolName",
-      unresolvedSwiftRelativeReason,
-    );
-  } catch (cause) {
-    const reason = expectedSwiftMetadataReadFailure(cause);
-    if (reason === null) throw cause;
-    return { name: null, readable: false, reason };
-  }
-  try {
-    const name = read.string(nameAddress);
-    if (name.length === 0)
-      throw new RangeError("Swift protocol descriptor name is empty");
-    return { name, readable: true, reason: null };
+    const name = input.contextReader.protocolName(target);
+    const context = input.contextReader.contextOf(target);
+    return {
+      name: context.path ?? name,
+      readable: true,
+      reason: context.reason,
+    };
   } catch (cause) {
     const reason = expectedSwiftMetadataReadFailure(cause);
     if (reason === null) throw cause;
@@ -326,6 +316,8 @@ export const decodeSwiftDispatchFacets = (input: {
   result: ObjcSwiftMetadata;
 }): FacetDecodeFacts => {
   const { sections, segments, readers: read, relative, budget, result } = input;
+  const contextReader =
+    input.contextReader ?? createSwiftContextReader({ ...read, relative });
   const issues = [] as ReturnType<typeof issue>[];
   let swiftExamined = 0;
   let decodedRecords = 0;
@@ -358,7 +350,7 @@ export const decodeSwiftDispatchFacets = (input: {
             : null;
         const protocolFacts = readSwiftProtocolFacts({
           target: protocol,
-          relative,
+          contextReader,
           read,
         });
         const protocolName = protocolFacts.name;
@@ -373,9 +365,7 @@ export const decodeSwiftDispatchFacets = (input: {
           descriptor,
           flags,
           read,
-          ...(input.contextReader === undefined
-            ? {}
-            : { contextReader: input.contextReader }),
+          contextReader,
           relative,
           unresolvedReason: unresolvedSwiftRelativeReason,
         });
@@ -410,17 +400,18 @@ export const decodeSwiftDispatchFacets = (input: {
             descriptor,
           );
         }
-        const conformanceReason = witnessReason ?? typeReference.reason;
+        const conformanceReason =
+          witnessReason ?? typeReference.reason ?? protocolFacts.reason;
         const conformanceDecode =
           conformanceReason === null
             ? { status: "decoded" as const, reason: null }
             : { status: "partial" as const, reason: conformanceReason };
-        if (witnessReason === null && typeReference.reason !== null)
+        if (witnessReason === null && conformanceReason !== null)
           issues.push(
             issue(
               "swift_conformances_static_witness_slots",
               "conformance_identity_partial",
-              typeReference.reason,
+              conformanceReason,
               hex(descriptor),
             ),
           );

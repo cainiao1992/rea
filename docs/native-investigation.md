@@ -730,9 +730,10 @@ complete observation.
   examined type records and fully decoded declarations. Class vtable recovery
   reads the same descriptors, so an unreadable type record also keeps
   `swift_class_vtable_descriptors` partial.
-  Nominal declarations, conformance type references and class vtables share one
-  snapshot-scoped name/context reader. Conformance `type_name` and dispatch
-  `owner` retain enclosing named types; conformances carry the known module.
+  Nominal declarations, conformance type and protocol references, and class
+  vtables share one snapshot-scoped name/context reader. Conformance `type_name`,
+  `protocol_name`, and dispatch `owner` retain enclosing named types;
+  conformances carry the known module.
   Unresolved parents preserve the leaf name and a partial identity reason,
   while independently readable witness implementations remain available.
   Protocol instance properties use the same property-list reader as classes.

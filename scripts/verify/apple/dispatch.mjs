@@ -100,6 +100,12 @@ const checkObjc = (metadata, mode) => {
   const protocol = metadata.objc_protocols.find(
     ({ name }) => name === "ReaDispatchProtocol",
   );
+  const protocolProperty = protocol?.properties.find(
+    ({ name }) => name === "fixtureName",
+  );
+  assert.equal(protocolProperty?.name, "fixtureName");
+  assert.equal(protocolProperty?.type_encoding, '@"NSString"');
+  assert.equal(protocolProperty?.atomicity, "nonatomic");
   assert.equal(protocol?.methods[0]?.is_required, true);
   assert.equal(protocol?.methods[0]?.is_optional, false);
   assert.equal(protocol?.optional_methods[0]?.is_required, false);
@@ -161,6 +167,31 @@ const checkObjc = (metadata, mode) => {
 
 const checkSwift = (metadata, mode) => {
   assert.equal(fixupCoverage(metadata)?.status, "complete");
+  for (const context of ["ReaNestedA", "ReaNestedB"]) {
+    const type = `${context}.Implementation`;
+    const protocol = `${context}.Requirement`;
+    assert.ok(
+      metadata.swift_conformances.some(
+        (item) =>
+          item.type_name === type &&
+          item.protocol_name === protocol &&
+          item.module === "ReaWitnessFixture" &&
+          item.decode.status === "decoded",
+      ),
+      `Nested Swift conformance ${type}: ${protocol} missing (${mode.mode})`,
+    );
+    assert.ok(
+      metadata.swift_dispatch_slots.some(
+        (item) =>
+          item.table_kind === "witness_table" &&
+          item.owner === `${type}: ${protocol}` &&
+          item.implementation_address !== null &&
+          item.decode.status === "decoded",
+      ),
+      `Nested Swift witness ${type}: ${protocol} missing (${mode.mode})`,
+    );
+  }
+
   if (
     !metadata.swift_dispatch_slots.some(
       (slot) =>
@@ -204,6 +235,10 @@ const EXPECTED_SWIFT_DECLS = [
   ["struct", "ReaDeclFixtureOuter.Inner", false],
   ["struct", "ReaDeclFixtureGeneric", true],
   ["actor", "ReaDeclFixtureActor", false],
+  ["enum", "ReaNestedA", false],
+  ["struct", "ReaNestedA.Implementation", false],
+  ["enum", "ReaNestedB", false],
+  ["struct", "ReaNestedB.Implementation", false],
 ];
 
 /** Stable declaration facts compared across the symbols and stripped builds. */
@@ -336,6 +371,26 @@ try {
         await checkSwiftSymbolAddresses(swiftPath, declarations);
         unstrippedDeclarations = declarations;
       } else assert.deepEqual(declarations, unstrippedDeclarations);
+      if (mode.mode === "chained" && variant === "stripped") {
+        const cli = await artifactCliEvidence(
+          "inspect-native-dispatch-metadata",
+          swiftPath,
+        );
+        const cliResult = nativeDispatchMetadataResultSchema.parse(
+          cli.normalized_result,
+        );
+        assert.equal(cliResult.target_sha256, target.sha256);
+        checkSwift(cliResult.result, mode);
+        await withArtifactMcp(swiftPath, async (client) => {
+          const mcpResult = nativeDispatchMetadataResultSchema.parse(
+            await artifactMcpResult(client, "inspect_native_dispatch_metadata"),
+          );
+          assert.equal(mcpResult.target_sha256, target.sha256);
+          checkSwift(mcpResult.result, mode);
+          assert.deepEqual(mcpResult.result, cliResult.result);
+        });
+      }
+
       results.push({
         variant: `swift-${mode.mode}-${variant}`,
         target_sha256: target.sha256,

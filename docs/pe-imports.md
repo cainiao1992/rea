@@ -35,6 +35,13 @@ present with no consumed `locations`, and coverage is partial. Descriptors,
 thunks and NUL-terminated names stay within PE's 32-bit RVA space, including
 PE32+ images; earlier valid rows survive an overflowing descriptor walk.
 
+`machine` retains the original unsigned COFF value. `architecture` decodes
+known machines, including ReadyToRun OS overrides when a CLI directory is
+declared; that declaration does not establish valid CLR metadata or runtime
+compatibility. Unrecognized machines retain `pe-machine-<decimal>` while their
+import tables remain inspectable. A recognized machine whose width contradicts
+the optional header is malformed.
+
 Each `imports[]` item reports the DLL name, descriptor RVAs, and named or
 ordinal functions with ILT/IAT RVAs. `delay_imports[]` reports RVA-based
 delay-load descriptors separately. `imphash` is pefile's `get_imphash()` over

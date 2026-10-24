@@ -113,3 +113,45 @@ it.each(["inline", "pointer"] as const)(
     expect(readGoBinaryImage(fixture.bytes).build_info).toBeNull();
   },
 );
+
+it.each([
+  [0x014c, 0x7b79, "386", 32],
+  [0x8664, 0x7b79, "amd64", 64],
+  [0x01c0, 0x4644, "arm", 32],
+  [0xaa64, 0x4644, "arm64", 64],
+] as const)(
+  "shares managed PE machine identity for %s with override %s",
+  (machine, override, architecture, bits) => {
+    const bytes = pe(machine, 64, 0x2002, true);
+    bytes.writeUInt16LE(machine ^ override, 68);
+    expect(readPeImage(bytes)).toMatchObject({
+      pe_machine: machine ^ override,
+      architecture,
+      bits,
+    });
+  },
+);
+
+it.each([0x014c, 0x8664] as const)(
+  "rejects a contradictory optional-header width for COFF machine %s",
+  (machine) => {
+    const bytes = pe(machine);
+    bytes.writeUInt16LE(machine === 0x014c ? 0x20b : 0x10b, 88);
+    expect(() => readPeImage(bytes)).toThrow(
+      "PE optional-header magic does not match its architecture",
+    );
+  },
+);
+
+it.each([0xffff, 0x8664 ^ 0x7b79])(
+  "retains raw unknown machine %s without managed override proof",
+  (machine) => {
+    const bytes = pe(0x8664);
+    bytes.writeUInt16LE(machine, 68);
+    expect(readPeImage(bytes)).toMatchObject({
+      pe_machine: machine,
+      architecture: `pe-machine-${machine}`,
+      bits: 64,
+    });
+  },
+);

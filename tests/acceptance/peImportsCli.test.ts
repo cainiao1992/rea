@@ -14,22 +14,58 @@ import {
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
-cliTest("reports PE import names through the public CLI", async ({ cli }) => {
-  const root = await createTestTempDirectory("rea-pe-imports-cli-");
-  const path = join(root, "app.exe");
-  await writeFile(path, peImportImage());
-  const result = await cli.run({
-    arguments: ["inspect-pe-imports", path, "--json"],
-  });
-  expect(result.exitCode, result.stderr).toBe(0);
-  const evidence = toolContract("inspect_pe_imports").outputSchema.parse(
-    result.json,
-  );
-  expect(evidence.normalized_result.imports[0]?.name).toBe("KERNEL32.dll");
-  expect(evidence.normalized_result.imphash.md5).toBe(
-    "92cef6cc91a85825f3c8a0516517c66f",
-  );
-});
+cliTest(
+  "reports native and managed Linux AMD64 PE imports through CLI and stdio MCP",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pe-imports-cli-");
+    const call = await cli.sharedMcpCall!();
+    for (const managed of [false, true]) {
+      const bytes = peImportImage({ bits: 64 });
+      const machine = managed ? 0x8664 ^ 0x7b79 : 0x8664;
+      bytes.writeUInt16LE(machine, 132);
+      if (managed) {
+        // Declare a file-backed CLR header beyond the fixture's import data.
+        // This synthetic image tests import inspection, not .NET execution.
+        const cliRva = 0x1700;
+        const cliHeader = peImportFixtureOffset(cliRva);
+        const cliDirectory = 152 + 112 + 14 * 8;
+        bytes.writeUInt32LE(cliRva, cliDirectory);
+        bytes.writeUInt32LE(72, cliDirectory + 4);
+        bytes.writeUInt32LE(72, cliHeader);
+        bytes.writeUInt16LE(2, cliHeader + 4);
+        bytes.writeUInt16LE(5, cliHeader + 6);
+      }
+      const path = join(root, managed ? "managed-linux.dll" : "native.exe");
+      await writeFile(path, bytes);
+      const result = await cli.run({
+        arguments: ["inspect-pe-imports", path, "--json"],
+      });
+      expect(result.exitCode, result.stderr).toBe(0);
+      const response = await call("inspect_pe_imports", { path });
+      expect(response.isError, JSON.stringify(response)).not.toBe(true);
+      for (const value of [result.json, response.structuredContent]) {
+        const report =
+          toolContract("inspect_pe_imports").outputSchema.parse(
+            value,
+          ).normalized_result;
+        expect(report).toMatchObject({
+          machine,
+          format: "pe32-plus",
+          architecture: "amd64",
+          bits: 64,
+          coverage: { status: "complete" },
+        });
+        expect(report.imports).toHaveLength(1);
+        expect(report.imports[0]?.name).toBe("KERNEL32.dll");
+        expect(report.imports[0]?.functions.map((row) => row.name)).toEqual([
+          "GetProcAddress",
+          "ExitProcess",
+        ]);
+        expect(report.imphash.md5).toBe("92cef6cc91a85825f3c8a0516517c66f");
+      }
+    }
+  },
+);
 
 cliTest(
   "resolves a relative PE path against the working directory",

@@ -1,3 +1,4 @@
+import { readPeOptionalHeader } from "../../domain/peMachine.js";
 import { readPeSectionHeader } from "./NativeSectionDirectory.js";
 import {
   mzWindowsHeaderLayoutLimitation,
@@ -47,20 +48,6 @@ const peHeaderOffset = (reader: BinaryReader): number => {
   return pe;
 };
 
-const optionalHeaderMagic = (
-  reader: BinaryReader,
-  offset: number,
-  size: number,
-): number => {
-  reader.range(offset, size, "PE optional header");
-  if (size < 2)
-    throw new BinaryFormatFailure(
-      "malformed",
-      "PE optional header is missing its complete magic field",
-    );
-  return reader.u16(offset);
-};
-
 /** Declared PE fields retained by their parsing owner for format consumers. */
 export type PeImageSection = Extract<
   ImageSection,
@@ -88,29 +75,14 @@ export const readPeImage = (bytes: Buffer): PeImage => {
   const pe = peHeaderOffset(reader);
   const optional = pe + 24;
   const optionalSize = reader.u16(pe + 20);
-  const magic = optionalHeaderMagic(reader, optional, optionalSize);
-  const bits = magic === 0x10b ? 32 : magic === 0x20b ? 64 : null;
-  if (bits === null)
-    throw new BinaryFormatFailure(
-      "unsupported",
-      "Only PE32 and PE32+ image optional headers are supported",
-    );
-  if (optionalSize < (bits === 64 ? 112 : 96))
-    throw new BinaryFormatFailure(
-      "malformed",
-      "PE optional header is truncated",
-    );
-  const directoriesOffset = bits === 64 ? 112 : 96;
-  const directories = reader.u32(optional + directoriesOffset - 4);
-  if (directories * 8 > optionalSize - directoriesOffset)
-    throw new BinaryFormatFailure(
-      "malformed",
-      "PE data directories extend beyond the optional header",
-    );
-  const dataDirectories = Array.from({ length: directories }, (_, index) => {
-    const entry = optional + directoriesOffset + index * 8;
-    return { virtual_address: reader.u32(entry), size: reader.u32(entry + 4) };
-  });
+  const machine = reader.u16(pe + 4);
+  const facts = readPeOptionalHeader(
+    reader.range(optional, optionalSize, "PE optional header"),
+    machine,
+  );
+  if (!facts.ok)
+    throw new BinaryFormatFailure(facts.error.kind, facts.error.message);
+  const { bits, dataDirectories } = facts.value;
   const imageBase = reader.word(optional + (bits === 64 ? 24 : 28), bits);
   const fileAlignment = reader.u32(optional + 36);
   const headerMapping: FileMapping = {
@@ -176,15 +148,7 @@ export const readPeImage = (bytes: Buffer): PeImage => {
         size: BigInt(virtualSize - size),
       });
   }
-  const machine = reader.u16(pe + 4);
-  const names = new Map([
-    [0x014c, "386"],
-    [0x8664, "amd64"],
-    [0x01c0, "arm"],
-    [0x01c2, "arm"],
-    [0x01c4, "arm"],
-    [0xaa64, "arm64"],
-  ]);
+  const architecture = facts.value.machine?.architecture;
   return {
     format: "pe",
     image_base: imageBase,
@@ -193,7 +157,12 @@ export const readPeImage = (bytes: Buffer): PeImage => {
     pe_file_alignment: fileAlignment,
     pe_data_directories: dataDirectories,
     pe_header_mapping: headerMapping,
-    architecture: names.get(machine) ?? `pe-machine-${machine}`,
+    architecture:
+      architecture === "x86"
+        ? "386"
+        : architecture === "x86_64"
+          ? "amd64"
+          : (architecture ?? `pe-machine-${machine}`),
     bits,
     byte_order: "little",
     mappings,

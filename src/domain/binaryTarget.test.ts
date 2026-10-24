@@ -83,6 +83,18 @@ describe("executable header parsing", () => {
     },
   );
 
+  it.each([0x014c, 0x8664] as const)(
+    "rejects optional-header width inconsistent with machine %s",
+    (machine) => {
+      const bytes = pe(machine);
+      bytes.writeUInt16LE(machine === 0x014c ? 0x20b : 0x10b, 88);
+      expect(parseExecutableHeader(bytes, "x64")).toEqual({
+        ok: false,
+        error: "PE optional-header magic does not match its architecture",
+      });
+    },
+  );
+
   it("rejects an OS-override machine on a native image", () => {
     const result = parseExecutableHeader(
       pe(0x8664 ^ 0x7b79, 64, 0x2002),

@@ -15,11 +15,7 @@ import {
   parseMzHeaderEvidence,
   type MzWindowsHeaderSignatureEvidence,
 } from "./dosMz.js";
-import {
-  decodePeMachine,
-  peOptionalHeaderMagic,
-  type PeArchitecture,
-} from "./peMachine.js";
+import { decodePeMachine, readPeOptionalHeader } from "./peMachine.js";
 import {
   classifyFatContainerIdentity,
   readFatContainerHeader,
@@ -502,15 +498,14 @@ export const parsePeRecord = (
     return err(
       `unsupported PE architecture (COFF machine 0x${machineType.toString(16).padStart(4, "0")})`,
     );
-  const { architecture } = machine;
   const optionalHeaderSize = record.readUInt16LE(20);
   if (optionalHeaderSize > 4096 || record.length < 24 + optionalHeaderSize)
     return err("invalid or truncated PE optional header");
   const optionalHeader = record.subarray(24, 24 + optionalHeaderSize);
-  const managed = peManagedStatus(optionalHeader, architecture);
-  if (!managed.ok) return managed;
-  if (machine.nativeOsOverride && !managed.value)
-    return err("unsupported PE architecture");
+  const facts = readPeOptionalHeader(optionalHeader, machineType);
+  if (!facts.ok) return err(facts.error.message);
+  if (facts.value.machine === null) return err("unsupported PE architecture");
+  const { architecture } = facts.value.machine;
   const characteristics = record.readUInt16LE(22);
   return ok({
     format: "pe",
@@ -523,7 +518,7 @@ export const parsePeRecord = (
         : (characteristics & 0x2000) === 0
           ? "application"
           : "shared-library",
-    managed: managed.value,
+    managed: facts.value.managed,
     ...(codeView !== undefined ? { codeView } : {}),
   });
 };
@@ -692,33 +687,6 @@ export const parsePeCodeViewFromBuffer = (
     if (parsed !== undefined) return parsed;
   }
   return undefined;
-};
-
-const peManagedStatus = (
-  optionalHeader: Buffer,
-  architecture: PeArchitecture,
-): Result<boolean, string> => {
-  if (optionalHeader.length < 2) return err("truncated PE optional header");
-  const magic = optionalHeader.readUInt16LE(0);
-  if (magic !== peOptionalHeaderMagic(architecture))
-    return err("PE optional-header magic does not match its architecture");
-  const directoryOffset = magic === 0x20b ? 112 : 96;
-  const directoryCountOffset = directoryOffset - 4;
-  if (optionalHeader.length < directoryCountOffset + 4)
-    return err("truncated PE optional header");
-  const directoryCount = optionalHeader.readUInt32LE(directoryCountOffset);
-  const requiredBytes = directoryOffset + directoryCount * 8;
-  if (
-    !Number.isSafeInteger(requiredBytes) ||
-    requiredBytes > optionalHeader.length
-  )
-    return err("truncated PE data-directory table");
-  if (directoryCount <= 14) return ok(false);
-  const cliDirectory = directoryOffset + 14 * 8;
-  return ok(
-    optionalHeader.readUInt32LE(cliDirectory) !== 0 ||
-      optionalHeader.readUInt32LE(cliDirectory + 4) !== 0,
-  );
 };
 
 const machArchitecture = (cpu: number): HeaderArchitecture | undefined => {

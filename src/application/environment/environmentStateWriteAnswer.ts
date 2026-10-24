@@ -30,6 +30,8 @@ import {
 } from "../../domain/analysisView/environmentStateWriteRules.js";
 import {
   formatClock,
+  generatedIntegerDigits,
+  seededInteger,
   seededLike,
   spelledLike,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
@@ -212,14 +214,14 @@ export const generator = (
   );
   const unused = (
     field: string,
-    make: (attempt: number) => string,
-  ): Result<string, string> => {
+    make: (attempt: number) => JsonValue,
+  ): Result<JsonValue, string> => {
     const held = new Set(
       ofType.map((entity) => scalarText(entity.fields[field])),
     );
     for (let attempt = 0; attempt < GENERATION_ATTEMPTS; attempt += 1) {
       const value = make(attempt);
-      if (!held.has(value)) return ok(value);
+      if (!held.has(scalarText(value))) return ok(value);
     }
     return err(
       `Could not generate a unique value for ${field} after ${String(GENERATION_ATTEMPTS)} attempts without colliding with the held state.`,
@@ -267,7 +269,9 @@ export const generator = (
         );
       case "unique":
         return unused(rule.field, (attempt) =>
-          seededLike(seed(attempt), exemplar),
+          generatedIntegerDigits(exemplar) === undefined
+            ? seededLike(seed(attempt), exemplar)
+            : seededInteger(seed(attempt), exemplar),
         );
       case "renewed":
         return ok(

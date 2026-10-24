@@ -33,6 +33,7 @@ import {
 import {
   built,
   callOf,
+  clockEvidence,
   fail,
   itemReads,
   refuse,
@@ -47,6 +48,7 @@ import {
   type WriteStep,
 } from "./environmentStateWriteEffects.js";
 import {
+  createdInteger,
   explainCreate,
   insertCandidates,
   insertIndex,
@@ -61,13 +63,20 @@ import {
 } from "./environmentStateWriteObserve.js";
 import {
   pathValuesOf,
+  siblingTrimmedClocks,
   type FieldRule,
   type WriteCall,
 } from "./environmentStateWriteRules.js";
 import {
+  fittedClockFormat,
+  noteFixedWidths,
+} from "./environmentStateWriteClockFormats.js";
+import {
+  containsDelimited,
+  generatedIntegerDigits,
   isUuid,
+  likeGeneratedInteger,
   nextSequence,
-  readClock,
   sequenceNumber,
   spelledLike,
 } from "./environmentStateWriteValues.js";
@@ -133,6 +142,47 @@ const createdObservation = (
 const fieldsOf = (entities: readonly StateEntity[]): JsonObject[] =>
   entities.map((entity) => entity.fields);
 
+/** Whether a created field holds a generated token or integer that another field holds too, which no rule rebuilds. */
+const linkedGenerated = (
+  field: string,
+  entity: JsonObject,
+  type: readonly JsonObject[],
+): boolean =>
+  createdToken(field, entity, type) === "linked" ||
+  createdInteger(field, entity, type) === "linked";
+
+/** Whether a field's rule rebuilds it from `source`, as a template or a composition does. */
+const rebuiltFrom = (rule: FieldRule | undefined, source: string): boolean =>
+  rule?.rule === "template"
+    ? rule.from === source
+    : rule?.rule === "composed" &&
+      rule.parts.some((part) => "from" in part && part.from === source);
+
+/** Whether a unique integer's digits show in another string whose rule does not rebuild them from it, which seeding would leave behind. */
+const strandedInteger = (
+  rules: readonly FieldRule[],
+  entity: JsonObject,
+): boolean =>
+  rules.some((rule) => {
+    const digits =
+      rule.rule === "unique"
+        ? generatedIntegerDigits(entity[rule.field])
+        : undefined;
+    return (
+      digits !== undefined &&
+      Object.entries(entity).some(
+        ([other, kept]) =>
+          other !== rule.field &&
+          typeof kept === "string" &&
+          containsDelimited(kept, digits) &&
+          !rebuiltFrom(
+            rules.find((candidate) => candidate.field === other),
+            rule.field,
+          ),
+      )
+    );
+  });
+
 /** Build a create plan from its exemplar's observation. */
 const buildCreate = (
   context: EffectContext,
@@ -163,8 +213,9 @@ const buildCreate = (
     Object.keys(evidence.observed.object).some(
       (field) =>
         !explainedFields.has(field) &&
-        createdToken(field, evidence.observed.object, held) === "linked",
-    )
+        linkedGenerated(field, evidence.observed.object, held),
+    ) ||
+    strandedInteger(explained.rules, evidence.observed.object)
   ) {
     refuse(draft, step, "unexplained-change");
     return false;
@@ -221,6 +272,7 @@ const buildCreate = (
     insert: draft.candidates[0]!,
   });
   draft.observed = evidence.observed.object;
+  for (const entity of held) noteFixedWidths(draft.fixedWidth, entity);
   return true;
 };
 
@@ -269,21 +321,37 @@ const followsSequences = (
     );
   });
 
-/** Whether a later call's generated values take the forms serving generates them in: clocks in the learned format, unique values as the exemplar's kind of token, UUID identities as UUIDs, and sequences in order. */
-const followsGenerated = (
+/** Whether a later create preserves generation shapes and its derived fields reproduce the captured observation. */
+const followsCreateRules = (
   context: EffectContext,
   draft: WriteDraft,
-  created: Pick<StateEntity, "type" | "collection" | "fields">,
+  created: Pick<StateEntity, "type" | "collection" | "fields"> & {
+    readonly observed: JsonObject;
+  },
 ): boolean =>
   draft.plan.rules.every((rule) => {
     const value = created.fields[rule.field];
+    const exemplar = draft.observed?.[rule.field];
+    if (rule.rule === "composed")
+      return (
+        !Object.hasOwn(created.observed, rule.field) ||
+        value === created.observed[rule.field]
+      );
     if (rule.rule === "clock")
       return (
-        JSON.stringify(readClock(value)?.format) === JSON.stringify(rule.format)
+        fittedClockFormat(
+          rule.format,
+          value,
+          clockEvidence(draft, rule.field),
+        ) !== undefined
       );
     if (rule.rule === "unique")
       return (
-        (isUuid(value) || isOpaqueToken(value, draft.observed?.[rule.field])) &&
+        (isUuid(exemplar)
+          ? isUuid(value)
+          : generatedIntegerDigits(exemplar) !== undefined
+            ? likeGeneratedInteger(value, exemplar)
+            : isOpaqueToken(value, exemplar)) &&
         !context.state
           .ofType(created.type)
           .some((held) => held.fields[rule.field] === value)
@@ -292,6 +360,28 @@ const followsGenerated = (
       rule.rule !== "identity" || rule.generator !== "uuid" || isUuid(value)
     );
   }) && followsSequences(context, draft, created);
+
+/** Widen the plan's clock formats to the trimmed spelling a later call showed, and its other clocks with them unless a value the plan saw shows them at a fixed width. */
+const fitClocks = (draft: WriteDraft, fields: JsonObject): void => {
+  const fitted = draft.plan.rules.map((rule) => {
+    if (rule.rule !== "clock") return rule;
+    const format = fittedClockFormat(
+      rule.format,
+      fields[rule.field],
+      clockEvidence(draft, rule.field),
+    );
+    return format === undefined || format === rule.format
+      ? rule
+      : { ...rule, format };
+  });
+  draft.plan.rules = siblingTrimmedClocks(
+    fitted,
+    draft.observed,
+    fields,
+    Object.fromEntries(draft.fixedWidth),
+  );
+  noteFixedWidths(draft.fixedWidth, fields);
+};
 
 /** Record the values a create's sequences took, which the next call follows. */
 const takeSequences = (
@@ -458,15 +548,16 @@ export const applyCreate = (
   const later = built(draft);
   if (
     later &&
-    draft.plan.rules.some(
+    (draft.plan.rules.some(
       (rule) =>
         rule.rule === "unique" &&
-        createdToken(
+        linkedGenerated(
           rule.field,
           observed.object,
           fieldsOf(context.state.ofType(type)),
-        ) === "linked",
-    )
+        ),
+    ) ||
+      strandedInteger(draft.plan.rules, observed.object))
   ) {
     refuse(draft, step, "unexplained-change");
     return recorded();
@@ -500,16 +591,18 @@ export const applyCreate = (
     id === undefined ||
     context.state.entity(type, collection, id) !== undefined ||
     (later &&
-      !followsGenerated(context, draft, {
+      !followsCreateRules(context, draft, {
         type,
         collection,
         fields: fields.value,
+        observed: observed.object,
       }))
   ) {
     refuse(draft, step, "unexplained-change");
     return recorded();
   }
   takeSequences(draft, { collection, fields: fields.value });
+  fitClocks(draft, fields.value);
   // The call's own values follow the forms serving generates; the state holds a nested clock as the read-back restamped it, as an update's.
   const stored = restampedFields(
     searchFrom(context, step),

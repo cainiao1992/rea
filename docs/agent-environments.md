@@ -721,7 +721,7 @@ every MCP session and `data/get` then see:
 | Effect                    | Call                                                                                                                                                                                                                                                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `create`                  | Adds an entity to the collection the path names, built from the observed entity with each ruled field taken from the call or generated, at the plan's `insert` position. A plan tied to its exemplar's collection writes only there.                                                                                 |
-| `update`                  | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, nested clock, increment, slug, stamp, derived, unique and renewed changes the plan models.                                                                                         |
+| `update`                  | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, nested clock, increment, slug, stamp, derived, composed, unique and renewed changes the plan models.                                                                               |
 | `update` (action)         | A `POST`, `PUT` or `PATCH` to an item path plus an action segment (`/{type}/{id}/archive`) sets, on the entity before the segment, each scalar the recorded calls showed the action set (`set`), with any sent members; it is served only when a recorded call found those fields already set, so a toggle never is. |
 | `delete`                  | Removes the entity the path names.                                                                                                                                                                                                                                                                                   |
 | bulk `update` or `delete` | A `DELETE`, `PUT` or `PATCH` at a collection, or a `POST` to it plus `delete`, `remove` or `destroy`, applies its effect to every entity the body names, as recorded: an array of ids or of objects carrying the id field, at the root or as the body's one array member (`{"IDs": […], "Read": true}`).             |
@@ -923,6 +923,9 @@ Known limits of served writes:
   updates require `updated_at` to match the entity (a `held-clock`).
 - A slug derived from a title can repeat across served creates with the same
   title, where the application would make it unique.
+- A `composed` string copies sent text as sent: an application that escapes or
+  renders it (HTML entities, Markdown) differs for text that needs it, as
+  BookStack's `description_html` would for a description holding `&`.
 - A served create's sequence id is the state's next value, not the gaps an
   application's own sequence would leave.
 - Nested clocks are served in the spelling of the write's own response, which
@@ -1057,9 +1060,11 @@ Numeric arrays retain that containing field's clock context through nested
 arrays; an object's own fields establish their own context. Numeric values at
 the body root, in root arrays, or under measurement fields remain literal.
 
-Generated strings normalize only where this confirmed, served write's entity
-response rules identify generation. A `unique` rule or UUID identity rule must
-still compare two UUIDs; a `renewed` rule applies only at its recorded pointers,
+Generated values normalize only where this confirmed, served write's entity
+response rules identify generation. A UUID identity rule must still compare two
+UUIDs, and a `unique` rule two UUIDs or two generated integers (10 to 20
+digits) of one JSON kind and length; a `renewed` rule applies only at its
+recorded pointers,
 with `*` matching actual array items. Token/sequence strings retain the existing
 format check: equal length of at least eight, the same character classes, and
 a digit. Numeric sequences continue to compare literally unless an ID mapping
@@ -1071,6 +1076,12 @@ Admitted generated values must also preserve aliases and distinct identities
 within that response. UUID identity uses the generator's case-insensitive
 matching; token and sequence strings retain their literal identity. This
 correspondence ends with the answer and is not inferred across calls.
+A `composed` response field must spell the value its parts build from that
+response's own fields. Its parts then compare by their rendered text or their
+source fields' clock and ID rules. A coherent archive URL can therefore differ
+only in normalized clock digits without reporting a value difference; an
+incoherent URL still differs even when both sides repeat the same stale text.
+Normalized compositions count under `generated`; source fields are counted once.
 The report counts each kind of normalised
 value; the generation rules remain model-derived facts, rather than new
 observations of the application.

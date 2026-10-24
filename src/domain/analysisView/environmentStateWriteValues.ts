@@ -9,14 +9,18 @@ export type ClockFormat =
       readonly separator: "T" | " ";
       readonly fraction: number;
       readonly zone: string;
+      /** Fraction digits end at the last non-zero one, and the point goes with them, as Go spells nanoseconds; `fraction` is the most shown. */
+      readonly trimmed?: true;
     }
   | { readonly kind: "epoch"; readonly unit: "s" | "ms" };
 
-interface ClockReading {
+export interface ClockReading {
   readonly ms: number;
   /** Nanoseconds after the floored millisecond, so distinct recorded instants stay distinct. */
   readonly subMillisecond: number;
   readonly format: ClockFormat;
+  /** The fraction ends in a zero, which a trimmed spelling never shows, so its width is fixed. */
+  readonly fixedWidth: boolean;
 }
 
 const MINUTE_MS = 60_000;
@@ -37,7 +41,8 @@ const zoneMinutes = (zone: string): number | undefined => {
 export const isClockZone = (zone: string): boolean =>
   zoneMinutes(zone) !== undefined;
 
-const zoneMinutesForFormat = (zone: string): number => {
+/** Minutes east of UTC a stored format's zone names. */
+export const zoneMinutesForFormat = (zone: string): number => {
   const minutes = zoneMinutes(zone);
   if (minutes === undefined)
     throw new TypeError(`Invalid clock zone in a derived format: ${zone}`);
@@ -64,6 +69,8 @@ const readIsoClock = (value: string): ClockReading | undefined => {
       fraction: spelling.fractionDigits,
       zone: spelling.zone,
     },
+    // The instant's fraction drops trailing zeros, so a longer spelling ended in one.
+    fixedWidth: spelling.fractionDigits > instant.fraction.length,
   };
 };
 
@@ -79,12 +86,14 @@ export const readClock = (
       ms: value * 1000,
       subMillisecond: 0,
       format: { kind: "epoch", unit: "s" },
+      fixedWidth: true,
     };
   if (value >= 1e12 && value < 1e13)
     return {
       ms: value,
       subMillisecond: 0,
       format: { kind: "epoch", unit: "ms" },
+      fixedWidth: true,
     };
   return undefined;
 };
@@ -116,7 +125,12 @@ export const formatClock = (
     0,
     format.fraction,
   );
-  return isoText(at, format.separator, digits, format.zone);
+  return isoText(
+    at,
+    format.separator,
+    format.trimmed === true ? digits.replace(/0+$/u, "") : digits,
+    format.zone,
+  );
 };
 
 /**
@@ -147,7 +161,9 @@ export const respellClock = (
     isoText(
       at,
       format.separator,
-      digits.padEnd(format.fraction, "0"),
+      format.trimmed === true
+        ? digits.replace(/0+$/u, "")
+        : digits.padEnd(format.fraction, "0"),
       format.zone,
     ) ?? value
   );
@@ -157,6 +173,39 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 export const isUuid = (value: JsonValue | undefined): value is string =>
   typeof value === "string" && UUID.test(value);
+
+/** Digits a generated integer shows at least, as a time-based id does; counts and codes are shorter. */
+const GENERATED_INTEGER_DIGITS = 10;
+
+/** A large integer's digits, from a safe JSON number or a string of digits without a leading zero. */
+export const generatedIntegerDigits = (
+  value: JsonValue | undefined,
+): string | undefined => {
+  const digits =
+    typeof value === "number" && Number.isSafeInteger(value) && value > 0
+      ? String(value)
+      : typeof value === "string" && /^[1-9]\d*$/u.test(value)
+        ? value
+        : undefined;
+  return digits !== undefined &&
+    digits.length >= GENERATED_INTEGER_DIGITS &&
+    digits.length <= 20
+    ? digits
+    : undefined;
+};
+
+/** Whether a generated integer retains the exemplar's digit count and JSON kind. */
+export const likeGeneratedInteger = (
+  value: JsonValue | undefined,
+  exemplar: JsonValue | undefined,
+): boolean => {
+  const digits = generatedIntegerDigits(value);
+  return (
+    digits !== undefined &&
+    typeof value === typeof exemplar &&
+    digits.length === generatedIntegerDigits(exemplar)?.length
+  );
+};
 
 /** An integer value as a number, from a JSON number or a string of digits. */
 export const integerOf = (value: JsonValue | undefined): number | undefined =>
@@ -260,6 +309,14 @@ const nextCharacter = (text: string, at: number): string | undefined => {
   return point === undefined ? undefined : String.fromCodePoint(point);
 };
 
+/** Whether the character before UTF-16 offset `at` is a letter or digit, joining text that starts there to its left. */
+export const joinsBefore = (text: string, at: number): boolean =>
+  isAlphanumeric(previousCharacter(text, at));
+
+/** Whether the character at UTF-16 offset `at` is a letter or digit, joining text that ends there to its right. */
+export const joinsAfter = (text: string, at: number): boolean =>
+  isAlphanumeric(nextCharacter(text, at));
+
 /** Start offsets of `token` in `text` where neither neighbour is a letter or digit. */
 export const delimitedOffsets = (text: string, token: string): number[] => {
   const offsets: number[] = [];
@@ -267,8 +324,7 @@ export const delimitedOffsets = (text: string, token: string): number[] => {
   let at = text.indexOf(token);
   while (at >= 0) {
     const delimited =
-      !isAlphanumeric(previousCharacter(text, at)) &&
-      !isAlphanumeric(nextCharacter(text, at + token.length));
+      !joinsBefore(text, at) && !joinsAfter(text, at + token.length);
     if (delimited) offsets.push(at);
     // A rejected match may overlap a delimited one, so the search moves on by one character.
     at = text.indexOf(token, at + (delimited ? token.length : 1));
@@ -299,6 +355,19 @@ export const containsDelimited = (value: JsonValue, token: string): boolean => {
       if (delimitedOffsets(next, token).length > 0) return true;
     } else if (typeof next === "object" && next !== null)
       // One at a time: spreading a wide array into push overflows the call stack.
+      for (const child of Array.isArray(next) ? next : Object.values(next))
+        pending.push(child);
+  }
+  return false;
+};
+
+/** Whether any number inside a value spells `digits`. */
+export const containsNumber = (value: JsonValue, digits: string): boolean => {
+  const pending: JsonValue[] = [value];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (typeof next === "number") {
+      if (String(next) === digits) return true;
+    } else if (typeof next === "object" && next !== null)
       for (const child of Array.isArray(next) ? next : Object.values(next))
         pending.push(child);
   }
@@ -358,6 +427,20 @@ export const seededLike = (
   uuid || isUuid(exemplar)
     ? seededUuid(seed, String(exemplar))
     : seededToken(seed, String(exemplar));
+
+/** A seeded integer with as many digits as the recorded one and none leading zero, as a number when it is one and stays safe. */
+export const seededInteger = (seed: string, exemplar: JsonValue): JsonValue => {
+  const length = String(exemplar).length;
+  const bytes = seededBytes(seed, length);
+  // A number keeps under the largest safe integer, which a sixteen-digit one starting with 9 can pass.
+  const leading = typeof exemplar === "number" && length >= 16 ? 8 : 9;
+  const digits = [...bytes]
+    .map((byte, index) =>
+      String(index === 0 ? 1 + (byte % leading) : byte % 10),
+    )
+    .join("");
+  return typeof exemplar === "number" ? Number(digits) : digits;
+};
 
 /** A token as long as the recorded one, from its alphabet, keeping its other characters in place. */
 export const seededToken = (seed: string, exemplar: string): string => {

@@ -3,6 +3,7 @@ import { isObject, same, type JsonObject } from "./environmentStateRules.js";
 import type { FieldRule, WriteCall } from "./environmentStateWriteRules.js";
 import { integerOf, readClock } from "./environmentStateWriteValues.js";
 import { freshUuid, renewedRule } from "./environmentStateWriteGenerated.js";
+import { composedChange } from "./environmentStateWriteComposed.js";
 import {
   derivedRule,
   freshToken,
@@ -59,6 +60,10 @@ export const changeRule = (
   return (
     stampRule(evidence, field) ??
     derivedRule(evidence, field) ??
+    composedChange(field, {
+      ...evidence,
+      sent: evidence.call.body,
+    }) ??
     actionRule(evidence, field)
   );
 };

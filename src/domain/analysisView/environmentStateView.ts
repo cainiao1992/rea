@@ -9,6 +9,7 @@ import type {
 } from "./analysisView.js";
 import { EnvironmentStateAccumulator } from "./EnvironmentStateAccumulator.js";
 import { isClockZone } from "./environmentStateWriteValues.js";
+import { CLOCK_PATTERNS } from "./environmentStateWriteClockFormats.js";
 import {
   groupCaptureRecords,
   templateRulesSchema,
@@ -97,6 +98,7 @@ const clockFormatSchema = z.discriminatedUnion("kind", [
     separator: z.enum(["T", " "]),
     fraction: z.number().int().nonnegative().max(9),
     zone: z.string().refine(isClockZone),
+    trimmed: z.literal(true).exactOptional(),
   }),
   z.strictObject({ kind: z.literal("epoch"), unit: z.enum(["s", "ms"]) }),
 ]);
@@ -256,6 +258,26 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
   z.strictObject({ ...ruled, rule: z.literal("path"), from: z.string() }),
   z.strictObject({ ...ruled, rule: z.literal("slug"), from: z.string() }),
   z.strictObject({ ...ruled, rule: z.literal("template"), from: z.string() }),
+  z.strictObject({
+    ...ruled,
+    rule: z.literal("composed"),
+    parts: z
+      .array(
+        z.union([
+          z.strictObject({ text: z.string().min(1) }),
+          z.strictObject({
+            from: z.string(),
+            as: z.enum(["value", "slug"]),
+          }),
+          z.strictObject({
+            from: z.string(),
+            as: z.literal("clock"),
+            pattern: z.enum(CLOCK_PATTERNS),
+          }),
+        ]),
+      )
+      .min(1),
+  }),
   z.strictObject({ ...ruled, rule: z.literal("increment") }),
   z.strictObject({
     ...ruled,

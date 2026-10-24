@@ -9,21 +9,30 @@ import {
   type JsonObject,
   type StateEntity,
 } from "./environmentStateRules.js";
-import type {
-  FieldRule,
-  InsertRule,
-  WriteBody,
-  WriteCall,
-  WriteResponse,
+import {
+  siblingTrimmedClocks,
+  type FieldRule,
+  type InsertRule,
+  type WriteBody,
+  type WriteCall,
+  type WriteResponse,
 } from "./environmentStateWriteRules.js";
 import {
   containsDelimited,
+  containsNumber,
+  generatedIntegerDigits,
   integerOf,
   isUuid,
   readClock,
   sequenceNumber,
   slugOf,
+  type ClockFormat,
 } from "./environmentStateWriteValues.js";
+import { createdComposer } from "./environmentStateWriteComposed.js";
+import {
+  fittedClockFormat,
+  showsFixedWidth,
+} from "./environmentStateWriteClockFormats.js";
 import {
   COPY_MIN_LENGTH,
   instantMembers,
@@ -157,6 +166,64 @@ const requestRule = (
     : { field, rule: "slug", from: member };
 };
 
+/** A clock's format, trimmed when the type's values of the field show its fraction trimmed and none shows a fixed width. */
+const learnedClockFormat = (
+  format: ClockFormat,
+  field: string,
+  value: JsonValue,
+  type: readonly JsonObject[],
+): ClockFormat => {
+  let learned = format;
+  for (const member of type) {
+    const fitted = fittedClockFormat(learned, member[field], value);
+    if (fitted?.kind === "iso" && fitted.trimmed === true) learned = fitted;
+  }
+  return type.some((member) => showsFixedWidth(format, member[field]))
+    ? format
+    : learned;
+};
+
+/** A created large integer's proof, as a time-based id's: no entity of its type holds it and each holds a distinct one of the same length and kind; linked when another field holds it too, as a number at any depth or delimited in a nested string, which seeding cannot keep. */
+export const createdInteger = (
+  field: string,
+  entity: JsonObject,
+  type: readonly JsonObject[],
+): "independent" | "linked" | undefined => {
+  const value = entity[field];
+  const digits = generatedIntegerDigits(value);
+  if (
+    digits === undefined ||
+    readClock(value) !== undefined ||
+    type.length === 0
+  )
+    return undefined;
+  const held = new Set([digits]);
+  const distinct = type.every((member) => {
+    const other = generatedIntegerDigits(member[field]);
+    if (
+      other === undefined ||
+      typeof member[field] !== typeof value ||
+      other.length !== digits.length ||
+      held.has(other)
+    )
+      return false;
+    held.add(other);
+    return true;
+  });
+  if (!distinct) return undefined;
+  return Object.entries(entity).some(
+    ([other, kept]) =>
+      other !== field &&
+      (kept === value ||
+        containsNumber(kept, digits) ||
+        (typeof kept === "object" &&
+          kept !== null &&
+          containsDelimited(kept, digits))),
+  )
+    ? "linked"
+    : "independent";
+};
+
 /** The rule a created field's generated value follows, if it follows one. */
 const generatedRule = (
   evidence: CreateEvidence,
@@ -166,7 +233,11 @@ const generatedRule = (
   if (field === evidence.idField) return identityRule(field, value);
   const clock = readClock(value);
   if (clock !== undefined && isClockNear(value, evidence.startMs))
-    return { field, rule: "clock", format: clock.format };
+    return {
+      field,
+      rule: "clock",
+      format: learnedClockFormat(clock.format, field, value, evidence.type),
+    };
   const integer = sequenceNumber(value);
   if (integer !== undefined) {
     if (nextInteger(evidence.collection, field, value) === integer)
@@ -175,9 +246,10 @@ const generatedRule = (
       return { field, rule: "sequence", scope: "type" };
   }
   if (
-    isUuid(value) &&
-    evidence.type.length > 0 &&
-    evidence.type.every((member) => member[field] !== value)
+    (isUuid(value) &&
+      evidence.type.length > 0 &&
+      evidence.type.every((member) => member[field] !== value)) ||
+    createdInteger(field, evidence.entity, evidence.type) === "independent"
   )
     return { field, rule: "unique" };
   if (createdToken(field, evidence.entity, evidence.type) === "independent")
@@ -208,7 +280,7 @@ export const explainCreate = (
   readonly body: WriteBody;
   readonly tied: boolean;
 } => {
-  const rules: FieldRule[] = [];
+  const ruled: FieldRule[] = [];
   const unexplained: string[] = [];
   const index = indexBody(evidence.call.body);
   for (const [field, value] of Object.entries(evidence.entity)) {
@@ -216,8 +288,9 @@ export const explainCreate = (
       requestRule(evidence, index, field, value) ??
       generatedRule(evidence, field, value);
     if (rule === undefined) unexplained.push(field);
-    else rules.push(rule);
+    else ruled.push(rule);
   }
+  const rules = siblingTrimmedClocks(ruled, evidence.entity, ...evidence.type);
   // Generated values first, then copies: an echoed value may recur in unrelated text, a copied one is the call's own unless also echoed.
   const echoed = new Set(
     rules.flatMap((rule) =>
@@ -233,8 +306,10 @@ export const explainCreate = (
     ),
   ];
   const constants: string[] = [];
+  const composed = createdComposer(evidence.entity, rules, evidence.type);
   for (const field of unexplained) {
-    const template = templateRule(evidence.entity, field, sources);
+    const template =
+      templateRule(evidence.entity, field, sources) ?? composed(field);
     if (template === undefined) constants.push(field);
     else rules.push(template);
   }
@@ -243,6 +318,12 @@ export const explainCreate = (
   );
   const templates = rules.flatMap((rule) =>
     rule.rule === "template" ? [rule.field] : [],
+  );
+  // A composed string rebuilds the values it names, so only its literal text can tie it.
+  const literals = rules.flatMap((rule) =>
+    rule.rule === "composed"
+      ? rule.parts.flatMap((part) => ("text" in part ? [part.text] : []))
+      : [],
   );
   // A member whose value a template cannot rebuild, or that a constant derives from, is accepted only with its recorded value.
   const texts = [...constants, ...templates];
@@ -277,9 +358,10 @@ export const explainCreate = (
       Object.keys(evidence.call.body),
     ),
     // A template rebuilds only its generated value, so other text it keeps ties it like a constant.
-    tied: [...constants, ...templates].some((field) =>
-      tokens.some((token) => containsDelimited(evidence.entity[field]!, token)),
-    ),
+    tied: [
+      ...[...constants, ...templates].map((field) => evidence.entity[field]!),
+      ...literals,
+    ].some((text) => tokens.some((token) => containsDelimited(text, token))),
   };
 };
 

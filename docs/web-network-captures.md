@@ -740,9 +740,22 @@ explains it: generated `identity` (a sequence, UUID or token, by the recorded
 value's shape), `echo` of a body member, `copy` of a body string of 8 or more
 characters, a `path` value, a `slug` of a body member, a `clock` value within 10
 minutes of the request in its recorded format, a `sequence` one past the
-largest value of its collection or type, a `unique` UUID or opaque token, a
-`nested-clock` object whose clocks the request stamped, or a `template` around
-a generated value; other fields keep the observed value. A body that wraps one
+largest value of its collection or type, a `unique` UUID, opaque token or
+integer of 10 or more digits that no entity of the type holds (where every one
+holds a distinct integer of the same length, as time-based ids do), a
+`nested-clock` object whose clocks the request stamped, a `template` around
+a generated value, or a `composed` string; other fields keep the observed value.
+A `composed` string is literal text and parts read from the fields other rules
+write: a field's value, its slug, or a clock's calendar digits
+(`YYYYMMDDhhmmss`, `YYYYMMDD`, `YYYY-MM-DD` or `YYYY/MM/DD`, in the clock's
+zone). A create composes a string only when at least one other entity of the
+type spells it with the same parts and none spells it otherwise, and never when
+one text could come from two sources serving could tell apart. A clock format
+is `trimmed` when the field's values differ only in how many fraction digits
+they show and none ends a fraction in a zero, as Go spells nanoseconds: its
+`fraction` is the most it shows, and serving drops trailing zeros and the point
+with them. Other clocks the plan stamps take that spelling too unless their own
+value shows a fixed width. A body that wraps one
 object in a one-element array is that object, wrapped so on every call
 (`body.envelope`). An update's members
 echo when stored as sent; a member stored differently is accepted only with its
@@ -750,8 +763,10 @@ recorded value (`body.fixed`) and stores the value the call that showed it
 recorded (the `value` of its `constant` rule), and a field it changed without
 sending must be a clock, a nested clock, an increment, a slug, a fresh `unique`
 value, a `stamp` of the acting user, a value `derived` from the one member it
-stores nowhere, or for an item action a `set` of a scalar to the value it
-showed, or the plan is `unexplained-change`; an increment, slug, stamp, derived
+stores nowhere, a `composed` string whose parts read members it stored as sent
+or fields it left as they were and spell the value before the call too, or for
+an item action a `set` of a scalar to the value it showed, or the plan is
+`unexplained-change`; an increment, slug, stamp, derived
 value or set must hold for every call of the tool, and an action is served
 only once a call found what it sets already set. A write is served only
 with the query its first call sent, which serving applies to a call that

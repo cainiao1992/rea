@@ -676,3 +676,81 @@ it("checks a member stored only under another name against the type of the field
   expect(created({ not: "a string" }).ok).toBe(false);
   expect(created(null).ok).toBe(false);
 });
+
+const ADDRESS: FieldRule = {
+  field: "url",
+  rule: "composed",
+  parts: [
+    { text: "/dashboards/f/" },
+    { from: "uid", as: "value" },
+    { text: "/" },
+    { from: "title", as: "slug" },
+  ],
+};
+const UNSPELLED =
+  'The write composes "url" from "uid", "title", and the entity holds no value one of them can spell.';
+
+it("rebuilds an updated composed address, and refuses one whose entity holds no field a part reads", () => {
+  const plan: Plan = {
+    rules: [{ field: "title", rule: "echo" }, ADDRESS],
+    body: {
+      accepted: ["title"],
+      fixed: [],
+      required: [],
+      identity: "uid",
+      kinds: [],
+    },
+  };
+  const rename = (before: JsonObject) =>
+    updatedFields(
+      plan,
+      { before, observed: before },
+      { ...callWith({ title: "Moved Folder" }, { item: "7" }), id: "7" },
+      generator().generate,
+    );
+  expect(
+    rename({ id: 7, uid: "f-7", title: "Old", url: "/dashboards/f/f-7/old" }),
+  ).toEqual(
+    ok({
+      id: 7,
+      uid: "f-7",
+      title: "Moved Folder",
+      url: "/dashboards/f/f-7/moved-folder",
+    }),
+  );
+  expect(rename({ id: 7, title: "Old", url: "/dashboards/f/f-7/old" })).toEqual(
+    err(UNSPELLED),
+  );
+});
+
+it("refuses a create whose composed address reads a member the call does not send", () => {
+  const plan: Plan = {
+    rules: [
+      { field: "uid", rule: "echo" },
+      { field: "title", rule: "echo" },
+      ADDRESS,
+    ],
+    body: {
+      accepted: ["uid", "title"],
+      fixed: [],
+      required: ["title"],
+      identity: null,
+      kinds: [],
+    },
+  };
+  const observed: JsonObject = {
+    uid: "f-1",
+    title: "Recorded",
+    url: "/dashboards/f/f-1/recorded",
+  };
+  const create = (body: JsonObject) =>
+    createdFields(plan, observed, callWith(body), generator().generate);
+  expect(create({ uid: "f-2", title: "New Folder" })).toEqual(
+    ok({
+      uid: "f-2",
+      title: "New Folder",
+      url: "/dashboards/f/f-2/new-folder",
+    }),
+  );
+  expect(create({ title: "New Folder" })).toEqual(err(UNSPELLED));
+});

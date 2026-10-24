@@ -24,6 +24,7 @@ import {
   stampProblem,
   nestedClockValue,
 } from "./environmentStateWriteStamps.js";
+import { composedValue } from "./environmentStateWriteComposed.js";
 import {
   integerOf,
   readClock,
@@ -260,13 +261,13 @@ const templated = (
     : undefined;
 };
 
-/** Apply the rules that derive from fields already written or the call: slugs, templates and stamps. */
+/** Apply the rules that derive from fields already written or the call: slugs, templates, stamps and composed strings; why a composed string cannot be rebuilt, if one cannot. */
 const derive = (
   rules: readonly FieldRule[],
   observed: JsonObject,
   written: JsonObject,
   sent: JsonObject,
-): void => {
+): string | undefined => {
   for (const rule of rules) {
     if (rule.rule === "slug") {
       const from = sent[rule.from];
@@ -278,6 +279,19 @@ const derive = (
     else if (rule.rule === "derived" && Object.hasOwn(sent, rule.member))
       written[rule.field] = rule.value;
   }
+  // Composed strings read the fields the rules above wrote.
+  for (const rule of rules)
+    if (rule.rule === "composed") {
+      const value = composedValue(rule.parts, written);
+      if (value === undefined) {
+        const sources = new Set(
+          rule.parts.flatMap((part) => ("from" in part ? [part.from] : [])),
+        );
+        return `The write composes ${JSON.stringify(rule.field)} from ${listed([...sources])}, and the entity holds no value one of them can spell.`;
+      }
+      written[rule.field] = value;
+    }
+  return undefined;
 };
 
 /** Members stored only under another name, with the value of the field each is copied whole into, for type checks. */
@@ -313,8 +327,8 @@ export const createdFields = (
     if (value.value !== undefined) written[rule.field] = value.value;
     else if (rule.rule === "echo") delete written[rule.field];
   }
-  derive(plan.rules, observed, written, call.body ?? {});
-  return ok(written);
+  const unspelled = derive(plan.rules, observed, written, call.body ?? {});
+  return unspelled === undefined ? ok(written) : err(unspelled);
 };
 
 /** Rules an update gives a new value on every call. */
@@ -384,7 +398,7 @@ export const updatedFields = (
       if (value.value !== undefined) written[rule.field] = value.value;
     }
   }
-  derive(
+  const unspelled = derive(
     plan.rules.filter(
       (rule) => rule.rule !== "slug" || Object.hasOwn(sent, rule.from),
     ),
@@ -392,7 +406,7 @@ export const updatedFields = (
     written,
     sent,
   );
-  return ok(written);
+  return unspelled === undefined ? ok(written) : err(unspelled);
 };
 
 /** Why a document write's body does not fit what the capture showed: members its plan accepts, as the JSON types the document holds, a member a replacing write dropped keeping the type the initial document showed. */

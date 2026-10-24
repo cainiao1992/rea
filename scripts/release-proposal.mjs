@@ -56,7 +56,7 @@ async function main() {
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(
       process.env.GITHUB_OUTPUT,
-      `prs_created=${prs.length > 0}\n${prs.length ? `pr=${JSON.stringify(prs[0])}\nprs=${JSON.stringify(prs)}\n` : ""}`,
+      `prs_created=${prs.length > 0}\n${prs.length ? `pr=${JSON.stringify(prs[0])}\n` : ""}`,
     );
   }
 }

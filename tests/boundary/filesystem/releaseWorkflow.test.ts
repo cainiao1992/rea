@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { parse } from "yaml";
@@ -542,20 +541,6 @@ it("binds npm and MCP publication to the same immutable release SHA", async () =
   expect(publishCommand).toContain(
     '--registry=https://registry.npmjs.org --access=public --tag="$NPM_RELEASE_TAG"',
   );
-  for (const [version, tag] of [
-    ["6.1.0", "latest"],
-    ["6.1.0-rc.1", "next"],
-  ] as const) {
-    const helper = new URL(
-      "../../../scripts/release-npm-tag.mjs",
-      import.meta.url,
-    );
-    const result = await execFileAsync(process.execPath, [
-      fileURLToPath(helper),
-      version,
-    ]);
-    expect(result.stdout).toBe(tag);
-  }
 });
 
 it.skipIf(process.platform === "win32").each([

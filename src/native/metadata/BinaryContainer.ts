@@ -1,3 +1,5 @@
+import type { PeDataDirectory } from "../../domain/peOptionalHeader.js";
+
 /** Distinguish corrupt recognized binaries from containers outside parser coverage. */
 export class BinaryFormatFailure extends Error {
   constructor(
@@ -120,10 +122,7 @@ interface BinaryContainerFacts {
    */
   readonly pe_header_mapping?: FileMapping;
   /** PE optional-header data directories, indexed as declared. */
-  readonly pe_data_directories?: readonly {
-    readonly virtual_address: number;
-    readonly size: number;
-  }[];
+  readonly pe_data_directories?: readonly PeDataDirectory[];
   /** Mach-O load-command observation, when available. */
   readonly macho_chained_fixups?: boolean;
   /** Section-name lookup was incomplete; absence by name is not established. */

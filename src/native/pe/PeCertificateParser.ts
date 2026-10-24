@@ -54,12 +54,13 @@ export const parsePeCertificates = (
   artifact: PeCertificates["artifact"],
   input: InspectPeCertificatesInput,
 ): PeCertificates => {
-  const { pe, optional, magic, directoriesAt, directoryCount, headerSize } =
+  const { machine, format, dataDirectories, headerSize, optionalHeaderOffset } =
     readPeHeaders(bytes);
-  const machine = bytes.readUInt16LE(pe + 4);
-  const format = magic === 0x20b ? "pe32-plus" : "pe32";
-  const securityIndex = 4;
-  if (directoryCount <= securityIndex) {
+  const security = dataDirectories[4];
+  if (
+    security === undefined ||
+    (security.address === 0 && security.size === 0)
+  ) {
     return {
       artifact,
       format,
@@ -70,21 +71,9 @@ export const parsePeCertificates = (
       limitations: [...ABSENT_LIMITATIONS],
     };
   }
-  const directoryAt = optional + directoriesAt + securityIndex * 8;
-  requireRange(bytes, directoryAt, 8);
-  const tableOffset = bytes.readUInt32LE(directoryAt);
-  const tableSize = bytes.readUInt32LE(directoryAt + 4);
-  if (tableOffset === 0 && tableSize === 0) {
-    return {
-      artifact,
-      format,
-      machine,
-      table: null,
-      entries: [],
-      coverage: { status: "complete", examined_entries: 0, certificates: 0 },
-      limitations: [...ABSENT_LIMITATIONS],
-    };
-  }
+  const tableOffset = security.address;
+  const tableSize = security.size;
+  const directoryAt = optionalHeaderOffset + security.offset;
   if (tableSize === 0 || tableOffset < headerSize)
     fail("PE certificate table offset overlaps headers or has zero size.");
   requireRange(bytes, tableOffset, tableSize);

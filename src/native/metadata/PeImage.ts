@@ -82,13 +82,13 @@ export const readPeImage = (bytes: Buffer): PeImage => {
   );
   if (!facts.ok)
     throw new BinaryFormatFailure(facts.error.kind, facts.error.message);
-  const { bits, dataDirectories } = facts.value;
+  const { bits, dataDirectories, sizeOfHeaders } = facts.value;
   const imageBase = reader.word(optional + (bits === 64 ? 24 : 28), bits);
   const fileAlignment = reader.u32(optional + 36);
   const headerMapping: FileMapping = {
     address: imageBase,
     offset: 0,
-    size: Math.min(reader.u32(optional + 60), bytes.length),
+    size: Math.min(sizeOfHeaders, bytes.length),
   };
   const count = reader.u16(pe + 6);
   const start = reader.table(

@@ -98,7 +98,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     architecture: image.architecture,
     bits: image.bits,
   };
-  if (directory === undefined || directory.virtual_address === 0)
+  if (directory === undefined || directory.address === 0)
     return {
       ...result,
       export_directory: null,
@@ -129,7 +129,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     return value.toString("latin1");
   };
 
-  const header = map(directory.virtual_address, PE_EXPORT_DIRECTORY_BYTES);
+  const header = map(directory.address, PE_EXPORT_DIRECTORY_BYTES);
   const ordinalBase = reader.u32(header + 16);
   const functionCount = reader.u32(header + 20);
   const nameCount = reader.u32(header + 24);
@@ -180,7 +180,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     }
   }
 
-  const forwarderEnd = directory.virtual_address + directory.size;
+  const forwarderEnd = directory.address + directory.size;
   const retain = createRetention();
   const exports: PeExport[] = [];
   for (let index = 0; index < functionCount; index++) {
@@ -189,7 +189,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     if (rva === 0) continue;
     const ordinal = ordinalBase + index;
     let target: Pick<PeExport, "address" | "forwarder">;
-    if (rva >= directory.virtual_address && rva < forwarderEnd) {
+    if (rva >= directory.address && rva < forwarderEnd) {
       try {
         target = { address: null, forwarder: cString(rva) };
       } catch (cause) {
@@ -216,7 +216,7 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   return {
     ...result,
     export_directory: {
-      rva: directory.virtual_address,
+      rva: directory.address,
       size: directory.size,
       dll_name: dllName,
       ordinal_base: ordinalBase,

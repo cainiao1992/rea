@@ -1,4 +1,18 @@
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+import {
+  readPeOptionalHeaderStructure,
+  type PeOptionalHeaderFailure,
+} from "../../domain/peOptionalHeader.js";
+
+const OPTIONAL_HEADER_FAILURES: Readonly<
+  Record<PeOptionalHeaderFailure["reason"], string>
+> = {
+  "truncated-magic": "Truncated PE optional header.",
+  "unsupported-magic": "Unsupported PE optional header magic.",
+  "truncated-fixed-fields": "Truncated PE data directory count.",
+  "truncated-directory-table":
+    "PE directory count exceeds its optional header.",
+};
 
 export const peFailure = (message: string): never => {
   throw new ArtifactReaderFailure("format", message);
@@ -71,31 +85,31 @@ export const readPeHeaders = (bytes: Buffer, fileSize = bytes.length) => {
   if (bytes.readUInt32LE(pe) !== 0x4550) peFailure("Expected a PE signature.");
   const sectionCount = bytes.readUInt16LE(pe + 6);
   const optionalSize = bytes.readUInt16LE(pe + 20);
-  const optional = pe + 24;
-  requirePeRange(bytes, optional, optionalSize);
+  const optionalHeaderOffset = pe + 24;
+  requirePeRange(bytes, optionalHeaderOffset, optionalSize);
   if (optionalSize < 64) peFailure("Truncated PE optional header.");
-  const magic = bytes.readUInt16LE(optional);
-  if (magic !== 0x10b && magic !== 0x20b)
-    peFailure("Unsupported PE optional header magic.");
-  const countAt = magic === 0x10b ? 92 : 108;
-  const directoriesAt = countAt + 4;
-  if (optionalSize < directoriesAt)
-    peFailure("Truncated PE data directory count.");
-  const directoryCount = bytes.readUInt32LE(optional + countAt);
-  if (directoryCount > Math.floor((optionalSize - directoriesAt) / 8))
-    peFailure("PE directory count exceeds its optional header.");
-  const headerSize = bytes.readUInt32LE(optional + 60);
-  const table = optional + optionalSize;
+  const parsed = readPeOptionalHeaderStructure(
+    bytes.subarray(optionalHeaderOffset, optionalHeaderOffset + optionalSize),
+  );
+  if (!parsed.ok)
+    return peFailure(OPTIONAL_HEADER_FAILURES[parsed.error.reason]);
+  const {
+    sizeOfHeaders: headerSize,
+    format,
+    directoryOffset,
+    dataDirectories,
+  } = parsed.value;
+  const table = optionalHeaderOffset + optionalSize;
   requirePeRange(bytes, table, sectionCount * 40);
   if (headerSize < table + sectionCount * 40 || headerSize > fileSize)
     peFailure("Invalid PE SizeOfHeaders.");
   return {
-    pe,
+    machine: bytes.readUInt16LE(pe + 4),
+    format,
     sectionCount,
-    optional,
-    magic,
-    directoriesAt,
-    directoryCount,
+    optionalHeaderOffset,
+    directoryOffset,
+    dataDirectories,
     headerSize,
     table,
   };
@@ -107,12 +121,12 @@ export const readPeResourceLayout = (
   fileSize = bytes.length,
 ) => {
   const {
-    pe,
+    machine,
+    format,
     sectionCount,
-    optional,
-    magic,
-    directoriesAt,
-    directoryCount,
+    optionalHeaderOffset,
+    directoryOffset,
+    dataDirectories,
     headerSize,
     table,
   } = readPeHeaders(bytes, fileSize);
@@ -194,14 +208,16 @@ export const readPeResourceLayout = (
     requirePeExtent(fileSize, offset, size);
     return offset;
   };
-  const directoryAt = optional + directoriesAt + 16;
-  const rva = directoryCount > 2 ? bytes.readUInt32LE(directoryAt) : 0;
-  const size = directoryCount > 2 ? bytes.readUInt32LE(directoryAt + 4) : 0;
+  const resource = dataDirectories[2];
+  const directoryAt =
+    optionalHeaderOffset + (resource?.offset ?? directoryOffset + 2 * 8);
+  const rva = resource?.address ?? 0;
+  const size = resource?.size ?? 0;
   if ((rva === 0) !== (size === 0))
     peFailure("Inconsistent PE resource directory RVA/size.");
   return {
-    format: magic === 0x10b ? ("pe32" as const) : ("pe32-plus" as const),
-    machine: bytes.readUInt16LE(pe + 4),
+    format,
+    machine,
     directoryAt,
     rva,
     size,

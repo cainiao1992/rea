@@ -1,4 +1,5 @@
 import { readElfTableDeclarations } from "../../domain/elfDeclaredRanges.js";
+import { readPeOptionalHeaderStructure } from "../../domain/peOptionalHeader.js";
 import {
   BinaryFormatFailure,
   BinaryReader,
@@ -286,23 +287,24 @@ export function* readPeSectionDirectory(
   const coff = new BinaryReader(yield request(fileSize, BigInt(pe), 24n), true);
   if (coff.u32(0) !== 0x4550) reject("PE signature is invalid");
   const optionalSize = coff.u16(20);
-  const optional = new BinaryReader(
+  const optional = readPeOptionalHeaderStructure(
     yield request(fileSize, BigInt(pe + 24), BigInt(optionalSize)),
-    true,
   );
-  const magic = optional.u16(0);
-  const bits = magic === 0x10b ? 32 : magic === 0x20b ? 64 : null;
-  if (bits === null)
-    throw new BinaryFormatFailure(
-      "unsupported",
-      "Only PE32/PE32+ images are supported",
-    );
-  const minimum = bits === 64 ? 112 : 96;
-  if (
-    optionalSize < minimum ||
-    optional.u32(minimum - 4) * 8 > optionalSize - minimum
-  )
-    reject("PE optional header or data directories are truncated");
+  if (!optional.ok) {
+    switch (optional.error.reason) {
+      case "truncated-magic":
+        return reject("16-bit field range is truncated or outside the file");
+      case "unsupported-magic":
+        throw new BinaryFormatFailure(
+          "unsupported",
+          "Only PE32/PE32+ images are supported",
+        );
+      case "truncated-fixed-fields":
+      case "truncated-directory-table":
+        return reject("PE optional header or data directories are truncated");
+    }
+  }
+  const { bits } = optional.value;
   const count = coff.u16(6);
   const start = pe + 24 + optionalSize;
   const table = yield request(fileSize, BigInt(start), BigInt(count) * 40n);

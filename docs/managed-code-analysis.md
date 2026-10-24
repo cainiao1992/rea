@@ -365,8 +365,9 @@ admitted digest, inspection and comparison report retryable `artifact_changed`;
 any completed hash retains the observed digest and byte count. Retry against a
 stable source. This differs from corrupted retained Evidence, which remains an
 Evidence-integrity failure. Malformed selected PE input has the same input-format
-classification in inspection and comparison, and a failed right-side comparison
-retains the completed left observation.
+classification in inspection and comparison. Its issue identifies the selected
+filename and argument: `path` for inspection, or `leftPath` / `rightPath` for CLI
+comparison. A failed right-side comparison retains the completed left observation.
 
 ## Member comparison
 

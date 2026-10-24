@@ -118,9 +118,10 @@ export const compareManagedMemberPaths = async (
     if (!rightTarget.ok) return err(rightTarget.error);
     const inspectTarget = async (
       target: BinaryTarget,
-      selectedPath: string,
+      inputField: "leftPath" | "rightPath",
     ) => {
       const { path } = target;
+      const selectedPath = input[inputField];
       let snapshot: Awaited<ReturnType<typeof readManagedSnapshot>>;
       try {
         snapshot = await readSnapshot(
@@ -143,7 +144,12 @@ export const compareManagedMemberPaths = async (
         });
       } catch (cause: unknown) {
         throw (
-          managedInspectionInputFailure(operation, selectedPath, cause) ?? cause
+          managedInspectionInputFailure(
+            operation,
+            selectedPath,
+            cause,
+            inputField,
+          ) ?? cause
         );
       }
       const evidence = createEvidence(target, MANAGED_STATIC_PROVIDER, {
@@ -156,9 +162,9 @@ export const compareManagedMemberPaths = async (
       });
       return { inspection, evidence };
     };
-    const left = await inspectTarget(leftTarget.value, input.leftPath);
+    const left = await inspectTarget(leftTarget.value, "leftPath");
     partialEvidence = left.evidence;
-    const right = await inspectTarget(rightTarget.value, input.rightPath);
+    const right = await inspectTarget(rightTarget.value, "rightPath");
     const result = compareManagedMembers(
       {
         evidenceId: left.evidence.evidence_id,

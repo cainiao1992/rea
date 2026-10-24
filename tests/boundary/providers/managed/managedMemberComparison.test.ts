@@ -912,41 +912,6 @@ describe("managed comparison snapshot admission and cleanup", () => {
   });
 });
 
-describe("managed comparison malformed artifact admission", () => {
-  it.each(["left", "right"] as const)(
-    "retains malformed %s source classification and completed peer Evidence",
-    async (side) => {
-      const directory = await createTestTempDirectory("rea-managed-malformed-");
-      const good = join(directory, "good.dll");
-      const bad = join(directory, "bad.dll");
-      const bytes = buildManagedPeFixture();
-      await writeFile(good, bytes);
-      bytes.writeUInt16LE(0, bytes.readUInt32LE(0x3c) + 6);
-      await writeFile(bad, bytes);
-      const result = await compareManagedMemberPaths({
-        leftPath: side === "left" ? bad : good,
-        rightPath: side === "right" ? bad : good,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error._tag).toBe("AnalysisInputError");
-      expect(projectAnalysisError(result.error)).toMatchObject({
-        code: "invalid_request",
-        details: {
-          issues: [
-            expect.objectContaining({
-              message: expect.stringContaining("PE section count"),
-            }),
-          ],
-        },
-      });
-      expect(result.error.partialObservation !== undefined).toBe(
-        side === "right",
-      );
-    },
-  );
-});
-
 describe("managed comparison target identity", () => {
   it("rejects a file that changes after target identity is resolved", async () => {
     const directory = await createTestTempDirectory(

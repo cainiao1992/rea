@@ -7,12 +7,14 @@ import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 import type { WasmArtifactService } from "../application/wasm/WasmArtifactService.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
-import { retainedSummaryDelivery } from "./retainedSummaryDelivery.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { err } from "../domain/result.js";
 import { wasmArtifactModule } from "../composition/wasm.js";
 import type { Logger } from "pino";
-import { createEvidenceToolHandler } from "./contractToolHandler.js";
+import {
+  createEvidenceToolHandler,
+  createRetainedSummaryToolHandler,
+} from "./contractToolHandler.js";
 import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import {
   applicationToolRegistrationOptions,
@@ -61,39 +63,17 @@ export const registerWasmTools = (
     compareHandler(comparison),
   );
   const contract = wasmArtifactModule.contract;
-  const delivery = retainedSummaryDelivery(new Set([contract.name]), {
-    recordEvidence,
-    evidenceById,
-  });
-  const handler = createEvidenceToolHandler(
+  const handler = createRetainedSummaryToolHandler(
     server,
-    async (rawInput, options) => {
-      const parsed = contract.inputSchema.safeParse(rawInput);
-      if (!parsed.success)
-        return err(
-          analysisInputErrorFromIssues(
-            contract.name,
-            parsed.error.issues,
-            rawInput,
-            { cause: parsed.error },
-          ),
-        );
-      const { detail, ...input } = parsed.data;
-      const parameters = { detail };
-      const ready = delivery.preflight(contract.name, parameters);
-      if (!ready.ok) return ready;
-      const inspected = await service.inspect(input, options);
-      return inspected.ok
-        ? delivery.projectEvidence(contract.name, parameters, inspected.value)
-        : inspected;
-    },
+    contract,
+    (input, options) => service.inspect(input, options),
     logger,
-    recordEvidence,
+    { recordEvidence, evidenceById },
     withAdmittedAnalysis,
   );
   server.registerTool(
     contract.name,
     applicationToolRegistrationOptions(contract),
-    handler(contract),
+    handler,
   );
 };

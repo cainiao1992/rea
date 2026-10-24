@@ -773,35 +773,77 @@ it.each(["close", "retryCleanupFailures"] as const)(
   },
 );
 
-it("allows explicit inferior remediation when close refuses before destructive cleanup", async () => {
-  let detached = false;
-  let stopCalls = 0;
-  const fake = createFakeSpawner((child, token, command) => {
-    if (command.includes('"detach"')) detached = true;
-    child.stdout.write(
-      command.includes("list-thread-groups")
-        ? `${token}^done,groups=${detached ? "[]" : '[{id="i1",pid="123"}]'}\n`
-        : `${token}^done\n`,
+it.each([
+  { name: "single inferior without TTY", verifiedTty: false, inferiorCount: 1 },
+  {
+    name: "multiple inferiors with verified TTY",
+    verifiedTty: true,
+    inferiorCount: 2,
+  },
+])(
+  "allows explicit inferior remediation before destructive cleanup: $name",
+  async ({ verifiedTty, inferiorCount }) => {
+    const tty = "/dev/pts/42";
+    const remainingInferiors = new Set(
+      Array.from({ length: inferiorCount }, (_, index) => index + 1),
     );
-  });
-  const manager = managerWithFakeSpawner(fake.spawnProcess, {
-    stopProcess: async () => {
-      stopCalls += 1;
-      return { status: "stopped" };
-    },
-  });
-  const started = await expectGdbSessionStarted(manager);
-  const id = started.value.session_id;
-  await expect(manager.close(id)).resolves.toMatchObject({
-    ok: false,
-    error: { _tag: "AnalysisCapabilityUnavailableError", retryable: true },
-  });
-  expect(stopCalls).toBe(0);
-  expect(manager.status(id)?.state).toBe("ready");
-  expect((await manager.execute(id, "detach")).ok).toBe(true);
-  expect((await manager.close(id)).ok).toBe(true);
-  expect(stopCalls).toBe(1);
-});
+    let selectedInferior = 1;
+    let stopCalls = 0;
+    const commands: string[] = [];
+    const fake = createFakeSpawner((child, token, command) => {
+      commands.push(command);
+      const selection = /"inferior (\d+)"$/u.exec(command);
+      if (selection !== null) selectedInferior = Number(selection[1]);
+      if (command.includes('"detach"'))
+        remainingInferiors.delete(selectedInferior);
+      const groups = [...remainingInferiors]
+        .map((id) => `{id="i${id}",pid="${122 + id}"}`)
+        .join(",");
+      child.stdout.write(
+        command.includes("list-thread-groups")
+          ? `${token}^done,groups=[${groups}]\n`
+          : command.includes("inferior-tty-show")
+            ? `${token}^done,inferior_tty_terminal=${JSON.stringify(tty)}\n`
+            : `${token}^done\n`,
+      );
+    });
+    const manager = managerWithFakeSpawner(fake.spawnProcess, {
+      stopProcess: async () => {
+        stopCalls += 1;
+        return remainingInferiors.size === 0
+          ? { status: "stopped" }
+          : {
+              status: "incomplete",
+              reason: "Inferior disposition is unresolved.",
+            };
+      },
+    });
+    const started = await expectGdbSessionStarted(
+      manager,
+      undefined,
+      verifiedTty ? { inferiorTty: tty } : undefined,
+    );
+    const id = started.value.session_id;
+    expect(manager.status(id)?.inferior_tty_verified).toBe(verifiedTty);
+    const refused = await manager.close(id);
+    expect(manager.status(id)?.state).toBe("ready");
+    expect(refused).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisCapabilityUnavailableError", retryable: true },
+    });
+    expect(stopCalls).toBe(0);
+    expect(commands).not.toContain("-target-detach");
+    expect(commands).not.toContain("-gdb-exit");
+    expect(fake.children[0]?.killSignals).toEqual([]);
+    for (let index = 1; index <= inferiorCount; index += 1) {
+      expect((await manager.execute(id, `inferior ${index}`)).ok).toBe(true);
+      expect((await manager.execute(id, "detach")).ok).toBe(true);
+    }
+    expect((await manager.close(id)).ok).toBe(true);
+    expect(stopCalls).toBe(1);
+    expect(manager.status(id)).toBeUndefined();
+  },
+);
 
 it("rejects a duplicate GDB close queued behind a session close", async () => {
   let heldToken = "";

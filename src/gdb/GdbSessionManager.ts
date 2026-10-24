@@ -1437,12 +1437,17 @@ export class GdbSessionManager {
               throw new Error(
                 "GDB returned an unknown inferior list before shutdown.",
               );
-            if (groupCount > 0 && !session.inferiorTtyVerified)
+            if (
+              groupCount > 1 ||
+              (groupCount > 0 && !session.inferiorTtyVerified)
+            )
               return err(
                 new AnalysisCapabilityUnavailableError(
                   GDB_PROVIDER_IDENTITY.id,
                   "close_gdb_session",
-                  "Live GDB inferiors require an explicit disposition because no durable inferior TTY is verified.",
+                  groupCount > 1
+                    ? "Multiple live GDB inferiors require an explicit disposition because automatic detach supports only one inferior."
+                    : "Live GDB inferiors require an explicit disposition because no durable inferior TTY is verified.",
                   {
                     retryable: true,
                     userMessage:

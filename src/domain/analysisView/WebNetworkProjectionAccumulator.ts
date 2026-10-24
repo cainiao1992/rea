@@ -48,6 +48,14 @@ export abstract class WebNetworkProjectionAccumulator {
     return true;
   }
 
+  /** Mark the retained bytes; the returned call releases what was retained since, once none of it is held. */
+  protected retainedCheckpoint(): () => void {
+    const mark = this.#retainedBytes;
+    return () => {
+      this.#retainedBytes = Math.min(this.#retainedBytes, mark);
+    };
+  }
+
   /** Per-record strings and descriptors never become cumulative scratch. */
   protected releaseTemporary(): void {
     this.#temporaryBytes = 0;

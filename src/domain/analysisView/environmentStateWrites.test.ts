@@ -12,6 +12,7 @@ import {
   BOOK_ROWS,
   BOOK_WRITE_CLOCK,
   DETAILED_LIST_ROWS,
+  EXPANDED_LIST_ROWS,
   FIRST_BOOK,
   OMITTED_FIELD_ROWS,
   PROJECTED_ROWS,
@@ -31,6 +32,7 @@ import {
   bookClock,
   detailedBook,
   environmentStateViewOf,
+  expandedBook,
   rawCaptureEvidence,
   renamedBook,
   type Book,
@@ -212,6 +214,83 @@ describe("wider write coverage", () => {
       shape: "item",
       checked_record_ordinals: [1, 2],
       projected_record_ordinals: [3],
+    });
+  });
+
+  it("leaves a list line that expands its books to replay, serving the create the plain list confirms", () => {
+    const state = stateOf(EXPANDED_LIST_ROWS);
+    expect(state.views.find((view) => view.tool === "get_books")).toMatchObject(
+      {
+        shape: "list",
+        checked_record_ordinals: [0],
+        projected_record_ordinals: [1],
+        projected_query_keys: [{ name: "expand" }],
+      },
+    );
+    expect(planOf(state, "post_books")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5],
+    });
+  });
+
+  it("leaves a list line that asks for some fields only to replay", () => {
+    const view = stateOf([
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+      [
+        "GET",
+        "/api/books?fields=id,name",
+        [
+          { id: 1, name: "First Book" },
+          { id: 2, name: "Second Book" },
+        ],
+      ],
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+    ]).views.find((candidate) => candidate.tool === "get_books");
+    expect(view).toMatchObject({
+      shape: "list",
+      checked_record_ordinals: [0],
+      projected_record_ordinals: [1],
+      projected_query_keys: [{ name: "fields" }],
+    });
+  });
+
+  it("tells a line that adds a parameter apart by the members its books show, not by the parameters it shares", () => {
+    const view = stateOf([
+      ["GET", "/api/books?sort=name&limit=1", [FIRST_BOOK]],
+      ["GET", "/api/books?sort=name&q=first", [FIRST_BOOK]],
+      [
+        "GET",
+        "/api/books?sort=name&with=stats&offset=1",
+        [{ ...SECOND_BOOK, stats: { reads: 4 } }],
+      ],
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+    ]).views.find((candidate) => candidate.tool === "get_books");
+    expect(view).toMatchObject({
+      shape: "list",
+      checked_record_ordinals: [0, 1],
+      projected_record_ordinals: [2],
+      projected_query_keys: [{ name: "with" }],
+    });
+  });
+
+  it("confirms a delete by a missing book's read on a line that expands its shelf", () => {
+    const state = stateOf([
+      ...BOOK_INIT_ROWS,
+      ["GET", "/api/books/1?expand=shelf", expandedBook(FIRST_BOOK)],
+      ["DELETE", "/api/books/2", "", 204],
+      ["GET", "/api/books/2?expand=shelf", BOOK_NOT_FOUND, 404],
+    ]);
+    expect(
+      state.views.find((view) => view.tool === "get_books_by_id"),
+    ).toMatchObject({
+      projected_record_ordinals: [3],
+      projected_query_keys: [{ name: "expand" }],
+    });
+    expect(planOf(state, "delete_books_by_id")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5],
     });
   });
 
@@ -1256,6 +1335,606 @@ describe("what a list query read shows of writes", () => {
       served: true,
       checked_record_ordinals: [6, 7],
       insert: { rule: "sorted", field: "name", direction: "ascending" },
+    });
+  });
+});
+
+describe("calls the capture shows reading only", () => {
+  const LOOKUP: TimedCaptureRow = [
+    "POST",
+    "/api/books/ids",
+    [FIRST_BOOK, SECOND_BOOK],
+    200,
+    { ids: [1, 2] },
+  ];
+
+  it("replays a lookup POST and plans no write for it", () => {
+    const state = stateOf([...BOOK_INIT_ROWS, LOOKUP]);
+    expect(state.writes.map((plan) => plan.tool)).not.toContain(
+      "post_books_ids",
+    );
+    expect(state.views).toContainEqual({
+      tool: "post_books_ids",
+      shape: "recorded",
+      reason: "query-body",
+    });
+  });
+
+  it("keeps a read after a lookup POST among the initial recordings", () => {
+    // The lookup changes nothing, so the second book's only read, after it, still seeds the state.
+    const state = stateOf([
+      ["GET", "/api/books/1", FIRST_BOOK],
+      LOOKUP,
+      ["GET", "/api/books/2", SECOND_BOOK],
+    ]);
+    expect(state.entities.map((entity) => entity.id).sort()).toEqual([
+      "1",
+      "2",
+    ]);
+  });
+});
+
+describe("types whose reads disagree across a write", () => {
+  const recipe = (id: number, name: string, views: number) => ({
+    id,
+    name,
+    views,
+  });
+
+  it("plans a type its reads disagree on across an unrelated write from the reads before it, and serves its create", () => {
+    const state = stateOf([
+      ["GET", "/api/recipes", [recipe(1, "Soup", 1), recipe(2, "Stew", 4)]],
+      ["GET", "/api/recipes/1", recipe(1, "Soup", 1)],
+      // Logging a view bumps the counter, so the reads after it disagree with those before.
+      ["POST", "/api/view-log", { ok: true }, 200, { recipe: 1 }],
+      ["GET", "/api/recipes/1", recipe(1, "Soup", 2)],
+      ["POST", "/api/recipes", recipe(3, "Broth", 0), 201, { name: "Broth" }],
+      ["GET", "/api/recipes/3", recipe(3, "Broth", 0)],
+    ]);
+    expect(state.types).toMatchObject([
+      { collection_template: "/api/recipes", init_before_ordinal: 2 },
+    ]);
+    expect(planOf(state, "post_recipes")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5],
+    });
+  });
+
+  it("ends a type's state at the earlier of a write its reads disagree across and a create that made one of its entities", () => {
+    const rows = (disagreeFirst: boolean): TimedCaptureRow[] => {
+      const disagreement: TimedCaptureRow[] = [
+        ["POST", "/api/view-log", { ok: true }, 200, { recipe: 1 }],
+        ["GET", "/api/recipes/1", recipe(1, "Soup", 2)],
+      ];
+      const creation: TimedCaptureRow[] = [
+        ["POST", "/api/imports", { id: "rcp-0042" }, 201, { name: "Broth" }],
+        ["GET", "/api/recipes", [recipe(1, "Soup", 1), { id: "rcp-0042" }]],
+      ];
+      return [
+        ["GET", "/api/recipes", [recipe(1, "Soup", 1)]],
+        ["GET", "/api/recipes/1", recipe(1, "Soup", 1)],
+        ...(disagreeFirst
+          ? [...disagreement, ...creation]
+          : [...creation, ...disagreement]),
+      ];
+    };
+    expect(stateOf(rows(true)).types).toMatchObject([
+      { init_before_ordinal: 2 },
+    ]);
+    expect(stateOf(rows(false)).types).toMatchObject([
+      { init_before_ordinal: 2 },
+    ]);
+  });
+});
+
+const note = (id: number, title: string) => ({ id, title });
+const A = note(1001, "Alpha");
+const B = note(1002, "Beta");
+const C = note(1003, "Gamma");
+const notesOf = (state: StateView) =>
+  state.entities
+    .filter((entity) => entity.type === "/api/notes")
+    .map((entity) => entity.id);
+/** Two notes read, the given exchanges, then a POST elsewhere whose returned id the notes are read under. */
+const published = (before: readonly TimedCaptureRow[]): TimedCaptureRow[] => [
+  ["GET", "/api/notes", [A, B]],
+  ["GET", "/api/notes/1001", A],
+  ["GET", "/api/notes/1002", B],
+  ...before,
+  ["POST", "/api/drafts/publish", { id: 1003 }, 201, { title: "Gamma" }],
+  ["GET", "/api/notes/1003", C],
+  ["GET", "/api/notes", [A, B, C]],
+];
+
+describe("creates read under another path", () => {
+  it("plans a POST to another path as a create into the type its returned id is first read under", () => {
+    const state = stateOf(published([]));
+    expect(planOf(state, "post_drafts_publish")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+      collection: "/api/notes",
+    });
+    expect(notesOf(state)).toEqual(["1001", "1002"]);
+  });
+
+  it("ends a type's initial reads at a POST elsewhere that made one of its entities", () => {
+    const state = stateOf([
+      ["GET", "/api/notes", [A, B]],
+      ["POST", "/api/imports", { id: 1003 }, 201, { title: "Gamma" }],
+      ["GET", "/api/notes", [A, B, C]],
+    ]);
+    expect(notesOf(state)).toEqual(["1001", "1002"]);
+    expect(
+      state.types.find((type) => type.collection_template === "/api/notes"),
+    ).toMatchObject({ init_before_ordinal: 1 });
+  });
+
+  it("links no create whose returned id a read showed before it", () => {
+    const shownBefore = published([
+      [
+        "PATCH",
+        "/api/notes/1001",
+        note(1001, "Alpha 2"),
+        200,
+        { title: "Alpha 2" },
+      ],
+      ["GET", "/api/notes/1003", C],
+    ]);
+    expect(planOf(stateOf(shownBefore), "post_drafts_publish")).toMatchObject({
+      effect: "none",
+      reason: "no-state-target",
+    });
+    expect(planOf(stateOf(published([])), "post_drafts_publish")).toMatchObject(
+      { effect: "create" },
+    );
+  });
+
+  /** A create linked under project 11, then a call for project 12, whose note a later item read and delete show. */
+  const otherProject = (): TimedCaptureRow[] => {
+    const D = note(1004, "Delta");
+    return [
+      ["GET", "/api/projects/11/notes", [A, B]],
+      ["GET", "/api/projects/11/notes/1001", A],
+      ["GET", "/api/projects/11/notes/1002", B],
+      [
+        "POST",
+        "/api/projects/11/publish",
+        { id: 1003 },
+        201,
+        { title: "Gamma" },
+      ],
+      ["GET", "/api/projects/11/notes/1003", C],
+      ["GET", "/api/projects/11/notes", [A, B, C]],
+      ["POST", "/api/projects/12/publish", D, 201, { title: "Delta" }],
+      ["GET", "/api/projects/12/notes/1004", D],
+      ["GET", "/api/projects/11/notes", [A, B, C]],
+      ["DELETE", "/api/projects/12/notes/1004", "", 204],
+      ["GET", "/api/projects/12/notes/1004", { error: "Not found" }, 404],
+    ];
+  };
+
+  it("puts no linked create's call that sends other path arguments into the linked collection", () => {
+    // Project 12's note never reaches project 11, so the later read of project 11 confirms the create.
+    expect(
+      planOf(stateOf(otherProject()), "post_projects_publish_by_id"),
+    ).toMatchObject({
+      served: true,
+      collection: "/api/projects/11/notes",
+      checked_record_ordinals: [5],
+      contradicted_by: null,
+    });
+  });
+
+  it("takes the entity such a call made when a read first shows it", () => {
+    expect(
+      planOf(stateOf(otherProject()), "delete_projects_notes_by_id_id_2"),
+    ).toMatchObject({ served: true, checked_record_ordinals: [10] });
+  });
+
+  it("links a create whose response names a short id under an identity member", () => {
+    const [one, two, three] = [
+      note(1, "Alpha"),
+      note(2, "Beta"),
+      note(3, "Gamma"),
+    ];
+    const rows = (response: JsonValue): TimedCaptureRow[] => [
+      ["GET", "/api/notes", [one, two]],
+      ["GET", "/api/notes/1", one],
+      ["GET", "/api/notes/2", two],
+      ["POST", "/api/drafts/publish", response, 201, { title: "Gamma" }],
+      ["GET", "/api/notes/3", three],
+      ["GET", "/api/notes", [one, two, three]],
+    ];
+    expect(
+      planOf(stateOf(rows({ id: 3 })), "post_drafts_publish"),
+    ).toMatchObject({ effect: "create", target: "/api/notes", served: true });
+    // A bare or unnamed short scalar may count rather than name, so it links nothing.
+    for (const response of [3, { created: 3 }])
+      expect(
+        planOf(stateOf(rows(response)), "post_drafts_publish"),
+      ).toMatchObject({ effect: "none", reason: "no-state-target" });
+  });
+
+  it("links a short id to no type that no read showed before the call", () => {
+    // Another type's id 1 may be the one the call returned, so the notes keep their initial reads.
+    const [one, two] = [note(1, "Alpha"), note(2, "Beta")];
+    const state = stateOf([
+      ["POST", "/api/imports", { id: 1 }, 201, { source: "csv" }],
+      ["GET", "/api/notes/1", one],
+      ["GET", "/api/notes", [one, two]],
+    ]);
+    expect(planOf(state, "post_imports")).toMatchObject({
+      effect: "none",
+      reason: "no-state-target",
+    });
+    expect(notesOf(state)).toEqual(["1", "2"]);
+  });
+
+  it("links no create whose returned id the initial state holds", () => {
+    const held = stateOf([
+      ["GET", "/api/notes", [A, B, C]],
+      ["GET", "/api/notes/1001", A],
+      ["POST", "/api/drafts/publish", { id: 1003 }, 201, { title: "Gamma" }],
+      ["GET", "/api/notes/1003", C],
+    ]);
+    expect(planOf(held, "post_drafts_publish")).toMatchObject({
+      effect: "none",
+      reason: "no-state-target",
+    });
+    expect(notesOf(held)).toEqual(["1001", "1002", "1003"]);
+    expect(planOf(stateOf(published([])), "post_drafts_publish")).toMatchObject(
+      { effect: "create" },
+    );
+  });
+});
+
+describe("creates a later write may explain", () => {
+  it("links no create past a later write, which may have made what the read shows", () => {
+    const drafted = (publish: boolean): TimedCaptureRow[] => [
+      ["GET", "/api/notes", [A, B]],
+      ["GET", "/api/notes/1001", A],
+      ["GET", "/api/notes/1002", B],
+      ["POST", "/api/drafts", C, 201, { title: "Gamma" }],
+      ...(publish
+        ? ([
+            [
+              "POST",
+              "/api/drafts/1003/publish",
+              { id: 1003, status: "published" },
+              201,
+            ],
+          ] as TimedCaptureRow[])
+        : []),
+      ["GET", "/api/notes/1003", C],
+      ["GET", "/api/notes", [A, B, C]],
+    ];
+    const state = stateOf(drafted(true));
+    // The publish call made the note, so the draft's POST creates none.
+    expect(planOf(state, "post_drafts")).toMatchObject({
+      effect: "none",
+      reason: "no-state-target",
+    });
+    expect(
+      state.writes.find((plan) => plan.tool !== "post_drafts"),
+    ).toMatchObject({ effect: "create", target: "/api/notes" });
+    expect(planOf(stateOf(drafted(false)), "post_drafts")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+    });
+  });
+});
+
+describe("state order after a variant line is dropped", () => {
+  it("orders entities by the lines left, so a plain list listing them in another order lists them all", () => {
+    const view = stateOf([
+      [
+        "GET",
+        "/api/books?expand=shelf",
+        [expandedBook(SECOND_BOOK), expandedBook(FIRST_BOOK)],
+      ],
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+    ]).views.find((candidate) => candidate.tool === "get_books");
+    expect(view).toMatchObject({
+      shape: "list",
+      membership: "all",
+      projected_record_ordinals: [0],
+    });
+  });
+});
+
+describe("item lines first recorded after a write", () => {
+  it("replays an item line that shows another representation, though first recorded after a write", () => {
+    const created = book(3, "Third Book", bookClock(4));
+    const state = stateOf([
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+      ["POST", "/api/books", created, 201, { name: "Third Book" }],
+      ["GET", "/api/books/3", created],
+      ["GET", "/api/books/1?expand=shelf", expandedBook(FIRST_BOOK)],
+    ]);
+    expect(
+      state.views.find((view) => view.tool === "get_books_by_id"),
+    ).toMatchObject({
+      projected_record_ordinals: [5],
+      projected_query_keys: [{ name: "expand" }],
+    });
+  });
+});
+
+describe("item lines first recorded after a write, against the lines left", () => {
+  const created = book(3, "Third Book", bookClock(4));
+  const lines = (late: TimedCaptureRow): TimedCaptureRow[] => [
+    ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+    ["GET", "/api/books/1", FIRST_BOOK],
+    ["GET", "/api/books/2", SECOND_BOOK],
+    ["GET", "/api/books/1?expand=shelf", expandedBook(FIRST_BOOK)],
+    ["POST", "/api/books", created, 201, { name: "Third Book" }],
+    ["GET", "/api/books/3", created],
+    late,
+  ];
+  const itemView = (rows: TimedCaptureRow[]) =>
+    stateOf(rows).views.find((view) => view.tool === "get_books_by_id");
+
+  it("compares a later line with the lines left after variants are dropped, not the dropped ones", () => {
+    // The early `expand` line is dropped as a variant, so `include` shows a shelf the lines left never show.
+    expect(
+      itemView(
+        lines(["GET", "/api/books/2?include=shelf", expandedBook(SECOND_BOOK)]),
+      ),
+    ).toMatchObject({
+      projected_record_ordinals: [3, 6],
+      projected_query_keys: expect.arrayContaining([{ name: "include" }]),
+    });
+  });
+
+  it("replays a later selection of some fields that keeps the identity but leaves members out", () => {
+    expect(
+      itemView(
+        lines([
+          "GET",
+          "/api/books/2?fields=id,name",
+          { id: 2, name: "Second Book" },
+        ]),
+      ),
+    ).toMatchObject({
+      projected_record_ordinals: [3, 6],
+      projected_query_keys: expect.arrayContaining([{ name: "fields" }]),
+    });
+  });
+});
+
+describe("reads overlapping a linked create", () => {
+  it("links a create whose id only a list still running when it began showed before", () => {
+    const state = stateOf([
+      ["GET", "/api/notes", [A, B]],
+      ["GET", "/api/notes/1001", A],
+      ["GET", "/api/notes/1002", B],
+      // Begun before the publish and finished after it, so it may show what the publish made.
+      ["GET", "/api/notes", [A, B, C], 200, undefined, 2500],
+      ["POST", "/api/drafts/publish", { id: 1003 }, 201, { title: "Gamma" }],
+      ["GET", "/api/notes/1003", C],
+      ["GET", "/api/notes", [A, B, C]],
+    ]);
+    expect(planOf(state, "post_drafts_publish")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+    });
+    expect(notesOf(state)).toEqual(["1001", "1002"]);
+  });
+});
+
+describe("earlier reads of the returned id under other types", () => {
+  it("links a create whose id an earlier read of another type named", () => {
+    const user = { id: 1003, login: "gamma" };
+    const state = stateOf([
+      ["GET", "/api/users/1003", user],
+      ["GET", "/api/notes", [A, B]],
+      ["GET", "/api/notes/1001", A],
+      ["GET", "/api/notes/1002", B],
+      ["POST", "/api/drafts/publish", { id: 1003 }, 201, { title: "Gamma" }],
+      ["GET", "/api/notes/1003", C],
+      ["GET", "/api/notes", [A, B, C]],
+    ]);
+    expect(planOf(state, "post_drafts_publish")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+    });
+  });
+});
+
+describe("item reads that show no entity", () => {
+  it("links a create past a read of its id that answered JSON null under another type", () => {
+    const user = (id: number, login: string) => ({ id, login });
+    const state = stateOf([
+      ["GET", "/api/notes", [A, B]],
+      ["GET", "/api/notes/1001", A],
+      ["GET", "/api/notes/1002", B],
+      ["GET", "/api/users/1001", user(1001, "alpha")],
+      // Ends the users' initial reads, so the null read below plans nothing.
+      [
+        "PATCH",
+        "/api/users/1001",
+        user(1001, "alpha2"),
+        200,
+        { login: "alpha2" },
+      ],
+      ["POST", "/api/drafts/publish", { id: 1003 }, 201, { title: "Gamma" }],
+      ["GET", "/api/users/1003", null],
+      ["GET", "/api/notes/1003", C],
+      ["GET", "/api/notes", [A, B, C]],
+    ]);
+    expect(planOf(state, "post_drafts_publish")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+    });
+  });
+});
+
+describe("what a linked create observes", () => {
+  it("observes a linked create only in a read of an id its response named, inside an envelope too", () => {
+    const D = note(1004, "Delta");
+    const state = stateOf([
+      ["GET", "/api/notes", [A, B]],
+      ["GET", "/api/notes/1001", A],
+      ["GET", "/api/notes/1002", B],
+      [
+        "POST",
+        "/api/drafts/publish",
+        { data: { id: 1003 } },
+        201,
+        { title: "Gamma" },
+      ],
+      // Another note the state never held, which the publish did not make.
+      ["GET", "/api/notes/1004", D],
+      ["GET", "/api/notes/1003", C],
+    ]);
+    expect(planOf(state, "post_drafts_publish")).toMatchObject({
+      effect: "create",
+      target: "/api/notes",
+      observation: { ordinal: 5 },
+    });
+  });
+});
+
+describe("creates whose returned id an earlier read showed", () => {
+  it("links no create whose returned id a list of its collection showed before it", () => {
+    const listed = (shown: JsonValue[]): TimedCaptureRow[] =>
+      published([
+        [
+          "PATCH",
+          "/api/notes/1001",
+          note(1001, "Alpha 2"),
+          200,
+          { title: "Alpha 2" },
+        ],
+        ["GET", "/api/notes?include=archived", shown],
+      ]);
+    const alpha = note(1001, "Alpha 2");
+    expect(
+      planOf(stateOf(listed([alpha, B, C])), "post_drafts_publish"),
+    ).toMatchObject({ effect: "none", reason: "no-state-target" });
+    expect(
+      planOf(stateOf(listed([alpha, B])), "post_drafts_publish"),
+    ).toMatchObject({ effect: "create", target: "/api/notes" });
+  });
+});
+
+describe("lines left to replay", () => {
+  it("plans a list past a line that asks for some fields only and leaves the proved id out", () => {
+    const created = book(3, "Third Book", bookClock(4));
+    const state = stateOf([
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+      [
+        "GET",
+        "/api/books?fields=name",
+        [{ name: "First Book" }, { name: "Second Book" }],
+      ],
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+      ["POST", "/api/books", created, 201, { name: "Third Book" }],
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK, created]],
+    ]);
+    expect(state.views.find((view) => view.tool === "get_books")).toMatchObject(
+      {
+        shape: "list",
+        checked_record_ordinals: [0],
+        projected_record_ordinals: [1],
+        projected_query_keys: [{ name: "fields" }],
+      },
+    );
+    expect(planOf(state, "post_books")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5],
+    });
+  });
+
+  it("checks a list line asking for every field beside the plain one, as serving answers both from the state", () => {
+    const created = book(3, "Third Book", bookClock(4));
+    const state = stateOf([
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+      ["GET", "/api/books?fields=*", [FIRST_BOOK, SECOND_BOOK]],
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+      ["POST", "/api/books", created, 201, { name: "Third Book" }],
+      ["GET", "/api/books?fields=*", [FIRST_BOOK, SECOND_BOOK, created]],
+    ]);
+    const view = state.views.find(
+      (candidate) => candidate.tool === "get_books",
+    );
+    expect(view).toMatchObject({
+      shape: "list",
+      checked_record_ordinals: [0, 1],
+    });
+    expect(view).not.toHaveProperty("projected_record_ordinals");
+    expect(planOf(state, "post_books")).toMatchObject({
+      served: true,
+      checked_record_ordinals: [5],
+    });
+  });
+
+  it("keeps a list's whole line when only a replayed line's membership changed across a write", () => {
+    // The expanded line lists shelved books only; the whole list still shows both after the export.
+    const view = stateOf([
+      ["GET", "/api/books/1", FIRST_BOOK],
+      ["GET", "/api/books/2", SECOND_BOOK],
+      [
+        "GET",
+        "/api/books?expand=shelf",
+        [FIRST_BOOK, SECOND_BOOK].map(expandedBook),
+      ],
+      ["POST", "/api/exports", { queued: true }, 202, { format: "csv" }],
+      ["GET", "/api/books?expand=shelf", [expandedBook(FIRST_BOOK)]],
+      ["GET", "/api/books", [FIRST_BOOK, SECOND_BOOK]],
+    ]).views.find((candidate) => candidate.tool === "get_books");
+    expect(view).toMatchObject({
+      shape: "list",
+      checked_record_ordinals: [5],
+      projected_record_ordinals: [4],
+      projected_query_keys: [{ name: "expand" }],
+    });
+  });
+});
+
+describe("field selections the gate reads as serving answers them", () => {
+  it("approves no create from a read serving replays, a selection no checked line gave", () => {
+    const state = stateOf([
+      ["GET", "/api/books/1?fields=*", FIRST_BOOK],
+      ["GET", "/api/books/2?fields=*", SECOND_BOOK],
+      ["GET", "/api/books/2?fields=name", { name: "Second Book" }],
+      ["POST", "/api/books", THIRD_BOOK, 201, { name: "Third Book" }],
+      [
+        "GET",
+        "/api/books/3?fields=id,name,slug,created_at,updated_at",
+        THIRD_BOOK,
+      ],
+    ]);
+    expect(
+      state.views.find((view) => view.tool === "get_books_by_id"),
+    ).toMatchObject({
+      projected_query_keys: [{ name: "fields", value: "name" }],
+    });
+    expect(planOf(state, "post_books")).toMatchObject({
+      served: false,
+      reason: "unconfirmed",
+    });
+  });
+
+  it("checks an update against a read of every field, which serving answers from the state", () => {
+    const state = stateOf([
+      ...BOOK_INIT_ROWS,
+      ["GET", "/api/books/2?fields=name", { name: "Second Book" }],
+      ["PATCH", "/api/books/1", RENAMED_BOOK, 200, { name: "Renamed Book" }],
+      ["GET", "/api/books/1?fields=*", FIRST_BOOK],
+      ["GET", "/api/books/1", RENAMED_BOOK],
+    ]);
+    expect(
+      state.views.find((view) => view.tool === "get_books_by_id"),
+    ).toMatchObject({ projected_query_keys: [{ name: "fields" }] });
+    expect(planOf(state, "patch_books_by_id")).toMatchObject({
+      served: false,
+      reason: "contradicted",
+      contradicted_by: 5,
     });
   });
 });

@@ -240,12 +240,13 @@ const matchingTarget = (
     readonly ids: readonly string[];
     readonly written: string;
   },
-  collections: readonly string[],
+  /** Called only when the path's own collection holds none of its ids, since listing walks the type's entities. */
+  collections: () => readonly string[],
   held: (collection: string, id: string) => boolean,
 ): { readonly collection: string; readonly id: string } | undefined => {
   for (const id of path.ids)
     if (held(path.written, id)) return { collection: path.written, id };
-  const ranked = [...new Set(collections)]
+  const ranked = [...new Set(collections())]
     .flatMap((collection) => {
       const verbatim = segmentMatch(segmentsOf(collection), path.read);
       return verbatim === undefined ? [] : [{ collection, verbatim }];
@@ -278,12 +279,12 @@ export const itemTarget = (
   return (
     matchingTarget(
       path,
-      state.ofType(type).map((entity) => entity.collection),
+      () => state.ofType(type).map((entity) => entity.collection),
       (collection, id) => state.entity(type, collection, id) !== undefined,
     ) ??
     matchingTarget(
       path,
-      removed.map((target) => target.collection),
+      () => removed.map((target) => target.collection),
       (collection, id) =>
         removed.some(
           (target) => target.collection === collection && target.id === id,

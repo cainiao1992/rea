@@ -14,6 +14,7 @@ import {
   type StateRecordFacts,
   type StateView,
 } from "./environmentStateRules.js";
+import { queryValues, replayReason } from "./environmentStateVariants.js";
 
 /** Where an observed entity object was found: the record and a JSON pointer into its response. */
 export interface Observed {
@@ -92,23 +93,22 @@ export interface ObservationSearch {
     ordinal: number,
     use: (body: JsonValue | undefined) => T,
   ) => T;
+  readonly queryOf: (ordinal: number) => string | null | undefined;
 }
 
-/** Whether a read asked for some fields only and shows no whole entity: an item view replays such reads, or the read leaves out a field its view requires. */
+/** Whether a successful read neither checks the state nor observes a write: serving replays it, or it asked for some fields only and shows no whole entity. */
 export const projectedRead = (
   view: StateView,
   record: StateRecordFacts,
-  io: Pick<ObservationSearch, "withBody">,
+  io: Pick<ObservationSearch, "withBody" | "queryOf">,
 ): boolean => {
-  if (
-    (view.shape !== "item" && view.shape !== "list") ||
-    !projectsFields(record.query)
-  )
-    return false;
-  // An absence or error holds no entity, so it is never a partial one.
+  if (view.shape !== "item" && view.shape !== "list") return false;
+  // An absence or error holds no entity, so it is never a partial one and stays evidence.
   if (!succeeded(record)) return false;
-  if (view.shape === "item" && view.projected_record_ordinals !== undefined)
+  if (replayReason(view, queryValues(record.query), io.queryOf) !== undefined)
     return true;
+  // Serving answers such a selection with the whole entity, which part of one can neither confirm nor check.
+  if (!projectsFields(record.query)) return false;
   return io.withBody(record.ordinal, (body) => {
     const objects =
       body === undefined || body === null

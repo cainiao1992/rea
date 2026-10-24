@@ -320,7 +320,7 @@ export type TimedCaptureRow = readonly [
   path: string,
   body?: JsonValue,
   status?: number,
-  request?: JsonValue,
+  request?: JsonValue | undefined,
   time?: number,
 ];
 

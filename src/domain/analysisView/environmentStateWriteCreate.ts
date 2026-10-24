@@ -5,7 +5,6 @@ import {
   collectionPathOf,
   isObject,
   isParam,
-  isStateWrite,
   normalizedPath,
   scalarText,
   segmentsOf,
@@ -15,6 +14,11 @@ import {
   type SuppliedSegment,
 } from "./environmentStateRules.js";
 import { createdFields } from "./environmentStateWriteApply.js";
+import {
+  recordedPathValues,
+  respondedIds,
+  sameLinkedSource,
+} from "./environmentStateWriteLinks.js";
 import {
   collectionTarget,
   entityTarget,
@@ -71,7 +75,10 @@ const respondedId = (
   return members.length === 1 ? scalarText(members[0]) : undefined;
 };
 
-/** The written entity a create's response or a later read shows. */
+/**
+ * The written entity a create's response or a later read shows. A linked create's read must name an
+ * id its response returned, as the read that linked it did, envelopes included.
+ */
 const createdObservation = (
   context: EffectContext,
   step: WriteStep,
@@ -79,6 +86,7 @@ const createdObservation = (
     readonly type: string;
     readonly collection: string;
     readonly idField: string;
+    readonly linked: boolean;
   },
 ): Observed | undefined => {
   const held = (id: string) =>
@@ -87,17 +95,29 @@ const createdObservation = (
     newEntityIn(step.record.ordinal, body, target.idField, held),
   );
   if (own !== undefined) return own;
-  // A response that names the created id alone ties the later read to that id.
-  const id = context.io.withBody(step.record.ordinal, (body) =>
-    respondedId(body, target.idField),
-  );
+  const { id, ids } = context.io.withBody(step.record.ordinal, (body) => {
+    const returned = target.linked ? respondedIds(body) : [];
+    // A response that names the created id alone ties the later read to that id.
+    const named =
+      respondedId(body, target.idField) ??
+      (returned.length === 1 ? returned[0] : undefined);
+    return { id: named, ids: returned };
+  });
   const later = laterObservation(searchFrom(context, step), {
-    ...target,
+    type: target.type,
+    collection: target.collection,
+    idField: target.idField,
     ...(id === undefined ? {} : { id }),
     held,
-    isWrite: isStateWrite,
+    isWrite: context.isWrite,
   });
-  if (later !== undefined) context.observed(later.ordinal);
+  // A read named by the id is tied already; otherwise a linked create's read must name a returned id.
+  if (
+    later === undefined ||
+    (target.linked && id === undefined && !ids.includes(later.id))
+  )
+    return undefined;
+  context.observed(later.ordinal);
   return later;
 };
 
@@ -155,7 +175,8 @@ const buildCreate = (
     ),
     body: explained.body,
     rules: explained.rules,
-    collection: explained.tied ? evidence.collection : null,
+    collection:
+      explained.tied || draft.linked !== undefined ? evidence.collection : null,
     insert: draft.candidates[0]!,
   });
   draft.observed = evidence.observed.object;
@@ -302,6 +323,20 @@ const servedCollection = (
     : selectedCollection(segments, createCandidates(context, type));
 };
 
+/** Whether a linked create's call sends the source path values its exemplar did, the only ones its link holds for. */
+const fromLinkedSource = (
+  context: EffectContext,
+  draft: WriteDraft,
+  step: WriteStep,
+): boolean =>
+  sameLinkedSource(
+    step.tool.path_template,
+    context.records.find(
+      (record) => record.ordinal === draft.plan.exemplar_ordinal,
+    )?.path,
+    recordedPathValues(step.tool.path_template, step.record.path),
+  );
+
 /** Add a created entity to the state at the plan's insert position, or last before the plan has one. */
 const insertCreated = (
   context: EffectContext,
@@ -331,11 +366,13 @@ export const applyCreate = (
   const idField = context.idField(type);
   const spelled = normalizedPath(step.record.path);
   // Serving writes a create into the collection it chooses for the path, and a tied plan refuses any other, so a create there is not counted.
-  const collection = servedCollection(context, step, type) ?? spelled;
+  const collection =
+    draft.linked ?? servedCollection(context, step, type) ?? spelled;
+  // A linked plan's collection holds only for its exemplar's source path, so serving refuses any other.
   if (
     built(draft) &&
-    draft.plan.collection !== null &&
-    draft.plan.collection !== collection
+    ((draft.plan.collection !== null && draft.plan.collection !== collection) ||
+      (draft.linked !== undefined && !fromLinkedSource(context, draft, step)))
   )
     return UNKNOWN;
   const body = requestObject(context, step.record);
@@ -343,6 +380,7 @@ export const applyCreate = (
     type,
     collection,
     idField,
+    linked: draft.linked !== undefined,
   });
   if (observed === undefined) {
     fail(draft, step, body === undefined ? "body-unusable" : "no-observation");

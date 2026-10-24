@@ -1,12 +1,8 @@
-import {
-  environmentToolArguments,
-  hasRepeatedQueryArgument,
-} from "./environmentTools.js";
+import { hasRepeatedQueryArgument } from "./environmentTools.js";
 import { stateBodyJson } from "../../domain/analysisView/EnvironmentStateAccumulator.js";
 import {
   collectionMatch,
   collectionPathOf,
-  isProjectionParameter,
   decodedSegment,
   allLines,
   listItems,
@@ -25,6 +21,7 @@ import {
   type StateView,
 } from "../../domain/analysisView/environmentStateRules.js";
 import { pageBound } from "../../domain/analysisView/environmentStatePaging.js";
+import { replayReason } from "../../domain/analysisView/environmentStateVariants.js";
 import { isAbsence } from "../../domain/analysisView/environmentStateWriteChecks.js";
 import {
   evaluateQuery,
@@ -72,7 +69,8 @@ export type StateProvenance =
         | "query-multiplicity"
         | "unrecorded-request"
         | "page-exceeded"
-        | "projection";
+        | "projection"
+        | "variant";
     }
   | {
       readonly source: "state";
@@ -154,16 +152,16 @@ const fromRecording = (
     : replayed;
 };
 
-/** Whether a call names a projection parameter of an item view with projected reads, which the state's whole entities cannot answer. */
-const asksProjection = (
-  view: StateItemView,
-  tool: EnvironmentManifestTool,
-  args: ReplayArguments,
-): boolean =>
-  view.projected_record_ordinals !== undefined &&
-  [...environmentToolArguments(tool).query].some(
-    ([name, argument]) =>
-      isProjectionParameter(name) && args[argument] !== undefined,
+/** Why a call replays the view's replayed reads, or undefined when the state answers it. */
+const replayedCall = (
+  source: EnvironmentSource,
+  view: StateItemView | StateListView,
+  call: ReadonlyMap<string, string>,
+): "projection" | "variant" | undefined =>
+  replayReason(
+    view,
+    new Map([...call].map(([name, value]) => [name, [value]])),
+    (ordinal) => source.exchanges.get(ordinal)?.query,
   );
 
 /** A recorded body the state renders into, usable exactly when extraction could use it. */
@@ -221,6 +219,22 @@ export const itemCall = (
 };
 
 /** The entity an item call names, preferring verbatim collection spellings as replay does; the id is tried percent-decoded, then as written. */
+/** Whether the state started with the item a call names, which a served delete may since have removed. */
+const startedWithItem = (
+  store: EnvironmentStateStore,
+  type: string,
+  call: ItemCall,
+): boolean => {
+  const ids = new Set([decodedSegment(call.id), call.id]);
+  return store
+    .startedWith(type)
+    .some(
+      (entity) =>
+        ids.has(entity.id) &&
+        collectionMatch(entity.collection, call.segments) !== undefined,
+    );
+};
+
 export const namedEntity = (
   store: EnvironmentStateStore,
   type: string,
@@ -308,15 +322,27 @@ const answerItem = (
   if (call === undefined)
     return err(refused(tool, `Tool ${tool.name} needs every path argument.`));
   const entity = namedEntity(store, view.type, call);
-  if (entity === undefined)
+  // A projection or another representation of an entity the state holds replays as the capture's reads did.
+  const replayed = replayedCall(source, view, callQuery(tool, args));
+  if (entity === undefined) {
+    // An item only a replayed line showed, which the state never held, answers with its own recording; a created
+    // item may since have been deleted, so a type a served create added to keeps the missing answer.
+    if (
+      replayed !== undefined &&
+      !store.createdInto(view.type) &&
+      !startedWithItem(store, view.type, call) &&
+      selectReplayExchange(tool, source.exchanges, args, observedQuery)
+        ?.exact === true
+    )
+      return fromRecording(source, tool, args, replayed, observedQuery);
     return missingAnswer(serving, tool, {
       type: view.type,
       collection: `/${call.segments.map(({ text }) => text).join("/")}`,
       id: call.id,
     });
-  // A projection of an entity the state holds replays as the capture's projected reads did.
-  if (asksProjection(view, tool, args))
-    return fromRecording(source, tool, args, "projection", observedQuery);
+  }
+  if (replayed !== undefined)
+    return fromRecording(source, tool, args, replayed, observedQuery);
   const shown = shownEntity(
     tool,
     view,
@@ -489,6 +515,12 @@ const answerCheckedLine = (
   args: ReplayArguments,
   observedQuery?: ObservedQuery,
 ): Result<StateAnswer, AnalysisError> => {
+  const replayed =
+    view.shape === "list"
+      ? replayedCall(serving.source, view, callQuery(tool, args))
+      : undefined;
+  if (replayed !== undefined)
+    return fromRecording(serving.source, tool, args, replayed, observedQuery);
   const named = checkedLine(
     serving.source,
     tool,

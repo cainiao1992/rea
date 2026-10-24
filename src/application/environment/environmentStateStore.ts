@@ -117,6 +117,8 @@ export class EnvironmentStateStore {
   readonly #sequences = new Map<string, number>();
   /** The entities the state held when it was last reset or loaded, whose values no sequence reuses either. */
   #started: readonly StateEntity[] = [];
+  /** The types a served create has added an entity to since the last reset or load. */
+  readonly #createdTypes = new Set<string>();
   /** Baseline and post-start spellings kept known after their entities are deleted. */
   readonly #knownCollections = new Map<string, Set<string>>();
   /** Logical UTF-8 key bytes plus a 64-byte allowance per collection and potential sequence-key record. */
@@ -210,6 +212,7 @@ export class EnvironmentStateStore {
     this.#writes = 0;
     this.#sequences.clear();
     this.#started = this.#content.entities;
+    this.#createdTypes.clear();
     this.#knownCollections.clear();
     this.#collectionHistoryBytes = 0;
     for (const [type, collections] of this.#typeCollections)
@@ -227,6 +230,11 @@ export class EnvironmentStateStore {
   }
 
   /** The entities of a type the state held when it was last reset or loaded. */
+  /** Whether a served create has added an entity of the type since the last reset or load. */
+  createdInto(type: string): boolean {
+    return this.#createdTypes.has(type);
+  }
+
   startedWith(type: string): readonly StateEntity[] {
     return this.#started.filter((entity) => entity.type === type);
   }
@@ -294,6 +302,7 @@ export class EnvironmentStateStore {
       this.#rememberCollection(entity.type, entity.collection);
       this.#collectionHistoryBytes += newCollectionBytes;
     }
+    this.#createdTypes.add(entity.type);
     return ok(undefined);
   }
 

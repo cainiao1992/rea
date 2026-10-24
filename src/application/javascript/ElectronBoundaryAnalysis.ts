@@ -2,7 +2,7 @@ import type { JavaScriptJsonDocuments } from "./JavaScriptJsonDocuments.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import type { ElectronIpcFinding } from "../../domain/javascript/electronStaticAnalysisTypes.js";
 import type { ElectronBoundarySummary } from "../../domain/javascript/javascriptApplicationAnalysis.js";
-import type { JavaScriptModuleArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
+import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
   resolveArtifactPathByContext,
@@ -31,7 +31,7 @@ export interface ElectronIpcPairingState {
 
 /** Flatten all per-file IPC facts into deterministic application records. */
 export const collectElectronIpcRecords = (
-  analysis: JavaScriptModuleArtifactAnalysis,
+  analysis: JavaScriptArtifactAnalysis,
 ): readonly ElectronIpcRecord[] =>
   analysis.files
     .flatMap(({ file, javascript }) =>
@@ -83,7 +83,7 @@ export const unambiguousElectronIpcPairings = (
 
 /** Summarize static Electron findings without treating gaps as absence. */
 export const summarizeElectronBoundaries = (
-  analysis: JavaScriptModuleArtifactAnalysis,
+  analysis: JavaScriptArtifactAnalysis,
   directoryPaths?: ReadonlySet<string>,
 ): ElectronBoundarySummary => {
   const files = new Map(analysis.files.map(({ file }) => [file.path, file]));

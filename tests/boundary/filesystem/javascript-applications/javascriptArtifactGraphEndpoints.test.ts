@@ -7,7 +7,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 import { scanCanonicalArtifactInventory } from "../../../fixtures/artifactInventory.js";
 import { readJavaScriptArtifactFiles } from "../../../support/javascriptApplicationScope.js";
 import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
-import { analyzeJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { analyzeArtifactFiles } from "../../../fixtures/javascriptArtifactAnalysis.js";
 import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
 
 it("keeps an endpoint uncertain after mutation through a declared inherited field", async () => {
@@ -27,7 +27,7 @@ it("keeps an endpoint uncertain after mutation through a declared inherited fiel
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
     const endpoints = graph.nodes.filter(({ kind }) => kind === "endpoint");
     expect(endpoints).toHaveLength(1);
@@ -51,7 +51,7 @@ it("keeps ambiguous endpoint candidates inferred through artifact graph projecti
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
     const endpoints = graph.nodes.filter(({ kind }) => kind === "endpoint");
     const candidate = endpoints.find(({ observations }) =>
@@ -121,7 +121,7 @@ it("preserves partial and exact endpoint identity through graph projection", asy
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
     const endpoints = graph.nodes.filter(({ kind }) => kind === "endpoint");
     const partialNodes = endpoints.filter(({ observations }) =>
@@ -171,7 +171,7 @@ it("projects path data records as inferred route candidates", async () => {
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
     const route = (value: string) =>
       graph.nodes

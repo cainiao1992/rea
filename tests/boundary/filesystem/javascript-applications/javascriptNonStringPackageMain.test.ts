@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { analyzeJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { analyzeArtifactFiles } from "../../../fixtures/javascriptArtifactAnalysis.js";
 import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
 import { resolveArtifactPathByContext } from "../../../../src/application/javascript/JavaScriptArtifactPathResolution.js";
 import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
@@ -42,7 +42,7 @@ it.each(
     const reader = createJavaScriptArtifactReader(root, "directory");
     try {
       const files = await readJavaScriptArtifactFiles(reader, snapshot);
-      const analysis = analyzeJavaScriptArtifactFiles(files);
+      const { analysis } = await analyzeArtifactFiles(files);
       expect(
         analysis.packages.find(({ path }) => path === "b/package.json"),
       ).toMatchObject({ main_status: "invalid", main_entrypoint: "" });
@@ -103,7 +103,7 @@ it.each(
     const reader = createJavaScriptArtifactReader(root, "directory");
     try {
       const files = await readJavaScriptArtifactFiles(reader, snapshot);
-      const analysis = analyzeJavaScriptArtifactFiles(files);
+      const { analysis } = await analyzeArtifactFiles(files);
       expect(
         analysis.packages.find(({ path }) => path === "b/package.json"),
       ).toMatchObject({

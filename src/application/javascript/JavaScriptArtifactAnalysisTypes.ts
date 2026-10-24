@@ -3,7 +3,6 @@ import type {
   JavaScriptSourceRange,
   JavaScriptStaticAnalysis,
 } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
-import type { JavaScriptSemanticIr } from "../../domain/javascript/javascriptSemanticIr.js";
 import type { JavaScriptModuleSemanticIr } from "../../domain/javascript/javascriptModuleSemanticIr.js";
 import type {
   ExternalSourceMapSection,
@@ -162,14 +161,12 @@ export interface JavaScriptArtifactAnalysisFailure {
   readonly limits: Readonly<Record<string, JsonValue>> | null;
 }
 
-/** One relevant file plus optional AST-only JavaScript facts. */
-export interface AnalyzedJavaScriptArtifactFile<
-  SemanticIr extends JavaScriptModuleSemanticIr = JavaScriptSemanticIr,
-> {
+/** One relevant file and the module facts retained after file-local projection. */
+export interface AnalyzedJavaScriptArtifactFile {
   readonly file: JavaScriptArtifactFile;
   readonly javascript: JavaScriptStaticAnalysis | null;
   readonly semantic: {
-    readonly ir: SemanticIr;
+    readonly ir: JavaScriptModuleSemanticIr;
   } | null;
   /** Operational incompleteness, distinct from a malformed source file. */
   readonly analysis_failure?: JavaScriptArtifactAnalysisFailure;
@@ -197,13 +194,11 @@ export const isSkippedJavaScriptAnalysis = (
   entry.javascript === null &&
   entry.analysis_failure !== undefined;
 
-/** Complete static-analysis projection before graph construction. */
-export interface JavaScriptArtifactAnalysis<
-  SemanticIr extends JavaScriptModuleSemanticIr = JavaScriptSemanticIr,
-> {
+/** Retained source facts shared by application graph construction. */
+export interface JavaScriptArtifactAnalysis {
   /** Internal source-facts owner shared with graph path resolution. */
   readonly jsonDocuments: JavaScriptJsonDocuments;
-  readonly files: readonly AnalyzedJavaScriptArtifactFile<SemanticIr>[];
+  readonly files: readonly AnalyzedJavaScriptArtifactFile[];
   readonly packages: readonly JavaScriptPackageObservation[];
   readonly json_modules: readonly JavaScriptJsonModuleObservation[];
   readonly html_scripts: readonly JavaScriptHtmlScriptObservation[];
@@ -215,7 +210,3 @@ export interface JavaScriptArtifactAnalysis<
   readonly parse_failures: number;
   readonly limitations: readonly string[];
 }
-
-/** Artifact facts retaining only semantics used by application relationships. */
-export type JavaScriptModuleArtifactAnalysis =
-  JavaScriptArtifactAnalysis<JavaScriptModuleSemanticIr>;

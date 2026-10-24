@@ -6,7 +6,7 @@ import {
   completeApplicationCoverage,
   partialApplicationCoverage,
 } from "../../domain/javascript/javascriptApplicationEvidenceSchemas.js";
-import type { JavaScriptModuleArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
+import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import { javascriptArtifactAnalysisScopes } from "./JavaScriptArtifactAnalysisTypes.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 import { freezeJsonSnapshot } from "../../domain/immutableJson.js";
@@ -623,8 +623,8 @@ export const addJavaScriptPackageNodes = (
 const createFileTarget = (
   context: JavaScriptArtifactGraphContext,
   file: JavaScriptArtifactFile,
-  javascript: JavaScriptModuleArtifactAnalysis["files"][number]["javascript"],
-  json: JavaScriptModuleArtifactAnalysis["json_modules"][number] | undefined,
+  javascript: JavaScriptArtifactAnalysis["files"][number]["javascript"],
+  json: JavaScriptArtifactAnalysis["json_modules"][number] | undefined,
   skipped: boolean,
 ): ApplicationNode => {
   const kind = artifactFileNodeKind(file.kind);

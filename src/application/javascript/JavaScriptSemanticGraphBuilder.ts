@@ -18,11 +18,7 @@ import type {
 } from "../../domain/javascript/javascriptSemanticIr.js";
 import { sourceRangesEqual as rangesEqual } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
 import type { JavaScriptApplicationGraph } from "../../domain/javascript/javascriptApplicationGraph.js";
-import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
-import {
-  javaScriptSemanticSourceExclusion,
-  type JavaScriptArtifactFile,
-} from "../../domain/javascript/javascriptArtifactFiles.js";
+import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
 import {
   projectSemanticEvents,
   projectSemanticTimers,
@@ -91,14 +87,7 @@ import type {
 import type { ElectronCallPath } from "../../domain/javascript/electronStaticAnalysisTypes.js";
 import { projectElectronSemanticCallPaths } from "./JavaScriptSemanticGraphElectronProjection.js";
 
-interface BuilderInput {
-  readonly rootArtifactSha256: string;
-  readonly applicationGraph: Pick<
-    JavaScriptApplicationGraph,
-    "graph_id" | "nodes"
-  >;
-  readonly analysis: JavaScriptArtifactAnalysis;
-}
+type ApplicationGraph = Pick<JavaScriptApplicationGraph, "graph_id" | "nodes">;
 
 interface FileContext extends SemanticFlowProjectionContext {
   readonly file: JavaScriptArtifactFile;
@@ -147,36 +136,6 @@ export const SEMANTIC_GRAPH_NODE_CEILING =
 export const SEMANTIC_GRAPH_FILE_NODE_CEILING =
   JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.semanticNodesPerFile;
 
-export const buildJavaScriptSemanticGraph = ({
-  rootArtifactSha256,
-  applicationGraph,
-  analysis,
-}: BuilderInput): JavaScriptSemanticGraph => {
-  const projection = createJavaScriptSemanticGraphProjection();
-  for (const analyzed of analysis.files) {
-    if (analyzed.semantic !== null)
-      projection.projectFile(
-        analyzed.file,
-        analyzed.semantic.ir,
-        analyzed.javascript?.electron.call_paths,
-      );
-    else {
-      const reason = javaScriptSemanticSourceExclusion(
-        analyzed.file,
-        analyzed.javascript?.parse_status ?? null,
-      );
-      if (reason !== null)
-        projection.recordUnavailableFile(
-          analyzed.file,
-          reason,
-          null,
-          "incomplete-module",
-        );
-    }
-  }
-  return projection.finish(rootArtifactSha256, applicationGraph);
-};
-
 /** File-local semantic projection that does not retain consumed source IR. */
 export interface JavaScriptSemanticGraphProjection {
   /** Node capacity offered to the next independently analyzed source file. */
@@ -205,11 +164,11 @@ export interface JavaScriptSemanticGraphProjection {
   ) => Generator<void, void>;
   readonly finish: (
     rootArtifactSha256: string,
-    applicationGraph: BuilderInput["applicationGraph"],
+    applicationGraph: ApplicationGraph,
   ) => JavaScriptSemanticGraph;
   readonly finishImmutableSteps: (
     rootArtifactSha256: string,
-    applicationGraph: BuilderInput["applicationGraph"],
+    applicationGraph: ApplicationGraph,
   ) => Generator<void, JavaScriptSemanticGraph>;
 }
 
@@ -336,7 +295,7 @@ export const createJavaScriptSemanticGraphProjection = (
   const finishWith = <Value>(
     factory: (input: unknown) => Value,
     rootArtifactSha256: string,
-    applicationGraph: BuilderInput["applicationGraph"],
+    applicationGraph: ApplicationGraph,
   ): Value => {
     bindSemanticGraphApplicationNodes(state, applicationGraph);
     if (state.roots.size === 0) addFallbackRoot(rootArtifactSha256, state);

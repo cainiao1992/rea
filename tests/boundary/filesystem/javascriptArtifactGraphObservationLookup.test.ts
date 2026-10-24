@@ -6,7 +6,7 @@ import { expect, it } from "vitest";
 import { scanCanonicalArtifactInventory } from "../../fixtures/artifactInventory.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { readJavaScriptArtifactFiles } from "../../support/javascriptApplicationScope.js";
-import { analyzeJavaScriptArtifactFiles } from "../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { analyzeArtifactFiles } from "../../fixtures/javascriptArtifactAnalysis.js";
 import { immutableArtifactGraph } from "../../fixtures/javascriptArtifactGraph.js";
 import { createJavaScriptArtifactReader } from "../../../src/artifacts/javascript/JavaScriptArtifactReader.js";
 import type {
@@ -35,7 +35,7 @@ it("uses the first structured observation when paths repeat", async () => {
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const packageObservation = analysis.packages.find(
       ({ path }) => path === "package.json",
     );
@@ -137,7 +137,7 @@ it("preserves unknown omitted-key count for unavailable JSON", async () => {
 
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
 
     const configFile = graph.nodes.find(({ observations }) =>
@@ -182,7 +182,7 @@ it("preserves unknown omitted-key count for unselected JSON", async () => {
       ["package.json"],
     );
 
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
 
     const configFile = graph.nodes.find(({ observations }) =>
@@ -227,7 +227,7 @@ it("preserves unknown omitted-key count for unselected uppercase JSON", async ()
       ["package.json"],
     );
 
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
 
     const configFile = graph.nodes.find(({ observations }) =>

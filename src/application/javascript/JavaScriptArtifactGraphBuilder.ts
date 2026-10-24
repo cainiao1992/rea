@@ -4,7 +4,7 @@ import {
   sealTransferredJavaScriptApplicationGraphSteps,
   type JavaScriptApplicationGraph,
 } from "../../domain/javascript/javascriptApplicationGraph.js";
-import type { JavaScriptModuleArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
+import type { JavaScriptArtifactAnalysis } from "./JavaScriptArtifactAnalysisTypes.js";
 import type { JavaScriptArtifactFileSet } from "../../domain/javascript/javascriptArtifactFiles.js";
 import { JavaScriptArtifactGraphAccumulator } from "./JavaScriptArtifactGraphAccumulator.js";
 import {
@@ -57,7 +57,7 @@ import {
 export function* buildImmutableJavaScriptArtifactGraphSteps(
   snapshot: ArtifactInventorySnapshot,
   fileSet: JavaScriptArtifactFileSet,
-  analysis: JavaScriptModuleArtifactAnalysis,
+  analysis: JavaScriptArtifactAnalysis,
 ): Generator<void, JavaScriptApplicationGraph> {
   const input = yield* buildJavaScriptArtifactGraphInputSteps(
     snapshot,
@@ -71,7 +71,7 @@ export function* buildImmutableJavaScriptArtifactGraphSteps(
 function* buildJavaScriptArtifactGraphInputSteps(
   snapshot: ArtifactInventorySnapshot,
   fileSet: JavaScriptArtifactFileSet,
-  analysis: JavaScriptModuleArtifactAnalysis,
+  analysis: JavaScriptArtifactAnalysis,
 ): Generator<void, unknown> {
   const accumulator = new JavaScriptArtifactGraphAccumulator();
   const root = createJavaScriptArtifactRootNode(accumulator, snapshot);

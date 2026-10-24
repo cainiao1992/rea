@@ -17,20 +17,12 @@ import {
   reconstructJavaScriptArtifact,
   readJavaScriptArtifactFiles,
 } from "../../../support/javascriptApplicationScope.js";
-import {
-  analyzeJavaScriptArtifactFiles,
-  analyzeAndAdoptJavaScriptArtifactFiles,
-} from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { analyzeAndAdoptJavaScriptArtifactFiles } from "../../../../src/application/javascript/JavaScriptArtifactAnalysis.js";
+import { analyzeArtifactFiles } from "../../../fixtures/javascriptArtifactAnalysis.js";
+import type { JavaScriptAnalyzedSource } from "../../../../src/domain/javascript/javascriptSourceAnalysis.js";
 import { immutableArtifactGraph } from "../../../fixtures/javascriptArtifactGraph.js";
-import {
-  buildJavaScriptSemanticGraph,
-  createJavaScriptSemanticGraphProjection,
-  projectJavaScriptSemanticFileSteps,
-} from "../../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
-import {
-  projectJavaScriptModuleSemantics,
-  type JavaScriptModuleSemanticIr,
-} from "../../../../src/domain/javascript/javascriptModuleSemanticIr.js";
+import { createJavaScriptSemanticGraphProjection } from "../../../../src/application/javascript/JavaScriptSemanticGraphBuilder.js";
+import type { JavaScriptModuleSemanticIr } from "../../../../src/domain/javascript/javascriptModuleSemanticIr.js";
 import type { JavaScriptStaticAnalysis } from "../../../../src/domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../../../src/domain/javascript/javascriptArtifactFiles.js";
 import { completeJavaScriptAnalysisSteps } from "../../../../src/application/javascript/JavaScriptAnalysisControl.js";
@@ -43,9 +35,13 @@ import { createJavaScriptArtifactReader } from "../../../../src/artifacts/javasc
 import { createJavaScriptSourceAnalysis } from "../../../../src/artifacts/javascript/JavaScriptSourceAnalysis.js";
 import {
   scanCanonicalArtifactInventory,
+  withArtifactResourceScope,
   scanArtifactInventory,
 } from "../../../fixtures/artifactInventory.js";
-import { parseJavaScriptApplicationGraph } from "../../../../src/domain/javascript/javascriptApplicationGraph.js";
+import {
+  parseJavaScriptApplicationGraph,
+  type JavaScriptApplicationGraph,
+} from "../../../../src/domain/javascript/javascriptApplicationGraph.js";
 import { javascriptApplicationAnalysisResultSchema } from "../../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import {
   createJavaScriptSemanticGraph,
@@ -215,7 +211,7 @@ it.each([
       const graph = await immutableArtifactGraph(
         snapshot,
         partial,
-        analyzeJavaScriptArtifactFiles(partial),
+        (await analyzeArtifactFiles(partial)).analysis,
       );
       const roles = graph.nodes.filter(
         ({ kind }) => kind === "electron-renderer",
@@ -291,7 +287,7 @@ it.each(["unselected", "unavailable"] as const)(
       const graph = await immutableArtifactGraph(
         snapshot,
         partial,
-        analyzeJavaScriptArtifactFiles(partial),
+        (await analyzeArtifactFiles(partial)).analysis,
       );
       const roles = graph.nodes.filter(
         ({ kind }) => kind === "electron-renderer",
@@ -335,7 +331,7 @@ it("keeps imported loadFile ownership unknown across an application projection o
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const entry = analysis.files.find(
       ({ file }) => file.path === "shared/main.cjs",
     );
@@ -424,7 +420,7 @@ it("keeps a loadFile owner unknown when a sibling manifest is unavailable in the
     const graph = await immutableArtifactGraph(
       snapshot,
       partial,
-      analyzeJavaScriptArtifactFiles(partial),
+      (await analyzeArtifactFiles(partial)).analysis,
     );
     const roles = graph.nodes.filter(
       ({ kind }) => kind === "electron-renderer",
@@ -453,7 +449,7 @@ it("keeps a loadFile owner unknown when a sibling manifest is unavailable in the
   }
 });
 
-it("keeps excluded non-JavaScript files out of both semantic construction paths", async () => {
+it("keeps excluded non-JavaScript files out of the semantic graph", async () => {
   const root = await createTestTempDirectory("rea-js-semantic-applicability-");
   await Promise.all(
     (
@@ -490,34 +486,22 @@ it("keeps excluded non-JavaScript files out of both semantic construction paths"
       "native.node",
       "package.json",
     ]);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
-    const applicationGraph = await immutableArtifactGraph(
-      snapshot,
-      files,
-      analysis,
-    );
-    const full = buildJavaScriptSemanticGraph({
-      rootArtifactSha256: snapshot.manifest.root_sha256,
-      applicationGraph,
-      analysis,
-    });
-    const incremental = await reconstructJavaScriptArtifact({
+    const result = await reconstructJavaScriptArtifact({
       input_path: root,
       source_paths: ["a.js"],
     });
-    for (const graph of [full, incremental.semantic_graph]) {
-      expect(
-        graph.nodes
-          .filter(({ kind }) => kind === "module")
-          .map(({ identity }) => identity.module_path)
-          .sort(),
-      ).toEqual(["a.js", "b.js"]);
-      expect(graph.coverage.status).toBe("partial");
-      expect(graph.unknowns.length).toBeGreaterThan(0);
-      expect(
-        new Set(graph.nodes.map(({ identity }) => identity.module_path)),
-      ).toEqual(new Set(["a.js", "b.js"]));
-    }
+    const graph = result.semantic_graph;
+    expect(
+      graph.nodes
+        .filter(({ kind }) => kind === "module")
+        .map(({ identity }) => identity.module_path)
+        .sort(),
+    ).toEqual(["a.js", "b.js"]);
+    expect(graph.coverage.status).toBe("partial");
+    expect(graph.unknowns.length).toBeGreaterThan(0);
+    expect(
+      new Set(graph.nodes.map(({ identity }) => identity.module_path)),
+    ).toEqual(new Set(["a.js", "b.js"]));
   } finally {
     await reader.close();
   }
@@ -574,80 +558,71 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const full = analyzeJavaScriptArtifactFiles(files);
     const projection = createJavaScriptSemanticGraphProjection();
-    const worker = await createJavaScriptSourceAnalysis(
-      { heapMb: 512, timeoutMs: 30_000 },
-      files.files.filter(
-        (file) => file.kind === "javascript" && file.text.included,
-      ).length,
-    );
-    let outcome: Awaited<
-      ReturnType<typeof analyzeAndAdoptJavaScriptArtifactFiles>
-    >;
-    try {
-      outcome = await analyzeAndAdoptJavaScriptArtifactFiles(
+    const sources = new Map<string, JavaScriptAnalyzedSource>();
+    const outcome = await withArtifactResourceScope(async (scope) => {
+      const worker = await createJavaScriptSourceAnalysis(
+        { heapMb: 512, timeoutMs: 30_000 },
+        files.files.filter(
+          (file) => file.kind === "javascript" && file.text.included,
+        ).length,
+        { scope },
+      );
+      scope.retain({
+        kind: "javascript-source-analysis",
+        resource: "worker adoption fixture analyzer",
+        analysis: worker,
+      });
+      return analyzeAndAdoptJavaScriptArtifactFiles(
         files,
-        worker,
+        {
+          analyze: async (...args) => {
+            const result = await worker.analyze(...args);
+            if (result.ok) sources.set(args[0].path, result.value);
+            return result;
+          },
+        },
         projection,
         async () => {},
       );
-    } finally {
-      await worker.close();
-    }
+    });
     if (outcome.interruption !== null) throw outcome.interruption;
     const compact = outcome.analysis;
-    const graph = await immutableArtifactGraph(snapshot, files, full);
-    expect(await immutableArtifactGraph(snapshot, files, compact)).toEqual(
-      graph,
+    const graph = await immutableArtifactGraph(snapshot, files, compact);
+    const semantic = await completeJavaScriptAnalysisSteps(
+      projection.finishImmutableSteps(snapshot.manifest.root_sha256, graph),
     );
-    const semantic = projection.finish(snapshot.manifest.root_sha256, graph);
-    expect(semantic).toEqual(
-      buildJavaScriptSemanticGraph({
-        rootArtifactSha256: snapshot.manifest.root_sha256,
-        applicationGraph: graph,
-        analysis: full,
-      }),
-    );
-    expect(
-      semantic.nodes.some(
-        ({ application_node_ids }) => application_node_ids.length > 0,
-      ),
-    ).toBe(true);
+    expect(parseJavaScriptApplicationGraph(graph)).toEqual(graph);
+    expect(semantic.application_graph_id).toBe(graph.graph_id);
+    expect(semantic.root_artifact_sha256).toBe(snapshot.manifest.root_sha256);
     const exported = compact.files.find(
       ({ file }) => file.path === "exports.mjs",
     );
-    expect(exported?.semantic?.ir.callables.map(({ name }) => name)).toEqual([
+    if (exported === undefined)
+      throw new Error("Expected exports source facts");
+    expect(exported.semantic?.ir.callables.map(({ name }) => name)).toEqual([
       "create",
       "configured",
     ]);
-    expect(
-      full.files
-        .find(({ file }) => file.path === "exports.mjs")
-        ?.semantic?.ir.callables.map(({ name }) => name),
-    ).toContain("unexported");
+    expectWorkerExportFacts(graph, semantic, exported.file);
     expect(javaScriptSemanticGraphSchema.parse(semantic)).toEqual(semantic);
     const transferred = createJavaScriptSemanticGraphProjection();
     const wireRoot = await createTestTempDirectory("rea-javascript-transfer-");
     const decodedModules = new Map<string, JavaScriptModuleSemanticIr>();
     const decodedStatic = new Map<string, JavaScriptStaticAnalysis>();
     let rejectedInvalidTransfer = false;
-    for (const [index, analyzed] of full.files.entries()) {
+    for (const [index, analyzed] of compact.files.entries()) {
+      const source = sources.get(analyzed.file.path);
+      if (source === undefined) continue;
       if (analyzed.javascript !== null) {
         const raw: unknown = JSON.parse(JSON.stringify(analyzed.javascript));
         const decodedFacts = javaScriptWorkerStaticAnalysisSchema.parse(raw);
         expect(decodedFacts).toEqual(analyzed.javascript);
         decodedStatic.set(analyzed.file.path, decodedFacts);
       }
-      if (analyzed.semantic === null) continue;
-      const fragment = await completeJavaScriptAnalysisSteps(
-        projectJavaScriptSemanticFileSteps(
-          analyzed.file,
-          analyzed.semantic.ir,
-          transferred.remainingFileCapacity(),
-        ),
-      );
-      const module = projectJavaScriptModuleSemantics(analyzed.semantic.ir);
+      if (source.projection === null || source.module === null) continue;
+      const fragment = source.projection;
+      const module = source.module;
       const wirePath = join(wireRoot, `${String(index)}.jsonl`);
       const descriptor = await writeJavaScriptAnalysisTransfer(
         wirePath,
@@ -672,6 +647,7 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
         rejectedInvalidTransfer = true;
       }
     }
+    expect(rejectedInvalidTransfer).toBe(true);
     const decodedGraph = await immutableArtifactGraph(snapshot, files, {
       ...compact,
       files: compact.files.map((analyzed) => {
@@ -697,6 +673,84 @@ it("preserves graph commitments and export shapes through worker adoption", asyn
     await reader.close();
   }
 });
+
+const expectWorkerExportFacts = (
+  graph: JavaScriptApplicationGraph,
+  semantic: JavaScriptSemanticGraph,
+  file: JavaScriptArtifactFile,
+): void => {
+  // File-local projection precedes pruning to exported module facts.
+  const privateFunction = semantic.nodes.find(
+    ({ kind, label, identity }) =>
+      kind === "function" &&
+      label === "unexported" &&
+      identity.module_path === "exports.mjs",
+  );
+  expect(privateFunction?.identity.artifact_sha256).toBe(file.sha256);
+  const exports = graph.nodes.flatMap((node) =>
+    node.observations
+      .filter(
+        ({ properties }) =>
+          properties.semantic_role === "export-binding" &&
+          properties.module_path === "exports.mjs",
+      )
+      .map(({ properties }) => ({ node, name: properties.exported_name })),
+  );
+  expect(exports.map(({ name }) => name).sort()).toEqual([
+    "configured",
+    "create",
+    "read",
+  ]);
+  const createExport = exports.find(({ name }) => name === "create");
+  const createFunction = semantic.nodes.find(
+    ({ kind, label, identity }) =>
+      kind === "function" &&
+      label === "create" &&
+      identity.module_path === "exports.mjs",
+  );
+  if (createExport === undefined || createFunction === undefined)
+    throw new Error("Expected create export and semantic callable");
+  expect(createFunction.application_node_ids).toContain(
+    createExport.node.node_id,
+  );
+  const returnShapes = graph.nodes.flatMap(({ observations }) =>
+    observations
+      .map(({ properties }) => properties)
+      .filter(
+        (properties) =>
+          properties.semantic_role === "export-return-shapes" &&
+          properties.module_path === "exports.mjs",
+      ),
+  );
+  expect(returnShapes).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        exported_name: "create",
+        static_return_shapes: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                path: "/nested/enabled",
+                state: "literal",
+                value: true,
+              }),
+            ]),
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        exported_name: "configured",
+        static_return_shapes: [
+          expect.objectContaining({
+            property_coverage: expect.arrayContaining([
+              { path: "", status: "partial", omitted: null },
+            ]),
+          }),
+        ],
+      }),
+    ]),
+  );
+};
 
 const rejectInvalidTransfer = async (
   wirePath: string,
@@ -753,7 +807,7 @@ it("reports semantic value resource limits in application graph coverage", async
   const reader = createJavaScriptArtifactReader(root, "directory");
   try {
     const files = await readJavaScriptArtifactFiles(reader, snapshot);
-    const analysis = analyzeJavaScriptArtifactFiles(files);
+    const { analysis } = await analyzeArtifactFiles(files);
     const graph = await immutableArtifactGraph(snapshot, files, analysis);
 
     expect(graph.coverage).toMatchObject({

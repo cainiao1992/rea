@@ -6,7 +6,7 @@ import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptA
 import { analyzeJavaScriptStaticSource } from "../../domain/javascript/javascriptStaticAnalysis.js";
 import type {
   AnalyzedJavaScriptArtifactFile,
-  JavaScriptModuleArtifactAnalysis,
+  JavaScriptArtifactAnalysis,
 } from "./JavaScriptArtifactAnalysisTypes.js";
 import { javascriptArtifactAnalysisScopes } from "./JavaScriptArtifactAnalysisTypes.js";
 import { JavaScriptArtifactGraphAccumulator } from "./JavaScriptArtifactGraphAccumulator.js";
@@ -51,7 +51,7 @@ const skippedEntry = (
 
 const analysisFor = (
   entries: readonly AnalyzedJavaScriptArtifactFile[],
-): JavaScriptModuleArtifactAnalysis => ({
+): JavaScriptArtifactAnalysis => ({
   jsonDocuments: new JavaScriptJsonDocuments(),
   files: entries,
   packages: [],
@@ -68,7 +68,7 @@ const analysisFor = (
 
 const contextFor = (
   file: JavaScriptArtifactFile,
-  analysis: JavaScriptModuleArtifactAnalysis,
+  analysis: JavaScriptArtifactAnalysis,
 ): JavaScriptArtifactGraphContext => {
   const accumulator = new JavaScriptArtifactGraphAccumulator();
   const snapshot = {

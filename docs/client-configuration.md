@@ -305,15 +305,17 @@ for the supported policy values.
 When direct launcher paths prove the same executable or Node entrypoint,
 setup retains the existing caller-selected spelling. An otherwise aligned
 registration therefore needs no rewrite or recovery backup merely because
-REA was invoked through another symlink. Unresolved identity does not prove
-equivalence.
+REA was invoked through another symlink. Setup also retains that spelling when
+another field, such as an invalid timeout, needs repair. Unresolved identity
+does not prove equivalence.
 
-| Settings                                  | Setup ownership                                                       |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| Launcher, transport and activation        | Refreshes the REA stdio connection and enables it.                    |
-| Explicit server environment               | Preserves configured overrides and merges selected provider settings. |
-| Codex positive timeouts and client policy | Retains caller choices; adds missing recommended REA timeouts.        |
-| Unrelated or future server settings       | Retains their parsed values.                                          |
+| Settings                                    | Setup ownership                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Launcher, transport and activation          | Refreshes the REA stdio connection and enables it.                                      |
+| Explicit server environment                 | Preserves configured overrides and merges selected provider settings.                   |
+| Codex timeouts                              | Retains positive values; repairs missing or invalid values to recommended REA defaults. |
+| Codex approval policies and tool selections | Retains caller choices; refuses known malformed values.                                 |
+| Unrelated or future server settings         | Retains their parsed values.                                                            |
 
 Dry-run applies the same policy validation and writes no files. A successful
 refresh keeps an exact recovery snapshot of the original configuration;

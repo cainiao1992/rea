@@ -53,6 +53,11 @@ satisfy. A plan without execution does not establish runtime behavior.
 - Use strict inputs with explicit target identity and required fields. Preserve
   meaningful target, action, capture, and output choices; remove ignored options
   and repeated permission declarations.
+  One-shot CLI provider inspections retain the caller's exact target spelling
+  in Evidence `parameters.input_path`; the subject keeps the canonical inspected
+  file identity. Keep request provenance separate from provider arguments.
+  Snapshot entries bind Evidence parameters to provider queries, so changes to
+  snapshot-backed request provenance must preserve that cache contract.
 - Return the requested facts inline with artifact/provider identity, source
   locations, Evidence references, coverage, and relevant confidence and
   limitations. Use supported selection, summaries or views when they answer

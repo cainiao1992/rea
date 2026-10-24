@@ -195,12 +195,16 @@ export const runProviderAnalysis = async (
       ]),
     );
   return withProcessCancellation(signal, async (operationSignal) => {
+    // The selected CLI path is a request fact. Keep it out of provider inputs
+    // and target identity, which may use the resolved executable instead.
+    const evidenceParameters = { ...arguments_, input_path: path };
     if (isManagedToolName(tool)) {
       const original = await runManagedProviderAnalysis(
         dependencies,
         path,
         tool,
         arguments_,
+        evidenceParameters,
         operationSignal,
       );
       await dispatchQueuedInterrupts();
@@ -227,6 +231,7 @@ export const runProviderAnalysis = async (
       logger,
       snapshotPath: undefined,
       signal: operationSignal,
+      evidenceParameters,
       ...(ARTIFACT_ANALYSIS_OPERATION_SET.has(tool)
         ? { createSession: dependencies.createArtifactBinarySession }
         : NATIVE_INSPECTION_OPERATIONS.has(tool)
@@ -265,6 +270,7 @@ const runManagedProviderAnalysis = async (
   path: string,
   tool: ManagedToolName,
   arguments_: Readonly<Record<string, JsonValue>>,
+  evidenceParameters: Readonly<Record<string, JsonValue>>,
   signal?: AbortSignal,
 ): Promise<Result<Evidence, AnalysisError>> => {
   const execution = await runManagedProviderExecution(
@@ -277,9 +283,13 @@ const runManagedProviderAnalysis = async (
   if (!execution.ok) return execution;
   const value = execution.value;
   return ok(
-    createAnalysisExecutionEvidence(tool, arguments_, value, "observed", {
-      immutable: true,
-    }),
+    createAnalysisExecutionEvidence(
+      tool,
+      evidenceParameters,
+      value,
+      "observed",
+      { immutable: true },
+    ),
   );
 };
 
@@ -296,6 +306,7 @@ const runAnalysis = async (
     readonly logger: Logger;
     readonly snapshotPath: string | undefined;
     readonly signal: AbortSignal;
+    readonly evidenceParameters?: Readonly<Record<string, JsonValue>>;
     readonly createSession?: () => BinarySession | Promise<BinarySession>;
     readonly providerId?: AnalysisProviderSelector;
     readonly formatHint?: ExecutableFormatHint;
@@ -304,6 +315,7 @@ const runAnalysis = async (
   },
 ): Promise<JsonValue> => {
   const { logger, signal, snapshotPath } = options;
+  const evidenceParameters = options.evidenceParameters ?? arguments_;
   let session: BinarySession;
   if (options.createSession !== undefined) {
     session = await options.createSession();
@@ -332,7 +344,7 @@ const runAnalysis = async (
       return ok(
         createAnalysisExecutionEvidence(
           tool,
-          arguments_,
+          evidenceParameters,
           execution.value,
           "observed",
         ),
@@ -427,9 +439,9 @@ const runAnalysis = async (
     const executed = await executeAnalysisTool({
       session,
       openedTarget: opened.value,
-      selectedPath: path,
       tool,
       arguments: arguments_,
+      evidenceParameters,
       signal,
       evidenceProfile,
     });
@@ -523,13 +535,13 @@ const runAnalysis = async (
 const executeAnalysisTool = async (input: {
   readonly session: BinarySession;
   readonly openedTarget: BinaryTarget;
-  readonly selectedPath: string;
   readonly tool:
     | NativeToolName
     | ArtifactAnalysisOperation
     | ManagedToolName
     | DirectAnalysisTool;
   readonly arguments: Readonly<Record<string, JsonValue>>;
+  readonly evidenceParameters: Readonly<Record<string, JsonValue>>;
   readonly signal: AbortSignal;
   readonly evidenceProfile: AnalysisProfileCommitment | undefined;
 }): Promise<
@@ -573,7 +585,7 @@ const executeAnalysisTool = async (input: {
     const evidence = createWorkflowEvidence({
       target: input.openedTarget,
       operation: tool,
-      parameters: input.arguments,
+      parameters: input.evidenceParameters,
       result: result.value.result,
       upstreamProfile: evidenceProfile,
       upstreamLimitations: result.value.limitations,
@@ -621,10 +633,7 @@ const executeAnalysisTool = async (input: {
     result.value.provider,
     {
       operation: tool,
-      parameters:
-        tool === "inspect_artifact"
-          ? { ...input.arguments, input_path: input.selectedPath }
-          : input.arguments,
+      parameters: input.evidenceParameters,
       result: result.value.result,
       ...(result.value.analysisProfile === undefined
         ? {}

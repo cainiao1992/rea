@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 
 import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
-import { json, pathExists } from "./lib/verify-package-core.mjs";
+import { pathExists } from "./lib/verify-package-core.mjs";
 import { parse as parseJsonc } from "jsonc-parser";
 import { skillReferenceIssues } from "./lib/docs-facts.mjs";
 import {
@@ -61,7 +61,7 @@ const verifySetupPlan = async ({
     ["setup", "--all-detected", "--dry-run", "--json"],
     environment,
   );
-  const planned = json(plannedExecution.stdout);
+  const planned = JSON.parse(plannedExecution.stdout);
   if (supportedSetupHost) {
     const plannedActions = Array.isArray(planned?.plannedActions)
       ? planned.plannedActions
@@ -114,7 +114,7 @@ const verifyAbsentOpenCodeSetup = async ({
     ["setup", "--yes", "--client", "opencode", "--skill=false", "--json"],
     { ...environment, XDG_CONFIG_HOME: xdgConfigHome },
   );
-  const result = json(execution.stdout);
+  const result = JSON.parse(execution.stdout);
   const config = JSON.parse(await readFile(configPath, "utf8"));
   if (
     execution.status !== 0 ||
@@ -163,8 +163,8 @@ const verifyAbsentClaudeCodeSetup = async ({
     args,
     childEnvironment,
   );
-  const first = json(firstExecution.stdout);
-  const config = json(await readFile(configPath, "utf8"));
+  const first = JSON.parse(firstExecution.stdout);
+  const config = JSON.parse(await readFile(configPath, "utf8"));
   const registration = first.doctor.identity?.registrations?.find(
     ({ client }) => client === "claude_code",
   );
@@ -186,7 +186,7 @@ const verifyAbsentClaudeCodeSetup = async ({
     args,
     childEnvironment,
   );
-  const repeat = json(repeatExecution.stdout);
+  const repeat = JSON.parse(repeatExecution.stdout);
   if (
     repeatExecution.status !== 0 ||
     repeat.status !== "ready" ||
@@ -214,13 +214,13 @@ const verifySetupApply = async ({
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
   );
-  const first = json(firstExecution.stdout);
+  const first = JSON.parse(firstExecution.stdout);
   const alignedExecution = await commands.runWithStatus(
     cli,
     ["setup", "--all-detected", "--json"],
     environment,
   );
-  const aligned = json(alignedExecution.stdout);
+  const aligned = JSON.parse(alignedExecution.stdout);
   const secondExecution = await commands.runWithStatus(
     cli,
     [
@@ -236,7 +236,7 @@ const verifySetupApply = async ({
     ],
     environment,
   );
-  const second = json(secondExecution.stdout);
+  const second = JSON.parse(secondExecution.stdout);
   if (supportedSetupHost) {
     if (
       first.status !== status ||
@@ -267,7 +267,7 @@ const verifySetupApply = async ({
 
 /** Verify the live registration and exact pre-setup backup bytes. */
 export const assertClientConfig = async (cli, configPath, original) => {
-  const config = json(await readFile(configPath, "utf8"));
+  const config = JSON.parse(await readFile(configPath, "utf8"));
   if (
     config.existing !== true ||
     config.mcpServers?.rea?.command !== cli ||
@@ -285,8 +285,7 @@ const assertOpenCodeConfig = async ({
 }) => {
   const contents = await readFile(configPath, "utf8");
   const errors = [];
-  const parsed = parseJsonc(contents, errors, { allowTrailingComma: true });
-  const config = parsed;
+  const config = parseJsonc(contents, errors, { allowTrailingComma: true });
   const mcp = config?.mcp;
   if (
     errors.length !== 0 ||
@@ -357,7 +356,7 @@ const assertAlignedDoctor = async (commands, cli, environment) => {
     ["doctor", "--json"],
     environment,
   );
-  const alignedDoctor = json(alignedDoctorExecution.stdout);
+  const alignedDoctor = JSON.parse(alignedDoctorExecution.stdout);
   if (
     alignedDoctorExecution.status !== (alignedDoctor.healthy ? 0 : 1) ||
     alignedDoctor.identity?.skill?.state !== "aligned" ||
@@ -425,7 +424,8 @@ const verifySetupFailureRecovery = async ({
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
   );
-  const failed = json(failedExecution.stdout);
+  const failed = JSON.parse(failedExecution.stdout);
+  const cursorAfterFailure = JSON.parse(await readFile(cursorConfig, "utf8"));
   if (
     failed.status !== "needs_human" ||
     failedExecution.status !== 1 ||
@@ -433,8 +433,8 @@ const verifySetupFailureRecovery = async ({
     failed.appliedActions.length !== 0 ||
     !failed.remediation?.includes("Claude Desktop") ||
     (await readFile(claudeConfig, "utf8")) !== "malformed" ||
-    json(await readFile(cursorConfig, "utf8")).existing !== true ||
-    json(await readFile(cursorConfig, "utf8")).mcpServers?.rea !== undefined
+    cursorAfterFailure.existing !== true ||
+    cursorAfterFailure.mcpServers?.rea !== undefined
   )
     throw new Error(
       `packaged setup mutated clients after a preflight failure: ${JSON.stringify(failed)}`,
@@ -445,11 +445,12 @@ const verifySetupFailureRecovery = async ({
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
   );
-  const recovered = json(recoveredExecution.stdout);
+  const recovered = JSON.parse(recoveredExecution.stdout);
   if (
     recovered.status !== status ||
     recoveredExecution.status !== (status === "ready" ? 0 : 1) ||
-    json(await readFile(cursorConfig, "utf8")).mcpServers?.rea?.command !== cli
+    JSON.parse(await readFile(cursorConfig, "utf8")).mcpServers?.rea
+      ?.command !== cli
   )
     throw new Error("packaged setup did not recover");
 };
@@ -464,7 +465,7 @@ const verifyDanglingSymlink = async ({ commands, cli, environment, home }) => {
     ["setup", "--yes", "--client", "gemini_cli", "--json"],
     environment,
   );
-  const dangling = json(danglingExecution.stdout);
+  const dangling = JSON.parse(danglingExecution.stdout);
   if (
     dangling.status !== "needs_human" ||
     danglingExecution.status !== 1 ||
@@ -496,8 +497,8 @@ const verifyUninstall = async ({
     ["uninstall", "--json"],
     environment,
   );
-  const uninstall = json(uninstallExecution.stdout);
-  const cursorAfterUninstall = json(await readFile(cursorTarget, "utf8"));
+  const uninstall = JSON.parse(uninstallExecution.stdout);
+  const cursorAfterUninstall = JSON.parse(await readFile(cursorTarget, "utf8"));
   const codexAfterUninstall = await readFile(codexTarget, "utf8");
   const openCodeErrors = [];
   const openCodeAfterUninstall = parseJsonc(

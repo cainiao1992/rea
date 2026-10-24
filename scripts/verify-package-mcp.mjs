@@ -11,7 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { resolveMcpStartupBudgets } from "../dist/config/mcpStartupBudgets.js";
 import { parseEvidence } from "../dist/domain/evidence.js";
 import * as prompts from "./verify-package-prompts.mjs";
-import { json, verifyCompleteToolCatalog } from "./lib/verify-package-core.mjs";
+import { verifyCompleteToolCatalog } from "./lib/verify-package-core.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 
 const verifyMcpToolsAndPrompts = async (client, mcpOptions) => {
@@ -95,7 +95,7 @@ const verifyMcpNonLinuxCurrentDocument = async (
   mcpOptions,
   current,
 ) => {
-  if (json(prompts.mcpText(current)).normalized_result !== "fixture")
+  if (JSON.parse(prompts.mcpText(current)).normalized_result !== "fixture")
     throw new Error("packaged MCP bridge call failed");
   const batch = await client.callTool(
     {
@@ -104,7 +104,7 @@ const verifyMcpNonLinuxCurrentDocument = async (
     },
     mcpOptions,
   );
-  const batchResult = json(prompts.mcpText(batch)).normalized_result;
+  const batchResult = JSON.parse(prompts.mcpText(batch)).normalized_result;
   if (
     batch.isError === true ||
     batchResult?.total !== 1 ||
@@ -178,7 +178,7 @@ const verifyMcpInlineArtifactEvidence = async (
       inspected.structuredContent?.normalized_result,
     );
     assert.deepEqual(
-      json(prompts.mcpText(inspected)),
+      JSON.parse(prompts.mcpText(inspected)),
       inspected.structuredContent,
     );
     const compared = await client.callTool(
@@ -251,7 +251,7 @@ export async function verifyPackageMcp({
   evidenceRoot,
   artifactArchive,
 }) {
-  const diagnosed = json(
+  const diagnosed = JSON.parse(
     (
       await commands.exec(cli, ["mcp", "doctor", "--json"], {
         env: environment,

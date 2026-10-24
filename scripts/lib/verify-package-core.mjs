@@ -1,12 +1,9 @@
 import { lstat } from "node:fs/promises";
 import { Ajv2020 } from "ajv/dist/2020.js";
 
-// Only catalog verification needs built MCP contracts; the other helpers work
+// Only catalog verification needs built MCP contracts; path checks work
 // from source without a runtime build.
 const loadMcpVerifierResults = () => import("./mcp-verifier-results.mjs");
-
-/** Parse JSON from a command output string. */
-export const json = (text) => JSON.parse(text);
 
 /** Verify schema validity and that the MCP catalog matches session metadata. */
 export const verifyCompleteToolCatalog = async (client, options) => {

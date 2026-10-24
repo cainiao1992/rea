@@ -265,7 +265,11 @@ Undecodable objects retain native display text with `decoding.available: false`
 and a reason, so one uncertain object does not block unrelated inspections.
 Function dossiers and `trace_feature` string matches retain this same string
 evidence, including decoding uncertainty; procedure matches keep their own
-named observation fields without invented string qualifications. Native call edges retain
+named observation fields without invented string qualifications. Tracing keeps
+same-address search alternatives, including different string encodings, in their
+original search order and shares one reference read per target address within
+the call. Reference rows are emitted once per target address, preserving any
+duplicates in the provider's observation. Native call edges retain
 Hopper's partial `CallReference` classification and exact endpoints; detailed
 reference flags remain unavailable rather than being invented. Caller and callee
 procedure inventories come from independent Hopper APIs; REA retains observed

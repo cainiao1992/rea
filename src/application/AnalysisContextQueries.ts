@@ -8,7 +8,7 @@ import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import {
   analysisBookmarkSchema,
-  containingProcedureResolutionSchema,
+  parseContainingProcedureResolution,
 } from "../domain/hopperValues.js";
 import { resolveAnalysisDocument } from "./AnalysisDocument.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -70,7 +70,7 @@ export const getNavigationContext = async (
     executionOptions(signal),
   );
   if (!procedure.ok) return procedure;
-  const resolution = readContainingProcedure(procedure.value.result);
+  const resolution = parseContainingProcedureResolution(procedure.value.result);
   if (!resolution.ok) return resolution;
   return ok({
     document: documentName,
@@ -114,7 +114,7 @@ export const inspectAddressContext = async (
   const name = facet(results[0], operations[0]);
   const procedureResult = results[1];
   const resolution = procedureResult?.ok
-    ? readContainingProcedure(procedureResult.value.result)
+    ? parseContainingProcedureResolution(procedureResult.value.result)
     : procedureResult;
   const procedure: Facet = resolution?.ok
     ? { state: "available", value: resolution.value }
@@ -160,19 +160,6 @@ const isRequestLevelFailure = (error: AnalysisError): boolean =>
   error._tag === "AnalysisCancelledError" ||
   error._tag === "AnalysisTimeoutError" ||
   error._tag === "NoBinaryOpenError";
-
-const readContainingProcedure = (value: JsonValue) => {
-  const parsed = containingProcedureResolutionSchema.safeParse(value);
-  return parsed.success
-    ? ok(parsed.data)
-    : err(
-        new AnalysisOutputError(
-          "resolve_containing_procedure",
-          "expected a containing-procedure resolution",
-          { cause: parsed.error },
-        ),
-      );
-};
 
 const matchingBookmarks = (value: JsonValue, address: string): Facet => {
   if (!Array.isArray(value))

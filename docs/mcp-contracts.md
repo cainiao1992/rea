@@ -174,6 +174,11 @@ visible. When a requested goal is not reached but an expansion is unresolved,
 `goal_status` is `unknown`; `not_reached` means traversal exhausted without
 unresolved relationship reads. Cancellation remains a tool error.
 
+`trace_feature` validates each reference's containing-procedure resolution using
+the same contract as navigation context. Explicit absence remains a successful
+negative observation; malformed provider replies return `unreadable_output`
+for `resolve_containing_procedure` before successful-result projection.
+
 REA prepares complete MCP results within the pinned stdio client's 10 MiB
 receive-buffer budget, including both text and structured representations and
 room for the JSON-RPC envelope. Tool errors omit `structuredContent` from the

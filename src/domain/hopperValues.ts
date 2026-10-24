@@ -235,6 +235,25 @@ export const containingProcedureResolutionSchema = z.discriminatedUnion(
     }),
   ],
 );
+export type ContainingProcedureResolution = z.infer<
+  typeof containingProcedureResolutionSchema
+>;
+
+/** Validate provider procedure facts before a workflow interprets absence. */
+export const parseContainingProcedureResolution = (
+  value: JsonValue,
+): Result<ContainingProcedureResolution, AnalysisOutputError> => {
+  const parsed = containingProcedureResolutionSchema.safeParse(value);
+  return parsed.success
+    ? ok(parsed.data)
+    : err(
+        new AnalysisOutputError(
+          "resolve_containing_procedure",
+          "expected a containing-procedure resolution",
+          { cause: parsed.error },
+        ),
+      );
+};
 
 export const localVariableSchema = z
   .object({

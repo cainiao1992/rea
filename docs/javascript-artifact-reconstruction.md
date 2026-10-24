@@ -427,6 +427,8 @@ member-mutation owners must establish the receiver before static API facts becom
 roles or storage observations. Path `join`, `resolve`, and `fileURLToPath` use
 proven Node imports; source-relative URL conversion additionally requires an
 unmodified global or proven Node `url.URL` constructor and `import.meta.url`.
+Native constructor aliases retain that identity; their local spelling does not
+determine URL semantics, and replaced exports or local constructors remain unknown.
 Relative results of native path operations retain filesystem-expression context;
 their spelling does not turn them into module specifiers. Other calls preserve
 their expressions. A property named `preload` outside a proven BrowserWindow

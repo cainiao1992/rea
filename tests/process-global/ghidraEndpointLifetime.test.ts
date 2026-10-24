@@ -195,8 +195,10 @@ it.skipIf(process.platform === "win32").each(["released", "failed"] as const)(
         throw new Error("Expected the retained endpoint descriptor owner");
       expect(endpointCause.reason).toBe("io");
       expect(endpointCause.cancellation).toBeUndefined();
+      // The descriptor reader retains native EIO directly, without an opaque
+      // callback marker; the wrapper still owns the failed operation and close.
       expect(artifactFilePrimaryFacts(endpointCause).origin).toBe(
-        "opaque-operation",
+        "owned-or-classified",
       );
       expect(endpointCause.fileCleanupFailure.owner.handle).toBe(
         fault.handles[0],

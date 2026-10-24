@@ -54,16 +54,7 @@ export const selectObjcClassCandidates = (
 /** Project selected class labels, coalescing only exact proven import identities. */
 export const projectObjcClassCandidates = (
   candidates: readonly AddressedName[],
-  bindingScan: ObjcClassImportBindingScan = {
-    bindings: [],
-    coverage: {
-      status: candidates.length === 0 ? "not_applicable" : "unknown",
-      reason:
-        candidates.length === 0
-          ? null
-          : "Exact class-import binding identity is unavailable.",
-    },
-  },
+  bindingScan: ObjcClassImportBindingScan,
 ): JsonValue => {
   const classes = coalesceBoundClassAliases(candidates, bindingScan.bindings);
   return {
@@ -75,17 +66,6 @@ export const projectObjcClassCandidates = (
     },
   };
 };
-
-/** Select, then project Objective-C class labels for provider-neutral callers. */
-export const discoverObjcClasses = (
-  names: readonly AddressedName[],
-  pattern: string,
-  bindingScan?: ObjcClassImportBindingScan,
-): JsonValue =>
-  projectObjcClassCandidates(
-    selectObjcClassCandidates(names, pattern),
-    bindingScan,
-  );
 
 /** Select and deduplicate Objective-C and Swift protocol labels. */
 export const discoverObjcProtocols = (

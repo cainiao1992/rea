@@ -352,7 +352,7 @@ class NativeMacOSClient implements AnalysisClient {
       return this.#observeNativeUi(operation, parameters, options?.signal);
     }
     const pending = Promise.resolve().then(() =>
-      this.#dispatch(operation, parameters, options?.signal),
+      this.#dispatchCommand(operation, parameters, options?.signal),
     );
     this.#pendingCommandOperations.add(pending);
     try {
@@ -570,33 +570,6 @@ class NativeMacOSClient implements AnalysisClient {
     partialObservation?: NativeUiObservationResult,
   ): ProviderCleanupError {
     return new NativeUiCleanupError(failures, operation, partialObservation);
-  }
-
-  #dispatch(
-    operation: NativeToolName,
-    parameters: Readonly<Record<string, JsonValue>>,
-    signal?: AbortSignal,
-  ): Promise<Result<NativeObservation, AnalysisError>> {
-    switch (operation) {
-      case "observe_native_ui":
-      case "capture_native_ui_scenario":
-      case "observe_native_calls":
-        return Promise.resolve(
-          err(
-            new AnalysisCapabilityUnavailableError(
-              IDENTITY.id,
-              operation,
-              "UI observation uses its explicit authority boundary",
-            ),
-          ),
-        );
-      case "inspect_macho":
-      case "inspect_signature":
-      case "inspect_plist":
-      case "list_architectures":
-      case "demangle_swift":
-        return this.#dispatchCommand(operation, parameters, signal);
-    }
   }
 
   #dispatchCommand(

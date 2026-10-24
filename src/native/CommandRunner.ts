@@ -223,18 +223,16 @@ export class XcrunCommandRunner implements NativeCommandRunner {
       this.launcher,
     );
     if (!captured.ok) return err(this.#retainCleanupOwner(captured.error));
-    return captured.ok
-      ? ok({
-          ...captured.value,
-          tool,
-          executable: resolved.value.path,
-          executableSha256: resolved.value.sha256,
-          toolVersion: null,
-          versionReason:
-            "Tool exposes no uniform stable version flag; executable SHA-256 is a prelaunch file sample and does not prove atomic OS image binding.",
-          arguments: [...arguments_],
-        })
-      : captured;
+    return ok({
+      ...captured.value,
+      tool,
+      executable: resolved.value.path,
+      executableSha256: resolved.value.sha256,
+      toolVersion: null,
+      versionReason:
+        "Tool exposes no uniform stable version flag; executable SHA-256 is a prelaunch file sample and does not prove atomic OS image binding.",
+      arguments: [...arguments_],
+    });
   }
 
   async #retryCleanup(): Promise<readonly NativeCommandCleanupFailure[]> {

@@ -529,9 +529,11 @@ export async function verifyGhidraBoundaries(
     regexError.remediation.action,
     /literal mode or simplify the regex/u,
   );
+  // The retry advice lives in the remediation; the reason states that the
+  // session survived the overflow.
   assert.match(
     regexError.details.reason,
-    /exhausted its stack.*Use literal mode/u,
+    /exhausted its stack.*session and annotations remain available/u,
   );
   rejectedCalls++;
   const nestedPattern = "(".repeat(12000) + "a" + ")".repeat(12000);

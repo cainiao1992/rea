@@ -58,7 +58,7 @@ import {
 } from "./EvmoleFailures.js";
 import {
   evmoleInterfaceReplySchema,
-  projectEvmoleInterface,
+  projectEvmoleFunctions,
 } from "./EvmoleInterfaceAdapter.js";
 import {
   EVMOLE_PROVIDER_IDENTITY,
@@ -678,7 +678,7 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
           hardfork: "unknown",
         },
         evidence_kind: "inferred",
-        functions: projectEvmoleInterface(reply.raw).functions,
+        functions: projectEvmoleFunctions(reply.raw),
         discovery_completeness: "unknown",
         runtime_execution: "not-performed",
         diagnostics: {

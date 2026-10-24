@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildBinary, type PlistValue } from "plist";
@@ -10,6 +11,25 @@ import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
+
+const lintXmlPlist = (path: string) =>
+  new Promise<{ exitCode: number; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      execFile(
+        "/usr/bin/plutil",
+        ["-lint", "--", path],
+        { timeout: 10_000 },
+        (error, stdout, stderr) => {
+          const exitCode = error === null ? 0 : error.code;
+          if (typeof exitCode !== "number") {
+            reject(error);
+            return;
+          }
+          resolve({ exitCode, stdout, stderr });
+        },
+      );
+    },
+  );
 
 describe.skipIf(process.platform !== "darwin")(
   "ordinary plist source nesting",
@@ -34,6 +54,7 @@ describe.skipIf(process.platform !== "darwin")(
           { format: "binary", depth: 129, data: true },
           { format: "xml", depth: 129, data: true },
           { format: "binary", depth: 200, data: false },
+          { format: "xml", depth: 200, data: false },
           { format: "json", depth: 200, data: false },
           { format: "binary", depth: 998, data: true },
           { format: "binary", depth: 999, data: true },
@@ -53,9 +74,16 @@ describe.skipIf(process.platform !== "darwin")(
               : Buffer.from(
                   format === "json"
                     ? JSON.stringify(value)
-                    : `<plist>${"<dict><key>level</key>".repeat(depth)}<data>AAE=</data>${"</dict>".repeat(depth)}</plist>`,
+                    : `<plist>${"<dict><key>level</key>".repeat(depth)}${data ? "<data>AAE=</data>" : "<integer>1</integer>"}${"</dict>".repeat(depth)}</plist>`,
                 );
           await writeFile(path, bytes);
+          // The decoder ceiling does not override native XML admission.
+          // Compare its upper-edge admission with the actual utility, while
+          // requiring the historical depth-129/200 controls to succeed below.
+          const native =
+            format === "xml" && depth === 998
+              ? await lintXmlPlist(path)
+              : undefined;
           const output = await cli.run({
             arguments: ["inspect-plist", path, "--json"],
             environment,
@@ -75,6 +103,26 @@ describe.skipIf(process.platform !== "darwin")(
               remediation: {
                 action:
                   "The 998-level native plist nesting allowance (no runtime override) is a fixed allowance. Worker memory limits, inherited limits, and additional host memory do not raise it. Select another complete input within the allowance when that preserves the needed observation. Repeating the unchanged request fails the same way.",
+              },
+            };
+            expect(output.json).toMatchObject(expectedFailure);
+            expect(parseMcpToolError(response).error).toMatchObject(
+              expectedFailure,
+            );
+            continue;
+          }
+          if (native !== undefined && native.exitCode !== 0) {
+            expect(output.exitCode, output.stderr).toBe(1);
+            const expectedFailure = {
+              code: "invalid_request",
+              retryable: false,
+              details: {
+                operation: "inspect_plist",
+                captured_output: {
+                  exit_code: native.exitCode,
+                  stdout: native.stdout,
+                  stderr: native.stderr,
+                },
               },
             };
             expect(output.json).toMatchObject(expectedFailure);
@@ -105,6 +153,7 @@ describe.skipIf(process.platform !== "darwin")(
           expect(cliResult.format).toBe(format === "json" ? "unknown" : format);
           expect(cliResult.provenance.map((item) => item.tool)).toEqual([
             "file",
+            ...(format === "xml" ? ["plutil"] : []),
           ]);
           let leaf: unknown = cliResult.value;
           for (let level = 0; level < depth; level += 1) {

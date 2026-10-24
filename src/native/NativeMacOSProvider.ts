@@ -1003,7 +1003,7 @@ class NativeMacOSClient implements AnalysisClient {
           };
           const selected = await requireRegularPlist(fileInput);
           if (!selected.ok) return selected;
-          const classified = await this.#run(
+          const classified = await this.#runAdmitted(
             "inspect_plist",
             "file",
             ["-b", plist.value.path],
@@ -1096,7 +1096,7 @@ class NativeMacOSClient implements AnalysisClient {
     if (format === "xml") {
       parsed = parsePlistXmlSource(source.value);
       if (parsed.ok) {
-        const validated = await this.#run(
+        const validated = await this.#runAdmitted(
           "inspect_plist",
           "plutil",
           ["-lint", "--", fileInput.selection.path],
@@ -1160,7 +1160,7 @@ class NativeMacOSClient implements AnalysisClient {
   ): Promise<Result<NativeObservation, AnalysisError>> {
     const { path } = fileInput.selection;
     const { signal, timeoutMs } = fileInput;
-    const json = await this.#run(
+    const json = await this.#runAdmitted(
       "inspect_plist",
       "plutil",
       ["-convert", "json", "-o", "-", "--", path],
@@ -1180,7 +1180,7 @@ class NativeMacOSClient implements AnalysisClient {
       AnalysisOutputError | AnalysisResourceConstraintError
     >;
     if (jsonAttempt === undefined || jsonAttempt.needsNumberTypes) {
-      const converted = await this.#run(
+      const converted = await this.#runAdmitted(
         "inspect_plist",
         "plutil",
         ["-convert", "xml1", "-o", "-", "--", path],
@@ -1244,14 +1244,7 @@ class NativeMacOSClient implements AnalysisClient {
     operation: NativeToolName,
     tool: string,
     arguments_: readonly string[],
-    options: {
-      readonly signal?: AbortSignal | undefined;
-      readonly timeoutMs: number;
-      readonly acceptNonZero?: boolean;
-      readonly acceptNonZeroIf?:
-        | ((capture: NativeCommandCapture) => boolean)
-        | undefined;
-    },
+    options: NativeClientCommandOptions,
   ): Promise<Result<NativeCommandCapture, AnalysisError>> {
     if (this.#closed)
       return err(
@@ -1261,6 +1254,16 @@ class NativeMacOSClient implements AnalysisClient {
           "Native provider client is closed",
         ),
       );
+    return this.#runAdmitted(operation, tool, arguments_, options);
+  }
+
+  /** Child commands borrow the admitted file workflow's lifetime through close. */
+  async #runAdmitted(
+    operation: NativeToolName,
+    tool: string,
+    arguments_: readonly string[],
+    options: NativeClientCommandOptions,
+  ): Promise<Result<NativeCommandCapture, AnalysisError>> {
     const command = this.runner.run(tool, arguments_, {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       timeoutMs: options.timeoutMs,
@@ -1374,6 +1377,15 @@ const nativeOutputFailure = (
   cause: unknown,
 ): AnalysisError =>
   new AnalysisOutputError(operation, "Native output parsing failed", { cause });
+
+interface NativeClientCommandOptions {
+  readonly signal?: AbortSignal | undefined;
+  readonly timeoutMs: number;
+  readonly acceptNonZero?: boolean;
+  readonly acceptNonZeroIf?:
+    | ((capture: NativeCommandCapture) => boolean)
+    | undefined;
+}
 
 interface NativeObservation {
   readonly result: JsonValue;

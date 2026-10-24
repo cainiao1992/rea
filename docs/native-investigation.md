@@ -474,15 +474,16 @@ estimated 64 MiB decode budget before parsing; this is not a hard process-memory
 bound. JSON decode memory has not been measured and has no equivalent decode
 estimate. A refused input reports non-retryable `resource_constraint` with
 `reported_limits.maximum_input_bytes` or `maximum_decoded_bytes` as applicable.
-Ordinary direct-source inspection admits 998 source nesting levels, derived from
-the existing 1000-level JSON result capacity by reserving one level for typed
-scalar fields and one for the result's `value` field. Deeper input reports
+Ordinary direct-source decoding has a ceiling of 998 source nesting levels,
+derived from the existing 1000-level JSON result capacity by reserving one level
+for typed scalar fields and one for the result's `value` field. Deeper input reports
 `resource_constraint` with `reported_limits.maximum_nesting_depth: 998` and names
-the fixed nesting allowance. Compatibility conversions can encounter an earlier
-native utility refusal; their diagnostics remain explicit. Archive and Interface
-Builder decoding retain their separate 128-level allowance. Worker limits and
-host memory do not raise these fixed allowances, and the unchanged request fails
-the same way.
+the fixed nesting allowance. XML admission also requires native validation, which
+can refuse input below this decoding ceiling. Compatibility conversions can
+likewise encounter an earlier native utility refusal; both retain native
+diagnostics. Archive and Interface Builder decoding retain their separate
+128-level allowance. Worker limits and host memory do not raise these fixed
+allowances, and the unchanged request fails the same way.
 
 A plist explicitly selected through the path input or as the active plist target
 reports an unreadable or malformed selection as `invalid_request`. A missing or

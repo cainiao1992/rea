@@ -127,10 +127,6 @@ export const managedNativeVerificationInputSchema = z
     }
   });
 
-export type ManagedNativeVerificationInput = z.infer<
-  typeof managedNativeVerificationInputSchema
->;
-
 const verificationCoverageSchema = z.strictObject({
   status: z.enum(["complete-within-inputs", "partial"]),
 });

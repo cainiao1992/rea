@@ -21,7 +21,18 @@ import { managedNativeBoundaryInspectionSchema } from "../../../../src/domain/ma
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
 import { functionDossierSchema } from "../../../../src/domain/hopperValues.js";
 
-import { verifyManagedNativeBoundaries } from "../../../../src/domain/managed/managedNativeVerification.js";
+import { verifyManagedNativeVerificationSource } from "../../../../src/domain/managed/managedNativeVerification.js";
+import { readManagedNativeVerificationSource } from "../../../../src/domain/managed/managedNativeVerificationSource.js";
+
+const readFixtureSource = (input: unknown) => {
+  const source = readManagedNativeVerificationSource(input);
+  if (!source.ok)
+    throw new Error("Expected valid managed/native fixture Evidence", {
+      cause: source.error,
+    });
+  return source.value;
+};
+
 const exampleInput = () =>
   managedNativeVerificationInputSchema.parse(
     MANAGED_NATIVE_VERIFICATION_EXAMPLE,
@@ -168,12 +179,14 @@ it("separates CLR runtime-provided methods from unresolved file-backed native bo
     parameters: {},
     result: inspection,
   });
-  const result = verifyManagedNativeBoundaries({
-    managed_boundaries: managed,
-    native_observations: [
-      nativeFunctionEvidence("/fixtures/nativehelper.dll", "pe"),
-    ],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      managed_boundaries: managed,
+      native_observations: [
+        nativeFunctionEvidence("/fixtures/nativehelper.dll", "pe"),
+      ],
+    }),
+  );
   expect(result.summary.native_body_unresolved).toBe(0);
   expect(result.native_implementations).toMatchObject({
     unresolved: 0,
@@ -232,12 +245,14 @@ it.each([
       parameters: {},
       result: inspection,
     });
-    const result = verifyManagedNativeBoundaries({
-      managed_boundaries: managed,
-      native_observations: [
-        nativeFunctionEvidence("/fixtures/nativehelper.dll", format, symbol),
-      ],
-    });
+    const result = verifyManagedNativeVerificationSource(
+      readFixtureSource({
+        managed_boundaries: managed,
+        native_observations: [
+          nativeFunctionEvidence("/fixtures/nativehelper.dll", format, symbol),
+        ],
+      }),
+    );
     expect(result.pinvoke_imports[0]).toMatchObject({
       status,
       managed: {
@@ -282,10 +297,12 @@ it("keeps Windows name candidates tied to their native Evidence format", () => {
     "pe",
     "ExampleW",
   );
-  const result = verifyManagedNativeBoundaries({
-    managed_boundaries: managed,
-    native_observations: [elf, pe],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      managed_boundaries: managed,
+      native_observations: [elf, pe],
+    }),
+  );
   expect(result.pinvoke_imports[0]).toMatchObject({
     status: "inferred",
     basis: "decorated-name-candidate",
@@ -339,20 +356,28 @@ describe("managed/native boundary Evidence identity", () => {
       },
     );
 
-    expect(() =>
-      verifyManagedNativeBoundaries({
-        ...input,
-        managed_boundaries: mismatched,
-      }),
-    ).toThrow(
-      `Managed Evidence inspect_managed_native_boundaries (${mismatched.evidence_id}) subject SHA-256 ${result.artifact.sha256} does not match normalized artifact SHA-256 ${otherDigest}`,
-    );
-    expect(verifyManagedNativeBoundaries(input).summary.verified).toBe(1);
+    const rejected = readManagedNativeVerificationSource({
+      ...input,
+      managed_boundaries: mismatched,
+    });
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "EvidenceIntegrityError",
+        message: `Managed Evidence inspect_managed_native_boundaries (${mismatched.evidence_id}) subject SHA-256 ${result.artifact.sha256} does not match normalized artifact SHA-256 ${otherDigest}`,
+      },
+    });
+    expect(
+      verifyManagedNativeVerificationSource(readFixtureSource(input)).summary
+        .verified,
+    ).toBe(1);
   });
 });
 
 it("verifies a P/Invoke declaration against native export Evidence", () => {
-  const result = verifyManagedNativeBoundaries(exampleInput());
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource(exampleInput()),
+  );
 
   expect(result).toMatchObject({
     managed_boundary: {
@@ -377,10 +402,12 @@ it("verifies a P/Invoke declaration against native export Evidence", () => {
 });
 
 it("treats a Mach-O ABI-prefixed export as an exact declared import", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...exampleInput(),
-    native_observations: [nativeEvidenceWithExports(["_open_native"])],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...exampleInput(),
+      native_observations: [nativeEvidenceWithExports(["_open_native"])],
+    }),
+  );
 
   expect(result.summary).toMatchObject({ verified: 1, inferred: 0 });
   expect(result.pinvoke_imports[0]).toMatchObject({
@@ -419,10 +446,12 @@ it("reports module mismatch as a contradiction within supplied Evidence", () => 
     },
   );
 
-  const result = verifyManagedNativeBoundaries({
-    ...input,
-    native_observations: [mismatched],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...input,
+      native_observations: [mismatched],
+    }),
+  );
 
   expect(result.summary).toMatchObject({
     verified: 0,
@@ -436,24 +465,28 @@ it("reports module mismatch as a contradiction within supplied Evidence", () => 
 
 it("matches ELF module names case-sensitively and leaves unknown platform equivalence unresolved", () => {
   const linuxInput = inputWithImportScope("caseprobe");
-  const elfExact = verifyManagedNativeBoundaries({
-    ...linuxInput,
-    native_observations: [
-      nativeFunctionEvidence("/examples/libcaseprobe.so", "elf"),
-    ],
-  });
+  const elfExact = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...linuxInput,
+      native_observations: [
+        nativeFunctionEvidence("/examples/libcaseprobe.so", "elf"),
+      ],
+    }),
+  );
   expect(elfExact.pinvoke_imports[0]).toMatchObject({
     status: "verified",
     basis: "exact-function-name",
     matched_native: { module_path: "/examples/libcaseprobe.so" },
   });
 
-  const elfCaseMismatch = verifyManagedNativeBoundaries({
-    ...linuxInput,
-    native_observations: [
-      nativeFunctionEvidence("/examples/libCaseProbe.so", "elf"),
-    ],
-  });
+  const elfCaseMismatch = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...linuxInput,
+      native_observations: [
+        nativeFunctionEvidence("/examples/libCaseProbe.so", "elf"),
+      ],
+    }),
+  );
   expect(elfCaseMismatch.pinvoke_imports[0]).toMatchObject({
     status: "contradicted",
     basis: "module-mismatch",
@@ -477,12 +510,14 @@ it("matches ELF module names case-sensitively and leaves unknown platform equiva
     ],
   });
 
-  const uncertainPlatform = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("foo"),
-    native_observations: [
-      nativeEvidenceWithExports(["open_native"], "/examples/libFoo.dylib"),
-    ],
-  });
+  const uncertainPlatform = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("foo"),
+      native_observations: [
+        nativeEvidenceWithExports(["open_native"], "/examples/libFoo.dylib"),
+      ],
+    }),
+  );
   expect(uncertainPlatform.pinvoke_imports[0]).toMatchObject({
     status: "unresolved",
     basis: "module-identity-unknown",
@@ -491,24 +526,28 @@ it("matches ELF module names case-sensitively and leaves unknown platform equiva
 });
 
 it("keeps literal module names distinct and accepts the shared-library lib alias", () => {
-  const literalName = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("library"),
-    native_observations: [
-      nativeEvidenceWithExports(["open_native"], "/examples/rary.dylib"),
-    ],
-  });
+  const literalName = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("library"),
+      native_observations: [
+        nativeEvidenceWithExports(["open_native"], "/examples/rary.dylib"),
+      ],
+    }),
+  );
   expect(literalName.pinvoke_imports[0]).toMatchObject({
     status: "contradicted",
     basis: "module-mismatch",
     matched_native: { module_path: "/examples/rary.dylib" },
   });
 
-  const sharedLibraryAlias = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("foo"),
-    native_observations: [
-      nativeEvidenceWithExports(["open_native"], "/examples/libfoo.dylib"),
-    ],
-  });
+  const sharedLibraryAlias = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("foo"),
+      native_observations: [
+        nativeEvidenceWithExports(["open_native"], "/examples/libfoo.dylib"),
+      ],
+    }),
+  );
   expect(sharedLibraryAlias.pinvoke_imports[0]).toMatchObject({
     status: "verified",
     basis: "exact-export-name",
@@ -518,10 +557,12 @@ it("keeps literal module names distinct and accepts the shared-library lib alias
 
 it("keeps explicit PE module suffixes distinct and permits the Windows DLL variation", () => {
   const verify = (scope: string, modulePath: string) =>
-    verifyManagedNativeBoundaries({
-      ...inputWithImportScope(scope),
-      native_observations: [nativeFunctionEvidence(modulePath, "pe")],
-    }).pinvoke_imports[0];
+    verifyManagedNativeVerificationSource(
+      readFixtureSource({
+        ...inputWithImportScope(scope),
+        native_observations: [nativeFunctionEvidence(modulePath, "pe")],
+      }),
+    ).pinvoke_imports[0];
 
   expect(
     verify("nativehelper.dll", "/examples/nativehelper.dll"),
@@ -551,10 +592,12 @@ it("keeps explicit PE module suffixes distinct and permits the Windows DLL varia
 
 it("keeps empty identities unknown and compares suffix-only identities as data", () => {
   for (const scope of [null, "", "   "]) {
-    const result = verifyManagedNativeBoundaries({
-      ...inputWithImportScope(scope),
-      native_observations: [nativeEvidenceWithExports(["open_native"])],
-    });
+    const result = verifyManagedNativeVerificationSource(
+      readFixtureSource({
+        ...inputWithImportScope(scope),
+        native_observations: [nativeEvidenceWithExports(["open_native"])],
+      }),
+    );
     expect(result.pinvoke_imports[0]).toMatchObject({
       status: "unresolved",
       basis: "module-identity-unknown",
@@ -571,10 +614,12 @@ it("keeps empty identities unknown and compares suffix-only identities as data",
     "/examples/lib.so",
     "/examples/foo.dll",
   ]) {
-    const extensionOnly = verifyManagedNativeBoundaries({
-      ...inputWithImportScope(".dll"),
-      native_observations: [nativeEvidenceWithExports(["open_native"], path)],
-    });
+    const extensionOnly = verifyManagedNativeVerificationSource(
+      readFixtureSource({
+        ...inputWithImportScope(".dll"),
+        native_observations: [nativeEvidenceWithExports(["open_native"], path)],
+      }),
+    );
     expect(extensionOnly.pinvoke_imports[0]).toMatchObject({
       status: "contradicted",
       basis: "module-mismatch",
@@ -582,12 +627,14 @@ it("keeps empty identities unknown and compares suffix-only identities as data",
     });
   }
 
-  const subjectless = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("nativehelper.dll"),
-    native_observations: [
-      nativeEvidenceWithExports(["open_native"], undefined, true),
-    ],
-  });
+  const subjectless = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("nativehelper.dll"),
+      native_observations: [
+        nativeEvidenceWithExports(["open_native"], undefined, true),
+      ],
+    }),
+  );
   expect(subjectless.pinvoke_imports[0]).toMatchObject({
     status: "unresolved",
     basis: "module-identity-unknown",
@@ -601,31 +648,37 @@ it("keeps empty identities unknown and compares suffix-only identities as data",
 });
 
 it("matches versioned ELF SONAME variations without dropping their version", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("nativedep.so.6"),
-    native_observations: [
-      nativeFunctionEvidence("/examples/libnativedep.so.6", "elf"),
-    ],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("nativedep.so.6"),
+      native_observations: [
+        nativeFunctionEvidence("/examples/libnativedep.so.6", "elf"),
+      ],
+    }),
+  );
   expect(result.pinvoke_imports[0]).toMatchObject({
     status: "verified",
     matched_native: { module_path: "/examples/libnativedep.so.6" },
   });
 
-  const relativePath = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("relative/nativedep.so.6"),
-    native_observations: [
-      nativeFunctionEvidence("/examples/relative/nativedep.so.6", "elf"),
-    ],
-  });
+  const relativePath = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("relative/nativedep.so.6"),
+      native_observations: [
+        nativeFunctionEvidence("/examples/relative/nativedep.so.6", "elf"),
+      ],
+    }),
+  );
   expect(relativePath.pinvoke_imports[0]).toMatchObject({ status: "verified" });
 
-  const basenameOnly = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("relative/nativedep.so.6"),
-    native_observations: [
-      nativeFunctionEvidence("/examples/other/nativedep.so.6", "elf"),
-    ],
-  });
+  const basenameOnly = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("relative/nativedep.so.6"),
+      native_observations: [
+        nativeFunctionEvidence("/examples/other/nativedep.so.6", "elf"),
+      ],
+    }),
+  );
   expect(basenameOnly.pinvoke_imports[0]).toMatchObject({
     status: "unresolved",
     basis: "module-identity-unknown",
@@ -634,18 +687,22 @@ it("matches versioned ELF SONAME variations without dropping their version", () 
 
 it("keeps POSIX backslashes literal in absolute module paths", () => {
   const path = "/examples/native\\helper.so";
-  const exact = verifyManagedNativeBoundaries({
-    ...inputWithImportScope(path),
-    native_observations: [nativeFunctionEvidence(path, "elf")],
-  });
+  const exact = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope(path),
+      native_observations: [nativeFunctionEvidence(path, "elf")],
+    }),
+  );
   expect(exact.pinvoke_imports[0]).toMatchObject({ status: "verified" });
 
-  const slashEquivalent = verifyManagedNativeBoundaries({
-    ...inputWithImportScope(path),
-    native_observations: [
-      nativeFunctionEvidence("/examples/native/helper.so", "elf"),
-    ],
-  });
+  const slashEquivalent = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope(path),
+      native_observations: [
+        nativeFunctionEvidence("/examples/native/helper.so", "elf"),
+      ],
+    }),
+  );
   expect(slashEquivalent.pinvoke_imports[0]).toMatchObject({
     status: "contradicted",
     basis: "module-mismatch",
@@ -653,30 +710,36 @@ it("keeps POSIX backslashes literal in absolute module paths", () => {
 });
 
 it("applies Unix suffix variations even when the name already has the suffix", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("nativehelper.dylib"),
-    native_observations: [
-      nativeFunctionEvidence("/examples/nativehelper.dylib.dylib", "mach-o"),
-    ],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("nativehelper.dylib"),
+      native_observations: [
+        nativeFunctionEvidence("/examples/nativehelper.dylib.dylib", "mach-o"),
+      ],
+    }),
+  );
   expect(result.pinvoke_imports[0]).toMatchObject({ status: "verified" });
 });
 
 it("does not append the Windows DLL suffix after a trailing period", () => {
-  const exact = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("nativehelper."),
-    native_observations: [
-      nativeFunctionEvidence("/examples/nativehelper.", "pe"),
-    ],
-  });
+  const exact = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("nativehelper."),
+      native_observations: [
+        nativeFunctionEvidence("/examples/nativehelper.", "pe"),
+      ],
+    }),
+  );
   expect(exact.pinvoke_imports[0]).toMatchObject({ status: "verified" });
 
-  const appended = verifyManagedNativeBoundaries({
-    ...inputWithImportScope("nativehelper."),
-    native_observations: [
-      nativeFunctionEvidence("/examples/nativehelper.dll", "pe"),
-    ],
-  });
+  const appended = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...inputWithImportScope("nativehelper."),
+      native_observations: [
+        nativeFunctionEvidence("/examples/nativehelper.dll", "pe"),
+      ],
+    }),
+  );
   expect(appended.pinvoke_imports[0]).toMatchObject({
     status: "contradicted",
     basis: "module-mismatch",
@@ -684,10 +747,12 @@ it("does not append the Windows DLL suffix after a trailing period", () => {
 });
 
 it("treats supported native Evidence with no symbols as unresolved", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...exampleInput(),
-    native_observations: [nativeEvidenceWithExports([])],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...exampleInput(),
+      native_observations: [nativeEvidenceWithExports([])],
+    }),
+  );
 
   expect(result.native_observations).toMatchObject({
     accepted: 1,
@@ -705,10 +770,12 @@ it("treats supported native Evidence with no symbols as unresolved", () => {
 });
 
 it("does not verify a symbol whose spelling differs only by case", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...exampleInput(),
-    native_observations: [nativeEvidenceWithExports(["OPEN_NATIVE"])],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...exampleInput(),
+      native_observations: [nativeEvidenceWithExports(["OPEN_NATIVE"])],
+    }),
+  );
 
   expect(result.summary).toMatchObject({ verified: 0, unresolved: 1 });
   expect(result.pinvoke_imports[0]).toMatchObject({
@@ -719,12 +786,14 @@ it("does not verify a symbol whose spelling differs only by case", () => {
 });
 
 it("retains every observed native candidate", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...exampleInput(),
-    native_observations: [
-      nativeEvidenceWithExports(["open_native", "_open_native"]),
-    ],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...exampleInput(),
+      native_observations: [
+        nativeEvidenceWithExports(["open_native", "_open_native"]),
+      ],
+    }),
+  );
 
   expect(result.coverage).toMatchObject({
     status: "complete-within-inputs",
@@ -750,7 +819,9 @@ it("wraps verification in derived workflow Evidence", () => {
 
 describe("managed/native verification result algebra", () => {
   it("rejects states without their required native match", () => {
-    const result = verifyManagedNativeBoundaries(exampleInput());
+    const result = verifyManagedNativeVerificationSource(
+      readFixtureSource(exampleInput()),
+    );
     const verification = result.pinvoke_imports[0];
     expect(verification).toBeDefined();
     if (verification === undefined) return;
@@ -794,10 +865,12 @@ describe("managed/native verification result algebra", () => {
 });
 
 it("does not erase a C identifier underscore beyond the Mach-O ABI prefix", () => {
-  const result = verifyManagedNativeBoundaries({
-    ...exampleInput(),
-    native_observations: [nativeEvidenceWithExports(["__open_native"])],
-  });
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...exampleInput(),
+      native_observations: [nativeEvidenceWithExports(["__open_native"])],
+    }),
+  );
   expect(result.summary).toMatchObject({ inferred: 0, unresolved: 1 });
   expect(result.pinvoke_imports[0]).toMatchObject({
     status: "unresolved",
@@ -813,23 +886,25 @@ it("does not treat a raw Mach-O ABI name as an exact underscored C identifier", 
     managed.normalized_result,
   );
   const imports = normalized.pinvoke_imports;
-  const result = verifyManagedNativeBoundaries({
-    ...input,
-    managed_boundaries: createEvidence(undefined, managed.provider, {
-      operation: managed.operation,
-      parameters: managed.parameters,
-      result: {
-        ...normalized,
-        pinvoke_imports: imports.map((item) => ({
-          ...item,
-          import_name: "_open_native",
-          no_mangle: true,
-        })),
-      },
-      rawResult: null,
+  const result = verifyManagedNativeVerificationSource(
+    readFixtureSource({
+      ...input,
+      managed_boundaries: createEvidence(undefined, managed.provider, {
+        operation: managed.operation,
+        parameters: managed.parameters,
+        result: {
+          ...normalized,
+          pinvoke_imports: imports.map((item) => ({
+            ...item,
+            import_name: "_open_native",
+            no_mangle: true,
+          })),
+        },
+        rawResult: null,
+      }),
+      native_observations: [nativeEvidenceWithExports(["_open_native"])],
     }),
-    native_observations: [nativeEvidenceWithExports(["_open_native"])],
-  });
+  );
   expect(result.summary).toMatchObject({
     verified: 0,
     inferred: 0,

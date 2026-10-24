@@ -201,8 +201,10 @@ providers need not expose identical state machines.
   [`finishAnalysisCommand`](https://github.com/morluto/rea/blob/main/src/cli/finishAnalysisCommand.ts) where its contract
   applies rather than duplicate close/finally handling.
 - Give descriptor-backed reads an owner before opening the file. A rejected
-  close must retain the exact handle and preserve any earlier failure. If an
-  abortable caller stops waiting, keep the underlying work in that owner's
+  close must retain the exact handle and preserve any earlier failure.
+  Stable file reads expose completed values separately from cancellation so
+  consumers retain acquired identity facts after successful close or cleanup retry.
+  If an abortable caller stops waiting, keep the underlying work in that owner's
   lifetime so shutdown cannot report release before finalization settles.
   Admit the entire inspection once, including later reads and finalization.
   Helpers must borrow that admission or use an operation child scope; re-entering

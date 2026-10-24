@@ -10,7 +10,7 @@ import {
 } from "../filesystem/OwnedRegularFile.js";
 import {
   bindRegularFileCleanup,
-  withRegularFile,
+  withRegularFileCompletion,
   type RegularFileReadOptions,
 } from "../application/RegularFileRead.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
@@ -138,15 +138,29 @@ export const hashManagedSource = async (
     options,
   );
 
-const readManagedFile = <Value>(
+const readManagedFile = <Value extends ManagedSourceObservation>(
   path: string,
   operation: string,
   read: (handle: FileHandle, metadata: Stats) => Promise<Value>,
   options: RegularFileReadOptions,
 ): Promise<Value> =>
-  withRegularFile(path, read, options).catch((cause: unknown) => {
-    throw normalizeManagedReadFailure(cause, path, operation, options.signal);
-  });
+  withRegularFileCompletion(path, read, options)
+    .then(({ value, cancellation }) => {
+      if (cancellation !== undefined)
+        throw new AnalysisCancelledError(operation, {
+          cause: cancellation.reason,
+          partialObservation: {
+            kind: "file-snapshot-hash",
+            path,
+            bytes: value.byteLength,
+            sha256: value.sha256,
+          },
+        });
+      return value;
+    })
+    .catch((cause: unknown) => {
+      throw normalizeManagedReadFailure(cause, path, operation, options.signal);
+    });
 
 /** Keep cleanup ownership and the original typed read failure at this boundary. */
 const normalizeManagedReadFailure = (

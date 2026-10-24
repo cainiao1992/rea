@@ -179,17 +179,23 @@ export const retryRegularFileCleanupFailures = async (
 const failureMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-/** Admit one regular-file handle, retain it through the consumer, and always close it. */
-export const withRegularFile = async <Value>(
+/** Completed stable read facts survive cancellation during descriptor finalization. */
+export interface RegularFileCompletion<Value> {
+  readonly value: Value;
+  readonly cancellation?: { readonly reason: unknown } | undefined;
+}
+
+/** Admit one regular-file handle, retaining completion through close and cleanup retry. */
+export const withRegularFileCompletion = async <Value>(
   path: string,
   read: (handle: FileHandle, stats: Stats) => Promise<Value>,
   options: RegularFileReadOptions = {},
-): Promise<Value> => {
+): Promise<RegularFileCompletion<Value>> => {
   const { signal, resources } = options;
   let admitted: FileHandle | undefined;
-  const operation = async () => {
+  const operation = async (): Promise<RegularFileCompletion<Value>> => {
     try {
-      return await withOwnedRegularFile(
+      const value = await withOwnedRegularFile(
         path,
         {
           ...(signal === undefined ? {} : { signal }),
@@ -214,6 +220,7 @@ export const withRegularFile = async <Value>(
           return value;
         },
       );
+      return { value };
     } catch (cause: unknown) {
       // Caller reasons are opaque, including objects shaped like file failures.
       // They do not transfer ownership of any descriptor to this operation.
@@ -253,8 +260,16 @@ export const withRegularFile = async <Value>(
             throw cause.operationFailure;
           throw retry.outcome.cause;
         }
-        return retry.outcome.value;
+        return {
+          value: retry.outcome.value as Value,
+          cancellation: regularFileCancellation(cause),
+        };
       }
+      if (cause instanceof RegularFileCancelled)
+        return {
+          value: cause.outcome.value as Value,
+          cancellation: { reason: cause.reason },
+        };
       const cancellation = regularFileCancellation(cause);
       if (cancellation !== undefined) {
         if (options.cancellationFailure !== undefined)
@@ -266,15 +281,34 @@ export const withRegularFile = async <Value>(
       throw cause;
     }
   };
-  const value = await (resources === undefined
+  const completion = await (resources === undefined
     ? operation()
     : resources.run(operation));
-  // A retained close may have recovered after the descriptor owner's outcome
-  // was captured. Include that retry and the scope's finalization in cancellation.
-  if (signal?.aborted === true && options.cancellationFailure !== undefined)
-    throw options.cancellationFailure(signal.reason);
-  signal?.throwIfAborted();
-  return value;
+  // Include successful cleanup retries and scope finalization in cancellation.
+  return completion.cancellation !== undefined || signal?.aborted !== true
+    ? completion
+    : { ...completion, cancellation: { reason: signal.reason } };
+};
+
+/** Read consumers without completion facts retain their existing cancellation contract. */
+export const withRegularFile = async <Value>(
+  path: string,
+  read: (handle: FileHandle, stats: Stats) => Promise<Value>,
+  options: RegularFileReadOptions = {},
+): Promise<Value> => {
+  const completion = await withRegularFileCompletion(path, read, options);
+  const cancellation =
+    completion.cancellation ??
+    (options.signal?.aborted === true
+      ? { reason: options.signal.reason }
+      : undefined);
+  if (cancellation !== undefined) {
+    const { reason } = cancellation;
+    if (options.cancellationFailure !== undefined)
+      throw options.cancellationFailure(reason);
+    throw reason;
+  }
+  return completion.value;
 };
 
 /** Admit a regular file without waiting for a pipe, then read its verified handle. */

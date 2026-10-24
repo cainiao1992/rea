@@ -105,6 +105,75 @@ describe("managed static snapshot capacity failure", () => {
   });
 });
 
+describe("managed static completed snapshot cancellation", () => {
+  for (const warm of [false, true]) {
+    for (const retryClose of [false, true]) {
+      it.each([null, "stop after read", { caller: "stop after read" }])(
+        `retains completed facts after confirmed close (cached=${String(warm)}, retry=${String(retryClose)}): %s`,
+        async (reason) => {
+          const directory = await createTestTempDirectory(
+            "rea-managed-completed-close-",
+          );
+          const path = join(directory, "fixture.dll");
+          const bytes = buildManagedPeFixture();
+          await writeFile(path, bytes);
+          const parsed = await parseBinaryTarget(path);
+          if (!parsed.ok) throw parsed.error;
+          const client = new ManagedStaticProvider().createClient(parsed.value);
+          if (warm) {
+            const initial = await client.execute(
+              "inspect_managed_artifact",
+              {},
+            );
+            if (!initial.ok) throw initial.error;
+          }
+          const controller = new AbortController();
+          const nativeClose = OwnedFileHandle.prototype.close;
+          const owners: OwnedFileHandle[] = [];
+          const close = vi
+            .spyOn(OwnedFileHandle.prototype, "close")
+            .mockImplementation(async function (this: OwnedFileHandle) {
+              owners.push(this);
+              controller.abort(reason);
+              if (retryClose && owners.length === 1)
+                throw new Error("controlled transient close denial");
+              await nativeClose.call(this);
+            });
+          try {
+            const result = await client.execute(
+              "inspect_managed_artifact",
+              {},
+              { signal: controller.signal },
+            );
+            if (result.ok) throw new Error("Expected cancellation after read");
+            expect(result.error._tag).toBe("AnalysisCancelledError");
+            expect(result.error.cause).toBe(reason);
+            expect(result.error.cleanupIncomplete).toBe(false);
+            const observation = {
+              kind: "file-snapshot-hash",
+              path,
+              bytes: bytes.length,
+              sha256: parsed.value.sha256,
+            };
+            expect(result.error.partialObservation).toEqual(observation);
+            expect(projectAnalysisError(result.error)).toMatchObject({
+              code: "cancelled",
+              details: { partial_observation: observation },
+            });
+            expect(owners).toHaveLength(retryClose ? 2 : 1);
+            expect(owners.every((owner) => owner.handle.fd === -1)).toBe(true);
+            if (retryClose) expect(owners[0]).toBe(owners[1]);
+            expect(await client.close()).toEqual({ ok: true, value: null });
+          } finally {
+            close.mockRestore();
+            await client.close();
+          }
+        },
+      );
+    }
+  }
+});
+
 describe("managed static snapshot cancellation", () => {
   it.each([null, "stop after read", { caller: "stop after read" }])(
     "retains completed snapshot facts and exact cancellation during failed close: %s",

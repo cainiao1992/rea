@@ -1090,8 +1090,31 @@ class NativeMacOSClient implements AnalysisClient {
     const source = await readNativePlistBytes(fileInput);
     if (!source.ok) return source;
     let parsed: ReturnType<typeof parsePlistXmlSource>;
+    const provenance = [
+      invocation(classified, fileInput.selection.path, "$PLIST"),
+    ];
     if (format === "xml") {
       parsed = parsePlistXmlSource(source.value);
+      if (parsed.ok) {
+        const validated = await this.#run(
+          "inspect_plist",
+          "plutil",
+          ["-lint", "--", fileInput.selection.path],
+          {
+            signal: fileInput.signal,
+            acceptNonZero: true,
+            timeoutMs: fileInput.timeoutMs,
+          },
+        );
+        if (!validated.ok) return validated;
+        if (validated.value.exitCode !== 0)
+          return err(
+            nativePlistDecodeFailure(fileInput.selection, validated.value),
+          );
+        provenance.push(
+          invocation(validated.value, fileInput.selection.path, "$PLIST"),
+        );
+      }
       if (
         !parsed.ok &&
         parsed.error instanceof XmlPlistTextDecodeError &&
@@ -1125,9 +1148,7 @@ class NativeMacOSClient implements AnalysisClient {
         format,
         path: fileInput.selection.path,
         resourceRoot: this.bundleResourceRoot,
-        provenance: [
-          invocation(classified, fileInput.selection.path, "$PLIST"),
-        ],
+        provenance,
       }),
     );
   }
@@ -1168,24 +1189,7 @@ class NativeMacOSClient implements AnalysisClient {
       if (!converted.ok) return converted;
       xml = converted.value;
       if (xml.exitCode !== 0) {
-        const capture = failureCapture(xml, false);
-        return err(
-          unreadablePlist(
-            fileInput.selection,
-            `plutil could not decode it as a property list (${plutilDiagnostic(capture, path)})`,
-            {
-              capturedOutput: {
-                stdout: capture.stdout,
-                stderr: capture.stderr,
-                truncated: capture.truncated,
-                stdout_bytes: capture.stdoutBytes,
-                stderr_bytes: capture.stderrBytes,
-                exit_code: capture.exitCode,
-                signal: capture.signal,
-              },
-            },
-          ),
-        );
+        return err(nativePlistDecodeFailure(fileInput.selection, xml));
       }
       parsed =
         jsonAttempt === undefined
@@ -1560,7 +1564,29 @@ const parseEntitlements = (
   };
 };
 
-/** Failed plutil conversions can report on either stream; preserve both. */
+/** Native admission failures preserve the selected/default source and physical command output. */
+const nativePlistDecodeFailure = (
+  selection: NativePlistSelection,
+  command: NativeCommandCapture,
+): AnalysisError => {
+  const capture = failureCapture(command, false);
+  return unreadablePlist(
+    selection,
+    `plutil could not decode it as a property list (${plutilDiagnostic(capture, selection.path)})`,
+    {
+      capturedOutput: {
+        stdout: capture.stdout,
+        stderr: capture.stderr,
+        truncated: capture.truncated,
+        stdout_bytes: capture.stdoutBytes,
+        stderr_bytes: capture.stderrBytes,
+        exit_code: capture.exitCode,
+        signal: capture.signal,
+      },
+    },
+  );
+};
+
 const plutilDiagnostic = (
   capture: Pick<NativeCommandCapture, "stdout" | "stderr">,
   path: string,

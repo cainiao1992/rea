@@ -464,9 +464,10 @@ numbers requiring XML type facts retain the `plutil` route. Invalid UTF-8 and
 encoding-declaration mismatches remain explicit failures. Direct-source
 provenance records `file` without claiming conversion; conversion limitations
 and invocations appear only when conversion actually ran.
-Malformed XML structure remains an input failure; malformed scalar literals
-retain their exact source text, reason and counted unknown-scalar limitation,
-using the same scalar interpretation as archive readers.
+XML sources must also pass native format validation, with native refusals retaining
+their diagnostics and successful validation recorded in provenance. Original
+unknown scalar text, reasons and limitations survive successful validation;
+output-budget omissions remain omissions.
 
 Source input is limited to 64 MiB. Binary and direct XML decoding reserve an
 estimated 64 MiB decode budget before parsing; this is not a hard process-memory

@@ -696,7 +696,11 @@ export class GdbSessionManager {
     >
   > {
     if (signal?.aborted)
-      return err(new AnalysisCancelledError("start_gdb_session"));
+      return err(
+        new AnalysisCancelledError("start_gdb_session", {
+          cause: signal.reason,
+        }),
+      );
     const occupied = this.#sessions.size + this.#sessionReservations;
     if (occupied >= this.#maxSessions)
       return err(
@@ -896,7 +900,11 @@ export class GdbSessionManager {
         session.startupResolve = resolve;
         session.startupReject = reject;
         startupAbortListener = () =>
-          reject(new AnalysisCancelledError("start_gdb_session"));
+          reject(
+            new AnalysisCancelledError("start_gdb_session", {
+              cause: signal?.reason,
+            }),
+          );
         signal?.addEventListener("abort", startupAbortListener, {
           once: true,
         });
@@ -923,7 +931,9 @@ export class GdbSessionManager {
         startupTimer.unref();
       });
       if (signal?.aborted)
-        throw new AnalysisCancelledError("start_gdb_session");
+        throw new AnalysisCancelledError("start_gdb_session", {
+          cause: signal.reason,
+        });
       const autoLoad = await this.#request(
         session,
         "-gdb-set auto-load off",
@@ -977,11 +987,15 @@ export class GdbSessionManager {
         session.inferiorTtyVerified = true;
       }
       if (signal?.aborted)
-        throw new AnalysisCancelledError("start_gdb_session");
+        throw new AnalysisCancelledError("start_gdb_session", {
+          cause: signal.reason,
+        });
       // Give queued exit notifications a turn before publishing startup.
       await new Promise<void>((resolve) => setImmediate(resolve));
       if (signal?.aborted)
-        throw new AnalysisCancelledError("start_gdb_session");
+        throw new AnalysisCancelledError("start_gdb_session", {
+          cause: signal.reason,
+        });
       if (session.exited || session.protocolError !== undefined)
         throw new Error(
           session.protocolError ?? "GDB exited during startup readiness.",

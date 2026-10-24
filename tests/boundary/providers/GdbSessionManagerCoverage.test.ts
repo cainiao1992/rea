@@ -1970,19 +1970,23 @@ it("handles a start signal that becomes aborted during listener registration", a
 
 it("handles cancellation after the automatic-loading response", async () => {
   const controller = new AbortController();
+  const reason = { source: "caller after automatic loading" };
   const fake = createFakeSpawner((child, token, command) => {
     child.stdout.write(
       command.includes("list-thread-groups")
         ? `${token}^done,groups=[]\n`
         : `${token}^done\n`,
     );
-    if (command.includes("auto-load off")) controller.abort();
+    if (command.includes("auto-load off")) controller.abort(reason);
   });
   const manager = managerWithFakeSpawner(fake.spawnProcess);
   const started = await manager.start(controller.signal);
 
   expect(started.ok).toBe(false);
-  if (!started.ok) expect(started.error._tag).toBe("AnalysisCancelledError");
+  if (!started.ok) {
+    expect(started.error._tag).toBe("AnalysisCancelledError");
+    expect(started.error.cause).toBe(reason);
+  }
 });
 
 it("reports an MI stream failure when the child has no stdin pipe", async () => {

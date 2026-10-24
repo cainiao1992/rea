@@ -124,8 +124,12 @@ interface ServeInputs {
   readonly served: ServedState;
 }
 
-const cancelledServe = (): JsonValue =>
-  cliError(new AnalysisCancelledError(CLI_COMMANDS.environmentServe));
+const cancelledServe = (signal: AbortSignal): JsonValue =>
+  cliError(
+    new AnalysisCancelledError(CLI_COMMANDS.environmentServe, {
+      cause: signal.reason,
+    }),
+  );
 
 /** Pure replay, as `--replay-only` asks for: no state is derived. */
 const REPLAY_ONLY: ServedState = {
@@ -149,14 +153,14 @@ const loadServeInputs = async (
   if (!evidence.ok) return evidence;
   const { loadEnvironmentSource } =
     await import("../application/environment/environmentSource.js");
-  if (signal.aborted) return err(cancelledServe());
+  if (signal.aborted) return err(cancelledServe(signal));
   const source = loadEnvironmentSource(manifest.value, evidence.value);
   if (!source.ok) return err(cliError(source.error));
   if (input.replayOnly)
     return ok({ source: source.value, served: REPLAY_ONLY });
   const { prepareServedState } =
     await import("../application/environment/environmentState.js");
-  if (signal.aborted) return err(cancelledServe());
+  if (signal.aborted) return err(cancelledServe(signal));
   return ok({
     source: source.value,
     served: prepareServedState(source.value, evidence.value, {
@@ -172,7 +176,7 @@ const serveEnvironmentCommand = async (
   logger: Logger,
   signal: AbortSignal,
 ): Promise<JsonValue> => {
-  if (signal.aborted) return cancelledServe();
+  if (signal.aborted) return cancelledServe(signal);
   const endpoint = parseMcpHttpEndpoint(environment, {
     ...(input.host === undefined ? {} : { host: input.host }),
     ...(input.port === undefined ? {} : { port: input.port }),
@@ -192,13 +196,13 @@ const serveEnvironmentCommand = async (
       { code: report.code, error: report.message },
       "Environment state unavailable; serving recorded replay",
     );
-  if (signal.aborted) return cancelledServe();
+  if (signal.aborted) return cancelledServe(signal);
   // Loaded here so registering the command catalog never loads the HTTP listener.
   const { serveEnvironment } =
     await import("../server/environment/serveEnvironment.js");
   const { StreamableHttpListenError } =
     await import("../server/http/streamableHttpListenError.js");
-  if (signal.aborted) return cancelledServe();
+  if (signal.aborted) return cancelledServe(signal);
   // A listener that fails after binding ends the command instead of serving nothing.
   let failListener: (error: StreamableHttpListenError) => void = () =>
     undefined;
@@ -221,7 +225,8 @@ const serveEnvironmentCommand = async (
     if (!started.ok) return cliError(started.error);
     served = started.value;
   } catch (cause: unknown) {
-    if (signal.aborted && cause === signal.reason) return cancelledServe();
+    if (signal.aborted && cause === signal.reason)
+      return cancelledServe(signal);
     if (!(cause instanceof StreamableHttpListenError)) throw cause;
     return cliError(transportError(endpoint.value, cause));
   }
@@ -449,7 +454,11 @@ const buildEnvironmentCommand = async (
     capture = read.value;
   }
   if (signal.aborted)
-    return cliError(new AnalysisCancelledError(CLI_COMMANDS.environmentBuild));
+    return cliError(
+      new AnalysisCancelledError(CLI_COMMANDS.environmentBuild, {
+        cause: signal.reason,
+      }),
+    );
   const captureInput: EnvironmentBuildCaptureInput = kind.value;
   const built = await buildEnvironment({
     capture,

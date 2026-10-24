@@ -187,7 +187,7 @@ it("retains every static finding through public module views when application ex
         detail: "summary",
       },
     });
-    expect(next.isError).not.toBe(true);
+    expectRecoverySuccess(next, diagnostics);
     await client.ping();
     expect(
       createHash("sha256")
@@ -289,7 +289,7 @@ it("returns a directly usable partial analysis reference for an oversized timeou
         detail: "summary",
       },
     });
-    expect(next.isError).not.toBe(true);
+    expectRecoverySuccess(next, diagnostics);
     await client.ping();
     expect(diagnostics()).not.toMatch(/FATAL ERROR:.*heap/iu);
   } finally {
@@ -297,6 +297,16 @@ it("returns a directly usable partial analysis reference for an oversized timeou
     await transport.close();
   }
 }, 90000);
+
+const expectRecoverySuccess = (
+  next: Awaited<ReturnType<Client["callTool"]>>,
+  diagnostics: () => string,
+): void => {
+  expect(
+    next.isError,
+    JSON.stringify({ next, diagnostics: diagnostics() }),
+  ).not.toBe(true);
+};
 
 const createResourceClient = () => {
   const client = new Client({ name: "javascript-resources", version: "1" });

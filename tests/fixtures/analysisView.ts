@@ -339,6 +339,8 @@ export const timedCaptureEvidence = (
           request: {
             method,
             url: `http://app.example${path}`,
+            bodySize:
+              sent === undefined ? 0 : Buffer.byteLength(JSON.stringify(sent)),
             ...(sent === undefined
               ? {}
               : {

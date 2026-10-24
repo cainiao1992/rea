@@ -49,6 +49,8 @@ const generator = () => {
     unique: "ref-9",
     renewed: ["renewed-9"],
     clock: NOW,
+    "nested-clock": { at: NOW },
+    "held-clock": NOW,
   };
   const generate = (rule: GeneratedRule) => {
     asked.push(rule);
@@ -96,7 +98,7 @@ it.each<[string, JsonObject | undefined, string]>([
   [
     "a fixed member with another value",
     { title: "B", priority: "LOW" },
-    `Member priority is accepted only with the value the capture sent, because the application stored it differently (${LISTED}).`,
+    `Member priority is accepted only with the value the capture sent, "HIGH", because the application stored it differently or other recorded fields go with it (${LISTED}).`,
   ],
   [
     "a number for a string",
@@ -372,6 +374,28 @@ it("takes an update's unique and renewed values from the generator, whether or n
     "unique",
     "renewed",
   ]);
+});
+
+const HELD_PLAN: Plan = {
+  rules: [
+    { field: "title", rule: "echo" },
+    { field: "updatedAt", rule: "held-clock", format: SECONDS },
+  ],
+  body: { ...UPDATE_PLAN.body!, accepted: ["title", "updatedAt"], fixed: [] },
+};
+
+it("stamps a held clock only on a call that sends the value the entity holds", () => {
+  expect(
+    update({ title: "New Title", updatedAt: BEFORE.updatedAt! }, HELD_PLAN)
+      .result,
+  ).toEqual(ok({ ...BEFORE, title: "New Title", updatedAt: NOW }));
+  const { asked, result } = update({ title: "New Title" }, HELD_PLAN);
+  expect(result).toEqual(
+    err(
+      "Member updatedAt must be sent with the value the entity holds, as the recorded call did.",
+    ),
+  );
+  expect(asked).toEqual([]);
 });
 
 it("renews no child rows on an entity that holds none", () => {

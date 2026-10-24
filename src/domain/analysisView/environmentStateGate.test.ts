@@ -48,6 +48,7 @@ const check = (
     inCollection: () => entities,
     volatileOf: () => new Set(),
     idField: () => "id",
+    minted: new Map(),
   };
   const view = checkItemPlan(context, {
     tool: {

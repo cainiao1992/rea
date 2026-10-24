@@ -47,6 +47,19 @@ export type GeneratedRule =
       readonly field: string;
       readonly rule: "clock";
       readonly format: ClockFormat;
+    }
+  /** An object value whose members hold the write's clock, the others kept. */
+  | {
+      readonly field: string;
+      readonly rule: "nested-clock";
+      readonly members: string[];
+      readonly format: ClockFormat;
+    }
+  /** A sent clock the application stamps anew, which a call must send as the entity holds it. */
+  | {
+      readonly field: string;
+      readonly rule: "held-clock";
+      readonly format: ClockFormat;
     };
 
 /** How one field of a written entity gets its value; fields no rule names keep the observed value. */
@@ -62,6 +75,26 @@ export type FieldRule =
   | {
       readonly field: string;
       readonly rule: "constant";
+      readonly value: JsonValue;
+    }
+  /** An update stores `value`, the acting user's, without being sent it. */
+  | {
+      readonly field: string;
+      readonly rule: "stamp";
+      readonly value: JsonValue;
+    }
+  /** An update that sends `member` stores `value`, derived from it, on an entity holding `from` there. */
+  | {
+      readonly field: string;
+      readonly rule: "derived";
+      readonly value: JsonValue;
+      readonly from: JsonValue;
+      readonly member: string;
+    }
+  /** An item action stores `value` on every call, sent or not. */
+  | {
+      readonly field: string;
+      readonly rule: "set";
       readonly value: JsonValue;
     };
 
@@ -86,7 +119,26 @@ export interface WriteBody {
   readonly identity: string | null;
   /** The JSON type a later call stored an accepted member as, for members the observation does not show. */
   readonly kinds: { readonly member: string; readonly kind: JsonKind }[];
+  /** The member a call wraps its object in, as a one-element array. */
+  readonly envelope?: string | undefined;
 }
+
+/**
+ * How a write names its entities when its path does not end in one: an action segment after the
+ * item's id, or ids in the body of a write at the collection, as an array of one JSON kind (`ids`)
+ * or as objects carrying the type's id field (`elements`), at the body's root or under one member.
+ */
+export type WriteAddress =
+  | { readonly by: "action"; readonly segment: string }
+  | {
+      readonly by: "ids";
+      readonly member: string | null;
+      readonly kind: "number" | "string";
+    }
+  | { readonly by: "elements"; readonly member: string | null };
+
+/** How a bulk write names its entities in its body. */
+export type BodyAddress = Exclude<WriteAddress, { by: "action" }>;
 
 /** What a write answers: the written entity or its identity rendered into a recorded body, no body, or the recorded body. */
 export interface WriteResponse {
@@ -118,6 +170,8 @@ export interface StateWritePlan {
   readonly merge: "merge" | "replace" | null;
   readonly checked_record_ordinals: number[];
   readonly contradicted_by: number | null;
+  /** Set when the call's path does not end in the entity's id. */
+  readonly address?: WriteAddress | undefined;
 }
 
 /** The tool facts classification reads. */

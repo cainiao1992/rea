@@ -15,6 +15,10 @@ import {
 } from "../../domain/analysisView/environmentStateWriteExplain.js";
 import { callRenewal } from "../../domain/analysisView/environmentStateWriteGenerated.js";
 import {
+  nestedClockValue,
+  unenveloped,
+} from "../../domain/analysisView/environmentStateWriteStamps.js";
+import {
   linkedCollection,
   sameLinkedSource,
 } from "../../domain/analysisView/environmentStateWriteLinks.js";
@@ -26,9 +30,7 @@ import {
 } from "../../domain/analysisView/environmentStateWriteRules.js";
 import {
   formatClock,
-  isUuid,
-  seededToken,
-  seededUuid,
+  seededLike,
   spelledLike,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
 import {
@@ -67,16 +69,13 @@ import {
   unloadableMember,
   type HeldDocument,
 } from "./environmentStateDocument.js";
-import {
-  environmentToolArguments,
-  hasRepeatedQueryArgument,
-} from "./environmentTools.js";
+import { environmentToolArguments } from "./environmentTools.js";
 
 /** Attempts at a generated UUID or token before a collision with held values is refused. */
 const GENERATION_ATTEMPTS = 64;
 
 /** One served write call: the tool, its plan and its arguments. */
-interface WriteRequest {
+export interface WriteRequest {
   readonly tool: EnvironmentManifestTool;
   readonly plan: StateWritePlan;
   readonly args: ReplayArguments;
@@ -84,7 +83,7 @@ interface WriteRequest {
 }
 
 /** The path values a call supplies, keyed by template segment as write plans name them. */
-const pathValues = (
+export const pathValues = (
   tool: EnvironmentManifestTool,
   args: ReplayArguments,
 ): Map<string, string> => {
@@ -102,7 +101,7 @@ const pathValues = (
 };
 
 /** A refusal for a value `data/add` would refuse, so `data/get` always reports a state that loads back. */
-const unloadable = (
+export const unloadable = (
   tool: EnvironmentManifestTool,
   holder: string,
 ): AnalysisError =>
@@ -111,15 +110,25 @@ const unloadable = (
     `${holder} would hold a value that is not exactly representable JSON, which data/add could not load back.`,
   );
 
-/** The call's body: an object, nothing, or a refusal for any other value or one holding a value the state cannot hold. */
+/** The call's body: an object, unwrapped from the envelope the capture sent it in, nothing, or a refusal for any other value or one holding a value the state cannot hold. */
 const callBody = ({
   tool,
   args,
+  plan,
 }: WriteRequest): Result<JsonObject | undefined, AnalysisError> => {
   const name = environmentToolArguments(tool).body;
-  const value = name === undefined ? undefined : args[name];
-  if (value === undefined) return ok(undefined);
-  if (!isObject(value as JsonValue))
+  const sent = name === undefined ? undefined : args[name];
+  if (sent === undefined) return ok(undefined);
+  const envelope = plan.body?.envelope ?? "";
+  const value = unenveloped(sent as JsonValue, plan.body?.envelope);
+  if (value === undefined)
+    return err(
+      refused(
+        tool,
+        `Tool ${tool.name} takes its JSON object body wrapped as {"${envelope}":[{...}]}, as the capture sent it.`,
+      ),
+    );
+  if (!isObject(value))
     return err(refused(tool, `Tool ${tool.name} takes a JSON object body.`));
   const member = unloadableMember(value as JsonObject);
   return member === undefined
@@ -128,7 +137,7 @@ const callBody = ({
 };
 
 /** The entity a recorded observation shows: the values a create keeps and an update's constants. */
-const observedEntity = (
+export const observedEntity = (
   serving: StateServing,
   plan: StateWritePlan,
 ): JsonObject | undefined => {
@@ -152,23 +161,37 @@ const nextHeld = (
     exemplar,
   );
 
+/** The entity a write generates values for: its collection, the observed entity and, for an update, the entity it writes. */
+export interface GeneratedTarget {
+  readonly name: string;
+  readonly collection: readonly StateEntity[];
+  readonly observed: JsonObject;
+  /** The entity an update writes, whose values a renewed field keeps. */
+  readonly current?: JsonObject;
+}
+
+/** What an update generates values for: the entity it writes, in its collection. */
+export const updateTarget = (
+  serving: StateServing,
+  entity: StateEntity,
+  observed: JsonObject,
+): GeneratedTarget => ({
+  name: entity.collection,
+  collection: serving.store.inCollection(entity.type, entity.collection),
+  observed,
+  current: entity.fields,
+});
+
 /**
  * Values one served write generates: its clock instant, sequences one past the largest held
  * value, and UUIDs and tokens seeded by the state Evidence, tool, field and write count,
- * skipping values the type already holds.
+ * skipping values the type already holds. Every entity the call writes shares them.
  */
-const generator = (
+export const generator = (
   serving: StateServing,
   request: WriteRequest,
-  target: {
-    readonly name: string;
-    readonly collection: readonly StateEntity[];
-    readonly observed: JsonObject;
-    /** The entity an update writes, whose values a renewed field keeps. */
-    readonly current?: JsonObject;
-  },
 ): {
-  readonly generate: GenerateValue;
+  readonly forTarget: (target: GeneratedTarget) => GenerateValue;
   readonly taken: Map<string, number>;
 } => {
   const { store } = serving;
@@ -182,7 +205,8 @@ const generator = (
   const ofType = store.ofType(request.plan.target ?? "");
   // A sequence never reuses a value the state started with, even after its entity was deleted.
   const started = store.startedWith(request.plan.target ?? "");
-  const startedIn = started.filter((held) => held.collection === target.name);
+  const startedIn = (collection: string) =>
+    started.filter((held) => held.collection === collection);
   const renewed = callRenewal(
     `${store.state.evidenceId}:${request.tool.name}:renewed:${String(write.count)}`,
   );
@@ -201,16 +225,27 @@ const generator = (
       `Could not generate a unique value for ${field} after ${String(GENERATION_ATTEMPTS)} attempts without colliding with the held state.`,
     );
   };
-  const generate = (rule: GeneratedRule): Result<JsonValue, string> => {
+  const generate = (
+    target: GeneratedTarget,
+    rule: GeneratedRule,
+  ): Result<JsonValue, string> => {
     const exemplar = target.observed[rule.field] ?? "";
     const seed = (attempt: number) =>
       `${store.state.evidenceId}:${request.tool.name}:${rule.field}:${String(write.count)}:${String(attempt)}`;
     switch (rule.rule) {
-      case "clock": {
+      case "clock":
+      case "held-clock":
+      case "nested-clock": {
         const value = formatClock(write.clockMs, rule.format);
-        return value === undefined
-          ? err(
-              `The generated clock for ${rule.field} is outside its recorded four-digit year format.`,
+        if (value === undefined)
+          return err(
+            `The generated clock for ${rule.field} is outside its recorded four-digit year format.`,
+          );
+        return rule.rule === "nested-clock"
+          ? nestedClockValue(
+              (target.current ?? target.observed)[rule.field],
+              rule,
+              value,
             )
           : ok(value);
       }
@@ -222,7 +257,7 @@ const generator = (
               `${request.tool.name} ${rule.field} ${rule.scope === "collection" ? target.name : ""}`,
               nextHeld(
                 rule.scope === "collection"
-                  ? [...target.collection, ...startedIn]
+                  ? [...target.collection, ...startedIn(target.name)]
                   : [...ofType, ...started],
                 rule.field,
                 exemplar,
@@ -232,7 +267,7 @@ const generator = (
         );
       case "unique":
         return unused(rule.field, (attempt) =>
-          seededUuid(seed(attempt), String(exemplar)),
+          seededLike(seed(attempt), exemplar),
         );
       case "renewed":
         return ok(
@@ -250,7 +285,7 @@ const generator = (
               sequence(
                 `${request.plan.target ?? ""} ${rule.field} ${target.name}`,
                 nextHeld(
-                  [...target.collection, ...startedIn],
+                  [...target.collection, ...startedIn(target.name)],
                   rule.field,
                   exemplar,
                 ),
@@ -258,20 +293,22 @@ const generator = (
             ),
           );
         return unused(rule.field, (attempt) =>
-          rule.generator === "uuid" || isUuid(exemplar)
-            ? seededUuid(seed(attempt), String(exemplar))
-            : seededToken(seed(attempt), String(exemplar)),
+          seededLike(seed(attempt), exemplar, rule.generator === "uuid"),
         );
     }
   };
-  return { generate, taken };
+  return { forTarget: (target) => (rule) => generate(target, rule), taken };
 };
 
 /** A write's answer on its recorded response's status and content type: a rendered body, none, or the recorded one. */
-const writeAnswer = (
+export const writeAnswer = (
   serving: StateServing,
   request: WriteRequest,
-  rendered: { readonly fields: JsonObject | undefined; readonly id: string },
+  rendered:
+    | { readonly fields: JsonObject | undefined; readonly id: string }
+    | ((
+        recorded: JsonValue | undefined,
+      ) => Result<JsonValue | undefined, string>),
   state: StateProvenance,
 ): Result<StateAnswer, AnalysisError> => {
   const { plan, tool, args } = request;
@@ -290,7 +327,11 @@ const writeAnswer = (
     )?.exact === true;
   if (plan.response.shape === "recorded")
     return ok({ ...replayAnswer(serving.source, exchange, exact), state });
-  const body = writtenResponse(plan.response, recordedJson(exchange), rendered);
+  const recorded = recordedJson(exchange);
+  const body =
+    typeof rendered === "function"
+      ? rendered(recorded)
+      : writtenResponse(plan.response, recorded, rendered);
   if (!body.ok) return err(refused(tool, body.error));
   return stateAnswer(serving, { exchange, exact }, body.value ?? null, state);
 };
@@ -401,16 +442,17 @@ const answerCreate = (
       ),
     );
   const members = serving.store.inCollection(type, collection);
-  const values = generator(serving, request, {
-    name: collection,
-    collection: members,
-    observed,
-  });
+  const values = generator(serving, request);
   const created = {
     ...call,
     pathValues: createdPathValues(serving, request, call, collection),
   };
-  const fields = createdFields(plan, observed, created, values.generate);
+  const fields = createdFields(
+    plan,
+    observed,
+    created,
+    values.forTarget({ name: collection, collection: members, observed }),
+  );
   if (!fields.ok) return err(refused(tool, fields.error));
   const field = unloadableMember(fields.value);
   if (field !== undefined) return err(unloadable(tool, `Field ${field}`));
@@ -465,7 +507,7 @@ const targetEntity = (
   request: WriteRequest,
 ): Result<StateEntity, Result<StateAnswer, AnalysisError>> => {
   const { tool, plan, args } = request;
-  const call = itemCall(tool, args);
+  const call = itemCall(tool, args, plan.address?.by === "action");
   if (call === undefined)
     return err(
       err(refused(tool, `Tool ${tool.name} needs every path argument.`)),
@@ -492,17 +534,12 @@ const answerUpdate = (
   if (!target.ok) return target.error;
   const entity = target.value;
   const observed = observedEntity(serving, plan) ?? {};
-  const values = generator(serving, request, {
-    name: entity.collection,
-    collection: serving.store.inCollection(entity.type, entity.collection),
-    observed,
-    current: entity.fields,
-  });
+  const values = generator(serving, request);
   const written = updatedFields(
     plan,
     { before: entity.fields, observed },
     { ...call, id: entity.id },
-    values.generate,
+    values.forTarget(updateTarget(serving, entity, observed)),
   );
   if (!written.ok) return err(refused(tool, written.error));
   // An increment can pass the exact integers.
@@ -629,13 +666,6 @@ export const answerWrite = (
   serving: StateServing,
   request: WriteRequest,
 ): Result<StateAnswer, AnalysisError> => {
-  if (hasRepeatedQueryArgument(request.tool, request.args))
-    return err(
-      refused(
-        request.tool,
-        "The state write model cannot apply repeated query parameters; the state is unchanged.",
-      ),
-    );
   const body = callBody(request);
   if (!body.ok) return body;
   const call: WriteCall = {

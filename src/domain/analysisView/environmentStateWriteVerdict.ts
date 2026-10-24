@@ -38,6 +38,21 @@ const renders = (
   );
 };
 
+/** Whether an item action sets something, and a call showed each field it sets already at that value, so the action sets rather than toggles it. */
+const steady = (plan: StateWritePlan, draft: WriteDraft): boolean => {
+  if (plan.address?.by !== "action") return true;
+  const set = plan.rules.flatMap((rule) =>
+    rule.rule === "set" ? [rule.field] : [],
+  );
+  return set.length > 0 && set.every((field) => draft.steady.has(field));
+};
+
+/** Whether a clock a call left as it was in its own second has no rule another call showed, so no call showed whether the write stamps it. */
+const unstamped = (plan: StateWritePlan, draft: WriteDraft): boolean =>
+  [...draft.unstamped].some(
+    (field) => !plan.rules.some((rule) => rule.field === field),
+  );
+
 /** A replayed write's plan, served only when it was called, nothing contradicted it, a read confirmed it and its answers can render. */
 export const writeVerdict = (
   draft: WriteDraft,
@@ -50,7 +65,12 @@ export const writeVerdict = (
       plan.reason = "contradicted";
       plan.contradicted_by = draft.contradictedBy;
     } else if (draft.sideEffect) plan.reason = "side-effect";
-    else if (draft.confirmed.length === 0) plan.reason = "unconfirmed";
+    else if (
+      draft.confirmed.length === 0 ||
+      !steady(plan, draft) ||
+      unstamped(plan, draft)
+    )
+      plan.reason = "unconfirmed";
     else if (!renders(plan, input)) plan.reason = "incomplete-entities";
   }
   plan.served = plan.reason === null;

@@ -99,6 +99,8 @@ export type StateProvenance =
       readonly type: string;
       readonly collection: string;
       readonly id: string;
+      /** Every entity a bulk call wrote, in body order; `id` is the first. */
+      readonly ids?: readonly string[];
     };
 
 /** A replay answer that also says whether the state or a recording produced it. */
@@ -204,21 +206,24 @@ export const stateAnswer = (
 export interface ItemCall {
   readonly segments: readonly SuppliedSegment[];
   readonly id: string;
+  /** Set for an id a body names, which is taken as written rather than percent-decoded. */
+  readonly literal?: boolean;
 }
 
-/** What an item call names, or undefined when a path argument is missing. */
+/** What an item call names, or undefined when a path argument is missing; an item action's id comes before its action segment. */
 export const itemCall = (
   tool: EnvironmentManifestTool,
   args: ReplayArguments,
+  action = false,
 ): ItemCall | undefined => {
   const segments = callSegments(tool, args);
+  if (action && segments?.pop()?.supplied !== false) return undefined;
   const last = segments?.pop();
   return segments !== undefined && last?.supplied === true
     ? { segments, id: last.text }
     : undefined;
 };
 
-/** The entity an item call names, preferring verbatim collection spellings as replay does; the id is tried percent-decoded, then as written. */
 /** Whether the state started with the item a call names, which a served delete may since have removed. */
 const startedWithItem = (
   store: EnvironmentStateStore,
@@ -235,12 +240,16 @@ const startedWithItem = (
     );
 };
 
+/** The entity an item call names, preferring verbatim collection spellings as replay does; the id is tried percent-decoded, then as written, unless it is literal. */
 export const namedEntity = (
   store: EnvironmentStateStore,
   type: string,
   call: ItemCall,
 ): StateEntity | undefined => {
-  const ids = [...new Set([decodedSegment(call.id), call.id])];
+  const ids =
+    call.literal === true
+      ? [call.id]
+      : [...new Set([decodedSegment(call.id), call.id])];
   const candidates = store
     .collectionsOf(type)
     .flatMap((collection) => {

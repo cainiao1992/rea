@@ -26,7 +26,7 @@ const clockStart = (
 
 /**
  * The write plans a capture's own timeline confirms against an extracted state, the served clock's
- * start, and the views without the fields reads showed the application leaves out.
+ * start, and the views without the fields reads showed the application leaves out, with the arrays they showed sorted.
  */
 export const extractWrites = (
   state: Pick<ExtractedState, "views" | "types" | "entities" | "documents">,
@@ -46,6 +46,6 @@ export const extractWrites = (
   return {
     writes,
     write_clock: clockStart(input.records, input.timed),
-    views: simulation.omitted.views(state.views),
+    views: simulation.views(state.views),
   };
 };

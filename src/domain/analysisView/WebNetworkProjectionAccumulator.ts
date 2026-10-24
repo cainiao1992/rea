@@ -48,6 +48,14 @@ export abstract class WebNetworkProjectionAccumulator {
     return true;
   }
 
+  /** Restore the enclosing synchronous parse's scratch after a nested body lease. */
+  protected temporaryCheckpoint(): () => void {
+    const held = this.#temporaryBytes;
+    return () => {
+      this.#temporaryBytes = held;
+    };
+  }
+
   /** Mark the retained bytes; the returned call releases what was retained since, once none of it is held. */
   protected retainedCheckpoint(): () => void {
     const mark = this.#retainedBytes;

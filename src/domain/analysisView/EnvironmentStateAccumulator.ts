@@ -26,6 +26,7 @@ import {
   isStateWrite,
   STATE_BODY_LIMIT_BYTES,
   type ParsedBody,
+  type ParsedRequestBody,
   type StateRecordFacts,
   type StateTimeline,
 } from "./environmentStateRules.js";
@@ -102,8 +103,15 @@ const contentSchema = z.object({
 });
 const requestSchema = z.object({
   request: z.object({
-    postData: z.object({ mimeType: z.string(), text: z.string() }),
+    postData: z.unknown().optional(),
+    bodySize: z.number().optional(),
   }),
+});
+
+const requestContentSchema = z.object({
+  mimeType: z.string(),
+  text: z.string(),
+  params: z.array(z.unknown()).optional(),
 });
 
 interface RecordEntry {
@@ -137,6 +145,7 @@ const UNKNOWNS: StateView["unknowns"] = [
 /** The manifest's grouping plus the record facts and bodies the init state is extracted from. */
 export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator {
   readonly #entries = new Map<number, RecordEntry>();
+  readonly #bodyReleases: (() => void)[] = [];
 
   constructor(
     maximumBytes = WEB_NETWORK_CAPTURE_LIMITS.outputBytes,
@@ -282,6 +291,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
 
   /** Parse one retained response body as state JSON, charging its decoding and tree as temporary work. */
   #body(ordinal: number): ParsedBody | null {
+    this.#bodyReleases.push(this.temporaryCheckpoint());
     const entry = this.#entries.get(ordinal);
     // A body that is not JSON-like is refused before its decoding is charged.
     if (entry === undefined || !isJsonLike(mediaTypeEssence(entry.contentType)))
@@ -302,27 +312,33 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
   }
 
   /** Parse one recorded request body as state JSON, as response bodies are admitted. */
-  #requestBody(ordinal: number): ParsedBody | null {
+  #requestBody(ordinal: number): ParsedRequestBody | null {
     const entry = this.#entries.get(ordinal);
     const request = requestSchema.safeParse(entry?.record.reported);
+    if (entry === undefined || !request.success) return { kind: "unusable" };
+    const { postData, bodySize } = request.data.request;
+    if (postData === undefined)
+      return { kind: bodySize === 0 ? "absent" : "unusable" };
+    const parsed = requestContentSchema.safeParse(postData);
+    if (!parsed.success) return { kind: "unusable" };
+    const { mimeType, text, params } = parsed.data;
+    if (bodySize === 0 && text === "" && (params?.length ?? 0) === 0)
+      return { kind: "absent" };
     if (
-      entry === undefined ||
-      !request.success ||
-      !isJsonLike(mediaTypeEssence(request.data.request.postData.mimeType))
+      !isJsonLike(mediaTypeEssence(mimeType)) ||
+      Buffer.byteLength(text, "utf8") > STATE_BODY_LIMIT_BYTES
     )
       return { kind: "unusable" };
-    const { mimeType, text } = request.data.request.postData;
-    if (Buffer.byteLength(text, "utf8") > STATE_BODY_LIMIT_BYTES)
-      return { kind: "unusable" };
-    if (!this.temporary(RECORD_SCRATCH_BYTES + textBytes(text.length) * 4))
-      return null;
+    const release = this.temporaryCheckpoint();
     try {
+      if (!this.temporary(RECORD_SCRATCH_BYTES + textBytes(text.length) * 4))
+        return null;
       const value = stateBodyJson(mimeType, { bodyText: text });
       return value === undefined
         ? { kind: "unusable" }
         : { kind: "json", value };
     } finally {
-      this.releaseTemporary();
+      release();
     }
   }
 
@@ -375,7 +391,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
         emptyResponse: (ordinal) => this.#emptyResponse(ordinal),
         retain: (bytes) => this.retain(bytes),
         checkpoint: () => this.retainedCheckpoint(),
-        release: () => this.releaseTemporary(),
+        release: () => this.#bodyReleases.pop()?.(),
       },
     }).run();
     if (state === null) return this.overBudget();

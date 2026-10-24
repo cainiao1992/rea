@@ -40,7 +40,11 @@ describe("scenarioCaptureRecords", () => {
     ]);
     const user = projected.records[1];
     expect(user?.reported).toEqual({
-      request: { method: "GET", url: "http://127.0.0.1:3101/api/users/2" },
+      request: {
+        method: "GET",
+        url: "http://127.0.0.1:3101/api/users/2",
+        bodySize: -1,
+      },
       response: {
         status: 200,
         content: {
@@ -71,7 +75,11 @@ describe("scenarioCaptureRecords", () => {
       request: { url: null },
     });
     expect(projected.records[7]?.reported).toEqual({
-      request: { method: "GET", url: "http://127.0.0.1:3101/api/slow" },
+      request: {
+        method: "GET",
+        url: "http://127.0.0.1:3101/api/slow",
+        bodySize: -1,
+      },
     });
     expect(manifestLimitations(projected)).toContain(
       "1 of 7 scenario transactions with a usable request line retained no response body; tools citing them replay only the recorded status and content type, either of which may be absent.",
@@ -251,4 +259,41 @@ it("does not decode request text when projecting replay records", () => {
   } finally {
     decoder.mockRestore();
   }
+});
+
+it("distinguishes a retained empty request from missing or redacted request bytes", () => {
+  const captured = scenarioCaptureFixture([
+    {
+      method: "POST",
+      url: "/api/items/1/archive",
+      status: 204,
+      requestBody: "",
+      requestMediaType: "application/json",
+    },
+  ]);
+  expect(
+    scenarioCaptureRecords(captured, "manifest").records[0]?.reported,
+  ).toMatchObject({ request: { bodySize: 0 } });
+  const redacted = {
+    ...captured,
+    events: {
+      ...captured.events,
+      items: captured.events.items.map((event) =>
+        event.kind === "network-content" &&
+        event.phase === "request" &&
+        event.body.state === "captured"
+          ? { ...event, body: { ...event.body, redacted: true } }
+          : event,
+      ),
+    },
+  };
+  expect(
+    scenarioCaptureRecords(redacted, "manifest").records[0]?.reported,
+  ).toMatchObject({ request: { bodySize: -1 } });
+  const missing = scenarioCaptureFixture([
+    { method: "POST", url: "/api/items/1/archive", status: 204 },
+  ]);
+  expect(
+    scenarioCaptureRecords(missing, "manifest").records[0]?.reported,
+  ).toMatchObject({ request: { bodySize: -1 } });
 });

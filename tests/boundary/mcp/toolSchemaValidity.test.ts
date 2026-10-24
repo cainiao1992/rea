@@ -14,6 +14,15 @@ import {
   unsupportedInputLiteralSchemaError,
 } from "../../fixtures/mcpClientSchemaConstraints.js";
 import { toolRegistrationOptions } from "../../../src/server/toolRegistrationOptions.js";
+import { servedCatalog } from "../../../src/application/environment/environmentState.js";
+import { servedFrom } from "../../fixtures/environmentStateServing.js";
+import type { TimedCaptureRow } from "../../fixtures/analysisView.js";
+import {
+  BOOK_INIT_ROWS,
+  BOOK_NOT_FOUND,
+  FIRST_BOOK,
+  THIRD_BOOK,
+} from "../../fixtures/environmentStateWrites.js";
 
 interface ToolSchemas {
   readonly name: string;
@@ -431,6 +440,59 @@ const advertiseAndEnforceProcessEnvironmentKeyConstraint =
       await Promise.allSettled([client.close(), server.close()]);
     }
   };
+
+describe("served environment catalogs", () => {
+  it("advertises served environment catalogs in schemas clients accept: bulk bodies, pinned queries and fixed members", () => {
+    const edition = { format: "HC", featured: 1 };
+    const stored = { ...THIRD_BOOK, ...edition };
+    const captures: readonly (readonly TimedCaptureRow[])[] = [
+      [
+        ...BOOK_INIT_ROWS,
+        ["DELETE", "/api/books", [{ id: 2 }], 200, [{ id: 2 }]],
+        ["GET", "/api/books/2", BOOK_NOT_FOUND, 404],
+        ["GET", "/api/books", [FIRST_BOOK]],
+      ],
+      [
+        ["GET", "/api/books", [{ ...FIRST_BOOK, ...edition }]],
+        ["GET", "/api/books/1", { ...FIRST_BOOK, ...edition }],
+        [
+          "POST",
+          "/api/books?notify=quiet",
+          stored,
+          201,
+          {
+            books: [
+              { name: "Third Book", format: "hardcover", featured: true },
+            ],
+          },
+        ],
+        ["GET", "/api/books/3", stored],
+      ],
+    ];
+    const tools = captures.flatMap((rows) => {
+      const served = servedFrom(rows);
+      const catalog = servedCatalog(served.source, served.state, "books");
+      if (!catalog.ok) throw catalog.error;
+      return catalog.value.tools;
+    });
+    const create = tools.find((tool) => tool.name === "post_books");
+    expect(create?.inputSchema.properties["notify"]).toMatchObject({
+      enum: ["quiet"],
+    });
+    expect(JSON.stringify(create?.inputSchema)).toContain(
+      '"const":"hardcover"',
+    );
+    expect(tools.some((tool) => tool.name === "delete_books")).toBe(true);
+    expect(
+      schemaErrors(
+        tools.map((tool) => ({
+          name: tool.name,
+          inputSchema: tool.inputSchema as unknown as Record<string, unknown>,
+        })),
+      ),
+    ).toEqual([]);
+  });
+});
 
 describe("MCP JSON Schema validity", () => {
   it("preserves empty-array validation in the advertised representation", () => {

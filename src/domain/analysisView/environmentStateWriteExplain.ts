@@ -7,6 +7,7 @@ import {
   same,
   scalarText,
   type JsonObject,
+  type StateEntity,
 } from "./environmentStateRules.js";
 import type {
   FieldRule,
@@ -25,19 +26,30 @@ import {
 } from "./environmentStateWriteValues.js";
 import {
   COPY_MIN_LENGTH,
+  instantMembers,
+  referencedMembers,
   storedMembers,
   strandedCopies,
   templateRule,
 } from "./environmentStateWriteCopies.js";
 import {
   unexplainedRenewals,
-  freshUuid,
   GENERATED,
-  renewedRule,
 } from "./environmentStateWriteGenerated.js";
-
-/** A clock value counts as written by the request when it lies this close to the request's start. */
-const CLOCK_WINDOW_MS = 10 * 60_000;
+import {
+  createdNestedClock,
+  createdToken,
+  isClockNear,
+  pairedStamps,
+  pinnedEchoes,
+} from "./environmentStateWriteStamps.js";
+import {
+  changeRule,
+  heldClock,
+  sameSecondClocks,
+  sentRule,
+  type UpdateEvidence,
+} from "./environmentStateWriteChanges.js";
 
 /** What explaining a create reads: the observed entity, the call that wrote it and the entities it joined. */
 export interface CreateEvidence {
@@ -48,6 +60,10 @@ export interface CreateEvidence {
   readonly startMs: number | undefined;
   readonly collection: readonly JsonObject[];
   readonly type: readonly JsonObject[];
+  /** The entities of any type the state holds under an id. */
+  readonly named?: (id: string) => readonly StateEntity[];
+  /** Members whose values the tool's recorded calls varied. */
+  readonly varied?: ReadonlySet<string>;
 }
 
 /** What explaining a create looks values up in, built once per request body. */
@@ -90,18 +106,6 @@ const indexBody = (body: JsonObject): BodyIndex => {
       if (slug !== sent && !slugs.has(slug)) slugs.set(slug, member);
     }
   return { copies, slugs };
-};
-
-const isClockNear = (
-  value: JsonValue,
-  startMs: number | undefined,
-): boolean => {
-  const clock = readClock(value);
-  return (
-    clock !== undefined &&
-    startMs !== undefined &&
-    Math.abs(clock.ms - startMs) <= CLOCK_WINDOW_MS
-  );
 };
 
 /** One more than the largest integer the members hold in the field, or undefined when none holds one. */
@@ -178,7 +182,9 @@ const generatedRule = (
     evidence.type.every((member) => member[field] !== value)
   )
     return { field, rule: "unique" };
-  return undefined;
+  if (createdToken(field, evidence.entity, evidence.type) === "independent")
+    return { field, rule: "unique" };
+  return createdNestedClock(field, value, evidence);
 };
 
 /** Body members the application stored as sent, and the others with what they were sent. */
@@ -240,18 +246,34 @@ export const explainCreate = (
   const templates = rules.flatMap((rule) =>
     rule.rule === "template" ? [rule.field] : [],
   );
-  // A member whose copy a template cannot rebuild is accepted only with its recorded value.
-  const stranded = strandedCopies(rules, evidence.entity, [
-    ...constants,
-    ...templates,
+  // A member whose value a template cannot rebuild, or that a constant derives from, is accepted only with its recorded value.
+  const texts = [...constants, ...templates];
+  const stranded = strandedCopies(rules, evidence.entity, texts);
+  const referenced = new Set([
+    ...referencedMembers(
+      evidence.call.body,
+      evidence.entity,
+      constants,
+      evidence.named ?? (() => []),
+    ),
+    ...instantMembers(evidence.call.body, evidence.entity, constants),
   ]);
+  const pinned = pinnedEchoes(evidence.entity, evidence.call.body, {
+    type: evidence.type,
+    varied: evidence.varied ?? new Set(),
+  });
+  const stored = storedMembers(
+    rules.filter((rule) => !stranded.has(rule.field)),
+    evidence.entity,
+  );
   return {
     rules,
     body: bodyOf(
       evidence.call.body,
-      storedMembers(
-        rules.filter((rule) => !stranded.has(rule.field)),
-        evidence.entity,
+      new Set(
+        [...stored].filter(
+          (member) => !referenced.has(member) && !pinned.has(member),
+        ),
       ),
       Object.keys(evidence.call.body),
     ),
@@ -260,49 +282,6 @@ export const explainCreate = (
       tokens.some((token) => containsDelimited(evidence.entity[field]!, token)),
     ),
   };
-};
-
-/** What explaining an update reads: the entity before and after, the call and its method. */
-export interface UpdateEvidence {
-  readonly before: JsonObject;
-  readonly after: JsonObject;
-  readonly call: WriteCall & { readonly body: JsonObject };
-  readonly method: string;
-  readonly idField: string;
-  readonly id: string;
-  readonly startMs: number | undefined;
-  /** Fields covered by a later read view. Missing fields outside that coverage remain unknown. */
-  readonly readFields?: readonly string[];
-  /** The type's other entities, none of which may hold a value the update generated. */
-  readonly others: readonly JsonObject[];
-  /** The fields of the observing read's view when that view showed the entity before, so one the entity lacked was added. */
-  readonly shown?: readonly string[];
-}
-
-/** The rule a field the update changed without sending follows, if any; `slugs` maps each echoed member's slug to the first such member. */
-const changeRule = (
-  evidence: UpdateEvidence,
-  field: string,
-  slugs: ReadonlyMap<string, string>,
-): FieldRule | undefined => {
-  const before = evidence.before[field];
-  const after = evidence.after[field]!;
-  if (readClock(after) !== undefined && isClockNear(after, evidence.startMs))
-    return { field, rule: "clock", format: readClock(after)!.format };
-  if (freshUuid(evidence, field)) return { field, rule: "unique" };
-  // Child rows only: a single UUID that changed is a reference or a generated value, judged above.
-  const renewed =
-    Array.isArray(before) || isObject(before)
-      ? renewedRule(field, { before, after }, evidence.others)
-      : undefined;
-  if (renewed !== undefined) return renewed;
-  const was = integerOf(before);
-  if (was !== undefined && integerOf(after) === was + 1)
-    return { field, rule: "increment" };
-  const member = typeof after === "string" ? slugs.get(after) : undefined;
-  return member === undefined
-    ? undefined
-    : { field, rule: "slug", from: member };
 };
 
 /** Each slug an echoed string member slugs to, from the first such member. */
@@ -326,6 +305,8 @@ export const explainUpdate = (
   readonly rules: FieldRule[];
   readonly body: WriteBody;
   readonly unexplained: string[];
+  /** Unsent clocks left as they were in the call's own second, which the call cannot show it stamps. */
+  readonly unstamped: string[];
 } => {
   const { body } = evidence.call;
   const rules: FieldRule[] = [];
@@ -334,6 +315,11 @@ export const explainUpdate = (
   // A member the application replaces with a value it generates is accepted with any value.
   const generated = new Set<string>();
   let identity: string | null = null;
+  // Two clocks sent back unchanged in the call's second cannot both be ones it stamps anew, as a whole-object PUT shows.
+  const held = Object.keys(body).filter(
+    (member) =>
+      member !== evidence.idField && heldClock(evidence, member, body[member]!),
+  );
   for (const [member, sent] of Object.entries(body)) {
     // The identity is the entity's key: the path's id repeated is the identity member; another value is one the application ignored, or used to re-key the entity, which no rule models.
     if (member === evidence.idField) {
@@ -343,18 +329,10 @@ export const explainUpdate = (
       continue;
     }
     if (!Object.hasOwn(evidence.after, member)) continue;
-    if (same(evidence.after[member], sent)) {
-      echoed.add(member);
-      rules.push({ field: member, rule: "echo" });
-    } else if (freshUuid(evidence, member)) {
-      generated.add(member);
-      rules.push({ field: member, rule: "unique" });
-    } else
-      rules.push({
-        field: member,
-        rule: "constant",
-        value: evidence.after[member]!,
-      });
+    const rule = sentRule(evidence, member, held);
+    rules.push(rule);
+    if (rule.rule === "echo") echoed.add(member);
+    else if (rule.rule !== "constant") generated.add(member);
   }
   // Serving keeps every field an update does not write, so one a read shows the update removed is a change no rule models.
   if (evidence.readFields !== undefined)
@@ -377,18 +355,25 @@ export const explainUpdate = (
     if (rule === undefined) unexplained.push(field);
     else rules.push(rule);
   }
+  rules.push(...pairedStamps(evidence, rules));
   // Serving renews one UUID alike in every field, so the call must have.
   unexplained.push(...unexplainedRenewals(rules, evidence));
+  const pinned = pinnedEchoes(evidence.after, body, { varied: new Set() });
   const shaped = bodyOf(
     Object.fromEntries(
       Object.entries(body).filter(([member]) => member !== identity),
     ),
-    new Set([...echoed, ...generated]),
+    new Set([...echoed, ...generated].filter((member) => !pinned.has(member))),
     evidence.method === "PUT"
       ? Object.keys(body).filter((member) => member !== identity)
       : [],
   );
-  return { rules, body: { ...shaped, identity }, unexplained };
+  return {
+    rules,
+    body: { ...shaped, identity },
+    unexplained,
+    unstamped: sameSecondClocks(evidence),
+  };
 };
 
 /**
@@ -452,10 +437,44 @@ const orderedBy = (
     );
   });
 
-/** Insert rules consistent with a collection's recorded order: sorted by identity or clock fields when shown, then last and first. */
+/** A version 4 UUID, which is random and so orders nothing. */
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+/**
+ * Whether a collection's identities order nothing: version 4 UUIDs, or values every creation clock
+ * lists in another order. Time-ordered ids (ObjectId, ULID, TSID, version 7 UUIDs) follow a clock.
+ */
+export const randomIdentities = (
+  members: readonly JsonObject[],
+  idField: string,
+  clocks: readonly string[],
+): boolean => {
+  const ids = members.map((member) => scalarText(member[idField]) ?? "");
+  if (ids.length > 0 && ids.every((id) => UUID_V4.test(id))) return true;
+  if (members.length < 2 || clocks.length === 0) return false;
+  const byId = members.toSorted(
+    (left, right) => compareValues(left[idField], right[idField]) ?? 0,
+  );
+  return clocks.every((clock) =>
+    byId.some(
+      (member, index) =>
+        index > 0 &&
+        (compareValues(byId[index - 1]![clock], member[clock]) ?? 1) > 0,
+    ),
+  );
+};
+
+/**
+ * Insert rules consistent with a collection's recorded order: sorted by identity or clock fields when
+ * shown, then last and first. Sorts by a field of random values come after last, since they order
+ * nothing until a read shows a create placed by them; when the other sorts place the created entity
+ * differently, none is claimed before last.
+ */
 export const insertCandidates = (
   members: readonly JsonObject[],
   fields: readonly string[],
+  placing: { readonly random?: string; readonly created?: JsonObject } = {},
 ): InsertRule[] => {
   const sorted: InsertRule[] = [];
   if (members.length >= 2)
@@ -463,7 +482,20 @@ export const insertCandidates = (
       for (const direction of ["ascending", "descending"] as const)
         if (orderedBy(members, field, direction))
           sorted.push({ rule: "sorted", field, direction });
-  return [...sorted, { rule: "last" }, { rule: "first" }];
+  const byRandom = (rule: InsertRule) =>
+    rule.rule === "sorted" && rule.field === placing.random;
+  const early = sorted.filter((rule) => !byRandom(rule));
+  const { created } = placing;
+  const tied =
+    created !== undefined &&
+    new Set(early.map((rule) => insertIndex(rule, members, created))).size > 1;
+  return [
+    ...(tied ? [] : early),
+    { rule: "last" },
+    ...(tied ? early : []),
+    ...sorted.filter(byRandom),
+    { rule: "first" },
+  ];
 };
 
 /** Where an entity with these fields enters a collection under an insert rule. */

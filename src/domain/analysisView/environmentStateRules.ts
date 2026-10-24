@@ -1,5 +1,6 @@
 import type { ListQuery } from "./environmentStateListQuery.js";
 import { canonicalJson } from "../comparisonSemantics.js";
+import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
 import type { JsonValue } from "../jsonValue.js";
 import type { StateWritePlan } from "./environmentStateWriteRules.js";
 import {
@@ -7,6 +8,7 @@ import {
   type ClockFormat,
 } from "./environmentStateWriteValues.js";
 import { ENTRY_BYTES, textBytes } from "./webNetworkRouteTemplates.js";
+import { counterAt, withCounter } from "./environmentStateCounters.js";
 
 /** How records are ordered: by recorded start time, or by record order when any start time is missing. */
 export type StateTimeline = "recorded-start-time" | "record-order";
@@ -36,11 +38,17 @@ export type ParsedBody =
   | { readonly kind: "json"; readonly value: JsonValue }
   | { readonly kind: "unusable" };
 
+/** A request distinguishes confirmed absence from content the state cannot interpret. */
+export type ParsedRequestBody = ParsedBody | { readonly kind: "absent" };
+
+export const requestJson = (body: ParsedRequestBody): JsonValue | undefined =>
+  body.kind === "json" ? body.value : undefined;
+
 /** Budgeted access the accumulator lends extraction; null and false mean the budget is exhausted. */
 export interface StateBudget {
   readonly body: (ordinal: number) => ParsedBody | null;
   /** A record's request body, admitted as response bodies are. */
-  readonly requestBody: (ordinal: number) => ParsedBody | null;
+  readonly requestBody: (ordinal: number) => ParsedRequestBody | null;
   /** Whether a record's response had no body. */
   readonly emptyResponse: (ordinal: number) => boolean;
   readonly retain: (bytes: number) => boolean;
@@ -107,6 +115,10 @@ interface EntityViewPlan {
   readonly checked_record_ordinals: number[];
   /** How the view spells the clock fields it always spells otherwise than the entities' stored values. */
   readonly clock_formats?: Readonly<Record<string, ClockFormat>> | undefined;
+  /** Fields whose string arrays the view lists in code-point order, whatever order they were written in. */
+  readonly sorted_arrays?: string[] | undefined;
+  /** Envelope members each response there mints, which checks leave out and serving keeps as recorded. */
+  readonly per_response_members?: string[] | undefined;
 }
 
 /** A query key that picks out replayed reads: a parameter, a parameter with one value, or a parameter left out. */
@@ -182,6 +194,7 @@ export type StateView =
       readonly tool: string;
       readonly shape: "document";
       readonly checked_record_ordinals: number[];
+      readonly per_response_members?: string[] | undefined;
     }
   | {
       readonly tool: string;
@@ -642,7 +655,10 @@ export const formatItemCount = (
 /** One entity as a view shows it: the view's fields it has, view-specific values first; volatile fields take `observed` values when given. */
 export const renderStateEntity = (
   entity: StateEntity,
-  view: Pick<EntityViewPlan, "tool" | "fields" | "clock_formats">,
+  view: Pick<
+    EntityViewPlan,
+    "tool" | "fields" | "clock_formats" | "sorted_arrays"
+  >,
   volatileFields: ReadonlySet<string>,
   observed?: JsonObject,
 ): JsonObject => {
@@ -650,6 +666,7 @@ export const renderStateEntity = (
     entity.view_fields.find((candidate) => candidate.tool === view.tool)
       ?.fields ?? {};
   const formats = view.clock_formats ?? {};
+  const sorted = new Set(view.sorted_arrays);
   return Object.fromEntries(
     view.fields.flatMap((name): [string, JsonValue][] => {
       const source =
@@ -660,17 +677,22 @@ export const renderStateEntity = (
             : entity.fields;
       if (!Object.hasOwn(source, name)) return [];
       // A stored value the view never recorded, such as a written one, takes the view's spelling.
-      return [
-        [
-          name,
-          source === entity.fields && Object.hasOwn(formats, name)
-            ? respellClock(source[name]!, formats[name]!)
-            : source[name]!,
-        ],
-      ];
+      const value =
+        source === entity.fields && Object.hasOwn(formats, name)
+          ? respellClock(source[name]!, formats[name]!)
+          : source[name]!;
+      return [[name, sorted.has(name) ? inSetOrder(value) : value]];
     }),
   );
 };
+
+/** Whether a value is an array of strings. */
+export const isStringArray = (value: JsonValue): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+/** A string array in code-point order, as a view that keeps the field as a set lists it; any other value as it is. */
+const inSetOrder = (value: JsonValue): JsonValue =>
+  isStringArray(value) ? value.toSorted(compareUnicodeCodePoints) : value;
 
 /** The fields every recording of a view carried that the entity, as serving renders it, lacks; serving refuses to answer with such an entity. */
 export const missingRequiredFields = (
@@ -694,11 +716,10 @@ export const renderStateList = (
   const listed = listItems(base, view.pointer)?.length;
   return view.counters.reduce(
     (body, name) => {
-      const observed = at(base, pointerTo(name));
+      const observed = counterAt(base, name);
       if (listed === undefined || recordedItemCount(observed) !== listed)
         return body;
-      const count = formatItemCount(items.length, observed!);
-      return replaceAt(body, pointerTo(name), count);
+      return withCounter(body, name, formatItemCount(items.length, observed!));
     },
     replaceAt(base, view.pointer, [...items]),
   );

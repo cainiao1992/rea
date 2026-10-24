@@ -3,6 +3,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { describe, expect } from "vitest";
+import { Ajv2020 } from "ajv/dist/2020.js";
 
 import {
   timedCaptureEvidence,
@@ -14,10 +15,15 @@ import {
 } from "../../fixtures/environmentServe.js";
 import {
   BOOK_NOT_FOUND,
+  BOTH_BOOKS_RENAMED_ROWS,
   BOOK_ROWS,
   book,
   bookClock,
+  FIRST_BOOK,
+  SECOND_BOOK,
+  renamedBook,
 } from "../../fixtures/environmentStateWrites.js";
+import { unsupportedInputLiteralSchemaError } from "../../fixtures/mcpClientSchemaConstraints.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { startListeningProcess } from "../../support/mcp/streamableHttpProcess.js";
 import { processTest } from "../../support/process/processFixture.js";
@@ -26,6 +32,143 @@ const HTTP_BOUNDARY_TIMEOUT_MS = 90_000;
 
 /** The book the first served create of "Boundary Book" makes: one second past the served clock's start. */
 const BOUNDARY_BOOK = book(3, "Boundary Book", bookClock(13));
+
+processTest(
+  "discovers empty fixed values and applies omitted recorded queries through the SDK before enforcing writes",
+  async ({ processes }) => {
+    const edition = (entry: typeof FIRST_BOOK) => ({
+      ...entry,
+      format: "HC",
+    });
+    const renamed = edition(renamedBook(FIRST_BOOK, "Recorded edit", 3));
+    const third = edition(book(3, "Recorded third", bookClock(5)));
+    const rows: TimedCaptureRow[] = [
+      ["GET", "/api/books", [edition(FIRST_BOOK), edition(SECOND_BOOK)]],
+      ["GET", "/api/books/1", edition(FIRST_BOOK)],
+      ["GET", "/api/books/2", edition(SECOND_BOOK)],
+      [
+        "PATCH",
+        "/api/books/1?notify=",
+        renamed,
+        200,
+        { name: "Recorded edit" },
+      ],
+      ["GET", "/api/books/1", renamed],
+      [
+        "POST",
+        "/api/books?notify=quiet",
+        third,
+        201,
+        { name: "Recorded third", format: "" },
+      ],
+      ["GET", "/api/books/3", third],
+    ];
+    const root = await createTestTempDirectory("rea-write-schema-defaults-");
+    const files = await writeEnvironmentServeFiles(
+      root,
+      environmentStateServeFixture(timedCaptureEvidence(rows)),
+    );
+    const started = await startListeningProcess(processes, [
+      "environment-serve",
+      files.manifestPath,
+      "--evidence",
+      files.capturePath,
+      "--port",
+      "0",
+    ]);
+    const client = new Client({
+      name: "write-schema-defaults",
+      version: "1",
+    });
+    await client.connect(new StreamableHTTPClientTransport(started.url));
+    try {
+      const { tools } = await client.listTools();
+      const ajv = new Ajv2020({ strict: false, validateFormats: false });
+      for (const tool of tools) {
+        expect(ajv.validateSchema(tool.inputSchema)).toBe(true);
+        expect(
+          unsupportedInputLiteralSchemaError(tool.inputSchema, tool.name),
+        ).toBeUndefined();
+      }
+      const update = tools.find((tool) => tool.name === "patch_books_by_id")!;
+      const create = tools.find((tool) => tool.name === "post_books")!;
+      expect(update.inputSchema.required).not.toContain("notify");
+      expect(create.inputSchema.required).not.toContain("notify");
+      expect(update.inputSchema.properties?.["notify"]).not.toHaveProperty(
+        "enum",
+      );
+      expect(create.inputSchema.properties?.["notify"]).toMatchObject({
+        enum: ["quiet"],
+      });
+      const omitted = await client.callTool(
+        {
+          name: update.name,
+          arguments: { id: "2", body: { name: "Omitted query" } },
+        },
+        { toolDefinition: update },
+      );
+      expect(omitted.isError).toBeFalsy();
+      expect(omitted.structuredContent).toMatchObject({
+        body: { id: 2, name: "Omitted query" },
+        state: { source: "state" },
+      });
+      const explicit = await client.callTool(
+        {
+          name: update.name,
+          arguments: {
+            id: "2",
+            notify: "",
+            body: { name: "Explicit empty" },
+          },
+        },
+        { toolDefinition: update },
+      );
+      expect(explicit.isError).toBeFalsy();
+      const refused = await client.callTool(
+        {
+          name: update.name,
+          arguments: {
+            id: "2",
+            notify: "yes",
+            body: { name: "Must not apply" },
+          },
+        },
+        { toolDefinition: update },
+      );
+      expect(refused.isError).toBe(true);
+      const read = await client.callTool({
+        name: "get_books_by_id",
+        arguments: { id: "2" },
+      });
+      expect(read.structuredContent).toMatchObject({
+        body: { id: 2, name: "Explicit empty" },
+      });
+      const badCreate = await client.callTool(
+        {
+          name: create.name,
+          arguments: { body: { name: "Must not create", format: "other" } },
+        },
+        { toolDefinition: create },
+      );
+      expect(badCreate.isError).toBe(true);
+      const created = await client.callTool(
+        {
+          name: create.name,
+          arguments: { body: { name: "SDK created", format: "" } },
+        },
+        { toolDefinition: create },
+      );
+      expect(created.isError).toBeFalsy();
+      expect(created.structuredContent).toMatchObject({
+        body: { id: 3, name: "SDK created", format: "HC" },
+        state: { source: "state" },
+      });
+    } finally {
+      await client.close();
+    }
+  },
+  HTTP_BOUNDARY_TIMEOUT_MS,
+);
 
 describe("rea environment-serve write tools", () => {
   processTest(
@@ -174,3 +317,95 @@ describe("rea environment-serve write tools", () => {
     HTTP_BOUNDARY_TIMEOUT_MS,
   );
 });
+
+processTest(
+  "serves multi-row bulk responses and refuses absent targets atomically through the SDK",
+  async ({ processes }) => {
+    const rows: TimedCaptureRow[] = [
+      ...BOTH_BOOKS_RENAMED_ROWS,
+      ["DELETE", "/api/books", [{ id: 1 }, { id: 2 }], 200, { ids: [1, 2] }],
+      ["GET", "/api/books/1", BOOK_NOT_FOUND, 404],
+      ["GET", "/api/books/2", BOOK_NOT_FOUND, 404],
+      ["GET", "/api/books", []],
+    ];
+    const root = await createTestTempDirectory("rea-write-bulk-sdk-");
+    const files = await writeEnvironmentServeFiles(
+      root,
+      environmentStateServeFixture(timedCaptureEvidence(rows)),
+    );
+    const started = await startListeningProcess(processes, [
+      "environment-serve",
+      files.manifestPath,
+      "--evidence",
+      files.capturePath,
+      "--port",
+      "0",
+    ]);
+    const client = new Client({
+      name: "bulk-response-verification",
+      version: "1",
+    });
+    await client.connect(new StreamableHTTPClientTransport(started.url));
+    try {
+      const { tools } = await client.listTools();
+      const update = tools.find((tool) => tool.name === "patch_books")!;
+      const deletion = tools.find((tool) => tool.name === "delete_books")!;
+      const changed = await client.callTool(
+        {
+          name: update.name,
+          arguments: { body: { ids: [2], name: "Subset" } },
+        },
+        { toolDefinition: update },
+      );
+      expect(changed.isError).toBeFalsy();
+      expect(changed.structuredContent).toMatchObject({
+        body: [{ id: 2, name: "Subset", created_at: SECOND_BOOK.created_at }],
+      });
+      const refused = await client.callTool(
+        {
+          name: update.name,
+          arguments: { body: { ids: [2, 999], name: "Refused" } },
+        },
+        { toolDefinition: update },
+      );
+      expect(refused.isError).toBe(true);
+      const unchanged = await client.callTool({
+        name: "get_books_by_id",
+        arguments: { id: "2" },
+      });
+      expect(unchanged.structuredContent).toMatchObject({
+        body: { id: 2, name: "Subset" },
+      });
+      const both = await client.callTool(
+        {
+          name: update.name,
+          arguments: { body: { ids: [1, 2], name: "Both" } },
+        },
+        { toolDefinition: update },
+      );
+      expect(both.isError).toBeFalsy();
+      expect(both.structuredContent).toMatchObject({
+        body: [
+          { id: 1, name: "Both", created_at: FIRST_BOOK.created_at },
+          { id: 2, name: "Both", created_at: SECOND_BOOK.created_at },
+        ],
+      });
+      const deleted = await client.callTool(
+        {
+          name: deletion.name,
+          arguments: { body: { ids: [2, 1] } },
+        },
+        { toolDefinition: deletion },
+      );
+      expect(deleted.isError).toBeFalsy();
+      expect(deleted.structuredContent).toMatchObject({
+        body: [{ id: 2 }, { id: 1 }],
+      });
+      const empty = await client.callTool({ name: "get_books", arguments: {} });
+      expect(empty.structuredContent).toMatchObject({ body: [] });
+    } finally {
+      await client.close();
+    }
+  },
+  HTTP_BOUNDARY_TIMEOUT_MS,
+);

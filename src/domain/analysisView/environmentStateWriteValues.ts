@@ -349,6 +349,16 @@ const tokenAlphabet = (exemplar: string): string => {
   return alphabet === "" ? LOWER : alphabet;
 };
 
+/** A seeded value spelled like the recorded one: a UUID for a UUID or when asked for one, else a token. */
+export const seededLike = (
+  seed: string,
+  exemplar: JsonValue,
+  uuid = false,
+): string =>
+  uuid || isUuid(exemplar)
+    ? seededUuid(seed, String(exemplar))
+    : seededToken(seed, String(exemplar));
+
 /** A token as long as the recorded one, from its alphabet, keeping its other characters in place. */
 export const seededToken = (seed: string, exemplar: string): string => {
   const alphabet = tokenAlphabet(exemplar);

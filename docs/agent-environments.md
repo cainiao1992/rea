@@ -433,7 +433,7 @@ Each read tool answers according to its view in the state:
 
 | View       | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `item`     | The entity the path arguments name, rendered into the recorded envelope of `envelope_ordinal`. Arguments match as replay matches them: each collection segment equals the held collection's segment as written or after percent-decoding, and the identity is the last argument percent-decoded, then as written; values are never re-split on `/`. Any entity the state holds answers, including one `data/add` loaded; query arguments only decide `replay.exact_match`, except that a call matching one of the view's `projected_query_keys`, or on a view with `projected_record_ordinals` asking for some fields only with a value other than `*` no checked line gave or one a replayed read gave, replays its recording. An entity the state does not hold answers the tool's latest recorded 400, 404 or 410 response with `state.view` `missing`, or is a tool error when none was recorded; one lacking a field every recording carried is a tool error, unless a read showed the application leaves that field out; a body is never invented.                                                                                                                                                                                                                                                                                                                             |
+| `item`     | The entity the path arguments name, rendered into the recorded envelope of `envelope_ordinal`, whose `per_response_members` (such as a request id), like a list's or a document's, keep their recorded values. Arguments match as replay matches them: each collection segment equals the held collection's segment as written or after percent-decoding, and the identity is the last argument percent-decoded, then as written; values are never re-split on `/`. Any entity the state holds answers, including one `data/add` loaded; query arguments only decide `replay.exact_match`, except that a call matching one of the view's `projected_query_keys`, or on a view with `projected_record_ordinals` asking for some fields only with a value other than `*` no checked line gave or one a replayed read gave, replays its recording. An entity the state does not hold answers the tool's latest recorded 400, 404 or 410 response with `state.view` `missing`, or is a tool error when none was recorded; one lacking a field every recording carried is a tool error, unless a read showed the application leaves that field out; a body is never invented.                                                                                                                                                                                                             |
 | `list`     | When the arguments name one of the lines the view checked exactly (its latest recordings before the first related write; every path and query value equal to the recording's, and every recorded query parameter supplied), that recorded envelope with its array rendered from the state: every entity of the collection in state order for `membership: "all"` or a line `all_record_ordinals` names, or the recorded members still held. A call with no query argument answers from such a line of the collection its path arguments name that only pages its list, with `replay.exact_match` false. On a line the view's `query` answers, and for a call whose every query argument has a role there (an argument-less call aside), the answer is the query evaluated over the state: filtered, searched, sorted and paged, with counters at the number listed and `query.totals` at the number matched, and `state.membership: "query"`; such a call answers on a query or whole line of its collection with `replay.exact_match` false. A value an `inert` parameter never recorded, a parameter without a role, a call matching one of the view's `projected_query_keys`, or a field selection the checked lines do not show (as for `item`), replays its recording. A member lacking a field every recording carried makes the call a tool error rather than a partial list. |
 | `document` | When the arguments name the document's checked line exactly, the state's value for it; a tool error when the state holds none.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recorded` | The recording, as replay answers it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -451,6 +451,14 @@ An item or list view that always spells a clock field otherwise than the
 entity's stored value names that spelling in `clock_formats`, and a value it
 never recorded, such as a created entity's clock, is rendered in it: a list that
 writes `+00:00` where item reads write `Z` lists a new entity the same way.
+A view that names a field in `sorted_arrays` lists that string array sorted, as
+a read-back showed the application does, while the state keeps it in the order
+it was written, so a write's own answer echoes it. Members a view names in
+`per_response_members`, such as a request id each response mints, keep the
+value its recording carried. A list's `counters` and `query.totals` are
+top-level members or members one level down in a paging object
+(`/pageInfo/totalRows`); either is set to the number listed or matched, and
+members beside it such as `isLastPage` stay as recorded.
 
 A list or document call that names no checked line, including a line recorded
 after a write or with other query values, answers from the recording. Every
@@ -480,20 +488,38 @@ tools are not served, so no call claims a change it does not make; each one's
 plan states why in its `reason`. A served write changes the live state, which
 every MCP session and `data/get` then see:
 
-| Effect     | Call                                                                                                                                                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create`   | Adds an entity to the collection the path names, built from the observed entity with each ruled field taken from the call or generated, at the plan's `insert` position. A plan tied to its exemplar's collection writes only there. |
-| `update`   | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, increment, slug, unique and renewed changes the plan models.                                       |
-| `delete`   | Removes the entity the path names.                                                                                                                                                                                                   |
-| `document` | Merges the body into the plan's document object, or replaces it for `PUT`.                                                                                                                                                           |
+| Effect                    | Call                                                                                                                                                                                                                                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`                  | Adds an entity to the collection the path names, built from the observed entity with each ruled field taken from the call or generated, at the plan's `insert` position. A plan tied to its exemplar's collection writes only there.                                                                                 |
+| `update`                  | Sets the sent members on the entity the path names, constants for members accepted only with their recorded value, and the clock, nested clock, increment, slug, stamp, derived, unique and renewed changes the plan models.                                                                                         |
+| `update` (action)         | A `POST`, `PUT` or `PATCH` to an item path plus an action segment (`/{type}/{id}/archive`) sets, on the entity before the segment, each scalar the recorded calls showed the action set (`set`), with any sent members; it is served only when a recorded call found those fields already set, so a toggle never is. |
+| `delete`                  | Removes the entity the path names.                                                                                                                                                                                                                                                                                   |
+| bulk `update` or `delete` | A `DELETE`, `PUT` or `PATCH` at a collection, or a `POST` to it plus `delete`, `remove` or `destroy`, applies its effect to every entity the body names, as recorded: an array of ids or of objects carrying the id field, at the root or as the body's one array member (`{"IDs": […], "Read": true}`).             |
+| `document`                | Merges the body into the plan's document object, or replaces it for `PUT`.                                                                                                                                                                                                                                           |
+
+An update's unsent changes follow the plan's rules. A `held-clock` is a clock
+the client sends back as it read it and the application stamps anew (Ghost's
+`updated_at`): the call must send the entity's value and the field takes the
+write's clock. A `nested-clock` sets the clocks inside an object the entity
+holds, in that object's recorded format. A `stamp` writes the acting user
+the entity already names under its `created…by` counterpart into a
+`modified…by` or `updated…by` field. A `derived` field takes a value showing
+the one sent member's text that the entity stores nowhere (a field Ghost
+derives from `html`), only with that member's recorded value. An action's
+`set` rule sets a scalar to the value the recorded calls left it at.
 
 Its answer has the status and content type of the plan's recorded response,
 with the written entity or its identity rendered in, no body, or the recorded
 body. A call whose body is not an object, sends a member the capture did not
 show stored, sends a fixed member with another value or a member of another
 JSON type, or lacks a required member is a tool error naming the accepted
-members; so is a rendered answer missing a field the recorded response
-carried, and an update or delete of an entity the state does not hold answers
+members; so is a call sending query parameters other than the exemplar's (they
+may change what the body does), a body not wrapped in the exemplar's envelope
+(Ghost's `{"posts": [{…}]}`), a bulk call naming an id the state does not hold,
+a `held-clock` member sent with another value than the entity holds, a call
+sending a `derived` rule's member to an entity that does not hold the value the
+recorded call found, a nested clock on an entity holding no such object, and a
+rendered answer missing a field the recorded response carried, and an update or delete of an entity the state does not hold answers
 the recorded 400, 404 or 410 of the tool or of an item view of the type, if
 any. A refused call leaves the state unchanged. Values a write generates are
 deterministic: the clock starts at `write_clock` and advances one second per
@@ -502,7 +528,8 @@ largest they generated, and UUIDs and tokens derive from the state Evidence
 id, tool, field and write count, skipping held values. `data/reset` and
 `data/add` restart the clock, counter and sequences, so the same calls after a
 reset give the same state. Answers carry `state: {"source": "state", "view":
-"create" | "update" | "delete", …}` or `"document-write"`.
+"create" | "update" | "delete", …}` or `"document-write"`; a bulk answer adds
+`ids`, every entity it wrote in body order, with `id` naming the first.
 
 The data plane serves three JSON-RPC methods:
 
@@ -656,6 +683,22 @@ on counters, relations and copies of entities in other collections, reordering
 after an update and referential rules on delete are not modelled. An exported
 bundle carries no state file: its server derives the state at startup, as the
 export does to predict what it serves.
+
+Known limits of served writes:
+
+- A recorded view answers from its recordings after a served write: Mailpit's
+  `get_messages`, recorded as `list-differs`, still lists a message a served
+  delete removed.
+- Served n8n workflow updates accept any `versionId`, while served Ghost post
+  updates require `updated_at` to match the entity (a `held-clock`).
+- A slug derived from a title can repeat across served creates with the same
+  title, where the application would make it unique.
+- A served create's sequence id is the state's next value, not the gaps an
+  application's own sequence would leave.
+- Nested clocks are served in the spelling of the write's own response, which
+  can differ from what a later read of the application shows.
+- A served write to an entity that a replayed (unserved) create made answers
+  as for a missing entity, since the state never held it.
 
 ## Export a bundle
 

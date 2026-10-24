@@ -1,4 +1,4 @@
-import { canonicalJson } from "../comparisonSemantics.js";
+import { identifierWords } from "./environmentStateWords.js";
 import type { JsonValue } from "../jsonValue.js";
 import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
 import {
@@ -7,10 +7,8 @@ import {
   isObject,
   lastSegmentValue,
   listItems,
-  recordedItemCount,
   renderStateEntity,
   renderStateList,
-  replaceAt,
   same,
   scalarText,
   type JsonObject,
@@ -22,6 +20,7 @@ import {
   type StateToolFacts,
   type StateView,
 } from "./environmentStateRules.js";
+import { counterPath } from "./environmentStateCounters.js";
 import {
   evaluateQuery,
   learnQuery,
@@ -32,8 +31,14 @@ import {
   type QueryLine,
 } from "./environmentStateListQuery.js";
 import { singleQueryValues } from "../recordedTransportUrl.js";
-import { startsAtBeginning } from "./environmentStatePaging.js";
 import { readClock, type ClockFormat } from "./environmentStateWriteValues.js";
+import {
+  declaredMembers,
+  mintedEnvelope,
+  mintedFor,
+  type MintedMembers,
+} from "./environmentStateResponseMembers.js";
+import { itemTotals, listFacts } from "./environmentStateListFacts.js";
 import { ENTRY_BYTES, textBytes } from "./webNetworkRouteTemplates.js";
 
 /** A successful item read first recorded after the initial reads, with the members its object carries. */
@@ -90,6 +95,8 @@ export interface StateGateContext {
   readonly inCollection: (type: string, collection: string) => StateEntity[];
   readonly volatileOf: (type: string) => ReadonlySet<string>;
   readonly idField: (type: string) => string;
+  /** By path, the top-level members each response there mints; views of other paths keep them. */
+  readonly minted: MintedMembers;
 }
 
 /** Ordered key union and always-present keys, grown one object at a time. */
@@ -216,8 +223,9 @@ const itemMismatch = (
   plan: StatePlan,
   check: {
     readonly view: { readonly tool: string; readonly fields: string[] };
-    readonly envelope: { skeleton?: string };
+    readonly envelope: { skeleton?: string; members?: string[] };
     readonly spellings: ClockSpellings;
+    readonly minted: ReadonlySet<string>;
   },
   record: StateRecordFacts,
 ): RecordedViewReason | undefined => {
@@ -231,13 +239,15 @@ const itemMismatch = (
     const object = body === undefined ? undefined : at(body, plan.pointer);
     if (entity === undefined || body === undefined || !isObject(object))
       return "fields-differ";
-    const skeleton = canonicalJson(
-      replaceAt(body, plan.pointer, null),
-      "Environment state",
+    const { skeleton, members } = mintedEnvelope(
+      body,
+      plan.pointer,
+      check.minted,
     );
     if (envelope.skeleton === undefined) {
       context.retain(textBytes(skeleton.length));
       envelope.skeleton = skeleton;
+      envelope.members = members;
     }
     if (skeleton !== envelope.skeleton) return "envelope-varies";
     check.spellings.note(entity.fields, object);
@@ -264,13 +274,14 @@ export const checkItemPlan = (
     });
   context.retain(union.bytes);
   const view = { tool: plan.tool.name, fields: union.fields };
-  const envelope: { skeleton?: string } = {};
+  const envelope: { skeleton?: string; members?: string[] } = {};
   const spellings = new ClockSpellings(context.retain);
+  const minted = mintedFor(context.minted, plan.latest);
   for (const record of plan.latest) {
     const reason = itemMismatch(
       context,
       plan,
-      { view, envelope, spellings },
+      { view, envelope, spellings, minted },
       record,
     );
     if (reason !== undefined) return recorded(plan, reason);
@@ -283,102 +294,12 @@ export const checkItemPlan = (
     fields: union.fields,
     required_fields: union.required,
     envelope_ordinal: plan.latest[0]!.ordinal,
+    ...declaredMembers(envelope.members, context.retain),
     checked_record_ordinals: plan.latest.map((record) => record.ordinal),
     ...replayedReads(plan),
     ...spellings.view,
   };
 };
-
-/** The latest recordings that list their whole collection in state order, and the counters that equal the item count on each of them, or on every line when none does. */
-const listFacts = (
-  context: StateGateContext,
-  plan: StatePlan,
-  union: FieldUnion,
-): { readonly whole: ReadonlySet<number>; readonly counters: string[] } => {
-  const field = context.idField(plan.type);
-  const whole = new Set<number>();
-  const counting = new Map<number, string[]>();
-  for (const record of plan.latest)
-    context.withBody(record.ordinal, (body) => {
-      const items =
-        body === undefined ? undefined : listItems(body, plan.pointer);
-      if (body === undefined || items === undefined) return;
-      items.forEach((item) => union.add(item));
-      const parent = plan.pointer === "" || !isObject(body) ? {} : body;
-      const counted = Object.keys(parent).filter(
-        (name) =>
-          isItemTotal(name) && recordedItemCount(parent[name]) !== undefined,
-      );
-      counting.set(
-        record.ordinal,
-        counted.filter(
-          (name) => recordedItemCount(parent[name]) === items.length,
-        ),
-      );
-      // Only a line that pages at most can hold its whole collection; a total that differs from
-      // the number listed, or a next page, shows it is partial.
-      if (
-        !startsAtBeginning(record.query) ||
-        counted.some(
-          (name) => recordedItemCount(parent[name]) !== items.length,
-        ) ||
-        Object.keys(parent).some((name) => continues(name, parent[name]))
-      )
-        return;
-      const ids = items.map((item) => scalarText(item[field]) ?? "");
-      const expected = context
-        .inCollection(plan.type, collectionPathOf(record, false))
-        .map((entity) => entity.id);
-      if (same(ids, expected)) whole.add(record.ordinal);
-    });
-  // Counter presence is per envelope. Keep every observed page counter;
-  // renderStateList updates only one the selected base actually counted.
-  const counters = [...new Set([...counting.values()].flat())].sort(compare);
-  return { whole, counters };
-};
-
-const nameTokens = (name: string): string[] =>
-  name
-    .split(/[_\-\s]|(?<=[a-z0-9])(?=[A-Z])/u)
-    .map((token) => token.toLowerCase());
-
-const LISTED_NOUNS = new Set(["elements", "entries", "items", "results"]);
-
-/** Item totals, including compact `totalcount`/`itemcount` and `numberOfElements`; page counts and account IDs are excluded. */
-const isItemTotal = (name: string): boolean => {
-  const tokens = nameTokens(name);
-  return (
-    (tokens.some(
-      (token) =>
-        token === "total" ||
-        token === "count" ||
-        token === "totalcount" ||
-        token === "itemcount",
-    ) ||
-      (tokens.includes("number") &&
-        tokens.some((token) => LISTED_NOUNS.has(token)))) &&
-    !tokens.some(
-      (token) => token === "page" || token === "pages" || token === "per",
-    )
-  );
-};
-
-const CONTINUATION_NAMES = new Set([
-  "hasmore",
-  "next",
-  "nextcursor",
-  "nextpage",
-  "nextpagetoken",
-  "nexttoken",
-]);
-
-/** A top-level `has_more`, `next` or next-page token member that says more items follow. */
-const continues = (name: string, value: JsonValue | undefined): boolean =>
-  CONTINUATION_NAMES.has(nameTokens(name).join("")) &&
-  value !== undefined &&
-  value !== null &&
-  value !== false &&
-  value !== "";
 
 /** The query that lines which are not whole follow, with the item totals that count its matches before paging. */
 const listQuery = (
@@ -413,12 +334,12 @@ const listQuery = (
       const parent = plan.pointer === "" || !isObject(body) ? {} : body;
       counts.set(
         record.ordinal,
-        Object.keys(parent).flatMap((name): [string, number][] => {
-          const count = isItemTotal(name)
-            ? queryTotalCount(parent[name])
-            : undefined;
-          return count === undefined ? [] : [[name, count]];
-        }),
+        itemTotals(parent, plan.pointer).flatMap(
+          ([name, value]): [string, number][] => {
+            const count = queryTotalCount(value);
+            return count === undefined ? [] : [[name, count]];
+          },
+        ),
       );
     });
   }
@@ -438,7 +359,8 @@ const listQuery = (
     // Absence says nothing about another envelope's counter. Only a present
     // count that disagrees invalidates the shared total interpretation.
     for (const [name, count] of counts.get(line.ordinal) ?? []) {
-      if (nameTokens(name).includes("number")) continue;
+      if (identifierWords(counterPath(name).at(-1)!).includes("number"))
+        continue;
       if (count === total) totals.add(name);
       else contradicted.add(name);
     }
@@ -524,7 +446,7 @@ export const checkListPlan = (
   plan: StatePlan,
 ): StateView => {
   const union = new FieldUnion();
-  const { whole, counters } = listFacts(context, plan, union);
+  const { whole, counters, minted } = listFacts(context, plan, union);
   context.retain(union.bytes);
   const base = {
     tool: plan.tool.name,
@@ -572,6 +494,7 @@ export const checkListPlan = (
         }),
     counters,
     ...(query === undefined ? {} : { query }),
+    ...declaredMembers(minted, context.retain),
     checked_record_ordinals: plan.latest.map((record) => record.ordinal),
     ...replayedReads(plan),
     ...spellings.view,

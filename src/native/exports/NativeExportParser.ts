@@ -10,7 +10,7 @@ import { architectureForElfMachine } from "../metadata/ElfImage.js";
 import { isUtf8 } from "node:buffer";
 import { readElfStringBytes, readElfSymbol } from "../metadata/ElfSymbol.js";
 import {
-  readNativeDirectoryFromBuffer,
+  readElfDirectoryFromBuffer,
   type NativeSection,
 } from "../metadata/NativeSectionDirectory.js";
 import { readPeImage } from "../metadata/PeImage.js";
@@ -449,7 +449,7 @@ const readVersionNames = (
 
 /** Read defined exported entries of `.dynsym` with their symbol versions. */
 const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
-  const directory = readNativeDirectoryFromBuffer(bytes, "elf");
+  const directory = readElfDirectoryFromBuffer(bytes);
   const reader = new BinaryReader(bytes, directory.little);
   const result = {
     artifact,

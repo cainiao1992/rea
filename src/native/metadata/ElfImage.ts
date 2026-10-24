@@ -10,11 +10,11 @@ import {
   type ZeroFillMapping,
 } from "./BinaryContainer.js";
 import { elfArchitecture } from "../../domain/elfFixedHeader.js";
-import { readNativeDirectoryFromBuffer } from "./NativeSectionDirectory.js";
+import { readElfDirectoryFromBuffer } from "./NativeSectionDirectory.js";
 
 /** Read ELF sections and file-backed program mappings without interpreting language metadata. */
 export const readElfImage = (bytes: Buffer): BinaryContainer => {
-  const directory = readNativeDirectoryFromBuffer(bytes, "elf");
+  const directory = readElfDirectoryFromBuffer(bytes);
   const { bits } = directory;
   const reader = new BinaryReader(bytes, directory.little);
   const mappings: FileMapping[] = [];

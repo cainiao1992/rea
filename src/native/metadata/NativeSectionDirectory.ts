@@ -343,15 +343,11 @@ export function* readPeSectionDirectory(
   };
 }
 
-/** Synchronous driver borrows bytes; file drivers satisfy the identical requests without loading payloads. */
-export const readNativeDirectoryFromBuffer = (
+/** Borrow ELF bytes; file drivers satisfy the identical requests without loading payloads. */
+export const readElfDirectoryFromBuffer = (
   bytes: Buffer,
-  format: "elf" | "pe",
 ): NativeSectionDirectory => {
-  const steps =
-    format === "elf"
-      ? readElfSectionDirectory(bytes.length)
-      : readPeSectionDirectory(bytes.length);
+  const steps = readElfSectionDirectory(bytes.length);
   let next = steps.next();
   while (!next.done) {
     const { offset, size } = next.value;

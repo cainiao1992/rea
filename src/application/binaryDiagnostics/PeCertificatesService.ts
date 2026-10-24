@@ -14,11 +14,7 @@ import {
   type PeCertificates,
 } from "../../domain/native/peCertificates.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
-import {
-  decodePeMachine,
-  peOptionalHeaderMagic,
-  type PeArchitecture,
-} from "../../domain/peMachine.js";
+import { peSubjectArchitecture } from "../../domain/peMachine.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { completeProviderEvidence } from "../ProviderOperationExecution.js";
 
@@ -76,7 +72,7 @@ export class PeCertificatesService {
         ),
       );
     const value = report.data;
-    const architecture = subjectArchitecture(value);
+    const architecture = peSubjectArchitecture(value.machine, value.format);
     const locations = [
       { kind: "artifact-path" as const, path: value.artifact.path },
       ...(value.table === null
@@ -111,17 +107,6 @@ export class PeCertificatesService {
     );
   }
 }
-
-const subjectArchitecture = (
-  report: PeCertificates,
-): PeArchitecture | undefined => {
-  const machine = decodePeMachine(report.machine);
-  if (machine === undefined || machine.nativeOsOverride) return undefined;
-  const magic = report.format === "pe32-plus" ? 0x20b : 0x10b;
-  return magic === peOptionalHeaderMagic(machine.architecture)
-    ? machine.architecture
-    : undefined;
-};
 
 const validReport = (
   report: PeCertificates,

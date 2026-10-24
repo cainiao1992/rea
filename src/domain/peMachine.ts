@@ -56,6 +56,23 @@ export const decodePeMachine = (machine: number): PeMachine | undefined => {
   return undefined;
 };
 
+/**
+ * Name a subject only when a direct COFF machine agrees with its declared PE
+ * format. OS overrides need managed-header proof that these report facts lack;
+ * unknown machines and conflicting optional-header widths also stay unknown.
+ */
+export const peSubjectArchitecture = (
+  machineType: number,
+  format: "pe32" | "pe32-plus",
+): PeArchitecture | undefined => {
+  const machine = decodePeMachine(machineType);
+  if (machine === undefined || machine.nativeOsOverride) return undefined;
+  const magic = format === "pe32-plus" ? 0x20b : 0x10b;
+  return magic === peOptionalHeaderMagic(machine.architecture)
+    ? machine.architecture
+    : undefined;
+};
+
 /** Optional-header facts shared by admission and native metadata readers. */
 export interface PeOptionalHeaderFacts {
   readonly bits: 32 | 64;

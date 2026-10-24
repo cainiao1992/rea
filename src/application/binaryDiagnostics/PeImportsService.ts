@@ -14,11 +14,7 @@ import {
   type PeImports,
 } from "../../domain/native/peImports.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
-import {
-  decodePeMachine,
-  peOptionalHeaderMagic,
-  type PeArchitecture,
-} from "../../domain/peMachine.js";
+import { peSubjectArchitecture } from "../../domain/peMachine.js";
 import { err, type Result } from "../../domain/result.js";
 import { completeProviderEvidence } from "../ProviderOperationExecution.js";
 
@@ -72,7 +68,7 @@ export class PeImportsService {
         ),
       );
     const value = report.data;
-    const architecture = subjectArchitecture(value);
+    const architecture = peSubjectArchitecture(value.machine, value.format);
     const locations = [
       { kind: "artifact-path" as const, path: value.artifact.path },
       ...fileRange(value.import_directory),
@@ -100,15 +96,6 @@ export class PeImportsService {
     );
   }
 }
-
-const subjectArchitecture = (report: PeImports): PeArchitecture | undefined => {
-  const machine = decodePeMachine(report.machine);
-  if (machine === undefined || machine.nativeOsOverride) return undefined;
-  const magic = report.format === "pe32-plus" ? 0x20b : 0x10b;
-  return magic === peOptionalHeaderMagic(machine.architecture)
-    ? machine.architecture
-    : undefined;
-};
 
 const fileRange = (
   directory: PeImports["import_directory"],

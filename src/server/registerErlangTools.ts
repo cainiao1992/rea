@@ -3,29 +3,62 @@ import type { BeamService } from "../application/erlang/BeamService.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import { toolContract } from "../contracts/toolContracts.js";
 import type { Logger } from "pino";
-import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import { createEvidenceToolHandler } from "./contractToolHandler.js";
-import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
+import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
+import { applicationToolRegistrationOptions } from "./toolRegistrationOptions.js";
+import type { EvidenceLookup } from "../application/EvidenceInputResolver.js";
+import {
+  requireAnalysisViewRetention,
+  projectRetainedAnalysis,
+} from "../application/analysisView/AnalysisViewService.js";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
+import { err } from "../domain/result.js";
 
-/** Bind the exact BEAM contract to its shared workflow and owning session Evidence ledger. */
+/** Register the explicit-file BEAM workflow and retain its complete Evidence. */
 export const registerErlangTools = (
   server: EvidenceMcpServer,
   service: BeamService,
   logger: Logger,
   recordEvidence?: EvidenceWriter["recordEvidence"],
   withAdmittedAnalysis?: WithAdmittedAnalysis,
+  evidenceById?: EvidenceLookup,
 ): void => {
   const contract = toolContract("inspect_erlang_beam");
   const handler = createEvidenceToolHandler(
     server,
-    (input, options) => service.inspect(input, options),
+    async (rawInput, options) => {
+      const parsed = contract.inputSchema.safeParse(rawInput);
+      if (!parsed.success)
+        return err(
+          analysisInputErrorFromIssues(
+            contract.name,
+            parsed.error.issues,
+            rawInput,
+            { cause: parsed.error },
+          ),
+        );
+      const { detail, view, ...input } = parsed.data;
+      const retention = { recordEvidence, evidenceById };
+      if (detail === "summary") {
+        const ready = requireAnalysisViewRetention(contract.name, retention);
+        if (!ready.ok) return ready;
+      }
+      const inspected = await service.inspect(input, options);
+      return detail === "summary" && inspected.ok
+        ? projectRetainedAnalysis(
+            inspected.value,
+            retention,
+            view ?? { kind: "summary" },
+          )
+        : inspected;
+    },
     logger,
     recordEvidence,
     withAdmittedAnalysis,
   );
   server.registerTool(
     contract.name,
-    toolRegistrationOptions(contract),
+    applicationToolRegistrationOptions(contract),
     handler(contract),
   );
 };

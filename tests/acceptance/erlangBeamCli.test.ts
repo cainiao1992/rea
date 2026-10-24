@@ -1,3 +1,4 @@
+import { erlangBeamSchema } from "../../src/domain/erlang/beam.js";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,6 +13,10 @@ import {
 import { connectLocalToolsMcp } from "../fixtures/localToolsMcp.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
+
+const completeBeamEvidenceSchema = toolContract(
+  "inspect_erlang_beam",
+).outputSchema.safeExtend({ normalized_result: erlangBeamSchema });
 
 const oneAtomBeam = (paddingByte: number): Buffer => {
   const bytes = Buffer.alloc(28);
@@ -65,9 +70,7 @@ cliTest("reports BEAM exports through the public CLI", async ({ cli }) => {
     arguments: ["inspect-erlang-beam", path, "--json"],
   });
   expect(result.exitCode, result.stderr).toBe(0);
-  const evidence = toolContract("inspect_erlang_beam").outputSchema.parse(
-    result.json,
-  );
+  const evidence = completeBeamEvidenceSchema.parse(result.json);
   expect(evidence.normalized_result.module).toBe("cli_mod");
   expect(
     evidence.normalized_result.exports?.some(
@@ -118,15 +121,14 @@ cliTest(
         arguments: ["inspect-erlang-beam", path, "--json"],
       });
       expect(output.exitCode, output.stderr).toBe(0);
-      const report = toolContract("inspect_erlang_beam").outputSchema.parse(
+      const report = completeBeamEvidenceSchema.parse(
         output.json,
       ).normalized_result;
       const reply = await call("inspect_erlang_beam", { path });
       expect(reply.isError, JSON.stringify(reply)).not.toBe(true);
       expect(
-        toolContract("inspect_erlang_beam").outputSchema.parse(
-          reply.structuredContent,
-        ).normalized_result,
+        completeBeamEvidenceSchema.parse(reply.structuredContent)
+          .normalized_result,
       ).toEqual(report);
       expect(report).toMatchObject({
         module,
@@ -174,7 +176,7 @@ cliTest(
       arguments: ["inspect-erlang-beam", path, "--json"],
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const report = toolContract("inspect_erlang_beam").outputSchema.parse(
+    const report = completeBeamEvidenceSchema.parse(
       result.json,
     ).normalized_result;
     expect(report.module).toBe("rea_beam_fixture");
@@ -211,9 +213,7 @@ cliTest(
         arguments: ["inspect-erlang-beam", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      return toolContract("inspect_erlang_beam").outputSchema.parse(
-        result.json,
-      );
+      return completeBeamEvidenceSchema.parse(result.json);
     };
     const control = await inspect(controlPath);
     const extended = await inspect(extendedPath);
@@ -253,9 +253,7 @@ cliTest(
         arguments: ["inspect-erlang-beam", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      return toolContract("inspect_erlang_beam").outputSchema.parse(
-        result.json,
-      );
+      return completeBeamEvidenceSchema.parse(result.json);
     };
     const clean = await inspect(cleanPath);
     const padded = await inspect(paddedPath);
@@ -288,9 +286,7 @@ cliTest(
         arguments: ["inspect-erlang-beam", path, "--json"],
       });
       expect(result.exitCode, result.stderr).toBe(0);
-      return toolContract("inspect_erlang_beam").outputSchema.parse(
-        result.json,
-      );
+      return completeBeamEvidenceSchema.parse(result.json);
     };
     const control = await inspect(controlPath);
     const trailing = await inspect(trailingPath);
@@ -344,9 +340,7 @@ cliTest(
       cwd: root,
     });
     expect(result.exitCode, result.stderr).toBe(0);
-    const evidence = toolContract("inspect_erlang_beam").outputSchema.parse(
-      result.json,
-    );
+    const evidence = completeBeamEvidenceSchema.parse(result.json);
     expect(evidence.subject?.local_path).toBe(join(root, "app.beam"));
   },
 );

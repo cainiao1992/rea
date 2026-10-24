@@ -153,7 +153,11 @@ question concerns IFF chunks, atom names, exports, imports, lambdas, or the
 Code header. No `open_binary`, Erlang installation, or bytecode execution is
 required. The CLI equivalent is `inspect-erlang-beam PATH`. Preserve artifact
 SHA-256, chunk file ranges, 1-based atom indices, and original atom spellings.
-Missing optional tables stay null. See
+Missing optional tables stay null. For a few facts, use `detail: "summary"` with
+a `beam` view selecting a collection, exact names/indices and fields; read later
+pages from `parent_evidence_id` or the complete Evidence bundle. Same-name
+exports retain every arity and original atom index. CLI summary delivery requires
+`--evidence_output`. Null table counts remain distinct from decoded empty tables. See
 [Erlang BEAM files](https://github.com/morluto/rea/blob/main/docs/erlang-beam.md).
 
 ## SQLite snapshots

@@ -275,8 +275,10 @@ explicit path or endpoint and do not need it.
 - Erlang BEAM IFF container: `inspect_erlang_beam` with the explicit local
   `.beam` file. This built-in target-free inspection requires no Erlang
   installation. Preserve chunk names, atom order, export/import/lambda tables,
-  and the Code header. Missing optional tables stay null. Bytecode is not
-  executed. See the
+  and the Code header. For selected facts, prefer `detail: "summary"` plus a
+  `beam` view (collection, names/indices, fields and paging), retaining the full
+  Evidence. CLI summary requires `--evidence_output`. Missing table counts stay
+  null; decoded empty tables count zero. Bytecode is not executed. See the
   [Erlang BEAM guide](https://github.com/morluto/rea/blob/main/docs/erlang-beam.md).
 
 - Explicit local SQLite database snapshot: `inspect_sqlite_database`. Inspect

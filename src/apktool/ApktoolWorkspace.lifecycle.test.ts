@@ -452,3 +452,48 @@ it("classifies source state changes during snapshot copying as artifact changes"
     await commands.close();
   }
 });
+
+it.each(["EACCES", "EPERM", "EIO", "ENOENT"] as const)(
+  "preserves the %s acquisition failure classification before snapshot admission",
+  async (code) => {
+    const root = await PrivateRuntimeRoot.create({
+      prefix: "rea-apktool-admission-test-",
+    });
+    const commands = new ApktoolCommandCleanup();
+    const workspace = new ApktoolWorkspace(root, commands);
+    const input = join(root.path, "source.apk");
+    await fs.writeFile(input, "authored-apk");
+    const failure = Object.assign(new Error("authored source open failure"), {
+      code,
+    });
+    vi.mocked(fs.open).mockImplementation(async (path, flags, mode) => {
+      if (String(path) === input) throw failure;
+      return await actual.open(path, flags, mode);
+    });
+    try {
+      const result: unknown = await workspace
+        .snapshotInput(input, "decode_android_resources")
+        .catch((cause: unknown) => cause);
+      if (code === "EIO") expect(result).toBe(failure);
+      else
+        expect(result).toMatchObject({
+          _tag:
+            code === "ENOENT"
+              ? "AnalysisInputError"
+              : "AnalysisAccessDeniedError",
+          operation: "decode_android_resources",
+          cause: failure,
+          ...(code === "ENOENT" ? {} : { path: input, systemCode: code }),
+        });
+      expect(workspace.snapshot).toBeUndefined();
+      await expect(fs.stat(join(root.path, "input.apk"))).rejects.toMatchObject(
+        {
+          code: "ENOENT",
+        },
+      );
+    } finally {
+      await workspace.close();
+      await commands.close();
+    }
+  },
+);

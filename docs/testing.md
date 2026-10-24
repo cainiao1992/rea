@@ -1699,6 +1699,15 @@ See [Packet capture analysis](pcap-analysis.md) for contracts and budgets.
 
 ## Apple native metadata and UI
 
+`tests/boundary/mcp/nativeDispatchBoundTarget.test.ts` uses the production
+stdio MCP server on macOS to bind an inert, self-authored Mach-O, then replace
+its path with missing, directory and symlink-loop states. Each refusal must
+report `artifact_changed`; restoring the same bytes must succeed in the same
+session. A separate non-root case checks real read permission denial as
+`access_denied`. These tests read the target without executing it. Controlled
+provider tests retain the physical acquisition failure through descriptor close
+denial and confirm cleanup retry releases the original owner.
+
 `npm run verify:apple-dispatch` compiles the Objective-C fixture (classes,
 protocols, a property and an `NSString` category) and the Swift
 conformance/vtable fixture.

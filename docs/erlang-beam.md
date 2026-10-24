@@ -91,6 +91,13 @@ nothing, and `fields: []` returns only `source_index`. Offset/limit page matchin
 rows in original order (defaults 0/64). Unfiltered pages slice the retained
 collection; queries do not decode the file again.
 
+For `chunks`, `names` matches the four-character IFF chunk tag (for example
+`"AtU8"`, `"Code"`, `"ExpT"`); available `fields` are `index`, `name`,
+`location`, and `payload`. For `lambdas`, `names` matches the resolved function
+name from the atom table; `null` names (unresolved atom indices) are never
+selected by a name filter. For `atoms`, `names` matches the decoded atom name
+string.
+
 `beam` keeps the module, form/Code bounds, original source coverage, and table
 counts. A null count means no table was decoded; zero means a decoded empty
 table. Missing tables and unresolved atom names remain explicit, and an empty

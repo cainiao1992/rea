@@ -75,9 +75,19 @@ const checkSelectors = async (
       [{ source_index: 0, index: 0, old_unique: 42 }],
     ],
     [
+      {
+        collection: "lambdas",
+        names: ["start"],
+        fields: ["function", "arity", "old_unique"],
+      },
+      [{ source_index: 0, function: "start", arity: 1, old_unique: 42 }],
+    ],
+    [{ collection: "lambdas", names: ["missing"], fields: [] }, []],
+    [
       { collection: "chunks", names: ["Code"], fields: ["index", "name"] },
       [{ source_index: 1, index: 1, name: "Code" }],
     ],
+    [{ collection: "chunks", names: ["Xyzz"], fields: [] }, []],
   ] as const) {
     const result = await call("inspect_analysis_view", {
       source: { kind: "retained-evidence", evidence_id },

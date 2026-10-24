@@ -72,6 +72,16 @@ preparation use that entrypoint; a raw Turbo compiler task without matching
 identity fails instead of publishing an ambiguous successful cache entry.
 A missing binary on a supported host also fails without silently falling back.
 
+Development verifiers load their shared command, terminal and file owners from
+source using Node's in-process TypeScript transformation. A single process-lifetime
+loader handles this checkout's `src/` and `scripts/lib/` graphs, resolving missing
+relative `.js`/`.mjs` imports to their `.ts`/`.mts` source. Existing JavaScript and
+modules outside those roots keep native resolution and failures. Node's module
+cache shares source identities within the verifier process; transformed output
+is not cached across Node versions. Restart the verifier after source edits.
+This avoids a cold-cache compiler subprocess surviving command cleanup; the
+live process-lineage checks remain required.
+
 The Rust compiler defaults to at most two checker threads. For `--noEmit` checks,
 `--maxMemory 3G` also sets a soft memory target; emit builds do not use that target.
 Explicit compiler arguments can override the defaults. These controls do not

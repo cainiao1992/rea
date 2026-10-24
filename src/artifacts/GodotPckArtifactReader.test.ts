@@ -72,6 +72,9 @@ describe("GodotPckArtifactReader", () => {
           "project.binary",
           "data/é.json",
         ]);
+        expect(entries.map(({ sourcePath }) => sourcePath)).toEqual(
+          members.map(({ path }) => path),
+        );
         expect(reader.formatMetadata()).toMatchObject({
           embedded,
           engine_major: 4,

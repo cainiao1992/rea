@@ -541,6 +541,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
       this.#reserveMetadata(
         {
           path: entry.path,
+          source_path: entry.sourcePath ?? null,
           adapter_key: entry.adapterKey,
           format_metadata: entry.formatMetadata ?? null,
           limitations: [...entry.limitations],

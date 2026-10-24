@@ -245,6 +245,18 @@ it.each([false, true])(
           ...(opaque ? [] : ["PYZ.pyz/app.pyc"]),
         ]),
       );
+      if (!opaque)
+        expect(
+          inspection.substeps[0]?.evidence.normalized_result.occurrences.find(
+            (row) => row.logical_path === "PYZ.pyz/app.pyc",
+          ),
+        ).toMatchObject({
+          source_path: "app",
+          format_metadata: {
+            container_name: "PYZ.pyz",
+            source_name: "app",
+          },
+        });
       const parent = parseEvidence(inspected.structuredContent);
       const compact = await client.callTool({
         name: "inspect_artifact",

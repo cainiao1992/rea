@@ -218,8 +218,13 @@ it("inventories a 2.1 archive, nested PYZ modules, and derived bytecode", async 
   expect(
     snapshot.occurrences.find(
       (occurrence) => occurrence.logical_path === "PYZ.pyz",
-    )?.entry_kind,
-  ).toBe("directory");
+    ),
+  ).toMatchObject({ entry_kind: "directory", source_path: "PYZ.pyz" });
+  expect(
+    snapshot.occurrences.find(
+      (occurrence) => occurrence.logical_path === "PYZ.pyz/ns",
+    ),
+  ).toMatchObject({ entry_kind: "metadata", source_path: "ns" });
   const scriptEdge = snapshot.edges.find(
     (edge) => edge.occurrence_id === hello?.occurrence_id,
   );
@@ -254,6 +259,7 @@ it("decodes an interned Unicode module name from the PYZ table", async () => {
   );
   expect(module).toMatchObject({
     entry_kind: "file",
+    source_path: "café",
     artifact_id: expect.any(String),
     format_metadata: {
       kind: "pyinstaller-entry",
@@ -927,6 +933,8 @@ it("inventories and extracts a Windows member name under its canonical path", as
   );
   expect(member?.format_metadata).toMatchObject({ source_name: storedName });
   expect(resource?.format_metadata).toMatchObject({ source_name: pyzName });
+  expect(member?.source_path).toBe(storedName);
+  expect(resource?.source_path).toBe(pyzName);
   const directory = await createTestTempDirectory("rea-pyinstaller-out-");
   const output = join(directory, "extracted");
   await materializeArtifactInventory(

@@ -190,8 +190,9 @@ export class GodotPckArtifactReader implements ArtifactReader {
       assertArtifactReadActive(signal);
       const pathBytes = await cursor.uint32();
       // Check worst-case JSON escaping before decoding or allocating the path.
-      // Its source bytes, decoded string and retained metadata share one budget.
-      if (pathBytes * 12 > MAX_DIRECTORY_METADATA_BYTES - retainedBytes)
+      // The logical path, raw source path, and metadata source path can each
+      // need six JSON bytes per input byte before retained facts are charged.
+      if (pathBytes * 18 > MAX_DIRECTORY_METADATA_BYTES - retainedBytes)
         throw metadataLimit();
       const rawPath = await cursor.bytes(pathBytes);
       const offset = await cursor.uint64();
@@ -226,6 +227,7 @@ export class GodotPckArtifactReader implements ArtifactReader {
         path: sourcePath.startsWith("res://")
           ? sourcePath.slice(6)
           : sourcePath,
+        sourcePath,
         kind: "file" as const,
         declaredSize: Number(size),
         compressedSize: null,
@@ -386,7 +388,7 @@ class PckCursor {
   async bytes(length: number): Promise<Buffer> {
     if (length > this.end - this.position)
       throw formatFailure("directory entry exceeds the pack");
-    if (length > MAX_DIRECTORY_METADATA_BYTES / 12) throw metadataLimit();
+    if (length > MAX_DIRECTORY_METADATA_BYTES / 18) throw metadataLimit();
     if (length > DIRECTORY_CHUNK_BYTES) {
       // A large valid virtual path is bounded by retained representation, not
       // the host filesystem's PATH_MAX. Only this path receives a larger read.

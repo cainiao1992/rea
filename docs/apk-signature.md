@@ -239,12 +239,18 @@ serialized size of the report together with its limitations (which repeat
 archive names) is then checked against an 8 MiB output budget (the exact check
 is authoritative); an over-budget report is refused, not truncated.
 
-The whole-file reader retains read chunks and a concatenated buffer; total
-process memory exceeds the selected file's size. It also computes the complete
+The whole-file reader allocates the selected snapshot and bounded read scratch;
+total process memory exceeds the selected file's size. It also computes the complete
 file SHA-256, so inspection is not header-only. Content digests are recomputed
 at most once per SHA-256/SHA-512 algorithm during one inspection. Input,
 inflation, decoded-record and serialized-output bounds keep work finite;
 resource refusals are distinct from malformed format errors.
+
+If the stable read completes but closing its descriptor fails or is cancelled,
+the error retains `details.partial_observation` with the selected path, complete
+file SHA-256 and byte count. These facts describe the acquired file; they do not
+establish any decoded signing facts. Failed cleanup remains visible until the
+provider releases the descriptor on a cleanup retry.
 
 A file that is not a ZIP is refused as an unsupported target. A damaged ZIP
 (local headers but no end-of-central-directory), a central directory that

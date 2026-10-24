@@ -1,4 +1,5 @@
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import { completedStableArtifact } from "../artifacts/readStableArtifact.js";
 import {
   artifactFilePrimaryFacts,
   type ArtifactFilePrimaryFacts,
@@ -6,6 +7,7 @@ import {
   bindArtifactFileCleanup,
 } from "../artifacts/ArtifactFileOperation.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { fileSnapshotPartialObservationSchema } from "../domain/fileSnapshotObservation.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
@@ -128,6 +130,16 @@ export const apkSignatureFailure = (
   path: string,
 ): AnalysisError => {
   const primary = primaryFailure(artifactFilePrimaryFacts(cause), path);
+  const snapshot = completedStableArtifact(cause);
+  if (snapshot !== undefined)
+    primary.retainPartialObservation(
+      fileSnapshotPartialObservationSchema.parse({
+        kind: "file-snapshot-hash",
+        path,
+        sha256: snapshot.sha256,
+        bytes: snapshot.bytes.length,
+      }),
+    );
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

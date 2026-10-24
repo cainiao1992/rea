@@ -7,6 +7,11 @@ import {
   findMetadataRegistration,
 } from "./Il2cppBinaryRegistration.js";
 import { createTypeNamer } from "./Il2cppBinaryTypes.js";
+import {
+  genericMethodLayouts,
+  linkGenericMethodsSteps,
+  type Il2cppGenericMethodLink,
+} from "./Il2cppBinaryGenerics.js";
 import type {
   Il2cppMetadataDecoded,
   Il2cppMetadataLinkFacts,
@@ -47,6 +52,8 @@ export interface Il2cppBinaryLink {
   readonly return_types: Il2cppTypeReference[];
   readonly field_types: Il2cppTypeReference[];
   readonly parameter_types: Il2cppTypeReference[];
+  /** Null unless generic instances were requested. */
+  readonly generic_methods: Il2cppGenericMethodLink | null;
 }
 
 export type Il2cppTypeReference = {
@@ -57,7 +64,10 @@ export type Il2cppTypeReference = {
 export type Il2cppBinaryReadOptions = Pick<
   Il2cppMetadataReadOptions,
   "beforeText" | "onRow"
->;
+> & {
+  /** Also link genericMethodTable rows; unrequested paths read no generic table. */
+  readonly genericInstances?: boolean;
+};
 
 /**
  * Link metadata methods to native code addresses without executing the image.
@@ -71,6 +81,8 @@ export function* linkIl2cppBinarySteps(
   options: Il2cppBinaryReadOptions = {},
 ): Generator<void, Il2cppBinaryLink> {
   const version = metadata.metadata_version;
+  // Refuse an undecoded version before any table is read.
+  if (options.genericInstances === true) genericMethodLayouts(version);
   yield;
   const image = yield* openImageSteps(bytes, architecture);
   const modules = yield* findModules(image, metadata);
@@ -202,6 +214,18 @@ export function* linkIl2cppBinarySteps(
   const return_types = yield* column(facts.returnTypes);
   const field_types = yield* column(facts.fieldTypes);
   const parameter_types = yield* column(facts.parameterTypes);
+  const generic_methods =
+    options.genericInstances === true
+      ? yield* linkGenericMethodsSteps(
+          image,
+          metadata,
+          facts,
+          registration_.field,
+          // findMetadataRegistration reports typesCount, word 6.
+          registration.field - 48n,
+          options,
+        )
+      : null;
   return {
     format: image.container.format,
     architecture: image.container.architecture,
@@ -215,6 +239,7 @@ export function* linkIl2cppBinarySteps(
     return_types,
     field_types,
     parameter_types,
+    generic_methods,
   };
 }
 
@@ -227,8 +252,15 @@ export const linkIl2cppBinary = (
   metadata: Il2cppMetadataDecoded,
   facts: Il2cppMetadataLinkFacts,
   architecture?: string,
+  options: Il2cppBinaryReadOptions = {},
 ): Il2cppBinaryLink => {
-  const steps = linkIl2cppBinarySteps(bytes, metadata, facts, architecture);
+  const steps = linkIl2cppBinarySteps(
+    bytes,
+    metadata,
+    facts,
+    architecture,
+    options,
+  );
   for (;;) {
     const step = steps.next();
     if (step.done) return step.value;

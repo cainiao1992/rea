@@ -38,6 +38,12 @@ export const registerIl2cppCommands = (
         .enum(["arm64", "amd64"])
         .optional()
         .describe("Slice of a universal Mach-O binary"),
+      genericInstances: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also link generic method instances (Type<Args>$$Method<Args>) and include them in --ghidra-seeds; needs --binary",
+        ),
       ghidraSeeds: localPathStringSchema
         .optional()
         .describe(
@@ -66,6 +72,9 @@ export const registerIl2cppCommands = (
                 ...(options.architecture === undefined
                   ? {}
                   : { binary_architecture: options.architecture }),
+                ...(options.genericInstances === true
+                  ? { generic_instances: true }
+                  : {}),
               };
               if (options.ghidraSeeds !== undefined)
                 return service.inspectWithGhidraSeeds(

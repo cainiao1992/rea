@@ -240,6 +240,9 @@ export const readUInt32 = (
   }
 };
 
+/** Exact lowercase hexadecimal form of an address in reports and issues. */
+export const hexAddress = (value: bigint) => `0x${value.toString(16)}`;
+
 export const isMapped = (image: NativeImage, address: bigint, size: number) => {
   try {
     mappedFileOffset(

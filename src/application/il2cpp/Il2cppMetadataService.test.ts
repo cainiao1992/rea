@@ -141,6 +141,7 @@ const linkedReport = (): Il2cppMetadata => ({
     code_gen_modules: [],
     types_field: "0x1300",
     types_count: 0,
+    generic_methods: null,
   },
 });
 const seedWriter = (
@@ -188,6 +189,7 @@ it("retains a published seed receipt if cancellation arrives after the atomic wr
     folded: 0,
     no_body: 0,
     unknown: 0,
+    generic_instances: null,
   };
   const service = new Il2cppMetadataService(
     { identity, inspect: async () => ok(linkedReport()) },

@@ -10,8 +10,8 @@ import {
   DEFAULT_CAPTURE_DECODER_HEAP,
 } from "../config/captureDecoderHeap.js";
 import {
-  DEFAULT_MCP_STARTUP_BUDGETS,
   mcpPhaseBudgetRecovery,
+  resolveMcpStartupBudgets,
 } from "../config/mcpStartupBudgets.js";
 import { AnalysisTimeoutError } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
@@ -77,7 +77,7 @@ it("keeps ceiling dial recoveries and scrubs non-adjustable timeout teaching", a
   expect(heap).toContain("source ");
   expect(heap).toContain("then restart REA");
   expect(heap).not.toContain("tell the user");
-  const phase = mcpPhaseBudgetRecovery(DEFAULT_MCP_STARTUP_BUDGETS.initialize);
+  const phase = mcpPhaseBudgetRecovery(resolveMcpStartupBudgets({}).initialize);
   expect(phase).toContain("Set ");
   expect(phase).toContain("then restart REA");
   expect(phase).not.toContain("tell the user");

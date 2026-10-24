@@ -34,10 +34,6 @@ export interface WindowsNativeCapabilitySet {
   readonly reparse_safe_path_admission: WindowsNativeCapability;
 }
 
-/** Stable explanation used whenever the native Windows authority is absent. */
-export const WINDOWS_NATIVE_AUTHORITY_UNAVAILABLE_REASON =
-  "Windows native controls are unavailable in this runtime; use the Windows x64 REA package with its matching bundled native artifact.";
-
 /** One readiness observation, shared by diagnostics and security controls. */
 export type WindowsNativeReadiness =
   | { readonly available: true }

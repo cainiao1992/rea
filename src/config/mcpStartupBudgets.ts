@@ -112,14 +112,6 @@ const defaultBudget = (phase: McpPhaseBudgetDefinition): McpPhaseBudget => ({
   maximumMilliseconds: MCP_PHASE_BUDGET_MAXIMUM_MS,
 });
 
-/** Budgets used when every phase setting is unset. */
-export const DEFAULT_MCP_STARTUP_BUDGETS: McpStartupBudgets = {
-  initialize: defaultBudget(PHASES[0]),
-  toolsList: defaultBudget(PHASES[1]),
-  firstCatalog: defaultBudget(PHASES[2]),
-  doctor: defaultBudget(PHASES[3]),
-};
-
 const parsePhaseBudget = (
   phase: McpPhaseBudgetDefinition,
   value: string | undefined,

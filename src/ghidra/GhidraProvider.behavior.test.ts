@@ -19,7 +19,6 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import * as nativeLoader from "../windows/WindowsNativeLoader.js";
-import { WINDOWS_NATIVE_AUTHORITY_UNAVAILABLE_REASON } from "../process/WindowsAuthority.js";
 import {
   fixtureDosLoadImage,
   compareDosClientFixture,
@@ -703,12 +702,13 @@ describe("Ghidra platform support", () => {
 
 describe("Ghidra Windows platform support", () => {
   it("keeps Windows P0 unavailable until native isolation authority exists", async () => {
+    const reason = "Authored native artifact unavailable diagnostic";
     const native = vi
       .spyOn(nativeLoader, "systemWindowsNativeAuthority")
       .mockReturnValue({
         available: false,
         failureStage: "artifact",
-        reason: WINDOWS_NATIVE_AUTHORITY_UNAVAILABLE_REASON,
+        reason,
       });
     onTestFinished(() => native.mockRestore());
     const ghidra = provider(installationHost("win32"));
@@ -728,9 +728,7 @@ describe("Ghidra Windows platform support", () => {
     expect(await ghidra.inspectAvailability()).toMatchObject({
       status: "unavailable",
       code: "runtime_missing",
-      reason: expect.stringContaining(
-        "Windows native controls are unavailable",
-      ),
+      reason,
       diagnostics: {
         windows_native_failure: {
           stage: "artifact",

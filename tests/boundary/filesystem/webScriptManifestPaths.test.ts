@@ -1,10 +1,18 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
-import { expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { expect, it, onTestFinished } from "vitest";
+import { exportWebScripts } from "../../../src/application/WebScriptExportService.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
 import { LocalWebScriptArtifacts } from "../../../src/browser/assets/LocalWebScriptArtifacts.js";
+import { LocalWebSourceLocationArtifacts } from "../../../src/browser/assets/WebSourceLocationArtifacts.js";
+import { LocalWebModuleArtifacts } from "../../../src/browser/modules/WebModuleArtifacts.js";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
+import { webScriptExportResultSchema } from "../../../src/domain/webScriptExport.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { webModuleArtifactsFixture } from "../../fixtures/webModuleTrace.js";
+import { scriptScenarioFixture } from "../../fixtures/webScriptCapture.js";
+import { webSourceLocationFixture } from "../../fixtures/webSourceLocation.js";
 
 const materialize = async () => {
   const root = join(
@@ -20,6 +28,105 @@ const materialize = async () => {
   await writeFile(manifestPath, JSON.stringify(artifact.manifest));
   return { root, artifact, sourcePath, manifestPath };
 };
+
+it.skipIf(process.platform === "win32").each([
+  { consumer: "module", sentinel: "different" },
+  { consumer: "module", sentinel: "identical" },
+  { consumer: "source-location", sentinel: "different" },
+  { consumer: "source-location", sentinel: "identical" },
+] as const)(
+  "loads the POSIX symlink-parent companion through $consumer with $sentinel lexical sibling bytes",
+  async ({ consumer, sentinel }) => {
+    const base = await createTestTempDirectory("rea-manifest-physical-parent-");
+    const source = Buffer.from('export const selected = "physical export";\n');
+    const sourceUrl = "https://app.test/modules/main.js";
+    const capturePath = join(base, "capture.json");
+    await writeFile(
+      capturePath,
+      JSON.stringify(
+        scriptScenarioFixture([{ url: sourceUrl, bytes: source }]),
+      ),
+    );
+    const resources = new ArtifactResourceScope();
+    onTestFinished(() => resources.close());
+    const exported = await exportWebScripts(
+      {
+        capture_path: capturePath,
+        output_directory: join(base, "physical-export"),
+      },
+      resources,
+    );
+    if (!exported.ok) throw exported.error;
+    const report = webScriptExportResultSchema.parse(
+      exported.value.normalized_result,
+    );
+    const selected = report.scripts[0];
+    if (selected?.content.state !== "exported")
+      throw new Error("Expected the real export to retain its selected source");
+
+    const physicalSourcePath = join(
+      report.output_directory,
+      "files",
+      selected.content.relative_path,
+    );
+    const lexicalSourcePath = join(
+      base,
+      "files",
+      selected.content.relative_path,
+    );
+    await mkdir(dirname(lexicalSourcePath), { recursive: true });
+    await writeFile(
+      lexicalSourcePath,
+      sentinel === "identical"
+        ? source
+        : Buffer.from('export const selected = "lexical sibling";\n'),
+    );
+    const nested = join(report.output_directory, "nested");
+    await mkdir(nested);
+    await symlink(nested, join(base, "link"));
+    const selectedManifestPath = `${base}/link/../manifest.json`;
+    const sourceMap = webSourceLocationFixture().sourceMap;
+    const mapPath = join(base, "selected.map");
+    await writeFile(mapPath, sourceMap.text);
+
+    const artifacts =
+      consumer === "module"
+        ? new LocalWebModuleArtifacts()
+        : new LocalWebSourceLocationArtifacts();
+    onTestFinished(() => artifacts.close());
+    const input = { manifest_path: selectedManifestPath, script_index: 0 };
+    const result =
+      artifacts instanceof LocalWebModuleArtifacts
+        ? await artifacts.load(input)
+        : await artifacts.load({
+            ...input,
+            source_map: { path: mapPath, url: sourceMap.url },
+            generated_position: { line: 1, column: 0 },
+          });
+    if (!result.ok) throw result.error;
+
+    expect(result.value.source).toBe(source.toString("utf8"));
+    expect(result.value.sourceFile).toEqual({
+      path: physicalSourcePath,
+      sha256: createHash("sha256").update(source).digest("hex"),
+      bytes: source.length,
+    });
+    expect(result.value.sourceFile.path).not.toBe(lexicalSourcePath);
+    expect(result.value.manifestFile).toEqual({
+      ...report.manifest,
+      path: selectedManifestPath,
+    });
+    expect(result.value.manifest.output_directory).toBe(
+      report.output_directory,
+    );
+    expect(result.value.manifest.scripts[0]?.url).toBe(sourceUrl);
+    if (consumer === "source-location")
+      expect(result.value).toHaveProperty("sourceMap", {
+        ...sourceMap,
+        file: { ...sourceMap.file, path: mapPath },
+      });
+  },
+);
 
 it("reads equivalent local manifest spellings without changing reported identity", async () => {
   const fixture = await materialize();
@@ -58,7 +165,7 @@ it("reads equivalent local manifest spellings without changing reported identity
   }
 });
 
-it("still rejects changed source bytes after normalizing the selected manifest path", async () => {
+it("still rejects changed source bytes after resolving the selected manifest's physical directory", async () => {
   const fixture = await materialize();
   await writeFile(fixture.sourcePath, "tampered source");
   const response = await new LocalWebScriptArtifacts(

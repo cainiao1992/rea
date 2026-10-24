@@ -1,5 +1,5 @@
 import { lstat, realpath } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
@@ -7,6 +7,7 @@ import { normalizeArtifactPath } from "../../artifacts/ArtifactPaths.js";
 import type { WebScriptArtifactPort } from "../../application/WebScriptArtifactPort.js";
 import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
+import { isPathWithinRoot } from "../../domain/localPath.js";
 import { err, ok } from "../../domain/result.js";
 import type { SelectedWebScriptInput } from "../../domain/webScriptArtifacts.js";
 import { webScriptExportManifestSchema } from "../../domain/webScriptExport.js";
@@ -89,10 +90,12 @@ export class LocalWebScriptArtifacts implements WebScriptArtifactPort {
           "path",
           `Windows source path cannot contain backslashes as literal name characters: ${JSON.stringify(portable)}`,
         );
-      const root = resolve(dirname(input.manifest_path));
+      const selectedParent = dirname(input.manifest_path);
+      callerSelected = false;
+      targetPath = selectedParent;
+      const root = await realpath(selectedParent);
       const sourcePath = join(root, "files", portable);
       targetPath = sourcePath;
-      callerSelected = false;
       await assertContained(root, sourcePath);
       const sourceBytes = await readStableArtifact(
         sourcePath,
@@ -145,14 +148,8 @@ export class LocalWebScriptArtifacts implements WebScriptArtifactPort {
 }
 
 const assertContained = async (root: string, path: string): Promise<void> => {
-  const canonicalRoot = await realpath(root);
   const canonicalFile = await realpath(path);
-  const fromRoot = relative(canonicalRoot, canonicalFile);
-  if (
-    fromRoot === ".." ||
-    fromRoot.startsWith(`..${sep}`) ||
-    isAbsolute(fromRoot)
-  )
+  if (!isPathWithinRoot(root, canonicalFile))
     throw new ArtifactReaderFailure(
       "path",
       `Selected source escapes its manifest directory: ${path}`,

@@ -7,7 +7,7 @@ import {
   getDefaultEnvironment,
 } from "@modelcontextprotocol/client/stdio";
 import { fileURLToPath } from "node:url";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { webSourceLocationFixture } from "../fixtures/webSourceLocation.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
@@ -20,9 +20,15 @@ cliTest(
     const fixture = webSourceLocationFixture();
     await mkdir(join(root, "files", "modules"), { recursive: true });
     await writeFile(join(root, "files", "modules", "main.js"), fixture.source);
-    const manifest = join(root, "manifest.json").replaceAll("\\", "/");
+    let manifest = join(root, "manifest.json").replaceAll("\\", "/");
     const map = join(root, "app.js.map");
     await writeFile(manifest, JSON.stringify(fixture.manifest));
+    if (process.platform !== "win32") {
+      await mkdir(join(root, "lexical"));
+      await mkdir(join(root, "nested"));
+      await symlink(join(root, "nested"), join(root, "lexical", "link"));
+      manifest = `${root}/lexical/link/../manifest.json`;
+    }
     await writeFile(map, fixture.sourceMap.text);
     const response = await cli.run({
       arguments: [
@@ -45,7 +51,14 @@ cliTest(
     expect(response.exitCode, response.stdout + response.stderr).toBe(0);
     expect(response.json).toMatchObject({
       normalized_result: {
-        source: { script_index: 0 },
+        manifest: {
+          path: manifest,
+          reported_output_directory: fixture.manifest.output_directory,
+        },
+        source: {
+          script_index: 0,
+          path: join(root, "files", "modules", "main.js"),
+        },
         source_map: { association: "caller-selected" },
         generated_offset: 0,
         execution: "unknown",

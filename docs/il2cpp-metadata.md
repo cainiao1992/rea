@@ -62,10 +62,11 @@ Collections are `sections`, `images`, `types`, `methods`, `fields`,
 `generic_method_instances` and `generic_method_issues`. Every returned row includes
 its source `index`, scoped by artifact SHA-256 and collection. All collections
 accept batch `indices` and `fields`. Exact `names` filtering is supported for
-`sections`, `images`, `types`, `methods`, `fields`, `properties`, `events` and
-`parameters`; native `return_types`, `field_types` and `parameter_types` rows
-are selected by source indices (or `method_indices` for `parameter_types`),
-not rendered names. Types also accept `image_indices`, `namespaces` and
+`sections`, `images`, `types`, `methods`, `fields`, `properties`, `events`,
+`parameters`, `return_types`, `field_types`, `parameter_types` and
+`generic_method_instances`. Native type names match the retained rendered display value exactly; every same-name row
+keeps its source index, and an unavailable (`null`) name never matches a string.
+Types also accept `image_indices`, `namespaces` and
 `declaring_types`; methods, fields, properties and events accept
 `declaring_types`. Parameters accept exact `method_indices`, so a batch of
 method indices retrieves their parameters without reading the entire parameter

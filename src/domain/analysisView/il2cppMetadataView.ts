@@ -227,13 +227,13 @@ export const il2cppMetadataViewRequestSchema = z.discriminatedUnion(
     }),
     ...(["return_types", "field_types"] as const).map((collection) =>
       z.strictObject({
-        ...indexPage,
+        ...page,
         collection: z.literal(collection),
         fields: z.array(typeReferenceRowSchema.keyof()).optional(),
       }),
     ),
     z.strictObject({
-      ...indexPage,
+      ...page,
       collection: z.literal("parameter_types"),
       // Owners come from the retained parameters collection.
       method_indices: z.array(indexSchema).optional(),

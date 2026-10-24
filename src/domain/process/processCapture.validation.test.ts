@@ -292,6 +292,46 @@ it("requires producer coverage accounting in every parsed capture", () => {
   );
 });
 
+it("requires rendered normalization omissions to be a subset of unknown-size frames", () => {
+  const complete = emptyCapture();
+  const withRenderedCoverage = (
+    observed_frames: number,
+    unknown_size_frames: number | undefined,
+    normalization_over_budget_frames: number | undefined,
+  ) => ({
+    ...complete,
+    truncated: observed_frames > 0,
+    truncation_details: {
+      ...complete.truncation_details,
+      rendered_terminal: {
+        ...complete.truncation_details.rendered_terminal,
+        observed_frames,
+        ...(unknown_size_frames === undefined ? {} : { unknown_size_frames }),
+        ...(normalization_over_budget_frames === undefined
+          ? {}
+          : { normalization_over_budget_frames }),
+      },
+    },
+  });
+
+  // Retention-only omissions and historical captures need no stage counter.
+  for (const capture of [
+    complete,
+    withRenderedCoverage(1, 1, undefined),
+    withRenderedCoverage(2, 2, 1),
+  ])
+    expect(parseProcessCapture(capture)).toEqual(capture);
+
+  for (const capture of [
+    withRenderedCoverage(0, undefined, 1),
+    withRenderedCoverage(1, undefined, 1),
+    withRenderedCoverage(2, 1, 2),
+  ])
+    expect(rejectedPaths(capture)).toContain(
+      "truncation_details.rendered_terminal.normalization_over_budget_frames",
+    );
+});
+
 it("does not infer normalized retention budget from missing scenario defaults", () => {
   const capture = emptyCapture();
   const scenario = {

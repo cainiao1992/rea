@@ -493,34 +493,64 @@ it("names the side and constraint when Evidence is not a usable capture", async 
     },
   });
 
-  const invalidResult = createEvidence(undefined, PROCESS_PROVIDER, {
-    predicateType: "rea.process-capture",
-    operation: "capture_process_scenario",
-    parameters: {},
-    result: { manifest: {} },
-  });
-  const malformed = await client.callTool({
-    name: "compare_process_captures",
-    arguments: { left: capture, right: invalidResult },
-  });
-  expect(parseMcpToolError(malformed)).toMatchObject({
-    error: {
-      code: "evidence_integrity_mismatch",
-      message: expect.stringContaining(
-        "The right Evidence has an invalid process capture result (at ",
-      ),
+  const coverage = EMPTY_PROCESS_CAPTURE_EXAMPLE.truncation_details;
+  const invalidCaptures = [
+    { result: { manifest: {} }, description: "(at " },
+    {
+      result: {
+        ...EMPTY_PROCESS_CAPTURE_EXAMPLE,
+        truncated: true,
+        truncation_details: {
+          ...coverage,
+          rendered_terminal: {
+            ...coverage.rendered_terminal,
+            observed_frames: 2,
+            unknown_size_frames: 1,
+            normalization_over_budget_frames: 2,
+          },
+        },
+      },
+      description:
+        "(at truncation_details.rendered_terminal.normalization_over_budget_frames: normalization omissions must be a subset of unknown-size rendered frames)",
     },
-  });
-
+  ];
   const root = await createTestTempDirectory("rea-process-malformed-");
   const leftPath = join(root, "left.json");
   const rightPath = join(root, "right.json");
   await writeFile(leftPath, JSON.stringify(capture));
-  await writeFile(rightPath, JSON.stringify(invalidResult));
-  expect(await compareProcessEvidenceFiles(leftPath, rightPath)).toMatchObject({
-    category: "invalid_input",
-    message: expect.stringContaining("Capture evidence is malformed (at "),
-  });
+  for (const { result, description } of invalidCaptures) {
+    const invalidResult = createEvidence(undefined, PROCESS_PROVIDER, {
+      predicateType: "rea.process-capture",
+      operation: "capture_process_scenario",
+      parameters: {},
+      result: jsonValueSchema.parse(result),
+    });
+    expect(parseEvidence(invalidResult)).toEqual(invalidResult);
+    const malformed = await client.callTool({
+      name: "compare_process_captures",
+      arguments: { left: capture, right: invalidResult },
+    });
+    expect(parseMcpToolError(malformed)).toMatchObject({
+      error: {
+        code: "evidence_integrity_mismatch",
+        message: expect.stringContaining(
+          `The right Evidence has an invalid process capture result ${description}`,
+        ),
+      },
+    });
+
+    await writeFile(rightPath, JSON.stringify(invalidResult));
+    expect(
+      await compareProcessEvidenceFiles(leftPath, rightPath),
+    ).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      message: expect.stringContaining(
+        `Capture evidence is malformed ${description}`,
+      ),
+      details: { issues: [expect.objectContaining({ path: ["right"] })] },
+    });
+  }
 });
 
 it("keeps structural capture issues alongside semantic ones through MCP and the CLI", async () => {

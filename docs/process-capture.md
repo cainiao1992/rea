@@ -482,7 +482,8 @@ Every capture requires `truncation_details`, with separate accounting for:
   input, so raw omissions also limit rendered coverage. `unknown_size_frames`
   counts frames whose complete size was not calculated; it does not by itself
   identify normalization as the cause. `normalization_over_budget_frames`
-  identifies omissions caused by an ordered normalization stage.
+  counts the subset of unknown-size frames stopped by an ordered normalization
+  stage; it cannot exceed `unknown_size_frames`.
   `observed_bytes` includes only rendered frame sizes determined exactly.
 - `filesystem_before` and `filesystem_after`: file-count/depth limits,
   enumeration failures, whole-file hash budget and bytes successfully hashed.

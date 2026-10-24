@@ -282,6 +282,9 @@ const validateCoverage = (
     hasCaptureTruncation(
       details,
     ), "truncation_details", "aggregate truncation must match producer coverage");
+  require((details.rendered_terminal.normalization_over_budget_frames ?? 0) <=
+    (details.rendered_terminal.unknown_size_frames ??
+      0), "truncation_details.rendered_terminal.normalization_over_budget_frames", "normalization omissions must be a subset of unknown-size rendered frames");
   for (const [name, retention, count, bytes] of [
     [
       "raw_terminal",

@@ -9,7 +9,7 @@ import { FUNCTION_COMPARISON_PROVIDER } from "../domain/comparisonEvidenceIdenti
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import type { RecordUnknownInput } from "../domain/residualUnknown.js";
 import { recordDerivedEvidence } from "./recordDerivedEvidence.js";
-import { recordSessionEvidenceSources } from "./sessionEvidence.js";
+import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
@@ -68,7 +68,7 @@ export const registerFunctionComparisonTool = (
           const rightEvidence = right.evidence;
           const leftIds = [leftEvidence.evidence_id];
           const rightIds = [rightEvidence.evidence_id];
-          const recordedSources = recordSessionEvidenceSources(
+          const recordedSources = recordEvidenceSources(
             (evidence) => session.recordEvidence(evidence),
             [leftEvidence, rightEvidence],
           );

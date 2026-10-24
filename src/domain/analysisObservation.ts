@@ -20,6 +20,8 @@ export interface AnalysisObservation {
   /** Provider-owned completeness assessment for caller/callee observations. */
   readonly relationshipCoverage?: RelationshipCoverage;
   readonly locations: readonly EvidenceLocation[];
+  /** Atomic source records supplied by the producer, with links derived from their identities. */
+  readonly sourceEvidence?: readonly Evidence[];
   /**
    * Missing means the selected operation's default subject should be bound by
    * its caller. Explicit null means the observation has no file subject.
@@ -53,6 +55,8 @@ export const createAnalysisExecutionEvidence = (
         ? {}
         : { relationshipCoverage: execution.relationshipCoverage }),
       locations: execution.locations,
+      evidenceLinks:
+        execution.sourceEvidence?.map(({ evidence_id }) => evidence_id) ?? [],
       confidence,
     },
     options,

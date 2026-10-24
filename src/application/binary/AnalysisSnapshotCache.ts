@@ -436,6 +436,9 @@ export class AnalysisSnapshotCache {
     // The snapshot format does not carry reference truncation; a replay would
     // present a capped read as complete, so it is not recorded.
     if (execution.referencesTruncated === true) return;
+    // Provider snapshot entries do not carry execution source records. Replay
+    // must not discard the source closure that supplies the parent's Evidence links.
+    if ((execution.sourceEvidence?.length ?? 0) > 0) return;
     const queryId = analysisQueryId(
       snapshotTarget(target),
       snapshotBinding(profile),

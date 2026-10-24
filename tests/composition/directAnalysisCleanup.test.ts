@@ -1,6 +1,8 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { createPackageWithOptions } from "@electron/asar";
+import { createArtifactBinarySession } from "../../src/composition/binary.js";
 import {
   runDirectAnalysis,
   runManagedProviderExecution,
@@ -19,7 +21,9 @@ import {
   projectAnalysisError,
   projectAnalysisErrorWithoutCapturedOutput,
 } from "../../src/domain/analysisErrorProjection.js";
-import { parseEvidence } from "../../src/domain/evidence.js";
+import { parseEvidence, type Evidence } from "../../src/domain/evidence.js";
+import { jsonObjectSchema } from "../../src/domain/jsonValue.js";
+import { artifactInspectionResultSchema } from "../../src/domain/artifactInspection.js";
 import { ProviderCleanupError } from "../../src/domain/providerCleanupError.js";
 import { ghidraFunctionDossier } from "../../src/domain/ghidraValues.fixture.js";
 import {
@@ -36,6 +40,7 @@ import {
   createBinarySessionTargets,
   createTestBinarySession,
 } from "../fixtures/binarySession.js";
+import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 
 const cleanupError = new ProviderCleanupError(
   "fixture",
@@ -99,6 +104,94 @@ const factories = (
   };
   return { dependencies, session };
 };
+
+it.each([false, true])(
+  "retains actual artifact sources and caller path after final-close cancellation (cleanup fails: %s)",
+  async (closeFails) => {
+    const root = await createTestTempDirectory("rea-artifact-final-close-");
+    const source = join(root, "source");
+    const archive = join(root, "fixture.asar");
+    await mkdir(source);
+    await writeFile(join(source, "main.js"), "console.log('retained');\n");
+    await createPackageWithOptions(source, archive, {});
+    const session = await createArtifactBinarySession({});
+    const nativeClose = session.close.bind(session);
+    const controller = new AbortController();
+    const reason = {
+      request: "cancel during actual artifact session final close",
+    };
+    let completed: Evidence | undefined;
+    const close = vi
+      .spyOn(session, "close")
+      .mockImplementationOnce(async () => {
+        completed = session
+          .exportEvidenceBundle()
+          .records.find(
+            ({ operation, caller_input_path }) =>
+              operation === "inspect_artifact" && caller_input_path === archive,
+          );
+        controller.abort(reason);
+        // A controlled refusal retains the actual static session for finally
+        // cleanup; successful cleanup runs its native owner here.
+        return closeFails ? err(cleanupError) : nativeClose();
+      });
+    const unexpectedSession = () => {
+      throw new Error("Artifact one-shot must select its static session");
+    };
+    const dependencies: DirectAnalysisDependencies = {
+      readConfiguration: () => parseConfig({}),
+      createArtifactBinarySession: () => session,
+      createBinarySession: unexpectedSession,
+      createNativeDispatchBinarySession: unexpectedSession,
+      createNativeBinarySession: unexpectedSession,
+      createManagedBinarySession: unexpectedSession,
+    };
+    try {
+      const result = analysisCliErrorEnvelopeSchema.parse(
+        await runProviderAnalysis(
+          dependencies,
+          archive,
+          "inspect_artifact",
+          {},
+          undefined,
+          controller.signal,
+        ),
+      );
+      expect(result.code).toBe(closeFails ? "cleanup_incomplete" : "cancelled");
+      expect(result.category).toBe("cancelled");
+      expect(completed).toBeDefined();
+      const details = jsonObjectSchema.parse(result.details);
+      const partial = parseEvidence(details.partial_observation);
+      expect(partial).toEqual(completed);
+      expect(partial.operation).toBe("inspect_artifact");
+      expect(partial.caller_input_path).toBe(archive);
+      expect(partial.subject?.local_path).toBe(archive);
+      const inspection = artifactInspectionResultSchema.parse(
+        partial.normalized_result,
+      );
+      expect(inspection.subject.root_format).toBe("asar");
+      expect(partial.evidence_links).toEqual(inspection.evidence_links);
+      expect(partial.evidence_links).toEqual(
+        inspection.substeps.map(({ evidence }) => evidence.evidence_id),
+      );
+      expect(inspection.substeps[0]?.evidence.normalized_result).toMatchObject({
+        occurrences: expect.arrayContaining([
+          expect.objectContaining({ logical_path: "main.js" }),
+        ]),
+      });
+      if (closeFails)
+        expect(details.cleanup_error).toEqual(
+          projectAnalysisError(cleanupError),
+        );
+      else expect(result.details).not.toHaveProperty("cleanup_error");
+      expect((await readdir(root)).sort()).toEqual(["fixture.asar", "source"]);
+    } finally {
+      close.mockRestore();
+      const closed = await nativeClose();
+      if (!closed.ok) throw closed.error;
+    }
+  },
+);
 
 describe("one-shot finalization cancellation", () => {
   it.each(["read_bytes", "analyze_function"] as const)(

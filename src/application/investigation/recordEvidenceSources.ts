@@ -1,10 +1,10 @@
-import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
-import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
-import type { Evidence } from "../domain/evidence.js";
-import { ok, type Result } from "../domain/result.js";
+import type { EvidenceWriter } from "./InvestigationRecordPort.js";
+import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
+import type { Evidence } from "../../domain/evidence.js";
+import { ok, type Result } from "../../domain/result.js";
 
 /** Record source evidence in order, stopping at the first session rejection. */
-export const recordSessionEvidenceSources = (
+export const recordEvidenceSources = (
   recordEvidence: EvidenceWriter["recordEvidence"] | undefined,
   sources: readonly Evidence[],
 ): Result<null, EvidenceIntegrityError> => {

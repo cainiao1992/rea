@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
-import { recordSessionEvidenceSources } from "../sessionEvidence.js";
+import { recordEvidenceSources } from "../../application/investigation/recordEvidenceSources.js";
 
 import { projectManagedGraphEvidence } from "../../application/managed/ManagedApplicationGraphService.js";
 import { readManagedGraphProjection } from "../../domain/managed/managedApplicationGraph.js";
@@ -39,7 +39,7 @@ export const registerProjectManagedApplicationGraph = (
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, graphContract);
-          const recordedSources = recordSessionEvidenceSources(
+          const recordedSources = recordEvidenceSources(
             options.recordEvidence,
             [
               request.value.sources.artifact?.evidence,

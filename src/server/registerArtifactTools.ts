@@ -3,7 +3,6 @@ import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 import { ARTIFACT_TOOL_CONTRACTS } from "../contracts/artifactToolContracts.js";
 import { createArtifactExtractionDestination } from "../application/artifacts/ArtifactExtractionDestination.js";
 import { registerEvidenceTools } from "./registerEvidenceTools.js";
-import { readArtifactInspectionSources } from "../domain/artifactInspection.js";
 import {
   retainedSummaryDelivery,
   withoutDeliveryDetail,
@@ -34,11 +33,5 @@ export const registerArtifactTools = (
         ? { ...parameters, output_root: createArtifactExtractionDestination() }
         : executionWithoutDelivery(operation, parameters),
     parametersForEvidence: decodeWithoutDelivery,
-    sourceEvidence: (operation, result) => {
-      if (operation !== "inspect_artifact") return [];
-      const parsed = readArtifactInspectionSources(result);
-      if (!parsed.ok) throw parsed.error;
-      return parsed.value;
-    },
   });
 };

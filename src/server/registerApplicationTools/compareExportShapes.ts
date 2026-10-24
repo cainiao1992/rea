@@ -1,6 +1,6 @@
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
-import { recordSessionEvidenceSources } from "../sessionEvidence.js";
+import { recordEvidenceSources } from "../../application/investigation/recordEvidenceSources.js";
 
 import { compareJavaScriptExportShapesEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
 import { toolContract } from "../../contracts/toolContracts.js";
@@ -39,7 +39,7 @@ export const registerCompareJavaScriptExportShapesTool = (
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, contract);
-          const recorded = recordSessionEvidenceSources(
+          const recorded = recordEvidenceSources(
             options.recordEvidence,
             result.value.sources,
           );

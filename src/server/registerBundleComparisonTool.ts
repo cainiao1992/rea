@@ -7,7 +7,7 @@ import { compareBundles } from "../domain/bundleComparison.js";
 import { createEvidence } from "../domain/evidence.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { runDerivedOperation } from "./runDerivedOperation.js";
-import { recordSessionEvidenceSources } from "./sessionEvidence.js";
+import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
 import { BUNDLE_COMPARISON_PROVIDER } from "../domain/investigationProviders.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
@@ -65,7 +65,7 @@ export const registerBundleComparisonTool = (
               ]),
             ).values(),
           ];
-          const recordedSources = recordSessionEvidenceSources(
+          const recordedSources = recordEvidenceSources(
             (evidence) => session.recordEvidence(evidence),
             sourceRecords,
           );

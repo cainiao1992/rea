@@ -1,7 +1,7 @@
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { resolveApplicationEvidenceRequest } from "../../application/EvidenceInputResolver.js";
-import { recordSessionEvidenceSources } from "../sessionEvidence.js";
+import { recordEvidenceSources } from "../../application/investigation/recordEvidenceSources.js";
 
 import { traceJavaScriptSemanticsEvidenceValidated } from "../../application/javascript/JavaScriptSemanticTraceService.js";
 import { toolContract } from "../../contracts/toolContracts.js";
@@ -44,10 +44,9 @@ export const registerTraceJavaScriptSemanticsTool = (
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, contract);
-          const recorded = recordSessionEvidenceSources(
-            options.recordEvidence,
-            [parsed.application],
-          );
+          const recorded = recordEvidenceSources(options.recordEvidence, [
+            parsed.application,
+          ]);
           if (!recorded.ok)
             return server.delivery.toCallToolResult(recorded, contract);
           return recordResult(

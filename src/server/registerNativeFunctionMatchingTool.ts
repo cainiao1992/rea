@@ -6,7 +6,7 @@ import { summarizeRetainedAnalysis } from "../application/analysisView/AnalysisV
 import { withAdmittedAnalysis } from "./analysisAdmission.js";
 import { createEvidenceToolHandler } from "./contractToolHandler.js";
 import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
-import { recordSessionEvidenceSources } from "./sessionEvidence.js";
+import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
 import { ok } from "../domain/result.js";
 import type { Logger } from "pino";
 
@@ -25,7 +25,7 @@ export const registerNativeFunctionMatchingTool = (
     async (input, options) => {
       const result = await matchNativeFunctions(input, options, evidenceById);
       if (!result.ok) return result;
-      const recorded = recordSessionEvidenceSources(
+      const recorded = recordEvidenceSources(
         recordEvidence,
         result.value.sources,
       );

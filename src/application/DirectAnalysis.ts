@@ -8,10 +8,7 @@ import type { SessionProviderRoute } from "./binary/SessionProviderRouter.js";
 import type { ResolvedSessionOpen } from "./binary/BinarySessionOpen.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
-import {
-  createEvidence,
-  withEvidenceCallerInputPath,
-} from "../domain/evidence.js";
+import { withEvidenceCallerInputPath } from "../domain/evidence.js";
 import { createImmutableEvidenceBundle } from "../domain/evidenceBundle.js";
 import type { Evidence } from "../domain/evidence.js";
 import type { NativeToolName } from "../contracts/native/nativeToolContracts.js";
@@ -58,7 +55,6 @@ import {
   recordWorkflowUnknowns,
 } from "./WorkflowEvidence.js";
 import type { AnalysisProviderSelector } from "../contracts/providerSelection.js";
-import { artifactInspectionResultSchema } from "../domain/artifactInspection.js";
 import { resolveXrefsAddress } from "./XrefsAddressResolution.js";
 import {
   AnalysisCancelledError,
@@ -644,30 +640,17 @@ const executeAnalysisTool = async (input: {
       );
   }
   if (!result.ok) return result;
-  const evidence = createEvidence(
-    result.value.subject === undefined
-      ? input.openedTarget
-      : (result.value.subject ?? undefined),
-    result.value.provider,
+  const evidence = createAnalysisExecutionEvidence(
+    tool,
+    input.evidenceParameters,
     {
-      operation: tool,
-      parameters: input.evidenceParameters,
-      result: result.value.result,
-      ...(result.value.analysisProfile === undefined
-        ? {}
-        : { analysisProfile: result.value.analysisProfile }),
-      rawResult: result.value.rawResult,
-      limitations: result.value.limitations,
-      ...(result.value.relationshipCoverage === undefined
-        ? {}
-        : { relationshipCoverage: result.value.relationshipCoverage }),
-      locations: result.value.locations,
-      evidenceLinks:
-        tool === "inspect_artifact"
-          ? artifactInspectionResultSchema.parse(result.value.result)
-              .evidence_links
-          : [],
+      ...result.value,
+      subject:
+        result.value.subject === undefined
+          ? input.openedTarget
+          : result.value.subject,
     },
+    "observed",
   );
   return ok({ evidence });
 };

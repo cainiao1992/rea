@@ -1,7 +1,7 @@
 import { compareWasmInterfaces } from "../application/wasm/WasmInterfaceComparisonService.js";
 import { COMPARE_WASM_INTERFACES_CONTRACT } from "../contracts/wasm/wasmComparisonContracts.js";
 import { resolvePairedEvidenceRequest } from "../application/EvidenceInputResolver.js";
-import { recordSessionEvidenceSources } from "./sessionEvidence.js";
+import { recordEvidenceSources } from "../application/investigation/recordEvidenceSources.js";
 import type { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 
 import type { WasmArtifactService } from "../application/wasm/WasmArtifactService.js";
@@ -47,7 +47,7 @@ export const registerWasmTools = (
       if (!sources.ok) return sources;
       const result = await compareWasmInterfaces(sources.value, options);
       if (!result.ok) return result;
-      const recorded = recordSessionEvidenceSources(recordEvidence, [
+      const recorded = recordEvidenceSources(recordEvidence, [
         sources.value.left,
         sources.value.right,
       ]);

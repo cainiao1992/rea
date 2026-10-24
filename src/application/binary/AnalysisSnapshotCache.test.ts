@@ -930,6 +930,63 @@ it("does not replay pre-envelope call graphs under the revised workflow profile"
   ).toBe(false);
 });
 
+it("declines source-bearing snapshot entries while replaying omitted and empty source controls", () => {
+  const cache = new AnalysisSnapshotCache();
+  const target = ANALYSIS_SNAPSHOT_TARGET;
+  const profile = ANALYSIS_SNAPSHOT_PROFILE;
+  const source = createEvidence(target, ANALYSIS_SNAPSHOT_PROVIDER, {
+    operation: "source",
+    parameters: {},
+    result: "observed source",
+  });
+  const parameters = { address: "0x1000", document: "fixture" };
+  cache.record({
+    target,
+    profile,
+    operation: "procedure_info",
+    parameters,
+    execution: createAnalysisExecution(
+      "parent observation",
+      ANALYSIS_SNAPSHOT_PROVIDER,
+      {
+        subject: target,
+        analysisProfile: profile,
+        sourceEvidence: [source],
+      },
+    ),
+  });
+  expect(
+    cache.lookup(target, profile, "procedure_info", parameters),
+  ).toBeUndefined();
+  expect(cache.entries()).toEqual([]);
+
+  for (const sourceEvidence of [undefined, []] as const) {
+    const control = {
+      address: sourceEvidence === undefined ? "0x2000" : "0x3000",
+      document: "fixture",
+    };
+    cache.record({
+      target,
+      profile,
+      operation: "procedure_info",
+      parameters: control,
+      execution: createAnalysisExecution(
+        "source-free observation",
+        ANALYSIS_SNAPSHOT_PROVIDER,
+        {
+          subject: target,
+          analysisProfile: profile,
+          ...(sourceEvidence === undefined ? {} : { sourceEvidence }),
+        },
+      ),
+    });
+    expect(
+      cache.lookup(target, profile, "procedure_info", control)?.result,
+    ).toBe("source-free observation");
+  }
+  expect(cache.entries()).toHaveLength(2);
+});
+
 describe("executions that report truncated references", () => {
   const record = (referencesTruncated: boolean | undefined) => {
     const cache = new AnalysisSnapshotCache();

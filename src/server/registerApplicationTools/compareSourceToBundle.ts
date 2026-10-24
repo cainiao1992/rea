@@ -9,7 +9,7 @@ import {
 import type { EvidenceMcpServer } from "../EvidenceMcpServer.js";
 import { runAdmittedToolOperation } from "../admittedToolOperation.js";
 import { resolveApplicationEvidenceRequest } from "../../application/EvidenceInputResolver.js";
-import { recordSessionEvidenceSources } from "../sessionEvidence.js";
+import { recordEvidenceSources } from "../../application/investigation/recordEvidenceSources.js";
 
 import { compareSourceToBundleEvidence } from "../../application/javascript/JavaScriptApplicationWorkflowService.js";
 import { toolContract } from "../../contracts/toolContracts.js";
@@ -96,7 +96,7 @@ export const registerCompareSourceToBundleTool = (
             );
           if (!selected.ok)
             return server.delivery.toCallToolResult(selected, contract);
-          const recorded = recordSessionEvidenceSources(
+          const recorded = recordEvidenceSources(
             options.recordEvidence,
             result.value.sources,
           );

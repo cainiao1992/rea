@@ -10,7 +10,7 @@ import { toolContract } from "../../contracts/toolContracts.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import type { Result } from "../../domain/result.js";
 import type { InventoryProjectionEvidenceResult } from "../../application/InventoryProjectionEvidence.js";
-import { recordSessionEvidenceSources } from "../sessionEvidence.js";
+import { recordEvidenceSources } from "../../application/investigation/recordEvidenceSources.js";
 import { logToolExecution } from "../toolLogging.js";
 import { toolRegistrationOptions } from "../toolRegistrationOptions.js";
 import { recordResult } from "./helpers.js";
@@ -67,7 +67,7 @@ const registerProjection = (context: {
           );
           if (!result.ok)
             return server.delivery.toCallToolResult(result, contract);
-          const recordedSources = recordSessionEvidenceSources(
+          const recordedSources = recordEvidenceSources(
             options.recordEvidence,
             result.value.sources,
           );

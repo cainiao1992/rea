@@ -464,7 +464,21 @@ const inspectionCoverage = (
   return "complete-within-substeps";
 };
 
-/** Own the atomic source closure published or retained with an inspection. */
+/** Select source records from a typed inspection, preserving sealed child ownership. */
+export const artifactInspectionSources = (
+  inspection: ArtifactInspectionResult,
+): readonly Evidence[] => {
+  const substeps = immutableJsonSnapshotMember(inspection, "substeps");
+  return Object.freeze(
+    inspection.substeps.map((step, index) => {
+      const ownedStep = immutableJsonSnapshotMember(substeps, String(index));
+      immutableJsonSnapshotMember(ownedStep, "evidence");
+      return step.evidence;
+    }),
+  );
+};
+
+/** Validate an unknown inspection before selecting its atomic source closure. */
 export const readArtifactInspectionSources = (
   result: unknown,
 ): Result<readonly Evidence[], EvidenceIntegrityError> => {
@@ -473,12 +487,5 @@ export const readArtifactInspectionSources = (
   const inspection = canBorrowParsedJsonSnapshot(result, parsed.value)
     ? result
     : parsed.value;
-  const substeps = immutableJsonSnapshotMember(inspection, "substeps");
-  return ok(
-    inspection.substeps.map((step, index) => {
-      const ownedStep = immutableJsonSnapshotMember(substeps, String(index));
-      immutableJsonSnapshotMember(ownedStep, "evidence");
-      return step.evidence;
-    }),
-  );
+  return ok(artifactInspectionSources(inspection));
 };

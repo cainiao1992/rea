@@ -222,6 +222,7 @@ const imagesOf = (
       size: read.integer(members.size, `${path}.size`),
       uuid: uuid.uuid,
       uuid_unknown: uuid.unknown || arch === null || arch === "",
+      name: read.text(members.name, `${path}.name`),
       path: read.text(members.path, `${path}.path`),
     };
   });
@@ -283,6 +284,10 @@ const threadsOf = (
         role,
         inline,
         recorded_symbol: read.text(frameMembers.symbol, `${framePath}.symbol`),
+        symbol_location: read.integer(
+          frameMembers.symbolLocation,
+          `${framePath}.symbolLocation`,
+        ),
       };
     });
     return {

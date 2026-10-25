@@ -273,3 +273,46 @@ it.each([
     if (!result.ok) expect(result.error._tag).toBe("AnalysisOutputError");
   },
 );
+
+it.each([
+  [21, false],
+  [22, true],
+] as const)(
+  "counts a frame symbol offset against %s UTF-16 integer text bytes",
+  async (maximum, accepted) => {
+    const withOffset: AppleIps = {
+      ...report,
+      threads: [
+        {
+          index: 0,
+          id: null,
+          triggered: null,
+          name: null,
+          queue: null,
+          frames: [
+            {
+              thread_index: 0,
+              frame_index: 0,
+              image_index: null,
+              image_offset: null,
+              runtime_address: null,
+              role: "unknown",
+              inline: null,
+              recorded_symbol: "main",
+              symbol_location: { decimal: "12345", hex: "0x3039" },
+            },
+          ],
+          state_flavor: null,
+          registers: [],
+        },
+      ],
+      coverage: { ...report.coverage, threads: 1, frames: 1 },
+    };
+    const result = await new AppleIpsService({
+      identity,
+      inspect: () => Promise.resolve(ok(withOffset)),
+    }).inspect({ path: report.artifact.path, max_integer_text_bytes: maximum });
+    expect(result.ok).toBe(accepted);
+    if (!result.ok) expect(result.error._tag).toBe("AnalysisOutputError");
+  },
+);

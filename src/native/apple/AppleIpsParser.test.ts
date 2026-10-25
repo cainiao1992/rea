@@ -402,6 +402,39 @@ it("keeps ReportCrash-shaped producer facts and reports complete coverage", () =
   });
 });
 
+it("keeps the recorded image name and symbol offset", () => {
+  const parsed = report({});
+  expect(parsed.images.map((image) => image.name)).toEqual([
+    "rea-crash-fixture",
+    null,
+  ]);
+  expect(parsed.threads[0]?.frames[0]).toMatchObject({
+    recorded_symbol: "rea_fixture_fault",
+    symbol_location: { decimal: "12", hex: "0xc" },
+  });
+  expect(parsed.threads[1]?.frames[0]?.symbol_location).toEqual({
+    decimal: "0",
+    hex: "0x0",
+  });
+  expect(parsed.coverage.status).toBe("complete");
+  const wrong = parse(
+    Buffer.from(
+      appleIpsReport().replace(
+        '"symbolLocation": 12',
+        '"symbolLocation": "12"',
+      ),
+      "utf8",
+    ),
+  );
+  expect(wrong.threads[0]?.frames[0]?.symbol_location).toBeNull();
+  expect(wrong.coverage.type_mismatches).toContainEqual(
+    expect.objectContaining({
+      path: "body.threads[0].frames[0].symbolLocation",
+      expected: "integer",
+    }),
+  );
+});
+
 it("assigns frame roles by recorded row without inventing inline stack addresses", () => {
   const roles = (parsed: ReturnType<typeof parse>) =>
     parsed.threads.map((thread) => thread.frames.map((frame) => frame.role));

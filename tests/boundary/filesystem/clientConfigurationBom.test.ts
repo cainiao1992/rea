@@ -43,7 +43,7 @@ describe.each(["vscode", "copilot_cli", "opencode", "commandcode"])(
         await mkdir(dirname(client.configPath), { recursive: true });
         await writeFile(client.configPath, original);
         const currentCommandPath = join(home, "rea");
-        const command = [currentCommandPath, "mcp"];
+        const command = [process.execPath, currentCommandPath, "mcp"];
         expect(await inspectClientConfiguration(client, {}, command)).toEqual({
           status: "update",
           backupPath: `${client.configPath}.rea.backup`,

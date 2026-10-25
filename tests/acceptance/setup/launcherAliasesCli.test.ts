@@ -10,13 +10,21 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
 
 cliTest.skipIf(process.platform === "win32")(
-  "migrates an owned shebang registration and starts its generated MCP command without PATH tools",
+  "migrates an owned shebang registration and starts its generated MCP command without a runtime on PATH",
   async ({ cli }) => {
     const home = await createTestTempDirectory("rea-registration-interpreter-");
     const profile = join(home, ".qwen");
     const config = join(profile, "settings.json");
     const entrypoint = resolve("scripts/rea.mjs");
-    const retainedEnvironment = { PATH: "", CALLER_SETTING: "keep exactly" };
+    const restrictedPath = join(home, "path-without-runtime");
+    await mkdir(restrictedPath);
+    // Linux process ownership requires procps; no JavaScript runtime is exposed.
+    if (process.platform === "linux")
+      await symlink("/bin/ps", join(restrictedPath, "ps"));
+    const retainedEnvironment = {
+      PATH: restrictedPath,
+      CALLER_SETTING: "keep exactly",
+    };
     const unrelated = { command: "other-server", args: ["keep"] };
     const original = JSON.stringify({
       mcpServers: {
@@ -34,7 +42,7 @@ cliTest.skipIf(process.platform === "win32")(
       HOME: home,
       USERPROFILE: home,
       QWEN_HOME: profile,
-      PATH: "",
+      PATH: restrictedPath,
       HOPPER_LAUNCHER_PATH: join(home, "missing-hopper"),
       GHIDRA_INSTALL_DIR: join(home, "missing-ghidra"),
       JAVA_HOME: join(home, "missing-java"),

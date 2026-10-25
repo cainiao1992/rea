@@ -16,7 +16,7 @@ import {
   expandProviderCapabilities,
   expandToolAvailability,
   providerCapabilitySet,
-  toolAvailabilityInventory,
+  toolAvailabilitySummaryInventory,
 } from "../../src/contracts/toolOutputSchemaPrimitives.js";
 
 import {
@@ -369,7 +369,9 @@ cliTest(
     expect(response.isError).not.toBe(true);
     const sessionStatus = z
       .object({
-        result: z.object({ tool_availability: toolAvailabilityInventory }),
+        result: z.object({
+          tool_availability: toolAvailabilitySummaryInventory,
+        }),
       })
       .parse(response.structuredContent);
     expect(

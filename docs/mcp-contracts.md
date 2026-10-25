@@ -583,11 +583,22 @@ capabilities. The default result contains the complete inventory in groups that
 share status facts. `tool_availability.client_requirements` is the baseline for
 each group; a group's optional `client_requirements` replaces that baseline for
 the group's tools. Expand each group's `names` into one tool entry, carrying its
-surface, availability, reason, remediation, default-mode status, modes, and
-client requirements. Compare the union of group names with `tools/list` when
-checking that a client received the full catalog. An operation absent from all
-groups is missing from the complete inventory; it is not an implicit
-unavailable entry.
+availability, reason, remediation, default-mode status, modes, and client
+requirements. Compare the union of group names with `tools/list` when checking
+that a client received the full catalog. An operation absent from all groups is
+missing from the complete inventory; it is not an implicit unavailable entry.
+
+`detail` selects the projection and the result echoes it. The default
+`summary` keeps open state, target identity, the binding, current-route
+`capabilities`, run, activity and health status, and each provider candidate's
+identity, selection, and availability and target-support `status`, `code`, and
+`reason`. It lists the fields it leaves out in `omitted_fields`: provider
+`diagnostics`, candidate `capabilities`, and each tool group's static `surface`,
+`effects`, and `annotations`. Omitted fields are not empty or false.
+`detail: "complete"` returns them inline, groups tools by those flags too, and
+has no `omitted_fields`. The output schema keys each result's candidate,
+tool-group and omission fields by its `detail`. CLI `capabilities` and
+`providers` always return complete provider facts.
 
 `get_call_graph` and `trace_call_path` report `forward` and `backward` modes.
 Each requires `procedure_address` plus `procedure_callees` or `procedure_callers`,
@@ -600,8 +611,8 @@ finish without reading relationships, even when neither traversal mode is
 available. Discovery does not block that direct invocation or replace its typed
 partial/error outcomes.
 
-The `effects` and `annotations` arrays list the true members of their fixed
-vocabularies. A known member omitted from either array is false. This applies
+With complete detail, the `effects` and `annotations` arrays list the true
+members of their fixed vocabularies. A known member omitted from either array is false. This applies
 only to these closed flag sets; it does not make an omitted tool, provider, mode,
 or limitation false. Keep availability reasons, remediation, client-feature
 requirements, and mode facts inline with the grouped tool names. The optional
@@ -632,7 +643,8 @@ identity, availability, reason, rejection code, effects, and ordered
 limitations.
 
 `binary_session.analysis_provider_candidates` is authoritative for deep-engine
-discovery. Each candidate's capability sets describe that possible provider;
+discovery. Each candidate's capability sets, returned with complete detail,
+describe that possible provider;
 they do not select it. The top-level `capabilities` describe the current route,
 while `analysis_provider_binding` identifies the concrete selected route. These
 fields are not interchangeable. Target-free discovery is sorted by provider ID,

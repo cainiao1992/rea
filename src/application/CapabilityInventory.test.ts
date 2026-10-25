@@ -9,6 +9,7 @@ import { TOOL_CONTRACTS } from "../contracts/toolContracts.js";
 import {
   expandToolAvailability,
   toolAvailabilityInventory,
+  toolAvailabilitySummaryInventory,
   type ToolAvailability,
 } from "../contracts/toolOutputSchemaPrimitives.js";
 
@@ -884,4 +885,45 @@ it("keeps independent native sessions discoverable without an unrelated binary t
   expect(entries.find((entry) => entry.name === "inspect_macho")).toMatchObject(
     { available: false, reason: "target_required" },
   );
+});
+
+describe("summary tool availability", () => {
+  it("summarizes every tool's current availability without static catalog flags", () => {
+    const full = buildCapabilityInventory(status(), enabledPolicy);
+    const withOverride = full.map((entry, index) =>
+      index === 1
+        ? {
+            ...entry,
+            available: false as const,
+            reason: "client_capability_missing" as const,
+            remediation: "Use an MCP client with roots support.",
+            client_requirements: {
+              required: ["roots" as const],
+              optional: [],
+              missing_required: ["roots" as const],
+              missing_optional: [],
+            },
+          }
+        : entry,
+    );
+    const complete = compactToolAvailability(withOverride);
+    const summary = compactToolAvailability(withOverride, "summary");
+
+    expect(toolAvailabilitySummaryInventory.parse(summary)).toEqual(summary);
+    expect(toolAvailabilityInventory.safeParse(summary).success).toBe(false);
+    expect(summary.groups.length).toBeLessThan(complete.groups.length);
+    expect(JSON.stringify(summary).length).toBeLessThan(
+      JSON.stringify(complete).length / 2,
+    );
+    for (const group of summary.groups)
+      for (const field of ["surface", "effects", "annotations"])
+        expect(Object.hasOwn(group, field)).toBe(false);
+    const byName = (left: { name: string }, right: { name: string }) =>
+      left.name.localeCompare(right.name);
+    expect(expandToolAvailability(summary).toSorted(byName)).toEqual(
+      withOverride
+        .map(({ surface: _s, effects: _e, annotations: _a, ...entry }) => entry)
+        .toSorted(byName),
+    );
+  });
 });

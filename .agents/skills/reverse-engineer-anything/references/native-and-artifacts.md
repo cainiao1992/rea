@@ -323,18 +323,21 @@ file name when selecting that image only; otherwise loaded system images also
 match. Inspect retained locations and module paths before attributing a call.
 
 Use `binary_session` with no arguments to check the open target, selected
-provider, and alignment. Its default `result.tool_availability` carries a
-complete inventory grouped by shared facts. Expand each group's `names` and
-inherit the inventory-level client requirements unless a group overrides them;
-availability, reasons, remediation, modes, and flags remain inline. The
-`effects` and `annotations` arrays name true flags from fixed vocabularies, so an
-omitted known flag is false. `tools/list` remains the canonical source for full
-tool schemas when target or provider state changes.
+provider, and alignment. Its default summary `result.tool_availability` carries
+the complete tool inventory grouped by current status. Expand each group's
+`names` and inherit the inventory-level client requirements unless a group
+overrides them; availability, reasons, remediation, and modes remain inline.
+Provider candidates keep availability and target-support status, code, and
+reason. `omitted_fields` names what the summary leaves out; `{"detail":
+"complete"}` adds provider diagnostics, candidate capability sets, and tool
+surface, `effects`, and `annotations`. Those arrays name true flags from fixed
+vocabularies, so an omitted known flag is false. `tools/list` remains the
+canonical source for full tool schemas when target or provider state changes.
 
 Provider capability groups carry provider identity and ordered limitations.
 Prepend each set's `shared_limitations` to a group's `limitations` to recover the
-operation's full ordered list. Candidate capabilities describe possible
-providers. Top-level session capabilities describe the current route, and
+operation's full ordered list. Candidate capabilities, returned with complete
+detail, describe possible providers. Top-level session capabilities describe the current route, and
 `analysis_provider_binding` identifies the selected provider.
 
 ## Ghidra startup deadline recovery

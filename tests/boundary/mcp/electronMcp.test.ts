@@ -248,7 +248,7 @@ it("advertises owned JavaScript analysis effects without foreign target executio
 
   const status = await client.callTool({
     name: "binary_session",
-    arguments: {},
+    arguments: { detail: "complete" },
   });
   expect(status.isError).not.toBe(true);
   const { result } = z

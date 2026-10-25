@@ -30,7 +30,7 @@ import { parseAnalysisSnapshot } from "../../../src/domain/analysisSnapshot.js";
 import { INVESTIGATION_EXAMPLES } from "../../../src/contracts/investigationExamples.js";
 import {
   expandProviderCapabilities,
-  toolAvailabilityInventory,
+  toolAvailabilitySummaryInventory,
 } from "../../../src/contracts/toolOutputSchemaPrimitives.js";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { ok as resultOk } from "../../../src/domain/result.js";
@@ -201,7 +201,7 @@ describe("public provider availability", () => {
     const status = structured(
       await mcp.callTool({ name: "binary_session", arguments: {} }),
     );
-    const availability = toolAvailabilityInventory.parse(
+    const availability = toolAvailabilitySummaryInventory.parse(
       (status.result as { tool_availability: unknown }).tool_availability,
     );
     expect(
@@ -229,7 +229,7 @@ describe("target-free MCP fixture host isolation", () => {
     const status = structured(
       await mcp.callTool({ name: "binary_session", arguments: {} }),
     );
-    const availability = toolAvailabilityInventory.parse(
+    const availability = toolAvailabilitySummaryInventory.parse(
       (status.result as { tool_availability: unknown }).tool_availability,
     );
     for (const name of [

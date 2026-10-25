@@ -6,6 +6,7 @@ import { NATIVE_DISPATCH_METADATA_SOURCES } from "./native/NativeDispatchMetadat
 import { NATIVE_UI_ACTION_OPERATIONS } from "./native/NativeUiActionTrace.js";
 import { NATIVE_CALL_ROUTE_SOURCES } from "./native/NativeCallRoutes.js";
 import { z } from "zod";
+import type { BinarySessionDetail } from "../contracts/sessionStatusContract.js";
 import { sqliteDatabaseCapability } from "./sqlite/SqliteDatabaseCapability.js";
 import type {
   OptionalProviderLoadFailures,
@@ -16,11 +17,13 @@ import {
   expandProviderCapabilities,
   providerCapabilitySet,
   toolAvailabilityInventory,
+  toolAvailabilitySummaryInventory,
   TOOL_ANNOTATION_NAMES,
   TOOL_EFFECT_NAMES,
   type ClientFeatureAvailability,
   type ProviderCapability,
   type ToolAvailabilityInventory,
+  type ToolAvailabilitySummaryInventory,
   type ToolAvailability,
   type ToolAvailabilityMode,
   type ToolUnavailabilityReason,
@@ -323,10 +326,6 @@ export const buildCapabilityInventory = (
 };
 
 type ClientRequirements = ToolAvailability["client_requirements"];
-type MutableAvailabilityGroup = Omit<
-  ToolAvailabilityInventory["groups"][number],
-  "names"
-> & { names: string[] };
 
 const EMPTY_CLIENT_REQUIREMENTS: ClientRequirements = {
   required: [],
@@ -335,23 +334,29 @@ const EMPTY_CLIENT_REQUIREMENTS: ClientRequirements = {
   missing_optional: [],
 };
 
-/** Compact repeated metadata while retaining every operation's current availability inline. */
-export const compactToolAvailability = (
+/**
+ * Group every operation's current availability inline. Complete detail also
+ * groups by the static surface, effect, and annotation flags; summary omits
+ * those flags so tools that share a status collapse into one group.
+ */
+export function compactToolAvailability(
   availability: readonly ToolAvailability[],
-): ToolAvailabilityInventory => {
+  detail?: "complete",
+): ToolAvailabilityInventory;
+export function compactToolAvailability(
+  availability: readonly ToolAvailability[],
+  detail: BinarySessionDetail,
+): ToolAvailabilityInventory | ToolAvailabilitySummaryInventory;
+export function compactToolAvailability(
+  availability: readonly ToolAvailability[],
+  detail: BinarySessionDetail = "complete",
+): ToolAvailabilityInventory | ToolAvailabilitySummaryInventory {
   const clientRequirements =
     availability[0]?.client_requirements ?? EMPTY_CLIENT_REQUIREMENTS;
-  const groups = new Map<string, MutableAvailabilityGroup>();
+  const groups = new Map<string, { names: string[] }>();
 
   for (const entry of availability) {
-    const effects = TOOL_EFFECT_NAMES.filter((name) => entry.effects[name]);
-    const annotations = TOOL_ANNOTATION_NAMES.filter(
-      (name) => entry.annotations[name],
-    );
-    const groupFacts = {
-      surface: entry.surface,
-      effects,
-      annotations,
+    const statusFacts = {
       available: entry.available,
       reason: entry.reason,
       remediation: entry.remediation,
@@ -364,17 +369,31 @@ export const compactToolAvailability = (
         ? {}
         : { client_requirements: entry.client_requirements }),
     };
+    const groupFacts =
+      detail === "summary"
+        ? statusFacts
+        : {
+            surface: entry.surface,
+            effects: TOOL_EFFECT_NAMES.filter((name) => entry.effects[name]),
+            annotations: TOOL_ANNOTATION_NAMES.filter(
+              (name) => entry.annotations[name],
+            ),
+            ...statusFacts,
+          };
     const key = JSON.stringify(groupFacts);
     const existing = groups.get(key);
     if (existing) existing.names.push(entry.name);
     else groups.set(key, { ...groupFacts, names: [entry.name] });
   }
 
-  return toolAvailabilityInventory.parse({
+  const inventory = {
     client_requirements: clientRequirements,
     groups: [...groups.values()],
-  });
-};
+  };
+  return detail === "summary"
+    ? toolAvailabilitySummaryInventory.parse(inventory)
+    : toolAvailabilityInventory.parse(inventory);
+}
 
 const availabilityFor = (context: AvailabilityContext): Availability => {
   // These built-in workflows accept a caller-selected endpoint; they do not load the optional passive provider.

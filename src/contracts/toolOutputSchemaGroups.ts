@@ -14,7 +14,15 @@ import {
 import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.js";
 import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
 import { analysisDetailOutputSchemaOf } from "./analysisDetail.js";
-import { functionDossierSchema } from "../domain/hopperValues.js";
+import {
+  functionDossierSchema,
+  analysisBookmarkSchema,
+  functionInstructionWindowSchema,
+  referenceEdgeSchema,
+  unresolvedCallSchema,
+  procedureIdentitySchema,
+  containingProcedureResolutionSchema,
+} from "../domain/hopperValues.js";
 import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
 import { z } from "zod";
 import { byteSearchResultSchema } from "../domain/native/bytePattern.js";
@@ -43,14 +51,6 @@ import { residualUnknownSchema } from "../domain/residualUnknown.js";
 import { evidenceBundleSchema } from "../domain/evidenceBundle.js";
 
 import { processCaptureComparisonSchema } from "../domain/process/processComparison.js";
-import {
-  analysisBookmarkSchema,
-  functionInstructionWindowSchema,
-  referenceEdgeSchema,
-  unresolvedCallSchema,
-  procedureIdentitySchema,
-  containingProcedureResolutionSchema,
-} from "../domain/hopperValues.js";
 import { nativeApiInspectionResultSchema } from "../domain/native/nativeApiBoundary.js";
 import {
   demangleSwiftSchema,
@@ -97,7 +97,8 @@ import {
   objcClassDiscoveryOutput,
   evidenceResultOf,
   segmentOutput,
-  sessionProvider,
+  sessionProviderFacts,
+  sessionStatusDetailShapes,
   symbolDiscoveryOutput,
   targetFormatSchema,
   targetKindSchema,
@@ -564,18 +565,27 @@ export const sessionOutputSchemas = {
       }),
     ]),
   ),
+  // Every session kind crossed with every detail level, so `detail` fixes
+  // which candidate, tool-group and omission fields the result carries.
   binary_session: lifecycleResultOf(
-    z.union([
-      sessionProvider.extend({ open: z.literal(false) }),
-      sessionProvider.extend({
-        open: z.literal(true),
-        session_kind: z.literal("bundle_resources"),
-        resource_root: bundleResourceRootSchema,
-      }),
-      ...openLifecycleTargetVariants.map((variant) =>
-        sessionProvider.extend({ open: z.literal(true), ...variant.shape }),
-      ),
-    ]),
+    z.union(
+      sessionStatusDetailShapes.flatMap((detail) => [
+        sessionProviderFacts.extend({ open: z.literal(false), ...detail }),
+        sessionProviderFacts.extend({
+          open: z.literal(true),
+          session_kind: z.literal("bundle_resources"),
+          resource_root: bundleResourceRootSchema,
+          ...detail,
+        }),
+        ...openLifecycleTargetVariants.map((variant) =>
+          sessionProviderFacts.extend({
+            open: z.literal(true),
+            ...variant.shape,
+            ...detail,
+          }),
+        ),
+      ]),
+    ),
   ),
   export_evidence_bundle: lifecycleResultOf(
     z.object({

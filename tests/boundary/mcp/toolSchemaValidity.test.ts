@@ -5,7 +5,14 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { advertisedInputExamples } from "../../../src/contracts/advertisedInputExamples.js";
-import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
+import {
+  TOOL_CONTRACTS,
+  toolContract,
+} from "../../../src/contracts/toolContracts.js";
+import {
+  ADVERTISED_INPUT_SCHEMA_LIMIT_BYTES,
+  presentInputJsonSchema,
+} from "../../../src/contracts/inputSchemaPresentation.js";
 import { emptyArraySchema } from "../../../src/domain/emptyArraySchema.js";
 import { processScenarioSchema } from "../../../src/domain/process/processScenario.js";
 import { GENERATED_MCP_TOOL_CATALOG } from "../../fixtures/mcpToolCatalog.js";
@@ -539,8 +546,19 @@ describe("MCP JSON Schema validity", () => {
       expect(recursiveReferences(tools)).toEqual([]);
       expectKnownAuthorityHints(tools);
       const byName = new Map(tools.map((tool) => [tool.name, tool]));
+      // The advertisement is fitted to the client size limit. Check the
+      // relaxed producer union in the complete self-contained projection.
+      const completeCaptureInput = presentInputJsonSchema(
+        toolContract("compare_web_captures").inputSchema[
+          "~standard"
+        ].jsonSchema.input({
+          target: "draft-2020-12",
+          libraryOptions: { reused: "inline" },
+        }) as Record<string, unknown>,
+        () => undefined,
+      );
       for (const side of ["before", "after"])
-        expect(byName.get("compare_web_captures")?.inputSchema).toHaveProperty(
+        expect(completeCaptureInput).toHaveProperty(
           [
             "properties",
             side,
@@ -887,6 +905,16 @@ it("ships input schemas without local references in the generated catalog", () =
   expect(localInputReferences(GENERATED_MCP_TOOL_CATALOG)).toEqual([]);
 });
 
+it("ships every input schema within the client per-tool size limit in the generated catalog", () => {
+  // Claude Desktop drops a tool whose compact-JSON input schema exceeds 64 KiB.
+  expect(
+    GENERATED_MCP_TOOL_CATALOG.flatMap(({ name, inputSchema }) => {
+      const bytes = Buffer.byteLength(JSON.stringify(inputSchema), "utf8");
+      return bytes > ADVERTISED_INPUT_SCHEMA_LIMIT_BYTES ? [[name, bytes]] : [];
+    }),
+  ).toEqual([]);
+});
+
 it("rejects unresolved output-schema references even for uncalled tools", () => {
   const errors = schemaErrors([
     {
@@ -955,6 +983,8 @@ it("checks client array constraints in schema positions while preserving literal
   for (const [literal, reason] of [
     [{ const: "" }, "const is an empty string"],
     [{ enum: ["named", ""] }, "enum contains an empty string"],
+    [{ type: "integer", const: 2 }, "const is a number"],
+    [{ enum: ["named", 1.5] }, "enum contains a number"],
   ] as const) {
     expect(
       unsupportedInputLiteralSchemaError(

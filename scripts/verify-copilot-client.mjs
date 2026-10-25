@@ -10,7 +10,7 @@ import {
   toolContract,
 } from "../dist/contracts/toolContracts.js";
 import { advertisedInputJsonSchema } from "../dist/contracts/toolSchemaMetadata.js";
-import { presentAdvertisedInputSchema } from "../dist/contracts/compactInputSchema.js";
+import { presentAdvertisedInputProfile } from "../dist/contracts/inputSchemaPresentation.js";
 import { compactPresentationForMcpInputSchemaProfile } from "../dist/config/mcpInputSchemaProfile.js";
 import { createVerifierCommands } from "./lib/verify-commands.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
@@ -186,7 +186,7 @@ await withVerifierCleanup(async () => {
             );
             assert.deepEqual(
               tool.parameters,
-              presentAdvertisedInputSchema(
+              presentAdvertisedInputProfile(
                 advertisedInputJsonSchema(
                   toolContract(tool.name.slice(prefix.length)),
                 ),

@@ -12,10 +12,8 @@ import {
   advertisedInputJsonSchema,
   toolOutputSchemaWithMetadata,
 } from "./contracts/toolSchemaMetadata.js";
-import {
-  presentAdvertisedInputSchema,
-  type CompactInputSchemaPresentation,
-} from "./contracts/compactInputSchema.js";
+import type { CompactInputSchemaPresentation } from "./contracts/compactInputSchema.js";
+import { presentAdvertisedInputProfile } from "./contracts/inputSchemaPresentation.js";
 import type { McpOutputSchemaProfile } from "./config/mcpOutputSchemaProfile.js";
 import {
   COMPACT_INPUT_SCHEMA_BUDGET_BYTES,
@@ -62,7 +60,7 @@ const presentToolCatalog = (
     ? catalog
     : catalog.map((tool) => ({
         ...tool,
-        input_schema: presentAdvertisedInputSchema(
+        input_schema: presentAdvertisedInputProfile(
           tool.input_schema,
           presentation,
         ),

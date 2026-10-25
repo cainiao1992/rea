@@ -40,7 +40,7 @@ export const arrayItemSchemaError = (
   return undefined;
 };
 
-/** Reject Gemini-incompatible boolean and empty-string input literals. */
+/** Reject Gemini-incompatible boolean, numeric and empty-string input literals. */
 export const unsupportedInputLiteralSchemaError = (
   schema: unknown,
   path: string,
@@ -48,6 +48,7 @@ export const unsupportedInputLiteralSchemaError = (
   if (!isRecord(schema)) return undefined;
   if (typeof schema.const === "boolean") return `${path}.const is boolean`;
   if (schema.const === "") return `${path}.const is an empty string`;
+  if (typeof schema.const === "number") return `${path}.const is a number`;
   if (
     Array.isArray(schema.enum) &&
     schema.enum.some((value) => typeof value === "boolean")
@@ -55,6 +56,11 @@ export const unsupportedInputLiteralSchemaError = (
     return `${path}.enum contains a boolean`;
   if (Array.isArray(schema.enum) && schema.enum.includes(""))
     return `${path}.enum contains an empty string`;
+  if (
+    Array.isArray(schema.enum) &&
+    schema.enum.some((value) => typeof value === "number")
+  )
+    return `${path}.enum contains a number`;
   for (const [key, value] of Object.entries(schema)) {
     const children =
       schemaMaps.has(key) && isRecord(value)

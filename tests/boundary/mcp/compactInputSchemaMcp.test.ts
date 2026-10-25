@@ -10,7 +10,10 @@ import {
 } from "../../../src/contracts/toolContracts.js";
 import { PROMPT_CONTRACTS } from "../../../src/contracts/promptContracts.js";
 import { advertisedInputJsonSchema } from "../../../src/contracts/toolSchemaMetadata.js";
-import { presentAdvertisedInputSchema } from "../../../src/contracts/compactInputSchema.js";
+import {
+  ADVERTISED_INPUT_SCHEMA_LIMIT_BYTES,
+  presentAdvertisedInputProfile,
+} from "../../../src/contracts/inputSchemaPresentation.js";
 import { createCatalogDigests } from "../../../src/catalogIdentity.js";
 import {
   schemaArrays,
@@ -144,7 +147,7 @@ describe("MCP compact input schema profile", () => {
     ].entries()) {
       for (const contract of TOOL_CONTRACTS) {
         expect(toolsByName[index]?.get(contract.name)?.inputSchema).toEqual(
-          presentAdvertisedInputSchema(
+          presentAdvertisedInputProfile(
             advertisedInputJsonSchema(contract),
             presentation,
           ),
@@ -206,6 +209,47 @@ it("advertises every tool input schema within the provider budget", async () => 
       strictGatewayItemSchemaErrors(inputSchema, name),
     ),
   ).toEqual([]);
+});
+
+it("advertises every input schema within the client per-tool limit in both profiles", async () => {
+  // Claude Desktop drops a tool whose compact-JSON input schema exceeds 64 KiB.
+  for (const server of [fullServer(), compactServer()]) {
+    registerCatalog(server);
+    const tools = await listToolsThroughTransport(server);
+    expect(tools).toHaveLength(TOOL_CONTRACTS.length);
+    expect(
+      tools.flatMap(({ name, inputSchema }) =>
+        serializedBytes(inputSchema) > ADVERTISED_INPUT_SCHEMA_LIMIT_BYTES
+          ? [[name, serializedBytes(inputSchema)]]
+          : [],
+      ),
+    ).toEqual([]);
+  }
+  const captures = advertisedInputJsonSchema(
+    toolContract("compare_web_captures"),
+  );
+  // The complete capture schemas are each shared by two sides.
+  expect(captures).toMatchObject({
+    description: expect.stringContaining("summarized form"),
+    properties: {
+      before: {
+        properties: {
+          inspection: { type: "object", properties: expect.any(Object) },
+        },
+      },
+      after: {
+        type: "object",
+        description: expect.stringMatching(/ Same schema as `before`\.$/u),
+      },
+      before_scenario: { required: expect.arrayContaining(["steps"]) },
+      after_scenario: {
+        type: "object",
+        description: expect.stringMatching(
+          / Same schema as `before_scenario`\.$/u,
+        ),
+      },
+    },
+  });
 });
 
 it("keeps output schemas and tool descriptions identical to the default profile", async () => {

@@ -43,13 +43,27 @@ const isObjectArray = (value: unknown): value is Record<string, unknown>[] =>
   ) &&
   value.some((item) => Object.keys(item).length > 0);
 
+const isWordCharacter = (character: string | undefined): boolean =>
+  character !== undefined && /[\p{L}\p{N}]/u.test(character);
+
+/** Underscore runs between word characters cannot open or close emphasis. */
+const escapeInlineSyntax = (
+  match: string,
+  offset: number,
+  text: string,
+): string =>
+  match.startsWith("_") &&
+  isWordCharacter(text[offset - 1]) &&
+  isWordCharacter(text[offset + match.length])
+    ? match
+    : match.replace(/./g, "\\$&");
+
 const escapeTableCell = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\\/g, "\\\\")
-    .replace(/\|/g, "\\|")
+    .replace(/[\\|`*[\]~]|_+/g, escapeInlineSyntax)
     .replace(/\r\n|\r|\n/g, "<br>");
 
 const renderTable = (

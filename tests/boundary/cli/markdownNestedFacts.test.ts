@@ -16,7 +16,7 @@ it("retains nested facts in standalone Markdown table cells and mixed arrays", (
   ];
   const markdown = renderCliDocument(value, "md", false);
   expect(markdown).toContain('{"path":"alpha.txt"}');
-  expect(markdown).toContain('[{"path":"sub/beta.txt"}]');
+  expect(markdown).toContain('\\[{"path":"sub/beta.txt"}\\]');
   expect(markdown).toContain("caller\\|value");
   expect(markdown).not.toContain("[object Object]");
   expect(

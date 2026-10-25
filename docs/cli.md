@@ -924,8 +924,10 @@ redirected, which keeps large results smaller for agents and scripts; pipe
 through `jq .` for indented files. Output selection and formatting do not change
 operation status.
 
-`--format md` escapes backslashes and pipes in table headers and cells, and
-renders cell line breaks as `<br>`. These are presentation changes; retained
+`--format md` escapes backslashes, pipes, and inline Markdown syntax in table
+headers and cells so source text is displayed literally, and renders cell line
+breaks as `<br>`. Underscores between letters or digits, as in `source_index`,
+cannot form emphasis and stay unescaped. These are presentation changes; retained
 Evidence and JSON output keep the original values. Nested objects and arrays
 use JSON inside their owning Markdown cells, retaining the field names and
 values instead of replacing them with an object label. Table widths are measured

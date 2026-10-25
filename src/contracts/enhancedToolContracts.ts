@@ -1,3 +1,4 @@
+import { analysisDetailSchema } from "./analysisDetail.js";
 import { z } from "zod";
 
 import { enhancedInputSchemas } from "./enhancedInputs.js";
@@ -53,8 +54,10 @@ export const ENHANCED_TOOL_CONTRACTS = [
   ),
   enhanced(
     "get_call_graph",
-    "Resolve one symbol or address to its canonical procedure entry, then traverse the bound provider's caller or callee relationships until the reachable graph is exhausted. Every node uses a canonical address and has an ok/error status; failures use safe typed projections. Unresolved indirect calls may be missing and results are not a whole-program CFG.",
-    enhancedInputSchemas.get_call_graph,
+    "Resolve one symbol or address to its canonical procedure entry, then traverse the bound provider's caller or callee relationships until the reachable graph is exhausted. Every node uses a canonical address and has an ok/error status; failures use safe typed projections. Unresolved indirect calls may be missing and results are not a whole-program CFG. Select detail summary for a bounded first node page with shared message references; native-observation pages and native-context fields retain complete source access.",
+    enhancedInputSchemas.get_call_graph.extend({
+      detail: analysisDetailSchema,
+    }),
   ),
   enhanced(
     "analyze_swift_types",

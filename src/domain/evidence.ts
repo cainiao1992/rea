@@ -269,18 +269,21 @@ export interface EvidenceObservation extends EvidenceObservationInput {
 
 type EvidenceWithoutId = Omit<EvidenceSchemaValue, "evidence_id">;
 
+/** Target identity shared by semantic commitments, excluding caller-selected display paths. */
+export const evidenceSubjectIdentity = (subject: Evidence["subject"]) =>
+  subject === null
+    ? null
+    : {
+        digest: subject.digest,
+        format: subject.format,
+        architecture: subject.architecture,
+      };
+
 /** Content committed by an Evidence ID, excluding local request/display metadata. */
 export const evidenceSemanticContent = (
   evidence: EvidenceWithoutId,
 ): Record<string, JsonValue> => ({
-  subject:
-    evidence.subject === null
-      ? null
-      : {
-          digest: evidence.subject.digest,
-          format: evidence.subject.format,
-          architecture: evidence.subject.architecture,
-        },
+  subject: evidenceSubjectIdentity(evidence.subject),
   provider: evidence.provider,
   analysis_profile: evidence.analysis_profile,
   predicate_type: evidence.predicate_type,

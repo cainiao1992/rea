@@ -18,7 +18,6 @@ import {
   PROVIDER_RETRY_ACTIONS,
 } from "../domain/providerOperationHealth.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
-import { relationshipCoverageSchema } from "../domain/relationshipCoverage.js";
 import { ZIP_PACKAGE_FORMATS } from "../domain/zipPackageFormat.js";
 import { objcClassImportIdentitySchema } from "../domain/native/objcSwiftMetadata.js";
 import { BINARY_SESSION_SUMMARY_OMITTED_FIELDS } from "./sessionStatusContract.js";
@@ -659,7 +658,6 @@ export const sessionProvider = z.discriminatedUnion("detail", [
 ]);
 
 export const nullableText = z.string().nullable();
-export const addressList = z.array(z.string());
 export const addressedEntry = z.object({
   address: z.string(),
   name: z.string(),
@@ -728,20 +726,5 @@ export const objcClassDiscoveryOutput = evidenceResultOf(
     }),
   }),
 );
-
-export const graphNode = z.discriminatedUnion("status", [
-  z.object({
-    address: z.string(),
-    status: z.literal("ok"),
-    calls: z.array(z.string()),
-    relationship_coverage: relationshipCoverageSchema,
-    limitations: z.array(z.string()).optional(),
-  }),
-  z.object({
-    address: z.string(),
-    status: z.literal("error"),
-    error: analysisErrorProjectionSchema,
-  }),
-]);
 
 export const functionDossierOutput = evidenceResultOf(functionDossierSchema);

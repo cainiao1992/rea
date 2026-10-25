@@ -403,6 +403,21 @@ encoded in bounded batches.
 The 25000 ms Cutter request deadline and the 256-candidate discovery budget
 still have no runtime override.
 
+## Selected native facts and call graphs
+
+For a large `get_call_graph`, or repeated `procedure_address`,
+`procedure_callees`, `procedure_callers` and `resolve_containing_procedure`
+queries, select `detail: "summary"` when the first 64 recorded observations
+suffice. Read further `native-observation` pages from the returned parent Evidence
+ID. Graph message IDs index that page's exact-text dictionary; keep level,
+source index, failed nodes, and partial/unknown relationship coverage.
+Read referenced source context through `native-context` facets `overview`,
+`analysis-profile`, `limitations` and `result-limitations`. Reuse inspected
+context/profile values only for the same digest; until caveats are read,
+interpretation beyond the returned facts remains unknown. Complete Evidence
+remains retained and exportable. Small complete replies can cost fewer tokens
+than additional context/page calls; count the completed task and discovery.
+
 ## Static memory and original file bytes
 
 For Ghidra, `read_bytes` reads initialized analysis memory, including loader

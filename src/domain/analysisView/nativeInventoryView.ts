@@ -116,7 +116,7 @@ export const projectNativeInventoryView = (
     parent_digest: parent.evidenceId.slice(3),
     artifact: parent.artifact ?? null,
     source_provider: parent.provider ?? null,
-    source_analysis_profile_digest: parent.analysisProfileDigest ?? null,
+    source_analysis_profile_digest: parent.analysisProfile?.digest ?? null,
     source_parameters: jsonValueSchema.parse(parent.parameters ?? null),
     limitations: boundedViewMessages(
       parent.limitations,

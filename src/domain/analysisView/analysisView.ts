@@ -1,4 +1,17 @@
 import {
+  nativeObservationViewRequestSchema,
+  nativeContextViewRequestSchema,
+  nativeObservationItemsSchemas,
+  nativeContextItemsSchemas,
+  nativeSourceContextReferenceSchema,
+  nativeObservationOperationSchema,
+} from "./nativeObservationSchemas.js";
+import {
+  NATIVE_OBSERVATION_OPERATIONS,
+  type NativeObservationOperation,
+} from "../native/nativeObservation.js";
+import { projectNativeObservationView } from "./nativeObservationView.js";
+import {
   devicetreeViewRequestSchema,
   devicetreeViewItemsSchema,
   devicetreeSummarySchema,
@@ -375,6 +388,8 @@ const nativeViewSchema = z.strictObject({
 
 /** Caller-selected projection of already completed analysis Evidence. */
 export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
+  nativeObservationViewRequestSchema,
+  nativeContextViewRequestSchema,
   devicetreeViewRequestSchema,
   erlangBeamViewRequestSchema,
   pythonPycViewRequestSchema,
@@ -534,6 +549,7 @@ const viewResultBase = {
     "inspect_model_artifact",
     "inspect_gpu_code_objects",
     ...NATIVE_INVENTORY_OPERATIONS,
+    ...NATIVE_OBSERVATION_OPERATIONS,
     "match_native_functions",
   ]),
   parent_digest: digestSchema,
@@ -549,6 +565,79 @@ const summaryViewResultBase = {
   view: summaryViewSchema,
   ...viewResultBase,
 } as const;
+
+const nativeObservationSummaryFor = <
+  Operation extends NativeObservationOperation,
+>(
+  operation: Operation,
+) =>
+  z.strictObject({
+    ...summaryViewResultBase,
+    ...nativeViewSourceContext,
+    artifact: artifactSchema.nullable(),
+    parent_operation: z.literal(operation),
+    source_context: nativeSourceContextReferenceSchema,
+    summary: z.strictObject({ observations: z.int().nonnegative() }),
+    items: nativeObservationItemsSchemas[operation],
+  });
+export const nativeObservationSummaryViewResultSchemas = {
+  procedure_address: nativeObservationSummaryFor("procedure_address"),
+  procedure_callees: nativeObservationSummaryFor("procedure_callees"),
+  procedure_callers: nativeObservationSummaryFor("procedure_callers"),
+  resolve_containing_procedure: nativeObservationSummaryFor(
+    "resolve_containing_procedure",
+  ),
+  get_call_graph: nativeObservationSummaryFor("get_call_graph"),
+};
+const nativeObservationSummaryViewResultSchema = z.discriminatedUnion(
+  "parent_operation",
+  [
+    nativeObservationSummaryViewResultSchemas.procedure_address,
+    nativeObservationSummaryViewResultSchemas.procedure_callees,
+    nativeObservationSummaryViewResultSchemas.procedure_callers,
+    nativeObservationSummaryViewResultSchemas.resolve_containing_procedure,
+    nativeObservationSummaryViewResultSchemas.get_call_graph,
+  ],
+);
+const nativeObservationPageFor = <Operation extends NativeObservationOperation>(
+  operation: Operation,
+) =>
+  nativeObservationSummaryFor(operation)
+    .omit({ kind: true, view: true })
+    .extend({
+      kind: z.literal("native-observation"),
+      view: nativeObservationViewRequestSchema,
+    });
+const nativeObservationPageViewResultSchema = z.discriminatedUnion(
+  "parent_operation",
+  [
+    nativeObservationPageFor("procedure_address"),
+    nativeObservationPageFor("procedure_callees"),
+    nativeObservationPageFor("procedure_callers"),
+    nativeObservationPageFor("resolve_containing_procedure"),
+    nativeObservationPageFor("get_call_graph"),
+  ],
+);
+const nativeContextFor = <Facet extends keyof typeof nativeContextItemsSchemas>(
+  facet: Facet,
+) =>
+  z.strictObject({
+    ...viewResultBase,
+    ...nativeViewSourceContext,
+    kind: z.literal("native-context"),
+    artifact: artifactSchema.nullable(),
+    parent_operation: nativeObservationOperationSchema,
+    source_context: nativeSourceContextReferenceSchema,
+    facet: z.literal(facet),
+    view: nativeContextViewRequestSchema.extend({ facet: z.literal(facet) }),
+    items: nativeContextItemsSchemas[facet],
+  });
+const nativeContextViewResultSchema = z.discriminatedUnion("facet", [
+  nativeContextFor("overview"),
+  nativeContextFor("analysis-profile"),
+  nativeContextFor("limitations"),
+  nativeContextFor("result-limitations"),
+]);
 
 export const byteEntropySummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
@@ -980,6 +1069,8 @@ export const sourceToBundlePageViewResultSchema = z.strictObject({
 
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
+  nativeObservationPageViewResultSchema,
+  nativeContextViewResultSchema,
   javaScriptRoutesViewResultSchema,
   sourceToBundlePageViewResultSchema,
   z.strictObject({
@@ -1033,6 +1124,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     view: environmentCoverageViewRequestSchema,
   }),
   z.discriminatedUnion("parent_operation", [
+    nativeObservationSummaryViewResultSchema,
     erlangBeamSummaryViewResultSchema,
     devicetreeSummaryViewResultSchema,
     pythonPycSummaryViewResultSchema,
@@ -1286,7 +1378,9 @@ export interface AnalysisViewParent {
   readonly operation: string;
   readonly normalizedResult: unknown;
   readonly provider?: Evidence["provider"];
-  readonly analysisProfileDigest?: string | null;
+  readonly analysisProfile?: Evidence["analysis_profile"];
+  readonly authority?: Evidence["authority"];
+  readonly environment?: Evidence["environment"];
   /** The owner proved normalizedResult belongs to a sealed, deep-frozen Evidence snapshot. */
   readonly sealedResult?: boolean;
   /** Preserve the authenticated source identity, including explicit absence. */
@@ -1362,6 +1456,9 @@ const parentArtifactPath = (parent: AnalysisViewParent): string => {
 
 /** Named source owners for views that need no extra decoder or accumulator. */
 const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
+  ...NATIVE_OBSERVATION_OPERATIONS.map(
+    (operation) => [operation, projectNativeObservationView] as const,
+  ),
   ["inspect_erlang_beam", projectErlangBeamView],
   ["inspect_devicetree", projectDevicetreeView],
   ["inspect_native_exports", projectNativeExportsView],

@@ -242,6 +242,36 @@ to `/absolute/view-request.json`, then run
 `rea inspect-analysis-view /absolute/view-request.json --json`. This also reads
 pre-summary source records without changing their identity; no live provider is started.
 
+`procedure_address`, `procedure_callees`, `procedure_callers`,
+`resolve_containing_procedure` and `get_call_graph` also accept `detail: "summary"`
+(complete remains the default). The summary includes the first 64 recorded
+observations, exact source parameters and provider/profile identity, relationship
+coverage where recorded, and the retained complete parent's ID. Continue with
+`view: {"kind":"native-observation","offset":64,"limit":64}`. Array positions
+retain `source_index`; graph rows additionally retain their original `level`.
+Graph pages order levels by Unicode code point and keep original row order within
+each level. A recorded empty level is a `status: "empty-level"` row with
+`source_index: null`; observation counts include these markers. Graph diagnostic,
+limitation and reason IDs index that page's `items.messages` dictionary. Expand
+those references to recover exact text, repeated messages, and absent versus
+empty optional fields. Failed nodes retain their original error.
+
+These views reference complete source context through `source_context.digest`
+and caveat counts. Read it using the same parent with
+`view: {"kind":"native-context","facet":"overview"}`. The other facets are
+`analysis-profile`, `limitations` and `result-limitations`; all accept `offset`
+and `limit`. Overview includes source subject, provider, authority, execution
+environment and profile digest. Full profiles and caveat text remain accessible
+without repeating them in every fact response. Context digests follow Evidence's
+semantic subject identity, so caller-selected path aliases preserve context
+identity while responses retain the selected display path. A null profile means
+unavailable; null result-limitations means not applicable to a primitive and
+is distinct from an observed empty graph limitation list. Until the source
+caveats have been inspected, interpretations beyond the returned facts remain
+unknown. Exhausted pages describe the recorded observations and do not establish
+complete native discovery. The same views work through the CLI with historical
+Evidence files or bundles and require no live provider.
+
 For oversized native function Evidence, `details.reported_limits.continuation`
 contains a ready-to-call `inspect_analysis_view` request for the retained
 pseudocode's first page. Use its `name` and `arguments` directly, then follow

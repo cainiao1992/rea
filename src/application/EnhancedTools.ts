@@ -1,3 +1,4 @@
+import type { NativeCallGraph } from "../domain/native/nativeCallGraph.js";
 import { nativeProcedureInputSchema } from "../domain/native/nativeProcedureInput.js";
 import { CALL_RELATIONSHIP_TRAVERSALS } from "./CallRelationshipTraversal.js";
 import { z } from "zod";
@@ -608,7 +609,7 @@ export class EnhancedTools {
           address: current.address,
           status: "error",
           error: projectAnalysisError(result.error),
-        });
+        } satisfies NativeCallGraph["graph"][string][number]);
         continue;
       }
       const related = parseRelatedAddresses(result.value.result, relation);
@@ -617,7 +618,7 @@ export class EnhancedTools {
           address: current.address,
           status: "error",
           error: projectAnalysisError(related.error),
-        });
+        } satisfies NativeCallGraph["graph"][string][number]);
         continue;
       }
       for (const limitation of result.value.limitations)
@@ -654,7 +655,7 @@ export class EnhancedTools {
         ...(nodeLimitations.length === 0
           ? {}
           : { limitations: nodeLimitations }),
-      });
+      } satisfies NativeCallGraph["graph"][string][number]);
       for (const address of related.value) {
         if (!discovered.has(address)) {
           discovered.add(address);

@@ -11,6 +11,7 @@ import { ok, type Result } from "../domain/result.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { readGhidraExecutableHeader } from "./GhidraExecutableHeader.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import {
   readGhidraInstallationProperties,
   type GhidraInstallationFileOptions,
@@ -524,24 +525,37 @@ const installationCoordinates = async (
         ),
       )
       .filter((candidate) => host.executable(candidate));
-  let javaCommand = (() => {
+  const selectedJava: {
+    command: string;
+    source: "configured" | "path" | "homebrew" | "default";
+  } = (() => {
     if (options.javaHome !== undefined)
-      return path.join(
-        options.javaHome,
-        "bin",
-        platform === "win32" ? "java.exe" : "java",
-      );
+      return {
+        source: "configured",
+        command: path.join(
+          options.javaHome,
+          "bin",
+          platform === "win32" ? "java.exe" : "java",
+        ),
+      };
     if (platform !== "darwin")
-      return platform === "win32" ? "java.exe" : "java";
+      return {
+        source: "default",
+        command: platform === "win32" ? "java.exe" : "java",
+      };
     // Check the caller's PATH, never a file named java in the working directory.
-    const javaOnPath = options.environment.PATH?.split(":").some(
-      (directory) =>
-        path.isAbsolute(directory) &&
-        host.executable(path.join(directory, "java")),
-    );
-    if (javaOnPath) return "java";
-    return homebrewJavaCandidates()[0] ?? "java";
+    const javaOnPath = options.environment.PATH?.split(":")
+      .filter((directory) => path.isAbsolute(directory))
+      .map((directory) => absoluteCallerPath(`${directory}/java`, { platform }))
+      .find((candidate) => host.executable(candidate));
+    if (javaOnPath !== undefined)
+      return { source: "path", command: javaOnPath };
+    const homebrew = homebrewJavaCandidates()[0];
+    return homebrew === undefined
+      ? { source: "default", command: "/usr/bin/java" }
+      : { source: "homebrew", command: homebrew };
   })();
+  let javaCommand = selectedJava.command;
   // Java is a prerequisite of a selected installation. Without one, or with a
   // relative JAVA_HOME, configuration validation refuses Ghidra before Java can
   // matter, so callers such as setup and doctor must not execute a host JVM.
@@ -574,7 +588,7 @@ const installationCoordinates = async (
   if (
     platform === "darwin" &&
     options.javaHome === undefined &&
-    javaCommand === "java" &&
+    (selectedJava.source === "path" || selectedJava.source === "default") &&
     javaProbe !== undefined &&
     !javaProbe.ok &&
     !(javaProbe.error instanceof AnalysisError) &&

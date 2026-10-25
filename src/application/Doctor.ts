@@ -764,7 +764,9 @@ const readMacosVersion = async (
   options: { readonly env: NodeJS.ProcessEnv },
 ): Promise<string | undefined> => {
   try {
-    return (await run("sw_vers", ["-productVersion"], options)).stdout.trim();
+    return (
+      await run("/usr/bin/sw_vers", ["-productVersion"], options)
+    ).stdout.trim();
   } catch (cause: unknown) {
     // best-effort cleanup: optional OS version probing; failure means unknown.
     void cause;

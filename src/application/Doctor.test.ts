@@ -495,6 +495,37 @@ describe("doctor runtime check", () => {
   );
 });
 
+it.each([undefined, "", "not-a-version", "14garbage"])(
+  "retains unknown host support for macOS probe value %s",
+  async (version) => {
+    const result = await runDoctor(
+      undefined,
+      host({ macosVersion: () => Promise.resolve(version) }),
+    );
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({
+        name: "host",
+        ok: false,
+        classification: "unknown",
+      }),
+    );
+  },
+);
+
+it.skipIf(process.platform !== "darwin")(
+  "reads the macOS version without PATH utilities",
+  async () => {
+    const system = systemDoctorHost({
+      environment: { PATH: "/nonexistent" },
+    });
+    try {
+      expect(await system.macosVersion()).toMatch(/^\d+(?:\.\d+)*$/u);
+    } finally {
+      await system.close?.();
+    }
+  },
+);
+
 describe("doctor", () => {
   it("returns exact recovery for every failed diagnostic", async () => {
     const result = await runDoctor(
@@ -518,22 +549,19 @@ describe("doctor", () => {
     });
   });
 
-  it.each(["11.7", undefined])(
-    "rejects unsupported macOS version %s",
-    async (version) => {
-      const result = await runDoctor(
-        undefined,
-        host({ macosVersion: () => Promise.resolve(version) }),
-      );
-      expect(result.checks).toContainEqual(
-        expect.objectContaining({
-          name: "host",
-          ok: false,
-          classification: "unsupported_host",
-        }),
-      );
-    },
-  );
+  it.each(["11.7"])("rejects unsupported macOS version %s", async (version) => {
+    const result = await runDoctor(
+      undefined,
+      host({ macosVersion: () => Promise.resolve(version) }),
+    );
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({
+        name: "host",
+        ok: false,
+        classification: "unsupported_host",
+      }),
+    );
+  });
 
   it("admits only the experimental Windows x64 host boundary", async () => {
     const windows = await runDoctor(

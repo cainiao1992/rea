@@ -2,12 +2,14 @@ import {
   lstat,
   mkdir,
   readFile,
+  realpath,
   readdir,
   rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 
 import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
@@ -36,6 +38,17 @@ const CODEX_ORIGINAL = [
   "literal = 'C:\\demo\\path'",
   "",
 ].join("\n");
+
+const isDirectRegistration = async (command, cli) =>
+  Array.isArray(command) &&
+  command.length === 3 &&
+  typeof command[0] === "string" &&
+  typeof command[1] === "string" &&
+  isAbsolute(command[0]) &&
+  isAbsolute(command[1]) &&
+  command[2] === "mcp" &&
+  (await realpath(command[0])) === (await realpath(process.execPath)) &&
+  (await realpath(command[1])) === (await realpath(cli));
 
 const verifyMcpAdd = async ({ commands, cli, environment, npxLog }) => {
   await commands.run(cli, ["mcp", "add"], environment);
@@ -122,7 +135,7 @@ const verifyAbsentOpenCodeSetup = async ({
     !result.appliedActions.includes("configured_opencode") ||
     config.mcp?.rea?.type !== "local" ||
     config.mcp.rea.enabled !== true ||
-    JSON.stringify(config.mcp.rea.command) !== JSON.stringify([cli, "mcp"])
+    !(await isDirectRegistration(config.mcp.rea.command, cli))
   )
     throw new Error(
       `packaged setup did not configure explicitly selected OpenCode without a config file: ${JSON.stringify(result)}`,
@@ -172,8 +185,13 @@ const verifyAbsentClaudeCodeSetup = async ({
     firstExecution.status !== 0 ||
     first.status !== "ready" ||
     !first.appliedActions.includes("configured_claude_code") ||
-    config.mcpServers?.rea?.command !== cli ||
-    JSON.stringify(config.mcpServers?.rea?.args) !== JSON.stringify(["mcp"]) ||
+    !(await isDirectRegistration(
+      [
+        config.mcpServers?.rea?.command,
+        ...(config.mcpServers?.rea?.args ?? []),
+      ],
+      cli,
+    )) ||
     (await pathExists(markerPath)) ||
     registration?.state !== "aligned" ||
     registration.config_path !== configPath
@@ -270,8 +288,13 @@ export const assertClientConfig = async (cli, configPath, original) => {
   const config = JSON.parse(await readFile(configPath, "utf8"));
   if (
     config.existing !== true ||
-    config.mcpServers?.rea?.command !== cli ||
-    JSON.stringify(config.mcpServers?.rea?.args) !== JSON.stringify(["mcp"])
+    !(await isDirectRegistration(
+      [
+        config.mcpServers?.rea?.command,
+        ...(config.mcpServers?.rea?.args ?? []),
+      ],
+      cli,
+    ))
   )
     throw new Error("packaged client readback failed");
   if (!(await readFile(`${configPath}.rea.backup`)).equals(original))
@@ -296,7 +319,7 @@ const assertOpenCodeConfig = async ({
     (expectedRegistration &&
       (mcp?.rea?.type !== "local" ||
         mcp.rea.enabled !== true ||
-        JSON.stringify(mcp.rea.command) !== JSON.stringify([cli, "mcp"]))) ||
+        !(await isDirectRegistration(mcp.rea.command, cli)))) ||
     (!expectedRegistration && mcp?.rea !== undefined)
   )
     throw new Error("packaged OpenCode JSONC registration readback failed");
@@ -309,11 +332,15 @@ const assertCodexSymlink = async ({
   codexTarget,
 }) => {
   const codex = await readFile(codexTarget, "utf8");
+  const registration = parseToml(codex).mcp_servers?.rea;
   if (
     !(await lstat(codexConfig)).isSymbolicLink() ||
     !(await lstat(cursorConfig)).isSymbolicLink() ||
     !codex.includes("[mcp_servers.rea]") ||
-    !codex.includes(`command = "${cli}"`) ||
+    !(await isDirectRegistration(
+      [registration?.command, ...(registration?.args ?? [])],
+      cli,
+    )) ||
     !codex.includes("startup_timeout_sec = 30") ||
     !codex.startsWith(CODEX_ORIGINAL) ||
     (await readFile(`${codexConfig}.rea.backup`, "utf8")) !== CODEX_ORIGINAL
@@ -446,11 +473,15 @@ const verifySetupFailureRecovery = async ({
     environment,
   );
   const recovered = JSON.parse(recoveredExecution.stdout);
+  const registration = JSON.parse(await readFile(cursorConfig, "utf8"))
+    .mcpServers?.rea;
   if (
     recovered.status !== status ||
     recoveredExecution.status !== (status === "ready" ? 0 : 1) ||
-    JSON.parse(await readFile(cursorConfig, "utf8")).mcpServers?.rea
-      ?.command !== cli
+    !(await isDirectRegistration(
+      [registration?.command, ...(registration?.args ?? [])],
+      cli,
+    ))
   )
     throw new Error("packaged setup did not recover");
 };

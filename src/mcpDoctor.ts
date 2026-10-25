@@ -50,7 +50,9 @@ const MCP_DOCTOR_OPTIONS = z.object({
 const MCP_DOCTOR_ALIAS = { help: "h" } as const;
 
 const MCP_DOCTOR_COMMAND = "rea mcp doctor";
-const MCP_DOCTOR_DESCRIPTION = "Validate MCP server startup and tool listing";
+const MCP_DOCTOR_DESCRIPTION = "Validate MCP adapter startup and tool listing";
+const MCP_DOCTOR_SCOPE =
+  "Checks this REA adapter using the current runtime; does not verify a client's registered command or launch environment.";
 
 /** Help flags derived from `MCP_DOCTOR_OPTIONS` plus its alias. */
 const HELP_FLAGS: ReadonlySet<string> = new Set(["--help", "-h"]);
@@ -67,7 +69,7 @@ const renderMcpDoctorHelp = (): string =>
     hideGlobalOptions: true,
     options: MCP_DOCTOR_OPTIONS,
     alias: MCP_DOCTOR_ALIAS,
-    hint: "This entry accepts only the options above.",
+    hint: `${MCP_DOCTOR_SCOPE} This entry accepts only the options above.`,
   });
 
 interface McpDoctorOptions {
@@ -353,12 +355,13 @@ export const runProductionMcpDoctorCli = async (
       exitCode: 1,
     };
   }
-  const result = await runProductionMcpDoctor({
+  const report = await runProductionMcpDoctor({
     command: process.execPath,
     args: [resolve(input.dispatcherPath), "mcp"],
     cwd: input.packageRoot,
     environment: process.env,
   });
+  const result = { ...report, scope: MCP_DOCTOR_SCOPE };
   const outputValue = parsed.fullOutput
     ? {
         ok: result.healthy,

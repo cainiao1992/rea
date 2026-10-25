@@ -19,6 +19,10 @@ describe("MCP doctor help boundary", () => {
         expect(result.stdout).toContain("Usage: rea mcp doctor [options]");
         expect(result.stdout).toContain("--format <toon|json|yaml|md|jsonl>");
         expect(result.stdout).toContain("--full-output");
+        expect(result.stdout).toContain("current runtime");
+        expect(result.stdout).toContain(
+          "registered command or launch environment",
+        );
         // Help returns before the diagnostic session starts, so no report
         // envelope and no startup diagnostics are produced.
         expect(result.stdout).not.toContain("healthy");

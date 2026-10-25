@@ -390,13 +390,7 @@ cliTest(
         mcp: {
           rea: clientRegistrationEntry(
             "opencode",
-            // Windows launches JavaScript through Node; otherwise setup repairs
-            // the command before this test can exercise layered environment data.
-            [
-              ...(process.platform === "win32" ? [process.execPath] : []),
-              resolve("scripts/rea.mjs"),
-              "mcp",
-            ],
+            [process.execPath, resolve("scripts/rea.mjs"), "mcp"],
             env,
           ),
         },

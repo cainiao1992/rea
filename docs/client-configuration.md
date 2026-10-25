@@ -6,6 +6,40 @@ for the reviewed setup transaction and [client IDs](installation.md#supported-ag
 The versioned verification notes below describe their stated runs; live service
 acceptance is verified only where explicitly recorded.
 
+## Launchers and PATH
+
+A client launched from a desktop app, IDE or service can inherit a different
+`PATH` from your terminal. An absolute path to `rea-agents` does not resolve its
+interpreter: the npm launcher's `#!/usr/bin/env node` still searches `PATH` for
+Node. Running that command successfully in a terminal does not establish that
+the client can launch it.
+
+For direct JavaScript installations, setup registers the selected runtime
+executable and REA script by absolute path. On POSIX, it prefers executable
+`node` or `bun` and REA aliases on setup's `PATH` only when they resolve to the
+same selected files. This preserves manager-owned aliases across version updates;
+otherwise setup uses the selected paths directly. Package-runner registrations keep
+their selected runner. Setup does not copy your ambient environment into client
+settings. To refresh an older registration, preview
+`rea setup --client <client-id> --skill=false --dry-run`, then run the same command
+without `--dry-run` and approve the displayed changes. Setup preserves unrelated
+settings, backs up changed configuration and leaves an aligned registration
+unchanged. Restart the client after applying the update.
+
+If a runtime manager removes the registered executable and no surviving alias
+was available, doctor reports its identity as unknown and setup retains the
+registration. REA does not infer that an arbitrary missing executable was Node
+from its script argument. Back up the client's configuration, verify the absolute
+path and supported version of the runtime you intend to use, then update only
+the runtime command, preserving the REA script arguments and other settings.
+Rerun setup to review the registration and restart the client.
+
+`rea mcp doctor --json` tests the production MCP adapter using the runtime
+executable and environment of the terminal running doctor. It does not launch
+the client's configured command or reproduce the client's environment. If doctor
+passes but the client disconnects, inspect the client's startup error and registered
+launcher; see [verification scope](client-verification.md#launch-environment-verification).
+
 ## Runtime settings and client deadlines
 
 `update_analysis_settings` changes curated defaults inside the running REA
@@ -266,6 +300,15 @@ user-level `~/.qwen/settings.json`, or `$QWEN_HOME/settings.json` when configure
 Setup and doctor follow Qwen Code's tilde and working-directory-relative home
 overrides. Qwen Code also discovers personal skills in `~/.agents/skills`,
 where setup installs the bundled workflow.
+
+If an existing direct-script registration fails with `env: node: No such file or
+directory`, refresh it through setup as described under [Launchers and PATH](#launchers-and-path).
+For an immediate Qwen-specific workaround, when Node is installed in
+`/opt/homebrew/bin`, add `"PATH": "/opt/homebrew/bin:${PATH}"` to that server's
+existing `env` object and restart Qwen. Qwen expands `${PATH}` from its parent
+environment; other clients can use different substitution syntax. Qwen's stdio
+launcher inherits the parent `PATH` and applies server overrides; a reduced
+parent environment does not establish that Qwen removed Homebrew from it.
 
 ## Antigravity
 

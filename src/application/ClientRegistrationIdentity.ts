@@ -1,8 +1,13 @@
 import { accessSync, constants, realpathSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute } from "node:path";
 import { normalizeEntrypointPath } from "../process/CurrentEntrypointPath.js";
 import { valid } from "semver";
 
+import {
+  javaScriptRuntime,
+  type JavaScriptRuntime,
+} from "../domain/runtimeVersion.js";
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { PRODUCT_IDENTITY } from "../identity.js";
 
 /** Package runners whose pinned launcher setup can register. */
@@ -110,6 +115,14 @@ const entrypointIdentity = (
 ): ClientRegistrationCommandIdentity => {
   if (!isAbsolute(candidate) || !isAbsolute(current)) return "unknown";
   if (candidate === current) return "owned";
+  // Bun's realpath can normalize parent segments differently from its launcher.
+  // Without matching traversal semantics it cannot prove ownership of an alias.
+  if (
+    process.platform !== "win32" &&
+    javaScriptRuntime(process.versions).id === "bun" &&
+    [candidate, current].some((path) => path.split("/").includes(".."))
+  )
+    return "unknown";
   try {
     return realpathSync.native(candidate) === realpathSync.native(current)
       ? "owned"
@@ -125,7 +138,7 @@ const directEntrypointIdentity = (
   current: string,
 ): ClientRegistrationCommandIdentity => {
   const nativeIdentity = entrypointIdentity(candidate, current);
-  const scriptPath = normalizeEntrypointPath(candidate);
+  const scriptPath = normalizeEntrypointPath(candidate, "node");
   if (scriptPath === candidate) return nativeIdentity;
   // A shebang can pass the original spelling to Node, which selects its script
   // lexically. Without executing the launcher, divergent interpretations are unknown.
@@ -135,19 +148,17 @@ const directEntrypointIdentity = (
     : "unknown";
 };
 
-/** Prefer an executable PATH alias that proves the same selected REA file. */
-export const registrationEntrypointPath = (
-  entrypoint: string,
+/** Preserve a manager-owned executable alias only when it selects the same file. */
+const sameFileExecutableAlias = (
+  selected: string,
+  name: string,
   environment: Readonly<NodeJS.ProcessEnv>,
-  platform: NodeJS.Platform,
+  identify: typeof entrypointIdentity,
 ): string => {
-  // A Windows command shim is a different program; file identity cannot prove
-  // its script target. Keep that platform's existing Node/script registration.
-  if (platform === "win32") return entrypoint;
   for (const directory of (environment.PATH ?? "").split(":")) {
     if (!isAbsolute(directory)) continue;
-    const candidate = join(directory, PRODUCT_IDENTITY.cliBinary);
-    if (directEntrypointIdentity(candidate, entrypoint) !== "owned") continue;
+    const candidate = absoluteCallerPath(`${directory}/${name}`);
+    if (identify(candidate, selected) !== "owned") continue;
     try {
       accessSync(candidate, constants.X_OK);
       return candidate;
@@ -155,10 +166,43 @@ export const registrationEntrypointPath = (
       // An unexecutable alias cannot launch the selected program.
     }
   }
-  return entrypoint;
+  return selected;
 };
 
-/** Preserve caller spelling only when both direct launchers prove the same file. */
+/** Prefer an executable PATH alias that proves the same selected REA file. */
+export const registrationEntrypointPath = (
+  entrypoint: string,
+  environment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform,
+): string =>
+  // A Windows command shim is a different program; file identity cannot prove
+  // its script target. Keep that platform's existing Node/script registration.
+  platform === "win32"
+    ? entrypoint
+    : sameFileExecutableAlias(
+        entrypoint,
+        PRODUCT_IDENTITY.cliBinary,
+        environment,
+        directEntrypointIdentity,
+      );
+
+/** Prefer a same-file runtime alias that can survive its manager's version switch. */
+export const registrationRuntimePath = (
+  executable: string,
+  runtime: JavaScriptRuntime["id"],
+  environment: Readonly<NodeJS.ProcessEnv>,
+  platform: NodeJS.Platform,
+): string =>
+  platform === "win32"
+    ? executable
+    : sameFileExecutableAlias(
+        executable,
+        runtime,
+        environment,
+        entrypointIdentity,
+      );
+
+/** Preserve aliases only when the execution form and selected file agree. */
 export const equivalentClientRegistrationCommands = (
   previous: readonly string[],
   requested: readonly string[],
@@ -168,17 +212,21 @@ export const equivalentClientRegistrationCommands = (
     previous.every((value, index) => value === requested[index])
   )
     return true;
-  const current = inspectClientRegistrationCommand(
-    requested,
-    undefined,
-  ).entrypoint;
+  const requestedFacts = inspectClientRegistrationCommand(requested, undefined);
+  const current = requestedFacts.entrypoint;
   if (current === undefined) return false;
   const prior = inspectClientRegistrationCommand(previous, current);
-  return prior.entrypoint !== undefined && prior.identity === "owned";
+  return (
+    prior.entrypoint !== undefined &&
+    prior.identity === "owned" &&
+    prior.launch === requestedFacts.launch
+  );
 };
 
 export interface ClientRegistrationCommandFacts {
   readonly identity: ClientRegistrationCommandIdentity;
+  /** Execution form is separate from ownership of the selected REA file. */
+  readonly launch: "runtime_script" | "direct" | "package_runner" | "unknown";
   /** Selected absolute launcher/script path; excludes package and unresolved PATH commands. */
   readonly entrypoint: string | undefined;
   readonly package:
@@ -208,6 +256,7 @@ export const inspectClientRegistrationCommand = (
       normalized !== null;
     return {
       identity: owned ? "owned" : "foreign",
+      launch: "package_runner",
       entrypoint: undefined,
       package: {
         reference,
@@ -235,7 +284,12 @@ const inspectDirectRegistrationCommand = (
     const interpreter = command[0] ?? "";
     const entrypoint = command[1] ?? "";
     if (!isAbsolute(interpreter) || !isAbsolute(entrypoint))
-      return { identity: "unknown", entrypoint: undefined, package: undefined };
+      return {
+        identity: "unknown",
+        launch: "runtime_script",
+        entrypoint: undefined,
+        package: undefined,
+      };
     const interpreterIdentity = entrypointIdentity(
       interpreter,
       process.execPath,
@@ -243,13 +297,15 @@ const inspectDirectRegistrationCommand = (
     if (interpreterIdentity !== "owned")
       return {
         identity: currentPathAvailable ? interpreterIdentity : "unknown",
+        launch: "runtime_script",
         entrypoint: undefined,
         package: undefined,
       };
-    // Node selects its script from normalized argv; executable paths use native
-    // traversal semantics, where symlink/.. can denote a different file.
+    // The proven current runtime owns script selection: Node normalizes argv,
+    // while Bun follows native traversal through symlink/.. on POSIX.
     const selectedEntrypoint = normalizeEntrypointPath(entrypoint);
     return {
+      launch: "runtime_script",
       identity:
         selectedEntrypoint === undefined || !currentPathAvailable
           ? "unknown"
@@ -261,9 +317,15 @@ const inspectDirectRegistrationCommand = (
   if (command.length === 2 && command[1] === "mcp") {
     const executable = command[0] ?? "";
     if (executable === PRODUCT_IDENTITY.cliBinary)
-      return { identity: "owned", entrypoint: undefined, package: undefined };
+      return {
+        identity: "owned",
+        launch: "direct",
+        entrypoint: undefined,
+        package: undefined,
+      };
     if (isAbsolute(executable))
       return {
+        launch: "direct",
         identity: currentPathAvailable
           ? directEntrypointIdentity(executable, currentCommandPath)
           : "unknown",
@@ -271,7 +333,17 @@ const inspectDirectRegistrationCommand = (
         package: undefined,
       };
     if (/[./\\]/u.test(executable))
-      return { identity: "unknown", entrypoint: undefined, package: undefined };
+      return {
+        identity: "unknown",
+        launch: "direct",
+        entrypoint: undefined,
+        package: undefined,
+      };
   }
-  return { identity: "foreign", entrypoint: undefined, package: undefined };
+  return {
+    identity: "foreign",
+    launch: "unknown",
+    entrypoint: undefined,
+    package: undefined,
+  };
 };

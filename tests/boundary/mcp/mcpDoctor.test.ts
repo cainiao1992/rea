@@ -112,6 +112,9 @@ describe("production MCP doctor", () => {
       ok: false,
       error: {
         healthy: false,
+        scope: expect.stringContaining(
+          "does not verify a client's registered command",
+        ),
         checks: [{ name: "transport", ok: false }],
       },
       meta: {

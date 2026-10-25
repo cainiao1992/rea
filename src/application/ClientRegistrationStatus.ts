@@ -9,7 +9,6 @@ import {
 } from "./ClientConfigurationDocument.js";
 import { lstat, stat } from "node:fs/promises";
 import { err, ok, type Result } from "../domain/result.js";
-import { isAbsolute } from "node:path";
 
 import { PRODUCT_IDENTITY } from "../identity.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
@@ -478,9 +477,9 @@ const registrationAligned = ({
     return "aligned";
   // Other owned package references remain stale until pinned to this version.
   if (commandFacts.package !== undefined) return "stale";
-  // The identity owner already established an exact direct launcher match.
-  // A bare command still depends on the client's PATH, so cannot prove alignment.
-  return isAbsolute(command[0] ?? "") ? "aligned" : "stale";
+  // Owning the script does not establish how its shebang interpreter resolves
+  // in the client. Setup migrates these launchers without losing ownership.
+  return commandFacts.launch === "runtime_script" ? "aligned" : "stale";
 };
 
 /** A client that rewrites its file from memory must be quit before setup. */

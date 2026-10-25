@@ -790,6 +790,12 @@ describe("client launcher traversal semantics", () => {
       const candidate = `${root}/link/../entry.mjs`;
       expect(await readFile(candidate, "utf8")).toBe("// foreign dispatcher\n");
       expect(
+        await readFile(normalizeEntrypointPath(candidate, "node")!, "utf8"),
+      ).toBe("// current dispatcher\n");
+      expect(
+        await readFile(normalizeEntrypointPath(candidate, "bun")!, "utf8"),
+      ).toBe("// foreign dispatcher\n");
+      expect(
         classifyClientRegistrationCommand([candidate, "mcp"], current),
       ).toBe("unknown");
       expect(
@@ -802,6 +808,9 @@ describe("client launcher traversal semantics", () => {
         ),
       ).toBe("owned");
       const unresolvable = `${root}/missing/../entry.mjs`;
+      await expect(
+        readFile(normalizeEntrypointPath(unresolvable, "bun")!, "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
       expect(
         classifyClientRegistrationCommand([unresolvable, "mcp"], current),
       ).toBe("unknown");

@@ -1220,34 +1220,16 @@ after SDK conversion and check advertised validation and actual calls.
 Individual model APIs can impose additional nesting limits; complete producer
 captures can exceed ten structural levels.
 
-Claude Desktop drops a local connector tool, with a generic "problem with that
-connector" warning, when its input schema serialized as compact JSON exceeds
-64 KiB ([#4081](https://github.com/morluto/rea/issues/4081)). Every advertised
-input schema therefore fits 65,536 UTF-8 bytes, including its examples. A
-self-contained schema that would exceed the limit is fitted in two steps, and
-its root description says it is summarized. First, a property whose schema
-repeats an earlier sibling's, such as `after` beside `before`, is advertised as
-its types and description plus "Same schema as `before`." Second, schemas below
-the deepest instance level that still fits are advertised as their types, size
-constraints and descriptions, unless that summary would be longer than the
-schema itself. Combinator and conditional branches count as the
-level of the instance they describe. Both steps only widen the advertisement:
-canonical inputs and examples stay accepted, required names and nested
-constraints below the cut are not advertised, and the canonical contract still
-validates every call. Schemas within the limit are advertised unchanged. The
-compact profile starts from the complete projection, not from the fitted one.
-
 `search_bytes` advertises its pattern and mask as descriptive strings. Its
 shared canonical validator scans byte pairs, whitespace, wildcards and aligned
 masks without a repeating regular expression or temporary byte arrays. The
 server rejects malformed or unconstrained patterns before provider dispatch;
 the advertised strings alone do not express those rules.
 
-Boolean, numeric and empty-string literal constraints in input schemas are
-relaxed only in this advertisement. Boolean `const` becomes `type: boolean`;
-numeric `const` keeps its numeric type; empty-string `const`, an enum containing
-an empty string, and an enum containing a number are widened without dropping
-an accepted value. Defaults and descriptions remain intact.
+Boolean and empty-string literal constraints in input schemas are relaxed only
+in this advertisement. Boolean `const` becomes `type: boolean`; empty-string
+`const` or an enum containing an empty string is widened without dropping the
+accepted empty value. Defaults and descriptions remain intact.
 An affected `not` is omitted, conditional predicates and their branches are
 omitted together, pure boolean-literal `oneOf` branches collapse to a boolean,
 and other affected `oneOf` branches are presented as `anyOf` to retain branch

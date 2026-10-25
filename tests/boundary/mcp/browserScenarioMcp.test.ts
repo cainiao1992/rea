@@ -267,17 +267,12 @@ describe("browser scenario MCP tool", () => {
       validateComparison(comparisonInput),
       JSON.stringify(validateComparison.errors),
     ).toBe(true);
-    for (const [malformed, advertisedRejects] of [
-      [{ before_scenario: captureResult }, true],
-      // The fitted advertisement summarizes `after` as "Same schema as
-      // `before`"; only the canonical contract rejects a scenario in it.
-      [{ before_scenario: captureResult, after: captureResult }, false],
-      [
-        { ...comparisonInput, before: captureResult, after: captureResult },
-        true,
-      ],
-    ] as const) {
-      expect(validateFullComparison(malformed)).toBe(!advertisedRejects);
+    for (const malformed of [
+      { before_scenario: captureResult },
+      { before_scenario: captureResult, after: captureResult },
+      { ...comparisonInput, before: captureResult, after: captureResult },
+    ]) {
+      expect(validateFullComparison(malformed)).toBe(false);
       const rejected = await client.callTool({
         name: "compare_web_captures",
         arguments: malformed,

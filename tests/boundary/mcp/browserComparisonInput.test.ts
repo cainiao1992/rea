@@ -67,8 +67,8 @@ function invalidComparisonInputs(
     { before: passive.before },
     { before: { inspection: {} }, after: passive.after },
     {
-      before: { ...passive.before, webmcp: {} },
-      after: passive.after,
+      before: passive.before,
+      after: { ...passive.after, webmcp: {} },
     },
     { before_scenario: {}, after_scenario: {} },
     { before_scenario: scenario.before_scenario },
@@ -146,10 +146,6 @@ describe("browser comparison input boundary", () => {
         "before + after; before_scenario + after_scenario + [normalization]",
       );
       const runtimeOnlyInvalid = [
-        // The advertisement fits the 64 KiB client limit by presenting
-        // `after` as "Same schema as `before`" (#4081); the canonical
-        // parser still rejects a malformed `after` capture.
-        { before: passive.before, after: { ...passive.after, webmcp: {} } },
         { ...passive, ...scenario },
         { ...passive, normalization: { rules: [] } },
         {

@@ -26,10 +26,12 @@ import {
 } from "@modelcontextprotocol/server";
 
 import { analysisErrorProjectionSchema } from "../contracts/errorSchemas.js";
-import type { CompactInputSchemaPresentation } from "../contracts/compactInputSchema.js";
+import {
+  presentAdvertisedInputSchema,
+  type CompactInputSchemaPresentation,
+} from "../contracts/compactInputSchema.js";
 import type { createCatalogIdentity } from "../catalogIdentity.js";
 import { transformAdvertisedInputJsonSchema } from "../contracts/toolSchemaMetadata.js";
-import { presentAdvertisedInputProfile } from "../contracts/inputSchemaPresentation.js";
 import type { EvidenceWriter } from "../application/investigation/InvestigationRecordPort.js";
 import {
   AnalysisInputError,
@@ -257,7 +259,7 @@ export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
               typeof transformAdvertisedInputJsonSchema
             >[0],
             (projected) =>
-              presentAdvertisedInputProfile(projected, { budgetBytes: budget }),
+              presentAdvertisedInputSchema(projected, { budgetBytes: budget }),
           )
         : undefined;
     const registeredConfig =

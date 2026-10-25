@@ -104,7 +104,35 @@ export interface UpdateCall {
   readonly kept: readonly string[];
 }
 
-/** Whether a rule a later call showed gives an earlier call a value other than the one it showed for a field it did not send. */
+/** Ambiguous saves may echo an already-derived slug or hold a clock in its own second. Keep the demonstrated derivation; call evidence still has to reproduce it. */
+export const reconciledUpdateRule = (
+  held: FieldRule,
+  later: FieldRule,
+  kept: ReadonlySet<string>,
+): FieldRule | undefined => {
+  const alike = alikeRules(held, later, kept);
+  if (alike !== undefined) return alike;
+  for (const [derived, ambiguous] of [
+    [held, later],
+    [later, held],
+  ] as const) {
+    if (
+      derived.rule === "slug" &&
+      ambiguous.rule === "echo" &&
+      ambiguous.sorted !== true
+    )
+      return derived;
+    if (
+      derived.rule === "clock" &&
+      ambiguous.rule === "held-clock" &&
+      same(derived.format, ambiguous.format)
+    )
+      return derived;
+  }
+  return undefined;
+};
+
+/** Whether a later rule reproduces earlier calls, including echoes promoted to derivations. */
 export const contradictsEarlierCalls = (
   draft: {
     readonly plan: { readonly rules: readonly FieldRule[] };
@@ -112,11 +140,12 @@ export const contradictsEarlierCalls = (
   },
   rules: readonly FieldRule[],
 ): boolean => {
-  const ruled = new Set(draft.plan.rules.map((rule) => rule.field));
+  const ruled = new Map(draft.plan.rules.map((rule) => [rule.field, rule]));
   return rules.some((rule) => {
     if (
       !(unsentChange(rule) || regenerates(rule) || rule.rule === "clock") ||
-      ruled.has(rule.field)
+      (ruled.has(rule.field) &&
+        !(rule.rule === "slug" && ruled.get(rule.field)?.rule === "echo"))
     )
       return false;
     // Compute a structured rule's digest once, rather than once per earlier call.
@@ -148,9 +177,12 @@ export const contradictsEarlierCalls = (
         );
       }
       const from = rule.rule === "slug" ? sent.get(rule.from) : undefined;
+      // A slug rule runs only when its source is sent; otherwise serving keeps the field.
       return (
-        typeof from === "string" &&
-        !sameObserved(observation, observedValue(slugOf(from)))
+        rule.rule === "slug" &&
+        (typeof from === "string"
+          ? !sameObserved(observation, observedValue(slugOf(from)))
+          : !kept.includes(rule.field))
       );
     });
   });
@@ -205,7 +237,10 @@ export const conflictsWithPlan = (
     (identity !== null && fixed.has(identity)) ||
     explained.rules.some((rule) => {
       const held = rules.get(rule.field);
-      return held !== undefined && alikeRules(held, rule, kept) === undefined;
+      return (
+        held !== undefined &&
+        reconciledUpdateRule(held, rule, kept) === undefined
+      );
     })
   );
 };

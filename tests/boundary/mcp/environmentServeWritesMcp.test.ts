@@ -24,6 +24,10 @@ import {
   renamedBook,
 } from "../../fixtures/environmentStateWrites.js";
 import { referencedCreateRows } from "../../fixtures/environmentStateDerivedValues.js";
+import {
+  READ_BACK_TAG_ROWS,
+  slugOnlySaveRows,
+} from "../../fixtures/environmentStateWriteViews.js";
 import { unsupportedInputLiteralSchemaError } from "../../fixtures/mcpClientSchemaConstraints.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { startListeningProcess } from "../../support/mcp/streamableHttpProcess.js";
@@ -33,6 +37,66 @@ const HTTP_BOUNDARY_TIMEOUT_MS = 90_000;
 
 /** The book the first served create of "Boundary Book" makes: one second past the served clock's start. */
 const BOUNDARY_BOOK = book(3, "Boundary Book", bookClock(13));
+
+processTest(
+  "keeps create response clocks separate from enriched item reads through the SDK",
+  async ({ processes }) => {
+    const rows = READ_BACK_TAG_ROWS;
+    const root = await createTestTempDirectory("rea-write-views-sdk-");
+    const files = await writeEnvironmentServeFiles(
+      root,
+      environmentStateServeFixture(timedCaptureEvidence(rows)),
+    );
+    const started = await startListeningProcess(processes, [
+      "environment-serve",
+      files.manifestPath,
+      "--evidence",
+      files.capturePath,
+      "--port",
+      "0",
+    ]);
+    const client = new Client({ name: "write-views", version: "1" });
+    await client.connect(new StreamableHTTPClientTransport(started.url));
+    try {
+      const { tools } = await client.listTools();
+      expect(tools.map(({ name }) => name)).toEqual(
+        expect.arrayContaining(["post_tags", "get_tags_by_id"]),
+      );
+      const created = await client.callTool({
+        name: "post_tags",
+        arguments: { body: { name: "Boundary Tag" } },
+      });
+      expect(created.isError).toBeFalsy();
+      const clock = bookClock(rows.length + 1);
+      expect(created.structuredContent).toMatchObject({
+        body: {
+          id: 3,
+          name: "Boundary Tag",
+          created: clock.replace("Z", ".000000000Z"),
+        },
+        state: { source: "state" },
+      });
+      expect(created.structuredContent).not.toHaveProperty(
+        "body.document_count",
+      );
+      const read = await client.callTool({
+        name: "get_tags_by_id",
+        arguments: { id: "3" },
+      });
+      expect(read.structuredContent).toMatchObject({
+        body: {
+          id: 3,
+          name: "Boundary Tag",
+          created: clock,
+          document_count: 0,
+        },
+      });
+    } finally {
+      await client.close();
+    }
+  },
+  HTTP_BOUNDARY_TIMEOUT_MS,
+);
 
 processTest(
   "discovers empty fixed values and applies omitted recorded queries through the SDK before enforcing writes",
@@ -411,15 +475,28 @@ processTest(
   HTTP_BOUNDARY_TIMEOUT_MS,
 );
 
-processTest(
-  "withholds a create from public tools when its sent reference contradicts the recorded response",
-  async ({ processes }) => {
-    const root = await createTestTempDirectory("rea-create-reference-mcp-");
-    const rows = referencedCreateRows({
+processTest.for([
+  {
+    label: "a create whose sent reference contradicts its response",
+    rows: referencedCreateRows({
       id: 1,
       name: "Different Hall",
       floor: "ground",
-    });
+    }),
+    read: "get_books",
+    write: "post_books",
+  },
+  ...[true, false].map((derivedFirst) => ({
+    label: `a slug-only edit incompatible with a derived save (derived first: ${String(derivedFirst)})`,
+    rows: slugOnlySaveRows(derivedFirst, true),
+    read: "get_tags",
+    write: "patch_tags_by_id",
+  })),
+])(
+  "withholds $label from public tools",
+  { timeout: HTTP_BOUNDARY_TIMEOUT_MS },
+  async ({ rows, read, write }, { processes }) => {
+    const root = await createTestTempDirectory("rea-create-reference-mcp-");
     const files = await writeEnvironmentServeFiles(
       root,
       environmentStateServeFixture(timedCaptureEvidence(rows)),
@@ -439,11 +516,10 @@ processTest(
     await client.connect(new StreamableHTTPClientTransport(started.url));
     try {
       const { tools } = await client.listTools();
-      expect(tools.map(({ name }) => name)).toContain("get_books");
-      expect(tools.map(({ name }) => name)).not.toContain("post_books");
+      expect(tools.map(({ name }) => name)).toContain(read);
+      expect(tools.map(({ name }) => name)).not.toContain(write);
     } finally {
       await client.close();
     }
   },
-  HTTP_BOUNDARY_TIMEOUT_MS,
 );

@@ -39,6 +39,7 @@ import {
   type UpdateCall,
   conflictsWithPlan,
   refinedBody,
+  reconciledUpdateRule,
 } from "./environmentStateWriteCalls.js";
 import {
   laterObservation,
@@ -58,7 +59,6 @@ import {
   observationNeeds,
 } from "./environmentStateWriteAddress.js";
 import {
-  alikeRules,
   keptOrders,
   pathValuesOf,
   siblingTrimmedClocks,
@@ -394,7 +394,7 @@ const refineUpdate = (
       const shown = later.get(rule.field);
       return shown === undefined
         ? rule
-        : (alikeRules(rule, shown, draft.kept) ?? rule);
+        : (reconciledUpdateRule(rule, shown, draft.kept) ?? rule);
     }),
     ...evidence.explained.rules.filter((rule) => !ruled.has(rule.field)),
   ];
@@ -703,7 +703,11 @@ const contradictsGeneratedClock = (
     if (
       rule.rule !== "clock" ||
       !Object.hasOwn(after, rule.field) ||
-      explained.unstamped.includes(rule.field)
+      explained.unstamped.includes(rule.field) ||
+      explained.rules.some(
+        (candidate) =>
+          candidate.field === rule.field && candidate.rule === "held-clock",
+      )
     )
       return false;
     const previous = readClock(before[rule.field]);

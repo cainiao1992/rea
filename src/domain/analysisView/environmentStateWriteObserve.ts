@@ -15,6 +15,41 @@ import {
   type StateView,
 } from "./environmentStateRules.js";
 import { queryValues, replayReason } from "./environmentStateVariants.js";
+import { readClock } from "./environmentStateWriteValues.js";
+
+/** A read a create's observation takes fields from: an item read's respell the response's clocks and add fields, a list read's only add fields. */
+export interface ObservedRead {
+  readonly ordinal: number;
+  readonly pointer: string;
+  readonly shape: "item" | "list";
+}
+
+/** Whether two clocks agree at the coarser recorded fraction precision, retaining all digits through nanoseconds. */
+export const respelledInstant = (
+  left: JsonValue | undefined,
+  right: JsonValue | undefined,
+): boolean => {
+  const [a, b] = [readClock(left), readClock(right)];
+  if (a?.format.kind !== "iso" || b?.format.kind !== "iso") return false;
+  const [fine, coarse] =
+    a.format.fraction >= b.format.fraction ? [a, b] : [b, a];
+  if (coarse.format.kind !== "iso") return false;
+  const unit = 10 ** (9 - coarse.format.fraction);
+  const fraction = (clock: typeof fine) =>
+    (((clock.ms % 1000) + 1000) % 1000) * 1_000_000 + clock.subMillisecond;
+  return (
+    Math.floor(fine.ms / 1000) === Math.floor(coarse.ms / 1000) &&
+    Math.floor(fraction(fine) / unit) * unit === fraction(coarse)
+  );
+};
+
+/** A create's response object with a read's fields: an item read's values win, a list read only adds fields the response lacks. */
+export const withRead = (
+  response: JsonObject,
+  read: JsonObject,
+  shape: ObservedRead["shape"],
+): JsonObject =>
+  shape === "item" ? { ...response, ...read } : { ...read, ...response };
 
 /** Where an observed entity object was found: the record and a JSON pointer into its response. */
 export interface Observed {
@@ -22,6 +57,8 @@ export interface Observed {
   readonly pointer: string;
   readonly object: JsonObject;
   readonly id: string;
+  /** A create's later read whose fields the object adds to the response's, and whose clock spellings an item read lends it. */
+  readonly read?: ObservedRead;
 }
 
 /** Objects a response carries where an entity may be, in precedence tiers: the root, one member, then the element of a one-element array at the root or in one member. */

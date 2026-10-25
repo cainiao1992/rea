@@ -350,7 +350,20 @@ const writePlanSchema = z.strictObject({
     .nullable()
     .describe("The first successful recorded call the plan was built from."),
   observation: z
-    .strictObject({ ordinal: ordinalSchema, pointer: z.string() })
+    .strictObject({
+      ordinal: ordinalSchema,
+      pointer: z.string(),
+      read: z
+        .strictObject({
+          ordinal: ordinalSchema,
+          pointer: z.string(),
+          shape: z.enum(["item", "list"]),
+        })
+        .exactOptional()
+        .describe(
+          "A create's later read of the entity: an item read lends fields the response lacks and its clock spellings, a list read only adds fields the response lacks.",
+        ),
+    })
     .nullable()
     .describe(
       "The record whose response showed the written entity or document, and a JSON pointer to it.",

@@ -253,10 +253,15 @@ export interface StateWritePlan {
   readonly served: boolean;
   readonly reason: WriteReason | null;
   readonly exemplar_ordinal: number | null;
-  /** The record whose response showed the written entity or document, and where. */
+  /** The record whose response showed the written entity or document, and where; a create's later read whose fields the entity adds to the response's. */
   readonly observation: {
     readonly ordinal: number;
     readonly pointer: string;
+    readonly read?: {
+      readonly ordinal: number;
+      readonly pointer: string;
+      readonly shape: "item" | "list";
+    };
   } | null;
   readonly response: WriteResponse | null;
   readonly body: WriteBody | null;

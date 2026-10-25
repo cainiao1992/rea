@@ -33,6 +33,7 @@ import {
   echoed,
   integerOf,
   readClock,
+  respellClock,
   isUuid,
   replaceDelimited,
   slugOf,
@@ -488,7 +489,12 @@ export const optionalFields = (
 export const writtenResponse = (
   response: WriteResponse,
   recorded: JsonValue | undefined,
-  written: { readonly fields: JsonObject | undefined; readonly id: string },
+  written: {
+    readonly fields: JsonObject | undefined;
+    readonly id: string;
+    /** Generated clocks keep the response's spelling independently of the stored entity's. */
+    readonly clocks?: readonly string[];
+  },
   optional: readonly string[] = [],
 ): Applied<JsonValue | undefined> => {
   if (response.shape === "empty") return ok(undefined);
@@ -525,7 +531,17 @@ export const writtenResponse = (
       recorded,
       pointer,
       Object.fromEntries(
-        fields.map((field) => [field, written.fields![field]!]),
+        fields.map((field) => {
+          const value = written.fields![field]!;
+          const clock =
+            written.clocks?.includes(field) === true
+              ? readClock(shown[field])
+              : undefined;
+          return [
+            field,
+            clock === undefined ? value : respellClock(value, clock.format),
+          ];
+        }),
       ),
     ),
   );

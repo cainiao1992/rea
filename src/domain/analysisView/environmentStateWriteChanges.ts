@@ -9,6 +9,7 @@ import type { FieldRule, WriteCall } from "./environmentStateWriteRules.js";
 import {
   integerOf,
   readClock,
+  slugOf,
   sortedStrings,
 } from "./environmentStateWriteValues.js";
 import { freshUuid, renewedRule } from "./environmentStateWriteGenerated.js";
@@ -139,7 +140,35 @@ export const sameSecondClocks = (evidence: UpdateEvidence): string[] =>
       inCallSecond(evidence.after[field], evidence.startMs),
   );
 
-/** How an update stored a sent member: stamped anew as the one held clock it sent back other than a creation clock, echoed, renewed as a fresh UUID, or as a constant. */
+/** Another sent member stored as sent whose slug the application stored in place of what this member sent. */
+const sentSlugSource = (
+  evidence: UpdateEvidence,
+  member: string,
+): string | undefined => {
+  const stored = evidence.after[member];
+  if (typeof stored !== "string") return undefined;
+  return Object.entries(evidence.call.body).find(
+    ([other, value]) =>
+      other !== member &&
+      typeof value === "string" &&
+      same(evidence.after[other], value) &&
+      slugOf(value) === stored,
+  )?.[0];
+};
+
+/** Whether a call sent back the clock the entity held, as a whole-object write does, and the application stamped it anew near the call. */
+const restampedClock = (
+  evidence: UpdateEvidence,
+  member: string,
+  sent: JsonValue,
+): boolean =>
+  !CREATION_CLOCK.test(member) &&
+  readClock(sent) !== undefined &&
+  same(evidence.before[member], sent) &&
+  readClock(evidence.after[member]) !== undefined &&
+  isClockNear(evidence.after[member]!, evidence.startMs);
+
+/** How an update stored a sent member: stamped anew as the one held clock it sent back other than a creation clock, echoed, stamped anew or slugged from another member in place of what it sent, renewed as a fresh UUID, or as a constant. */
 export const sentRule = (
   evidence: UpdateEvidence,
   member: string,
@@ -156,6 +185,14 @@ export const sentRule = (
     return { field: member, rule: "echo" };
   if (same(evidence.after[member], sortedStrings(sent)))
     return { field: member, rule: "echo", sorted: true };
+  if (restampedClock(evidence, member, sent))
+    return {
+      field: member,
+      rule: "clock",
+      format: readClock(evidence.after[member])!.format,
+    };
+  const from = sentSlugSource(evidence, member);
+  if (from !== undefined) return { field: member, rule: "slug", from };
   return freshUuid(evidence, member)
     ? { field: member, rule: "unique" }
     : { field: member, rule: "constant", value: evidence.after[member]! };

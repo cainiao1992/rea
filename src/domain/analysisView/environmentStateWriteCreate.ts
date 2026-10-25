@@ -61,6 +61,8 @@ import {
 import {
   laterObservation,
   newEntityIn,
+  respelledInstant,
+  withRead,
   type Observed,
 } from "./environmentStateWriteObserve.js";
 import {
@@ -98,6 +100,57 @@ const respondedId = (
 };
 
 /**
+ * A create's answer with the first read of its entity before the next write over it, when that read shows fields the
+ * answer lacks or spells its clocks to another precision: the state holds what reads show. An item read that agrees
+ * with the answer otherwise lends it its fields and then observes rather than checks; one that disagrees still checks
+ * the create. A list read, which may show fewer keys of an object, only adds fields the answer lacks and still checks.
+ */
+const withReadBack = (
+  context: EffectContext,
+  step: WriteStep,
+  target: {
+    readonly type: string;
+    readonly collection: string;
+    readonly idField: string;
+  },
+  own: Observed,
+): Observed => {
+  const later = laterObservation(searchFrom(context, step), {
+    type: target.type,
+    collection: target.collection,
+    idField: target.idField,
+    id: own.id,
+    held: () => false,
+    isWrite: context.isWrite,
+  });
+  if (later === undefined) return own;
+  const view = context.viewOf(later.ordinal);
+  if (
+    view?.shape === "item" &&
+    (view.fields.some(
+      (field) =>
+        Object.hasOwn(own.object, field) && !Object.hasOwn(later.object, field),
+    ) ||
+      Object.entries(later.object).some(
+        ([field, value]) =>
+          Object.hasOwn(own.object, field) &&
+          !same(own.object[field], value) &&
+          !respelledInstant(own.object[field], value),
+      ))
+  )
+    return own;
+  const shape = view?.shape === "item" ? "item" : "list";
+  const object = withRead(own.object, later.object, shape);
+  if (same(object, own.object)) return own;
+  if (shape === "item") context.observed(later.ordinal);
+  return {
+    ...own,
+    object,
+    read: { ordinal: later.ordinal, pointer: later.pointer, shape },
+  };
+};
+
+/**
  * The written entity a create's response or a later read shows. A linked create's read must name an
  * id its response returned, as the read that linked it did, envelopes included.
  */
@@ -116,7 +169,7 @@ const createdObservation = (
   const own = context.io.withBody(step.record.ordinal, (body) =>
     newEntityIn(step.record.ordinal, body, target.idField, held),
   );
-  if (own !== undefined) return own;
+  if (own !== undefined) return withReadBack(context, step, target, own);
   const { id, ids } = context.io.withBody(step.record.ordinal, (body) => {
     const returned = target.linked ? respondedIds(body) : [];
     // A response that names the created id alone ties the later read to that id.
@@ -320,6 +373,9 @@ const buildCreate = (
     observation: {
       ordinal: evidence.observed.ordinal,
       pointer: evidence.observed.pointer,
+      ...(evidence.observed.read === undefined
+        ? {}
+        : { read: evidence.observed.read }),
     },
     response: context.io.withBody(step.record.ordinal, (body) =>
       responseShapeOf(

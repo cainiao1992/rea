@@ -29,6 +29,7 @@ import {
   type StateWritePlan,
   type WriteCall,
 } from "../../domain/analysisView/environmentStateWriteRules.js";
+import { withRead } from "../../domain/analysisView/environmentStateWriteObserve.js";
 import {
   formatClock,
   generatedIntegerDigits,
@@ -139,17 +140,30 @@ const callBody = ({
     : err(unloadable(tool, `Member ${member}`));
 };
 
-/** The entity a recorded observation shows: the values a create keeps and an update's constants. */
+/** The object a recorded response shows at a pointer. */
+const recordedObject = (
+  serving: StateServing,
+  at: { readonly ordinal: number; readonly pointer: string },
+): JsonObject | undefined => {
+  const exchange = serving.source.exchanges.get(at.ordinal);
+  const body = exchange === undefined ? undefined : recordedJson(exchange);
+  const object = body === undefined ? undefined : valueAt(body, at.pointer);
+  return isObject(object) ? object : undefined;
+};
+
+/** The entity a recorded observation shows, with a create's read-back over it: the values a create keeps and an update's constants. */
 export const observedEntity = (
   serving: StateServing,
   plan: StateWritePlan,
 ): JsonObject | undefined => {
   if (plan.observation === null) return undefined;
-  const exchange = serving.source.exchanges.get(plan.observation.ordinal);
-  const body = exchange === undefined ? undefined : recordedJson(exchange);
-  const object =
-    body === undefined ? undefined : valueAt(body, plan.observation.pointer);
-  return isObject(object) ? object : undefined;
+  const object = recordedObject(serving, plan.observation);
+  if (object === undefined || plan.observation.read === undefined)
+    return object;
+  const read = recordedObject(serving, plan.observation.read);
+  return read === undefined
+    ? undefined
+    : withRead(object, read, plan.observation.read.shape);
 };
 
 /** One past the largest integer these entities hold in the field, read as the exemplar spells it, or undefined when none holds one. */
@@ -347,7 +361,15 @@ export const writeAnswer = (
       : writtenResponse(
           plan.response,
           recorded,
-          rendered,
+          {
+            ...rendered,
+            clocks:
+              plan.observation?.read?.shape === "item"
+                ? plan.rules.flatMap((rule) =>
+                    rule.rule === "clock" ? [rule.field] : [],
+                  )
+                : [],
+          },
           optionalFields(plan),
         );
   if (!body.ok) return err(refused(tool, body.error));

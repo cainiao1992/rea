@@ -15,6 +15,7 @@ import { tsImport } from "tsx/esm/api";
 
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
 import { createAgentEvaluationCommands } from "./lib/agent-evaluation-commands.mjs";
+import { assertAgentEvaluationReportPassed } from "./lib/agent-evaluation-report-gate.mjs";
 import {
   closeVerifierResources,
   withVerifierCleanup,
@@ -44,7 +45,7 @@ const {
   ).href,
   import.meta.url,
 );
-const { agentEvaluationPassed, summarizeFactualCorrectness } = await tsImport(
+const { summarizeFactualCorrectness } = await tsImport(
   new URL(
     "../tests/evaluation/model-evals/AgentEvaluationReport.ts",
     import.meta.url,
@@ -413,11 +414,7 @@ await withVerifierCleanup(
       await writeFile(resolve(reportPath), encoded);
     }
 
-    const failed = results.filter((result) => !agentEvaluationPassed(result));
-    if (failed.length > 0)
-      throw new Error(
-        `Agent routing/workflow/answer checks failed: ${failed.map(({ id }) => id).join(", ")}`,
-      );
+    assertAgentEvaluationReportPassed(results);
   },
   // Even a deliberately retained fixture directory must never retain auth.
   [

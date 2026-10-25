@@ -142,6 +142,16 @@ it.each([
   const doctor = parseEnvironment({
     [BRIDGE_MAX_REQUEST_BYTES_SETTING]: value,
   });
-  expect(startup.ok).toBe(false);
-  expect(doctor.ok).toBe(false);
+  if (startup.ok) throw new Error(`Startup accepted ${JSON.stringify(value)}`);
+  expect(startup.error._tag).toBe("ConfigurationError");
+  expect(startup.error.settings).toContainEqual({
+    setting: BRIDGE_MAX_REQUEST_BYTES_SETTING,
+    constraint: bridgeMaxRequestBytesConstraint,
+  });
+  if (doctor.ok) throw new Error(`Doctor accepted ${JSON.stringify(value)}`);
+  expect(doctor.error._tag).toBe("ConfigurationError");
+  expect(doctor.error.settings).toContainEqual({
+    setting: BRIDGE_MAX_REQUEST_BYTES_SETTING,
+    constraint: bridgeMaxRequestBytesConstraint,
+  });
 });

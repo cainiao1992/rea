@@ -124,6 +124,7 @@ it("settles every source-map cleanup failure when final close releases the exact
     prefix: "rea-source-map-final-cleanup-test-",
   });
   let attempts = 0;
+  let denyCleanup = true;
   const launchCause = new Error("controlled launch failure");
   const decoder = new SourceMapDecoder({
     prepareOwnership: async () => {},
@@ -131,7 +132,7 @@ it("settles every source-map cleanup failure when final close releases the exact
       path: root.path,
       close: async () => {
         attempts += 1;
-        if (attempts <= 2)
+        if (denyCleanup && attempts <= 2)
           throw new Error(`runtime cleanup attempt ${String(attempts)} failed`);
         await root.close();
       },
@@ -177,6 +178,7 @@ it("settles every source-map cleanup failure when final close releases the exact
       "runtime cleanup attempt 2 failed",
     ]);
   } finally {
+    denyCleanup = false;
     await decoder.close();
   }
 });
@@ -186,6 +188,7 @@ it("attributes cleanup resources to the remaining process and directory owners",
     prefix: "rea-source-map-mixed-cleanup-test-",
   });
   let denyProcessRelease = true;
+  let denyRootRelease = true;
   let rootAttempts = 0;
   let runId: string | undefined;
   const decoder = new SourceMapDecoder({
@@ -194,7 +197,7 @@ it("attributes cleanup resources to the remaining process and directory owners",
       path: root.path,
       close: async () => {
         rootAttempts += 1;
-        if (rootAttempts === 1)
+        if (denyRootRelease && rootAttempts === 1)
           throw new Error("controlled directory cleanup failure");
         await root.close();
       },
@@ -235,6 +238,7 @@ it("attributes cleanup resources to the remaining process and directory owners",
     await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
   } finally {
     denyProcessRelease = false;
+    denyRootRelease = false;
     await decoder.close();
   }
 });

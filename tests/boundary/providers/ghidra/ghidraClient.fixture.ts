@@ -26,6 +26,7 @@ type FixtureMode =
   | "future_id"
   | "analysis_timeout"
   | "remote_error"
+  | "remote_startup_error"
   | "shutdown_error"
   | "invalid_shutdown_ack"
   | "hang_after_start"

@@ -950,6 +950,71 @@ describe("GhidraClient captured source snapshot", () => {
   });
 });
 
+it("scopes authenticated input-failure diagnostics to the request while retaining session output", async () => {
+  const client = clientFor(new FixtureLauncher("remote_error"));
+
+  const result = await client.callTool("list_procedures", {
+    document: null,
+    offset: 0,
+    limit: 500,
+  });
+
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      kind: "remote",
+      remoteCode: "not_found",
+      diagnostics: {
+        diagnostic_scope: "request",
+        remote_code: "not_found",
+        remote_message: "Unknown Ghidra procedure name",
+        failure_output: {
+          stdout: { text: "Fixture request rejected: missing procedure\n" },
+          complete: true,
+        },
+      },
+    },
+  });
+  if (result.ok) throw new Error("Expected remote lookup failure");
+  expect(result.error.diagnostics).not.toHaveProperty("stdout");
+  expect(result.error.diagnostics).not.toHaveProperty("stderr");
+  expect(result.error.diagnostics).not.toHaveProperty("launch_support");
+  expect(client.diagnostics()).toMatchObject({
+    stdout: {
+      text: "Fixture launcher startup output\nFixture request rejected: missing procedure\n",
+    },
+  });
+  expect(client.isReady()).toBe(true);
+  await expect(
+    client.callTool("list_strings", { document: null }),
+  ).resolves.toMatchObject({ ok: true });
+  await client.close();
+  expect(client.diagnostics()).toMatchObject({
+    stdout: {
+      text: expect.stringContaining("Fixture launcher startup output"),
+    },
+  });
+});
+
+it("retains launcher diagnostics when an input error rejects the startup handshake", async () => {
+  const client = clientFor(new FixtureLauncher("remote_startup_error"));
+  const result = await client.start();
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      kind: "remote",
+      remoteCode: "invalid_request",
+      diagnostics: {
+        stdout: {
+          text: expect.stringContaining("Fixture launcher startup output"),
+        },
+      },
+    },
+  });
+  if (result.ok) throw new Error("Expected startup failure");
+  expect(result.error.diagnostics).not.toHaveProperty("diagnostic_scope");
+});
+
 describe("GhidraClient", () => {
   it("completes an exact, fragmented post-analysis handshake", async () => {
     const launcher = new FixtureLauncher("fragmented");
@@ -1048,28 +1113,6 @@ describe("GhidraClient", () => {
           procedure: { external: false, thunk: false },
         },
       ],
-    });
-  });
-
-  it("preserves an authenticated operation failure code and diagnostics", async () => {
-    const client = clientFor(new FixtureLauncher("remote_error"));
-
-    const result = await client.callTool("list_procedures", {
-      document: null,
-      offset: 0,
-      limit: 500,
-    });
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        kind: "remote",
-        remoteCode: "not_found",
-        diagnostics: {
-          remote_code: "not_found",
-          remote_message: "Unknown Ghidra procedure name",
-        },
-      },
     });
   });
 

@@ -6,6 +6,7 @@ import {
 import type { JsonValue } from "../domain/jsonValue.js";
 import { DarwinProcessOwnershipInspectionError } from "../process/DarwinProcessRunTokenReader.js";
 import { boundedUtf8Text } from "../process/boundedUtf8Text.js";
+import type { GhidraDiagnosticsScope } from "./GhidraDiagnostics.js";
 import { GhidraLaunchSupportError } from "./GhidraJavaLaunch.js";
 import {
   GhidraLaunchError,
@@ -184,10 +185,16 @@ const createGhidraSessionError = (failure: {
     },
   );
 
-/** Bind session-failure construction to a live, token-redacted diagnostic view. */
+/** Bridge input failures share classification with their domain error projection. */
+export const isGhidraInputFailureCode = (code: string | undefined): boolean =>
+  code === "invalid_request" || code === "not_found" || code === "ambiguous";
+
+/** Bind session-failure construction to its causal diagnostic scope. */
 export const bindGhidraSessionFailure =
   (
-    diagnostics: () => Readonly<Record<string, JsonValue>>,
+    diagnostics: (
+      scope: GhidraDiagnosticsScope,
+    ) => Readonly<Record<string, JsonValue>>,
     redact: (value: string, incomplete?: boolean) => string = (value) => value,
   ) =>
   (
@@ -203,7 +210,13 @@ export const bindGhidraSessionFailure =
       kind,
       message: redact(message),
       diagnostics: {
-        ...diagnostics(),
+        ...diagnostics(
+          kind === "remote" &&
+            (isGhidraInputFailureCode(options.remoteCode) ||
+              options.remoteCode === "invalid_function_name")
+            ? "request"
+            : "session",
+        ),
         ...(cause === undefined
           ? {}
           : { failure_cause: describeCause(cause, redact) }),

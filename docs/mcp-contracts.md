@@ -1269,6 +1269,16 @@ This addresses the emitted shape reported through a Gemini-backed gateway in
 [#5201](https://github.com/morluto/rea/issues/5201). Gateway conversion and
 live provider acceptance have not been verified for this projection.
 
+Gemini function declarations accept `items` only beside the single `array`
+type. Reduced array properties therefore advertise the element types their
+canonical item schemas accept, such as `{"type": "object"}` for a union of
+object actions, instead of an any-value type list with nested `items`. An
+element whose type is unknown, a tuple, or an array alongside other types uses
+the empty item schema, and a property that may be an array or another type
+lists typed `anyOf` branches. A boundary test rejects any compact
+advertisement that places `items` beside another type or uses an untyped item
+union.
+
 The compact profile renders the same tool set, output schemas, annotations,
 and canonical server-side validation. It changes only the advertised input
 JSON Schema:

@@ -27,6 +27,7 @@ import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { toolRegistrationOptions } from "../../../src/server/toolRegistrationOptions.js";
 import {
   arrayItemSchemaError,
+  strictGatewayItemSchemaErrors,
   unsupportedInputLiteralSchemaError,
 } from "../../fixtures/mcpClientSchemaConstraints.js";
 
@@ -77,39 +78,6 @@ const unsupportedDependencyKeywords = (
       return unsupportedDependencyKeywords(value, childPath);
     return [];
   });
-};
-
-const untypedUnionItems = (schema: unknown, path = "$"): readonly string[] => {
-  if (typeof schema !== "object" || schema === null || Array.isArray(schema))
-    return [];
-  const node = schema as Record<string, unknown>;
-  const items = node.items;
-  const here =
-    node.type === "array" &&
-    typeof items === "object" &&
-    items !== null &&
-    !Array.isArray(items) &&
-    (Array.isArray((items as Record<string, unknown>).oneOf) ||
-      Array.isArray((items as Record<string, unknown>).anyOf)) &&
-    (items as Record<string, unknown>).type === undefined
-      ? [`${path}.items`]
-      : [];
-  return [
-    ...here,
-    ...Object.entries(node).flatMap(([key, value]) => {
-      if (schemaMaps.has(key) && typeof value === "object" && value !== null)
-        return Object.entries(value).flatMap(([name, child]) =>
-          untypedUnionItems(child, `${path}.${key}.${name}`),
-        );
-      if (schemaArrays.has(key) && Array.isArray(value))
-        return value.flatMap((child, index) =>
-          untypedUnionItems(child, `${path}.${key}[${index}]`),
-        );
-      if (schemaChildren.has(key))
-        return untypedUnionItems(value, `${path}.${key}`);
-      return [];
-    }),
-  ];
 };
 
 const listToolsThroughTransport = async (
@@ -235,7 +203,7 @@ it("advertises every tool input schema within the provider budget", async () => 
   ).toEqual([]);
   expect(
     tools.flatMap(({ name, inputSchema }) =>
-      untypedUnionItems(inputSchema).map((path) => `${name}${path.slice(1)}`),
+      strictGatewayItemSchemaErrors(inputSchema, name),
     ),
   ).toEqual([]);
 });
@@ -277,6 +245,41 @@ it("detects missing client-required items in nested array alternatives", () => {
   expect(arrayItemSchemaError({ type: "array", items: false }, "closed")).toBe(
     "closed: tool parameters array type must have items",
   );
+});
+
+it("detects item schemas Gemini declarations reject in schema positions only", () => {
+  // The #5201 report: `properties[functions].items.items: field predicate
+  // failed: $type == Type.ARRAY` for an any-value element type list.
+  expect(
+    strictGatewayItemSchemaErrors(
+      {
+        type: "object",
+        properties: {
+          functions: {
+            type: "array",
+            items: {
+              type: ["null", "boolean", "object", "array", "number", "string"],
+              items: {},
+            },
+          },
+          actions: {
+            type: "array",
+            items: { oneOf: [{ type: "object" }, { type: "string" }] },
+          },
+          nested: {
+            type: "array",
+            items: { type: "array", items: { type: "string" } },
+          },
+        },
+        default: { items: {} },
+        examples: [{ items: {} }],
+      },
+      "injected",
+    ),
+  ).toEqual([
+    'injected.properties.functions.items.items is beside type ["null","boolean","object","array","number","string"]',
+    "injected.properties.actions.items is an untyped union",
+  ]);
 });
 
 it("preserves arbitrary nested JSON values at the converted SDK boundary", async () => {

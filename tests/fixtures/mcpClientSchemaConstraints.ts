@@ -78,3 +78,47 @@ export const unsupportedInputLiteralSchemaError = (
   }
   return undefined;
 };
+
+/**
+ * Gemini function declarations accept `items` only on a schema whose type is
+ * the single `array` type (`items: field predicate failed: $type ==
+ * Type.ARRAY`), and strict gateways drop untyped item unions. Return every
+ * advertised position with either shape so a catalog test names them all.
+ */
+export const strictGatewayItemSchemaErrors = (
+  schema: unknown,
+  path = "$",
+): readonly string[] => {
+  if (!isRecord(schema)) return [];
+  const here: string[] = [];
+  if (schema.items !== undefined && schema.type !== "array")
+    here.push(`${path}.items is beside type ${JSON.stringify(schema.type)}`);
+  const items = schema.items;
+  if (
+    schema.type === "array" &&
+    isRecord(items) &&
+    items.type === undefined &&
+    (Array.isArray(items.oneOf) || Array.isArray(items.anyOf))
+  )
+    here.push(`${path}.items is an untyped union`);
+  return [
+    ...here,
+    ...Object.entries(schema).flatMap(([key, value]) => {
+      if (schemaMaps.has(key) && isRecord(value))
+        return Object.entries(value).flatMap(([name, child]) =>
+          strictGatewayItemSchemaErrors(child, `${path}.${key}.${name}`),
+        );
+      if (schemaArrays.has(key) && Array.isArray(value))
+        return value.flatMap((child: unknown, index) =>
+          strictGatewayItemSchemaErrors(child, `${path}.${key}[${index}]`),
+        );
+      if (schemaChildren.has(key))
+        return Array.isArray(value)
+          ? value.flatMap((child: unknown, index) =>
+              strictGatewayItemSchemaErrors(child, `${path}.${key}[${index}]`),
+            )
+          : strictGatewayItemSchemaErrors(value, `${path}.${key}`);
+      return [];
+    }),
+  ];
+};

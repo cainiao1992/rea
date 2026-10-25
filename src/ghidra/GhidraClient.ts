@@ -858,7 +858,7 @@ export class GhidraClient {
     try {
       const result = await this.#startWithin(deadline);
       return result.ok && deadline.signal.aborted
-        ? this.#startupInterrupted(deadline)
+        ? await this.#startupInterrupted(deadline)
         : result;
     } catch (cause: unknown) {
       if (cause instanceof GhidraSessionError) return err(cause);

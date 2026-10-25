@@ -78,12 +78,16 @@ export const resolveAppBundleExecutable = async (
   try {
     const layout = await presentLayout(path);
     if (layout !== undefined)
-      return resolveLayoutExecutable(path, layout, fileSystem);
+      return await resolveLayoutExecutable(path, layout, fileSystem);
     const wrapped = await wrappedBundle(path);
     if (wrapped !== undefined) {
       const wrappedLayout = await presentLayout(wrapped);
       if (wrappedLayout !== undefined)
-        return resolveLayoutExecutable(wrapped, wrappedLayout, fileSystem);
+        return await resolveLayoutExecutable(
+          wrapped,
+          wrappedLayout,
+          fileSystem,
+        );
     }
   } catch (cause: unknown) {
     if (cause instanceof BinaryTargetError) return err(cause);

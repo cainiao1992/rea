@@ -10,6 +10,7 @@ import {
   type NativeCommandInvocation,
 } from "../domain/native/nativeInspection.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import { machoRuntimeSymbolName } from "../domain/native/machoSymbolName.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { NativeCommandCapture } from "./CommandRunner.js";
 import {
@@ -296,7 +297,9 @@ const normalizeMacho = (
   );
   const imports = missingImportsUuid
     ? []
-    : parseDyldImports(sliceOutput(dyldImportsCapture), hasChainedFixups);
+    : parseDyldImports(sliceOutput(dyldImportsCapture), hasChainedFixups).map(
+        withRuntimeName,
+      );
   const imageBase =
     load.segments.find(
       (segment) => segment.file_offset === 0 && (segment.file_size ?? 0) > 0,
@@ -309,7 +312,9 @@ const normalizeMacho = (
         imageBase,
         new Set(nmExports.map(({ name }) => name)),
       );
-  const exports = uniqueSymbols([...dyldExports, ...nmExports]);
+  const exports = uniqueSymbols([...dyldExports, ...nmExports]).map(
+    withRuntimeName,
+  );
   const dwarfdump = byTool("dwarfdump");
   const uuid = reconcileMachoUuid(
     load.commands,
@@ -487,6 +492,13 @@ const covered = <Value>(
   total: exhaustive ? items.length : null,
   exhaustive,
   limitations: [...limitations],
+});
+
+const withRuntimeName = <Value extends { readonly name: string | null }>(
+  symbol: Value,
+): Value & { readonly runtime_name: string | null } => ({
+  ...symbol,
+  runtime_name: machoRuntimeSymbolName(symbol.name),
 });
 
 const uniqueSymbols = <Value extends { readonly name: string }>(

@@ -49,6 +49,7 @@ mcpTest(
     const empty = { items: [], total: 0, exhaustive: true, limitations: [] };
     const imported = {
       name: null,
+      runtime_name: null,
       raw_name: "_value+0x4",
       name_status: "ambiguous",
       addend: null,
@@ -59,6 +60,7 @@ mcpTest(
     };
     const exported = {
       name: "_value",
+      runtime_name: "value",
       address: "0x1000",
       weak: null,
       reexport: null,

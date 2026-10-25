@@ -275,9 +275,15 @@ it("retains native inventory facts from captured Apple tool output", async () =>
   expect(execution.value.result).toMatchObject({
     imports: {
       items: [
-        { name: "_puts", address: null, source: "libSystem" },
+        {
+          name: "_puts",
+          runtime_name: "puts",
+          address: null,
+          source: "libSystem",
+        },
         {
           name: "_fixture_weak",
+          runtime_name: "fixture_weak",
           address: null,
           source: "<weak-def-coalesce>",
         },
@@ -287,6 +293,7 @@ it("retains native inventory facts from captured Apple tool output", async () =>
       items: expect.arrayContaining([
         expect.objectContaining({
           name: "_fixture_export",
+          runtime_name: "fixture_export",
           address: "0x100000468",
         }),
         expect.objectContaining({
@@ -378,6 +385,7 @@ it("reports a chained bind addend separately in native inspection", async () => 
       items: [
         {
           name: "_fixture_data",
+          runtime_name: "fixture_data",
           raw_name: null,
           name_status: "exact",
           addend: null,
@@ -388,6 +396,7 @@ it("reports a chained bind addend separately in native inspection", async () => 
         },
         {
           name: null,
+          runtime_name: null,
           raw_name: "_fixture_data+0x4",
           name_status: "ambiguous",
           addend: null,

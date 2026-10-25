@@ -7,6 +7,7 @@ import {
 
 const symbol = (name: string) => ({
   name,
+  runtime_name: name.slice(1),
   address: null,
   weak: null,
   reexport: null,
@@ -111,6 +112,7 @@ it("preserves ambiguous import facts without adding import fields to exports", (
   const imported = {
     ...symbol("unused"),
     name: null,
+    runtime_name: null,
     raw_name: "_value+0x4",
     name_status: "ambiguous",
     addend: null,

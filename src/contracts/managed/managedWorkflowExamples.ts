@@ -246,6 +246,7 @@ const nativeExportEvidence = () => {
     exports: coverage([
       {
         name: "open_native",
+        runtime_name: "open_native",
         address: "0x1000",
         weak: false,
         reexport: false,

@@ -224,6 +224,143 @@ describe("compact advertised input schema", () => {
   });
 });
 
+describe("strict gateway compatibility", () => {
+  it("types homogeneous union items without discarding their branches", () => {
+    const original = {
+      type: "object",
+      properties: {
+        actions: {
+          type: "array",
+          items: {
+            oneOf: [
+              {
+                type: "object",
+                properties: { kind: { const: "click" } },
+                required: ["kind"],
+              },
+              {
+                type: "object",
+                properties: { kind: { const: "type" } },
+                required: ["kind"],
+              },
+            ],
+          },
+        },
+      },
+    };
+    const { schema, presentation } = compactAdvertisedInputSchema(
+      original,
+      13 * 1024,
+    );
+    expect(presentation).toBe("inline");
+    const actions = (
+      schema.properties as Record<string, Record<string, unknown>>
+    ).actions;
+    if (actions === undefined) throw new Error("Missing actions property");
+    expect(actions.items).toMatchObject({
+      type: "object",
+      oneOf: original.properties.actions.items.oneOf,
+    });
+    const canonical = new Ajv2020({ strict: false }).compile(original);
+    const advertised = new Ajv2020({ strict: false }).compile(schema);
+    for (const value of [
+      [],
+      [{ kind: "click" }],
+      [{ kind: "type" }],
+      [{ kind: "other" }],
+    ])
+      expect(advertised({ actions: value })).toBe(
+        canonical({ actions: value }),
+      );
+  });
+
+  it("reduces mixed-type union items instead of selecting one branch type", () => {
+    const { schema, presentation } = compactAdvertisedInputSchema(
+      {
+        type: "object",
+        properties: {
+          values: {
+            type: "array",
+            items: { anyOf: [{ type: "string" }, { type: "object" }] },
+          },
+        },
+      },
+      13 * 1024,
+    );
+    expect(presentation).toBe("reduced");
+    const values = (
+      schema.properties as Record<string, Record<string, unknown>>
+    ).values;
+    if (values === undefined) throw new Error("Missing values property");
+    expect(values.type).toBe("array");
+    expect(values.items).toMatchObject({
+      type: expect.arrayContaining(["string", "object"]),
+    });
+    const validate = new Ajv2020({ strict: false }).compile(schema);
+    expect(validate({ values: ["text", {}] })).toBe(true);
+  });
+
+  it("reduces gateway-incompatible enums to explicitly typed properties", () => {
+    const { schema, presentation } = compactAdvertisedInputSchema(
+      {
+        type: "object",
+        properties: { mode: { enum: ["fast", "safe"] } },
+        required: ["mode"],
+      },
+      13 * 1024,
+    );
+    expect(presentation).toBe("reduced");
+    expect(schema.properties).toEqual({ mode: { type: "string" } });
+  });
+
+  it("reduces nested combinators instead of advertising them to strict gateways", () => {
+    const { schema, presentation } = compactAdvertisedInputSchema(
+      {
+        type: "object",
+        properties: {
+          query: {
+            type: "object",
+            properties: {
+              seed: {
+                oneOf: [
+                  { type: "object", properties: { kind: { type: "string" } } },
+                ],
+              },
+            },
+            required: ["seed"],
+          },
+        },
+        required: ["query"],
+      },
+      13 * 1024,
+    );
+    expect(presentation).toBe("reduced");
+    expect(JSON.stringify(schema)).not.toContain("oneOf");
+    expect(schema.properties).toEqual({ query: { type: "object" } });
+  });
+
+  it("does not confuse keyword-named fields with schema keywords", () => {
+    const { schema, presentation } = compactAdvertisedInputSchema(
+      {
+        type: "object",
+        properties: {
+          enum: { type: "string" },
+          oneOf: { type: "string" },
+          default: { type: "boolean" },
+        },
+        required: ["enum", "oneOf"],
+      },
+      13 * 1024,
+    );
+    expect(presentation).toBe("inline");
+    expect(schema.properties).toMatchObject({
+      enum: { type: "string" },
+      oneOf: { type: "string" },
+      default: { type: "boolean" },
+    });
+  });
+});
+
 describe("compact input schema budget and reduction", () => {
   it("budgets repeated-reference expansion before materializing it", () => {
     const definitions: Record<string, unknown> = {

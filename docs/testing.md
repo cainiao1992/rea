@@ -475,6 +475,19 @@ pass that definition through the SDK's `toolDefinition` call option. This keeps
 the selected output-schema validation without eagerly compiling unrelated
 catalog schemas. Re-read definitions if the server advertises a changed list.
 
+For exact nested input constraints, select the full profile explicitly or use
+the full-SDK conformance suite that owns the field. Compact workflow tests
+should assert canonical failure categories and provider-call controls where
+rejection before provider work matters. Do not make today's omission of a
+constraint a compact-profile invariant.
+
+When a file repeatedly validates the same MCP schemas, use
+`createMcpSchemaValidation` for file-owned preparation and clear it in
+`afterAll`. Its content keys include the complete schema, and the SDK provider
+keeps dialect and format validation. Keep sessions and connections scoped to
+each test; share immutable schema preparation through the fixture's validator
+dependency.
+
 Artifact verification uses `artifactMcpCall` for both lifecycle and analysis
 calls. A fresh SDK client has no held tool listing, so a bare `callTool` can
 skip output-schema validation. The helper discovers actual advertised

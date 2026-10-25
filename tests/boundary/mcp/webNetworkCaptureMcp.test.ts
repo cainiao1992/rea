@@ -99,14 +99,20 @@ it("publishes valid SDK schemas and retains historical inline Evidence with the 
     name: "inspect_web_network_capture",
     arguments: { ...args, capture_path: "relative.har" },
   });
-  expect(invalid.isError).toBe(true);
+  expect(parseMcpToolError(invalid).error).toMatchObject({
+    code: "invalid_request",
+    category: "invalid_input",
+  });
   const invalidSensitive = await client.callTool({
     name: "inspect_web_network_capture",
     arguments: { ...args, sensitive_values: ["secret"], mysecret: true },
   });
-  expect(invalidSensitive.isError).toBe(true);
   expect(parseMcpToolError(invalidSensitive)).toMatchObject({
-    error: { code: "invalid_request", details: { issues: [{ path: [] }] } },
+    error: {
+      code: "invalid_request",
+      category: "invalid_input",
+      details: { issues: [{ path: [] }] },
+    },
   });
   expect(JSON.stringify(invalidSensitive)).not.toContain("secret");
   expect(ajv.validate(inputSchema, { ...args, mysecret: true })).toBe(false);

@@ -1253,6 +1253,22 @@ Kimi-K3 backend, not the WorkBuddy MCP client. Set the profile on REA's
 registration in the actual MCP host; the host's name alone does not identify
 the downstream model or its schema constraints.
 
+The compact profile also protects strict Anthropic-compatible gateways from
+known schema-translation failures reported in [#3800](https://github.com/morluto/rea/issues/3800):
+primitive `enum` properties without a sibling `type`, and `oneOf`/`allOf`
+inside a property listed in `required`. Affected schemas use the same reduced
+first-level projection described below, so the gateway receives a plain object
+shape while REA continues to validate the complete canonical contract locally.
+This is a compatibility projection, not a claim that the gateway reproduces
+the full union semantics.
+
+For array items expressed as an untyped `oneOf`/`anyOf`, the compact profile
+adds a type when every branch has the same type. Mixed-type item unions use the
+reduced projection; selecting one branch's type would exclude valid calls.
+This addresses the emitted shape reported through a Gemini-backed gateway in
+[#5201](https://github.com/morluto/rea/issues/5201). Gateway conversion and
+live provider acceptance have not been verified for this projection.
+
 The compact profile renders the same tool set, output schemas, annotations,
 and canonical server-side validation. It changes only the advertised input
 JSON Schema:
@@ -1284,6 +1300,11 @@ Boundary tests pin every advertised compact schema to the budget, keep them
 valid JSON Schema that still accepts every canonical example. Client verification
 also checks provider-facing sizes and canonical examples after conversion by
 the actual Kimi Code CLI; local captures do not establish Moonshot acceptance.
+The SDK catalog test checks that full-profile schemas retain nested ADB extra,
+managed selection, and WASM timeout and detail restrictions. Path-contract tests
+check full-profile local-path rules. Compact MCP workflow tests verify canonical
+rejection of invalid inputs before provider work, independent of how much detail
+the selected advertisement retains.
 
 ### Output schemas
 

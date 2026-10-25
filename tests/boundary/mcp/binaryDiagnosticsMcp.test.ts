@@ -199,7 +199,7 @@ it.each([false, true])(
   },
 );
 
-it("advertises exact valid schemas and records inline layout without a binary target", async () => {
+it("records inline layout with compact schemas and canonical path checks", async () => {
   const value = binaryLayoutFixture();
   let providerClosed = false;
   let providerCalls = 0;
@@ -240,7 +240,6 @@ it("advertises exact valid schemas and records inline layout without a binary ta
   );
   const { ajv, inputSchema } = schemas;
   expect(ajv.validate(inputSchema, { path: value.artifact.path })).toBe(true);
-  expect(ajv.validate(inputSchema, { path: "relative.elf" })).toBe(false);
   expect(
     ajv.validate(inputSchema, {
       path: value.artifact.path,
@@ -279,14 +278,11 @@ it("advertises exact valid schemas and records inline layout without a binary ta
     parent_evidence_id: evidence.evidence_id,
     summary: { format: "elf", bytes: value.artifact.bytes },
   });
-  expect(
-    (
-      await client.callTool({
-        name: "inspect_binary_layout",
-        arguments: { path: "relative.elf" },
-      })
-    ).isError,
-  ).toBe(true);
+  const relative = await client.callTool({
+    name: "inspect_binary_layout",
+    arguments: { path: "relative.elf" },
+  });
+  expect(parseMcpToolError(relative).error.code).toBe("invalid_request");
   expect(providerCalls).toBe(1);
 });
 
@@ -391,9 +387,6 @@ it("records a portable export inventory through MCP without a binary target", as
     "inspect_native_exports",
   );
   expect(schemas.ajv.validate(schemas.inputSchema, { path })).toBe(true);
-  expect(
-    schemas.ajv.validate(schemas.inputSchema, { path: "relative.so" }),
-  ).toBe(false);
   const response = await client.callTool({
     name: "inspect_native_exports",
     arguments: { path },
@@ -426,4 +419,12 @@ it("records a portable export inventory through MCP without a binary target", as
     }),
     "observed",
   );
+  const relative = await client.callTool({
+    name: "inspect_native_exports",
+    arguments: { path: "relative.so" },
+  });
+  expect(parseMcpToolError(relative).error).toMatchObject({
+    code: "invalid_request",
+    details: { issues: [{ path: ["path"], reason: "invalid_format" }] },
+  });
 });

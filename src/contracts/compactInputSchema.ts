@@ -30,6 +30,17 @@ const jsonValueTypes = [
 // arrays, while satisfying clients that require `items` for array types.
 const jsonValueSchema = () => ({ type: [...jsonValueTypes], items: {} });
 
+const enumValueTypes = (values: readonly unknown[]): readonly string[] => [
+  ...new Set(
+    values.map((value) => {
+      if (value === null) return "null";
+      if (Array.isArray(value)) return "array";
+      if (typeof value === "object") return "object";
+      return typeof value;
+    }),
+  ),
+];
+
 export type AdvertisedInputSchemaPresentation = "inline" | "reduced";
 
 /** Budget selected by the caller for compact MCP input-schema presentation. */
@@ -294,6 +305,11 @@ const detectedTypes = (
     schema.type.every((type) => typeof type === "string")
   )
     return schema.type;
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    const enumTypes = enumValueTypes(schema.enum);
+    if (enumTypes.every((type) => jsonValueTypes.includes(type)))
+      return enumTypes;
+  }
   const alternatives = Array.isArray(schema.anyOf)
     ? schema.anyOf
     : Array.isArray(schema.oneOf)
@@ -306,6 +322,89 @@ const detectedTypes = (
   if (types.some((type) => type === undefined)) return undefined;
   return [...new Set(types.flatMap((type) => type ?? []))];
 };
+
+/** Give homogeneous array-item unions the type required by strict gateways. */
+const typeArrayItemUnions = (
+  schema: Record<string, unknown>,
+): Record<string, unknown> => {
+  const references = new JsonSchemaReferences(schema);
+  const visit = (node: unknown): unknown => {
+    const rebuilt = rebuildSchemaPositions(node, visit);
+    if (!isSchemaObject(rebuilt) || rebuilt.type !== "array") return rebuilt;
+    const items = rebuilt.items;
+    if (
+      !isSchemaObject(items) ||
+      items.type !== undefined ||
+      (!Array.isArray(items.oneOf) && !Array.isArray(items.anyOf))
+    )
+      return rebuilt;
+    const types = detectedTypes(items, references, references.rootScope);
+    return types?.length === 1
+      ? { ...rebuilt, items: { ...items, type: types[0] } }
+      : rebuilt;
+  };
+  return visit(schema) as Record<string, unknown>;
+};
+
+/**
+ * Strict gateways reject some nested combinators, primitive enums without a
+ * type, and array items whose union has no explicit type. Homogeneous item
+ * unions gain their shared type; remaining incompatible shapes use the shallow
+ * projection while canonical runtime validation stays intact.
+ */
+const hasGatewayIncompatibleShape = (schema: unknown): boolean => {
+  if (Array.isArray(schema)) return schema.some(hasGatewayIncompatibleShape);
+  if (!isSchemaObject(schema)) return false;
+  if (Array.isArray(schema.anyOf) && schema.anyOf.length === 0) return true;
+  if (
+    schema.type === "array" &&
+    isSchemaObject(schema.items) &&
+    schema.items.type === undefined &&
+    (Array.isArray(schema.items.oneOf) || Array.isArray(schema.items.anyOf))
+  )
+    return true;
+  if (Array.isArray(schema.required) && isSchemaObject(schema.properties)) {
+    for (const name of schema.required) {
+      const property = schema.properties[name];
+      if (isSchemaObject(property) && containsGatewayCombinator(property))
+        return true;
+    }
+  }
+  if (
+    Array.isArray(schema.enum) &&
+    schema.enum.length > 0 &&
+    schema.type === undefined
+  ) {
+    const types = enumValueTypes(schema.enum);
+    if (
+      types.length === 1 &&
+      types.every((type) =>
+        ["string", "number", "boolean", "null"].includes(type),
+      )
+    )
+      return true;
+  }
+  return schemaChildrenAndMaps(schema).some(hasGatewayIncompatibleShape);
+};
+
+const containsGatewayCombinator = (schema: unknown): boolean => {
+  if (Array.isArray(schema)) return schema.some(containsGatewayCombinator);
+  if (!isSchemaObject(schema)) return false;
+  if (schema.oneOf !== undefined || schema.allOf !== undefined) return true;
+  return schemaChildrenAndMaps(schema).some(containsGatewayCombinator);
+};
+
+/** Traverse only schema-valued positions; property names remain opaque data. */
+const schemaChildrenAndMaps = (
+  schema: Readonly<Record<string, unknown>>,
+): readonly unknown[] =>
+  Object.entries(schema).flatMap(([key, value]) => {
+    if (schemaMaps.has(key) && isSchemaObject(value))
+      return Object.values(value);
+    if (schemaArrays.has(key) && Array.isArray(value)) return value;
+    if (schemaChildren.has(key)) return Array.isArray(value) ? value : [value];
+    return [];
+  });
 
 const REDUCED_ANNOTATION =
   "Advertised in reduced form by the compact input schema profile; the server still validates complete canonical inputs.";
@@ -388,8 +487,15 @@ export const compactAdvertisedInputSchema = (
   schema: Record<string, unknown>,
   budgetBytes: number,
 ): CompactedInputSchema => {
-  const inline = inlineWithinBudget(stripAnnotations(schema), budgetBytes);
-  if (inline !== undefined && schemaDepth(inline) <= COMPACT_SCHEMA_MAX_DEPTH)
+  const expanded = inlineWithinBudget(stripAnnotations(schema), budgetBytes);
+  const inline =
+    expanded === undefined ? undefined : typeArrayItemUnions(expanded);
+  if (
+    inline !== undefined &&
+    serializedBytes(inline) <= budgetBytes &&
+    schemaDepth(inline) <= COMPACT_SCHEMA_MAX_DEPTH &&
+    !hasGatewayIncompatibleShape(inline)
+  )
     return { schema: inline, presentation: "inline" };
   const reduced = reduceToShallowProperties(schema);
   if (serializedBytes(reduced) <= budgetBytes)

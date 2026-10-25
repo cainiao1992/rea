@@ -37,9 +37,6 @@ const assertFirstSummaryDelivery = async (
   } = await advertisedMcpToolSchemas(harness.client, "inspect_wasm_artifact");
   const summaryInput = { path: value.artifact.path, detail: "summary" };
   expect(wasmAjv.validate(inputSchema, summaryInput)).toBe(true);
-  expect(
-    wasmAjv.validate(inputSchema, { ...summaryInput, detail: "brief" }),
-  ).toBe(false);
   const directSummary = await harness.client.callTool({
     name: "inspect_wasm_artifact",
     arguments: summaryInput,
@@ -139,7 +136,6 @@ it.each(["bin", "hop"])(
       name: recoveryName ?? "",
       arguments: recoveryInput,
     });
-    expect(inspection.isError).toBe(true);
     expect(parseMcpToolError(inspection)).toMatchObject({
       error: {
         code: "capability_unavailable",
@@ -170,7 +166,7 @@ it.each(["bin", "hop"])(
   },
 );
 
-it("advertises exact valid schemas and records inline WASM interface evidence without a binary target", async () => {
+it("records inline WASM evidence with compact inputs and canonical option checks", async () => {
   const value = wasmArtifactFixture();
   value.tool_profile.timeout_ms = 42_000;
   const close = vi.fn(() => Promise.resolve());
@@ -181,6 +177,7 @@ it("advertises exact valid schemas and records inline WASM interface evidence wi
       return Promise.resolve(ok(wasmArtifactExecution(value)));
     },
   });
+  const inspect = vi.spyOn(service.provider, "inspect");
   const session = createTestBinarySession(() => {
     throw new Error("deep provider must not start");
   });
@@ -203,13 +200,6 @@ it("advertises exact valid schemas and records inline WASM interface evidence wi
         command_timeout_ms,
       }),
     ).toBe(true);
-  for (const command_timeout_ms of [0, -1, 1.5, 2_147_483_648, "1000", null])
-    expect(
-      ajv.validate(inputSchema, {
-        path: value.artifact.path,
-        command_timeout_ms,
-      }),
-    ).toBe(false);
   expect(
     ajv.validate(inputSchema, {
       path: value.artifact.path,
@@ -229,14 +219,27 @@ it("advertises exact valid schemas and records inline WASM interface evidence wi
     value,
     "observed",
   );
-  expect(
-    (
-      await client.callTool({
-        name: "inspect_wasm_artifact",
-        arguments: { path: "relative.hex" },
-      })
-    ).isError,
-  ).toBe(true);
+  expect(inspect).toHaveBeenCalledTimes(1);
+  const invalidDetail = await client.callTool({
+    name: "inspect_wasm_artifact",
+    arguments: { path: value.artifact.path, detail: "brief" },
+  });
+  expect(parseMcpToolError(invalidDetail).error.code).toBe("invalid_request");
+  expect(inspect).toHaveBeenCalledTimes(1);
+  for (const command_timeout_ms of [0, -1, 1.5, 2_147_483_648, "1000", null]) {
+    const invalid = await client.callTool({
+      name: "inspect_wasm_artifact",
+      arguments: { path: value.artifact.path, command_timeout_ms },
+    });
+    expect(parseMcpToolError(invalid).error.code).toBe("invalid_request");
+    expect(inspect).toHaveBeenCalledTimes(1);
+  }
+  const relative = await client.callTool({
+    name: "inspect_wasm_artifact",
+    arguments: { path: "relative.hex" },
+  });
+  expect(parseMcpToolError(relative).error.code).toBe("invalid_request");
+  expect(inspect).toHaveBeenCalledTimes(1);
   await harness.close();
   expect(close).toHaveBeenCalled();
 });

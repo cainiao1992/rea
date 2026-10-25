@@ -79,6 +79,39 @@ const unsupportedDependencyKeywords = (
   });
 };
 
+const untypedUnionItems = (schema: unknown, path = "$"): readonly string[] => {
+  if (typeof schema !== "object" || schema === null || Array.isArray(schema))
+    return [];
+  const node = schema as Record<string, unknown>;
+  const items = node.items;
+  const here =
+    node.type === "array" &&
+    typeof items === "object" &&
+    items !== null &&
+    !Array.isArray(items) &&
+    (Array.isArray((items as Record<string, unknown>).oneOf) ||
+      Array.isArray((items as Record<string, unknown>).anyOf)) &&
+    (items as Record<string, unknown>).type === undefined
+      ? [`${path}.items`]
+      : [];
+  return [
+    ...here,
+    ...Object.entries(node).flatMap(([key, value]) => {
+      if (schemaMaps.has(key) && typeof value === "object" && value !== null)
+        return Object.entries(value).flatMap(([name, child]) =>
+          untypedUnionItems(child, `${path}.${key}.${name}`),
+        );
+      if (schemaArrays.has(key) && Array.isArray(value))
+        return value.flatMap((child, index) =>
+          untypedUnionItems(child, `${path}.${key}[${index}]`),
+        );
+      if (schemaChildren.has(key))
+        return untypedUnionItems(value, `${path}.${key}`);
+      return [];
+    }),
+  ];
+};
+
 const listToolsThroughTransport = async (
   server: EvidenceMcpServer,
 ): Promise<readonly AdvertisedTool[]> => {
@@ -200,6 +233,11 @@ it("advertises every tool input schema within the provider budget", async () => 
   expect(
     tooDeep.map(({ name, inputSchema }) => [name, schemaDepth(inputSchema)]),
   ).toEqual([]);
+  expect(
+    tools.flatMap(({ name, inputSchema }) =>
+      untypedUnionItems(inputSchema).map((path) => `${name}${path.slice(1)}`),
+    ),
+  ).toEqual([]);
 });
 
 it("keeps output schemas and tool descriptions identical to the default profile", async () => {
@@ -270,6 +308,7 @@ it("preserves arbitrary nested JSON values at the converted SDK boundary", async
 });
 
 it("keeps SDK-converted schemas valid and accepting canonical examples", async () => {
+  let checkedFullRestrictions = false;
   for (const profile of ["full", "compact"] as const) {
     const server = profile === "full" ? fullServer() : compactServer();
     registerCatalog(server);
@@ -298,7 +337,84 @@ it("keeps SDK-converted schemas valid and accepting canonical examples", async (
           `${profile} profile, ${tool.name}: ${example.title}`,
         ).toBe(true);
     }
+    if (profile === "full") {
+      const adb = tools.find(({ name }) => name === "start_adb_activity");
+      const managed = tools.find(
+        ({ name }) => name === "inspect_managed_members",
+      );
+      const wasm = tools.find(({ name }) => name === "inspect_wasm_artifact");
+      if (adb === undefined || managed === undefined || wasm === undefined)
+        throw new Error("Missing ADB, managed member, or WASM inspection tool");
+      const validateAdb = ajv.compile(adb.inputSchema);
+      const activity = {
+        serial: "emulator-5554",
+        action: "android.intent.action.MAIN",
+      };
+      expect(
+        validateAdb({
+          ...activity,
+          extras: [
+            { key: "bool", type: "boolean", value: "false" },
+            { key: "int", type: "int", value: "-3" },
+            { key: "long", type: "long", value: "9007199254740993" },
+            { key: "float", type: "float", value: "-1.25" },
+          ],
+        }),
+      ).toBe(true);
+      for (const [type, value] of [
+        ["boolean", ""],
+        ["boolean", "yes"],
+        ["int", "1.5"],
+        ["long", ""],
+        ["float", "garbage"],
+      ])
+        expect(
+          validateAdb({
+            ...activity,
+            extras: [{ key: "invalid", type, value }],
+          }),
+          `${type}: ${value}`,
+        ).toBe(false);
+      const validateManaged = ajv.compile(managed.inputSchema);
+      expect(
+        validateManaged({
+          path: "/artifacts/program.dll",
+          type_names: ["Fixture.Program", "Missing.Type"],
+        }),
+      ).toBe(true);
+      expect(
+        validateManaged({
+          path: "/artifacts/program.dll",
+          type_names: ["Fixture.Program", "Fixture.Program"],
+        }),
+      ).toBe(false);
+      const validateWasm = ajv.compile(wasm.inputSchema);
+      expect(
+        validateWasm({ path: "/artifacts/program", detail: "summary" }),
+      ).toBe(true);
+      expect(
+        validateWasm({ path: "/artifacts/program", detail: "brief" }),
+      ).toBe(false);
+      for (const command_timeout_ms of [1, 42_000, 2_147_483_647])
+        expect(
+          validateWasm({ path: "/artifacts/program", command_timeout_ms }),
+        ).toBe(true);
+      for (const command_timeout_ms of [
+        0,
+        -1,
+        1.5,
+        2_147_483_648,
+        "1000",
+        null,
+      ])
+        expect(
+          validateWasm({ path: "/artifacts/program", command_timeout_ms }),
+          String(command_timeout_ms),
+        ).toBe(false);
+      checkedFullRestrictions = true;
+    }
   }
+  expect(checkedFullRestrictions).toBe(true);
 });
 
 it("omits Gemini-unsupported dependency keywords from both catalog profiles", async () => {

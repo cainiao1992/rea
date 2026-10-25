@@ -1,6 +1,11 @@
 import type { WebPageInspection } from "../domain/browserObservationSchemas.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
-import { inferJsonShape } from "../domain/jsonShape.js";
+import {
+  inferJsonShape,
+  type JsonShapeCapacityFailure,
+} from "../domain/jsonShape.js";
+import { jsonValueByteLength } from "../domain/jsonValueByteLength.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { paddedBase64ByteLength } from "../domain/paddedBase64.js";
 import { WEB_RUNTIME_LIMITS } from "../domain/webRuntime.js";
 import { safeResponseMetadata } from "./CdpSafeMetadata.js";
@@ -16,6 +21,7 @@ import {
 } from "./CdpCaptureValues.js";
 import {
   requestBodyShape,
+  releaseBodyShapes,
   updateResponseBodyShape,
 } from "./CdpCaptureEventBodyShapes.js";
 import {
@@ -252,6 +258,7 @@ export const handleRequestWillBeSent = (
       "network_requests",
       exclusionReasonForUrl(cdpStringValue(request.url)),
     );
+    releaseBodyShapes(state, requestId);
     state.network.delete(requestId);
     state.networkRequestTimestamps.delete(requestId);
     return;
@@ -283,6 +290,7 @@ export const handleRequestWillBeSent = (
       // redirectResponse belongs to the same request ID and can contain an
       // excluded origin. Drop the entire chain before retaining any details.
       state.completeness.exclude("network_requests", responseUrlReason);
+      releaseBodyShapes(state, requestId);
       state.network.delete(requestId);
       state.networkRequestTimestamps.delete(requestId);
       return;
@@ -405,6 +413,7 @@ export const handleResponseReceived = (
         ? "invalid_protocol_value"
         : exclusionReasonForUrl(cdpStringValue(response.url)),
     );
+    releaseBodyShapes(state, requestId);
     state.network.delete(requestId);
     state.networkRequestTimestamps.delete(requestId);
     return;
@@ -582,20 +591,27 @@ export const handleWebSocketFrame = (
         : (paddedBase64ByteLength(payload) ?? null);
   if (opcode === null || payloadBytes === null)
     state.completeness.exclude("websocket_frames", "invalid_protocol_value");
-  const payloadShape = captureWebSocketShape(state, payload, opcode);
-  // The frame retains its shape summary, not the payload, and the shape grows
-  // with the payload's own keys; the shared retained-event budget bounds the
-  // retained frames and a refused frame stays counted as a dropped event.
-  const entryBytes =
-    RETAINED_EVENT_ENTRY_OVERHEAD_BYTES +
-    stringByteLength(direction) +
-    (payloadShape === null
-      ? 0
-      : Buffer.byteLength(JSON.stringify(payloadShape), "utf8"));
-  if (
-    entryBytes >
-    WEB_RUNTIME_LIMITS.retainedEventBytes - state.retainedEventBytes
-  ) {
+  const availableBytes =
+    WEB_RUNTIME_LIMITS.retainedEventBytes - state.retainedEventBytes;
+  const baseBytes =
+    RETAINED_EVENT_ENTRY_OVERHEAD_BYTES + stringByteLength(direction);
+  if (baseBytes > availableBytes) {
+    state.completeness.drop("websocket_frames");
+    return;
+  }
+  const captured = captureWebSocketShape(
+    state,
+    payload,
+    opcode,
+    availableBytes - baseBytes,
+  );
+  if (!captured.ok) {
+    state.completeness.drop("websocket_frames");
+    state.completeness.exclude("websocket_shapes", "resource_budget_exhausted");
+    return;
+  }
+  const entryBytes = baseBytes + captured.value.serializedBytes;
+  if (entryBytes > availableBytes) {
     state.completeness.drop("websocket_frames");
     return;
   }
@@ -604,24 +620,56 @@ export const handleWebSocketFrame = (
     direction,
     opcode,
     payload_bytes: payloadBytes,
-    payload_shape: payloadShape,
+    payload_shape: captured.value.payloadShape,
   });
 };
+
+type WebSocketShape =
+  WebPageInspection["network"]["websocket_connections"][number]["events"][number]["payload_shape"];
+const jsonShapeEnvelopeBytes =
+  jsonValueByteLength({ format: "json", json_shape: null }) -
+  jsonValueByteLength(null);
 
 const captureWebSocketShape = (
   state: CdpCaptureEventsState,
   payload: string | undefined,
   opcode: number | null,
-): WebPageInspection["network"]["websocket_connections"][number]["events"][number]["payload_shape"] => {
-  if (!state.input.include_websocket_shapes) return null;
-  if (opcode === null) return null;
-  if (opcode !== 1) return { format: "binary", json_shape: null };
-  if (payload === undefined) return null;
-  const shape = inferJsonShape(payload);
-  return {
-    format: shape === null ? "text" : "json",
-    json_shape: shape,
+  maximumBytes: number,
+): Result<
+  { readonly payloadShape: WebSocketShape; readonly serializedBytes: number },
+  JsonShapeCapacityFailure
+> => {
+  if (!state.input.include_websocket_shapes || opcode === null)
+    return ok({ payloadShape: null, serializedBytes: 0 });
+  if (opcode !== 1) {
+    const payloadShape: WebSocketShape = { format: "binary", json_shape: null };
+    return ok({
+      payloadShape,
+      serializedBytes: jsonValueByteLength(payloadShape),
+    });
+  }
+  if (payload === undefined)
+    return ok({ payloadShape: null, serializedBytes: 0 });
+  const parsed = inferJsonShape(
+    payload,
+    Math.max(0, maximumBytes - jsonShapeEnvelopeBytes),
+  );
+  if (!parsed.ok) {
+    if (parsed.error.kind === "capacity") return err(parsed.error);
+    const payloadShape: WebSocketShape = { format: "text", json_shape: null };
+    return ok({
+      payloadShape,
+      serializedBytes: jsonValueByteLength(payloadShape),
+    });
+  }
+  const payloadShape: WebSocketShape = {
+    format: "json",
+    json_shape: parsed.value.shape,
   };
+  return ok({
+    payloadShape,
+    serializedBytes: jsonShapeEnvelopeBytes + parsed.value.serializedBytes,
+  });
 };
 
 export const handleWebSocketCreated = (

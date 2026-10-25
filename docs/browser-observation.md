@@ -434,6 +434,17 @@ complete Structured Field Item, including parameters such as `report-to`.
 These are declarations, not an assessment of the document's effective policy;
 absent, malformed or non-token items project as `null`.
 
+Console entries, WebSocket frame summaries, and selected request/response JSON
+shape outputs share one 8 MiB retained-observation allowance per capture. Shape
+inference admits expanded path bytes before allocating those paths, including
+escaped and Unicode property names. Replacing or removing a request's shapes
+refunds their retained charges. A refused body shape preserves network metadata
+and any captured peer shape with `resource_budget_exhausted` coverage; a refused
+WebSocket frame is counted as dropped rather than reclassified as non-JSON text.
+The allowance has no runtime override. Protocol messages and JSON input parsing
+remain subject to their separate transport admission; this output allowance does
+not bound the whole process heap.
+
 REA retains local observation data and removes only URL userinfo credentials, explicitly declared scenario secrets, and values from structured credential/storage fields:
 
 - URL observations preserve the complete local URL, including query values, fragments, duplicate parameters, and their order. Only username/password userinfo is removed; malformed original URL strings remain available with `origin: null`.

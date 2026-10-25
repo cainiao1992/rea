@@ -80,7 +80,7 @@ it("drops a websocket frame whose retained shape alone exceeds the shared budget
     },
   });
   const keys = Array.from(
-    { length: 900_000 },
+    { length: 120_000 },
     (_value, index) => `key${String(index)}`,
   );
   events.ingest({
@@ -125,7 +125,7 @@ it("spends one shared allowance across console entries and websocket frames", ()
     params: { requestId: "socket", url: `ws://${origin.slice(7)}/live` },
   });
   const keys = Array.from(
-    { length: 200_000 },
+    { length: 20_000 },
     (_value, index) => `key${String(index)}`,
   );
   events.ingest({

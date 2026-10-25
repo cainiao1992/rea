@@ -7,8 +7,8 @@ import type { BrowserScenarioCaptureLimits } from "../../domain/browserScenarioC
 import type {
   BrowserScenarioEventAdmission,
   BrowserScenarioEventBudgetReason,
+  BrowserScenarioEvent,
 } from "../../domain/browserScenarioCaptureValues.js";
-import type { BrowserScenarioEvent } from "../../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSecrets } from "../BrowserScenarioSecrets.js";
 import {
   captureNetworkBody,

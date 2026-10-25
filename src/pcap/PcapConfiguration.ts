@@ -4,9 +4,11 @@ import { delimiter, isAbsolute, join } from "node:path";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
 import type { ProviderRejectionCode } from "../contracts/providerSelection.js";
 import type { AnalysisErrorOptions } from "../domain/analysisErrorBase.js";
-import { AnalysisCapabilityUnavailableError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisCapabilityUnavailableError,
+  AnalysisArtifactChangedError,
+} from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { AnalysisArtifactChangedError } from "../domain/analysisErrorCore.js";
 
 export interface WiresharkExecutableIdentity {
   readonly bytes: number;

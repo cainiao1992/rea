@@ -141,7 +141,9 @@ export interface DoctorHost {
     clientIds: readonly string[] | undefined,
   ): Promise<InstalledSkillIdentity | undefined>;
   close?(): Promise<string | undefined>;
-  clientRegistrations?(): Promise<readonly ClientRegistrationStatus[]>;
+  clientRegistrations?(
+    selectedClientIds?: readonly string[],
+  ): Promise<readonly ClientRegistrationStatus[]>;
   ilspyCmdVersion?(path: string): Promise<string | undefined>;
 }
 
@@ -369,7 +371,7 @@ const collectDoctorIdentity = async (
   readonly value: DoctorIdentity;
 }> => {
   const installationPaths = (await host.installationPaths?.()) ?? [];
-  const registrations = (await host.clientRegistrations?.()) ?? [];
+  const registrations = (await host.clientRegistrations?.(scope.clients)) ?? [];
   const skillClientIds =
     scope.skill_clients ??
     (scope.clients.length > 0 ? scope.clients : undefined);
@@ -742,11 +744,12 @@ export const systemDoctorHost = (
         throw failure;
       }
     },
-    clientRegistrations: () =>
+    clientRegistrations: (selectedClientIds) =>
       readClientRegistrationStatuses(homeDirectory, undefined, {
         platform,
         environment,
         resources,
+        ...(selectedClientIds === undefined ? {} : { selectedClientIds }),
         ...(resolveProviderRequestBudget === undefined
           ? {}
           : {

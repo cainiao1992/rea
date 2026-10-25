@@ -32,6 +32,13 @@ import {
 import {
   ghidraMipsProfileMismatchReason,
   ghidraPinnedMipsLanguage,
+  GHIDRA_MIPS_SOFT_FLOAT_STORAGE,
+  ghidraMips1Limitations,
+  ghidraMipsSoftFloatFailure,
+  ghidraMipsRelocatableLimitations,
+  ghidraMipsSharedLimitations,
+  ghidraMipsSoftFloatLimitations,
+  isGhidraMipsSoftFloatTarget,
 } from "./GhidraMipsProfile.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
@@ -77,15 +84,6 @@ import {
   GHIDRA_PSP_LIMITATIONS,
 } from "./GhidraPspProfile.js";
 import { ghidraPspExtensionSchema } from "./GhidraPspExtension.js";
-import {
-  GHIDRA_MIPS_SOFT_FLOAT_STORAGE,
-  ghidraMips1Limitations,
-  ghidraMipsSoftFloatFailure,
-  ghidraMipsRelocatableLimitations,
-  ghidraMipsSharedLimitations,
-  ghidraMipsSoftFloatLimitations,
-  isGhidraMipsSoftFloatTarget,
-} from "./GhidraMipsProfile.js";
 import { ghidraRiscvLimitations } from "./GhidraRiscvProfile.js";
 import { ghidraPePdbLimitations } from "./GhidraPeProfile.js";
 import { unverifiedGhidraBuildLimitation } from "./GhidraReleasePolicy.js";

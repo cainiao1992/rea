@@ -1,6 +1,8 @@
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
-import { ArtifactResourceRetryFailure } from "../artifacts/ArtifactResourceScope.js";
-import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import {
+  ArtifactResourceRetryFailure,
+  ArtifactResourceScope,
+} from "../artifacts/ArtifactResourceScope.js";
 import { withArtifactRegularFile } from "../artifacts/ArtifactFileOperation.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";

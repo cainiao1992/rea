@@ -11,8 +11,7 @@ import {
   captureFrames,
   inspectCdpElectronPage,
 } from "./CdpElectronInspection.js";
-import type { CdpEvent } from "./CdpConnection.js";
-import type { CdpConnection } from "./CdpConnection.js";
+import type { CdpEvent, CdpConnection } from "./CdpConnection.js";
 import {
   ingestElectronScriptEvent,
   type ElectronScriptDraft,

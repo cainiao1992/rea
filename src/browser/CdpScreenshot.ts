@@ -3,7 +3,10 @@ import type {
   CaptureWebScreenshotInput,
   WebScreenshot,
 } from "../domain/webScreenshot.js";
-import { createWebScreenshotArtifact } from "../domain/webScreenshot.js";
+import {
+  createWebScreenshotArtifact,
+  decodeCanonicalBase64,
+} from "../domain/webScreenshot.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
 import { cdpOriginScopeRefusal } from "./CdpOriginScopeError.js";
 import {
@@ -24,7 +27,6 @@ import {
 } from "./CdpCaptureDocuments.js";
 
 import { CdpCaptureCompleteness } from "./CdpCaptureCompleteness.js";
-import { decodeCanonicalBase64 } from "../domain/webScreenshot.js";
 import { readPngHeaderDimensions } from "../domain/pngHeader.js";
 
 interface ScreenshotContext {

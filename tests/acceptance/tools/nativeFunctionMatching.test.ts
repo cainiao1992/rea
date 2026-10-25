@@ -9,9 +9,9 @@ import {
   nativeMatchingNamedInventory as nativeMatchingInventory,
   nativeMatchingDetails,
   nativeMatchingTarget,
+  nativeMatchingProvider,
 } from "../../fixtures/nativeFunctionMatching.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
-import { nativeMatchingProvider } from "../../fixtures/nativeFunctionMatching.js";
 import { procedureInfoSchema } from "../../../src/domain/native/procedureInfo.js";
 import {
   createEvidenceBundle,

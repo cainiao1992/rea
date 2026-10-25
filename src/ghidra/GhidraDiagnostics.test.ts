@@ -1,7 +1,9 @@
 import { ProcessOutputTokenScanner } from "../process/ProcessOutputTokenScanner.js";
-import { ghidraFailureOutput } from "./GhidraDiagnostics.js";
+import {
+  ghidraFailureOutput,
+  createGhidraDiagnostics,
+} from "./GhidraDiagnostics.js";
 import { expect, it } from "vitest";
-import { createGhidraDiagnostics } from "./GhidraDiagnostics.js";
 
 it("does not reuse historical operation-scoped failure output without a current owner", () => {
   const diagnostics = createGhidraDiagnostics({

@@ -9,7 +9,10 @@ import {
 } from "../artifacts/AnalysisCleanupLease.js";
 import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type {
+  BinaryTarget,
+  HeaderArchitecture,
+} from "../domain/binaryTargetTypes.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -22,7 +25,6 @@ import {
   type FatSliceDeclaration,
 } from "../domain/apple/machoContainer.js";
 import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
-import type { HeaderArchitecture } from "../domain/binaryTargetTypes.js";
 import {
   HopperCancelledError,
   HopperStartError,

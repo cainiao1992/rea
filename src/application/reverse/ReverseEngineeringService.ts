@@ -15,12 +15,12 @@ import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
   AnalysisTimeoutError,
+  AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
 import {
   AnalysisError,
   type AnalysisCleanupObservation,
 } from "../../domain/analysisErrorBase.js";
-import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { createEvidence, type Evidence } from "../../domain/evidence.js";
 import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";

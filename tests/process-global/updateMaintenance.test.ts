@@ -218,9 +218,11 @@ describe("maintenance activation and layered configuration", () => {
       }),
     );
 
+    // The fallback row is also FreeBuff's registration, and FreeBuff is the
+    // setup action that rewrites it, so both views stay in maintenance scope.
     await expect(
       existingMaintenanceScope(home, entryPoint, process.env),
-    ).resolves.toMatchObject({ clients: ["zcode"] });
+    ).resolves.toMatchObject({ clients: ["freebuff", "zcode"] });
   });
 
   it("selects an enabled registration inherited through layered OpenCode files", async () => {
@@ -425,6 +427,93 @@ describe("existing REA integration maintenance", () => {
       status: "unavailable",
       remediation: "EACCES /test/.codex/config.toml",
     });
+  });
+});
+
+describe("shared registration maintenance", () => {
+  it("refreshes an owned shared registration without its product profile", async () => {
+    // FreeBuff's registration lives in the shared user agents file. The row is
+    // owned, so maintenance must refresh it even though no FreeBuff profile
+    // exists to establish product applicability.
+    await writeClient(
+      "freebuff",
+      JSON.stringify({
+        mcpServers: {
+          other: { command: "other-server" },
+          rea: { command: entryPoint, args: ["mcp"] },
+        },
+      }),
+    );
+    await expect(
+      existingMaintenanceScope(home, entryPoint, process.env),
+    ).resolves.toEqual({
+      clients: ["freebuff"],
+      skill: false,
+      skillDestinations: [],
+    });
+  });
+
+  it("retains FreeBuff when ZCode reads the shared fallback", async () => {
+    // Both products load the one shared row, but their setup actions write
+    // different files: ZCode writes ~/.zcode/cli/config.json and deliberately
+    // leaves ~/.agents/mcp.json untouched (docs/client-configuration.md), so
+    // its fallback view cannot cover FreeBuff's registration. The shared row
+    // would stay pinned to the old version without FreeBuff's own action.
+    await writeClient("zcode", JSON.stringify({ mcp: { servers: {} } }));
+    await mkdir(join(home, ".config", "freebuff-desktop"), {
+      recursive: true,
+    });
+    await writeClient(
+      "freebuff",
+      JSON.stringify({
+        mcpServers: {
+          rea: { command: "npx", args: ["-y", "rea-agents@0.1.0", "mcp"] },
+        },
+      }),
+    );
+
+    await expect(
+      existingMaintenanceScope(home, entryPoint, process.env),
+    ).resolves.toMatchObject({ clients: ["freebuff", "zcode"] });
+  });
+
+  it("leaves a foreign shared registration out of maintenance", async () => {
+    await writeClient(
+      "freebuff",
+      JSON.stringify({
+        mcpServers: { rea: { command: "foreign-server", args: [] } },
+      }),
+    );
+    await expect(
+      existingMaintenanceScope(home, entryPoint, process.env),
+    ).resolves.toEqual({
+      clients: [],
+      skill: false,
+      skillDestinations: [],
+    });
+  });
+
+  it("leaves a ZCode-disabled shared row out of maintenance", async () => {
+    // The shared file doubles as ZCode's fallback, where `enable: false`
+    // disables the registration. Ownership evidence must not let maintenance
+    // rewrite the row as a FreeBuff registration and drop that flag.
+    const configPath = await writeClient(
+      "freebuff",
+      JSON.stringify({
+        mcpServers: {
+          rea: { command: entryPoint, args: ["mcp"], enable: false },
+        },
+      }),
+    );
+    const original = await readFile(configPath, "utf8");
+    await expect(
+      existingMaintenanceScope(home, entryPoint, process.env),
+    ).resolves.toEqual({
+      clients: [],
+      skill: false,
+      skillDestinations: [],
+    });
+    expect(await readFile(configPath, "utf8")).toBe(original);
   });
 });
 

@@ -19,9 +19,11 @@ import { parseConfig } from "../config/parseConfig.js";
 import { IdaProvider } from "./IdaProvider.js";
 import { idaCapabilities } from "./IdaProviderCapabilities.js";
 import { IdaSessionClient } from "./IdaSessionClient.js";
-import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
+import type {
+  RetainedResourceScope,
+  AnalysisProfileResolution,
+} from "../application/AnalysisProvider.js";
 import { ProviderInspectionScope } from "../providers/ProviderInspectionScope.js";
-import type { AnalysisProfileResolution } from "../application/AnalysisProvider.js";
 import type { AnalysisProfileCommitment } from "../domain/analysisProfile.js";
 
 const resourceScope: RetainedResourceScope = {

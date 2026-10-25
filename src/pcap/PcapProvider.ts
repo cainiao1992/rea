@@ -1,8 +1,6 @@
-import type {
-  ExecutionOptions,
-  ProviderAvailability,
-} from "../application/AnalysisProvider.js";
 import {
+  type ExecutionOptions,
+  type ProviderAvailability,
   createAnalysisExecution,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";

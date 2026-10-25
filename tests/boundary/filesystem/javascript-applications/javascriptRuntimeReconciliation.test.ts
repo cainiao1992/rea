@@ -17,8 +17,10 @@ import {
   readRuntimeReconciliationInput,
   reconcileJavaScriptRuntime,
 } from "../../../../src/domain/javascript/javascriptRuntimeReconciliation.js";
-import { reconcileJavaScriptRuntimeInputSchema } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
-import { javascriptRuntimeReconciliationResultSchema } from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
+import {
+  reconcileJavaScriptRuntimeInputSchema,
+  javascriptRuntimeReconciliationResultSchema,
+} from "../../../../src/domain/javascript/javascriptRuntimeReconciliationSchemas.js";
 import { electronActiveObservationInputSchema } from "../../../../src/domain/javascript/electronActiveObservation.js";
 import { createElectronActiveObservationFixtureResult } from "../../../../src/domain/javascript/electronActiveObservation.fixture.js";
 

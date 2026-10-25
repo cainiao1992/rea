@@ -1,11 +1,13 @@
-import type { JavaScriptSemanticProjectionCapacity } from "./javascriptSemanticFileProjection.js";
+import type {
+  JavaScriptSemanticProjectionCapacity,
+  JavaScriptSemanticFileProjection,
+} from "./javascriptSemanticFileProjection.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import type { AnalysisResourceConstraintError } from "../analysisErrorCore.js";
 import type { Result } from "../result.js";
 import type { JavaScriptArtifactFile } from "./javascriptArtifactFiles.js";
 import type { JavaScriptStaticAnalysis } from "./javascriptStaticAnalysisTypes.js";
 import type { JavaScriptModuleSemanticIr } from "./javascriptModuleSemanticIr.js";
-import type { JavaScriptSemanticFileProjection } from "./javascriptSemanticFileProjection.js";
 
 /** Portable facts collected from one inert source. */
 export interface JavaScriptAnalyzedSource {

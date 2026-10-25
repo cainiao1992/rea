@@ -1,4 +1,4 @@
-import { skillDestinations } from "./SetupSkill.js";
+import { skillDestinations, SetupSkillInstallError } from "./SetupSkill.js";
 import type {
   ClientConfigurationInspection,
   ClientConfigurationResult,
@@ -9,7 +9,6 @@ import type {
 import type { SetupClient } from "./SupportedClients.js";
 import type { SetupHopperInstallResult } from "./SetupInstallFailure.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { SetupSkillInstallError } from "./SetupSkill.js";
 import type {
   DoctorCheck,
   DoctorProviderInspection,

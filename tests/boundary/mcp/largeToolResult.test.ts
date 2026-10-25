@@ -28,9 +28,9 @@ import { MINIMUM_RESPONSE_BYTES } from "../../../src/config/mcpResponseBudget.js
 import {
   MCP_RESULT_STRING_LIMIT,
   NODE_MAX_STRING_LENGTH,
+  encodeToolResult,
 } from "../../../src/server/toolResultEncoding.js";
 import { EvidenceMcpServer } from "../../../src/server/EvidenceMcpServer.js";
-import { encodeToolResult } from "../../../src/server/toolResultEncoding.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 const delivery = createToolResultDelivery(STDIO_DEFAULT_MAX_BUFFER_SIZE);

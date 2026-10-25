@@ -2,12 +2,12 @@ import { randomUUID, createHash } from "node:crypto";
 import { access, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import type { WasmArtifactExecutionOptions } from "../application/wasm/WasmArtifactPort.js";
-import { createAnalysisExecution } from "../application/AnalysisProvider.js";
 import type {
+  WasmArtifactExecutionOptions,
   WasmArtifactExecution,
   WasmArtifactPort,
 } from "../application/wasm/WasmArtifactPort.js";
+import { createAnalysisExecution } from "../application/AnalysisProvider.js";
 import {
   completedStableArtifact,
   readStableArtifact,

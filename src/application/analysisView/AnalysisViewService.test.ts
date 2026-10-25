@@ -7,6 +7,9 @@ import {
   analysisViewObjectDenseCapture,
   environmentManifestCaptureFixture,
   environmentStateCaptureFixture,
+  analysisViewJavaScriptAnalysisWithSource,
+  analysisViewJavaScriptEvidence,
+  analysisViewLayoutEvidence,
 } from "../../../tests/fixtures/analysisView.js";
 import { describe, expect, it } from "vitest";
 
@@ -19,11 +22,6 @@ import {
 import { inspectAnalysisViewInputSchema } from "../../domain/analysisView/analysisView.js";
 import { functionDossierSchema } from "../../domain/hopperValues.js";
 import { ghidraFunctionDossier } from "../../domain/ghidraValues.fixture.js";
-import {
-  analysisViewJavaScriptAnalysisWithSource,
-  analysisViewJavaScriptEvidence,
-  analysisViewLayoutEvidence,
-} from "../../../tests/fixtures/analysisView.js";
 import {
   inspectAnalysisView,
   inspectAnalysisViewValidated,

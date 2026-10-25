@@ -6,11 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 
-import type {
-  ExecutionOptions,
-  ProviderAvailability,
-} from "../application/AnalysisProvider.js";
 import {
+  type ExecutionOptions,
+  type ProviderAvailability,
   createAnalysisExecution,
   type AnalysisExecution,
 } from "../application/AnalysisProvider.js";
@@ -26,8 +24,8 @@ import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
   AnalysisUnsupportedTargetError,
+  AnalysisProtocolError,
 } from "../domain/analysisErrorCore.js";
-import { AnalysisProtocolError } from "../domain/analysisErrorCore.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { fixedAllowanceOptions } from "../domain/fixedAllowanceRemediation.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";

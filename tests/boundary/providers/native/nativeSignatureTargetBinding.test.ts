@@ -14,7 +14,11 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { signatureInspectionFixture } from "../../../fixtures/nativeCommands.js";
+import {
+  signatureInspectionFixture,
+  NativeFixtureRunner,
+  nativeMachoTargetForFile,
+} from "../../../fixtures/nativeCommands.js";
 import { resolvedAnalysisError } from "../../../../src/domain/analysisErrorBase.js";
 import { parseBinaryTarget } from "../../../../src/application/BinaryTargetResolver.js";
 import { NativeMacOSProvider } from "../../../../src/native/NativeMacOSProvider.js";
@@ -31,10 +35,6 @@ import {
 import { inspectSignatureSchema } from "../../../../src/domain/native/nativeInspection.js";
 import { err, ok } from "../../../../src/domain/result.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
-import {
-  NativeFixtureRunner,
-  nativeMachoTargetForFile,
-} from "../../../fixtures/nativeCommands.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 
 const CONTENT = "registered executable bytes";

@@ -10,10 +10,12 @@ import {
 } from "../support/reverseEngineeringCompositionFixtures.js";
 
 import { TestReverseEngineeringService as ReverseEngineeringService } from "../support/reverseEngineeringService.js";
-import { AnalysisCapabilityUnavailableError } from "../../src/domain/analysisErrorCore.js";
+import {
+  AnalysisCapabilityUnavailableError,
+  AnalysisResourceConstraintError,
+} from "../../src/domain/analysisErrorCore.js";
 import { ReverseEngineeringService as CoreReverseEngineeringService } from "../../src/application/reverse/ReverseEngineeringService.js";
 import { createReverseEngineeringCommandPort } from "../../src/composition/reverseEngineering.js";
-import { AnalysisResourceConstraintError } from "../../src/domain/analysisErrorCore.js";
 import { objdumpCommand } from "../../src/objdump/ObjdumpCommand.js";
 import {
   OwnedCommandFailure,

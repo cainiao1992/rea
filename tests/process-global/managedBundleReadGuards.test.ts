@@ -5,15 +5,15 @@ import { parseMcpToolError } from "../fixtures/mcpToolError.js";
 import { loadNativeMatchingBundleSources } from "../../src/application/native/NativeMatchingBundleSources.js";
 import { NativeMatchingAdmission } from "../../src/application/native/NativeMatchingAdmission.js";
 import { matchNativeFunctionsInputSchema } from "../../src/contracts/native/functionMatchingContracts.js";
-import { createEvidence } from "../../src/domain/evidence.js";
-import { runProviderAnalysis } from "../../src/application/DirectAnalysis.js";
-import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";
-import { parseConfig } from "../../src/config/parseConfig.js";
 import {
+  createEvidence,
   isImmutableEvidence,
   parseEvidence,
   type Evidence,
 } from "../../src/domain/evidence.js";
+import { runProviderAnalysis } from "../../src/application/DirectAnalysis.js";
+import type { DirectAnalysisDependencies } from "../../src/application/DirectAnalysisDependencies.js";
+import { parseConfig } from "../../src/config/parseConfig.js";
 import { ok } from "../../src/domain/result.js";
 import { observed } from "../fixtures/analysisExecution.js";
 import {

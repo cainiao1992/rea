@@ -196,6 +196,18 @@ const managedConnectionKeys = new Set([
   "httpUrl",
 ]);
 
+/** Whether a rea setup repair for this target preserves the row's
+ * `enable: false` instead of dropping it. Shared registration doubles as
+ * ZCode's fallback, so the activation fact belongs to every reader; a repair
+ * preserves it instead of silently re-enabling a row it does not own. A
+ * client's own native storage has a single reader, so an explicitly selected
+ * setup may still repair it. Doctor's remediation reads this same rule so a
+ * preserved disable never points at an ineffective setup run. */
+export const setupPreservesDisabledActivation = (
+  client: Pick<SetupClient, "sharedRegistration">,
+  format: string | undefined,
+): boolean => client.sharedRegistration === true || format === "zcode_fallback";
+
 /** Patch a source fragment, retaining client-owned settings rather than rebuilding it. */
 export const refreshClientRegistration = (
   client: SetupClient,
@@ -226,6 +238,11 @@ export const refreshClientRegistration = (
       ),
     ),
   };
+  if (
+    setupPreservesDisabledActivation(client, dialect) &&
+    existing.enable === false
+  )
+    registration.enable = false;
   if (client.name === "codex" || client.name === "grok_build")
     registration.startup_timeout_sec =
       (client.name === "codex"

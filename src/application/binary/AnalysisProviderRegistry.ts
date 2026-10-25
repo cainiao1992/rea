@@ -39,13 +39,13 @@ import type {
   ProviderAvailability,
   ProviderIdentity,
   ProviderTargetSupport,
+  RetainedResourceScope,
 } from "../AnalysisProvider.js";
 import {
   evaluateAnalysisProviderCandidate,
   type AnalysisProviderCandidateEvaluation,
 } from "./AnalysisProviderEvaluation.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
-import type { RetainedResourceScope } from "../AnalysisProvider.js";
 
 /** Deterministic discovery truth for one configured deep provider. */
 export interface AnalysisProviderCandidateStatus {

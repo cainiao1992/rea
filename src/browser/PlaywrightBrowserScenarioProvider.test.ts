@@ -1,4 +1,7 @@
-import { failBrowserScenarioOperation } from "./PlaywrightScenarioBrowser.js";
+import {
+  failBrowserScenarioOperation,
+  PlaywrightScenarioBrowserCleanupOwner,
+} from "./PlaywrightScenarioBrowser.js";
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 // Fake-backed composition coverage; real browser verification lives in
 // `npm run verify:browser`.
@@ -7,7 +10,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { BrowserScenarioSessionPort } from "./BrowserScenarioSessionPort.js";
 import { PlaywrightBrowserScenarioProvider } from "./PlaywrightBrowserScenarioProvider.js";
 import { sanitizeBrowserUrl } from "../domain/browserObservation.js";
-import { PlaywrightScenarioBrowserCleanupOwner } from "./PlaywrightScenarioBrowser.js";
 import {
   browserScenarioSchema,
   type BrowserScenario,

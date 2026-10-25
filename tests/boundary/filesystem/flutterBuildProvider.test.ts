@@ -11,8 +11,8 @@ import {
   engineFixtureImage,
   buildElf64Image,
   REFERENCE_HASH,
+  snapshotSection,
 } from "../../../src/flutter/FlutterBuild.fixture.js";
-import { snapshotSection } from "../../../src/flutter/FlutterBuild.fixture.js";
 import { FlutterBuildProvider } from "../../../src/flutter/FlutterBuildProvider.js";
 import { FlutterBuildAnalysisService } from "../../../src/application/flutter/FlutterBuildAnalysisService.js";
 import { finishAnalysisCommand } from "../../../src/cli/finishAnalysisCommand.js";

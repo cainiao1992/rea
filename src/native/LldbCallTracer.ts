@@ -14,9 +14,11 @@ import {
   AnalysisTimeoutError,
 } from "../domain/analysisErrorCore.js";
 import { EvidenceIntegrityError } from "../domain/evidenceErrors.js";
-import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import type {
+  AnalysisError,
+  AnalysisCleanupObservation,
+} from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
-import type { AnalysisCleanupObservation } from "../domain/analysisErrorBase.js";
 import type { NativeCallPartialObservation } from "../domain/native/nativeCallPartialObservation.js";
 import {
   nativeCallEventSchema,

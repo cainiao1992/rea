@@ -1,6 +1,9 @@
 import type { ExecutableFormatHint } from "../domain/dosCom.js";
 import { dispatchQueuedInterrupts } from "../process/queuedInterrupts.js";
-import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
+import type {
+  BinaryArchitecture,
+  BinaryTarget,
+} from "../domain/binaryTargetTypes.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { DirectAnalysisDependencies } from "./DirectAnalysisDependencies.js";
 import type { BinarySession } from "./binary/BinarySession.js";
@@ -31,7 +34,6 @@ import { access, stat } from "node:fs/promises";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { requiresNativeSourceAdmissionBeforeReplay } from "./binary/AnalysisSnapshotCache.js";
 import { classifyBinaryTargetFilesystemFailure } from "./BinaryTargetResolver.js";
-import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import {
   snapshotEvidenceForQuery,
   snapshotMatchesTarget,

@@ -12,8 +12,7 @@ import {
   evidenceCompletionRecordSchema,
   type EvidenceCompletionLedger,
 } from "./evidenceCompletionLedger.js";
-import { digestSchema } from "./../domain/digests.js";
-import { prefixedDigestSchema } from "./../domain/digests.js";
+import { digestSchema, prefixedDigestSchema } from "./../domain/digests.js";
 
 const identifierSchema = z.string().regex(IDENTIFIER_PATTERN);
 const identitySchema = z.strictObject({

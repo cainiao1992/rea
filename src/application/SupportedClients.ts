@@ -34,10 +34,18 @@ export interface SetupClient {
   /** Same-scope fallback ZCode stops loading after its first native server. */
   readonly zcodeFallbackPath?: string;
   readonly markerPath?: string;
+  /**
+   * Registration storage shared with other products. Its presence never proves
+   * this product is installed; only a recognizable REA-owned row in it proves
+   * ownership of a registration REA wrote.
+   */
+  readonly sharedRegistration?: boolean;
   /** MSIX package storage that decides which configuration the client reads. */
   readonly msixPackage?: MsixPackageView;
   /** A running client can rewrite its configuration from memory. */
   readonly quitBeforeSetup?: boolean;
+  /** Product-specific applicability evidence when configuration storage is shared. */
+  readonly discoveryPaths?: readonly string[];
   readonly format?:
     | "json"
     | "claude_code"
@@ -100,6 +108,8 @@ type ClientDefinition = ClientDefinitionBase &
 interface ClientDefinitionBase {
   readonly name: string;
   readonly displayName: string;
+  readonly discoveryPaths?: (context: ClientPathContext) => readonly string[];
+  readonly sharedRegistration?: true;
   readonly format: NonNullable<SetupClient["format"]>;
   readonly quitBeforeSetup?: boolean;
   readonly zcodeFallbackPath?: (context: ClientPathContext) => string;
@@ -482,6 +492,15 @@ const devinDirectory = ({ home, platform, env }: ClientPathContext): string =>
     ? join(windowsAppDataRoots(home, env).roaming, "devin")
     : join(env.XDG_CONFIG_HOME || join(home, ".config"), "devin");
 
+/**
+ * FreeBuff's own profile directory (its `state.json` root, fixed under
+ * `.config` on every platform). The shared `~/.agents` folder is not
+ * FreeBuff-specific: REA's own skill installs create it, so it cannot
+ * prove FreeBuff is installed.
+ */
+const freebuffProfileDirectory = ({ home }: ClientPathContext): string =>
+  join(home, ".config", "freebuff-desktop");
+
 /** Stable product metadata used to derive setup discovery and documentation. */
 export const SUPPORTED_CLIENT_DEFINITIONS = [
   {
@@ -683,6 +702,9 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     configPath: [".zcode", "cli", "config.json"],
     markerPath: [".zcode", "cli"],
     skillPath: [".zcode", "skills"],
+    discoveryPaths: ({ home }: ClientPathContext) => [
+      join(home, ".zcode", "cli"),
+    ],
     format: "zcode",
   },
   {
@@ -697,6 +719,23 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     format: "dsh",
   },
   {
+    name: "freebuff",
+    displayName: "FreeBuff",
+    // FreeBuff discovers personal skills in the shared user agents directory.
+    skillPath: ({ home }: ClientPathContext) => join(home, ".agents", "skills"),
+    // FreeBuff loads MCP servers from the shared user agents directory.
+    configPath: ({ home }: ClientPathContext) =>
+      join(home, ".agents", "mcp.json"),
+    markerPath: freebuffProfileDirectory,
+    discoveryPaths: (context: ClientPathContext) => [
+      freebuffProfileDirectory(context),
+    ],
+    // The same file doubles as ZCode's user-scope fallback, so its presence
+    // proves neither product is installed; see clientOwnershipEvidencePaths.
+    sharedRegistration: true,
+    format: "json",
+  },
+  {
     name: "grok_bot",
     displayName: "Grok Bot",
     configPath: grokBotDirectory,
@@ -706,21 +745,66 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
 ] as const satisfies readonly ClientDefinition[];
 
 /**
- * Paths whose presence means doctor and setup should inspect the client.
- * Layered sources count: OpenCode still loads its XDG files when a custom
- * directory override does not exist.
+ * Paths whose presence means the product itself is applicable, so doctor and
+ * setup should inspect the client. Layered sources count: OpenCode still loads
+ * its XDG files when a custom directory override does not exist. Shared
+ * registration storage never establishes applicability; see
+ * {@link clientOwnershipEvidencePaths}.
  */
 export const clientEvidencePaths = (
-  client: Pick<SetupClient, "configPath" | "configPaths" | "markerPath">,
+  client: Pick<
+    SetupClient,
+    "configPath" | "configPaths" | "markerPath" | "discoveryPaths"
+  >,
 ): readonly string[] => [
   ...new Set(
-    [
-      client.configPath,
-      ...(client.configPaths ?? []),
-      client.markerPath,
-    ].filter((path): path is string => path !== undefined && path.length > 0),
+    (
+      client.discoveryPaths ?? [
+        client.configPath,
+        ...(client.configPaths ?? []),
+        client.markerPath,
+      ]
+    ).filter((path): path is string => path !== undefined && path.length > 0),
   ),
 ];
+
+/**
+ * Paths where a recognizable REA-owned row proves ownership of a registration
+ * REA wrote, never that the product is installed: shared storage is created by
+ * other products and by REA's own skill installs. A client whose registration
+ * is product-local declares no shared storage, so this stays empty for it.
+ */
+export const clientOwnershipEvidencePaths = (
+  client: Pick<
+    SetupClient,
+    "configPath" | "configPaths" | "sharedRegistration"
+  >,
+): readonly string[] =>
+  client.sharedRegistration === true
+    ? [client.configPath, ...(client.configPaths ?? [])].filter(
+        (path): path is string => path !== undefined && path.length > 0,
+      )
+    : [];
+
+/**
+ * Registration storage this client shares with another product: its own shared
+ * configuration plus any same-scope fallback another client also loads. Only
+ * this storage may be retained when product applicability is unproven, because
+ * failing closed on it would block REA removals for files REA does not own.
+ * Product-local configuration is REA's own boundary and stays fail-closed.
+ */
+export const clientSharedRegistrationPaths = (
+  client: Pick<
+    SetupClient,
+    "configPath" | "configPaths" | "sharedRegistration" | "zcodeFallbackPath"
+  >,
+): ReadonlySet<string> =>
+  new Set([
+    ...clientOwnershipEvidencePaths(client),
+    ...(client.zcodeFallbackPath === undefined
+      ? []
+      : [client.zcodeFallbackPath]),
+  ]);
 
 const resolvePath = (
   path: ClientPath,
@@ -785,6 +869,12 @@ export const supportedClients = (
         ...(msixPackage === undefined ? {} : { msixPackage }),
         ...(definition.quitBeforeSetup === true
           ? { quitBeforeSetup: true }
+          : {}),
+        ...(definition.discoveryPaths === undefined
+          ? {}
+          : { discoveryPaths: definition.discoveryPaths(context) }),
+        ...(definition.sharedRegistration === true
+          ? { sharedRegistration: true }
           : {}),
         format: definition.format,
       };

@@ -34,8 +34,7 @@ import {
   addMemberRelations,
   relationOmissionLimitations,
 } from "./managedApplicationGraphRelations.js";
-import { digestSchema } from "../digests.js";
-import { prefixedDigestSchema } from "../digests.js";
+import { digestSchema, prefixedDigestSchema } from "../digests.js";
 import { readManagedInspectionEvidence } from "./managedInspectionEvidence.js";
 import { AnalysisInputError } from "../analysisErrorCore.js";
 import type { EvidenceIntegrityError } from "../evidenceErrors.js";

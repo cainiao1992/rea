@@ -1,4 +1,4 @@
-import { ok as resultOk } from "../../../src/domain/result.js";
+import { ok as resultOk, err, ok } from "../../../src/domain/result.js";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -31,7 +31,6 @@ import { AnalysisProviderRegistry } from "../../../src/application/binary/Analys
 import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
 import { AnalysisCancelledError } from "../../../src/domain/analysisErrorCore.js";
-import { err, ok } from "../../../src/domain/result.js";
 import {
   createCacheProvider,
   createTestBinarySession,

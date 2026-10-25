@@ -16,8 +16,8 @@ import {
   CutterBridgeClient,
   type CutterBridgeExecution,
   type CutterDiscoveryOptions,
+  CUTTER_PROVIDER_IDENTITY,
 } from "./CutterBridgeClient.js";
-import { CUTTER_PROVIDER_IDENTITY } from "./CutterBridgeClient.js";
 
 interface CutterBridgePort {
   listSessions(

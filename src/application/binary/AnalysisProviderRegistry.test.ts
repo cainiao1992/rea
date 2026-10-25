@@ -15,10 +15,12 @@ import { createAnalysisProfile } from "../../domain/analysisProfile.js";
 import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
-import { AnalysisUnsupportedTargetError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisUnsupportedTargetError,
+  AnalysisCancelledError,
+} from "../../domain/analysisErrorCore.js";
 import { ProviderSelectionError } from "../../domain/providerSelectionError.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
-import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
 import { err, ok } from "../../domain/result.js";
 
 const DATABASE_TARGET: BinaryTarget = {

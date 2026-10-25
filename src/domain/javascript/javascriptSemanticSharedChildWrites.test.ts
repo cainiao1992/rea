@@ -4,9 +4,11 @@ import { expect, it } from "vitest";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 import * as t from "@babel/types";
 import { parseJavaScriptSource } from "./javascriptSourceParser.js";
-import { indexJavaScriptBindingsWithReceiversSteps } from "./javascriptSemanticAnalysis.js";
+import {
+  indexJavaScriptBindingsWithReceiversSteps,
+  analyzeJavaScriptSemantics,
+} from "./javascriptSemanticAnalysis.js";
 import { semanticProjectedSourcesAtRead } from "./javascriptSemanticProjectedSources.js";
-import { analyzeJavaScriptSemantics } from "./javascriptSemanticAnalysis.js";
 import { onlyBinding } from "./javascriptSemanticAnalysis.fixture.js";
 
 it("excludes overwritten unknown-key sources from member mutations", () => {

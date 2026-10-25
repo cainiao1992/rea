@@ -1,23 +1,23 @@
 import { literalFeatureMatchSchema } from "../domain/native/literalFeatureMatch.js";
 import { byteEntropySchema } from "../domain/native/byteEntropy.js";
-import { byteEntropySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
-import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.js";
-import { nativeFunctionMatchingSummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
-import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
-import { analysisDetailOutputSchemaOf } from "./analysisDetail.js";
-import { nativeFunctionSummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
-import { functionDossierSchema } from "../domain/hopperValues.js";
-import { nativeInventorySummaryViewResultSchema } from "../domain/analysisView/analysisView.js";
-import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
-import { z } from "zod";
-import { byteSearchResultSchema } from "../domain/native/bytePattern.js";
 import {
+  byteEntropySummaryViewResultSchema,
+  nativeFunctionMatchingSummaryViewResultSchema,
+  nativeFunctionSummaryViewResultSchema,
+  nativeInventorySummaryViewResultSchema,
   artifactInventorySummaryViewResultSchema,
   interfaceBuilderSummaryViewResultSchema,
   machoSummaryViewResultSchema,
   managedArtifactSummaryViewResultSchema,
   managedMemberSummaryViewResultSchema,
 } from "../domain/analysisView/analysisView.js";
+import { nativeFunctionMatchingSchema } from "../domain/native/functionMatching.js";
+import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
+import { analysisDetailOutputSchemaOf } from "./analysisDetail.js";
+import { functionDossierSchema } from "../domain/hopperValues.js";
+import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
+import { z } from "zod";
+import { byteSearchResultSchema } from "../domain/native/bytePattern.js";
 import { evidenceBundleSummarySchema } from "../domain/evidenceRecordSummary.js";
 import {
   BINARY_ARCHITECTURES,

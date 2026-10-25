@@ -1,6 +1,10 @@
 import { expect, it } from "vitest";
 import type { BrowserObservationPort } from "./BrowserObservationPort.js";
-import { listBrowserTargets } from "./BrowserObservationService.js";
+import {
+  listBrowserTargets,
+  inspectWebPage,
+  analyzeWebBundle,
+} from "./BrowserObservationService.js";
 import type { BrowserTargetList } from "../domain/browserObservationSchemas.js";
 import { parseEvidence } from "../domain/evidence.js";
 import {
@@ -18,10 +22,8 @@ import { BrowserObservationError } from "../domain/browserObservationError.js";
 import { err, ok } from "../domain/result.js";
 import { passiveNetworkCapture } from "../../tests/fixtures/passiveNetworkCapture.js";
 import { analyzeWebBundleFixture } from "../../tests/support/browser/analyzeWebBundleFixture.js";
-import { inspectWebPage } from "./BrowserObservationService.js";
 import { analyzeWebBundleInputSchema } from "../domain/webBundleAnalysis.js";
 import { inspectWebPageInputSchema } from "../domain/browserObservation.js";
-import { analyzeWebBundle } from "./BrowserObservationService.js";
 
 const input = {
   cdp_endpoint: {

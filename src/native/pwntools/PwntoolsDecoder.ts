@@ -17,8 +17,10 @@ import { constants } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
-import type { ProviderIdentity } from "../../application/AnalysisProvider.js";
+import type {
+  ExecutionOptions,
+  ProviderIdentity,
+} from "../../application/AnalysisProvider.js";
 import type {
   AnalysisCapturedOutput,
   AnalysisPartialObservation,

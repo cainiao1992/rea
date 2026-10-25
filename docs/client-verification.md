@@ -1,5 +1,10 @@
 # Client and agent verification
 
+FreeBuff MCP loading and personal skill discovery are currently unverified with
+an installed native client/version. Its temporary-filesystem coverage verifies
+REA's configuration and applicability boundaries only; it does not establish
+that FreeBuff consumes the written registration or skill.
+
 Use these optional lanes to verify an installed client or evaluate an agent's
 REA workflow. [Testing REA](testing.md) provides the normal development commands
 and provider lanes. Each record below states its host, client version, model

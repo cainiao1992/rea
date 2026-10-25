@@ -1,6 +1,9 @@
 import { analysisSettingLimit } from "../../domain/analysisSettingDefinitions.js";
 import { WorkerFrameSignal } from "../../process/WorkerFrameSignal.js";
-import type { JavaScriptSemanticProjectionCapacity } from "../../domain/javascript/javascriptSemanticFileProjection.js";
+import type {
+  JavaScriptSemanticProjectionCapacity,
+  JavaScriptSemanticFileProjection,
+} from "../../domain/javascript/javascriptSemanticFileProjection.js";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,7 +15,6 @@ import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptA
 import type { JavaScriptStaticAnalysis } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import { estimateJavaScriptStaticApplicationProjection } from "../../domain/javascript/javascriptApplicationProjectionResources.js";
 import type { JavaScriptModuleSemanticIr } from "../../domain/javascript/javascriptModuleSemanticIr.js";
-import type { JavaScriptSemanticFileProjection } from "../../domain/javascript/javascriptSemanticFileProjection.js";
 import type {
   JavaScriptAnalyzedSource,
   JavaScriptSourceAnalysisFailure,

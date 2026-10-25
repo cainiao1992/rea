@@ -29,8 +29,7 @@ import {
   immutableJsonSnapshotMember,
   isImmutableJsonSnapshot,
 } from "./immutableJson.js";
-import { digestSchema } from "./../domain/digests.js";
-import { prefixedDigestSchema } from "./../domain/digests.js";
+import { digestSchema, prefixedDigestSchema } from "./../domain/digests.js";
 import {
   relationshipCoverageSchema,
   type RelationshipCoverage,

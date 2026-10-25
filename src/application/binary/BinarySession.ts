@@ -20,8 +20,8 @@ import type {
   ExecutionOptions,
   AnalysisOperationPort,
   ProviderIdentity,
+  AnalysisOperation,
 } from "../AnalysisProvider.js";
-import type { AnalysisOperation } from "../AnalysisProvider.js";
 import { OFFICIAL_TOOL_CONTRACTS } from "../../contracts/officialToolContracts.js";
 import { ENHANCED_TOOL_CONTRACTS } from "../../contracts/enhancedToolContracts.js";
 import type {

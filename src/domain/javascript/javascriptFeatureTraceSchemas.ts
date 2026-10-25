@@ -2,8 +2,7 @@ import { z } from "zod";
 
 import { evidenceSchema, providerSchema } from "../evidence.js";
 import { javascriptApplicationGraphSchema } from "./javascriptApplicationGraph.js";
-import { digestSchema } from "../digests.js";
-import { prefixedDigestSchema } from "../digests.js";
+import { digestSchema, prefixedDigestSchema } from "../digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const nodeIdSchema = prefixedDigestSchema("jag_node");

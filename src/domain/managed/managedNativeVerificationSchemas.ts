@@ -6,8 +6,7 @@ import {
   cliMetadataGuidSchema,
   managedNativeImportSchema,
 } from "./managedArtifact.js";
-import { digestSchema } from "../digests.js";
-import { prefixedDigestSchema } from "../digests.js";
+import { digestSchema, prefixedDigestSchema } from "../digests.js";
 
 const evidenceIdSchema = prefixedDigestSchema("ev");
 const textSchema = z.string().min(1);

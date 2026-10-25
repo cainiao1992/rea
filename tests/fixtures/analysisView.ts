@@ -5,8 +5,10 @@ import {
   environmentStateHar,
 } from "./historicalHar.js";
 import { webNetworkCaptureSchema } from "../../src/domain/webNetworkCapture.js";
-import { BINARY_LAYOUT_TEST_PROVIDER } from "./binaryDiagnostics/layout.js";
-import { binaryLayoutFixture } from "./binaryDiagnostics/layout.js";
+import {
+  BINARY_LAYOUT_TEST_PROVIDER,
+  binaryLayoutFixture,
+} from "./binaryDiagnostics/layout.js";
 import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../src/contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import { createEvidence, type Evidence } from "../../src/domain/evidence.js";
 import type { JavaScriptApplicationAnalysisResult } from "../../src/domain/javascript/javascriptApplicationAnalysis.js";

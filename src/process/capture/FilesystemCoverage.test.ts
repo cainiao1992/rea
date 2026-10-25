@@ -12,10 +12,12 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { processScenarioSchema } from "../../domain/process/processScenario.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
-import { snapshotRoots } from "./FilesystemSnapshot.js";
+import {
+  snapshotRoots,
+  ProcessCaptureSnapshotFailure,
+} from "./FilesystemSnapshot.js";
 import { classifyFilesystemEffects } from "./ProcessFilesystemEffects.js";
 import { prepareProcessCapture } from "./ProcessCaptureLifecycle.js";
-import { ProcessCaptureSnapshotFailure } from "./FilesystemSnapshot.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 
 it.each(["after", "before"] as const)(

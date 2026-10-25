@@ -9,8 +9,7 @@ import {
   type FileHandle,
 } from "node:fs/promises";
 import { ChildProcess } from "node:child_process";
-import { dirname } from "node:path";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { describe, expect, it, onTestFinished, vi } from "vitest";

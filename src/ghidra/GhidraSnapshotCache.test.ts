@@ -1,4 +1,4 @@
-import { ok as javaProbeOk } from "../domain/result.js";
+import { ok as javaProbeOk, err, ok } from "../domain/result.js";
 import type { GhidraJavaObservation } from "./GhidraJavaProbe.js";
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +9,6 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import { ghidraFunctionDossier } from "../domain/ghidraValues.fixture.js";
-import { err, ok } from "../domain/result.js";
 import { silentLogger } from "../logger.js";
 import { GhidraProvider } from "./GhidraProvider.js";
 import { GhidraSessionError } from "./GhidraSessionError.js";

@@ -31,7 +31,12 @@ import {
   type StableRegularFileDescriptor,
 } from "../filesystem/RegularFile.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
-import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import type {
+  BinaryTarget,
+  BinaryArchitecture,
+  PeCodeViewRecord,
+  UniversalMachOSlice,
+} from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { readMipsElfMetadata } from "./MipsElfMetadata.js";
 import { validateElfDeclaredRanges } from "../domain/elfDeclaredRanges.js";
@@ -49,7 +54,6 @@ import {
 } from "../domain/rawBinary.js";
 import { admitGamecubeDol } from "../domain/gamecubeDolAdmission.js";
 import { DOL_HEADER_SIZE } from "../domain/gamecubeDol.js";
-import type { BinaryArchitecture } from "../domain/binaryTargetTypes.js";
 import {
   mzWindowsHeaderLayoutLimitation,
   observeMzWindowsHeader,
@@ -96,10 +100,6 @@ import {
   readMachoLoadCommandTableHeader,
   type MachoLoadCommandTableHeader,
 } from "../domain/apple/machoLoadCommands.js";
-import type {
-  PeCodeViewRecord,
-  UniversalMachOSlice,
-} from "../domain/binaryTargetTypes.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 

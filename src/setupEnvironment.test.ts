@@ -23,6 +23,29 @@ import { snapshotEnvironment } from "./process/snapshotEnvironment.js";
 
 afterEach(() => vi.unstubAllEnvs());
 
+it.each([undefined, "/caller/tools with spaces/ilspycmd"])(
+  "preserves the explicit ILSpy path %s without inventing an unset value",
+  async (selected) => {
+    const host = systemSetupHost(
+      createDoctorHostFixture({
+        ...(selected === undefined ? {} : { configuredIlspyCmdPath: selected }),
+        ilspyCmdVersion: async () => "ilspycmd 9.1.0",
+      }),
+      selected === undefined ? {} : { REA_ILSPY_CMD_PATH: selected },
+    );
+    try {
+      const state = await host.initialSetupState();
+      expect(state.providerEnvironment.REA_ILSPY_CMD_PATH).toBe(selected);
+      if (selected !== undefined)
+        expect(state.doctor.checks).toContainEqual(
+          expect.objectContaining({ name: "ilspycmd", ok: true }),
+        );
+    } finally {
+      await host.close?.();
+    }
+  },
+);
+
 it("plans setup and uninstall against selected home and client overrides", async () => {
   const root = await mkdtemp(join(tmpdir(), "rea-selected-setup-"));
   const environment = {

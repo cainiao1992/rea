@@ -2,6 +2,7 @@ import type { DoctorProviderInspection } from "./Doctor.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 const SELECTED_REGISTRATION_SETTINGS = [
+  "REA_ILSPY_CMD_PATH",
   "REA_ANALYSIS_PROVIDER",
   "REA_ASAR_MAX_HEADER_BYTES",
   "REA_BRIDGE_MAX_REQUEST_BYTES",

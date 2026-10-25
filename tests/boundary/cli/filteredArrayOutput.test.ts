@@ -91,6 +91,15 @@ it("renders only each record's own fields in heterogeneous Markdown tables", asy
   ]);
 });
 
+it("formats arrays of empty objects without columns as JSON in Markdown", async () => {
+  const value: unknown = [{}, {}];
+  freezeRecursively(value);
+  const json = await runFilteredCli(value, "json");
+  expect(JSON.parse(json)).toEqual(value);
+  const markdown = await runFilteredCli(value, "md");
+  expect(markdown).toBe("[{},{}]\n");
+});
+
 it.each(
   (["json", "jsonl"] as const).flatMap((format) =>
     [false, true].map((full) => ({ format, full })),

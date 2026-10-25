@@ -66,6 +66,7 @@ import {
   hasBinaryPlistSignature,
   MAX_XML_PLIST_PROBE_BYTES,
 } from "../domain/apple/appleArchiveFormat.js";
+import { hasDiskImageSignature } from "../domain/apple/diskImageFormat.js";
 import { hasGodotPckHeader } from "../domain/godotPckFormat.js";
 import {
   hasZipSignature,
@@ -638,11 +639,10 @@ const detectArtifactFormat = async (
   const { handle, initial } = source;
   throwIfTargetResolutionCancelled(signal);
   const lower = path.toLowerCase();
-  const magic = Buffer.alloc(4096);
-  const observed = await handle.read(magic, 0, magic.length, 0);
-  throwIfTargetResolutionCancelled(signal);
+  // Fill the prefix so a short host read cannot hide a signature.
+  const magic = Buffer.from(await readHandleRange(handle, 0, 4096, signal));
   if (
-    observed.bytesRead >= 8 &&
+    magic.length >= 8 &&
     magic.subarray(0, 8).equals(Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]))
   )
     throw new BinaryTargetError(
@@ -650,39 +650,32 @@ const detectArtifactFormat = async (
       "WebAssembly v1 artifacts are not supported by the native opening route",
       { constraint: "wasm_requires_static_inspection" },
     );
-  if (hasZipSignature(magic.subarray(0, observed.bytesRead)))
-    return zipRootPackageFormat(lower);
-  if (hasGodotPckHeader(magic.subarray(0, observed.bytesRead)))
-    return "godot-pck";
+  if (hasZipSignature(magic)) return zipRootPackageFormat(lower);
+  if (hasGodotPckHeader(magic)) return "godot-pck";
   // Binary plists, including keyed archives, often use other extensions.
-  if (hasBinaryPlistSignature(magic.subarray(0, observed.bytesRead)))
-    return "plist";
+  if (hasBinaryPlistSignature(magic)) return "plist";
   const named = namedArtifactFormat(lower);
   if (named !== undefined) return named;
   if (
     lower.endsWith(".pkg") &&
-    observed.bytesRead >= 4 &&
+    magic.length >= 4 &&
     magic.subarray(0, 4).equals(Buffer.from("xar!"))
   )
     return "pkg";
-  if (lower.endsWith(".dmg")) {
-    throwIfTargetResolutionCancelled(signal);
-    const size = initial.size;
-    if (size >= 512) {
-      const trailer = Buffer.alloc(4);
-      const read = await handle.read(trailer, 0, trailer.length, size - 512);
-      throwIfTargetResolutionCancelled(signal);
-      if (read.bytesRead === 4 && trailer.equals(Buffer.from("koly")))
-        return "dmg";
-    }
-  }
+  if (
+    lower.endsWith(".dmg") &&
+    (await hasDiskImageSignature(initial.size, (position, length) =>
+      readHandleRange(handle, position, length, signal),
+    ))
+  )
+    return "dmg";
   // XML property lists can use archive-specific suffixes such as .archive.
   // The named-format check above keeps .js, .map, and .asar classifications.
   const xmlProbe = createXmlPlistSignatureProbe();
-  let xmlState = xmlProbe.write(magic.subarray(0, observed.bytesRead));
+  let xmlState = xmlProbe.write(magic);
   if (xmlState === "matched") return "plist";
   const chunk = Buffer.alloc(XML_PLIST_PROBE_CHUNK_BYTES);
-  let bytesRead = observed.bytesRead;
+  let bytesRead = magic.length;
   while (xmlState === "pending" && bytesRead < MAX_XML_PLIST_PROBE_BYTES) {
     throwIfTargetResolutionCancelled(signal);
     const read = await handle.read(
@@ -747,7 +740,7 @@ const claimsLeadingExecutableHeader = async (
     size,
   );
 
-/** Read one bounded range, honoring cancellation around the host read. */
+/** Fill one bounded range, honoring cancellation; a short result means end of file. */
 const readHandleRange = async (
   handle: FileHandle,
   position: number,
@@ -756,9 +749,20 @@ const readHandleRange = async (
 ): Promise<Uint8Array> => {
   throwIfTargetResolutionCancelled(signal);
   const bytes = Buffer.alloc(length);
-  const observed = await handle.read(bytes, 0, length, position);
-  throwIfTargetResolutionCancelled(signal);
-  return bytes.subarray(0, observed.bytesRead);
+  let filled = 0;
+  while (filled < length) {
+    if (filled > 0) throwIfTargetResolutionCancelled(signal);
+    const observed = await handle.read(
+      bytes,
+      filled,
+      length - filled,
+      position + filled,
+    );
+    throwIfTargetResolutionCancelled(signal);
+    if (observed.bytesRead === 0) break;
+    filled += observed.bytesRead;
+  }
+  return bytes.subarray(0, filled);
 };
 
 /** Read exactly `size` bytes by offset; a short read means the file changed or ended early. */

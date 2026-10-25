@@ -147,6 +147,48 @@ describe("materializeRegistrationRunnerCache", () => {
 });
 
 describe("launchRegistrationRunnerCommand", () => {
+  it("retains bounded head and tail bytes and preserves UTF-8 across writes", async () => {
+    const result = await launchRegistrationRunnerCommand(
+      process.execPath,
+      [
+        "-e",
+        `
+      process.stdout.write(Buffer.from([0xe4]));
+      setTimeout(() => {
+        process.stdout.write(Buffer.from([0xb8, 0xad]));
+        process.stderr.write('x'.repeat(60000));
+        setTimeout(() => {
+          process.stderr.write('y'.repeat(60000));
+          process.stderr.write('FINAL: package permission denied');
+          process.exitCode = 1;
+        }, 30);
+      }, 30);
+    `,
+      ],
+      {
+        env: process.env,
+        cwd: process.cwd(),
+        timeoutMs: 5000,
+        platform: process.platform,
+      },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("中");
+    expect(Buffer.byteLength(result.stderr)).toBeLessThan(64 * 1024 + 50);
+    expect(result.stderr).toContain("[output omitted]");
+    expect(result.stderr).toContain("FINAL: package permission denied");
+    const prewarm = await materializeRegistrationRunnerCache(
+      ["npx", "-y", specifier, "mcp"],
+      {},
+      async () => result,
+    );
+    expect(prewarm.status).toBe("failed");
+    if (prewarm.status === "failed") {
+      expect(prewarm.reason).toContain("exit 1");
+      expect(prewarm.reason).toContain("FINAL: package permission denied");
+    }
+  });
+
   it("captures a successful command exit", async () => {
     const result = await launchRegistrationRunnerCommand(
       process.execPath,

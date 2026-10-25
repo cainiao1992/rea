@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { tmpdir } from "node:os";
+import { BoundedOutputExcerpt } from "../process/BoundedOutputExcerpt.js";
 
 import { cleanupWindowsProcessTree } from "../process/ProcessOwnership.js";
 import { inspectClientRegistrationCommand } from "./ClientRegistrationIdentity.js";
@@ -123,8 +124,10 @@ export const launchRegistrationRunnerCommand: RegistrationRunnerLauncher = (
       // group no longer receives the terminal's signal.
       ...(options.platform === "win32" ? {} : { detached: true }),
     });
-    const stdout = boundedStream(child.stdout);
-    const stderr = boundedStream(child.stderr);
+    const stdout = new BoundedOutputExcerpt(PREWARM_CAPTURE_LIMIT);
+    const stderr = new BoundedOutputExcerpt(PREWARM_CAPTURE_LIMIT);
+    child.stdout?.on("data", (chunk: Buffer) => stdout.append(chunk));
+    child.stderr?.on("data", (chunk: Buffer) => stderr.append(chunk));
     let timedOut = false;
     let spawnError: string | undefined;
     let interruptedSignal: string | undefined;
@@ -164,8 +167,8 @@ export const launchRegistrationRunnerCommand: RegistrationRunnerLauncher = (
       resolve({
         exitCode: code ?? signal,
         signal: signal ?? null,
-        stdout: stdout(),
-        stderr: stderr(),
+        stdout: stdout.text,
+        stderr: stderr.text,
         timedOut,
         ...(spawnError === undefined ? {} : { spawnError }),
         ...(interruptedSignal === undefined ? {} : { interruptedSignal }),
@@ -176,32 +179,25 @@ export const launchRegistrationRunnerCommand: RegistrationRunnerLauncher = (
 /** Terminal interrupts that must also stop a detached package-runner tree. */
 const FORWARD_SIGNALS: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 
-const boundedStream = (
-  stream: NodeJS.ReadableStream | null,
-): (() => string) => {
-  let captured = "";
-  stream?.on("data", (chunk: Buffer) => {
-    if (captured.length < PREWARM_CAPTURE_LIMIT)
-      captured += chunk.toString("utf8").slice(0, PREWARM_CAPTURE_LIMIT);
-  });
-  return () => captured;
-};
-
 const prewarmFailureReason = (launch: RegistrationRunnerLaunch): string => {
-  const observed =
+  const outcome =
     launch.spawnError !== undefined
-      ? launch.spawnError
+      ? "spawn failed"
       : launch.interruptedSignal !== undefined
         ? `the package runner was stopped by ${launch.interruptedSignal}`
         : launch.timedOut
           ? `the package runner timed out after the bounded prewarm window`
-          : `exit ${launch.exitCode === null ? "unknown" : String(launch.exitCode)}${
-              launch.stderr.trim() === "" ? "" : `: ${launch.stderr.trim()}`
-            }`;
-  const normalized = observed
+          : `exit ${launch.exitCode === null ? "unknown" : String(launch.exitCode)}`;
+  const normalized = (launch.spawnError ?? launch.stderr)
     .replace(/\u001b(?:\[[0-9;?]*[ -/]*[@-~]|\([0-9A-Za-z]|[@-Z\\^_])/gu, "")
     .replace(/[\u0000-\u001f\u007f]+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
-  return `The pinned package-runner entry could not be materialized before the first client start (${normalized.slice(0, PREWARM_REASON_LIMIT)}); the first client start will install it inside its startup deadline.`;
+  const detailLimit = PREWARM_REASON_LIMIT - outcome.length - 2;
+  const detail =
+    normalized.length > detailLimit
+      ? `… ${normalized.slice(-(detailLimit - 2))}`
+      : normalized;
+  const observed = `${outcome}${detail === "" ? "" : `: ${detail}`}`;
+  return `The pinned package-runner entry could not be materialized before the first client start (${observed}); the first client start will install it inside its startup deadline.`;
 };

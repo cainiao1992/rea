@@ -998,25 +998,37 @@ export function* collectSemanticMemberMutationsSteps(
         // An active normalized prefix owns its closure before nested traversals.
         if (!covering.retain(path, captureContexts)) continue;
         // A self alias such as `node = node[key]` revisits its capture with the
-        // same prefix added on every cycle, so exact paths never repeat. When
-        // that prefix can never be pruned, escaping it once covers every longer
-        // effect, including writes below shared children.
-        // Only a capture already on this alias chain can repeat a prefix.
+        // same prefix added on every cycle, so exact paths never repeat. A self
+        // store such as `s.c = s.c.p` adds its segment after the stored key
+        // instead. When that segment can never be pruned, escaping through it
+        // once covers every longer effect, including writes below shared
+        // children. Only a capture already on this alias chain can repeat.
         const revisited = current.bindings.has(captureKey);
         let repeatedPrefix: PropertyPath | undefined;
-        for (
-          let start = 1;
-          revisited && start <= current.path.length;
-          start++
-        ) {
-          const suffix = current.path.slice(start);
-          if (!current.bindings.has(lifetimeKey(captureKey, suffix))) continue;
-          repeatedPrefix = current.path.slice(0, start);
-          break;
-        }
+        let repeatedBase = 0;
+        repeat: for (
+          let base = 0;
+          revisited && base < current.path.length;
+          base++
+        )
+          for (let end = base + 1; end <= current.path.length; end++) {
+            const shorter =
+              base === 0
+                ? current.path.slice(end)
+                : [...current.path.slice(0, base), ...current.path.slice(end)];
+            if (!current.bindings.has(lifetimeKey(captureKey, shorter)))
+              continue;
+            repeatedPrefix = current.path.slice(0, end);
+            repeatedBase = base;
+            break repeat;
+          }
         if (
           repeatedPrefix !== undefined &&
-          observablePaths.repeatsUnpruned(binding.bindingId, repeatedPrefix)
+          observablePaths.repeatsUnpruned(
+            binding.bindingId,
+            repeatedPrefix.slice(0, repeatedBase),
+            repeatedPrefix.slice(repeatedBase),
+          )
         ) {
           markValue(
             current.node,
@@ -1974,7 +1986,8 @@ const observableMutationPaths = (
   ) => PropertyPath | null;
   readonly repeatsUnpruned: (
     bindingId: string,
-    prefix: PropertyPath,
+    base: PropertyPath,
+    segment: PropertyPath,
   ) => boolean;
 } => {
   const ambientPaths = createAmbientPathResolver(state, false);
@@ -2265,22 +2278,28 @@ const observableMutationPaths = (
     return path;
   };
   // A projection's origins depend only on its source origins and key. Once
-  // repeating a prefix revisits an origin set, every longer repetition stays
-  // observable and normalization can never prune it. The answer depends only
-  // on the binding and prefix, so every revisit of a long chain shares it.
+  // repeating a segment after its base revisits an origin set, every longer
+  // repetition stays observable and normalization can never prune it. The
+  // answer depends only on the binding, base and segment, so every revisit of
+  // a long chain shares it.
   const repeated = new Map<string, boolean>();
   const repeatsUnpruned = (
     bindingId: string,
-    prefix: PropertyPath,
+    base: PropertyPath,
+    segment: PropertyPath,
   ): boolean => {
-    const key = JSON.stringify([bindingId, prefix]);
+    const key = JSON.stringify([bindingId, base, segment]);
     const cached = repeated.get(key);
     if (cached !== undefined) return cached;
     let observer = bindingNodes.get(bindingId);
+    if (observer !== undefined && base.length > 0) {
+      observer = project(observer, base);
+      settle();
+    }
     const signatures = new Set<string>();
     let result = false;
-    while (observer !== undefined && prefix.length > 0) {
-      observer = project(observer, prefix);
+    while (observer !== undefined && segment.length > 0) {
+      observer = project(observer, segment);
       settle();
       if ((observer.origins?.size ?? 0) === 0) break;
       const signature = JSON.stringify(

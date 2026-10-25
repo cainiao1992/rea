@@ -1808,12 +1808,12 @@ pre code {
   margin-top: 0.3rem;
   white-space: normal;
 }
-@media (min-width: 1440px) {
+@media (min-width: 1680px) {
   .home-page-nav {
     position: fixed;
     top: 7.5rem;
-    right: max(1.5rem, calc((100vw - 1080px) / 2 - 156px));
-    width: 132px;
+    right: max(1.5rem, calc((100vw - 1080px) / 2 - 192px));
+    width: 160px;
     max-height: calc(100svh - 9rem);
     overflow-y: auto;
     border: 0;

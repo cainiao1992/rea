@@ -363,7 +363,8 @@ and complete private Evidence records are not website assets.
 The homepage pairs a short introduction with the installation prompt and
 ordinary setup command. Get started is the primary action; a second link goes
 straight to the first interactive example. Short Showcases and Blog descriptions
-below those actions keep both reading paths available. The introduction and
+below those actions keep both reading paths available. An RL environments link
+in the same group leads to the recording and environment-building workflow. The introduction and
 setup retain the original equal-width desktop columns. Platform links go
 directly to the Windows, macOS and Linux steps in Get started; the optional
 curl installer is listed separately and links to its on-site instructions.
@@ -377,7 +378,9 @@ Three case-study previews lead to further investigations. The closing sections
 offer a guided first task and target-specific guides. FAQ, Discord and issue
 links each have their own line explaining their purpose.
 Every content page's header and footer link GitHub, Discord and X.
-A right-side table of contents stays visible at widths of 1440px and above.
+A right-side table of contents stays visible at widths of 1680px and above,
+with a 32px gap from the content. CSS owns this layout choice; the homepage
+script reads the displayed position when opening or closing the menu.
 On narrower screens it becomes a sticky, native disclosure; selecting a link
 closes the menu and focuses the destination. The homepage script follows
 the reading position and marks the current link. Without JavaScript, the

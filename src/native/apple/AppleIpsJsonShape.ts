@@ -122,7 +122,14 @@ const terminationShape = (): JsonShape => {
   return {
     kind: "object",
     members: {
-      ...scalarMembers("namespace", "code", "indicator"),
+      ...scalarMembers(
+        "namespace",
+        "code",
+        "indicator",
+        "flags",
+        "byPid",
+        "byProc",
+      ),
       reasons: {
         kind: "array",
         items: SCALAR,
@@ -150,6 +157,7 @@ export const ipsBodyShape = (input: InspectAppleIpsInput): JsonShape => {
         "procName",
         "procPath",
         "pid",
+        "parentPid",
         "parentProc",
         "cpuType",
         "translated",
@@ -202,6 +210,8 @@ export const IPS_METADATA_SHAPE: JsonShape = {
     "bundleID",
     "incident_id",
     "name",
+    "build_version",
+    "platform",
   ),
   beforeUnlisted: unlistedKeys,
 };

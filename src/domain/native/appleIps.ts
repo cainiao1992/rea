@@ -122,6 +122,8 @@ const metadataSchema = z.strictObject({
   bundle_id: z.string().nullable(),
   incident_id: z.string().nullable(),
   name: z.string().nullable(),
+  build_version: z.string().nullable(),
+  platform: recordedIntegerSchema.nullable(),
   unlisted_keys: z.array(z.string()),
 });
 
@@ -141,6 +143,9 @@ const terminationSchema = z
     namespace: z.string().nullable(),
     code: recordedIntegerSchema.nullable(),
     indicator: z.string().nullable(),
+    flags: recordedIntegerSchema.nullable(),
+    by_pid: recordedIntegerSchema.nullable(),
+    by_proc: z.string().nullable(),
     reasons: z.array(z.string()).nullable(),
     unlisted_keys: z.array(z.string()),
   })
@@ -275,6 +280,7 @@ export const appleIpsSchema = z.strictObject({
     path: z.string().nullable(),
     pid: recordedIntegerSchema.nullable(),
     parent: z.string().nullable(),
+    parent_pid: recordedIntegerSchema.nullable(),
     cpu_type: z.string().nullable(),
     translated: z.boolean().nullable(),
     os_version: osVersionSchema,
@@ -314,8 +320,12 @@ export const appleIpsIntegerTextBytes = (
 /** The named report fields own which observed and derived integers are retained. */
 export const appleIpsReportIntegerTextBytes = (report: AppleIps): number => {
   let bytes =
+    appleIpsIntegerTextBytes(report.metadata.platform) +
     appleIpsIntegerTextBytes(report.process.pid) +
-    appleIpsIntegerTextBytes(report.termination?.code ?? null);
+    appleIpsIntegerTextBytes(report.process.parent_pid) +
+    appleIpsIntegerTextBytes(report.termination?.code ?? null) +
+    appleIpsIntegerTextBytes(report.termination?.flags ?? null) +
+    appleIpsIntegerTextBytes(report.termination?.by_pid ?? null);
   for (const image of report.images)
     bytes +=
       appleIpsIntegerTextBytes(image.base) +

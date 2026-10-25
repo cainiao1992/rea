@@ -22,6 +22,8 @@ const report: AppleIps = {
     bundle_id: null,
     incident_id: null,
     name: null,
+    build_version: null,
+    platform: null,
     unlisted_keys: [],
   },
   process: {
@@ -29,6 +31,7 @@ const report: AppleIps = {
     path: null,
     pid: null,
     parent: null,
+    parent_pid: null,
     cpu_type: null,
     translated: null,
     os_version: null,
@@ -200,19 +203,23 @@ it.each(["threads", "images"] as const)(
 );
 
 it.each([
-  [43, false],
-  [44, true],
+  [131, false],
+  [132, true],
 ] as const)(
   "checks repeated integer text against %s UTF-16 bytes",
   async (maximum, accepted) => {
     const value = { decimal: "12345", hex: "0x3039" };
     const repeated: AppleIps = {
       ...report,
-      process: { ...report.process, pid: value },
+      metadata: { ...report.metadata, platform: value },
+      process: { ...report.process, pid: value, parent_pid: value },
       termination: {
         namespace: null,
         code: value,
         indicator: null,
+        flags: value,
+        by_pid: value,
+        by_proc: null,
         reasons: null,
         unlisted_keys: [],
       },

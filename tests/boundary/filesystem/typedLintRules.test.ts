@@ -63,9 +63,25 @@ type Outcome = { kind: "open" } | { kind: "closed" };
 export function describeOutcome(outcome: Outcome): string {
   switch (outcome.kind) {
     case "open": return "open";
+  }
+  return "unknown";
+}
+`,
+  "src/with-fallback.ts": `
+type Outcome = { kind: "open" } | { kind: "closed" };
+export function describeOutcome(outcome: Outcome): string {
+  switch (outcome.kind) {
+    case "open": return "open";
     default: return "unknown";
   }
 }
+`,
+  "scripts/lib/http3-capture-assertions.test.mjs": `
+import { test as registerTest } from "node:test";
+registerTest("runner owns this registration", async () => {
+  await Promise.resolve();
+});
+Promise.resolve("ordinary unowned promise remains visible");
 `,
   "src/unawaited-finally.ts": `
 export async function cleanupBeforeCompletion(): Promise<string> {
@@ -85,10 +101,10 @@ it("keeps test-only promise conditions advisory", () => {
   "tests/unjoined.test.ts": `
 import { expect, it } from "vitest";
 const cliTest = it.extend<{ label: string }>({ label: "owned" });
-it("warns about an unjoined boundary-test assertion", () => {
+it("rejects an unjoined boundary-test assertion", () => {
   expect(Promise.resolve("ready")).resolves.toBe("ready");
 });
-cliTest("warns in an extended boundary-test callback", ({ label }) => {
+cliTest("rejects an unjoined extended boundary-test assertion", ({ label }) => {
   expect(Promise.resolve(label)).resolves.toBe("owned");
 });
 `,
@@ -116,6 +132,8 @@ processTest(
         JSON.stringify({
           compilerOptions: {
             strict: true,
+            allowJs: true,
+            checkJs: true,
             noEmit: true,
             skipLibCheck: true,
             module: "NodeNext",
@@ -176,17 +194,18 @@ processTest(
         )
         .sort(),
     ).toEqual([
+      "scripts/lib/http3-capture-assertions.test.mjs: error: typescript(no-floating-promises)",
       "src/misused.ts: error: typescript(no-misused-promises)",
-      "src/nonexhaustive.ts: warning: typescript(switch-exhaustiveness-check)",
+      "src/nonexhaustive.ts: error: typescript(switch-exhaustiveness-check)",
       "src/test-misused.test.ts: warning: typescript(no-misused-promises)",
-      "src/unawaited-finally.ts: warning: typescript(return-await)",
+      "src/unawaited-finally.ts: error: typescript(return-await)",
       "src/unjoined.test.ts: error: typescript(no-floating-promises)",
       "src/unjoined.test.ts: error: typescript(no-floating-promises)",
-      "tests/unjoined.test.ts: warning: typescript(no-floating-promises)",
-      "tests/unjoined.test.ts: warning: typescript(no-floating-promises)",
+      "tests/unjoined.test.ts: error: typescript(no-floating-promises)",
+      "tests/unjoined.test.ts: error: typescript(no-floating-promises)",
     ]);
     expect(
       diagnostics.filter(({ severity }) => severity === "error"),
-    ).toHaveLength(3);
+    ).toHaveLength(8);
   },
 );

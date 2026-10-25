@@ -556,6 +556,25 @@ export const semanticDefiniteEffectPrecedesReference = (
   );
 };
 
+/** Order a selected value before a later effect in this non-repeating body. */
+export const semanticReadPrecedesEffectWithinActivation = (
+  read: t.Node,
+  effect: t.Node,
+  parents: WeakMap<t.Node, t.Node>,
+): boolean => {
+  const before = bindingReadPosition(read, parents);
+  const after = directMutationPosition(effect, parents);
+  if (before.position === null || before.repeatingLoop || after === null)
+    return false;
+  if (positionPrecedes(before.position, after)) return true;
+  return (
+    before.position.body === after.body &&
+    before.position.index === after.index &&
+    before.position.declaratorIndex === after.declaratorIndex &&
+    expressionEvaluationOrder(read, effect, parents) === "before"
+  );
+};
+
 /** Order straight-line source effects in one activation, preserving deferred/repeating unknowns. */
 export const semanticEffectTimingWithinActivation = (
   site: t.Node,
@@ -1106,6 +1125,33 @@ export const semanticBindingEffectFollowsCapture = (
   const written = directMutationPosition(effect, parents);
   return (
     captured !== null && written !== null && positionPrecedes(captured, written)
+  );
+};
+
+/** A local declaration resets its lexical value before an ordinary member read. */
+export const semanticBindingEffectFollowsRead = (
+  binding: JavaScriptSemanticBindingState,
+  read: t.Node,
+  effect: t.Node,
+  parents: WeakMap<t.Node, t.Node>,
+): boolean => {
+  const initializer = binding.initializers[0];
+  if (binding.initializers.length !== 1 || initializer === undefined)
+    return false;
+  const declaration = parents.get(initializer.node);
+  // A logical/compound assignment may preserve a value from a prior call.
+  if (
+    !t.isVariableDeclarator(declaration) ||
+    declaration.init !== initializer.node
+  )
+    return false;
+  const initialized = initializerPosition(initializer, parents);
+  const selected = bindingReadPosition(read, parents).position;
+  return (
+    initialized !== null &&
+    selected !== null &&
+    positionPrecedes(initialized, selected) &&
+    semanticReadPrecedesEffectWithinActivation(read, effect, parents)
   );
 };
 

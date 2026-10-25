@@ -3,6 +3,7 @@ import {
   indexSemanticOpaqueEffects,
   semanticOpaqueBindingEffects,
   semanticBindingCanBeRebound,
+  semanticOpaqueBindingReadMayHaveChanged,
 } from "./javascriptSemanticOpaqueEffects.js";
 import * as t from "@babel/types";
 
@@ -874,7 +875,7 @@ export function* indexJavaScriptElectronIdentitySteps(
   const writes = new SemanticPropertyPathCoverage();
   let collectedWrites = false;
   const exportsByBinding = new Map<string, readonly string[] | null>();
-  const rootExport = (root: t.Node): readonly string[] | undefined => {
+  const rootOrigin = (root: t.Node): readonly string[] | undefined => {
     if (t.isIdentifier(root)) {
       if (semanticResolutionBlocked(state, root, root.name)) return undefined;
       const binding = resolveSemanticBindingState(state, root, root.name);
@@ -899,13 +900,26 @@ export function* indexJavaScriptElectronIdentitySteps(
       ? electronExportPath(origin.importedPath)
       : undefined;
   };
+  const rootExport = (root: t.Node): readonly string[] | undefined => {
+    // Possible origins must still cover writes through uncertain aliases.
+    // Admit positive reads separately, without caching their temporal validity.
+    if (state.opaqueEffects.byScope.size > 0 && t.isIdentifier(root)) {
+      const binding = resolveSemanticBindingState(state, root, root.name);
+      if (
+        binding !== undefined &&
+        semanticOpaqueBindingReadMayHaveChanged(binding, root, state)
+      )
+        return undefined;
+    }
+    return rootOrigin(root);
+  };
   yield* collectJavaScriptIdentityWritesSteps(
     program,
     state.erasedSyntaxNodes,
     (node, kind) => {
       if (kind === "opaque-call") return [interop.opaqueMutationPath(node)];
       const { root, members } = electronMemberPath(node);
-      const exported = kind === "binding" ? undefined : rootExport(root);
+      const exported = kind === "binding" ? undefined : rootOrigin(root);
       const path =
         exported === undefined
           ? (interop.intrinsicPath(root) ??
@@ -969,7 +983,7 @@ export function* indexJavaScriptElectronIdentitySteps(
     invocationPath,
     mayChangeAppPath: createSemanticElectronAppPathChangeQuery(
       state,
-      rootExport,
+      rootOrigin,
       interop,
     ),
   };

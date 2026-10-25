@@ -123,6 +123,13 @@ import {
 import { absoluteLocalPathStringSchema } from "../localPath.js";
 import { z } from "zod";
 import {
+  browserScenarioSummarySchema,
+  browserScenarioViewContextSchema,
+  browserScenarioViewItemsSchema,
+  browserScenarioViewRequestSchema,
+} from "./browserScenarioViewSchemas.js";
+import { projectBrowserScenarioView } from "./browserScenarioView.js";
+import {
   desktopViewRequestSchema,
   desktopViewItemsSchema,
   desktopSummarySchema,
@@ -393,6 +400,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   environmentStateViewRequestSchema,
   environmentCoverageViewRequestSchema,
   captureViewRequestSchema,
+  browserScenarioViewRequestSchema,
   protobufViewRequestSchema,
   qlogViewRequestSchema,
   pcapViewRequestSchema,
@@ -729,6 +737,14 @@ export const webNetworkCaptureSummaryViewResultSchema = z.strictObject({
   summary: captureSummarySchema,
 });
 
+/** Compact outcomes and the focus screen from a retained browser scenario. */
+export const browserScenarioSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  artifact: z.null(),
+  parent_operation: z.literal("capture_browser_scenario"),
+  summary: browserScenarioSummarySchema,
+});
+
 /** Exact package declarations with retained decoded manifest text. */
 export const androidPackageSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
@@ -1022,6 +1038,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     managedArtifactSummaryViewResultSchema,
     managedMemberSummaryViewResultSchema,
     webNetworkCaptureSummaryViewResultSchema,
+    browserScenarioSummaryViewResultSchema,
     androidPackageSummaryViewResultSchema,
     pcapCaptureSummaryViewResultSchema,
     dartAotSummaryViewResultSchema,
@@ -1075,6 +1092,15 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     items: captureViewItemsSchema,
     ...viewResultBase,
     parent_operation: z.literal("inspect_web_network_capture"),
+  }),
+  z.strictObject({
+    kind: z.literal("browser-scenario"),
+    view: browserScenarioViewRequestSchema,
+    items: browserScenarioViewItemsSchema,
+    ...viewResultBase,
+    ...browserScenarioViewContextSchema.shape,
+    artifact: z.null(),
+    parent_operation: z.literal("capture_browser_scenario"),
   }),
   z.strictObject({
     kind: z.literal("qlog"),
@@ -1283,9 +1309,7 @@ const unsupportedParent = (
   new AnalysisUnsupportedTargetError(
     INSPECT_ANALYSIS_VIEW_OPERATION,
     parentArtifactPath(parent),
-    parent.operation === "capture_browser_scenario"
-      ? `Parent Evidence operation "capture_browser_scenario" supports only the environment-manifest, environment-state and environment-coverage views.`
-      : `Parent Evidence operation ${JSON.stringify(parent.operation)} does not support analysis views. Use completed Evidence from a supported parent operation with a compatible view. For a summary receipt, use its normalized_result.parent_evidence_id rather than the receipt's own evidence_id.`,
+    `Parent Evidence operation ${JSON.stringify(parent.operation)} does not support analysis views. Use completed Evidence from a supported parent operation with a compatible view. For a summary receipt, use its normalized_result.parent_evidence_id rather than the receipt's own evidence_id.`,
   );
 
 const parentArtifactPath = (parent: AnalysisViewParent): string => {
@@ -1331,6 +1355,7 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inspect_managed_artifact", projectManagedArtifactView],
   ["inspect_managed_members", projectManagedMemberView],
   ["inspect_android_package", projectAndroidPackageView],
+  ["capture_browser_scenario", projectBrowserScenarioView],
   ["inspect_dart_aot", projectDartAotView],
   ["inspect_il2cpp_metadata", projectIl2cppMetadataView],
   ["inspect_apk_signature", projectApkSignatureView],

@@ -21,6 +21,7 @@ export const finishAnalysisCommand = async <
   canonicalOperation: string,
   signal: AbortSignal,
   fallbackResource?: string,
+  options: { readonly failureProjection?: "initial" | "final" } = {},
 ): Promise<Value | ReturnType<typeof projectAnalysisError>> => {
   let result: Result<Value, AnalysisError>;
   let cleanup: AnalysisError | undefined;
@@ -35,6 +36,12 @@ export const finishAnalysisCommand = async <
           : new ProviderAdapterError(providerId, canonicalOperation, { cause }),
     };
   }
+  // Some one-shot commands promise the original failure snapshot even when
+  // close retries and mutates the producer's live cleanup status.
+  const initialFailure =
+    !result.ok && options.failureProjection === "initial"
+      ? projectAnalysisError(result.error)
+      : undefined;
   try {
     // Resource owners may resolve their retained errors during close. This
     // adapter cannot infer resolution of a producer's earlier cleanup failure.
@@ -61,6 +68,7 @@ export const finishAnalysisCommand = async <
     }
   }
   await dispatchQueuedInterrupts();
+  if (initialFailure !== undefined) return initialFailure;
   if (result.ok && signal.aborted)
     result = {
       ok: false,

@@ -2,15 +2,17 @@ import { Cli } from "incur";
 import { z } from "zod";
 
 import { captureBrowserScenario } from "./application/BrowserScenarioCaptureService.js";
+import { finishAnalysisCommand } from "./cli/finishAnalysisCommand.js";
 import { withCommandCancellation } from "./cli/commandCancellation.js";
+import {
+  analysisEvidenceDeliveryOptions,
+  cliEvidenceDeliveryInputError,
+  publishCliAnalysisEvidence,
+} from "./cli/analysisEvidenceDelivery.js";
 import { CLI_COMMANDS } from "./cliCommandNames.js";
 import { parseCliJsonInput, resolveCliJsonPaths } from "./cliJsonInput.js";
 import { logCliCommand } from "./cliLogging.js";
 import { projectAnalysisError } from "./domain/analysisErrorProjection.js";
-import {
-  BrowserObservationError,
-  browserCleanupObservation,
-} from "./domain/browserObservationError.js";
 import { analysisInputErrorFromIssues } from "./domain/inputIssueProjection.js";
 import { browserScenarioSchema } from "./domain/browserScenario.js";
 import type { BrowserScenarioCapturePort } from "./application/BrowserScenarioCapturePort.js";
@@ -38,9 +40,16 @@ export const registerBrowserScenarioCommands = (
         .string()
         .describe("Inline browser scenario JSON or JSON file path"),
     }),
-    run: ({ args }) =>
+    options: z.object(analysisEvidenceDeliveryOptions),
+    run: ({ args, options: delivery }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, CLI_COMMANDS.captureBrowserScenario, async () => {
+          const deliveryError = cliEvidenceDeliveryInputError({
+            detail: delivery.detail,
+            evidenceOutput: delivery.evidence_output,
+            operation: OPERATION,
+          });
+          if (deliveryError !== undefined) return cliError(deliveryError);
           const input = await parseCliJsonInput(
             args.inputJson,
             OPERATION,
@@ -67,28 +76,28 @@ export const registerBrowserScenarioCommands = (
                     createBrowserScenarioProvider(environment),
                 )
               : options.createProvider(environment);
-          let result:
-            | Awaited<ReturnType<typeof captureBrowserScenario>>
-            | undefined;
-          try {
-            result = await captureBrowserScenario(provider, scenario.data, {
-              signal,
-            });
-            return result.ok ? result.value : cliError(result.error);
-          } finally {
-            try {
-              await provider?.close?.();
-            } catch (cause: unknown) {
-              // Failed captures already retain their primary error and partial
-              // observations. A cleanup retry must not replace that outcome.
-              if (result?.ok)
-                throw new BrowserObservationError(OPERATION, "cleanup_failed", {
-                  cause,
-                  cleanup: browserCleanupObservation(cause),
-                  partialObservation: result.value,
-                });
-            }
-          }
+          const result = await finishAnalysisCommand(
+            () => captureBrowserScenario(provider, scenario.data, { signal }),
+            {
+              close: async () => {
+                await provider?.close?.();
+              },
+            },
+            "rea-playwright-browser-scenario",
+            OPERATION,
+            signal,
+            undefined,
+            { failureProjection: "initial" },
+          );
+          if (!("evidence_id" in result))
+            return { error: "Browser scenario capture failed", ...result };
+          return publishCliAnalysisEvidence(result, {
+            providerId: "rea-playwright-browser-scenario",
+            operation: OPERATION,
+            signal,
+            detail: delivery.detail,
+            evidenceOutput: delivery.evidence_output,
+          });
         }),
       ),
   });

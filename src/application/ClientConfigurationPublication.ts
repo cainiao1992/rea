@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import { fileHandleMatchesBytes } from "../filesystem/fileHandleMatchesBytes.js";
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../filesystem/OwnedStagedOutput.js";
 import {
@@ -290,10 +291,10 @@ const isParentAliasRetarget = async (
     );
   }
   if (requestedStats.isSymbolicLink()) return false;
-  const requestedParent = dirname(resolve(requestedPath));
+  const requestedParent = dirname(absoluteCallerPath(requestedPath));
   try {
     const canonicalParent = await realpath(requestedParent);
-    return resolve(canonicalParent) !== requestedParent;
+    return canonicalParent !== requestedParent;
   } catch (cause: unknown) {
     void cause;
     return false;

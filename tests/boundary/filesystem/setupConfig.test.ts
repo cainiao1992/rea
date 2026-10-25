@@ -121,6 +121,42 @@ it.skipIf(process.platform === "win32")(
   },
 );
 
+it.skipIf(process.platform === "win32").each([false, true])(
+  "preserves filesystem parent traversal when the configuration exists=%s",
+  async (exists) => {
+    const root = await createTestTempDirectory("rea-config-parent-traversal-");
+    const selectedDirectory = join(root, "selected");
+    await mkdir(join(selectedDirectory, "child"), { recursive: true });
+    await symlink(join(selectedDirectory, "child"), join(root, "link"), "dir");
+    const selected = join(selectedDirectory, "config.json");
+    const unrelated = join(root, "config.json");
+    const original = '{"theme":"keep"}\n';
+    await writeFile(unrelated, original);
+    if (exists) await writeFile(selected, original);
+    const requested = `${root}/link/../config.json`;
+    expect(await resolveClientConfigTransactionPath(requested)).toBe(selected);
+    expect(
+      await configureClientConfiguration({
+        name: "cursor",
+        format: "json",
+        configPath: requested,
+      }),
+    ).toMatchObject({ status: "configured" });
+    expect(JSON.parse(await readFile(selected, "utf8"))).toMatchObject({
+      mcpServers: { rea: { command: "npx" } },
+    });
+    expect(await readFile(unrelated, "utf8")).toBe(original);
+    await expect(lstat(`${unrelated}.rea.backup`)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    if (exists)
+      expect(await readFile(`${selected}.rea.backup`, "utf8")).toBe(original);
+    expect(
+      await resolveClientConfigTransactionPath(`${root}/absent/../config.json`),
+    ).toBeUndefined();
+  },
+);
+
 describe("JSON client configuration transaction: writing configuration through safe paths", () => {
   it.skipIf(typeof process.getuid !== "function")(
     "rejects a symlink target not owned by the current user",

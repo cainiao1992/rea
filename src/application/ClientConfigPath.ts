@@ -1,5 +1,6 @@
 import { lstat, realpath } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { absoluteCallerPath } from "../filesystem/callerPath.js";
 
 interface ClientConfigPathStats {
   readonly uid?: number;
@@ -70,9 +71,9 @@ const resolveOwnedConfigSymlink = async (
 const canonicalRegularConfigPath = async (
   requestedPath: string,
   fileSystem: ClientConfigPathFileSystem,
-): Promise<string> => {
+): Promise<string | undefined> => {
   if (fileSystem.realpath === undefined) return requestedPath;
-  let ancestor = resolve(requestedPath);
+  let ancestor = absoluteCallerPath(requestedPath);
   const missing: string[] = [];
   while (true) {
     try {
@@ -80,6 +81,8 @@ const canonicalRegularConfigPath = async (
     } catch (cause: unknown) {
       if (!isAbsentPath(cause) || dirname(ancestor) === ancestor)
         return requestedPath;
+      // An absent directory before '..' cannot establish the selected parent.
+      if (basename(ancestor) === "..") return undefined;
       missing.unshift(basename(ancestor));
       ancestor = dirname(ancestor);
     }

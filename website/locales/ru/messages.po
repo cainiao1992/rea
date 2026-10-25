@@ -77,7 +77,7 @@ msgstr "Автор: N0zoM1z0 · 10 октября 2026"
 #: website/public/guides/javascript/index.html:513
 #: website/public/guides/native/index.html:519
 #: website/public/guides/rl-environments/index.html:508
-#: website/public/index.html:1277 website/public/showcase/aegis/index.html:818
+#: website/public/index.html:1290 website/public/showcase/aegis/index.html:818
 #: website/public/showcase/ctf/index.html:787
 #: website/public/showcase/dx-ball/index.html:795
 #: website/public/showcase/index.html:347
@@ -5705,7 +5705,7 @@ msgstr "Вставьте этот запрос в своего ИИ-помощн
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:259
+#: website/public/index.html:259 website/public/index.html:1096
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
@@ -5714,7 +5714,7 @@ msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Ваш кодирующий аг
 #: website/public/index.html:264 website/public/index.html:288
 #: website/public/index.html:524 website/public/index.html:605
 #: website/public/index.html:829 website/public/index.html:1100
-#: website/public/index.html:1185 website/public/index.html:1213
+#: website/public/index.html:1198 website/public/index.html:1226
 msgctxt "page:index.html"
 msgid "Copy"
 msgstr "Копировать"
@@ -6274,17 +6274,17 @@ msgstr ""
 "{ph0}Процент реализации{ph1} · {ph2}Тестовые примеры Microsoft{ph3} · "
 "Руководство по {ph4}встроенной настройке{ph5}"
 
-#: website/public/index.html:1126
+#: website/public/index.html:1139
 msgctxt "page:index.html"
 msgid "Your first investigation"
 msgstr "Ваше первое расследование"
 
-#: website/public/index.html:1127
+#: website/public/index.html:1140
 msgctxt "page:index.html"
 msgid "Try REA on a small app."
 msgstr "Попробуйте REA в небольшом приложении."
 
-#: website/public/index.html:1128
+#: website/public/index.html:1141
 msgctxt "page:index.html"
 msgid ""
 "Download our Notes example, trace its CSV export, and check one changed "
@@ -6293,17 +6293,17 @@ msgstr ""
 "Загрузите наш пример Notes, проследите его экспорт CSV и проверьте один "
 "измененный ввод."
 
-#: website/public/index.html:1133
+#: website/public/index.html:1146
 msgctxt "page:index.html"
 msgid "Try the guided example"
 msgstr "Попробуйте руководствоваться приведенным примером"
 
-#: website/public/index.html:1150
+#: website/public/index.html:1163
 msgctxt "page:index.html"
 msgid "Native binaries"
 msgstr "Программы с машинным кодом"
 
-#: website/public/index.html:1151
+#: website/public/index.html:1164
 msgctxt "page:index.html"
 msgid ""
 "Inspect functions, strings, references and call relationships in executables"
@@ -6312,17 +6312,17 @@ msgstr ""
 "Проверяйте функции, строки, ссылки и связи между вызовами функций в "
 "исполняемых файлах и библиотеках."
 
-#: website/public/index.html:1155
+#: website/public/index.html:1168
 msgctxt "page:index.html"
 msgid "Native analysis guide"
 msgstr "Руководство по анализу программ с машинным кодом"
 
-#: website/public/index.html:1158
+#: website/public/index.html:1171
 msgctxt "page:index.html"
 msgid "JavaScript & Electron"
 msgstr "JavaScript и Electron"
 
-#: website/public/index.html:1159
+#: website/public/index.html:1172
 msgctxt "page:index.html"
 msgid ""
 "Map modules, routes, IPC and native dependencies from an application folder "
@@ -6331,17 +6331,17 @@ msgstr ""
 "Отображайте модули, маршруты, IPC и собственные зависимости из папки "
 "приложения или архива ASAR."
 
-#: website/public/index.html:1163
+#: website/public/index.html:1176
 msgctxt "page:index.html"
 msgid "Application workflows"
 msgstr "Рабочие процессы приложений"
 
-#: website/public/index.html:1166
+#: website/public/index.html:1179
 msgctxt "page:index.html"
 msgid "Browser & runtime activity"
 msgstr "Активность в браузере и во время выполнения"
 
-#: website/public/index.html:1167
+#: website/public/index.html:1180
 msgctxt "page:index.html"
 msgid ""
 "Capture selected browser or process activity, then compare the results "
@@ -6350,12 +6350,12 @@ msgstr ""
 "Фиксируйте активность выбранного браузера или процесса, а затем сравнивайте "
 "результаты в разных запусках."
 
-#: website/public/index.html:1171
+#: website/public/index.html:1184
 msgctxt "page:index.html"
 msgid "Browser observation guide"
 msgstr "Руководство по наблюдению за браузером"
 
-#: website/public/index.html:1242
+#: website/public/index.html:1255
 msgctxt "page:index.html"
 msgid "Any questions?"
 msgstr "Есть вопросы?"
@@ -6419,7 +6419,7 @@ msgctxt "page:index.html"
 msgid "Copy Calculator analysis prompt"
 msgstr "Запрос на анализ с помощью калькулятора копирования"
 
-#: website/public/index.html:1277
+#: website/public/index.html:1290
 msgctxt "page:index.html"
 msgid "Back to top"
 msgstr "Наверх"
@@ -11013,7 +11013,7 @@ msgstr "Руководства"
 #: website/public/guides/javascript/index.html:505
 #: website/public/guides/native/index.html:511
 #: website/public/guides/rl-environments/index.html:500
-#: website/public/index.html:1269 website/public/showcase/aegis/index.html:810
+#: website/public/index.html:1282 website/public/showcase/aegis/index.html:810
 #: website/public/showcase/ctf/index.html:779
 #: website/public/showcase/dx-ball/index.html:787
 #: website/public/showcase/index.html:339
@@ -11036,7 +11036,7 @@ msgstr "Исходный код"
 #: website/public/guides/javascript/index.html:506
 #: website/public/guides/native/index.html:512
 #: website/public/guides/rl-environments/index.html:501
-#: website/public/index.html:1270 website/public/showcase/aegis/index.html:811
+#: website/public/index.html:1283 website/public/showcase/aegis/index.html:811
 #: website/public/showcase/ctf/index.html:780
 #: website/public/showcase/dx-ball/index.html:788
 #: website/public/showcase/index.html:340
@@ -11059,7 +11059,7 @@ msgstr "Лицензия MIT"
 #: website/public/guides/javascript/index.html:507
 #: website/public/guides/native/index.html:513
 #: website/public/guides/rl-environments/index.html:502
-#: website/public/index.html:1271 website/public/showcase/aegis/index.html:812
+#: website/public/index.html:1284 website/public/showcase/aegis/index.html:812
 #: website/public/showcase/ctf/index.html:781
 #: website/public/showcase/dx-ball/index.html:789
 #: website/public/showcase/index.html:341
@@ -11082,7 +11082,7 @@ msgstr "Вступить в сообщество"
 #: website/public/guides/javascript/index.html:508
 #: website/public/guides/native/index.html:514
 #: website/public/guides/rl-environments/index.html:503
-#: website/public/index.html:1272 website/public/showcase/aegis/index.html:813
+#: website/public/index.html:1285 website/public/showcase/aegis/index.html:813
 #: website/public/showcase/ctf/index.html:782
 #: website/public/showcase/dx-ball/index.html:790
 #: website/public/showcase/index.html:342
@@ -14829,12 +14829,12 @@ msgstr ""
 "Восстановите, как положение мяча превращается в звук слева или справа в игре"
 " для Windows 1996 года."
 
-#: website/public/index.html:1142
+#: website/public/index.html:1155
 msgctxt "page:index.html"
 msgid "Choose your target."
 msgstr "Выберите цель."
 
-#: website/public/index.html:1143
+#: website/public/index.html:1156
 msgctxt "page:index.html"
 msgid ""
 "These guides cover setup and a first investigation for each kind of "
@@ -14864,13 +14864,13 @@ msgstr ""
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:1180
+#: website/public/index.html:1193
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Example prompt · Website"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Пример запроса · Веб-сайт"
 
-#: website/public/index.html:1203
+#: website/public/index.html:1216
 msgctxt "page:index.html"
 msgid "Yes, this one."
 msgstr "Да, вот этот."
@@ -14883,7 +14883,7 @@ msgstr "Да, вот этот."
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:1208
+#: website/public/index.html:1221
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -14898,7 +14898,7 @@ msgstr ""
 #. {ph3}: </span >
 #. {ph4}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph5}: </span>
-#: website/public/index.html:1222
+#: website/public/index.html:1235
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -14912,18 +14912,18 @@ msgstr ""
 
 #. {ph0}: <a href="showcase/dx-ball/">
 #. {ph1}: </a>
-#: website/public/index.html:1231
+#: website/public/index.html:1244
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}See the DX-Ball case study →{ph1}"
 msgstr "{ph0}Смотрите тематическое исследование DX-Ball →{ph1}"
 
-#: website/public/index.html:1185
+#: website/public/index.html:1198
 msgctxt "page:index.html"
 msgid "Copy website project prompt"
 msgstr "Запрос на копирование проекта веб-сайта"
 
-#: website/public/index.html:1213
+#: website/public/index.html:1226
 msgctxt "page:index.html"
 msgid "Copy game reconstruction prompt"
 msgstr "Запрос на копирование реконструкции игры"
@@ -14935,7 +14935,7 @@ msgstr "Запрос на копирование реконструкции иг
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
-#: website/public/index.html:1194
+#: website/public/index.html:1207
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -14966,7 +14966,7 @@ msgctxt "page:index.html"
 msgid "See the full Calculator investigation"
 msgstr "Посмотреть полное исследование Калькулятора"
 
-#: website/public/index.html:1175
+#: website/public/index.html:1188
 msgctxt "page:index.html"
 msgid "Try a larger project"
 msgstr "Попробовать более крупный проект"
@@ -15102,7 +15102,7 @@ msgstr ""
 
 #. {ph0}: <a href="faq/">
 #. {ph1}: </a>
-#: website/public/index.html:1244
+#: website/public/index.html:1257
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Read the FAQ{ph1} — setup and common questions."
@@ -15110,7 +15110,7 @@ msgstr "{ph0}Прочитайте FAQ{ph1} — настройка и часты�
 
 #. {ph0}: <a href="https://discord.gg/GkcryMnJDM">
 #. {ph1}: </a>
-#: website/public/index.html:1247
+#: website/public/index.html:1260
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Join Discord{ph1} — get help and discuss your investigations."
@@ -15120,7 +15120,7 @@ msgstr ""
 
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
-#: website/public/index.html:1251
+#: website/public/index.html:1264
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}GitHub issues{ph1} — report a bug or request a feature."
@@ -15228,7 +15228,7 @@ msgstr ""
 #: website/public/guides/native/index.html:510
 #: website/public/guides/rl-environments/index.html:126
 #: website/public/guides/rl-environments/index.html:499
-#: website/public/index.html:128 website/public/index.html:1268
+#: website/public/index.html:128 website/public/index.html:1281
 #: website/public/showcase/aegis/index.html:127
 #: website/public/showcase/aegis/index.html:809
 #: website/public/showcase/ctf/index.html:126
@@ -15827,35 +15827,16 @@ msgstr ""
 "пробные задания без запуска исходного приложения. Поддерживаются изменения, "
 "эффект которых подтверждён записью."
 
-#: website/public/index.html:1093
-msgctxt "page:index.html"
-msgid ""
-"Ask your agent to record a test app, or build from a saved HAR file, a "
-"recording of browser network requests and responses:"
-msgstr ""
-"Попросите агента записать работу тестового приложения или соберите окружение"
-" из HAR-файла с сетевыми запросами и ответами браузера:"
-
-#: website/public/index.html:1099
-msgctxt "page:index.html"
-msgid "Build from a saved session"
-msgstr "Собрать из сохранённого сеанса"
-
 #. {ph0}: <a class="text-link" href="guides/rl-environments/" >
 #. {ph1}: </a >
 #. {ph2}: <a href="https://x.com/reatools/status/2112574822584918075?s=20" >
 #. {ph3}: </a >
-#: website/public/index.html:1111
+#: website/public/index.html:1124
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Build an RL environment{ph1} · {ph2}Watch the demo on X{ph3}"
 msgstr ""
 "{ph0}Руководство по созданию окружения{ph1} · {ph2}Смотреть демо в X{ph3}"
-
-#: website/public/index.html:1100
-msgctxt "page:index.html"
-msgid "Copy environment build command"
-msgstr "Копировать команду сборки окружения"
 
 #. {ph0}: <a href="#workflow">
 #. {ph1}: </a>
@@ -15944,6 +15925,63 @@ msgctxt "page:showcase/index.html"
 msgid "{ph0}Read the guide{ph1} · {ph2}Watch the video{ph3}"
 msgstr ""
 "{ph0}Руководство по созданию окружения{ph1} · {ph2}Смотреть демо в X{ph3}"
+
+#: website/public/index.html:1093
+msgctxt "page:index.html"
+msgid "With REA set up in your agent, give it a task like this:"
+msgstr ""
+"Настройте REA в своём агенте, затем замените пример URL и операции с папками"
+" на свои:"
+
+#. {ph0}: <span class="prompt-symbol" aria-hidden="true">
+#. {ph1}: </span >
+#. {ph2}: <span id="home-environment-prompt" >
+#. {ph3}: <code>http://127.0.0.1:3000</code>
+#. {ph4}: <code>my-env</code>
+#. {ph5}: </span >
+#. {ph6}: <span class="terminal-cursor" aria-hidden="true">
+#. {ph7}: </span>
+#: website/public/index.html:1109
+#, python-brace-format
+msgctxt "page:index.html"
+msgid ""
+"{ph0}›{ph1}{ph2}Use REA to build an RL environment from my test web app at "
+"{ph3}. Cover listing, creating, renaming, and deleting folders. You may "
+"create and remove test folders. Leave existing data unchanged. Save it in a "
+"folder named {ph4}. Check which operations work and tell me how to run "
+"it.{ph5}{ph6}{ph7}"
+msgstr ""
+"{ph0}›{ph1}{ph2}С помощью REA создай RL-окружение из моего тестового веб-"
+"приложения: {ph3} Включи просмотр списка папок, создание, переименование и "
+"удаление. Можно создавать и удалять тестовые папки. Существующие данные не "
+"меняй. Сохрани в папку {ph4}, проверь доступные операции и расскажи, как "
+"запустить окружение.{ph5}{ph6}{ph7}"
+
+#: website/public/index.html:1121
+msgctxt "page:index.html"
+msgid "Example prompt. Replace the URL and folder tasks with your own."
+msgstr "Пример запроса. Замените URL и операции с папками на свои."
+
+#: website/public/index.html:1100
+msgctxt "page:index.html"
+msgid "Copy example prompt"
+msgstr "Копировать запрос"
+
+#~ msgctxt "page:index.html"
+#~ msgid ""
+#~ "Ask your agent to record a test app, or build from a saved HAR file, a "
+#~ "recording of browser network requests and responses:"
+#~ msgstr ""
+#~ "Попросите агента записать работу тестового приложения или соберите окружение"
+#~ " из HAR-файла с сетевыми запросами и ответами браузера:"
+
+#~ msgctxt "page:index.html"
+#~ msgid "Build from a saved session"
+#~ msgstr "Собрать из сохранённого сеанса"
+
+#~ msgctxt "page:index.html"
+#~ msgid "Copy environment build command"
+#~ msgstr "Копировать команду сборки окружения"
 
 #~ msgctxt "page:guides/rl-environments/index.html"
 #~ msgid "Record with your agent"

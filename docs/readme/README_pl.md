@@ -240,14 +240,27 @@ Stwórz lokalne środowisko, w którym agent AI może ćwiczyć zadania, takie j
 
 REA zamienia nagrane żądania i odpowiedzi API w narzędzia, które agent może wywoływać. Środowisko używa nagranych danych i obsługuje zmiany tylko wtedy, gdy nagranie potwierdza ich efekty.
 
-Poproś agenta, aby za pomocą REA nagrał sesję na instancji testowej, na której może tworzyć, edytować i usuwać dane. Możesz też zacząć od pliku HAR, który zapisuje żądania i odpowiedzi sieciowe przeglądarki.
+Skonfiguruj REA w agencie, a następnie zastąp przykładowy URL i zadania dotyczące folderów własnymi:
 
-Zbuduj środowisko za pomocą REA, a następnie uruchom je z osobno zainstalowanymi AgentEnv i Dockerem:
+```text
+Za pomocą REA zbuduj środowisko RL z mojej testowej aplikacji internetowej:
+http://127.0.0.1:3000
+Uwzględnij wyświetlanie listy folderów, tworzenie, zmianę nazwy i usuwanie.
+Możesz tworzyć i usuwać foldery testowe. Nie zmieniaj istniejących danych.
+Zapisz w folderze my-env, sprawdź dostępne operacje i powiedz mi, jak uruchomić środowisko.
+```
+
+<details>
+<summary>Użyj wiersza poleceń</summary>
+
+Użyj tych poleceń, jeśli masz już plik z nagranymi żądaniami i odpowiedziami aplikacji w przeglądarce. Do uruchomienia wyniku potrzebujesz też AgentEnv i Dockera.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA eksportuje gotowe do uruchomienia środowisko z podstawowym testem uruchamiania i odpowiedzi. Połącz je ze swoim frameworkiem RL, aby określić cele zadań, dodać sprawdzanie nagród i uruchomić trening.
 

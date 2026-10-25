@@ -294,14 +294,28 @@ Give an AI agent a local environment to practice tasks such as finding an issue 
 
 REA turns recorded API requests and responses into tools the agent can call. The environment uses the recorded data and supports changes only when the recording confirms their effects.
 
-Ask your agent to use REA to record a session on a test instance where it may create, edit, and delete data. You can also start with a HAR file, a recording of browser network requests and responses.
+With REA set up in your agent, replace the example URL and folder tasks below with your own:
 
-Build with REA, then run with the separately installed AgentEnv framework and Docker:
+```text
+Use REA to build an RL environment from my test web app at
+http://127.0.0.1:3000.
+Cover listing, creating, renaming, and deleting folders. You may create and
+remove test folders. Leave existing data unchanged.
+Save it in a folder named my-env. Check which operations work and tell me
+how to run it.
+```
+
+<details>
+<summary>Use the command line instead</summary>
+
+Use these commands if you already have a file containing the app’s recorded browser requests and responses. Running the result also requires AgentEnv and Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA exports a runnable environment with a basic test to check that it starts and responds. Use it with your RL framework to define task goals, add reward checks, and run training.
 

@@ -301,14 +301,27 @@ AI agent ke liye local environment banayein jahan woh asal app chalaye baghair i
 
 REA record kiye hue API requests aur responses ko aise tools mein badalta hai jinhein agent call kar sakta hai. Environment recorded data istemal karta hai aur sirf woh tabdeeliyan support karta hai jin ke asraat recording tasdeeq karti hai.
 
-Agent se kahein ke REA ke zariye test instance par session record kare jahan use data banane, edit karne aur delete karne ki ijazat ho. Aap HAR file se bhi shuru kar sakte hain, jo browser ke network requests aur responses ka record hoti hai.
+Agent mein REA setup karne ke baad neeche example URL aur folder tasks ko apne app ke mutabiq badlein:
 
-REA se banayein, phir alag se install kiye hue AgentEnv framework aur Docker ke saath chalayein:
+```text
+Meri test web app se REA ke zariye RL environment banao:
+http://127.0.0.1:3000
+Folders ki list, creation, rename aur deletion cover karo. Test folders bana
+aur hata sakte ho, lekin mojooda data tabdeel na karo.
+my-env naam ke folder mein save karo, kaam karne wale operations check karo aur chalane ka tareeqa batao.
+```
+
+<details>
+<summary>Command line istemal karein</summary>
+
+Yeh commands tab istemal karein jab app ke browser requests aur responses ki recording pehle se file mein ho. Result chalane ke liye AgentEnv aur Docker bhi chahiye.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA chalne ke liye tayyar environment aur aik bunyadi test export karta hai jo us ka shuru hona aur jawab dena check karta hai. Apne RL framework ke saath task goals aur reward checks tay karein aur training chalayein.
 

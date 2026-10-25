@@ -248,14 +248,27 @@ Buat lingkungan lokal agar agen AI dapat berlatih tugas seperti mencari issue at
 
 REA mengubah permintaan dan respons API yang direkam menjadi alat yang dapat dipanggil agen. Lingkungan memakai data rekaman dan hanya mendukung perubahan yang dampaknya dikonfirmasi oleh rekaman.
 
-Minta agen menggunakan REA untuk merekam sesi pada instans uji yang mengizinkannya membuat, mengedit, dan menghapus data. Anda juga dapat mulai dari file HAR, rekaman permintaan dan respons jaringan browser.
+Setelah menyiapkan REA di agen, ganti URL contoh dan tugas folder di bawah sesuai aplikasi Anda:
 
-Bangun dengan REA, lalu jalankan dengan framework AgentEnv dan Docker yang diinstal terpisah:
+```text
+Gunakan REA untuk membuat lingkungan RL dari aplikasi web uji saya di
+http://127.0.0.1:3000.
+Cakup daftar, pembuatan, penggantian nama, dan penghapusan folder. Boleh membuat
+dan menghapus folder uji, tetapi jangan ubah data yang sudah ada.
+Simpan dalam folder bernama my-env, periksa operasi yang berfungsi, dan beri tahu cara menjalankannya.
+```
+
+<details>
+<summary>Gunakan baris perintah</summary>
+
+Gunakan perintah ini jika Anda sudah punya file rekaman permintaan dan respons aplikasi di browser. Untuk menjalankan hasilnya, Anda juga perlu AgentEnv dan Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA mengekspor lingkungan yang dapat dijalankan dengan uji dasar untuk memeriksa bahwa lingkungan mulai dan merespons. Hubungkan ke framework RL untuk menetapkan tujuan tugas, menambahkan pemeriksaan reward, dan menjalankan pelatihan.
 

@@ -75,7 +75,7 @@ msgstr "透過N0zoM1z0*10十月2026"
 #: website/public/guides/javascript/index.html:513
 #: website/public/guides/native/index.html:519
 #: website/public/guides/rl-environments/index.html:508
-#: website/public/index.html:1277 website/public/showcase/aegis/index.html:818
+#: website/public/index.html:1290 website/public/showcase/aegis/index.html:818
 #: website/public/showcase/ctf/index.html:787
 #: website/public/showcase/dx-ball/index.html:795
 #: website/public/showcase/index.html:347
@@ -5057,7 +5057,7 @@ msgstr "把這段話複製給程式設計助手："
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:259
+#: website/public/index.html:259 website/public/index.html:1096
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
@@ -5066,7 +5066,7 @@ msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}你的程式設計助手"
 #: website/public/index.html:264 website/public/index.html:288
 #: website/public/index.html:524 website/public/index.html:605
 #: website/public/index.html:829 website/public/index.html:1100
-#: website/public/index.html:1185 website/public/index.html:1213
+#: website/public/index.html:1198 website/public/index.html:1226
 msgctxt "page:index.html"
 msgid "Copy"
 msgstr "複製"
@@ -5587,80 +5587,80 @@ msgid ""
 "{ph4}Native setup guide{ph5}"
 msgstr "{ph0}百分比實現{ph1} · {ph2}Microsoft 測試用例{ph3} · {ph4}原生分析配置指南{ph5}"
 
-#: website/public/index.html:1126
+#: website/public/index.html:1139
 msgctxt "page:index.html"
 msgid "Your first investigation"
 msgstr "第一次調查"
 
-#: website/public/index.html:1127
+#: website/public/index.html:1140
 msgctxt "page:index.html"
 msgid "Try REA on a small app."
 msgstr "用一個小應用試試 REA。"
 
-#: website/public/index.html:1128
+#: website/public/index.html:1141
 msgctxt "page:index.html"
 msgid ""
 "Download our Notes example, trace its CSV export, and check one changed "
 "input."
 msgstr "下載 Notes 示例，追蹤 CSV 匯出，再修改一個輸入來驗證。"
 
-#: website/public/index.html:1133
+#: website/public/index.html:1146
 msgctxt "page:index.html"
 msgid "Try the guided example"
 msgstr "跟著示例開始"
 
-#: website/public/index.html:1150
+#: website/public/index.html:1163
 msgctxt "page:index.html"
 msgid "Native binaries"
 msgstr "原生二進位制"
 
-#: website/public/index.html:1151
+#: website/public/index.html:1164
 msgctxt "page:index.html"
 msgid ""
 "Inspect functions, strings, references and call relationships in executables"
 " and libraries."
 msgstr "檢查可執行檔案和庫中的函式、字串、引用和函式呼叫關係。"
 
-#: website/public/index.html:1155
+#: website/public/index.html:1168
 msgctxt "page:index.html"
 msgid "Native analysis guide"
 msgstr "原生分析指南"
 
-#: website/public/index.html:1158
+#: website/public/index.html:1171
 msgctxt "page:index.html"
 msgid "JavaScript & Electron"
 msgstr "JavaScript&Electron"
 
-#: website/public/index.html:1159
+#: website/public/index.html:1172
 msgctxt "page:index.html"
 msgid ""
 "Map modules, routes, IPC and native dependencies from an application folder "
 "or ASAR archive."
 msgstr "從應用目錄或 ASAR 檔案中分析模組、路由、IPC 和原生依賴。"
 
-#: website/public/index.html:1163
+#: website/public/index.html:1176
 msgctxt "page:index.html"
 msgid "Application workflows"
 msgstr "應用分析流程"
 
-#: website/public/index.html:1166
+#: website/public/index.html:1179
 msgctxt "page:index.html"
 msgid "Browser & runtime activity"
 msgstr "瀏覽器與執行時活動"
 
-#: website/public/index.html:1167
+#: website/public/index.html:1180
 msgctxt "page:index.html"
 msgid ""
 "Capture selected browser or process activity, then compare the results "
 "across runs."
 msgstr "記錄指定的瀏覽器或程序活動，再比較不同執行的結果。"
 
-#: website/public/index.html:1171
+#: website/public/index.html:1184
 msgctxt "page:index.html"
 msgid "Browser observation guide"
 msgstr "瀏覽器觀察指南"
 
-#: website/public/index.html:1242
+#: website/public/index.html:1255
 msgctxt "page:index.html"
 msgid "Any questions?"
 msgstr "有什麼問題嗎？"
@@ -5719,7 +5719,7 @@ msgctxt "page:index.html"
 msgid "Copy Calculator analysis prompt"
 msgstr "複製計算器分析提示"
 
-#: website/public/index.html:1277
+#: website/public/index.html:1290
 msgctxt "page:index.html"
 msgid "Back to top"
 msgstr "回到頂部"
@@ -9997,7 +9997,7 @@ msgstr "指南"
 #: website/public/guides/javascript/index.html:505
 #: website/public/guides/native/index.html:511
 #: website/public/guides/rl-environments/index.html:500
-#: website/public/index.html:1269 website/public/showcase/aegis/index.html:810
+#: website/public/index.html:1282 website/public/showcase/aegis/index.html:810
 #: website/public/showcase/ctf/index.html:779
 #: website/public/showcase/dx-ball/index.html:787
 #: website/public/showcase/index.html:339
@@ -10020,7 +10020,7 @@ msgstr "原始碼"
 #: website/public/guides/javascript/index.html:506
 #: website/public/guides/native/index.html:512
 #: website/public/guides/rl-environments/index.html:501
-#: website/public/index.html:1270 website/public/showcase/aegis/index.html:811
+#: website/public/index.html:1283 website/public/showcase/aegis/index.html:811
 #: website/public/showcase/ctf/index.html:780
 #: website/public/showcase/dx-ball/index.html:788
 #: website/public/showcase/index.html:340
@@ -10043,7 +10043,7 @@ msgstr "MIT 許可證"
 #: website/public/guides/javascript/index.html:507
 #: website/public/guides/native/index.html:513
 #: website/public/guides/rl-environments/index.html:502
-#: website/public/index.html:1271 website/public/showcase/aegis/index.html:812
+#: website/public/index.html:1284 website/public/showcase/aegis/index.html:812
 #: website/public/showcase/ctf/index.html:781
 #: website/public/showcase/dx-ball/index.html:789
 #: website/public/showcase/index.html:341
@@ -10066,7 +10066,7 @@ msgstr "加入社群"
 #: website/public/guides/javascript/index.html:508
 #: website/public/guides/native/index.html:514
 #: website/public/guides/rl-environments/index.html:503
-#: website/public/index.html:1272 website/public/showcase/aegis/index.html:813
+#: website/public/index.html:1285 website/public/showcase/aegis/index.html:813
 #: website/public/showcase/ctf/index.html:782
 #: website/public/showcase/dx-ball/index.html:790
 #: website/public/showcase/index.html:342
@@ -13399,12 +13399,12 @@ msgid ""
 "game."
 msgstr "還原一款 1996 年 Windows 遊戲如何把球的位置轉成左右聲道的聲音。"
 
-#: website/public/index.html:1142
+#: website/public/index.html:1155
 msgctxt "page:index.html"
 msgid "Choose your target."
 msgstr "選擇你的目標。"
 
-#: website/public/index.html:1143
+#: website/public/index.html:1156
 msgctxt "page:index.html"
 msgid ""
 "These guides cover setup and a first investigation for each kind of "
@@ -13429,13 +13429,13 @@ msgstr "彙編節選自已安裝的計算器 DLL。思考過程和回答用於�
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:1180
+#: website/public/index.html:1193
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Example prompt · Website"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}示例 prompt · 網站"
 
-#: website/public/index.html:1203
+#: website/public/index.html:1216
 msgctxt "page:index.html"
 msgid "Yes, this one."
 msgstr "對，就是這個網站。"
@@ -13448,7 +13448,7 @@ msgstr "對，就是這個網站。"
 #. {ph5}: <i>
 #. {ph6}: </i>
 #. {ph7}: </span >
-#: website/public/index.html:1208
+#: website/public/index.html:1221
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -13461,7 +13461,7 @@ msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}示例 prompt · 遊戲重建"
 #. {ph3}: </span >
 #. {ph4}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph5}: </span>
-#: website/public/index.html:1222
+#: website/public/index.html:1235
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -13473,18 +13473,18 @@ msgstr ""
 
 #. {ph0}: <a href="showcase/dx-ball/">
 #. {ph1}: </a>
-#: website/public/index.html:1231
+#: website/public/index.html:1244
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}See the DX-Ball case study →{ph1}"
 msgstr "{ph0}檢視 DX-Ball 案例 →{ph1}"
 
-#: website/public/index.html:1185
+#: website/public/index.html:1198
 msgctxt "page:index.html"
 msgid "Copy website project prompt"
 msgstr "複製網站專案提示"
 
-#: website/public/index.html:1213
+#: website/public/index.html:1226
 msgctxt "page:index.html"
 msgid "Copy game reconstruction prompt"
 msgstr "複製遊戲重建提示"
@@ -13496,7 +13496,7 @@ msgstr "複製遊戲重建提示"
 #. {ph4}: </span >
 #. {ph5}: <span class="terminal-cursor" aria-hidden="true">
 #. {ph6}: </span>
-#: website/public/index.html:1194
+#: website/public/index.html:1207
 #, python-brace-format
 msgctxt "page:index.html"
 msgid ""
@@ -13525,7 +13525,7 @@ msgctxt "page:index.html"
 msgid "See the full Calculator investigation"
 msgstr "展開完整的計算機調查"
 
-#: website/public/index.html:1175
+#: website/public/index.html:1188
 msgctxt "page:index.html"
 msgid "Try a larger project"
 msgstr "試一個更大的專案"
@@ -13645,7 +13645,7 @@ msgstr "我們在下面重新實作了兩條規則。選 + 或 ×，按 %，再�
 
 #. {ph0}: <a href="faq/">
 #. {ph1}: </a>
-#: website/public/index.html:1244
+#: website/public/index.html:1257
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Read the FAQ{ph1} — setup and common questions."
@@ -13653,7 +13653,7 @@ msgstr "{ph0}閱讀 FAQ{ph1} — 安裝設定和常見問題。"
 
 #. {ph0}: <a href="https://discord.gg/GkcryMnJDM">
 #. {ph1}: </a>
-#: website/public/index.html:1247
+#: website/public/index.html:1260
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Join Discord{ph1} — get help and discuss your investigations."
@@ -13661,7 +13661,7 @@ msgstr "{ph0}加入 Discord{ph1} — 尋求協助，交流你的調查。"
 
 #. {ph0}: <a href="https://github.com/morluto/rea/issues/new/choose" >
 #. {ph1}: </a >
-#: website/public/index.html:1251
+#: website/public/index.html:1264
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}GitHub issues{ph1} — report a bug or request a feature."
@@ -13759,7 +13759,7 @@ msgstr "使用 REA 和我已設定的分析工具檢查 {ph0}。列出其中的�
 #: website/public/guides/native/index.html:510
 #: website/public/guides/rl-environments/index.html:126
 #: website/public/guides/rl-environments/index.html:499
-#: website/public/index.html:128 website/public/index.html:1268
+#: website/public/index.html:128 website/public/index.html:1281
 #: website/public/showcase/aegis/index.html:127
 #: website/public/showcase/aegis/index.html:809
 #: website/public/showcase/ctf/index.html:126
@@ -14348,32 +14348,15 @@ msgid ""
 "their effects."
 msgstr "REA 建立工具與本機資料，讓代理無需執行原應用程式就能練習任務。只有錄製證據確認了修改的效果，環境才會支援該修改。"
 
-#: website/public/index.html:1093
-msgctxt "page:index.html"
-msgid ""
-"Ask your agent to record a test app, or build from a saved HAR file, a "
-"recording of browser network requests and responses:"
-msgstr "請代理錄製測試應用程式，或從儲存的 HAR 檔案建立。HAR 檔案記錄了瀏覽器的網路請求與回應："
-
-#: website/public/index.html:1099
-msgctxt "page:index.html"
-msgid "Build from a saved session"
-msgstr "從儲存的工作階段建立"
-
 #. {ph0}: <a class="text-link" href="guides/rl-environments/" >
 #. {ph1}: </a >
 #. {ph2}: <a href="https://x.com/reatools/status/2112574822584918075?s=20" >
 #. {ph3}: </a >
-#: website/public/index.html:1111
+#: website/public/index.html:1124
 #, python-brace-format
 msgctxt "page:index.html"
 msgid "{ph0}Build an RL environment{ph1} · {ph2}Watch the demo on X{ph3}"
 msgstr "{ph0}建立環境指南{ph1} · {ph2}在 X 上觀看示範{ph3}"
-
-#: website/public/index.html:1100
-msgctxt "page:index.html"
-msgid "Copy environment build command"
-msgstr "複製環境建立命令"
 
 #. {ph0}: <a href="#workflow">
 #. {ph1}: </a>
@@ -14460,6 +14443,57 @@ msgstr ""
 msgctxt "page:showcase/index.html"
 msgid "{ph0}Read the guide{ph1} · {ph2}Watch the video{ph3}"
 msgstr "{ph0}建立環境指南{ph1} · {ph2}在 X 上觀看示範{ph3}"
+
+#: website/public/index.html:1093
+msgctxt "page:index.html"
+msgid "With REA set up in your agent, give it a task like this:"
+msgstr "在代理中設定好 REA 後，將下方範例的網址與資料夾任務替換為你自己的："
+
+#. {ph0}: <span class="prompt-symbol" aria-hidden="true">
+#. {ph1}: </span >
+#. {ph2}: <span id="home-environment-prompt" >
+#. {ph3}: <code>http://127.0.0.1:3000</code>
+#. {ph4}: <code>my-env</code>
+#. {ph5}: </span >
+#. {ph6}: <span class="terminal-cursor" aria-hidden="true">
+#. {ph7}: </span>
+#: website/public/index.html:1109
+#, python-brace-format
+msgctxt "page:index.html"
+msgid ""
+"{ph0}›{ph1}{ph2}Use REA to build an RL environment from my test web app at "
+"{ph3}. Cover listing, creating, renaming, and deleting folders. You may "
+"create and remove test folders. Leave existing data unchanged. Save it in a "
+"folder named {ph4}. Check which operations work and tell me how to run "
+"it.{ph5}{ph6}{ph7}"
+msgstr ""
+"{ph0}›{ph1}{ph2}使用 REA 為我的測試 Web 應用程式建立 RL 環境，網址是 {ph3}。 "
+"涵蓋列出、建立、重新命名與刪除資料夾。可以建立和刪除測試資料夾， 但不要修改既有資料。 將環境儲存到名為 {ph4} "
+"的資料夾。檢查哪些操作可用，並告訴我如何執行。{ph5}{ph6}{ph7}"
+
+#: website/public/index.html:1121
+msgctxt "page:index.html"
+msgid "Example prompt. Replace the URL and folder tasks with your own."
+msgstr "範例提示詞。請替換為你的應用程式網址與任務。"
+
+#: website/public/index.html:1100
+msgctxt "page:index.html"
+msgid "Copy example prompt"
+msgstr "複製提示詞"
+
+#~ msgctxt "page:index.html"
+#~ msgid ""
+#~ "Ask your agent to record a test app, or build from a saved HAR file, a "
+#~ "recording of browser network requests and responses:"
+#~ msgstr "請代理錄製測試應用程式，或從儲存的 HAR 檔案建立。HAR 檔案記錄了瀏覽器的網路請求與回應："
+
+#~ msgctxt "page:index.html"
+#~ msgid "Build from a saved session"
+#~ msgstr "從儲存的工作階段建立"
+
+#~ msgctxt "page:index.html"
+#~ msgid "Copy environment build command"
+#~ msgstr "複製環境建立命令"
 
 #~ msgctxt "page:guides/rl-environments/index.html"
 #~ msgid "Record with your agent"

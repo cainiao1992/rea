@@ -240,14 +240,27 @@ Tạo môi trường cục bộ để tác tử AI luyện các tác vụ như t
 
 REA biến các yêu cầu và phản hồi API đã ghi thành công cụ mà tác tử có thể gọi. Môi trường dùng dữ liệu đã ghi và chỉ hỗ trợ thay đổi khi bản ghi xác nhận tác động của thay đổi đó.
 
-Yêu cầu tác tử dùng REA ghi một phiên trên bản thử nghiệm mà tác tử được phép tạo, sửa và xóa dữ liệu. Bạn cũng có thể bắt đầu với tệp HAR, bản ghi các yêu cầu và phản hồi mạng của trình duyệt.
+Sau khi thiết lập REA trong tác tử, thay URL và các tác vụ thư mục bên dưới bằng thông tin của bạn:
 
-Xây dựng bằng REA, sau đó chạy với AgentEnv và Docker được cài riêng:
+```text
+Dùng REA xây dựng môi trường RL từ ứng dụng web thử nghiệm của tôi tại
+http://127.0.0.1:3000.
+Bao gồm liệt kê, tạo, đổi tên và xóa thư mục. Có thể tạo và xóa
+thư mục thử nghiệm nhưng không thay đổi dữ liệu có sẵn.
+Lưu vào thư mục my-env, kiểm tra thao tác nào hoạt động và cho tôi biết cách chạy.
+```
+
+<details>
+<summary>Dùng dòng lệnh</summary>
+
+Dùng các lệnh này nếu đã có tệp ghi lại yêu cầu và phản hồi của ứng dụng trong trình duyệt. Để chạy môi trường tạo ra, bạn cũng cần AgentEnv và Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA xuất môi trường chạy được cùng bài kiểm tra cơ bản để xác nhận môi trường khởi động và phản hồi. Kết nối với framework RL để đặt mục tiêu tác vụ, thêm kiểm tra phần thưởng và chạy huấn luyện.
 

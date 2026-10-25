@@ -237,14 +237,27 @@ Crea un ambiente locale in cui un agente IA possa esercitarsi in attività come 
 
 REA trasforma le richieste e le risposte API registrate in strumenti che l’agente può chiamare. L’ambiente usa i dati registrati e supporta modifiche solo quando la registrazione ne conferma gli effetti.
 
-Chiedi all’agente di usare REA per registrare una sessione su un’istanza di prova in cui possa creare, modificare ed eliminare dati. Puoi anche partire da un file HAR, che registra le richieste e le risposte di rete del browser.
+Configura REA nel tuo agente, poi sostituisci l’URL e le attività sulle cartelle dell’esempio con i tuoi:
 
-Crea con REA, poi esegui con il framework AgentEnv e Docker, installati separatamente:
+```text
+Usa REA per creare un ambiente RL dalla mia app web di prova su
+http://127.0.0.1:3000.
+Includi elenco, creazione, rinomina ed eliminazione delle cartelle. Puoi creare
+e rimuovere cartelle di prova, ma non modificare i dati esistenti.
+Salvalo in una cartella chiamata my-env, verifica le operazioni disponibili e spiegami come eseguirlo.
+```
+
+<details>
+<summary>Usare la riga di comando</summary>
+
+Usa questi comandi se hai già un file con le richieste e le risposte dell’app registrate nel browser. Per eseguire il risultato servono anche AgentEnv e Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA esporta un ambiente eseguibile con un test di base che ne verifica l’avvio e le risposte. Usalo con il tuo framework RL per definire gli obiettivi, aggiungere controlli sulle ricompense ed eseguire l’addestramento.
 

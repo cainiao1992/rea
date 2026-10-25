@@ -302,14 +302,27 @@ Creează un mediu local în care un agent AI să exerseze sarcini precum găsire
 
 REA transformă cererile și răspunsurile API înregistrate în instrumente pe care agentul le poate apela. Mediul folosește datele înregistrate și permite modificări doar când înregistrarea le confirmă efectele.
 
-Cere agentului să folosească REA pentru a înregistra o sesiune pe o instanță de test unde poate crea, edita și șterge date. Poți începe și cu un fișier HAR, care înregistrează cererile și răspunsurile de rețea ale browserului.
+După ce configurezi REA în agent, înlocuiește URL-ul și sarcinile pentru dosare din exemplu cu ale tale:
 
-Construiește cu REA, apoi rulează cu frameworkul AgentEnv și Docker, instalate separat:
+```text
+Folosește REA pentru a crea un mediu RL din aplicația mea web de test de la
+http://127.0.0.1:3000.
+Include listarea, crearea, redenumirea și ștergerea dosarelor. Poți crea și elimina
+dosare de test, dar nu modifica datele existente.
+Salvează într-un dosar numit my-env, verifică operațiile disponibile și spune-mi cum îl rulez.
+```
+
+<details>
+<summary>Folosește linia de comandă</summary>
+
+Folosește aceste comenzi dacă ai deja un fișier cu cererile și răspunsurile aplicației înregistrate în browser. Pentru a rula rezultatul ai nevoie și de AgentEnv și Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA exportă un mediu executabil cu un test de bază care verifică pornirea și răspunsurile. Conectează-l la frameworkul RL pentru a defini obiectivele, a adăuga verificări de recompensă și a rula antrenarea.
 

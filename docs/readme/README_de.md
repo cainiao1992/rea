@@ -240,14 +240,27 @@ Erstelle eine lokale Umgebung, in der ein KI-Agent Aufgaben wie das Finden eines
 
 REA wandelt aufgezeichnete API-Anfragen und Antworten in Werkzeuge um, die der Agent aufrufen kann. Die Umgebung nutzt die aufgezeichneten Daten und unterstützt Änderungen nur, wenn die Aufzeichnung deren Wirkung bestätigt.
 
-Bitte deinen Agenten, mit REA eine Sitzung auf einer Testinstanz aufzuzeichnen, auf der er Daten anlegen, bearbeiten und löschen darf. Du kannst auch mit einer HAR-Datei beginnen, die Netzwerkanfragen und Antworten des Browsers aufzeichnet.
+Richte REA in deinem Agenten ein und ersetze die Beispiel-URL und die Ordneraufgaben durch deine eigenen:
 
-Erstelle die Umgebung mit REA und starte sie mit dem separat installierten AgentEnv-Framework und Docker:
+```text
+Erstelle mit REA eine RL-Umgebung aus meiner Test-Web-App unter
+http://127.0.0.1:3000.
+Decke das Auflisten, Erstellen, Umbenennen und Löschen von Ordnern ab.
+Du darfst Testordner anlegen und entfernen. Lass bestehende Daten unverändert.
+Speichere sie in einem Ordner namens my-env, prüfe die verfügbaren Operationen und erkläre mir den Start.
+```
+
+<details>
+<summary>Stattdessen die Befehlszeile verwenden</summary>
+
+Nutze diese Befehle, wenn du bereits eine Datei mit aufgezeichneten Browseranfragen und Antworten der App hast. Zum Ausführen des Ergebnisses brauchst du außerdem AgentEnv und Docker.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA exportiert eine lauffähige Umgebung mit einem einfachen Test, der prüft, ob sie startet und antwortet. Nutze sie mit deinem RL-Framework, um Aufgabenziele und Belohnungsprüfungen festzulegen und das Training auszuführen.
 

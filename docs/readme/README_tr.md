@@ -236,14 +236,27 @@ Asıl uygulamayı çalıştırmadan, yapay zekâ ajanının sorun bulma veya kla
 
 REA, kaydedilmiş API isteklerini ve yanıtlarını ajanın çağırabileceği araçlara dönüştürür. Ortam kayıtlı verileri kullanır ve yalnızca etkisi kayıtla doğrulanan değişiklikleri destekler.
 
-Ajanınızdan, veri oluşturma, düzenleme ve silme izni verdiğiniz bir test ortamında REA ile bir oturum kaydetmesini isteyin. Tarayıcının ağ isteklerini ve yanıtlarını kaydeden bir HAR dosyasıyla da başlayabilirsiniz.
+Ajanınızda REA’yı kurduktan sonra aşağıdaki örnek URL’yi ve klasör görevlerini kendinize göre değiştirin:
 
-REA ile oluşturun, ardından ayrıca kurulan AgentEnv çerçevesi ve Docker ile çalıştırın:
+```text
+REA ile şu test web uygulamamdan bir RL ortamı oluştur:
+http://127.0.0.1:3000
+Klasör listeleme, oluşturma, yeniden adlandırma ve silme işlemlerini kapsa.
+Test klasörleri oluşturup silebilirsin. Mevcut verileri değiştirme.
+my-env adlı klasöre kaydet, hangi işlemlerin çalıştığını kontrol et ve nasıl çalıştıracağımı anlat.
+```
+
+<details>
+<summary>Komut satırını kullanın</summary>
+
+Uygulamanın tarayıcı isteklerini ve yanıtlarını kaydettiğiniz bir dosya varsa bu komutları kullanabilirsiniz. Oluşan ortamı çalıştırmak için AgentEnv ve Docker da gerekir.
 
 ```sh
 rea environment-build ./session.har ./my-env --name my-env --json
 agent-env run ./my-env
 ```
+
+</details>
 
 REA, çalıştırılabilir bir ortamı ve başlayıp yanıt verdiğini kontrol eden temel bir testi dışa aktarır. Görev hedeflerini ve ödül kontrollerini tanımlamak, ardından eğitim çalıştırmak için RL çerçevenizle kullanın.
 

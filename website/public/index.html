@@ -1090,24 +1090,37 @@ SPEED: 6</code></pre>
             without running the original app. It supports changes when the
             recording confirms their effects.
           </p>
-          <p>
-            Ask your agent to record a test app, or build from a saved HAR file,
-            a recording of browser network requests and responses:
-          </p>
-          <div class="code-block">
-            <div class="code-header">
-              <span>Build from a saved session</span
+          <p>With REA set up in your agent, give it a task like this:</p>
+          <div class="agent-terminal">
+            <div class="terminal-header">
+              <span class="terminal-title"
+                ><span class="terminal-dots" aria-hidden="true"
+                  ><i></i><i></i><i></i></span
+                >Your coding agent</span
               ><button
                 class="copy-button"
                 type="button"
-                data-copy="home-environment-build"
-                aria-label="Copy environment build command"
+                data-copy="home-environment-prompt"
+                aria-label="Copy example prompt"
               >
                 Copy
               </button>
             </div>
-            <pre><code id="home-environment-build">npx -y rea-agents@latest environment-build ./session.har ./my-env --name my-env --json</code></pre>
+            <p class="terminal-prompt">
+              <span class="prompt-symbol" aria-hidden="true">›</span
+              ><span id="home-environment-prompt"
+                >Use REA to build an RL environment from my test web app at
+                <code>http://127.0.0.1:3000</code>. Cover listing, creating,
+                renaming, and deleting folders. You may create and remove test
+                folders. Leave existing data unchanged. Save it in a folder
+                named <code>my-env</code>. Check which operations work and tell
+                me how to run it.</span
+              ><span class="terminal-cursor" aria-hidden="true"></span>
+            </p>
           </div>
+          <p class="caption">
+            Example prompt. Replace the URL and folder tasks with your own.
+          </p>
           <p>
             <a class="text-link" href="guides/rl-environments/"
               >Build an RL environment</a

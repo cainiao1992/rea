@@ -19,7 +19,7 @@ export interface AppConfig {
   readonly ghidraJavaHome: string | undefined;
   readonly ghidraStartupTimeoutMs: number;
   /** Per-function native decompiler limit; absent leaves decompiles unbounded. */
-  readonly ghidraDecompileTimeoutSeconds?: number;
+  readonly ghidraDecompileTimeoutSeconds?: number | undefined;
   readonly ghidraLanguageOverride?: GhidraLanguageOverride;
   readonly ghidraDisabledAnalyzers?: readonly string[];
   readonly ghidraSeedFile?: string;

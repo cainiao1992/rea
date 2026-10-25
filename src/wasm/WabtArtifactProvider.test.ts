@@ -1064,12 +1064,25 @@ it.each([
       fileCloseFailure.failFirst = true;
     }
     try {
-      const result = await provider.inspect({
-        path: fixture.path,
-        candidate_paths:
-          stage === "candidate admission" ? [candidate, missing] : [candidate],
-        glue_paths: stage === "candidate admission" ? [] : [gluePath],
-      });
+      const result = await provider.inspect(
+        {
+          path: fixture.path,
+          candidate_paths:
+            stage === "candidate admission"
+              ? [candidate, missing]
+              : [candidate],
+          glue_paths: stage === "candidate admission" ? [] : [gluePath],
+        },
+        { commandTimeoutMs: 42000 },
+      );
+      if (!result.ok) {
+        expect(result.error.partialObservation).toMatchObject({
+          parameters: expect.not.objectContaining({
+            command_timeout_ms: expect.anything(),
+          }),
+          normalized_result: { tool_profile: { timeout_ms: 42000 } },
+        });
+      }
       if (result.ok) throw new Error("Expected the selected failure stage");
       expect(result.error._tag).toBe(
         validation === "rejected-by-selected-profile"

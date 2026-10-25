@@ -378,15 +378,17 @@ export class GhidraClient {
     options: {
       readonly signal?: AbortSignal;
       readonly progress?: ProgressReporter;
+      readonly decompileTimeoutSeconds?: number | null;
     } = {},
   ): Promise<Result<JsonValue, GhidraSessionError>> {
     const started = await this.start(options.signal, options.progress);
     if (!started.ok) return started;
-    return this.#requestQueue.run(
-      operation,
-      parameters,
-      options.signal === undefined ? {} : { signal: options.signal },
-    );
+    return this.#requestQueue.run(operation, parameters, {
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.decompileTimeoutSeconds === undefined
+        ? {}
+        : { decompileTimeoutSeconds: options.decompileTimeoutSeconds }),
+    });
   }
 
   /** Dispatch against the connected bridge without invoking startup or retry. */
@@ -852,7 +854,7 @@ export class GhidraClient {
     this.#outputDrainPromise = undefined;
     this.#outputDrainIncomplete = false;
     const deadline = new ProviderStartupDeadline(
-      this.#options.startupTimeoutMs,
+      this.#options.readStartupTimeoutMs?.() ?? this.#options.startupTimeoutMs,
       signal,
     );
     try {
@@ -1037,7 +1039,7 @@ export class GhidraClient {
           this.#wire.request(method, params, requestOptions),
         parseSessionInfo: (value) => this.#parseSessionInfo(value),
         failure: this.#failure,
-        startupTimeoutMs: this.#options.startupTimeoutMs,
+        startupTimeoutMs: deadline.timeoutMs,
       });
       if (
         completed.ok ||
@@ -1068,7 +1070,7 @@ export class GhidraClient {
       failure: this.#failure,
       isClosed: () => this.#closing,
       processExited: () => this.#process?.observedExit() !== undefined,
-      startupTimeoutMs: this.#options.startupTimeoutMs,
+      startupTimeoutMs: deadline.timeoutMs,
       handlers: {
         data: this.#onSocketData,
         error: this.#onSocketError,

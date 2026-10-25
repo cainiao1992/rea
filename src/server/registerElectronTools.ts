@@ -127,7 +127,14 @@ export const registerElectronTools = (
           const analyzed = await analyzeJavaScriptApplicationValidated(
             request,
             options.artifactResources,
-            { signal, progress, environment: options.environment },
+            {
+              signal,
+              progress,
+              environment: options.environment,
+              ...(server.analysisSettings === undefined
+                ? {}
+                : { settings: server.analysisSettings.read }),
+            },
           );
           return detail === "summary" && analyzed.ok
             ? projectRetainedAnalysis(

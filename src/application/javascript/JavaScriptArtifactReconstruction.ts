@@ -1,3 +1,4 @@
+import type { AnalysisSettingValues } from "../../domain/analysisSettings.js";
 import {
   DEFAULT_ASAR_HEADER_ADMISSION,
   type AsarHeaderAdmission,
@@ -86,6 +87,7 @@ export const reconstructJavaScriptArtifact = async (
   signal?: AbortSignal,
   progress?: ProgressReporter,
   asarHeaderAdmission: AsarHeaderAdmission = DEFAULT_ASAR_HEADER_ADMISSION,
+  overrides?: Readonly<Partial<AnalysisSettingValues>>,
 ): Promise<JavaScriptArtifactReconstructionResult> =>
   scope.run(async () => {
     const reportPhase = async (
@@ -173,9 +175,12 @@ export const reconstructJavaScriptArtifact = async (
       const worker = await createJavaScriptSourceAnalysis(
         {
           heapMb:
-            input.max_heap_mb ?? JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.heapMb,
+            input.max_heap_mb ??
+            overrides?.["javascript.max_heap_mb"] ??
+            JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.heapMb,
           timeoutMs:
             input.analysis_timeout_ms ??
+            overrides?.["javascript.analysis_timeout_ms"] ??
             JAVASCRIPT_ANALYSIS_RESOURCE_DEFAULTS.timeoutMs,
         },
         files.files.filter(

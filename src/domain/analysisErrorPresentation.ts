@@ -115,7 +115,7 @@ export const analysisErrorRemediationAction = (
     return "Use an artifact within the capacity reported in details.detail. Changing output detail or retrying the unchanged input does not remove this boundary.";
   if (error instanceof HopperTimeoutError)
     return error.operation === undefined
-      ? "Review details.launcher and inspect Hopper for ongoing initial analysis or a pending loader, demo, or license dialog. For a large target, increase REA_HOPPER_STARTUP_TIMEOUT_MS in the environment that starts REA and allow at least that long in the MCP client. Resolve retained cleanup before reopening."
+      ? "Review details.launcher and inspect Hopper for ongoing initial analysis or a pending loader, demo, or license dialog. For a large target, use update_analysis_settings with setting hopper.startup_timeout_ms and action set for the next startup attempt without restarting REA, or increase REA_HOPPER_STARTUP_TIMEOUT_MS for future REA processes. Allow at least that long in the MCP client. Resolve retained cleanup before reopening."
       : error.providerState === "busy"
         ? "Check binary_session.analysis_activity, wait for the active Hopper request to finish, then retry."
         : "Check binary_session for Hopper health, then retry the operation.";

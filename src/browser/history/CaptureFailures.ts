@@ -1,3 +1,4 @@
+import { analysisSettingLimit } from "../../domain/analysisSettingDefinitions.js";
 import type { ExecutionOptions } from "../../application/AnalysisProvider.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
@@ -265,6 +266,16 @@ export const captureMemoryFailure = (
     },
     {
       cause,
+      ...(input.format !== "mitmproxy" &&
+      (NODE_CAPTURE_HEAP_ENFORCED || processMemoryLimitBytes !== null)
+        ? {
+            limit: analysisSettingLimit(
+              "capture.decoder_old_generation_mib",
+              heap.oldGenerationMiB,
+              heap.source,
+            ),
+          }
+        : {}),
       remediationAction: `Use a smaller capture exported by its producer, or another decoder with sufficient capacity for the original capture. Preserve the original for provenance; a subset does not establish complete-capture coverage.${input.format !== "mitmproxy" ? ` ${recovery}` : ""}${input.format !== "mitmproxy" && processMemoryLimitBytes !== null ? ` The Windows Job Object commit limit for this decoder is ${String(processMemoryLimitBytes)} bytes, ${String(heap.oldGenerationMiB)} MiB plus a 512 MiB Bun reserve.` : ""}`,
       ...(cause instanceof OwnedCommandFailure && cause.snapshot !== null
         ? {

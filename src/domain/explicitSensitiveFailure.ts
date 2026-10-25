@@ -93,6 +93,7 @@ const redactFailure = (
   };
   const context = {
     cause: error,
+    ...(error.limit === undefined ? {} : { limit: error.limit }),
     ...(error.cleanupPrimary === undefined
       ? {}
       : {

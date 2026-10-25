@@ -1,3 +1,4 @@
+import { AnalysisSettings } from "../AnalysisSettings.js";
 import { expect, it } from "vitest";
 import { WasmArtifactService } from "./WasmArtifactService.js";
 import {
@@ -212,4 +213,45 @@ it("gives cancellation precedence over malformed raw input", async () => {
     error: { _tag: "AnalysisInputError" },
   });
   expect(calls).toBe(0);
+});
+
+it("uses runtime defaults only for omitted budgets, preserving explicit input and reset", async () => {
+  const settings = new AnalysisSettings({});
+  const accepted: number[] = [];
+  const authored: (number | undefined)[] = [];
+  const service = new WasmArtifactService(
+    {
+      close: async () => {},
+      inspect: async (input, options) => {
+        const value = wasmArtifactFixture();
+        value.tool_profile.timeout_ms = options!.commandTimeoutMs!;
+        accepted.push(options!.commandTimeoutMs!);
+        authored.push(input.command_timeout_ms);
+        return ok(wasmArtifactExecution(value));
+      },
+    },
+    settings.read,
+  );
+  expect(
+    settings.update({
+      changes: [
+        { setting: "wasm.command_timeout_ms", action: "set", value: 123000 },
+      ],
+    }).ok,
+  ).toBe(true);
+  const path = wasmArtifactFixture().artifact.path;
+  expect((await settings.run(() => service.inspect({ path }))).ok).toBe(true);
+  expect(
+    (
+      await settings.run(() =>
+        service.inspect({ path, command_timeout_ms: 42000 }),
+      )
+    ).ok,
+  ).toBe(true);
+  settings.update({
+    changes: [{ setting: "wasm.command_timeout_ms", action: "reset" }],
+  });
+  expect((await settings.run(() => service.inspect({ path }))).ok).toBe(true);
+  expect(accepted).toEqual([123000, 42000, 30000]);
+  expect(authored).toEqual([undefined, 42000, undefined]);
 });

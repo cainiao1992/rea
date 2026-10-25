@@ -1,13 +1,16 @@
+import type { AnalysisSettingsReader } from "../domain/analysisSettings.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
-import type { RetainedResourceScope } from "../application/AnalysisProvider.js";
+import type {
+  RetainedResourceScope,
+  ExecutionOptions,
+} from "../application/AnalysisProvider.js";
 import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { throwIfJadxInterrupted } from "./JadxInterruption.js";
 import { chmod, copyFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysisPort.js";
-import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
@@ -287,11 +290,14 @@ export class JadxProvider implements AndroidAnalysisPort {
   constructor(
     readonly environment: Readonly<Record<string, string | undefined>>,
     readonly launcher?: JadxLauncher,
+    readonly settings?: AnalysisSettingsReader,
   ) {}
 
   /** Report actual local prerequisites without starting JADX or opening a target. */
   inspectAvailability(signal?: AbortSignal) {
     const pending = inspectJadxAvailability(this.environment, {
+      operationTimeoutMs:
+        this.settings?.().overrides["jadx.operation_timeout_ms"],
       resourceOwner: this.#prerequisiteOwner,
       signal:
         signal === undefined
@@ -436,11 +442,12 @@ export class JadxProvider implements AndroidAnalysisPort {
     request: AndroidRequest,
     options?: ExecutionOptions,
   ): Promise<Outcome> {
-    // The deadline is fixed per provider environment; an unusable value is
-    // refused before any file handle, workspace, or engine is acquired.
+    // Resolve the accepted operation's override before acquiring any resource.
+    // An unusable launch value is refused without starting the engine.
     const timeoutMs = resolveJadxOperationTimeout(
       this.environment,
       request.operation,
+      this.settings?.().overrides["jadx.operation_timeout_ms"],
     );
     if (!timeoutMs.ok) return timeoutMs;
     const timeout = AbortSignal.timeout(timeoutMs.value);

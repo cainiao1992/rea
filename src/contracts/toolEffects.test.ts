@@ -17,6 +17,10 @@ const EXECUTION_WORDING =
   /\b(?:run|runs|running|launch|launches|launching|execute|executes|executing|execution|start|starts|install|installs|uninstall|uninstalls)\b/iu;
 
 const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
+  inspect_analysis_settings:
+    "reports launch configuration without launching any process",
+  update_analysis_settings:
+    "resets defaults to launch configuration without launching any process",
   inspect_with_objdump:
     "runs a caller-selected inspection tool, not target code",
   start_gdb_session:

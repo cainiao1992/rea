@@ -92,6 +92,7 @@ const projectError = (
   const primaryDetails = errorDetails(primary);
   const details = {
     ...primaryDetails,
+    ...(primary.limit === undefined ? {} : { limit: { ...primary.limit } }),
     ...(cleanupReport === undefined
       ? {}
       : { cleanup_report: jsonValueSchema.parse(cleanupReport) }),

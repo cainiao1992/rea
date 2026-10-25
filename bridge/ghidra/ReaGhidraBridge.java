@@ -404,6 +404,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
                     writeSuccess(writer, request.id, result);
                     return;
                 }
+                decompileTimeoutSeconds = request.decompileTimeoutSeconds() == null
+                    ? descriptor.decompileTimeoutSeconds() : request.decompileTimeoutSeconds();
                 writeSuccess(writer, request.id, handleRequest(request, descriptor));
             }
             catch (RequestFailure failure) {
@@ -3381,7 +3383,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 "decompile_timed_out",
                 "Ghidra decompilation of " + canonicalAddress(function.getEntryPoint()) +
                 " exceeded the " + decompileTimeoutSeconds +
-                "-second limit set by REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS"
+                "-second configured decompilation limit (ghidra.decompile_timeout_seconds; launch seed REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS)"
             );
         }
         if (!results.decompileCompleted()) {
@@ -4771,7 +4773,18 @@ public final class ReaGhidraBridge extends HeadlessScript {
     }
 
     private static Request parseRequest(String line, String expectedToken) {
-        JsonObject object = requireObject(JsonParser.parseString(line), REQUEST_KEYS);
+        JsonElement parsed = JsonParser.parseString(line);
+        Set<String> keys = new HashSet<>(REQUEST_KEYS);
+        if (parsed.isJsonObject() && parsed.getAsJsonObject().has("decompile_timeout_seconds"))
+            keys.add("decompile_timeout_seconds");
+        JsonObject object = requireObject(parsed, keys);
+        Integer timeout = null;
+        if (object.has("decompile_timeout_seconds")) {
+            JsonElement value = object.get("decompile_timeout_seconds");
+            timeout = value.isJsonNull() ? 0 : requireInteger(object, "decompile_timeout_seconds");
+            if (!value.isJsonNull() && (timeout < 1 || timeout > MAX_DECOMPILE_TIMEOUT_SECONDS))
+                throw new IllegalArgumentException("Invalid per-request decompile deadline");
+        }
         int id = requireInteger(object, "id");
         if (id <= 0 || !constantTimeEquals(requireString(object, "token"), expectedToken)) {
             throw new IllegalArgumentException("Bridge request authentication failed");
@@ -4780,7 +4793,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (params == null || !params.isJsonObject()) {
             throw new IllegalArgumentException("Bridge request parameters are invalid");
         }
-        return new Request(id, requireString(object, "method"), params.getAsJsonObject());
+        return new Request(id, requireString(object, "method"), params.getAsJsonObject(), timeout);
     }
 
     private static JsonObject requireObject(JsonElement element, Set<String> keys) {
@@ -4974,7 +4987,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonArray analysisExtensions,
         int decompileTimeoutSeconds
     ) {}
-    private record Request(int id, String method, JsonObject params) {}
+    private record Request(int id, String method, JsonObject params, Integer decompileTimeoutSeconds) {}
 
     private static final class RequestFailure extends RuntimeException {
         private final String code;

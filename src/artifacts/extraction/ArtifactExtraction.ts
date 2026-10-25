@@ -1,3 +1,4 @@
+import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import { resolveAsarHeaderAdmission } from "../AsarHeader.js";
 import { locateGodotPck } from "../GodotPckLocation.js";
 import { withArtifactRegularFile } from "../ArtifactFileOperation.js";
@@ -55,6 +56,7 @@ import type { ArtifactIntegrityPolicyName } from "../../domain/artifactIntegrity
 
 /** Local extraction input with the output root chosen by the adapter. */
 export interface ArtifactExtractionInput {
+  readonly asarHeaderAdmission?: AsarHeaderAdmission;
   readonly inputPath: string;
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
@@ -83,7 +85,9 @@ const extractArtifactInScope = async (
       resourceScope: input.resourceScope,
       signal,
       environment: input.environment,
-      asarHeaderAdmission: resolveAsarHeaderAdmission(input.environment),
+      asarHeaderAdmission:
+        input.asarHeaderAdmission ??
+        resolveAsarHeaderAdmission(input.environment),
       integrity: { mode: input.integrityPolicy },
     });
   const activeZipSource =
@@ -581,7 +585,11 @@ const createReader = async (
   path: string,
   input: Pick<
     ArtifactExtractionInput,
-    "inputPath" | "inputFormat" | "environment" | "resourceScope"
+    | "inputPath"
+    | "inputFormat"
+    | "environment"
+    | "resourceScope"
+    | "asarHeaderAdmission"
   >,
   containerFormat: ArtifactGraphManifest["root_format"],
   signal?: AbortSignal,
@@ -603,7 +611,9 @@ const createReader = async (
     return new DirectoryArtifactReader(path);
   if (format === "asar")
     return new AsarArtifactReader(path, {
-      headerAdmission: resolveAsarHeaderAdmission(input.environment),
+      headerAdmission:
+        input.asarHeaderAdmission ??
+        resolveAsarHeaderAdmission(input.environment),
     });
   if (isZipPackageFormat(format)) return new ZipArtifactReader(path, format);
   return new MachOSliceArtifactReader(path, input.environment);

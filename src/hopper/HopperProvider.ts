@@ -55,7 +55,6 @@ import {
 /** Concrete analysis provider backed by REA's private Hopper bridge. */
 export class HopperProvider implements AnalysisProviderCandidate {
   private readonly environment: Readonly<NodeJS.ProcessEnv>;
-  readonly #capabilities: readonly CapabilityDescriptor[];
   readonly #ownedResources = new ArtifactResourceScope();
   readonly #inspectionOwner: RetainedResourceScope = {
     retain: (owner, resource) =>
@@ -80,10 +79,6 @@ export class HopperProvider implements AnalysisProviderCandidate {
     private readonly platform: NodeJS.Platform = process.platform,
   ) {
     this.environment = snapshotEnvironment(environment, platform);
-    this.#capabilities = hopperCapabilities(
-      config.regexMatchingDeadline,
-      config.regexWorkerHeapRequest,
-    );
   }
 
   identity(): ProviderIdentity {
@@ -91,7 +86,10 @@ export class HopperProvider implements AnalysisProviderCandidate {
   }
 
   capabilities(): readonly CapabilityDescriptor[] {
-    return this.#capabilities;
+    return hopperCapabilities(
+      this.config.regexMatchingDeadline,
+      this.config.regexWorkerHeapRequest,
+    );
   }
 
   inspectAvailability(): ProviderAvailability {
@@ -322,6 +320,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
       }),
       ...(context === undefined ? {} : { runId: context.runId }),
       startupTimeoutMs: this.config.hopperStartupTimeoutMs,
+      readStartupTimeoutMs: () => this.config.hopperStartupTimeoutMs,
       bridgeMaxRequestBytes: this.config.bridgeMaxRequestBytes,
       logger: this.logger.child({ layer: "bridge" }),
       onDiagnostic: (diagnostic) =>
@@ -377,7 +376,7 @@ export class HopperProvider implements AnalysisProviderCandidate {
                   ? "REA loaded a digest-verified private executable copy. Evidence identifies the selected original source; Hopper document names describe the private image. The owned image and its Hopper document close together."
                   : "REA loaded a verified thin Mach-O image prepared from the original source. Identity and file offsets refer to the original file. The owned temporary image and its Hopper document close together, including on MCP shutdown.",
               ]),
-          ...(this.#capabilities.find(
+          ...(this.capabilities().find(
             (descriptor) => descriptor.operation === operation,
           )?.limitations ?? []),
           ...(operation === "read_bytes"

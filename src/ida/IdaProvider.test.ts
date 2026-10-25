@@ -1,3 +1,6 @@
+import { launchRegexMatchingLimitation } from "../process/RegexMatcher.js";
+import { AnalysisSettings } from "../application/AnalysisSettings.js";
+import { runtimeAnalysisConfig } from "../config/runtimeAnalysisSettings.js";
 import { describe, expect, it, vi } from "vitest";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -255,3 +258,97 @@ it.each(["http", "stdio"] as const)(
     }
   },
 );
+
+it("applies runtime regex budgets through a bound IDA client and recovers in the same session", async () => {
+  const { root, target } = await createIdaTarget();
+  const path = join(root, "registration.json");
+  let client:
+    | import("../application/AnalysisProvider.js").AnalysisClient
+    | undefined;
+  let provider: IdaProvider | undefined;
+  try {
+    await writeFile(
+      path,
+      JSON.stringify({ mode: "attached", url: "http://127.0.0.1:13337/mcp" }),
+    );
+    const parsed = parseConfig({ REA_IDA_MCP_CONFIG: path });
+    if (!parsed.ok) throw parsed.error;
+    const settings = new AnalysisSettings({});
+    const producer = new RecordingIdaMcp(target, "attached");
+    const value = "a".repeat(40) + "!";
+    producer.overrideCall = (name) =>
+      name === "list_strings"
+        ? {
+            data: [{ address: "0x3000", length: value.length, string: value }],
+            next_offset: null,
+          }
+        : undefined;
+    provider = new IdaProvider(
+      runtimeAnalysisConfig(parsed.value, settings.read),
+      {},
+      () => producer,
+    );
+    const resolved = await provider.resolveAnalysisProfile(target);
+    if (!resolved.ok) throw resolved.error;
+    if (!resolved.value.createClient || !resolved.value.profile)
+      throw new Error("Expected bound IDA client");
+    client = resolved.value.createClient(target, resolved.value.profile);
+    expect(
+      settings.update({
+        changes: [
+          { setting: "regex.matching_deadline_ms", action: "set", value: 100 },
+          {
+            setting: "regex.worker_heap_request_mib",
+            action: "set",
+            value: 256,
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+    const failed = await settings.run(() =>
+      client!.execute("search_strings", { pattern: "^(a+)+$", mode: "regex" }),
+    );
+    expect(failed).toMatchObject({
+      ok: false,
+      error: {
+        limit: {
+          setting: "regex.matching_deadline_ms",
+          effective_value: 100,
+          source: "runtime",
+        },
+      },
+    });
+    const capabilities = provider
+      .capabilities()
+      .find(({ operation }) => operation === "search_strings");
+    expect(capabilities?.limitations).toContain(
+      launchRegexMatchingLimitation(
+        { deadlineMs: 100, source: "runtime" },
+        { heapMiB: 256, source: "runtime" },
+      ),
+    );
+    settings.update({
+      changes: [
+        { setting: "regex.matching_deadline_ms", action: "set", value: 10000 },
+      ],
+    });
+    const recovered = await settings.run(() =>
+      client!.execute("search_strings", { pattern: "!$", mode: "regex" }),
+    );
+    expect(recovered.ok && recovered.value.result).toEqual([
+      expect.objectContaining({ address: "0x3000", value }),
+    ]);
+    if (recovered.ok) {
+      expect(recovered.value.limitations).toContain(
+        launchRegexMatchingLimitation(
+          { deadlineMs: 10000, source: "runtime" },
+          { heapMiB: 256, source: "runtime" },
+        ),
+      );
+    }
+  } finally {
+    await client?.close();
+    await provider?.closeOwnedResources();
+    await rm(root, { recursive: true, force: true });
+  }
+});

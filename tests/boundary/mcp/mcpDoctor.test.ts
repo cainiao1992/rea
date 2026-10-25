@@ -20,21 +20,26 @@ import {
 } from "../../../src/catalogIdentity.js";
 import { compactPresentationForMcpInputSchemaProfile } from "../../../src/config/mcpInputSchemaProfile.js";
 import {
+  resolveMcpStartupBudgets,
   MCP_PHASE_BUDGET_FLOOR_MS,
   MCP_PHASE_BUDGET_MAXIMUM_MS,
 } from "../../../src/config/mcpStartupBudgets.js";
-import { MCP_STARTUP_POLICY } from "../../../src/mcpStartupPolicy.js";
+import {
+  mcpDoctorDeadlineRecovery,
+  MCP_STARTUP_POLICY,
+} from "../../../src/mcpStartupPolicy.js";
 
 const expectDoctorDeadline = (
   detail: string | undefined,
   milliseconds: number,
 ) => {
-  expect(detail).toContain("REA_MCP_DOCTOR_DEADLINE_MS");
-  expect(detail).toContain(`${String(milliseconds)} ms (source setting`);
   expect(detail).toContain(
-    `startup_timeout_sec of ${String(MCP_STARTUP_POLICY.codexStartupTimeoutSeconds)} seconds`,
+    mcpDoctorDeadlineRecovery(
+      resolveMcpStartupBudgets({
+        REA_MCP_DOCTOR_DEADLINE_MS: String(milliseconds),
+      }).doctor,
+    ),
   );
-  expect(detail).not.toContain("no runtime override");
 };
 
 afterEach(() => vi.useRealTimers());
@@ -471,7 +476,6 @@ describe("production MCP doctor child lifecycle", () => {
     vi.useRealTimers();
     expect(result.healthy).toBe(false);
     expectDoctorDeadline(result.checks[0]?.detail, 60_000);
-    expect(result.checks[0]?.detail).toContain("client guidance");
     expect(result.checks[0]?.detail).not.toContain("REA_MCP_STARTUP");
     await expect(waitForExit(pid)).resolves.toBeUndefined();
   }, 10_000);
@@ -508,8 +512,6 @@ describe("production MCP doctor request-flow deadline", () => {
     );
     expect(requestFlow?.ok).toBe(false);
     expectDoctorDeadline(requestFlow?.detail, 60_000);
-    expect(requestFlow?.detail).toContain("client guidance");
-    expect(requestFlow?.detail).not.toContain("source default");
     expect(requestFlow?.detail).not.toContain("REA_MCP_STARTUP");
   }, 15_000);
 
@@ -538,8 +540,7 @@ describe("production MCP doctor request-flow deadline", () => {
       );
       expect(requestFlow?.ok).toBe(false);
       expect(requestFlow?.detail).toContain(message);
-      expect(requestFlow?.detail).not.toContain("no runtime override");
-      expect(requestFlow?.detail).not.toContain("MCP doctor startup deadline");
+      expect(requestFlow?.detail).not.toContain("REA_MCP_DOCTOR_DEADLINE_MS");
     },
     10_000,
   );
@@ -596,7 +597,6 @@ describe("production MCP doctor request-flow deadline", () => {
     expect(result.checks[0]?.detail).toContain(budgetRange);
     expect(result.checks[1]?.detail).toContain("REA_MCP_DOCTOR_DEADLINE_MS");
     expect(result.checks[1]?.detail).toContain(budgetRange);
-    expect(result.checks[0]?.detail).not.toContain("no runtime override");
   });
 });
 

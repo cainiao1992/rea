@@ -1,3 +1,5 @@
+import type { RegexMatchingDeadline } from "../config/regexMatchingDeadline.js";
+import type { RegexWorkerHeapRequest } from "../config/regexWorkerHeapRequest.js";
 import { z } from "zod";
 import {
   nativeDecompileSchema,
@@ -13,7 +15,7 @@ import {
 } from "../domain/analysisSearch.js";
 import {
   matchRegexValues,
-  REGEX_MATCHING_LIMITATION,
+  launchRegexMatchingLimitation,
 } from "../process/RegexMatcher.js";
 import {
   AnalysisInputError,
@@ -105,6 +107,8 @@ export class IdaOperationRunner {
     private readonly database?: string,
     private readonly options: {
       readonly signal?: AbortSignal | undefined;
+      readonly regexMatchingDeadline?: RegexMatchingDeadline | undefined;
+      readonly regexWorkerHeapRequest?: RegexWorkerHeapRequest | undefined;
       readonly selectorOrigin?: "provider" | undefined;
       /** False when the loaded processor may not be x86, so `callees` cannot be trusted alone. */
       readonly x86Only?: boolean;
@@ -621,12 +625,19 @@ export class IdaOperationRunner {
       const matches = analysisSearchPredicate(query);
       return items.filter(({ value }) => matches(value));
     }
-    this.limitations.push(REGEX_MATCHING_LIMITATION);
+    this.limitations.push(
+      launchRegexMatchingLimitation(
+        this.options.regexMatchingDeadline,
+        this.options.regexWorkerHeapRequest,
+      ),
+    );
     const matched = await matchRegexValues({
       operation,
       pattern: query.pattern,
       caseSensitive: query.case_sensitive,
       values: items.map(({ value }) => value),
+      deadline: this.options.regexMatchingDeadline,
+      heapRequest: this.options.regexWorkerHeapRequest,
       signal: this.options.signal,
     });
     if (!matched.ok) throw matched.error;

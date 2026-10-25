@@ -71,6 +71,7 @@ export const idaCapabilities = (
   mode: "attached" | "headless",
   stdio: boolean,
   native = false,
+  regexLimitation = REGEX_MATCHING_LIMITATION,
 ): readonly CapabilityDescriptor[] =>
   IDA_OPERATIONS.filter((operation) => idaProfileAdmits(operation, mode)).map(
     (operation) => ({
@@ -106,7 +107,7 @@ export const idaCapabilities = (
           ? [IDA_NATIVE_STRING_LIMITATION]
           : []),
         ...(operation === "search_procedures" || operation === "search_strings"
-          ? [REGEX_MATCHING_LIMITATION]
+          ? [regexLimitation]
           : []),
       ],
     }),

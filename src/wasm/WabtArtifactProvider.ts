@@ -2,7 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { access, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import type { ExecutionOptions } from "../application/AnalysisProvider.js";
+import type { WasmArtifactExecutionOptions } from "../application/wasm/WasmArtifactPort.js";
 import { createAnalysisExecution } from "../application/AnalysisProvider.js";
 import type {
   WasmArtifactExecution,
@@ -96,7 +96,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
   }
   async inspect(
     input: InspectWasmArtifactInput,
-    options?: ExecutionOptions,
+    options?: WasmArtifactExecutionOptions,
   ): Promise<Result<WasmArtifactExecution, AnalysisError>> {
     try {
       return await this.#resources.run(() => this.#inspect(input, options));
@@ -123,7 +123,7 @@ export class WabtArtifactProvider implements WasmArtifactPort {
 
   async #inspect(
     input: InspectWasmArtifactInput,
-    options?: ExecutionOptions,
+    options?: WasmArtifactExecutionOptions,
   ): Promise<Result<WasmArtifactExecution, AnalysisError>> {
     let runtime: WabtRuntime | undefined;
     let phase: "configuration" | "artifact" | "producer" = "configuration";
@@ -193,7 +193,9 @@ export class WabtArtifactProvider implements WasmArtifactPort {
       }
     };
     const commandTimeoutMs =
-      input.command_timeout_ms ?? DEFAULT_WASM_COMMAND_TIMEOUT_MS;
+      input.command_timeout_ms ??
+      options?.commandTimeoutMs ??
+      DEFAULT_WASM_COMMAND_TIMEOUT_MS;
     try {
       if (options?.signal?.aborted)
         throw new AnalysisCancelledError(OPERATION, {

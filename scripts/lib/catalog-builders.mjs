@@ -123,6 +123,7 @@ export const toolFamilyCatalog = (sources) => {
       surface: "application-workflow",
       contracts: [
         ...sources.applicationContracts.APPLICATION_TOOL_CONTRACTS,
+        ...sources.analysisSettingsContracts.ANALYSIS_SETTINGS_TOOL_CONTRACTS,
         ...sources.analysisViewContracts.ANALYSIS_VIEW_TOOL_CONTRACTS,
         ...sources.webScriptContracts.WEB_SCRIPT_TOOL_CONTRACTS,
         ...sources.javascriptRecoveryContracts

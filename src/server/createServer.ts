@@ -1,3 +1,5 @@
+import { AnalysisSettings } from "../application/AnalysisSettings.js";
+import { registerAnalysisSettingsTools } from "./registerAnalysisSettingsTools.js";
 import type { DevicetreeService } from "../application/binaryDiagnostics/DevicetreeService.js";
 import { registerDevicetreeTool } from "./registerDevicetreeTool.js";
 import { pcapCaptureHostSupported } from "../domain/pcap/pcapAnalysis.js";
@@ -5,6 +7,7 @@ import { createGpuCodeObjectsService } from "../composition/gpu.js";
 import { registerGpuCodeObjectsTools } from "./registerGpuCodeObjectsTools.js";
 import type { PacketCaptureService } from "../application/captures/PacketCaptureService.js";
 import { UNTRUSTED_CONTENT_INSTRUCTIONS } from "./toolResultEncoding.js";
+import { RECOVERY_INSTRUCTIONS } from "./recoveryInstructions.js";
 import {
   createPacketCaptureService,
   tsharkHostSupported,
@@ -34,6 +37,10 @@ import {
   createPeImportsService,
   createNativeExportsService,
   createPeResourcesService,
+  createRecordedCrashService,
+  createByteEntropyService,
+  createBinaryLayoutService,
+  pwntoolsHostSupported,
 } from "../composition/binaryDiagnostics.js";
 import type { ElfNotesService } from "../application/binaryDiagnostics/ElfNotesService.js";
 import type { AppleIpsService } from "../application/binaryDiagnostics/AppleIpsService.js";
@@ -62,7 +69,6 @@ import type { SqliteDatabaseService } from "../application/sqlite/SqliteDatabase
 import { createSqliteDatabaseService } from "../composition/sqlite.js";
 import { registerSqliteTools } from "./registerSqliteTools.js";
 import { registerRecordedCrashTools } from "./registerRecordedCrashTools.js";
-import { createRecordedCrashService } from "../composition/binaryDiagnostics.js";
 import { createDesktopApplicationService } from "../composition/desktop.js";
 import { registerDesktopApplicationTool } from "./registerDesktopApplicationTool.js";
 import { createGoBinaryService } from "../composition/go.js";
@@ -89,11 +95,6 @@ import { registerAnalysisViewTool } from "./registerAnalysisViewTool.js";
 import { registerBinaryDiagnosticsTools } from "./registerBinaryDiagnosticsTools.js";
 import { FridaInstrumentationManager } from "../frida/FridaInstrumentationManager.js";
 import { registerFridaTools } from "./registerFridaTools.js";
-import {
-  createByteEntropyService,
-  createBinaryLayoutService,
-  pwntoolsHostSupported,
-} from "../composition/binaryDiagnostics.js";
 import type { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
 import { createCatalogIdentity } from "../catalogIdentity.js";
 import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
@@ -193,8 +194,8 @@ import { sessionAvailabilityPolicy } from "./sessionAvailabilityPolicy.js";
 import {
   withAdmittedAnalysis,
   type ServerAnalysisSource,
+  type WithAdmittedAnalysis,
 } from "./analysisAdmission.js";
-import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import { createReverseEngineeringService } from "../composition/reverseEngineering.js";
 import { registerReverseEngineeringTools } from "./registerReverseEngineeringTools.js";
 import { CutterBridgeClient } from "../cutter/CutterBridgeClient.js";
@@ -211,12 +212,8 @@ const TARGET_FREE_INSTRUCTIONS =
 const ACTIVE_TARGET_INSTRUCTIONS =
   "REA analyzes the active reverse-engineering target. Use the analysis tool that answers the question directly. Search or list symbols when discovery is needed; analyze_function provides a function dossier, and focused procedure tools return individual facets.";
 
-// A host deadline can discard the response before error remediation reaches the
-// agent. Teach that distinction at initialization, not just in returned errors.
-const RECOVERY_INSTRUCTIONS =
-  "Recovery: For invalid arguments, read the connected tool's input schema (refresh tools/list if stale), fix the reported fields and do not repeat the unchanged call. If the MCP connection drops, retry that call once only when it is safe to repeat or known not to have started. If it may already have changed the target, or it fails again, tell the user and ask them to restart the MCP client. If REA could not start its connection, retry once, then tell the user and ask them to restart the MCP client. Do not retry a startup failure that returns the same unchanged result. Run `rea doctor` when REA could not start or tools stay missing after that restart. A returned REA provider_timeout is a server/provider deadline: follow its remediation and reuse accessible partial Evidence. Change a request field or REA_* setting only when the returned remediation explicitly recommends that change. Restart REA when that text says the value is read at startup. A mention that a control does not raise the deadline is not a recommendation to change it. A host error such as 'timed out awaiting tools/call' without a REA result is a client deadline, not proof that work or cleanup stopped. Do not repeat the unchanged analysis. Increase the host's tool deadline with execution/cleanup/delivery headroom; when configuration is not editable, report the required setting (Codex: mcp_servers.<server>.tool_timeout_sec, seconds). Server analysis_timeout_ms, when advertised, is a separate millisecond budget; raising it cannot fix a shorter client deadline. Session state does not establish completion of every target-free operation.";
-
 export interface CreateServerOptions {
+  readonly analysisSettings?: AnalysisSettings;
   /** Preserve the connection's creation time when materializing its runtime. */
   readonly startedAt?: string;
   /** Existing SDK server whose deferred registrations are being materialized. */
@@ -450,6 +447,8 @@ export const createServer = (
   const session = source.kind === "session" ? source.session : undefined;
   const analysis = source.kind === "session" ? source.session : source.analysis;
   const environment = snapshotEnvironment(options.environment ?? process.env);
+  const analysisSettings =
+    options.analysisSettings ?? new AnalysisSettings(environment);
   const omitOutputSchemas = outputSchemasOmitted(environment);
   const providerEnvironment = captureProviderEnvironment(
     options.providerEnvironment,
@@ -488,7 +487,8 @@ export const createServer = (
   const electronFuses = options.electronFuses ?? createElectronFuseService();
   const pythonPyc = options.pythonPyc ?? createPythonPycService();
   const webNetworkCapture =
-    options.webNetworkCapture ?? createWebNetworkCaptureService(environment);
+    options.webNetworkCapture ??
+    createWebNetworkCaptureService(environment, analysisSettings.read);
   const javascriptRecovery =
     options.javascriptRecovery ?? createJavaScriptRecoveryProvider(environment);
   const artifactResources = new ArtifactResourceScope();
@@ -519,6 +519,8 @@ export const createServer = (
       selectCompactInputSchemaPresentation(environment),
       omitOutputSchemas,
     );
+  server.analysisSettings = analysisSettings;
+  registerAnalysisSettingsTools(server, analysisSettings);
   if (options.mcpServer !== undefined) {
     server.attachRuntime(
       session === undefined
@@ -536,7 +538,12 @@ export const createServer = (
   });
   const rizinDebugSessions = new RizinDebugSessionManager(providerEnvironment);
   const android =
-    options.androidAnalysis ?? createAndroidAnalysisProvider(environment);
+    options.androidAnalysis ??
+    createAndroidAnalysisProvider(
+      environment,
+      undefined,
+      analysisSettings.read,
+    );
   const pcap = options.pcapAnalysis ?? createPcapAnalysisProvider(environment);
   const flutter =
     options.flutterAnalysis ?? createFlutterBuildAnalysisProvider();
@@ -545,6 +552,7 @@ export const createServer = (
   const wasmArtifact = wasmArtifactModule.create(
     environment,
     options.wasmArtifact,
+    analysisSettings.read,
   );
   const apkSignature = apkSignatureModule.create(
     environment,

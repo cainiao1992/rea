@@ -246,7 +246,7 @@ const asarFiles = async (
   if (cached?.identity === identity) {
     // A header cached under a larger caller's admission stays refused here.
     if (cached.headerBytes > admission.maximumBytes)
-      throw asarHeaderAdmissionFailure(admission);
+      throw asarHeaderAdmissionFailure(admission, cached.headerBytes);
     return cached.files;
   }
   const handle = await open(archive, "r");

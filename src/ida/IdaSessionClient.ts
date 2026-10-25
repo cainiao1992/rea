@@ -1,3 +1,4 @@
+import type { AppConfig } from "../config/types.js";
 import { z } from "zod";
 import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import {
@@ -212,6 +213,10 @@ export class IdaSessionClient implements AnalysisClient {
     private readonly target: BinaryTarget,
     private readonly connection: IdaMcpConnection,
     private readonly profile?: AnalysisProfileCommitment,
+    private readonly regexSettings?: Pick<
+      AppConfig,
+      "regexMatchingDeadline" | "regexWorkerHeapRequest"
+    >,
   ) {}
 
   execute(
@@ -404,6 +409,8 @@ export class IdaSessionClient implements AnalysisClient {
       idaProtocol(this.config),
       this.#database,
       {
+        regexMatchingDeadline: this.regexSettings?.regexMatchingDeadline,
+        regexWorkerHeapRequest: this.regexSettings?.regexWorkerHeapRequest,
         signal: options?.signal,
         selectorOrigin: options?.selectorOrigin,
         x86Only: isX86OnlyTarget(this.target),

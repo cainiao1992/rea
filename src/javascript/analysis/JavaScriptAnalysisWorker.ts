@@ -1,3 +1,4 @@
+import { analysisSettingLimit } from "../../domain/analysisSettingDefinitions.js";
 import { WorkerFrameSignal } from "../../process/WorkerFrameSignal.js";
 import type { JavaScriptSemanticProjectionCapacity } from "../../domain/javascript/javascriptSemanticFileProjection.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -778,6 +779,11 @@ export class JavaScriptAnalysisWorker {
       this.#limits(),
       {
         capturedOutput: this.#captured(),
+        limit: analysisSettingLimit(
+          "javascript.max_heap_mb",
+          this.limits.heapMb,
+          undefined,
+        ),
         remediationAction: javaScriptWorkerHeapRemediation(this.limits.heapMb),
       },
     );
@@ -972,6 +978,11 @@ export class JavaScriptAnalysisWorker {
       return this.#projectPrimaryFailure(path);
     return deadline.interruption === "timeout"
       ? new AnalysisTimeoutError(OPERATION, this.limits.timeoutMs, {
+          limit: analysisSettingLimit(
+            "javascript.analysis_timeout_ms",
+            this.limits.timeoutMs,
+            undefined,
+          ),
           capturedOutput: this.#captured(),
           userMessage: `JavaScript source analysis reached its ${String(this.limits.timeoutMs)}ms per-source server/provider deadline (analysis_timeout_ms), not the MCP client deadline.`,
           remediationAction:
@@ -1000,6 +1011,15 @@ export class JavaScriptAnalysisWorker {
         this.#limits(),
         {
           capturedOutput: this.#captured(),
+          ...(WORKER_HEAP_FLAGS_ENFORCED
+            ? {
+                limit: analysisSettingLimit(
+                  "javascript.max_heap_mb",
+                  this.limits.heapMb,
+                  undefined,
+                ),
+              }
+            : {}),
           remediationAction: recovery.remediationAction,
         },
       );

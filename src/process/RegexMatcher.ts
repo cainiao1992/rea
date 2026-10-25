@@ -1,3 +1,4 @@
+import { analysisSettingLimit } from "../domain/analysisSettingDefinitions.js";
 import { readFileSync } from "node:fs";
 import { Worker } from "node:worker_threads";
 
@@ -458,6 +459,11 @@ export const regexMatchingDeadlineError = (
       matching_deadline_source: deadline.source,
     },
     {
+      limit: analysisSettingLimit(
+        "regex.matching_deadline_ms",
+        deadline.deadlineMs,
+        deadline.source,
+      ),
       remediationAction: `${regexMatchingDeadlineRecovery(deadline)} Simplify the ECMAScript Unicode regex or use literal mode, then retry in the same session.`,
     },
   );
@@ -487,7 +493,16 @@ export const regexWorkerHeapError = (
         },
     {
       cause,
-      remediationAction: `${heapBound(heap, request)} Restart REA after changing --max-old-space-size or ${REGEX_WORKER_HEAP_REQUEST_SETTING}. A launch --max-old-space-size-percentage takes precedence over that flag in either order. Simplify the pattern or use literal mode.`,
+      ...(heap.kind === "effective" && !heap.overridden
+        ? {
+            limit: analysisSettingLimit(
+              "regex.worker_heap_request_mib",
+              request.heapMiB,
+              request.source,
+            ),
+          }
+        : {}),
+      remediationAction: `${heapBound(heap, request)} Use update_analysis_settings with setting regex.worker_heap_request_mib to change the request for the next worker; launch heap flags can override it. Restart REA after changing --max-old-space-size or ${REGEX_WORKER_HEAP_REQUEST_SETTING} in the launch environment. A launch --max-old-space-size-percentage takes precedence over that flag in either order. Simplify the pattern or use literal mode.`,
     },
   );
 const replySchema = z.discriminatedUnion("status", [

@@ -375,6 +375,16 @@ Trivial helper assertions need no replacement. Remove abandoned production
 scaffolding only after checking runtime and verifier consumers, including
 compiled imports.
 
+Assert error codes, structured limit facts, source provenance, and observed
+recovery behavior instead of freezing explanatory sentences or banning obsolete
+phrases. Keep exact checks for protocol values, setting and parameter names,
+caller data, and diagnostic provenance. To verify guidance delivery, compare the
+consumer with the owning formatter or constant, alongside independent assertions
+for the behavior and facts; shared text alone is not a correctness oracle.
+Documentation wording belongs in review, not substring tests of source files.
+When replacing prose assertions, verify that a harmless wording change passes
+and an incorrect budget or lost fact still fails.
+
 After an owner changes, move fault injection and event spies to the path the
 production consumer actually uses, and assert that the intended boundary was
 reached. Keep independent expectations from authored input, producer output, or

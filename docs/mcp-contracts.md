@@ -932,6 +932,22 @@ of a later null value. Inspect the slot's `xrefs` and the writer's assembly or
 pseudocode, retaining uncertainty about execution order and runtime values.
 These operations inspect static evidence and do not execute the target.
 
+## Editable analysis settings
+
+Agents can call `update_analysis_settings` to raise a curated admission,
+timeout or worker heap default on a connected server, then retry the same
+request. Errors carry `details.limit` with the setting and bounds when the
+failing owner supports runtime recovery; `inspect_analysis_settings` is optional
+when those facts are supplied. Updates are atomic, apply to new work, survive
+target close/open, and vanish when REA exits. Explicit per-call arguments take
+precedence. Neither tool changes host deadlines or resolves retained cleanup.
+See [runtime settings and recovery](design/limits-and-recovery.md#runtime-settings-through-mcp)
+for the full setting list, reset/revision semantics and ASAR retry example.
+
+Ghidra and Hopper startup updates apply to the next startup attempt without
+restarting REA. Ghidra decompile timeout updates apply on the existing Program.
+An operation already accepted retains its original budgets.
+
 ## Ghidra first-query deadlines and recovery
 
 A successful MCP initialize handshake establishes the REA connection.

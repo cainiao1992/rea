@@ -342,14 +342,18 @@ providers. Top-level session capabilities describe the current route, and
 bridge startup, and readiness. The default 330,000 ms is configurable through
 `REA_GHIDRA_STARTUP_TIMEOUT_MS`; a smaller query still needs the same cold import.
 
-Preserve useful Evidence before closing the session or restarting REA. Check
-`close_binary` and resolve reported cleanup failures. Set a larger startup budget
-in the environment that launches REA, then restart REA and reconnect the MCP
-client before reopening the same target. Closing and reopening a binary in the
-existing server keeps its original configuration and starts import again.
-Environment changes in an agent's shell do not update an already running MCP
-server. If its launch configuration cannot be changed, report that constraint
-and the exact retry setting instead of claiming a fixed technical limit.
+When the error names `ghidra.startup_timeout_ms`, call
+`update_analysis_settings` with `action: "set"` and a larger value within the
+reported bounds. Resolve retained cleanup before the next startup attempt.
+No REA restart is needed; an already accepted startup keeps its original
+budget. A new attempt repeats import. Preserve useful Evidence before closing
+and reopening the target when remediation requires that lifecycle step.
+
+For a per-function timeout, update `ghidra.decompile_timeout_seconds` and retry
+the same function on the existing Program. Explicit `null` removes that
+per-function deadline. Inspection is optional when the error supplies the
+setting and bounds. Runtime updates disappear when REA exits; environment
+changes only seed future REA processes.
 
 The client's tool-call deadline must allow startup plus the requested query;
 server settings and progress notifications cannot override it. CLI analysis

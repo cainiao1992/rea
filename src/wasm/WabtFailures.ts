@@ -1,3 +1,4 @@
+import { analysisSettingLimit } from "../domain/analysisSettingDefinitions.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import {
   artifactFileCancellationCause,
@@ -134,6 +135,11 @@ const classifyWabtFailure = (
     const timeout =
       cause.reason === "timeout"
         ? new AnalysisTimeoutError("inspect_wasm_artifact", timeoutMs, {
+            limit: analysisSettingLimit(
+              "wasm.command_timeout_ms",
+              timeoutMs,
+              undefined,
+            ),
             ...options,
             // The cleanup wrapper retains output once; its nested primary needs only recovery facts.
             capturedOutput:

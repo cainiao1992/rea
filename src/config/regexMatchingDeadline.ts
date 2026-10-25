@@ -1,3 +1,11 @@
+import {
+  DEFAULT_REGEX_MATCHING_DEADLINE_MS,
+  MAXIMUM_REGEX_MATCHING_DEADLINE_MS,
+} from "../domain/analysisResourceLimits.js";
+export {
+  DEFAULT_REGEX_MATCHING_DEADLINE_MS,
+  MAXIMUM_REGEX_MATCHING_DEADLINE_MS,
+} from "../domain/analysisResourceLimits.js";
 import { z } from "zod";
 
 import { ConfigurationError } from "../domain/configurationErrors.js";
@@ -5,22 +13,10 @@ import { err, ok, type Result } from "../domain/result.js";
 
 export const REGEX_MATCHING_DEADLINE_SETTING = "REA_REGEX_MATCHING_DEADLINE_MS";
 
-/** Matching deadline used when the setting is unset. Today's fixed constant. */
-export const DEFAULT_REGEX_MATCHING_DEADLINE_MS = 5_000;
-
-/**
- * Largest delay Node schedules exactly. A `setTimeout` delay above this
- * signed 32-bit bound is clamped to 1 ms, so a matching deadline past it
- * would expire immediately. The setting stops here instead of growing
- * without a bound. The floor is 1 ms: zero and negative values are not a
- * deadline.
- */
-export const MAXIMUM_REGEX_MATCHING_DEADLINE_MS = 2_147_483_647;
-
 /** Effective regex matching deadline and where its value came from. */
 export interface RegexMatchingDeadline {
   readonly deadlineMs: number;
-  readonly source: "default" | "setting";
+  readonly source: "default" | "setting" | "runtime";
 }
 
 export const DEFAULT_REGEX_MATCHING_DEADLINE: RegexMatchingDeadline = {
@@ -87,6 +83,6 @@ export const regexMatchingDeadlineRecovery = (
 ): string =>
   [
     `The effective ${REGEX_MATCHING_DEADLINE_SETTING} value is ${String(deadline.deadlineMs)} ms (source ${deadline.source}; default ${String(DEFAULT_REGEX_MATCHING_DEADLINE_MS)} ms, floor 1 ms, maximum ${String(MAXIMUM_REGEX_MATCHING_DEADLINE_MS)} ms).`,
-    `Set ${REGEX_MATCHING_DEADLINE_SETTING} in the environment that starts REA to a positive decimal integer from 1 to ${String(MAXIMUM_REGEX_MATCHING_DEADLINE_MS)}, then restart REA.`,
+    `Set ${REGEX_MATCHING_DEADLINE_SETTING} in the environment that starts REA to a positive decimal integer from 1 to ${String(MAXIMUM_REGEX_MATCHING_DEADLINE_MS)}, then restart REA. In a running MCP server, use update_analysis_settings with setting regex.matching_deadline_ms and action set instead; the new value applies to new work without a REA restart.`,
     "The worker old-generation heap does not raise this deadline.",
   ].join(" ");

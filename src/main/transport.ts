@@ -1,3 +1,4 @@
+import type { AnalysisSettings } from "../application/AnalysisSettings.js";
 import { createAndroidAnalysisProvider } from "../composition/android.js";
 import type { AndroidAnalysisPort } from "../application/android/AndroidAnalysisPort.js";
 
@@ -16,6 +17,7 @@ import {
 } from "./messages.js";
 
 interface ServerContext {
+  readonly analysisSettings?: AnalysisSettings;
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly delivery: ToolResultDelivery;
   readonly logger: Logger;
@@ -124,11 +126,16 @@ export const startMcpTransport = async (
           // The SDK can discard a discovery probe and construct a replacement server.
           const android = createAndroidAnalysisProvider(
             serverContext.environment,
+            undefined,
+            serverContext.analysisSettings?.read,
           );
           androidProviders.add(android);
           const server = (dependencies.createServer ?? createServer)(
             { kind: "session", session },
             {
+              ...(serverContext.analysisSettings === undefined
+                ? {}
+                : { analysisSettings: serverContext.analysisSettings }),
               logger: serverContext.logger,
               environment: serverContext.environment,
               delivery: serverContext.delivery,

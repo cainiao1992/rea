@@ -1,3 +1,4 @@
+import type { AnalysisSettings } from "../application/AnalysisSettings.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import {
@@ -162,6 +163,7 @@ export interface StandardToolRegistration {
 
 /** Bind oversized MCP error recovery to this server's Evidence ledger. */
 export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
+  analysisSettings: AnalysisSettings | undefined;
   private identity: ReturnType<typeof createCatalogIdentity> | undefined;
 
   /** Composition supplies identity without importing the canonical schema graph. */
@@ -262,7 +264,11 @@ export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
         : undefined;
     const registeredConfig =
       inputSchema === undefined ? config : { ...config, inputSchema };
-    return this.bindTool(name, registeredConfig as never, callback as never);
+    const scoped = (input: never, context: never) =>
+      this.analysisSettings === undefined
+        ? callback(input, context)
+        : this.analysisSettings.run(() => callback(input, context));
+    return this.bindTool(name, registeredConfig as never, scoped as never);
   }
 
   protected bindTool(

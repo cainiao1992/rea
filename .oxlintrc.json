@@ -58,7 +58,8 @@
       {
         "considerDefaultExhaustiveForUnions": true
       }
-    ]
+    ],
+    "rea/no-shared-module-mock": "error"
   },
   "overrides": [
     {

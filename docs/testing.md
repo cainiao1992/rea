@@ -166,6 +166,13 @@ operation names, schemas or types; display-only selection remains allowed.
 `rea/no-fixture-root-cleanup` follows `const` fixture-root aliases into teardown
 deletion; mutable bindings and mixed root arrays remain outside its scope.
 
+`rea/no-shared-module-mock` resolves Vitest import bindings before rejecting
+module mocks in projects without per-file isolation. The test-project definitions
+own isolation for Vitest and lint; the executable gate checks the resolved policy
+and runs the same collector. Aliases and namespace imports count; comments,
+shadowed locals, ordinary methods and `spyOn` do not. Negative CLI probes use an
+external temporary project so concurrent repository checks cannot discover them.
+
 Focused `.only` declarations, broken assertion promise chains, and unused disable
 directives are errors. `vitest/valid-expect` warns (`maxArgs: 2`) because valid stored and
 collected assertions can be awaited later. `import/no-duplicates` warns with

@@ -5,11 +5,13 @@ export const SOURCE_TEST_PROJECTS = [
   {
     name: "domain",
     group: "source",
+    isolate: false,
     include: ["src/{contracts,domain}/**/*.test.ts"],
   },
   {
     name: "services",
     group: "source",
+    isolate: false,
     include: ["src/application/**/*.test.ts"],
   },
   {
@@ -23,17 +25,20 @@ export const SOURCE_TEST_PROJECTS = [
   {
     name: "composition",
     group: "source",
+    isolate: false,
     include: ["tests/composition/**/*.test.ts"],
   },
   {
     name: "conformance",
     group: "source",
+    isolate: false,
     include: ["tests/conformance/**/*.test.ts"],
     exclude: ["tests/conformance/providers/hopper/realHopperSearch.test.ts"],
   },
   {
     name: "evaluation",
     group: "source",
+    isolate: false,
     include: ["tests/evaluation/**/*.test.ts"],
   },
 ];
@@ -55,6 +60,7 @@ export const BUILT_TEST_PROJECTS = [
   {
     name: "cli-boundary",
     group: "built",
+    isolate: false,
     include: ["tests/boundary/cli/**/*.test.ts"],
   },
   {
@@ -65,6 +71,7 @@ export const BUILT_TEST_PROJECTS = [
   {
     name: "mcp-boundary",
     group: "built",
+    isolate: false,
     include: ["tests/boundary/mcp/**/*.test.ts"],
   },
   {

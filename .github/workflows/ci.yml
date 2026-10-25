@@ -858,6 +858,7 @@ jobs:
           src/process/capture/FilesystemSnapshot.test.ts
           tests/process-global/filesystemSnapshotFallbackCancellation.test.ts
           tests/boundary/filesystem/typescriptCompiler.test.ts
+          tests/boundary/filesystem/releaseProposal.test.ts
           tests/boundary/filesystem/binaryTarget.test.ts
           src/contracts/sessionPathInputs.test.ts
           tests/boundary/filesystem/directAnalysisSnapshotReplay.test.ts

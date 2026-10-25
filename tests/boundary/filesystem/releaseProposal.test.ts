@@ -1,7 +1,14 @@
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -27,7 +34,6 @@ const silent = {
 };
 
 beforeAll(async () => {
-  await applyReleasePleasePatch();
   upstream = await import("release-please");
   githubRuntime = require("release-please/build/src/github.js");
 });
@@ -667,11 +673,93 @@ it("requires complete local history when sizing the upstream search", async () =
   );
 });
 
-it("applies the exact dependency patch idempotently and rejects another version", async () => {
-  await expect(applyReleasePleasePatch()).resolves.toBeUndefined();
-  const directory = dirname(require.resolve("release-please/package.json"));
-  const metadata = await readFile(join(directory, "package.json"), "utf8");
-  expect(JSON.parse(metadata).version).toBe("17.3.0");
+const releasePatchFixture = async () => {
+  const root = await createTestTempDirectory("rea-release-git-patch-");
+  const project = join(root, "project space Ω");
+  const dependencyPath = "node_modules/release dependency space Ω";
+  const directory = join(project, dependencyPath);
+  const upstreamDirectory = dirname(
+    require.resolve("release-please/package.json"),
+  );
+  const source = fileURLToPath(new URL("../../../", import.meta.url));
+  const patchPath = join(project, "patches/release-please+17.3.0.patch");
+  const patch = await readFile(
+    join(source, "patches/release-please+17.3.0.patch"),
+    "utf8",
+  );
+  const members = [...patch.matchAll(/^\+\+\+ b\/(.+)$/gmu)].map((match) => {
+    const member = match[1];
+    if (member === undefined) throw new Error("Patch header omitted its path");
+    return member;
+  });
+  await mkdir(join(project, "scripts/lib"), { recursive: true });
+  await mkdir(dirname(patchPath), { recursive: true });
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(project, "package.json"), '{"type":"module"}');
+  await writeFile(patchPath, patch);
+  for (const script of ["release-proposal.mjs", "release-notes.mjs"])
+    await copyFile(
+      join(source, "scripts/lib", script),
+      join(project, "scripts/lib", script),
+    );
+  for (const dependency of ["semver", "zod"])
+    await symlink(
+      dirname(require.resolve(`${dependency}/package.json`)),
+      join(project, "node_modules", dependency),
+      "junction",
+    );
+  for (const member of ["package.json", ...members]) {
+    await mkdir(dirname(join(directory, member)), { recursive: true });
+    await copyFile(join(upstreamDirectory, member), join(directory, member));
+  }
+  const environment = {
+    ...process.env,
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "core.protectNTFS",
+    GIT_CONFIG_VALUE_0: "true",
+  };
+  const git = (...args: string[]) =>
+    execute("git", args, { cwd: project, env: environment });
+  // Installation owns the patched dependency. Reverse only the private copy
+  // to obtain the exact upstream input for the fresh-application control.
+  await git("apply", "--reverse", "--directory", dependencyPath, patchPath);
+  const apply = () =>
+    execute(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { applyReleasePleasePatch } from ${JSON.stringify(pathToFileURL(join(project, "scripts/lib/release-proposal.mjs")).href)}; await applyReleasePleasePatch(${JSON.stringify(directory)});`,
+      ],
+      { cwd: project, env: environment, timeout: 10_000 },
+    );
+  const contents = () =>
+    Promise.all(
+      members.map((member) => readFile(join(directory, member), "utf8")),
+    );
+  return { directory, apply, contents, git, dependencyPath, patchPath };
+};
+
+it("applies the private dependency patch with protected Git paths and is idempotent", async () => {
+  const fixture = await releasePatchFixture();
+  const original = await fixture.contents();
+  await fixture.apply();
+  const patched = await fixture.contents();
+  expect(patched).not.toEqual(original);
+  expect(patched.join("\n")).toContain("const rootOnlyNode =");
+  await fixture.git(
+    "apply",
+    "--check",
+    "--reverse",
+    "--directory",
+    fixture.dependencyPath,
+    fixture.patchPath,
+  );
+  await fixture.apply();
+  expect(await fixture.contents()).toEqual(patched);
+});
+
+it("rejects a different dependency version before patching", async () => {
   const fixture = await createTestTempDirectory("rea-release-patch-");
   await writeFile(
     join(fixture, "package.json"),
@@ -682,22 +770,27 @@ it("applies the exact dependency patch idempotently and rejects another version"
   );
 });
 
-it("rejects a partial or mismatched dependency patch", async () => {
-  const directory = dirname(require.resolve("release-please/package.json"));
-  const manifest = join(directory, "build/src/manifest.js");
-  const original = await readFile(manifest, "utf8");
-  try {
+it.each(["partial", "mismatched"])(
+  "rejects a %s private dependency patch without changing its files",
+  async (state) => {
+    const fixture = await releasePatchFixture();
+    const manifest = join(fixture.directory, "build/src/manifest.js");
+    const original = await readFile(manifest, "utf8");
+    await fixture.apply();
+    const patched = await readFile(manifest, "utf8");
     await writeFile(
       manifest,
-      original.replace(
-        "const rootOnlyNode =",
-        "const mismatchedRootOnlyNode =",
-      ),
+      state === "partial"
+        ? original
+        : patched.replace(
+            "const rootOnlyNode =",
+            "const mismatchedRootOnlyNode =",
+          ),
     );
-    await expect(applyReleasePleasePatch()).rejects.toThrow(
+    const before = await fixture.contents();
+    await expect(fixture.apply()).rejects.toThrow(
       "does not match the installed source",
     );
-  } finally {
-    await writeFile(manifest, original);
-  }
-});
+    expect(await fixture.contents()).toEqual(before);
+  },
+);

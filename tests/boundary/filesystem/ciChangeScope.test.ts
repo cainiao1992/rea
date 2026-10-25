@@ -626,6 +626,12 @@ it.each([
     "tests/module/example.test.ts",
     { code: true, runtime: false, browser: false, package: false },
   ],
+  ["scripts/lib/release-proposal.mjs", { code: true, package: true }],
+  ["patches/release-please+17.3.0.patch", { code: true, package: true }],
+  [
+    "tests/boundary/filesystem/releaseProposal.test.ts",
+    { code: true, package: true },
+  ],
   ["website/src/index.ts", { code: false, website: true, package: false }],
   [
     "website/public/examples/notes-electron/preload.js",

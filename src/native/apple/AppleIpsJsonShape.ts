@@ -96,6 +96,13 @@ const threadShape = (
         members: {
           flavor: SCALAR,
           x: { kind: "array", items: register, beforeItem: take.registers },
+          // Rosetta-translated processes nest their translator registers.
+          rosetta: {
+            kind: "object",
+            members: {},
+            rest: register,
+            beforeRest: take.registers,
+          },
         },
         rest: register,
         beforeRest: take.registers,

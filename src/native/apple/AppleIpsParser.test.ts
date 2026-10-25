@@ -572,6 +572,78 @@ it("reports wrong-type collections as partial instead of empty and complete", ()
   expect(empty.coverage.status).toBe("complete");
 });
 
+it("keeps the nested Rosetta registers of a translated process", () => {
+  const parsed = parse(
+    withBody(`{
+      "translated": true,
+      "threads": [
+        {
+          "threadState": {
+            "flavor": "x86_THREAD_STATE",
+            "rip": { "value": 4294983680 },
+            "rosetta": { "tmp0": { "value": 7 }, "tmp1": 8 }
+          }
+        }
+      ],
+      "usedImages": []
+    }`),
+  );
+  expect(parsed.threads[0]?.registers).toEqual([
+    {
+      name: "rip",
+      value: { decimal: "4294983680", hex: "0x100004000" },
+      description: null,
+    },
+    {
+      name: "rosetta.tmp0",
+      value: { decimal: "7", hex: "0x7" },
+      description: null,
+    },
+    {
+      name: "rosetta.tmp1",
+      value: { decimal: "8", hex: "0x8" },
+      description: null,
+    },
+  ]);
+  expect(parsed.coverage).toMatchObject({
+    status: "complete",
+    registers: 3,
+    type_mismatches: [],
+  });
+});
+
+it.each([
+  { rosetta: "7", observed: "integer" },
+  { rosetta: '"invalid"', observed: "string" },
+  { rosetta: "[]", observed: "array" },
+])(
+  "reports a $observed Rosetta container without losing ordinary registers",
+  ({ rosetta, observed }) => {
+    const parsed = parse(
+      withBody(`{
+      "threads": [{ "threadState": { "rip": 1, "rosetta": ${rosetta}, "rsp": 2 } }],
+      "usedImages": []
+    }`),
+      { max_registers: 2 },
+    );
+    expect(parsed.threads[0]?.registers.map(({ name }) => name)).toEqual([
+      "rip",
+      "rsp",
+    ]);
+    expect(parsed.coverage).toMatchObject({
+      status: "partial",
+      registers: 2,
+      type_mismatches: [
+        {
+          path: "body.threads[0].threadState.rosetta",
+          expected: "object",
+          observed,
+        },
+      ],
+    });
+  },
+);
+
 it("records wrong-type rows, scalars and registers with their source path", () => {
   const parsed = parse(
     withBody(`{
@@ -583,7 +655,7 @@ it("records wrong-type rows, scalars and registers with their source path", () =
         7,
         {
           "frames": [{ "imageIndex": 99999999999, "imageOffset": "8" }, []],
-          "threadState": { "flavor": 1, "x": [1, "two", { "value": null }, {}], "rosetta": { "tmp0": 1 } }
+          "threadState": { "flavor": 1, "x": [1, "two", { "value": null }, {}], "rosetta": { "tmp0": "one" } }
         }
       ],
       "usedImages": [null, { "base": 1.0 }]
@@ -639,9 +711,9 @@ it("records wrong-type rows, scalars and registers with their source path", () =
       observed: "absent",
     },
     {
-      path: "body.threads[1].threadState.rosetta.value",
-      expected: "integer",
-      observed: "absent",
+      path: "body.threads[1].threadState.rosetta.tmp0",
+      expected: "integer or object with integer value",
+      observed: "string",
     },
     {
       path: "body.threads[1].threadState.flavor",
@@ -697,6 +769,69 @@ it("budgets register slots before expanding threadState rows", () => {
   );
   expect(() => parse(registerFlood(5), { max_registers: 4 })).toThrow(
     AppleIpsResourceFailure,
+  );
+});
+
+it("budgets Rosetta registers with the ordinary registers they follow", () => {
+  const rosetta = (third: string): Buffer =>
+    withBody(
+      `{"threads":[{"threadState":{"x":[0],"rosetta":{"tmp0":0,"tmp1":0,"tmp2":${third}}}}],"usedImages":[]}`,
+    );
+  expect(parse(rosetta("0"), { max_registers: 4 }).coverage).toMatchObject({
+    status: "complete",
+    registers: 4,
+  });
+  // The register past the allowance is invalid JSON; the budget must refuse first.
+  expect(() => parse(rosetta("?"), { max_registers: 3 })).toThrow(
+    expect.objectContaining({ boundary: "registers", maximum: 3 }),
+  );
+});
+
+it("keeps valid registers around a malformed Rosetta member at the exact slot limit", () => {
+  const parsed = parse(
+    withBody(`{
+      "translated": true,
+      "threads": [{
+        "threadState": {
+          "flavor": "x86_THREAD_STATE",
+          "rip": { "value": 1 },
+          "rosetta": { "tmp0": { "value": 2 }, "tmp1": "invalid" },
+          "rsp": { "value": 3 }
+        }
+      }],
+      "usedImages": []
+    }`),
+    { max_registers: 4 },
+  );
+  expect(parsed.threads[0]?.registers.map(({ name }) => name)).toEqual([
+    "rip",
+    "rosetta.tmp0",
+    "rsp",
+  ]);
+  expect(parsed.coverage).toMatchObject({
+    status: "partial",
+    registers: 3,
+    type_mismatches: [
+      {
+        path: "body.threads[0].threadState.rosetta.tmp1",
+        expected: "integer or object with integer value",
+        observed: "string",
+      },
+    ],
+  });
+});
+
+it("shares the register allowance across Rosetta groups and later ordinary registers", () => {
+  const mixed = (last: string): Buffer =>
+    withBody(
+      `{"threads":[{"threadState":{"rosetta":{"tmp0":0}}},{"threadState":{"rosetta":{"tmp1":0},"rip":${last}}}],"usedImages":[]}`,
+    );
+  expect(parse(mixed("0"), { max_registers: 3 }).coverage).toMatchObject({
+    status: "complete",
+    registers: 3,
+  });
+  expect(() => parse(mixed("?"), { max_registers: 2 })).toThrow(
+    expect.objectContaining({ boundary: "registers", maximum: 2 }),
   );
 });
 

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createCli } from "../../../src/cli.js";
 import { createCliInventory } from "../../../scripts/lib/catalog-cli.mjs";
+import { adbInputSchemas } from "../../../src/domain/adb/adbDeviceAnalysis.js";
 import {
   apktoolInputSchemas,
   MAX_SELECTED_LOCALES,
@@ -312,6 +313,49 @@ describe("web module CLI advertised input schema", () => {
     expect(options({ importMapPath: "" })).toBe(false);
     expect(options({ importMapPath: "map\u0000.json" })).toBe(false);
     expect(options({ importMapBaseUrl: "" })).toBe(false);
+  });
+});
+
+describe("ADB activity extra input schema", () => {
+  it("matches the owning workflow's extra count through advertisement and CLI parsing", async () => {
+    const cli = createCli({});
+    const advertised = await advertisedSchema(cli, "start-adb-activity");
+    const parser = parserSchema(cli, "start-adb-activity", "options");
+    if (parser === undefined)
+      throw new Error("ADB activity options parser was not registered");
+    const validate = new Ajv2020({ strict: false }).compile(
+      advertised.options ?? {},
+    );
+    expect(advertised.options?.properties.extra).toMatchObject({
+      type: "array",
+      maxItems: 16,
+      default: [],
+    });
+    const request = {
+      serial: "emulator-5554",
+      action: "android.intent.action.VIEW",
+    };
+    expect(validate({})).toBe(true);
+    const omitted = adbInputSchemas.start_adb_activity.parse(request);
+    expect(omitted.extras).toEqual([]);
+    expect(parser.parse({}).extra).toEqual(omitted.extras);
+    for (const count of [0, 16, 17]) {
+      const extras = Array.from({ length: count }, (_, index) => ({
+        type: "string",
+        key: `key${index}`,
+        value: `value${index}`,
+      }));
+      const input = {
+        extra: extras.map(({ type, key, value }) => `${type}:${key}:${value}`),
+      };
+      const expected = adbInputSchemas.start_adb_activity.safeParse({
+        ...request,
+        extras,
+      }).success;
+      expect(expected).toBe(count <= 16);
+      expect(parser.safeParse(input).success).toBe(expected);
+      expect(validate(input)).toBe(expected);
+    }
   });
 });
 

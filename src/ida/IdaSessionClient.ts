@@ -53,6 +53,14 @@ import {
 } from "./IdaWorkspace.js";
 import { parseIdaInput } from "./IdaInput.js";
 import { createEvidence } from "../domain/evidence.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
+import {
+  artifactFilePrimaryFacts,
+  artifactFileCancellationCause,
+  bindArtifactFileCleanup,
+} from "../artifacts/ArtifactFileOperation.js";
+import { ProviderCleanupError } from "../domain/providerCleanupError.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 
 const legacyTools = [
   "get_metadata",
@@ -108,7 +116,6 @@ interface UpstreamSession {
 
 /** A failed cleanup retains its private workspace and reports the remaining resource. */
 class IdaCleanupError extends ProviderAdapterError {
-  override readonly cleanupIncomplete = true;
   constructor(
     path: string,
     cause: unknown,
@@ -116,6 +123,11 @@ class IdaCleanupError extends ProviderAdapterError {
   ) {
     super("ida", "close", {
       cause,
+      cleanup: {
+        reason:
+          "IDA connection or private workspace cleanup remains unverified.",
+        resources: [path],
+      },
       capturedOutput:
         cause instanceof AnalysisError ? cause.capturedOutput : undefined,
       diagnostics: {
@@ -149,7 +161,6 @@ class IdaCleanupError extends ProviderAdapterError {
             }),
       },
     });
-    this.setCleanupResources([path]);
   }
 }
 
@@ -194,6 +205,7 @@ export class IdaSessionClient implements AnalysisClient {
   #closed = false;
   #closing = false;
   #closePromise: Promise<Result<null, AnalysisError>> | undefined;
+  #closeFailures: WeakRef<IdaCleanupError>[] = [];
   #workspace: IdaWorkspace | undefined;
   #database: string | undefined;
   #databaseCloseCompleted = false;
@@ -449,6 +461,10 @@ export class IdaSessionClient implements AnalysisClient {
     options: ExecutionOptions | undefined,
     context: IdaOperationFailureContext,
   ) {
+    const artifactFailure =
+      cause instanceof ArtifactReaderFailure ? cause : undefined;
+    if (artifactFailure !== undefined)
+      cause = artifactFilePrimaryFacts(artifactFailure).cause;
     let failure: AnalysisError;
     if (cause instanceof IdaIdentityRefusal) {
       failure = new AnalysisOutputError(operation, cause.reason, {
@@ -456,6 +472,10 @@ export class IdaSessionClient implements AnalysisClient {
         userMessage: cause.reason,
         remediationAction: cause.recovery,
         diagnostics: cause.diagnostics,
+      });
+    } else if (artifactFailure?.reason === "cancelled") {
+      failure = new AnalysisCancelledError(operation, {
+        cause: artifactFileCancellationCause(artifactFailure),
       });
     } else if (cause instanceof AnalysisCancelledError) {
       failure = new AnalysisCancelledError(operation, {
@@ -523,6 +543,20 @@ export class IdaSessionClient implements AnalysisClient {
             "Check the configured upstream MCP registration and selected target; see docs/ida-provider.md.",
         },
       });
+    if (artifactFailure?.cleanup !== undefined) {
+      const cleanup = new ProviderCleanupError(
+        "ida",
+        artifactFailure.cleanup.resources,
+        { reason: artifactFailure.cleanup.reason },
+        { operation, cause: artifactFailure },
+      );
+      bindArtifactFileCleanup(artifactFailure, cleanup);
+      failure = analysisErrorWithCleanupFailure(
+        failure,
+        cleanup,
+        operation,
+      ).bindCleanupDependencies([cleanup]);
+    }
     // Only operation calls made after target identity/readiness validation can
     // become partial Evidence. The failing call itself is absent from `raw`
     // when its transport or MCP envelope could not be decoded.
@@ -1005,16 +1039,31 @@ export class IdaSessionClient implements AnalysisClient {
       await this.connection.close();
       await this.#workspace?.remove();
       this.#closed = true;
+      for (const failure of this.#closeFailures)
+        failure.deref()?.resolveCleanup();
+      this.#closeFailures = [];
       return ok(null);
     } catch (cause: unknown) {
       this.connection.detach();
-      return err(
-        new IdaCleanupError(
-          this.#workspace?.directory ?? "IDA MCP connection",
-          cause,
-          this.#unreleasedSessions(),
-        ),
+      const path = this.#workspace?.directory ?? "IDA MCP connection";
+      const failure = new IdaCleanupError(
+        path,
+        cause,
+        this.#unreleasedSessions(),
       );
+      const client = this;
+      failure.bindCleanupResourceOwner({
+        get cleanupResources() {
+          return client.#closed ? [] : [path];
+        },
+      });
+      this.#closeFailures = [
+        ...this.#closeFailures.filter(
+          (reference) => reference.deref() !== undefined,
+        ),
+        new WeakRef(failure),
+      ];
+      return err(failure);
     }
   }
 }

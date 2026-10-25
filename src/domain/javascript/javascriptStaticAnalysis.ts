@@ -176,6 +176,8 @@ function* traverseStaticSourceSteps(
   routeScan: JavaScriptRouteScan,
 ): Generator<void, void> {
   yield* traverseJavaScriptAstSteps(file, {
+    // Code that never runs under the bundler convention yields no findings.
+    skip: (node) => findings.accumulator.unusedFactoryDefaults.has(node),
     enter: (node, parent) => {
       findings.accumulator.visitedNodes += 1;
       routeScan.inspect(node, parent);

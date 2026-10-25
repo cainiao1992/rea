@@ -13,7 +13,6 @@ import type {
 } from "./javascriptStaticAnalysisTypes.js";
 import {
   readExactJavaScriptLiteral,
-  runtimeFunctionParameters,
   semanticStaticPropertyKey,
   semanticStaticPropertyName,
   unwrapJavaScriptExpression,
@@ -149,14 +148,6 @@ export const modulePropertyName = (
   return property.computed
     ? `[computed@${String(property.start ?? -1)}]`
     : `[unknown@${String(property.start ?? -1)}]`;
-};
-
-/** Read the factory-local bundler require parameter when declared. */
-export const factoryRequireName = (
-  factory: t.FunctionExpression | t.ArrowFunctionExpression | t.ObjectMethod,
-): string | null => {
-  const parameter = runtimeFunctionParameters(factory)[2];
-  return t.isIdentifier(parameter) ? parameter.name : null;
 };
 
 /** Collect all unique static literal values from an array. */

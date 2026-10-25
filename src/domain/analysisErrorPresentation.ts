@@ -158,8 +158,13 @@ export const analysisErrorRemediationAction = (
     return "Check the current process's read access to the selected path. Retry with a readable local file.";
   if (error instanceof AnalysisArtifactChangedError)
     return "Wait until the selected file is stable. For an active binary session, reopen the target with open_binary before retrying so REA acquires its current identity; for a CLI command or target-free tool, rerun the operation.";
-  if (error instanceof ConfigurationError && error.settings.length > 0)
-    return `Correct ${[...new Set(error.settings.map(({ setting }) => setting))].join(", ")} in the environment that starts REA (your shell or the MCP client's registration), then rerun.`;
+  if (error instanceof ConfigurationError)
+    return (
+      error.remediationAction ??
+      (error.settings.length > 0
+        ? `Correct ${[...new Set(error.settings.map(({ setting }) => setting))].join(", ")} in the environment that starts REA (your shell or the MCP client's registration), then rerun.`
+        : analysisErrorUserMessage(error))
+    );
   if (error instanceof AnalysisInputError)
     return (
       error.remediationAction ??

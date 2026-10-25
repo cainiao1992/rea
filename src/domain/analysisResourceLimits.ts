@@ -14,6 +14,17 @@ export const DEFAULT_ASAR_MAX_HEADER_BYTES = 16 * 1024 * 1024;
  */
 export const MAXIMUM_ASAR_MAX_HEADER_BYTES = 256 * 1024 * 1024;
 
+/** Native function-matching representation admitted when the setting is unset. */
+export const DEFAULT_NATIVE_MATCHING_REPRESENTATION_BYTES = 96 * 1024 * 1024;
+
+/**
+ * Largest configurable matching admission. This is an REA policy ceiling, not
+ * a claim about host capacity: the allowance approximates the heap
+ * representation matching retains, and peak heap during a request can exceed
+ * it. A lower value only refuses more requests, so the setting has no floor.
+ */
+export const MAXIMUM_NATIVE_MATCHING_REPRESENTATION_BYTES = 1024 * 1024 * 1024;
+
 /** Default absolute deadline for Ghidra import, analysis, bridge, and readiness. */
 export const DEFAULT_GHIDRA_STARTUP_TIMEOUT_MS = 330_000;
 

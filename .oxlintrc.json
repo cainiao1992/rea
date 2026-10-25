@@ -7,6 +7,7 @@
     "no-async-promise-executor": "error",
     "no-unreachable": "error",
     "no-unsafe-optional-chaining": "error",
+    "no-useless-escape": ["warn", { "allowRegexCharacters": ["-"] }],
     "complexity": ["warn", 20],
     "max-depth": ["warn", 4],
     "max-lines": [

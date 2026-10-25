@@ -178,6 +178,10 @@ directives are errors. `vitest/valid-expect` warns (`maxArgs: 2`) because valid 
 collected assertions can be awaited later. `import/no-duplicates` warns with
 `preferInline: false`.
 
+`no-useless-escape` keeps intentional `\-` regex escapes because advertised
+patterns must also compile in `v` mode; the catalog regression checks every
+advertised pattern.
+
 Fast lint stays syntax-based. `npm run lint:typed` runs serially with pinned
 `oxlint-tsgolint` 7.0.2005 and records native plus typed diagnostics in
 `.cache/static-checks/typed-oxlint.json`. Production `src` treats

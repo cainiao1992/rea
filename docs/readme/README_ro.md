@@ -20,7 +20,7 @@
 
 **[Site web](https://rea.tools/) · [Ghiduri](https://rea.tools/guides/) · [Studii de caz](https://rea.tools/showcase/)**
 
-[Pornire rapidă](#pornire-rapidă) · [Cum funcționează REA](#cum-funcționează-rea) · [Ce poți analiza](#ce-poți-analiza) · [Construiește medii RL](#build-rl-environments) · [Studii de caz](#studii-de-caz) · [Întrebări frecvente](#întrebări-frecvente) · [Documentație](#documentație)
+[Pornire rapidă](#pornire-rapidă) · [Cum funcționează REA](#cum-funcționează-rea) · [Ce poți analiza](#ce-poți-analiza) · [Studii de caz](#studii-de-caz) · [Construiește medii RL](#build-rl-environments) · [Întrebări frecvente](#întrebări-frecvente) · [Documentație](#documentație)
 
 <code>npx rea-agents setup</code>
 
@@ -247,28 +247,6 @@ Pentru selectarea motorului, consultă [ghidul CLI](../cli.md#choose-a-provider)
 Verifică [disponibilitatea în versiunile publicate](../installation.md#released-package-and-main)
 pentru funcționalitățile adăugate după cea mai recentă versiune npm.
 
-<a id="build-rl-environments"></a>
-
-## Construiește medii RL
-
-Creează un mediu local în care un agent AI să exerseze sarcini precum găsirea unui issue sau crearea unui dosar, fără a rula aplicația originală. Folosește-l pentru învățare prin recompensă (RL) sau pentru a testa cât de bine îndeplinește agentul sarcinile.
-
-REA transformă cererile și răspunsurile API înregistrate în instrumente pe care agentul le poate apela. Mediul folosește datele înregistrate și permite modificări doar când înregistrarea le confirmă efectele.
-
-Cere agentului să folosească REA pentru a înregistra o sesiune pe o instanță de test unde poate crea, edita și șterge date. Poți începe și cu un fișier HAR, care înregistrează cererile și răspunsurile de rețea ale browserului.
-
-Construiește cu REA, apoi rulează cu frameworkul AgentEnv și Docker, instalate separat:
-
-```sh
-rea environment-build ./session.har ./my-env --name my-env --json
-agent-env run ./my-env
-```
-
-REA exportă un mediu executabil cu un test de bază care verifică pornirea și răspunsurile. Conectează-l la frameworkul RL pentru a defini obiectivele, a adăuga verificări de recompensă și a rula antrenarea.
-
-[Ghid pentru construirea unui mediu](../agent-environments-quickstart.md) ·
-[Referință pentru medii](../agent-environments.md)
-
 ## Studii de caz
 
 <a href="https://rea.tools/showcase/">
@@ -304,10 +282,40 @@ compară codul C++ reconstruit cu rezultatul compilatorului folosit la acea vrem
 [Citește studiul de caz](https://rea.tools/showcase/th04/) ·
 [Repository-ul reconstrucției](https://github.com/N0zoM1z0/th04)
 
+### Construiește medii RL cu REA
+
+Înregistrează o sesiune de aplicație web, transformă API-ul în instrumente și exportă un mediu pe care un agent AI îl poate folosi. Rulează cu AgentEnv, apoi adaugă sarcini și verificări de recompensă pentru antrenare RL sau evaluare.
+
+[Ghid pentru construirea unui mediu](https://rea.tools/guides/rl-environments/) ·
+[Vezi demonstrația pe X](https://x.com/reatools/status/2112574822584918075?s=20)
+
 Dacă ai folosit REA pentru ceva interesant, ne-ar plăcea să vedem rezultatul.
 Prezintă cazul într-un [issue](https://github.com/morluto/rea/issues) sau într-un
 [pull request](https://github.com/morluto/rea/pulls), menționând ținta analizată,
 întrebarea ta, cum te-a ajutat REA și ce ai descoperit.
+
+<a id="build-rl-environments"></a>
+
+## Construiește medii RL
+
+Creează un mediu local în care un agent AI să exerseze sarcini precum găsirea unui issue sau crearea unui dosar, fără a rula aplicația originală. Folosește-l pentru învățare prin recompensă (RL) sau pentru a testa cât de bine îndeplinește agentul sarcinile.
+
+REA transformă cererile și răspunsurile API înregistrate în instrumente pe care agentul le poate apela. Mediul folosește datele înregistrate și permite modificări doar când înregistrarea le confirmă efectele.
+
+Cere agentului să folosească REA pentru a înregistra o sesiune pe o instanță de test unde poate crea, edita și șterge date. Poți începe și cu un fișier HAR, care înregistrează cererile și răspunsurile de rețea ale browserului.
+
+Construiește cu REA, apoi rulează cu frameworkul AgentEnv și Docker, instalate separat:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA exportă un mediu executabil cu un test de bază care verifică pornirea și răspunsurile. Conectează-l la frameworkul RL pentru a defini obiectivele, a adăuga verificări de recompensă și a rula antrenarea.
+
+[Ghid pentru construirea unui mediu](https://rea.tools/guides/rl-environments/) ·
+[Referință pentru medii](../agent-environments.md) ·
+[Vezi demonstrația pe X](https://x.com/reatools/status/2112574822584918075?s=20)
 
 ## Întrebări frecvente
 

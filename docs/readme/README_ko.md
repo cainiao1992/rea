@@ -20,7 +20,7 @@
 
 **[웹사이트](https://rea.tools/ko/) · [가이드](https://rea.tools/ko/guides/) · [사례](https://rea.tools/ko/showcase/)**
 
-[빠른 시작](#빠른-시작) · [REA의 작동 방식](#rea의-작동-방식) · [분석할 수 있는 대상](#분석할-수-있는-대상) · [RL 환경 만들기](#build-rl-environments) · [사례](#사례) · [자주 묻는 질문](#자주-묻는-질문) · [문서](#문서)
+[빠른 시작](#빠른-시작) · [REA의 작동 방식](#rea의-작동-방식) · [분석할 수 있는 대상](#분석할-수-있는-대상) · [사례](#사례) · [RL 환경 만들기](#build-rl-environments) · [자주 묻는 질문](#자주-묻는-질문) · [문서](#문서)
 
 <code>npx rea-agents setup</code>
 
@@ -196,28 +196,6 @@ REA에는 Node.js 22.x(>=22.23.4), 24.x(>=24.22.1) 또는 26+ (>=26.12.1)와 npm
 
 지원하는 네이티브 형식과 호스트는 제공자마다 다릅니다. [Hopper 및 Ghidra 설정](../installation.md#hopper), [IDA 가이드](../ida-provider.md)(선택 사항인 네이티브 MCP 브리지 포함), [Kuna](../kuna-provider.md), [실험적 Windows Ghidra 지원](../windows-ghidra-p0.md)을 참고하세요. Ghidra는 [16비트 DOS 분석](../ghidra-dos.md)도 지원합니다. 큰 바이너리를 분석할 때는 `REA_GHIDRA_STARTUP_TIMEOUT_MS` 또는 `REA_HOPPER_STARTUP_TIMEOUT_MS`로 제공자의 시작 제한 시간을 늘리세요. 제공자 선택은 [CLI 가이드](../cli.md#choose-a-provider)를 참고하세요. 최신 npm 릴리스 이후 추가된 기능은 [릴리스에서의 사용 가능 여부](../installation.md#released-package-and-main)를 확인하세요.
 
-<a id="build-rl-environments"></a>
-
-## RL 환경 만들기
-
-원래 앱을 실행하지 않고도 AI 에이전트가 이슈 찾기나 폴더 만들기 같은 작업을 연습할 수 있는 로컬 환경을 만듭니다. 강화 학습(RL)이나 에이전트의 작업 수행 능력 평가에 사용할 수 있습니다.
-
-REA는 기록한 API 요청과 응답을 에이전트가 호출할 수 있는 도구로 바꿉니다. 환경은 기록된 데이터를 사용하며, 기록에서 효과가 확인된 변경만 지원합니다.
-
-데이터 생성, 편집, 삭제를 허용한 테스트 인스턴스에서 REA로 세션을 기록하도록 에이전트에게 요청하세요. 브라우저의 네트워크 요청과 응답을 기록한 HAR 파일로 시작할 수도 있습니다.
-
-REA로 빌드한 뒤 별도로 설치한 AgentEnv 프레임워크와 Docker로 실행하세요.
-
-```sh
-rea environment-build ./session.har ./my-env --name my-env --json
-agent-env run ./my-env
-```
-
-REA는 실행 가능한 환경과 시작 및 응답 여부를 확인하는 기본 테스트를 내보냅니다. RL 프레임워크에 연결해 작업 목표와 보상 검사를 정의하고 학습을 실행할 수 있습니다.
-
-[환경 만들기 가이드](../agent-environments-quickstart.md) ·
-[환경 참조 문서](../agent-environments.md)
-
 ## 사례
 
 <a href="https://rea.tools/ko/showcase/">
@@ -247,7 +225,37 @@ REA는 실행 가능한 환경과 시작 및 응답 여부를 확인하는 기�
 [사례 읽기](https://rea.tools/ko/showcase/th04/) ·
 [재구현 저장소](https://github.com/N0zoM1z0/th04)
 
+### REA로 RL 환경 만들기
+
+웹 앱 세션을 기록하고 API를 도구로 바꿔 AI 에이전트가 사용할 수 있는 환경을 내보냅니다. AgentEnv로 실행한 뒤 작업과 보상 검사를 추가해 RL 학습이나 평가에 사용하세요.
+
+[환경 만들기 가이드](https://rea.tools/guides/rl-environments/) ·
+[X에서 데모 보기](https://x.com/reatools/status/2112574822584918075?s=20)
+
 REA로 흥미로운 대상을 분석했다면 알려 주세요. [issue](https://github.com/morluto/rea/issues) 또는 [pull request](https://github.com/morluto/rea/pulls)에 대상, 조사하려던 질문, REA가 어떻게 도움이 되었는지, 무엇을 알아냈는지를 담아 공유하세요.
+
+<a id="build-rl-environments"></a>
+
+## RL 환경 만들기
+
+원래 앱을 실행하지 않고도 AI 에이전트가 이슈 찾기나 폴더 만들기 같은 작업을 연습할 수 있는 로컬 환경을 만듭니다. 강화 학습(RL)이나 에이전트의 작업 수행 능력 평가에 사용할 수 있습니다.
+
+REA는 기록한 API 요청과 응답을 에이전트가 호출할 수 있는 도구로 바꿉니다. 환경은 기록된 데이터를 사용하며, 기록에서 효과가 확인된 변경만 지원합니다.
+
+데이터 생성, 편집, 삭제를 허용한 테스트 인스턴스에서 REA로 세션을 기록하도록 에이전트에게 요청하세요. 브라우저의 네트워크 요청과 응답을 기록한 HAR 파일로 시작할 수도 있습니다.
+
+REA로 빌드한 뒤 별도로 설치한 AgentEnv 프레임워크와 Docker로 실행하세요.
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA는 실행 가능한 환경과 시작 및 응답 여부를 확인하는 기본 테스트를 내보냅니다. RL 프레임워크에 연결해 작업 목표와 보상 검사를 정의하고 학습을 실행할 수 있습니다.
+
+[환경 만들기 가이드](https://rea.tools/guides/rl-environments/) ·
+[환경 참조 문서](../agent-environments.md) ·
+[X에서 데모 보기](https://x.com/reatools/status/2112574822584918075?s=20)
 
 ## 자주 묻는 질문
 

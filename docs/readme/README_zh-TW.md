@@ -20,7 +20,7 @@
 
 **[網站](https://rea.tools/zh-TW/) · [指南](https://rea.tools/zh-TW/guides/) · [案例](https://rea.tools/zh-TW/showcase/)**
 
-[快速開始](#快速開始) · [REA 的工作原理](#rea-的工作原理) · [可以分析什麼](#可以分析什麼) · [建立 RL 環境](#build-rl-environments) · [案例](#案例) · [常見問題](#常見問題) · [GNU objdump 與 Rizin 工具](../reverse-engineering-tools.md) · [文件](#文件)
+[快速開始](#快速開始) · [REA 的工作原理](#rea-的工作原理) · [可以分析什麼](#可以分析什麼) · [案例](#案例) · [建立 RL 環境](#build-rl-environments) · [常見問題](#常見問題) · [GNU objdump 與 Rizin 工具](../reverse-engineering-tools.md) · [文件](#文件)
 
 <code>npx rea-agents setup</code>
 
@@ -194,28 +194,6 @@ REA 需要 Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）或 26+ (>=26.12.1)�
 
 不同提供者支援的原生格式和主機系統有所不同。請參閱 [Hopper 與 Ghidra 設定](../installation.md#hopper)、[IDA 指南](../ida-provider.md)、[Kuna](../kuna-provider.md)和[實驗性 Windows Ghidra 支援](../windows-ghidra-p0.md)。Ghidra 也支援 [16 位 DOS 分析](../ghidra-dos.md)。提供者選擇見 [CLI 指南](../cli.md#choose-a-provider)。對於最新 npm 版本發佈後新增的功能，請查看[發佈可用性](../installation.md#released-package-and-main)。
 
-<a id="build-rl-environments"></a>
-
-## 建立 RL 環境
-
-為 AI 代理建立本機練習環境，讓它練習尋找 issue、建立資料夾等任務，無需執行原應用程式。這個環境可用於強化學習（RL），也可用於測試代理完成任務的能力。
-
-REA 將錄製的 API 請求與回應轉為代理可呼叫的工具。環境使用錄製的資料，只有錄製證據確認了某項修改的效果，才會支援該修改。
-
-請代理使用 REA 在測試執行個體上錄製一次工作階段，並明確允許它建立、編輯和刪除資料。也可從 HAR 檔案開始，它記錄了瀏覽器的網路請求與回應。
-
-用 REA 建立，再透過另行安裝的 AgentEnv 框架與 Docker 執行：
-
-```sh
-rea environment-build ./session.har ./my-env --name my-env --json
-agent-env run ./my-env
-```
-
-REA 匯出可直接執行的環境，並附帶基本測試，檢查環境能否啟動與回應。將它接入 RL 框架，即可設定任務目標、加入獎勵檢查並執行訓練。
-
-[建立環境指南](../agent-environments-quickstart.md) ·
-[環境參考文件](../agent-environments.md)
-
 ## 案例
 
 <a href="https://rea.tools/zh-TW/showcase/">
@@ -245,7 +223,37 @@ REA 匯出可直接執行的環境，並附帶基本測試，檢查環境能否�
 [閱讀案例](https://rea.tools/zh-TW/showcase/th04/) ·
 [重建專案儲存庫](https://github.com/N0zoM1z0/th04)
 
+### 用 REA 建立 RL 環境
+
+錄製 Web 應用程式工作階段，將 API 轉為工具，並匯出 AI 代理可使用的環境。用 AgentEnv 執行，再加入任務與獎勵檢查，用於 RL 訓練或評測。
+
+[建立環境指南](https://rea.tools/guides/rl-environments/) ·
+[在 X 上觀看示範](https://x.com/reatools/status/2112574822584918075?s=20)
+
 如果你用 REA 分析了有趣的目標，我們很想瞭解。歡迎通過 [issue](https://github.com/morluto/rea/issues) 或 [pull request](https://github.com/morluto/rea/pulls) 分享案例，說明目標、你的問題、REA 如何提供幫助，以及你的發現。
+
+<a id="build-rl-environments"></a>
+
+## 建立 RL 環境
+
+為 AI 代理建立本機練習環境，讓它練習尋找 issue、建立資料夾等任務，無需執行原應用程式。這個環境可用於強化學習（RL），也可用於測試代理完成任務的能力。
+
+REA 將錄製的 API 請求與回應轉為代理可呼叫的工具。環境使用錄製的資料，只有錄製證據確認了某項修改的效果，才會支援該修改。
+
+請代理使用 REA 在測試執行個體上錄製一次工作階段，並明確允許它建立、編輯和刪除資料。也可從 HAR 檔案開始，它記錄了瀏覽器的網路請求與回應。
+
+用 REA 建立，再透過另行安裝的 AgentEnv 框架與 Docker 執行：
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA 匯出可直接執行的環境，並附帶基本測試，檢查環境能否啟動與回應。將它接入 RL 框架，即可設定任務目標、加入獎勵檢查並執行訓練。
+
+[建立環境指南](https://rea.tools/guides/rl-environments/) ·
+[環境參考文件](../agent-environments.md) ·
+[在 X 上觀看示範](https://x.com/reatools/status/2112574822584918075?s=20)
 
 ## 常見問題
 

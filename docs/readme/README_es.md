@@ -20,7 +20,7 @@
 
 **[Sitio web](https://rea.tools/es/) · [Guías](https://rea.tools/es/guides/) · [Casos prácticos](https://rea.tools/es/showcase/)**
 
-[Inicio rápido](#inicio-rápido) · [Cómo funciona REA](#cómo-funciona-rea) · [Qué puedes analizar](#qué-puedes-analizar) · [Crear entornos de RL](#build-rl-environments) · [Casos prácticos](#casos-prácticos) · [Preguntas frecuentes](#preguntas-frecuentes) · [Herramientas GNU objdump y Rizin](../reverse-engineering-tools.md) · [Documentación](#documentación)
+[Inicio rápido](#inicio-rápido) · [Cómo funciona REA](#cómo-funciona-rea) · [Qué puedes analizar](#qué-puedes-analizar) · [Casos prácticos](#casos-prácticos) · [Crear entornos de RL](#build-rl-environments) · [Preguntas frecuentes](#preguntas-frecuentes) · [Herramientas GNU objdump y Rizin](../reverse-engineering-tools.md) · [Documentación](#documentación)
 
 <code>npx rea-agents setup</code>
 
@@ -196,28 +196,6 @@ Para binarios grandes, aumenta el plazo de inicio mediante `REA_GHIDRA_STARTUP_T
 
 Los formatos nativos y los sistemas anfitriones compatibles varían según el proveedor. Consulta [configuración de Hopper y Ghidra](../installation.md#hopper), la [guía de IDA](../ida-provider.md), [Kuna](../kuna-provider.md) y la [compatibilidad experimental de Ghidra en Windows](../windows-ghidra-p0.md). Ghidra también admite [análisis de DOS de 16 bits](../ghidra-dos.md). Para elegir un proveedor, consulta la [guía de CLI](../cli.md#choose-a-provider). Comprueba la [disponibilidad por versión](../installation.md#released-package-and-main) de las funciones añadidas después de la última versión publicada en npm.
 
-<a id="build-rl-environments"></a>
-
-## Crear entornos de RL
-
-Crea un entorno local donde un agente de IA pueda practicar tareas como buscar un issue o crear una carpeta, sin ejecutar la aplicación original. Úsalo para aprendizaje por refuerzo (RL) o para comprobar cómo completa las tareas un agente.
-
-REA convierte las solicitudes y respuestas de API grabadas en herramientas que el agente puede llamar. El entorno usa los datos grabados y solo admite cambios cuyos efectos confirma la grabación.
-
-Pide a tu agente que use REA para grabar una sesión en una instancia de prueba donde pueda crear, editar y borrar datos. También puedes empezar con un archivo HAR, que registra las solicitudes y respuestas de red del navegador.
-
-Construye con REA y ejecuta con el framework AgentEnv y Docker instalados por separado:
-
-```sh
-rea environment-build ./session.har ./my-env --name my-env --json
-agent-env run ./my-env
-```
-
-REA exporta un entorno ejecutable con una prueba básica que comprueba que arranca y responde. Úsalo con tu framework de RL para definir objetivos, añadir comprobaciones de recompensa y ejecutar el entrenamiento.
-
-[Guía para crear un entorno](../agent-environments-quickstart.md) ·
-[Referencia de entornos](../agent-environments.md)
-
 ## Casos prácticos
 
 <a href="https://rea.tools/es/showcase/">
@@ -245,7 +223,37 @@ Inspecciona las instrucciones de 16 bits del juego original para PC-98, recupera
 
 [Lee el caso práctico](https://rea.tools/es/showcase/th04/) · [Repositorio de reconstrucción](https://github.com/N0zoM1z0/th04)
 
+### Crear entornos de RL con REA
+
+Graba una sesión de una aplicación web, convierte su API en herramientas y exporta un entorno que un agente de IA pueda usar. Ejecútalo con AgentEnv y añade tareas y comprobaciones de recompensa para entrenamiento RL o evaluación.
+
+[Guía para crear un entorno](https://rea.tools/guides/rl-environments/) ·
+[Ver la demo en X](https://x.com/reatools/status/2112574822584918075?s=20)
+
 Si has usado REA para investigar algo interesante, nos gustaría verlo. Comparte tu caso en una [issue](https://github.com/morluto/rea/issues) o una [pull request](https://github.com/morluto/rea/pulls), incluyendo el objetivo, tu pregunta, cómo te ayudó REA y qué encontraste.
+
+<a id="build-rl-environments"></a>
+
+## Crear entornos de RL
+
+Crea un entorno local donde un agente de IA pueda practicar tareas como buscar un issue o crear una carpeta, sin ejecutar la aplicación original. Úsalo para aprendizaje por refuerzo (RL) o para comprobar cómo completa las tareas un agente.
+
+REA convierte las solicitudes y respuestas de API grabadas en herramientas que el agente puede llamar. El entorno usa los datos grabados y solo admite cambios cuyos efectos confirma la grabación.
+
+Pide a tu agente que use REA para grabar una sesión en una instancia de prueba donde pueda crear, editar y borrar datos. También puedes empezar con un archivo HAR, que registra las solicitudes y respuestas de red del navegador.
+
+Construye con REA y ejecuta con el framework AgentEnv y Docker instalados por separado:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA exporta un entorno ejecutable con una prueba básica que comprueba que arranca y responde. Úsalo con tu framework de RL para definir objetivos, añadir comprobaciones de recompensa y ejecutar el entrenamiento.
+
+[Guía para crear un entorno](https://rea.tools/guides/rl-environments/) ·
+[Referencia de entornos](../agent-environments.md) ·
+[Ver la demo en X](https://x.com/reatools/status/2112574822584918075?s=20)
 
 ## Preguntas frecuentes
 

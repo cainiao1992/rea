@@ -20,7 +20,7 @@
 
 **[ウェブサイト](https://rea.tools/ja/) · [ガイド](https://rea.tools/ja/guides/) · [事例](https://rea.tools/ja/showcase/)**
 
-[クイックスタート](#クイックスタート) · [REA の仕組み](#rea-の仕組み) · [分析できる対象](#分析できる対象) · [RL 環境を構築する](#build-rl-environments) · [事例](#事例) · [よくある質問](#よくある質問) · [GNU objdump・Rizin ツール](../reverse-engineering-tools.md) · [ドキュメント](#ドキュメント)
+[クイックスタート](#クイックスタート) · [REA の仕組み](#rea-の仕組み) · [分析できる対象](#分析できる対象) · [事例](#事例) · [RL 環境を構築する](#build-rl-environments) · [よくある質問](#よくある質問) · [GNU objdump・Rizin ツール](../reverse-engineering-tools.md) · [ドキュメント](#ドキュメント)
 
 <code>npx rea-agents setup</code>
 
@@ -196,28 +196,6 @@ REA には Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）、または 26+ (>=
 
 対応するネイティブ形式とホストは、プロバイダーによって異なります。[Hopper と Ghidra のセットアップ](../installation.md#hopper)、[IDA ガイド](../ida-provider.md)、[Kuna](../kuna-provider.md)、[Windows 向け Ghidra の実験的対応](../windows-ghidra-p0.md)を参照してください。Ghidra は [16 ビット DOS 分析](../ghidra-dos.md)にも対応しています。プロバイダーの選択は [CLI ガイド](../cli.md#choose-a-provider)を参照してください。最新の npm リリース以降に追加された機能については、[リリースでの利用可否](../installation.md#released-package-and-main)を確認してください。
 
-<a id="build-rl-environments"></a>
-
-## RL 環境を構築する
-
-元のアプリを動かさずに、AI エージェントが issue の検索やフォルダーの作成などを練習できるローカル環境を構築します。強化学習（RL）や、エージェントのタスク遂行能力のテストに使えます。
-
-REA は記録した API のリクエストと応答を、エージェントが呼び出せるツールに変換します。環境は記録したデータを使い、記録で効果が確認された変更だけをサポートします。
-
-データの作成、編集、削除を許可したテスト環境で、REA を使ってセッションを記録するようエージェントに依頼してください。ブラウザーのネットワークリクエストと応答を記録した HAR ファイルから始めることもできます。
-
-REA で構築し、別途インストールした AgentEnv フレームワークと Docker で実行します。
-
-```sh
-rea environment-build ./session.har ./my-env --name my-env --json
-agent-env run ./my-env
-```
-
-REA は実行可能な環境と、起動して応答することを確認する基本テストをエクスポートします。RL フレームワークに接続して、タスクの目標や報酬のチェックを定義し、学習を実行できます。
-
-[環境構築ガイド](../agent-environments-quickstart.md) ·
-[環境リファレンス](../agent-environments.md)
-
 ## 事例
 
 <a href="https://rea.tools/ja/showcase/">
@@ -247,7 +225,37 @@ REA は実行可能な環境と、起動して応答することを確認する�
 [事例を読む](https://rea.tools/ja/showcase/th04/) ·
 [再構築リポジトリ](https://github.com/N0zoM1z0/th04)
 
+### REA で RL 環境を構築する
+
+Web アプリのセッションを記録し、API をツールに変換して、AI エージェントが使える環境をエクスポートします。AgentEnv で実行し、タスクと報酬のチェックを追加して、RL の学習や評価に使えます。
+
+[環境構築ガイド](https://rea.tools/guides/rl-environments/) ·
+[X でデモを見る](https://x.com/reatools/status/2112574822584918075?s=20)
+
 REA で興味深い対象を調べたら、ぜひ共有してください。[issue](https://github.com/morluto/rea/issues) または [pull request](https://github.com/morluto/rea/pulls) に、対象、調べたかったこと、REA がどう役立ったか、何が分かったかを記載してください。
+
+<a id="build-rl-environments"></a>
+
+## RL 環境を構築する
+
+元のアプリを動かさずに、AI エージェントが issue の検索やフォルダーの作成などを練習できるローカル環境を構築します。強化学習（RL）や、エージェントのタスク遂行能力のテストに使えます。
+
+REA は記録した API のリクエストと応答を、エージェントが呼び出せるツールに変換します。環境は記録したデータを使い、記録で効果が確認された変更だけをサポートします。
+
+データの作成、編集、削除を許可したテスト環境で、REA を使ってセッションを記録するようエージェントに依頼してください。ブラウザーのネットワークリクエストと応答を記録した HAR ファイルから始めることもできます。
+
+REA で構築し、別途インストールした AgentEnv フレームワークと Docker で実行します。
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA は実行可能な環境と、起動して応答することを確認する基本テストをエクスポートします。RL フレームワークに接続して、タスクの目標や報酬のチェックを定義し、学習を実行できます。
+
+[環境構築ガイド](https://rea.tools/guides/rl-environments/) ·
+[環境リファレンス](../agent-environments.md) ·
+[X でデモを見る](https://x.com/reatools/status/2112574822584918075?s=20)
 
 ## よくある質問
 

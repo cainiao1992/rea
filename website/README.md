@@ -183,6 +183,7 @@ describe its recorded investigation; update them only when repeating that work.
 - `public/faq/index.html`: concise answers about setup, updates, analysis and troubleshooting.
 - `public/contributors/index.html`: one searchable, alphabetical grid of GitHub contributors, with profile links and contribution guidance.
 - `public/guides/`: a guide hub and native, JavaScript/Electron and browser examples.
+- `public/guides/rl-environments/index.html`: recording a web app, exporting a runnable environment, and adding tasks and reward checks.
 - `public/examples/`: downloadable Electron source and an interactive Notes browser app.
 - `public/assets/`: shared styles, interactions, favicon and explanatory figures.
 

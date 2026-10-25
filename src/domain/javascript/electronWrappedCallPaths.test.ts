@@ -1,6 +1,100 @@
 import { describe, expect, it } from "vitest";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 
+it("preserves every direct observation in a long flat sibling block", () => {
+  const channels = Array.from({ length: 256 }, (_, index) => `flat:${index}`);
+  const result = analyzeJavaScriptStaticSource(`const e=require("electron"); {
+    ${channels.map((channel) => `e.ipcRenderer.send("${channel}");`).join("\n")}
+  }`);
+  expect(result.electron.ipc.map(({ channel }) => channel)).toEqual(channels);
+  expect(result.electron.call_paths ?? []).toEqual([]);
+  expect(result.parse_status).toBe("complete");
+});
+
+it("keeps sibling guards, definite exits and nested shadowing separate", () => {
+  const result = analyzeJavaScriptStaticSource(`const e=require("electron"); {
+    if (stop) throw new Error("stop");
+    e.ipcMain.on("guarded", event => event.sender.copy());
+    {
+      const e = {ipcMain: {on() {}}};
+      e.ipcMain.on("shadowed", event => event.sender.copy());
+    }
+    if (true) throw new Error("end");
+    e.ipcMain.on("unreachable", event => event.sender.copy());
+  }`);
+  expect(
+    result.electron.call_paths?.map(
+      ({ entry, terminal, steps, conditions }) => ({
+        entry,
+        terminal,
+        terminalStart: steps.at(-1)?.location.start,
+        conditions: conditions.map(({ expression }) => expression),
+      }),
+    ),
+  ).toEqual([
+    {
+      entry: "guarded",
+      terminal: "electron.ipcMain.on",
+      terminalStart: { line: 3, column: 4 },
+      conditions: ["!(stop)"],
+    },
+    {
+      entry: "guarded",
+      terminal: "ipc-event.sender.copy",
+      terminalStart: { line: 3, column: 37 },
+      conditions: ["!(stop)"],
+    },
+  ]);
+  // Raw syntax after a definite exit remains an observation, not a reachable
+  // callback path. The shadowed ordinary object provides no Electron identity.
+  expect(result.electron.ipc.map(({ channel }) => channel)).toEqual([
+    "guarded",
+    "unreachable",
+  ]);
+});
+
+it("evaluates shared return syntax separately for each invocation environment", () => {
+  const result = analyzeJavaScriptStaticSource(`const e=require("electron");
+    function install(channel, enabled) {
+      if (!enabled) return;
+      e.ipcMain.on(channel, event => event.sender.copy());
+    }
+    install("enabled", true);
+    install("disabled", false);
+    install("uncertain", externalFlag);
+  `);
+  expect(
+    result.electron.call_paths?.map(
+      ({ entry, terminal, steps, conditions }) => ({
+        entry,
+        terminal,
+        invocationStart: steps[0]?.location.start,
+        conditions: conditions.map(({ expression }) => expression),
+      }),
+    ),
+  ).toEqual([
+    {
+      entry: "enabled",
+      terminal: "ipc-event.sender.copy",
+      invocationStart: { line: 6, column: 4 },
+      conditions: [],
+    },
+    {
+      entry: "uncertain",
+      terminal: "electron.ipcMain.on",
+      invocationStart: { line: 8, column: 4 },
+      conditions: ["!(!enabled)"],
+    },
+    {
+      entry: "uncertain",
+      terminal: "ipc-event.sender.copy",
+      invocationStart: { line: 8, column: 4 },
+      conditions: ["!(!enabled)"],
+    },
+  ]);
+  expect(result.parse_status).toBe("partial");
+});
+
 const bundle = (entry: string) => `(() => {
  const modules = {
   2(module) { module.exports = require("electron"); },

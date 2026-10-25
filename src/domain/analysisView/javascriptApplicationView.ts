@@ -11,6 +11,7 @@ import { err, ok, type Result } from "../result.js";
 import type { JavaScriptModuleReference } from "./javascriptModuleReferences.js";
 import {
   javascriptApplicationSourceCoverage,
+  javascriptStaticSourceCoverageSummary,
   type JavaScriptApplicationSourceCoverage,
 } from "./javascriptApplicationCoverage.js";
 import { projectJavaScriptFacts } from "./javascriptFactsView.js";
@@ -406,6 +407,7 @@ export const projectJavaScriptApplicationView = (
         statistics: jsonObjectSchema.parse(analysis.statistics),
         electron: jsonObjectSchema.parse(analysis.summary),
         coverage: jsonObjectSchema.parse({
+          static_sources: javascriptStaticSourceCoverageSummary(analysis),
           application: analysis.graph.coverage,
           semantic: {
             ...analysis.semantic_graph.coverage,

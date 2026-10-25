@@ -92,6 +92,15 @@ cliTest.for([
       expect(properties?.parse_status).toBe(
         path === "main.mjs" ? "complete" : null,
       );
+      if (/\.(?:mjs|js)$/u.test(path))
+        expect(properties?.analysis_coverage).toMatchObject({
+          syntax: {
+            status: requested.includes(path) ? "complete" : "not-examined",
+          },
+          examination: {
+            status: requested.includes(path) ? "complete" : "not-examined",
+          },
+        });
       expect(Buffer.compare(await readFile(join(directory, path)), bytes)).toBe(
         0,
       );

@@ -195,6 +195,27 @@ For supplied passive browser or Electron observations, use
 [runtime reconciliation](javascript-runtime-reconciliation.md). It compares
 existing Evidence without rerunning static analysis or contacting CDP.
 
+Each newly analyzed JavaScript file retains `analysis_coverage` in its graph
+observation. `syntax` distinguishes complete parsing, recovered syntax errors,
+failed parsing and unexamined source. `semantics` records the number of observed
+unknown findings and typed uncertainty, including returned-reference widening
+and unavailable type-only compiler options. `examination` reports static semantic
+resource limits and Electron wrapper expansion limits independently. A completed
+pass does not establish complete runtime semantics. Route examination and result
+capacity remain in the separate route inventory.
+
+Electron applicability is `observed` when a static Electron module reference is
+retained, and otherwise `unknown`: a source without such a reference does not
+prove that the application is inapplicable. Sources excluded by `source_paths`
+retain `not-examined` with a reason and null semantic counts. Historical Evidence
+without this facet remains unmeasured. The existing `parse_status` remains its
+conservative overall summary; finer facts do not relabel earlier partial results.
+
+Summary delivery counts these facts under `summary.coverage.static_sources`.
+Read exact per-file measurements with `inspect_analysis_view`, selecting
+`kind: "javascript-facts"` and `property_keys: ["analysis_coverage"]`, or inspect
+the module item. Both views use retained Evidence and preserve source provenance.
+
 ## ASAR integrity
 
 ASAR inventory checks Electron integrity metadata for embedded archive entries

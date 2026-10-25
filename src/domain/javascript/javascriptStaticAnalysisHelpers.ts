@@ -23,10 +23,17 @@ import {
   compareUnicodeCodePoints,
   compositeKey,
 } from "../unicodeCodePointOrder.js";
+import { unexaminedJavaScriptStaticCoverage } from "./javascriptStaticCoverage.js";
 
 /** Explicit result for source text that Babel cannot parse. */
 export const failedJavaScriptStaticAnalysis = (): JavaScriptStaticAnalysis => ({
   parse_status: "failed",
+  analysis_coverage: {
+    ...unexaminedJavaScriptStaticCoverage(
+      "JavaScript source could not be parsed.",
+    ),
+    syntax: { status: "failed", error_count: null },
+  },
   parse_error_count: 1,
   visited_ast_nodes: 0,
   references: [],

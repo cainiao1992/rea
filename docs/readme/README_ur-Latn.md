@@ -20,7 +20,7 @@
 
 **[Website](https://rea.tools/) · [Guides](https://rea.tools/guides/) · [Showcases](https://rea.tools/showcase/)**
 
-[Jaldi shuru karein](#jaldi-shuru-karein) · [REA kaise kaam karta hai](#rea-kaise-kaam-karta-hai) · [Kya kuch analyze kar sakte hain](#kya-kuch-analyze-kar-sakte-hain) · [Amli misaalein](#amli-misaalein) · [FAQ](#faq) · [Documentation](#documentation)
+[Jaldi shuru karein](#jaldi-shuru-karein) · [REA kaise kaam karta hai](#rea-kaise-kaam-karta-hai) · [Kya kuch analyze kar sakte hain](#kya-kuch-analyze-kar-sakte-hain) · [RL environments banayein](#build-rl-environments) · [Amli misaalein](#amli-misaalein) · [FAQ](#faq) · [Documentation](#documentation)
 
 <code>npx rea-agents setup</code>
 
@@ -245,6 +245,28 @@ Badi binaries ke liye `REA_GHIDRA_STARTUP_TIMEOUT_MS` ya
 Provider select karne ke liye [CLI guide](../cli.md#choose-a-provider) dekhein.
 Latest npm release ke baad add hone wale features ki
 [release availability](../installation.md#released-package-and-main) check karein.
+
+<a id="build-rl-environments"></a>
+
+## RL environments banayein
+
+AI agent ke liye local environment banayein jahan woh asal app chalaye baghair issue dhoondhne ya folder banane jaise kaam ki mashq kar sake. Ise reinforcement learning (RL) ya agent ke kaam poore karne ki salahiyat jaanchne ke liye istemal karein.
+
+REA record kiye hue API requests aur responses ko aise tools mein badalta hai jinhein agent call kar sakta hai. Environment recorded data istemal karta hai aur sirf woh tabdeeliyan support karta hai jin ke asraat recording tasdeeq karti hai.
+
+Agent se kahein ke REA ke zariye test instance par session record kare jahan use data banane, edit karne aur delete karne ki ijazat ho. Aap HAR file se bhi shuru kar sakte hain, jo browser ke network requests aur responses ka record hoti hai.
+
+REA se banayein, phir alag se install kiye hue AgentEnv framework aur Docker ke saath chalayein:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA chalne ke liye tayyar environment aur aik bunyadi test export karta hai jo us ka shuru hona aur jawab dena check karta hai. Apne RL framework ke saath task goals aur reward checks tay karein aur training chalayein.
+
+[Environment banane ki rehnumai](../agent-environments-quickstart.md) ·
+[Environment reference](../agent-environments.md)
 
 ## Amli misaalein
 

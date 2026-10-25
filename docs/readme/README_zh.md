@@ -20,7 +20,7 @@
 
 **[网站](https://rea.tools/zh-CN/) · [指南](https://rea.tools/zh-CN/guides/) · [案例](https://rea.tools/zh-CN/showcase/)**
 
-[快速开始](#快速开始) · [REA 的工作原理](#rea-的工作原理) · [可以分析什么](#可以分析什么) · [案例](#案例) · [常见问题](#常见问题) · [GNU objdump 和 Rizin 工具](../reverse-engineering-tools.md) · [文档](#文档)
+[快速开始](#快速开始) · [REA 的工作原理](#rea-的工作原理) · [可以分析什么](#可以分析什么) · [构建 RL 环境](#build-rl-environments) · [案例](#案例) · [常见问题](#常见问题) · [GNU objdump 和 Rizin 工具](../reverse-engineering-tools.md) · [文档](#文档)
 
 <code>npx rea-agents setup</code>
 
@@ -193,6 +193,28 @@ REA 需要 Node.js 22.x（>=22.23.4）、24.x（>=24.22.1）或 26+ (>=26.12.1)�
 大型二进制文件可通过 `REA_GHIDRA_STARTUP_TIMEOUT_MS` 或 `REA_HOPPER_STARTUP_TIMEOUT_MS` 延长提供方启动期限。
 
 不同提供方支持的原生格式和主机系统有所不同。请参阅 [Hopper 与 Ghidra 设置](../installation.md#hopper)、[IDA 指南](../ida-provider.md)、[Kuna](../kuna-provider.md)和[实验性 Windows Ghidra 支持](../windows-ghidra-p0.md)。Ghidra 也支持 [16 位 DOS 分析](../ghidra-dos.md)。提供方选择见 [CLI 指南](../cli.md#choose-a-provider)。对于最新 npm 版本发布后新增的功能，请查看[发布可用性](../installation.md#released-package-and-main)。
+
+<a id="build-rl-environments"></a>
+
+## 构建 RL 环境
+
+为 AI 智能体构建本地练习环境，让它练习查找 issue、创建文件夹等任务，无需运行原应用。这个环境可用于强化学习（RL），也可用于测试智能体完成任务的能力。
+
+REA 将录制的 API 请求和响应转为智能体可调用的工具。环境使用录制的数据，只有录制证据确认了某项修改的效果，才会支持该修改。
+
+让智能体使用 REA 在测试实例上录制一次会话，并明确允许它创建、编辑和删除数据。也可以从 HAR 文件开始，它记录了浏览器的网络请求和响应。
+
+用 REA 构建，再通过单独安装的 AgentEnv 框架和 Docker 运行：
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA 导出可直接运行的环境，并附带基本测试，检查环境能否启动和响应。将它接入 RL 框架，即可设置任务目标、添加奖励检查并运行训练。
+
+[构建环境指南](../agent-environments-quickstart.md) ·
+[环境参考文档](../agent-environments.md)
 
 ## 案例
 

@@ -20,7 +20,7 @@
 
 **[Website](https://rea.tools/de/) · [Anleitungen](https://rea.tools/de/guides/) · [Fallstudien](https://rea.tools/de/showcase/)**
 
-[Schnellstart](#schnellstart) · [So funktioniert REA](#so-funktioniert-rea) · [Was du analysieren kannst](#was-du-analysieren-kannst) · [Fallstudien](#fallstudien) · [Häufige Fragen](#häufige-fragen) · [GNU-objdump- und Rizin-Tools](../reverse-engineering-tools.md) · [Dokumentation](#dokumentation)
+[Schnellstart](#schnellstart) · [So funktioniert REA](#so-funktioniert-rea) · [Was du analysieren kannst](#was-du-analysieren-kannst) · [RL-Umgebungen erstellen](#build-rl-environments) · [Fallstudien](#fallstudien) · [Häufige Fragen](#häufige-fragen) · [GNU-objdump- und Rizin-Tools](../reverse-engineering-tools.md) · [Dokumentation](#dokumentation)
 
 <code>npx rea-agents setup</code>
 
@@ -195,6 +195,28 @@ Statische JavaScript- und .NET-Untersuchungen lesen die bereitgestellten Dateien
 Bei großen Binärdateien kannst du die Startfrist mit `REA_GHIDRA_STARTUP_TIMEOUT_MS` oder `REA_HOPPER_STARTUP_TIMEOUT_MS` erhöhen.
 
 Native Formate und unterstützte Hostsysteme unterscheiden sich je nach Provider. Siehe [Hopper- und Ghidra-Einrichtung](../installation.md#hopper), den [IDA-Leitfaden](../ida-provider.md), [Kuna](../kuna-provider.md) und die [experimentelle Ghidra-Unterstützung unter Windows](../windows-ghidra-p0.md). Ghidra unterstützt auch [16-Bit-DOS-Analyse](../ghidra-dos.md). Die Provider-Auswahl beschreibt der [CLI-Leitfaden](../cli.md#choose-a-provider). Prüfe die [Verfügbarkeit in Releases](../installation.md#released-package-and-main) für Funktionen, die seit der neuesten npm-Version hinzugekommen sind.
+
+<a id="build-rl-environments"></a>
+
+## RL-Umgebungen erstellen
+
+Erstelle eine lokale Umgebung, in der ein KI-Agent Aufgaben wie das Finden eines Issues oder das Anlegen eines Ordners üben kann, ohne die ursprüngliche App auszuführen. Nutze sie für Reinforcement Learning (RL) oder um zu testen, wie gut ein Agent Aufgaben erledigt.
+
+REA wandelt aufgezeichnete API-Anfragen und Antworten in Werkzeuge um, die der Agent aufrufen kann. Die Umgebung nutzt die aufgezeichneten Daten und unterstützt Änderungen nur, wenn die Aufzeichnung deren Wirkung bestätigt.
+
+Bitte deinen Agenten, mit REA eine Sitzung auf einer Testinstanz aufzuzeichnen, auf der er Daten anlegen, bearbeiten und löschen darf. Du kannst auch mit einer HAR-Datei beginnen, die Netzwerkanfragen und Antworten des Browsers aufzeichnet.
+
+Erstelle die Umgebung mit REA und starte sie mit dem separat installierten AgentEnv-Framework und Docker:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA exportiert eine lauffähige Umgebung mit einem einfachen Test, der prüft, ob sie startet und antwortet. Nutze sie mit deinem RL-Framework, um Aufgabenziele und Belohnungsprüfungen festzulegen und das Training auszuführen.
+
+[Anleitung zum Erstellen einer Umgebung](../agent-environments-quickstart.md) ·
+[Umgebungsreferenz](../agent-environments.md)
 
 ## Fallstudien
 

@@ -20,7 +20,7 @@
 
 **[Site web](https://rea.tools/) · [Ghiduri](https://rea.tools/guides/) · [Studii de caz](https://rea.tools/showcase/)**
 
-[Pornire rapidă](#pornire-rapidă) · [Cum funcționează REA](#cum-funcționează-rea) · [Ce poți analiza](#ce-poți-analiza) · [Studii de caz](#studii-de-caz) · [Întrebări frecvente](#întrebări-frecvente) · [Documentație](#documentație)
+[Pornire rapidă](#pornire-rapidă) · [Cum funcționează REA](#cum-funcționează-rea) · [Ce poți analiza](#ce-poți-analiza) · [Construiește medii RL](#build-rl-environments) · [Studii de caz](#studii-de-caz) · [Întrebări frecvente](#întrebări-frecvente) · [Documentație](#documentație)
 
 <code>npx rea-agents setup</code>
 
@@ -246,6 +246,28 @@ Pentru binare mari, mărește timpul maxim de pornire al motorului cu
 Pentru selectarea motorului, consultă [ghidul CLI](../cli.md#choose-a-provider).
 Verifică [disponibilitatea în versiunile publicate](../installation.md#released-package-and-main)
 pentru funcționalitățile adăugate după cea mai recentă versiune npm.
+
+<a id="build-rl-environments"></a>
+
+## Construiește medii RL
+
+Creează un mediu local în care un agent AI să exerseze sarcini precum găsirea unui issue sau crearea unui dosar, fără a rula aplicația originală. Folosește-l pentru învățare prin recompensă (RL) sau pentru a testa cât de bine îndeplinește agentul sarcinile.
+
+REA transformă cererile și răspunsurile API înregistrate în instrumente pe care agentul le poate apela. Mediul folosește datele înregistrate și permite modificări doar când înregistrarea le confirmă efectele.
+
+Cere agentului să folosească REA pentru a înregistra o sesiune pe o instanță de test unde poate crea, edita și șterge date. Poți începe și cu un fișier HAR, care înregistrează cererile și răspunsurile de rețea ale browserului.
+
+Construiește cu REA, apoi rulează cu frameworkul AgentEnv și Docker, instalate separat:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA exportă un mediu executabil cu un test de bază care verifică pornirea și răspunsurile. Conectează-l la frameworkul RL pentru a defini obiectivele, a adăuga verificări de recompensă și a rula antrenarea.
+
+[Ghid pentru construirea unui mediu](../agent-environments-quickstart.md) ·
+[Referință pentru medii](../agent-environments.md)
 
 ## Studii de caz
 

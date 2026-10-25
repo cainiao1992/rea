@@ -20,7 +20,7 @@
 
 **[Web sitesi](https://rea.tools/tr/) · [Rehberler](https://rea.tools/tr/guides/) · [Örnek çalışmalar](https://rea.tools/tr/showcase/)**
 
-[Hızlı başlangıç](#hızlı-başlangıç) · [REA nasıl çalışır](#rea-nasıl-çalışır) · [Neleri analiz edebilirsiniz](#neleri-analiz-edebilirsiniz) · [Örnek çalışmalar](#örnek-çalışmalar) · [Sık sorulan sorular](#sık-sorulan-sorular) · [GNU objdump ve Rizin araçları](../reverse-engineering-tools.md) · [Belgeler](#belgeler)
+[Hızlı başlangıç](#hızlı-başlangıç) · [REA nasıl çalışır](#rea-nasıl-çalışır) · [Neleri analiz edebilirsiniz](#neleri-analiz-edebilirsiniz) · [RL ortamları oluşturun](#build-rl-environments) · [Örnek çalışmalar](#örnek-çalışmalar) · [Sık sorulan sorular](#sık-sorulan-sorular) · [GNU objdump ve Rizin araçları](../reverse-engineering-tools.md) · [Belgeler](#belgeler)
 
 <code>npx rea-agents setup</code>
 
@@ -191,6 +191,28 @@ Statik JavaScript ve .NET incelemesi, uygulamayı çalıştırmadan sağlanan do
 <a id="choosing-a-deep-analysis-provider"></a>
 
 Yerel makine kodu içeren ikili dosya biçimleri ve ana bilgisayar desteği sağlayıcıya göre değişir. [Hopper ve Ghidra kurulumu](../installation.md#hopper), isteğe bağlı native MCP bridge'i de açıklayan [IDA rehberi](../ida-provider.md), [Kuna](../kuna-provider.md) ve [Windows için deneysel Ghidra desteği](../windows-ghidra-p0.md) belgelerine bakın. Ghidra ayrıca [16 bit DOS analizini](../ghidra-dos.md) destekler. Büyük ikili dosyalar için sağlayıcının başlatma zaman aşımını `REA_GHIDRA_STARTUP_TIMEOUT_MS` veya `REA_HOPPER_STARTUP_TIMEOUT_MS` ile artırın. Sağlayıcı seçimi için [CLI rehberine](../cli.md#choose-a-provider) bakın. En son npm sürümünden sonra eklenen özellikler için [sürümlerde kullanılabilirliği](../installation.md#released-package-and-main) kontrol edin.
+
+<a id="build-rl-environments"></a>
+
+## RL ortamları oluşturun
+
+Asıl uygulamayı çalıştırmadan, yapay zekâ ajanının sorun bulma veya klasör oluşturma gibi görevleri deneyeceği yerel bir ortam oluşturun. Bunu pekiştirmeli öğrenme (RL) veya ajanın görevleri ne kadar iyi tamamladığını test etmek için kullanın.
+
+REA, kaydedilmiş API isteklerini ve yanıtlarını ajanın çağırabileceği araçlara dönüştürür. Ortam kayıtlı verileri kullanır ve yalnızca etkisi kayıtla doğrulanan değişiklikleri destekler.
+
+Ajanınızdan, veri oluşturma, düzenleme ve silme izni verdiğiniz bir test ortamında REA ile bir oturum kaydetmesini isteyin. Tarayıcının ağ isteklerini ve yanıtlarını kaydeden bir HAR dosyasıyla da başlayabilirsiniz.
+
+REA ile oluşturun, ardından ayrıca kurulan AgentEnv çerçevesi ve Docker ile çalıştırın:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA, çalıştırılabilir bir ortamı ve başlayıp yanıt verdiğini kontrol eden temel bir testi dışa aktarır. Görev hedeflerini ve ödül kontrollerini tanımlamak, ardından eğitim çalıştırmak için RL çerçevenizle kullanın.
+
+[Ortam oluşturma rehberi](../agent-environments-quickstart.md) ·
+[Ortam referansı](../agent-environments.md)
 
 ## Örnek çalışmalar
 

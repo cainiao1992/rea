@@ -20,7 +20,7 @@
 
 **[Website](https://rea.tools/) · [Guides](https://rea.tools/guides/) · [Showcases](https://rea.tools/showcase/)**
 
-[Quick start](#quick-start) · [How REA works](#how-rea-works) · [What you can analyze](#what-you-can-analyze) · [Showcases](#showcases) · [FAQ](#faq) · [Documentation](#documentation)
+[Quick start](#quick-start) · [How REA works](#how-rea-works) · [What you can analyze](#what-you-can-analyze) · [Build RL environments](#build-rl-environments) · [Showcases](#showcases) · [FAQ](#faq) · [Documentation](#documentation)
 
 <code>npx rea-agents setup</code>
 
@@ -241,6 +241,26 @@ For large binaries, raise the provider's startup deadline with
 For provider selection, see the [CLI guide](docs/cli.md#choose-a-provider).
 Check [release availability](docs/installation.md#released-package-and-main)
 for features added since the latest npm release.
+
+## Build RL environments
+
+Give an AI agent a local environment to practice tasks such as finding an issue or creating a folder, without running the original app. Use it for reinforcement learning (RL) or to test how well an agent completes tasks.
+
+REA turns recorded API requests and responses into tools the agent can call. The environment uses the recorded data and supports changes only when the recording confirms their effects.
+
+Ask your agent to use REA to record a session on a test instance where it may create, edit, and delete data. You can also start with a HAR file, a recording of browser network requests and responses.
+
+Build with REA, then run with the separately installed AgentEnv framework and Docker:
+
+```sh
+rea environment-build ./session.har ./my-env --name my-env --json
+agent-env run ./my-env
+```
+
+REA exports a runnable environment with a basic test to check that it starts and responds. Use it with your RL framework to define task goals, add reward checks, and run training.
+
+[Build an environment](docs/agent-environments-quickstart.md) ·
+[Environment reference](docs/agent-environments.md)
 
 ## Showcases
 

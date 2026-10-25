@@ -1,5 +1,6 @@
 import { constants } from "node:buffer";
 import type { Writable } from "node:stream";
+import type { Filter } from "incur";
 import { estimateTokenCount } from "tokenx";
 
 import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
@@ -29,6 +30,7 @@ interface CliJsonLinesInput {
   readonly fullOutput: boolean;
   readonly tokenCount: boolean;
   readonly filterOutput: string | undefined;
+  readonly filterPaths: ReturnType<typeof Filter.parse> | undefined;
 }
 
 /** Render one already classified result, sharing a plan for output and counting. */
@@ -57,6 +59,9 @@ export const writeCliJsonLines = async (
           ...(options.filterOutput === undefined
             ? {}
             : { filter: options.filterOutput }),
+          ...(options.filterPaths === undefined
+            ? {}
+            : { filterPaths: options.filterPaths }),
           fullOutput: options.fullOutput,
         })
       : undefined;

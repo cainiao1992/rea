@@ -785,7 +785,7 @@ describe("streamed CLI filtered selections", () => {
         expect(JSON.parse(text)).toMatchObject({
           $rea: "jsonl/v1",
           type: "error",
-          result: { code: "unreadable_output" },
+          result: { code: "invalid_request", category: "invalid_input" },
         });
       else expect(text).toBe(expected);
     },

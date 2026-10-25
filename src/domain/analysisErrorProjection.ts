@@ -368,6 +368,7 @@ const requestErrorDetails = (
         reason: issue.reason,
         ...(issue.message === undefined ? {} : { message: issue.message }),
         ...(issue.expected === undefined ? {} : { expected: issue.expected }),
+        ...(issue.observed === undefined ? {} : { observed: issue.observed }),
         ...(issue.minimum === undefined ? {} : { minimum: issue.minimum }),
         ...(issue.maximum === undefined ? {} : { maximum: issue.maximum }),
       })),

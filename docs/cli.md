@@ -73,9 +73,14 @@ arbitrary nested graph array.
 A top-level array emits its elements in source order. An object must have one
 clear `rows`, `items`, `records`, or `occurrences` array, directly or under
 `page`. Evidence uses the same boundaries inside `normalized_result`.
-An arbitrary report or a scalar selection is refused with an actionable error;
-use `--format json` for a complete document. If several collections exist,
-select one with `--filter-output`, for example `normalized_result.rows`.
+Any other selection is refused before a record is written, including an
+arbitrary report, a scalar, a nested array elsewhere, and a columnar object such
+as the `inspect-sqlite-database --table` `normalized_result.rows`
+(`{columns, values}`). The refusal is the caller error `invalid_request`
+(`invalid_input`) and names the selection and its observed shape; the analysis
+itself succeeded, so use `--format json` for the complete document. If several
+collections exist, select one with `--filter-output`, for example
+`normalized_result.rows` for an analysis view.
 
 Object collections finish with a control record:
 

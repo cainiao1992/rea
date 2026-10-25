@@ -105,7 +105,7 @@ export const locateTrailingZipArchive = async (
  * is intentionally absent: the suffix also names HTTP Archive JSON, so a
  * Harmony shared archive is only established from verified ZIP bytes. The
  * HarmonyOS App Pack suffix `.app` is also absent here: it applies only to
- * root inputs (see `classifyAndHashRoot`), because a nested ZIP entry ending
+ * root inputs (see `classifyAndHashRootForInventory`), because a nested ZIP entry ending
  * in `.app` inside another package, such as an IPA, is not an App Pack.
  */
 export const zipPackageFormatForPath = (

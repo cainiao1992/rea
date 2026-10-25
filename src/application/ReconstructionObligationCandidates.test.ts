@@ -13,8 +13,10 @@ import { describe, expect, it } from "vitest";
 
 import { createEvidence } from "../domain/evidence.js";
 import { createEvidenceBundle } from "../domain/evidenceBundle.js";
-import { emptyUnverifiedProcessCapture } from "../domain/process/processCapture.fixture.js";
-import { FINALIZED_PROCESS_CAPTURE_EXAMPLE } from "../domain/process/processCaptureExample.js";
+import {
+  emptyUnverifiedProcessCapture,
+  FINALIZED_PROCESS_CAPTURE_EXAMPLE,
+} from "../domain/process/processCapture.fixture.js";
 import { PROCESS_PROVIDER } from "../domain/process/processEvidenceProvider.js";
 import { parseProcessCapture } from "../domain/process/processCaptureParsing.js";
 import {

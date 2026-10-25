@@ -5,11 +5,12 @@ import {
   readUInt32,
 } from "../../../src/il2cpp/Il2cppBinaryImage.js";
 import { expect, it } from "vitest";
+import { linkIl2cppBinarySteps } from "../../../src/il2cpp/Il2cppBinaryFile.js";
 import {
+  drain,
   linkIl2cppBinary,
-  linkIl2cppBinarySteps,
-} from "../../../src/il2cpp/Il2cppBinaryFile.js";
-import { readIl2cppMetadataForLinking } from "../../../src/il2cpp/Il2cppMetadataFile.js";
+  readIl2cppMetadataForLinking,
+} from "../../fixtures/il2cpp/readers.js";
 import {
   GENERIC_TABLE_LIMIT,
   linkGenericMethodsSteps,
@@ -1673,13 +1674,6 @@ it("returns no instances for an empty genericMethodTable without picking a layou
   });
 });
 
-const drain = <T>(steps: Generator<void, T>, onYield = () => {}): T => {
-  for (;;) {
-    const step = steps.next();
-    if (step.done === true) return step.value;
-    onYield();
-  }
-};
 // Link a low-base image of generic tables only, recording yields and rows.
 const linkLowBase = (
   options: GenericRegistrationImageOptions = {},

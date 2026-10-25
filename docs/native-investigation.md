@@ -284,17 +284,22 @@ stops matching while leaving the Hopper API available. The deadline is
 2147483647 ms. Unset uses 5000 ms. A larger value is refused because Node
 schedules a delay past that signed 32-bit bound as 1 ms. Invalid values are
 configuration errors and do not fall back to the default. The setting is read
-from the environment that starts REA, so a change needs a restart. A deadline
-failure names the effective milliseconds, whether they came from the default
-or the setting, the default, and the maximum. The worker old-generation heap
-does not raise it. Kuna regex search uses the same deadline. The worker
+from the environment that starts REA; changing that environment needs a restart.
+In MCP, `regex.matching_deadline_ms` overrides the deadline for newly accepted
+searches without restarting REA. A deadline failure names the effective
+milliseconds, known source, default, and maximum. The worker old-generation heap
+does not raise it. IDA and Kuna use these same regex controls; Ghidra's Java
+matcher does not. The worker
 heap request is `REA_REGEX_WORKER_HEAP_REQUEST_MIB`, a decimal integer from
 7 to 16384 MiB. Unset uses 128 MiB. A request below 7 MiB aborts the worker
 during startup, and a larger value is refused. Invalid values are
 configuration errors and do not fall back to 128. The setting is read from
-the environment that starts REA, so a change needs a restart. A heap failure
-names the effective request, whether it came from the default or the setting,
-the default, the floor, and the maximum. A positive Node.js
+the environment that starts REA, while MCP `regex.worker_heap_request_mib`
+can override it for workers belonging to newly accepted searches. Use
+`update_analysis_settings` for either runtime control; accepted work keeps its
+budget. See the [settings design](design/limits-and-recovery.md).
+A heap failure names the effective request, known source, default, floor, and
+maximum. A positive Node.js
 `--max-old-space-size` on the process that starts
 REA, including `NODE_OPTIONS`, overrides that request and sets the effective
 heap. `--max-old-space-size-percentage` takes precedence over that flag in

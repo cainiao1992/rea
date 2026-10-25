@@ -415,11 +415,17 @@ export REA_JADX_OPERATION_TIMEOUT_MS=600000
 
 The value must be a decimal millisecond count from 1 to 2147483647; anything
 else is refused before Java starts. REA reads it from the environment captured
-at process start. A change applies on the next process start; an already
-running server keeps the deadline it started with. The same deadline bounds
-each upstream call. A timeout names `REA_JADX_OPERATION_TIMEOUT_MS`, the
-effective milliseconds, and that range. A passing JADX configuration check in
-`rea doctor` reports the effective `operation_timeout_ms`. Explicit
+at process start. Changing that environment requires a new REA process. On a
+running MCP server, set `jadx.operation_timeout_ms` through
+`update_analysis_settings` to change the default for newly accepted operations;
+queued or running operations retain their accepted budget. The same deadline
+bounds each upstream call. Timeout recovery reports the effective milliseconds
+and range, with `details.limit` identifying the runtime setting. An invalid
+provider-local launch value can also be repaired by a runtime override; reset
+exposes that invalid launch value again. See the
+[settings design](design/limits-and-recovery.md#invalid-launch-configuration).
+A passing JADX configuration check in `rea doctor` reports its launch-derived
+`operation_timeout_ms`; it does not inspect another running server's overrides. Explicit
 cancellation still ends the operation immediately, and partial observations
 and owned-process cleanup are unchanged. Raising the deadline does not extend
 the bridge's 30-second startup handshake or the upstream **90-second**

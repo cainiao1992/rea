@@ -47,7 +47,9 @@ compare equivalent real tasks before claiming an improvement.
 
 When adding or changing an MCP tool, follow the [tool design guide](docs/tool-design.md) and preserve the canonical contracts and generated catalog.
 When adding or changing an admission ceiling, budget, or deadline, follow
-[admission limits and recovery](docs/design/limits-and-recovery.md).
+[analysis settings, limits, and recovery](docs/design/limits-and-recovery.md)
+for ownership, operation snapshots, provider integration, and the steps for
+adding a runtime setting.
 
 ## Reporting issues
 

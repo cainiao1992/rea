@@ -115,6 +115,12 @@ actual selected deadline and these recovery controls; increasing only the client
 deadline does not change the provider budget. No server restart is required to
 change this per-call setting. Resolve incomplete cleanup before another attempt.
 
+To change the default across new MCP operations, set `wasm.command_timeout_ms`
+through `update_analysis_settings`. An explicit `command_timeout_ms` still wins;
+correct that argument if it caused the timeout. Runtime defaults do not insert
+omitted arguments into Evidence parameters. See the
+[settings design](design/limits-and-recovery.md#precedence-and-lifetime).
+
 For example, `rea inspect-wasm-artifact /artifacts/module.wasm
 --command-timeout-ms 60000 --format json` uses a 60-second per-command deadline;
 the equivalent MCP input is `{"path":"/artifacts/module.wasm",

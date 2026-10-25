@@ -876,9 +876,11 @@ HAR, SAZ and qlog run in an owned Node old-generation heap with one V8 worker.
 `REA_CAPTURE_DECODER_OLD_GENERATION_MIB` is a decimal integer of mebibytes from
 8 to 16384. Unset uses 192, the previous constant. Invalid values fail
 configuration and name the setting; they do not fall back to 192. The setting
-is read from the environment that starts REA, so a change needs a restart.
-A memory failure names the effective mebibytes, whether they came from the
-default or the setting, the default, the floor, and the maximum. The decoder
+seeds the launch value. In MCP, set `capture.decoder_old_generation_mib`
+through `update_analysis_settings` for decoders belonging to newly accepted
+operations, without restarting REA. Changing the launch environment still
+requires a new process. A memory failure names the effective mebibytes, known
+source, default, floor, and maximum. The decoder
 passes that value as `--max-old-space-size` and removes inherited
 `NODE_OPTIONS`, so additional host memory and `NODE_OPTIONS` do not raise the
 heap. The 8 MiB semi-space stays fixed; a smaller old generation aborts Node
@@ -900,8 +902,11 @@ hosts enforce no decoder heap limit, so raising the setting does not bound them.
 
 Observed decoder memory exhaustion returns `resource_constraint`, with the
 selected capture, applicable limits and retained process diagnostics. Raising
-host memory or `NODE_OPTIONS` does not raise the old-generation heap. Set
-`REA_CAPTURE_DECODER_OLD_GENERATION_MIB` and restart REA.
+host memory or `NODE_OPTIONS` does not raise the old-generation heap. Update
+`capture.decoder_old_generation_mib` through MCP, or set
+`REA_CAPTURE_DECODER_OLD_GENERATION_MIB` before starting a new REA process.
+Retry after owned cleanup completes; the update does not release resources.
+See the [settings design](design/limits-and-recovery.md#failure-and-retry).
 Record selection happens after complete decoding and does not reduce that
 workload. Use a smaller capture exported by its producer or another decoder
 with sufficient capacity, retaining the original for provenance. Subsets do

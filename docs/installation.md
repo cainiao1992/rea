@@ -809,7 +809,10 @@ Hopper startup allows 120,000 ms for launch, initial analysis, and authenticated
 bridge readiness. For large targets, set `REA_HOPPER_STARTUP_TIMEOUT_MS` to a
 decimal integer from 1 to 2,147,483,647 milliseconds in the environment that
 starts REA. CLI and MCP use the same setting; invalid values fail configuration
-validation. An MCP client's own request timeout must also allow enough time.
+validation. In MCP, `update_analysis_settings` can set
+`hopper.startup_timeout_ms` for the next startup attempt without restarting REA;
+accepted work keeps its budget and retained cleanup must still complete. An
+MCP client's own request timeout must also allow enough time.
 `open_binary` validates and selects a target without waiting for native provider
 readiness. During Hopper startup, `binary_session.provider_operation_health`
 reports `busy` at stage `launch`; `analysis_activity` describes bridge requests
@@ -1179,19 +1182,25 @@ can time out earlier even when Ghidra would complete within its startup deadline
 See [Ghidra first-query deadlines and recovery](mcp-contracts.md#ghidra-first-query-deadlines-and-recovery)
 for client options and the close/reopen recovery flow.
 
-The 330-second default is configurable. Configuration is read when REA starts:
-changing an environment variable in another shell, or closing and reopening a
-binary in the same MCP server, does not change that server's startup allowance.
+The 330-second default can be changed on a running MCP server by setting
+`ghidra.startup_timeout_ms` through `update_analysis_settings`. The next accepted
+operation that starts a provider uses that value; an accepted startup keeps its
+original budget. Changing an environment variable in another shell, or closing
+and reopening a binary, does not change the launch configuration already read
+by that server.
 For a CLI retry with an example 30-minute allowance:
 
 ```sh
 REA_GHIDRA_STARTUP_TIMEOUT_MS=1800000 rea analyze /absolute/path/to/app.exe --provider ghidra --json
 ```
 
-For MCP, export useful Evidence before restarting, close the binary and resolve
-any cleanup failure, update the environment in the client's REA server launch
-configuration, then restart REA and reconnect before reopening the target. Allow
-startup plus the query in the client's own tool-call deadline. Every retry uses
+For MCP, update the runtime setting and resolve any retained cleanup before the
+next startup attempt. Follow the error's close/reopen guidance where needed;
+the settings update does not clear cleanup blockers. To change the launch
+environment instead, export useful Evidence, close the binary and resolve any
+cleanup failure, update the client's REA server launch configuration, then
+restart REA and reconnect. Allow startup plus the query in the client's own
+tool-call deadline; runtime updates do not change that deadline. Each new startup attempt uses
 a fresh ephemeral import; smaller result requests do not reduce the prerequisite
 auto-analysis. A larger time allowance does not raise the JVM heap limit or
 guarantee completion. Keep [heap and host CPU controls](#ghidra-heap-and-cpu-controls)
@@ -1218,9 +1227,14 @@ fails with `provider_timeout` and that message; other Ghidra tools stay
 available. If the caller also cancels while the timeout settles, the session
 still closes and the message says so. Session reuse concerns an active MCP or
 library session; a standalone CLI command still closes its own session when it
-finishes. The limit is read when a Ghidra session
-starts, and Codex/Kimi registrations derived by `rea setup` add it to the tool
-deadline as a single-decompile estimate. A bulk call can need that limit for
+finishes. In MCP, `ghidra.decompile_timeout_seconds` can override the launch
+value for newly accepted operations on the existing Program; explicit `null`
+removes the deadline. A transient timeout remains uncached so the same function
+can be retried after an update. See the
+[settings design](design/limits-and-recovery.md#runtime-settings-through-mcp).
+Codex/Kimi registrations derived by `rea setup` add the selected launch value
+to the tool deadline as a single-decompile estimate; a runtime update does not
+change that registration. A bulk call can need that limit for
 every attempted function plus listing and file work; select the client deadline
 for the workload, split batches, use `decompile_all` limit/resume, or reduce
 `trace_native_values` `max_functions` to select fewer serial decompiles. Ghidra's own interactive default is 30 seconds. Unresolved computed calls

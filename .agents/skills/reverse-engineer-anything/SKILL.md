@@ -384,8 +384,9 @@ selected provider. Do not treat those scopes as interchangeable.
 For a Ghidra startup timeout on a large native target, follow
 [deadline recovery](references/native-and-artifacts.md#ghidra-startup-deadline-recovery)
 before abandoning deep analysis or repeating the same cold import. The default
-330 seconds is configurable; changing the server's environment requires a new
-REA process.
+330 seconds can be changed for new startup attempts through
+`update_analysis_settings` using `ghidra.startup_timeout_ms`. Changing the
+server's launch environment instead requires a new REA process.
 
 ## Work summary-first
 

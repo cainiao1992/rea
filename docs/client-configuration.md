@@ -6,6 +6,17 @@ for the reviewed setup transaction and [client IDs](installation.md#supported-ag
 The versioned verification notes below describe their stated runs; live service
 acceptance is verified only where explicitly recorded.
 
+## Runtime settings and client deadlines
+
+`update_analysis_settings` changes curated defaults inside the running REA
+server. It does not edit the client registration, extend the client's tool-call
+deadline, or recompute timeout values previously derived by `rea setup`. When
+raising a REA startup or operation deadline, separately ensure the client allows
+enough time for the full request. Use `inspect_analysis_settings` for the running
+server's defaults; `rea doctor` checks launch configuration and cannot observe
+another process's runtime overrides. See the
+[settings design](design/limits-and-recovery.md) for ownership and lifetime.
+
 ## Client tool names and discovery
 
 REA advertises canonical names such as `binary_session`. The MCP host decides

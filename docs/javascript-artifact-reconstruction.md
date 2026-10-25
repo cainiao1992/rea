@@ -140,17 +140,24 @@ returns an unavailable error with the retained inventory, rather than claiming
 the selected source does not exist. Observed exact file candidates keep their
 identity; unknown traversal cannot establish a unique application root.
 
-ASAR header/index admission defaults to 16 MiB / 16777216 bytes. Set
-`REA_ASAR_MAX_HEADER_BYTES` in the environment that starts REA to a decimal
-byte count of at most 268435456 (256 MiB) to raise or lower it; restart REA
-after changing it. Invalid values are configuration errors, never a silent
-fallback. The archive index is read before any member can be selected, so
+ASAR header/index admission defaults to 16 MiB / 16777216 bytes. In MCP, use
+`update_analysis_settings` to set `asar.max_header_bytes` to an integer byte
+count from 1 to 268435456 (256 MiB), then retry the same full-archive request.
+The update applies to new operations without restarting REA; cached headers
+must also satisfy the new admission. For CLI or future MCP processes, set
+`REA_ASAR_MAX_HEADER_BYTES` in the launch environment. Changing that environment
+requires a new REA process. Invalid launch values are configuration errors,
+never a silent fallback. See the
+[settings design](design/limits-and-recovery.md#failure-and-retry) for recovery
+metadata, precedence, and reset behavior.
+
+The archive index is read before any member can be selected, so
 `source_paths`, `--source-path`, `detail: "summary"`, `max_heap_mb`, and
 available host memory do not bypass or raise it. When the header exceeds the
-effective allowance, the failure names it, whether it came from the default or
-the setting, and the setting's limits. Alternatively, analyze an extracted
+effective allowance, the failure reports the value, its known source, and the
+setting's limits. Alternatively, analyze an extracted
 application directory, which does not admit an ASAR header. Repeating the unchanged
-request fails the same way.
+request without changing admission fails the same way.
 
 ## Read the analysis
 
@@ -737,6 +744,10 @@ deadline per source, including startup and fact transfer. Select
 `max_heap_mb` and `analysis_timeout_ms` through MCP, or `--max-heap-mb` and
 `--analysis-timeout-ms` on the dedicated CLI command. These choices control the
 analyzer; the caller's `NODE_OPTIONS` still controls the CLI/MCP process heap.
+For defaults across new MCP operations, use `update_analysis_settings` with
+`javascript.max_heap_mb` or `javascript.analysis_timeout_ms`. Explicit per-call
+arguments take precedence, and accepted work keeps its original settings. See
+the [settings design](design/limits-and-recovery.md#precedence-and-lifetime).
 V8 old-space limits do not impose a process RSS limit. When REA runs on Bun,
 the analyzer ignores the V8 heap flags; resource failures then report
 `worker_heap_limit_bytes` as null instead of a requested or V8-reported limit.

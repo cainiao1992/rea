@@ -33,6 +33,7 @@ import {
 } from "./GhidraPowerPcProfile.js";
 import { ghidraRawBinaryLanguage } from "./GhidraRawBinaryLanguage.js";
 import {
+  GHIDRA_GAMECUBE_DOL_LANGUAGE,
   ghidraDolLanguage,
   ghidraDolLanguageUnsupportedReason,
   ghidraDolProfileParameters,
@@ -180,14 +181,16 @@ export const resolveGhidraAnalysisProfile = async (
   if (target.format === "gamecube-dol") {
     // The DOL admission owns the processor family; only a BE32 PowerPC variant may replace the stock language.
     const reason = ghidraDolLanguageUnsupportedReason(languageOverride);
-    if (reason !== null)
+    // The DOL is admitted; only the selected language conflicts with it.
+    if (reason !== null && languageOverride !== undefined)
       return Promise.resolve(
         err(
-          new AnalysisUnsupportedTargetError(
-            "resolve_analysis_profile",
-            target.path,
-            reason,
-          ),
+          languageOverrideConflict(languageOverride, reason, {
+            languageId: GHIDRA_GAMECUBE_DOL_LANGUAGE.languageId,
+            ...(languageOverride.compilerSpecId === undefined
+              ? {}
+              : { compilerSpecId: languageOverride.compilerSpecId }),
+          }),
         ),
       );
     const language = ghidraDolLanguage(languageOverride);

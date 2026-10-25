@@ -2087,6 +2087,13 @@ Codex CLI. The lane runs sequentially; select scenarios with
 [agent evaluation reference](client-verification.md#agent-evaluation-and-conformance-records)
 contains isolation, authentication cleanup, grading, and conformance boundaries.
 
+The Notes evaluation packages `website/public/examples/notes-electron/`. When
+changing those example bytes, run `tests/boundary/mcp/agentKnownAnswerMcp.test.ts`
+and check its rubric in `tests/evaluation/model-evals/AgentEvaluationFixtures.ts`.
+Preserve exact source facts and the coverage reported by the analysis. If a
+source change crosses an unresolved static-analysis boundary, keep that
+uncertainty and a negative control rejecting claims of complete coverage.
+
 ## Frida instrumentation
 
 `npm run verify:frida` builds REA, spawns a short-lived local Node.js fixture,

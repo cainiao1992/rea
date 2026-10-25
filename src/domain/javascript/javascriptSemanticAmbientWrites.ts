@@ -83,6 +83,40 @@ export const retainSemanticAmbientEffect = (
 /** Undefined means a cyclic or conflicting projection can select any depth. */
 type AmbientProjection = AmbientPath | undefined;
 
+/**
+ * Select the stored value an object's reference store exposes to a projection,
+ * or null when the store cannot reach it. A shorter projection only reaches
+ * stored children when the query covers escaped contents.
+ */
+const storedValueProjection = (
+  suffix: AmbientProjection,
+  source: SemanticIterationSource,
+  path: AmbientProjection,
+  escapedContents: boolean,
+): AmbientProjection | null => {
+  if (
+    suffix !== undefined &&
+    path !== undefined &&
+    (!path.every(
+      (key, index) =>
+        index >= suffix.length ||
+        key === null ||
+        suffix[index] === null ||
+        key === suffix[index],
+    ) ||
+      (suffix.length < path.length && !escapedContents))
+  )
+    return null;
+  return suffix === undefined || path === undefined
+    ? undefined
+    : [
+        ...source.projection.map((key) =>
+          key === null || typeof key === "object" ? null : String(key),
+        ),
+        ...suffix.slice(path.length),
+      ];
+};
+
 const joinAmbientProjection = (
   left: AmbientProjection,
   right: AmbientProjection,
@@ -129,7 +163,7 @@ export const createAmbientPathResolver = (
     capture?: t.Node,
     escapedContents = false,
     projection: AmbientProjection = [],
-    localIdentity?: (node: t.Node, path: AmbientProjection) => void,
+    receiver?: (node: t.Node, path: AmbientProjection) => void,
   ): AmbientResolution => {
     const prior = possibleWrites ? undefined : cached.get(node);
     if (prior !== undefined) return prior;
@@ -138,11 +172,20 @@ export const createAmbientPathResolver = (
     const unknownReasons = new Set<AmbientIdentityUnknownReason>();
     // The caller's write site selects initializers for the written target.
     // Reads reached through an initializer occur at their own position.
-    const pending: {
+    type Pending = {
       node: t.Node;
       suffix: AmbientProjection;
       readsAtSelf?: true;
-    }[] = [{ node, suffix: projection }];
+    };
+    const pending: Pending[] = [{ node, suffix: projection }];
+    // A receiver query reports the objects a write to `node` mutates, as
+    // projections that still end at the written key. Once a step consumes that
+    // key, the item denotes the value read from the written slot. Replacing
+    // the slot does not mutate that value or the containers it was read from.
+    const queue = (item: Pending): void => {
+      if (receiver !== undefined && item.suffix?.length === 0) return;
+      pending.push(item);
+    };
     // Join projections at their producing expression, rather than enumerating
     // alias histories. Each key can only widen to a wildcard, and conflicting
     // depths widen to unknown, so diamonds and cycles have finite state.
@@ -213,7 +256,7 @@ export const createAmbientPathResolver = (
         // A widened projection is a possible write, never proof of an intrinsic.
         if (suffix === undefined && !possibleWrites) continue;
         const continueWith = (node: t.Node, path: AmbientProjection = suffix) =>
-          pending.push({
+          queue({
             node,
             suffix: path,
             ...(current.readsAtSelf && { readsAtSelf: true }),
@@ -239,50 +282,21 @@ export const createAmbientPathResolver = (
             );
         };
         if (!t.isIdentifier(root) && facts?.freshObject(root)) {
-          localIdentity?.(root, suffix);
+          receiver?.(root, suffix);
           // The allocation owns itself; a projected child needs its own proof.
           if (suffix?.length === 0) {
             hasLocalIdentity = true;
             resolvedIdentity = true;
           }
           for (const [source, path] of facts?.stores.get(root) ?? []) {
-            const selected =
-              suffix === undefined ||
-              path === undefined ||
-              path.every(
-                (key, index) =>
-                  index >= suffix.length ||
-                  key === null ||
-                  suffix[index] === null ||
-                  key === suffix[index],
-              );
-            if (
-              !selected ||
-              (suffix !== undefined &&
-                path !== undefined &&
-                suffix.length < path.length &&
-                !escapedContents)
-            )
-              continue;
-            const remaining =
-              suffix === undefined || path === undefined
-                ? undefined
-                : suffix.slice(path.length);
-            pending.push({
-              node: source.node,
-              readsAtSelf: true,
-              suffix:
-                remaining === undefined
-                  ? undefined
-                  : [
-                      ...source.projection.map((key) =>
-                        key === null || typeof key === "object"
-                          ? null
-                          : String(key),
-                      ),
-                      ...remaining,
-                    ],
-            });
+            const stored = storedValueProjection(
+              suffix,
+              source,
+              path,
+              escapedContents,
+            );
+            if (stored === null) continue;
+            queue({ node: source.node, readsAtSelf: true, suffix: stored });
           }
         }
         if (
@@ -340,7 +354,7 @@ export const createAmbientPathResolver = (
               escapedContents ? "escape" : "identity",
             );
             if (path === null) continue;
-            pending.push({
+            queue({
               node: initializer.node,
               readsAtSelf: true,
               suffix:
@@ -667,17 +681,19 @@ export function* indexJavaScriptAmbientWritesSteps(
     },
   );
   const pendingStores = new Set(storedReferences);
-  const dependents = new WeakMap<t.Node, Set<SemanticIterationSource>>();
+  // Each dependent keeps the joined projection its latest query reached.
+  const dependents = new WeakMap<
+    t.Node,
+    Map<SemanticIterationSource, AmbientProjection>
+  >();
   while (pendingStores.size > 0) {
     const source = pendingStores.values().next().value;
     if (source === undefined) break;
     pendingStores.delete(source);
     if (source.target === undefined) continue;
     const identities = new Map<t.Node, AmbientProjection>();
+    // Record the objects this store mutates, not the values it replaces.
     ambientWrites(source.target, source.mutation, false, [], (node, path) => {
-      const users = dependents.get(node) ?? new Set<SemanticIterationSource>();
-      users.add(source);
-      dependents.set(node, users);
       identities.set(
         node,
         identities.has(node)
@@ -685,6 +701,13 @@ export function* indexJavaScriptAmbientWritesSteps(
           : path,
       );
     });
+    for (const [node, path] of identities) {
+      const users =
+        dependents.get(node) ??
+        new Map<SemanticIterationSource, AmbientProjection>();
+      users.set(source, path);
+      dependents.set(node, users);
+    }
     // Publish only completed queries; each source/root projection can only widen.
     for (const [node, path] of identities) {
       const entries =
@@ -703,8 +726,13 @@ export function* indexJavaScriptAmbientWritesSteps(
         continue;
       entries.set(source, joined);
       stores.set(node, entries);
-      for (const dependent of dependents.get(node) ?? [])
-        pendingStores.add(dependent);
+      // A receiver query drops a value read from its written slot, so only a
+      // nonempty or widened selection can change a dependent's identities.
+      for (const [dependent, reached] of dependents.get(node) ?? []) {
+        const stored = storedValueProjection(reached, source, joined, false);
+        if (stored !== null && stored?.length !== 0)
+          pendingStores.add(dependent);
+      }
     }
     yield;
   }

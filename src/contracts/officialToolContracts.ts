@@ -49,8 +49,8 @@ export const OFFICIAL_TOOL_CONTRACTS = [
   ),
   official(
     "inspect_native_load_image",
-    "Verify the provider's loaded DOS MZ or explicitly selected COM image against its immutable target snapshot: complete original/modified source-byte digests, header/module file mappings and memory digests, relocations and external entry. Returns measured observations and independent checks with mismatch coordinates. COM verification includes its imposed entry register context and does not claim PSP/runtime coverage. Overlay and uninitialized coverage remain explicit; other formats return unsupported. Does not execute or modify the target.",
-    z.strictObject({}),
+    "Inspect the provider's measured source digests, memory mappings, relocations, entry points and entry register context. Independent snapshot verification supports DOS MZ, explicitly selected COM, raw binaries and GameCube DOL; other formats retain their observations with unsupported verification. Overlay and uninitialized coverage remain explicit. Select detail summary for verification state and counts, retaining complete Evidence for inspect_analysis_view kind native-load-image: collection source_files, mappings, relocations, entry_points, entry_context, checks or sections, with indices, fields and offset/limit paging. Relocation bytes and check expected/observed payloads require explicit fields; defaults keep metadata. Null collections are unrecorded or inapplicable. Does not execute or modify the target.",
+    z.strictObject({ detail: analysisDetailSchema }),
   ),
   official(
     "inspect_native_data_type",

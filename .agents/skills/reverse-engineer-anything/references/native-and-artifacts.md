@@ -430,6 +430,14 @@ loaded bytes, file mappings, relocations and the entry against the immutable
 snapshot. Keep `mismatch` and `unsupported` explicit. Verified import covers the
 reported static image, not runtime DOS or PC-98 hardware behavior.
 
+For a large load-image report, select `detail: "summary"` and query its
+`parent_evidence_id` with `inspect_analysis_view` kind `native-load-image`.
+Choose a collection such as `relocations` or `mappings`, select only needed
+fields, and page with offset/limit. Original indices preserve same-address
+alternatives. Null collections remain unrecorded or inapplicable; paging does
+not upgrade unsupported verification. CLI requires `--evidence_output` for
+summary delivery so complete source Evidence remains accessible.
+
 For Ghidra decompilation, `procedure_pseudo_code` also accepts `procedure: "file-offset:0x..."`; CLI `rea decompile <path> --file-offset=0x... --provider ghidra` resolves the source byte offset internally. An unresolved 0x-prefixed numeric procedure selector also falls back to a unique file mapping. Existing symbols and analysis addresses win; multiple mappings fail as ambiguous. Preserve the returned file-offset and address locations and raw selection observations. ELF virtual addresses are distinct from file offsets; never assume an arbitrary offset plus image base is an analysis address.
 
 Complete function body ranges use inclusive ends and can contain gaps. Do not

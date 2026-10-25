@@ -16,6 +16,13 @@ import {
   snapshotSelectionOption,
 } from "./options.js";
 import type { CliInstance } from "./types.js";
+import { withCommandCancellation } from "./commandCancellation.js";
+import {
+  analysisEvidenceDeliveryOptions,
+  cliEvidenceDeliveryInputError,
+  publishCliAnalysisEvidence,
+} from "./analysisEvidenceDelivery.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 
 /** Register native load-image, memory, and annotation CLI commands. */
 export const registerCoreNativeCommands = (
@@ -66,19 +73,32 @@ export const registerCoreNativeCommands = (
   });
   cli.command(CLI_COMMANDS.inspectNativeLoadImage, {
     description:
-      "Verify loaded native bytes, source mappings, relocations and entry",
+      "Inspect native load observations and supported snapshot verification",
     args: z.object({ path: z.string().describe("Local executable path") }),
     options: z.object({
+      ...analysisEvidenceDeliveryOptions,
       ...nativeOpenOptionFields,
     }),
     run: ({ args, options }) =>
-      logCliCommand(logger, CLI_COMMANDS.inspectNativeLoadImage, () =>
-        runDirectAnalysis(
-          args.path,
-          "inspect_native_load_image",
-          {},
-          directAnalysisOptionsFromCli(logger, options),
-        ),
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.inspectNativeLoadImage, async () => {
+          const delivery = {
+            providerId: "auto",
+            operation: "inspect_native_load_image",
+            signal,
+            detail: options.detail,
+            evidenceOutput: options.evidence_output,
+          };
+          const invalid = cliEvidenceDeliveryInputError(delivery);
+          if (invalid !== undefined) return projectAnalysisError(invalid);
+          const complete = await runDirectAnalysis(
+            args.path,
+            "inspect_native_load_image",
+            {},
+            { ...directAnalysisOptionsFromCli(logger, options), signal },
+          );
+          return publishCliAnalysisEvidence(complete, delivery);
+        }),
       ),
   });
   cli.command(CLI_COMMANDS.readBytes, {

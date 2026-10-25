@@ -5,6 +5,7 @@ import {
   nativeFunctionMatchingSummaryViewResultSchema,
   nativeFunctionSummaryViewResultSchema,
   nativeInventorySummaryViewResultSchema,
+  nativeLoadImageSummaryViewResultSchema,
   artifactInventorySummaryViewResultSchema,
   interfaceBuilderSummaryViewResultSchema,
   machoSummaryViewResultSchema,
@@ -130,7 +131,10 @@ const bookmarkFacetSchema = z.discriminatedUnion("state", [
 export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   search_bytes: evidenceResultOf(byteSearchResultSchema),
   annotate_native_function: evidenceResultOf(nativeFunctionAnnotationsSchema),
-  inspect_native_load_image: evidenceResultOf(nativeLoadImageSchema),
+  inspect_native_load_image: analysisDetailOutputSchemaOf(
+    nativeLoadImageSchema,
+    nativeLoadImageSummaryViewResultSchema,
+  ),
   inspect_native_data_type: evidenceResultOf(nativeDataTypeSchema),
   inspect_native_instruction: evidenceResultOf(nativeInstructionSchema),
   resolve_native_call_targets: evidenceResultOf(nativeCallTargetsSchema),

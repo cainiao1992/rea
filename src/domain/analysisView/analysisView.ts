@@ -111,10 +111,10 @@ import {
 import {
   nativeInventoryViewRequestSchema,
   nativeInventoryViewRowSchema,
-  nativeInventoryViewContext,
   nativeInventorySummarySchema,
   projectNativeInventoryView,
 } from "./nativeInventoryView.js";
+import { nativeViewSourceContext } from "./nativeViewContext.js";
 import {
   NATIVE_INVENTORY_OPERATIONS,
   nativeInventoryOperationSchema,
@@ -129,6 +129,12 @@ import {
   browserScenarioViewRequestSchema,
 } from "./browserScenarioViewSchemas.js";
 import { projectBrowserScenarioView } from "./browserScenarioView.js";
+import {
+  nativeLoadImageViewRequestSchema,
+  nativeLoadImageViewItemsSchema,
+  nativeLoadImageSummarySchema,
+  projectNativeLoadImageView,
+} from "./nativeLoadImageView.js";
 import {
   desktopViewRequestSchema,
   desktopViewItemsSchema,
@@ -387,6 +393,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   javascriptFactsViewRequestSchema,
   nativeViewSchema,
   nativeInventoryViewRequestSchema,
+  nativeLoadImageViewRequestSchema,
   artifactInventoryViewRequestSchema,
   wasmViewRequestSchema,
   machoViewRequestSchema,
@@ -839,10 +846,19 @@ export const il2cppMetadataSummaryViewResultSchema = z.strictObject({
 /** Exact inventory summary with the original observation's provider and query. */
 export const nativeInventorySummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
-  ...nativeInventoryViewContext,
+  ...nativeViewSourceContext,
   parent_operation: nativeInventoryOperationSchema,
   artifact: artifactSchema.nullable(),
   summary: nativeInventorySummarySchema,
+});
+
+/** Compact provider load observations retain the independent verification state. */
+export const nativeLoadImageSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  ...nativeViewSourceContext,
+  artifact: artifactSchema.nullable(),
+  parent_operation: z.literal("inspect_native_load_image"),
+  summary: nativeLoadImageSummarySchema,
 });
 
 /** Compact native matching discovery retains the complete matching report. */
@@ -1047,6 +1063,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     modelArtifactSummaryViewResultSchema,
     gpuCodeObjectsSummaryViewResultSchema,
     nativeInventorySummaryViewResultSchema,
+    nativeLoadImageSummaryViewResultSchema,
     nativeFunctionMatchingSummaryViewResultSchema,
     nativeFunctionSummaryViewResultSchema,
     sourceToBundleSummaryViewResultSchema,
@@ -1071,12 +1088,22 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     ...viewResultBase,
-    ...nativeInventoryViewContext,
+    ...nativeViewSourceContext,
     kind: z.literal("native-inventory"),
     parent_operation: nativeInventoryOperationSchema,
     artifact: artifactSchema.nullable(),
     view: nativeInventoryViewRequestSchema,
     rows: z.array(nativeInventoryViewRowSchema),
+  }),
+  z.strictObject({
+    ...viewResultBase,
+    kind: z.literal("native-load-image"),
+    ...nativeViewSourceContext,
+    verification_status: z.enum(["unsupported", "verified", "mismatch"]),
+    parent_operation: z.literal("inspect_native_load_image"),
+    artifact: artifactSchema.nullable(),
+    view: nativeLoadImageViewRequestSchema,
+    items: nativeLoadImageViewItemsSchema,
   }),
   z.strictObject({
     kind: z.literal("protobuf"),
@@ -1338,6 +1365,7 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inspect_erlang_beam", projectErlangBeamView],
   ["inspect_devicetree", projectDevicetreeView],
   ["inspect_native_exports", projectNativeExportsView],
+  ["inspect_native_load_image", projectNativeLoadImageView],
   ["inspect_python_pyc", projectPythonPycView],
   ["frida_session_status", projectFridaSessionStatusView],
   ["gdb_console", projectCommandObservationView],

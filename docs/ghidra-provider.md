@@ -160,6 +160,43 @@ have no file backing. ELF mappings are observed
 without independent format-specific load-image verification, as the result's
 status and limitations state.
 
+For large relocation inventories, select MCP `inspect_native_load_image` with
+`detail: "summary"`. It returns verification state, observed identity and counts,
+while retaining complete Evidence. Use `normalized_result.parent_evidence_id`
+with `inspect_analysis_view` and a view such as:
+
+```json
+{
+  "kind": "native-load-image",
+  "collection": "relocations",
+  "offset": 0,
+  "limit": 32,
+  "fields": ["address", "status", "type"]
+}
+```
+
+Collections are `source_files`, `mappings`, `relocations`, `entry_points`,
+`entry_context`, `checks` and DOL `sections`. Optional
+`indices` select original row indices before paging; empty indices select none.
+Fields are collection-specific. Relocation defaults omit byte payloads; check defaults omit potentially large `expected`/`observed` inventories. Request those fields explicitly when needed. Other collections default to all fields. Metadata recovery remains counted and retained in complete parent Evidence.
+Parent Evidence, collection and `source_index` identify a row, including same-address
+relocation alternatives. Null counts or rows mean unrecorded or inapplicable;
+they never establish an empty observation. Exhausting a page does not upgrade
+unsupported verification or runtime coverage. Pages query immutable retained
+facts without reopening the target or repeating Ghidra work.
+Each page carries the source's structured `verification_status` independently
+of its page coverage.
+
+CLI summary delivery requires a complete Evidence bundle:
+
+```sh
+rea inspect-native-load-image <path> --provider ghidra --detail summary --evidence_output /new/load-image.json --json
+```
+
+Read selected pages later through `inspect-analysis-view` using the returned
+parent ID and an `evidence-file` source pointing to that bundle. Complete
+delivery remains the default in both adapters.
+
 An unsuccessful numeric procedure lookup reports the current Ghidra image base
 and gives the CLI commands above alongside the corresponding MCP operations.
 Repeat any target-format, architecture, and entry-point options used to open the

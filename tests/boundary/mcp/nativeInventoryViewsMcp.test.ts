@@ -288,12 +288,14 @@ it("refuses summary before provider work when no retaining session is configured
     InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
-  const reply = await client.callTool({
-    name: "list_procedures",
-    arguments: { detail: "summary" },
-  });
-  expect(reply.isError).toBe(true);
-  expect(parseMcpToolError(reply).error.code).toBe("capability_unavailable");
+  for (const name of ["list_procedures", "inspect_native_load_image"]) {
+    const reply = await client.callTool({
+      name,
+      arguments: { detail: "summary" },
+    });
+    expect(reply.isError).toBe(true);
+    expect(parseMcpToolError(reply).error.code).toBe("capability_unavailable");
+  }
   expect(calls).toBe(0);
 });
 

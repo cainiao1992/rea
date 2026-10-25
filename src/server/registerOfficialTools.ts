@@ -8,9 +8,10 @@ import {
   type EvidenceToolFamilyOptions,
 } from "./retainedSummaryDelivery.js";
 
-const SUMMARY_OPERATIONS: ReadonlySet<string> = new Set(
-  NATIVE_INVENTORY_OPERATIONS,
-);
+const SUMMARY_OPERATIONS: ReadonlySet<string> = new Set([
+  ...NATIVE_INVENTORY_OPERATIONS,
+  "inspect_native_load_image",
+]);
 const withoutDetail = withoutDeliveryDetail(SUMMARY_OPERATIONS);
 
 /** Direct tools share Evidence recording/projection with the other provider-backed tools. */

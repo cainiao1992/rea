@@ -1,5 +1,4 @@
 import { expect, it, vi } from "vitest";
-import { linkIl2cppBinary } from "../../../src/il2cpp/Il2cppBinaryFile.js";
 import {
   isMapped,
   openImageSteps,
@@ -7,7 +6,11 @@ import {
   readSlot,
   readUInt32,
 } from "../../../src/il2cpp/Il2cppBinaryImage.js";
-import { readIl2cppMetadataForLinking } from "../../../src/il2cpp/Il2cppMetadataFile.js";
+import {
+  drain,
+  linkIl2cppBinary,
+  readIl2cppMetadataForLinking,
+} from "../../fixtures/il2cpp/readers.js";
 import {
   createElfFixture,
   createIl2cppBinaryFixture,
@@ -20,12 +23,7 @@ const { metadata, link: facts } = readIl2cppMetadataForLinking(
   createLinkedIl2cppMetadataFixture().bytes,
 );
 const link = (bytes: Buffer) => linkIl2cppBinary(bytes, metadata, facts);
-const open = (bytes: Buffer) => {
-  const steps = openImageSteps(bytes, undefined);
-  let step = steps.next();
-  while (!step.done) step = steps.next();
-  return step.value;
-};
+const open = (bytes: Buffer) => drain(openImageSteps(bytes, undefined));
 
 /** Replace PT_LOAD declarations, keeping the original PT_DYNAMIC and payload. */
 const withLoadRanges = (

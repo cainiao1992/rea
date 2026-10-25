@@ -133,6 +133,8 @@ export const reconstructionProofApplicabilityCases = () =>
     );
     const proof = result.bindings[0]!;
     switch (specification.name) {
+      case "matching implementation and revision":
+        break;
       case "stronger proof authority":
         input.manifest.bindings[0]!.fixtures[0]!.authority = "integration";
         input.manifest.bindings[0]!.verifier!.authority = "integration";

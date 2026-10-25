@@ -6,6 +6,7 @@ import {
   effectiveClientConfiguration,
   readConfigurationText,
   type ClientConfigurationSource,
+  type ClientConfigurationFileError,
 } from "./ClientConfigurationFiles.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { ConfigurationError } from "../domain/configurationErrors.js";
@@ -55,7 +56,6 @@ import {
   preserveCurrentRecoveryBackup,
   selectCurrentRecoveryBackup,
 } from "./SetupRecoveryBackup.js";
-import type { ClientConfigurationFileError } from "./ClientConfigurationFiles.js";
 import type {
   ClientConfigurationInspection,
   ClientConfigurationResult,
@@ -376,7 +376,7 @@ const persistClientConfiguration = async ({
             !clientConfigurationValuesEqual(readback.servers[name], entry),
         )
       ) {
-        return rollbackOrReadbackFailure(
+        return await rollbackOrReadbackFailure(
           publication,
           original,
           recoveryBackupPath,

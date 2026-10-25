@@ -7,10 +7,8 @@ import { expect, it, onTestFinished } from "vitest";
 
 import { compareProcessEvidenceFiles } from "../../../src/application/process/ProcessCli.js";
 import { PROCESS_PROVIDER } from "../../../src/domain/process/processEvidenceProvider.js";
-import {
-  EMPTY_PROCESS_CAPTURE_EXAMPLE,
-  FINALIZED_PROCESS_CAPTURE_EXAMPLE,
-} from "../../../src/domain/process/processCaptureExample.js";
+import { EMPTY_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCaptureExample.js";
+import { FINALIZED_PROCESS_CAPTURE_EXAMPLE } from "../../../src/domain/process/processCapture.fixture.js";
 import {
   capture,
   partialSpecification,

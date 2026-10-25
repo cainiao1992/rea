@@ -13,10 +13,8 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
 
 import { InvestigationRecords } from "../application/investigation/InvestigationRecords.js";
-import {
-  EvidenceMcpServer,
-  forgetPendingMcpRequest,
-} from "./EvidenceMcpServer.js";
+import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
+import { forgetPendingMcpRequest } from "./EvidenceMcpServerCore.js";
 import { createToolResultDelivery } from "./toolResult.js";
 
 const firstText = (result: {

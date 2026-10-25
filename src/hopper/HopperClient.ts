@@ -453,7 +453,7 @@ export class HopperClient {
     try {
       const result = await this.#startWithin(deadline);
       return result.ok && deadline.signal.aborted
-        ? this.#startupFailure(await this.#interruptionFailure(deadline))
+        ? await this.#startupFailure(await this.#interruptionFailure(deadline))
         : result;
     } finally {
       deadline.signal.removeEventListener("abort", onStartupAbort);

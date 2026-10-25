@@ -8,14 +8,14 @@ import {
 } from "./processCaptureParsing.js";
 import type { UnverifiedProcessCapture } from "./processCapture.js";
 import { partialProcessCaptureObservationSchema } from "./processCapture.js";
-import { FINALIZED_PROCESS_CAPTURE_EXAMPLE } from "./processCaptureExample.js";
-import { finalizationConsistencyIssue } from "./processCaptureValidation.js";
-import type { FilesystemCoverage } from "./processCaptureCoverage.js";
 import {
+  FINALIZED_PROCESS_CAPTURE_EXAMPLE,
   compareUnverifiedProcessCaptures as compareProcessCaptures,
   emptyUnverifiedProcessCapture as emptyCapture,
   processCaptureIssues,
 } from "./processCapture.fixture.js";
+import { finalizationConsistencyIssue } from "./processCaptureValidation.js";
+import type { FilesystemCoverage } from "./processCaptureCoverage.js";
 
 expectTypeOf<UnverifiedProcessCapture>().not.toExtend<ProcessCapture>();
 

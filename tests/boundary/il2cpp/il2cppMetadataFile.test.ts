@@ -6,10 +6,12 @@ import { describe, expect, it } from "vitest";
 import {
   il2cppIndexWidth,
   il2cppMetadataRecordBytes,
-  readIl2cppMetadata,
-  readIl2cppMetadataForLinking,
   readIl2cppMetadataSteps,
 } from "../../../src/il2cpp/Il2cppMetadataFile.js";
+import {
+  readIl2cppMetadata,
+  readIl2cppMetadataForLinking,
+} from "../../fixtures/il2cpp/readers.js";
 import {
   createIl2cppMetadataFixture,
   FIXTURE_IMAGES,

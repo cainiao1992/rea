@@ -969,23 +969,3 @@ function* readMetadataCoreSteps(
     link: tables.linkFacts,
   };
 }
-
-const runSteps = <T>(steps: Generator<void, T>): T => {
-  for (;;) {
-    const step = steps.next();
-    if (step.done) return step.value;
-  }
-};
-
-/** Synchronous consumption of the same decoder for byte-level callers. */
-export const readIl2cppMetadata = (
-  bytes: Buffer,
-  options: Il2cppMetadataReadOptions = {},
-): Il2cppMetadataDecoded => runSteps(readIl2cppMetadataSteps(bytes, options));
-
-/** Synchronous decoding that also retains the typed row facts used for native linking. */
-export const readIl2cppMetadataForLinking = (
-  bytes: Buffer,
-  options: Il2cppMetadataReadOptions = {},
-): Il2cppMetadataForLinking =>
-  runSteps(readIl2cppMetadataForLinkingSteps(bytes, options));

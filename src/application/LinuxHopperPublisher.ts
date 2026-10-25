@@ -772,7 +772,7 @@ export class LinuxHopperPublisher {
           { cause },
         );
       }
-      return this.#verifyArchive(
+      return await this.#verifyArchive(
         parsed.data.family,
         release.value,
         join(root, "archive"),

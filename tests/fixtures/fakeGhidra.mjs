@@ -62,6 +62,7 @@ const cutIdentifierAtBudget = async () => {
 const writeThen = (stream, text, then) =>
   stream.write(text, () => setTimeout(then, 10));
 
+let endpointPublication;
 if (mode === "exit") process.exit(73);
 if (mode === "flood_silent") {
   await floodStdout();
@@ -102,7 +103,14 @@ else {
   });
   if (transport === "unix-socket") server.listen(endpointPath);
   else {
-    server.listen(0, "127.0.0.1", async () => {
+    endpointPublication = (async () => {
+      await new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", () => {
+          server.off("error", reject);
+          resolve();
+        });
+      });
       const address = server.address();
       if (address === null || typeof address === "string") process.exit(65);
       const pending = `${endpointPath}.pending`;
@@ -115,7 +123,7 @@ else {
         { flag: "wx" },
       );
       await rename(pending, endpointPath);
-    });
+    })();
   }
 }
 
@@ -509,3 +517,5 @@ const stringSearchItem = () => ({
   address: "0x2000",
   value: "fixture value",
 });
+
+await endpointPublication;

@@ -1,3 +1,4 @@
+import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import { snapshotGdbCommandRecords } from "./GdbCommandRecords.js";
 import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
@@ -2430,25 +2431,8 @@ export const waitForGdbCommandTurn = (
   signal?: AbortSignal,
 ): Promise<void> => {
   if (signal === undefined) return previous;
-  if (signal.aborted)
-    return Promise.reject(
-      new AnalysisCancelledError("gdb_console", { cause: signal.reason }),
-    );
-  return new Promise<void>((resolve, reject) => {
-    const onAbort = (): void =>
-      reject(
-        new AnalysisCancelledError("gdb_console", { cause: signal.reason }),
-      );
-    signal.addEventListener("abort", onAbort, { once: true });
-    previous.then(
-      () => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      },
-      (cause: unknown) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(cause);
-      },
-    );
+  return waitForAbortable(previous, signal).then((outcome) => {
+    if (outcome === ABORTED)
+      throw new AnalysisCancelledError("gdb_console", { cause: signal.reason });
   });
 };

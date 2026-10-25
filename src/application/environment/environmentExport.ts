@@ -243,7 +243,7 @@ export const environmentExportEvidenceFile = async (
       const refused = headroomRefusal(operation, path, size);
       if (refused !== undefined) throw refused;
     });
-    return environmentExportFile(role, path, bytes, operation);
+    return await environmentExportFile(role, path, bytes, operation);
   } catch (cause: unknown) {
     if (cause instanceof AnalysisResourceConstraintError) return err(cause);
     throw cause;

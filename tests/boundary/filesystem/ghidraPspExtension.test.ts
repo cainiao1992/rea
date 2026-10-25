@@ -744,8 +744,9 @@ describe.skipIf(process.platform === "win32")(
       controls.directory = (handle) => {
         controls.directory = undefined;
         vi.spyOn(handle, "read").mockRejectedValue(readFailure);
-        const close = handle.close.bind(handle);
-        vi.spyOn(handle, "close").mockImplementation(async () => {
+        const directory: { close(): Promise<void> } = handle;
+        const close = directory.close.bind(handle);
+        vi.spyOn(directory, "close").mockImplementation(async () => {
           closes++;
           await close();
           controller.abort({ caller: "directory finalization" });

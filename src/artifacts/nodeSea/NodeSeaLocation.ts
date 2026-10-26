@@ -591,8 +591,9 @@ const locatePeResources = async (carrier: Carrier): Promise<BlobRange[]> => {
   if (bytes === undefined) throw formatFailure(NODE_SEA_TRUNCATED);
   // A native-looking file need not be an admitted PE image. Once the layout
   // is admitted, resource errors remain failures rather than inferred absence.
+  let layout: ReturnType<typeof readPeResourceLayout>;
   try {
-    readPeResourceLayout(bytes);
+    layout = readPeResourceLayout(bytes);
   } catch (cause) {
     if (cause instanceof ArtifactReaderFailure && cause.reason === "format")
       return [];
@@ -611,6 +612,7 @@ const locatePeResources = async (carrier: Carrier): Promise<BlobRange[]> => {
       max_entries: MAX_INSPECT_PE_DIRECTORY_ENTRIES,
     },
     carrier.signal,
+    layout,
   );
   return resources.resources.flatMap((resource) => {
     if (

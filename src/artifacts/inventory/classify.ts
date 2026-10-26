@@ -1,3 +1,4 @@
+import { artifactNameForClassification } from "../../domain/artifactNameSelection.js";
 import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import {
@@ -185,7 +186,11 @@ const classifyRootFormat = async (
   const archiveBytes = (await handle.stat()).size;
   const evidence = probe.finish(archiveBytes);
   abortIfNeeded(signal);
-  const lower = path.toLowerCase();
+  const classificationPath = artifactNameForClassification(
+    selectedPath ?? path,
+    path,
+  );
+  const lower = classificationPath.toLowerCase();
   if (hasZipSignature(evidence.prefix)) return zipRootPackageFormat(lower);
   if (
     lower.endsWith(".pkg") &&
@@ -228,7 +233,7 @@ const classifyRootFormat = async (
       ? fatEvidence
       : { ...fatEvidence, mzWindowsHeaderSignature };
   const format = classifyArtifactContent(
-    selectedPath?.toLowerCase().endsWith(".asar") ? selectedPath : path,
+    classificationPath,
     classificationEvidence,
     archiveBytes,
   ).format;

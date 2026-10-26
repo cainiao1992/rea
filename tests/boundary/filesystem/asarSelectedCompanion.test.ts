@@ -200,7 +200,7 @@ it.skipIf(process.platform === "win32")(
     const admitted = await parseBinaryTarget(selected);
     if (!admitted.ok) throw admitted.error;
     expect(admitted.value.path).toBe(canonical);
-    expect(admitted.value.asarSelectedPath).toBe(selected);
+    expect(admitted.value.artifactSelectedPath).toBe(selected);
     const replacement = join(root, "replacement.asar");
     await writeFile(replacement, await readFile(canonical));
     await rm(selected);

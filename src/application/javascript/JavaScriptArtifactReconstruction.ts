@@ -1,3 +1,4 @@
+import { artifactNameForClassification } from "../../domain/artifactNameSelection.js";
 import type { AnalysisSettingValues } from "../../domain/analysisSettings.js";
 import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import {
@@ -500,8 +501,9 @@ const resolveFormat = (
   const observed = metadata.isDirectory()
     ? "directory"
     : metadata.isFile() &&
-        (selectedPath.toLowerCase().endsWith(".asar") ||
-          path.toLowerCase().endsWith(".asar"))
+        artifactNameForClassification(selectedPath, path)
+          .toLowerCase()
+          .endsWith(".asar")
       ? "asar"
       : undefined;
   if (observed === undefined)

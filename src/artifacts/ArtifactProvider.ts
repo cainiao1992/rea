@@ -310,7 +310,7 @@ class ArtifactClient implements AnalysisClient {
         const result = await extractArtifact(
           {
             inputPath: this.target.sourcePath ?? this.target.path,
-            selectedPath: this.target.asarSelectedPath,
+            selectedPath: this.target.artifactSelectedPath,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
             environment: this.environment,
@@ -505,7 +505,7 @@ class ArtifactClient implements AnalysisClient {
     options?: ExecutionOptions,
   ) {
     return inventoryArtifact(this.target.sourcePath ?? this.target.path, {
-      selectedPath: this.target.asarSelectedPath,
+      selectedPath: this.target.artifactSelectedPath,
       resourceScope: this.#resourceScope,
       environment: this.environment,
       asarHeaderAdmission: runtimeAsarHeaderAdmission(

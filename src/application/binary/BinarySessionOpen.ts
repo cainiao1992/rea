@@ -152,7 +152,7 @@ const sameSessionTarget = (
   current.path === target.path &&
   // Native admission is bound to the requested path, not just its realpath.
   (current.sourcePath ?? current.path) === (target.sourcePath ?? target.path) &&
-  // ASAR companion lookup depends on the selected archive spelling.
+  // Artifact name hints and companions depend on the selected spelling.
   artifactTargetSelectedPath(current) === artifactTargetSelectedPath(target) &&
   snapshotMatchesTarget(snapshotTarget(current), target);
 

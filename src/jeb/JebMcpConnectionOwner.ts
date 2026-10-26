@@ -1,5 +1,5 @@
+import { StructuredContentMcpClient } from "../providers/StructuredContentMcpClient.js";
 import {
-  Client,
   SdkError,
   SdkErrorCode,
   StreamableHTTPClientTransport,
@@ -53,7 +53,10 @@ export class JebMcpAcquisitionCleanupFailure extends ProviderCleanupError {
 
 /** One SDK client owns its attached transport; failed cleanup retains both identities. */
 export class JebMcpConnectionOwner {
-  readonly client = new Client({ name: "rea-jeb", version: "0.0.0" });
+  readonly client = new StructuredContentMcpClient({
+    name: "rea-jeb",
+    version: "0.0.0",
+  });
   readonly transport: StreamableHTTPClientTransport;
   readonly signal = new AbortController();
   tools: readonly string[] | undefined;

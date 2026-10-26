@@ -3,7 +3,11 @@ import {
   DEFAULT_REQUEST_TIMEOUT_MSEC,
 } from "@modelcontextprotocol/client";
 import { z } from "zod";
-import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import {
+  jsonObjectSchema,
+  jsonValueSchema,
+  type JsonValue,
+} from "../domain/jsonValue.js";
 import {
   AnalysisCancelledError,
   AnalysisProtocolError,
@@ -57,12 +61,14 @@ const toolResultSchema = z.object({
 /** Decode a JEB MCP tool result without inventing an empty observation. */
 export const decodeJebToolResult = (input: unknown): JsonValue => {
   const result = toolResultSchema.parse(input);
+  // Shape validation's record copy can omit own __proto__ members; JSON owns the original dictionary.
+  const source = input as z.input<typeof toolResultSchema>;
   const blocks = result.content.flatMap((block) =>
     block.type === "text" && block.text !== undefined ? [block.text] : [],
   );
   let decoded: JsonValue;
-  if (result.structuredContent !== undefined) {
-    decoded = jsonValueSchema.parse(result.structuredContent);
+  if (source.structuredContent !== undefined) {
+    decoded = jsonObjectSchema.parse(source.structuredContent);
   } else {
     if (blocks.length !== 1)
       throw new AnalysisProtocolError(

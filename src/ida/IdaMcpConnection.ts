@@ -1,3 +1,4 @@
+import { StructuredContentMcpClient } from "../providers/StructuredContentMcpClient.js";
 import {
   createIdaDiagnosticRedactor,
   IDA_DIAGNOSTIC_SOURCE_BYTES,
@@ -8,7 +9,6 @@ import { ChildProcess } from "node:child_process";
 import { Socket } from "node:net";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import {
-  Client,
   ProtocolError,
   SdkError,
   SdkErrorCode,
@@ -24,7 +24,11 @@ import {
   idaRegistrationTimeoutGuidance,
   type IdaConfiguration,
 } from "./IdaConfiguration.js";
-import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
+import {
+  jsonObjectSchema,
+  jsonValueSchema,
+  type JsonValue,
+} from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   AnalysisTimeoutError,
@@ -106,6 +110,8 @@ export const decodeIdaToolResult = (
   diagnostic: IdaDiagnosticRedactor = createIdaDiagnosticRedactor(),
 ): JsonValue => {
   const result = toolResultSchema.parse(input);
+  // Shape validation's record copy can omit own __proto__ members; JSON owns the original dictionary.
+  const source = input as z.input<typeof toolResultSchema>;
   const blocks = result.content.flatMap((block) =>
     block.type === "text" && block.text !== undefined ? [block.text] : [],
   );
@@ -138,13 +144,11 @@ export const decodeIdaToolResult = (
       );
     return parseIdaJsonText(text);
   }
-  if (result.structuredContent !== undefined) {
-    const value = result.structuredContent;
-    return jsonValueSchema.parse(
-      Object.keys(value).length === 1 && "result" in value
-        ? value.result
-        : value,
-    );
+  if (source.structuredContent !== undefined) {
+    const value = jsonObjectSchema.parse(source.structuredContent);
+    return Object.keys(value).length === 1 && Object.hasOwn(value, "result")
+      ? value.result!
+      : value;
   }
   if (text === undefined)
     throw new AnalysisProtocolError(
@@ -360,7 +364,10 @@ export const createIdaMcpConnection = (
   environment: Readonly<NodeJS.ProcessEnv>,
   dependencies: IdaMcpConnectionDependencies = {},
 ): IdaMcpConnection => {
-  const client = new Client({ name: "rea-ida-provider", version: "1" });
+  const client = new StructuredContentMcpClient({
+    name: "rea-ida-provider",
+    version: "1",
+  });
   const redactor = (
     dependencies.createDiagnosticRedactor ?? createIdaDiagnosticRedactor
   )(config);

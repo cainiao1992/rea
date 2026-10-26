@@ -446,3 +446,19 @@ it("passes a discovery budget above the SDK default to connect and every catalog
     }
   }
 });
+
+it.each([false, true])(
+  "retains structured own members and nested dictionaries in a JEB reply (isError=%s)",
+  (isError) => {
+    const structured: unknown = JSON.parse(
+      '{"__proto__":{"observed":true},"success":false,"message":"missing","nested":[{"__proto__":"nested fact"}]}',
+    );
+    const decoded = decodeJebToolResult({
+      isError,
+      structuredContent: structured,
+      content: [],
+    });
+    expect(Object.hasOwn(decoded as object, "__proto__")).toBe(true);
+    expect(JSON.stringify(decoded)).toBe(JSON.stringify(structured));
+  },
+);

@@ -1,3 +1,4 @@
+import { requireOutputSchema } from "../toolOutputSchemaPrimitives.js";
 import { z } from "zod";
 import { nativeCallObservationInputSchema } from "../../domain/native/nativeCallObservation.js";
 import {
@@ -10,7 +11,6 @@ import { nativeOutputSchemas } from "../toolOutputSchemaGroups.js";
 import { jsonValueSchema } from "../../domain/jsonValue.js";
 import { localPathStringSchema } from "../../domain/localPath.js";
 import { toolContractMetadata } from "../toolEffects.js";
-import { requireOutputSchema } from "../toolOutputSchemaPrimitives.js";
 import { analysisDetailSchema } from "../analysisDetail.js";
 import { nativeCommandTimeoutField } from "../../domain/native/nativeDeadlines.js";
 
@@ -41,7 +41,10 @@ const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   },
 };
 
-const native = <Name extends string, Schema extends z.ZodObject>(
+const native = <
+  Name extends keyof typeof nativeOutputSchemas,
+  Schema extends z.ZodObject,
+>(
   name: Name,
   description: string,
   inputSchema: Schema,

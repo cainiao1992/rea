@@ -1,9 +1,9 @@
+import { requireOutputSchema } from "../toolOutputSchemaPrimitives.js";
 import { z } from "zod";
 
 import type { ToolContract } from "../toolContractTypes.js";
 import { managedOutputSchemas } from "../toolOutputSchemaGroups.js";
 import { toolContractMetadata } from "../toolEffects.js";
-import { requireOutputSchema } from "../toolOutputSchemaPrimitives.js";
 import { absoluteLocalPathStringSchema } from "../../domain/localPath.js";
 import { analysisDetailSchema } from "../analysisDetail.js";
 

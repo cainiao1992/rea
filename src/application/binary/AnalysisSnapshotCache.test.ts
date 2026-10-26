@@ -924,7 +924,7 @@ it("does not replay pre-envelope call graphs under the revised workflow profile"
     }),
   ).toBeUndefined();
   expect(
-    enhancedOutputSchemas.get_call_graph?.safeParse({
+    enhancedOutputSchemas.get_call_graph.safeParse({
       normalized_result: oldResult,
     }).success,
   ).toBe(false);

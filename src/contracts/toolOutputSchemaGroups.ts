@@ -25,13 +25,15 @@ import {
   functionDossierSchema,
   functionInstructionWindowSchema,
 } from "../domain/native/functionDossier.js";
-import { analysisBookmarkSchema } from "../domain/native/nativeInventory.js";
+import {
+  analysisBookmarkSchema,
+  nativeInventoryRowsSchemas,
+} from "../domain/native/nativeInventory.js";
 import {
   referenceEdgeSchema,
   unresolvedCallSchema,
 } from "../domain/native/nativeReference.js";
 import { procedureIdentitySchema } from "../domain/native/procedureInfo.js";
-import { nativeInventoryRowsSchemas } from "../domain/native/nativeInventory.js";
 import { z } from "zod";
 import { jsonRecordSchema } from "../domain/jsonRecord.js";
 import { byteSearchResultSchema } from "../domain/native/bytePattern.js";
@@ -134,7 +136,7 @@ const bookmarkFacetSchema = z.discriminatedUnion("state", [
 ]);
 
 /** Exact structured-content schemas shared by direct analysis providers. */
-export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const officialOutputSchemas = {
   search_bytes: evidenceResultOf(byteSearchResultSchema),
   annotate_native_function: evidenceResultOf(nativeFunctionAnnotationsSchema),
   inspect_native_load_image: analysisDetailOutputSchemaOf(
@@ -252,7 +254,7 @@ export const officialOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   set_inline_comment: evidenceResultOf(z.boolean()),
   unset_bookmark: evidenceResultOf(z.boolean()),
   xrefs: evidenceResultOf(nativeAddressListSchema),
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 const literalTraceOutput = evidenceResultOf(
   z.object({
@@ -325,7 +327,7 @@ const batchProcedureIdentity = z.discriminatedUnion("status", [
 ]);
 
 /** Exact structured-content schemas for composed analysis workflows. */
-export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const enhancedOutputSchemas = {
   inspect_native_dispatch_metadata: evidenceResultOf(
     nativeDispatchMetadataResultSchema,
   ),
@@ -432,7 +434,7 @@ export const enhancedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_native_api: evidenceResultOf(nativeApiInspectionResultSchema),
   trace_feature: literalTraceOutput,
   trace_call_path: callPathTraceOutput,
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 /** Complete entropy Evidence or its retained summary, shared by the named contract. */
 export const byteEntropyOutputSchema = analysisDetailOutputSchemaOf(
@@ -441,7 +443,7 @@ export const byteEntropyOutputSchema = analysisDetailOutputSchemaOf(
 );
 
 /** Exact Evidence schemas for provider-neutral native inspection. */
-export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const nativeOutputSchemas = {
   inspect_byte_entropy: byteEntropyOutputSchema,
   observe_native_ui: evidenceResultOf(nativeUiResultSchema),
   capture_native_ui_scenario: evidenceResultOf(nativeUiResultSchema),
@@ -453,10 +455,10 @@ export const nativeOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_plist: evidenceResultOf(inspectPlistSchema),
   list_architectures: evidenceResultOf(listArchitecturesSchema),
   demangle_swift: evidenceResultOf(demangleSwiftSchema),
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 /** Exact Evidence schemas for provider-neutral artifact graph operations. */
-export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const artifactOutputSchemas = {
   inspect_artifact: evidenceResultOf(
     z.union([
       artifactInspectionResultSchema,
@@ -473,10 +475,10 @@ export const artifactOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_keyed_archive: evidenceResultOf(keyedArchiveResultSchema),
   inspect_asset_catalog: evidenceResultOf(appleAssetCatalogResultSchema),
   trace_dylib_resolution: evidenceResultOf(dylibResolutionResultSchema),
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 /** Exact Evidence schema for execution-free managed static analysis. */
-export const managedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
+export const managedOutputSchemas = {
   inspect_managed_artifact: evidenceResultOf(
     z.union([
       managedArtifactInspectionSchema,
@@ -492,12 +494,10 @@ export const managedOutputSchemas: Readonly<Record<string, z.ZodObject>> = {
   inspect_managed_native_boundaries: evidenceResultOf(
     managedNativeBoundaryInspectionSchema,
   ),
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 /** Exact Evidence schema for provider-neutral managed workflows. */
-export const managedWorkflowOutputSchemas: Readonly<
-  Record<string, z.ZodObject>
-> = {
+export const managedWorkflowOutputSchemas = {
   compare_managed_members: evidenceResultOf(
     managedMemberComparisonResultSchema,
   ),
@@ -510,7 +510,7 @@ export const managedWorkflowOutputSchemas: Readonly<
   project_managed_application_graph: evidenceResultOf(
     managedApplicationGraphResultSchema,
   ),
-};
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 const lifecycleTargetFields = {
   path: z.string(),
@@ -677,7 +677,7 @@ export const sessionOutputSchemas = {
       unknown: residualUnknownSchema,
     }),
   ),
-} satisfies Readonly<Record<string, z.ZodObject>>;
+} as const satisfies Readonly<Record<string, z.ZodObject>>;
 
 /** Exact Evidence schema for read-only Electron fuse inspection. */
 export const electronFuseOutputSchemas = {

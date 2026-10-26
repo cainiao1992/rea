@@ -1,3 +1,4 @@
+import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 import { z } from "zod";
 
 import type { ToolContract } from "./toolContractTypes.js";
@@ -5,7 +6,6 @@ import { artifactOutputSchemas } from "./toolOutputSchemaGroups.js";
 import { artifactIntegrityPolicySchema } from "../domain/artifactIntegrityPolicy.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
 import { toolContractMetadata } from "./toolEffects.js";
-import { requireOutputSchema } from "./toolOutputSchemaPrimitives.js";
 import { appleAssetCatalogInputSchema } from "../domain/apple/appleAssetCatalog.js";
 import { dylibResolutionInputSchema } from "../domain/apple/dylibResolution.js";
 import { keyedArchiveInputSchema } from "../domain/apple/keyedArchive.js";
@@ -52,7 +52,7 @@ const examples: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
 };
 
 const artifact = <
-  Name extends string,
+  Name extends keyof typeof artifactOutputSchemas,
   Schema extends z.ZodType<Readonly<Record<string, unknown>>>,
 >(
   name: Name,

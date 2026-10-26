@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-/** Shared provider search input fields. */
-export const analysisSearchInput = {
+/** Provider-neutral native text search semantics, independent of document selection. */
+export const nativeSearchFields = {
   pattern: z
     .string()
     .min(1)
@@ -13,5 +13,10 @@ export const analysisSearchInput = {
     .describe(
       "Whether to match case; case-insensitive matching uses Unicode simple case folding, one character at a time",
     ),
+};
+
+/** Public native search inputs retain an omitted document selection. */
+export const nativeSearchInput = {
+  ...nativeSearchFields,
   document: z.string().optional().describe("The document name"),
 };

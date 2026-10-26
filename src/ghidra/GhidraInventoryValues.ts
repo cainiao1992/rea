@@ -1,3 +1,4 @@
+import { nativeSearchFields } from "../domain/native/nativeSearch.js";
 import { nativeSymbolMetadataSchema } from "../domain/native/nativeSymbol.js";
 import { nativeAddressObservationSchema } from "../domain/native/nativeAddress.js";
 import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
@@ -82,9 +83,7 @@ export const ghidraInputAddressSchema = z
 const explicitAddress = ghidraInputAddressSchema;
 const filteredAddress = explicitAddress.nullable().default(null);
 const searchInput = {
-  pattern: z.string().min(1),
-  mode: z.enum(["literal", "regex"]).default("literal"),
-  case_sensitive: z.boolean().default(false),
+  ...nativeSearchFields,
   document,
 };
 

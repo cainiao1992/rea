@@ -913,7 +913,8 @@ export class BinarySession
           next,
           "close_binary",
         );
-        resourceFailure.bindCleanupDependencies([previous, next]);
+        if (previous.cleanupIncomplete && next.cleanupIncomplete)
+          resourceFailure.bindCleanupDependencies([previous, next]);
       }
     if (!closed.ok && resourceFailure !== undefined) {
       const combined = analysisErrorWithCleanupFailure(
@@ -921,7 +922,8 @@ export class BinarySession
         resourceFailure,
         "close_binary",
       );
-      combined.bindCleanupDependencies([closed.error, resourceFailure]);
+      if (closed.error.cleanupIncomplete && resourceFailure.cleanupIncomplete)
+        combined.bindCleanupDependencies([closed.error, resourceFailure]);
       return err(combined);
     }
     if (!closed.ok) return closed;

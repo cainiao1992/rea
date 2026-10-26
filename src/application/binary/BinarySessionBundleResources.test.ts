@@ -982,6 +982,64 @@ it.each([0, 1])(
   },
 );
 
+it.each([
+  ["binary", "client"],
+  ["binary", "files"],
+  ["bundle", "client"],
+  ["bundle", "files"],
+] as const)(
+  "keeps unknown %s close completion when the %s owner has no cleanup signal",
+  async (targetKind, unknownOwner) => {
+    const tracked = new ProviderCleanupError(identity.id, ["owned-reader"], {});
+    const unknown = new ProviderAdapterError(identity.id, "close_binary", {
+      userMessage: "cleanup completion unknown",
+    });
+    let released = false;
+    let failCleanup = false;
+    const closeOwner = async (owner: "client" | "files") => {
+      if (!failCleanup) return ok(null);
+      if (!released) return err(owner === unknownOwner ? unknown : tracked);
+      if (owner !== unknownOwner) tracked.resolveCleanup();
+      return ok(null);
+    };
+    const client: AnalysisClient = {
+      execute: async () => ok(createAnalysisExecution(null, binaryIdentity)),
+      close: () => closeOwner("client"),
+    };
+    // Exercise the public session close composition with independently owned
+    // file cleanup; the file owner's failure shape is the regression boundary.
+    class SessionWithFileCleanup extends BinarySession {
+      override closeFileResources() {
+        return closeOwner("files");
+      }
+    }
+    const session = new SessionWithFileCleanup(
+      createTestProviderRouter(() => client),
+      new InvestigationRecords(),
+      { createClient: () => ({ client, capabilities: [] }) },
+    );
+    if (targetKind === "binary") {
+      expect(await session.open(process.execPath)).toMatchObject({ ok: true });
+    } else {
+      const rootPath = await mkdtemp(join(tmpdir(), "rea-resource-close-"));
+      temporaryDirectories.push(rootPath);
+      await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
+      expect(await session.openBundleResources(rootPath)).toMatchObject({
+        ok: true,
+      });
+    }
+    failCleanup = true;
+    const closed = await session.close();
+    if (closed.ok) throw new Error("Expected incomplete close");
+    expect(closed.error.cleanupIncomplete).toBe(true);
+    released = true;
+    expect(await session.close()).toMatchObject({ ok: true });
+    expect(tracked.cleanupIncomplete).toBe(false);
+    expect(closed.error.cleanupIncomplete).toBe(true);
+    expect(await session.status()).toMatchObject({ cleanup_pending: false });
+  },
+);
+
 it.each(["health", "cancellation"] as const)(
   "updates early resource-open %s cleanup after its candidate retries",
   async (failureStage) => {

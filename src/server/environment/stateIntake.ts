@@ -1,11 +1,11 @@
 import { fileURLToPath } from "node:url";
 
+import { mediaTypeEssence } from "../../domain/analysisView/recordedMediaType.js";
 import {
   ArtifactResourceRetryFailure,
   type ArtifactResourceScope,
 } from "../../artifacts/ArtifactResourceScope.js";
 import { STATE_INTAKE_LIMIT_BYTES } from "../../application/environment/environmentStateDocument.js";
-import { mediaTypeEssence } from "../../domain/analysisView/webNetworkRouteTemplates.js";
 import { isExactJsonNumber } from "../../domain/exactJsonNumber.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { safeParseJson } from "../../domain/safeJson.js";

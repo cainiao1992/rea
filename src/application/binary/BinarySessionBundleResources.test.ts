@@ -251,90 +251,101 @@ it("cancels a resource switch during prior-client retirement and closes its cand
   expect(await session.close()).toMatchObject({ ok: true });
 });
 
-it("keeps cancellation primary when resource retirement fails and retries the owner", async () => {
-  const rootPath = await mkdtemp(
-    join(tmpdir(), "rea-resource-cancel-close-failure-"),
-  );
-  temporaryDirectories.push(rootPath);
-  await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
-  let closeStarted!: () => void;
-  const closing = new Promise<void>((resolve) => {
-    closeStarted = resolve;
-  });
-  let releaseClose!: () => void;
-  const closeGate = new Promise<void>((resolve) => {
-    releaseClose = resolve;
-  });
-  let created = 0;
-  let oldCloseAttempts = 0;
-  let candidateCloseAttempts = 0;
-  const session = new BinarySession(
-    SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
-    new InvestigationRecords(),
-    {
-      createClient: () => {
-        created += 1;
-        const candidate = created > 1;
-        return {
-          client: {
-            execute: async () => ({
-              ok: true,
-              value: createAnalysisExecution(null, identity),
-            }),
-            close: async () => {
-              if (candidate) {
-                candidateCloseAttempts += 1;
+it.each([false, true])(
+  "keeps cancellation primary through resource retirement retry (live cleanup: %s)",
+  async (liveCleanup) => {
+    const rootPath = await mkdtemp(
+      join(tmpdir(), "rea-resource-cancel-close-failure-"),
+    );
+    temporaryDirectories.push(rootPath);
+    await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
+    let closeStarted!: () => void;
+    const closing = new Promise<void>((resolve) => {
+      closeStarted = resolve;
+    });
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    let created = 0;
+    let oldCloseAttempts = 0;
+    const cleanupFailure = liveCleanup
+      ? new ProviderCleanupError(identity.id, ["previous-reader"], {
+          reason: "previous reader remains open",
+        })
+      : new ProviderAdapterError(identity.id, "close_binary");
+    let candidateCloseAttempts = 0;
+    const session = new BinarySession(
+      SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
+      new InvestigationRecords(),
+      {
+        createClient: () => {
+          created += 1;
+          const candidate = created > 1;
+          return {
+            client: {
+              execute: async () => ({
+                ok: true,
+                value: createAnalysisExecution(null, identity),
+              }),
+              close: async () => {
+                if (candidate) {
+                  candidateCloseAttempts += 1;
+                  return { ok: true, value: null };
+                }
+                oldCloseAttempts += 1;
+                if (oldCloseAttempts === 1) {
+                  closeStarted();
+                  await closeGate;
+                }
+                if (oldCloseAttempts < 3) return err(cleanupFailure);
+                if (liveCleanup) cleanupFailure.resolveCleanup();
                 return { ok: true, value: null };
-              }
-              oldCloseAttempts += 1;
-              if (oldCloseAttempts === 1) {
-                closeStarted();
-                await closeGate;
-              }
-              return oldCloseAttempts < 3
-                ? err(new ProviderAdapterError(identity.id, "close_binary"))
-                : { ok: true, value: null };
+              },
             },
-          },
-          capabilities: [],
-        };
+            capabilities: [],
+          };
+        },
       },
-    },
-  );
+    );
 
-  expect((await session.openBundleResources(rootPath)).ok).toBe(true);
-  const controller = new AbortController();
-  const reason = { phase: "resource-close-failed" };
-  const opening = session.openBundleResources(rootPath, {
-    signal: controller.signal,
-  });
-  await Promise.race([
-    closing,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error("resource close did not start")),
-        1_000,
+    expect((await session.openBundleResources(rootPath)).ok).toBe(true);
+    const controller = new AbortController();
+    const reason = { phase: "resource-close-failed" };
+    const opening = session.openBundleResources(rootPath, {
+      signal: controller.signal,
+    });
+    await Promise.race([
+      closing,
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("resource close did not start")),
+          1_000,
+        ),
       ),
-    ),
-  ]);
-  controller.abort(reason);
-  releaseClose();
+    ]);
+    controller.abort(reason);
+    releaseClose();
 
-  const result = await opening;
-  expect(result.ok).toBe(false);
-  if (result.ok) throw new Error("Expected failed resource switch");
-  expect(result.error.cleanupPrimary).toBeInstanceOf(AnalysisCancelledError);
-  expect(result.error.cleanupPrimary?.cause).toBe(reason);
-  expect(result.error.cleanupIncomplete).toBe(true);
-  expect(candidateCloseAttempts).toBe(1);
-  expect(oldCloseAttempts).toBe(2);
-  expect(await session.status()).toMatchObject({
-    open: false,
-    cleanup_pending: true,
-  });
-  expect(await session.close()).toMatchObject({ ok: true });
-  expect(oldCloseAttempts).toBe(3);
-});
+    const result = await opening;
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected failed resource switch");
+    expect(result.error.cleanupPrimary).toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cleanupPrimary?.cause).toBe(reason);
+    expect(result.error.cleanupIncomplete).toBe(true);
+    expect(candidateCloseAttempts).toBe(1);
+    expect(oldCloseAttempts).toBe(2);
+    expect(await session.status()).toMatchObject({
+      open: false,
+      cleanup_pending: true,
+    });
+    expect(await session.close()).toMatchObject({ ok: true });
+    expect(oldCloseAttempts).toBe(3);
+    expect(result.error.cleanupIncomplete).toBe(!liveCleanup);
+    if (liveCleanup) expect(result.error.cleanupResources).toEqual([]);
+    expect(result.error.cleanupPrimary?.cause).toBe(reason);
+  },
+);
 
 it("keeps an earlier resource close failure primary when a later cleanup is cancelled", async () => {
   const rootPath = await mkdtemp(
@@ -836,9 +847,11 @@ it("tracks independent pending resource owners after a failed session replacemen
   expect(await session.openBundleResources(rootPath)).toMatchObject({
     ok: true,
   });
-  expect(await session.openBundleResources(rootPath)).toMatchObject({
-    ok: false,
-  });
+  const replacement = await session.openBundleResources(rootPath);
+  if (replacement.ok) throw new Error("Expected failed resource replacement");
+  expect(new Set(replacement.error.cleanupResources)).toEqual(
+    new Set(["previous-reader", "candidate-reader"]),
+  );
   const first = await session.close();
   if (first.ok)
     throw new Error("Expected both resource owners to remain pending");
@@ -850,10 +863,179 @@ it("tracks independent pending resource owners after a failed session replacemen
   expect(await session.close()).toMatchObject({ ok: false });
   expect(first.error.cleanupIncomplete).toBe(true);
   expect(first.error.cleanupResources).toEqual(["candidate-reader"]);
+  expect(replacement.error.cleanupIncomplete).toBe(true);
+  expect(replacement.error.cleanupResources).toEqual(["candidate-reader"]);
 
   released[1] = true;
   expect(await session.close()).toMatchObject({ ok: true });
   expect(first.error.cleanupIncomplete).toBe(false);
   expect(first.error.cleanupResources).toEqual([]);
+  expect(replacement.error.cleanupIncomplete).toBe(false);
+  expect(replacement.error.cleanupResources).toEqual([]);
   expect(await session.status()).toMatchObject({ cleanup_pending: false });
 });
+
+it.each([false, true])(
+  "retains failed-open primary through cleanup retry (live cleanup: %s)",
+  async (liveCleanup) => {
+    const primary = new ProviderAdapterError(binaryIdentity.id, "health", {
+      userMessage: "candidate health failed",
+    });
+    const cleanup = liveCleanup
+      ? new ProviderCleanupError(
+          binaryIdentity.id,
+          ["candidate-reader"],
+          {},
+          {
+            cleanup: {
+              reason: "candidate reader remains open",
+              resources: ["candidate-reader"],
+            },
+          },
+        )
+      : new ProviderAdapterError(binaryIdentity.id, "close_binary");
+    let attempts = 0;
+    const session = new BinarySession(
+      createTestProviderRouter(() => ({
+        execute: async () => err(primary),
+        close: async () => {
+          attempts += 1;
+          if (attempts === 1) return err(cleanup);
+          if (liveCleanup) cleanup.resolveCleanup();
+          return ok(null);
+        },
+      })),
+      new InvestigationRecords(),
+    );
+    const opened = await session.open(process.execPath);
+    if (opened.ok) throw new Error("Expected failed candidate health");
+    expect(opened.error.cleanupPrimary).toBe(primary);
+    expect(opened.error.cleanupIncomplete).toBe(true);
+    if (liveCleanup)
+      expect(opened.error.cleanup?.reason).toBe(
+        "candidate reader remains open",
+      );
+    expect(await session.close()).toMatchObject({ ok: true });
+    expect(attempts).toBe(2);
+    expect(opened.error.cleanupIncomplete).toBe(!liveCleanup);
+    if (liveCleanup) expect(opened.error.cleanupResources).toEqual([]);
+    expect(opened.error.cleanupPrimary).toBe(primary);
+  },
+);
+
+it.each([0, 1])(
+  "retains unknown cleanup completion alongside a retryable owner (unknown owner: %s)",
+  async (unknownOwner) => {
+    const rootPath = await mkdtemp(
+      join(tmpdir(), "rea-resource-mixed-cleanup-"),
+    );
+    temporaryDirectories.push(rootPath);
+    await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
+    const ownedFailure = new ProviderCleanupError(
+      identity.id,
+      ["owned-reader"],
+      {},
+    );
+    const unknownFailure = new ProviderAdapterError(
+      identity.id,
+      "close_binary",
+      {
+        userMessage: "cleanup completion unknown",
+      },
+    );
+    let created = 0;
+    let released = false;
+    const session = new BinarySession(
+      SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
+      new InvestigationRecords(),
+      {
+        createClient: () => {
+          const owner = created++;
+          return {
+            capabilities: [],
+            client: {
+              execute: async () => ok(createAnalysisExecution(null, identity)),
+              close: async () => {
+                if (!released)
+                  return err(
+                    owner === unknownOwner ? unknownFailure : ownedFailure,
+                  );
+                if (owner !== unknownOwner) ownedFailure.resolveCleanup();
+                return ok(null);
+              },
+            },
+          };
+        },
+      },
+    );
+    expect(await session.openBundleResources(rootPath)).toMatchObject({
+      ok: true,
+    });
+    const replacement = await session.openBundleResources(rootPath);
+    if (replacement.ok) throw new Error("Expected failed resource replacement");
+    expect(replacement.error.cleanupIncomplete).toBe(true);
+    released = true;
+    expect(await session.close()).toMatchObject({ ok: true });
+    expect(ownedFailure.cleanupIncomplete).toBe(false);
+    expect(replacement.error.cleanupIncomplete).toBe(true);
+    expect(await session.status()).toMatchObject({ cleanup_pending: false });
+  },
+);
+
+it.each(["health", "cancellation"] as const)(
+  "updates early resource-open %s cleanup after its candidate retries",
+  async (failureStage) => {
+    const rootPath = await mkdtemp(
+      join(tmpdir(), "rea-resource-early-cleanup-"),
+    );
+    temporaryDirectories.push(rootPath);
+    await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
+    const primary = new ProviderAdapterError(identity.id, "health");
+    const cleanup = new ProviderCleanupError(
+      identity.id,
+      ["candidate-reader"],
+      {},
+    );
+    const controller = new AbortController();
+    const reason = { stage: "candidate-health" };
+    let closeAttempts = 0;
+    const session = new BinarySession(
+      SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
+      new InvestigationRecords(),
+      {
+        createClient: () => ({
+          capabilities: [],
+          client: {
+            execute: async () => {
+              if (failureStage === "health") return err(primary);
+              controller.abort(reason);
+              return ok(createAnalysisExecution(null, identity));
+            },
+            close: async () => {
+              if (++closeAttempts === 1) return err(cleanup);
+              cleanup.resolveCleanup();
+              return ok(null);
+            },
+          },
+        }),
+      },
+    );
+    const opened = await session.openBundleResources(rootPath, {
+      signal: controller.signal,
+    });
+    if (opened.ok) throw new Error("Expected early resource open failure");
+    expect(opened.error.cleanupIncomplete).toBe(true);
+    if (failureStage === "health")
+      expect(opened.error.cleanupPrimary).toBe(primary);
+    else {
+      expect(opened.error.cleanupPrimary).toBeInstanceOf(
+        AnalysisCancelledError,
+      );
+      expect(opened.error.cleanupPrimary?.cause).toBe(reason);
+    }
+    expect(await session.close()).toMatchObject({ ok: true });
+    expect(closeAttempts).toBe(2);
+    expect(opened.error.cleanupIncomplete).toBe(false);
+    expect(opened.error.cleanupResources).toEqual([]);
+  },
+);

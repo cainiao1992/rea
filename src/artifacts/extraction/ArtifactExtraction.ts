@@ -1,3 +1,4 @@
+import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import {
   createArtifactReader,
@@ -55,6 +56,8 @@ import type { ArtifactIntegrityPolicyName } from "../../domain/artifactIntegrity
 export interface ArtifactExtractionInput {
   readonly asarHeaderAdmission?: AsarHeaderAdmission;
   readonly inputPath: string;
+  /** Selected ASAR spelling; packed I/O remains on inputPath. */
+  readonly selectedPath?: string | undefined;
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
   readonly environment: Readonly<NodeJS.ProcessEnv>;
@@ -79,9 +82,10 @@ const extractArtifactInScope = async (
   const admission = await requireExtractableFormat(sourcePath, input, signal);
   const { snapshot, zipSource } =
     await scanArtifactInventoryForExtractionInScope(
-      sourcePath,
+      input.inputPath,
       {
         resourceScope: input.resourceScope,
+        selectedPath: input.selectedPath,
         signal,
         environment: input.environment,
         asarHeaderAdmission:
@@ -606,6 +610,7 @@ const createReader = async (
   input: Pick<
     ArtifactExtractionInput,
     | "inputPath"
+    | "selectedPath"
     | "inputFormat"
     | "environment"
     | "resourceScope"
@@ -639,6 +644,7 @@ const createReader = async (
   return createArtifactReader(path, format, {
     environment: input.environment,
     unreadableDirectories: "fail",
+    selectedPath: absoluteCallerPath(input.selectedPath ?? input.inputPath),
     admission: transferredZip ? zipSource.source : undefined,
     asarHeaderAdmission:
       format === "asar"

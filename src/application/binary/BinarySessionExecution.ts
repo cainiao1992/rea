@@ -1,5 +1,8 @@
 import type { AnalysisProfileCommitment } from "../../domain/analysisProfile.js";
-import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
+import {
+  artifactTargetSelectedPath,
+  type BinaryTarget,
+} from "../../domain/binaryTargetTypes.js";
 import { AnalysisCapabilityUnavailableError } from "../../domain/analysisErrorCore.js";
 import { NoBinaryOpenError } from "../../domain/configurationErrors.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
@@ -158,4 +161,4 @@ const isArtifactBundleSubject = (
   (operation === "inventory_artifact" ||
     operation === "inspect_artifact" ||
     operation === "extract_artifact") &&
-  subject.path === (target.sourcePath ?? target.path);
+  subject.path === artifactTargetSelectedPath(target);

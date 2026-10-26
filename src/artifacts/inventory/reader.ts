@@ -21,6 +21,7 @@ export const createReader = (
   environment: Readonly<NodeJS.ProcessEnv>,
   readerAdmission?: StableRegularFileDescriptor | NodeSeaAdmission,
   asarHeaderAdmission?: AsarHeaderAdmission,
+  selectedPath?: string,
 ): ArtifactReader | undefined => {
   if (
     (format === "mach-o-universal" || format === "dmg") &&
@@ -32,6 +33,7 @@ export const createReader = (
     unreadableDirectories: "omit",
     admission: readerAdmission,
     asarHeaderAdmission,
+    selectedPath,
   });
 };
 

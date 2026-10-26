@@ -35,6 +35,8 @@ interface ArtifactReaderConstruction {
     | NodeSeaAdmission
     | undefined;
   readonly asarHeaderAdmission?: AsarHeaderAdmission | undefined;
+  /** Caller-selected root spelling; only ASAR companion lookup consumes this. */
+  readonly selectedPath?: string | undefined;
 }
 
 export function createArtifactReader(
@@ -64,12 +66,14 @@ export function createArtifactReader(
     case "directory":
       return new DirectoryArtifactReader(path, options.unreadableDirectories);
     case "asar":
-      return new AsarArtifactReader(
-        path,
-        options.asarHeaderAdmission === undefined
+      return new AsarArtifactReader(path, {
+        ...(options.asarHeaderAdmission === undefined
           ? {}
-          : { headerAdmission: options.asarHeaderAdmission },
-      );
+          : { headerAdmission: options.asarHeaderAdmission }),
+        ...(options.selectedPath === undefined
+          ? {}
+          : { selectedPath: options.selectedPath }),
+      });
     case "pyinstaller":
       return new PyInstallerArtifactReader(path, rootSource);
     case "node-sea":

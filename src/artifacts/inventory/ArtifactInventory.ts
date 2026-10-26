@@ -1,3 +1,4 @@
+import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import { realpath } from "node:fs/promises";
 
 import {
@@ -31,7 +32,12 @@ export const scanArtifactInventoryInScope = async (
 ): Promise<ArtifactInventorySnapshot> => {
   abortIfNeeded(options.signal);
   const path = await realpath(inputPath);
-  return scanCanonicalArtifactInventoryInScope(path, options);
+  return scanCanonicalArtifactInventoryInScope(
+    path,
+    options,
+    undefined,
+    absoluteCallerPath(options.selectedPath ?? inputPath),
+  );
 };
 
 export const scanArtifactInventoryForExtractionInScope = async (
@@ -48,5 +54,6 @@ export const scanArtifactInventoryForExtractionInScope = async (
     path,
     options,
     probeFacts,
+    absoluteCallerPath(options.selectedPath ?? inputPath),
   );
 };

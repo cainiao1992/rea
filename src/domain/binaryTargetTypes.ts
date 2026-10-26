@@ -128,6 +128,8 @@ export interface UniversalMachOSlice {
 interface BinaryTargetIdentity {
   readonly path: string;
   readonly sourcePath?: string;
+  /** Selected ASAR spelling determines its external unpacked companion, not packed identity. */
+  readonly asarSelectedPath?: string;
   /** Info.plist of the app bundle the target was resolved from. */
   readonly bundleInfoPlist?: string;
   readonly sha256: string;
@@ -277,3 +279,9 @@ export const isMachOFormat = (
   format: unknown,
 ): format is "mach-o" | "mach-o-universal" =>
   format === "mach-o" || format === "mach-o-universal";
+
+/** Result-affecting artifact selection; canonical packed identity remains target.path. */
+export const artifactTargetSelectedPath = (target: BinaryTarget): string =>
+  target.format === "asar"
+    ? (target.asarSelectedPath ?? target.sourcePath ?? target.path)
+    : (target.sourcePath ?? target.path);

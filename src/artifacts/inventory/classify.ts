@@ -64,7 +64,7 @@ export const classifyAndHashRootForInventory = async (
   expectedMetadata: Stats,
   options: Pick<
     ArtifactInventoryOptions,
-    "resourceScope" | "signal" | "asarHeaderAdmission"
+    "resourceScope" | "signal" | "asarHeaderAdmission" | "selectedPath"
   >,
   probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<RootInventoryClassification> => {
@@ -111,6 +111,7 @@ export const classifyAndHashRootForInventory = async (
       ),
       options.signal,
       options.asarHeaderAdmission,
+      options.selectedPath,
     );
     const format =
       typeof classified === "string" ? classified : classified.kind;
@@ -164,6 +165,7 @@ const classifyRootFormat = async (
   embeddedProbes: ArtifactEmbeddedFormatProbes,
   signal?: AbortSignal,
   asarHeaderAdmission?: AsarHeaderAdmission,
+  selectedPath?: string,
 ): Promise<ArtifactOccurrence["artifact_format"] | NodeSeaAdmission> => {
   const { handle } = source;
   const probe = createArtifactClassificationProbe(asarHeaderAdmission);
@@ -226,7 +228,7 @@ const classifyRootFormat = async (
       ? fatEvidence
       : { ...fatEvidence, mzWindowsHeaderSignature };
   const format = classifyArtifactContent(
-    path,
+    selectedPath?.toLowerCase().endsWith(".asar") ? selectedPath : path,
     classificationEvidence,
     archiveBytes,
   ).format;

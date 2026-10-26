@@ -27,7 +27,10 @@ import {
   artifactExtractionExecutionSchema,
   type ArtifactAnalysisOperation,
 } from "../contracts/artifactToolContracts.js";
-import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
+import {
+  artifactTargetSelectedPath,
+  type BinaryTarget,
+} from "../domain/binaryTargetTypes.js";
 import {
   AnalysisCapabilityUnavailableError,
   AnalysisInputError,
@@ -307,6 +310,7 @@ class ArtifactClient implements AnalysisClient {
         const result = await extractArtifact(
           {
             inputPath: this.target.sourcePath ?? this.target.path,
+            selectedPath: this.target.asarSelectedPath,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
             environment: this.environment,
@@ -324,7 +328,7 @@ class ArtifactClient implements AnalysisClient {
             rawResult: null,
             limitations: result.limitations,
             subject: subjectFor(
-              this.target.sourcePath ?? this.target.path,
+              artifactTargetSelectedPath(this.target),
               result.manifest,
             ),
             // Each extracted file's path is already in artifacts.
@@ -339,7 +343,7 @@ class ArtifactClient implements AnalysisClient {
           rawResult: null,
           limitations: result.limitations,
           subject: subjectFor(
-            this.target.sourcePath ?? this.target.path,
+            artifactTargetSelectedPath(this.target),
             result.manifest,
           ),
           // Each occurrence's logical path is already in the result.
@@ -461,7 +465,7 @@ class ArtifactClient implements AnalysisClient {
       await this.inventory(inventoryParameters, options),
     );
     const subject = subjectFor(
-      this.target.sourcePath ?? this.target.path,
+      artifactTargetSelectedPath(this.target),
       inventory.manifest,
     );
     const inventoryEvidence = createEvidence(subject, ARTIFACT_GRAPH_PROVIDER, {
@@ -501,6 +505,7 @@ class ArtifactClient implements AnalysisClient {
     options?: ExecutionOptions,
   ) {
     return inventoryArtifact(this.target.sourcePath ?? this.target.path, {
+      selectedPath: this.target.asarSelectedPath,
       resourceScope: this.#resourceScope,
       environment: this.environment,
       asarHeaderAdmission: runtimeAsarHeaderAdmission(

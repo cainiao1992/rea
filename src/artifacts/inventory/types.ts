@@ -13,6 +13,8 @@ export const STRICT_INTEGRITY_POLICY: ArtifactIntegrityPolicy = {
 /** Options shared by artifact inventory scans. */
 export interface ArtifactInventoryOptions {
   readonly resourceScope: ArtifactResourceScope;
+  /** Independently selected root spelling used only for ASAR companion lookup. */
+  readonly selectedPath?: string | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly integrity?: ArtifactIntegrityPolicy | undefined;
   readonly environment?: Readonly<NodeJS.ProcessEnv> | undefined;

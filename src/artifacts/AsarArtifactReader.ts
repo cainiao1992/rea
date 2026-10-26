@@ -1,3 +1,4 @@
+import { appendCallerPath } from "../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../config/asarHeaderAdmission.js";
 import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
 import { constants, createWriteStream, type Stats } from "node:fs";
@@ -46,6 +47,7 @@ import { readAsarListing, type AsarListedEntry } from "./AsarListing.js";
 export class AsarArtifactReader implements ArtifactReader {
   readonly format = "asar" as const;
   #archiveSize: number | undefined;
+  #selectedCanonicalSource: string | undefined;
   #headerSize: number | undefined;
   readonly #entries = new Map<string, AsarEntryState>();
   readonly #ownedHandles = new Map<SharedAsarFileHandle, OwnedAsarHandle>();
@@ -278,6 +280,7 @@ export class AsarArtifactReader implements ArtifactReader {
   ): Promise<void> {
     await this.#withSnapshotOperation(async () => {
       assertAsarReadActive(signal);
+      await this.#validateSelectedArchive();
       if (this.#snapshot === undefined && this.#snapshotRoot !== undefined)
         await this.#closeSnapshot();
       if (this.#snapshot === undefined) await this.#captureSnapshot(signal);
@@ -427,13 +430,29 @@ export class AsarArtifactReader implements ArtifactReader {
     return [];
   }
 
+  /** A selected companion cannot silently migrate to another packed target. */
+  async #validateSelectedArchive(): Promise<void> {
+    const selected = this.options.selectedPath;
+    if (selected === undefined) return;
+    // The packed pathname is fixed for this reader; member checks only need
+    // to re-observe the caller's independently selected alias.
+    this.#selectedCanonicalSource ??= await realpath(this.path);
+    const current = await realpath(selected);
+    if (this.#selectedCanonicalSource !== current)
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `Selected ASAR archive no longer resolves to its admitted source: ${selected}`,
+      );
+  }
+
   async #openUnpackedStream(
     entry: ArtifactEntry,
     signal?: AbortSignal,
   ): Promise<Readable> {
-    const unpackedRoot = `${this.path}.unpacked`;
+    const unpackedRoot = `${this.options.selectedPath ?? this.path}.unpacked`;
     let handle: SharedAsarFileHandle | undefined;
     try {
+      await this.#validateSelectedArchive();
       const rootMetadata = await lstat(unpackedRoot);
       if (!rootMetadata.isDirectory() || rootMetadata.isSymbolicLink())
         throw new ArtifactReaderFailure(
@@ -441,7 +460,7 @@ export class AsarArtifactReader implements ArtifactReader {
           "ASAR unpacked companion is not a regular directory",
         );
       const canonicalRoot = await realpath(unpackedRoot);
-      const candidate = join(unpackedRoot, entry.adapterKey);
+      const candidate = appendCallerPath(unpackedRoot, entry.adapterKey);
       const canonical = await realpath(candidate);
       const relativePath = relative(canonicalRoot, canonical);
       if (
@@ -612,6 +631,8 @@ type OwnedAsarHandle = {
 export type AsarArtifactReaderOptions = {
   /** Header/index admission resolved by the caller's composition root; default otherwise. */
   readonly headerAdmission?: AsarHeaderAdmission;
+  /** Companion selected by the caller archive spelling, independently of packed identity. */
+  readonly selectedPath?: string;
   readonly openFile?: OpenAsarFile;
   readonly openUnpackedFile?: OpenAsarFile;
   readonly removeSnapshot?: (path: string) => Promise<void>;

@@ -166,7 +166,7 @@ export const parseBinaryTarget = async (
         try {
           return await readOpenedBinaryTarget(
             source,
-            { path, sourcePath, ...bundle },
+            { path, sourcePath, selectedPath: candidate, ...bundle },
             options,
           );
         } catch (cause: unknown) {
@@ -245,12 +245,13 @@ const readOpenedBinaryTarget = async (
   selected: {
     readonly path: string;
     readonly sourcePath: string;
+    readonly selectedPath: string;
     readonly bundleInfoPlist?: string;
   },
   options: BinaryTargetResolverOptions,
 ): Promise<TargetResolution> => {
   const { handle, initial: metadata } = source;
-  const { path, sourcePath, bundleInfoPlist } = selected;
+  const { path, sourcePath, selectedPath, bundleInfoPlist } = selected;
   const bundle = bundleInfoPlist === undefined ? {} : { bundleInfoPlist };
   const hostArchitecture = options.hostArchitecture ?? process.arch;
   const { targetKind, formatHint, signal, architecture, entryPoint } = options;
@@ -371,10 +372,17 @@ const readOpenedBinaryTarget = async (
   }
   // Probe WASM content before suffix-only database routing; an explicit
   // database selection keeps the caller's chosen interpretation.
-  const artifactFormat =
+  let artifactFormat =
     targetKind === "database"
       ? undefined
       : await detectArtifactFormat(path, source, signal);
+  if (
+    targetKind !== "database" &&
+    artifactFormat === undefined &&
+    selectedPath.toLowerCase().endsWith(".asar") &&
+    !(await claimsLeadingExecutableHeader(handle, metadata.size, signal))
+  )
+    artifactFormat = "asar";
   if (
     targetKind === "database" ||
     (targetKind === undefined && path.toLowerCase().endsWith(".hop"))
@@ -390,6 +398,7 @@ const readOpenedBinaryTarget = async (
     const identity = {
       path,
       sourcePath,
+      ...(artifactFormat === "asar" ? { asarSelectedPath: selectedPath } : {}),
       sha256: await sha256Handle(handle, path, metadata, signal),
     };
     return isArchiveFormat(artifactFormat)

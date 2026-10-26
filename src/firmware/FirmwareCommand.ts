@@ -288,6 +288,38 @@ export const runFirmwareCommand = async (context: {
     }
     checkDiagnostics();
     checkInterruption();
+    // Physical completion belongs to this observation, before awaited cleanup.
+    // A later cancellation must not replace an already completed tool failure.
+    const snapshot = supervisor.snapshot();
+    if (
+      snapshot.exitCode !== 0 &&
+      !(
+        context.acceptReportedExtractionFailure === true &&
+        snapshot.exitCode === 1
+      )
+    ) {
+      const signalLimit = firmwareSignalLimitError(
+        operation,
+        snapshot.signal,
+        fileSizeBytes,
+        fileSizeAdjustable,
+        capturedFirmwareOutput(snapshot),
+      );
+      if (signalLimit !== undefined) throw signalLimit;
+      throw new ProviderAdapterError(engine, operation, {
+        diagnostics: {
+          reason:
+            "Tool failed; inspect exit status and stderr for format, dependency, sandbox or resource-limit failures",
+          exit_code: snapshot.exitCode ?? null,
+          signal: snapshot.signal ?? null,
+          stdout: snapshot.stdout.text,
+          stderr: snapshot.stderr.text,
+          stdout_bytes: snapshot.stdout.bytes,
+          stderr_bytes: snapshot.stderr.bytes,
+        },
+        remediationAction: `Inspect exit status and stderr for format, dependency, sandbox, or resource-limit failures. ${firmwareProcessLimitRecovery(fileSizeBytes, fileSizeAdjustable)} A format or dependency failure is not repaired by changing analysis_timeout_ms.`,
+      });
+    }
   } catch (cause: unknown) {
     failure = firmwareFailure(cause, context);
   }
@@ -320,35 +352,6 @@ export const runFirmwareCommand = async (context: {
     );
   }
   if (failure !== undefined) throw failure;
-  if (
-    snapshot.exitCode !== 0 &&
-    !(
-      context.acceptReportedExtractionFailure === true &&
-      snapshot.exitCode === 1
-    )
-  ) {
-    const signalLimit = firmwareSignalLimitError(
-      operation,
-      snapshot.signal,
-      fileSizeBytes,
-      fileSizeAdjustable,
-      capturedFirmwareOutput(snapshot),
-    );
-    if (signalLimit !== undefined) throw signalLimit;
-    throw new ProviderAdapterError(engine, operation, {
-      diagnostics: {
-        reason:
-          "Tool failed; inspect exit status and stderr for format, dependency, sandbox or resource-limit failures",
-        exit_code: snapshot.exitCode ?? null,
-        signal: snapshot.signal ?? null,
-        stdout: snapshot.stdout.text,
-        stderr: snapshot.stderr.text,
-        stdout_bytes: snapshot.stdout.bytes,
-        stderr_bytes: snapshot.stderr.bytes,
-      },
-      remediationAction: `Inspect exit status and stderr for format, dependency, sandbox, or resource-limit failures. ${firmwareProcessLimitRecovery(fileSizeBytes, fileSizeAdjustable)} A format or dependency failure is not repaired by changing analysis_timeout_ms.`,
-    });
-  }
   return {
     stdout: snapshot.stdout,
     stderr: snapshot.stderr,

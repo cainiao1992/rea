@@ -1,3 +1,4 @@
+import { cleanupOwnedProcessGroup } from "../process/ProcessOwnership.js";
 import { EventEmitter } from "node:events";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -17,6 +18,7 @@ import {
 import {
   spawnOwnedProviderProcess,
   type ProviderProcessHandle,
+  type ProviderProcessSupervisor,
   type OwnedProviderProcessSpawnOptions,
 } from "../process/ProviderProcess.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -333,5 +335,105 @@ test.each([
       }),
     ).rejects.toBe(refused);
     expect(launcher).toHaveBeenCalledOnce();
+  },
+);
+
+test.each([
+  { exitCode: 0, cleanupFails: false },
+  { exitCode: 7, cleanupFails: false },
+  { exitCode: 7, cleanupFails: true },
+])(
+  "preserves completed exit $exitCode through cancellation during real owned cleanup (fails: $cleanupFails)",
+  async ({ exitCode, cleanupFails }) => {
+    const root = await createTestTempDirectory("rea-firmware-finalization-");
+    const caller = new AbortController();
+    const reason = { caller: "cancel during final cleanup" };
+    let cleanupCalls = 0;
+    const retained: ProviderProcessSupervisor[] = [];
+    const failure: unknown = await runFirmwareCommand({
+      engine: "binwalk",
+      operation: "inspect_firmware_regions",
+      command: process.execPath,
+      limiter: process.execPath,
+      fileSizeCeiling: Number.MAX_SAFE_INTEGER,
+      args: [],
+      cwd: root,
+      environment: process.env,
+      signal: caller.signal,
+      deadline: {
+        phase: "analysis",
+        signal: new AbortController().signal,
+        timeoutMs: 30_000,
+        expiresAtMs: performance.now() + 30_000,
+      },
+      launcher: async (options) => {
+        const owned = await spawnOwnedProviderProcess({
+          ...options,
+          command: process.execPath,
+          arguments: [
+            "-e",
+            `process.stdout.write("scan evidence\\n"); process.stderr.write("producer diagnostics\\n"); process.exitCode = ${exitCode}`,
+          ],
+        });
+        return {
+          ...owned,
+          cleanup: async () => {
+            cleanupCalls += 1;
+            expect(owned.process.exitCode).toBe(exitCode);
+            caller.abort(reason);
+            const cleaned = await cleanupOwnedProcessGroup(owned.ownership);
+            if (cleanupFails && cleanupCalls === 1)
+              return {
+                cleaned: false as const,
+                reason: "controlled cleanup refusal after real release",
+              };
+            return cleaned;
+          },
+        };
+      },
+      retainCleanup: (owner) => {
+        retained.push(owner);
+      },
+    }).catch((cause: unknown) => cause);
+    expect(cleanupCalls).toBe(1);
+    expect(failure).toBeInstanceOf(AnalysisError);
+    if (!(failure instanceof AnalysisError))
+      throw new Error("Expected typed failure");
+    if (exitCode === 0) {
+      expect(failure).toMatchObject({
+        _tag: "AnalysisCancelledError",
+        cause: reason,
+      });
+    } else if (cleanupFails) {
+      expect(retained).toHaveLength(1);
+      expect(await retained[0]!.stop()).toMatchObject({
+        status: "verified-cleanup",
+      });
+      expect(cleanupCalls).toBe(2);
+      retained[0]!.dispose();
+      expect(failure).toMatchObject({
+        diagnostics: {
+          previous_error: {
+            code: "execution_failure",
+            details: { diagnostics: { exit_code: 7 } },
+          },
+        },
+        capturedOutput: {
+          stdout: "scan evidence\n",
+          stderr: "producer diagnostics\n",
+          exit_code: 7,
+        },
+      });
+    } else {
+      expect(failure).toMatchObject({
+        _tag: "ProviderAdapterError",
+        diagnostics: {
+          exit_code: 7,
+          stdout: "scan evidence\n",
+          stderr: "producer diagnostics\n",
+        },
+      });
+      expect(projectAnalysisError(failure).code).toBe("execution_failure");
+    }
   },
 );

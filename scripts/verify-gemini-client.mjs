@@ -6,11 +6,6 @@ import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
-  schemaArrays,
-  schemaChildren,
-  schemaMaps,
-} from "../dist/contracts/jsonSchemaKeywords.js";
-import {
   TOOL_CONTRACTS,
   toolContract,
 } from "../dist/contracts/toolContracts.js";
@@ -27,6 +22,12 @@ import {
 } from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createGeminiModelFixture } from "./verify/clients/gemini-model-fixture.mjs";
+import { importVerifierSource } from "./lib/verifier-source-loader.mjs";
+
+const { geminiUnsupportedLiteral } = await importVerifierSource(
+  new URL("./lib/gemini-schema-literals.mts", import.meta.url).href,
+  import.meta.url,
+);
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const runtimeRoot = process.env.REA_VERIFY_RUNTIME_ROOT ?? repo;
@@ -200,41 +201,6 @@ await withVerifierCleanup(async () => {
       strict: false,
       validateFormats: false,
     });
-    const unsupportedLiteralPath = (schema, path = "$", seen = new Set()) => {
-      if (!schema || typeof schema !== "object" || seen.has(schema))
-        return undefined;
-      seen.add(schema);
-      for (const [key, child] of Object.entries(schema)) {
-        const childPath = `${path}.${key}`;
-        if (key === "const" && (typeof child === "boolean" || child === ""))
-          return childPath;
-        if (
-          key === "enum" &&
-          Array.isArray(child) &&
-          child.some((item) => typeof item === "boolean" || item === "")
-        )
-          return childPath;
-        const schemaChildrenAtKey =
-          schemaMaps.has(key) &&
-          child &&
-          typeof child === "object" &&
-          !Array.isArray(child)
-            ? Object.entries(child).map(([name, item]) => [
-                `${childPath}.${name}`,
-                item,
-              ])
-            : schemaArrays.has(key) && Array.isArray(child)
-              ? child.map((item, index) => [`${childPath}[${index}]`, item])
-              : schemaChildren.has(key)
-                ? [[childPath, child]]
-                : [];
-        for (const [nestedPath, nested] of schemaChildrenAtKey) {
-          const found = unsupportedLiteralPath(nested, nestedPath, seen);
-          if (found !== undefined) return found;
-        }
-      }
-      return undefined;
-    };
     const decodeGeminiResult = (text) => {
       if (
         text.startsWith("<untrusted_context>\n") &&
@@ -277,9 +243,9 @@ await withVerifierCleanup(async () => {
               schemaValidator.validateSchema(tool.parametersJsonSchema),
               `${tool.name}: invalid advertised JSON Schema: ${JSON.stringify(schemaValidator.errors)}`,
             );
-            const unsupportedLiteral = unsupportedLiteralPath(
+            const unsupportedLiteral = geminiUnsupportedLiteral(
               tool.parametersJsonSchema,
-            );
+            )?.path;
             assert.equal(
               unsupportedLiteral,
               undefined,

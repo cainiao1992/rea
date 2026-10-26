@@ -95,3 +95,13 @@ it("keeps native Unicode-mode failures and repeated pattern occurrences visible"
     }),
   ).toEqual(["^same", "^same"]);
 });
+
+it("keeps pattern encounter order while visiting a shared schema object only once", () => {
+  const shared = { pattern: "nested$" };
+  expect(
+    assertClientSchemaPatterns({
+      patternProperties: { "^first": shared, "^second": shared },
+      $ref: "#/patternProperties/^first",
+    }),
+  ).toEqual(["^first", "nested$", "^second"]);
+});

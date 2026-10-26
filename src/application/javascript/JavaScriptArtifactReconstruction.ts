@@ -146,14 +146,10 @@ export const reconstructJavaScriptArtifact = async (
       const earlyCleanup = await scope.release(readerOwner);
       readerOpen = false;
       if (earlyCleanup.kind === "failed")
-        throw ArtifactReaderFailure.withCleanup(
-          earlyCleanup.cause,
-          ArtifactReaderFailure.cleanupObservation(
-            earlyCleanup.cause,
-            readerOwner.resource,
-          ),
-          { kind: "artifact-inventory", inventory: snapshot },
-        );
+        throw scope.cleanupFailure({ kind: "completed" }, [earlyCleanup], {
+          kind: "artifact-inventory",
+          inventory: snapshot,
+        });
       await reportPhase(
         "parse_javascript_sources",
         `Processing ${String(files.files.length - (files.source_selection?.unselected_files ?? 0))} selected application files`,
@@ -410,19 +406,13 @@ export const reconstructJavaScriptArtifact = async (
     if (readerOpen) {
       const cleanupAttempt = await scope.release(readerOwner);
       if (cleanupAttempt.kind === "failed") {
-        const cleanup = ArtifactReaderFailure.cleanupObservation(
-          cleanupAttempt.cause,
-          readerOwner.resource,
-        );
         const partialObservation: ArtifactInventoryPartialObservation = {
           kind: "artifact-inventory",
           inventory: snapshot,
         };
-        throw ArtifactReaderFailure.withCleanup(
-          reconstructionOutcome.kind === "failed"
-            ? reconstructionOutcome.cause
-            : cleanupAttempt.cause,
-          cleanup,
+        throw scope.cleanupFailure(
+          reconstructionOutcome,
+          [cleanupAttempt],
           partialObservation,
         );
       }

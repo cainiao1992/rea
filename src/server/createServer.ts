@@ -101,7 +101,10 @@ import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
 import { createToolResultDelivery } from "./toolResult.js";
 import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import { parseMcpResponseBudget } from "../config/mcpResponseBudget.js";
-import { parseMcpOutputSchemaProfile } from "../config/mcpOutputSchemaProfile.js";
+import {
+  parseMcpOutputSchemaProfile,
+  type McpOutputSchemaProfile,
+} from "../config/mcpOutputSchemaProfile.js";
 import {
   compactPresentationForMcpInputSchemaProfile,
   parseMcpInputSchemaProfile,
@@ -408,7 +411,7 @@ const createMcpServer = (
   session: BinarySessionPort | undefined,
   delivery: ToolResultDelivery,
   compactPresentation: CompactInputSchemaPresentation | undefined,
-  omitOutputSchemas: boolean,
+  outputSchemaProfile: McpOutputSchemaProfile,
 ): EvidenceMcpServer =>
   new EvidenceMcpServer(
     {
@@ -428,11 +431,8 @@ const createMcpServer = (
       : (evidence) => session.recordEvidence(evidence),
     delivery,
     compactPresentation,
-    omitOutputSchemas,
-    createCatalogIdentity(
-      compactPresentation,
-      omitOutputSchemas ? "off" : "full",
-    ),
+    outputSchemaProfile,
+    createCatalogIdentity(compactPresentation, outputSchemaProfile),
   );
 
 /**
@@ -449,7 +449,9 @@ export const createServer = (
   const environment = snapshotEnvironment(options.environment ?? process.env);
   const analysisSettings =
     options.analysisSettings ?? new AnalysisSettings(environment);
-  const omitOutputSchemas = outputSchemasOmitted(environment);
+  const compactInputPresentation =
+    selectCompactInputSchemaPresentation(environment);
+  const selectedOutputSchemaProfile = outputSchemaProfile(environment);
   const providerEnvironment = captureProviderEnvironment(
     options.providerEnvironment,
     environment,
@@ -516,8 +518,8 @@ export const createServer = (
     createMcpServer(
       session,
       delivery,
-      selectCompactInputSchemaPresentation(environment),
-      omitOutputSchemas,
+      compactInputPresentation,
+      selectedOutputSchemaProfile,
     );
   server.analysisSettings = analysisSettings;
   registerAnalysisSettingsTools(server, analysisSettings);
@@ -528,8 +530,8 @@ export const createServer = (
         : (evidence) => session.recordEvidence(evidence),
       delivery,
       createCatalogIdentity(
-        selectCompactInputSchemaPresentation(environment),
-        omitOutputSchemas ? "off" : "full",
+        compactInputPresentation,
+        selectedOutputSchemaProfile,
       ),
     );
   }
@@ -882,14 +884,14 @@ const selectToolResultDelivery = (
   return createToolResultDelivery(configured.value);
 };
 
-const outputSchemasOmitted = (
+const outputSchemaProfile = (
   environment: Readonly<NodeJS.ProcessEnv>,
-): boolean => {
+): McpOutputSchemaProfile => {
   const configured = parseMcpOutputSchemaProfile(
     environment.REA_MCP_OUTPUT_SCHEMA_PROFILE,
   );
   if (!configured.ok) throw configured.error;
-  return configured.value === "off";
+  return configured.value ?? "full";
 };
 
 const selectCompactInputSchemaPresentation = (

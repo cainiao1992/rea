@@ -1367,21 +1367,37 @@ identity. Explicit schema IDs and relative external reference bases are
 preserved. This keeps every tool and validation rule in discovery and does not
 change the SDK's catalog invalidation or availability checks.
 
-The server identity's tool-schema digest includes both the canonical output
-contracts and the selected output-schema profile. `full` and `off` therefore
-have distinct identities even though `off` keeps the same canonical output
-validation on the server.
+The server identity's tool-schema digest includes the selected output-schema
+profile and the advertised form that profile produces. `full`, `compact`, and
+`off` therefore have distinct identities. The `compact` digest covers the
+bounded schemas clients receive; `off` keeps the canonical output contracts in
+the digest while advertising nothing.
 
 Some stdio hosts reject a complete `tools/list` frame before they load any
-tools. The opt-in `REA_MCP_OUTPUT_SCHEMA_PROFILE=off` setting omits `outputSchema`
-from the advertised catalog for hosts with a small frame limit (the measured
-pi-web-ui failure and catalog breakdown are in [#2512](https://github.com/morluto/rea/issues/2512)).
-The default `full` profile is unchanged. With `off`, REA validates successful
-structured results against the same named canonical tool contract before
-delivery; it still returns complete `structuredContent` and text results.
-Only client-side schema discovery and validation are omitted, so hosts using
-this profile should rely on REA's validation and retain their usual response
-size limits.
+tools. The opt-in `REA_MCP_OUTPUT_SCHEMA_PROFILE=compact` setting bounds every
+advertised output schema to 4,096 bytes; `off` omits `outputSchema` entirely
+(the measured pi-web-ui failure and catalog breakdown are in
+[#2512](https://github.com/morluto/rea/issues/2512)). The default `full` profile
+is unchanged. Both settings keep the same named canonical tool contract for
+server-side result validation, and both still return complete
+`structuredContent` and text results.
+
+`compact` keeps the complete validation structure when it fits the budget.
+Otherwise it advertises the root property shape, first-level reference-resolved
+types, first-level guidance, and the root's `required`/`additionalProperties`
+constraints, with nested validation detail elided. Local references are inlined
+within the budget, so the advertised form is self-contained and omits the
+canonical contract's content-bound `$id`. The projection only widens: a valid
+canonical result still satisfies the advertised schema, but a client validating
+against it can accept a result the canonical contract rejects. REA still
+validates every result before delivery. On catalogs large enough that full
+input schemas alone approach the frame limit, keep the input profile at its
+`compact` default as well; with full input schemas the advertisement is
+dominated by the input side.
+
+Only client-side schema discovery and validation are reduced or omitted, so
+hosts using these profiles should rely on REA's validation and retain their
+usual response size limits.
 
 ### Function comparison limitations
 

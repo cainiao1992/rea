@@ -63,6 +63,64 @@ const assertCliCatalogIdentity = async (
   }
 };
 
+const catalogProfiles = [
+  {
+    name: "default compact input",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: undefined,
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
+    },
+    identity: createCatalogIdentity(
+      compactPresentationForMcpInputSchemaProfile(undefined),
+    ),
+  },
+  {
+    name: "full",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: "full",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
+    },
+    identity: FULL_CATALOG_IDENTITY,
+  },
+  {
+    name: "compact",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
+    },
+    identity: createCatalogIdentity(
+      compactPresentationForMcpInputSchemaProfile("compact"),
+    ),
+  },
+  {
+    name: "output schemas off",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: "full",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
+    },
+    identity: createCatalogIdentity(undefined, "off"),
+  },
+  {
+    name: "output schemas compact",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: "full",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "compact",
+    },
+    identity: createCatalogIdentity(undefined, "compact"),
+  },
+  {
+    name: "compact input and output schemas off",
+    environment: {
+      REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
+    },
+    identity: createCatalogIdentity(
+      compactPresentationForMcpInputSchemaProfile("compact"),
+      "off",
+    ),
+  },
+];
+
 describe("production MCP doctor", () => {
   it("reuses immutable compiled profile digests and preserves custom-budget identity", async () => {
     // Exercise the generated module with Node, outside Vitest's source loader.
@@ -79,7 +137,7 @@ describe("production MCP doctor", () => {
         assert.ok(Object.isFrozen(profiles));
         for (const input of ["full", "compact"]) {
           assert.ok(Object.isFrozen(profiles[input]));
-          for (const output of ["full", "off"]) {
+          for (const output of ["full", "compact", "off"]) {
             const identity = createCatalogIdentity(input === "compact" ? { budgetBytes } : undefined, output);
             assert.equal(identity.digests, profiles[input][output]);
             assert.ok(Object.isFrozen(identity.digests));
@@ -124,55 +182,7 @@ describe("production MCP doctor", () => {
     });
   });
 
-  it.each([
-    {
-      name: "default compact input",
-      environment: {
-        REA_MCP_INPUT_SCHEMA_PROFILE: undefined,
-        REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
-      },
-      identity: createCatalogIdentity(
-        compactPresentationForMcpInputSchemaProfile(undefined),
-      ),
-    },
-    {
-      name: "full",
-      environment: {
-        REA_MCP_INPUT_SCHEMA_PROFILE: "full",
-        REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
-      },
-      identity: FULL_CATALOG_IDENTITY,
-    },
-    {
-      name: "compact",
-      environment: {
-        REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
-        REA_MCP_OUTPUT_SCHEMA_PROFILE: "full",
-      },
-      identity: createCatalogIdentity(
-        compactPresentationForMcpInputSchemaProfile("compact"),
-      ),
-    },
-    {
-      name: "output schemas off",
-      environment: {
-        REA_MCP_INPUT_SCHEMA_PROFILE: "full",
-        REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
-      },
-      identity: createCatalogIdentity(undefined, "off"),
-    },
-    {
-      name: "compact input and output schemas off",
-      environment: {
-        REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
-        REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
-      },
-      identity: createCatalogIdentity(
-        compactPresentationForMcpInputSchemaProfile("compact"),
-        "off",
-      ),
-    },
-  ])(
+  it.each(catalogProfiles)(
     "verifies the $name catalog through production stdio and both CLI inventories",
     async ({ environment, identity }) => {
       const result = await runProductionMcpDoctor({

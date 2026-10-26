@@ -7,6 +7,7 @@ import {
   FULL_CATALOG_IDENTITY,
   createCatalogIdentity,
 } from "../catalogIdentity.js";
+import type { McpOutputSchemaProfile } from "../config/mcpOutputSchemaProfile.js";
 import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import {
   EvidenceMcpServerCore,
@@ -23,7 +24,7 @@ export class EvidenceMcpServer extends EvidenceMcpServerCore {
     recordEvidence: EvidenceWriter["recordEvidence"] | undefined,
     delivery: ToolResultDelivery,
     compactPresentation: CompactInputSchemaPresentation | undefined = undefined,
-    omitOutputSchemas = false,
+    outputSchemaProfile: McpOutputSchemaProfile = "full",
     identity?: ReturnType<typeof createCatalogIdentity>,
   ) {
     super(
@@ -32,14 +33,11 @@ export class EvidenceMcpServer extends EvidenceMcpServerCore {
       recordEvidence,
       delivery,
       compactPresentation,
-      omitOutputSchemas,
+      outputSchemaProfile,
       identity ??
-        (compactPresentation === undefined && !omitOutputSchemas
+        (compactPresentation === undefined && outputSchemaProfile === "full"
           ? FULL_CATALOG_IDENTITY
-          : createCatalogIdentity(
-              compactPresentation,
-              omitOutputSchemas ? "off" : "full",
-            )),
+          : createCatalogIdentity(compactPresentation, outputSchemaProfile)),
     );
   }
 }

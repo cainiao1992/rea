@@ -421,3 +421,86 @@ it.each([
     );
   },
 );
+
+it("decodes captured Next script URL segments once while retaining source URL identity", () => {
+  const url =
+    "https://example.test/base/_next/static/chunks/app/%28shop%29/blog/%5Bid%5D/page-abc.js";
+  const result = build([
+    source("captured-page", "", url),
+    source("app/blog/%5Bid%5D/page.js", ""),
+  ]);
+  expect(result.routes.map(({ path }) => path)).toEqual([
+    "/base/blog/:id",
+    "/blog/%5Bid%5D",
+  ]);
+  expect(result.sources.find((entry) => entry.url === url)?.url).toBe(url);
+  expect(result.occurrences).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        origin: "source-url",
+        unprefixed_path: "/blog/:id",
+        inferred_base_path: "/base",
+      }),
+    ]),
+  );
+});
+
+it.each(["team%2Fadmin", "team%5Cadmin", "%E0%A4%A"])(
+  "keeps malformed Next URL segment %s unknown alongside usable script facts",
+  (segment) => {
+    const url = `https://example.test/_next/static/chunks/app/${segment}/page-abc.js`;
+    const result = build([source("page", "router.push('/usable');", url)]);
+    expect(result.routes.map(({ path }) => path)).toEqual(["/usable"]);
+    expect(result.sources[0]?.url).toBe(url);
+    expect(result.coverage.candidate_enumeration).toBe("partial");
+    expect(result.unknowns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "interpretation",
+          reason: expect.stringContaining("Next script URL"),
+        }),
+      ]),
+    );
+  },
+);
+
+it("preserves literal percent encoding after one script URL decode", () => {
+  const result = build([
+    source(
+      "page",
+      "",
+      "https://example.test/_next/static/chunks/app/%255Bid%255D/page-abc.js",
+    ),
+  ]);
+  expect(result.routes.map(({ path }) => path)).toEqual(["/%5Bid%5D"]);
+});
+
+it.each([
+  "page%3Fnotes.js",
+  "page%23notes.js",
+  "page.js%3Fnotes",
+  "page.js%23notes",
+])("keeps encoded Next script filename delimiters literal: %s", (leaf) => {
+  const url = `https://example.test/_next/static/chunks/app/dashboard/${leaf}`;
+  const result = build([source("captured-page", "", url)]);
+  expect(result.routes).toEqual([]);
+  expect(result.sources[0]?.url).toBe(url);
+});
+
+it.each(["?cache=1", "#section", "?cache=1#section"])(
+  "parses actual Next script URL suffix %s before classifying the filename",
+  (suffix) => {
+    const url = `https://example.test/_next/static/chunks/app/dashboard/page-abc.js${suffix}`;
+    const result = build([source("captured-page", "", url)]);
+    expect(result.routes.map(({ path }) => path)).toEqual(["/dashboard"]);
+    expect(result.sources[0]?.url).toBe(url);
+  },
+);
+
+it.each(["page?notes.js", "page#notes.js", "page.js?notes", "page.js#notes"])(
+  "keeps filesystem Next page filename delimiters literal: %s",
+  (leaf) => {
+    const result = build([source(`app/dashboard/${leaf}`, "")]);
+    expect(result.routes).toEqual([]);
+  },
+);

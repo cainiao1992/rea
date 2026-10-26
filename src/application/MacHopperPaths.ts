@@ -53,12 +53,17 @@ export const macHopperRenamedLauncherCandidates = (
       .map((name) => posix.join(root, name, "Contents/MacOS/hopper")),
   );
 
-const directoryNames = (entries: readonly Dirent[]): readonly string[] =>
-  entries.filter((entry) => entry.isDirectory()).map(({ name }) => name);
+// A linked application bundle retains its selected spelling. Runtime and
+// doctor validate the executable beneath each candidate, rejecting dangling
+// links and links to ordinary files without interpreting the bundle again.
+const possibleBundleNames = (entries: readonly Dirent[]): readonly string[] =>
+  entries
+    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+    .map(({ name }) => name);
 
 const localBundleNames = (root: string): readonly string[] => {
   try {
-    return directoryNames(readdirSync(root, { withFileTypes: true }));
+    return possibleBundleNames(readdirSync(root, { withFileTypes: true }));
   } catch (cause: unknown) {
     // Missing or unreadable optional app directories contain no candidates.
     void cause;
@@ -86,7 +91,7 @@ export const readMacHopperRenamedLauncherCandidates = async (
     try {
       bundleNamesByRoot.set(
         root,
-        directoryNames(await readdir(root, { withFileTypes: true })),
+        possibleBundleNames(await readdir(root, { withFileTypes: true })),
       );
     } catch (cause: unknown) {
       // Missing or unreadable optional app directories contain no candidates.

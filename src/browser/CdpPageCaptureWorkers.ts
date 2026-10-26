@@ -3,13 +3,13 @@ import type { CdpCaptureEvents } from "./CdpCaptureEvents.js";
 import {
   admitRecords,
   allowedSanitizedUrl,
-  isHttpUrl,
   recordValue,
   cdpStringValue,
 } from "./CdpCaptureValues.js";
 import type { CaptureContext } from "./CdpPageCapture.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
 import { workerTargetOwnership } from "./CdpWorkerTargetOwnership.js";
+import { exclusionReasonForUrl } from "./CdpCaptureEventHelpers.js";
 
 interface CaptureWorkersInput {
   readonly context: CaptureContext;
@@ -84,14 +84,7 @@ export const captureWorkers = async (
     const url = allowedSanitizedUrl(target.url, allowedOrigins);
     if (url === undefined) {
       const rawUrl = cdpStringValue(target.url);
-      completeness.exclude(
-        "workers",
-        rawUrl === undefined || rawUrl === ""
-          ? "unattributed_origin"
-          : isHttpUrl(rawUrl)
-            ? "disallowed_origin"
-            : "unsupported_url",
-      );
+      completeness.exclude("workers", exclusionReasonForUrl(rawUrl));
       continue;
     }
     items.push({

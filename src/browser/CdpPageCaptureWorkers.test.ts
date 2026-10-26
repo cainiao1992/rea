@@ -44,6 +44,34 @@ const capture = async (inventory: unknown) => {
 };
 
 describe("web worker target inventory", () => {
+  it.each([
+    ["", "unattributed_origin"],
+    ["https://outside.example/worker.js", "disallowed_origin"],
+    ["file:///fixture/worker.js", "unsupported_url"],
+  ])(
+    "retains selected-worker URL exclusion evidence for %s",
+    async (url, reason) => {
+      const result = await capture({
+        targetInfos: [
+          {
+            targetId: "worker",
+            type: "worker",
+            url,
+            attached: false,
+            openerId: "page",
+          },
+        ],
+      });
+
+      expect(result.workers).toEqual([]);
+      expect(result.completeness.excluded).toContainEqual({
+        section: "workers",
+        reason,
+        count: 1,
+      });
+    },
+  );
+
   it("preserves an explicit empty inventory", async () => {
     const result = await capture({ targetInfos: [] });
 

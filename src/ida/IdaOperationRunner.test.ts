@@ -8,6 +8,49 @@ import { IdaOperationRunner } from "./IdaOperationRunner.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 
 it.each(["legacy", "modern", "native"] as const)(
+  "%s validates string address selectors independently of inventory contents",
+  async (protocol) => {
+    const { root, target } = await createIdaTarget();
+    const producer = new RecordingIdaMcp(target);
+    const runner = new IdaOperationRunner(producer, protocol);
+    try {
+      for (const populated of [false, true]) {
+        const strings = populated
+          ? [
+              { address: "0x10", string: "selected", length: 8 },
+              { address: "0x20", string: "other", length: 5 },
+            ]
+          : [];
+        producer.overrideCall = (tool) => {
+          if (tool === "list_strings")
+            return { data: strings, next_offset: null };
+          if (tool === "find_regex")
+            return {
+              matches: strings.map(({ address, string }) => ({
+                addr: address,
+                string,
+              })),
+              cursor: { done: true },
+            };
+          return undefined;
+        };
+        const callsBeforeInvalidSelector = producer.calls.length;
+        await expect(
+          runner.run("list_strings", { address: "invalid" }),
+        ).rejects.toThrow();
+        expect(producer.calls).toHaveLength(callsBeforeInvalidSelector);
+        expect(await runner.run("list_strings", { address: "0X0010" })).toEqual(
+          populated ? [{ address: "0x10", value: "selected" }] : [],
+        );
+      }
+    } finally {
+      await producer.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.each(["legacy", "modern", "native"] as const)(
   "%s procedure resolution rejects file coordinates before any symbol lookup",
   async (protocol) => {
     const { root, target } = await createIdaTarget();

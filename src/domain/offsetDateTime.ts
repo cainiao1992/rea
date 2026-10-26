@@ -55,25 +55,27 @@ export const parseOffsetDateTimeInstant = (
   };
 };
 
-/** Parse recorded ISO spelling once, retaining its exact instant and formatting facts. */
-export const readRecordedDateTime = (
+export interface RecordedDateTimeReading {
+  readonly instant: OffsetDateTimeInstant;
+  readonly spelling: {
+    readonly separator: "T" | " ";
+    readonly secondsPresent: boolean;
+    readonly fractionDigits: number;
+    readonly zone: string;
+  };
+}
+
+/** Distinguish invalid supported spellings from formats this reader does not interpret. */
+export const inspectRecordedDateTime = (
   value: string,
 ):
-  | {
-      readonly instant: OffsetDateTimeInstant;
-      readonly spelling: {
-        readonly separator: "T" | " ";
-        readonly secondsPresent: boolean;
-        readonly fractionDigits: number;
-        readonly zone: string;
-      };
-    }
-  | undefined => {
+  | { readonly kind: "valid"; readonly reading: RecordedDateTimeReading }
+  | { readonly kind: "invalid" | "unrecognized" } => {
   const match =
     /^(\d{4}-\d{2}-\d{2})([T ])(\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:?\d{2})?$/u.exec(
       value,
     );
-  if (match === null) return undefined;
+  if (match === null) return { kind: "unrecognized" };
   const [, date, separator, time, seconds, fraction = "", zone = ""] = match;
   const offset =
     zone === ""
@@ -84,16 +86,27 @@ export const readRecordedDateTime = (
   const normalized = offsetDateTimeSchema.safeParse(
     `${date}T${time}${seconds === undefined ? "" : `:${seconds}`}${fraction === "" ? "" : `.${fraction}`}${offset}`,
   );
-  if (!normalized.success) return undefined;
+  if (!normalized.success) return { kind: "invalid" };
   return {
-    instant: parseOffsetDateTimeInstant(normalized.data),
-    spelling: {
-      separator: separator as "T" | " ",
-      secondsPresent: seconds !== undefined,
-      fractionDigits: fraction.length,
-      zone,
+    kind: "valid",
+    reading: {
+      instant: parseOffsetDateTimeInstant(normalized.data),
+      spelling: {
+        separator: separator as "T" | " ",
+        secondsPresent: seconds !== undefined,
+        fractionDigits: fraction.length,
+        zone,
+      },
     },
   };
+};
+
+/** Parse recorded ISO spelling once, retaining its exact instant and formatting facts. */
+export const readRecordedDateTime = (
+  value: string,
+): RecordedDateTimeReading | undefined => {
+  const inspected = inspectRecordedDateTime(value);
+  return inspected.kind === "valid" ? inspected.reading : undefined;
 };
 
 /** Convert a Date.now-style integer into the same exact comparison shape. */

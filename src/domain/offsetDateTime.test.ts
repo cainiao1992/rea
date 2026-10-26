@@ -2,10 +2,23 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  inspectRecordedDateTime,
   offsetDateTimeSchema,
   readRecordedDateTime,
   utcDateTimeSchema,
 } from "./offsetDateTime.js";
+
+it.each([
+  ["2026-02-30T09:00:00Z", "invalid"],
+  ["1900-02-29 09:00:00", "invalid"],
+  ["2026-10-20T24:00:00Z", "invalid"],
+  ["2026-10-20T09:00:00+24:00", "invalid"],
+  ["2026-10-20 09:00:00.0000000001", "valid"],
+  ["Tue, 20 Oct 2026 09:00:00 GMT", "unrecognized"],
+  ["2026-10-20", "unrecognized"],
+])("classifies recorded spelling %s as %s", (text, kind) => {
+  expect(inspectRecordedDateTime(text).kind).toBe(kind);
+});
 
 const ACCEPTED: readonly (readonly [string, string])[] = [
   ["a UTC timestamp", "2026-10-09T04:00:00Z"],

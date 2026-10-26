@@ -19,7 +19,7 @@ import type { JsonValue } from "../../domain/jsonValue.js";
 import {
   compareOffsetDateTimeInstants,
   offsetDateTimeInstantFromEpochMilliseconds,
-  readRecordedDateTime,
+  inspectRecordedDateTime,
   type OffsetDateTimeInstant,
 } from "../../domain/offsetDateTime.js";
 import type { WebNetworkCaptureRecord } from "../../domain/webNetworkCapture.js";
@@ -55,8 +55,9 @@ const startedInstant = (
 ): OffsetDateTimeInstant | undefined => {
   const started = startedSchema.safeParse(record.reported);
   if (!started.success) return undefined;
-  const reading = readRecordedDateTime(started.data.startedDateTime);
-  if (reading !== undefined) return reading.instant;
+  const reading = inspectRecordedDateTime(started.data.startedDateTime);
+  if (reading.kind === "valid") return reading.reading.instant;
+  if (reading.kind === "invalid") return undefined;
   // Preserve native-Date admission for legacy spellings, at its original precision.
   const ms = Date.parse(started.data.startedDateTime);
   return Number.isFinite(ms)

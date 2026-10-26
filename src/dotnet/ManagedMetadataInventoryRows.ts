@@ -1,3 +1,4 @@
+import { readMemberReferenceRowFacts } from "./ManagedMemberReferenceRows.js";
 import { readTypeDefinitionRowFacts } from "./ManagedTypeDefinitionRows.js";
 import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
@@ -408,13 +409,7 @@ const attributeTypeName = (
   const { table, row } = constructor;
   if (table === 6)
     return declaringTypeForMethod(bytes, layout, row, memberLists, typeName);
-  const cursor = metadataRowCursor(bytes, layout, 10, row);
-  const parent = decodeMetadataCodedIndex(
-    cursor.readIndex(layout.codedIndexSize("MemberRefParent")),
-    3,
-    [2, 1, 26, 6, 27],
-    layout.rowCounts,
-  );
+  const { parent } = readMemberReferenceRowFacts(bytes, layout, row);
   if (parent.kind === "null") return null;
   if (parent.table === 2 || parent.table === 1)
     return typeName(parent.table, parent.row);

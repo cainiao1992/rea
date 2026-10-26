@@ -1,4 +1,9 @@
 import {
+  readMachoSectionHeader,
+  type MachoSectionHeader,
+} from "../../domain/apple/machoSectionHeader.js";
+import { readMachoSegmentHeader } from "../../domain/apple/machoSegmentHeader.js";
+import {
   declaredFileRange,
   BinaryFormatFailure,
   BinaryReader,
@@ -49,20 +54,28 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
           "malformed",
           "Mach-O segment command does not match the header width",
         );
-      const segmentHeader = wide ? 72 : 56;
       const sectionWidth = wide ? 80 : 68;
-      if (size < segmentHeader)
+      const parsedSegment = readMachoSegmentHeader(
+        bytes.subarray(offset, offset + size),
+        wide,
+        little,
+      );
+      if (!parsedSegment.ok)
         throw new BinaryFormatFailure(
-          "malformed",
-          "Mach-O segment header is truncated",
+          parsedSegment.error.kind,
+          parsedSegment.error.message,
         );
-      const address = reader.word(offset + 24, bits);
-      const memorySize = reader.word(offset + (wide ? 32 : 28), bits);
-      const fileOffset = reader.word(offset + (wide ? 40 : 32), bits);
-      const fileSize = reader.word(offset + (wide ? 48 : 36), bits);
-      const maxProtection = reader.u32(offset + (wide ? 56 : 40));
-      const protection = reader.u32(offset + (wide ? 60 : 44));
-      const sectionCount = reader.u32(offset + (wide ? 64 : 48));
+      const {
+        headerSize: segmentHeader,
+        address,
+        memorySize,
+        fileOffset,
+        fileSize,
+        maxProtection,
+        protection,
+        sectionCount,
+        nameBytes,
+      } = parsedSegment.value;
       const unmapped = memorySize === 0n && protection === 0;
       if (
         (!unmapped && fileSize > memorySize) ||
@@ -85,9 +98,7 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
         unmapped || fileRange === undefined
           ? undefined
           : { ...fileRange, address };
-      const name = fixedName(
-        reader.range(offset + 8, 16, "Mach-O segment name"),
-      );
+      const name = fixedName(nameBytes);
       if (mapping !== undefined && name !== "__PAGEZERO") {
         mappings.push(mapping);
         loadRegions.push({
@@ -110,18 +121,21 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
         });
       for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
         const section = offset + segmentHeader + sectionIndex * sectionWidth;
-        const sectionName = fixedName(
-          reader.range(section, 16, "Mach-O section name"),
+        const parsedSection = readMachoSectionHeader(
+          bytes.subarray(section, section + sectionWidth),
+          wide,
+          little,
         );
+        if (!parsedSection.ok)
+          throw new BinaryFormatFailure(
+            parsedSection.error.kind,
+            parsedSection.error.message,
+          );
         sections.push(
           machoImageSection({
-            reader,
-            bits,
-            wide,
-            header: section,
-            name: `${fixedName(reader.range(section + 16, 16, "Mach-O section segment"))},${sectionName}`,
+            fileBytes: bytes.length,
+            section: parsedSection.value,
             protection,
-            sectionName,
             segmentMapping: mapping ?? null,
             segmentUnmapped: unmapped,
             unmapped: unmapped || mapping === undefined,
@@ -161,13 +175,9 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
 };
 
 const machoImageSection = ({
-  reader,
-  bits,
-  wide,
-  header,
-  name,
+  fileBytes,
+  section,
   protection,
-  sectionName,
   segmentMapping,
   segmentUnmapped,
   unmapped,
@@ -176,13 +186,9 @@ const machoImageSection = ({
   segmentFileOffset,
   segmentFileSize,
 }: {
-  readonly reader: BinaryReader;
-  readonly bits: 32 | 64;
-  readonly wide: boolean;
-  readonly header: number;
-  readonly name: string;
+  readonly fileBytes: number;
+  readonly section: MachoSectionHeader;
   readonly protection: number;
-  readonly sectionName: string;
   readonly segmentMapping: FileMapping | null;
   readonly segmentUnmapped: boolean;
   readonly unmapped: boolean;
@@ -191,11 +197,11 @@ const machoImageSection = ({
   readonly segmentFileOffset: bigint;
   readonly segmentFileSize: bigint;
 }): ImageSection => {
-  const flags = reader.u32(header + (wide ? 64 : 56));
+  const { flags, address: sectionAddress, size: sectionSize } = section;
+  const sectionOffset = BigInt(section.offset);
+  const sectionName = fixedName(section.nameBytes);
+  const name = `${fixedName(section.segmentNameBytes)},${sectionName}`;
   const zeroFill = [1, 0xc, 0x12].includes(flags & 0xff);
-  const sectionAddress = reader.word(header + 32, bits);
-  const sectionSize = reader.word(header + (wide ? 40 : 36), bits);
-  const sectionOffset = BigInt(reader.u32(header + (wide ? 48 : 40)));
   const addressDelta = sectionAddress - segmentAddress;
   const fileDelta = sectionOffset - segmentFileOffset;
   const inSegmentMemory =
@@ -208,7 +214,7 @@ const machoImageSection = ({
     sectionSize <= segmentFileSize - fileDelta;
   const range = unmapped
     ? { offset: 0, size: 0, file_backed: false }
-    : declaredFileRange(reader.bytes.length, sectionOffset, sectionSize);
+    : declaredFileRange(fileBytes, sectionOffset, sectionSize);
   const fileBacked =
     range.file_backed && !zeroFill && inSegmentMemory && inSegmentFile;
   const readOnly =

@@ -33,6 +33,10 @@ import {
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
+import {
+  McpHttpUtf8Error,
+  validateMcpHttpResponse,
+} from "../providers/Utf8McpResponse.js";
 
 /** Injectable MCP boundary used by the provider and transport conformance tests. */
 export interface IdaMcpConnection {
@@ -294,9 +298,15 @@ const readBoundedResponseText = async (
 };
 
 const diagnosticFetch =
-  (redactor: IdaDiagnosticRedactor): typeof fetch =>
+  (
+    redactor: IdaDiagnosticRedactor,
+    rejectTransport: (failure: McpHttpUtf8Error) => void,
+  ): typeof fetch =>
   async (input, init) => {
-    const response = await fetch(input, init);
+    const response = validateMcpHttpResponse(
+      await fetch(input, init),
+      rejectTransport,
+    );
     const readText = response.text.bind(response);
     let safeBody: string | undefined;
     if (!response.ok) {
@@ -356,6 +366,7 @@ export const createIdaMcpConnection = (
   )(config);
   let stderr = Buffer.alloc(0);
   let stderrBytes = 0;
+  let httpUtf8Failure: McpHttpUtf8Error | undefined;
   const capturedTransportOutput = () => {
     let start = 0;
     if (stderrBytes > stderr.length)
@@ -407,6 +418,13 @@ export const createIdaMcpConnection = (
         ? /ReadBuffer exceeded maximum size of (\d+) bytes/u.exec(cause.message)
         : null;
     if (cause instanceof IdaDiagnosticResourceError) throw cause;
+    if (cause instanceof McpHttpUtf8Error) throw cause;
+    if (
+      httpUtf8Failure !== undefined &&
+      cause instanceof SdkError &&
+      cause.code === SdkErrorCode.ConnectionClosed
+    )
+      throw httpUtf8Failure;
     let failure: Error;
     if (cause instanceof IdaHttpJsonError)
       failure = new Error(cause.message, { cause });
@@ -459,7 +477,7 @@ export const createIdaMcpConnection = (
       capturedOutput,
     });
   };
-  const transport =
+  const transport: StdioClientTransport | StreamableHTTPClientTransport =
     "command" in config
       ? new StdioClientTransport({
           command: config.command,
@@ -483,7 +501,10 @@ export const createIdaMcpConnection = (
         })
       : new StreamableHTTPClientTransport(new URL(config.url), {
           requestInit: { headers: config.headers, redirect: "error" },
-          fetch: diagnosticFetch(redactor),
+          fetch: diagnosticFetch(redactor, (failure) => {
+            httpUtf8Failure ??= failure;
+            void transport.close().catch(() => undefined);
+          }),
         });
   // Keep a bounded diagnostic tail for genuine failures; never persist ambient variables.
   if (transport instanceof StdioClientTransport)

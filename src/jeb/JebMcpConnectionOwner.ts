@@ -1,11 +1,17 @@
 import {
   Client,
+  SdkError,
+  SdkErrorCode,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { SharedStartupAttempt } from "../process/SharedStartupAttempt.js";
 import type { Result } from "../domain/result.js";
+import {
+  McpHttpUtf8Error,
+  validateMcpHttpResponse,
+} from "../providers/Utf8McpResponse.js";
 
 /** Physical SDK failure captured before any subsequent resource cleanup. */
 export class JebMcpPhysicalFailure extends Error {
@@ -61,10 +67,17 @@ export class JebMcpConnectionOwner {
   #clientClosed = false;
   #transportClosed = false;
   #disposal: Promise<void> | undefined;
+  #httpUtf8Failure: McpHttpUtf8Error | undefined;
 
   constructor(endpoint: URL) {
     this.transport = new StreamableHTTPClientTransport(endpoint, {
       requestInit: { redirect: "error" },
+      fetch: async (input, init) =>
+        validateMcpHttpResponse(await fetch(input, init), (failure) => {
+          this.#httpUtf8Failure ??= failure;
+          this.tools = undefined;
+          void this.transport.close().catch(() => undefined);
+        }),
     });
     this.#clientResource = `${endpoint} (JEB MCP client)`;
     this.#transportResource = `${endpoint} (JEB MCP transport)`;
@@ -76,6 +89,15 @@ export class JebMcpConnectionOwner {
 
   get disposing(): boolean {
     return this.#disposal !== undefined;
+  }
+
+  /** Attribute only the actual transport close caused by malformed response bytes. */
+  responseFailure(cause: unknown): unknown {
+    return this.#httpUtf8Failure !== undefined &&
+      cause instanceof SdkError &&
+      cause.code === SdkErrorCode.ConnectionClosed
+      ? this.#httpUtf8Failure
+      : cause;
   }
 
   get cleanupResources(): readonly string[] {

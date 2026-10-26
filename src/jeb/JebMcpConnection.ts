@@ -180,7 +180,7 @@ export const createStreamableHttpJebMcpConnection: JebMcpConnectionFactory = (
       } catch (cause: unknown) {
         const failure = physicalFailure(
           "catalog",
-          deadline.failure("jeb_mcp_catalog", cause),
+          owner.responseFailure(deadline.failure("jeb_mcp_catalog", cause)),
         );
         owner.acquisitionFailure = { cause: failure };
         owner.signal.abort(failure);
@@ -237,7 +237,7 @@ export const createStreamableHttpJebMcpConnection: JebMcpConnectionFactory = (
       } catch (cause: unknown) {
         throw physicalFailure(
           "catalog",
-          deadline.failure("jeb_mcp_catalog", cause),
+          owner.responseFailure(deadline.failure("jeb_mcp_catalog", cause)),
         );
       } finally {
         deadline.dispose();
@@ -260,7 +260,10 @@ export const createStreamableHttpJebMcpConnection: JebMcpConnectionFactory = (
           { timeout: deadline.remainingMs(), signal: deadline.signal },
         );
       } catch (cause: unknown) {
-        throw physicalFailure("tool", deadline.failure(name, cause));
+        throw physicalFailure(
+          "tool",
+          owner.responseFailure(deadline.failure(name, cause)),
+        );
       } finally {
         deadline.dispose();
       }

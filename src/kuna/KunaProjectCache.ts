@@ -1,3 +1,8 @@
+import type { RegularFileState } from "../filesystem/RegularFile.js";
+import {
+  assertKunaProjectState,
+  type KunaProjectFileStates,
+} from "./KunaProjectState.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   mkdir,
@@ -26,7 +31,8 @@ import {
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
-  hashStableFile,
+  observeStableFile,
+  type StableFileObservation,
   stableFileHashCause,
 } from "../filesystem/StableFileHash.js";
 import {
@@ -121,6 +127,7 @@ export type KunaProjectManifest = z.infer<typeof manifestSchema>;
 
 /** One verified, published export. */
 export interface KunaProject {
+  readonly fileStates: KunaProjectFileStates;
   readonly key: string;
   /** Directory holding the export's `.c`, `.h`, `.asm`, README and inventory. */
   readonly directory: string;
@@ -362,7 +369,18 @@ export class KunaProjectCache {
     }
     const verified = this.#verified.get(key);
     if (verified !== undefined) {
-      // Another process may have evicted it since this one verified it.
+      try {
+        await assertKunaProjectState(
+          verified.directory,
+          verified.manifest.files,
+          verified.fileStates,
+          signal,
+        );
+      } catch (cause: unknown) {
+        if (!isDamaged(cause)) throw cause;
+        await this.#discard(key);
+        return undefined;
+      }
       if (await this.#touch(key)) return verified;
       this.#verified.delete(key);
       return undefined;
@@ -383,11 +401,17 @@ export class KunaProjectCache {
       return undefined;
     }
     const directory = join(entry, "project");
-    for (const file of Object.values(manifest.files)) {
-      let observed: { readonly sha256: string; readonly bytes: number };
+    const fileStates: Partial<
+      Record<keyof KunaProjectFileStates, RegularFileState>
+    > = {};
+    for (const role of Object.keys(
+      manifest.files,
+    ) as (keyof KunaProjectFileStates)[]) {
+      const file = manifest.files[role];
+      let observed: StableFileObservation;
       try {
         const path = join(directory, file.path);
-        observed = await hashStableFile(path, {
+        observed = await observeStableFile(path, {
           ...(signal === undefined ? {} : { signal }),
           retainFailedClose: (owner) =>
             this.#retainHashFile(owner, key, null, path),
@@ -405,6 +429,7 @@ export class KunaProjectCache {
         await this.#discard(key);
         return undefined;
       }
+      fileStates[role] = observed.state;
       if (observed.sha256 !== file.sha256 || observed.bytes !== file.bytes) {
         await this.#discard(key);
         return undefined;
@@ -414,13 +439,23 @@ export class KunaProjectCache {
       directory,
       manifest.files,
       manifest.summary,
+      fileStates as KunaProjectFileStates,
       signal,
-    );
-    if (!parsed.ok) {
+    ).catch((cause: unknown) => {
+      if (!isDamaged(cause)) throw cause;
+      return undefined;
+    });
+    if (parsed === undefined || !parsed.ok) {
       await this.#discard(key);
       return undefined;
     }
-    const project = { key, directory, manifest, ...parsed.value };
+    const project = {
+      key,
+      directory,
+      manifest,
+      fileStates: fileStates as KunaProjectFileStates,
+      ...parsed.value,
+    };
     if (!(await this.#touch(key))) return undefined;
     this.#verified.set(key, project);
     return project;
@@ -948,6 +983,7 @@ export class KunaProjectCache {
       key,
       directory: join(destination, "project"),
       manifest,
+      fileStates: exported.fileStates,
       functions: exported.functions,
       inventory: exported.inventory,
     };

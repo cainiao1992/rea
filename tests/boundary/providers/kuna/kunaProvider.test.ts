@@ -977,3 +977,69 @@ it("leaves no private copy behind when workspace setup fails", async () => {
     else process.env.TMPDIR = previous;
   }
 });
+
+it.each([
+  ["c", "overwrite"],
+  ["c", "replace"],
+  ["asm", "overwrite"],
+  ["asm", "replace"],
+] as const)(
+  "rebuilds a changed %s export (%s) before producing dossier Evidence",
+  async (extension, mutation) => {
+    const { open, provider, kuna } = await session(
+      "rea-kuna-export-integrity-",
+    );
+    const client = open();
+    try {
+      const first = await run(client, "analyze_function", {
+        procedure: "main",
+      });
+      const source = (
+        first.rawResult as {
+          source: {
+            directory: string;
+            files: { file: string; file_sha256: string }[];
+          };
+        }
+      ).source;
+      const selected = source.files.find(({ file }) =>
+        file.endsWith(`.${extension}`),
+      );
+      if (selected === undefined) throw new Error("Missing exported facet");
+      const path = join(source.directory, selected.file);
+      const original = await readFile(path, "utf8");
+      const edited =
+        extension === "c"
+          ? original.replace("return 0", "return 9")
+          : original.replace("RET", "NOP");
+      expect(edited).not.toBe(original);
+      expect(Buffer.byteLength(edited)).toBe(Buffer.byteLength(original));
+      if (mutation === "replace") {
+        await writeFile(`${path}.replacement`, edited);
+        await rename(`${path}.replacement`, path);
+      } else await writeFile(path, edited);
+      const recovered = await run(client, "analyze_function", {
+        procedure: "main",
+      });
+      const recoveredSource = (recovered.rawResult as { source: typeof source })
+        .source;
+      for (const file of recoveredSource.files) {
+        const bytes = await readFile(
+          join(recoveredSource.directory, file.file),
+        );
+        expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+          file.file_sha256,
+        );
+      }
+      expect(recovered.result).toEqual(first.result);
+      expect(
+        (await fakeKunaCalls(kuna)).filter(
+          ({ argv }) => argv[0] === "decompile-project",
+        ),
+      ).toHaveLength(2);
+    } finally {
+      expect(await client.close()).toMatchObject({ ok: true });
+      expect(await provider.closeOwnedResources()).toMatchObject({ ok: true });
+    }
+  },
+);

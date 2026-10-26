@@ -357,9 +357,9 @@ it("resolves a hash failure delivered after its retained owner was released", as
   const warmCache = newCache(installation);
   const failureRetained = deferred<void>();
   const deliverFailure = deferred<void>();
-  const hashFile = stableFileHash.hashStableFile;
+  const hashFile = stableFileHash.observeStableFile;
   const hash = vi
-    .spyOn(stableFileHash, "hashStableFile")
+    .spyOn(stableFileHash, "observeStableFile")
     .mockImplementation(async (...args) => {
       try {
         return await hashFile(...args);
@@ -1145,3 +1145,23 @@ it.each(["missing", "corrupt"])(
     }
   },
 );
+
+it("invalidates a warm export when same-length content changes", async () => {
+  const { cache, installation, target } = await fixture(
+    "rea-kuna-warm-integrity-",
+  );
+  try {
+    const built = await cache.build({
+      installation,
+      ...(await target("program")),
+    });
+    if (!built.ok) throw built.error;
+    const file = join(built.value.directory, built.value.manifest.files.c.path);
+    const original = await readFile(file, "utf8");
+    await writeFile(file, original.replace("return 0", "return 9"));
+    expect(await cache.lookup(built.value.key)).toBeUndefined();
+    await expect(readFile(file)).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    expect(await cache.close()).toMatchObject({ ok: true });
+  }
+});

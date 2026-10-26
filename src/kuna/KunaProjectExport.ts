@@ -1,3 +1,9 @@
+import type { RegularFileState } from "../filesystem/RegularFile.js";
+import { createHash } from "node:crypto";
+import {
+  assertKunaProjectState,
+  type KunaProjectFileStates,
+} from "./KunaProjectState.js";
 import { createReadStream } from "node:fs";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -12,6 +18,7 @@ import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   hashStableFile,
+  observeStableFile,
   StableFileHashFailure,
 } from "../filesystem/StableFileHash.js";
 import type { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
@@ -64,6 +71,7 @@ export interface KunaExportFiles {
 
 /** One validated export: its files, Kuna's counts and the facts parsed from them. */
 export interface KunaExport {
+  readonly fileStates: KunaProjectFileStates;
   readonly files: KunaExportFiles;
   readonly summary: KunaExportSummary;
   /** Decompiled function blocks in `.c` order. */
@@ -288,6 +296,9 @@ export const exportKunaProject = async (
     inventory: INVENTORY_FILE,
   } as const;
   const files: Partial<Record<keyof KunaExportFiles, KunaExportFile>> = {};
+  const fileStates: Partial<
+    Record<keyof KunaProjectFileStates, RegularFileState>
+  > = {};
   for (const [role, name] of Object.entries(names) as [
     keyof KunaExportFiles,
     string,
@@ -299,16 +310,25 @@ export const exportKunaProject = async (
     });
     if (status === undefined || !status.isFile())
       return unusable(`Kuna's export has no regular ${name}.`);
+    const observed = await observeStableFile(path, {
+      signal,
+      retainFailedClose: (owner) => request.retainFailedFileClose(owner, path),
+    });
     files[role] = {
       path: name,
-      ...(await hashStableFile(path, {
-        signal,
-        retainFailedClose: (owner) =>
-          request.retainFailedFileClose(owner, path),
-      })),
+      sha256: observed.sha256,
+      bytes: observed.bytes,
     };
+    fileStates[role] = observed.state;
   }
   const complete = files as KunaExportFiles;
+  const states = fileStates as KunaProjectFileStates;
+  if (
+    complete.inventory.sha256 !==
+    createHash("sha256").update(listed.snapshot.stdout.text).digest("hex")
+  )
+    return unusable("the retained inventory changed before export sealing");
+  await assertKunaProjectState(request.output, complete, states, signal);
   const functions = await readKunaExportSource(
     request.output,
     complete.c,
@@ -316,6 +336,7 @@ export const exportKunaProject = async (
     signal,
   );
   if (!functions.ok) return unusable(functions.error);
+  await assertKunaProjectState(request.output, complete, states, signal);
   const identity = await verifyKunaExecutable(
     installation,
     signal,
@@ -328,6 +349,7 @@ export const exportKunaProject = async (
     kind: "done",
     result: ok({
       files: complete,
+      fileStates: states,
       summary,
       functions: functions.value,
       inventory: inventory.value,
@@ -355,6 +377,7 @@ export const readKunaExport = async (
   directory: string,
   files: KunaExportFiles,
   summary: KunaExportSummary,
+  fileStates: KunaProjectFileStates,
   signal?: AbortSignal,
 ): Promise<
   Result<
@@ -365,6 +388,7 @@ export const readKunaExport = async (
     string
   >
 > => {
+  await assertKunaProjectState(directory, files, fileStates, signal);
   const functions = await readKunaExportSource(
     directory,
     files.c,
@@ -379,5 +403,6 @@ export const readKunaExport = async (
     }),
   );
   if (!inventory.ok) return inventory;
+  await assertKunaProjectState(directory, files, fileStates, signal);
   return ok({ functions: functions.value, inventory: inventory.value });
 };

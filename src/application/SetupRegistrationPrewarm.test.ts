@@ -250,26 +250,29 @@ it.runIf(process.platform !== "win32")(
         "-e",
         `
     const { spawn } = require('node:child_process');
-    const child = spawn(process.execPath, ['-e', 'setTimeout(() => process.stdout.write("natural-descendant-exit"), 1500)'], {
+    const child = spawn(process.execPath, ['-e', 'process.stdout.write("descendant:" + process.pid); setTimeout(() => process.stdout.write("natural-descendant-exit"), 60_000)'], {
       detached: true, stdio: ['ignore', 'inherit', 'inherit']
     });
-    process.stdout.write('descendant:' + child.pid + '\\n');
     child.unref();
   `,
       ],
       {
         env: process.env,
         cwd: process.cwd(),
-        timeoutMs: 100,
+        // Ownership admission and two Node starts must finish before the
+        // deadline tests held output pipes rather than startup cancellation.
+        timeoutMs: 5000,
         platform: process.platform,
         resources: scope(),
       },
     );
+    expect(result.exitCode).toBe(0);
     expect(result.timedOut).toBe(true);
     expect(result.stdout).toContain("descendant:");
     expect(result.cleanupFailure).toBeUndefined();
     expect(result.stdout).not.toContain("natural-descendant-exit");
   },
+  15_000,
 );
 
 it.each([false, true])(

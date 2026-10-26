@@ -73,6 +73,7 @@ cliTest(
       REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
       REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
       REA_MCP_MAX_RESPONSE_BYTES: "20971520",
+      REA_MCP_TOOL_FAMILIES: "session",
     };
     const environment = {
       HOME: home,
@@ -106,6 +107,8 @@ cliTest(
     });
     expect(configured).not.toContain("do not copy");
     // A later setup must update a selection rather than retaining the first value.
+    selected.REA_MCP_TOOL_FAMILIES = "session,application";
+    environment.REA_MCP_TOOL_FAMILIES = selected.REA_MCP_TOOL_FAMILIES;
     selected.REA_OBJDUMP_COMMAND = join(home, "replacement-objdump");
     environment.REA_OBJDUMP_COMMAND = selected.REA_OBJDUMP_COMMAND;
     // Empty headless heap explicitly selects the lower-priority caller value.

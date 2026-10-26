@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
-import { jsonValueSchema } from "../jsonValue.js";
+import { jsonObjectSchema, jsonValueSchema } from "../jsonValue.js";
 import { jsonRecordSchema } from "../jsonRecord.js";
 import { ok, type Result } from "../result.js";
 import type {
@@ -23,7 +23,6 @@ export const environmentStateViewRequestSchema = z.strictObject({
   ),
 });
 
-const jsonObjectFieldsSchema = z.record(z.string(), jsonValueSchema);
 const queryParameterSchema = z.discriminatedUnion("role", [
   z.strictObject({
     role: z.literal("filter"),
@@ -471,9 +470,9 @@ export const environmentStateFields = {
         type: z.string(),
         collection: z.string(),
         id: z.string(),
-        fields: jsonObjectFieldsSchema,
+        fields: jsonObjectSchema,
         view_fields: z.array(
-          z.strictObject({ tool: z.string(), fields: jsonObjectFieldsSchema }),
+          z.strictObject({ tool: z.string(), fields: jsonObjectSchema }),
         ),
         record_ordinals: z.array(z.number().int().nonnegative()),
       }),

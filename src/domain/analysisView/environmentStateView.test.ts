@@ -1790,3 +1790,32 @@ it("validates every own render-metadata dictionary entry through the public sche
   expect(parse({ kind: "epoch", unit: "invalid" }, ["id"]).success).toBe(false);
   expect(parse(clock, [1]).success).toBe(false);
 });
+
+it("preserves own prototype-named entity and document fields through capture projection and public normalization", () => {
+  const first = JSON.parse(
+    '{"id":1,"__proto__":{"label":"one"},"constructor":"first","meta":{"__proto__":"nested"}}',
+  ) as JsonObject;
+  const second = JSON.parse(
+    '{"id":2,"__proto__":{"label":"two"},"constructor":"second","meta":{"__proto__":"nested"}}',
+  ) as JsonObject;
+  const document = JSON.parse('{"__proto__":{"theme":"dark"}}') as JsonObject;
+  const projected = stateOf(
+    captureOf([
+      ["GET", "/api/items", [first, second]],
+      ["GET", "/api/items/1", first],
+      ["GET", "/api/settings", document],
+    ]),
+  );
+  const state = analysisViewResultSchema.parse(
+    JSON.parse(JSON.stringify(projected)),
+  );
+  if (state.kind !== "environment-state") throw new Error("Expected state");
+  const entity = state.entities.find((entry) => entry.id === "1")!;
+  expect(JSON.stringify(entity.fields)).toBe(JSON.stringify(first));
+  expect(
+    Object.getOwnPropertyDescriptor(entity.fields, "__proto__")?.value,
+  ).toEqual({ label: "one" });
+  expect(state.documents).toContainEqual(
+    expect.objectContaining({ value: document }),
+  );
+});

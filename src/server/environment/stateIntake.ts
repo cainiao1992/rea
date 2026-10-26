@@ -73,17 +73,16 @@ export const DEFAULT_STATE_INTAKE: StateIntake = {
   timeoutMs: STATE_FETCH_TIMEOUT_MS,
 };
 
-/** Stands in for a value that JSON parsing would change: a number without an exact native value, or a `__proto__` member. */
+/** Stands in for a number that native JSON parsing or serialization would change. */
 const NOT_EXACT_JSON = Symbol("not exact JSON");
 
 /** Mark values native parsing would change, so validation refuses them rather than storing an altered value. */
 export const exactJsonReviver = (
-  key: string,
+  _key: string,
   value: unknown,
   context?: { readonly source?: string },
 ): unknown =>
-  key === "__proto__" ||
-  (typeof value === "number" && !isExactJsonNumber(value, context?.source))
+  typeof value === "number" && !isExactJsonNumber(value, context?.source)
     ? NOT_EXACT_JSON
     : value;
 

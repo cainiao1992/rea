@@ -22,7 +22,6 @@ import { EnvironmentStateExtraction } from "./EnvironmentStateExtraction.js";
 import type { TemplateRule } from "./environmentManifestRules.js";
 import {
   deeperThan,
-  hasPrototypeKey,
   isStateWrite,
   STATE_BODY_LIMIT_BYTES,
   type ParsedBody,
@@ -68,7 +67,7 @@ type StateFields = Pick<
  */
 const STATE_NESTING_DEPTH = 16;
 
-/** A recorded response body as state JSON: a JSON-like media type, complete UTF-8 text within the state body limit, exact numbers and no `__proto__` member; otherwise undefined. */
+/** A recorded response body as state JSON: a JSON-like media type, complete UTF-8 text within the state body limit, exact numbers; otherwise undefined. */
 export const stateBodyJson = (
   contentType: string | null,
   body: RecordedResponseBody,
@@ -84,7 +83,6 @@ export const stateBodyJson = (
     return undefined;
   const value = parseExactJson(body.bodyText);
   return value === undefined ||
-    hasPrototypeKey(value) ||
     deeperThan(value, MAX_JSON_DEPTH - STATE_NESTING_DEPTH)
     ? undefined
     : value;

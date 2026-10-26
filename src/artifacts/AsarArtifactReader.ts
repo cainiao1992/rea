@@ -1,3 +1,4 @@
+import { assertArtifactSelectedSource } from "./ArtifactSelectedSource.js";
 import { appendCallerPath } from "../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../config/asarHeaderAdmission.js";
 import { artifactIntegrityDetails } from "../domain/artifactIntegrity.js";
@@ -437,12 +438,7 @@ export class AsarArtifactReader implements ArtifactReader {
     // The packed pathname is fixed for this reader; member checks only need
     // to re-observe the caller's independently selected alias.
     this.#selectedCanonicalSource ??= await realpath(this.path);
-    const current = await realpath(selected);
-    if (this.#selectedCanonicalSource !== current)
-      throw new ArtifactReaderFailure(
-        "integrity",
-        `Selected ASAR archive no longer resolves to its admitted source: ${selected}`,
-      );
+    await assertArtifactSelectedSource(this.#selectedCanonicalSource, selected);
   }
 
   async #openUnpackedStream(

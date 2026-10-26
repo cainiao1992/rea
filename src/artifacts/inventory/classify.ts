@@ -1,3 +1,4 @@
+import { assertArtifactSelectedSource } from "../ArtifactSelectedSource.js";
 import { artifactNameForClassification } from "../../domain/artifactNameSelection.js";
 import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
@@ -65,7 +66,11 @@ export const classifyAndHashRootForInventory = async (
   expectedMetadata: Stats,
   options: Pick<
     ArtifactInventoryOptions,
-    "resourceScope" | "signal" | "asarHeaderAdmission" | "selectedPath"
+    | "resourceScope"
+    | "signal"
+    | "asarHeaderAdmission"
+    | "selectedPath"
+    | "expectedRootSha256"
   >,
   probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<RootInventoryClassification> => {
@@ -76,6 +81,15 @@ export const classifyAndHashRootForInventory = async (
       `Root artifact changed before inventory: ${path}`,
     );
   }
+  if (directory && options.expectedRootSha256 !== undefined)
+    throw new ArtifactReaderFailure(
+      "integrity",
+      `Artifact root changed after target admission: expected an admitted file at ${path}, observed a directory`,
+      {
+        userMessage:
+          "The opened file was replaced by a directory. Select the intended artifact and reopen it before retrying.",
+      },
+    );
   if (directory)
     return {
       format: "directory",
@@ -83,6 +97,8 @@ export const classifyAndHashRootForInventory = async (
       rootSource: undefined,
       readerAdmission: undefined,
     };
+  if (options.expectedRootSha256 !== undefined)
+    await assertArtifactSelectedSource(path, options.selectedPath);
   const source = await openRootArtifact(
     path,
     options.resourceScope,
@@ -101,27 +117,46 @@ export const classifyAndHashRootForInventory = async (
         "integrity",
         `Root artifact changed before inventory: ${path}`,
       );
+    // Prior probe state can prove replacement without interpreting any bytes.
+    const probes = new ArtifactEmbeddedFormatProbes(
+      path,
+      source,
+      options.signal,
+      probeFacts,
+    );
+    const admittedDigest =
+      options.expectedRootSha256 === undefined
+        ? undefined
+        : await hashStableRootArtifactHandle(
+            path,
+            handle,
+            initial,
+            options.signal,
+          );
+    if (admittedDigest !== undefined)
+      assertAdmittedRootDigest(
+        path,
+        options.expectedRootSha256,
+        admittedDigest.sha256,
+      );
     const classified = await classifyRootFormat(
       path,
       source,
-      new ArtifactEmbeddedFormatProbes(
-        path,
-        source,
-        options.signal,
-        probeFacts,
-      ),
+      probes,
       options.signal,
       options.asarHeaderAdmission,
       options.selectedPath,
     );
     const format =
       typeof classified === "string" ? classified : classified.kind;
-    const digest = await hashStableRootArtifactHandle(
-      path,
-      handle,
-      initial,
-      options.signal,
-    );
+    const digest =
+      admittedDigest ??
+      (await hashStableRootArtifactHandle(
+        path,
+        handle,
+        initial,
+        options.signal,
+      ));
     const retainSource =
       isZipPackageFormat(format) ||
       format === "mach-o-universal" ||
@@ -356,4 +391,21 @@ const readRootMzWindowsHeaderSignature = async (
   }
   if (available === 0) return undefined;
   return { offset, bytes: window.subarray(0, available) };
+};
+
+/** Compare physically completed bytes before interpreting an admitted file root. */
+export const assertAdmittedRootDigest = (
+  path: string,
+  expected: string | undefined,
+  observed: string,
+): void => {
+  if (expected !== undefined && observed !== expected)
+    throw new ArtifactReaderFailure(
+      "integrity",
+      `Artifact root changed after target admission at ${path}: expected ${expected}, observed ${observed}`,
+      {
+        userMessage:
+          "The artifact changed after it was opened. Reopen the selected artifact, then retry.",
+      },
+    );
 };

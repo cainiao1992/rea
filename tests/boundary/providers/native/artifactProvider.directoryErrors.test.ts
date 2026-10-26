@@ -15,53 +15,55 @@ describe("artifact directory diagnostics", () => {
     "omits inaccessible directory descendants during inventory but refuses incomplete extraction",
     async () => {
       const root = await createTestTempDirectory("rea-directory-policy-");
-      const source = join(root, "source");
+      const source = join(root, "Fixture.app");
       const blocked = join(source, "blocked");
       const output = join(root, "output");
       await mkdir(blocked, { recursive: true });
+      await mkdir(join(source, "Contents", "MacOS"), { recursive: true });
+      await writeFile(
+        join(source, "Contents", "Info.plist"),
+        "<plist><dict><key>CFBundleExecutable</key><string>Fixture</string></dict></plist>",
+      );
+      await writeFile(
+        join(source, "Contents", "MacOS", "Fixture"),
+        thinMach(0xfeedfacf, 0x0100000c),
+      );
       await writeFile(join(source, "readable.txt"), "retained bytes\n");
       await writeFile(join(blocked, "hidden.txt"), "unexamined bytes\n");
       await chmod(blocked, 0);
       try {
-        await withArtifactClient(
-          {
-            path: source,
-            sourcePath: source,
-            sha256: "0".repeat(64),
-            kind: "archive",
-            format: "asar",
-          },
-          async (client) => {
-            const inventoried = await client.execute("inventory_artifact", {});
-            if (!inventoried.ok) throw inventoried.error;
-            const inventory = artifactInventoryResultSchema.parse(
-              inventoried.value.result,
-            );
-            expect(inventory.coverage.status).toBe("unknown");
-            expect(inventory.occurrences).toContainEqual(
-              expect.objectContaining({
-                logical_path: "readable.txt",
-                hash_status: "verified",
-              }),
-            );
-            expect(inventory.limitations).toContainEqual(
-              expect.stringContaining("EACCES"),
-            );
-            const extracted = await client.execute("extract_artifact", {
-              output_root: output,
-            });
-            expect(extracted).toMatchObject({
-              ok: false,
-              error: {
-                _tag: "ArtifactOperationError",
-                detail: expect.stringContaining("EACCES"),
-              },
-            });
-            await expect(access(output)).rejects.toMatchObject({
-              code: "ENOENT",
-            });
-          },
-        );
+        const target = await parseBinaryTarget(source);
+        if (!target.ok) throw target.error;
+        await withArtifactClient(target.value, async (client) => {
+          const inventoried = await client.execute("inventory_artifact", {});
+          if (!inventoried.ok) throw inventoried.error;
+          const inventory = artifactInventoryResultSchema.parse(
+            inventoried.value.result,
+          );
+          expect(inventory.coverage.status).toBe("unknown");
+          expect(inventory.occurrences).toContainEqual(
+            expect.objectContaining({
+              logical_path: "readable.txt",
+              hash_status: "verified",
+            }),
+          );
+          expect(inventory.limitations).toContainEqual(
+            expect.stringContaining("EACCES"),
+          );
+          const extracted = await client.execute("extract_artifact", {
+            output_root: output,
+          });
+          expect(extracted).toMatchObject({
+            ok: false,
+            error: {
+              _tag: "ArtifactOperationError",
+              detail: expect.stringContaining("EACCES"),
+            },
+          });
+          await expect(access(output)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        });
       } finally {
         await chmod(blocked, 0o700);
       }

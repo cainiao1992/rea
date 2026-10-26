@@ -311,6 +311,10 @@ class ArtifactClient implements AnalysisClient {
         const result = await extractArtifact(
           {
             inputPath: this.target.sourcePath ?? this.target.path,
+            expectedRootSha256:
+              this.target.bundleInfoPlist === undefined
+                ? this.target.sha256
+                : undefined,
             selectedPath: this.target.artifactSelectedPath,
             inputFormat: this.target.format,
             outputRoot: parsed.output_root,
@@ -506,6 +510,10 @@ class ArtifactClient implements AnalysisClient {
     options?: ExecutionOptions,
   ) {
     return inventoryArtifact(this.target.sourcePath ?? this.target.path, {
+      expectedRootSha256:
+        this.target.bundleInfoPlist === undefined
+          ? this.target.sha256
+          : undefined,
       selectedPath: this.target.artifactSelectedPath,
       resourceScope: this.#resourceScope,
       environment: this.environment,

@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import {
   access,
   appendFile,
   mkdir,
+  readFile,
   rename,
   rm,
   writeFile,
@@ -33,7 +35,9 @@ it("refuses an unsupported source without hashing its bytes", async () => {
       {
         path: source,
         sourcePath: source,
-        sha256: "0".repeat(64),
+        sha256: createHash("sha256")
+          .update(await readFile(source))
+          .digest("hex"),
         kind: "archive",
         format: "dmg",
       },
@@ -73,7 +77,9 @@ it("preserves cancellation arriving during the detection descriptor's final clos
       {
         path: source,
         sourcePath: source,
-        sha256: "0".repeat(64),
+        sha256: createHash("sha256")
+          .update(await readFile(source))
+          .digest("hex"),
         kind: "archive",
         format: "dmg",
       },
@@ -118,7 +124,9 @@ it("keeps detection I/O failure distinct from unsupported format and closes its 
       {
         path: source,
         sourcePath: source,
-        sha256: "0".repeat(64),
+        sha256: createHash("sha256")
+          .update(await readFile(source))
+          .digest("hex"),
         kind: "archive",
         format: "dmg",
       },
@@ -150,7 +158,7 @@ it.each([
   "changed same inode",
   "directory replacement",
 ] as const)(
-  "refuses to reuse completed detection facts after %s before hashing",
+  "refuses to reuse completed detection facts after %s before inventory output",
   async (change) => {
     const root = await createTestTempDirectory(
       "rea-extraction-admission-identity-",
@@ -161,11 +169,13 @@ it.each([
       buildGodotPck(3, [{ path: "res://main.gd", data: "extends Node\n" }]),
     );
     await writeFile(source, bytes);
+    let hashesAtMutation: number | undefined;
     const close = OwnedFileHandle.prototype.close;
     const closeSpy = vi
       .spyOn(OwnedFileHandle.prototype, "close")
       .mockImplementationOnce(async function (this: OwnedFileHandle) {
         await close.call(this);
+        hashesAtMutation = hash.mock.calls.length;
         if (change === "changed same inode")
           await appendFile(source, "changed");
         else if (change === "directory replacement") {
@@ -183,7 +193,9 @@ it.each([
         {
           path: source,
           sourcePath: source,
-          sha256: "0".repeat(64),
+          sha256: createHash("sha256")
+            .update(await readFile(source))
+            .digest("hex"),
           kind: "executable",
           format: "elf",
           architecture: "x86_64",
@@ -197,7 +209,9 @@ it.each([
             ok: false,
             error: { _tag: "ArtifactOperationError", reason: "integrity" },
           });
-          expect(hash).not.toHaveBeenCalled();
+          expect(hashesAtMutation).toBeDefined();
+          // Initial admission may hash; facts known stale after close must not.
+          expect(hash).toHaveBeenCalledTimes(hashesAtMutation!);
           await expect(access(output)).rejects.toMatchObject({
             code: "ENOENT",
           });
@@ -275,7 +289,9 @@ it.each([
         {
           path: source,
           sourcePath: source,
-          sha256: "0".repeat(64),
+          sha256: createHash("sha256")
+            .update(await readFile(source))
+            .digest("hex"),
           kind: "executable",
           format: "pe",
           executableRole: "application",

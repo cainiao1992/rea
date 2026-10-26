@@ -1,3 +1,6 @@
+import { assertAdmittedRootDigest } from "../inventory/classify.js";
+import { assertArtifactSelectedSource } from "../ArtifactSelectedSource.js";
+import { hashStableRootArtifactHandle } from "../inventory/hashStableRootArtifact.js";
 import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import {
@@ -56,7 +59,8 @@ import type { ArtifactIntegrityPolicyName } from "../../domain/artifactIntegrity
 export interface ArtifactExtractionInput {
   readonly asarHeaderAdmission?: AsarHeaderAdmission;
   readonly inputPath: string;
-  /** Selected ASAR spelling; packed I/O remains on inputPath. */
+  readonly expectedRootSha256?: string | undefined;
+  /** Selected artifact spelling; packed I/O remains on inputPath. */
   readonly selectedPath?: string | undefined;
   readonly inputFormat: BinaryTarget["format"];
   readonly outputRoot: string;
@@ -79,6 +83,8 @@ const extractArtifactInScope = async (
   // Cancellation wins over every later refusal, including unsupported formats.
   abortIfNeeded(signal);
   const sourcePath = await realpath(input.inputPath);
+  if (input.expectedRootSha256 !== undefined)
+    await assertArtifactSelectedSource(sourcePath, input.selectedPath);
   const admission = await requireExtractableFormat(sourcePath, input, signal);
   const { snapshot, zipSource } =
     await scanArtifactInventoryForExtractionInScope(
@@ -86,6 +92,7 @@ const extractArtifactInScope = async (
       {
         resourceScope: input.resourceScope,
         selectedPath: input.selectedPath,
+        expectedRootSha256: input.expectedRootSha256,
         signal,
         environment: input.environment,
         asarHeaderAdmission:
@@ -176,7 +183,7 @@ export const materializeArtifactInventoryInScope = async (
   )
     throw new AnalysisUnsupportedTargetError(
       "extract_artifact",
-      input.inputPath,
+      input.selectedPath ?? input.inputPath,
       `Godot PCK directory is ${containerMetadata.directory_status}; its complete contents cannot be extracted`,
     );
   const selectedOccurrences = snapshot.occurrences.filter(
@@ -218,7 +225,7 @@ export const materializeArtifactInventoryInScope = async (
     if (occurrence.encrypted)
       throw new AnalysisUnsupportedTargetError(
         "extract_artifact",
-        input.inputPath,
+        input.selectedPath ?? input.inputPath,
         `Archive entry ${occurrence.logical_path} is encrypted; REA does not decrypt archive entries, so the archive cannot be extracted completely`,
       );
     // Inventory retains unavailable source occurrences, but extraction cannot
@@ -377,6 +384,8 @@ const materializeSelection = async ({
       traversal.snapshot(),
       reader.provenance(),
     );
+    if (input.expectedRootSha256 !== undefined)
+      await assertArtifactSelectedSource(sourcePath, input.selectedPath);
     await output.commit(signal);
     return completed;
   } catch (cause: unknown) {
@@ -550,7 +559,11 @@ const requireExtractableFormat = async (
   path: string,
   input: Pick<
     ArtifactExtractionInput,
-    "inputPath" | "inputFormat" | "resourceScope"
+    | "inputPath"
+    | "selectedPath"
+    | "inputFormat"
+    | "resourceScope"
+    | "expectedRootSha256"
   >,
   signal?: AbortSignal,
   previous?: ArtifactEmbeddedFormatProbeFacts,
@@ -591,13 +604,26 @@ const requireExtractableFormat = async (
           ((format === "elf" || format === "pe" || format === "mach-o") &&
             ((await probes.nodeSea()) !== undefined ||
               (await probes.pyInstaller())));
+        if (pack && input.expectedRootSha256 !== undefined) {
+          const digest = await hashStableRootArtifactHandle(
+            path,
+            source.handle,
+            source.initial,
+            signal,
+          );
+          assertAdmittedRootDigest(
+            path,
+            input.expectedRootSha256,
+            digest.sha256,
+          );
+        }
         return { pack, probeFacts: probes.completedFacts() };
       },
     );
     if (!detected.pack)
       throw new AnalysisUnsupportedTargetError(
         "extract_artifact",
-        input.inputPath,
+        input.selectedPath ?? input.inputPath,
         `Artifact format has no extraction reader: ${format}`,
       );
     return { directory, probeFacts: detected.probeFacts };

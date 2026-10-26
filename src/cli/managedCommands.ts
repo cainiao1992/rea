@@ -1,7 +1,7 @@
 import { z } from "incur";
 
 import { compareManagedMemberPaths } from "../application/managed/ManagedMemberComparisonService.js";
-import { verifyManagedNativeBoundariesEvidence } from "../application/managed/ManagedNativeVerificationService.js";
+import { executeManagedNativeBoundaries } from "../application/managed/ManagedNativeVerificationService.js";
 import { importManagedReconstructionEvidence } from "../application/managed/ManagedReconstructionService.js";
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
@@ -204,8 +204,10 @@ const registerVerifyManagedNativeBoundaries = (
           "verify-managed-native-boundaries",
         );
         if (!input.ok) return input.error;
-        const result = verifyManagedNativeBoundariesEvidence(input.value);
-        return result.ok ? result.value : projectAnalysisError(result.error);
+        const result = executeManagedNativeBoundaries(input.value);
+        return result.ok
+          ? result.value.evidence
+          : projectAnalysisError(result.error);
       }),
   });
 };

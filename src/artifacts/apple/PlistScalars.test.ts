@@ -7,7 +7,6 @@ import { projectPlistValue } from "../../domain/apple/plistValue.js";
 import {
   binaryDateRequiresExactSeconds,
   decodeBinaryPlistScalars,
-  decodeBinaryPlistUids,
   scanBinaryPlistScalars,
 } from "./PlistScalars.js";
 import {
@@ -262,9 +261,10 @@ describe("binary plist UID widths", () => {
           ? []
           : [{ offset: 8, width: normalizedWidth }],
       );
-      const compatible = decodeBinaryPlistUids(
+      const compatible = decodeBinaryPlistScalars(
         bytes,
-        plan.uidOffsetsToNormalize,
+        scanBinaryPlistScalars(bytes, plan),
+        plan,
       );
       if (normalizedWidth === undefined) expect(compatible).toBe(bytes);
       else expect(compatible[8 + width + 1]).toBe(0x80 | (normalizedWidth - 1));

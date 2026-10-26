@@ -22,7 +22,10 @@ import {
 } from "../../../../src/native/CommandRunner.js";
 import { err, ok } from "../../../../src/domain/result.js";
 import { parseLipoOutput } from "../../../../src/native/parsers/lipo.js";
-import { inspectPlistSchema } from "../../../../src/domain/native/nativeInspection.js";
+import {
+  inspectPlistSchema,
+  inspectSignatureSchema,
+} from "../../../../src/domain/native/nativeInspection.js";
 import { parseCodeSignature } from "../../../../src/native/parsers/codesign.js";
 import { prepareProcessOwnershipInspection } from "../../../../src/process/ProcessOwnershipObservation.js";
 import { projectAnalysisError } from "../../../../src/domain/analysisErrorProjection.js";
@@ -1504,7 +1507,7 @@ class PrototypeEntitlementsRunner extends FixtureRunner {
 }
 
 describe("native signature entitlements", () => {
-  it("reports entitlement entries keyed __proto__ that the result omits", async () => {
+  it("retains own entitlement dictionary keys through signature Evidence", async () => {
     directory = await createTestTempDirectory("rea-signature-entitlements-");
     const executable = join(directory, "fixture");
     await writeFile(executable, "fixture");
@@ -1518,10 +1521,17 @@ describe("native signature entitlements", () => {
 
     if (!signature.ok) throw signature.error;
     expect(signature.value.result).toMatchObject({
-      entitlements: { "com.apple.security.app-sandbox": true },
+      entitlements: {
+        "com.apple.security.app-sandbox": true,
+        ["__proto__"]: { "com.apple.security.get-task-allow": true },
+      },
     });
-    expect(signature.value.limitations).toContain(
-      "Entitlements: 1 dictionary entry keyed __proto__ was omitted because REA results cannot represent that key.",
+    const observed = inspectSignatureSchema.parse(signature.value.result);
+    expect(
+      Object.prototype.hasOwnProperty.call(observed.entitlements, "__proto__"),
+    ).toBe(true);
+    expect(signature.value.limitations).not.toContainEqual(
+      expect.stringContaining("omitted"),
     );
   });
 });

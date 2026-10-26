@@ -1,4 +1,3 @@
-import { markPlistDictionary } from "../../domain/apple/plistUid.js";
 import {
   createPlistNumberCollector,
   type PlistNumberLiterals,
@@ -33,15 +32,7 @@ const containsSortedOffset = (
   return false;
 };
 
-/** A bounded linked value path retained by the existing binary reference walk. */
-export interface BinaryPlistUidPath {
-  readonly parent: BinaryPlistUidPath | null;
-  readonly key: string | number;
-}
-
 export interface BinaryPlistScalarDecodePlan {
-  /** Present only when an archive reader requested serialized UID identity. */
-  readonly binaryUidPaths?: readonly (BinaryPlistUidPath | null)[];
   readonly reachableDateOffsets: readonly number[];
   readonly overlappingDateOffsets: readonly number[];
   readonly reachableWideIntegerOffsets: readonly number[];
@@ -170,21 +161,6 @@ export const binaryPlistCloneOffsetWidth = (
       ? tableOffset <= Number.MAX_SAFE_INTEGER
       : tableOffset < 2 ** (width * 8),
   );
-};
-
-/** Normalize unsupported binary-plist UID widths for the pinned parser. */
-export const decodeBinaryPlistUids = (
-  bytes: Buffer,
-  uidOffsets: readonly { offset: number; width: number }[],
-): Buffer => {
-  if (uidOffsets.length === 0) return bytes;
-  const replacements = new Map(
-    uidOffsets.map(({ offset, width }) => [
-      offset,
-      binaryPlistUidRecord(bytes, offset, width),
-    ]),
-  );
-  return cloneBinaryPlistObjects(bytes, replacements);
 };
 
 const APPLE_EPOCH_MILLISECONDS = 978_307_200_000;
@@ -391,49 +367,6 @@ export const scanBinaryPlistScalars = (
   return result(incomplete);
 };
 
-/** Restore UID identity from validated source locations, never from dictionary shape. */
-export const retainBinaryPlistUidIdentity = (
-  value: unknown,
-  plan: BinaryPlistScalarDecodePlan,
-): unknown => {
-  if (plan.binaryUidPaths === undefined) return value;
-  const pending: unknown[] = [value];
-  while (pending.length > 0) {
-    const item = pending.pop();
-    if (Array.isArray(item)) {
-      for (const child of item) pending.push(child);
-    } else if (
-      item !== null &&
-      typeof item === "object" &&
-      !(item instanceof Date) &&
-      !(item instanceof Uint8Array)
-    ) {
-      markPlistDictionary(item);
-      for (const child of Object.values(item)) pending.push(child);
-    }
-  }
-  for (let path of plan.binaryUidPaths) {
-    const keys: (string | number)[] = [];
-    while (path !== null) {
-      keys.push(path.key);
-      path = path.parent;
-    }
-    let item: unknown = value;
-    for (let index = keys.length - 1; index >= 0; index -= 1) {
-      if (item === null || typeof item !== "object") {
-        item = undefined;
-        break;
-      }
-      item = Object.getOwnPropertyDescriptor(item, keys[index]!)?.value;
-    }
-    if (item !== null && typeof item === "object") {
-      const uid = Object.getOwnPropertyDescriptor(item, "UID")?.value;
-      if (typeof uid === "number") markPlistDictionary(item, uid);
-    }
-  }
-  return value;
-};
-
 /** Preserve source scalars through plist@5's lossy Number and Date parser. */
 export const decodeBinaryPlistScalars = (
   bytes: Buffer,
@@ -517,6 +450,23 @@ export const decodeBinaryPlistScalars = (
   return compatible;
 };
 
+/** Iterate source offset declarations using the same uint64 interpretation as normalization. */
+export function* binaryPlistObjectOffsets(bytes: Buffer): Generator<bigint> {
+  const trailer = bytes.length - 32;
+  const width = bytes[trailer + 6] ?? 0;
+  const count = Number(bytes.readBigUInt64BE(trailer + 8));
+  const table = Number(bytes.readBigUInt64BE(trailer + 24));
+  for (let object = 0; object < count; object += 1) {
+    let offset = 0n;
+    for (let byte = 0; byte < width; byte += 1)
+      offset = BigInt.asUintN(
+        64,
+        (offset << 8n) | BigInt(bytes[table + object * width + byte] ?? 0),
+      );
+    yield offset;
+  }
+}
+
 const cloneBinaryPlistObjects = (
   bytes: Buffer,
   replacements: ReadonlyMap<number, Buffer>,
@@ -527,18 +477,7 @@ const cloneBinaryPlistObjects = (
   const offsetSize = bytes[trailerOffset + 6] ?? 0;
   const objectCount = Number(bytes.readBigUInt64BE(trailerOffset + 8));
   const oldTableOffset = Number(bytes.readBigUInt64BE(trailerOffset + 24));
-  const readOffset = (offset: number): bigint => {
-    let value = 0n;
-    for (let index = 0; index < offsetSize; index += 1)
-      value = BigInt.asUintN(
-        64,
-        (value << 8n) | BigInt(bytes[offset + index] ?? 0),
-      );
-    return value;
-  };
-  const offsets = Array.from({ length: objectCount }, (_, index) =>
-    readOffset(oldTableOffset + index * offsetSize),
-  );
+  const offsets = [...binaryPlistObjectOffsets(bytes)];
   const cloneEntries = [...replacements.entries()];
   const replacementLengths = cloneEntries.map(([, record]) => record.length);
   const newOffsetSize =

@@ -31,7 +31,7 @@ import { err, ok, type Result } from "../domain/result.js";
 import {
   parseJebMcpEndpoint,
   DEFAULT_JEB_MCP_ENDPOINT,
-} from "./JebMcpEndpoint.js";
+} from "../config/jebMcpEndpoint.js";
 import {
   createStreamableHttpJebMcpConnection,
   JEB_ENGINE_TOOLS,

@@ -72,6 +72,15 @@ code-point order. Dependency manifests remain package observations but do not
 declare Electron main or renderer entries. If only dependency manifests are
 present, the inventory artifact remains the graph root.
 
+Package observations keep the legacy `renderer` property as a derived entrypoint
+candidate: the first nonempty string from `renderer`, `browser`, then `module`.
+It does not assert that the source declares a literal `renderer` field.
+`renderer_declarations` records the actual present fields: strings, including
+empty strings, remain exact; non-string values use `{ "status": "non-string" }`
+without copying nested browser mappings. An empty record means no such fields
+were present; `null` means package metadata was invalid or unavailable. Renderer
+role mechanisms and package load edges name the field that supplied the candidate.
+
 ## Select sources before analysis
 
 For a question about known entry sources, supply exact artifact-relative file

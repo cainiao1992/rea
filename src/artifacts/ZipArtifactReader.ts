@@ -176,6 +176,10 @@ export class ZipArtifactReader implements ArtifactReader {
   readonly format: ZipPackageFormat;
   readonly #source: NodeFileReader;
   readonly #reader: ZipReader<string>;
+  readonly #streams = new Map<Readable, Promise<void>>();
+  readonly #enumerations = new Set<AsyncGenerator<Entry, void>>();
+  #closing = false;
+  #closePromise: Promise<void> | undefined;
   readonly #entries = new Map<
     string,
     { readonly source: Entry; readonly metadata: ArtifactEntry }
@@ -202,50 +206,60 @@ export class ZipArtifactReader implements ArtifactReader {
   }
 
   async *entries(signal?: AbortSignal): AsyncIterable<ArtifactEntry> {
+    this.#assertOpen(signal);
     let index = 0;
     // A traversal owns its accounting, including overlapping or repeated passes.
     let declaredFileBytes = 0;
-    for await (const entry of typedZipFailures(
+    const enumeration = typedZipFailures(
       this.#reader.getEntriesGenerator({ decodeText: decodeZipEntryText }),
-    )) {
-      assertArtifactReadActive(signal);
-      // ZIP member identity is its directory occurrence, not its filename.
-      // Logical path uniqueness belongs to the artifact inventory boundary.
-      const metadata = projectZipEntry(entry, index++);
-      if (metadata === undefined) continue;
-      // zip.js enforces each member's declared output size, so this sum bounds streamed work.
-      if (
-        metadata.kind === "file" &&
-        !metadata.encrypted &&
-        metadata.declaredSize !== null &&
-        Number.isSafeInteger(metadata.declaredSize) &&
-        metadata.declaredSize >= 0
-      ) {
-        declaredFileBytes += metadata.declaredSize;
-        const budget = artifactExpansionBudgetBytes(this.#source.size);
-        if (declaredFileBytes > budget)
+    );
+    this.#enumerations.add(enumeration);
+    try {
+      for await (const entry of enumeration) {
+        this.#assertOpen(signal);
+        // ZIP member identity is its directory occurrence, not its filename.
+        // Logical path uniqueness belongs to the artifact inventory boundary.
+        const metadata = projectZipEntry(entry, index++);
+        if (metadata === undefined) continue;
+        // zip.js enforces each member's declared output size, so this sum bounds streamed work.
+        if (
+          metadata.kind === "file" &&
+          !metadata.encrypted &&
+          metadata.declaredSize !== null &&
+          Number.isSafeInteger(metadata.declaredSize) &&
+          metadata.declaredSize >= 0
+        ) {
+          declaredFileBytes += metadata.declaredSize;
+          const budget = artifactExpansionBudgetBytes(this.#source.size);
+          if (declaredFileBytes > budget)
+            throw new ArtifactReaderFailure(
+              "limit",
+              `ZIP entries declare ${String(declaredFileBytes)} uncompressed bytes, exceeding this archive's ${String(budget)}-byte decompression budget (${String(MINIMUM_ARTIFACT_EXPANDED_BYTES)}-byte minimum, ${String(ARTIFACT_EXPANSION_RATIO)}x archive size); a small archive cannot expand this far`,
+            );
+        }
+        const stored = this.#entries.get(metadata.adapterKey);
+        if (
+          stored !== undefined &&
+          !sameArtifactEntry(metadata, stored.metadata)
+        )
           throw new ArtifactReaderFailure(
-            "limit",
-            `ZIP entries declare ${String(declaredFileBytes)} uncompressed bytes, exceeding this archive's ${String(budget)}-byte decompression budget (${String(MINIMUM_ARTIFACT_EXPANDED_BYTES)}-byte minimum, ${String(ARTIFACT_EXPANSION_RATIO)}x archive size); a small archive cannot expand this far`,
+            "integrity",
+            `ZIP member identity changed during enumeration: ${entry.filename}`,
           );
+        if (stored === undefined)
+          this.#entries.set(metadata.adapterKey, {
+            source: entry,
+            metadata: copyArtifactEntry(metadata),
+          });
+        yield metadata;
       }
-      const stored = this.#entries.get(metadata.adapterKey);
-      if (stored !== undefined && !sameArtifactEntry(metadata, stored.metadata))
-        throw new ArtifactReaderFailure(
-          "integrity",
-          `ZIP member identity changed during enumeration: ${entry.filename}`,
-        );
-      if (stored === undefined)
-        this.#entries.set(metadata.adapterKey, {
-          source: entry,
-          metadata: copyArtifactEntry(metadata),
-        });
-      yield metadata;
+    } finally {
+      this.#enumerations.delete(enumeration);
     }
   }
 
   open(entry: ArtifactEntry, signal?: AbortSignal): Promise<Readable> {
-    assertArtifactReadActive(signal);
+    this.#assertOpen(signal);
     const stored = this.#entries.get(entry.adapterKey);
     if (stored === undefined || !sameArtifactEntry(entry, stored.metadata))
       return Promise.reject(
@@ -266,13 +280,55 @@ export class ZipArtifactReader implements ArtifactReader {
           "Encrypted ZIP entry is unsupported",
         ),
       );
-    return Promise.resolve(extractStream(source, signal));
+    const { output, completion } = extractStream(source, signal);
+    this.#streams.set(output, completion);
+    // Producer completion can precede consumption of a small buffered member.
+    // Retain the output until both it and its producer have finished.
+    output.once("close", () => {
+      void completion.then(() => this.#streams.delete(output));
+    });
+    return Promise.resolve(output);
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    this.#closing = true;
+    this.#closePromise ??= this.#close().finally(() => {
+      // A failed descriptor close retains its owner for a later retry.
+      this.#closePromise = undefined;
+    });
+    return this.#closePromise;
+  }
+
+  async #close(): Promise<void> {
+    for (const output of this.#streams.keys())
+      output.destroy(
+        new ArtifactReaderFailure("unavailable", "ZIP reader closed"),
+      );
+    const outcomes = await Promise.allSettled([
+      ...this.#streams.values(),
+      ...Array.from(this.#enumerations, (enumeration) => enumeration.return()),
+    ]);
+    this.#enumerations.clear();
     // best-effort cleanup: zip-reader close must not mask prior extraction state.
     await this.#reader.close().catch(() => undefined);
-    await this.#source.closeHandle();
+    const failures = outcomes.flatMap((outcome) =>
+      outcome.status === "rejected" ? [outcome.reason as unknown] : [],
+    );
+    try {
+      await this.#source.closeHandle();
+      this.#entries.clear();
+    } catch (cause: unknown) {
+      failures.push(cause);
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, "ZIP reader cleanup failed");
+  }
+
+  #assertOpen(signal?: AbortSignal): void {
+    assertArtifactReadActive(signal);
+    if (this.#closing)
+      throw new ArtifactReaderFailure("unavailable", "ZIP reader is closed");
   }
 
   provenance(): readonly [] {
@@ -377,8 +433,13 @@ const decodeStrictZipUtf8 = (bytes: Uint8Array, message: string): string => {
   }
 };
 
-const extractStream = (entry: FileEntry, signal?: AbortSignal): Readable => {
+const extractStream = (
+  entry: FileEntry,
+  signal?: AbortSignal,
+): { readonly output: Readable; readonly completion: Promise<void> } => {
   const output = new PassThrough();
+  // Reader retirement can precede a caller attaching its own error listener.
+  output.on("error", () => undefined);
   const controller = new AbortController();
   const onAbort = (): void => {
     controller.abort(signal?.reason);
@@ -392,9 +453,8 @@ const extractStream = (entry: FileEntry, signal?: AbortSignal): Readable => {
     );
   };
   signal?.addEventListener("abort", onAbort, { once: true });
-  // `close` covers both a consumer walking away mid-entry and normal completion
-  // after `end()`; aborting then is harmless because `getData` has already
-  // resolved, and it releases the producer in the abandoned-consumer case.
+  // A closed output cancels its producer; the reader separately awaits getData
+  // settlement before releasing the source descriptor.
   output.once("close", () => {
     signal?.removeEventListener("abort", onAbort);
     controller.abort();
@@ -412,15 +472,20 @@ const extractStream = (entry: FileEntry, signal?: AbortSignal): Readable => {
       output.destroy(toError(typedZipFailure(reason)));
     },
   });
-  void entry
+  const completion = entry
     .getData(writable, {
       signal: controller.signal,
       checkSignature: true,
       checkOverlappingEntry: true,
       onprogress: () => assertArtifactReadActive(signal),
     })
-    .catch((cause: unknown) => output.destroy(toError(typedZipFailure(cause))));
-  return output;
+    .then(
+      () => undefined,
+      (cause: unknown) => {
+        output.destroy(toError(typedZipFailure(cause)));
+      },
+    );
+  return { output, completion };
 };
 
 /** zip.js reports archive faults as plain errors identified by message. */
@@ -466,7 +531,7 @@ const typedZipFailure = (cause: unknown): unknown => {
 
 async function* typedZipFailures<T>(
   source: AsyncIterable<T>,
-): AsyncIterable<T> {
+): AsyncGenerator<T, void> {
   try {
     yield* source;
   } catch (cause: unknown) {

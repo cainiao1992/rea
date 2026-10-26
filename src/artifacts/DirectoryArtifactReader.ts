@@ -404,8 +404,19 @@ export class DirectoryArtifactReader implements ArtifactReader {
           const [opened, named] = await Promise.all([
             file.stat({ bigint: true }),
             lstat(entry.adapterKey, { bigint: true }),
-          ]);
-          abortIfNeeded(signal);
+          ]).catch((validationCause: unknown) => {
+            if (outcome.kind !== "failed") throw validationCause;
+            throw new ArtifactReaderFailure(
+              "io",
+              `Directory inspection failed: ${failureMessage(outcome.cause)}; final source identity could not be validated: ${failureMessage(validationCause)}`,
+              {
+                cause: new AggregateError(
+                  [outcome.cause, validationCause],
+                  "Directory inspection and final source validation failed",
+                ),
+              },
+            );
+          });
           if (
             !opened.isFile() ||
             !named.isFile() ||
@@ -414,9 +425,11 @@ export class DirectoryArtifactReader implements ArtifactReader {
           )
             throw new ArtifactReaderFailure(
               "integrity",
-              `Directory entry changed during inspection: ${entry.path}`,
+              `Directory entry changed during inspection: ${entry.path}${outcome.kind === "failed" ? `; inspection failed: ${failureMessage(outcome.cause)}` : ""}`,
+              outcome.kind === "failed" ? { cause: outcome.cause } : {},
             );
           if (outcome.kind === "failed") throw outcome.cause;
+          abortIfNeeded(signal);
           return outcome.value;
         },
       );

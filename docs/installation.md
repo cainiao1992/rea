@@ -495,6 +495,10 @@ Do not rename `index.cjs` to `index.mjs` or disable protection to make startup p
 
 ### Update the owning installation
 
+Read-only metadata and version checks time out after 10 seconds. This does not
+interrupt a package installation already in progress. If a probe cannot be
+stopped, the updater reports a cleanup failure.
+
 `rea update` installs the exact resolved
 release into the npm prefix or Bun global directory that owns the running
 package, then checks the new executable's version before reporting success.

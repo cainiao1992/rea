@@ -119,9 +119,6 @@ export const supportsReaHost = (
   distribution: LinuxDistribution | undefined,
 ): boolean => distribution?.packageFamily !== undefined;
 
-/** Download response kept independent of Node's global fetch implementation. */
-export type LinuxHopperDownload = HopperDownload;
-
 /** One failed package-manager command, with the output that explains it. */
 export interface LinuxPackageInstallFailure {
   /** The executed executable and arguments, joined for display. */
@@ -159,7 +156,7 @@ export interface LinuxHopperInstallHost {
   download(
     url: string,
     options: { readonly signal?: AbortSignal },
-  ): Promise<LinuxHopperDownload>;
+  ): Promise<HopperDownload>;
   createTemporaryDirectory(): Promise<string>;
   writeArchive(path: string, bytes: Uint8Array): Promise<void>;
   installPackage(

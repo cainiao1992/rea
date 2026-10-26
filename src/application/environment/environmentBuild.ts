@@ -107,9 +107,6 @@ export interface EnvironmentBuildInput {
   readonly exclusiveDestination?: boolean | undefined;
 }
 
-/** The report environment-build prints and export_environment_bundle returns. */
-export type { EnvironmentBuildReport };
-
 const captureOperations = new Set([
   "inspect_web_network_capture",
   "capture_browser_scenario",

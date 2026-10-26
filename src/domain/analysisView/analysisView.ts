@@ -1,4 +1,9 @@
 import {
+  javaScriptRouteInventorySourceSchema,
+  javaScriptRouteInventorySchema,
+} from "../javascript/javascriptRouteInventory.js";
+import { nativeFunctionMatchingContextSchema } from "../native/functionMatching.js";
+import {
   nativeObservationViewRequestSchema,
   nativeContextViewRequestSchema,
   nativeObservationItemsSchemas,
@@ -58,7 +63,6 @@ import {
   javaScriptRoutesViewRequestSchema,
   javaScriptRoutesViewItemsSchema,
   javaScriptRoutesViewSummarySchema,
-  javaScriptRoutesSourceReferenceSchema,
   projectJavaScriptRoutesView,
 } from "./javascriptRoutesView.js";
 import {
@@ -69,7 +73,6 @@ import {
 } from "./webBundleView.js";
 import { webBundleAnalysisSchema } from "../webBundleAnalysis.js";
 import { recordedBrowserOriginSchema } from "../browserObservation.js";
-import { javaScriptRouteInventorySchema } from "../javascript/javascriptRouteInventory.js";
 import {
   sourceToBundleViewRequestSchema,
   sourceToBundleViewItemsSchema,
@@ -122,7 +125,6 @@ import {
   projectNativeFunctionMatchingView,
   nativeFunctionMatchingViewRequestSchema,
   nativeFunctionMatchingViewItemsSchema,
-  nativeFunctionMatchingViewContextSchema,
 } from "./nativeFunctionMatchingView.js";
 import {
   protobufViewRequestSchema,
@@ -885,7 +887,7 @@ export const javaScriptRoutesViewResultSchema = z.strictObject({
   inventory_capacity: javaScriptRouteInventorySchema.shape.capacity,
   capture_url: z.string().nullable(),
   items: javaScriptRoutesViewItemsSchema,
-  sources: z.array(javaScriptRoutesSourceReferenceSchema),
+  sources: z.array(javaScriptRouteInventorySourceSchema),
   summary: javaScriptRoutesViewSummarySchema.nullable(),
   byte_limited: z.boolean(),
 });
@@ -990,7 +992,7 @@ export const nativeFunctionMatchingSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   artifact: z.null(),
   parent_operation: z.literal("match_native_functions"),
-  summary: nativeFunctionMatchingViewContextSchema,
+  summary: nativeFunctionMatchingContextSchema,
 });
 
 /** Rows observed for one facet, or null when the provider declared that facet unavailable. */
@@ -1141,7 +1143,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   sourceToBundlePageViewResultSchema,
   z.strictObject({
     ...viewResultBase,
-    ...nativeFunctionMatchingViewContextSchema.shape,
+    ...nativeFunctionMatchingContextSchema.shape,
     kind: z.literal("function-matches"),
     artifact: z.null(),
     view: nativeFunctionMatchingViewRequestSchema,

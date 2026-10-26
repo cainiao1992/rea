@@ -985,10 +985,10 @@ Cutter when available. This is separate from `--format json`, which selects the
 CLI result representation; the global `--json` flag selects that same CLI
 representation.
 
-Cutter still accepts deprecated `--json=true` and `--json=false` compatibility
-values. When both forms are present, `--json-output` takes precedence in either
-argument order. Bare `--json` retains its global meaning of selecting JSON CLI
-output formatting.
+Cutter no longer accepts command-local `--json=true` or `--json=false`.
+Replace these with `--json-output=true` or `--json-output=false`, respectively.
+Combine `--json-output` with bare `--json` when both Cutter command output and
+the CLI result should use JSON; either argument order is accepted.
 
 | Status    | Meaning                                                                                                                                                                                                                                                                                                                                                                                |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

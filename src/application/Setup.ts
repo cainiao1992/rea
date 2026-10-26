@@ -401,6 +401,16 @@ const runSetupWorkflow = async (
       detail: "Preparing the pinned package entry",
     });
     prewarm = await host.prewarmRegistrationRunner();
+    if (prewarm.status === "failed" && prewarm.interruptedSignal !== undefined)
+      return {
+        status: "cancelled",
+        plannedActions,
+        appliedActions,
+        clients,
+        clientStates,
+        doctor: summarizeDoctor(discovery.initialDoctor),
+        prewarm,
+      };
     if (prewarm.status === "failed")
       emitProgress(options, {
         actionId: "prewarm_registration_runner",

@@ -659,8 +659,10 @@ become active again. Malformed applicable files block setup before changes.
 Grok Build loads `[mcp_servers.rea]` from `$GROK_HOME/config.toml`, or from
 `~/.grok/config.toml` when `GROK_HOME` is unset or empty. Setup edits that server
 table, `[mcp_servers.rea.env]`, and a root `disabled_mcp_servers` entry that
-names `rea`. It sets `startup_timeout_sec = 30` and leaves every other name
-in that list. The shared skill installed under `~/.agents/skills` is already
+names `rea`. It defaults `startup_timeout_sec` to 30 seconds, preserves an
+existing positive timeout, and leaves every other name in that list.
+[Grok supports longer startup timeouts](https://docs.x.ai/build/features/mcp-servers)
+for cold package-runner launches. The shared skill installed under `~/.agents/skills` is already
 on Grok Build's skill path.
 
 Grok Bot (`grok_bot`) is detected from `~/.grokbot`, or from `SAND_DATA_ROOT`

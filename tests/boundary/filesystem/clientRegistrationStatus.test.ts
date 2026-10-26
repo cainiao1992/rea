@@ -569,8 +569,8 @@ describe("Node-wrapped registration policy", () => {
     });
   });
 
-  it.each([1, 30])(
-    "checks Grok Build startup timeout %d independently of launcher",
+  it.each([1, 30, 90])(
+    "accepts Grok Build caller-selected startup timeout %d independently of launcher",
     async (timeout) => {
       const home = await createTestTempDirectory("rea-grok-registration-");
       await mkdir(join(home, ".grok"));
@@ -585,7 +585,7 @@ describe("Node-wrapped registration policy", () => {
       expect(statuses).toEqual([
         expect.objectContaining({
           client: "grok_build",
-          state: timeout === 30 ? "aligned" : "stale",
+          state: "aligned",
         }),
       ]);
     },

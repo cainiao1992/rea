@@ -246,9 +246,8 @@ export const refreshClientRegistration = (
     registration.enable = false;
   if (client.name === "codex" || client.name === "grok_build")
     registration.startup_timeout_sec =
-      (client.name === "codex"
-        ? positiveTimeout(existing.startup_timeout_sec)
-        : undefined) ?? MCP_STARTUP_POLICY.codexStartupTimeoutSeconds;
+      positiveTimeout(existing.startup_timeout_sec) ??
+      MCP_STARTUP_POLICY.codexStartupTimeoutSeconds;
   if (client.name === "codex")
     registration.tool_timeout_sec =
       positiveTimeout(existing.tool_timeout_sec) ??

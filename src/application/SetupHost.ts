@@ -196,6 +196,7 @@ export const systemSetupHost = (
     materializeRegistrationRunnerCache(
       registration.registrationCommand,
       environment,
+      resources,
     );
   const cleanup = new SetupCleanupOwner([
     macCleanup,

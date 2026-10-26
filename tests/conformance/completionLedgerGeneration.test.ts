@@ -64,6 +64,43 @@ const firstClaim = (input: CompletionVerifierReport) => {
 };
 
 describe("completion ledger generation", () => {
+  it.each(["verified", "unavailable"] as const)(
+    "preserves minute-precision UTC in %s verifier lineage",
+    (status) => {
+      const input = report();
+      const observedAt = "2026-10-09T04:00Z";
+      const processLineage =
+        status === "verified"
+          ? {
+              ...input.verifier_run.process_lineage,
+              status: "verified" as const,
+              observed_at: observedAt,
+              descendants: [],
+            }
+          : {
+              status: "unavailable" as const,
+              observed_at: observedAt,
+              launcher_pid: input.verifier_run.verifier_pid,
+              launcher_parent_pid: input.verifier_run.parent_pid,
+              process_group_id: null,
+              reason: "Lineage observation unavailable",
+            };
+      const preserved = {
+        ...input,
+        verifier_run: {
+          ...input.verifier_run,
+          process_lineage: processLineage,
+        },
+      };
+
+      expect(
+        completionVerifierReportSchema.parse(preserved).verifier_run
+          .process_lineage.observed_at,
+      ).toBe(observedAt);
+      expect(generate(preserved)).toEqual(generate(input));
+    },
+  );
+
   it("separates verifier outcomes while preserving immutable commitments", () => {
     const generated = generate();
 

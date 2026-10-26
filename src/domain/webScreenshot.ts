@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { z } from "zod";
+import { utcDateTimeSchema } from "./offsetDateTime.js";
 
 import { webRuntimeCommandTimeoutSchema } from "./browserDeadline.js";
 import { browserCompletenessSchema } from "./browserCompleteness.js";
@@ -52,7 +53,7 @@ export const webScreenshotSchema = z.object({
     url: z.string(),
     origin: z.string(),
   }),
-  captured_at: z.iso.datetime(),
+  captured_at: utcDateTimeSchema,
   viewport: z.object({
     width: z.int().min(1),
     height: z.int().min(1),

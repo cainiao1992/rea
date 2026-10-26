@@ -1,5 +1,6 @@
 import { procedureInfoSchema } from "../domain/native/procedureInfo.js";
 import { z } from "zod";
+import { utcDateTimeSchema } from "../domain/offsetDateTime.js";
 
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { analysisProfileSchema } from "../domain/analysisProfile.js";
@@ -179,13 +180,13 @@ const processCoordinates = {
 const processLineageObservation = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("unavailable"),
-    observed_at: z.iso.datetime(),
+    observed_at: utcDateTimeSchema,
     ...processCoordinates,
     reason: z.string().min(1),
   }),
   z.object({
     status: z.literal("verified"),
-    observed_at: z.iso.datetime(),
+    observed_at: utcDateTimeSchema,
     ...processCoordinates,
     launcher_parent_pid: z.int().min(0),
     descendants: z.array(

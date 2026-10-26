@@ -20,6 +20,7 @@ import { join } from "node:path";
 import canonicalize from "canonicalize";
 import writeFileAtomic from "write-file-atomic";
 import { z } from "zod";
+import { utcDateTimeSchema } from "../domain/offsetDateTime.js";
 
 import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
@@ -119,7 +120,7 @@ const manifestSchema = z.strictObject({
     decompiled: z.int().nonnegative(),
     failed: z.int().nonnegative(),
   }),
-  created_at: z.string().datetime(),
+  created_at: utcDateTimeSchema,
 });
 
 /** Immutable description of one published export, written once at publish. */

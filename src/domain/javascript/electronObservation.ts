@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { utcDateTimeSchema } from "../offsetDateTime.js";
 
 import { webRuntimeCommandTimeoutSchema } from "../browserDeadline.js";
 import { browserCompletenessSchema } from "../browserCompleteness.js";
@@ -83,8 +84,8 @@ export const electronPageInspectionSchema = z.object({
   browser: browserVersionSchema,
   target: electronTargetSchema,
   capture_window: z.object({
-    started_at: z.iso.datetime(),
-    ended_at: z.iso.datetime(),
+    started_at: utcDateTimeSchema,
+    ended_at: utcDateTimeSchema,
     observation_ms: z.int().min(0),
   }),
   completeness: browserCompletenessSchema,

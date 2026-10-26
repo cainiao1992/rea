@@ -4,10 +4,8 @@ import { z } from "zod";
 import {
   offsetDateTimeSchema,
   readRecordedDateTime,
+  utcDateTimeSchema,
 } from "./offsetDateTime.js";
-
-/** The validator this schema replaces; it remains the oracle for the accepted set. */
-const replaced = z.string().datetime({ offset: true });
 
 const ACCEPTED: readonly (readonly [string, string])[] = [
   ["a UTC timestamp", "2026-10-09T04:00:00Z"],
@@ -45,8 +43,6 @@ const REJECTED: readonly (readonly [string, string])[] = [
   ["unrelated text", "not a timestamp"],
 ];
 
-const CASES = [...ACCEPTED, ...REJECTED];
-
 describe("offset datetime schema", () => {
   it.each(ACCEPTED)("accepts %s", (_label, value) => {
     expect(offsetDateTimeSchema.safeParse(value).success).toBe(true);
@@ -55,29 +51,42 @@ describe("offset datetime schema", () => {
   it.each(REJECTED)("rejects %s", (_label, value) => {
     expect(offsetDateTimeSchema.safeParse(value).success).toBe(false);
   });
+});
 
-  it("classifies every case exactly as the replaced Zod validator does", () => {
-    const divergences = CASES.filter(
-      ([, value]) =>
-        offsetDateTimeSchema.safeParse(value).success !==
-        replaced.safeParse(value).success,
-    ).map(([label]) => label);
-    expect(divergences).toEqual([]);
+describe("UTC datetime schema", () => {
+  it.each(ACCEPTED.filter(([, value]) => value.endsWith("Z")))(
+    "preserves %s without rewriting the source value",
+    (_label, value) => {
+      expect(utcDateTimeSchema.parse(value)).toBe(value);
+    },
+  );
+
+  it.each([
+    ...REJECTED,
+    ...ACCEPTED.filter(([, value]) => !value.endsWith("Z")),
+    [
+      "omitted seconds with a numeric offset",
+      "2026-10-09T04:00+02:00",
+    ] as const,
+  ])("rejects %s", (_label, value) => {
+    expect(utcDateTimeSchema.safeParse(value).success).toBe(false);
   });
+});
 
+describe.each([
+  ["offset", offsetDateTimeSchema],
+  ["UTC", utcDateTimeSchema],
+] as const)("%s datetime advertisement", (_name, schema) => {
   it("emits a pattern that compiles in every mode a client may use", () => {
-    const emitted = z.toJSONSchema(
-      z.object({ observed_at: offsetDateTimeSchema }),
-      { target: "draft-2020-12" },
-    );
+    const emitted = z.toJSONSchema(z.object({ observed_at: schema }), {
+      target: "draft-2020-12",
+    });
     const pattern = findPattern(emitted);
     expect(pattern).toBeDefined();
     if (pattern === undefined) return;
-    // Annex B and `u` accept the pattern the replaced validator emitted; `v` does
-    // not, which is the reason this schema exists.
+    expect(() => new RegExp(pattern)).not.toThrow();
     expect(() => new RegExp(pattern, "u")).not.toThrow();
     expect(() => new RegExp(pattern, "v")).not.toThrow();
-    expect(() => new RegExp(replacedSource(), "v")).toThrow();
   });
 });
 
@@ -221,15 +230,4 @@ const findPattern = (value: unknown): string | undefined => {
     if (found !== undefined) return found;
   }
   return undefined;
-};
-
-/** The pattern the replaced Zod validator projects, recovered through the same path. */
-const replacedSource = (): string => {
-  const emitted = z.toJSONSchema(z.object({ observed_at: replaced }), {
-    target: "draft-2020-12",
-  });
-  const pattern = findPattern(emitted);
-  if (pattern === undefined)
-    throw new Error("The replaced validator must project a pattern");
-  return pattern;
 };

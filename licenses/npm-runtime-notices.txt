@@ -1,7 +1,7 @@
 REA third-party npm runtime copyright, license and NOTICE texts
 Collected from integrity-verified locked npm archives. Release-specific supplements and upstream notice gaps are identified in their entries.
 External engines are separately obtained; see THIRD_PARTY_NOTICES.md.
-Runtime dependency fingerprint (SHA-256): d0a0286bb8c158a670b019cdb56ee120542cb072bbecf3741c172b5f06b2301b
+Runtime dependency fingerprint (SHA-256): 8f4447e00ab3adb9d6b6ab2850634d23945552fafd06999eb207df4652912ece
 
 ===== @babel/helper-string-parser@8.0.6 =====
 Declared license: MIT
@@ -7261,10 +7261,10 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 
-===== zod@4.4.3 =====
+===== zod@4.6.6 =====
 Declared license: MIT
-Archive: https://registry.npmjs.org/zod/-/zod-4.4.3.tgz
-Integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==
+Archive: https://registry.npmjs.org/zod/-/zod-4.6.6.tgz
+Integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==
 Scope: npm runtime dependency, including optional platform packages.
 
 --- package/LICENSE ---

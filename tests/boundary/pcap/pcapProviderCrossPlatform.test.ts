@@ -7,8 +7,19 @@
  * refusal paths, and cancellation before spawn.
  */
 import { createHash } from "node:crypto";
-import { open, readFile, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
@@ -46,6 +57,72 @@ const providerOver = (): PcapProvider => {
   onTestFinished(() => provider.close());
   return provider;
 };
+
+it.skipIf(isWindows)(
+  "preserves selected Wireshark wrappers and re-admits changed symlink targets after success",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-pcap-selected-wrapper-",
+    );
+    const bin = join(directory, "bin"),
+      libexec = join(directory, "libexec");
+    await mkdir(bin);
+    await mkdir(libexec);
+    const source = join(libexec, "wrapper"),
+      replacement = join(libexec, "replacement");
+    const script =
+      '#!/bin/sh\nselected="${0%/*}/${0##*/}"\nIFS= read -r banner < "$selected.version" || exit 19\nprintf "%s\\n" "$banner"\nif [ -f "$selected.retarget" ]; then\n  IFS= read -r target < "$selected.retarget"\n  /bin/ln -sf "$target" "$0"\nfi\n';
+    for (const path of [source, replacement]) {
+      await writeFile(path, script);
+      await chmod(path, 0o755);
+    }
+    const tshark = join(bin, "tshark"),
+      capinfos = join(bin, "capinfos");
+    for (const [path, name] of [
+      [tshark, "TShark"],
+      [capinfos, "Capinfos"],
+    ] as const) {
+      await symlink(source, path);
+      await writeFile(`${path}.version`, `${name} (Wireshark) 4.6.6-stub\n`);
+    }
+    expect(
+      (await promisify(execFile)(tshark, ["--version"])).stdout.trim(),
+    ).toBe("TShark (Wireshark) 4.6.6-stub");
+    const provider = new PcapProvider({
+      environment: {
+        REA_TSHARK_COMMAND: tshark,
+        REA_CAPINFOS_COMMAND: capinfos,
+      },
+    });
+    onTestFinished(() => provider.close());
+    const request = { operation: "inspect_pcap_client", input: {} } as const;
+    const first = await evidenceResult(provider, request);
+    expect(first.client).toMatchObject({
+      tshark_command: tshark,
+      tshark_resolved_path: await realpath(source),
+      capinfos_command: capinfos,
+    });
+    await writeFile(`${tshark}.retarget`, `${replacement}\n`);
+    const changed = await provider.execute(request);
+    if (changed.ok) throw new Error("Changed selected wrapper was accepted");
+    expect(projectAnalysisError(changed.error)).toMatchObject({
+      code: "artifact_changed",
+      details: {
+        path: tshark,
+        captured_output: { stdout: "TShark (Wireshark) 4.6.6-stub\n" },
+      },
+    });
+    await unlink(`${tshark}.retarget`);
+    const fresh = await evidenceResult(provider, request);
+    expect(fresh.client).toMatchObject({
+      tshark_command: tshark,
+      tshark_resolved_path: await realpath(replacement),
+    });
+    expect(first.client).toMatchObject({
+      tshark_resolved_path: await realpath(source),
+    });
+  },
+);
 
 const evidenceResult = async (
   provider: PcapProvider,

@@ -1404,7 +1404,9 @@ const runLldb = async (
       command: executable,
       arguments: arguments_,
       runId: randomUUID(),
-      expectedCommand: executable,
+      // xcrun-selected toolchains may supply interpreter or exec launchers.
+      // Cleanup still requires native generation and run-token ownership.
+      expectedCommand: null,
       signal: deadline.signal,
       hostEnvironment: options.environment,
     });

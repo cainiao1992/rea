@@ -8,6 +8,7 @@ import {
 } from "../../artifacts/ArtifactFileOperation.js";
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import { readStableArtifact } from "../../artifacts/readStableArtifact.js";
+import { completedStableArtifactObservation } from "../../artifacts/StableArtifactObservation.js";
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   AnalysisAccessDeniedError,
@@ -76,6 +77,11 @@ export const webArtifactReadError = (
     context,
     signal,
   );
+  const observation = completedStableArtifactObservation(
+    cause,
+    context.targetPath,
+  );
+  if (observation !== undefined) primary.retainPartialObservation(observation);
   if (cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined) {
     const cleanup = new ProviderCleanupError(
       "captured-web-artifacts",

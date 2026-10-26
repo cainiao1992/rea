@@ -52,6 +52,11 @@ export interface NativeSectionDirectory {
   readonly programs: readonly ElfProgramDeclaration[];
   readonly sections: readonly NativeSection[];
 }
+type ElfSectionDirectory = NativeSectionDirectory & {
+  readonly format: "elf";
+  readonly elf_type: number;
+};
+
 const STRUCTURE_BYTES = 16 * 1024 * 1024;
 const reject = (message: string): never => {
   throw new BinaryFormatFailure("malformed", message);
@@ -85,7 +90,7 @@ const request = (
 /** One ELF interpretation for in-memory images and bounded descriptor-backed inspections. */
 export function* readElfSectionDirectory(
   fileSize: number,
-): Generator<NativeReadRequest, NativeSectionDirectory, Buffer> {
+): Generator<NativeReadRequest, ElfSectionDirectory, Buffer> {
   const prefix = yield request(fileSize, 0n, 16n);
   const headerSize = prefix[4] === 1 ? 52 : 64;
   const bytes = yield request(fileSize, 0n, BigInt(headerSize));
@@ -95,7 +100,6 @@ export function* readElfSectionDirectory(
   const { elfClass: bits, byteOrder, machine } = header;
   const little = byteOrder === "little";
   const wide = bits === 64;
-  const r = new BinaryReader(bytes, little);
   const {
     offset: program_offset,
     width: program_width,
@@ -247,10 +251,11 @@ export function* readElfSectionDirectory(
   return {
     format: "elf",
     elf_os_abi: header.osAbi,
+    elf_type: header.type,
     bits,
     little,
     machine,
-    flags: r.u32(wide ? 48 : 36),
+    flags: header.flags,
     ...(section_names_limitation === undefined
       ? {}
       : { section_names_limitation }),
@@ -348,7 +353,7 @@ export function* readPeSectionDirectory(
 /** Borrow ELF bytes; file drivers satisfy the identical requests without loading payloads. */
 export const readElfDirectoryFromBuffer = (
   bytes: Buffer,
-): NativeSectionDirectory => {
+): ElfSectionDirectory => {
   const steps = readElfSectionDirectory(bytes.length);
   let next = steps.next();
   while (!next.done) {

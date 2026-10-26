@@ -8,7 +8,8 @@ import {
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
 import { isUtf8 } from "node:buffer";
-import { readElfStringBytes, readElfSymbol } from "../metadata/ElfSymbol.js";
+import { readElfStringBytes } from "../metadata/ElfStringTable.js";
+import { readElfSymbol } from "../../domain/elfSymbol.js";
 import {
   readElfDirectoryFromBuffer,
   type NativeSection,
@@ -548,11 +549,17 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   const exports: ElfExport[] = [];
   for (let index = 1; index < count; index++) {
     const at = table + index * width;
-    const symbol = readElfSymbol(
+    const parsedSymbol = readElfSymbol(
       bytes.subarray(at, at + width),
       directory.bits,
       directory.little,
     );
+    if (!parsedSymbol.ok)
+      throw new BinaryFormatFailure(
+        parsedSymbol.error.kind,
+        parsedSymbol.error.message,
+      );
+    const symbol = parsedSymbol.value;
     const binding = ELF_BINDINGS[symbol.binding];
     const visibility = symbol.other & 3;
     // Undefined, local and hidden/internal symbols are not exports.

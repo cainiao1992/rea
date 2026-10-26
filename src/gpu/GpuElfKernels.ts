@@ -23,7 +23,8 @@ import {
   type NativeSection,
   type NativeSectionDirectory,
 } from "../native/metadata/NativeSectionDirectory.js";
-import { readElfString, readElfSymbol } from "../native/metadata/ElfSymbol.js";
+import { readElfString } from "../native/metadata/ElfStringTable.js";
+import { readElfSymbol } from "../domain/elfSymbol.js";
 import {
   gpuCount,
   readGpuNativeDirectory,
@@ -277,11 +278,17 @@ const cudaKernels = async (
     let extendedIndices: Buffer | null = null;
     for (let offset = 0; offset < bytes.length; offset += width) {
       index.budget.visit();
-      const symbol = readElfSymbol(
+      const parsedSymbol = readElfSymbol(
         bytes.subarray(offset, offset + width),
         directory.bits,
         directory.little,
       );
+      if (!parsedSymbol.ok)
+        throw new BinaryFormatFailure(
+          parsedSymbol.error.kind,
+          parsedSymbol.error.message,
+        );
+      const symbol = parsedSymbol.value;
       // STO_CUDA_ENTRY distinguishes launchable kernels from ordinary device functions.
       if (symbol.type !== 2 || (symbol.other & 0x10) === 0) continue;
       let sectionIndex = symbol.section_index;

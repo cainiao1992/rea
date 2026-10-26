@@ -1,3 +1,4 @@
+import { readElfSymbol } from "../domain/elfSymbol.js";
 import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import { Buffer } from "node:buffer";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
@@ -15,12 +16,6 @@ class BoundedReader {
 
   u8(offset: number): number | null {
     return offset < this.bytes.length ? this.bytes.readUInt8(offset) : null;
-  }
-
-  u16(offset: number): number | null {
-    return offset + 2 <= this.bytes.length
-      ? this.bytes.readUInt16LE(offset)
-      : null;
   }
 
   u32(offset: number): number | null {
@@ -459,8 +454,15 @@ export const readElfSymbols = async (
         signal?.throwIfAborted();
       }
       const base = table.offset + index * entrySize;
-      const nameOffset = reader.u32(base)!;
-      const sectionIndex = reader.u16(base + (is64 ? 6 : 14))!;
+      const parsedSymbol = readElfSymbol(
+        bytes.subarray(base, base + entrySize),
+        is64 ? 64 : 32,
+        true,
+      );
+      if (!parsedSymbol.ok) return failure(parsedSymbol.error.message);
+      const symbol = parsedSymbol.value;
+      const nameOffset = symbol.name_offset;
+      const sectionIndex = symbol.section_index;
       const defined =
         sectionIndex === 0xfff1 ||
         (sectionIndex > 0 &&
@@ -472,13 +474,16 @@ export const readElfSymbols = async (
         table.stringOffset + table.stringSize,
       );
       if (name === null || !wanted.has(name)) continue;
-      const value = is64 ? reader.u64(base + 8) : reader.u32(base + 4);
-      const size = is64 ? reader.u64(base + 16) : reader.u32(base + 8);
-      if (value === null || size === null) {
+      if (
+        symbol.value > BigInt(Number.MAX_SAFE_INTEGER) ||
+        symbol.size > BigInt(Number.MAX_SAFE_INTEGER)
+      ) {
         failures.add(`Symbol ${name} has unrepresentable bounds`);
         unresolved.add(name);
         continue;
       }
+      const value = Number(symbol.value);
+      const size = Number(symbol.size);
       const offset = toOffset(value, size);
       if (!offset.ok) {
         failures.add(`Symbol ${name} ${offset.error.reason}`);

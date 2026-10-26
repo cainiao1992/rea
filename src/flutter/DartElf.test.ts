@@ -521,3 +521,27 @@ it("keeps section admission ahead of program admission for unrepresentable raw o
     ],
   });
 });
+
+it("checks raw symbol precision only after definition and requested-name selection", async () => {
+  const bytes = buildElf64Image([
+    { name: "unselected", value: 64, size: 4 },
+    { name: "selected", value: 64, size: 4 },
+  ]);
+  const expected = await readElfSymbols(bytes, ["selected"]);
+  const sectionTable = Number(bytes.readBigUInt64LE(0x28));
+  const symbols = Number(bytes.readBigUInt64LE(sectionTable + 64 + 0x18));
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, symbols + 8);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, symbols + 16);
+  expect(await readElfSymbols(bytes, ["selected"])).toEqual(expected);
+  expect(await readElfSymbols(bytes, ["unselected"])).toEqual({
+    symbols: [],
+    failures: [{ reason: "Symbol unselected has unrepresentable bounds" }],
+  });
+  bytes.writeUInt16LE(0, symbols + 6);
+  expect(await readElfSymbols(bytes, ["unselected"])).toEqual({
+    symbols: [],
+    failures: [
+      { reason: "symbol unselected is not in the dynamic symbol table" },
+    ],
+  });
+});

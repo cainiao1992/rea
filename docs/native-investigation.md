@@ -700,10 +700,16 @@ complete observation.
   release their representation reservation for later documents.
   Repeated NIBArchive fields retain all serialized values in order. Array
   outlet connections resolve each serialized member and retain the collection
-  object ID and member position on the outlet observation. AppKit object-parent
-  registries use paired keys and parents; objects paired with `NSRoot` are
-  top-level, while nested objects keep their recorded parent. Conflicting or
-  unreadable registry pairs remain incomplete hierarchy evidence.
+  object ID and member position on the outlet observation. NIB hierarchy uses
+  recognized child fields, reverse `NSSuperview` links and window content links.
+  AppKit registry pairs with a resolvable `NSRoot` owner establish top-level
+  membership; other registry associations alone do not establish visual
+  parentage and leave hierarchy coverage partial. Known non-view cell ownership
+  and control-view backreferences remain raw facts. Conflicting explicit parents
+  remain unknown rather than choosing an archive-order winner. Retained objects
+  keep their decoded fields; uncertain registry diagnostics retain the source
+  registry, child and value IDs. Missing, malformed or repeated registry
+  declarations also qualify hierarchy coverage.
   `NSString` objects with the [recognized `NS.bytes` representation](https://github.com/swiftlang/swift-corelibs-foundation/blob/main/Sources/Foundation/NSString.swift#L201-L215) are decoded
   as UTF-8 without substituting malformed bytes. A failed conversion retains
   the source string object ID and `nibValues.NS.bytes` base64 data; dependent

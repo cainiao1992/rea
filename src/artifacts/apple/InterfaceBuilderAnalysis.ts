@@ -49,11 +49,7 @@ import {
   interfaceBuilderLimitsSchema,
   type InterfaceBuilderDocumentInput,
 } from "../../domain/apple/interfaceBuilderGraph.js";
-import {
-  mergeNibHierarchies,
-  projectNibViewHierarchy,
-  type NibHierarchyNode,
-} from "./NibViewHierarchy.js";
+import { projectNibViewHierarchy } from "./NibViewHierarchy.js";
 import { jsonValueSchema, type JsonValue } from "../../domain/jsonValue.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
@@ -806,7 +802,6 @@ const projectNibArchive = (
       .map(projectObject),
   );
   const connections: Record<string, JsonValue[]> = {};
-  const hierarchy: NibHierarchyNode[] = [];
   // A recognized connector whose owner reference cannot be resolved produces no
   // connection entry, so the omission has to be counted here: the projected
   // dictionary carries no trace of it for a downstream consumer to find.
@@ -904,80 +899,26 @@ const projectNibArchive = (
       facets: ["objects", "connections", "classes"],
       description: `NSString NS.bytes is not valid UTF-8 for ${unavailableStringIds.size} source objects; their bytes and object IDs are retained, while dependent class names, titles and selectors remain unknown.`,
     });
-  let hierarchyOmitted = 0;
-  let hierarchyNodeCount = 0;
-  const hierarchyFor = (
-    objectId: number,
-    seen: Set<number>,
-    depth: number,
-  ): NibHierarchyNode | null => {
-    if (depth > 32 || seen.has(objectId)) {
-      hierarchyOmitted += 1;
-      return null;
-    }
-    if (hierarchyNodeCount >= maxHierarchyNodes) {
-      hierarchyOmitted += 1;
-      return null;
-    }
-    if (!budget.tryReserve(128)) {
-      hierarchyOmitted += 1;
-      return null;
-    }
-    const object = byId.get(objectId);
-    if (object === undefined) {
-      hierarchyOmitted += 1;
-      return null;
-    }
-    hierarchyNodeCount += 1;
-    const nextSeen = new Set(seen).add(objectId);
-    const children: NibHierarchyNode[] = [];
-    for (const [key, value] of Object.entries(object.values)) {
-      if (!/(?:subviews|contentview|childviewcontrollers|view)$/iu.test(key))
-        continue;
-      const direct = reference(value);
-      if (direct === null) continue;
-      const target = byId.get(direct);
-      if (target === undefined) {
-        hierarchyOmitted += 1;
-        continue;
-      }
-      if (/array|set/iu.test(target.class_name)) {
-        for (const candidate of nibCollectionMembers(target) ?? []) {
-          const child = reference(candidate);
-          const nested =
-            child === null ? null : hierarchyFor(child, nextSeen, depth + 1);
-          if (nested !== null) children.push(nested);
-        }
-      } else {
-        const nested = hierarchyFor(direct, nextSeen, depth + 1);
-        if (nested !== null) children.push(nested);
-      }
-    }
-    return { objectID: String(objectId), children };
-  };
-  const ibData = archive.objects.find(
-    ({ class_name }) => normalizeClassName(class_name) === "NSIBObjectData",
-  );
-  const rootId = reference(ibData?.values.NSRoot);
-  const hierarchyRoots = rootId === null ? [] : [rootId];
-  for (const hierarchyRoot of hierarchyRoots) {
-    const root = hierarchyFor(hierarchyRoot, new Set(), 0);
-    if (root !== null) hierarchy.push(root);
-  }
   const viewHierarchy = projectNibViewHierarchy(
     archive.objects,
     new Set(Object.keys(objects).map(Number)),
     () => budget.tryReserve(128),
     maxHierarchyNodes,
-  );
-  const merged = mergeNibHierarchies(
-    hierarchy,
-    viewHierarchy.hierarchy ?? [],
-    () => budget.tryReserve(96),
-    maxHierarchyNodes,
+    (description) => {
+      budget.reserve(
+        256,
+        "NIB registry hierarchy diagnostics exceed the aggregate Interface Builder decode budget",
+      );
+      budget.reserveJsonStringOccurrence(description);
+      unexaminedSources.push({
+        reason: "nib_registry_parentage_unexamined",
+        facets: ["hierarchy"],
+        description,
+      });
+    },
   );
   return {
-    omitted: viewHierarchy.omitted + hierarchyOmitted + merged.omitted,
+    omitted: viewHierarchy.omitted,
     unexaminedSources,
     unresolvedConnections,
     nonFiniteRealCount,
@@ -985,7 +926,7 @@ const projectNibArchive = (
     raw: jsonValueSchema.parse({
       "com.apple.ibtool.document.objects": objects,
       "com.apple.ibtool.document.connections": connections,
-      "com.apple.ibtool.document.hierarchy": merged.hierarchy,
+      "com.apple.ibtool.document.hierarchy": viewHierarchy.hierarchy ?? [],
       "com.apple.ibtool.document.classes": Object.fromEntries(
         archive.classes.map((name) => {
           const className = normalizeClassName(name);

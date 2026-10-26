@@ -625,7 +625,8 @@ refused for them, as the manifest is not.
 
 Each `GET` tool whose template ends in a parameter is an item tool, and its
 type's `collection_template` is the template without that parameter; any other
-`GET` tool is a list tool of its own template. Empty segments are ignored, so a
+`GET` tool is a list tool of its own template. Interior empty segments remain
+meaningful: `/api/books` and `/api//books` name distinct collections. A single
 trailing slash names the same collection. An item tool proves its type's
 `id_field` when every initial response carries the requested path value in the
 same field of one entity object (`id_basis: "path-parameter"`). The object is

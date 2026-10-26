@@ -29,3 +29,34 @@ export const readGodotPckHeaderFacts = (
     enginePatch: view.getUint32(16, true),
   };
 };
+
+/** A terminal marker declares an extent; the located header still needs confirmation. */
+export type GodotPckTrailerFacts =
+  | { readonly state: "absent" }
+  | {
+      readonly state: "declared";
+      readonly packBytes: bigint;
+      readonly start: number | null;
+      readonly end: number;
+    };
+
+/** Decode an admitted complete 12-byte trailer and its host-sized source extent. */
+export const readGodotPckTrailerFacts = (
+  trailer: Uint8Array,
+  fileSize: number,
+): GodotPckTrailerFacts => {
+  if (!hasGodotPckHeader(trailer.subarray(8, 12))) return { state: "absent" };
+  const view = new DataView(
+    trailer.buffer,
+    trailer.byteOffset,
+    trailer.byteLength,
+  );
+  const packBytes = view.getBigUint64(0, true);
+  const end = fileSize - 12;
+  return {
+    state: "declared",
+    packBytes,
+    start: packBytes > BigInt(end) ? null : end - Number(packBytes),
+    end,
+  };
+};

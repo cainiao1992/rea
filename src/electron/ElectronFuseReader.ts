@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "../domain/dosMz.js";
 import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import { readElfFixedHeader } from "../domain/elfFixedHeader.js";
 import { decodePeMachine } from "../domain/peMachine.js";
@@ -484,20 +485,24 @@ const identifyPe = async (
   const header = await readAt(0, 64);
   if (header.length < 64 || header[0] !== 0x4d || header[1] !== 0x5a)
     return undefined;
-  const offset = Buffer.from(
+  const prefix = Buffer.from(
     header.buffer,
     header.byteOffset,
     header.byteLength,
-  ).readUInt32LE(0x3c);
+  );
+  const observed = observeMzWindowsHeader(prefix, size);
+  if (observed.state !== "signature-needed" && observed.state !== "declared")
+    return undefined;
+  const offset = observed.offset;
   if (
-    !Number.isSafeInteger(offset) ||
     offset < 64 ||
     offset > ELECTRON_FUSE_LIMITS.maximumPeHeaderOffset ||
     offset > size - 4
   )
     return undefined;
   const bytes = Buffer.from(await readAt(offset, 24));
-  if (bytes.length < 4 || bytes.readUInt32LE(0) !== 0x00004550)
+  const confirmed = observeMzWindowsHeader(prefix, size, { offset, bytes });
+  if (confirmed.state !== "declared" || confirmed.signature !== "PE")
     return undefined;
   // A signature establishes the existing scan boundary; only a complete COFF
   // header establishes its machine. Managed OS overrides need separate proof.

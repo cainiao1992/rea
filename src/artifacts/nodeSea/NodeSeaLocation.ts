@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
@@ -402,18 +403,28 @@ const locateElfNotes = async (
   if (sections === undefined) opaque = opaque || shnum > 0;
   else
     for (const entry of sections) {
-      if (readU32(entry, 4, little) !== SHT_NOTE) continue;
-      const note = elf64
-        ? {
-            offset: readU64(entry, 24, little),
-            length: readU64(entry, 32, little),
-            align: readU64(entry, 48, little),
-          }
-        : {
-            offset: readU32(entry, 16, little),
-            length: readU32(entry, 20, little),
-            align: readU32(entry, 32, little),
-          };
+      const parsedSection = readElfSectionHeader(
+        entry,
+        header.value.elfClass,
+        little,
+      );
+      if (!parsedSection.ok) continue;
+      const section = parsedSection.value;
+      if (section.type !== SHT_NOTE) continue;
+      const note = {
+        offset:
+          section.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(section.offset)
+            : undefined,
+        length:
+          section.size <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(section.size)
+            : undefined,
+        align:
+          section.alignment <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(section.alignment)
+            : undefined,
+      };
       const scanned = await scanElfNoteTable(
         carrier,
         note,

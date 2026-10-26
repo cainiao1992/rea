@@ -1,7 +1,9 @@
+import { observeMzWindowsHeader } from "../domain/dosMz.js";
 import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import {
   hasGodotPckHeader,
   readGodotPckHeaderFacts,
+  readGodotPckTrailerFacts,
 } from "../domain/godotPckFormat.js";
 import type { FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -189,7 +191,15 @@ export const inspectDesktopFile = async (
   };
   if (prefix.length === 64 && prefix.readUInt16LE(0) === 0x5a4d)
     await observe(() =>
-      inspectPeFile(prefix, row, read, fact, unityManagedDirectory, signal),
+      inspectPeFile(
+        prefix,
+        size,
+        row,
+        read,
+        fact,
+        unityManagedDirectory,
+        signal,
+      ),
     );
   if (
     (native || (prefix.length >= 2 && prefix.readUInt16LE(0) === 0x5a4d)) &&
@@ -203,15 +213,29 @@ type RecordDesktopFact = (observation: DesktopFact) => void;
 
 const inspectPeFile = async (
   prefix: Buffer,
+  size: number,
   row: DesktopFile,
   read: DesktopByteRead,
   fact: RecordDesktopFact,
   unityManagedDirectory: string | null,
   signal?: AbortSignal,
 ): Promise<void> => {
-  const peOffset = prefix.readUInt32LE(0x3c);
+  const observed = observeMzWindowsHeader(prefix, size);
+  if (observed.state === "candidate") {
+    row.issues.push("MZ Windows new-header candidate is unresolved");
+    return;
+  }
+  if (observed.state !== "signature-needed" && observed.state !== "declared")
+    return;
+  const peOffset = observed.offset;
   const coff = await read(peOffset, 24);
-  if (coff.toString("latin1", 0, 4) !== "PE\0\0") return;
+  const confirmed = observeMzWindowsHeader(prefix, size, {
+    offset: peOffset,
+    bytes: coff,
+  });
+  if (confirmed.state === "candidate")
+    row.issues.push("MZ Windows new-header candidate is unresolved");
+  if (confirmed.state !== "declared" || confirmed.signature !== "PE") return;
   const header = readPeCoffHeader(coff.subarray(4));
   if (!header.ok) {
     row.issues.push(header.error.message);
@@ -327,14 +351,14 @@ const inspectPckTrailer = async (
   fact: RecordDesktopFact,
 ): Promise<void> => {
   const trailer = await read(size - 12, 12);
-  if (trailer.toString("latin1", 8, 12) === "GDPC") {
-    const packSize = trailer.readBigUInt64LE(0);
-    if (packSize < 20n || packSize > BigInt(size - 12))
+  const declaration = readGodotPckTrailerFacts(trailer, size);
+  if (declaration.state === "declared") {
+    const { start: offset, packBytes } = declaration;
+    if (offset === null || packBytes < 20n)
       throw new ArtifactReaderFailure(
         "format",
         "Embedded PCK trailer declares an invalid pack extent",
       );
-    const offset = size - 12 - Number(packSize);
     const bytes = await read(offset, 20);
     if (!hasGodotPckHeader(bytes))
       throw new ArtifactReaderFailure(

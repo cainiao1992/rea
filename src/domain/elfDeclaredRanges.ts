@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "./elfSectionHeader.js";
 import { readElfProgramHeader } from "./elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "./elfRawTableDeclarations.js";
 import { readElfFixedHeader, type ElfFixedHeader } from "./elfFixedHeader.js";
@@ -20,19 +21,6 @@ export interface ElfTableDeclarations {
   readonly programs: ElfDeclaredTable;
   readonly sections: ElfDeclaredTable & { readonly namesIndex: number };
 }
-
-const reader = (bytes: Buffer, header: ElfFixedHeader) => {
-  const little = header.byteOrder === "little";
-  const u32 = (at: number) =>
-    little ? bytes.readUInt32LE(at) : bytes.readUInt32BE(at);
-  const word = (at: number) =>
-    header.elfClass === 32
-      ? BigInt(u32(at))
-      : little
-        ? bytes.readBigUInt64LE(at)
-        : bytes.readBigUInt64BE(at);
-  return { u32, word };
-};
 
 /** Zero-sized/inactive declarations own no file bytes. Arithmetic stays exact. */
 const rangeFailure = (
@@ -86,24 +74,30 @@ const extendedCounts = (
   const wide = header.elfClass === 64;
   if (first.length !== (wide ? 64 : 40))
     return err("truncated ELF extended section-zero header");
-  const zero = reader(first, header);
-  if (zero.u32(4) !== 0)
+  const parsed = readElfSectionHeader(
+    first,
+    header.elfClass,
+    header.byteOrder === "little",
+  );
+  if (!parsed.ok) return err(parsed.error.message);
+  const zero = parsed.value;
+  if (zero.type !== 0)
     return err(
       "ELF extended numbering requires an inactive SHT_NULL section zero",
     );
   const counts = { ...initial };
   if (counts.sectionCount === 0n) {
-    counts.sectionCount = zero.word(wide ? 32 : 20);
+    counts.sectionCount = zero.size;
     if (counts.sectionCount < 0xff00n)
       return err("invalid ELF extended section count");
   }
   if (counts.namesIndex === 0xffff) {
-    counts.namesIndex = zero.u32(wide ? 40 : 24);
+    counts.namesIndex = zero.link;
     if (counts.namesIndex < 0xff00)
       return err("invalid ELF extended section-name index");
   }
   if (counts.programCount === 0xffffn) {
-    counts.programCount = BigInt(zero.u32(wide ? 44 : 28));
+    counts.programCount = BigInt(zero.info);
     if (counts.programCount < 0xffffn)
       return err("invalid ELF extended program count");
   }
@@ -196,7 +190,6 @@ function* inspectTableRanges(
   header: ElfFixedHeader,
   fileSize: number,
 ): Generator<ElfDeclarationRead, Result<null, string>, Buffer> {
-  const wide = header.elfClass === 64;
   const perRead = Math.max(1, Math.floor((64 * 1024) / table.width));
   for (let index = 0; index < table.count; index += perRead) {
     const count = Math.min(perRead, table.count - index);
@@ -206,24 +199,26 @@ function* inspectTableRanges(
       size,
     };
     if (bytes.length !== size) return err(`truncated ELF ${kind} header table`);
-    const r = reader(bytes, header);
     for (let item = 0; item < count; item++) {
       const at = item * table.width;
-      const program =
+      const parsed =
         kind === "program"
           ? readElfProgramHeader(
               bytes.subarray(at, at + table.width),
               header.elfClass,
               header.byteOrder === "little",
             )
-          : undefined;
-      if (program !== undefined && !program.ok)
-        return err(program.error.message);
-      const facts = program?.value;
-      const type = facts?.type ?? r.u32(at + 4);
-      if (type === 0 || (kind === "section" && type === 8)) continue;
-      const offset = facts?.offset ?? r.word(at + (wide ? 24 : 16));
-      const length = facts?.fileSize ?? r.word(at + (wide ? 32 : 20));
+          : readElfSectionHeader(
+              bytes.subarray(at, at + table.width),
+              header.elfClass,
+              header.byteOrder === "little",
+            );
+      if (!parsed.ok) return err(parsed.error.message);
+      const facts = parsed.value;
+      if (facts.type === 0 || (kind === "section" && facts.type === 8))
+        continue;
+      const offset = facts.offset;
+      const length = "fileSize" in facts ? facts.fileSize : facts.size;
       const failure = rangeFailure(
         `${kind} ${String(index + item)}`,
         offset,

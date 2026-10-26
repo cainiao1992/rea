@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "./dosMz.js";
 import { createHash } from "node:crypto";
 import { readPeCoffHeader } from "./peCoffHeader.js";
 import { err, ok, type Result } from "./result.js";
@@ -90,12 +91,15 @@ const validateWindowsX64Artifact = (
         "Windows native artifact is not a PE image",
       ),
     );
-  const offset = bytes.readUInt32LE(0x3c);
-  if (
-    offset > bytes.length - 26 ||
-    bytes.toString("latin1", offset, offset + 4) !== "PE\0\0" ||
-    bytes.readUInt16LE(offset + 24) !== 0x20b
-  )
+  const observed = observeMzWindowsHeader(bytes);
+  if (observed.state !== "declared" || observed.signature !== "PE")
+    return err(
+      new WindowsNativeArtifactError(
+        "Windows native artifact is not a Windows x64 PE32+ image",
+      ),
+    );
+  const offset = observed.offset;
+  if (offset > bytes.length - 26 || bytes.readUInt16LE(offset + 24) !== 0x20b)
     return err(
       new WindowsNativeArtifactError(
         "Windows native artifact is not a Windows x64 PE32+ image",

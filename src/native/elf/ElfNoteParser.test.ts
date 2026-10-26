@@ -637,3 +637,12 @@ it("does not apply note precision admission to unrelated program records", () =>
     "ELF offset or size exceeds a safe integer.",
   );
 });
+
+it("keeps compressed-note refusal ahead of alignment precision admission", () => {
+  const bytes = compressedElfNoteSectionFixture();
+  const sectionTable = Number(bytes.readBigUInt64LE(40));
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, sectionTable + 64 + 48);
+  expect(() => parse(bytes)).toThrow(
+    "Compressed ELF note sections are unsupported",
+  );
+});

@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "../../domain/dosMz.js";
 import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
@@ -82,9 +83,15 @@ const intersectsResource = (
 export const readPeHeaders = (bytes: Buffer, fileSize = bytes.length) => {
   requirePeRange(bytes, 0, 64);
   if (bytes.readUInt16LE(0) !== 0x5a4d) peFailure("Expected an MZ PE image.");
-  const pe = bytes.readUInt32LE(60);
+  const observed = observeMzWindowsHeader(bytes, fileSize);
+  if (observed.state === "candidate" || observed.state === "signature-needed")
+    requirePeRange(bytes, observed.offset, 24);
+  if (observed.state !== "declared" || observed.signature !== "PE")
+    return peFailure(
+      "MZ header does not declare a PE image in the inspected bytes.",
+    );
+  const pe = observed.offset;
   requirePeRange(bytes, pe, 24);
-  if (bytes.readUInt32LE(pe) !== 0x4550) peFailure("Expected a PE signature.");
   const coff = readPeCoffHeader(bytes.subarray(pe + 4, pe + 24));
   if (!coff.ok) return peFailure(coff.error.message);
   const {

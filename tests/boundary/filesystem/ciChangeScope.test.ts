@@ -743,6 +743,7 @@ it.each([
     { code: true, runtime: true, package: true },
   ],
   ["src/domain/peCoffHeader.ts", { code: true, runtime: true, package: true }],
+  ["src/domain/dosMz.ts", { code: true, runtime: true, package: true }],
   [
     "scripts/lib/verifier-source-loader.mjs",
     { code: true, runtime: true, package: true },

@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "../dosMz.js";
 import { createHash } from "node:crypto";
 import { readPeOptionalHeaderFixedFields } from "../peOptionalHeader.js";
 import { readPeCoffHeader } from "../peCoffHeader.js";
@@ -16,7 +17,7 @@ export const NATIVE_AOT_MAX_WORK_UNITS = 64 * 1024 * 1024;
 export const NATIVE_AOT_MAX_WORKING_MEMORY_BYTES = 64 * 1024 * 1024;
 /** Version of the built-in read-only PE metadata interpretation in profiles. */
 export const NATIVE_AOT_PROFILE_CONTRACT_REVISION =
-  "rtr-9.1-x64-pe-read-only-v7";
+  "rtr-9.1-x64-pe-read-only-v8";
 
 export type NativeAotParserLimits = {
   readonly sourceBytes: number;
@@ -490,11 +491,12 @@ class PeImage {
     this.#bytes = bytes;
     if (bytes.length < 0x40 || bytes.toString("latin1", 0, 2) !== "MZ")
       throw new Error("Not a PE image");
-    const peOffset = this.#u32(0x3c);
+    const observed = observeMzWindowsHeader(bytes);
+    if (observed.state !== "declared" || observed.signature !== "PE")
+      throw new Error("MZ header does not declare a PE image");
+    const peOffset = observed.offset;
     if (peOffset < 0x40) throw new Error("PE header overlaps the DOS header");
     this.#range(peOffset, 24);
-    if (bytes.toString("latin1", peOffset, peOffset + 4) !== "PE\0\0")
-      throw new Error("Invalid PE signature");
     const coff = readPeCoffHeader(bytes.subarray(peOffset + 4, peOffset + 24));
     if (!coff.ok) throw new Error(coff.error.message);
     this.#machine = coff.value.machine;
@@ -660,10 +662,6 @@ class PeImage {
       offset > this.#bytes.length - size
     )
       throw new Error("PE field leaves the captured file");
-  }
-  #u32(offset: number): number {
-    this.#range(offset, 4);
-    return this.#bytes.readUInt32LE(offset);
   }
 }
 

@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { readElfSymbol } from "../domain/elfSymbol.js";
 import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
@@ -244,15 +245,13 @@ export const readElfSymbols = async (
    * offset must be the single file interpretation of its address range.
    */
   const sectionMappingFailure = (
-    header: number,
+    section: { readonly flags: bigint; readonly address: bigint },
     offset: number,
     size: number,
   ): string | undefined => {
-    const flags = is64 ? reader.u64(header + 8) : reader.u32(header + 8);
-    const address = is64
-      ? reader.u64(header + 0x10)
-      : reader.u32(header + 0x0c);
-    if (flags === null || address === null)
+    const flags = Number(section.flags);
+    const address = Number(section.address);
+    if (!Number.isSafeInteger(flags) || !Number.isSafeInteger(address))
       return "has an unrepresentable section header";
     if ((flags & SHF_ALLOC) === 0) return undefined;
     const mapped = toOffset(address, size);
@@ -268,48 +267,53 @@ export const readElfSymbols = async (
         signal?.throwIfAborted();
       }
       const header = e_shoff + index * e_shentsize;
-      if (reader.u32(header + 4) !== SHT_DYNSYM) continue;
-      const offset = is64
-        ? reader.u64(header + 0x18)
-        : reader.u32(header + 0x10);
-      const size = is64 ? reader.u64(header + 0x20) : reader.u32(header + 0x14);
-      const width = is64
-        ? reader.u64(header + 0x38)
-        : reader.u32(header + 0x24);
-      const link = reader.u32(header + (is64 ? 0x28 : 0x18));
+      const parsedSection = readElfSectionHeader(
+        bytes.subarray(header, header + e_shentsize),
+        is64 ? 64 : 32,
+        true,
+      );
+      if (!parsedSection.ok) return failure(parsedSection.error.message);
+      const section = parsedSection.value;
+      if (section.type !== SHT_DYNSYM) continue;
+      const offset = Number(section.offset);
+      const size = Number(section.size);
+      const link = section.link;
       if (
-        offset === null ||
-        size === null ||
-        width !== entrySize ||
+        !Number.isSafeInteger(offset) ||
+        !Number.isSafeInteger(size) ||
+        section.entrySize !== BigInt(entrySize) ||
         offset > bytes.length ||
         size > bytes.length - offset ||
         size % entrySize !== 0
       )
         return failure("Dynamic symbol table is malformed");
-      if (link === null || link >= e_shnum)
+      if (link >= e_shnum)
         return failure("Dynamic symbol string section link is invalid");
       const stringHeader = e_shoff + link * e_shentsize;
-      const stringOffset = is64
-        ? reader.u64(stringHeader + 0x18)
-        : reader.u32(stringHeader + 0x10);
-      const stringSize = is64
-        ? reader.u64(stringHeader + 0x20)
-        : reader.u32(stringHeader + 0x14);
+      const parsedStrings = readElfSectionHeader(
+        bytes.subarray(stringHeader, stringHeader + e_shentsize),
+        is64 ? 64 : 32,
+        true,
+      );
+      if (!parsedStrings.ok) return failure(parsedStrings.error.message);
+      const strings = parsedStrings.value;
+      const stringOffset = Number(strings.offset);
+      const stringSize = Number(strings.size);
       if (
-        reader.u32(stringHeader + 4) !== 3 ||
-        stringOffset === null ||
-        stringSize === null ||
+        strings.type !== 3 ||
+        !Number.isSafeInteger(stringOffset) ||
+        !Number.isSafeInteger(stringSize) ||
         stringOffset > bytes.length ||
         stringSize > bytes.length - stringOffset
       )
         return failure(
           "Dynamic symbol strings are out of bounds or not a string table",
         );
-      const symbolMapping = sectionMappingFailure(header, offset, size);
+      const symbolMapping = sectionMappingFailure(section, offset, size);
       if (symbolMapping !== undefined)
         return failure(`Dynamic symbol table ${symbolMapping}`);
       const stringMapping = sectionMappingFailure(
-        stringHeader,
+        strings,
         stringOffset,
         stringSize,
       );

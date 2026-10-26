@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { MAX_FLUTTER_BUILD_ID_BYTES } from "../domain/flutter/flutterBuildAnalysis.js";
 import type { FileHandle } from "node:fs/promises";
@@ -98,44 +99,30 @@ export const readElfBuildIds = async (
         signal?.throwIfAborted();
       }
       const base = index * table.width;
-      const parsedProgram = table.program
+      const parsedRecord = table.program
         ? readElfProgramHeader(
             bytes.subarray(base, base + table.width),
             h.is64 ? 64 : 32,
             true,
           )
-        : undefined;
-      if (parsedProgram !== undefined && !parsedProgram.ok)
-        return failure(parsedProgram.error.message);
-      const program = parsedProgram?.value;
-      if (
-        (program?.type ?? bytes.readUInt32LE(base + 4)) !==
-        (table.program ? 4 : 7)
-      )
-        continue;
-      const offset =
-        program !== undefined
-          ? Number(program.offset)
-          : h.is64
-            ? Number(bytes.readBigUInt64LE(base + 0x18))
-            : bytes.readUInt32LE(base + 0x10);
-      const size =
-        program !== undefined
-          ? Number(program.fileSize)
-          : h.is64
-            ? Number(bytes.readBigUInt64LE(base + 0x20))
-            : bytes.readUInt32LE(base + 0x14);
+        : readElfSectionHeader(
+            bytes.subarray(base, base + table.width),
+            h.is64 ? 64 : 32,
+            true,
+          );
+      if (!parsedRecord.ok) return failure(parsedRecord.error.message);
+      const record = parsedRecord.value;
+      if (record.type !== (table.program ? 4 : 7)) continue;
+      const offset = Number(record.offset);
+      const size = Number("fileSize" in record ? record.fileSize : record.size);
       if (
         !Number.isSafeInteger(offset) ||
         !Number.isSafeInteger(size) ||
         size > totalBytes - offset
       )
         return failure("ELF note range is not file-backed");
-      if (!table.program) {
-        const flags = h.is64
-          ? bytes.readBigUInt64LE(base + 8)
-          : BigInt(bytes.readUInt32LE(base + 8));
-        if ((flags & 0x800n) !== 0n) {
+      if ("size" in record) {
+        if ((record.flags & 0x800n) !== 0n) {
           if (!compressedNotes) {
             failures.push({
               reason: "Compressed ELF note sections are unsupported",
@@ -146,12 +133,7 @@ export const readElfBuildIds = async (
         }
       }
       if (size === 0) continue;
-      const alignment = elfNoteAlignment(
-        program?.alignment ??
-          (h.is64
-            ? bytes.readBigUInt64LE(base + 48)
-            : bytes.readUInt32LE(base + 32)),
-      );
+      const alignment = elfNoteAlignment(record.alignment);
       const key = `${offset}:${size}:${alignment}`;
       if (ranges.has(key)) continue;
       if (ranges.size === MAX_NOTE_RANGES) {

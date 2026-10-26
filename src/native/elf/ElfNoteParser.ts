@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
@@ -97,7 +98,6 @@ class ElfReader {
   constructor(
     readonly bytes: Buffer,
     readonly little: boolean,
-    readonly bits: 32 | 64,
   ) {}
 
   u32(offset: number): number {
@@ -105,22 +105,6 @@ class ElfReader {
     return this.little
       ? this.bytes.readUInt32LE(offset)
       : this.bytes.readUInt32BE(offset);
-  }
-
-  wordBits(offset: number): bigint {
-    const width = this.bits === 64 ? 8 : 4;
-    this.require(offset, width);
-    if (this.bits === 32) return BigInt(this.u32(offset));
-    return this.little
-      ? this.bytes.readBigUInt64LE(offset)
-      : this.bytes.readBigUInt64BE(offset);
-  }
-
-  word(offset: number): number {
-    const value = this.wordBits(offset);
-    if (value > BigInt(Number.MAX_SAFE_INTEGER))
-      fail("ELF offset or size exceeds a safe integer.");
-    return Number(value);
   }
 
   require(offset: number, length: number): void {
@@ -316,11 +300,7 @@ export const parseElfNotes = (
   const fixed = readElfFixedHeader(bytes);
   if (!fixed.ok) return fail(fixed.error);
   const header = fixed.value;
-  const reader = new ElfReader(
-    bytes,
-    header.byteOrder === "little",
-    header.elfClass,
-  );
+  const reader = new ElfReader(bytes, header.byteOrder === "little");
   const wide = header.elfClass === 64;
   const type = header.type;
   const raw = readElfRawTableDeclarations(bytes, header);
@@ -372,12 +352,25 @@ export const parseElfNotes = (
     if (shstrndx >= shnum)
       return fail("ELF section name index is out of range.");
     const namesHeader = shoff + shstrndx * shentsize;
-    if (reader.u32(namesHeader + 4) !== SHT_STRTAB)
+    const parsedNames = readElfSectionHeader(
+      bytes.subarray(namesHeader, namesHeader + shentsize),
+      header.elfClass,
+      reader.little,
+    );
+    if (!parsedNames.ok) return fail(parsedNames.error.message);
+    const namesSection = parsedNames.value;
+    if (namesSection.type !== SHT_STRTAB)
       return fail("ELF section name table is not a string table.");
-    const strOff = reader.word(namesHeader + (wide ? 24 : 16));
-    const strSize = reader.word(namesHeader + (wide ? 32 : 20));
-    const rawNames = reader.slice(strOff, strSize);
-    const flags = reader.wordBits(namesHeader + 8);
+    if (
+      namesSection.offset > BigInt(Number.MAX_SAFE_INTEGER) ||
+      namesSection.size > BigInt(Number.MAX_SAFE_INTEGER)
+    )
+      return fail("ELF offset or size exceeds a safe integer.");
+    const rawNames = reader.slice(
+      Number(namesSection.offset),
+      Number(namesSection.size),
+    );
+    const flags = namesSection.flags;
     const decoded = decodeElfSectionNameTable(
       rawNames,
       flags,
@@ -454,17 +447,31 @@ export const parseElfNotes = (
       return fail("ELF section header table overlaps the native header.");
     for (let index = 0; index < shnum; index += 1) {
       const at = shoff + index * shentsize;
-      if (reader.u32(at + 4) !== SHT_NOTE) continue;
-      const nameOffset = reader.u32(at);
-      const fileOffset = reader.word(at + (wide ? 24 : 16));
-      const fileSize = reader.word(at + (wide ? 32 : 20));
+      const parsedSection = readElfSectionHeader(
+        bytes.subarray(at, at + shentsize),
+        header.elfClass,
+        reader.little,
+      );
+      if (!parsedSection.ok) return fail(parsedSection.error.message);
+      const section = parsedSection.value;
+      if (section.type !== SHT_NOTE) continue;
+      const nameOffset = section.nameOffset;
+      if (
+        section.offset > BigInt(Number.MAX_SAFE_INTEGER) ||
+        section.size > BigInt(Number.MAX_SAFE_INTEGER)
+      )
+        return fail("ELF offset or size exceeds a safe integer.");
+      const fileOffset = Number(section.offset);
+      const fileSize = Number(section.size);
       reader.require(fileOffset, fileSize);
-      if ((reader.wordBits(at + 8) & SHF_COMPRESSED) !== 0n)
+      if ((section.flags & SHF_COMPRESSED) !== 0n)
         throw new BinaryFormatFailure(
           "unsupported",
           "Compressed ELF note sections are unsupported; descriptor file offsets require uncompressed note storage.",
         );
-      const alignment = noteAlignment(reader.word(at + (wide ? 48 : 32)));
+      if (section.alignment > BigInt(Number.MAX_SAFE_INTEGER))
+        return fail("ELF offset or size exceeds a safe integer.");
+      const alignment = noteAlignment(Number(section.alignment));
       const sectionName =
         shstrtab === null
           ? { name: null, limitation: null }

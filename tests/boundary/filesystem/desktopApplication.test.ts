@@ -29,6 +29,7 @@ import {
   fatImage,
   machoImage,
 } from "../../../src/artifacts/apple/MachoImage.fixture.js";
+import { locateGodotPck } from "../../../src/artifacts/GodotPckLocation.js";
 import { DirectoryArtifactReader } from "../../../src/artifacts/DirectoryArtifactReader.js";
 import { ArtifactReaderFailure } from "../../../src/artifacts/ArtifactReader.js";
 import { DesktopApplicationReader } from "../../../src/artifacts/DesktopApplicationReader.js";
@@ -215,6 +216,55 @@ it("reads sparse embedded PCK ranges without hashing or retaining a large execut
     },
   });
 });
+
+it.each([4, 19, 20])(
+  "keeps PCK location separate from desktop header admission for %i-byte packs",
+  async (packBytes) => {
+    const root = await createTestTempDirectory("rea-desktop-pck-minimum-");
+    const path = join(root, "game.exe");
+    const carrier = Buffer.alloc(64);
+    carrier.set([0x7f, 0x45, 0x4c, 0x46]);
+    const pack = Buffer.alloc(packBytes);
+    pack.write("GDPC");
+    const trailer = Buffer.alloc(12);
+    trailer.writeBigUInt64LE(BigInt(packBytes));
+    trailer.write("GDPC", 8);
+    const bytes = Buffer.concat([carrier, pack, trailer]);
+    await writeFile(path, bytes);
+    const handle = await open(path, "r");
+    try {
+      expect(await locateGodotPck(handle, bytes.length)).toEqual({
+        start: carrier.length,
+        end: carrier.length + packBytes,
+        embedded: true,
+      });
+    } finally {
+      await handle.close();
+    }
+    const { report } = await inspect(root);
+    const file = report.files.find((row) => row.path === "game.exe");
+    expect(file).toBeDefined();
+    if (packBytes < 20) {
+      expect(file?.issues).toContain(
+        "Embedded PCK trailer declares an invalid pack extent",
+      );
+      expect(file?.facts.some((fact) => fact.kind === "godot-pck-header")).toBe(
+        false,
+      );
+    } else {
+      expect(file?.issues).toEqual([]);
+      expect(file?.facts).toContainEqual({
+        kind: "godot-pck-header",
+        offset: carrier.length,
+        value: {
+          pack_version: 0,
+          engine_version: [0, 0, 0],
+          placement: "embedded-trailer",
+        },
+      });
+    }
+  },
+);
 
 it("does not promote filenames, arbitrary pak files or symlink targets into byte facts", async () => {
   const root = await createTestTempDirectory("rea-desktop-unknown-");

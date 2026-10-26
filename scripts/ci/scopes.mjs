@@ -128,6 +128,7 @@ export const SCOPES = {
     "tests/boundary/process/releaseArtifactCanary.test.ts",
     "src/windows/**",
     "src/domain/windowsNativeArtifact*.ts",
+    "src/domain/dosMz*.ts",
     "src/domain/peCoffHeader*.ts",
     "src/domain/result.ts",
     "scripts/lib/verifier-source-loader.mjs",

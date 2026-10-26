@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import type { FileHandle } from "node:fs/promises";
@@ -158,27 +159,34 @@ export const readMipsElfMetadata = async (
     for (let i = 0; i < count; i += 1) {
       checkCancelled();
       const position = i * table.entrySize;
-      const parsedProgram = !table.optional
-        ? readElfProgramHeader(
+      const parsedRecord = table.optional
+        ? readElfSectionHeader(
             contents.value.subarray(position, position + table.entrySize),
             32,
             little,
           )
-        : undefined;
-      if (parsedProgram !== undefined && !parsedProgram.ok)
-        return err(parsedProgram.error.message);
-      const program = parsedProgram?.value;
-      const type = program?.type ?? u32(contents.value, position + 4);
+        : readElfProgramHeader(
+            contents.value.subarray(position, position + table.entrySize),
+            32,
+            little,
+          );
+      if (!parsedRecord.ok) return err(parsedRecord.error.message);
+      const declaration = parsedRecord.value;
+      const { type } = declaration;
+      const declaredOffset = Number(declaration.offset);
+      const declaredSize = Number(
+        "fileSize" in declaration ? declaration.fileSize : declaration.size,
+      );
       if (table.optional && type === SHT_GNU_ATTRIBUTES) {
         if (gnuAttributes !== null)
           return err("duplicate MIPS GNU attribute sections");
-        const size = u32(contents.value, position + 20);
+        const size = declaredSize;
         if (size === 0 || size > MIPS_GNU_ATTRIBUTES_MAX_BYTES)
           return err(
             `MIPS GNU attribute section size ${size} is outside REA's inspected bound of ${MIPS_GNU_ATTRIBUTES_MAX_BYTES} bytes`,
           );
         const section = await read(
-          u32(contents.value, position + 16),
+          declaredOffset,
           size,
           "GNU attribute section",
         );
@@ -190,26 +198,20 @@ export const readMipsElfMetadata = async (
       }
       if (
         metadata.type === 3 &&
-        table.optional &&
+        "entrySize" in declaration &&
         (type === 4 || type === 9 || type === 19)
       )
         relocationSections.push({
           type,
-          offset: u32(contents.value, position + 16),
-          size: u32(contents.value, position + 20),
-          entrySize: u32(contents.value, position + 36),
+          offset: declaredOffset,
+          size: declaredSize,
+          entrySize: Number(declaration.entrySize),
         });
       if (type !== table.recordType) continue;
       if (found) return err(`duplicate MIPS ABI records in ${table.label}`);
       found = true;
-      const offset =
-        program !== undefined
-          ? Number(program.offset)
-          : u32(contents.value, position + 16);
-      const size =
-        program !== undefined
-          ? Number(program.fileSize)
-          : u32(contents.value, position + 20);
+      const offset = declaredOffset;
+      const size = declaredSize;
       if (size !== 24)
         return err("unsupported MIPS ABI record size; expected 24 bytes");
       const candidate = await read(offset, 24, "ABI record");

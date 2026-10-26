@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "../domain/dosMz.js";
 import {
   readPeOptionalHeaderFixedFields,
   readPeOptionalHeaderDirectory,
@@ -295,15 +296,18 @@ const readCliHeader = (
 };
 
 const readCoffHeader = (bytes: Buffer): CoffHeader => {
-  const peOffset = bytes.readUInt32LE(0x3c);
-  requireRange(bytes, peOffset, 24, "pe.coff-header");
-  if (bytes.readUInt32LE(peOffset) !== 0x0000_4550)
+  const observed = observeMzWindowsHeader(bytes);
+  if (observed.state === "candidate" || observed.state === "signature-needed")
+    requireRange(bytes, observed.offset, 24, "pe.coff-header");
+  if (observed.state !== "declared" || observed.signature !== "PE")
     throw managedFailure(
       "invalid-directory",
       "pe.signature",
-      "PE signature is invalid",
-      peOffset,
+      "MZ header does not declare a PE image",
+      0x3c,
     );
+  const peOffset = observed.offset;
+  requireRange(bytes, peOffset, 24, "pe.coff-header");
   const coff = peOffset + 4;
   const parsed = readPeCoffHeader(bytes.subarray(coff, coff + 20));
   if (!parsed.ok)

@@ -21,11 +21,13 @@ for (const mode of ["preinstall source", "packed source-free"]) {
               "scripts/lib/verifier-source-loader.mjs",
               "src/domain/windowsNativeArtifact.ts",
               "src/domain/peCoffHeader.ts",
+              "src/domain/dosMz.ts",
               "src/domain/result.ts",
             ]
           : [
               "dist/domain/windowsNativeArtifact.js",
               "dist/domain/peCoffHeader.js",
+              "dist/domain/dosMz.js",
               "dist/domain/result.js",
             ];
       for (const path of [

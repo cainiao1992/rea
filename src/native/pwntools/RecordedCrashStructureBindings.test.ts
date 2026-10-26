@@ -61,3 +61,22 @@ it("keeps snapshot rebinding independent of unused ELF section and header-size a
     validateRecordedCrashStructure(report, bytes, report.decoder_diagnostics),
   ).not.toThrow();
 });
+
+it("binds PN_XNUM through raw section-zero info without full ELF numbering admission", () => {
+  const report = recordedCrashSchema.parse(recordedCrashFixture());
+  const original = recordedCrashFixtureBytes(report);
+  const bytes = Buffer.concat([original, Buffer.alloc(64)]);
+  bytes.writeUInt16LE(0xffff, 56);
+  bytes.writeBigUInt64LE(BigInt(original.length), 40);
+  bytes.writeUInt16LE(64, 58);
+  // Rebinding only needs the reported count; full ELF admission separately requires SHT_NULL and reserved thresholds.
+  bytes.writeUInt32LE(1, original.length + 4);
+  bytes.writeUInt32LE(report.segments.length, original.length + 44);
+  expect(() =>
+    validateRecordedCrashStructure(report, bytes, report.decoder_diagnostics),
+  ).not.toThrow();
+  bytes.writeUInt32LE(report.segments.length + 1, original.length + 44);
+  expect(() =>
+    validateRecordedCrashStructure(report, bytes, report.decoder_diagnostics),
+  ).toThrow(/original ELF\/note headers/);
+});

@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
@@ -117,7 +118,9 @@ export function validateRecordedCrashStructure(
   let count = programs.count;
   if (count === 0xffff) {
     if (sections.width < 64) return fail();
-    count = bytesAt(sections.offset, 64).readUInt32LE(44);
+    const zero = readElfSectionHeader(bytesAt(sections.offset, 64), 64, true);
+    if (!zero.ok) return fail();
+    count = zero.value.info;
   }
   if (count !== report.segments.length || (count > 0 && entryBytes < 56))
     fail();

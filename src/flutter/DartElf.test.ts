@@ -566,3 +566,22 @@ it("keeps precision admission limited to consumed ELF program fields and types",
     failures: [{ reason: "ELF segment 0 is not file-backed" }],
   });
 });
+
+it("keeps section precision checks on consumed declarations and mapping fields", async () => {
+  const bytes = buildElf64Image([{ name: "selected", value: 64, size: 4 }]);
+  const expected = await readElfSymbols(bytes, ["selected"]);
+  const table = Number(bytes.readBigUInt64LE(40));
+  // An unrelated null record may carry uninterpreted declaration words.
+  for (const relative of [8, 16, 24, 32, 48, 56])
+    bytes.writeBigUInt64LE(0xffffffffffffffffn, table + relative);
+  // Alignment is not consumed for this symbol-table mapping.
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, table + 64 + 48);
+  expect(await readElfSymbols(bytes, ["selected"])).toEqual(expected);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, table + 64 + 8);
+  expect(await readElfSymbols(bytes, ["selected"])).toEqual({
+    symbols: [],
+    failures: [
+      { reason: "Dynamic symbol table has an unrepresentable section header" },
+    ],
+  });
+});

@@ -1,3 +1,4 @@
+import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
@@ -102,7 +103,6 @@ export function* readElfSectionDirectory(
   const { header, programs, sections: sectionTable } = parsed.value;
   const { elfClass: bits, byteOrder, machine } = header;
   const little = byteOrder === "little";
-  const wide = bits === 64;
   const {
     offset: program_offset,
     width: program_width,
@@ -153,27 +153,31 @@ export function* readElfSectionDirectory(
   const sections: NativeSection[] = [];
   let section_names_limitation: string | undefined;
   if (count !== 0) {
-    const table = new BinaryReader(
-      yield request(
-        fileSize,
-        sectionOffset,
-        BigInt(count) * BigInt(sectionWidth),
-      ),
-      little,
+    const table = yield request(
+      fileSize,
+      sectionOffset,
+      BigInt(count) * BigInt(sectionWidth),
     );
     let names: Buffer | null = null;
     if (namesIndex !== 0) {
       const h = namesIndex * sectionWidth;
-      if (table.u32(h + 4) !== 3)
+      const parsedNames = readElfSectionHeader(
+        table.subarray(h, h + sectionWidth),
+        bits,
+        little,
+      );
+      if (!parsedNames.ok) return reject(parsedNames.error.message);
+      const namesSection = parsedNames.value;
+      if (namesSection.type !== 3)
         reject("ELF section name table is not a string table");
       const rawNames = yield request(
         fileSize,
-        table.word(h + (wide ? 24 : 16), bits),
-        table.word(h + (wide ? 32 : 20), bits),
+        namesSection.offset,
+        namesSection.size,
       );
       const decoded = decodeElfSectionNameTable(
         rawNames,
-        table.word(h + 8, bits),
+        namesSection.flags,
         bits,
         little,
         Math.max(0, STRUCTURE_BYTES - rawNames.length),
@@ -199,7 +203,14 @@ export function* readElfSectionDirectory(
     let nameBytes = 0;
     for (let index = 0; index < count; index++) {
       const h = index * sectionWidth;
-      const nameOffset = table.u32(h);
+      const parsedSection = readElfSectionHeader(
+        table.subarray(h, h + sectionWidth),
+        bits,
+        little,
+      );
+      if (!parsedSection.ok) return reject(parsedSection.error.message);
+      const section = parsedSection.value;
+      const nameOffset = section.nameOffset;
       let name: string | null = null;
       let name_state: NativeSection["name_state"] = "unavailable";
       if (names !== null) {
@@ -234,9 +245,7 @@ export function* readElfSectionDirectory(
           name = decoded.name;
         }
       }
-      const type = table.u32(h + 4);
-      const offset = table.word(h + (wide ? 24 : 16), bits);
-      const size = table.word(h + (wide ? 32 : 20), bits);
+      const { type, offset, size } = section;
       sections.push({
         index,
         name,
@@ -244,12 +253,12 @@ export function* readElfSectionDirectory(
         header_offset: exact(sectionOffset) + h,
         offset,
         size,
-        address: table.word(h + (wide ? 16 : 12), bits),
+        address: section.address,
         type,
-        flags: table.word(h + 8, bits),
-        link: table.u32(h + (wide ? 40 : 24)),
-        info: table.u32(h + (wide ? 44 : 28)),
-        entry_size: table.word(h + (wide ? 56 : 36), bits),
+        flags: section.flags,
+        link: section.link,
+        info: section.info,
+        entry_size: section.entrySize,
         file_backed:
           type !== 8 && declaredFileRange(fileSize, offset, size).file_backed,
       });

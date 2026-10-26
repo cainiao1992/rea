@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { buffer } from "node:stream/consumers";
 import { setImmediate } from "node:timers/promises";
@@ -11,6 +12,8 @@ import {
   nestedAsarHeader,
 } from "../../fixtures/asarHeader.js";
 import { inventoryArtifact } from "../../fixtures/artifactInventory.js";
+import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
+import { extractArtifact } from "../../../src/artifacts/extraction/ArtifactExtraction.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 const archiveWith = async (bytes: Buffer) => {
@@ -210,18 +213,127 @@ it("preserves directory and link priority with unrecognized integrity declaratio
         kind: "directory",
         declaredSize: 3,
         declaredIntegrity: null,
-        limitations: [],
+        limitations: [
+          expect.stringContaining(
+            '"algorithm":"SHA512","hash":"source-digest"',
+          ),
+        ],
       },
       {
         path: "link",
         kind: "symlink",
         declaredSize: 4,
         declaredIntegrity: null,
-        limitations: ["ASAR symlink target was not followed or disclosed."],
+        limitations: [
+          expect.stringContaining('"algorithm":"SHA256","hash":"INVALID"'),
+          "ASAR symlink target was not followed or disclosed.",
+        ],
       },
     ]);
     expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   } finally {
     await reader.close();
   }
+});
+
+it("retains uninterpreted integrity declarations through packed and unpacked inventory and extraction", async () => {
+  const payload = Buffer.from("observed content");
+  const digest = createHash("sha256").update(payload).digest("hex");
+  const unsupported = { algorithm: "SHA512", hash: 'source"\\\u0000\n雪' };
+  const invalid = { algorithm: "SHA256", hash: "INVALID" };
+  const metadata = { size: payload.length, offset: "0" };
+  const bytes = Buffer.concat([
+    asarHeaderBytes(
+      JSON.stringify({
+        files: {
+          absent: metadata,
+          valid: {
+            ...metadata,
+            integrity: { algorithm: "SHA256", hash: digest },
+          },
+          unsupported: { ...metadata, integrity: unsupported },
+          invalid: { ...metadata, integrity: invalid },
+          companion: {
+            size: payload.length,
+            unpacked: true,
+            integrity: unsupported,
+          },
+        },
+      }),
+    ),
+    payload,
+  ]);
+  const path = await archiveWith(bytes);
+  await mkdir(`${path}.unpacked`);
+  await writeFile(join(`${path}.unpacked`, "companion"), payload);
+  const inventory = await inventoryArtifact(path);
+  const occurrence = (name: string) => {
+    const result = inventory.occurrences.find(
+      (row) => row.logical_path === name,
+    );
+    if (result === undefined) throw new Error(`Missing ${name}`);
+    return result;
+  };
+  expect(occurrence("absent").declared_integrity).toBeUndefined();
+  expect(occurrence("absent").limitations).toEqual([]);
+  expect(occurrence("valid").declared_integrity).toEqual({
+    algorithm: "sha256",
+    digest,
+  });
+  expect(occurrence("valid").limitations).toEqual([]);
+  for (const [name, declaration, reason] of [
+    ["unsupported", unsupported, "unsupported algorithm"],
+    ["invalid", invalid, "invalid digest representation"],
+    ["companion", unsupported, "unsupported algorithm"],
+  ] as const) {
+    const row = occurrence(name);
+    expect(row.hash_status).toBe("verified");
+    expect(row.declared_integrity).toBeUndefined();
+    expect(row.limitations).toEqual([expect.stringContaining(reason)]);
+    expect(row.limitations[0]).toContain(JSON.stringify(declaration));
+  }
+  expect(inventory.integrity_contradictions).toEqual([]);
+  for (const integrityPolicy of ["fail", "record-and-continue"] as const) {
+    const resources = new ArtifactResourceScope();
+    const outputRoot = `${path}.${integrityPolicy}`;
+    try {
+      const extracted = await extractArtifact({
+        inputPath: path,
+        inputFormat: "asar",
+        outputRoot,
+        environment: {},
+        integrityPolicy,
+        resourceScope: resources,
+      });
+      expect(extracted.integrity_contradictions).toEqual([]);
+      for (const name of ["unsupported", "invalid", "companion"]) {
+        expect((await readFile(join(outputRoot, name))).equals(payload)).toBe(
+          true,
+        );
+        expect(extracted.limitations).toContain(
+          `${name}: ${occurrence(name).limitations[0]}`,
+        );
+      }
+    } finally {
+      await resources.close();
+    }
+  }
+  expect((await readFile(path)).equals(bytes)).toBe(true);
+});
+
+it("admits escaped integrity source retention before formatting its limitation", async () => {
+  await expect(
+    readAsarListing({
+      files: {
+        member: {
+          size: 0,
+          offset: "0",
+          integrity: { algorithm: "SHA512", hash: "\u0000".repeat(6_000_000) },
+        },
+      },
+    }),
+  ).rejects.toMatchObject({
+    reason: "limit",
+    message: "ASAR expanded listing exceeds its 64 MiB representation budget",
+  });
 });

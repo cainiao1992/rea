@@ -100,10 +100,12 @@ export class AsarArtifactReader implements ArtifactReader {
         byteOffset: null,
         declaredIntegrity: facts.declaredIntegrity,
         unpacked: facts.unpacked,
-        limitations:
-          kind === "symlink"
+        limitations: [
+          ...facts.limitations,
+          ...(kind === "symlink"
             ? ["ASAR symlink target was not followed or disclosed."]
-            : [],
+            : []),
+        ],
         adapterKey: providerPath,
       };
       if (facts.kind === "file")

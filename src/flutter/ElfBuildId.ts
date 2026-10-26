@@ -6,6 +6,7 @@ import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   elfNoteAlignment,
   elfNoteLayout,
+  readElfNoteHeader,
 } from "../domain/native/elfNoteLayout.js";
 import {
   readElfHeader,
@@ -164,9 +165,9 @@ export const readElfBuildIds = async (
           return failure("ELF note header is truncated");
         break;
       }
-      const namesz = notes.readUInt32LE(at);
-      const descsz = notes.readUInt32LE(at + 4);
-      const type = notes.readUInt32LE(at + 8);
+      const parsedHeader = readElfNoteHeader(notes.subarray(at, at + 12), true);
+      if (!parsedHeader.ok) return failure(parsedHeader.error.message);
+      const { namesz, descsz, type } = parsedHeader.value;
       const layout = elfNoteLayout(namesz, descsz, range.alignment);
       const descriptor = at + layout.descriptor;
       const end = descriptor + descsz;

@@ -1,3 +1,4 @@
+import { readElfNoteHeader } from "../../domain/native/elfNoteLayout.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
@@ -137,10 +138,13 @@ export function validateRecordedCrashStructure(
   }
   for (const note of report.notes) {
     const raw = bytesAt(BigInt(note.location.offset), 12);
+    const parsedNote = readElfNoteHeader(raw, true);
+    if (!parsedNote.ok) return fail();
+    const { namesz, descsz, type } = parsedNote.value;
     if (
-      BigInt(note.owner_location.bytes) !== BigInt(raw.readUInt32LE(0)) ||
-      BigInt(note.descriptor_location.bytes) !== BigInt(raw.readUInt32LE(4)) ||
-      raw.readUInt32LE(8) !== note.type_id
+      BigInt(note.owner_location.bytes) !== BigInt(namesz) ||
+      BigInt(note.descriptor_location.bytes) !== BigInt(descsz) ||
+      type !== note.type_id
     )
       fail();
   }

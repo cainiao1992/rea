@@ -1,3 +1,4 @@
+import { readElfRelocationEntry } from "../domain/elfRelocation.js";
 import { readElfDynamicEntry } from "../domain/elfDynamicEntry.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import type { MipsElfMetadata } from "../domain/binaryTargetTypes.js";
@@ -29,8 +30,6 @@ export const readMipsElfSharedLoad = async (
   checkCancelled: () => void,
   sections: readonly MipsElfRelocationSection[],
 ): Promise<Result<SharedLoadFacts, string>> => {
-  const u32 = (bytes: Buffer, offset: number): number =>
-    little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
   const loads: {
     offset: number;
     address: number;
@@ -219,15 +218,21 @@ export const readMipsElfSharedLoad = async (
     if (!chunk.ok) return chunk;
     for (let position = 0; position < chunk.value.length; position += 8) {
       checkCancelled();
-      const info = u32(chunk.value, position + 4);
-      const type = info & 0xff;
-      const relocationAddress = u32(chunk.value, position);
+      const parsedEntry = readElfRelocationEntry(
+        chunk.value.subarray(position, position + 8),
+        32,
+        little,
+        "rel",
+      );
+      if (!parsedEntry.ok) return err(parsedEntry.error.message);
+      const { type, symbolIndex, offset: rawAddress } = parsedEntry.value;
+      const relocationAddress = Number(rawAddress);
       if (type === 3 && mapped(relocationAddress, 4, false) === undefined)
         return err(
           "MIPS REL32 destination has no unique complete PT_LOAD memory range",
         );
       types.add(type);
-      if (type === 3 && info >>> 8 !== 0) symbolRelativeCount += 1;
+      if (type === 3 && symbolIndex !== 0) symbolRelativeCount += 1;
     }
   }
   return ok({

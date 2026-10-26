@@ -16,6 +16,7 @@ import {
   peRvaToFileOffset,
 } from "../domain/binaryTarget.js";
 import { readManagedMetadataLayout } from "../dotnet/ManagedMetadataLayout.js";
+import { readManagedCliHeaderPrefix } from "../domain/managed/managedCliHeaderPrefix.js";
 import { readAssemblyReferenceName } from "../dotnet/ManagedMetadataInventoryRows.js";
 import { ManagedReaderFailure } from "../dotnet/ManagedReaderFailure.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
@@ -285,14 +286,14 @@ const inspectPeFile = async (
       "format",
       "CLI metadata directory cannot be mapped",
     );
-  const cli = await read(cliOffset, 16);
-  if (cli.readUInt32LE(0) < 72)
+  const cli = readManagedCliHeaderPrefix(await read(cliOffset, 16));
+  if (!cli.ok || cli.value.headerSize < 72)
     throw new ArtifactReaderFailure(
       "format",
       "CLI header declares a truncated runtime header",
     );
-  const metadataBytes = cli.readUInt32LE(12);
-  const metadataOffset = mapped(cli.readUInt32LE(8), metadataBytes);
+  const metadataBytes = cli.value.metadata.size;
+  const metadataOffset = mapped(cli.value.metadata.rva, metadataBytes);
   if (metadataOffset === undefined)
     throw new ArtifactReaderFailure(
       "format",

@@ -23,6 +23,7 @@ import { readMachoLoadCommandTableHeader } from "../../domain/apple/machoLoadCom
 import {
   elfNoteAlignment,
   elfNoteLayout,
+  readElfNoteHeader,
 } from "../../domain/native/elfNoteLayout.js";
 import {
   NODE_SEA_BLOB_TOO_LARGE,
@@ -504,8 +505,10 @@ const scanElfNoteTable = async (
     const header = await readExact(carrier, note.offset + cursor, 12);
     if (header === undefined)
       return failNoteTable(alreadyFound || found.length > 0);
-    const namesz = readU32(header, 0, little);
-    const descsz = readU32(header, 4, little);
+    const parsedHeader = readElfNoteHeader(header, little);
+    if (!parsedHeader.ok)
+      return failNoteTable(alreadyFound || found.length > 0);
+    const { namesz, descsz } = parsedHeader.value;
     if (namesz > MAX_NOTE_NAME_BYTES)
       return failNoteTable(alreadyFound || found.length > 0);
     if (cursor > note.length - 12 || namesz > note.length - cursor - 12)

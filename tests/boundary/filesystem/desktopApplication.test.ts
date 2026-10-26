@@ -22,6 +22,7 @@ import {
   buildNativePeFixture,
 } from "../../../src/dotnet/ManagedPe.fixture.js";
 import { readManagedMetadataLayout } from "../../../src/dotnet/ManagedMetadataLayout.js";
+import { readManagedPeLayout } from "../../../src/dotnet/ManagedPeReader.js";
 import { readAssemblyReference } from "../../../src/dotnet/ManagedMetadataInventoryRows.js";
 import {
   CPU,
@@ -53,6 +54,59 @@ const put = async (root: string, path: string, bytes: Buffer | string) => {
   await mkdir(join(destination, ".."), { recursive: true });
   await writeFile(destination, bytes);
 };
+
+it.each(["oversized-header", "prefix-only-section"] as const)(
+  "keeps desktop CLR prefix admission distinct from full managed admission: %s",
+  async (mode) => {
+    const original = buildManagedPeFixture({
+      references: ["UnityEngine.CoreModule"],
+    });
+    expect(readManagedPeLayout(original).cli).not.toBeNull();
+    let image = Buffer.from(original);
+    if (mode === "oversized-header") {
+      // The directory declares 72 bytes; desktop needs only cb >= 72.
+      image.writeUInt32LE(73, 0x200);
+    } else {
+      // Metadata remains in .text; a second section backs only the CLI prefix.
+      image = Buffer.concat([original, original.subarray(0x200, 0x210)]);
+      const coff = image.readUInt32LE(0x3c) + 4;
+      const optional = coff + 20;
+      const secondSection = optional + image.readUInt16LE(coff + 16) + 40;
+      image.writeUInt16LE(2, coff + 2);
+      image.writeUInt32LE(0x900000, optional + 96 + 14 * 8);
+      image.write(".cli", secondSection, "ascii");
+      image.writeUInt32LE(16, secondSection + 8);
+      image.writeUInt32LE(0x900000, secondSection + 12);
+      image.writeUInt32LE(16, secondSection + 16);
+      image.writeUInt32LE(original.length, secondSection + 20);
+    }
+    expect(readManagedPeLayout(image)).toMatchObject({
+      cli: null,
+      cliIssue: {
+        code:
+          mode === "oversized-header"
+            ? "invalid-cli-header"
+            : "invalid-directory",
+        scope: "cli.header",
+      },
+    });
+    const root = await createTestTempDirectory("rea-desktop-clr-prefix-");
+    const path = "Game_Data/Managed/Assembly-CSharp.dll";
+    await put(root, path, image);
+    const { report } = await inspect(root);
+    const file = report.files.find((row) => row.path === path);
+    expect(file?.issues).toEqual([]);
+    expect(file?.facts).toContainEqual({
+      kind: "unity-assembly-reference",
+      offset: expect.any(Number),
+      value: {
+        name: "UnityEngine.CoreModule",
+        token: expect.any(String),
+        managed_directory: "Game_Data/Managed",
+      },
+    });
+  },
+);
 
 it.skipIf(process.platform !== "linux")(
   "keeps desktop sibling files with partial coverage for invalid UTF-8 names",

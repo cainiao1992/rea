@@ -7,6 +7,7 @@ import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
 import {
   elfNoteAlignment as noteAlignment,
   elfNoteLayout,
+  readElfNoteHeader,
 } from "../../domain/native/elfNoteLayout.js";
 import type {
   ElfNotes,
@@ -100,13 +101,6 @@ class ElfReader {
     readonly little: boolean,
   ) {}
 
-  u32(offset: number): number {
-    this.require(offset, 4);
-    return this.little
-      ? this.bytes.readUInt32LE(offset)
-      : this.bytes.readUInt32BE(offset);
-  }
-
   require(offset: number, length: number): void {
     if (
       !Number.isSafeInteger(offset) ||
@@ -191,9 +185,12 @@ const parseNoteStream = (
         { boundary: "capacity" },
       );
     const header = offset + at;
-    const namesz = reader.u32(header);
-    const descsz = reader.u32(header + 4);
-    const type = reader.u32(header + 8);
+    const parsedHeader = readElfNoteHeader(
+      reader.slice(header, 12),
+      reader.little,
+    );
+    if (!parsedHeader.ok) return fail(parsedHeader.error.message);
+    const { namesz, descsz, type } = parsedHeader.value;
     // Align offsets from the start of this note. Independently rounding
     // namesz/descsz disagrees with binutils when alignment is 8 because the
     // 12-byte note header is not 8-aligned (GNU property namesz=4 then starts

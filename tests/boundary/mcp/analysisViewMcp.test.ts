@@ -22,7 +22,10 @@ import { BinaryLayoutService } from "../../../src/application/binaryDiagnostics/
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
-import { jsonObjectSchema } from "../../../src/domain/jsonValue.js";
+import {
+  jsonObjectSchema,
+  type JsonValue,
+} from "../../../src/domain/jsonValue.js";
 import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
 import { ok } from "../../../src/domain/result.js";
@@ -1387,6 +1390,90 @@ it.each(PUBLISHED_EXAMPLES)(
     expect(parseEvidence(response.structuredContent).normalized_result).toEqual(
       example.output,
     );
+  },
+);
+
+it.each([false, true])(
+  "keeps known chronology and unrelated facts with unknown delete completion %s through MCP",
+  async (unknownCompletion) => {
+    const { client, session } = await connect();
+    const entry = (
+      method: string,
+      path: string,
+      second: string,
+      body: JsonValue,
+      status = 200,
+    ) => ({
+      startedDateTime: `2026-10-20T09:00:${second}Z`,
+      time: 0,
+      request: { method, url: `http://app.example${path}` },
+      response: {
+        status,
+        content: { mimeType: "application/json", text: JSON.stringify(body) },
+      },
+    });
+    const { time: _readDuration, ...laterRead } = entry(
+      "GET",
+      "/api/settings",
+      "02",
+      { theme: "dark" },
+    );
+    const deletion = entry("DELETE", "/api/items/2", "03", "", 204);
+    const { time: _deleteDuration, ...unknownDeletion } = deletion;
+    const capture = environmentManifestCaptureFixture([
+      entry("GET", "/api/settings", "00", { theme: "light" }),
+      laterRead,
+      entry("PATCH", "/api/settings", "01", { theme: "dark" }),
+      entry("GET", "/api/health", "00.1", { healthy: true }),
+      entry("GET", "/api/version", "00.2", { version: "1" }),
+      entry("GET", "/api/items", "00.3", [{ id: 1 }, { id: 2 }]),
+      entry("GET", "/api/items/2", "00.4", { id: 2 }),
+      unknownCompletion ? unknownDeletion : deletion,
+      entry("GET", "/api/items/2", "04", null, 404),
+    ]);
+    const parent = analysisViewCaptureEvidence(capture);
+    const before = structuredClone(parent);
+    expect(session.recordEvidence(parent).ok).toBe(true);
+    const response = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+        view: { kind: "environment-state" },
+      },
+    });
+    expect(response.isError, JSON.stringify(response.content)).not.toBe(true);
+    const state = analysisViewResultSchema.parse(
+      parseEvidence(response.structuredContent).normalized_result,
+    );
+    expect(state).toMatchObject({
+      kind: "environment-state",
+      timeline: "recorded-start-time",
+      documents: expect.arrayContaining([
+        expect.objectContaining({
+          path: "/api/settings",
+          value: { theme: "light" },
+        }),
+        expect.objectContaining({
+          path: "/api/health",
+          value: { healthy: true },
+        }),
+        expect.objectContaining({
+          path: "/api/version",
+          value: { version: "1" },
+        }),
+      ]),
+      writes: expect.arrayContaining([
+        expect.objectContaining({
+          tool: "delete_items_by_id",
+          served: !unknownCompletion,
+        }),
+      ]),
+      limitations: expect.arrayContaining([
+        "Some records carry no usable request duration; their completion and overlap remain unknown.",
+      ]),
+    });
+    expect(parent).toEqual(before);
+    expect(session.evidenceById(parent.evidence_id)).toEqual(before);
   },
 );
 

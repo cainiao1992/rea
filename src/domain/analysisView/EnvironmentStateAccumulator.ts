@@ -5,7 +5,6 @@ import { MAX_JSON_DEPTH, type JsonValue } from "../jsonValue.js";
 import {
   compareOffsetDateTimeInstants,
   readRecordedDateTime,
-  type OffsetDateTimeInstant,
 } from "../offsetDateTime.js";
 import { ok, type Result } from "../result.js";
 import {
@@ -86,10 +85,8 @@ export const stateBodyJson = (
     : value;
 };
 
-const timingSchema = z.object({
-  startedDateTime: z.string(),
-  time: z.number().nonnegative(),
-});
+const startSchema = z.object({ startedDateTime: z.string() });
+const durationSchema = z.object({ time: z.number().nonnegative() });
 const redactedWriteSchema = z.object({
   request: z.object({ method: z.string() }),
   response: z.object({ status: z.number() }).optional(),
@@ -100,7 +97,6 @@ interface RecordEntry {
   readonly origin: string | null;
   readonly contentType: string;
   /** Exact ordering fact; request interval coordinates remain milliseconds. */
-  readonly startInstant: OffsetDateTimeInstant | undefined;
   readonly record: WebNetworkCaptureRecord;
 }
 
@@ -143,44 +139,46 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     record: WebNetworkCaptureRecord,
     line: RecordedRequestLine,
   ): Result<void, AnalysisError> {
-    const timing = timingSchema.safeParse(record.reported);
+    const started = startSchema.safeParse(record.reported);
+    const duration = durationSchema.safeParse(record.reported);
     // Admit normalization and fraction parsing before materializing their strings.
     if (
-      timing.success &&
+      started.success &&
       !this.scratch(
         RECORD_SCRATCH_BYTES +
-          textBytes(timing.data.startedDateTime.length + 6) * 3,
+          textBytes(started.data.startedDateTime.length + 6) * 3,
       )
     )
       return this.overBudget();
-    const startInstant = timing.success
-      ? readRecordedDateTime(timing.data.startedDateTime)?.instant
+    const startInstant = started.success
+      ? readRecordedDateTime(started.data.startedDateTime)?.instant
       : undefined;
     // Keep the established millisecond interval policy independently of sorting.
-    const start =
+    const startMs =
       startInstant === undefined
-        ? record.ordinal
+        ? undefined
         : startInstant.epochSecond * 1000 +
           Number(startInstant.fraction.slice(0, 3).padEnd(3, "0"));
+    const end =
+      startMs === undefined || !duration.success
+        ? undefined
+        : startMs + duration.data.time;
+    const timing: StateRecordFacts["timing"] = {
+      start:
+        startInstant === undefined || startMs === undefined
+          ? undefined
+          : { instant: startInstant, ms: startMs },
+      endMs: end !== undefined && Number.isFinite(end) ? end : undefined,
+    };
     // A fraction substring may retain its normalized timestamp's backing store,
     // including trailing zeroes removed from the exact comparison value.
     const instantBytes =
-      timing.success && startInstant !== undefined
-        ? ENTRY_BYTES + textBytes(timing.data.startedDateTime.length + 6)
+      started.success && startInstant !== undefined
+        ? ENTRY_BYTES + textBytes(started.data.startedDateTime.length + 6)
         : 0;
     if (line.kind === "excluded")
       return line.reason === "url-redacted"
-        ? this.#redactedWrite(
-            record,
-            timing.success && startInstant !== undefined
-              ? {
-                  start,
-                  end: start + timing.data.time,
-                  startInstant,
-                  instantBytes,
-                }
-              : undefined,
-          )
+        ? this.#redactedWrite(record, timing, instantBytes)
         : ok(undefined);
     // The entry keeps the line's strings and a reference to the already admitted record.
     if (
@@ -204,15 +202,10 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
         path: line.path,
         query: line.query === "" ? undefined : line.query,
         status: line.status,
-        start,
-        end:
-          timing.success && startInstant !== undefined
-            ? start + timing.data.time
-            : record.ordinal,
+        timing,
       },
       origin: line.origin,
       contentType: line.rawMime,
-      startInstant,
       record,
     });
     return ok(undefined);
@@ -221,14 +214,8 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
   /** Keep a successful write whose URL was redacted, with an empty path whose root relates to every type. */
   #redactedWrite(
     record: WebNetworkCaptureRecord,
-    timing:
-      | {
-          readonly start: number;
-          readonly end: number;
-          readonly startInstant: OffsetDateTimeInstant;
-          readonly instantBytes: number;
-        }
-      | undefined,
+    timing: StateRecordFacts["timing"],
+    instantBytes: number,
   ): Result<void, AnalysisError> {
     const parsed = redactedWriteSchema.safeParse(record.reported);
     if (!parsed.success) return ok(undefined);
@@ -239,15 +226,12 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       path: "",
       query: undefined,
       status: status > 0 ? status : null,
-      start: timing?.start ?? record.ordinal,
-      end: timing?.end ?? record.ordinal,
+      timing,
     };
     if (!isStateWrite(facts)) return ok(undefined);
     if (
       !this.retain(
-        ENTRY_BYTES * 8 +
-          textBytes(facts.method.length) +
-          (timing?.instantBytes ?? 0),
+        ENTRY_BYTES * 8 + textBytes(facts.method.length) + instantBytes,
       )
     )
       return this.overBudget();
@@ -255,7 +239,6 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       facts,
       origin: null,
       contentType: "",
-      startInstant: timing?.startInstant,
       record,
     });
     return ok(undefined);
@@ -358,7 +341,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     ).length;
     const timeline: StateTimeline =
       entries.length > 0 &&
-      entries.every((entry) => entry.startInstant !== undefined)
+      entries.every((entry) => entry.facts.timing.start !== undefined)
         ? "recorded-start-time"
         : "record-order";
     const records = entries
@@ -366,16 +349,11 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
         timeline === "record-order"
           ? left.facts.ordinal - right.facts.ordinal
           : compareOffsetDateTimeInstants(
-              left.startInstant!,
-              right.startInstant!,
+              left.facts.timing.start!.instant,
+              right.facts.timing.start!.instant,
             ) || left.facts.ordinal - right.facts.ordinal,
       )
-      .map((entry) => entry.facts)
-      .map((facts) =>
-        timeline === "record-order"
-          ? { ...facts, start: facts.ordinal, end: facts.ordinal }
-          : facts,
-      );
+      .map((entry) => entry.facts);
     const state = new EnvironmentStateExtraction({
       tools: manifest.value.tools,
       records,
@@ -399,6 +377,12 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       ...(timeline === "record-order"
         ? [
             "Some records carry no start time, so the state's timeline is record order and overlapping requests are not detected.",
+          ]
+        : []),
+      ...(timeline === "recorded-start-time" &&
+      records.some((record) => record.timing.endMs === undefined)
+        ? [
+            "Some records carry no usable request duration; their completion and overlap remain unknown.",
           ]
         : []),
       ...(state.views.some((view) => view.shape === "recorded")

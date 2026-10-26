@@ -8,14 +8,15 @@ const LATEST_END_MS = 8_640_000_000_000_000 - 1000;
 /** The instant a served clock starts from: the end of the last timed record a date can hold, to the next whole second. */
 const clockStart = (
   records: WriteSimulationInput["records"],
-  timed: boolean,
 ): string | null => {
-  if (!timed) return null;
+  // The clock is global: any unknown completion may extend beyond every known end.
+  if (records.some((record) => record.timing.endMs === undefined)) return null;
   // A record timed past the range of a date carries no usable time, so the clock starts from the others.
   const end = records.reduce(
     (latest, record) =>
-      Math.abs(record.end) <= LATEST_END_MS
-        ? Math.max(latest, record.end)
+      record.timing.endMs !== undefined &&
+      Math.abs(record.timing.endMs) <= LATEST_END_MS
+        ? Math.max(latest, record.timing.endMs)
         : latest,
     Number.NEGATIVE_INFINITY,
   );
@@ -56,7 +57,10 @@ export const extractWrites = (
     }
   return {
     writes,
-    write_clock: clockStart(input.records, input.timed),
+    write_clock:
+      input.chronology.timeline === "recorded-start-time"
+        ? clockStart(input.records)
+        : null,
     views,
     types: state.types.filter((type) =>
       backedTypes.has(type.collection_template),

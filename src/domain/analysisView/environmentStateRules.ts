@@ -1,3 +1,5 @@
+import type { OffsetDateTimeInstant } from "../offsetDateTime.js";
+import type { StateRecordChronology } from "./StateRecordChronology.js";
 import type { ListQuery } from "./environmentStateListQuery.js";
 import { canonicalJson } from "../comparisonSemantics.js";
 import { compareUnicodeCodePoints } from "../unicodeCodePointOrder.js";
@@ -21,8 +23,12 @@ export interface StateRecordFacts {
   /** WHATWG query spelling including `?`, or undefined when the request had none. */
   readonly query: string | undefined;
   readonly status: number | null;
-  readonly start: number;
-  readonly end: number;
+  readonly timing: {
+    readonly start:
+      | { readonly instant: OffsetDateTimeInstant; readonly ms: number }
+      | undefined;
+    readonly endMs: number | undefined;
+  };
 }
 
 /** The manifest tool facts extraction uses. */
@@ -392,24 +398,52 @@ export const isStateWrite = (record: StateRecordFacts): boolean =>
   changesState(record.method, record.path) &&
   (record.status === null || (record.status >= 200 && record.status < 400));
 
-/** Whether any write overlaps the span from one record's start to a later record's end; writes come in timeline order. */
-export const writeSpanCheck = (
+/** Index possible write interference without inventing completion for unknown intervals. */
+export const writeSpanIndex = (
   writes: readonly StateRecordFacts[],
-): ((earlier: StateRecordFacts, later: StateRecordFacts) => boolean) => {
-  // The latest end among each prefix of writes, so one search answers a span.
-  const reach: number[] = [];
-  for (const write of writes)
-    reach.push(Math.max(reach.at(-1) ?? Number.NEGATIVE_INFINITY, write.end));
+  chronology: StateRecordChronology,
+): ((
+  earlier: StateRecordFacts,
+  later: StateRecordFacts,
+) => number | undefined) => {
+  const reach: (number | undefined)[] = [];
+  const starts: (number | undefined)[] = [];
+  let maximum: number | undefined;
+  let unknown = false;
+  for (const write of writes) {
+    const end = chronology.endMs(write);
+    if (end === undefined) unknown = true;
+    else maximum = maximum === undefined ? end : Math.max(maximum, end);
+    reach.push(unknown ? undefined : maximum);
+    starts.push(chronology.startMs(write));
+  }
   return (earlier, later) => {
+    const beginning = chronology.startMs(earlier);
+    const ending = chronology.endMs(later);
     let low = 0;
     let high = writes.length;
     while (low < high) {
       const middle = (low + high) >>> 1;
-      if (writes[middle]!.start < later.end) low = middle + 1;
-      else high = middle;
+      const end = reach[middle];
+      if (beginning === undefined || end === undefined || end > beginning)
+        high = middle;
+      else low = middle + 1;
     }
-    return low > 0 && reach[low - 1]! > earlier.start;
+    const start = starts[low];
+    return low < writes.length &&
+      (ending === undefined || start === undefined || start < ending)
+      ? low
+      : undefined;
   };
+};
+
+/** Whether a write may overlap the span; unknown completion cannot prove absence. */
+export const writeSpanCheck = (
+  writes: readonly StateRecordFacts[],
+  chronology: StateRecordChronology,
+): ((earlier: StateRecordFacts, later: StateRecordFacts) => boolean) => {
+  const index = writeSpanIndex(writes, chronology);
+  return (earlier, later) => index(earlier, later) !== undefined;
 };
 
 /** Literal leading segments shared by every template with the same first segment: each path's API base. */

@@ -1,5 +1,5 @@
 import type { JsonValue } from "../jsonValue.js";
-import { overlapsWrite } from "./environmentStateWriteAttribution.js";
+import type { StateRecordChronology } from "./StateRecordChronology.js";
 import {
   ownMember,
   at,
@@ -126,8 +126,8 @@ export const shownBefore = (
 export interface ObservationSearch {
   readonly records: readonly StateRecordFacts[];
   readonly from: number;
-  /** A timed write's completion. A read begun while it still ran may show the prior state. */
-  readonly after?: number;
+  /** Completion must be established before a read may supply a write observation. */
+  readonly chronology: StateRecordChronology;
   readonly viewOf: (ordinal: number) => StateView | undefined;
   readonly withBody: <T>(
     ordinal: number,
@@ -192,7 +192,9 @@ export const laterObservation = (
   for (const record of search.records.slice(search.from + 1)) {
     if (target.isWrite(record)) return undefined;
     // The same overlap the check path ignores: the write was still running when this read began.
-    if (search.after !== undefined && overlapsWrite(search.after, record.start))
+    if (
+      !search.chronology.completedBefore(search.records[search.from]!, record)
+    )
       continue;
     const view = search.viewOf(record.ordinal);
     if (

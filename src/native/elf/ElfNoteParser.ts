@@ -1,7 +1,7 @@
 import {
-  observeElfSectionName,
-  elfSectionNameText,
-} from "../../domain/elfSectionName.js";
+  observeElfStringTableEntry,
+  elfStringTableText,
+} from "../../domain/elfStringTable.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
@@ -128,7 +128,7 @@ class ElfReader {
     offset: number,
     text: TextBudget,
   ): { name: string | null; limitation: string | null } {
-    const observed = observeElfSectionName(
+    const observed = observeElfStringTableEntry(
       table,
       offset,
       text.limit - text.used + 1,
@@ -141,7 +141,7 @@ class ElfReader {
       };
     chargeText(text, observed.contentBytes);
     return {
-      name: elfSectionNameText(observed),
+      name: elfStringTableText(observed),
       limitation:
         observed.state === "truncated"
           ? "ELF section names are incomplete because a name is not NUL-terminated."

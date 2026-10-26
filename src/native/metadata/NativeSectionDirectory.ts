@@ -1,7 +1,7 @@
 import {
-  observeElfSectionName,
-  elfSectionNameText,
-} from "../../domain/elfSectionName.js";
+  observeElfStringTableEntry,
+  elfStringTableText,
+} from "../../domain/elfStringTable.js";
 import { observeMzWindowsHeader } from "../../domain/dosMz.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
@@ -221,7 +221,7 @@ export function* readElfSectionDirectory(
       if (names !== null) {
         let decoded = decodedNames.get(nameOffset);
         if (decoded === undefined) {
-          const observed = observeElfSectionName(names, nameOffset, 65536);
+          const observed = observeElfStringTableEntry(names, nameOffset, 65536);
           nameBytes += observed.examinedBytes;
           if (nameBytes > STRUCTURE_BYTES)
             throw new BinaryResourceFailure(
@@ -230,7 +230,7 @@ export function* readElfSectionDirectory(
               "Decoded ELF section names exceed the 16 MiB structural budget",
             );
           decoded = {
-            name: elfSectionNameText(observed),
+            name: elfStringTableText(observed),
             state:
               observed.state === "terminated"
                 ? "known"

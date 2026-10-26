@@ -677,6 +677,26 @@ describe("export inventory review regressions", () => {
 });
 
 describe("ELF symbol-name text", () => {
+  it.each([65535, 65536])(
+    "keeps the ELF export name scan bounded when its NUL follows %i bytes",
+    (length) => {
+      const name = "n".repeat(length);
+      const result = parse(elfExportImage({ symbols: [{ name }] }));
+      if (result.format !== "elf") throw new TypeError("expected ELF result");
+      expect(result.exports.map((entry) => entry.name)).toEqual(
+        length === 65535 ? [name] : [],
+      );
+      if (length === 65536)
+        expect(result.issues).toContainEqual(
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "unterminated or exceeds the string budget",
+            ),
+          }),
+        );
+    },
+  );
+
   it("decodes UTF-8 names and retains exact bytes", () => {
     const result = parse(elfExportImage({ symbols: [{ name: "cafÃ©" }] }));
     expect(result.format).toBe("elf");

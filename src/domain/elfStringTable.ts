@@ -1,5 +1,5 @@
 /** Bounded source observation; consumers own scan limits, charging and caching. */
-export type ElfSectionNameObservation =
+export type ElfStringTableObservation =
   | {
       readonly state: "outside";
       readonly bytes: null;
@@ -19,12 +19,12 @@ export type ElfSectionNameObservation =
       readonly contentBytes: number;
     };
 
-/** Observe an ELF string-table name without treating a bounded missing NUL as absence. */
-export const observeElfSectionName = (
+/** Observe one ELF string-table entry without treating a bounded missing NUL as absence. */
+export const observeElfStringTableEntry = (
   table: Buffer,
   offset: number,
   maximumBytes: number,
-): ElfSectionNameObservation => {
+): ElfStringTableObservation => {
   if (offset < 0 || offset >= table.length)
     return { state: "outside", bytes: null, examinedBytes: 0, contentBytes: 0 };
   const window = table.subarray(offset, offset + maximumBytes);
@@ -45,6 +45,6 @@ export const observeElfSectionName = (
 };
 
 /** Project admitted source bytes without inferring an original text encoding. */
-export const elfSectionNameText = (
-  observed: ElfSectionNameObservation,
+export const elfStringTableText = (
+  observed: ElfStringTableObservation,
 ): string | null => observed.bytes?.toString("latin1") ?? null;

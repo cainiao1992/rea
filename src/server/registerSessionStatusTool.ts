@@ -108,26 +108,22 @@ export const registerSessionStatusTool = (
         return server.delivery.toCallToolResult(err(cause), contract);
       }
       const statusObject = jsonObjectSchema.parse(status);
-      const toolAvailability = buildCapabilityInventory(
-        status,
-        {
-          ...availabilityPolicy(),
-          androidAnalysisAvailability: availabilityResults.android,
-          ...(availabilityResults.adb === undefined
-            ? {}
-            : { adbAnalysisAvailability: availabilityResults.adb }),
-          ...(availabilityResults.apktool === undefined
-            ? {}
-            : { apktoolAnalysisAvailability: availabilityResults.apktool }),
-          ...(availabilityResults.jeb === undefined
-            ? {}
-            : { jebAnalysisAvailability: availabilityResults.jeb }),
-          ...(availabilityResults.evmLimiter === undefined
-            ? {}
-            : { evmLimiterAvailability: availabilityResults.evmLimiter }),
-        },
-        clientFeatures,
-      );
+      const toolAvailability = buildCapabilityInventory(status, {
+        ...availabilityPolicy(),
+        androidAnalysisAvailability: availabilityResults.android,
+        ...(availabilityResults.adb === undefined
+          ? {}
+          : { adbAnalysisAvailability: availabilityResults.adb }),
+        ...(availabilityResults.apktool === undefined
+          ? {}
+          : { apktoolAnalysisAvailability: availabilityResults.apktool }),
+        ...(availabilityResults.jeb === undefined
+          ? {}
+          : { jebAnalysisAvailability: availabilityResults.jeb }),
+        ...(availabilityResults.evmLimiter === undefined
+          ? {}
+          : { evmLimiterAvailability: availabilityResults.evmLimiter }),
+      });
       const serverIdentity = createServerIdentity({
         startedAt,
         commandPath: CURRENT_ENTRYPOINT_PATH,

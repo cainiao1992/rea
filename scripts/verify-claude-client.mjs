@@ -18,7 +18,10 @@ import {
 import { createVerifierCommands } from "./lib/verify-commands.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
 import { saveVerifierCommandOutput } from "./lib/verifier-command-output.mjs";
-import { assertJavaScriptApplicationInputPaths } from "./lib/javascript-application-paths.mjs";
+import {
+  CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
+  assertClientJavaScriptFixtureEvidence,
+} from "./verify/clients/javascript-fixture.mjs";
 import {
   expandMcpSessionStatus,
   sortVerifierNames,
@@ -90,10 +93,7 @@ await withVerifierCleanup(async () => {
     }
     const target = join(lab, "fixture α测试");
     await mkdir(target);
-    await writeFile(
-      join(target, "app.js"),
-      'export function result() { return { clientCompatibility: "REA_CLIENT_FIXTURE", count: 7 }; }\n',
-    );
+    await writeFile(join(target, "app.js"), CLIENT_JAVASCRIPT_FIXTURE_SOURCE);
     const schemaValidator = new Ajv2020({
       strict: false,
       validateFormats: false,
@@ -249,33 +249,9 @@ await withVerifierCleanup(async () => {
             value.normalized_result?.graph?.nodes?.length > 0,
         );
         if (observed) {
-          const evidence = toolContract(
-            "analyze_javascript_application",
-          ).outputSchema.parse(observed);
-          await assertJavaScriptApplicationInputPaths(evidence, target);
-          const shape = evidence.normalized_result.graph.nodes
-            .flatMap((n) => n.observations)
-            .map((o) => o.properties)
-            .find(
-              (p) =>
-                p.semantic_role === "export-return-shapes" &&
-                p.exported_name === "result",
-            );
-          assert(shape?.return_shape_coverage?.projection_complete);
-          const fields = shape.static_return_shapes.flatMap((s) => s.fields);
-          assert(
-            fields.some(
-              (f) =>
-                f.path === "/clientCompatibility" &&
-                f.state === "literal" &&
-                f.value === "REA_CLIENT_FIXTURE",
-            ),
-          );
-          assert(
-            fields.some(
-              (f) =>
-                f.path === "/count" && f.state === "literal" && f.value === 7,
-            ),
+          const { evidence } = await assertClientJavaScriptFixtureEvidence(
+            observed,
+            target,
           );
           const bytes = JSON.stringify(evidence);
           artifactDigest = createHash("sha256").update(bytes).digest("hex");

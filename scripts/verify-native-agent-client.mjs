@@ -4,14 +4,14 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  TOOL_CONTRACTS,
-  toolContract,
-} from "../dist/contracts/toolContracts.js";
+import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { createVerifierCommands } from "./lib/verify-commands.mjs";
 import { saveVerifierCommandOutput } from "./lib/verifier-command-output.mjs";
 import { withVerifierCleanup } from "./lib/verifier-cleanup.mjs";
-import { assertJavaScriptApplicationInputPaths } from "./lib/javascript-application-paths.mjs";
+import {
+  CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
+  assertClientJavaScriptFixtureEvidence,
+} from "./verify/clients/javascript-fixture.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createOpenAiModelFixture } from "./verify/clients/model-fixture.mjs";
 
@@ -66,10 +66,7 @@ await withVerifierCleanup(async () => {
       ...(stickyHermes ? [mkdir(selectedProfile, { recursive: true })] : []),
       mkdir(target, { recursive: true }),
     ]);
-    await writeFile(
-      join(target, "app.js"),
-      'export function result() { return { clientCompatibility: "REA_CLIENT_FIXTURE", count: 7 }; }\n',
-    );
+    await writeFile(join(target, "app.js"), CLIENT_JAVASCRIPT_FIXTURE_SOURCE);
     const environment = {
       PATH: process.env.PATH ?? "",
       HOME: account,
@@ -195,32 +192,9 @@ await withVerifierCleanup(async () => {
       }
     };
     const validateEvidence = async (value) => {
-      const evidence = toolContract(
-        "analyze_javascript_application",
-      ).outputSchema.parse(value);
-      await assertJavaScriptApplicationInputPaths(evidence, target);
-      const shape = evidence.normalized_result.graph.nodes
-        .flatMap((n) => n.observations)
-        .map((o) => o.properties)
-        .find(
-          (p) =>
-            p.semantic_role === "export-return-shapes" &&
-            p.exported_name === "result",
-        );
-      assert(shape?.return_shape_coverage?.projection_complete);
-      const fields = shape.static_return_shapes.flatMap((s) => s.fields);
-      assert(
-        fields.some(
-          (f) =>
-            f.path === "/clientCompatibility" &&
-            f.state === "literal" &&
-            f.value === "REA_CLIENT_FIXTURE",
-        ),
-      );
-      assert(
-        fields.some(
-          (f) => f.path === "/count" && f.state === "literal" && f.value === 7,
-        ),
+      const { evidence } = await assertClientJavaScriptFixtureEvidence(
+        value,
+        target,
       );
       const serialized = JSON.stringify(evidence);
       await writeFile(join(lab, "evidence.json"), serialized);

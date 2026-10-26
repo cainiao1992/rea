@@ -738,8 +738,18 @@ rea mcp --http --port 8765
 ```
 
 `--host` and `--port` default to `MCP_HOST` and `MCP_PORT` from the environment,
-then to `127.0.0.1` and an ephemeral port. The bound URL is written to stderr as
-one JSON log line (`"msg":"MCP transport listening"`) whatever `REA_LOG_LEVEL`
+then to `127.0.0.1` and an ephemeral port. A bind outside loopback requires
+`MCP_ALLOWED_HOSTS` or `--allowed-hosts`, a comma-separated list of client host
+names or IP addresses without URLs or ports. For example:
+
+```sh
+rea mcp --http --host 0.0.0.0 --allowed-hosts 127.0.0.1,rea.lan
+```
+
+Requests with a different `Host` or browser `Origin` receive `403`; a missing
+`Origin` is accepted. The announced client URL uses the bound hostname when
+admitted, otherwise the first declared hostname, with the actual bound port.
+It is written to stderr as one JSON log line (`"msg":"MCP transport listening"`) whatever `REA_LOG_LEVEL`
 is set to; nothing is written to stdout. `rea mcp --http --help` lists the accepted options. The listener serves
 one client at a time: a session ends with the client's `DELETE`, and a client
 that connects while another session is open takes it over, so a client that
@@ -777,9 +787,18 @@ rea environment-serve manifest.json --evidence capture.json --port 8765
 ```
 
 `--host` and `--port` resolve like `rea mcp --http`: flags, then `MCP_HOST` and
-`MCP_PORT`, then `127.0.0.1` and an ephemeral port. `ENVIRONMENT_NAME` renames
+`MCP_PORT`, then `127.0.0.1` and an ephemeral port. A non-loopback bind requires
+`MCP_ALLOWED_HOSTS` with the same hostname rules and Host/Origin gates as above.
+`environment-serve` uses this environment setting; `--allowed-hosts` belongs to
+`rea mcp --http`. For example:
+
+```sh
+MCP_ALLOWED_HOSTS=127.0.0.1,rea.lan rea environment-serve manifest.json --evidence capture.json --host 0.0.0.0
+```
+
+`ENVIRONMENT_NAME` renames
 the served environment; set but blank, it is refused as `configuration_invalid`
-like a blank `MCP_HOST`. The bound URL is written to stderr as one JSON log line
+like a blank `MCP_HOST`. The admitted client URL is written to stderr as one JSON log line
 (`"msg":"MCP transport listening"`). See
 [agent environments](agent-environments.md) for what the state and replay
 return and do not establish.

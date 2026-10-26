@@ -86,8 +86,9 @@ name it `.har`.
   manifest's, unless the capture's origin is a loopback name or an IP literal:
   the capture file then names it (`grafana.har` and `grafana.capture.json`
   become `grafana`) and a `name-from-file` warning says so. A file name that
-  yields no portable label (kebab-case, at most 64 characters, not a Windows
-  device name) is refused; pass `--name`.
+  yields no portable label (kebab-case, at most 63 characters for a DNS service
+  label, not a Windows device name or a label interpreted as an IP address) is
+  refused; pass `--name`.
 - `--package-tarball` works as for the export, and `--capture-timeout-ms`
   as for `inspect-web-network-capture`.
 - `--dry-run` runs every stage and prints the report with `status: "planned"`
@@ -982,7 +983,8 @@ serves replay. The complete tool catalog the bundle serves must also fit the
 server's advertised catalog budget before any files are written. Privately parsed JSON is sealed once so authentication
 and replay share immutable response trees rather than copying the capture repeatedly.
 `--name` replaces the manifest's portable kebab-case name as the env folder and env id
-(Windows device names such as `con` and `lpt1` are refused);
+(at most 63 characters for its DNS service label; Windows device names and
+labels interpreted as IP addresses are refused);
 `--package-tarball <path>` copies a packed `rea-agents` tarball into the env
 folder and makes the Dockerfile install it instead of the registry package and
 remove it in the same layer, which is how a checkout rather than a release is
@@ -1000,7 +1002,12 @@ Windows inherits ACLs and REA does not establish owner-only access there. Choose
 an already private Windows destination when captured content needs it.
 
 The Dockerfile sets `MCP_HOST=0.0.0.0` and `MCP_PORT=18765`, the port the
-framework maps for an MCP server env; the framework's own deploy supplies
+framework maps for an MCP server env, and `MCP_ALLOWED_HOSTS` naming the loopback
+addresses and the environment name, because the container binds outside loopback
+and the server refuses to serve on such a bind without an operator-declared
+allowlist: the framework's published port is reached over loopback and its
+gateway proxies to the env container by the compose service name (the
+environment name). The framework's own deploy supplies
 `MCP_HOST`, `MCP_PORT` and `ENVIRONMENT_NAME`, so the served card carries the
 env's name. It installs Debian's `python3` because the framework's local
 sandbox probes a container's readiness with `python3` inside it, which the slim

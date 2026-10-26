@@ -175,6 +175,9 @@ export const runMcpHttpEntrypoint = async (
   const endpoint = parseMcpHttpEndpoint(snapshotEnvironment(process.env), {
     ...(parsed.host === undefined ? {} : { host: parsed.host }),
     ...(parsed.port === undefined ? {} : { port: parsed.port }),
+    ...(parsed.allowedHosts === undefined
+      ? {}
+      : { allowedHosts: [...parsed.allowedHosts] }),
   });
   if (!endpoint.ok) {
     io.writeStderr(`${projectAnalysisError(endpoint.error).message}\n`);

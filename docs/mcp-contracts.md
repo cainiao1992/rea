@@ -817,7 +817,12 @@ the bound address is local; names are added only after classifying the actual IP
 On such a bind, requests whose `Host` header is outside the SDK loopback allowlist plus
 the configured name and the bound address are refused with `403`, and a browser
 `Origin` outside that allowlist is refused the same way (a missing `Origin`
-passes); a non-loopback bind relaxes both checks and logs the relaxation. A reply sent before a request body was read (a refused `Host` or `Origin`, an unknown route, the startup `503`) closes the connection after the reply, so an unread upload cannot keep a socket open. Request targets are taken verbatim as origin-form paths (`//host/path` is a path, not another origin); an absolute-form target, a target containing a raw fragment delimiter (`#`), or one whose path URL parsing would rewrite (dot segments such as `/public/../mcp`), is refused with `400`, and a method Fetch does not support with `405`. Percent-encoded `%23` remains valid query data. Only an `initialize` object can replace an open session. A sessionless array containing initialize, including a one-element array, is refused with HTTP `400` before session creation or handover. Scoped
+passes). A non-loopback bind requires `MCP_ALLOWED_HOSTS`, or
+`--allowed-hosts` for `rea mcp --http`, listing every client host name or IP
+address. Configuration validates and canonicalizes complete tokens once;
+URLs, ports and empty entries are refused. Both Host and Origin checks remain
+active on that declared list. The announced URL uses the bound hostname if
+admitted, otherwise the first declared hostname, with the actual bound port. A reply sent before a request body was read (a refused `Host` or `Origin`, an unknown route, the startup `503`) closes the connection after the reply, so an unread upload cannot keep a socket open. Request targets are taken verbatim as origin-form paths (`//host/path` is a path, not another origin); an absolute-form target, a target containing a raw fragment delimiter (`#`), or one whose path URL parsing would rewrite (dot segments such as `/public/../mcp`), is refused with `400`, and a method Fetch does not support with `405`. Percent-encoded `%23` remains valid query data. Only an `initialize` object can replace an open session. A sessionless array containing initialize, including a one-element array, is refused with HTTP `400` before session creation or handover. Scoped
 IPv6 literals (`fe80::1%eth0`) are refused before binding, because no URL can
 name them. Listener errors reach the runtime's connection-loss handler only
 after a successful bind; a bind failure prints the listen-failure message alone. Request bodies are bounded by the SDK's

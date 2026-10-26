@@ -12,6 +12,10 @@ import {
   CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
   assertClientJavaScriptFixtureEvidence,
 } from "./verify/clients/javascript-fixture.mjs";
+import {
+  findClientResult,
+  isClientJavaScriptEvidence,
+} from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createOpenAiModelFixture } from "./verify/clients/model-fixture.mjs";
 
@@ -157,39 +161,21 @@ await withVerifierCleanup(async () => {
         "name: reverse-engineer-anything",
       ),
     );
-    const extractEvidence = (value) => {
-      if (typeof value === "string") {
-        if (
-          value.startsWith("<untrusted_tool_result ") &&
-          value.endsWith("</untrusted_tool_result>")
-        ) {
-          // Hermes wraps external MCP content with its own instruction banner.
-          // Decode only that observed envelope, retaining the original request artifact.
-          const start = value.indexOf("\n\n");
-          if (start >= 0)
-            return extractEvidence(
-              value
-                .slice(start + 2, value.lastIndexOf("</untrusted_tool_result>"))
-                .trim(),
-            );
-        }
-        try {
-          return extractEvidence(JSON.parse(value));
-        } catch {
-          return undefined;
-        }
+    const decodeNativeAgentResult = (text) => {
+      if (
+        text.startsWith("<untrusted_tool_result ") &&
+        text.endsWith("</untrusted_tool_result>")
+      ) {
+        // Hermes wraps external MCP content with its own banner; retain original request artifacts.
+        const start = text.indexOf("\n\n");
+        if (start >= 0)
+          return decodeNativeAgentResult(
+            text
+              .slice(start + 2, text.lastIndexOf("</untrusted_tool_result>"))
+              .trim(),
+          );
       }
-      if (value && typeof value === "object") {
-        if (
-          typeof value.evidence_id === "string" &&
-          value.normalized_result?.graph?.nodes
-        )
-          return value;
-        for (const child of Object.values(value)) {
-          const found = extractEvidence(child);
-          if (found) return found;
-        }
-      }
+      return JSON.parse(text);
     };
     const validateEvidence = async (value) => {
       const { evidence } = await assertClientJavaScriptFixtureEvidence(
@@ -273,7 +259,11 @@ await withVerifierCleanup(async () => {
             serializedTools.includes(skillPath) &&
             serializedTools.includes("reverse-engineer-anything");
           for (const message of toolMessages) {
-            const evidence = extractEvidence(message.content);
+            const evidence = findClientResult(
+              message.content,
+              isClientJavaScriptEvidence,
+              decodeNativeAgentResult,
+            );
             if (evidence) await validateEvidence(evidence);
           }
         }

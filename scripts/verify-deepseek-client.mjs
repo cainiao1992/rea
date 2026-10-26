@@ -15,6 +15,10 @@ import {
   CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
   assertClientJavaScriptFixtureEvidence,
 } from "./verify/clients/javascript-fixture.mjs";
+import {
+  findClientResult,
+  isClientJavaScriptEvidence,
+} from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createOpenAiModelFixture } from "./verify/clients/model-fixture.mjs";
 
@@ -130,26 +134,6 @@ await withVerifierCleanup(async () => {
         } else validatePatterns(child);
       }
     };
-    const extractEvidence = (value) => {
-      if (typeof value === "string") {
-        try {
-          return extractEvidence(JSON.parse(value));
-        } catch {
-          return undefined;
-        }
-      }
-      if (value && typeof value === "object") {
-        if (
-          typeof value.evidence_id === "string" &&
-          value.normalized_result?.graph?.nodes
-        )
-          return value;
-        for (const child of Object.values(value)) {
-          const found = extractEvidence(child);
-          if (found) return found;
-        }
-      }
-    };
     fixture = await createOpenAiModelFixture({
       directory: lab,
       prefix: `deepseek-${mode}`,
@@ -192,7 +176,10 @@ await withVerifierCleanup(async () => {
             '<skill_content name=\\"reverse-engineer-anything\\">',
           ) && serialized.includes(dirname(skillPath));
         for (const message of toolMessages) {
-          const found = extractEvidence(message.content);
+          const found = findClientResult(
+            message.content,
+            isClientJavaScriptEvidence,
+          );
           if (found === undefined) continue;
           const { evidence } = await assertClientJavaScriptFixtureEvidence(
             found,

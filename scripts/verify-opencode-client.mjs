@@ -13,6 +13,10 @@ import {
   CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
   assertClientJavaScriptFixtureEvidence,
 } from "./verify/clients/javascript-fixture.mjs";
+import {
+  findClientResult,
+  isClientJavaScriptEvidence,
+} from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createOpenAiModelFixture } from "./verify/clients/model-fixture.mjs";
 
@@ -113,27 +117,6 @@ await withVerifierCleanup(async () => {
       strict: false,
       validateFormats: false,
     });
-    const extractEvidence = (value) => {
-      if (typeof value === "string") {
-        try {
-          return extractEvidence(JSON.parse(value));
-        } catch {
-          return undefined;
-        }
-      }
-      if (value && typeof value === "object") {
-        if (
-          typeof value.evidence_id === "string" &&
-          value.normalized_result?.graph?.nodes?.length > 0
-        )
-          return value;
-        for (const nested of Object.values(value)) {
-          const evidence = extractEvidence(nested);
-          if (evidence) return evidence;
-        }
-      }
-      return undefined;
-    };
     fixture = await createOpenAiModelFixture({
       directory: lab,
       prefix: "opencode",
@@ -178,7 +161,7 @@ await withVerifierCleanup(async () => {
             m.content.includes(skillDirectory) &&
             m.content.includes(expectedSkillBody),
         );
-        const observed = extractEvidence(replies);
+        const observed = findClientResult(replies, isClientJavaScriptEvidence);
         if (observed) {
           const { evidence } = await assertClientJavaScriptFixtureEvidence(
             observed,

@@ -21,6 +21,10 @@ import {
   CLIENT_JAVASCRIPT_FIXTURE_SOURCE,
   assertClientJavaScriptFixtureEvidence,
 } from "./verify/clients/javascript-fixture.mjs";
+import {
+  findClientResult,
+  isClientJavaScriptEvidence,
+} from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createGeminiModelFixture } from "./verify/clients/gemini-model-fixture.mjs";
 
@@ -231,37 +235,18 @@ await withVerifierCleanup(async () => {
       }
       return undefined;
     };
-    const extractEvidence = (value) => {
-      if (typeof value === "string") {
-        if (
-          value.startsWith("<untrusted_context>\n") &&
-          value.endsWith("\n</untrusted_context>")
-        ) {
-          return extractEvidence(
-            value.slice(
-              "<untrusted_context>\n".length,
-              -"\n</untrusted_context>".length,
-            ),
-          );
-        }
-        try {
-          return extractEvidence(JSON.parse(value));
-        } catch {
-          return undefined;
-        }
-      }
-      if (value && typeof value === "object") {
-        if (
-          typeof value.evidence_id === "string" &&
-          value.normalized_result?.graph?.nodes?.length > 0
-        )
-          return value;
-        for (const nested of Object.values(value)) {
-          const evidence = extractEvidence(nested);
-          if (evidence) return evidence;
-        }
-      }
-      return undefined;
+    const decodeGeminiResult = (text) => {
+      if (
+        text.startsWith("<untrusted_context>\n") &&
+        text.endsWith("\n</untrusted_context>")
+      )
+        return decodeGeminiResult(
+          text.slice(
+            "<untrusted_context>\n".length,
+            -"\n</untrusted_context>".length,
+          ),
+        );
+      return JSON.parse(text);
     };
     fixture = await createGeminiModelFixture({
       directory: lab,
@@ -327,7 +312,11 @@ await withVerifierCleanup(async () => {
               join(profile, ".agents", "skills", "reverse-engineer-anything"),
             ),
         );
-        const observed = extractEvidence(responses);
+        const observed = findClientResult(
+          responses,
+          isClientJavaScriptEvidence,
+          decodeGeminiResult,
+        );
         if (observed) {
           const { evidence } = await assertClientJavaScriptFixtureEvidence(
             observed,

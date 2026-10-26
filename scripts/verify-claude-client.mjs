@@ -26,6 +26,10 @@ import {
   expandMcpSessionStatus,
   sortVerifierNames,
 } from "./lib/mcp-verifier-results.mjs";
+import {
+  findClientResult,
+  isClientJavaScriptEvidence,
+} from "./verify/clients/result-discovery.mjs";
 import { createVerifierRun, completeVerifierRun } from "./lib/verifier-run.mjs";
 import { createAnthropicModelFixture } from "./verify/clients/anthropic-model-fixture.mjs";
 
@@ -106,28 +110,14 @@ await withVerifierCleanup(async () => {
         );
       return false;
     };
-    const extractInlineResult = (value, matches) => {
-      if (typeof value === "string") {
-        try {
-          // Native Claude appends this resource hint to tool results. Original bodies remain intact in request artifacts.
-          const json = value.replace(
-            /\n\n<system-reminder>\n<total_tokens>\d+ tokens left<\/total_tokens>\n<\/system-reminder>$/u,
-            "",
-          );
-          return extractInlineResult(JSON.parse(json), matches);
-        } catch {
-          return undefined;
-        }
-      }
-      if (value && typeof value === "object") {
-        if (matches(value)) return value;
-        for (const nested of Object.values(value)) {
-          const result = extractInlineResult(nested, matches);
-          if (result) return result;
-        }
-      }
-      return undefined;
-    };
+    const decodeClaudeResult = (text) =>
+      JSON.parse(
+        // Native Claude appends this resource hint. Original bodies remain in request artifacts.
+        text.replace(
+          /\n\n<system-reminder>\n<total_tokens>\d+ tokens left<\/total_tokens>\n<\/system-reminder>$/u,
+          "",
+        ),
+      );
     fixture = await createAnthropicModelFixture({
       directory: lab,
       onRequest: async ({ body, tools, requestIndex }) => {
@@ -181,11 +171,12 @@ await withVerifierCleanup(async () => {
           }
         }
         if (mode === "call" && !sessionStatusSeen) {
-          const observedStatus = extractInlineResult(
+          const observedStatus = findClientResult(
             body.messages,
             (value) =>
               Boolean(value.result?.server_identity) &&
               Array.isArray(value.result?.tool_availability?.groups),
+            decodeClaudeResult,
           );
           if (observedStatus) {
             const parsedStatus =
@@ -242,11 +233,10 @@ await withVerifierCleanup(async () => {
           expectedSkillBody !== undefined &&
           containsText(body.messages, expectedSkillBody) &&
           containsText(body.messages, skillDirectory);
-        const observed = extractInlineResult(
+        const observed = findClientResult(
           body.messages,
-          (value) =>
-            typeof value.evidence_id === "string" &&
-            value.normalized_result?.graph?.nodes?.length > 0,
+          isClientJavaScriptEvidence,
+          decodeClaudeResult,
         );
         if (observed) {
           const { evidence } = await assertClientJavaScriptFixtureEvidence(

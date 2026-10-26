@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { requireMcpEvidenceBundle } from "./lib/mcp-verifier-results.mjs";
+import {
+  requireMcpEvidenceBundle,
+  requireMcpOutput,
+  requireMcpToolError,
+} from "./lib/mcp-verifier-results.mjs";
 import { estimateTokenCount } from "tokenx";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -124,12 +128,13 @@ await withVerifierCleanup(async () => {
       name: tool.name,
       arguments: input,
     });
-    assert.notEqual(response.isError, true, JSON.stringify(response));
     assert.ok(
       ajv.validate(tool.outputSchema, response.structuredContent),
       JSON.stringify(ajv.errors),
     );
-    const evidence = parseEvidence(response.structuredContent);
+    const evidence = parseEvidence(
+      requireMcpOutput(response, "inspect_packet_capture"),
+    );
     const report = evidence.normalized_result;
     assert.equal(
       report.artifact.sha256,
@@ -305,12 +310,13 @@ await withVerifierCleanup(async () => {
       name: pcapTool.name,
       arguments: { path: capturePath, detail: "summary" },
     });
-    assert.notEqual(response.isError, true, JSON.stringify(response));
     assert.ok(
       pcapAjv.validate(pcapTool.outputSchema, response.structuredContent),
       pcapAjv.errorsText(),
     );
-    const summary = parseEvidence(response.structuredContent).normalized_result;
+    const summary = parseEvidence(
+      requireMcpOutput(response, "inspect_pcap_capture"),
+    ).normalized_result;
     assert.equal(summary.summary.capture_start, expectedCaptureStart);
     assert.equal(summary.summary.capture_end, expectedCaptureEnd);
     assert.equal(
@@ -343,10 +349,9 @@ await withVerifierCleanup(async () => {
         view: { kind: "pcap", facet: "protocols", limit: 10 },
       },
     });
-    assert.notEqual(page.isError, true, JSON.stringify(page));
     assert.equal(
-      parseEvidence(page.structuredContent).normalized_result
-        .parent_evidence_id,
+      parseEvidence(requireMcpOutput(page, "inspect_analysis_view"))
+        .normalized_result.parent_evidence_id,
       source.evidence_id,
     );
     cases++;
@@ -368,19 +373,16 @@ await withVerifierCleanup(async () => {
       name: tool.name,
       arguments: input,
     });
-    assert.equal(response.isError, true);
+    requireMcpToolError(response);
     await client.ping();
     cases++;
   }
   await writeFile(path, "not a capture");
-  assert.equal(
-    (
-      await client.callTool({
-        name: tool.name,
-        arguments: { path, fields: ["frame.number"] },
-      })
-    ).isError,
-    true,
+  requireMcpToolError(
+    await client.callTool({
+      name: tool.name,
+      arguments: { path, fields: ["frame.number"] },
+    }),
   );
   cases++;
   const discovery = (await client.listTools()).tools.find(
@@ -414,12 +416,13 @@ await withVerifierCleanup(async () => {
       name: discovery.name,
       arguments: input,
     });
-    assert.notEqual(response.isError, true, JSON.stringify(response));
     assert.ok(
       ajv.validate(discovery.outputSchema, response.structuredContent),
       JSON.stringify(ajv.errors),
     );
-    const evidence = parseEvidence(response.structuredContent);
+    const evidence = parseEvidence(
+      requireMcpOutput(response, "inspect_packet_fields"),
+    );
     const report = evidence.normalized_result;
     const kind = input.kind ?? "protocols";
     const query = (input.query ?? "").toLowerCase();

@@ -38,7 +38,15 @@ export const requireMcpOutput = (
     throw new Error(`${operation} failed: ${mcpTextValue(result)}`);
   if (contract.name !== operation)
     throw new Error(`${operation} received the ${contract.name} contract`);
-  return contract.outputSchema.parse(jsonValue(result));
+  const text = jsonValue(result);
+  const output = contract.outputSchema.parse(text);
+  if (result.structuredContent !== undefined) {
+    // The producer emits both representations from the same JSON value.
+    // Compare before schema projection can discard disagreeing source fields.
+    if (!isDeepStrictEqual(text, result.structuredContent))
+      throw new Error(`${operation} text and structured results disagree`);
+  }
+  return output;
 };
 
 const operationResultKey = (contract) => {
@@ -124,15 +132,6 @@ export const requireMcpEvidenceBundle = (result) => {
     throw new Error(
       "get_evidence_bundle returned summary metadata instead of complete Evidence",
     );
-  if (result.structuredContent !== undefined) {
-    const structured = contract.outputSchema.parse(
-      result.structuredContent,
-    ).result;
-    if (!isDeepStrictEqual(bundle, structured))
-      throw new Error(
-        "get_evidence_bundle text and structured results disagree",
-      );
-  }
   return authenticateParsedEvidenceBundle(bundle);
 };
 

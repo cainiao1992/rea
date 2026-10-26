@@ -26,7 +26,7 @@ import {
 } from "./lib/http3-verifier-lifecycle.mjs";
 import {
   requireMcpEvidenceBundle,
-  mcpTextValue,
+  requireMcpOutput,
 } from "./lib/mcp-verifier-results.mjs";
 
 const root = process.argv[2];
@@ -137,14 +137,11 @@ async function mcp(input, name) {
     join(directory, `${name}.mcp.reply.json`),
     JSON.stringify(reply, null, 2),
   );
-  const value = JSON.parse(mcpTextValue(reply));
-  assert.notEqual(reply.isError, true, mcpTextValue(reply));
+  const evidence = requireMcpOutput(reply, contract.name, contract);
   assert.ok(
     validateOutput(reply.structuredContent),
     JSON.stringify(validateOutput.errors),
   );
-  const evidence = contract.outputSchema.parse(value);
-  assert.deepEqual(reply.structuredContent, value);
   retainedEvidence.push(evidence);
   return evidence;
 }

@@ -219,6 +219,62 @@ it("returns complete named Evidence with its subject, provider and analysis prov
   );
 });
 
+it("admits matching complete text and structured Evidence and rejects either malformed shape", async () => {
+  const { requireMcpOutput } = await verifierResults();
+  const evidence = namedEvidence();
+  expect(
+    requireMcpOutput(
+      { ...textReply(evidence), structuredContent: evidence },
+      "address_name",
+    ),
+  ).toEqual(evidence);
+  const malformed = { ...evidence, normalized_result: { name: "entry" } };
+  for (const [text, structuredContent] of [
+    [evidence, malformed],
+    [malformed, evidence],
+  ])
+    expect(() =>
+      requireMcpOutput(
+        { ...textReply(text), structuredContent },
+        "address_name",
+      ),
+    ).toThrow();
+});
+
+it("rejects disagreement in lifecycle envelope fields that the named schema would otherwise discard", async () => {
+  const { requireMcpOutput } = await verifierResults();
+  const result = retainedBundle();
+  const text = { result, vendor_note: "text observation" };
+  const structuredContent = { result, vendor_note: "different observation" };
+  const contract = toolContract("get_evidence_bundle");
+  expect(contract.outputSchema.parse(text)).toEqual(
+    contract.outputSchema.parse(structuredContent),
+  );
+  expect(() =>
+    requireMcpOutput(
+      { ...textReply(text), structuredContent },
+      "get_evidence_bundle",
+    ),
+  ).toThrow("text and structured results disagree");
+});
+
+it("rejects disagreement in complete Evidence provenance before downstream extraction", async () => {
+  const { requireMcpOutput } = await verifierResults();
+  const evidence = namedEvidence();
+  expect(() =>
+    requireMcpOutput(
+      {
+        ...textReply(evidence),
+        structuredContent: {
+          ...evidence,
+          raw_result: { engine_name: "different" },
+        },
+      },
+      "address_name",
+    ),
+  ).toThrow("text and structured results disagree");
+});
+
 it("rejects mismatched named contracts, error-marked success and malformed normalized results", async () => {
   const { requireMcpOutput } = await verifierResults();
   const evidence = namedEvidence();

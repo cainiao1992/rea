@@ -739,6 +739,19 @@ it.each([
     { code: true, runtime: true, package: true, apple: false, evm: false },
   ],
   [
+    "src/domain/windowsNativeArtifact.ts",
+    { code: true, runtime: true, package: true },
+  ],
+  ["src/domain/peCoffHeader.ts", { code: true, runtime: true, package: true }],
+  [
+    "scripts/lib/verifier-source-loader.mjs",
+    { code: true, runtime: true, package: true },
+  ],
+  [
+    "tests/boundary/process/windowsNativeArtifactVerifier.test.ts",
+    { code: true, package: true },
+  ],
+  [
     "src/domain/javascript/javascriptRuntimeStaticCandidates.ts",
     { code: true, runtime: true, package: true, javascript_recovery: true },
   ],

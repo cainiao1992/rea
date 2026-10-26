@@ -289,19 +289,13 @@ const compareOccurrences = (
     }
     const leftOccurrence = leftMatches[0];
     const rightOccurrence = rightMatches[0];
-    if (
-      leftOccurrence !== undefined &&
-      rightOccurrence !== undefined &&
-      asarPackingUnknown({ leftOccurrence, rightOccurrence })
-    )
-      hasUnknownAsarPacking = true;
-    if (
-      leftOccurrence !== undefined &&
-      rightOccurrence !== undefined &&
-      nodeSeaMetadataUnknown({ leftOccurrence, rightOccurrence })
-    )
-      hasUnknownNodeSeaMetadata = true;
+    const metadata = occurrenceMetadata({ leftOccurrence, rightOccurrence });
+    if (leftOccurrence !== undefined && rightOccurrence !== undefined) {
+      if (metadata.asarPacking === "unknown") hasUnknownAsarPacking = true;
+      if (metadata.nodeSea === "unknown") hasUnknownNodeSeaMetadata = true;
+    }
     const change = classifyPath({
+      metadata,
       path,
       leftOccurrence,
       rightOccurrence,
@@ -337,6 +331,7 @@ const occurrencesByPath = (
 };
 
 interface ClassifyPathInput {
+  readonly metadata: OccurrenceMetadata;
   readonly path: string;
   readonly leftOccurrence: ArtifactOccurrence | undefined;
   readonly rightOccurrence: ArtifactOccurrence | undefined;
@@ -419,7 +414,8 @@ const classifyPath = (input: ClassifyPathInput): ArtifactChange | null => {
   if (declaration.handled) return declaration.change;
   const availability = classifyAvailability(input, base);
   if (availability !== null)
-    return asarPackingChanged(input) || nodeSeaMetadataChanged(input)
+    return input.metadata.asarPacking === "changed" ||
+      input.metadata.nodeSea === "changed"
       ? {
           ...base,
           classification: "changed",
@@ -427,11 +423,7 @@ const classifyPath = (input: ClassifyPathInput): ArtifactChange | null => {
         }
       : availability;
   const dimensions = changedDimensions(input);
-  if (
-    pyInstallerMetadataUnknown(input) ||
-    asarPackingUnknown(input) ||
-    nodeSeaMetadataUnknown(input)
-  ) {
+  if (Object.values(input.metadata).includes("unknown")) {
     if (dimensions.length === 0)
       return {
         ...base,
@@ -450,35 +442,52 @@ type OccurrencePair = Pick<
   "leftOccurrence" | "rightOccurrence"
 >;
 
-const asarPackingUnknown = (input: OccurrencePair): boolean =>
-  (input.leftOccurrence?.unpacked === undefined) !==
-  (input.rightOccurrence?.unpacked === undefined);
+type MetadataComparison = "unchanged" | "changed" | "unknown";
 
-const asarPackingChanged = (input: OccurrencePair): boolean =>
-  input.leftOccurrence?.unpacked !== undefined &&
-  input.rightOccurrence?.unpacked !== undefined &&
-  input.leftOccurrence.unpacked !== input.rightOccurrence.unpacked;
+interface OccurrenceMetadata {
+  readonly asarPacking: MetadataComparison;
+  readonly nodeSea: MetadataComparison;
+  readonly pyInstaller: MetadataComparison;
+}
 
-const nodeSeaMetadataUnknown = (input: OccurrencePair): boolean =>
-  (input.leftOccurrence?.format_metadata?.kind === "node-sea-entry") !==
-  (input.rightOccurrence?.format_metadata?.kind === "node-sea-entry");
-
-const nodeSeaMetadataChanged = (input: OccurrencePair): boolean => {
-  const left = input.leftOccurrence?.format_metadata;
-  const right = input.rightOccurrence?.format_metadata;
-  return (
-    left?.kind === "node-sea-entry" &&
-    right?.kind === "node-sea-entry" &&
-    canonicalJson(nodeSeaEntryDeclaration(left)) !==
-      canonicalJson(nodeSeaEntryDeclaration(right))
-  );
+const compareOptionalMetadata = <T>(
+  left: T | undefined,
+  right: T | undefined,
+  declaration: (value: T) => unknown,
+): MetadataComparison => {
+  if (left === undefined || right === undefined)
+    return left === right ? "unchanged" : "unknown";
+  return canonicalJson(declaration(left)) === canonicalJson(declaration(right))
+    ? "unchanged"
+    : "changed";
 };
 
-const pyInstallerMetadataUnknown = (input: ClassifyPathInput): boolean =>
-  (isPyInstallerEntry(input.leftOccurrence) &&
-    !isPyInstallerEntry(input.rightOccurrence)) ||
-  (isPyInstallerEntry(input.rightOccurrence) &&
-    !isPyInstallerEntry(input.leftOccurrence));
+/** Interpret each pair's format declarations once, preserving historical omission. */
+const occurrenceMetadata = (input: OccurrencePair): OccurrenceMetadata => {
+  const left = input.leftOccurrence;
+  const right = input.rightOccurrence;
+  return {
+    asarPacking: compareOptionalMetadata(
+      left?.unpacked,
+      right?.unpacked,
+      (value) => value,
+    ),
+    nodeSea: compareOptionalMetadata(
+      left?.format_metadata?.kind === "node-sea-entry"
+        ? left.format_metadata
+        : undefined,
+      right?.format_metadata?.kind === "node-sea-entry"
+        ? right.format_metadata
+        : undefined,
+      nodeSeaEntryDeclaration,
+    ),
+    pyInstaller: compareOptionalMetadata(
+      isPyInstallerEntry(left) ? left.format_metadata : undefined,
+      isPyInstallerEntry(right) ? right.format_metadata : undefined,
+      pyInstallerEntryDeclaration,
+    ),
+  };
+};
 
 const isPyInstallerEntry = (
   occurrence: ArtifactOccurrence | undefined,
@@ -518,13 +527,7 @@ const classifyPyInstallerDeclaration = (
         dimensions: ["availability"],
       },
     };
-  const changed =
-    canonicalJson(
-      pyInstallerEntryDeclaration(input.leftOccurrence.format_metadata),
-    ) !==
-    canonicalJson(
-      pyInstallerEntryDeclaration(input.rightOccurrence.format_metadata),
-    );
+  const changed = input.metadata.pyInstaller === "changed";
   return {
     handled: true,
     change: changed
@@ -534,6 +537,7 @@ const classifyPyInstallerDeclaration = (
 };
 
 const changedDimensions = (input: {
+  readonly metadata: OccurrenceMetadata;
   readonly leftNode: ArtifactNode | undefined;
   readonly rightNode: ArtifactNode | undefined;
   readonly leftOccurrence: ArtifactOccurrence | undefined;
@@ -579,14 +583,15 @@ const changedDimensions = (input: {
 
 const metadataChanged = (
   input: {
+    readonly metadata: OccurrenceMetadata;
     readonly leftOccurrence: ArtifactOccurrence | undefined;
     readonly rightOccurrence: ArtifactOccurrence | undefined;
   },
   left: ArtifactNode,
   right: ArtifactNode,
 ): boolean =>
-  asarPackingChanged(input) ||
-  nodeSeaMetadataChanged(input) ||
+  input.metadata.asarPacking === "changed" ||
+  input.metadata.nodeSea === "changed" ||
   left.media_type !== right.media_type ||
   left.architecture !== right.architecture ||
   left.content_state !== right.content_state ||
@@ -595,14 +600,7 @@ const metadataChanged = (
   JSON.stringify(left.limitations) !== JSON.stringify(right.limitations) ||
   JSON.stringify(input.leftOccurrence?.limitations) !==
     JSON.stringify(input.rightOccurrence?.limitations) ||
-  (isPyInstallerEntry(input.leftOccurrence) &&
-    isPyInstallerEntry(input.rightOccurrence) &&
-    canonicalJson(
-      pyInstallerEntryDeclaration(input.leftOccurrence.format_metadata),
-    ) !==
-      canonicalJson(
-        pyInstallerEntryDeclaration(input.rightOccurrence.format_metadata),
-      ));
+  input.metadata.pyInstaller === "changed";
 
 const nodeFor = (
   occurrence: ArtifactOccurrence | undefined,

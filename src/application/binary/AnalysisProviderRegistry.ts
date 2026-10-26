@@ -21,6 +21,7 @@ import {
 import { AnalysisError } from "../../domain/analysisErrorBase.js";
 import {
   ProviderSelectionError,
+  type ProviderRejectionOrigin,
   type ProviderSelectionErrorOptions,
   type ProviderSelectionFailureReason,
   type ProviderSelectionRejection,
@@ -880,21 +881,43 @@ const selectionError = (
 const candidateRejections = (
   candidates: readonly AnalysisProviderCandidateStatus[],
 ): readonly ProviderSelectionRejection[] =>
-  candidates.flatMap((candidate) =>
-    [
-      ...(candidate.availability.status === "unavailable"
-        ? [candidate.availability]
-        : []),
-      ...(candidate.targetSupport.status === "unsupported"
-        ? [candidate.targetSupport]
-        : []),
-    ].map((rejection) => ({
-      providerId: candidate.provider.id,
-      code: rejection.code,
-      reason: rejection.reason,
-      diagnostics: structuredClone(rejection.diagnostics),
-    })),
-  );
+  candidates.flatMap((candidate) => {
+    const rejections: ProviderSelectionRejection[] = [];
+    if (candidate.availability.status === "unavailable")
+      rejections.push(
+        selectedRejection(candidate, "availability", candidate.availability),
+      );
+    if (candidate.targetSupport.status === "unsupported")
+      rejections.push(
+        selectedRejection(candidate, "target", candidate.targetSupport),
+      );
+    return rejections;
+  });
+
+/** One availability or target-support observation that rejected a candidate. */
+type RejectionObservation =
+  | Extract<
+      AnalysisProviderCandidateStatus["availability"],
+      { status: "unavailable" }
+    >
+  | Extract<
+      AnalysisProviderCandidateStatus["targetSupport"],
+      { status: "unsupported" }
+    >;
+
+/** Name the observation a rejection came from so availability cannot read as a refusal. */
+const selectedRejection = (
+  candidate: AnalysisProviderCandidateStatus,
+  origin: ProviderRejectionOrigin,
+  rejection: RejectionObservation,
+): ProviderSelectionRejection => ({
+  providerId: candidate.provider.id,
+  origin,
+  code: rejection.code,
+  reason: rejection.reason,
+  // ProviderSelectionError owns the single defensive diagnostic copy.
+  diagnostics: rejection.diagnostics,
+});
 
 const cloneAvailability = (
   availability: AnalysisProviderCandidateStatus["availability"],

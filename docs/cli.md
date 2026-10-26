@@ -443,7 +443,13 @@ The selected provider remains bound to the session until an explicit switch
 or close. Provider failures are returned with their original reason. For an
 `ambiguous` selection error, choose from `details.candidate_ids`; for
 `provider_unavailable`, follow `message`, `remediation.action`, and the original
-reasons in `details.rejections`. For Hopper, Ghidra, IDA, JADX, and Kuna, run
+reasons in `details.rejections`. Each rejection names its `origin`: `availability`
+entries describe local readiness failures, including missing configuration or an
+invalid existing registration; they do not establish target support. `target`
+entries record a refused kind, format, architecture, or role. An availability-only
+message describes the recorded rejections without claiming that every provider
+is unconfigured or that target support is known.
+For Hopper, Ghidra, IDA, JADX, and Kuna, run
 `rea doctor --provider ID --json` to diagnose the selected engine. Other adapters,
 such as `pwntools-elf`, report their configuration requirements directly and are
 not accepted by `doctor --provider`. See

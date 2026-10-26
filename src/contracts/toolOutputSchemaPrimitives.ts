@@ -19,7 +19,10 @@ import {
   PROVIDER_RETRY_ACTIONS,
 } from "../domain/providerOperationHealth.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
-import { objcClassImportIdentitySchema } from "../domain/native/objcSwiftMetadata.js";
+import {
+  objcClassDiscoveryCoverageSchema,
+  objcClassImportIdentitySchema,
+} from "../domain/native/objcSwiftMetadata.js";
 import { BINARY_SESSION_SUMMARY_OMITTED_FIELDS } from "./sessionStatusContract.js";
 
 /** Specialize the single normalized result inside a complete Evidence record. */
@@ -683,17 +686,7 @@ export const objcClassDiscoveryOutput = evidenceResultOf(
           .optional(),
       }),
     ),
-    identity_coverage: z.strictObject({
-      status: z.enum([
-        "complete",
-        "partial",
-        "unsupported",
-        "not_requested",
-        "unknown",
-        "not_applicable",
-      ]),
-      reason: z.string().nullable(),
-    }),
+    identity_coverage: objcClassDiscoveryCoverageSchema,
   }),
 );
 

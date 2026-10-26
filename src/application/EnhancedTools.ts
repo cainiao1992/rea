@@ -23,7 +23,7 @@ import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import { parseFunctionDossier } from "../domain/native/functionDossier.js";
 import {
-  parseListCount,
+  parseNativeInventoryCount,
   addressedValueSchema,
 } from "../domain/native/nativeInventory.js";
 import { parseRelatedAddresses } from "../domain/native/nativeObservation.js";
@@ -763,9 +763,15 @@ export class EnhancedTools {
       ? parseSegments(segmentsResult.value)
       : undefined;
     if (segments !== undefined && !segments.ok) return segments;
-    const procedureCount = parseListCount(proceduresResult.value, "procedures");
+    const procedureCount = parseNativeInventoryCount(
+      proceduresResult.value,
+      "list_procedures",
+    );
     if (!procedureCount.ok) return procedureCount;
-    const stringCount = parseListCount(stringsResult.value, "strings");
+    const stringCount = parseNativeInventoryCount(
+      stringsResult.value,
+      "list_strings",
+    );
     if (!stringCount.ok) return stringCount;
 
     return ok(

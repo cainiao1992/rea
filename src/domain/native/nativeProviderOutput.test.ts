@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { addressDistance } from "./addressCoordinate.js";
 import { parseDocuments } from "./nativeDocument.js";
-import { parseListCount } from "./nativeInventory.js";
 import { parseRelatedAddresses } from "./nativeObservation.js";
 import { parseSegments } from "./nativeSegments.js";
 
@@ -32,12 +31,6 @@ describe("native provider boundary values", () => {
       parseSegments([{ name: "__TEXT", start: "0x1", end: "0x2" }]).ok,
     ).toBe(false);
   });
-  it("counts Hopper's address-keyed string maps", () => {
-    expect(
-      parseListCount({ "0x1000": "hello", "0x2000": "world" }, "strings"),
-    ).toEqual({ ok: true, value: 2 });
-  });
-
   it("parses direct and wrapped protocol shapes", () => {
     expect(parseRelatedAddresses({ callers: ["0x3"] }, "callers")).toEqual({
       ok: true,
@@ -98,32 +91,3 @@ describe("native provider boundary values", () => {
     }
   });
 });
-
-it.each(["procedures", "strings"])(
-  "counts every own entry of direct and wrapped %s maps",
-  (property) => {
-    for (const text of [
-      '{"__proto__":"observed"}',
-      '{"__proto__":"observed","0x1000":"one"}',
-    ]) {
-      const source = JSON.parse(text);
-      const count = Object.keys(source).length;
-      expect(parseListCount(source, property)).toEqual({
-        ok: true,
-        value: count,
-      });
-      expect(parseListCount({ [property]: source }, property)).toEqual({
-        ok: true,
-        value: count,
-      });
-      expect(JSON.stringify(source)).toBe(text);
-    }
-    expect(parseListCount({ [property]: [] }, property)).toEqual({
-      ok: true,
-      value: 0,
-    });
-    expect(parseListCount({}, property)).toEqual({ ok: true, value: 0 });
-    for (const value of [null, "not a list", 3, false])
-      expect(parseListCount(value, property).ok).toBe(false);
-  },
-);

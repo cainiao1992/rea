@@ -40,6 +40,7 @@ import {
   nativeFixture as fixture,
   nativeMachoTarget as machoTarget,
   nativeMachoTargetForFile,
+  nativeResolvedToolFixture,
 } from "../../../fixtures/nativeCommands.js";
 
 /** The file runner identifies selected .plist inputs as XML. */
@@ -222,7 +223,7 @@ describe("native command output collection", () => {
       const digest = createHash("sha256")
         .update(await readFile(executable))
         .digest("hex");
-      return ok({ path: executable, sha256: digest });
+      return ok(nativeResolvedToolFixture(executable, digest));
     });
 
     const originalDigest = await install("original-tool-output");
@@ -248,7 +249,9 @@ describe("native command output collection", () => {
 
   it("retains the complete native command output", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const output = "x".repeat(4096);
     const captured = await runner.run(
@@ -262,7 +265,9 @@ describe("native command output collection", () => {
 
   it("retains both output streams and exit status when a command fails", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const result = await runner.run(
       "file",
@@ -292,7 +297,9 @@ describe("native command output collection", () => {
 
   it("retains accepted nonzero output as a complete command capture", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const result = await runner.run(
       "file",
@@ -318,7 +325,9 @@ describe("native command output collection", () => {
 describe("native command failure capture and limits", () => {
   it("projects captured diagnostics from a failed native provider command", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const result = await new NativeMacOSProvider({}, runner, "darwin")
       .createClient(machoTarget("/private/fixture"))
@@ -353,7 +362,9 @@ describe("native command failure capture and limits", () => {
     const runner = new XcrunCommandRunner(
       {},
       () =>
-        Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+        Promise.resolve(
+          ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+        ),
       () => Promise.reject(inspection),
     );
     const result = await new NativeMacOSProvider({}, runner, "darwin")
@@ -374,7 +385,9 @@ describe("native command failure capture and limits", () => {
 
   it("retains output written before cancellation and reaps the stalled command", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const controller = new AbortController();
     const pending = runner.run(
@@ -429,7 +442,7 @@ describe("native owned cancellation boundary", () => {
         spawnOwnedProviderProcess({ ...options, expectedCommand: null });
       const runner = new XcrunCommandRunner(
         {},
-        async () => ok({ path: executable, sha256: executableSha256 }),
+        async () => ok(nativeResolvedToolFixture(executable, executableSha256)),
         launcher,
       );
       const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
@@ -544,7 +557,7 @@ describe("native cancellation cleanup provenance", () => {
       };
       const runner = new XcrunCommandRunner(
         {},
-        async () => ok({ path: executable, sha256: executableSha256 }),
+        async () => ok(nativeResolvedToolFixture(executable, executableSha256)),
         launcher,
       );
       const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
@@ -681,7 +694,7 @@ describe("native returned cleanup ownership", () => {
       };
       const runner = new XcrunCommandRunner(
         {},
-        async () => ok({ path: executable, sha256: executableSha256 }),
+        async () => ok(nativeResolvedToolFixture(executable, executableSha256)),
         launcher,
       );
       const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
@@ -824,7 +837,9 @@ describe("native late cancellation with cleanup", () => {
     const runner = new XcrunCommandRunner(
       {},
       async () =>
-        ok({ path: "/controlled/native-tool", sha256: "a".repeat(64) }),
+        ok(
+          nativeResolvedToolFixture("/controlled/native-tool", "a".repeat(64)),
+        ),
       launcher,
     );
     const client = new NativeMacOSProvider({}, runner, "darwin").createClient(
@@ -877,7 +892,9 @@ describe("native late cancellation with cleanup", () => {
 describe("native command failure capture and limits", () => {
   it("bounds both failure streams at a UTF-8 boundary while keeping their totals", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     // "é" is two bytes and straddles the excerpt boundary, so it is dropped whole.
     const stdout = `${"x".repeat(NATIVE_FAILURE_DIAGNOSTIC_BYTES - 1)}é${"y".repeat(1024)}`;
@@ -907,7 +924,9 @@ describe("native command failure capture and limits", () => {
 
   it("rejects output beyond the complete native-command budget", async () => {
     const runner = new XcrunCommandRunner({}, () =>
-      Promise.resolve(ok({ path: process.execPath, sha256: "a".repeat(64) })),
+      Promise.resolve(
+        ok(nativeResolvedToolFixture(process.execPath, "a".repeat(64))),
+      ),
     );
     const megabytesOverBudget =
       Math.ceil(NATIVE_COMMAND_OUTPUT_BUDGET_BYTES / (1024 * 1024)) + 1;

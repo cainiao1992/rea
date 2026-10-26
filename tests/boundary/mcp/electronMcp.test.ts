@@ -1,6 +1,6 @@
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { ok as resultOk, err } from "../../../src/domain/result.js";
-import { rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -659,9 +659,9 @@ const evidenceFor = (value: unknown) => {
   return parseEvidence(value);
 };
 
-it("reports every unresolved Electron path without starting a provider", async () => {
-  const root = await createTestTempDirectory("rea-electron-invalid-paths-");
-  const capture = vi.fn();
+const activePathAdmissionClient = async (
+  capture: ElectronActiveObservationPort["capture"],
+): Promise<Client> => {
   const session = createTestBinarySession(() => {
     throw new Error("must not start");
   });
@@ -680,6 +680,13 @@ it("reports every unresolved Electron path without starting a provider", async (
   resources.push(client, server, session);
   await server.connect(serverTransport);
   await client.connect(clientTransport);
+  return client;
+};
+
+it("reports every unresolved Electron path without starting a provider", async () => {
+  const root = await createTestTempDirectory("rea-electron-invalid-paths-");
+  const capture = vi.fn();
+  const client = await activePathAdmissionClient(capture);
   const fields = ["executable_path", "application_path", "application_root"];
   const result = await client.callTool({
     name: "capture_electron_scenario",
@@ -704,6 +711,71 @@ it("reports every unresolved Electron path without starting a provider", async (
   expect(capture).not.toHaveBeenCalled();
   await client.ping();
 });
+
+it.skipIf(process.platform === "win32")(
+  "refuses obstructed Electron selections and admits native symlink traversal through MCP",
+  async () => {
+    const root = await realpath(
+      await createTestTempDirectory("rea-electron-obstructed-paths-"),
+    );
+    await mkdir(join(root, "application/child"), { recursive: true });
+    await writeFile(join(root, "file"), "not a directory");
+    await writeFile(join(root, "electron"), "#!/bin/sh\n", { mode: 0o755 });
+    await writeFile(join(root, "main.js"), "module.exports = {};\n");
+    await writeFile(
+      join(root, "application/main.js"),
+      "module.exports = {};\n",
+    );
+    await symlink("application/child", join(root, "link"));
+    const capture = vi.fn<ElectronActiveObservationPort["capture"]>(
+      async (input) =>
+        resultOk(
+          createElectronActiveObservationFixtureResult(input.application_path),
+        ),
+    );
+    const client = await activePathAdmissionClient(capture);
+    const selected = {
+      executable_path: join(root, "electron"),
+      application_path: join(root, "main.js"),
+      application_root: join(root, "application"),
+    };
+    for (const field of [
+      "executable_path",
+      "application_path",
+      "application_root",
+    ] as const) {
+      const refused = await client.callTool({
+        name: "capture_electron_scenario",
+        arguments: {
+          ...selected,
+          [field]: `${root}/file/../${basename(selected[field])}`,
+        },
+      });
+      expect(refused.isError).toBe(true);
+      expect(parseMcpToolError(refused)).toMatchObject({
+        error: {
+          code: "invalid_request",
+          details: { issues: [{ path: [field] }] },
+        },
+      });
+      expect(capture).not.toHaveBeenCalled();
+    }
+    const admitted = await client.callTool({
+      name: "capture_electron_scenario",
+      arguments: {
+        ...selected,
+        application_path: `${root}/link/../main.js`,
+        application_root: `${root}/link/..`,
+      },
+    });
+    expect(admitted.isError, JSON.stringify(admitted)).not.toBe(true);
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture.mock.calls[0]?.[0]).toMatchObject({
+      application_path: join(root, "application/main.js"),
+      application_root: join(root, "application"),
+    });
+  },
+);
 
 const expectPaddedElectronTargetRejected = async (
   client: Client,

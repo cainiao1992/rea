@@ -1,3 +1,7 @@
+import {
+  absoluteCallerPath,
+  appendCallerPath,
+} from "../filesystem/callerPath.js";
 import { execFileFailureCapturedOutput } from "../process/ExecFileOutput.js";
 import { collectNumericIssues } from "./AdbNumericIssues.js";
 import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
@@ -16,7 +20,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 import {
   type ExecutionOptions,
@@ -442,7 +446,7 @@ const prepareOutputDirectory = async (
   operation: string,
   directory: string,
 ): Promise<Result<string, AnalysisError>> => {
-  const root = resolve(directory);
+  const root = absoluteCallerPath(directory);
   try {
     await mkdir(root, { recursive: true });
     await access(root, fsConstants.W_OK);
@@ -668,7 +672,7 @@ const publishBugreport = async (
   const stem =
     extension === "" ? fileName : fileName.slice(0, -extension.length);
   for (let suffix = 0; ; suffix += 1) {
-    const destination = join(
+    const destination = appendCallerPath(
       directory,
       suffix === 0 ? fileName : `${stem} (${String(suffix)})${extension}`,
     );
@@ -767,7 +771,7 @@ const reservePackageDestinations = async (
     readonly identity: OutputDirectoryIdentity;
   }[] = [];
   for (const entry of entries) {
-    const path = join(packageDirectory, entry.file_name);
+    const path = appendCallerPath(packageDirectory, entry.file_name);
     try {
       await mkdir(path);
       const created = await lstat(path);
@@ -2045,7 +2049,7 @@ export class AdbProvider {
       input.output_directory,
     );
     if (!directory.ok) return directory;
-    const packageDirectory = join(directory.value, packageName);
+    const packageDirectory = appendCallerPath(directory.value, packageName);
     let packageDirectoryCreated = false;
     let packageDirectoryIdentity: OutputDirectoryIdentity | undefined;
     try {
@@ -2185,7 +2189,7 @@ export class AdbProvider {
       return err(error);
     };
     for (const entry of parsed.paths) {
-      const localPath = join(packageDirectory, entry.file_name);
+      const localPath = appendCallerPath(packageDirectory, entry.file_name);
       const pulled = await runAdb(
         operation,
         {
@@ -2377,7 +2381,7 @@ export class AdbProvider {
       input.output_directory,
     );
     if (!directory.ok) return directory;
-    const localPath = join(directory.value, derived.fileName);
+    const localPath = appendCallerPath(directory.value, derived.fileName);
     const existing = await refuseExistingTarget(operation, localPath);
     if (existing !== undefined) return err(existing);
     const pulled = await runAdb(
@@ -2459,7 +2463,7 @@ export class AdbProvider {
     },
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
-    const localPath = resolve(input.local_path);
+    const localPath = absoluteCallerPath(input.local_path);
     const info = await stat(localPath).then(
       (value) => value,
       () => null,
@@ -2665,7 +2669,7 @@ export class AdbProvider {
     },
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
-    const apkPath = resolve(input.apk_path);
+    const apkPath = absoluteCallerPath(input.apk_path);
     const info = await stat(apkPath).then(
       (value) => value,
       () => null,
@@ -3079,7 +3083,7 @@ export class AdbProvider {
       input.output_directory,
     );
     if (!directory.ok) return directory;
-    const localPath = join(directory.value, "screen.png");
+    const localPath = appendCallerPath(directory.value, "screen.png");
     const existing = await refuseExistingTarget(operation, localPath);
     if (existing !== undefined) return err(existing);
     const captured = await runAdbCapture(
@@ -3210,7 +3214,7 @@ export class AdbProvider {
     let publishedPath: string | undefined;
     try {
       stagingDirectory = await mkdtemp(
-        join(directory.value, ".rea-bugreport-"),
+        appendCallerPath(directory.value, ".rea-bugreport-"),
       );
     } catch (cause) {
       return err(
@@ -3255,7 +3259,14 @@ export class AdbProvider {
               "adb bugreport did not report an archive path; the build may use an unsupported format",
             ),
           );
-        if (dirname(resolve(reportedPath)) !== stagingDirectory)
+        const reportedParent = await stat(
+          dirname(absoluteCallerPath(reportedPath)),
+        );
+        if (
+          !reportedParent.isDirectory() ||
+          reportedParent.dev !== stagingIdentity.dev ||
+          reportedParent.ino !== stagingIdentity.ino
+        )
           return err(
             new AnalysisProtocolError(
               `adb bugreport reported an archive outside its staging directory: ${reportedPath}`,

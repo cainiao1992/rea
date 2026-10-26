@@ -1,17 +1,23 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import {
   access,
   chmod,
   mkdir,
   readFile,
   realpath,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { z } from "zod";
 import { nativeCallObservationInputSchema } from "../../../../src/domain/native/nativeCallObservation.js";
-import { resolveXcrunTool } from "../../../../src/native/CommandRunner.js";
+import {
+  resolveXcrunTool,
+  XcrunCommandRunner,
+} from "../../../../src/native/CommandRunner.js";
 import { LldbCallTracer } from "../../../../src/native/LldbCallTracer.js";
 import { observeProcessStartIdentity } from "../../../../src/process/ProcessOwnershipObservation.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
@@ -22,27 +28,88 @@ const readySchema = z.object({
   config_path: z.string(),
 });
 const shellArgument = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+const exec = promisify(execFile);
+
+const xcrunSelection = async (
+  tool: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<string> => {
+  const { stdout } = await exec("/usr/bin/xcrun", ["--find", tool], {
+    env: environment,
+  });
+  expect(stdout.endsWith("\n")).toBe(true);
+  return stdout.slice(0, -1);
+};
+
+const externalToolchain = async (root: string, tool: string) => {
+  const toolchains = join(root, "Toolchains");
+  const toolchain = join(toolchains, "Audit.xctoolchain");
+  const invocationPath = join(toolchain, "usr/bin", tool);
+  const resolvedPath = join(root, "tool-implementation");
+  await mkdir(dirname(invocationPath), { recursive: true });
+  // LLVM documents this external toolchain layout and selection mechanism:
+  // llvm/tools/xcode-toolchain/CMakeLists.txt. No installed toolchain is changed.
+  await writeFile(
+    join(toolchain, "Info.plist"),
+    `<?xml version="1.0"?>
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>org.rea.audit.selected</string>
+<key>CompatibilityVersion</key><integer>2</integer>
+</dict></plist>`,
+  );
+  await symlink(resolvedPath, invocationPath);
+  return {
+    invocationPath,
+    resolvedPath,
+    environment: {
+      ...process.env,
+      DEVELOPER_DIR: undefined,
+      SDKROOT: undefined,
+      EXTERNAL_TOOLCHAINS_DIR: toolchains,
+      TOOLCHAINS: "org.rea.audit.selected",
+      xcrun_nocache: "1",
+    },
+  };
+};
+
+it.skipIf(process.platform !== "darwin")(
+  "invokes the xcrun-selected native tool spelling and its sibling resources",
+  async () => {
+    const root = await createTestTempDirectory("rea-native-selection-");
+    const tool = await externalToolchain(root, "nm");
+    const source = `#!/bin/sh\nprintf '%s\\n' "$0"\ncat "$(dirname "$0")/selected-resource"\n`;
+    await writeFile(tool.resolvedPath, source, { mode: 0o755 });
+    await writeFile(
+      join(dirname(tool.invocationPath), "selected-resource"),
+      "selected sibling resource\n",
+    );
+    const selectedPath = await xcrunSelection("nm", tool.environment);
+
+    const runner = new XcrunCommandRunner(tool.environment);
+    try {
+      const result = await runner.run("nm", [], {});
+      if (!result.ok) throw result.error;
+      expect(result.value.stdout).toBe(
+        `${selectedPath}\nselected sibling resource\n`,
+      );
+      expect(result.value.executable).toBe(selectedPath);
+      expect(result.value.executable).not.toBe(tool.resolvedPath);
+      expect(result.value.executableSha256).toBe(
+        createHash("sha256").update(source).digest("hex"),
+      );
+    } finally {
+      expect(await runner.retryCleanup()).toEqual([]);
+    }
+  },
+);
 
 it.skipIf(process.platform !== "darwin")(
   "cleans an xcrun-selected LLDB wrapper after cancellation without requiring its pre-exec argv",
   async () => {
     const root = await createTestTempDirectory("rea-lldb-wrapper-");
-    const child = join(root, "safe-child.mjs");
-    const toolchains = join(root, "Toolchains");
-    const toolchain = join(toolchains, "Audit.xctoolchain");
-    const launcher = join(toolchain, "usr/bin/lldb");
+    const tool = await externalToolchain(root, "lldb");
+    const child = join(dirname(tool.invocationPath), "safe-child.mjs");
     const readyPath = join(root, "ready.json");
-    await mkdir(dirname(launcher), { recursive: true });
-    // LLVM documents this external toolchain layout and selection mechanism:
-    // llvm/tools/xcode-toolchain/CMakeLists.txt. No installed toolchain is changed.
-    await writeFile(
-      join(toolchain, "Info.plist"),
-      `<?xml version="1.0"?>
-<plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>org.rea.audit.lldb</string>
-<key>CompatibilityVersion</key><integer>2</integer>
-</dict></plist>`,
-    );
     // This producer launches no debugger or target. Its delayed self-exit also
     // bounds the baseline regression's deliberately refused cleanup.
     await writeFile(
@@ -63,21 +130,15 @@ writeFileSync(${JSON.stringify(readyPath)}, JSON.stringify({
 setTimeout(() => process.exit(0), 10000);
 `,
     );
-    const launcherText = `#!/bin/sh\nexec ${shellArgument(process.execPath)} ${shellArgument(child)} "$@"\n`;
-    await writeFile(launcher, launcherText);
-    await chmod(launcher, 0o755);
-    const environment = {
-      ...process.env,
-      DEVELOPER_DIR: undefined,
-      SDKROOT: undefined,
-      EXTERNAL_TOOLCHAINS_DIR: toolchains,
-      TOOLCHAINS: "org.rea.audit.lldb",
-      xcrun_nocache: "1",
-    };
+    const launcherText = `#!/bin/sh\nexec ${shellArgument(process.execPath)} "$(dirname "$0")/safe-child.mjs" "$@"\n`;
+    await writeFile(tool.resolvedPath, launcherText);
+    await chmod(tool.resolvedPath, 0o755);
+    const { environment } = tool;
     const selected = await resolveXcrunTool("lldb", environment);
     if (!selected.ok) throw selected.error;
     expect(selected.value).toEqual({
-      path: await realpath(launcher),
+      invocationPath: await xcrunSelection("lldb", environment),
+      resolvedPath: await realpath(tool.invocationPath),
       sha256: createHash("sha256").update(launcherText).digest("hex"),
     });
     // Production discovery, acquisition and native process ownership terminate

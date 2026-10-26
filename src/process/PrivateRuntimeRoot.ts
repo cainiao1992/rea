@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -67,9 +67,15 @@ export class PrivateRuntimeRoot {
       );
       return new PrivateRuntimeRoot(runtime.observation.path, runtime);
     }
-    const path = await mkdtemp(
-      join(options.parent ?? tmpdir(), options.prefix ?? "rea-provider-"),
-    );
+    const selectedParent = options.parent ?? tmpdir();
+    // Validate native traversal before canonicalizing the existing parent. The
+    // allocated private path then has one physical spelling for every consumer.
+    if (!(await stat(selectedParent)).isDirectory())
+      throw new Error(
+        `Private runtime parent is not a directory: ${selectedParent}`,
+      );
+    const parent = await realpath(selectedParent);
+    const path = await mkdtemp(join(parent, options.prefix ?? "rea-provider-"));
     // POSIX mkdtemp establishes owner-only access atomically. Return its owner
     // without a fallible permission rewrite and rollback after allocation.
     return new PrivateRuntimeRoot(path);

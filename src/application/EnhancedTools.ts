@@ -1,3 +1,4 @@
+import { permitsCapabilityFallback } from "./CapabilityFallback.js";
 import type { NativeCallGraph } from "../domain/native/nativeCallGraph.js";
 import { nativeProcedureInputSchema } from "../domain/native/nativeProcedureInput.js";
 import { CALL_RELATIONSHIP_TRAVERSALS } from "./CallRelationshipTraversal.js";
@@ -16,7 +17,6 @@ import {
 } from "../contracts/enhancedInputs.js";
 import {
   AnalysisCancelledError,
-  AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
@@ -64,7 +64,10 @@ import {
 import { resolveAnalysisDocument } from "./AnalysisDocument.js";
 import { traceCallPath } from "./CallPathTracing.js";
 import { resolveXrefsName } from "./XrefsAddressResolution.js";
-import { resolveProcedureAddress } from "./ProcedureAddressResolution.js";
+import {
+  parseProcedureAddress,
+  resolveProcedureAddress,
+} from "./ProcedureAddressResolution.js";
 import { traceLiteralFeature } from "./EnhancedLiteralTracing.js";
 import { projectNativeApiInspection } from "./native/NativeApiInspection.js";
 
@@ -102,12 +105,6 @@ type BatchDecompileItem = {
 const isAnalysisCancellation = (
   error: AnalysisError,
 ): error is AnalysisCancelledError => error._tag === "AnalysisCancelledError";
-
-const permitsCapabilityFallback = (
-  error: AnalysisError,
-): error is AnalysisCapabilityUnavailableError =>
-  error instanceof AnalysisCapabilityUnavailableError &&
-  !error.cleanupIncomplete;
 
 /**
  * Composes direct provider operations into reverse-engineering tools.
@@ -578,14 +575,9 @@ export class EnhancedTools {
     if (!resolved.ok) return resolved;
     for (const limitation of resolved.value.limitations)
       limitations.add(limitation);
-    const startAddress = resolved.value.result;
-    if (typeof startAddress !== "string" || startAddress.length === 0)
-      return err(
-        new AnalysisOutputError(
-          "procedure_address",
-          "provider returned no canonical procedure address",
-        ),
-      );
+    const parsedAddress = parseProcedureAddress(resolved.value.result);
+    if (!parsedAddress.ok) return parsedAddress;
+    const startAddress = parsedAddress.value;
     const discovered = new Set([startAddress]);
     const queue: Array<{ address: string; depth: number }> = [
       { address: startAddress, depth: 0 },

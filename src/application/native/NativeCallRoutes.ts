@@ -1,3 +1,4 @@
+import { permitsCapabilityFallback } from "../CapabilityFallback.js";
 import { z } from "zod";
 import type {
   AnalysisOperationPort,
@@ -171,7 +172,7 @@ export const readNativeCallRoutes = async (
       (parsed.data.reference_kinds_available || references.length > 0)
     )
       return finish(ok(undefined));
-  } else if (execution.error._tag !== "AnalysisCapabilityUnavailableError")
+  } else if (!permitsCapabilityFallback(execution.error))
     return finish(err(execution.error));
   const callees = await analysis.execute(
     NATIVE_CALL_ROUTE_SOURCES.callees,

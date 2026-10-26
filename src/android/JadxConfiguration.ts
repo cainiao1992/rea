@@ -1,3 +1,4 @@
+import { appendCallerPath } from "../filesystem/callerPath.js";
 import { DEFAULT_JADX_OPERATION_TIMEOUT_MS } from "../domain/analysisResourceLimits.js";
 import {
   jadxOperationTimeoutGuidance,
@@ -10,7 +11,7 @@ import {
 } from "./JadxInterruption.js";
 import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
-import { delimiter, isAbsolute, join, resolve } from "node:path";
+import { delimiter, isAbsolute, resolve } from "node:path";
 import { inspectWindowsNativeReadiness } from "../process/WindowsAuthority.js";
 import { systemWindowsNativeAuthority } from "../windows/WindowsNativeLoader.js";
 import { providerStartupTimeoutSchema } from "../config/providerStartupTimeout.js";
@@ -642,7 +643,7 @@ const resolveJava = async (
     );
   }
   if (isAbsolute(environment.JAVA_HOME))
-    return join(environment.JAVA_HOME, "bin", executable);
+    return appendCallerPath(environment.JAVA_HOME, `bin/${executable}`);
   throw configurationFailure(
     "open_options_invalid",
     "JAVA_HOME must select an existing JDK by absolute path; omit it to use java on PATH.",

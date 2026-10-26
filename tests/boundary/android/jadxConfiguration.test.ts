@@ -2,7 +2,14 @@ import { AnalysisSettings } from "../../../src/application/AnalysisSettings.js";
 import { JadxProvider } from "../../../src/android/JadxProvider.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
 import { createInspectionResources } from "../../fixtures/inspectionResources.js";
-import { chmod, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 import { expect, it as test, onTestFinished } from "vitest";
@@ -46,6 +53,25 @@ const resolveConfiguration = async (
   });
   return configuration;
 };
+
+it("uses the JDK selected through a symlink parent traversal", async () => {
+  const root = await createTestTempDirectory("rea-jadx-java-traversal-");
+  const intended = join(root, "selected");
+  await mkdir(join(intended, "child"), { recursive: true });
+  const javaHome = await createFakeJdk(intended);
+  await symlink(await createFakeJdk(root, false), join(root, "fake-jdk"));
+  await symlink(join(intended, "child"), join(root, "alias"));
+  const selectedHome = `${root}/alias/../fake-jdk`;
+  expect(await realpath(selectedHome)).toBe(await realpath(javaHome));
+  const jar = join(root, "jadx.jar");
+  await writeJadxJarInventory(jar);
+  await expect(
+    resolveConfiguration(
+      { REA_JADX_MCP_JAR: jar, JAVA_HOME: selectedHome },
+      "inspect_android_package",
+    ),
+  ).resolves.toMatchObject({ java: `${selectedHome}/bin/java` });
+});
 
 it("rejects malformed or unrelated engine archives with JAR-specific recovery", async () => {
   const root = await createTestTempDirectory("rea-jadx-invalid-jar-");

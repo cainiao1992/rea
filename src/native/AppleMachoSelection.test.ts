@@ -35,6 +35,22 @@ it("keeps unknown magic distinct from recognized unsupported Mach-O formats", ()
   expect(failure).not.toBeInstanceOf(UnsupportedMachoMetadataFormatError);
 });
 
+it.each([
+  { magic: 0xfeedface, headerSize: 28 },
+  { magic: 0xcefaedfe, headerSize: 28 },
+  { magic: 0xfeedfacf, headerSize: 32 },
+  { magic: 0xcffaedfe, headerSize: 32 },
+])(
+  "reports a recognized truncated header before CPU admission ($magic)",
+  ({ magic, headerSize }) => {
+    const bytes = Buffer.alloc(headerSize - 1);
+    bytes.writeUInt32BE(magic);
+    expect(() => parseMachoLayout(bytes, "unrecognized")).toThrow(
+      new RangeError("Truncated Mach-O header"),
+    );
+  },
+);
+
 const registerThinCpuFamilyControls = (): void => {
   it.each([
     { cpu: CPU.x86_64, architecture: "arm64" },

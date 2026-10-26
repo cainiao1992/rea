@@ -1,4 +1,7 @@
-import { MachoLoadCommandCursor } from "../domain/apple/machoLoadCommands.js";
+import {
+  MachoLoadCommandCursor,
+  readMachoLoadCommandDeclarations,
+} from "../domain/apple/machoLoadCommands.js";
 import { createHash } from "node:crypto";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
@@ -10,6 +13,7 @@ import {
 import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
   readFatSliceDeclarations,
+  readMachoHeaderPrefixFacts,
   validateFatSlice,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
@@ -143,10 +147,6 @@ export const selectMachoSlice = (
   return selected;
 };
 
-const MH_MAGIC = 0xfeedface;
-const MH_CIGAM = 0xcefaedfe;
-const MH_CIGAM_64 = 0xcffaedfe;
-
 /** A recognized Mach-O class outside this metadata reader's supported formats. */
 export class UnsupportedMachoMetadataFormatError extends Error {
   constructor(message: string) {
@@ -164,26 +164,26 @@ export const parseMachoLayout = (
   const selection = selectMachoSlice(bytes, architecture);
   const { slice, sliceEnd } = selection;
   if (slice + 4 > sliceEnd) throw new RangeError("Truncated Mach-O header");
-  const selectedMagic = bytes.readUInt32LE(slice);
-  const is32Bit = selectedMagic === MH_MAGIC || selectedMagic === MH_CIGAM;
-  const isBigEndian =
-    selectedMagic === MH_CIGAM || selectedMagic === MH_CIGAM_64;
-  const headerSize = is32Bit ? 28 : 32;
-  const recognizedMagic =
-    is32Bit || selectedMagic === 0xfeedfacf || selectedMagic === MH_CIGAM_64;
-  if (!recognizedMagic && slice + 32 > sliceEnd)
-    throw new RangeError("Truncated Mach-O header");
-  if (!recognizedMagic)
+  const selectedBytes = bytes.subarray(slice, sliceEnd);
+  const declarations = readMachoLoadCommandDeclarations(
+    selectedBytes,
+    selectedBytes.length,
+  );
+  if (!declarations.ok) throw new RangeError("Truncated Mach-O header");
+  if (declarations.value === null) {
+    if (selectedBytes.length < 32)
+      throw new RangeError("Truncated Mach-O header");
     throw new TypeError(
       "Only little-endian 64-bit Mach-O metadata is supported",
     );
-  if (slice + headerSize > sliceEnd)
-    throw new RangeError("Truncated Mach-O header");
-  const readHeaderUInt32 = isBigEndian
-    ? (offset: number) => bytes.readUInt32BE(offset)
-    : (offset: number) => bytes.readUInt32LE(offset);
-  const cpuType = readHeaderUInt32(slice + 4);
-  const cpuSubtype = readHeaderUInt32(slice + 8);
+  }
+  const table = declarations.value;
+  const identity = readMachoHeaderPrefixFacts(selectedBytes).identity;
+  if (identity === null)
+    throw new TypeError(
+      "Only little-endian 64-bit Mach-O metadata is supported",
+    );
+  const { cpuType, cpuSubtype } = identity;
   const fat = selection.fatDeclaration;
   if (fat !== undefined) {
     const issue = validateFatSliceIdentity(fat, {
@@ -192,7 +192,7 @@ export const parseMachoLayout = (
     });
     if (issue !== null) throw new TypeError(issue);
   }
-  if (selectedMagic === MH_CIGAM_64) {
+  if (table.wide && !table.littleEndian) {
     if (cpuType !== 0x01000012)
       throw new TypeError("Unsupported big-endian Mach-O CPU type");
     throw new UnsupportedMachoMetadataFormatError(
@@ -205,12 +205,12 @@ export const parseMachoLayout = (
     throw new TypeError(
       `Mach-O CPU type does not match requested architecture ${architecture}`,
     );
-  if (is32Bit)
+  if (!table.wide)
     throw new UnsupportedMachoMetadataFormatError(
       `Unsupported 32-bit Mach-O metadata for requested CPU type ${architecture}`,
     );
-  const commands = bytes.readUInt32LE(slice + 16);
-  const commandEnd = slice + 32 + bytes.readUInt32LE(slice + 20);
+  const commands = table.commandCount;
+  const commandEnd = slice + table.headerSize + table.commandBytes;
   if (commands > 4096 || commandEnd > sliceEnd)
     throw new RangeError("Malformed Mach-O command bounds");
   const state: LayoutState = {
@@ -224,14 +224,9 @@ export const parseMachoLayout = (
     chained: null,
     baseAddress: undefined,
   };
-  const framing = new MachoLoadCommandCursor({
-    wide: true,
-    littleEndian: true,
-    commandCount: commands,
-    commandBytes: commandEnd - slice - 32,
-  });
+  const framing = new MachoLoadCommandCursor(table);
   while (framing.nextOffset !== null) {
-    const cursor = slice + 32 + framing.nextOffset;
+    const cursor = slice + table.headerSize + framing.nextOffset;
     const frame = framing.read(bytes.subarray(cursor, cursor + 8));
     if (!frame.ok) throw new RangeError(frame.error);
     const command = {

@@ -26,7 +26,7 @@ export type ListElectronTargetsInput = z.infer<
 /** Input for passive structural inspection of one Electron file page. */
 const inspectElectronPageFacts = {
   ...approvedElectronInput,
-  target_id: z.string().trim().min(1),
+  target_id: z.string().min(1),
   observation_ms: z.int().min(0).default(100),
   command_timeout_ms: webRuntimeCommandTimeoutSchema,
 } as const;

@@ -37,7 +37,7 @@ export type WebScreenshotArtifact = z.infer<typeof webScreenshotArtifactSchema>;
 export const captureWebScreenshotInputSchema = z.strictObject({
   cdp_endpoint: browserObservationEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
-  target_id: z.string().trim().min(1),
+  target_id: z.string().min(1),
   command_timeout_ms: webRuntimeCommandTimeoutSchema,
 });
 export type CaptureWebScreenshotInput = z.infer<

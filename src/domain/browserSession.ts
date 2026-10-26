@@ -12,7 +12,7 @@ import { browserVersionSchema } from "./browserObservationSchemas.js";
 export const observeWebSessionInputSchema = z.strictObject({
   cdp_endpoint: browserObservationEndpointSchema,
   allowed_origins: browserAllowedOriginsSchema,
-  target_id: z.string().trim().min(1),
+  target_id: z.string().min(1),
   observation_ms: z.int().min(1).default(10_000),
   command_timeout_ms: webRuntimeCommandTimeoutSchema,
 });

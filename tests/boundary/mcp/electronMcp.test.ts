@@ -344,6 +344,7 @@ it("exposes endpoint-scoped Electron discovery and inspection as Evidence", asyn
       targets: [{ target_id: "electron-page" }],
     },
   });
+  await expectPaddedElectronTargetRejected(client, browser);
   const inspected = await client.callTool({
     name: "inspect_electron_page",
     arguments: {
@@ -703,3 +704,22 @@ it("reports every unresolved Electron path without starting a provider", async (
   expect(capture).not.toHaveBeenCalled();
   await client.ping();
 });
+
+const expectPaddedElectronTargetRejected = async (
+  client: Client,
+  browser: FakeCdpBrowser,
+): Promise<void> => {
+  const commandsBeforeRejectedInspection = browser.commands.length;
+  const rejectedInspection = await client.callTool({
+    name: "inspect_electron_page",
+    arguments: {
+      cdp_endpoint: browser.endpoint,
+      target_id: " electron-page ",
+      observation_ms: 0,
+    },
+  });
+  expect(parseMcpToolError(rejectedInspection)).toMatchObject({
+    error: { details: { reason: "target_not_found" } },
+  });
+  expect(browser.commands).toHaveLength(commandsBeforeRejectedInspection);
+};

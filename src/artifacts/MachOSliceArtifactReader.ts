@@ -36,7 +36,12 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   #command: ArtifactCommand | undefined;
   readonly #source: ArtifactFileSource;
   readonly #entries = new Map<string, ArtifactEntry>();
-  readonly #pendingCommands = new Set<Promise<unknown>>();
+  readonly #enumerations = new Set<AsyncGenerator<ArtifactEntry, void>>();
+  readonly #pendingOpens = new Set<Promise<Readable>>();
+  readonly #streams = new Map<
+    Readable,
+    { readonly source: Readable; readonly completion: Promise<unknown> }
+  >();
   #closed = false;
   #closePromise: Promise<void> | undefined;
 
@@ -52,6 +57,18 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   }
 
   async *entries(signal?: AbortSignal): AsyncIterable<ArtifactEntry> {
+    const enumeration = this.#readEntries(signal);
+    this.#enumerations.add(enumeration);
+    try {
+      yield* enumeration;
+    } finally {
+      this.#enumerations.delete(enumeration);
+    }
+  }
+
+  async *#readEntries(
+    signal?: AbortSignal,
+  ): AsyncGenerator<ArtifactEntry, void> {
     this.#entries.clear();
     const source = await this.#ensureSource();
     await this.#source.readSelectedPath();
@@ -65,13 +82,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
       ["-detailed_info", this.path],
       signal === undefined ? {} : { signal },
     );
-    this.#pendingCommands.add(command);
-    let captured: Awaited<typeof command>;
-    try {
-      captured = await command;
-    } finally {
-      this.#pendingCommands.delete(command);
-    }
+    const captured = await command;
     if (!captured.ok)
       throw new ArtifactReaderFailure(
         captured.error.reason === "cancelled" ? "cancelled" : "unavailable",
@@ -123,6 +134,11 @@ export class MachOSliceArtifactReader implements ArtifactReader {
       signal,
     );
     await this.#source.readSelectedPath();
+    if (this.#closed)
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        "Universal Mach-O reader is closed",
+      );
     if (structural.status === "malformed")
       throw new ArtifactReaderFailure(
         "integrity",
@@ -272,7 +288,15 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     }
   }
 
-  async open(entry: ArtifactEntry, signal?: AbortSignal): Promise<Readable> {
+  open(entry: ArtifactEntry, signal?: AbortSignal): Promise<Readable> {
+    const operation = this.#open(entry, signal);
+    this.#pendingOpens.add(operation);
+    const release = () => this.#pendingOpens.delete(operation);
+    void operation.then(release, release);
+    return operation;
+  }
+
+  async #open(entry: ArtifactEntry, signal?: AbortSignal): Promise<Readable> {
     if (signal?.aborted === true)
       return Promise.reject(
         new ArtifactReaderFailure("cancelled", "Mach-O slice read cancelled", {
@@ -301,6 +325,11 @@ export class MachOSliceArtifactReader implements ArtifactReader {
       );
     const source = await this.#ensureSource();
     await this.#source.readSelectedPath();
+    if (this.#closed)
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        "Universal Mach-O reader is closed",
+      );
     if (
       !Number.isSafeInteger(offset + size) ||
       offset + size > source.initial.size
@@ -369,6 +398,15 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         }
       })(),
     );
+    output.on("error", () => undefined);
+    const completion = Promise.all(
+      [sourceStream, output].map(
+        (stream) =>
+          new Promise<void>((resolve) => stream.once("close", resolve)),
+      ),
+    );
+    this.#streams.set(output, { source: sourceStream, completion });
+    void completion.then(() => this.#streams.delete(output));
     const onSourceError = (cause: unknown): void => {
       const completedCancellation =
         cause instanceof ArtifactReaderFailure &&
@@ -428,7 +466,25 @@ export class MachOSliceArtifactReader implements ArtifactReader {
   }
 
   async #releaseResources(): Promise<void> {
-    await Promise.allSettled(this.#pendingCommands);
+    for (const [output, { source }] of this.#streams) {
+      output.destroy(
+        new ArtifactReaderFailure(
+          "unavailable",
+          "Universal Mach-O reader closed",
+        ),
+      );
+      source.destroy();
+    }
+    const outcomes = await Promise.allSettled([
+      // Failed opens remain their caller's primary result, not a cleanup error.
+      Promise.allSettled(this.#pendingOpens),
+      ...Array.from(this.#enumerations, (enumeration) => enumeration.return()),
+      ...Array.from(this.#streams.values(), ({ completion }) => completion),
+    ]);
+    this.#enumerations.clear();
+    const failures = outcomes.flatMap((outcome) =>
+      outcome.status === "rejected" ? [outcome.reason as unknown] : [],
+    );
     let cleanup: ArtifactReaderFailure["cleanup"];
     try {
       const failures = (await this.runner.retryCleanup?.()) ?? [];
@@ -449,6 +505,16 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         "native-command-process-cleanup",
       );
     }
+    for (const cause of failures)
+      cleanup = {
+        reason: [
+          cleanup?.reason,
+          ArtifactReaderFailure.cleanupObservation(cause, this.path).reason,
+        ]
+          .filter((reason) => reason !== undefined)
+          .join("; "),
+        resources: [...new Set([...(cleanup?.resources ?? []), this.path])],
+      };
     try {
       await this.#source.close();
     } catch (cause: unknown) {
@@ -458,7 +524,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     if (cleanup !== undefined)
       throw new ArtifactReaderFailure(
         "unavailable",
-        "Native command process cleanup remains incomplete",
+        "Universal Mach-O reader cleanup remains incomplete",
         { cleanup },
       );
   }

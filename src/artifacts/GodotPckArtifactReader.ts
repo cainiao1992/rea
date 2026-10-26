@@ -125,12 +125,14 @@ export class GodotPckArtifactReader implements ArtifactReader {
       // retirement before a caller has attached its own error listener.
       output.on("error", () => undefined);
       this.#streams.add(output);
+      // Writable completion can leave an unread member buffered on the readable
+      // side. The returned stream stays owned until that side closes too.
+      output.once("close", () => this.#streams.delete(output));
       void this.#scope
         .run(
           () =>
             new Promise<void>((resolve) => {
               pipeline(source, output, () => {
-                this.#streams.delete(output);
                 resolve();
               });
             }),

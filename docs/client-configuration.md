@@ -74,6 +74,17 @@ Connect Fiddler Everywhere's MCP server separately for HTTP traffic debugging,
 preserving your REA client entry. See the
 [setup instructions and public skills](web-network-captures.md#fiddler-everywhere-mcp-and-public-skills).
 
+## VS Code
+
+`rea setup --client vscode` configures the default VS Code user profile's
+`mcp.json`. Setup honors `VSCODE_PORTABLE` and `VSCODE_APPDATA` when they are
+present in its environment. It cannot infer a running window's named profile
+or `--user-data-dir`; configure that profile separately when needed.
+
+`rea setup --client copilot_cli` instead configures Copilot's user
+`mcp-config.json`. VS Code can forward eligible profile servers to Copilot
+sessions; see the [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
+
 ## GitHub Copilot CLI
 
 Setup preserves an existing `tools` selection in the REA registration, including

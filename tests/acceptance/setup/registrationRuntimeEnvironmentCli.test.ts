@@ -948,3 +948,66 @@ for (const invalidSetting of [
     },
     120_000,
   );
+
+cliTest(
+  "public VS Code setup registers in VSCODE_APPDATA without changing the default configuration",
+  async ({ cli }) => {
+    const home = await createTestTempDirectory("rea-vscode-appdata-cli-");
+    const selectedData = join(home, "selected data");
+    const config = join(selectedData, "Code", "User", "mcp.json");
+    const defaultData =
+      process.platform === "win32"
+        ? join(home, "AppData", "Roaming")
+        : process.platform === "darwin"
+          ? join(home, "Library", "Application Support")
+          : join(home, ".config");
+    const defaultConfig = join(defaultData, "Code", "User", "mcp.json");
+    const original = JSON.stringify({
+      servers: { foreign: { command: "keep" } },
+    });
+    const defaultOriginal = JSON.stringify({
+      servers: { defaultServer: { command: "untouched" } },
+    });
+    await mkdir(dirname(config), { recursive: true });
+    await mkdir(dirname(defaultConfig), { recursive: true });
+    await writeFile(config, original);
+    await writeFile(defaultConfig, defaultOriginal);
+    const setup = await cli.run({
+      arguments: [
+        "setup",
+        "--client",
+        "vscode",
+        "--skill=false",
+        "--yes",
+        "--json",
+      ],
+      cwd: home,
+      environment: {
+        HOME: home,
+        USERPROFILE: home,
+        APPDATA: join(home, "AppData", "Roaming"),
+        XDG_CONFIG_HOME: join(home, ".config"),
+        VSCODE_APPDATA: selectedData,
+        VSCODE_PORTABLE: "",
+        ...missingHopperAndGhidraEnvironment(home),
+      },
+    });
+    expect(setup.exitCode, setup.stdout + setup.stderr).toBe(0);
+    expect(setup.json).toMatchObject({ status: "ready" });
+    expect(JSON.parse(await readFile(config, "utf8"))).toMatchObject({
+      servers: {
+        foreign: { command: "keep" },
+        rea: {
+          command: process.execPath,
+          args: [resolve("scripts/rea.mjs"), "mcp"],
+        },
+      },
+    });
+    expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(original);
+    expect(await readFile(defaultConfig, "utf8")).toBe(defaultOriginal);
+    await expect(access(`${defaultConfig}.rea.backup`)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  },
+  120_000,
+);
